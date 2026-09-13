@@ -1,5 +1,7 @@
 // Runtime interfaces and hosts
 
+// Apty diagnostics (evidence model + Widget/Studio/Client/Service-Worker providers)
+export * from "./apty/index.js";
 // Automation
 export * from "./automation/index.js";
 // Context providers
@@ -35,7 +37,5 @@ export * from "./skill/index.js";
 export * from "./storage/index.js";
 // Tools
 export * from "./tools/index.js";
-// Voice
-// export * from "./voice/index.js";
 // WebSocket MCP Bridge
 export * from "./ws-bridge/index.js";
