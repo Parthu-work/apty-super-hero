@@ -475,11 +475,14 @@ See `DECISIONS.md`.
 
 ## Last Commit
 
-(Filled in at push time — see `git log -1` for the current value.)
+`e4a4a4f58488eb7f57b0d06e7c4b67020e3117c9` — "docs: publish Confluence
+engineering documentation package; fix stale tool count"
 
 ## Last Push
 
-(Filled in at push time.)
+Pushed to `origin/main` at `e4a4a4f` (2026-09-13). Confirm with
+`git log -1` / `git status` that this is still the head before assuming
+it's current.
 
 ## NEXT SESSION HANDOFF
 
