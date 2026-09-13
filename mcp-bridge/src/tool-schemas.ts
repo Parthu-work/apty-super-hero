@@ -510,6 +510,42 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
     },
   },
 
+  // ===== DevTools (CDP) Tools =====
+  {
+    name: "get_network_diagnostics",
+    description:
+      "Watch network requests on the current tab for a short window and return correlated request/response pairs, status codes, and failures. Only sees traffic during the capture window.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        windowMs: {
+          type: "number",
+          description: "Capture window in milliseconds (500-15000, default 3000).",
+        },
+        onlyErrors: {
+          type: "boolean",
+          description: "If true, only return failed requests or status >= 400. Default false.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_runtime_diagnostics",
+    description:
+      "Watch for browser-level runtime events (uncaught exceptions with stack traces, CSP violations) on the current tab for a short window. Only sees events during the capture window.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        windowMs: {
+          type: "number",
+          description: "Capture window in milliseconds (500-15000, default 3000).",
+        },
+      },
+      required: [],
+    },
+  },
+
   // ===== Download Tools =====
   {
     name: "download_image",
@@ -734,9 +770,9 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
 
   // ===== Apty Tools =====
   {
-    name: "get_apty_debug_logs",
+    name: "get_apty_page_logs",
     description:
-      "Get recent console output and unhandled errors captured on the current page (useful for debugging an Apty workflow/widget issue).",
+      "Get recent console output and unhandled errors captured on the current page (useful for debugging any Apty issue). Sensitive values are redacted.",
     inputSchema: {
       type: "object",
       properties: {
@@ -755,9 +791,27 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
     },
   },
   {
-    name: "get_apty_widget_snapshot",
+    name: "get_apty_widget_diagnostics",
     description:
-      "Get structured state from the Apty widget on the current page (active workflow, current step, last error), if the widget exposes a debug snapshot. Returns available: false if no Apty widget debug bridge is present.",
+      "Get the Apty Widget's status (loaded, initialized, visible, last error) and recent logs on the current page. status: 'not_configured' means the Widget hasn't implemented the diagnostic bridge yet.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_apty_client_diagnostics",
+    description:
+      "Get the Apty Client's status (loaded, initialized, version) and recent logs on the current page. status: 'not_configured' means the Client hasn't implemented the diagnostic bridge yet.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_apty_studio_diagnostics",
+    description:
+      "Get Apty Studio's status (active, selection mode, last selected selector) and recent logs via cross-extension messaging. Requires studioExtensionId to be configured and Studio to implement the message handler.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_apty_service_worker_diagnostics",
+    description:
+      "Get Apty's service-worker status and recent logs via a configured extension message channel or diagnostic HTTP endpoint. Not available until Apty exposes one of those channels.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
 ];

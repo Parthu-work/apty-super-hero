@@ -2,6 +2,7 @@ import type { FunctionTool } from "@aipexstudio/aipex-core";
 import type { z } from "zod";
 import { aptyTools } from "./apty";
 import { computerTool } from "./computer";
+import { devToolsTools } from "./devtools.js";
 import {
   clickTool,
   fillElementByUidTool,
@@ -104,7 +105,10 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   // Skills (6 tools)
   ...skillTools,
 
-  // Apty integration (2 tools)
+  // DevTools / CDP diagnostics (2 tools)
+  ...devToolsTools,
+
+  // Apty integration (5 tools)
   ...aptyTools,
 ] as const;
 
