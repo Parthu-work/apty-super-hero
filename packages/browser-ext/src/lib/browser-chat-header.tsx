@@ -163,7 +163,6 @@ export function BrowserChatHeader({
           <PlusIcon className="size-4" />
           {t("common.newChat")}
         </Button>
-
       </div>
 
       {children}

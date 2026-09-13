@@ -77,9 +77,7 @@ export const getInterventionInfoTool = tool({
   parameters: z.object({
     type: z
       .enum(["monitor-operation", "user-selection"])
-      .describe(
-        "Intervention type (monitor-operation, user-selection)",
-      ),
+      .describe("Intervention type (monitor-operation, user-selection)"),
   }),
   execute: async ({ type }) => {
     try {
@@ -142,9 +140,7 @@ export const requestInterventionTool = tool({
   parameters: z.object({
     type: z
       .enum(["monitor-operation", "user-selection"])
-      .describe(
-        "Intervention type (monitor-operation, user-selection)",
-      ),
+      .describe("Intervention type (monitor-operation, user-selection)"),
     params: z
       .record(z.string(), z.unknown())
       .nullable()

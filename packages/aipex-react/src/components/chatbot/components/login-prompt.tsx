@@ -12,9 +12,7 @@ const defaultTranslations = {
   "loginPrompt.configureByok": "Open Settings",
 };
 
-export const LoginPrompt: React.FC<LoginPromptProps> = ({
-  onOpenSettings,
-}) => {
+export const LoginPrompt: React.FC<LoginPromptProps> = ({ onOpenSettings }) => {
   // Simple translation function
   const t = (key: string): string => {
     return defaultTranslations[key as keyof typeof defaultTranslations] || key;

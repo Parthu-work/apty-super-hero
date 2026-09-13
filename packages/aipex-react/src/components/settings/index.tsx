@@ -51,7 +51,6 @@ import {
 } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import type { SaveStatus, SettingsPageProps, SettingsTab } from "./types";
 
 const PROVIDER_TYPE_TO_KEY: Record<ProviderType, AIProviderKey> = {
@@ -1115,7 +1114,6 @@ export function SettingsPage({
                 </CardContent>
               </Card>
             )}
-
           </TabsContent>
 
           {/* AI Configuration Tab */}

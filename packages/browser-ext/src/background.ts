@@ -538,7 +538,6 @@ chrome.runtime.onMessageExternal.addListener(
       return true; // Keep message channel open for async response
     }
 
-
     sendResponse({ success: false, error: "Unknown action" });
     return true;
   },
