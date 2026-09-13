@@ -22,6 +22,21 @@ below) and then explicitly superseded by a narrower, more urgent
 instruction to focus on Service Worker diagnostics instead. The session
 architecture work is genuinely not built yet; don't assume it exists.
 
+**This session (documentation-only, no code changes)**: a complete
+engineering documentation package was published to Apty's Confluence space,
+under the folder at
+`https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/folder/1467613554`.
+Root page: **"Apty Live Browser Debugging Agent"**
+(`https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/pages/1467679209`),
+with 12 child pages (01–12, listed in `## Confluence Documentation` below).
+The package is grounded in the repository at commit `14693a9` and uses
+PLANNED / PARTIALLY IMPLEMENTED / BLOCKED–REQUIRES-APTY-SIDE-SUPPORT status
+labels throughout. Writing it surfaced and corrected a pre-existing error in
+this file and elsewhere: the tool-registry count was documented as 47 but
+is actually 41 (verified directly against `allBrowserTools` in
+`packages/browser-runtime/src/tools/index.ts`); corrected everywhere in
+this file.
+
 ## Current Phase
 
 Phase 2 of the informal roadmap below:
@@ -35,6 +50,9 @@ Phase 2 of the informal roadmap below:
 4. Multi-session/multi-chat isolation (investigated, not implemented — see
    below); evidence correlation quality; recovery/retry behavior;
    verification loops (not started)
+5. ~~Publish a complete engineering documentation package to Confluence~~
+   (done, this session — see `## Confluence Documentation` below;
+   explicitly a documentation-only task, no code changes)
 
 ## What Was Inherited From AIPex
 
@@ -52,7 +70,7 @@ brief's classification: this is infrastructure, not AIPex-the-product):
   `user-selection`) — `packages/browser-runtime/src/intervention`
 - Skill system with a real QuickJS WASM sandbox (not `eval`) —
   `packages/browser-runtime/src/skill`
-- 47 existing browser/tab/DOM/screenshot/skill tools in the tool registry
+- 41 existing browser/tab/DOM/screenshot/skill tools in the tool registry
 
 ## What Was Removed From AIPex
 
@@ -111,8 +129,9 @@ AIPex's release automation (`bump`/`release` workflows).
   entries and uncaught exceptions with stack traces, which do NOT go through
   `console.*` and so are invisible to `get_apty_page_logs`).
 
-Total tool count: 47 (up from AIPex's original ~40; net new: 2 devtools + 3
-new apty tools beyond the 2 that existed from the prior session).
+Total tool count: 41, as verified against `allBrowserTools` in
+`packages/browser-runtime/src/tools/index.ts` (a prior estimate of 47 in
+this file was not checked against the registry and has been corrected).
 
 - `packages/browser-ext/src/apty-console-bridge.ts` (prior session): a
   MAIN-world content script that buffers console output/errors on every
@@ -270,11 +289,13 @@ codebase. Neither exists live today; every call still reports
 
 ## Browser Tools
 
-47 tools registered in `packages/browser-runtime/src/tools/index.ts`:
+41 tools registered in `packages/browser-runtime/src/tools/index.ts`:
 tabs (7), UI operations/element interaction (8), page content (4),
 screenshots (3), downloads (2), interventions (4), skills (6), DevTools (2,
 new), Apty integration (5, 2 carried over + 3 new). See that file for the
-authoritative, categorized list.
+authoritative, categorized list. (`bookmark.ts`, `history.ts` and
+`organize-tabs.ts` exist as source files but are not registered in
+`allBrowserTools`.)
 
 ## DevTools
 
@@ -400,6 +421,35 @@ it may turn out to be sufficient on its own for the tab-binding problem,
 with the existing `Session`/conversation-storage layer already covering
 chat-state isolation.
 
+## Confluence Documentation
+
+A 12-page engineering documentation package exists in Apty's Confluence,
+grounded in this repository at commit `14693a9`. Root page:
+["Apty Live Browser Debugging Agent"](https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/pages/1467679209)
+(page ID `1467679209`), which links to all 12 children:
+
+| # | Page | Page ID |
+|---|---|---|
+| 01 | Product Overview | `1467679232` |
+| 02 | Architecture | `1467679254` |
+| 03 | How the Agent Works | `1467679275` |
+| 04 | Apty Integration | `1467580699` |
+| 05 | Service Worker Diagnostics | `1467580720` |
+| 06 | Chat & Debug Session Architecture | `1467646342` |
+| 07 | Current Implementation Inventory | `1467679296` |
+| 08 | Apty Product & Engineering Requirements | `1467646363` |
+| 09 | Open Questions for Apty Engineering | `1467613558` |
+| 10 | Security Architecture | `1467580742` |
+| 11 | Limitations & Future Architecture | `1467580764` |
+| 12 | Engineering Handoff Summary | `1467679319` |
+
+This documentation is a snapshot, not a live view — if it and the code ever
+disagree, trust the code (this file, `ARCHITECTURE.md`, `SECURITY_AUDIT.md`,
+`CHANGELOG.md` in particular) and update the Confluence pages to match.
+Writing it was explicitly a documentation-only task — no code in this
+repository was modified to produce it, beyond the doc-file updates in this
+commit.
+
 ## Known Limitations
 
 - No real Apty Widget/Client/Studio/Service-Worker integration — every
@@ -434,7 +484,10 @@ See `DECISIONS.md`.
 ## NEXT SESSION HANDOFF
 
 Read this file, `ARCHITECTURE.md`, `DECISIONS.md`, `SECURITY_AUDIT.md`, and
-`CHANGELOG.md` first. Then `git log --oneline -10` and `git status`.
+`CHANGELOG.md` first. Then `git log --oneline -10` and `git status`. A
+12-page Confluence documentation package also exists — see
+`## Confluence Documentation` above — and is a useful orientation read,
+though this repo's own docs remain the source of truth if the two disagree.
 
 **What's blocked and needs a human/Apty-side answer before continuing:**
 - Apty Studio's actual extension ID (or confirmation Studio isn't a

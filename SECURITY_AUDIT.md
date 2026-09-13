@@ -5,6 +5,13 @@ mitigation / Recommended fix / Status. Findings are listed most-severe
 first within each status group. This is a living document — update it
 whenever a finding is fixed or a new one is discovered, don't just append.
 
+This file is summarized (not duplicated) on Confluence page
+["10. Security Architecture"](https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/pages/1467580742),
+part of the 12-page documentation package rooted at
+["Apty Live Browser Debugging Agent"](https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/pages/1467679209).
+No findings changed as part of that documentation task — this file remains
+the authoritative source; the Confluence page is a navigable summary of it.
+
 ## Fixed
 
 ### 1. `externally_connectable` allowed any localhost webpage to control the extension

@@ -4,7 +4,32 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
-## Unreleased (this session)
+## Unreleased (this session) — engineering documentation package
+
+**Added**
+- A 12-page engineering documentation package published to Apty's
+  Confluence space, rooted at
+  ["Apty Live Browser Debugging Agent"](https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/pages/1467679209)
+  (page ID `1467679209`), grounded in this repository at commit `14693a9`.
+  Covers product overview, architecture, the agent's debugging loop and
+  evidence model, all four Apty integration points, Service Worker
+  diagnostics (Option A vs B), chat/session architecture and its known
+  gap, a full implementation inventory, a consolidated Apty engineering
+  requirements ask, open questions for Apty engineering, security
+  architecture, limitations with recommended sequencing, and an
+  engineering handoff summary. Full page index in `PROJECT_PROGRESS.md`'s
+  "Confluence Documentation" section. This was a documentation-only task —
+  no application code was changed to produce it.
+
+**Fixed**
+- Corrected a pre-existing inaccuracy in `PROJECT_PROGRESS.md` and
+  `ARCHITECTURE.md`: the tool-registry count was documented as 47 but is
+  actually 41, verified directly against `allBrowserTools` in
+  `packages/browser-runtime/src/tools/index.ts`. Also corrected a claim
+  that bookmark/history tools are registered — their source files exist
+  from the AIPex baseline but are not included in `allBrowserTools`.
+
+## Previous session — Apty Service-Worker diagnostics hardening
 
 **Added**
 - `docs/apty-integration/apty-widget-service-worker.reference.ts` — a

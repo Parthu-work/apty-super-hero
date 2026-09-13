@@ -4,6 +4,16 @@ This documents what is actually implemented, not the aspirational end
 state. Where something described in the original brief isn't built yet,
 this file says so explicitly rather than describing it as done.
 
+A more detailed, diagram-heavy version of this document — plus product
+overview, Apty integration contracts, security architecture, and an
+engineering handoff summary — lives in Apty's Confluence as a 12-page
+documentation package rooted at
+["Apty Live Browser Debugging Agent"](https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/pages/1467679209),
+grounded in this repository at commit `14693a9`. See
+`PROJECT_PROGRESS.md`'s "Confluence Documentation" section for the full
+page index. This file remains the fastest-to-update, code-adjacent source
+of truth; treat Confluence as a snapshot.
+
 ## High-level shape
 
 ```
@@ -185,10 +195,13 @@ Enforced at two layers:
 - **RAG / knowledge base of any kind** — explicitly out of scope per the
   project brief; Apty has a separate system for this.
 - **Deterministic evidence correlation engine** — see Evidence Model above.
-- **Generic browser automation / productivity features** — tab/bookmark/
-  history management tools still exist in the registry (inherited
-  infrastructure, harmless to keep) but the system prompt no longer
-  presents them as this agent's purpose.
+- **Generic browser automation / productivity features** — bookmark/history
+  tool source files (`bookmark.ts`, `history.ts`) still exist from the
+  AIPex baseline but are not registered in `allBrowserTools` (verified
+  against `packages/browser-runtime/src/tools/index.ts`); tab-management
+  tools (list/switch/create/close tabs) are registered and used for
+  browser-debugging purposes, and the system prompt does not present any
+  of this as the agent's purpose.
 - **Any actual Apty Studio/Widget/Client/Service-Worker communication** —
   only the client-side halves of these integrations exist; the Apty-side
   halves (a real extension ID, a real global, a real message handler) do
