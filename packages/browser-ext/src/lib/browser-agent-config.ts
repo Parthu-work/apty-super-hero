@@ -117,6 +117,6 @@ export function useBrowserTools(): FunctionTool[] {
  */
 export const BROWSER_AGENT_CONFIG = {
   instructions: SYSTEM_PROMPT,
-  name: "AIPex Browser Assistant",
+  name: "Apty Live Browser Debugging Agent",
   maxTurns: 2000,
 } as const;
