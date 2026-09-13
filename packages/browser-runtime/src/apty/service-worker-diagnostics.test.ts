@@ -6,7 +6,6 @@ import {
 
 const mockSendMessage = vi.fn();
 
-// biome-ignore lint/suspicious/noExplicitAny: minimal chrome API surface for this test file
 (global as any).chrome = {
   runtime: {
     sendMessage: mockSendMessage,
@@ -33,12 +32,10 @@ function respondWithLastError() {
       _message: unknown,
       callback: (response: unknown) => void,
     ) => {
-      // biome-ignore lint/suspicious/noExplicitAny: test-only chrome mock
       (global as any).chrome.runtime.lastError = {
         message: "Could not establish connection",
       };
       callback(undefined);
-      // biome-ignore lint/suspicious/noExplicitAny: test-only chrome mock
       (global as any).chrome.runtime.lastError = undefined;
     },
   );
@@ -53,7 +50,6 @@ function neverRespond() {
 beforeEach(() => {
   vi.useFakeTimers();
   mockSendMessage.mockReset();
-  // biome-ignore lint/suspicious/noExplicitAny: test-only chrome mock
   (global as any).chrome.runtime.lastError = undefined;
 });
 
@@ -189,7 +185,6 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — HTTP diagnostic endpoin
 
   beforeEach(() => {
     fetchMock.mockReset();
-    // biome-ignore lint/suspicious/noExplicitAny: test-only fetch mock
     (global as any).fetch = fetchMock;
   });
 

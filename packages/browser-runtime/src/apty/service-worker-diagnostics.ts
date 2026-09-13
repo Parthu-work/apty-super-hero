@@ -72,13 +72,13 @@ type ValidationResult<T> =
   | { ok: true; value: T }
   | { ok: false; reason: string };
 
-function validate<T>(
-  schema: z.ZodType<T>,
-  data: unknown,
-): ValidationResult<T> {
+function validate<T>(schema: z.ZodType<T>, data: unknown): ValidationResult<T> {
   const parsed = schema.safeParse(data);
   if (!parsed.success) {
-    return { ok: false, reason: parsed.error.issues[0]?.message ?? "invalid shape" };
+    return {
+      ok: false,
+      reason: parsed.error.issues[0]?.message ?? "invalid shape",
+    };
   }
   return { ok: true, value: parsed.data };
 }
@@ -151,9 +151,16 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
       const result = validate(statusResponseSchema, raw);
       if (!result.ok) {
-        return { status: "error", error: `malformed status response: ${result.reason}` };
+        return {
+          status: "error",
+          error: `malformed status response: ${result.reason}`,
+        };
       }
-      return { status: "ok", running: result.value.running, lastActivity: result.value.lastActivity };
+      return {
+        status: "ok",
+        running: result.value.running,
+        lastActivity: result.value.lastActivity,
+      };
     }
 
     if (this.config.diagnosticEndpoint) {
@@ -167,14 +174,24 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
       try {
         body = await response.json();
       } catch {
-        return { status: "error", error: "diagnostic endpoint returned invalid JSON" };
+        return {
+          status: "error",
+          error: "diagnostic endpoint returned invalid JSON",
+        };
       }
 
       const result = validate(statusResponseSchema, body);
       if (!result.ok) {
-        return { status: "error", error: `malformed status response: ${result.reason}` };
+        return {
+          status: "error",
+          error: `malformed status response: ${result.reason}`,
+        };
       }
-      return { status: "ok", running: result.value.running, lastActivity: result.value.lastActivity };
+      return {
+        status: "ok",
+        running: result.value.running,
+        lastActivity: result.value.lastActivity,
+      };
     }
 
     return { status: "not_configured" };

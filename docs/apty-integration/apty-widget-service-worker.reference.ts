@@ -78,7 +78,8 @@
 // Config — fill in with the real debugging agent's extension ID once known.
 // Do not use a wildcard/placeholder in production.
 // ---------------------------------------------------------------------------
-const DEBUG_AGENT_EXTENSION_ID = "<the Apty Debugging Agent's real extension ID>";
+const DEBUG_AGENT_EXTENSION_ID =
+  "<the Apty Debugging Agent's real extension ID>";
 
 const STORAGE_KEY = "apty_sw_log_buffer";
 const MAX_ENTRIES = 1000;
@@ -102,14 +103,19 @@ interface AptyLogEntry {
 const MAX_STRING_LENGTH = 2000;
 const MAX_DEPTH = 4;
 
-function safeStringifyValue(value: unknown, depth = 0, seen = new WeakSet<object>()): string {
+function safeStringifyValue(
+  value: unknown,
+  depth = 0,
+  seen = new WeakSet<object>(),
+): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
 
   const t = typeof value;
   if (t === "string") return value as string;
   if (t === "number" || t === "boolean" || t === "bigint") return String(value);
-  if (t === "function") return `[Function: ${(value as { name?: string }).name || "anonymous"}]`;
+  if (t === "function")
+    return `[Function: ${(value as { name?: string }).name || "anonymous"}]`;
 
   if (value instanceof Error) {
     return `${value.name}: ${value.message}${value.stack ? `\n${value.stack}` : ""}`;
@@ -178,7 +184,11 @@ async function flushBuffer(): Promise<void> {
 
 async function appendLog(level: LogLevel, args: unknown[]): Promise<void> {
   await loadBufferOnce();
-  buffer.push({ level, message: safeStringifyArgs(args), timestamp: Date.now() });
+  buffer.push({
+    level,
+    message: safeStringifyArgs(args),
+    timestamp: Date.now(),
+  });
   if (buffer.length > MAX_ENTRIES) {
     buffer = buffer.slice(-MAX_ENTRIES);
   }
@@ -214,36 +224,38 @@ installConsoleCapture();
 // External message handler — validated, allowlisted, schema-shaped responses
 // ---------------------------------------------------------------------------
 
-chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  // Reject anything not from the specific, configured debugging-agent
-  // extension. No response is sent to unrecognized senders — never
-  // acknowledge or leak status information to an unexpected caller.
-  if (sender.id !== DEBUG_AGENT_EXTENSION_ID) {
+chrome.runtime.onMessageExternal.addListener(
+  (message, sender, sendResponse) => {
+    // Reject anything not from the specific, configured debugging-agent
+    // extension. No response is sent to unrecognized senders — never
+    // acknowledge or leak status information to an unexpected caller.
+    if (sender.id !== DEBUG_AGENT_EXTENSION_ID) {
+      return false;
+    }
+
+    if (!message || typeof message.type !== "string") {
+      return false;
+    }
+
+    if (message.type === "apty-debug-agent:get-service-worker-status") {
+      sendResponse({
+        running: true,
+        lastActivity: Date.now(),
+      });
+      return true;
+    }
+
+    if (message.type === "apty-debug-agent:get-service-worker-logs") {
+      (async () => {
+        await loadBufferOnce();
+        sendResponse({ logs: buffer });
+      })();
+      return true; // keep the message channel open for the async response
+    }
+
     return false;
-  }
-
-  if (!message || typeof message.type !== "string") {
-    return false;
-  }
-
-  if (message.type === "apty-debug-agent:get-service-worker-status") {
-    sendResponse({
-      running: true,
-      lastActivity: Date.now(),
-    });
-    return true;
-  }
-
-  if (message.type === "apty-debug-agent:get-service-worker-logs") {
-    (async () => {
-      await loadBufferOnce();
-      sendResponse({ logs: buffer });
-    })();
-    return true; // keep the message channel open for the async response
-  }
-
-  return false;
-});
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Manifest requirement for the Apty Widget's own manifest.json:
