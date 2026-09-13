@@ -731,4 +731,33 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
       required: ["skillName"],
     },
   },
+
+  // ===== Apty Tools =====
+  {
+    name: "get_apty_debug_logs",
+    description:
+      "Get recent console output and unhandled errors captured on the current page (useful for debugging an Apty workflow/widget issue).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "number",
+          description:
+            "Maximum number of log entries to return, most recent first. Default 100.",
+        },
+        minLevel: {
+          type: "string",
+          enum: ["debug", "log", "info", "warn", "error"],
+          description: "Minimum severity to include. Default 'log'.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_apty_widget_snapshot",
+    description:
+      "Get structured state from the Apty widget on the current page (active workflow, current step, last error), if the widget exposes a debug snapshot. Returns available: false if no Apty widget debug bridge is present.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
 ];

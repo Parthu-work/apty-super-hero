@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AIPex",
-  "version": "2.2.39",
-  "description": "Make your browser an AI browser - no migration, no browser installation, no code writing",
+  "name": "Apty Agent",
+  "version": "0.1.0",
+  "description": "Apty's AI browser agent - understands the page, resolves elements, and drives Apty workflows",
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",
@@ -26,6 +26,14 @@
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/apty-console-bridge.ts"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true,
+      "world": "MAIN"
     }
   ],
   "side_panel": {
@@ -40,17 +48,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["assets/*", "assets/vad/*", "assets/onnx/*"],
+      "resources": ["assets/*"],
       "matches": ["<all_urls>"]
     }
   ],
   "externally_connectable": {
-    "matches": [
-      "https://www.claudechrome.com/*",
-      "https://claudechrome.com/*",
-      "https://aipex.ing/*",
-      "http://localhost:*/*"
-    ]
+    "ids": []
   },
   "host_permissions": ["https://*/*", "http://*/*", "<all_urls>"],
   "commands": {
@@ -79,9 +82,7 @@
     "management",
     "downloads",
     "debugger",
-    "cookies",
     "webNavigation",
-    "audioCapture",
     "alarms"
   ]
 }

@@ -27,7 +27,6 @@ export type InterventionStatus =
  */
 export type InterventionType =
   | "monitor-operation" // Monitor user operations
-  | "voice-input" // Voice input
   | "user-selection"; // User selection
 
 /**
@@ -108,18 +107,6 @@ export interface MonitorOperationResult {
 }
 
 /**
- * Voice input result
- */
-export interface VoiceInputResult {
-  text: string;
-  confidence: number;
-  language: string;
-  source: "elevenlabs" | "browser";
-  timestamp: number;
-  duration?: number; // Recording duration in milliseconds
-}
-
-/**
  * Selection option
  */
 export interface SelectionOption {
@@ -186,10 +173,7 @@ export interface InterventionEvent {
  * Global configuration
  */
 export interface InterventionGlobalSettings {
-  elevenLabsApiKey?: string;
-  elevenLabsModelId?: string;
   defaultTimeout: number; // Default 300 seconds
-  autoStopVoiceSilence: number; // Default 3 seconds
 }
 
 /**

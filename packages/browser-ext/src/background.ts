@@ -30,15 +30,11 @@ chrome.commands.onCommand.addListener((command) => {
 // Handle extension installation or update
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
-    console.log("AIPex extension installed");
-
-    // Open onboarding page for new installs in production
-    if (import.meta.env.PROD) {
-      chrome.tabs.create({ url: "https://www.claudechrome.com" });
-    }
+    console.log("Apty Agent extension installed");
+    chrome.runtime.openOptionsPage();
   } else if (details.reason === "update") {
     console.log(
-      "AIPex extension updated to version",
+      "Apty Agent extension updated to version",
       chrome.runtime.getManifest().version,
     );
   }
@@ -474,7 +470,14 @@ async function downloadChatImagesInBackground(
 // =============================================================================
 // External Message Listener - Website Integration
 // =============================================================================
-// Origin verification is handled by manifest.json's externally_connectable
+// SECURITY: manifest.json's externally_connectable is set to { ids: [] } —
+// no web origin and no other extension is allowlisted, so this listener is
+// intentionally unreachable. The upstream AIPex manifest allowlisted
+// "http://localhost:*/*", which would let ANY page served over localhost
+// (any port) call openWithPrompt below to force-open the side panel and
+// inject a prompt that gets auto-submitted to the AI agent — a realistic
+// local-webpage-to-agent-action escalation. Only re-add a match here for a
+// specific, deliberately-chosen Apty origin, never a wildcard localhost/port.
 chrome.runtime.onMessageExternal.addListener(
   (message, sender, sendResponse) => {
     // Handle "openWithPrompt" action from website
@@ -535,102 +538,6 @@ chrome.runtime.onMessageExternal.addListener(
       return true; // Keep message channel open for async response
     }
 
-    // Handle user manual replay request from website
-    if (message.request === "REPLAY_USER_MANUAL") {
-      const { manualId, startFromStep, steps } = message as {
-        manualId?: unknown;
-        startFromStep?: unknown;
-        steps?: unknown;
-      };
-
-      // Validate required fields
-      if (
-        typeof manualId !== "number" ||
-        !Array.isArray(steps) ||
-        steps.length === 0
-      ) {
-        sendResponse({
-          success: false,
-          error:
-            "Invalid replay data: manualId (number) and non-empty steps (array) are required",
-        });
-        return true;
-      }
-
-      // Validate step entries have required shape and bounded size
-      const MAX_STEPS = 500;
-      if (steps.length > MAX_STEPS) {
-        sendResponse({
-          success: false,
-          error: `Too many replay steps (max ${MAX_STEPS})`,
-        });
-        return true;
-      }
-
-      const ALLOWED_EVENT_TYPES = ["click", "navigation"];
-      const stepsValid = steps.every((s: unknown) => {
-        if (s === null || typeof s !== "object") return false;
-        const rec = s as Record<string, unknown>;
-        if (!rec.event || typeof rec.event !== "object") return false;
-        const event = rec.event as Record<string, unknown>;
-        return (
-          typeof event.type === "string" &&
-          ALLOWED_EVENT_TYPES.includes(event.type)
-        );
-      });
-
-      if (!stepsValid) {
-        sendResponse({
-          success: false,
-          error:
-            "Invalid replay steps: each step must contain an event with type 'click' or 'navigation'",
-        });
-        return true;
-      }
-
-      const resolvedStartFromStep =
-        typeof startFromStep === "number" && startFromStep >= 0
-          ? startFromStep
-          : 0;
-
-      // Open sidepanel then forward replay data
-      const windowId = sender.tab?.windowId;
-
-      if (!windowId) {
-        sendResponse({ success: false, error: "No window ID available" });
-        return true;
-      }
-
-      chrome.sidePanel
-        .open({ windowId })
-        .then(() => {
-          // Wait for sidepanel to initialize before forwarding
-          setTimeout(() => {
-            chrome.runtime
-              .sendMessage({
-                request: "NAVIGATE_AND_SETUP_REPLAY",
-                data: {
-                  manualId,
-                  startFromStep: resolvedStartFromStep,
-                  steps,
-                },
-              })
-              .catch(() => {
-                // Sidepanel may not yet have a listener – acceptable race
-              });
-          }, 500);
-
-          sendResponse({ success: true });
-        })
-        .catch((error) => {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
-
-      return true;
-    }
 
     sendResponse({ success: false, error: "Unknown action" });
     return true;

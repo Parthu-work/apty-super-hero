@@ -2,30 +2,21 @@
  * AI Provider Factory
  * Creates AI SDK provider instances based on configuration.
  *
- * Supports two modes:
- * 1. BYOK (Bring Your Own Key) – user provides their own API key and model.
- * 2. Proxy mode – uses https://www.claudechrome.com/api/ai/chat with
- *    cookie-based auth (better-auth / session cookies).
+ * BYOK (Bring Your Own Key) only – the user (or Apty's backend, once wired
+ * in) supplies a provider + API key. There is no third-party proxy fallback.
  */
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { AIProviderKey, AppSettings } from "@aipexstudio/aipex-core";
-import { WEBSITE_URL } from "../config/website";
 
 export interface ProviderConfig {
   provider: AIProviderKey;
   apiKey: string;
   baseURL?: string;
 }
-
-/** Default model used when the user has not configured BYOK. */
-export const PROXY_DEFAULT_MODEL = "deepseek/deepseek-chat-v3.1";
-
-/** Proxy API endpoint for non-BYOK users. */
-export const PROXY_API_URL = `${WEBSITE_URL}/api/ai`;
 
 /**
  * Validate that a user-provided host URL is safe to use.
@@ -77,22 +68,6 @@ export function isByokConfigured(settings: AppSettings): boolean {
   const hasToken = Boolean(settings.aiToken?.trim());
   const hasModel = Boolean(settings.aiModel?.trim());
   return hasToken && hasModel;
-}
-
-/**
- * Retrieve authentication cookies from claudechrome.com for the proxy API.
- * Returns a Cookie header string, or empty string if unavailable.
- */
-export async function getProxyCookieHeader(): Promise<string> {
-  try {
-    const cookies = await chrome.cookies.getAll({ url: WEBSITE_URL });
-    const relevant = cookies.filter(
-      (c) => c.name.includes("better-auth") || c.name.includes("session"),
-    );
-    return relevant.map((c) => `${c.name}=${c.value}`).join("; ");
-  } catch {
-    return "";
-  }
 }
 
 /**
@@ -261,38 +236,3 @@ export function createEmptyToolArgsFinalizer(
   });
 }
 
-/**
- * Create an AI SDK provider for proxy mode (non-BYOK).
- *
- * Uses the claudechrome.com proxy endpoint which accepts OpenAI-compatible
- * requests and authenticates via session cookies.
- */
-export function createProxyProvider(): OpenAIProvider["chat"] {
-  const openai = createOpenAI({
-    apiKey: "proxy-no-key",
-    baseURL: PROXY_API_URL,
-    fetch: async (input, init) => {
-      const cookieHeader = await getProxyCookieHeader();
-      const headers = new Headers(init?.headers);
-      if (cookieHeader) {
-        headers.set("Cookie", cookieHeader);
-      }
-      headers.delete("Authorization");
-      const response = await globalThis.fetch(input, { ...init, headers });
-
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType.includes("text/event-stream") && response.body) {
-        const patched = createEmptyToolArgsFinalizer(response.body);
-        return new Response(patched, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
-      }
-
-      return response;
-    },
-  });
-
-  return openai.chat;
-}

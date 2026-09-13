@@ -1,23 +1,18 @@
 import type React from "react";
 
 interface LoginPromptProps {
-  onLogin?: () => void;
-  showByokOption?: boolean;
   onOpenSettings?: () => void;
 }
 
-// Default translations for login prompt
+// Default translations for the configuration prompt
 const defaultTranslations = {
-  "loginPrompt.title": "Login Required",
+  "loginPrompt.title": "AI Provider Not Configured",
   "loginPrompt.description":
-    "Please login to continue using the AI assistant, or configure your own API key.",
-  "loginPrompt.loginButton": "Login",
-  "loginPrompt.configureByok": "Use Own Key",
+    "Add an API key and model in Settings before using the AI assistant.",
+  "loginPrompt.configureByok": "Open Settings",
 };
 
 export const LoginPrompt: React.FC<LoginPromptProps> = ({
-  onLogin,
-  showByokOption = true,
   onOpenSettings,
 }) => {
   // Simple translation function
@@ -25,13 +20,7 @@ export const LoginPrompt: React.FC<LoginPromptProps> = ({
     return defaultTranslations[key as keyof typeof defaultTranslations] || key;
   };
 
-  const handleLogin = () => {
-    console.log("LoginPrompt: handleLogin called");
-    onLogin?.();
-  };
-
   const handleOpenSettings = () => {
-    console.log("LoginPrompt: handleOpenSettings called");
     onOpenSettings?.();
   };
 
@@ -59,33 +48,11 @@ export const LoginPrompt: React.FC<LoginPromptProps> = ({
           <div className="mt-2 text-sm text-red-700">
             <p className="mb-3">{t("loginPrompt.description")}</p>
             <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleLogin}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-              >
-                <svg
-                  className="w-4 h-4 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                  />
-                </svg>
-                {t("loginPrompt.loginButton")}
-              </button>
-
-              {showByokOption && onOpenSettings && (
+              {onOpenSettings && (
                 <button
                   type="button"
                   onClick={handleOpenSettings}
-                  className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
                 >
                   <svg
                     className="w-4 h-4 mr-2"

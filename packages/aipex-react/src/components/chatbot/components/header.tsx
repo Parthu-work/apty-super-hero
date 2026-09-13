@@ -11,7 +11,7 @@ import { useComponentsContext } from "../context";
  * Default Header component
  */
 export function DefaultHeader({
-  title = "AIPex",
+  title = "Apty Agent",
   onSettingsClick,
   onNewChat,
   className,

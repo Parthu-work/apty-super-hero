@@ -3,7 +3,7 @@
  * Provides centralized, env-configurable website base URL for the extension.
  */
 
-const DEFAULT_WEBSITE_URL = "https://www.claudechrome.com";
+const DEFAULT_WEBSITE_URL = "https://app.apty.ai"; // TODO: point at Apty's own domain once available
 
 /**
  * Resolve the website URL from environment or use default.

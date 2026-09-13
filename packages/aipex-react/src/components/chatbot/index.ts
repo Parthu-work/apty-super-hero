@@ -40,7 +40,6 @@ export type {
 // Individual component exports
 export {
   type AutomationModeValue,
-  BuyTokenPrompt,
   ConfigurationGuide,
   type ConfigurationGuideProps,
   DefaultHeader,

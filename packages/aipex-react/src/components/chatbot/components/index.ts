@@ -1,6 +1,5 @@
 // Main component
 
-export { BuyTokenPrompt } from "./buy-token-prompt";
 export { Chatbot, type ChatbotProps, ChatbotProvider } from "./chatbot";
 // Individual components
 export {

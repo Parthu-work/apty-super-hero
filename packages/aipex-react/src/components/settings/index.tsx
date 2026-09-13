@@ -13,12 +13,8 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Github,
   Globe,
   Info,
-  Mail,
-  MessageCircle,
-  MessageSquare,
   Mic,
   Package,
   Palette,
@@ -27,13 +23,10 @@ import {
   Search,
   Settings,
   Trash2,
-  Twitter,
-  Users,
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "../../i18n/context";
-import { buildWebsiteUrl } from "../../lib/config/website.js";
 import { cn } from "../../lib/utils";
 import { useTheme } from "../../theme/context";
 import { DEFAULT_MODELS } from "../chatbot/constants";
@@ -1123,112 +1116,6 @@ export function SettingsPage({
               </Card>
             )}
 
-            {/* About Us Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  {t("settings.aboutUs")}
-                </CardTitle>
-                <CardDescription>
-                  {t("settings.aboutDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-4">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button asChild size="icon" variant="default">
-                      <a
-                        href="https://github.com/AIPexStudio/AIPex"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Github className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("settings.starOnGithub")}</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button asChild size="icon" variant="outline">
-                      <a
-                        href="https://discord.gg/sfZC3G5qfe"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("settings.joinDiscord")}</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button asChild size="icon" variant="outline">
-                      <a
-                        href={buildWebsiteUrl("/contact")}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("settings.joinWechat")}</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button asChild size="icon" variant="outline">
-                      <a href="mailto:aipexassistant@gmail.com">
-                        <Mail className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("settings.sendEmail")}</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button asChild size="icon" variant="outline">
-                      <a
-                        href="https://x.com/weikangzhang3"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Twitter className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("settings.followTwitter")}</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button asChild size="icon" variant="outline">
-                      <a
-                        href={buildWebsiteUrl("/feedback")}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("settings.feedback")}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* AI Configuration Tab */}

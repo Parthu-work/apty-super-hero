@@ -1,14 +1,10 @@
 {
-  "name": "@aipexstudio/root",
-  "displayName": "AIPex",
-  "version": "0.0.2",
+  "name": "@apty/browser-agent",
+  "displayName": "Apty Agent",
+  "version": "0.1.0",
   "private": true,
-  "description": "Automate your browser with natural language commands - The open source browser-use solution",
-  "author": "AIPex Studio",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/AIPexStudio/AIPex.git"
-  },
+  "description": "Apty's AI browser agent - forked from AIPex, customized for Apty Studio/widget integration",
+  "author": "Apty",
   "scripts": {
     "postinstall": "prek install",
     "build": "pnpm -r --if-present build",
@@ -20,15 +16,13 @@
     "lint:fix": "biome check . --fix --unsafe",
     "lint:dependencies": "knip --strict",
     "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "bump": "bumpp"
+    "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
     "@j178/prek": "^0.3.1",
     "@types/chrome": "0.1.38",
     "@types/node": "^25.2.3",
-    "bumpp": "^11.0.1",
     "knip": "^5.82.1",
     "tinyglobby": "^0.2.15",
     "typescript": "^5.9.3",

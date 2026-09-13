@@ -1,5 +1,4 @@
 import type { AppSettings } from "@aipexstudio/aipex-core";
-import type { STTConfigAdapter } from "@aipexstudio/aipex-react";
 import { SettingsPage } from "@aipexstudio/aipex-react";
 import { I18nProvider } from "@aipexstudio/aipex-react/i18n/context";
 import type { Language } from "@aipexstudio/aipex-react/i18n/types";
@@ -35,25 +34,6 @@ import "../tailwind.css";
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 
-const chromeSttAdapter: STTConfigAdapter = {
-  load: async () => {
-    const result = await chrome.storage.local.get([
-      "elevenlabsApiKey",
-      "elevenlabsModelId",
-    ]);
-    return {
-      apiKey: (result.elevenlabsApiKey as string) || "",
-      modelId: (result.elevenlabsModelId as string) || "",
-    };
-  },
-  save: async ({ apiKey, modelId }) => {
-    await chrome.storage.local.set({
-      elevenlabsApiKey: apiKey,
-      elevenlabsModelId: modelId,
-    });
-  },
-};
-
 function OptionsPageContent() {
   const { tab: initialTab, skill: initialSkill } = useMemo(parseUrlParams, []);
 
@@ -83,7 +63,6 @@ function OptionsPageContent() {
       onTestConnection={handleTestConnection}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}
       connectionContent={<McpBridgePanel />}
-      sttConfig={chromeSttAdapter}
       initialTab={initialTab}
       initialSkill={initialSkill}
     />

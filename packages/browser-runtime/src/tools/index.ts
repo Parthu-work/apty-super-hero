@@ -1,5 +1,6 @@
 import type { FunctionTool } from "@aipexstudio/aipex-core";
 import type { z } from "zod";
+import { aptyTools } from "./apty";
 import { computerTool } from "./computer";
 import {
   clickTool,
@@ -102,6 +103,9 @@ const browserFunctionTools: BrowserFunctionTool[] = [
 
   // Skills (6 tools)
   ...skillTools,
+
+  // Apty integration (2 tools)
+  ...aptyTools,
 ] as const;
 
 export const allBrowserTools: FunctionTool[] =

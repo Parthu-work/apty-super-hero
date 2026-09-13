@@ -12,7 +12,6 @@ import {
   SelectionCard,
   type SelectionOption,
   type UserSelectionResult,
-  VoiceCard,
 } from "@aipexstudio/aipex-react/components/intervention";
 import {
   type InterventionEvent,
@@ -143,18 +142,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
 
   return (
     <div className="px-4 py-3">
-      {currentIntervention.request.type === "voice-input" ? (
-        <VoiceCard
-          status={currentIntervention.status}
-          reason={currentIntervention.request.reason}
-          timeout={currentIntervention.request.timeout}
-          onCancel={() =>
-            interventionManager.cancelIntervention(
-              currentIntervention.request.id,
-            )
-          }
-        />
-      ) : currentIntervention.request.type === "monitor-operation" ? (
+      {currentIntervention.request.type === "monitor-operation" ? (
         <MonitorCard
           status={currentIntervention.status}
           reason={currentIntervention.request.reason}

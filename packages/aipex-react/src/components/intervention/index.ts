@@ -12,5 +12,3 @@ export { InterventionModeToggle } from "./InterventionModeToggle.js";
 export { MonitorCard } from "./MonitorCard.js";
 export type { SelectionOption, UserSelectionResult } from "./SelectionCard.js";
 export { SelectionCard } from "./SelectionCard.js";
-
-export { VoiceCard } from "./VoiceCard.js";
