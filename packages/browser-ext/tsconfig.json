@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["node", "chrome"]
+  },
+  "include": ["src/**/*", "vite.config.ts", "manifest.json"],
+  "references": [
+    {
+      "path": "../aipex-react/tsconfig.json"
+    },
+    {
+      "path": "../browser-runtime/tsconfig.json"
+    },
+    {
+      "path": "../core/tsconfig.json"
+    },
+    {
+      "path": "../dom-snapshot/tsconfig.json"
+    }
+  ]
+}

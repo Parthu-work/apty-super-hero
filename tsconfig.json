@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "./*.ts",
+    "./*.tsx",
+    "./*.js",
+    "./*.cjs",
+    "./*.mjs",
+    "./types/**/*.d.ts"
+  ],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/browser-runtime" },
+    { "path": "./packages/aipex-react" },
+    { "path": "./packages/browser-ext" }
+  ]
+}

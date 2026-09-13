@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["node", "chrome"],
+    "emitDeclarationOnly": false,
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "src/skill/components/**",
+    "src/**/__tests__/**",
+    "src/**/*.test.ts"
+  ],
+  "references": [
+    {
+      "path": "../core/tsconfig.json"
+    },
+    {
+      "path": "../dom-snapshot/tsconfig.json"
+    }
+  ]
+}

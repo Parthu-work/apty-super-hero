@@ -1,0 +1,349 @@
+import { CopyIcon, RefreshCcwIcon, WrenchIcon } from "lucide-react";
+import { Fragment, useMemo } from "react";
+import { useTranslation } from "../../../i18n/context";
+import { translatedToolName } from "../../../i18n/tool-names";
+import { transformScreenshotPlaceholders } from "../../../lib/screenshot-utils";
+import { cn } from "../../../lib/utils";
+import type {
+  MessageItemProps,
+  UIMessage,
+  UISourceUrlPart,
+  UIToolPart,
+} from "../../../types";
+import { Action, Actions } from "../../ai-elements/actions";
+import { Message, MessageContent } from "../../ai-elements/message";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "../../ai-elements/reasoning";
+import { Response } from "../../ai-elements/response";
+import {
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
+} from "../../ai-elements/sources";
+import { useComponentsContext } from "../context";
+import { BuyTokenPrompt } from "./buy-token-prompt";
+import { LoginPrompt } from "./login-prompt";
+import { ModelChangePrompt } from "./model-change-prompt";
+import { DefaultToolDisplay } from "./slots/tool-display";
+
+/**
+ * Get icon for context type
+ */
+function getContextIcon(contextType: string): string {
+  const icons: Record<string, string> = {
+    page: "🌐",
+    tab: "📄",
+    bookmark: "🔖",
+    clipboard: "📋",
+    screenshot: "📷",
+  };
+  return icons[contextType] || "📝";
+}
+
+/**
+ * Default MessageItem component
+ */
+export function DefaultMessageItem({
+  message,
+  isLast = false,
+  isStreaming = false,
+  onRegenerate,
+  onCopy,
+  className,
+  ...props
+}: MessageItemProps) {
+  const { slots } = useComponentsContext();
+
+  // Collect screenshot data from tool parts for placeholder resolution
+  const { screenshotUidList, screenshotDataMap } = useMemo(() => {
+    const uids: string[] = [];
+    const dataMap = new Map<string, string>();
+    for (const p of message.parts) {
+      if (p.type === "tool" && p.screenshotUid) {
+        uids.push(p.screenshotUid);
+        if (p.screenshot) {
+          dataMap.set(p.screenshotUid, p.screenshot);
+        }
+      }
+    }
+    return { screenshotUidList: uids, screenshotDataMap: dataMap };
+  }, [message.parts]);
+
+  // Filter out system messages
+  if (message.role === "system") {
+    return null;
+  }
+
+  // Render sources if present
+  const sourceUrls = message.parts.filter(
+    (part): part is UISourceUrlPart => part.type === "source-url",
+  );
+
+  return (
+    <div className={className} {...props}>
+      {/* Sources */}
+      {message.role === "assistant" && sourceUrls.length > 0 && (
+        <Sources>
+          <SourcesTrigger count={sourceUrls.length} />
+          {sourceUrls.map((part, i) => (
+            <SourcesContent key={`${message.id}-source-${i}`}>
+              <Source href={part.url} title={part.url} />
+            </SourcesContent>
+          ))}
+        </Sources>
+      )}
+
+      {/* Message parts */}
+      {message.parts.map((part, i) => {
+        const key = `${message.id}-${i}`;
+
+        switch (part.type) {
+          case "text": {
+            // Transform [[screenshot:...]] placeholders to markdown images.
+            // First resolve to special URLs, then replace with actual
+            // base64 data URLs when available for inline rendering.
+            let processedText = part.text;
+            if (screenshotUidList.length > 0) {
+              processedText = transformScreenshotPlaceholders(
+                processedText,
+                screenshotUidList,
+              );
+              // Replace aipex-screenshot.invalid URLs with actual data
+              for (const [uid, data] of screenshotDataMap) {
+                const placeholder = `https://aipex-screenshot.invalid/${uid}`;
+                processedText = processedText.split(placeholder).join(data);
+              }
+            }
+            return (
+              <Fragment key={key}>
+                <Message from={message.role as "user" | "assistant" | "system"}>
+                  <MessageContent>
+                    <Response>{processedText}</Response>
+                  </MessageContent>
+                </Message>
+                {/* Actions for last assistant message */}
+                {message.role === "assistant" &&
+                  isLast &&
+                  (slots.messageActions ? (
+                    slots.messageActions({
+                      message,
+                      onRegenerate,
+                      onCopy: () => onCopy?.(part.text),
+                    })
+                  ) : (
+                    <Actions className="mt-2">
+                      {onRegenerate && (
+                        <Action onClick={onRegenerate} label="Retry">
+                          <RefreshCcwIcon className="size-3" />
+                        </Action>
+                      )}
+                      {onCopy && (
+                        <Action onClick={() => onCopy(part.text)} label="Copy">
+                          <CopyIcon className="size-3" />
+                        </Action>
+                      )}
+                    </Actions>
+                  ))}
+              </Fragment>
+            );
+          }
+
+          case "file":
+            return (
+              <Message
+                key={key}
+                from={message.role as "user" | "assistant" | "system"}
+              >
+                <MessageContent>
+                  {part.mediaType.startsWith("image/") ? (
+                    <div className="max-w-md">
+                      <img
+                        src={part.url}
+                        alt={part.filename || "Attached image"}
+                        className="rounded-lg border border-gray-200 dark:border-gray-700"
+                      />
+                      {part.filename && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {part.filename}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                      <p className="text-sm">
+                        📎 {part.filename || "Attached file"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {part.mediaType}
+                      </p>
+                    </div>
+                  )}
+                </MessageContent>
+              </Message>
+            );
+
+          case "tool":
+            // Check for custom tool display slot
+            if (slots.toolDisplay) {
+              return (
+                <Fragment key={key}>
+                  {slots.toolDisplay({ tool: part })}
+                </Fragment>
+              );
+            }
+
+            return <DefaultToolDisplay key={key} tool={part} />;
+
+          case "reasoning":
+            return (
+              <Reasoning
+                key={key}
+                className="w-full"
+                isStreaming={isStreaming && isLast}
+              >
+                <ReasoningTrigger />
+                <ReasoningContent>{part.text}</ReasoningContent>
+              </Reasoning>
+            );
+
+          case "context":
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "flex w-full items-end gap-2 py-2",
+                  message.role === "user"
+                    ? "justify-end"
+                    : "flex-row-reverse justify-end",
+                )}
+              >
+                <div className="flex items-center gap-2 max-w-[80%] px-3 py-1.5 text-sm rounded-md bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-colors">
+                  <span className="text-primary flex-shrink-0">
+                    {getContextIcon(part.contextType)}
+                  </span>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="font-medium text-foreground truncate">
+                      {part.label}
+                    </span>
+                    {Boolean(part.metadata?.["url"]) && (
+                      <span className="text-xs text-muted-foreground truncate">
+                        {String(part.metadata?.["url"])}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground bg-background/50 px-1.5 py-0.5 rounded flex-shrink-0">
+                    {part.contextType}
+                  </span>
+                </div>
+              </div>
+            );
+
+          case "source-url":
+            // Already handled above
+            return null;
+
+          default:
+            return null;
+        }
+      })}
+
+      {/* Metadata-driven prompts for assistant error messages */}
+      {message.role === "assistant" && message.metadata && (
+        <>
+          {message.metadata.needLogin && (
+            <LoginPrompt
+              showByokOption
+              onLogin={slots.onLogin}
+              onOpenSettings={() => chrome.runtime?.openOptionsPage?.()}
+            />
+          )}
+          {message.metadata.needBuyToken && (
+            <BuyTokenPrompt
+              currentCredits={message.metadata.currentCredits}
+              requiredCredits={message.metadata.requiredCredits}
+            />
+          )}
+          {message.metadata.needChangeModel && (
+            <ModelChangePrompt
+              supportedModels={message.metadata.supportedModels || []}
+              onModelChange={(modelId) => {
+                chrome.storage?.local?.set?.({ aiModel: modelId });
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============ Collapsed tool display for folded messages ============
+
+function CollapsedToolDisplay({ tool }: { tool: UIToolPart }) {
+  const { t } = useTranslation();
+  const displayName = translatedToolName(t, tool.toolName);
+  return (
+    <div className="text-xs text-muted-foreground py-1 px-2 flex items-center gap-1.5">
+      <WrenchIcon className="size-3" />
+      {displayName}
+    </div>
+  );
+}
+
+// ============ Collapsed message item for intermediate assistant messages ============
+
+/**
+ * CollapsedMessageItem – simplified rendering for intermediate assistant
+ * messages inside a folded "thinking details" section.
+ * Shows text as bullet points and tools as compact single-line displays.
+ */
+export function CollapsedMessageItem({ message }: { message: UIMessage }) {
+  return (
+    <div>
+      {message.parts.map((part, i) => {
+        const key = `${message.id}-collapsed-${i}`;
+        switch (part.type) {
+          case "text":
+            return (
+              <div key={key} className="text-sm text-muted-foreground py-1">
+                - {part.text}
+              </div>
+            );
+          case "tool":
+            return <CollapsedToolDisplay key={key} tool={part} />;
+          case "reasoning":
+            return (
+              <div
+                key={key}
+                className="text-xs text-muted-foreground/70 py-0.5 italic"
+              >
+                {part.text.length > 120
+                  ? `${part.text.slice(0, 120)}…`
+                  : part.text}
+              </div>
+            );
+          default:
+            return null;
+        }
+      })}
+    </div>
+  );
+}
+
+/**
+ * MessageItem - Renders either custom or default message item
+ */
+export function MessageItem(props: MessageItemProps) {
+  const { components } = useComponentsContext();
+
+  const CustomComponent = components.MessageItem;
+  if (CustomComponent) {
+    return <CustomComponent {...props} />;
+  }
+
+  return <DefaultMessageItem {...props} />;
+}
