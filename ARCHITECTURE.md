@@ -99,12 +99,24 @@ Four provider interfaces, one per Apty component
 | `AptyWidgetDiagnosticsProvider` | `chrome.scripting.executeScript` (MAIN world) reads `window.__APTY_WIDGET__` | Probe implemented; Widget doesn't expose this global yet |
 | `AptyClientDiagnosticsProvider` | Same, reads `window.__APTY_CLIENT__` | Probe implemented; Client doesn't expose this global yet |
 | `AptyStudioDiagnosticsProvider` | `chrome.runtime.sendMessage(extensionId, ...)` | Implemented; requires Studio's real extension ID + Studio-side message handler, neither of which exist yet |
-| `AptyServiceWorkerDiagnosticsProvider` | Cross-extension messaging OR HTTP diagnostic endpoint (whichever is configured) | Implemented; requires one of those channels to exist on the Apty side |
+| `AptyServiceWorkerDiagnosticsProvider` | Cross-extension messaging OR HTTP diagnostic endpoint (whichever is configured) | Consumer hardened + tested (Zod-validated responses, redacted logs, bounded acceptance); producer has a complete reference implementation (`docs/apty-integration/apty-widget-service-worker.reference.ts`) not yet adopted by Apty |
 
 Every provider has a `NotConfigured*` fallback that returns
 `status: "not_configured"` — this is intentional and expected until Apty
 engineering wires up the corresponding side, not a bug to silently work
 around. **No provider fabricates data.**
+
+### Service Worker diagnostics — evidence scope
+
+Apty's service worker (if/when Option A above is adopted) is a single
+process shared across every tab and window, not scoped to whichever tab a
+debugging conversation happens to be about. `get_apty_service_worker_diagnostics`
+tags its result with `scope: "shared-global"` and an explicit note in its
+tool description so the model never falsely attributes a service-worker
+log to "the current tab" without other corroborating evidence (a matching
+timestamp, a message that names the page/origin, etc.) — this follows the
+project brief's instruction to mark unattributable evidence as
+shared/unattributed rather than inventing attribution.
 
 Configuration flows: `packages/browser-ext/.env.example` (build-time Vite
 env vars) → seeded into `chrome.storage.local` on service-worker startup
@@ -181,3 +193,10 @@ Enforced at two layers:
   only the client-side halves of these integrations exist; the Apty-side
   halves (a real extension ID, a real global, a real message handler) do
   not.
+- **Multi-session/multi-tab diagnostic isolation** — not deliberate, a real
+  gap: every diagnostic tool operates on whichever tab is currently active
+  in the window (`getActiveTab()`), not a tab bound to a specific
+  conversation. See `PROJECT_PROGRESS.md`'s "Multi-Session Isolation —
+  Research Notes" for what was found and the recommended fix
+  (`RunContext<Context>` threading through the existing `@openai/agents`
+  runner, already supported by the SDK and currently unused).

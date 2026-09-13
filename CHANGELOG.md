@@ -7,6 +7,44 @@ full commit-level history.
 ## Unreleased (this session)
 
 **Added**
+- `docs/apty-integration/apty-widget-service-worker.reference.ts` — a
+  complete, adaptable reference implementation for the Apty Widget team's
+  service-worker side of the Service Worker diagnostics integration: safe
+  circular-safe log serialization, a bounded (1000-entry) buffer
+  debounce-persisted to `chrome.storage.local` (survives MV3
+  service-worker restarts), and a sender-validated `onMessageExternal`
+  handler. Not part of this extension's build — hand-off documentation
+  only, see `docs/apty-integration/README.md`.
+- 16 new tests for `service-worker-diagnostics.ts` covering both the
+  extension-messaging and HTTP-endpoint paths: success, timeout,
+  `chrome.runtime.lastError`, malformed response, oversized response,
+  redaction, and endpoint-preference-over-messaging.
+
+**Fixed**
+- `service-worker-diagnostics.ts` now validates every external response
+  against a Zod schema before use (previously an unchecked `as` cast) and
+  redacts log messages before returning them (previously not redacted at
+  all, unlike the Widget/Client providers) — see `SECURITY_AUDIT.md`
+  finding #4a.
+- `get_apty_service_worker_diagnostics` now tags its result
+  `scope: "shared-global"` with an explanatory note, so the agent doesn't
+  falsely attribute a service-worker log (shared across every tab) to
+  whichever tab is currently being investigated.
+
+**Investigated, not implemented** (explicitly redirected mid-investigation
+to the narrower Service Worker task above): full multi-session/multi-tab
+diagnostic isolation. See `PROJECT_PROGRESS.md`'s "Multi-Session Isolation
+— Research Notes" and `SECURITY_AUDIT.md` finding #1b for what was found —
+in short, every diagnostic tool operates on whichever tab is currently
+active rather than a conversation-bound tab, and the fix is to thread a
+`context` object through `@openai/agents`' existing (currently unused)
+`RunContext<Context>` mechanism.
+
+**Tests**: 656 passing (was 640; +16 for `service-worker-diagnostics.ts`).
+
+## Previous session — Apty diagnostics infrastructure
+
+**Added**
 - Evidence model and four Apty diagnostic provider interfaces
   (`packages/browser-runtime/src/apty/`): `AptyWidgetDiagnosticsProvider`,
   `AptyClientDiagnosticsProvider`, `AptyStudioDiagnosticsProvider`,

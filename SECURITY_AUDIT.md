@@ -30,6 +30,38 @@ whenever a finding is fixed or a new one is discovered, don't just append.
   extension ID — never a wildcard host/port pattern.
 - **Status**: Fixed (prior session, commit `2d94ffd`).
 
+## Open — fixable within this repo, not yet done
+
+### 1b. No multi-session/multi-tab diagnostic isolation
+
+- **Severity**: Medium
+- **Affected component**: all tools in `packages/browser-runtime/src/tools/`
+  that call `getActiveTab()` (`tab-utils.ts`) — `apty.ts`, `devtools.ts`,
+  and others; the agent invocation in `packages/core/src/agent/aipex.ts`
+- **Risk**: every diagnostic tool operates on "whichever tab is currently
+  active in the window," not a tab bound to a specific debugging
+  conversation. If a user has two conversations open (different windows,
+  or switches tabs mid-conversation), evidence collected for one
+  conversation can actually come from the wrong tab/page — a correctness
+  and isolation problem, not just an inconvenience: a diagnosis for "Chat
+  A" could silently be built from "Chat B"'s page state.
+- **Current mitigation**: None yet. Each side-panel window is its own JS
+  execution context (no shared global state across windows), which
+  incidentally limits the blast radius to "wrong tab within the same
+  window," not "data crossing between windows" — but that's a side effect
+  of Chrome's process model, not a mitigation this codebase built
+  deliberately.
+- **Recommended fix**: thread a `context: { tabId, sessionId }` object
+  through `@openai/agents`' existing `RunContext<Context>` mechanism
+  (already supported by the SDK, not currently used —
+  `run(this.agent, input, {...})` passes no `context` today) so every tool
+  can prefer a conversation-bound `tabId` over a fresh `getActiveTab()`
+  query. Full design notes in `PROJECT_PROGRESS.md`'s "Multi-Session
+  Isolation — Research Notes."
+- **Status**: Open — investigated this session, not yet implemented;
+  explicitly redirected to the narrower Service Worker diagnostics task
+  instead (see `PROJECT_PROGRESS.md`).
+
 ## Open — flagged, not fixed (needs Apty-side input to resolve)
 
 ### 2. `host-access-config.json` defaults to all sites
@@ -74,26 +106,55 @@ whenever a finding is fixed or a new one is discovered, don't just append.
   target application domains, same as finding #2, once known.
 - **Status**: Open. Needs Apty's target domain list.
 
-### 4. Apty Studio/Widget/Client/Service-Worker integration mechanisms are unconfirmed designs
+### 4. Apty Studio/Widget/Client integration mechanisms are unconfirmed designs
 
 - **Severity**: Low (currently — these paths are inert until configured)
-- **Affected component**: `packages/browser-runtime/src/apty/*-diagnostics.ts`
+- **Affected component**: `packages/browser-runtime/src/apty/{widget,client,studio}-diagnostics.ts`
 - **Risk**: The `window.__APTY_WIDGET__`/`window.__APTY_CLIENT__` contracts
-  and the Studio/Service-Worker cross-extension-messaging message types
+  and Studio's cross-extension-messaging message types
   (`apty-debug-agent:get-studio-status`, etc.) are this session's proposed
   design, not confirmed with Apty's Widget/Client/Studio teams. If/when
   those teams implement something, the message payloads they send need the
   same untrusted-input treatment as any other page data (validate shape,
   don't trust free-form fields blindly) before being surfaced to the model.
-- **Current mitigation**: All providers default to `NotConfigured*` stubs
-  that return `status: "not_configured"` and empty logs — no live data path
-  exists to secure yet.
-- **Recommended fix**: When Apty implements a real handler, validate its
-  response shape (e.g. with Zod) before returning it from the tool, and
-  redact its log messages the same way `get_apty_page_logs` does (the
-  current code already pipes Widget/Client logs through `redactLogs`;
-  extend this to Studio/Service-Worker responses too once they're real).
-- **Status**: Open, low priority until a real integration exists.
+- **Current mitigation**: All three providers default to `NotConfigured*`
+  stubs that return `status: "not_configured"` and empty logs — no live
+  data path exists to secure yet. Widget/Client logs already pass through
+  `redactLogs` even though no live source exists yet.
+- **Recommended fix**: When Apty implements a real handler for
+  Widget/Client/Studio, validate its response shape with Zod before
+  returning it from the tool — follow the pattern now implemented for
+  Service Worker diagnostics (see finding #4a below), which had this exact
+  gap and has since been fixed.
+- **Status**: Open for Widget/Client/Studio, low priority until a real
+  integration exists for any of them.
+
+### 4a. [FIXED THIS SESSION] Service-Worker diagnostic responses were not validated or redacted
+
+- **Severity**: Medium (was) → Fixed
+- **Affected component**: `packages/browser-runtime/src/apty/service-worker-diagnostics.ts`
+- **Risk**: The original implementation cast an external response directly
+  (`response as ServiceWorkerDiagnosticResponse`) with no schema
+  validation, and did not redact log messages before returning them —
+  unlike the Widget/Client providers, which already redacted. A malformed
+  or hostile response (from a misconfigured or compromised extension at
+  the configured ID) could have passed through unvalidated, and any
+  secrets accidentally logged by a real Apty service worker would have
+  reached the model in the clear.
+- **Current mitigation**: Both the messaging and HTTP-endpoint paths now
+  validate every response against a Zod schema (`statusResponseSchema`,
+  `logsResponseSchema`) before use — a malformed response yields
+  `status: "error"` (status) or an empty array (logs), never a crash and
+  never unvalidated pass-through. Logs are redacted via `redactLogs`
+  before being returned. An oversized logs array (>2000 entries) is
+  rejected outright as a defensive ceiling against a misbehaving producer,
+  independent of whatever bound the producer itself claims to enforce.
+  Covered by 16 tests in `service-worker-diagnostics.test.ts`, including
+  explicit malformed-response and oversized-array cases.
+- **Recommended fix**: Done. Apply the same validate-then-redact pattern
+  to Widget/Client/Studio responses once those integrations go live (see
+  finding #4).
+- **Status**: Fixed.
 
 ## Reviewed — accepted as inherent to the product category
 

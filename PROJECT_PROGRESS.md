@@ -5,20 +5,36 @@
 Early implementation. The repo has been rebranded, stripped of AIPex's
 consumer-product features, and given a first layer of Apty-specific
 diagnostics (evidence model, provider interfaces, DevTools/CDP tools, a
-debugging-focused system prompt). No real Apty Studio/Widget/Client/Service
-Worker integration exists yet — that requires coordination with those
-codebases, which this session does not have access to.
+debugging-focused system prompt). The Apty Service Worker diagnostics path
+now has a hardened, tested consumer implementation plus a complete
+producer-side reference implementation for the Apty Widget team
+(`docs/apty-integration/`). No real Apty Studio/Widget/Client/Service
+Worker integration is *live* yet — that requires the Apty-side halves
+(a real extension ID, a real global, a real message handler), which this
+session cannot build since it doesn't have access to those codebases.
+
+**Not done this round, flagged explicitly**: a prior instruction in this
+session asked for a full multi-session/multi-chat isolation architecture
+(concurrent debugging conversations bound to different tabs, with
+diagnostic evidence never leaking between them). That work was started
+(investigation only — see "Multi-Session Isolation — Research Notes"
+below) and then explicitly superseded by a narrower, more urgent
+instruction to focus on Service Worker diagnostics instead. The session
+architecture work is genuinely not built yet; don't assume it exists.
 
 ## Current Phase
 
 Phase 2 of the informal roadmap below:
 1. ~~Strip AIPex product features, rebrand~~ (done, prior session)
 2. **Build Apty diagnostic infrastructure: evidence model, provider
-   interfaces, DevTools tools, debugging persona** (this session)
+   interfaces, DevTools tools, debugging persona** (done, prior session in
+   this phase) **+ harden the Service Worker diagnostics path specifically
+   (validation, redaction, tests, producer reference impl)** (this session)
 3. Wire real Apty Studio/Widget/Client integration once extension IDs and
    contracts are available (not started — needs Apty-side input)
-4. Evidence correlation quality, recovery/retry behavior, verification loops
-   (not started)
+4. Multi-session/multi-chat isolation (investigated, not implemented — see
+   below); evidence correlation quality; recovery/retry behavior;
+   verification loops (not started)
 
 ## What Was Inherited From AIPex
 
@@ -101,6 +117,36 @@ new apty tools beyond the 2 that existed from the prior session).
 - `packages/browser-ext/src/apty-console-bridge.ts` (prior session): a
   MAIN-world content script that buffers console output/errors on every
   page since load — this is what `get_apty_page_logs` reads.
+
+**Service Worker diagnostics hardening (this session)**:
+- `service-worker-diagnostics.ts` now validates every external response
+  (Zod schemas for both the messaging and HTTP-endpoint paths) instead of
+  blindly trusting an `as` cast — a malformed response is reported as
+  `status: "error"` (or empty logs), never allowed to crash the tool or
+  silently pass through garbage.
+- Logs returned by this provider are now redacted (`redactLogs`) before
+  reaching the model — previously only Widget/Client logs were redacted;
+  Service Worker logs were not. This was flagged as an open gap in
+  `SECURITY_AUDIT.md` finding #4 and is now fixed for this provider.
+- A defensive ceiling (`MAX_LOGS_ACCEPTED = 2000`) rejects an oversized
+  logs array from a misbehaving/compromised producer, independent of
+  whatever bound the producer itself uses.
+- The `get_apty_service_worker_diagnostics` tool now tags its result with
+  `scope: "shared-global"` and an explicit note that the service worker is
+  shared across every tab, so the agent doesn't misattribute a log to
+  whichever tab is currently being investigated.
+- `docs/apty-integration/apty-widget-service-worker.reference.ts` — a
+  complete, adaptable reference implementation of the producer side
+  (safe circular-safe argument serialization, a bounded + debounced +
+  `chrome.storage.local`-persisted log buffer that survives MV3
+  service-worker restarts, and a sender-validated `onMessageExternal`
+  handler). This is documentation/hand-off material for the Apty Widget
+  team, not part of this extension's build — see
+  `docs/apty-integration/README.md`.
+- 16 new tests (`service-worker-diagnostics.test.ts`) covering both the
+  extension-messaging and HTTP-endpoint paths: success, timeout,
+  `chrome.runtime.lastError`, malformed response, oversized response,
+  redaction, and endpoint-preference-over-messaging.
 
 ## Completed
 
@@ -201,16 +247,26 @@ yet implemented by the Client.
 
 ## Apty Service Worker Integration
 
-Status: **Not implemented — requires Apty-side work.**
+Status: **Consumer side hardened and tested; producer side is a complete,
+documented hand-off, not yet built by Apty.**
 Implementation: `service-worker-diagnostics.ts`
 (`ConfiguredServiceWorkerDiagnosticsProvider`) — supports either
 cross-extension messaging (same pattern as Studio) or an HTTP diagnostic
-endpoint (`GET <endpoint>/status`, `GET <endpoint>/logs`).
+endpoint (`GET <endpoint>/status`, `GET <endpoint>/logs`). Both paths
+validate the response with Zod, redact log messages, and cap accepted
+array size (2000 entries) before returning anything to the model.
 Configuration: `VITE_APTY_SERVICE_WORKER_EXTENSION_ID` or
 `VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT` (configure at most one).
+Producer reference: `docs/apty-integration/apty-widget-service-worker.reference.ts`
+is a complete, adaptable implementation of what needs to live inside the
+Apty Widget's own service worker (safe log serialization, a bounded
+buffer persisted to `chrome.storage.local` so it survives MV3
+service-worker restarts, and a sender-validated external message handler).
 Remaining: Chrome fundamentally does not allow one extension to read
-another's private service-worker memory — Apty must expose one of the two
-channels above. Neither exists today.
+another's private service-worker memory — Apty must actually adopt the
+reference implementation (or an HTTP-endpoint equivalent) in their own
+codebase. Neither exists live today; every call still reports
+`status: "not_configured"` against a real deployment until they do.
 
 ## Browser Tools
 
@@ -257,29 +313,104 @@ list to scope to).
 ### Passing
 - `packages/core`: 215 tests
 - `packages/dom-snapshot`: 132 tests
-- `packages/browser-runtime`: 151 tests (144 inherited + 7 new for `redact.ts`)
+- `packages/browser-runtime`: 167 tests (144 original + 7 for `redact.ts` +
+  16 new for `service-worker-diagnostics.ts`)
 - `packages/aipex-react`: 112 tests (10 pre-existing skips, unrelated to this work)
 - `packages/browser-ext`: 30 tests
-- **Total: 640 passing**, all packages build and typecheck clean.
+- **Total: 656 passing**, all packages build and typecheck clean.
 
 ### Failing
 None known.
 
 ### Not Implemented
 No tests exist yet for `widget-diagnostics.ts`, `client-diagnostics.ts`,
-`studio-diagnostics.ts`, `service-worker-diagnostics.ts`, or `devtools.ts` —
-they're thin wrappers around `chrome.scripting.executeScript`/
-`chrome.debugger`/`chrome.runtime.sendMessage`, which are hard to unit test
-meaningfully without a real browser or a much more elaborate Chrome API
-mock than exists in this repo today. Manual/integration testing against a
-real Apty deployment is the real validation path once the Apty-side
-contracts exist.
+`studio-diagnostics.ts`, or `devtools.ts` (service-worker-diagnostics.ts
+now has 16, added this session, using a `global.chrome = {...}` mock
+matching the pattern already used elsewhere in this repo, e.g.
+`fake-mouse.test.ts`). The remaining untested files are thinner wrappers
+around `chrome.scripting.executeScript`/`chrome.debugger` specifically
+(vs. `service-worker-diagnostics.ts`'s `chrome.runtime.sendMessage`/`fetch`,
+which mock cleanly) — extending the same mocking approach to them is
+straightforward and a reasonable next increment, not a blocked task.
+Manual/integration testing against a real Apty deployment is still the
+real end-to-end validation path once the Apty-side contracts exist.
+
+## Multi-Session Isolation — Research Notes (investigated, NOT implemented)
+
+A prior instruction this session asked for full multi-chat/multi-tab
+isolation (concurrent debugging conversations, each bound to a specific
+tab, with diagnostic evidence never leaking between them). That work was
+interrupted before implementation in favor of the narrower Service Worker
+task above. Recording what was found so the next session doesn't have to
+re-discover it:
+
+- **Chat/conversation isolation already exists at the message-history
+  level.** `packages/core/src/conversation/session.ts`'s `Session` class
+  (id, message items, token metrics, a generic `metadata: Record<string,
+  unknown>` bag via `setMetadata`/`getMetadata`) plus
+  `packages/browser-runtime/src/conversation/conversation-storage.ts`
+  already give each conversation its own persisted, isolated message
+  history. This is NOT the same thing as diagnostic-evidence isolation
+  (see next point) but it means chat state itself isn't the gap.
+- **The real gap is tool execution being globally-scoped, not
+  session-scoped.** Every diagnostic/browser tool (`getActiveTab()` in
+  `tools/tab-utils.ts`, used throughout `apty.ts`/`devtools.ts`/etc.)
+  queries `chrome.tabs.query({active: true, currentWindow: true})` — "
+  whichever tab is active right now," not "the tab this conversation is
+  actually about." If a user switches tabs mid-conversation, or two
+  windows each have their own side panel open, tool calls silently operate
+  on the wrong tab. This is the concrete mechanism that would cause
+  cross-session evidence leakage, and it's a real, verifiable gap today,
+  not a hypothetical one.
+- **The agent SDK already supports exactly the fix needed, unused today.**
+  `@openai/agents` (which `packages/core` wraps) supports a generic
+  `RunContext<Context>` threaded through every tool call:
+  `execute(input, context?: RunContext<Context>, details?: ToolCallDetails)`.
+  `packages/core/src/agent/aipex.ts`'s call to `run(this.agent, input,
+  {...})` does not currently pass a `context` option at all. The fix is to
+  (1) pass `context: { tabId, sessionId }` (or similar) when invoking
+  `run()`, bound at conversation-start time to whichever tab the
+  conversation is actually about, and (2) update tool `execute` functions
+  to prefer `context.context.tabId` over a fresh `getActiveTab()` query
+  when present. This reuses existing SDK plumbing rather than inventing a
+  parallel session-manager — no new "DebugSession" class needed for this
+  part.
+- **The side panel is one instance per window, not per tab.**
+  `manifest.json`'s `side_panel.default_path` is the single shared page for
+  every tab in a window (`chrome.sidePanel.open({tabId})` just tells Chrome
+  which window to attach the panel to, it doesn't create per-tab panel
+  instances). Chrome's `chrome.sidePanel.setOptions({tabId, path,
+  enabled})` API *does* support true per-tab panels if that's wanted
+  instead — not yet used here. Two side-by-side windows, each with their
+  own side panel, are already two independent JS execution contexts today
+  (no shared global state between them unless something explicitly reads
+  `chrome.storage.local`), so window-level concurrency mostly already
+  works; tab-level concurrency within one window does not, per the
+  previous point.
+- **Not investigated yet**: how `background.ts` (a single shared service
+  worker for the whole extension) would need to key any of its own
+  listener state by session/tab if it starts doing session-aware work —
+  today it mostly doesn't hold session-scoped state, which is good, but
+  this needs re-checking once tool-context binding is implemented.
+
+**Recommended next step for whoever picks this up**: implement the
+`RunContext` threading first (smallest, most surgical change, reuses
+existing SDK capability) before building any new "DebugSession" class —
+it may turn out to be sufficient on its own for the tab-binding problem,
+with the existing `Session`/conversation-storage layer already covering
+chat-state isolation.
 
 ## Known Limitations
 
 - No real Apty Widget/Client/Studio/Service-Worker integration — every
   Apty-specific tool currently reports `not_configured`/`unavailable`
-  against a real deployment until Apty-side work happens.
+  against a real deployment until Apty-side work happens (Service Worker
+  now has a complete producer-side reference implementation ready to hand
+  off; Studio/Widget/Client do not yet).
+- **No multi-session/multi-tab diagnostic isolation** — see "Multi-Session
+  Isolation — Research Notes" above. All diagnostic tools currently
+  operate on "whichever tab is active right now" rather than a
+  conversation-bound tab; this is a real gap, not yet fixed.
 - Evidence correlation is entirely LLM-driven (via system-prompt
   instructions), not a deterministic pre-pass.
 - `host-access-config.json` and the console-capture content script are
@@ -312,17 +443,23 @@ Read this file, `ARCHITECTURE.md`, `DECISIONS.md`, `SECURITY_AUDIT.md`, and
   `window.__APTY_WIDGET__` / `window.__APTY_CLIENT__` contracts — these are
   this session's best-guess design, not confirmed with the Widget/Client
   teams
-- Whether Apty has (or is willing to build) a service-worker diagnostic
-  endpoint or messaging channel at all
+- Whether Apty will adopt `docs/apty-integration/apty-widget-service-worker.reference.ts`
+  (or an HTTP-endpoint equivalent) for Service Worker diagnostics — the
+  reference implementation is ready, but nothing on the Apty side has
+  adopted it yet
 - Apty's actual target application domains, to scope `host-access-config.json`
   and the console-bridge's content-script `matches` away from `<all_urls>`
 
-**What's safe to continue without asking:**
-- Adding more DevTools-based diagnostics (e.g. `Page.captureScreenshot`
-  correlation with DOM state, performance timing)
-- Building the deterministic evidence-correlation pre-pass
-- Writing tests for the new `apty/*` provider classes using a Chrome API
-  mock (would need one to be built first — none exists in this repo)
-- An Options UI panel for `AptyIntegrationConfig`
-- Continuing to remove/rename remaining internal "AIPex" identifiers, if a
-  future session judges the churn worth it
+**What's safe to continue without asking — in recommended order:**
+1. **Multi-session tab-binding** (highest priority, real correctness gap
+   found this session, not yet fixed): implement `RunContext` threading as
+   described in "Multi-Session Isolation — Research Notes" above. Start
+   there, not with a new session-manager class — the existing `Session`/
+   conversation-storage layer likely already covers chat-state isolation.
+2. Writing tests for `widget-diagnostics.ts`/`client-diagnostics.ts`/
+   `studio-diagnostics.ts`/`devtools.ts` using the same `global.chrome`
+   mock pattern now proven out in `service-worker-diagnostics.test.ts`
+3. Building the deterministic evidence-correlation pre-pass
+4. An Options UI panel for `AptyIntegrationConfig`
+5. Continuing to remove/rename remaining internal "AIPex" identifiers, if a
+   future session judges the churn worth it
