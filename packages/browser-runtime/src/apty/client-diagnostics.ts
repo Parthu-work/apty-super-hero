@@ -47,8 +47,8 @@ export class ScriptingClientDiagnosticsProvider
         target: { tabId },
         world: "MAIN",
         func: () =>
-          (window as { __APTY_CLIENT__?: RawAptyClientBridge }).__APTY_CLIENT__ ??
-          null,
+          (window as { __APTY_CLIENT__?: RawAptyClientBridge })
+            .__APTY_CLIENT__ ?? null,
       });
 
       const bridge = results[0]?.result as RawAptyClientBridge | null;

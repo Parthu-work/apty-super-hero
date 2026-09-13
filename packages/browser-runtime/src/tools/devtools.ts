@@ -45,9 +45,7 @@ async function withDebuggerEventCapture<T>(
   tabId: number,
   body: (
     cdp: CdpCommander,
-    onEvent: (
-      handler: (method: string, params: unknown) => void,
-    ) => void,
+    onEvent: (handler: (method: string, params: unknown) => void) => void,
   ) => Promise<T>,
 ): Promise<T> {
   const attached = await debuggerManager.safeAttachDebugger(tabId);
@@ -105,11 +103,15 @@ export const getNetworkDiagnosticsTool = tool({
       .min(MIN_WINDOW_MS)
       .max(MAX_WINDOW_MS)
       .default(DEFAULT_WINDOW_MS)
-      .describe(`Capture window in milliseconds (${MIN_WINDOW_MS}-${MAX_WINDOW_MS}, default ${DEFAULT_WINDOW_MS})`),
+      .describe(
+        `Capture window in milliseconds (${MIN_WINDOW_MS}-${MAX_WINDOW_MS}, default ${DEFAULT_WINDOW_MS})`,
+      ),
     onlyErrors: z
       .boolean()
       .default(false)
-      .describe("If true, only return failed requests or responses with status >= 400"),
+      .describe(
+        "If true, only return failed requests or responses with status >= 400",
+      ),
   }),
   execute: async ({ windowMs, onlyErrors }) => {
     const tab = await getActiveTab();
@@ -152,7 +154,9 @@ export const getNetworkDiagnosticsTool = tool({
         });
 
         await cdp.sendCommand("Network.enable", {});
-        await new Promise((resolve) => setTimeout(resolve, clampWindow(windowMs)));
+        await new Promise((resolve) =>
+          setTimeout(resolve, clampWindow(windowMs)),
+        );
         await cdp.sendCommand("Network.disable", {});
 
         return byId;
@@ -201,7 +205,9 @@ export const getRuntimeDiagnosticsTool = tool({
       .min(MIN_WINDOW_MS)
       .max(MAX_WINDOW_MS)
       .default(DEFAULT_WINDOW_MS)
-      .describe(`Capture window in milliseconds (${MIN_WINDOW_MS}-${MAX_WINDOW_MS}, default ${DEFAULT_WINDOW_MS})`),
+      .describe(
+        `Capture window in milliseconds (${MIN_WINDOW_MS}-${MAX_WINDOW_MS}, default ${DEFAULT_WINDOW_MS})`,
+      ),
   }),
   execute: async ({ windowMs }) => {
     const tab = await getActiveTab();
@@ -230,7 +236,9 @@ export const getRuntimeDiagnosticsTool = tool({
               collected.push({
                 type: "exception",
                 text: redactSensitiveText(
-                  String(details?.exception?.description ?? details?.text ?? ""),
+                  String(
+                    details?.exception?.description ?? details?.text ?? "",
+                  ),
                 ),
                 stackTrace: details?.stackTrace
                   ? JSON.stringify(details.stackTrace)
@@ -268,4 +276,7 @@ export const getRuntimeDiagnosticsTool = tool({
   },
 });
 
-export const devToolsTools = [getNetworkDiagnosticsTool, getRuntimeDiagnosticsTool];
+export const devToolsTools = [
+  getNetworkDiagnosticsTool,
+  getRuntimeDiagnosticsTool,
+];

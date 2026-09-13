@@ -37,7 +37,11 @@ export interface DiagnosticEvidence {
 }
 
 /** Confidence levels the agent must use when stating a diagnosis — never fabricate certainty. */
-export type DiagnosisConfidence = "confirmed" | "likely" | "possible" | "unknown";
+export type DiagnosisConfidence =
+  | "confirmed"
+  | "likely"
+  | "possible"
+  | "unknown";
 
 /**
  * Generic status for an Apty integration that may or may not be reachable

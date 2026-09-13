@@ -84,11 +84,12 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
   async getStatus(): Promise<AptyServiceWorkerStatus> {
     if (this.config.extensionId) {
-      const response = await sendExternalMessage<ServiceWorkerDiagnosticResponse>(
-        this.config.extensionId,
-        { type: "apty-debug-agent:get-service-worker-status" },
-        REQUEST_TIMEOUT_MS,
-      );
+      const response =
+        await sendExternalMessage<ServiceWorkerDiagnosticResponse>(
+          this.config.extensionId,
+          { type: "apty-debug-agent:get-service-worker-status" },
+          REQUEST_TIMEOUT_MS,
+        );
       if (!response) return { status: "unavailable" };
       return {
         status: "ok",
@@ -104,7 +105,11 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
       );
       if (!response?.ok) return { status: "unavailable" };
       const body = (await response.json()) as ServiceWorkerDiagnosticResponse;
-      return { status: "ok", running: body.running, lastActivity: body.lastActivity };
+      return {
+        status: "ok",
+        running: body.running,
+        lastActivity: body.lastActivity,
+      };
     }
 
     return { status: "not_configured" };
@@ -112,11 +117,12 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
   async getLogs(): Promise<AptyLog[]> {
     if (this.config.extensionId) {
-      const response = await sendExternalMessage<ServiceWorkerDiagnosticResponse>(
-        this.config.extensionId,
-        { type: "apty-debug-agent:get-service-worker-logs" },
-        REQUEST_TIMEOUT_MS,
-      );
+      const response =
+        await sendExternalMessage<ServiceWorkerDiagnosticResponse>(
+          this.config.extensionId,
+          { type: "apty-debug-agent:get-service-worker-logs" },
+          REQUEST_TIMEOUT_MS,
+        );
       return response?.logs ?? [];
     }
 

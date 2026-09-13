@@ -7,7 +7,12 @@ export {
   getAptyIntegrationConfig,
   setAptyIntegrationConfig,
 } from "./config.js";
-export { redactHeaders, redactLog, redactLogs, redactSensitiveText } from "./redact.js";
+export {
+  redactHeaders,
+  redactLog,
+  redactLogs,
+  redactSensitiveText,
+} from "./redact.js";
 export {
   ConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredServiceWorkerDiagnosticsProvider,

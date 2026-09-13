@@ -23,15 +23,14 @@
 import { tool } from "@aipexstudio/aipex-core";
 import { z } from "zod";
 import {
+  ConfiguredServiceWorkerDiagnosticsProvider,
+  ExternalMessageStudioDiagnosticsProvider,
   getAptyIntegrationConfig,
-  NotConfiguredClientDiagnosticsProvider,
   NotConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredStudioDiagnosticsProvider,
   redactLogs,
   ScriptingClientDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,
-  ExternalMessageStudioDiagnosticsProvider,
-  ConfiguredServiceWorkerDiagnosticsProvider,
 } from "../apty/index.js";
 import { getActiveTab } from "./tab-utils";
 

@@ -520,11 +520,13 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
       properties: {
         windowMs: {
           type: "number",
-          description: "Capture window in milliseconds (500-15000, default 3000).",
+          description:
+            "Capture window in milliseconds (500-15000, default 3000).",
         },
         onlyErrors: {
           type: "boolean",
-          description: "If true, only return failed requests or status >= 400. Default false.",
+          description:
+            "If true, only return failed requests or status >= 400. Default false.",
         },
       },
       required: [],
@@ -539,7 +541,8 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
       properties: {
         windowMs: {
           type: "number",
-          description: "Capture window in milliseconds (500-15000, default 3000).",
+          description:
+            "Capture window in milliseconds (500-15000, default 3000).",
         },
       },
       required: [],

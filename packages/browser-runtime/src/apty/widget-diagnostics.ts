@@ -56,9 +56,8 @@ export class ScriptingWidgetDiagnosticsProvider
         target: { tabId },
         world: "MAIN",
         func: () => {
-          const bridge = (
-            window as { __APTY_WIDGET__?: RawAptyWidgetBridge }
-          ).__APTY_WIDGET__;
+          const bridge = (window as { __APTY_WIDGET__?: RawAptyWidgetBridge })
+            .__APTY_WIDGET__;
           const domPresent = Boolean(
             document.querySelector('[id^="apty-"], [class*="apty-widget"]'),
           );
@@ -98,9 +97,8 @@ export class ScriptingWidgetDiagnosticsProvider
         target: { tabId },
         world: "MAIN",
         func: () => {
-          const bridge = (
-            window as { __APTY_WIDGET__?: RawAptyWidgetBridge }
-          ).__APTY_WIDGET__;
+          const bridge = (window as { __APTY_WIDGET__?: RawAptyWidgetBridge })
+            .__APTY_WIDGET__;
           return bridge?.getLogs ? bridge.getLogs() : [];
         },
       });

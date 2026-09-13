@@ -30,9 +30,7 @@ describe("redactSensitiveText", () => {
   });
 
   it("redacts a password field", () => {
-    expect(redactSensitiveText('password=hunter2')).toBe(
-      "password=<REDACTED>",
-    );
+    expect(redactSensitiveText("password=hunter2")).toBe("password=<REDACTED>");
   });
 
   it("redacts a bearer token embedded in free text", () => {

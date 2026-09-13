@@ -33,10 +33,8 @@ export function redactHeaders(
 // Matches "key": "value" / key: value / key=value for a set of sensitive key
 // names, case-insensitively, across quotes/colons/equals-signs commonly seen
 // in JSON, headers, and log lines.
-const SENSITIVE_INLINE_PATTERN = new RegExp(
-  String.raw`(["']?\b(?:authorization|cookie|set-cookie|token|access[_-]?token|refresh[_-]?token|api[_-]?key|password|passwd|secret|client[_-]?secret)\b["']?\s*[:=]\s*)(["']?)([^"'\s,}]+)(["']?)`,
-  "gi",
-);
+const SENSITIVE_INLINE_PATTERN =
+  /(["']?\b(?:authorization|cookie|set-cookie|token|access[_-]?token|refresh[_-]?token|api[_-]?key|password|passwd|secret|client[_-]?secret)\b["']?\s*[:=]\s*)(["']?)([^"'\s,}]+)(["']?)/gi;
 
 // Matches a bearer/basic auth value even when the key name itself wasn't
 // caught above (e.g. a raw "Bearer eyJ..." string embedded in a log line).
@@ -52,9 +50,12 @@ const BEARER_TOKEN_PATTERN = /\b(Bearer|Basic)\s+[A-Za-z0-9\-._~+/]+=*/gi;
  */
 export function redactSensitiveText(text: string): string {
   return text
-    .replace(SENSITIVE_INLINE_PATTERN, (_match, prefix, openQuote, _value, closeQuote) => {
-      return `${prefix}${openQuote}<REDACTED>${closeQuote}`;
-    })
+    .replace(
+      SENSITIVE_INLINE_PATTERN,
+      (_match, prefix, openQuote, _value, closeQuote) => {
+        return `${prefix}${openQuote}<REDACTED>${closeQuote}`;
+      },
+    )
     .replace(BEARER_TOKEN_PATTERN, "$1 <REDACTED>");
 }
 
