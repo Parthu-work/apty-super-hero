@@ -1,28 +1,37 @@
-# Apty Agent
+# Apty Live Browser Debugging Agent
 
-An AI browser agent for Apty — forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed) and being customized to integrate with Apty Studio and the Apty widget: understanding enterprise web applications, resolving UI elements reliably, driving/repairing Apty workflows, and pulling diagnostic logs for debugging.
+An AI agent, packaged as a Chrome extension, that helps an Apty engineer debug a live issue in their actual browser — "why isn't the Apty widget showing?", "why can't Studio select this element?" — by inspecting the current page's DOM, console, network activity, and Apty's own runtime state, then giving an evidence-first diagnosis.
+
+Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a RAG/knowledge-base system** — see `PROJECT_PROGRESS.md` and `DECISIONS.md` for the reasoning behind that scope.
+
+**Start here for the real state of the project**: `PROJECT_PROGRESS.md` (what's done, what's not, next steps), `ARCHITECTURE.md` (what's actually implemented), `SECURITY_AUDIT.md`, `DECISIONS.md`, `CHANGELOG.md`. Those files, not this README, are the source of truth across coding sessions.
 
 ---
 
-## Why this fork exists
+## What it does today
 
-Apty's Digital Adoption Platform depends on identifying the right UI element in enterprise applications (Salesforce, ServiceNow, Workday, etc.) — a problem that traditional CSS/XPath selectors solve poorly under dynamic DOMs, shadow DOM, iframes, and SPA navigation.
+- Inspects the current page's DOM, elements, iframes, and Shadow DOM (inherited AIPex infrastructure)
+- Reads console output/errors captured since page load (`get_apty_page_logs`)
+- Watches live network requests and browser-level runtime errors via Chrome DevTools Protocol (`get_network_diagnostics`, `get_runtime_diagnostics`)
+- Has provider interfaces ready for Apty Widget/Client/Studio/Service-Worker diagnostics (`get_apty_widget_diagnostics`, etc.) — **these currently report `not_configured`**, because the Apty-side integration (a real extension ID, a documented global, a message handler) doesn't exist yet. See `PROJECT_PROGRESS.md`'s Apty Integration sections for exactly what's needed.
+- Reasons over all of the above and answers with a confidence-scored diagnosis (Confirmed/Likely/Possible/Unknown), never fabricating evidence
 
-Rather than build browser-control infrastructure (Manifest V3 extension, MCP bridge, DOM snapshotting, element resolution) from scratch, this repo starts from AIPex — an open-source browser automation agent that already solves the hard infrastructure problems:
+## Inherited AIPex infrastructure
 
 - A **Chrome/Chromium extension** (side panel + content script + background service worker)
 - An **MCP bridge** (`mcp-bridge/`) so external AI clients (Claude Code, Cursor, VS Code Copilot) can drive the browser
 - A **DOM snapshot** package that assigns stable UIDs to elements instead of raw selectors
-- A **Human-in-the-Loop intervention system** (monitor an operation, ask the user to pick among candidates) for the recovery/escalation path
+- A **Human-in-the-Loop intervention system** (monitor an operation, ask the user to pick among candidates)
 
 ## What changed from upstream AIPex
 
 - Removed AIPex's own SaaS backend integrations (login/proxy mode, conversation sharing, user-manual replay-from-website, recording/screenshot upload, version checking) — this fork is **BYOK-only**: it talks directly to your configured AI provider (or, eventually, Apty's own backend), never through a third-party proxy.
-- Removed voice input (ElevenLabs STT + VAD) and its `three.js`-based particle visualization — unrelated to a page-automation agent and a meaningful bundle-size/attack-surface reduction.
-- Removed AIPex's own marketing/community UI (Discord/Twitter/WeChat links, "buy tokens" prompts) and release automation (`bump`/`release` workflows) that assumed this stays AIPex's own published product.
-- Rebranded the extension (manifest, page titles, header) as **Apty Agent**.
+- Removed voice input (ElevenLabs STT + VAD) and its `three.js`-based particle visualization.
+- Removed AIPex's own marketing/community UI and release automation.
+- Rebranded as **Apty Live Browser Debugging Agent**; system prompt rewritten from a generic browser assistant into the debugging persona (see `packages/aipex-react/src/components/chatbot/constants.ts`).
+- Added the Apty diagnostics layer described above (`packages/browser-runtime/src/apty/`).
 
-See `packages/*/src` for the actual code; the high-level architecture (agent core, DOM snapshot, browser runtime, MCP bridge, React UI) is unchanged from upstream.
+See `CHANGELOG.md` for the full list with commit references.
 
 ## Local setup
 
@@ -35,6 +44,10 @@ pnpm dev     # or: watch mode with HMR
 Load `packages/browser-ext/dist` as an unpacked extension via `chrome://extensions` → Developer mode → Load unpacked.
 
 On first use, open the extension's **Options** page and configure an AI provider + API key (BYOK) — there is no login/proxy fallback.
+
+## Configuring Apty Studio/Widget/Client/Service-Worker integration
+
+Copy `packages/browser-ext/.env.example` to `packages/browser-ext/.env` and fill in whatever Apty engineering has actually made available (a Studio extension ID, a service-worker diagnostic endpoint, etc.) — every value defaults to empty, which is honestly reported as `not_configured` rather than faked. See `PROJECT_PROGRESS.md`'s per-component integration sections for exactly what each one needs on the Apty side before it can do anything.
 
 ## Use with AI Coding Agents (MCP)
 
