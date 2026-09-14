@@ -41,6 +41,15 @@ export {
   stopInvestigation,
   updateInvestigation,
 } from "./investigation-session.js";
+export type {
+  ClassifiableLogEntry,
+  LogCategory,
+  LogClassificationHint,
+} from "./log-classification.js";
+export {
+  classifyLogEntry,
+  summarizeLogCategories,
+} from "./log-classification.js";
 export {
   redactHeaders,
   redactLog,

@@ -276,6 +276,29 @@ safety) and `CdpCommander` (typed `sendCommand` wrapper) from
 - `get_runtime_diagnostics` — enables `Log`/`Runtime`, captures
   `Log.entryAdded` and `Runtime.exceptionThrown` (with stack traces).
 
+**Console/runtime event classification (this session)** —
+`packages/browser-runtime/src/apty/log-classification.ts`'s
+`classifyLogEntry()` buckets every entry `get_apty_page_logs` and
+`get_runtime_diagnostics` return into one `category`: `csp-violation`,
+`cors-error`, `unhandled-rejection`, `js-exception`,
+`network-resource-error`, `deprecation-warning`, `apty-error`,
+`console-error`, `console-warning`, or `info`. It is pattern-matching over
+already-redacted `text`/`level` plus, where available, a structured
+`hint` (`get_runtime_diagnostics` now also captures CDP `Log.entryAdded`'s
+own `entry.source`, e.g. `"security"`/`"network"`/`"javascript"`, and
+passes it through as the hint; more specific categories are checked
+before falling back to a generic level-based one, so e.g. a `TypeError`
+that happens to mention "Apty" still classifies as `js-exception`, not
+`apty-error`). Both tools now also return a `categoryCounts` tally
+alongside the full entry/event list, so the model gets a quick-glance
+breakdown instead of having to re-derive it from free text every time.
+This closes the "Console/runtime event classification" gap from the
+previous session's gap matrix — see `PROJECT_PROGRESS.md`. Unit-tested in
+`log-classification.test.ts` (12 cases covering every category plus two
+precedence/fallback cases); `apty.test.ts`/`devtools.test.ts` each add one
+integration test confirming the `category`/`categoryCounts` fields appear
+on real tool output.
+
 **Hard limitation, stated explicitly in both tool descriptions and the
 system prompt**: CDP only observes events from the moment a domain is
 enabled — it cannot retroactively return network requests or log entries
@@ -499,9 +522,6 @@ Testing Library coverage.
 - **Investigation-aware network capture sessions** — `get_network_diagnostics`
   still uses a fixed 500ms–15s window per call, not a start/reproduce/stop
   flow scoped to an investigation.
-- **Console/runtime event classification** — `get_apty_page_logs`/
-  `get_runtime_diagnostics` return raw entries; no apty-error/CSP/CORS/
-  JS-exception/etc. bucketing exists.
 - **A dedicated Studio-vs-production comparison tool** — the planner's
   `studio-vs-production` category plans for a "compare" step, but no tool
   automates the actual Studio-config-vs-live-DOM diff; the model has to

@@ -25,6 +25,7 @@ import { z } from "zod";
 import {
   type AptyLog,
   ConfiguredServiceWorkerDiagnosticsProvider,
+  classifyLogEntry,
   type EvidenceSource,
   ExternalMessageStudioDiagnosticsProvider,
   getAptyIntegrationConfig,
@@ -34,6 +35,7 @@ import {
   redactLogs,
   ScriptingClientDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,
+  summarizeLogCategories,
 } from "../apty/index.js";
 import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
 
@@ -148,11 +150,23 @@ export const getAptyPageLogsTool = tool({
       tab.id,
     );
 
+    const classified = filtered.map((entry) => ({
+      ...entry,
+      category: classifyLogEntry({
+        text: entry.message,
+        level: entry.level,
+        hint: entry.source,
+      }),
+    }));
+
     return {
       available: true,
       url: tab.url,
-      count: filtered.length,
-      entries: filtered,
+      count: classified.length,
+      categoryCounts: summarizeLogCategories(
+        classified.map((entry) => entry.category),
+      ),
+      entries: classified,
     };
   },
 });

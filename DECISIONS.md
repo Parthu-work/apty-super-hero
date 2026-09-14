@@ -259,3 +259,30 @@ code and in `SECURITY_AUDIT.md`. A more exhaustive approach (e.g.
 allowlisting only known-safe fields instead of blocklisting known-sensitive
 ones) would be more conservative but was judged disproportionate for a
 first pass; revisit if a real secret leak is ever observed in practice.
+
+## Console/runtime event classification is a fixed regex taxonomy, applied after redaction, not a second LLM call or an ML model
+
+`log-classification.ts`'s `classifyLogEntry()` is plain pattern matching
+against a small, fixed set of categories (CSP, CORS, unhandled rejection,
+JS exception, network-resource error, deprecation, Apty-specific, generic
+console error/warning, info) — the same reasoning applied to the
+investigation planner (see above): these categories have stable,
+recognizable text signatures, so a second model call would add latency
+and cost for a problem regex already solves deterministically and
+testably. Classification always runs on the *output* of
+`redactSensitiveText()`/`redactLogs()`, never before it — the classifier
+only ever adds a label next to already-safe text, so it can never
+reintroduce a secret redaction would otherwise have caught, and its
+correctness doesn't depend on redaction's own correctness either way. The
+CDP `Log.entryAdded` `entry.source` field is threaded through as an
+optional `hint` rather than being the sole signal, because `source` is
+CDP's own coarse bucket (`"javascript"`, `"security"`, `"network"`, etc.)
+and doesn't by itself distinguish CSP from a generic security warning, or
+a CORS failure from an unrelated network log line — text patterns remain
+the primary signal, with the hint only resolving genuine ambiguity (e.g.
+a CSP-adjacent message that doesn't literally contain "Content Security
+Policy" wording). If real usage surfaces failure modes with unfamiliar
+wording that consistently fall through to `"info"`/`"console-error"`, the
+fix is adding another pattern to the fixed list — not switching the
+mechanism, following the same precedent as the investigation planner's
+`PLAN_TEMPLATES`.

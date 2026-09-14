@@ -97,4 +97,45 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
     ]);
     expect(evidence.every((e) => e.tabId === 27)).toBe(true);
   });
+
+  it("classifies each returned entry and summarizes category counts", async () => {
+    mockTabsQuery.mockResolvedValue([tab(12)]);
+    mockTabsGet.mockResolvedValue(tab(27));
+    mockExecuteScript.mockResolvedValue([
+      {
+        result: [
+          {
+            level: "error",
+            message:
+              "Access to fetch has been blocked by CORS policy: no Access-Control-Allow-Origin header",
+            timestamp: 1,
+            source: "console",
+          },
+          {
+            level: "error",
+            message: "TypeError: Cannot read properties of undefined",
+            timestamp: 2,
+            source: "window-error",
+          },
+        ],
+      },
+    ]);
+
+    const runContext = {
+      context: { conversationId: "conv-classify", tabId: 27 },
+    };
+    const result = (await getAptyPageLogsTool.invoke(
+      runContext as any,
+      JSON.stringify({ limit: 100, minLevel: "log" }),
+    )) as any;
+
+    expect(result.entries.map((e: any) => e.category)).toEqual([
+      "js-exception",
+      "cors-error",
+    ]);
+    expect(result.categoryCounts).toEqual({
+      "js-exception": 1,
+      "cors-error": 1,
+    });
+  });
 });
