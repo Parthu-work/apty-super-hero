@@ -9,6 +9,7 @@ vi.mock("@aipexstudio/browser-runtime", () => ({
 }));
 
 import {
+  peekConversationTabBinding,
   releaseConversationTabBinding,
   resolveConversationRunContext,
 } from "./conversation-tab-binding";
@@ -96,5 +97,35 @@ describe("resolveConversationRunContext — per-conversation tab binding", () =>
       conversationId: "session-no-active-tab",
       tabId: null,
     });
+  });
+});
+
+describe("peekConversationTabBinding — read-only lookup for UI display", () => {
+  it("returns null for a session with no binding yet", () => {
+    expect(peekConversationTabBinding("session-peek-none")).toBeNull();
+  });
+
+  it("returns null for a null sessionId", () => {
+    expect(peekConversationTabBinding(null)).toBeNull();
+  });
+
+  it("returns the bound tab id without mutating or re-resolving anything", async () => {
+    mockGetActiveTab.mockResolvedValue(tab(12));
+    await resolveConversationRunContext("session-peek-bound");
+
+    expect(peekConversationTabBinding("session-peek-bound")).toBe(12);
+
+    // Peeking must not itself create or change a binding.
+    mockGetActiveTab.mockResolvedValue(tab(99));
+    expect(peekConversationTabBinding("session-peek-bound")).toBe(12);
+  });
+
+  it("returns null again after the binding is released", async () => {
+    mockGetActiveTab.mockResolvedValue(tab(12));
+    await resolveConversationRunContext("session-peek-release");
+
+    releaseConversationTabBinding("session-peek-release");
+
+    expect(peekConversationTabBinding("session-peek-release")).toBeNull();
   });
 });

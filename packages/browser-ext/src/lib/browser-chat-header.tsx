@@ -14,10 +14,11 @@ import { PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationHistory } from "./conversation-history";
 import { releaseConversationTabBinding } from "./conversation-tab-binding";
+import { InvestigationContextBar } from "./investigation/investigation-context-bar";
 import { fromStorageFormat, toStorageFormat } from "./message-adapter";
 
 export function BrowserChatHeader({
-  title = "Apty Agent",
+  title = "Apty Live Debugging",
   onSettingsClick,
   onNewChat,
   className,
@@ -151,45 +152,48 @@ export function BrowserChatHeader({
   }, [onNewChat, sessionId]);
 
   return (
-    <div
-      className={cn(
-        "flex items-center justify-between border-b px-4 py-2",
-        className,
-      )}
-      {...props}
-    >
-      {/* Left side - Settings + Voice/Text toggle + History */}
-      <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleOpenOptions}
-          title={t("tooltip.settings")}
-          className="size-8"
-        >
-          <SettingsIcon className="size-4" />
-        </Button>
+    <div className={cn("flex flex-col", className)} {...props}>
+      <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="shrink-0 truncate text-sm font-semibold tracking-tight">
+            {title}
+          </span>
 
-        {/* Conversation History */}
-        <ConversationHistory
-          currentConversationId={currentConversationId}
-          onConversationSelect={handleConversationSelect}
-          onNewConversation={handleNewChat}
-        />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleOpenOptions}
+              title={t("tooltip.settings")}
+              className="size-8"
+            >
+              <SettingsIcon className="size-4" />
+            </Button>
+
+            {/* Conversation History */}
+            <ConversationHistory
+              currentConversationId={currentConversationId}
+              onConversationSelect={handleConversationSelect}
+              onNewConversation={handleNewChat}
+            />
+          </div>
+        </div>
+
+        {/* Right side - New Chat */}
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleNewChat}
+            className="gap-2"
+          >
+            <PlusIcon className="size-4" />
+            {t("common.newChat")}
+          </Button>
+        </div>
       </div>
 
-      {/* Right side - New Chat, User Profile */}
-      <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleNewChat}
-          className="gap-2"
-        >
-          <PlusIcon className="size-4" />
-          {t("common.newChat")}
-        </Button>
-      </div>
+      <InvestigationContextBar />
 
       {children}
     </div>

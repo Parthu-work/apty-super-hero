@@ -267,7 +267,22 @@
     "list_interventions": "列出介入方式",
     "get_intervention_info": "获取介入信息",
     "request_intervention": "请求介入",
-    "cancel_intervention": "取消介入"
+    "cancel_intervention": "取消介入",
+    "get_apty_page_logs": "🖥️ 检查浏览器控制台日志",
+    "get_apty_widget_diagnostics": "🧩 检查 Apty Widget",
+    "get_apty_client_diagnostics": "🧠 检查 Apty Client",
+    "get_apty_studio_diagnostics": "🎯 检查 Apty Studio",
+    "get_apty_service_worker_diagnostics": "⚙️ 检查 Apty Service Worker",
+    "get_network_diagnostics": "🌐 检查网络请求",
+    "get_runtime_diagnostics": "🖥️ 检查浏览器运行时错误",
+    "analyze_element_selectors": "🎯 分析元素选择器",
+    "get_investigation_timeline": "🧠 关联证据",
+    "clear_investigation_evidence": "🧹 清除已收集的证据",
+    "start_investigation": "🔍 开始调查",
+    "update_investigation": "📝 更新调查",
+    "record_verification_attempt": "🧪 验证诊断结果",
+    "stop_investigation": "🛑 停止调查",
+    "get_investigation_status": "📋 检查调查状态"
   },
   "conversationHistory": {
     "title": "对话历史",

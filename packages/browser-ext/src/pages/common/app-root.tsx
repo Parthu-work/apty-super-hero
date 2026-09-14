@@ -35,6 +35,9 @@ import { resolveConversationRunContext } from "../../lib/conversation-tab-bindin
 import { InputModeProvider } from "../../lib/input-mode-context";
 import { InterventionModeProvider } from "../../lib/intervention-mode-context";
 import { InterventionUI } from "../../lib/intervention-ui";
+import { AptyToolDisplay } from "../../lib/investigation/apty-tool-display";
+import { DebuggingWelcomeScreen } from "../../lib/investigation/debugging-welcome-screen";
+import { InvestigationSummaryBar } from "../../lib/investigation/investigation-summary-bar";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
@@ -259,7 +262,14 @@ function ChatApp() {
             ),
             messageActions: (props) => <BrowserMessageActions {...props} />,
             inputToolbar: (props) => <AutomationModeInputToolbar {...props} />,
-            promptExtras: () => <BrowserContextLoader />,
+            promptExtras: () => (
+              <>
+                <InvestigationSummaryBar />
+                <BrowserContextLoader />
+              </>
+            ),
+            emptyState: (props) => <DebuggingWelcomeScreen {...props} />,
+            toolDisplay: (props) => <AptyToolDisplay {...props} />,
           }}
         />
       </InterventionModeProvider>

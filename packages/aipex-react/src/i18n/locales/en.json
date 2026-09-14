@@ -267,7 +267,22 @@
     "list_interventions": "List Interventions",
     "get_intervention_info": "Get Intervention Info",
     "request_intervention": "Request Intervention",
-    "cancel_intervention": "Cancel Intervention"
+    "cancel_intervention": "Cancel Intervention",
+    "get_apty_page_logs": "🖥️ Checking browser console logs",
+    "get_apty_widget_diagnostics": "🧩 Inspecting Apty Widget",
+    "get_apty_client_diagnostics": "🧠 Checking Apty Client",
+    "get_apty_studio_diagnostics": "🎯 Checking Apty Studio",
+    "get_apty_service_worker_diagnostics": "⚙️ Checking Apty Service Worker",
+    "get_network_diagnostics": "🌐 Checking network requests",
+    "get_runtime_diagnostics": "🖥️ Checking browser runtime errors",
+    "analyze_element_selectors": "🎯 Analyzing element selectors",
+    "get_investigation_timeline": "🧠 Correlating evidence",
+    "clear_investigation_evidence": "🧹 Clearing collected evidence",
+    "start_investigation": "🔍 Starting investigation",
+    "update_investigation": "📝 Updating investigation",
+    "record_verification_attempt": "🧪 Verifying diagnosis",
+    "stop_investigation": "🛑 Stopping investigation",
+    "get_investigation_status": "📋 Checking investigation status"
   },
   "conversationHistory": {
     "title": "Conversation History",

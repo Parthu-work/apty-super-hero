@@ -38,6 +38,12 @@ export function DefaultToolDisplay({ tool }: ToolDisplaySlotProps) {
     <Tool defaultOpen={shouldExpandByDefault}>
       <ToolHeader type={displayName} state={mapToolState(tool.state)} />
       <ToolContent>
+        {displayName !== tool.toolName && (
+          <p className="px-4 pt-3 text-xs text-muted-foreground">
+            Tool: <code>{tool.toolName}</code>
+            {typeof tool.duration === "number" && ` · ${tool.duration}ms`}
+          </p>
+        )}
         <ToolInput input={tool.input} />
         <ToolOutput
           output={

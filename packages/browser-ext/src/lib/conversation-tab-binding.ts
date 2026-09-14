@@ -62,6 +62,19 @@ export function releaseConversationTabBinding(sessionId: string): void {
   boundTabs.delete(sessionId);
 }
 
+/**
+ * Read-only peek at a conversation's bound tab, without resolving or
+ * mutating anything. For UI display only (e.g. "what tab is this
+ * investigation debugging") — diagnostic tools must keep using
+ * `resolveConversationRunContext`/`resolveDiagnosticTab`, not this.
+ */
+export function peekConversationTabBinding(
+  sessionId: string | null,
+): number | null {
+  if (!sessionId) return null;
+  return boundTabs.get(sessionId) ?? null;
+}
+
 async function safeGetActiveTabId(): Promise<number | null> {
   try {
     const tab = await getActiveTab();
