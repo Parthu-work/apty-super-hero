@@ -8,6 +8,18 @@ export {
   setAptyIntegrationConfig,
 } from "./config.js";
 export {
+  type CorrelateOptions,
+  type CorrelationCluster,
+  correlateEvidence,
+  formatTimeline,
+} from "./evidence-correlation.js";
+export {
+  clearEvidence,
+  getEvidence,
+  getTrackedConversationCount,
+  recordEvidence,
+} from "./evidence-store.js";
+export {
   redactHeaders,
   redactLog,
   redactLogs,
@@ -36,6 +48,7 @@ export type {
   DiagnosisConfidence,
   DiagnosticEvidence,
   EvidenceSource,
+  NewDiagnosticEvidence,
 } from "./types.js";
 export {
   NotConfiguredWidgetDiagnosticsProvider,

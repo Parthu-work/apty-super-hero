@@ -28,13 +28,35 @@ export type EvidenceSource =
 
 /** A single normalized piece of evidence the agent can reason over. */
 export interface DiagnosticEvidence {
+  /** Unique id for this evidence record — lets a diagnosis cite exactly which pieces support it. */
+  evidenceId: string;
+  /** Which conversation collected this — `undefined` when collected outside a chat conversation (e.g. via the MCP bridge). */
+  conversationId?: string;
   source: EvidenceSource;
   timestamp: number;
   /** Short machine-readable event type, e.g. "console-error", "http-error", "widget-status". */
   type: string;
+  /** The tab this evidence is about, when known. `null`/absent for evidence that is inherently not tab-scoped (e.g. shared service-worker logs). */
+  tabId?: number | null;
+  /** Frame this evidence occurred in, when known (main frame vs. an iframe). */
+  frameId?: string;
+  /** Page URL/origin the evidence relates to, when known. */
+  url?: string;
+  /** CDP/network request id, when this evidence is a network event — lets request/response pairs correlate exactly. */
+  requestId?: string;
+  /** Free-form correlation key for evidence that isn't network traffic but still ties to a specific user action/event (e.g. an Apty workflow-step id). */
+  correlationId?: string;
+  /** Whether this evidence is scoped to a specific tab or is inherently shared/global (e.g. the Apty service worker). Mirrors the "shared, not falsely attributed" pattern already used by the service-worker tool. */
+  scope: "tab" | "shared" | "unknown";
   /** The actual payload. Free-form, but must already be redacted (see redact.ts) before this is constructed. */
   data: unknown;
 }
+
+/** Fields the caller supplies when recording evidence — `evidenceId` is always generated, `scope` defaults to `"tab"` when a `tabId` is present. */
+export type NewDiagnosticEvidence = Omit<
+  DiagnosticEvidence,
+  "evidenceId" | "scope"
+> & { scope?: DiagnosticEvidence["scope"] };
 
 /** Confidence levels the agent must use when stating a diagnosis — never fabricate certainty. */
 export type DiagnosisConfidence =

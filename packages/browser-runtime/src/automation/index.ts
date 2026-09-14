@@ -17,6 +17,7 @@ export {
   SKIP_ROLES,
   searchSnapshotText,
 } from "./query";
+export * from "./selector-analysis";
 export { SmartElementHandle, SmartLocator } from "./smart-locator";
 export { SnapshotManager, snapshotManager } from "./snapshot-manager";
 export * from "./snapshot-provider";

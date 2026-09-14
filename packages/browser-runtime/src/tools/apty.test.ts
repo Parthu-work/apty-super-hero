@@ -16,6 +16,7 @@ const mockExecuteScript = vi.fn();
 
 // Import after the chrome mock is installed, and after the (unused in this
 // test) apty/index.js provider exports have something to resolve to.
+import { getEvidence } from "../apty/evidence-store";
 import { getAptyPageLogsTool } from "./apty";
 
 function tab(id: number) {
@@ -60,5 +61,40 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
     expect(mockExecuteScript).toHaveBeenCalledWith(
       expect.objectContaining({ target: { tabId: 12 } }),
     );
+  });
+
+  it("records warn/error-level entries as evidence for this conversation, but not routine log entries", async () => {
+    mockTabsQuery.mockResolvedValue([tab(12)]);
+    mockTabsGet.mockResolvedValue(tab(27));
+    mockExecuteScript.mockResolvedValue([
+      {
+        result: [
+          { level: "log", message: "routine", timestamp: 1, source: "console" },
+          { level: "error", message: "boom", timestamp: 2, source: "console" },
+          {
+            level: "warn",
+            message: "careful",
+            timestamp: 3,
+            source: "console",
+          },
+        ],
+      },
+    ]);
+
+    const runContext = {
+      context: { conversationId: "conv-page-logs", tabId: 27 },
+    };
+    await getAptyPageLogsTool.invoke(
+      runContext as any,
+      JSON.stringify({ limit: 100, minLevel: "log" }),
+    );
+
+    const evidence = getEvidence("conv-page-logs");
+    expect(evidence).toHaveLength(2);
+    expect(evidence.map((e) => e.type).sort()).toEqual([
+      "console-error",
+      "console-warn",
+    ]);
+    expect(evidence.every((e) => e.tabId === 27)).toBe(true);
   });
 });

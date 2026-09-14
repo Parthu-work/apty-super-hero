@@ -11,6 +11,7 @@ import {
   hoverElementByUidTool,
 } from "./element";
 import { interventionTools } from "./interventions/index.js";
+import { investigationTools } from "./investigation.js";
 import {
   getPageMetadataTool,
   highlightElementTool,
@@ -29,6 +30,7 @@ import {
 //   readClipboardImageTool,
 //   getClipboardImageInfoTool,
 // } from "./screenshot";
+import { selectorTools } from "./selector.js";
 import { skillTools } from "./skill";
 import { searchElementsTool } from "./snapshot";
 import {
@@ -110,6 +112,12 @@ const browserFunctionTools: BrowserFunctionTool[] = [
 
   // Apty integration (5 tools)
   ...aptyTools,
+
+  // Investigation timeline / evidence correlation (2 tools)
+  ...investigationTools,
+
+  // Selector diagnostics (1 tool)
+  ...selectorTools,
 ] as const;
 
 export const allBrowserTools: FunctionTool[] =

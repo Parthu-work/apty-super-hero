@@ -23,6 +23,7 @@
 
 import { tool } from "@aipexstudio/aipex-core";
 import { z } from "zod";
+import { recordEvidence } from "../apty/index.js";
 import { redactHeaders, redactSensitiveText } from "../apty/redact.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
@@ -169,6 +170,27 @@ export const getNetworkDiagnosticsTool = tool({
         );
       }
 
+      // Record only failures as evidence — successful requests don't add
+      // diagnostic signal and would flood the bounded evidence store.
+      const conversationId = (context as ToolRunContext)?.context
+        ?.conversationId;
+      for (const request of requests.values()) {
+        const isFailure =
+          request.failed ||
+          (request.status !== undefined && request.status >= 400);
+        if (!isFailure) continue;
+        recordEvidence({
+          conversationId,
+          source: "network",
+          type: request.failed ? "network-failed" : "network-http-error",
+          timestamp: request.timestamp,
+          tabId,
+          url: request.url,
+          requestId: request.requestId,
+          data: request,
+        });
+      }
+
       return {
         available: true,
         url: tab.url,
@@ -259,6 +281,29 @@ export const getRuntimeDiagnosticsTool = tool({
           return collected;
         },
       );
+
+      // Record exceptions (always significant) and warning/error-level log
+      // entries as evidence; routine verbose/info log entries are skipped
+      // to avoid flooding the bounded per-conversation evidence store.
+      const conversationId = (context as ToolRunContext)?.context
+        ?.conversationId;
+      for (const event of events) {
+        const isSignificant =
+          event.type === "exception" ||
+          event.level === "warning" ||
+          event.level === "error";
+        if (!isSignificant) continue;
+        recordEvidence({
+          conversationId,
+          source: "runtime",
+          type:
+            event.type === "exception" ? "runtime-exception" : "runtime-log",
+          timestamp: event.timestamp,
+          tabId,
+          url: tab.url,
+          data: event,
+        });
+      }
 
       return {
         available: true,

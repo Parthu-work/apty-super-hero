@@ -23,11 +23,14 @@
 import { tool } from "@aipexstudio/aipex-core";
 import { z } from "zod";
 import {
+  type AptyLog,
   ConfiguredServiceWorkerDiagnosticsProvider,
+  type EvidenceSource,
   ExternalMessageStudioDiagnosticsProvider,
   getAptyIntegrationConfig,
   NotConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredStudioDiagnosticsProvider,
+  recordEvidence,
   redactLogs,
   ScriptingClientDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,
@@ -39,6 +42,33 @@ interface AptyConsoleEntry {
   message: string;
   timestamp: number;
   source: "console" | "window-error" | "unhandled-rejection";
+}
+
+/**
+ * Record warn/error-level logs as diagnostic evidence for this
+ * conversation's correlated timeline (`get_investigation_timeline`).
+ * Routine log/info/debug entries are deliberately not recorded — they'd
+ * flood the bounded per-conversation evidence store without adding
+ * diagnostic signal.
+ */
+function recordAptyLogsAsEvidence(
+  logs: AptyLog[],
+  source: EvidenceSource,
+  runContext: ToolRunContext | undefined,
+  tabId: number | null,
+): void {
+  const conversationId = runContext?.context?.conversationId;
+  for (const log of logs) {
+    if (log.level !== "warn" && log.level !== "error") continue;
+    recordEvidence({
+      conversationId,
+      source,
+      type: `${source}-${log.level}`,
+      timestamp: log.timestamp,
+      tabId,
+      data: log,
+    });
+  }
 }
 
 /**
@@ -111,6 +141,13 @@ export const getAptyPageLogsTool = tool({
         .reverse(),
     );
 
+    recordAptyLogsAsEvidence(
+      filtered,
+      "console",
+      context as ToolRunContext,
+      tab.id,
+    );
+
     return {
       available: true,
       url: tab.url,
@@ -134,6 +171,19 @@ export const getAptyWidgetDiagnosticsTool = tool({
       provider.getStatus(),
       provider.getLogs(),
     ]);
+
+    const runContext = context as ToolRunContext;
+    const tabId = runContext?.context?.tabId ?? null;
+    recordEvidence({
+      conversationId: runContext?.context?.conversationId,
+      source: "apty-widget",
+      type: "widget-status",
+      timestamp: Date.now(),
+      tabId,
+      data: status,
+    });
+    recordAptyLogsAsEvidence(logs, "apty-widget", runContext, tabId);
+
     return { status, logs };
   },
 });
@@ -152,6 +202,19 @@ export const getAptyClientDiagnosticsTool = tool({
       provider.getStatus(),
       provider.getLogs(),
     ]);
+
+    const runContext = context as ToolRunContext;
+    const tabId = runContext?.context?.tabId ?? null;
+    recordEvidence({
+      conversationId: runContext?.context?.conversationId,
+      source: "apty-client",
+      type: "client-status",
+      timestamp: Date.now(),
+      tabId,
+      data: status,
+    });
+    recordAptyLogsAsEvidence(logs, "apty-client", runContext, tabId);
+
     return { status, logs };
   },
 });
@@ -171,13 +234,37 @@ export const getAptyStudioDiagnosticsTool = tool({
       provider.getStatus(),
       provider.getLogs(),
     ]);
+
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    recordEvidence({
+      conversationId,
+      source: "apty-studio",
+      type: "studio-status",
+      timestamp: Date.now(),
+      tabId: null,
+      scope: "shared",
+      data: status,
+    });
+    for (const log of logs) {
+      if (log.level !== "warn" && log.level !== "error") continue;
+      recordEvidence({
+        conversationId,
+        source: "apty-studio",
+        type: `apty-studio-${log.level}`,
+        timestamp: log.timestamp,
+        tabId: null,
+        scope: "shared",
+        data: log,
+      });
+    }
+
     return {
       status,
       logs,
       // Studio is reached via cross-extension messaging, not tied to any
       // particular tab — tag which conversation asked for this evidence
       // without claiming a tab/browser-context attribution we can't prove.
-      conversationId: (context as ToolRunContext)?.context?.conversationId,
+      conversationId,
     };
   },
 });
@@ -202,6 +289,31 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
       provider.getStatus(),
       provider.getLogs(),
     ]);
+
+    const requestedByConversationId = (context as ToolRunContext)?.context
+      ?.conversationId;
+    recordEvidence({
+      conversationId: requestedByConversationId,
+      source: "service-worker",
+      type: "service-worker-status",
+      timestamp: Date.now(),
+      tabId: null,
+      scope: "shared",
+      data: status,
+    });
+    for (const log of logs) {
+      if (log.level !== "warn" && log.level !== "error") continue;
+      recordEvidence({
+        conversationId: requestedByConversationId,
+        source: "service-worker",
+        type: `service-worker-${log.level}`,
+        timestamp: log.timestamp,
+        tabId: null,
+        scope: "shared",
+        data: log,
+      });
+    }
+
     return {
       status,
       logs,
@@ -211,8 +323,7 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
       // Which conversation retrieved this shared/unattributed evidence.
       // Do NOT read this as "these logs are about this conversation's tab"
       // — see scopeNote above.
-      requestedByConversationId: (context as ToolRunContext)?.context
-        ?.conversationId,
+      requestedByConversationId,
     };
   },
 });
