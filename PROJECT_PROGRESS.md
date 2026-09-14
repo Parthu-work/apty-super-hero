@@ -16,7 +16,7 @@ is the honest current state, not aspirational.
 | Selector debugging as first-class feature | None — no selector generation/ranking exists anywhere in the repo | No | Apty's core "why can't Studio select this element" question has no dedicated tool | P0 | Implemented this session — `analyze_element_selectors` tool |
 | Investigation session lifecycle (start/collect/pause/stop/hypotheses/diagnosis) | `InvestigationSession` (`apty/investigation-session.ts`) + 5 tools (`start_investigation`/`update_investigation`/`record_verification_attempt`/`stop_investigation`/`get_investigation_status`) | Yes | System-prompt-driven (model must call the tools); no server-side enforcement that it does | — | Implemented this session — see "Investigation Session Lifecycle" below |
 | Apty Widget/Client/Studio/Service-Worker providers | Honest `not_configured` stubs, Service Worker hardened+tested | Partial | Blocked on real Apty-side contracts | — | Blocked, not actionable from this repo alone |
-| Network diagnostics (CDP) | Fixed 500ms–15s capture window | Partial | No "start capture → reproduce → stop → analyze" session UX; window is fixed at call time | P1 | Not done this session |
+| Network diagnostics (CDP) | Fixed 500ms–15s `get_network_diagnostics` window, plus a new investigation-aware start/stop capture session (`apty/network-capture-session.ts`) | Yes | — | — | Done — see "Investigation-Aware Network Capture Session" below |
 | Console/runtime event classification | Raw entries returned as-is (level, message, timestamp) | Partial | No classification into apty-error/CSP/CORS/JS-exception buckets | P2 | Not done this session |
 | Selector/DOM iframe+Shadow DOM handling | `iframeManager`, DOM/CDP snapshot already handle frames; Shadow DOM traversal exists in the collector | Partial | New selector tool reports iframe/shadow-root context but doesn't yet special-case cross-origin iframe limits beyond what already existed | P2 | Partially covered by new selector tool; deeper work not done |
 | Self-healing / stale-UID recovery | None — a stale UID throws and asks the model to re-snapshot | No | Manual recovery only (model calls `search_elements` again) | P2 | Not done this session |
@@ -47,7 +47,7 @@ components). Audited against that prompt's own P0/P1/P2 ordering:
 | P0.3 | Investigation orchestration loop (plan→execute→observe→evaluate→decide) | `investigation-orchestrator.ts`: `recordToolCall` ledger + `getBudgetStatus` (25-call/15-min budget, duplicate-call loop detection) + `decideNextAction` (call_tool/verify/analyze/stop), exposed via new `get_next_investigation_action` tool. A deterministic recommend+guardrail layer the model consults each turn, with server-enforced (not just prompt-instructed) budget/loop limits — not a separate process that calls tools outside the model's own tool-selection loop (`packages/core`'s agent loop, unchanged) | Yes (scoped) | — | Implemented this session — see "Autonomous Investigation Orchestrator" below and `DECISIONS.md` for why it's shaped this way rather than as a full external control-flow engine |
 | P0.4 | Structured hypotheses (not strings) | `Hypothesis { id, statement, status, confidence, supportingEvidenceIds, contradictingEvidenceIds, createdAt, updatedAt }`; `update_investigation`'s `updateHypothesis` moves one through open→testing→supported/rejected/confirmed/inconclusive | Yes | — | Implemented this session |
 | P0.5 | Real verification loop; never let an unverified hypothesis become a confirmed RCA | `record_verification_attempt` can link to a `hypothesisId` (auto-updates its status); `update_investigation` **enforces** (not just instructs) that `confidence: "confirmed"` is downgraded to `"likely"` server-side unless a confirmed verification attempt already exists — testable, not prompt-only | Yes | — | Implemented this session |
-| P1.6 | Investigation-aware network capture (start/reproduce/stop session, not fixed window) | Still the pre-existing fixed 500ms–15s `get_network_diagnostics` window | No | P1 | Not done — same gap as the original gap matrix's "Network diagnostics" row |
+| P1.6 | Investigation-aware network capture (start/reproduce/stop session, not fixed window) | `apty/network-capture-session.ts`: per-conversation start/stop/status session, 15s heartbeat re-attach, 2000-request cap with a `truncated` flag, forced cleanup on tab-close/debugger-detach, failed/4xx/5xx requests recorded as evidence | Yes | — | Implemented this session — see "Investigation-Aware Network Capture Session" below |
 | P1.7 | Console/runtime classification (Apty error / CSP / CORS / JS exception / etc.) | `log-classification.ts`'s `classifyLogEntry()` buckets every `get_apty_page_logs`/`get_runtime_diagnostics` entry into `csp-violation`/`cors-error`/`unhandled-rejection`/`js-exception`/`network-resource-error`/`deprecation-warning`/`apty-error`/`console-error`/`console-warning`/`info`; both tools return a `categoryCounts` tally | Yes | — | Implemented this session (code + unit/integration tests; not yet manually verified in a running browser — see "What's safe to continue" below) |
 | P1.8 | Cross-layer correlation (Studio config ↔ production DOM ↔ Client/Widget resolution) | `evidence-correlation.ts` correlates by time/request-id across sources, but has no Studio-config-vs-production-DOM comparison logic specifically; the *plan* now includes a `studio-vs-production` "compare" step, but no dedicated comparison tool exists | Partial | P1 | Not done — would need a new deterministic comparison tool, not attempted this session |
 | P1.9 | Selector debugging — engineering-grade explanations | Already answers match-count/uniqueness/stability/dynamic-risk/iframe/Shadow-DOM/recommendation with a "why" (`selector-analysis.ts`, unchanged this session) | Yes | — | Done in a prior session |
@@ -67,11 +67,14 @@ safely alongside the P0.1/P0.2/P0.4/P0.5 work above — see `DECISIONS.md`.
 **Update (a later session)**: P0.3 has since been implemented, scoped as a
 recommend+guardrail layer rather than a full external control-flow engine
 — see "Autonomous Investigation Orchestrator" below and the updated P0.3
-row above. P1.6 (investigation-aware network capture) is still not on
-`main` — a PR exists (#11) but was reviewed and left unmerged pending
-fixes; see "MCP Bridge Tool-Registry Fix & PR #11 Review" below. Real
-Apty-side integration contracts (P1.10/P1.11) remain blocked on Apty
-engineering input, unchanged from every prior session's assessment.
+row above. **P1.6 (investigation-aware network capture) has since been
+implemented too** — fresh, directly on `main` (not by merging PR #11,
+which remains open/unmerged and is now superseded); see
+"Investigation-Aware Network Capture Session" below, the updated P1.6 row
+above, and `DECISIONS.md` for why it was built fresh rather than by
+pushing fixes onto that PR's branch. Real Apty-side integration contracts
+(P1.10/P1.11) remain blocked on Apty engineering input, unchanged from
+every prior session's assessment.
 
 ## Current Status
 
@@ -737,6 +740,81 @@ standalone npm package outside the pnpm workspace) builds and typechecks
 clean separately (`npm run build` via tsup, `npx tsc --noEmit`). See
 `## Tests` below for updated counts.
 
+**Update (a later session)**: investigation-aware network capture (P1.6)
+has since been implemented — fresh, directly on `main`, fixing both
+defects flagged above (forced cleanup on tab-close/debugger-detach, a
+2000-request cap) rather than by merging or pushing fixes onto this PR's
+branch. PR #11 remains open/unmerged and is now additionally
+superseded/obsolete; it should not be merged, since `main` already has a
+corrected implementation. See "Investigation-Aware Network Capture
+Session" below and `DECISIONS.md`.
+
+## Investigation-Aware Network Capture Session (this session)
+
+Implemented the P1.6 gap fresh, directly on `main` — not by merging or
+cherry-picking PR #11 (which remains open/unmerged on
+`claude/busy-fermat-xyu2po` and is now superseded) — a corrected
+implementation that closes the same gap that PR attempted while fixing
+both defects the review above found.
+
+`packages/browser-runtime/src/apty/network-capture-session.ts` adds a
+per-conversation (`Map<conversationId, ActiveCapture>`) network capture
+session: `startNetworkCapture(conversationId, tabId)` attaches the
+debugger and begins accumulating requests in the background without
+blocking; `stopNetworkCapture(conversationId, {onlyErrors?})` detaches and
+returns everything captured, recording failed/4xx/5xx requests as
+evidence tagged with the conversation's active investigation id as
+`correlationId`; `getNetworkCaptureStatus(conversationId)` checks progress
+without stopping. A 15s heartbeat re-calls
+`debuggerManager.safeAttachDebugger()` (a no-op beyond resetting its own
+30s idle-auto-detach timer on an already-attached tab) so a capture can
+outlive that window. All headers are redacted via the existing
+`redactHeaders()`.
+
+Both defects from the PR #11 review are fixed:
+- **No more leaked heartbeat**: `chrome.tabs.onRemoved`/
+  `chrome.debugger.onDetach` listeners are registered once, lazily, at
+  module load (mirroring `debugger-manager.ts`'s own one-time
+  `initialize()` pattern) and call `forceCleanupForTab()` — this clears
+  the heartbeat interval, removes the `chrome.debugger.onEvent` listener,
+  deletes the conversation's map entry, and records any already-captured
+  failed/4xx/5xx requests as evidence before discarding state, all
+  without attempting further CDP calls (the tab/debugger is already gone
+  by the time these fire). Exported for tests as
+  `__simulateForcedCleanupForTab`.
+- **No more unbounded map**: `MAX_CAPTURED_REQUESTS = 2000` (exported),
+  oldest-evicted-first when exceeded — mirroring `evidence-store.ts`'s
+  500-per-conversation cap pattern, sized larger since this holds live
+  request data across a potentially long capture, not evidence. The
+  session/status object carries a `truncated: boolean` field so callers
+  know when the cap was hit and the returned set is incomplete.
+
+The 3 new tool wrappers (`packages/browser-runtime/src/tools/network-capture.ts`:
+`start_network_capture`, `stop_network_capture` with an `onlyErrors`
+param, `get_network_capture_status`) also call `recordToolCall()`
+(`investigation-orchestrator.ts`), so network-capture calls now count
+toward the orchestrator's tool-call budget/loop-detection ledger — PR #11
+predated the orchestrator and didn't have this integration. Registered in
+`tools/index.ts` (tool registry: 51 → 54, see `## Browser Tools` below);
+schemas added to `mcp-bridge/src/tool-schemas.ts` (also now 54, matching
+browser-runtime).
+
+Tested in `network-capture-session.test.ts` (13 new cases, including
+firing a simulated `chrome.tabs.onRemoved` mid-capture and asserting the
+heartbeat stops and the conversation can start a new capture afterward;
+firing a simulated `chrome.debugger.onDetach` and asserting
+already-captured failures are still recorded as evidence; and a
+cap-eviction test firing 2001 synthetic requests and asserting the oldest
+is evicted and `truncated` becomes `true`) plus `tools/network-capture.test.ts`
+(4 new). See `DECISIONS.md` for why this was reimplemented fresh on `main`
+rather than by fixing PR #11's branch, and `SECURITY_AUDIT.md` for the new
+finding covering this tool's permission surface and the DoS-mitigation
+value of the request cap.
+
+Verified: `npm run preflight` (format, lint, typecheck, test) and
+`npm run build` pass clean across the workspace; `mcp-bridge` builds and
+typechecks clean separately. See `## Tests` below for updated counts.
+
 ## Completed
 
 - Evidence model + 4 provider interfaces with honest `not_configured`/
@@ -764,6 +842,10 @@ clean separately (`npm run build` via tsup, `npx tsc --noEmit`). See
   guardrails, and the `mcp-bridge/src/tool-schemas.ts` tool-registry fix
   (9 missing tools + the new one added) — see the two sections above
   (this session).
+- Investigation-aware network capture session
+  (`network-capture-session.ts` + 3 new tools), implemented fresh on
+  `main`, closing gap P1.6 and superseding the still-unmerged PR #11 — see
+  "Investigation-Aware Network Capture Session" above (this session).
 - All 5 packages build, typecheck, and pass their test suites — see
   `## Tests` below for current numbers.
 
@@ -783,10 +865,8 @@ picture against the engineering-automation master prompt):
    ID + willingness to implement `externally_connectable` + a message
    handler. This is genuinely blocked without Apty engineering input — see
    `## NEXT SESSION HANDOFF`.
-2. **Investigation-aware network capture** (P1.6): replace/extend the
-   fixed 500ms–15s `get_network_diagnostics` window with a "start capture
-   → user reproduces → stop → analyze" session scoped to the investigation
-   — bounded, cancellable, tab-scoped, redacted.
+2. ~~Investigation-aware network capture~~ (P1.6) — implemented, see
+   "Investigation-Aware Network Capture Session" above.
 3. **Console/runtime classification** (P1.7): classify raw log/exception
    entries into apty-error/CSP/CORS/JS-exception/network-related/selector-
    or-DOM/extension-communication/unknown buckets instead of returning
@@ -915,30 +995,34 @@ codebase. Neither exists live today; every call still reports
 
 ## Browser Tools
 
-51 tools registered in `packages/browser-runtime/src/tools/index.ts`:
+54 tools registered in `packages/browser-runtime/src/tools/index.ts`:
 tabs (7), UI operations/element interaction (8), page content (4),
 screenshots (3), downloads (2), interventions (4), skills (6), DevTools (2),
 Apty integration (5), investigation timeline/lifecycle (9:
 `get_investigation_timeline`/`clear_investigation_evidence`,
 `start_investigation`/`get_investigation_plan`
 /`update_investigation`/`record_verification_attempt`/`stop_investigation`/
-`get_investigation_status`/`get_next_investigation_action` (new this
-session)), selector diagnostics (1). See that file for the authoritative,
-categorized list (recompute counts from the arrays there rather than
-trusting this paragraph — the file's own doc comment went stale once
-already, see the tool-registry fix below). (`bookmark.ts`, `history.ts`
-and `organize-tabs.ts` exist as source files but are not registered in
-`allBrowserTools`.)
+`get_investigation_status`/`get_next_investigation_action`), selector
+diagnostics (1), network capture (3: `start_network_capture`/
+`stop_network_capture`/`get_network_capture_status`, new this session).
+See that file for the authoritative, categorized list (recompute counts
+from the arrays there rather than trusting this paragraph — the file's
+own doc comment went stale once already, see the tool-registry fix
+below). (`bookmark.ts`, `history.ts` and `organize-tabs.ts` exist as
+source files but are not registered in `allBrowserTools`.)
 
-**Fixed this session**: `mcp-bridge/src/tool-schemas.ts` (a separate,
+**Fixed a prior session**: `mcp-bridge/src/tool-schemas.ts` (a separate,
 non-workspace package) was missing all 9 of `investigation.ts`'s
 lifecycle tools plus `selector.ts`'s `analyze_element_selectors` — a
 real, pre-existing gap (not a regression) meaning MCP clients connecting
 through the bridge couldn't reach the investigation or selector layer at
 all, not just a naive count mismatch as the original gap matrix's row 23
-had it. All 9 missing schemas plus the new `get_next_investigation_action`
-schema (10 total) were added — see "MCP Bridge Tool-Registry Fix & PR #11
-Review" above.
+had it. All 9 missing schemas plus `get_next_investigation_action` (10
+total) were added — see "MCP Bridge Tool-Registry Fix & PR #11 Review"
+above. **This session**, schemas for the 3 new network-capture tools were
+added too, bringing `mcp-bridge`'s registry to 54, matching
+browser-runtime's — see "Investigation-Aware Network Capture Session"
+above.
 
 ## DevTools
 
@@ -983,16 +1067,17 @@ list to scope to).
 ### Passing
 - `packages/core`: 217 tests
 - `packages/dom-snapshot`: 132 tests
-- `packages/browser-runtime`: 314 tests (298 prior + 16 new
-  `investigation-orchestrator.test.ts` cases + 2 new tests in
-  `tools/investigation.test.ts` for `get_next_investigation_action` —
-  this session)
+- `packages/browser-runtime`: 331 tests (314 prior + 13 new
+  `network-capture-session.test.ts` cases + 4 new
+  `tools/network-capture.test.ts` cases — this session; the 314 itself
+  was 298 prior + 16 `investigation-orchestrator.test.ts` cases + 2 in
+  `tools/investigation.test.ts` from an earlier session)
 - `packages/aipex-react`: 114 tests (10 pre-existing skips, unrelated to this work)
 - `packages/browser-ext`: 57 tests (54 prior + updated/expanded coverage
   in `component-health.test.ts`/`component-health-panel.test.tsx`/
   `diagnosis-card.test.tsx` for the grouped component model and
   structured hypotheses — prior session)
-- **Total: 834 passing**, all packages build, typecheck, format/lint
+- **Total: 851 passing**, all packages build, typecheck, format/lint
   (`npm run preflight`), and build clean end-to-end this session.
   `mcp-bridge` (standalone, outside the pnpm workspace) builds and
   typechecks clean separately.
@@ -1273,15 +1358,16 @@ commit.
   reliability is untested against a running model. See "Autonomous
   Investigation Orchestrator" above and `DECISIONS.md` for why a full
   external tool-execution engine was not built.
-- **Network capture is still unchanged** — a fixed capture window, not an
-  investigation-scoped start/reproduce/stop session. See the new gap
-  matrix's P1.6 row. A PR implementing this (#11) was reviewed this
-  session and found solid but with two real gaps (no tab-close/detach
-  cleanup, no size cap on the request map) — left unmerged pending fixes,
-  so `main` is unchanged; see "MCP Bridge Tool-Registry Fix & PR #11
-  Review" above. **Console/runtime classification (P1.7) is done** —
-  see `log-classification.ts` and the "Console/runtime event
-  classification" writeup in `ARCHITECTURE.md`'s DevTools/CDP section.
+- **Investigation-aware network capture (P1.6) is now implemented** —
+  `network-capture-session.ts` adds a start/reproduce/stop session scoped
+  to the investigation, fixing both gaps an earlier review of PR #11 found
+  (no tab-close/detach cleanup, no size cap on the request map) by
+  reimplementing fresh on `main` rather than fixing that PR's branch. PR
+  #11 remains open/unmerged and is now superseded; see
+  "Investigation-Aware Network Capture Session" above and `DECISIONS.md`.
+  **Console/runtime classification (P1.7) is done** — see
+  `log-classification.ts` and the "Console/runtime event classification"
+  writeup in `ARCHITECTURE.md`'s DevTools/CDP section.
 - **`mcp-bridge/src/tool-schemas.ts` tool-registry gap is fixed** — it
   used to lack all 8 `investigation.ts` tools and
   `analyze_element_selectors`; all 9 plus the new
@@ -1294,18 +1380,19 @@ See `DECISIONS.md`.
 
 ## Last Commit
 
-`3f5647d` — "feat: add autonomous investigation orchestrator, fix MCP
-tool-registry gap" (this session's code commit — the doc updates above
-were written as a follow-up pass over that commit's content, not folded
-into it). Prior checkpoint: `19f53fe` — "feat: classify console/runtime
-diagnostic events into failure categories".
+`2416352` — investigation-aware network capture session
+(`network-capture-session.ts` + 3 new tools), implemented fresh on `main`
+(this session's code commit — the doc updates above were written as a
+follow-up pass over that commit's content, not folded into it). Prior
+checkpoint: `3f5647d` — "feat: add autonomous investigation orchestrator,
+fix MCP tool-registry gap".
 
 ## Last Push
 
 Check `git log -1` / `git status` for the actual current state — this
 note is updated by hand and can lag by a commit within a session. As of
-this doc update the branch was `main`, ahead of `origin/main` by this
-session's commit (`3f5647d`), not yet pushed.
+this doc update, `main` includes this session's commit (`2416352`), which
+has been pushed.
 
 ## NEXT SESSION HANDOFF
 
@@ -1338,9 +1425,9 @@ this file for the fuller P0/P1/P2 picture):**
    planner~~, ~~structured hypotheses~~, ~~server-enforced verification
    guard~~, ~~debugger-manager destructive-behavior fix~~, ~~console/
    runtime event classification~~, ~~autonomous investigation
-   orchestrator~~, ~~mcp-bridge tool-registry fix~~ (all done — see the
-   relevant "(this session)"-tagged sections above for whichever session
-   did each).
+   orchestrator~~, ~~mcp-bridge tool-registry fix~~, ~~investigation-aware
+   network capture session~~ (all done — see the relevant "(this
+   session)"-tagged sections above for whichever session did each).
    Follow-ups if picked up next: precise first-turn tab binding;
    per-conversation `InterventionManager` mode once/if concurrent
    conversations within one window's UI become a thing.
@@ -1354,12 +1441,12 @@ this file for the fuller P0/P1/P2 picture):**
    an old conversation, iframe/Shadow DOM selector cases, two conversations
    bound to two tabs). No session so far has validated the UI beyond
    build/typecheck/tests.
-3. **Investigation-aware network capture session UX** (P1.6 in the new gap
-   matrix) — replace the fixed capture window with a start/reproduce/stop
-   flow scoped to the investigation. PR #11 attempts this; it was reviewed
-   and found solid but missing tab-close/detach cleanup and a size cap on
-   its request map — fix those two things and it should be close to
-   mergeable, rather than starting over.
+3. ~~Investigation-aware network capture session UX~~ (P1.6) — done,
+   implemented fresh on `main` as `network-capture-session.ts` + 3 new
+   tools, fixing both defects (no tab-close/detach cleanup, no size cap on
+   the request map) that an earlier review of PR #11 found; that PR
+   remains open/unmerged and is now superseded. See
+   "Investigation-Aware Network Capture Session" above and `DECISIONS.md`.
 4. **A Studio-vs-production comparison tool** (P1.8) — the planner's
    `studio-vs-production` category already has a "compare" step; no tool
    backs it yet beyond calling the existing individual diagnostics

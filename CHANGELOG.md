@@ -4,6 +4,71 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
+## Unreleased (this session) — investigation-aware network capture session
+
+**Added**
+- Investigation-aware network capture
+  (`packages/browser-runtime/src/apty/network-capture-session.ts`):
+  closes the P1.6 gap fresh, directly on `main` — a corrected
+  reimplementation of what PR #11 ("Add investigation-aware network
+  capture session") attempted, fixing both defects that review found (see
+  "Reviewed" below). Per-conversation (`Map<conversationId,
+  ActiveCapture>`) session: `startNetworkCapture(conversationId, tabId)`
+  attaches the debugger and accumulates requests in the background
+  without blocking; `stopNetworkCapture(conversationId, {onlyErrors?})`
+  detaches and returns everything captured, recording failed/4xx/5xx
+  requests as evidence tagged with the conversation's active
+  investigation id as `correlationId`; `getNetworkCaptureStatus(conversationId)`
+  checks progress without stopping. A 15s heartbeat re-calls
+  `debuggerManager.safeAttachDebugger()` (a no-op beyond resetting its own
+  30s idle-auto-detach timer on an already-attached tab) so a capture can
+  outlive that window. All headers redacted via the existing
+  `redactHeaders()`.
+  - **Fix #1 (the leak PR #11 had)**: registers `chrome.tabs.onRemoved`/
+    `chrome.debugger.onDetach` listeners once, lazily, at module load
+    (mirroring `debugger-manager.ts`'s own one-time `initialize()`
+    pattern) that call `forceCleanupForTab()` — clears the heartbeat
+    interval, removes the `chrome.debugger.onEvent` listener, deletes the
+    conversation's map entry, and records any already-captured
+    failed/4xx/5xx requests as evidence before discarding state, all
+    without attempting further CDP calls. Exported for tests as
+    `__simulateForcedCleanupForTab`.
+  - **Fix #2 (the unbounded map PR #11 had)**: added
+    `MAX_CAPTURED_REQUESTS = 2000` (exported), oldest-evicted-first when
+    exceeded, mirroring `evidence-store.ts`'s 500-per-conversation cap
+    pattern. The session/status object now carries a `truncated: boolean`
+    field so callers know when the cap was hit and the returned set is
+    incomplete.
+  - The 3 new tool wrappers (`packages/browser-runtime/src/tools/network-capture.ts`:
+    `start_network_capture`, `stop_network_capture` with an `onlyErrors`
+    param, `get_network_capture_status`) call `recordToolCall()`
+    (`investigation-orchestrator.ts`) so network-capture calls count
+    toward the orchestrator's tool-call budget/loop-detection ledger — PR
+    #11 predated the orchestrator and didn't have this.
+  - Registered in `tools/index.ts` (tool registry: 51 → 54 tools);
+    schemas added to `mcp-bridge/src/tool-schemas.ts` (also now 54,
+    matching browser-runtime).
+- 17 new tests: `network-capture-session.test.ts` (13 — including firing a
+  simulated `chrome.tabs.onRemoved` mid-capture and asserting the
+  heartbeat stops and the conversation can start a new capture
+  afterward; firing a simulated `chrome.debugger.onDetach` and asserting
+  already-captured failures are still recorded as evidence; and a
+  cap-eviction test firing 2001 synthetic requests and asserting the
+  oldest is evicted and `truncated` becomes `true`), plus
+  `tools/network-capture.test.ts` (4).
+
+**Note**
+- This supersedes PR #11 (branch `claude/busy-fermat-xyu2po`), which
+  remains open/unmerged and should not be merged — `main` now has a
+  corrected implementation. See `DECISIONS.md` for why this was
+  implemented fresh on `main` rather than by pushing fixes onto that
+  branch.
+
+Verified: `npm run preflight` (format, lint, typecheck, test) and
+`npm run build` pass clean across the workspace; `mcp-bridge` builds and
+typechecks clean separately. Test totals: `browser-runtime` 331 (was
+314), workspace total 851 (was 834).
+
 ## Unreleased (this session) — autonomous investigation orchestrator, MCP bridge tool-registry fix
 
 **Added**
