@@ -775,8 +775,8 @@ export function SettingsPage({
           </div>
           <p className="text-muted-foreground">
             {language === "zh"
-              ? "配置你的 AIPex 扩展"
-              : "Configure your AIPex extension"}
+              ? "配置你的 Apty Agent 扩展"
+              : "Configure your Apty Agent extension"}
           </p>
         </div>
 

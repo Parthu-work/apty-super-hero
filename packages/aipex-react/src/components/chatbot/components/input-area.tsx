@@ -42,6 +42,19 @@ export interface ExtendedInputAreaProps extends InputAreaProps {
   placeholderTexts?: string[];
   /** Message queue count */
   queueCount?: number;
+  /**
+   * Whether to fetch and display the server-side/proxy model list (labeled
+   * "AIPex Models" in the selector). Defaults to true for backward
+   * compatibility with existing consumers of this shared component.
+   *
+   * A BYOK-only product with no server-side proxy (e.g. Apty's browser
+   * extension — see `packages/browser-ext/src/lib/browser-chat-input-area.tsx`)
+   * must set this to `false`: leaving it enabled makes an undisclosed
+   * network request to a third-party host on every mount
+   * (`fetchModelsForSelector()` → `MODELS_API_URL`) and can present
+   * non-functional model entries the product has no backend to serve.
+   */
+  showServerModels?: boolean;
 }
 
 /**
@@ -59,6 +72,7 @@ export function DefaultInputArea({
   placeholderTexts,
   queueCount = 0,
   className,
+  showServerModels = true,
   ...props
 }: ExtendedInputAreaProps) {
   const { t } = useTranslation();
@@ -75,6 +89,10 @@ export function DefaultInputArea({
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   useEffect(() => {
+    if (!showServerModels) {
+      return;
+    }
+
     let cancelled = false;
     setIsLoadingModels(true);
     fetchModelsForSelector()
@@ -105,7 +123,7 @@ export function DefaultInputArea({
       cancelled = true;
       unsubscribe();
     };
-  }, []);
+  }, [showServerModels]);
 
   const enabledCustomModels = useMemo(() => {
     // Always collect enabled BYOK models regardless of byokEnabled flag,
@@ -113,8 +131,9 @@ export function DefaultInputArea({
     return (settings.customModels ?? []).filter((model) => model.enabled);
   }, [settings.customModels]);
 
-  // Server-side (AIPex) models: API-fetched or prop fallback
-  const serverModels = fetchedModels ?? models;
+  // Server-side/proxy models: API-fetched or prop fallback. Empty for
+  // BYOK-only products that opt out via showServerModels={false}.
+  const serverModels = showServerModels ? (fetchedModels ?? models) : [];
 
   // BYOK model entries formatted for the selector
   const byokModelEntries = useMemo(
@@ -308,11 +327,11 @@ export function DefaultInputArea({
                     </div>
                   ) : (
                     <>
-                      {/* AIPex Models — server-side proxy */}
+                      {/* Server-side/proxy models */}
                       {serverModels.length > 0 && (
                         <PromptInputModelSelectGroup>
                           <PromptInputModelSelectLabel>
-                            AIPex Models
+                            Hosted Models
                           </PromptInputModelSelectLabel>
                           {serverModels.map((model) => (
                             <PromptInputModelSelectItem

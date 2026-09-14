@@ -5,7 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_AI_TOKEN?: string;
   readonly VITE_AI_MODEL?: string;
   readonly VITE_DEV_MODE?: string;
-  /** Base URL for the website (e.g., "https://www.claudechrome.com") */
+  /** Base URL for the website (e.g., "https://app.apty.ai") */
   readonly VITE_WEBSITE_URL?: string;
 
   // Apty integration placeholders — see .env.example. Empty/undefined means

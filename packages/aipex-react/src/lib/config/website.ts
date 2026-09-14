@@ -38,7 +38,7 @@ function resolveWebsiteUrl(): string {
 
 /**
  * The base website URL (origin only, no trailing slash).
- * Example: "https://www.claudechrome.com"
+ * Example: "https://app.apty.ai"
  */
 export const WEBSITE_URL: string = resolveWebsiteUrl();
 

@@ -41,8 +41,8 @@
     "dataSharingDisabled": "隐私模式已启用",
     "dataSharingDescription": "您的提示词、编辑和其他使用数据将被存储并用于改进产品",
     "privacyModeDescription": "增强的隐私保护，最小化数据收集和处理，确保您的使用数据得到最大程度的保护",
-    "aboutUs": "关于我们",
-    "aboutDescription": "AIPex 是一个开源项目。加入我们的社区，与我们保持联系。",
+    "aboutUs": "关于 Apty",
+    "aboutDescription": "Apty AI Agent 帮助您直接在浏览器中调查和调试 Apty 及 Web 应用问题。",
     "starOnGithub": "在 GitHub 上为我们点赞",
     "joinDiscord": "加入 Discord 社区",
     "joinWechat": "加入微信群",
@@ -103,7 +103,7 @@
     "placeholder3": "整理您的标签页"
   },
   "welcome": {
-    "title": "欢迎使用 AIpex",
+    "title": "Apty AI Agent",
     "subtitle": "选择一个快捷操作或询问任何问题来开始",
     "analyzePage": "总结此页面",
     "organizeTabs": "请按主题和用途整理我的打开标签页",
@@ -145,7 +145,7 @@
   },
   "config": {
     "title": "需要配置",
-    "description": "使用 AIPex 前，请先配置您的 AI 设置。",
+    "description": "使用 Apty Agent 前，请先配置您的 AI 设置。",
     "apiTokenRequired": "需要 API 令牌来连接 AI 服务。",
     "openSettings": "打开设置"
   },

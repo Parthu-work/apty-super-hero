@@ -39,7 +39,7 @@ function resolveWebsiteUrl(): string {
 
 /**
  * The base website URL (origin only, no trailing slash).
- * Example: "https://www.claudechrome.com"
+ * Example: "https://app.apty.ai"
  */
 export const WEBSITE_URL: string = resolveWebsiteUrl();
 
@@ -50,7 +50,7 @@ export const WEBSITE_ORIGIN: string = WEBSITE_URL;
 
 /**
  * The hostname of the website (without protocol or port).
- * Example: "www.claudechrome.com"
+ * Example: "app.apty.ai"
  */
 export const WEBSITE_HOST: string = new URL(WEBSITE_URL).hostname;
 
@@ -67,7 +67,7 @@ export function buildWebsiteUrl(path: string): string {
 
 /**
  * Check if a domain matches the website domain (for cookie validation).
- * Handles subdomains: ".claudechrome.com" matches "www.claudechrome.com".
+ * Handles subdomains: ".apty.ai" matches "app.apty.ai".
  * @param domain - Domain string from cookie or origin
  * @returns true if domain matches website
  */

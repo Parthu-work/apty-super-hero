@@ -4,7 +4,7 @@
  */
 
 interface ImportMetaEnv {
-  /** Base URL for the website (e.g., "https://www.claudechrome.com") */
+  /** Base URL for the website (e.g., "https://app.apty.ai") */
   readonly VITE_WEBSITE_URL?: string;
 }
 
