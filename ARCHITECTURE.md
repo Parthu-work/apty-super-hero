@@ -26,26 +26,32 @@ of truth; treat Confluence as a snapshot.
                         AI Agent
               (packages/core — model-agnostic loop)
                             │
-              ┌─────────────┼──────────────┐
-              ▼              ▼              ▼
-         Browser Tools   DevTools Tools   Apty Tools
-        (packages/       (CDP, new)      (new — Widget/
-         browser-runtime/                 Client/Studio/
-         tools/*)                         Service-Worker)
-              │              │              │
-              ▼              ▼              ▼
-        DOM/elements    Network          window.__APTY_WIDGET__
-        iframes         Runtime/Log      window.__APTY_CLIENT__
-        screenshots     (bounded         cross-extension messaging
-                         capture window)  (not yet implemented by Apty)
-              │              │              │
-              └──────────────┼──────────────┘
-                              ▼
-                    Model reasons over tool
-                    results (no separate
-                    "evidence engine" exists;
-                    see Evidence Model below)
-                              ▼
+      ┌───────────────┬───────────────┬───────────────┬───────────────┐
+      ▼               ▼               ▼               ▼               ▼
+ Browser Tools   DevTools Tools    Apty Tools     Selector Tool   Investigation Tools
+(packages/       (CDP)            (Widget/       (analyze_        (get_investigation_
+ browser-runtime/                  Client/Studio/  element_        timeline,
+ tools/*)                          Service-Worker)  selectors)     clear_investigation_
+      │               │               │               │            evidence)
+      ▼               ▼               ▼               ▼               │
+ DOM/elements    Network          window.__APTY_WIDGET__  Ranked      │
+ iframes         Runtime/Log      window.__APTY_CLIENT__  ✅/⚠️/❌     │
+ screenshots     (bounded         cross-extension          candidate  │
+                 capture window)  messaging (not yet       selectors  │
+                                  implemented by Apty)                │
+      │               │               │                              │
+      └───────────────┴───────┬───────┴──────────────────────────────┘
+                               ▼
+              Diagnostic tools record warn/error findings as
+              DiagnosticEvidence (apty/evidence-store.ts, per-
+              conversation, bounded) — deterministically
+              correlated into clusters by evidence-correlation.ts,
+              exposed via get_investigation_timeline
+                               ▼
+                    Model reasons over the correlated
+                    timeline (not raw disconnected tool
+                    outputs) to form and verify a hypothesis
+                               ▼
                      Diagnosis (Confirmed/
                      Likely/Possible/Unknown),
                      per the system prompt's
@@ -82,22 +88,26 @@ into a DOM/browser operation.
 ## Evidence model
 
 `packages/browser-runtime/src/apty/types.ts` defines:
-- `DiagnosticEvidence` — `{ source, timestamp, type, data }`, a normalized
-  shape any tool's output can be expressed in.
+- `DiagnosticEvidence` — `{ evidenceId, conversationId?, source, timestamp,
+  type, tabId?, frameId?, url?, requestId?, correlationId?, scope, data }`,
+  a normalized shape any tool's output can be expressed in.
 - `EvidenceSource` — `"dom" | "console" | "network" | "runtime" |
   "apty-client" | "apty-widget" | "apty-studio" | "service-worker"`.
 - `DiagnosisConfidence` — `"confirmed" | "likely" | "possible" | "unknown"`.
 
-**What this is, honestly**: a shared vocabulary and a set of tools whose
-outputs are shaped consistently enough for the model to correlate across
-them. **What this is not**: a deterministic correlation engine. No code
-today automatically links a network error to a console error to a DOM
-change — that correlation happens in the model's reasoning, guided by the
-system prompt's required loop and output format (see
-`packages/aipex-react/src/components/chatbot/constants.ts`). A
-deterministic pre-correlation pass (e.g., flag events within N ms of each
-other) is a reasonable future improvement, not yet built — see
-`PROJECT_PROGRESS.md`'s Next Steps.
+**What this is now**: not just a shared vocabulary — every diagnostic tool
+actually constructs `DiagnosticEvidence` records (warn/error-level
+findings only) into a bounded per-conversation store, and
+`get_investigation_timeline` returns them deterministically correlated
+into clusters (same request/correlation id, or time-window + tab/shared
+proximity), with cross-source failure clusters flagged
+`likelySameIncident`. See "Evidence correlation and the investigation
+timeline" further down for the full mechanism. **What this still is not**:
+a diagnosis engine — clustering narrows the model's search space, but the
+actual root-cause reasoning, hypothesis verification, and confidence
+rating remain the model's responsibility, guided by the system prompt's
+required loop and output format (see
+`packages/aipex-react/src/components/chatbot/constants.ts`).
 
 ### Conversation/tab binding — evidence isolation
 
@@ -136,6 +146,74 @@ worked (independent JS realms); a single window still shows one
 conversation at a time (the history dropdown is a switcher, not multiple
 panes) — see `PROJECT_PROGRESS.md`'s "Multi-Session Isolation —
 Implementation Notes" for the full writeup and remaining follow-ups.
+
+### Evidence correlation and the investigation timeline
+
+The evidence model above was, until this session, defined but never
+constructed — every tool returned its own ad-hoc shape and correlation was
+entirely up to the model's reasoning. Two pieces close that gap:
+
+- **`packages/browser-runtime/src/apty/evidence-store.ts`** — a bounded
+  `Map<conversationId, DiagnosticEvidence[]>` (500 entries per
+  conversation, oldest dropped first). Every diagnostic tool
+  (`apty.ts`'s 5, `devtools.ts`'s 2) records warn/error-level findings
+  here as a side effect of its normal return value — routine log/info
+  entries and successful requests are deliberately not recorded, so this
+  stays a bounded evidence log, not a full trace dump.
+- **`packages/browser-runtime/src/apty/evidence-correlation.ts`** — pure,
+  deterministic `correlateEvidence()`: groups evidence via exact-match on
+  `requestId`/`correlationId` (regardless of time gap — a slow request is
+  still one incident) plus a bounded time-window fallback scoped to the
+  same tab, or either side being `scope: "shared"` (so a service-worker
+  log can still plausibly relate to tab-scoped activity nearby in time).
+  Clusters spanning a network failure and a console/runtime error are
+  flagged `likelySameIncident: true`.
+
+Two tools expose this to the model
+(`packages/browser-runtime/src/tools/investigation.ts`):
+`get_investigation_timeline` (the correlated view of everything collected
+so far in the calling conversation — scoped by `conversationId` the same
+way tab binding is) and `clear_investigation_evidence` (discard evidence
+when starting a fresh investigation within the same chat). This is a
+pre-pass that narrows the model's search space, not a diagnosis engine —
+the model still does the actual root-cause reasoning and confidence
+rating, per the system prompt's CONFIRMED/LIKELY/POSSIBLE/UNKNOWN
+discipline.
+
+### Selector diagnostics
+
+`packages/browser-runtime/src/automation/selector-analysis.ts` is a pure,
+deterministic ranking engine (no browser access) answering Apty's most
+common recurring question — "why can't Studio/a Workflow select this
+element":
+
+1. `looksDynamic()` flags framework-generated values: purely numeric ids,
+   UUIDs, a numeric/hex suffix (`input-928731`), known CSS-in-JS/framework
+   prefixes (`css-`, `sc-`, `jss`, `ember`, `mui-`).
+2. `generateSelectorCandidates()` produces candidates in priority order —
+   `data-apty-*` attributes first (Apty's own semantic markers), then
+   stable id, aria attributes, semantic attributes
+   (name/type/placeholder/role/href), stable classes (dynamic-looking ones
+   excluded), a text-based XPath candidate, and a structural nth-child
+   path as a last resort — tagging iframe/Shadow-DOM context on every
+   candidate when relevant.
+3. `rankSelectorCandidates()` combines that static risk with live match
+   data (0 matches → broken, matches something else → broken, >1 match →
+   risky/ambiguous, unique + low-risk → recommended) into a ✅/⚠️/❌
+   verdict per candidate.
+
+`packages/browser-runtime/src/tools/selector.ts`'s `analyze_element_selectors`
+tool wires this to a live page: given a snapshot `uid` (the same one
+`click`/`fill` already use), it resolves the element via CDP
+(`DOM.resolveNode` → `Runtime.callFunctionOn`, the same pattern
+`SmartLocator` uses for interaction), extracts its
+tag/id/classes/attributes/text/ancestor-chain/iframe/shadow-root context
+in one call, generates candidates, and live-tests every candidate's match
+count in a second call. CDP-mode snapshots only — DOM-mode snapshots
+report `available: false` with a clear reason rather than silently
+degrading, per this repo's "honest stubs" precedent (see `DECISIONS.md`).
+Attribute values and text content are redacted before candidate
+generation, same discipline as every other Apty-facing tool.
 
 ## Apty integration layer
 
@@ -232,7 +310,17 @@ Enforced at two layers:
 
 - **RAG / knowledge base of any kind** — explicitly out of scope per the
   project brief; Apty has a separate system for this.
-- **Deterministic evidence correlation engine** — see Evidence Model above.
+- **An investigation-session lifecycle object** — hypotheses, verification
+  attempts, and a final diagnosis+confidence as first-class tracked state.
+  The evidence store (see "Evidence correlation and the investigation
+  timeline" above) is the data layer such a session would sit on top of;
+  the session object itself (explicit start/pause/stop/verify lifecycle)
+  doesn't exist yet.
+- **A dedicated debugging-console UI** — investigation state banner,
+  evidence panel, correlated timeline view, diagnosis card. The side panel
+  is still a generic chat UI (message list + input); the data such a UI
+  would render (`get_investigation_timeline`, `analyze_element_selectors`)
+  now exists, the UI layer to surface it doesn't.
 - **Generic browser automation / productivity features** — bookmark/history
   tool source files (`bookmark.ts`, `history.ts`) still exist from the
   AIPex baseline but are not registered in `allBrowserTools` (verified

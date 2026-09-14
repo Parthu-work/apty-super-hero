@@ -4,7 +4,56 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
-## Unreleased (this session) — multi-session/multi-chat isolation
+## Unreleased (this session) — evidence correlation, investigation timeline, selector diagnostics
+
+**Added**
+- Deterministic evidence correlation: `DiagnosticEvidence` (`packages/browser-runtime/src/apty/types.ts`)
+  extended with `evidenceId`/`conversationId`/`tabId`/`frameId`/`url`/
+  `requestId`/`correlationId`/`scope` and, for the first time, actually
+  constructed — a new bounded per-conversation `evidence-store.ts` records
+  warn/error-level findings as a side effect of every existing diagnostic
+  tool call (`apty.ts`'s 5 tools, `devtools.ts`'s 2 tools). A new
+  `evidence-correlation.ts` groups evidence into clusters (exact match on
+  request/correlation id, or same-tab/shared-scope within a time window)
+  and flags clusters spanning a network failure + a console/runtime error
+  as `likelySameIncident`. Two new tools
+  (`packages/browser-runtime/src/tools/investigation.ts`):
+  `get_investigation_timeline` and `clear_investigation_evidence`.
+- Selector diagnostics: `packages/browser-runtime/src/automation/selector-analysis.ts`
+  (pure, unit-tested ranking engine — `looksDynamic()`,
+  `generateSelectorCandidates()`, `rankSelectorCandidates()`,
+  `formatSelectorReport()`) and a new `analyze_element_selectors` tool
+  (`packages/browser-runtime/src/tools/selector.ts`) that resolves a
+  snapshot element live via CDP, generates ranked candidate selectors
+  (data-apty-* attributes, stable id, aria, semantic attributes, stable
+  classes, text, structural path), and live-tests every candidate's actual
+  match count against the page.
+- A gap matrix in `PROJECT_PROGRESS.md` auditing the repo against the full
+  product specification (evidence correlation, investigation sessions,
+  selector diagnostics, UI redesign, security hardening, tool cleanup),
+  identifying what's done, partial, or not started with priorities.
+- 58 new tests: `evidence-correlation.test.ts` (17), `evidence-store.test.ts`
+  (8), `selector-analysis.test.ts` (29), `investigation.test.ts` (3),
+  plus evidence-recording coverage added to `apty.test.ts` (1) and a new
+  `devtools.test.ts` (2).
+
+**Fixed**
+- `SECURITY_AUDIT.md` finding 1b (no multi-session/multi-tab diagnostic
+  isolation) updated from Open to Fixed, reflecting the prior session's
+  isolation work — the finding's own status had not been updated when
+  that work shipped.
+
+**Not done this session** (see `PROJECT_PROGRESS.md`'s gap matrix and Next
+Steps): an explicit `InvestigationSession` lifecycle object (hypotheses,
+verification attempts, final diagnosis+confidence) on top of the new
+evidence store; the dedicated debugging-console UI (investigation state
+banner, evidence panel, timeline, diagnosis card) — the side panel is
+still a generic chat UI; network diagnostics start/stop capture session
+UX; console/runtime event classification; self-healing/stale-UID
+recovery; friendly tool-call-name UX; `host-access-config.json`/
+console-bridge domain scoping (blocked on Apty's target domain list).
+
+## Previous session — multi-session/multi-chat isolation
 
 **Added**
 - Per-conversation browser-tab binding: `ChatOptions.runContext`

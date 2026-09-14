@@ -37,37 +37,48 @@ the authoritative source; the Confluence page is a navigable summary of it.
   extension ID — never a wildcard host/port pattern.
 - **Status**: Fixed (prior session, commit `2d94ffd`).
 
-## Open — fixable within this repo, not yet done
-
 ### 1b. No multi-session/multi-tab diagnostic isolation
 
-- **Severity**: Medium
+- **Severity**: Medium (was) → Fixed
 - **Affected component**: all tools in `packages/browser-runtime/src/tools/`
   that call `getActiveTab()` (`tab-utils.ts`) — `apty.ts`, `devtools.ts`,
   and others; the agent invocation in `packages/core/src/agent/aipex.ts`
-- **Risk**: every diagnostic tool operates on "whichever tab is currently
+- **Risk**: every diagnostic tool operated on "whichever tab is currently
   active in the window," not a tab bound to a specific debugging
-  conversation. If a user has two conversations open (different windows,
-  or switches tabs mid-conversation), evidence collected for one
-  conversation can actually come from the wrong tab/page — a correctness
+  conversation. If a user had two conversations open (different windows,
+  or switched tabs mid-conversation), evidence collected for one
+  conversation could actually come from the wrong tab/page — a correctness
   and isolation problem, not just an inconvenience: a diagnosis for "Chat
-  A" could silently be built from "Chat B"'s page state.
-- **Current mitigation**: None yet. Each side-panel window is its own JS
-  execution context (no shared global state across windows), which
-  incidentally limits the blast radius to "wrong tab within the same
-  window," not "data crossing between windows" — but that's a side effect
-  of Chrome's process model, not a mitigation this codebase built
-  deliberately.
-- **Recommended fix**: thread a `context: { tabId, sessionId }` object
-  through `@openai/agents`' existing `RunContext<Context>` mechanism
-  (already supported by the SDK, not currently used —
-  `run(this.agent, input, {...})` passes no `context` today) so every tool
-  can prefer a conversation-bound `tabId` over a fresh `getActiveTab()`
-  query. Full design notes in `PROJECT_PROGRESS.md`'s "Multi-Session
-  Isolation — Research Notes."
-- **Status**: Open — investigated this session, not yet implemented;
-  explicitly redirected to the narrower Service Worker diagnostics task
-  instead (see `PROJECT_PROGRESS.md`).
+  A" could silently be built from "Chat B"'s page state. A separate,
+  related bug found during the fix: restoring a past conversation from the
+  history dropdown never rebound the live agent session, so the next
+  message could continue a *different* conversation's actual agent memory
+  (LLM message history), not just the wrong tab.
+- **Current mitigation**: `ChatOptions.runContext` is now threaded through
+  `@openai/agents`' `run()` and forwarded to every tool as
+  `context.context`. `packages/browser-ext/src/lib/conversation-tab-binding.ts`
+  binds each conversation to whichever tab was active the first time it
+  had a real session id (`Map<sessionId, tabId>`, not a global), and
+  `resolveDiagnosticTab()` (`tab-utils.ts`) prefers that bound tab —
+  re-verified live via `chrome.tabs.get` in case it was closed — over the
+  old unconditional `getActiveTab()` call. Wired into all 5 `apty.ts`
+  tools and both `devtools.ts` tools. Separately, `ConversationData.agentSessionId`
+  plus `useChat().bindSession()` fixed the agent-memory-contamination bug.
+  Fully unit- and integration-tested (see `PROJECT_PROGRESS.md`'s
+  "Multi-Session Isolation — Implementation Notes").
+- **Recommended fix**: Done. Remaining, lower-severity follow-ups (not
+  security-relevant on their own): first-turn tab binding is best-effort
+  (falls back to the pre-existing active-tab behavior, no regression);
+  `InterventionManager`'s conversation-mode field isn't yet keyed by
+  conversation (harmless today since only one conversation is active per
+  window at a time); no concurrent multi-pane chat UI exists within one
+  window. See `PROJECT_PROGRESS.md` for details.
+- **Status**: Fixed.
+
+## Open — fixable within this repo, not yet done
+
+None currently — the one entry that was here (1b, multi-session/multi-tab
+diagnostic isolation) is now Fixed above.
 
 ## Open — flagged, not fixed (needs Apty-side input to resolve)
 
