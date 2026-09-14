@@ -13,16 +13,14 @@ Worker integration is *live* yet — that requires the Apty-side halves
 (a real extension ID, a real global, a real message handler), which this
 session cannot build since it doesn't have access to those codebases.
 
-**Not done this round, flagged explicitly**: a prior instruction in this
-session asked for a full multi-session/multi-chat isolation architecture
-(concurrent debugging conversations bound to different tabs, with
-diagnostic evidence never leaking between them). That work was started
-(investigation only — see "Multi-Session Isolation — Research Notes"
-below) and then explicitly superseded by a narrower, more urgent
-instruction to focus on Service Worker diagnostics instead. The session
-architecture work is genuinely not built yet; don't assume it exists.
+**Multi-session/multi-chat isolation is now implemented** (this session) —
+see "Multi-Session Isolation — Implementation Notes" below for what changed
+and what's still a follow-up. The prior session's investigation-only
+research notes (superseded by a Service Worker diagnostics push before
+this) turned out to be exactly right about the fix: thread `RunContext`
+through `run()` and prefer the bound tab over `getActiveTab()`.
 
-**This session (documentation-only, no code changes)**: a complete
+**A previous session (documentation-only, no code changes)**: a complete
 engineering documentation package was published to Apty's Confluence space,
 under the folder at
 `https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/folder/1467613554`.
@@ -47,9 +45,10 @@ Phase 2 of the informal roadmap below:
    (validation, redaction, tests, producer reference impl)** (this session)
 3. Wire real Apty Studio/Widget/Client integration once extension IDs and
    contracts are available (not started — needs Apty-side input)
-4. Multi-session/multi-chat isolation (investigated, not implemented — see
-   below); evidence correlation quality; recovery/retry behavior;
-   verification loops (not started)
+4. ~~Multi-session/multi-chat isolation~~ (implemented, this session — see
+   "Multi-Session Isolation — Implementation Notes" below for what shipped
+   and what's still a follow-up); evidence correlation quality;
+   recovery/retry behavior; verification loops (not started)
 5. ~~Publish a complete engineering documentation package to Confluence~~
    (done, this session — see `## Confluence Documentation` below;
    explicitly a documentation-only task, no code changes)
@@ -356,7 +355,116 @@ straightforward and a reasonable next increment, not a blocked task.
 Manual/integration testing against a real Apty deployment is still the
 real end-to-end validation path once the Apty-side contracts exist.
 
-## Multi-Session Isolation — Research Notes (investigated, NOT implemented)
+## Multi-Session Isolation — Implementation Notes (implemented this session)
+
+A previous session's research (recorded below, kept for context) concluded
+the fix was `RunContext` threading, not a new "DebugSession" class, because
+message-history isolation already existed. This session implemented
+exactly that, plus one more concrete bug the research didn't catch.
+
+**What shipped:**
+
+- **`RunContext` threading (core → tools).**
+  `packages/core/src/types.ts`'s `ChatOptions` gained an opaque
+  `runContext?: unknown` field, forwarded by `AIPex.chat()` /
+  `runExecution()` (`packages/core/src/agent/aipex.ts`) to `run()`'s
+  `context` option. `core` stays browser-agnostic — it doesn't interpret
+  the value, just passes it through to every tool's
+  `execute(input, context)` as `context.context` (confirmed against
+  `@openai/agents-core`'s `runContext.d.ts`/`tool.d.ts`: `RunContext.context`
+  holds exactly what was passed to `run()`, and `FunctionTool.invoke()`
+  forwards it to `execute` untouched — no `instanceof` checks, so a plain
+  object works).
+- **`ConversationRunContext` + `resolveDiagnosticTab()`**
+  (`packages/browser-runtime/src/tools/tab-utils.ts`): the concrete shape
+  (`{ conversationId, tabId }`) and a `getActiveTab()` replacement that
+  prefers `context.context.tabId` (verified still open via
+  `chrome.tabs.get`) and only falls back to the old "whichever tab is
+  focused" behavior when no binding exists or the bound tab was closed.
+  Wired into all 5 `apty.ts` tools and both `devtools.ts` tools — the
+  tools that actually gather the "Apty evidence" / "console evidence" /
+  "network evidence" the isolation spec cares about. The two genuinely
+  tab-agnostic tools (`get_apty_studio_diagnostics`,
+  `get_apty_service_worker_diagnostics` — cross-extension messaging, not
+  page-scoped) now tag their response with the requesting
+  `conversationId` instead of guessing a tab, matching the "shared /
+  unattributed evidence" pattern the service-worker tool already used for
+  its `scope: "shared-global"` field.
+- **Per-conversation tab binding, `Map<sessionId, tabId>`**
+  (`packages/browser-ext/src/lib/conversation-tab-binding.ts`, new): binds
+  a conversation to whichever tab was active when it first got a real
+  session id, and keeps reusing that tab even if the user later switches
+  focus elsewhere — the actual isolation guarantee. Deliberately a keyed
+  map, not a `currentTabId` global. Wired into the chat hook via a new
+  `ChatConfig.getRunContext` callback (`packages/aipex-react`'s
+  `useChat`/`ChatConfig`) so `aipex-react` itself stays runtime-agnostic;
+  `packages/browser-ext/src/pages/common/app-root.tsx` supplies the
+  Chrome-specific resolver. Released on "new chat" and on switching to a
+  different stored conversation.
+- **Fixed a real cross-conversation contamination bug**, found while
+  wiring the above, not previously documented: `ConversationData.id` (the
+  UI-level, IndexedDB-persisted conversation the history dropdown switches
+  between) and `core.Session.id` (the actual LLM message history /
+  `RunContext`-bound conversation) are two different id spaces, and
+  nothing reconciled them.
+  `packages/browser-ext/src/lib/browser-chat-header.tsx`'s
+  `handleConversationSelect` restored the UI's message list from the
+  selected `ConversationData` but never rebound `useChat`'s internal
+  `sessionId` — so sending a message right after restoring an old
+  conversation from history would silently continue whatever `core.Session`
+  happened to be active (a different conversation's, or none), i.e. one
+  conversation's UI receiving a reply generated from a different
+  conversation's actual agent memory. This is precisely the "Chat A → Chat
+  B" contamination the isolation requirements forbid. Fixed by persisting
+  which `core.Session` a `ConversationData` owns
+  (`ConversationData.agentSessionId`, `conversation-storage.ts`) and adding
+  a `bindSession()` escape hatch to `useChat` (exposed through
+  `ChatContextValue`) that `handleConversationSelect` now calls to rebind
+  the live session to match, instead of leaving it dangling.
+- **Tests**: `packages/core/src/agent/aipex.test.ts` (`runContext` →
+  `run()` passthrough, new + resumed sessions),
+  `packages/browser-runtime/src/tools/tab-utils.test.ts` +
+  `apty.test.ts` (bound-tab vs active-tab resolution, including a real
+  `.invoke()` call through `getAptyPageLogsTool`),
+  `packages/browser-runtime/src/conversation/__tests__/conversation-storage.test.ts`
+  (`agentSessionId` persistence), `packages/aipex-react/src/hooks/use-chat.test.ts`
+  (`getRunContext` resolution + `bindSession`), and
+  `packages/browser-ext/src/lib/conversation-tab-binding.test.ts` (the
+  per-session map itself, including a "two concurrent sessions must not
+  share a tab" case).
+
+**What's still a follow-up, not done this session:**
+
+- **`InterventionManager.currentConversationMode`**
+  (`packages/browser-runtime/src/intervention/intervention-manager.ts`) is
+  a single field, not keyed by conversation — mislabeled ("conversation
+  mode" that's actually extension-wide). Not fixed: today there is exactly
+  one active conversation per side panel window (see next point), so this
+  field's real semantics ("the currently active one in this window") do
+  happen to match its current single-field implementation; it would only
+  become a real bug once genuinely concurrent conversations exist within
+  one window. Flagging so the next session doesn't have to rediscover it
+  if that changes.
+- **No concurrent multi-chat UI within one side panel window.** The
+  history dropdown (`ConversationHistory`) is a *switcher* — one
+  conversation displayed at a time — not multiple simultaneous panes. Two
+  browser *windows*, each with their own side panel, already are two
+  independent JS execution contexts (this session's binding map is
+  module-level per JS realm, so this was already safe); genuinely
+  concurrent conversations *within* one window's UI would need a
+  multi-pane or tabbed chat surface that doesn't exist yet.
+- **First-turn tab binding is best-effort.** A conversation's `sessionId`
+  doesn't exist until after `agent.chat()`'s first `session_created` event
+  fires, so the very first message of a new conversation resolves against
+  "whichever tab is active right now" (same as the pre-existing behavior —
+  no regression) rather than a bound tab; the binding is established
+  starting the second turn. Making turn 1 precise would need `useChat` to
+  surface the tab captured at send-time back to the binding module once
+  the session id becomes known — a small enhancement, not attempted here
+  to keep this change surgical.
+
+<details>
+<summary>Original research notes (superseded by the implementation above, kept for history)</summary>
 
 A prior instruction this session asked for full multi-chat/multi-tab
 isolation (concurrent debugging conversations, each bound to a specific
@@ -421,6 +529,8 @@ it may turn out to be sufficient on its own for the tab-binding problem,
 with the existing `Session`/conversation-storage layer already covering
 chat-state isolation.
 
+</details>
+
 ## Confluence Documentation
 
 A 12-page engineering documentation package exists in Apty's Confluence,
@@ -457,10 +567,10 @@ commit.
   against a real deployment until Apty-side work happens (Service Worker
   now has a complete producer-side reference implementation ready to hand
   off; Studio/Widget/Client do not yet).
-- **No multi-session/multi-tab diagnostic isolation** — see "Multi-Session
-  Isolation — Research Notes" above. All diagnostic tools currently
-  operate on "whichever tab is active right now" rather than a
-  conversation-bound tab; this is a real gap, not yet fixed.
+- **Multi-session/multi-tab diagnostic isolation is implemented** — see
+  "Multi-Session Isolation — Implementation Notes" above for what shipped
+  and the remaining follow-ups (per-window-only concurrency, no multi-pane
+  UI, best-effort first-turn tab binding).
 - Evidence correlation is entirely LLM-driven (via system-prompt
   instructions), not a deterministic pre-pass.
 - `host-access-config.json` and the console-capture content script are
@@ -507,14 +617,16 @@ though this repo's own docs remain the source of truth if the two disagree.
   and the console-bridge's content-script `matches` away from `<all_urls>`
 
 **What's safe to continue without asking — in recommended order:**
-1. **Multi-session tab-binding** (highest priority, real correctness gap
-   found this session, not yet fixed): implement `RunContext` threading as
-   described in "Multi-Session Isolation — Research Notes" above. Start
-   there, not with a new session-manager class — the existing `Session`/
-   conversation-storage layer likely already covers chat-state isolation.
+1. ~~Multi-session tab-binding~~ (done — see "Multi-Session Isolation —
+   Implementation Notes" above). Its own follow-ups, if picked up next:
+   precise first-turn tab binding, and per-conversation
+   `InterventionManager` mode once/if concurrent conversations within one
+   window's UI become a thing.
 2. Writing tests for `widget-diagnostics.ts`/`client-diagnostics.ts`/
    `studio-diagnostics.ts`/`devtools.ts` using the same `global.chrome`
    mock pattern now proven out in `service-worker-diagnostics.test.ts`
+   (`devtools.ts`'s two tools now also accept a `context` param for tab
+   binding — cover that in whatever tests get added)
 3. Building the deterministic evidence-correlation pre-pass
 4. An Options UI panel for `AptyIntegrationConfig`
 5. Continuing to remove/rename remaining internal "AIPex" identifiers, if a

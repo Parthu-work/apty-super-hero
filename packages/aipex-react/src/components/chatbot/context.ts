@@ -43,6 +43,13 @@ export interface ChatContextValue {
   regenerate: () => Promise<void>;
   /** Set messages directly */
   setMessages: (messages: UIMessage[]) => void;
+  /**
+   * Rebind the active session id without creating or deleting a session.
+   * Used when restoring a past conversation from history so the next
+   * message continues that conversation's own agent session rather than
+   * leaking into/out of whatever session was previously active.
+   */
+  bindSession: (sessionId: string | null) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);

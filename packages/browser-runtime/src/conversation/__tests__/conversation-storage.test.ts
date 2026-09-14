@@ -1,14 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { UIMessage } from "../types";
+import type { ConversationData, UIMessage } from "../types";
+
+// Shared in-memory backing store for the mocked IndexedDBStorage below, so
+// tests can verify what was actually persisted (e.g. `agentSessionId`)
+// instead of only that `save` was called. Reset in `beforeEach`. Declared
+// via `vi.hoisted` because `vi.mock` factories run before normal top-level
+// statements in this file.
+const { mockDb } = vi.hoisted(() => ({
+  mockDb: {} as Record<string, ConversationData>,
+}));
 
 // Mock IndexedDBStorage before importing ConversationStorage
 vi.mock("../../storage/indexeddb-storage", () => ({
   IndexedDBStorage: class MockIndexedDBStorage {
-    save = vi.fn().mockResolvedValue(undefined);
-    load = vi.fn().mockResolvedValue(null);
-    delete = vi.fn().mockResolvedValue(undefined);
+    save = vi.fn(async (id: string, value: ConversationData) => {
+      mockDb[id] = value;
+    });
+    load = vi.fn(async (id: string) => mockDb[id] ?? null);
+    delete = vi.fn(async (id: string) => {
+      delete mockDb[id];
+    });
     list = vi.fn().mockResolvedValue([]);
-    listAll = vi.fn().mockResolvedValue([]);
+    listAll = vi.fn(async () => Object.values(mockDb));
     clear = vi.fn().mockResolvedValue(undefined);
     watch = vi.fn().mockReturnValue(() => {});
   },
@@ -49,6 +62,9 @@ describe("ConversationStorage", () => {
   beforeEach(() => {
     localStorageMock.clear();
     vi.clearAllMocks();
+    for (const key of Object.keys(mockDb)) {
+      delete mockDb[key];
+    }
   });
 
   const createMockMessages = (count: number = 3): UIMessage[] => {
@@ -238,6 +254,71 @@ describe("ConversationStorage", () => {
       const conversationId = await storage.saveConversation(messages);
 
       expect(conversationId).toMatch(/^conv_\d+_[a-z0-9]+$/);
+    });
+  });
+
+  describe("agentSessionId — reconciling UI conversations with agent sessions", () => {
+    // `ConversationData.id` (this store's key) and the `core.Session.id`
+    // that actually holds the LLM message history are two different id
+    // spaces. Without persisting which agent session a conversation owns,
+    // restoring a past conversation from history has no way to rebind the
+    // live agent session to it — the next message would silently continue
+    // whatever session was previously active, leaking one conversation's
+    // agent state into another's UI. `agentSessionId` is what closes that
+    // gap; these tests guard its persistence.
+    it("persists agentSessionId when saving a new conversation", async () => {
+      const storage = new ConversationStorage();
+      const messages = createMockMessages(2);
+
+      const conversationId = await storage.saveConversation(
+        messages,
+        "core-session-abc",
+      );
+
+      const stored = await storage.getConversation(conversationId);
+      expect(stored?.agentSessionId).toBe("core-session-abc");
+    });
+
+    it("leaves agentSessionId undefined when not provided", async () => {
+      const storage = new ConversationStorage();
+      const messages = createMockMessages(2);
+
+      const conversationId = await storage.saveConversation(messages);
+
+      const stored = await storage.getConversation(conversationId);
+      expect(stored?.agentSessionId).toBeUndefined();
+    });
+
+    it("updates agentSessionId on an existing conversation", async () => {
+      const storage = new ConversationStorage();
+      const messages = createMockMessages(2);
+      const conversationId = await storage.saveConversation(
+        messages,
+        "core-session-abc",
+      );
+
+      await storage.updateConversation(
+        conversationId,
+        createMockMessages(3),
+        "core-session-xyz",
+      );
+
+      const stored = await storage.getConversation(conversationId);
+      expect(stored?.agentSessionId).toBe("core-session-xyz");
+    });
+
+    it("does not clear an existing agentSessionId when updating without one", async () => {
+      const storage = new ConversationStorage();
+      const messages = createMockMessages(2);
+      const conversationId = await storage.saveConversation(
+        messages,
+        "core-session-abc",
+      );
+
+      await storage.updateConversation(conversationId, createMockMessages(3));
+
+      const stored = await storage.getConversation(conversationId);
+      expect(stored?.agentSessionId).toBe("core-session-abc");
     });
   });
 

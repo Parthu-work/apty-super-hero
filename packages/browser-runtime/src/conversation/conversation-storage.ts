@@ -114,7 +114,10 @@ export class ConversationStorage {
    * Save a new conversation
    * Returns the conversation ID
    */
-  async saveConversation(messages: UIMessage[]): Promise<string> {
+  async saveConversation(
+    messages: UIMessage[],
+    agentSessionId?: string,
+  ): Promise<string> {
     await this.ensureMigrated();
 
     if (messages.length === 0) {
@@ -136,6 +139,7 @@ export class ConversationStorage {
       messages: messagesToSave,
       createdAt: now,
       updatedAt: now,
+      agentSessionId,
     };
 
     try {
@@ -213,6 +217,7 @@ export class ConversationStorage {
   async updateConversation(
     conversationId: string,
     messages: UIMessage[],
+    agentSessionId?: string,
   ): Promise<void> {
     await this.ensureMigrated();
 
@@ -229,6 +234,9 @@ export class ConversationStorage {
       const messagesToSave = this.filterMessages(messages);
       conversation.messages = messagesToSave;
       conversation.updatedAt = Date.now();
+      if (agentSessionId) {
+        conversation.agentSessionId = agentSessionId;
+      }
 
       await this.storage.save(conversationId, conversation);
       console.log(

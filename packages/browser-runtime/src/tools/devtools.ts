@@ -26,7 +26,7 @@ import { z } from "zod";
 import { redactHeaders, redactSensitiveText } from "../apty/redact.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
-import { getActiveTab } from "./tab-utils";
+import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
 
 const MIN_WINDOW_MS = 500;
 const MAX_WINDOW_MS = 15000;
@@ -113,8 +113,8 @@ export const getNetworkDiagnosticsTool = tool({
         "If true, only return failed requests or responses with status >= 400",
       ),
   }),
-  execute: async ({ windowMs, onlyErrors }) => {
-    const tab = await getActiveTab();
+  execute: async ({ windowMs, onlyErrors }, context) => {
+    const tab = await resolveDiagnosticTab(context as ToolRunContext);
     if (!tab.id) {
       return { available: false, requests: [] };
     }
@@ -209,8 +209,8 @@ export const getRuntimeDiagnosticsTool = tool({
         `Capture window in milliseconds (${MIN_WINDOW_MS}-${MAX_WINDOW_MS}, default ${DEFAULT_WINDOW_MS})`,
       ),
   }),
-  execute: async ({ windowMs }) => {
-    const tab = await getActiveTab();
+  execute: async ({ windowMs }, context) => {
+    const tab = await resolveDiagnosticTab(context as ToolRunContext);
     if (!tab.id) {
       return { available: false, events: [] };
     }

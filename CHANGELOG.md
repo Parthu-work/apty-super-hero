@@ -4,7 +4,52 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
-## Unreleased (this session) — engineering documentation package
+## Unreleased (this session) — multi-session/multi-chat isolation
+
+**Added**
+- Per-conversation browser-tab binding: `ChatOptions.runContext`
+  (`packages/core`) is forwarded by `AIPex.chat()` to `@openai/agents`'
+  `run()` as its `context` option, reaching every tool's
+  `execute(input, context)` as `context.context`. Diagnostic tools
+  (`apty.ts`'s 5 tools, `devtools.ts`'s 2 tools) resolve their target tab
+  via a new `resolveDiagnosticTab()` (`packages/browser-runtime/src/tools/tab-utils.ts`)
+  that prefers this bound tab over the previous unconditional
+  `getActiveTab()` call, so evidence stays scoped to the tab a
+  conversation is actually about even if the user's focus moves
+  elsewhere. The binding itself is a `Map<sessionId, tabId>`
+  (`packages/browser-ext/src/lib/conversation-tab-binding.ts`), wired into
+  the chat hook via a new `ChatConfig.getRunContext` callback so
+  `aipex-react` stays runtime-agnostic.
+- `ConversationData.agentSessionId` (`packages/browser-runtime`'s
+  conversation storage) reconciles the two previously-unlinked
+  conversation id spaces (the UI-level `ConversationData.id` and the
+  `core.Session.id` that holds the actual LLM message history), and a new
+  `useChat().bindSession()` / `ChatContextValue.bindSession` lets restoring
+  a past conversation from history rebind the live agent session to match.
+- Tests: `aipex.test.ts` (`runContext` → `run()` passthrough),
+  `tab-utils.test.ts` + `apty.test.ts` (bound-tab resolution, including an
+  end-to-end `.invoke()` call), `conversation-storage.test.ts`
+  (`agentSessionId` persistence), `use-chat.test.ts` (`getRunContext` +
+  `bindSession`), `conversation-tab-binding.test.ts` (the binding map,
+  including a two-concurrent-sessions case).
+
+**Fixed**
+- A real cross-conversation contamination bug: restoring a past
+  conversation from the history dropdown
+  (`packages/browser-ext/src/lib/browser-chat-header.tsx`'s
+  `handleConversationSelect`) updated the UI's message list but never
+  rebound the active agent session, so the next message sent after
+  restoring an old conversation could silently continue a *different*
+  conversation's actual agent memory. Now rebinds via `bindSession()`
+  using the newly-persisted `agentSessionId`.
+
+See `PROJECT_PROGRESS.md`'s "Multi-Session Isolation — Implementation
+Notes" and `ARCHITECTURE.md`'s "Conversation/tab binding" section for the
+full writeup, including what's still a follow-up (best-effort first-turn
+binding, no concurrent multi-pane UI within one window,
+`InterventionManager`'s conversation mode not yet per-conversation).
+
+## Previous session — engineering documentation package
 
 **Added**
 - A 12-page engineering documentation package published to Apty's

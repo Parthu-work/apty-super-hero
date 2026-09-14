@@ -295,6 +295,65 @@ describe("AIPex", () => {
       expect(result.instructions).toBe("Test instructions");
     });
 
+    it("should forward ChatOptions.runContext to run() as context, for both new and resumed sessions", async () => {
+      vi.mocked(run).mockResolvedValue(createMockRunResult());
+
+      const agent = AIPex.create({ instructions: "Test", model: mockModel });
+
+      const runContext = { conversationId: "conv-1", tabId: 42 };
+      for await (const _event of agent.chat("Hi", { runContext })) {
+        // consume events
+      }
+
+      expect(run).toHaveBeenCalledTimes(1);
+      const [, , newSessionRunOptions] = vi.mocked(run).mock.calls[0]!;
+      expect((newSessionRunOptions as { context?: unknown }).context).toEqual(
+        runContext,
+      );
+
+      // Grab the sessionId that was created so we can resume it.
+      const createdSessionId = (
+        (await agent.getConversationManager()?.listSessions())?.[0] as
+          | { id: string }
+          | undefined
+      )?.id;
+      expect(createdSessionId).toBeDefined();
+
+      vi.mocked(run).mockClear();
+      vi.mocked(run).mockResolvedValue(createMockRunResult());
+
+      const resumedRunContext = { conversationId: createdSessionId, tabId: 7 };
+      for await (const _event of agent.chat("Follow-up", {
+        sessionId: createdSessionId,
+        runContext: resumedRunContext,
+      })) {
+        // consume events
+      }
+
+      expect(run).toHaveBeenCalledTimes(1);
+      const [, , resumedSessionRunOptions] = vi.mocked(run).mock.calls[0]!;
+      expect(
+        (resumedSessionRunOptions as { context?: unknown }).context,
+      ).toEqual(resumedRunContext);
+    });
+
+    it("should pass context: undefined to run() when no runContext is provided", async () => {
+      vi.mocked(run).mockResolvedValue(createMockRunResult());
+
+      const agent = AIPex.create({
+        instructions: "Test",
+        model: mockModel,
+        conversation: false,
+      });
+
+      for await (const _event of agent.chat("Hi")) {
+        // consume events
+      }
+
+      const [, , runOptions] = vi.mocked(run).mock.calls[0]!;
+      expect((runOptions as { context?: unknown }).context).toBeUndefined();
+    });
+
     it("should work with custom conversationManager", async () => {
       vi.mocked(run).mockResolvedValue(
         createMockRunResult({

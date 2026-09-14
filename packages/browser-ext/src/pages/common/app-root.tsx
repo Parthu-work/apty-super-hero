@@ -31,6 +31,7 @@ import { BrowserContextLoader } from "../../lib/browser-context-loader";
 import { BrowserMessageActions } from "../../lib/browser-message-actions";
 import { BrowserMessageList } from "../../lib/browser-message-list";
 import { ChatImagesListener } from "../../lib/chat-images-listener";
+import { resolveConversationRunContext } from "../../lib/conversation-tab-binding";
 import { InputModeProvider } from "../../lib/input-mode-context";
 import { InterventionModeProvider } from "../../lib/intervention-mode-context";
 import { InterventionUI } from "../../lib/intervention-ui";
@@ -234,6 +235,9 @@ function ChatApp() {
           initialSettings={settings}
           storageAdapter={chromeStorageAdapter}
           initialInput={pendingInput}
+          config={{
+            getRunContext: resolveConversationRunContext,
+          }}
           handlers={{
             onStatusChange: handleStatusChange,
             checkAuthBeforeSend: handleCheckAuth,

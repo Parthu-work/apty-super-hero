@@ -36,6 +36,16 @@ export interface ConversationData {
   messages: UIMessage[]; // Message list (system messages filtered out)
   createdAt: number; // Creation timestamp
   updatedAt: number; // Last update timestamp
+  /**
+   * The `core.Session` id (from `@aipexstudio/aipex-core`'s
+   * `ConversationManager`) that holds this conversation's actual LLM
+   * message history and tool-call state. `ConversationData.id` and this
+   * field are two different id spaces — this field is what lets restoring
+   * a conversation from history also rebind the live agent session to it,
+   * instead of silently continuing whatever session happened to be active
+   * (which would leak one conversation's agent state into another).
+   */
+  agentSessionId?: string;
 }
 
 /**

@@ -139,8 +139,13 @@ export function registerDefaultBrowserTools<T extends ToolRegistryLike>(
   return registry;
 }
 
+export type {
+  ConversationRunContext,
+  ToolRunContext,
+} from "./tab-utils";
 export {
   executeScriptInActiveTab,
   executeScriptInTab,
   getActiveTab,
+  resolveDiagnosticTab,
 } from "./tab-utils";

@@ -32,7 +32,7 @@ import {
   ScriptingClientDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,
 } from "../apty/index.js";
-import { getActiveTab } from "./tab-utils";
+import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
 
 interface AptyConsoleEntry {
   level: "log" | "info" | "warn" | "error" | "debug";
@@ -41,12 +41,20 @@ interface AptyConsoleEntry {
   source: "console" | "window-error" | "unhandled-rejection";
 }
 
-async function getActiveTabId(): Promise<number> {
-  const tab = await getActiveTab();
-  if (!tab.id) {
-    throw new Error("No active tab found");
-  }
-  return tab.id;
+/**
+ * Build a `getActiveTabId` callback bound to this tool call's conversation
+ * context, so widget/client diagnostics providers target the tab the
+ * calling conversation is actually about instead of whatever tab is
+ * currently focused.
+ */
+function makeGetTabId(runContext?: ToolRunContext): () => Promise<number> {
+  return async () => {
+    const tab = await resolveDiagnosticTab(runContext);
+    if (!tab.id) {
+      throw new Error("No active tab found");
+    }
+    return tab.id;
+  };
 }
 
 /**
@@ -74,8 +82,8 @@ export const getAptyPageLogsTool = tool({
       .default("log")
       .describe("Minimum severity to include"),
   }),
-  execute: async ({ limit, minLevel }) => {
-    const tab = await getActiveTab();
+  execute: async ({ limit, minLevel }, context) => {
+    const tab = await resolveDiagnosticTab(context as ToolRunContext);
     if (!tab.id) {
       return { available: false, entries: [] };
     }
@@ -118,8 +126,10 @@ export const getAptyWidgetDiagnosticsTool = tool({
     "Get the Apty Widget's status (loaded, initialized, visible, last error) and recent logs on the current page. " +
     "Returns status: 'not_configured' if the Widget hasn't implemented the diagnostic bridge on this page yet — that is an expected result, not necessarily evidence the Widget is broken.",
   parameters: z.object({}),
-  execute: async () => {
-    const provider = new ScriptingWidgetDiagnosticsProvider(getActiveTabId);
+  execute: async (_input, context) => {
+    const provider = new ScriptingWidgetDiagnosticsProvider(
+      makeGetTabId(context as ToolRunContext),
+    );
     const [status, logs] = await Promise.all([
       provider.getStatus(),
       provider.getLogs(),
@@ -134,8 +144,10 @@ export const getAptyClientDiagnosticsTool = tool({
     "Get the Apty Client's status (loaded, initialized, version) and recent logs on the current page. " +
     "Returns status: 'not_configured' if the Client hasn't implemented the diagnostic bridge on this page yet.",
   parameters: z.object({}),
-  execute: async () => {
-    const provider = new ScriptingClientDiagnosticsProvider(getActiveTabId);
+  execute: async (_input, context) => {
+    const provider = new ScriptingClientDiagnosticsProvider(
+      makeGetTabId(context as ToolRunContext),
+    );
     const [status, logs] = await Promise.all([
       provider.getStatus(),
       provider.getLogs(),
@@ -150,7 +162,7 @@ export const getAptyStudioDiagnosticsTool = tool({
     "Get Apty Studio's status (active, selection mode, last selected selector) and recent logs, via cross-extension messaging. " +
     "Requires studioExtensionId to be configured (see packages/browser-ext/.env.example) AND Studio to implement the corresponding message handler — until both exist, returns status: 'not_configured' or 'unavailable'.",
   parameters: z.object({}),
-  execute: async () => {
+  execute: async (_input, context) => {
     const config = await getAptyIntegrationConfig();
     const provider = config.studioExtensionId
       ? new ExternalMessageStudioDiagnosticsProvider(config.studioExtensionId)
@@ -159,7 +171,14 @@ export const getAptyStudioDiagnosticsTool = tool({
       provider.getStatus(),
       provider.getLogs(),
     ]);
-    return { status, logs };
+    return {
+      status,
+      logs,
+      // Studio is reached via cross-extension messaging, not tied to any
+      // particular tab — tag which conversation asked for this evidence
+      // without claiming a tab/browser-context attribution we can't prove.
+      conversationId: (context as ToolRunContext)?.context?.conversationId,
+    };
   },
 });
 
@@ -170,7 +189,7 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
     "Chrome does not allow one extension to read another's private service-worker memory directly, so this always returns status: 'not_configured' until Apty exposes one of those channels (see packages/browser-ext/.env.example). " +
     "IMPORTANT: the service worker is a single global process shared by every tab, not specific to the current page — do not assume these logs are about the tab you're currently investigating unless a timestamp or message content actually ties them to it.",
   parameters: z.object({}),
-  execute: async () => {
+  execute: async (_input, context) => {
     const config = await getAptyIntegrationConfig();
     const provider =
       config.serviceWorkerExtensionId || config.serviceWorkerDiagnosticEndpoint
@@ -189,6 +208,11 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
       scope: "shared-global" as const,
       scopeNote:
         "These logs come from Apty's service worker, which is shared across all tabs and browser windows — they are not specific to the current tab.",
+      // Which conversation retrieved this shared/unattributed evidence.
+      // Do NOT read this as "these logs are about this conversation's tab"
+      // — see scopeNote above.
+      requestedByConversationId: (context as ToolRunContext)?.context
+        ?.conversationId,
     };
   },
 });

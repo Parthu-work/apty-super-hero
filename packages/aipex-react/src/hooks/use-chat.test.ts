@@ -183,6 +183,53 @@ describe("useChat", () => {
     expect(result.current.messages[0]?.role).toBe("user");
   });
 
+  it("should resolve and forward runContext via config.getRunContext", async () => {
+    const { agent } = setupDefaultAgent();
+    const getRunContext = vi.fn().mockResolvedValue({
+      conversationId: "conv-1",
+      tabId: 27,
+    });
+    const { result } = await renderUseChat(agent, {
+      config: { getRunContext },
+    });
+
+    await act(async () => {
+      await result.current.sendMessage("Hi there");
+    });
+
+    // Called with the sessionId as it was *before* this send (null for the
+    // first message of a new conversation).
+    expect(getRunContext).toHaveBeenCalledWith(null);
+    expect(agent.chat).toHaveBeenCalledWith("Hi there", {
+      sessionId: undefined,
+      contexts: undefined,
+      runContext: { conversationId: "conv-1", tabId: 27 },
+    });
+  });
+
+  it("bindSession rebinds the active session id without creating or deleting a session", async () => {
+    const { agent } = setupDefaultAgent();
+    const { result } = await renderUseChat(agent);
+
+    await act(async () => {
+      await result.current.sendMessage("Hi there");
+    });
+    expect(result.current.sessionId).toBe("session-1");
+
+    act(() => {
+      result.current.bindSession("restored-session-id");
+    });
+    expect(result.current.sessionId).toBe("restored-session-id");
+
+    await act(async () => {
+      await result.current.sendMessage("Follow-up in restored chat");
+    });
+    expect(agent.chat).toHaveBeenLastCalledWith(
+      "Follow-up in restored chat",
+      expect.objectContaining({ sessionId: "restored-session-id" }),
+    );
+  });
+
   it("should not send empty messages", async () => {
     const { agent } = setupDefaultAgent();
     const { result } = await renderUseChat(agent);

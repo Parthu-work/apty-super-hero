@@ -99,6 +99,44 @@ deterministic pre-correlation pass (e.g., flag events within N ms of each
 other) is a reasonable future improvement, not yet built — see
 `PROJECT_PROGRESS.md`'s Next Steps.
 
+### Conversation/tab binding — evidence isolation
+
+Evidence is only useful if it's about the tab the conversation is actually
+debugging. Every evidence-gathering tool (`apty.ts`'s 5 tools,
+`devtools.ts`'s 2 tools) resolves its target tab via
+`resolveDiagnosticTab()` (`packages/browser-runtime/src/tools/tab-utils.ts`)
+instead of unconditionally querying "whichever tab is focused right now":
+
+1. `AIPex.chat()` accepts an opaque `runContext` (`ChatOptions.runContext`,
+   `packages/core/src/types.ts`) forwarded verbatim to `@openai/agents`'
+   `run()` as its `context` option, and from there to every tool's
+   `execute(input, context)` as `context.context` — no new plumbing, just
+   using SDK capability that already existed.
+2. `packages/browser-ext/src/lib/conversation-tab-binding.ts` supplies the
+   concrete value: a `Map<sessionId, tabId>` that binds a conversation to
+   whichever tab was active the first time it had a real session id, and
+   keeps returning that tab even if the user's focus moves elsewhere. This
+   map is deliberately keyed by conversation, not a single `currentTabId`.
+3. `resolveDiagnosticTab()` prefers the bound tab (re-verified via
+   `chrome.tabs.get` in case it was closed) and only falls back to the old
+   "active tab" behavior when no binding exists yet or it's stale.
+
+Two tools are genuinely tab-agnostic (`get_apty_studio_diagnostics`,
+`get_apty_service_worker_diagnostics` — cross-extension messaging, not
+page-scoped) and instead tag their response with the requesting
+`conversationId`, following the same honest "shared, not
+attributed-to-a-tab" pattern the service-worker tool already used via its
+`scope: "shared-global"` field.
+
+Chat-message-history isolation (which `Session`/`ConversationData` a
+conversation's messages live in) was already correct before this; the gap
+this closed was *tool execution* silently ignoring which conversation it
+was running for. Concurrency across separate side panel *windows* already
+worked (independent JS realms); a single window still shows one
+conversation at a time (the history dropdown is a switcher, not multiple
+panes) — see `PROJECT_PROGRESS.md`'s "Multi-Session Isolation —
+Implementation Notes" for the full writeup and remaining follow-ups.
+
 ## Apty integration layer
 
 Four provider interfaces, one per Apty component
@@ -206,10 +244,8 @@ Enforced at two layers:
   only the client-side halves of these integrations exist; the Apty-side
   halves (a real extension ID, a real global, a real message handler) do
   not.
-- **Multi-session/multi-tab diagnostic isolation** — not deliberate, a real
-  gap: every diagnostic tool operates on whichever tab is currently active
-  in the window (`getActiveTab()`), not a tab bound to a specific
-  conversation. See `PROJECT_PROGRESS.md`'s "Multi-Session Isolation —
-  Research Notes" for what was found and the recommended fix
-  (`RunContext<Context>` threading through the existing `@openai/agents`
-  runner, already supported by the SDK and currently unused).
+- **A multi-pane/concurrent chat UI within a single side panel window** —
+  the history dropdown switches between conversations one at a time. Not
+  needed for evidence isolation itself (see "Conversation/tab binding"
+  above) but would be needed for a user to watch two conversations bound
+  to two different tabs side by side in the *same* window.

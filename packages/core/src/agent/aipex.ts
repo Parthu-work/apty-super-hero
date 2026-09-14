@@ -119,6 +119,7 @@ export class AIPex {
   private async *runExecution(
     input: string | AgentInputItem[],
     session: Session | null,
+    runContext?: unknown,
   ): AsyncGenerator<AgentEvent> {
     const startTime = Date.now();
     const metrics = this.initMetrics(startTime, session);
@@ -142,6 +143,9 @@ export class AIPex {
         maxTurns: this.maxTurns,
         session: runSession,
         stream: true,
+        // Forwarded to every tool's execute(input, context) as
+        // context.context — see ChatOptions.runContext for why.
+        context: runContext,
         // Shape screenshot tool results before every model call:
         // strip base64 imageData from tool results and inject a transient
         // user image message so the model can consume images via the vision path.
@@ -438,7 +442,7 @@ export class AIPex {
         itemCount: session.getItemCount(),
       };
 
-      yield* this.runExecution(finalInput, session);
+      yield* this.runExecution(finalInput, session, chatOptions?.runContext);
       return;
     }
 
@@ -450,7 +454,7 @@ export class AIPex {
       yield { type: "session_created", sessionId: session.id };
     }
 
-    yield* this.runExecution(finalInput, session);
+    yield* this.runExecution(finalInput, session, chatOptions?.runContext);
   }
 
   /**

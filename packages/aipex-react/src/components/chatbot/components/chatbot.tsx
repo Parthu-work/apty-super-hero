@@ -144,6 +144,7 @@ export function ChatbotProvider({
       reset: chatState.reset,
       regenerate: chatState.regenerate,
       setMessages: chatState.setMessages,
+      bindSession: chatState.bindSession,
     }),
     [chatState, wrappedSendMessage],
   );

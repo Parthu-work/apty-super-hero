@@ -13,6 +13,7 @@ import { conversationStorage } from "@aipexstudio/browser-runtime";
 import { PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationHistory } from "./conversation-history";
+import { releaseConversationTabBinding } from "./conversation-tab-binding";
 import { fromStorageFormat, toStorageFormat } from "./message-adapter";
 
 export function BrowserChatHeader({
@@ -25,7 +26,8 @@ export function BrowserChatHeader({
 }: HeaderProps) {
   const { t } = useTranslation();
   const runtime = getRuntime();
-  const { messages, setMessages, interrupt } = useChatContext();
+  const { messages, setMessages, interrupt, sessionId, bindSession } =
+    useChatContext();
 
   const [currentConversationId, setCurrentConversationId] = useState<
     string | undefined
@@ -52,11 +54,13 @@ export function BrowserChatHeader({
           await conversationStorage.updateConversation(
             currentConversationId,
             toStorageFormat(messages),
+            sessionId ?? undefined,
           );
         } else if (nonSystemMessages.length >= 2) {
           // Create new conversation only when we have at least user message + assistant response
           const conversationId = await conversationStorage.saveConversation(
             toStorageFormat(messages),
+            sessionId ?? undefined,
           );
           if (conversationId) {
             setCurrentConversationId(conversationId);
@@ -76,7 +80,7 @@ export function BrowserChatHeader({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [messages, currentConversationId]);
+  }, [messages, currentConversationId, sessionId]);
 
   const handleOpenOptions = useCallback(() => {
     if (onSettingsClick) {
@@ -106,6 +110,22 @@ export function BrowserChatHeader({
       // Restore messages to UI state (convert from storage format)
       setMessages(fromStorageFormat(conversation.messages));
 
+      // Release the outgoing session's tab binding — it's being switched
+      // away from, so its bound tab (if any) shouldn't be reused by
+      // whatever session comes next.
+      if (sessionId) {
+        releaseConversationTabBinding(sessionId);
+      }
+
+      // Rebind the agent's active session to the one this conversation
+      // actually owns (or null, forcing a fresh session on next send).
+      // Without this, the next message would silently continue whatever
+      // session was previously active — i.e. this conversation's UI would
+      // receive replies generated from a *different* conversation's agent
+      // memory. `agentSessionId` is undefined for conversations saved
+      // before this field existed; those fall back to a fresh session.
+      bindSession(conversation.agentSessionId ?? null);
+
       console.log(
         "✅ Conversation restored:",
         conversationId,
@@ -120,9 +140,15 @@ export function BrowserChatHeader({
     // Clear current conversation ID so next save creates new conversation
     setCurrentConversationId(undefined);
 
+    // Release the outgoing session's tab binding (onNewChat below deletes
+    // the session itself via useChat's reset()).
+    if (sessionId) {
+      releaseConversationTabBinding(sessionId);
+    }
+
     // Call the passed onNewChat (resets messages and clears input)
     onNewChat?.();
-  }, [onNewChat]);
+  }, [onNewChat, sessionId]);
 
   return (
     <div

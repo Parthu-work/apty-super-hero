@@ -23,6 +23,16 @@ export interface ChatConfig {
   maxTokens?: number;
   /** Initial messages to display */
   initialMessages?: UIMessage[];
+  /**
+   * Resolve the opaque per-conversation execution context forwarded to
+   * `AIPex.chat()` as `ChatOptions.runContext` before every send. Runtimes
+   * that bind a conversation to a specific browser tab (e.g.
+   * `@aipexstudio/browser-runtime`) use this to tell tool calls which tab
+   * this conversation is actually about, keeping `aipex-react` itself
+   * runtime-agnostic. Called with the current session id (`null` before
+   * the first message creates one).
+   */
+  getRunContext?: (sessionId: string | null) => unknown | Promise<unknown>;
 }
 
 // ============ Component Props Types ============

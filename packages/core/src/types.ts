@@ -108,6 +108,17 @@ export interface ChatOptions {
    * multimodal UserMessageItem sent to the model's vision path.
    */
   images?: ImageInput[];
+  /**
+   * Opaque per-conversation execution context, forwarded verbatim to
+   * `@openai/agents`'s `run()` as its `context` option and therefore made
+   * available to every tool's `execute(input, context)` as
+   * `context.context`. `core` does not interpret this value — the runtime
+   * (e.g. `@aipexstudio/browser-runtime`) defines its own shape (typically
+   * a conversation id plus a bound tab id) so that tools can resolve
+   * "which browser tab is this conversation about" instead of guessing at
+   * whichever tab happens to be focused when the tool runs.
+   */
+  runContext?: unknown;
 }
 
 export interface AgentMetrics {

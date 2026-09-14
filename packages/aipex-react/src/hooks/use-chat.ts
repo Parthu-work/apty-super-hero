@@ -46,6 +46,14 @@ export interface UseChatReturn {
   regenerate: () => Promise<void>;
   /** Set messages directly */
   setMessages: (messages: UIMessage[]) => void;
+  /**
+   * Rebind this hook's active session id without creating or deleting any
+   * session. Used when restoring a past conversation from history: the
+   * caller must rebind to that conversation's own agent session (or
+   * `null`, forcing a fresh one) so the next message doesn't silently
+   * continue whatever session was previously active.
+   */
+  bindSession: (sessionId: string | null) => void;
 }
 
 /**
@@ -221,9 +229,11 @@ export function useChat(
         timestamp: Date.now(),
       }));
 
+      const runContext = await configRef.current?.getRunContext?.(sessionId);
       const events = agent.chat(text, {
         sessionId: sessionId ?? undefined,
         contexts: coreContexts,
+        runContext,
       });
       await processAgentEvents(events);
     },
@@ -251,7 +261,8 @@ export function useChat(
       adapter.setStatus("submitted");
 
       // Continue conversation
-      const events = agent.chat(text, { sessionId });
+      const runContext = await configRef.current?.getRunContext?.(sessionId);
+      const events = agent.chat(text, { sessionId, runContext });
       await processAgentEvents(events);
     },
     [adapter, agent, sessionId, processAgentEvents, sendMessage],
@@ -306,7 +317,8 @@ export function useChat(
       await agent.rollbackLastAssistantTurn(sessionId);
 
       adapter.setStatus("submitted");
-      const events = agent.chat(text, { sessionId });
+      const runContext = await configRef.current?.getRunContext?.(sessionId);
+      const events = agent.chat(text, { sessionId, runContext });
       await processAgentEvents(events);
     }
   }, [adapter, agent, sessionId, processAgentEvents]);
@@ -319,6 +331,15 @@ export function useChat(
     [adapter],
   );
 
+  // Rebind the active session id without touching messages or storage.
+  // Used when restoring a past conversation from history so the next
+  // message continues that conversation's own agent session instead of
+  // whatever session was previously active.
+  const bindSession = useCallback((nextSessionId: string | null): void => {
+    setSessionId(nextSessionId);
+    setMetrics(null);
+  }, []);
+
   return {
     messages,
     status,
@@ -330,5 +351,6 @@ export function useChat(
     reset,
     regenerate,
     setMessages: setMessagesDirectly,
+    bindSession,
   };
 }
