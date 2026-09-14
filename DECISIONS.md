@@ -3,6 +3,40 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## Investigation-aware network capture was reimplemented fresh on `main`, not merged from PR #11
+
+PR #11 ("Add investigation-aware network capture session", branch
+`claude/busy-fermat-xyu2po`) was reviewed in an earlier session (see
+`PROJECT_PROGRESS.md`'s "MCP Bridge Tool-Registry Fix & PR #11 Review" and
+`CHANGELOG.md`'s "Reviewed" entry from that session) and judged sound in
+its core design: per-conversation isolation, a heartbeat re-attach
+approach to outlive CDP's normal capture window, and header redaction all
+matched this codebase's existing patterns. That review also found two
+concrete, well-understood defects: no `chrome.tabs.onRemoved`/
+`chrome.debugger.onDetach` cleanup (a tab closing or the debugger
+detaching mid-capture leaked a running heartbeat `setInterval` forever and
+permanently blocked that conversation from starting a new capture), and no
+cap on the in-memory captured-request map (unlike `evidence-store.ts`'s
+500-item ceiling), so a long or noisy capture could grow memory without
+limit. A review comment requesting both fixes was posted, and the PR was
+left open and unmerged.
+
+Rather than pushing fixes onto someone else's open PR/branch, this session
+implemented the corrected version directly as new work on `main` —
+`network-capture-session.ts` plus 3 tool wrappers — carrying over the
+reviewed-as-sound design (per-conversation isolation, heartbeat re-attach,
+redaction) and fixing both defects from the start (forced-cleanup
+listeners; a `MAX_CAPTURED_REQUESTS = 2000` cap with a `truncated` flag).
+This is this project's normal workflow for new work: build it on `main`,
+not by taking over another branch mid-review. It also let the new code
+integrate with `investigation-orchestrator.ts` (added after PR #11 was
+opened, so that PR never called `recordToolCall()`) without needing a
+rebase across two independent lines of work.
+
+PR #11 itself remains open, unmerged, on its own branch — now additionally
+superseded/obsolete by this implementation. It should not be merged: `main`
+already has a corrected version of what it attempted.
+
 ## The autonomous orchestrator is a recommend+guardrail layer the model consults, not a second execution engine
 
 The previous session's "Why no external investigation orchestration loop"

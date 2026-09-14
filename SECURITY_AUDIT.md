@@ -206,6 +206,41 @@ diagnostic isolation) is now Fixed above.
 
 ## Reviewed — no new finding
 
+### 12. Investigation-aware network capture session (this session)
+
+- **Affected component**: `packages/browser-runtime/src/apty/network-capture-session.ts`,
+  `packages/browser-runtime/src/tools/network-capture.ts`
+- **Review**: adds no new permission and no new attack surface — it reuses
+  exactly the same `debugger`/CDP surface `get_network_diagnostics`
+  already has (the `Network` domain via `debuggerManager`/`CdpCommander`),
+  and every captured request's headers are redacted through the existing
+  `redactHeaders()` before being stored or returned, identically to
+  `get_network_diagnostics`. This reimplements what PR #11 attempted
+  (reviewed in an earlier session — see `DECISIONS.md` and
+  `PROJECT_PROGRESS.md`'s "MCP Bridge Tool-Registry Fix & PR #11 Review")
+  but fixes the two defects that made that PR unmergeable, both of which
+  are security-relevant in their own right, not just code-quality
+  cleanups:
+  - **Forced-cleanup listeners** (`chrome.tabs.onRemoved`/
+    `chrome.debugger.onDetach` → `forceCleanupForTab()`) prevent a
+    resource leak: without them, a tab closing or the debugger detaching
+    mid-capture left a heartbeat `setInterval` running forever and
+    permanently blocked that conversation from starting a new capture — an
+    availability bug a page under investigation (or just an ordinary tab
+    close) could trigger.
+  - **`MAX_CAPTURED_REQUESTS = 2000`** (oldest-evicted-first) is itself a
+    DoS/resource-exhaustion mitigation, not only a size-hygiene nicety: an
+    unbounded in-memory request map meant a page generating a long or
+    unusually noisy stream of requests during a capture (deliberately, via
+    prompt-injected instructions to reproduce excessive traffic, or
+    incidentally) could grow the extension's memory without limit. The cap
+    bounds that regardless of cause, and the new `truncated` flag makes the
+    bound visible to the model/user rather than silently dropping data.
+- **Conclusion**: no new sensitive-data exposure or permission; the two
+  fixes are themselves mitigations (bounded memory, no leaked long-lived
+  timers/listeners), not new risks.
+- **Status**: Reviewed, no finding.
+
 ### 7. Investigation-first side panel UI (this session)
 
 - **Affected component**: `packages/browser-ext/src/lib/investigation/`

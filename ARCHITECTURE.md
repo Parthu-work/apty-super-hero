@@ -329,6 +329,76 @@ now only manage the CDP attach/detach lifecycle itself, with regression
 tests (`debugger-manager.test.ts`) pinning down that `chrome.scripting.executeScript`
 is never called as part of it.
 
+### Investigation-aware network capture session (this session)
+
+Before this session, `get_network_diagnostics` was the only way to see
+network traffic — a fixed 500ms–15s capture window per call, unable to
+outlive a single tool call. This closes gap P1.6 ("investigation-aware
+network capture") fresh, directly on `main` — not by merging or
+cherry-picking PR #11 ("Add investigation-aware network capture
+session"), which remains open/unmerged on `claude/busy-fermat-xyu2po` and
+is now superseded — a corrected implementation of the same design that
+fixes both defects an earlier review found in that PR.
+
+`packages/browser-runtime/src/apty/network-capture-session.ts` adds a
+per-conversation (`Map<conversationId, ActiveCapture>`) capture session
+built on the same `debuggerManager`/CDP infrastructure as
+`get_network_diagnostics`:
+
+- **`startNetworkCapture(conversationId, tabId)`** — attaches the
+  debugger and begins accumulating `requestWillBeSent`/
+  `responseReceived`/`loadingFailed` events in the background, without
+  blocking the tool call that started it.
+- **`stopNetworkCapture(conversationId, {onlyErrors?})`** — detaches and
+  returns everything captured, recording failed/4xx/5xx requests as
+  `DiagnosticEvidence` tagged with the conversation's active investigation
+  id as `correlationId`.
+- **`getNetworkCaptureStatus(conversationId)`** — reports progress
+  (request count so far, elapsed time, `truncated`) without stopping the
+  capture.
+- A **15s heartbeat** re-calls `debuggerManager.safeAttachDebugger()`,
+  which is a no-op on an already-attached tab beyond resetting its own 30s
+  idle-auto-detach timer — this is what lets a capture outlive that
+  window while a user reproduces an issue. All headers are redacted via
+  the existing `redactHeaders()`.
+
+**The two defects the PR #11 review found are fixed here from the
+start**:
+
+- **Forced cleanup on tab-close/debugger-detach** — `chrome.tabs.onRemoved`
+  and `chrome.debugger.onDetach` listeners are registered once, lazily, at
+  module load (mirroring `debugger-manager.ts`'s own one-time
+  `initialize()` pattern) and call `forceCleanupForTab()`: it clears the
+  heartbeat interval, removes the `chrome.debugger.onEvent` listener,
+  deletes the conversation's map entry, and records any already-captured
+  failed/4xx/5xx requests as evidence before discarding state — all
+  without attempting further CDP calls, since the tab/debugger is already
+  gone by the time these fire. Without this, a closed tab or a detached
+  debugger mid-capture would leak a running `setInterval` heartbeat
+  forever and permanently block that conversation from starting a new
+  capture. Exported for tests as `__simulateForcedCleanupForTab`.
+- **A bounded request map** — `MAX_CAPTURED_REQUESTS = 2000` (exported),
+  oldest-evicted-first when exceeded, mirroring `evidence-store.ts`'s
+  500-per-conversation cap (sized larger here since it holds live request
+  data across a potentially long capture, not evidence). The session/
+  status object carries a `truncated: boolean` field so callers know when
+  the cap was hit and the returned set is incomplete.
+
+The 3 tool wrappers (`packages/browser-runtime/src/tools/network-capture.ts`:
+`start_network_capture`, `stop_network_capture`, `get_network_capture_status`)
+call `recordToolCall()` (`investigation-orchestrator.ts`), so network
+capture participates in the orchestrator's tool-call budget/loop-detection
+ledger — PR #11 predated the orchestrator and didn't have this. The tool
+registry grows from 51 to 54 tools; `mcp-bridge/src/tool-schemas.ts` gained
+matching schemas.
+
+Tested in `network-capture-session.test.ts` (13 cases, including
+simulated `chrome.tabs.onRemoved`/`chrome.debugger.onDetach` mid-capture
+and a 2001-request cap-eviction case) plus `tools/network-capture.test.ts`
+(4). See `DECISIONS.md` for why this was built fresh on `main` rather than
+by fixing PR #11's branch, and `SECURITY_AUDIT.md` for the finding
+covering its permission surface.
+
 ## Iframes and Shadow DOM
 
 Inherited from AIPex's DOM-snapshot/locator system
@@ -581,9 +651,6 @@ Testing Library coverage.
   separate process that plans/executes/observes/decides independently of
   the model's own tool-calling loop was deliberately not built. See
   `DECISIONS.md`.
-- **Investigation-aware network capture sessions** — `get_network_diagnostics`
-  still uses a fixed 500ms–15s window per call, not a start/reproduce/stop
-  flow scoped to an investigation.
 - **A dedicated Studio-vs-production comparison tool** — the planner's
   `studio-vs-production` category plans for a "compare" step, but no tool
   automates the actual Studio-config-vs-live-DOM diff; the model has to
