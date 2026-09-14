@@ -973,4 +973,34 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
       "Get a deterministic recommendation for what to do next in the current investigation — call_tool, verify, analyze, or stop (confirmed/budget_exceeded/loop_detected/blocked/evidence_exhausted). Enforces a tool-call budget, a time budget, and duplicate-call (loop) detection server-side. Call after start_investigation and after each round of evidence collection. Requires an investigation already started.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
+
+  // ===== Investigation-Aware Network Capture Tools =====
+  {
+    name: "start_network_capture",
+    description:
+      "Start capturing network requests on the current tab in the background, without blocking on a fixed time window. Call before reproducing the issue, then call stop_network_capture when ready. Tagged with the active investigation, if any. Only one capture per conversation at a time. Bounded to the most recent 2000 requests.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "stop_network_capture",
+    description:
+      "Stop the network capture started by start_network_capture and return every request seen while it ran. Failed/4xx/5xx requests are also recorded as investigation evidence. Check session.truncated for whether the 2000-request cap was hit.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        onlyErrors: {
+          type: "boolean",
+          description:
+            "If true, only return failed requests or responses with status >= 400",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_network_capture_status",
+    description:
+      "Check whether a network capture is currently running for this conversation, and how many requests it has seen so far, without stopping it.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
 ];
