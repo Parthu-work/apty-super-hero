@@ -1003,4 +1003,71 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
       "Check whether a network capture is currently running for this conversation, and how many requests it has seen so far, without stopping it.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
+
+  // ===== Apty Client Extension Network Inspection Tools =====
+  {
+    name: "connect_apty_client",
+    description:
+      "Connect to the Apty Client extension's Service Worker to begin observing its Network activity — attaches the Chrome debugger and enables Network capture. extensionId is optional if a default is configured. Only traffic after this call is observed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        extensionId: {
+          type: "string",
+          description:
+            "The Apty Client Chrome extension ID (32 lowercase a-p characters). Omit to use the configured default.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "disconnect_apty_client",
+    description:
+      "Disconnect from the Apty Client extension's Service Worker, stop Network capture, and detach the debugger.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_apty_client_connection_status",
+    description:
+      "Check whether this conversation is currently connected to an Apty Client extension Service Worker, and how many network resources have been observed so far.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "inspect_extension_network",
+    description:
+      "Retrieve the actual Network response body for a resource observed on the Apty Client extension's Service Worker (e.g. segments.json, app.json, flow.json, a path, or a fragment). Not hardcoded to any resource name — matches whatever was actually observed. Auto-connects if not already connected.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        resourceQuery: {
+          type: "string",
+          description:
+            "The resource to look for: a filename (segments.json), a path (/api/segments.json), or a fragment (segments).",
+        },
+        extensionId: {
+          type: "string",
+          description:
+            "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
+        },
+      },
+      required: ["resourceQuery"],
+    },
+  },
+  {
+    name: "list_extension_network_resources",
+    description:
+      "List every network resource observed so far on the Apty Client extension's Service Worker since connecting. Auto-connects if not already connected.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        extensionId: {
+          type: "string",
+          description:
+            "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
+        },
+      },
+      required: [],
+    },
+  },
 ];

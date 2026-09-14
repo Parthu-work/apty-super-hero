@@ -20,6 +20,30 @@ export {
   recordEvidence,
 } from "./evidence-store.js";
 export type {
+  ConnectResult,
+  DisconnectResult,
+  ExtensionCaptureEntry,
+  ExtensionConnectionStatus,
+  InspectResourceResult,
+  InspectResourceStatus,
+  MatchedResource,
+  ResolveTargetErrorCode,
+  ResolveTargetResult,
+} from "./extension-network-inspector.js";
+export {
+  connectExtensionClient,
+  disconnectExtensionClient,
+  getActiveExtensionConnectionCount,
+  getExtensionConnectionStatus,
+  inspectResource,
+  isValidExtensionId,
+  listObservedResources,
+  MAX_CAPTURED_RESOURCES,
+  MAX_INLINE_BODY_CHARS,
+  matchResources,
+  resolveServiceWorkerTarget,
+} from "./extension-network-inspector.js";
+export type {
   DuplicateCallWarning,
   OrchestratorAction,
   OrchestratorBudgetStatus,

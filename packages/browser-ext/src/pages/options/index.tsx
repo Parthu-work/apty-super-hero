@@ -11,6 +11,7 @@ import React, { useCallback, useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import { chromeStorageAdapter } from "../../hooks";
 import { createAIProvider } from "../../lib/ai-provider";
+import { AptyClientPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
 import { SkillsOptionsTab } from "./skills-tab";
 
@@ -62,7 +63,12 @@ function OptionsPageContent() {
       storageAdapter={chromeStorageAdapter}
       onTestConnection={handleTestConnection}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}
-      connectionContent={<McpBridgePanel />}
+      connectionContent={
+        <div className="space-y-6">
+          <AptyClientPanel />
+          <McpBridgePanel />
+        </div>
+      }
       initialTab={initialTab}
       initialSkill={initialSkill}
     />

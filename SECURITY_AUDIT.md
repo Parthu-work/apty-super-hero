@@ -206,6 +206,52 @@ diagnostic isolation) is now Fixed above.
 
 ## Reviewed — no new finding
 
+### 13. Apty Client extension Service Worker network inspection (this session)
+
+- **Affected component**: `packages/browser-runtime/src/apty/extension-network-inspector.ts`,
+  `packages/browser-runtime/src/tools/extension-network.ts`.
+- **New capability, no new permission**: this is the first tool that
+  attaches the extension's own `debugger` to a *different* extension's
+  Service Worker target (`{ targetId }`, resolved via
+  `chrome.debugger.getTargets()`) rather than a tab (`{ tabId }`). Both
+  `debugger` and `management` were already declared in `manifest.json`
+  before this session (used by `get_network_diagnostics` and the
+  unregistered `tools/tools/extensions/index.ts` respectively) — no
+  manifest change was made. In practice, `chrome.debugger` + `management`
+  already allowed attaching to any installed extension's Service Worker;
+  this is simply the first code path that exercises it, for the Apty
+  Client specifically.
+- **What constrains the target**: the extension ID is supplied by the
+  model/user (from chat, or the Options panel's configured
+  `clientExtensionId`) and validated (`/^[a-p]{32}$/`) before any Chrome
+  API call; `chrome.management.get()` must resolve it to a real, enabled
+  extension; and the matched target must be that specific extension's
+  `service_worker`-type target, not an arbitrary page. There is no
+  wildcard/broadcast path — `resolveServiceWorkerTarget()` only ever
+  attaches to the single extension id it was given.
+- **Response body handling**: `Network.getResponseBody` output is
+  redacted with the existing `redactSensitiveText()` before being
+  returned to the model or recorded as evidence; binary bodies (by MIME
+  type) are reported as binary and never decoded/returned, so an image or
+  other binary resource can't be misread as text and leak structured
+  binary content past redaction's text-pattern matching.
+- **Resource matching stays deterministic**: `matchResources()` is pure
+  browser-runtime logic — the model supplies a query string but cannot
+  select or fabricate which observed request/response is returned; a
+  false-positive match is bounded by the same exact/path/fragment ranking
+  used everywhere, not model judgment.
+- **Cleanup**: forced-cleanup listeners
+  (`chrome.debugger.onDetach`/`chrome.management.onUninstalled`/
+  `onDisabled`, registered once lazily, mirroring
+  `network-capture-session.ts`) tear down a conversation's session if the
+  target Service Worker detaches or the extension is disabled/uninstalled
+  outside an explicit `disconnect_apty_client` call, preventing the same
+  class of leaked-listener/permanently-busy-slot bug finding #12 fixed.
+- **Conclusion**: no new permission, no new sensitive-data exposure path
+  beyond what redaction already covers, and the target is fully
+  constrained by a validated, explicit extension id — accepted as
+  reviewed, no new finding.
+
 ### 12. Investigation-aware network capture session (this session)
 
 - **Affected component**: `packages/browser-runtime/src/apty/network-capture-session.ts`,

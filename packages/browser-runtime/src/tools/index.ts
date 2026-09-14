@@ -10,6 +10,7 @@ import {
   getEditorValueTool,
   hoverElementByUidTool,
 } from "./element";
+import { extensionNetworkTools } from "./extension-network.js";
 import { interventionTools } from "./interventions/index.js";
 import { investigationTools } from "./investigation.js";
 import { networkCaptureTools } from "./network-capture.js";
@@ -48,12 +49,12 @@ import { uploadFileToInputTool } from "./tools/upload-file";
 
 /**
  * All browser tools registered for AI use
- * Total: 54 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
+ * Total: 59 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
  * 4 intervention + 6 skill + 2 devtools + 5 apty + 9 investigation +
- * 1 selector + 3 investigation-aware network capture. Recompute this
- * from the arrays below rather than trusting this comment when
- * auditing — it has gone stale before (see PROJECT_PROGRESS.md's
- * tool-registry audit).
+ * 1 selector + 3 investigation-aware network capture + 5 Apty Client
+ * extension network inspection. Recompute this from the arrays below
+ * rather than trusting this comment when auditing — it has gone stale
+ * before (see PROJECT_PROGRESS.md's tool-registry audit).
  *
  * Disabled tools (per aipex):
  * - duplicate_tab (not in aipex)
@@ -128,6 +129,9 @@ const browserFunctionTools: BrowserFunctionTool[] = [
 
   // Investigation-aware network capture (3 tools)
   ...networkCaptureTools,
+
+  // Apty Client extension Service Worker network inspection (5 tools)
+  ...extensionNetworkTools,
 ] as const;
 
 export const allBrowserTools: FunctionTool[] =

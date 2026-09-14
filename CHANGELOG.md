@@ -4,7 +4,90 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
-## Unreleased (this session) — investigation-aware network capture session
+## Unreleased (this session) — Apty Client extension Service Worker network inspection (V1)
+
+**Added**
+- Resource-agnostic Apty Client Service Worker Network inspection — the
+  first end-to-end proof that the agent can retrieve real Apty Client
+  runtime data from the browser
+  (`packages/browser-runtime/src/apty/extension-network-inspector.ts`).
+  Given an Apty Client Chrome extension ID, resolves its active Service
+  Worker debugger target (`chrome.debugger.getTargets()` filtered to
+  `type: "service_worker"` under that extension's origin), attaches via
+  `chrome.debugger`'s `{ targetId }` debuggee (not `{ tabId }` —
+  `cdp-commander.ts`/`debugger-manager.ts` are tab-only, so this module
+  talks to `chrome.debugger` directly for the small set of target-scoped
+  attach/sendCommand/detach operations it needs), enables `Network`, and
+  accumulates requests per-conversation (bounded at
+  `MAX_CAPTURED_RESOURCES = 1000`, oldest evicted first) exactly like
+  `network-capture-session.ts` does for tabs.
+  - No resource name is ever hardcoded. `matchResources()` ranks an exact
+    filename match over a path/URL suffix match over a substring
+    fragment match, most-recent-first on ties — the model decides *what*
+    it's looking for (`segments.json`, `app.json`, `flow.json`, a natural-
+    language description it turns into a query), the browser runtime
+    deterministically decides *which observed request* matches.
+  - `inspectResource()` retrieves the actual body via
+    `Network.getResponseBody`, decodes base64/UTF-8 only for textual
+    MIME types (binary bodies are reported, never decoded/dumped),
+    redacts it with the existing `redactSensitiveText()`, and records it
+    as `DiagnosticEvidence` (`source: "service-worker"`, `type:
+    "network-response"`, `scope: "shared"`) — the full redacted body
+    lives in evidence even when the tool's own response is a preview
+    (capped at `MAX_INLINE_BODY_CHARS = 8000`).
+  - Every failure mode is explicit, never fabricated: `not_connected`,
+    `not_observed` (capture is not retroactive — traffic before
+    connecting is invisible), `failed`, `http_error`, `pending`, and
+    `body_unavailable` each return a structured, human-readable reason
+    instead of inventing a response.
+  - Forced cleanup mirrors `network-capture-session.ts`: lazily-registered
+    `chrome.debugger.onDetach` / `chrome.management.onUninstalled` /
+    `onDisabled` listeners tear down a conversation's session (listener +
+    map entry) if the Service Worker detaches or the extension goes away
+    outside an explicit `disconnect_apty_client` call.
+  - 5 new tools (`packages/browser-runtime/src/tools/extension-network.ts`,
+    registered in `tools/index.ts`: 54 → 59) and matching schemas added to
+    `mcp-bridge/src/tool-schemas.ts`: `connect_apty_client` (idempotent;
+    falls back to the configured `clientExtensionId`, see `apty/config.ts`),
+    `disconnect_apty_client`, `get_apty_client_connection_status`,
+    `inspect_extension_network` (auto-connects if needed — the primary
+    "Get segments.json" chat flow doesn't require a separate connect
+    step), and `list_extension_network_resources` (answers "what
+    resources did the Apty Client load?").
+  - Options UI: a new "Apty Client Extension" panel
+    (`packages/browser-ext/src/pages/options/apty-client-panel.tsx`,
+    wired into the existing "connection" tab alongside the MCP bridge
+    panel) lets the user configure the extension ID once via
+    `setAptyIntegrationConfig` — the panel itself only persists the ID and
+    validates it resolves to a real, enabled extension via
+    `chrome.management.get` (callable from any extension page); the
+    actual debugger attach/capture happens lazily in whichever context
+    runs the chat tools, per `AptyIntegrationConfig`'s existing
+    lazy-read-at-call-time pattern. Addresses
+    `PROJECT_PROGRESS.md`'s previously-open "Options UI panel for
+    `AptyIntegrationConfig`" item.
+- 36 new tests (`extension-network-inspector.test.ts`): extension ID
+  validation, Service Worker target resolution (invalid id/extension not
+  found/disabled/no matching target), connect/disconnect lifecycle
+  (idempotent reconnect, switching extensions, attach failure, forced
+  cleanup on external detach/uninstall), resource matching (exact/path/
+  fragment, deterministic tie-breaking, no false positives), and
+  `inspectResource` across every status (`ok` for two different resource
+  names with no code change between them, `not_observed`, `failed`,
+  `http_error`, `pending`, `body_unavailable`, redaction, binary bodies
+  not decoded).
+
+**Deliberately not done (out of scope for this milestone, per the
+resource-agnostic-retrieval product brief)**: no fake
+`window.__APTY_CLIENT__`-style contract, no RAG, no new evidence/
+investigation architecture (reuses `evidence-store.ts`/`redact.ts`
+as-is), no attempt at a mass AIPex→Apty internal-package rename (see
+`PROJECT_PROGRESS.md` item 10 — still judged not worth the churn/
+regression risk this session; the user-facing product surface already
+says "Apty Live Debugging" throughout, per `browser-chat-header.tsx`/
+`debugging-welcome-screen.tsx` from earlier sessions).
+
+## Unreleased (previous session) — investigation-aware network capture session
 
 **Added**
 - Investigation-aware network capture

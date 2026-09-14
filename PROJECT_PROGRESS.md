@@ -815,6 +815,108 @@ Verified: `npm run preflight` (format, lint, typecheck, test) and
 `npm run build` pass clean across the workspace; `mcp-bridge` builds and
 typechecks clean separately. See `## Tests` below for updated counts.
 
+## Apty Client Extension Service Worker Network Inspection — V1 Resource-Agnostic Retrieval (this session)
+
+First end-to-end proof that the agent can pull real Apty Client runtime
+data straight out of the browser: given the Apty Client's Chrome extension
+ID, resolve its Service Worker, attach the debugger, watch its Network
+traffic, and retrieve the actual response body for whatever resource the
+user asks about in chat — `segments.json` was only the example in the
+brief, not something hardcoded anywhere in the implementation.
+
+`packages/browser-runtime/src/apty/extension-network-inspector.ts` is the
+core: `resolveServiceWorkerTarget(extensionId)` validates the id (`/^[a-p]
+{32}$/`), confirms the extension is installed/enabled via
+`chrome.management.get`, and finds its Service Worker via
+`chrome.debugger.getTargets()` filtered to `type === "service_worker"`
+under `chrome-extension://<id>/`. `connectExtensionClient` attaches via
+`chrome.debugger`'s `{ targetId }` debuggee — `cdp-commander.ts`/
+`debugger-manager.ts` only support `{ tabId }`, so this module talks to
+`chrome.debugger` directly for the handful of target-scoped operations it
+needs rather than bolting a second debuggee shape onto tab-only
+infrastructure — and accumulates requests per-conversation exactly like
+`network-capture-session.ts` does for tabs (bounded at
+`MAX_CAPTURED_RESOURCES = 1000`, oldest evicted first, forced cleanup on
+`chrome.debugger.onDetach`/`chrome.management.onUninstalled`/`onDisabled`
+registered once lazily).
+
+`matchResources()` is the resource-agnostic part: given whatever query the
+model decided to look for (a filename, a path, a fragment, or its own
+translation of a natural-language ask like "the flow configuration"), it
+ranks an exact filename match over a path/URL-suffix match over a
+substring fragment match, most-recent-first on ties. There is no resource
+list anywhere — the same code path handles `segments.json`, `app.json`,
+`flow.json`, or anything else, which is the actual point of this
+milestone per the product brief (section 1: "Do NOT hardcode
+segments.json").
+
+`inspectResource()` retrieves the body via `Network.getResponseBody`,
+decodes base64/UTF-8 only for textual MIME types (a binary body is
+reported as binary, never decoded or dumped into chat), redacts it with
+the existing `redactSensitiveText()`, and records it as
+`DiagnosticEvidence` (`source: "service-worker"`, `type:
+"network-response"`, `scope: "shared"`) so the full redacted body is
+always available via `get_investigation_timeline` even when the tool's
+own chat-facing response is a capped preview (`MAX_INLINE_BODY_CHARS =
+8000`). Every non-success path — `not_connected`, `not_observed` (capture
+is not retroactive: traffic before connecting is invisible, per the
+brief's explicit warning against pretending otherwise), `failed`,
+`http_error`, `pending`, `body_unavailable` — is a distinct, honest status
+rather than a fabricated response.
+
+5 new tools (`packages/browser-runtime/src/tools/extension-network.ts`,
+registered in `tools/index.ts`: 54 → 59; schemas added to
+`mcp-bridge/src/tool-schemas.ts`): `connect_apty_client` (idempotent,
+falls back to the configured `clientExtensionId` from
+`apty/config.ts` — a field that already existed but had no reader or UI
+before this), `disconnect_apty_client`, `get_apty_client_connection_status`,
+`inspect_extension_network` (auto-connects if not already connected, so
+the primary "Get segments.json" chat flow needs no separate connect
+step), and `list_extension_network_resources` (answers "what resources
+did the Apty Client load?").
+
+A new Options UI panel (`packages/browser-ext/src/pages/options/
+apty-client-panel.tsx`, in the existing "connection" tab next to the MCP
+bridge panel) lets the user configure the extension ID once — it validates
+the id resolves to a real, enabled extension via `chrome.management.get`
+and persists it via `setAptyIntegrationConfig`, but deliberately does not
+attach the debugger itself: the options page and the background service
+worker that runs chat tools are separate JS contexts, so a debugger
+session started from the options page wouldn't be visible to the tool
+execution context's own module state. The actual attach/capture happens
+lazily, in whichever context runs the chat tools, the same lazy-read-at-
+call-time pattern `client-diagnostics.ts`/`service-worker-diagnostics.ts`
+already use for this config. This closes the "Options UI panel for
+`AptyIntegrationConfig`" item that was open below.
+
+36 new tests in `extension-network-inspector.test.ts` cover extension-id
+validation, Service Worker target resolution (invalid id, extension not
+found/disabled, no matching target), the connect/disconnect lifecycle
+(idempotent reconnect to the same extension, switching extensions,
+attach failure, forced cleanup on a simulated external detach/uninstall),
+resource matching (exact/path/fragment, deterministic most-recent tie-
+breaking, no false positives), and `inspectResource` across every status
+including retrieving two different resources (`segments.json`,
+`app.json`) through the identical code path with no branch on resource
+name, redaction of a planted secret in a response body, and binary bodies
+never being decoded.
+
+Deliberately out of scope, per the product brief: no
+`window.__APTY_CLIENT__`-style fake contract, no RAG, no new evidence/
+investigation architecture (reuses `evidence-store.ts`/`redact.ts`
+as-is), and no mass AIPex→Apty internal-package rename — the user-facing
+product surface already says "Apty Live Debugging" throughout (from
+earlier sessions; see `browser-chat-header.tsx`/
+`debugging-welcome-screen.tsx`), and the remaining "AIPex" strings found
+in `packages/aipex-react`'s library defaults/i18n fallbacks are not on the
+actual product surface (`browser-ext` overrides them), so rewriting them
+was judged not worth the regression risk this session (see the "safe to
+continue" list below, item 10).
+
+Verified: `pnpm -r run typecheck`, `pnpm -r run test`, and
+`pnpm exec biome check .` all pass clean across the workspace (471 files,
+0 fixes needed beyond this session's own).
+
 ## Completed
 
 - Evidence model + 4 provider interfaces with honest `not_configured`/
@@ -1447,6 +1549,15 @@ this file for the fuller P0/P1/P2 picture):**
    the request map) that an earlier review of PR #11 found; that PR
    remains open/unmerged and is now superseded. See
    "Investigation-Aware Network Capture Session" above and `DECISIONS.md`.
+3b. ~~Apty Client extension Service Worker network inspection (V1
+    resource-agnostic retrieval)~~ — done, see "Apty Client Extension
+    Service Worker Network Inspection — V1 Resource-Agnostic Retrieval"
+    above. Follow-up if picked up next: the Options panel only exposes
+    `clientExtensionId`, and there's no UI surfacing of
+    `list_extension_network_resources`/`inspect_extension_network`
+    results beyond plain chat text (the brief's "evidence panel" mention
+    is satisfied by the existing investigation-timeline/evidence-store
+    integration, not a dedicated network-response viewer component).
 4. **A Studio-vs-production comparison tool** (P1.8) — the planner's
    `studio-vs-production` category already has a "compare" step; no tool
    backs it yet beyond calling the existing individual diagnostics
@@ -1470,7 +1581,10 @@ this file for the fuller P0/P1/P2 picture):**
 7. SE/SDE investigation depth modes (P2.12) and the scenario/evaluation
    suite (P2.17) — both meaningful but lower-priority than the P1 items
    above per the master prompt's own ordering.
-8. An Options UI panel for `AptyIntegrationConfig`.
+8. ~~An Options UI panel for `AptyIntegrationConfig`~~ — done this session
+   (`apty-client-panel.tsx`, `clientExtensionId` only so far; `studioExtensionId`/
+   `widgetExtensionId`/`serviceWorkerExtensionId`/`serviceWorkerDiagnosticEndpoint`
+   remain unconfigurable through the UI if that's picked up next).
 9. A dedicated "start investigation" form/component-picker — only if real
    usage shows natural-language intent detection isn't reliable enough on
    its own.
