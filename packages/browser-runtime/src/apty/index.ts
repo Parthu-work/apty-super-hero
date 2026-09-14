@@ -50,6 +50,19 @@ export {
   classifyLogEntry,
   summarizeLogCategories,
 } from "./log-classification.js";
+export type {
+  CapturedNetworkRequest,
+  NetworkCaptureSession,
+  NetworkCaptureStatus,
+  StartCaptureResult,
+  StopCaptureResult,
+} from "./network-capture-session.js";
+export {
+  getActiveCaptureCount,
+  getNetworkCaptureStatus,
+  startNetworkCapture,
+  stopNetworkCapture,
+} from "./network-capture-session.js";
 export {
   redactHeaders,
   redactLog,

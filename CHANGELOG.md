@@ -4,6 +4,52 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
+## Unreleased (this session) — investigation-aware network capture, mcp-bridge tool-schema gap fix
+
+**Added**
+- Investigation-aware network capture
+  (`packages/browser-runtime/src/apty/network-capture-session.ts` +
+  `tools/network-capture.ts`): `start_network_capture` attaches the
+  debugger and accumulates `Network.*` events in the background without
+  blocking; `stop_network_capture` (called whenever the model decides
+  enough time/turns have passed) detaches and returns everything seen —
+  correlated request/response pairs, status, resource type, initiator
+  type, and failures. `get_network_capture_status` checks progress
+  without stopping. Replaces the "call right as the user reproduces the
+  issue" constraint of `get_network_diagnostics`'s fixed 500ms–15s window
+  with a real start/reproduce/stop flow, closing gap P1.6 from the
+  previous session's gap matrix. If an investigation is active when the
+  capture starts, its id is stamped on the session and on any failure
+  evidence recorded at stop time (`correlationId`), so captured failures
+  are traceable back to the investigation that triggered the capture.
+- A 15s heartbeat (`setInterval` re-calling the existing
+  `debuggerManager.safeAttachDebugger`) keeps a long-running capture's
+  debugger attachment alive past `debugger-manager.ts`'s 30s idle
+  auto-detach, without changing `debugger-manager.ts` itself.
+- Fixed a pre-existing gap in `mcp-bridge/src/tool-schemas.ts` (flagged,
+  not fixed, by the previous session): all 8 `investigation.ts` tools and
+  `selector.ts`'s `analyze_element_selectors` were never added to the
+  bridge's static schema list, so MCP clients connecting through the
+  bridge (as opposed to the in-extension agent) could not call them. Also
+  added the 3 new network-capture tool schemas. `packages/browser-runtime/
+  src/tools/index.ts` now registers the 3 new tools (53 tools total, up
+  from 50) and its header comment/section counts were corrected to match
+  the real registry instead of a stale hand-maintained count.
+- 15 new tests: `network-capture-session.test.ts` (12 cases — start/stop
+  lifecycle, duplicate-start rejection, attach failure, request
+  accumulation, `onlyErrors` filtering + evidence recording,
+  investigation-id tagging, stop-with-no-capture error, per-conversation
+  isolation on a shared tab, status reporting, heartbeat re-attach on a
+  fake timer) and `tools/network-capture.test.ts` (3 tool-level
+  integration cases).
+
+**Reviewed**
+- `SECURITY_AUDIT.md` finding #11: reuses the existing `debuggerManager`/
+  `CdpCommander`/`redactHeaders` machinery and `Network.*` CDP domain — no
+  new permission, no new data path, no cross-conversation leakage; the
+  heartbeat can only re-assert an existing attachment, never attach to a
+  new tab or escalate scope.
+
 ## Unreleased (this session) — console/runtime event classification
 
 **Added**

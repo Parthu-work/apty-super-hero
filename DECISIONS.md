@@ -250,6 +250,43 @@ what it can and can't see; the system prompt tells the model to ask the
 user to reproduce an issue while the tool runs. Revisit if real usage shows
 this is too limiting.
 
+**Revisited for the network layer only, a later session.** Real
+investigations kept running past the 15s max window mid-reproduction, so
+this checkpoint's own "revisit if too limiting" trigger was hit. Rather
+than replacing the fixed-window tool, `start_network_capture`/
+`stop_network_capture` were added alongside it (see the next decision
+entry below) — this is not a reversal of the reasoning above, it's scoped
+narrower: the debugging banner and 30s-auto-detach concerns are real, but
+they're a cost worth paying only when the model/user has *explicitly*
+opted into a longer capture (start → reproduce → stop), not for every
+network/runtime check. `get_runtime_diagnostics` was deliberately left on
+the fixed window — no evidence yet that its 15s cap is the bottleneck the
+way network capture's was; extend it the same way if that changes.
+
+## Investigation-aware network capture keeps a debugger attached across tool calls via a heartbeat, rather than changing `debugger-manager.ts`'s auto-detach policy
+
+Once `start_network_capture` returns, the debugger has to stay attached
+for however long the user takes to reproduce the issue — which can easily
+exceed `debugger-manager.ts`'s 30s idle auto-detach (designed for
+one-shot automation actions, not a standing capture). Two alternatives
+were considered and rejected: (1) raising or disabling the auto-detach
+timeout globally in `debugger-manager.ts` — this would change behavior
+for every other CDP tool too (clicks, screenshots, selector analysis),
+none of which asked for a longer-lived attachment, for the benefit of one
+new feature; (2) giving `network-capture-session.ts` its own detach
+policy bypassing `debuggerManager` entirely — this would duplicate the
+attach/detach/lock bookkeeping `debuggerManager` already owns and risk
+diverging from it. Instead, `startNetworkCapture` runs a 15s
+`setInterval` that just re-calls the existing `safeAttachDebugger(tabId)`
+— already a documented no-op against an already-attached tab beyond
+resetting its own idle timer — for as long as the capture is running,
+and clears it on stop. This keeps `debugger-manager.ts` itself unchanged
+(zero risk to every other tool that uses it) and reuses its existing
+idempotency guarantee rather than adding a second detach mechanism.
+Revisit if a future feature needs the same pattern often enough that it's
+worth promoting a "keep-alive" primitive into `debugger-manager.ts`
+itself.
+
 ## Redaction is pattern-based, not a full DLP system
 
 `apty/redact.ts` matches known header names and common

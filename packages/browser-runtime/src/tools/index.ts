@@ -12,6 +12,7 @@ import {
 } from "./element";
 import { interventionTools } from "./interventions/index.js";
 import { investigationTools } from "./investigation.js";
+import { networkCaptureTools } from "./network-capture.js";
 import {
   getPageMetadataTool,
   highlightElementTool,
@@ -47,7 +48,10 @@ import { uploadFileToInputTool } from "./tools/upload-file";
 
 /**
  * All browser tools registered for AI use
- * Total: 34 tools (30 core + 4 intervention tools)
+ * Total: 53 tools — see the section comments below for the current
+ * per-category breakdown; this count is derived from the array literal
+ * itself, not maintained separately, so it stays accurate as tools are
+ * added/removed here.
  *
  * Disabled tools (per aipex):
  * - duplicate_tab (not in aipex)
@@ -113,11 +117,14 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   // Apty integration (5 tools)
   ...aptyTools,
 
-  // Investigation timeline / evidence correlation (2 tools)
+  // Investigation timeline / evidence correlation / lifecycle (8 tools)
   ...investigationTools,
 
   // Selector diagnostics (1 tool)
   ...selectorTools,
+
+  // Investigation-aware network capture (3 tools)
+  ...networkCaptureTools,
 ] as const;
 
 export const allBrowserTools: FunctionTool[] =

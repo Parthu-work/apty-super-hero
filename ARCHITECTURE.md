@@ -276,7 +276,7 @@ safety) and `CdpCommander` (typed `sendCommand` wrapper) from
 - `get_runtime_diagnostics` — enables `Log`/`Runtime`, captures
   `Log.entryAdded` and `Runtime.exceptionThrown` (with stack traces).
 
-**Console/runtime event classification (this session)** —
+**Console/runtime event classification (prior session)** —
 `packages/browser-runtime/src/apty/log-classification.ts`'s
 `classifyLogEntry()` buckets every entry `get_apty_page_logs` and
 `get_runtime_diagnostics` return into one `category`: `csp-violation`,
@@ -328,6 +328,33 @@ why the widget isn't showing). `safeAttachDebugger`/`safeDetachDebugger`
 now only manage the CDP attach/detach lifecycle itself, with regression
 tests (`debugger-manager.test.ts`) pinning down that `chrome.scripting.executeScript`
 is never called as part of it.
+
+**Investigation-aware network capture (this session)** —
+`packages/browser-runtime/src/apty/network-capture-session.ts` adds a
+second, complementary way to watch network traffic: instead of a fixed
+capture window opened and closed within one tool call,
+`start_network_capture`/`stop_network_capture`/`get_network_capture_status`
+(`tools/network-capture.ts`) open a capture that stays running in the
+background across as many conversation turns as the reproduction takes,
+keyed per-conversation the same way `evidence-store.ts`/
+`investigation-session.ts` already are. `get_network_diagnostics` is
+unchanged and still the right tool for "something is about to happen in
+the next few seconds"; the new tools are for "let the user actually
+reproduce this, however long it takes." Because `debugger-manager.ts`'s
+auto-detach fires after 30s idle (each existing tool call just happens to
+reset that timer as a side effect of reusing `safeAttachDebugger`), a
+long-running capture needs to reset it on its own — `startNetworkCapture`
+runs a 15s heartbeat (`setInterval` re-calling `safeAttachDebugger`,
+a no-op against an already-attached tab beyond resetting its idle timer)
+for as long as the capture is active, cleared on stop. If an investigation
+is active in the conversation when the capture starts, its id is stamped
+onto the session and carried onto any failure evidence recorded at stop
+time (`correlationId`), giving the master prompt's "requests correlated
+to investigation" step a concrete implementation rather than leaving the
+model to infer the link. Same redaction (`redactHeaders`), same
+significance rule (only failed/4xx/5xx requests become evidence), same
+in-memory-only/no-service-worker-restart-survival trade-off as every
+other per-conversation store in this codebase.
 
 ## Iframes and Shadow DOM
 
@@ -519,9 +546,11 @@ Testing Library coverage.
   model's own tool-selection — the planner/plan-progress/status/timeline
   tools are decision-support data the model consults, not logic that
   plans/executes/observes/decides independently of it. See `DECISIONS.md`.
-- **Investigation-aware network capture sessions** — `get_network_diagnostics`
-  still uses a fixed 500ms–15s window per call, not a start/reproduce/stop
-  flow scoped to an investigation.
+- **Investigation-aware capture for console/runtime events** —
+  `get_runtime_diagnostics` still uses a fixed 500ms–15s window per call;
+  only the network layer (`start_network_capture`/`stop_network_capture`,
+  this session — see "DevTools / CDP layer" above) got the
+  start/reproduce/stop treatment.
 - **A dedicated Studio-vs-production comparison tool** — the planner's
   `studio-vs-production` category plans for a "compare" step, but no tool
   automates the actual Studio-config-vs-live-DOM diff; the model has to

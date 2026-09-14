@@ -272,6 +272,36 @@ diagnostic isolation) is now Fixed above.
   redaction-ordering risk.
 - **Status**: Reviewed, no finding.
 
+### 11. Investigation-aware network capture (this session)
+
+- **Affected component**: `packages/browser-runtime/src/apty/network-capture-session.ts`,
+  `tools/network-capture.ts`
+- **Review**: reuses the exact same `debuggerManager`/`CdpCommander`
+  attach/detach lifecycle and `Network.*` CDP domain as the existing
+  `get_network_diagnostics` — no new `chrome.debugger`/host permission is
+  requested, and every captured request/response header is redacted via
+  the same `redactHeaders()` used by the fixed-window tool before it is
+  ever stored or returned. The one new mechanism is the 15s heartbeat
+  (`setInterval(() => debuggerManager.safeAttachDebugger(tabId), 15000)`),
+  which only re-asserts an *existing* attachment to reset its own idle
+  timer — it cannot attach to a new tab, escalate scope, or run with the
+  capture stopped (the interval is cleared in `stopNetworkCapture()`, and
+  also implicitly stops mattering once the tab's debugger detaches, since
+  `safeAttachDebugger` against a now-invalid tab simply resolves `false`
+  and is swallowed). Per-conversation isolation matches
+  `evidence-store.ts`/`investigation-session.ts`'s existing
+  `Map<conversationId, …>` pattern — one conversation's capture can only
+  be started/stopped/queried via its own `conversationId`, and two
+  conversations capturing the same tab accumulate into two independent
+  request maps (see `network-capture-session.test.ts`'s
+  "isolates captures between conversations on the same tab" case) rather
+  than leaking into each other. Only failed/4xx/5xx requests are written
+  to the evidence store (same significance rule `get_network_diagnostics`
+  already applies), bounded by the same 500-per-conversation cap.
+- **Conclusion**: no new sensitive-data exposure, no new permissions, no
+  cross-conversation leakage.
+- **Status**: Reviewed, no finding.
+
 ## Reviewed — accepted as inherent to the product category
 
 ### 5. `debugger` permission and `<all_urls>` host permissions
