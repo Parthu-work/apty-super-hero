@@ -14,15 +14,15 @@ is the honest current state, not aspirational.
 | Evidence model (types) | `DiagnosticEvidence`/`EvidenceSource` in `apty/types.ts` | Partial | Type exists but nothing ever constructs/stores one — every tool returns its own ad-hoc shape | P0 | Implemented this session — see "Evidence Correlation Layer" below |
 | Deterministic evidence correlation | None — LLM infers all relationships from raw tool output | No | Correlation quality depends entirely on system-prompt discipline | P0 | Implemented this session — see below |
 | Selector debugging as first-class feature | None — no selector generation/ranking exists anywhere in the repo | No | Apty's core "why can't Studio select this element" question has no dedicated tool | P0 | Implemented this session — `analyze_element_selectors` tool |
-| Investigation session lifecycle (start/collect/pause/stop/hypotheses/diagnosis) | Only the tab-binding map from the isolation work; no session object tracking hypotheses/evidence/diagnosis | No | Nothing tracks "this conversation's investigation state" as a first-class object | P1 | Not done this session — see Next Steps |
+| Investigation session lifecycle (start/collect/pause/stop/hypotheses/diagnosis) | `InvestigationSession` (`apty/investigation-session.ts`) + 5 tools (`start_investigation`/`update_investigation`/`record_verification_attempt`/`stop_investigation`/`get_investigation_status`) | Yes | System-prompt-driven (model must call the tools); no server-side enforcement that it does | — | Implemented this session — see "Investigation Session Lifecycle" below |
 | Apty Widget/Client/Studio/Service-Worker providers | Honest `not_configured` stubs, Service Worker hardened+tested | Partial | Blocked on real Apty-side contracts | — | Blocked, not actionable from this repo alone |
 | Network diagnostics (CDP) | Fixed 500ms–15s capture window | Partial | No "start capture → reproduce → stop → analyze" session UX; window is fixed at call time | P1 | Not done this session |
 | Console/runtime event classification | Raw entries returned as-is (level, message, timestamp) | Partial | No classification into apty-error/CSP/CORS/JS-exception buckets | P2 | Not done this session |
 | Selector/DOM iframe+Shadow DOM handling | `iframeManager`, DOM/CDP snapshot already handle frames; Shadow DOM traversal exists in the collector | Partial | New selector tool reports iframe/shadow-root context but doesn't yet special-case cross-origin iframe limits beyond what already existed | P2 | Partially covered by new selector tool; deeper work not done |
 | Self-healing / stale-UID recovery | None — a stale UID throws and asks the model to re-snapshot | No | Manual recovery only (model calls `search_elements` again) | P2 | Not done this session |
 | Tool surface cleanup | `bookmark.ts`/`history.ts`/`organize-tabs.ts`/clipboard tools exist as source but are already excluded from `allBrowserTools` (verified) | Mostly done | `mcp-bridge/src/tool-schemas.ts` has a naive tool-name count mismatch against the real registry that wasn't fully root-caused this session (some of it is nested-directory tools like `download_*`/`upload_file_to_input` that a quick glob missed, not necessarily real bugs) | P2 | Needs a careful, dedicated audit pass — flagged, not done this session to avoid a rushed/wrong fix |
-| UI: investigation state banner, evidence panel, timeline, diagnosis card | None — the side panel is still a generic chat UI (message list + input), no dedicated debugging-console UI | No | Large, multi-component UI effort | P1 | Not done this session — see Next Steps |
-| Agent activity UX (friendly tool-call descriptions vs raw tool names) | Raw tool names/params shown via `tool_call_start`/`tool_call_complete` events, rendered as-is in the default message UI | No | No mapping layer from tool name → friendly description | P2 | Not done this session |
+| UI: investigation state banner, evidence panel, timeline, diagnosis card | Live investigation banner + browser context bar (header), collapsible Timeline/Components/Diagnosis summary bar (above input), dedicated selector-analysis view | Yes | No dedicated "start investigation" form (by design — see below); no automated component tests for the header/summary-bar (their pure logic is fully tested) | — | Implemented this session — see "Side Panel Redesign" below |
+| Agent activity UX (friendly tool-call descriptions vs raw tool names) | Apty/investigation/selector tool names added to the existing `i18n` `tools.*` translation table with emoji-prefixed friendly labels; raw tool name shown in expanded technical details | Yes | Generic (non-Apty) tool names still just Title-Cased, not hand-written friendly descriptions | — | Implemented this session |
 | AIPex branding/UI debt removal | System prompt and agent name already rebranded (prior sessions); internal package names/storage keys deliberately kept (see `DECISIONS.md`) | Partial (by design) | Deliberate scope decision, not an oversight | P3 | No action — see `DECISIONS.md` |
 | Security: `host-access-config.json` / console-bridge domain scoping | Still `include-all` / `<all_urls>` | No | Needs Apty's actual target domain list | P1 | Blocked on Apty-side input, not actionable from this repo alone |
 | Security: multi-session diagnostic isolation | Implemented (prior work this session cycle) | Yes | — | — | Done — `SECURITY_AUDIT.md` finding 1b updated to Fixed |
@@ -33,16 +33,20 @@ important improvement, P3 = cleanup/future.
 
 ## Current Status
 
-Early implementation. The repo has been rebranded, stripped of AIPex's
-consumer-product features, and given a first layer of Apty-specific
-diagnostics (evidence model, provider interfaces, DevTools/CDP tools, a
-debugging-focused system prompt). The Apty Service Worker diagnostics path
-now has a hardened, tested consumer implementation plus a complete
-producer-side reference implementation for the Apty Widget team
-(`docs/apty-integration/`). No real Apty Studio/Widget/Client/Service
-Worker integration is *live* yet — that requires the Apty-side halves
-(a real extension ID, a real global, a real message handler), which this
-session cannot build since it doesn't have access to those codebases.
+The repo has been rebranded, stripped of AIPex's consumer-product
+features, and given a full layer of Apty-specific diagnostics (evidence
+model, provider interfaces, DevTools/CDP tools, a debugging-focused system
+prompt, deterministic evidence correlation, selector diagnostics, and now
+an explicit investigation-session lifecycle) plus a redesigned,
+investigation-first side panel UI that surfaces all of it. The Apty
+Service Worker diagnostics path has a hardened, tested consumer
+implementation plus a complete producer-side reference implementation for
+the Apty Widget team (`docs/apty-integration/`). No real Apty Studio/
+Widget/Client/Service Worker integration is *live* yet — that requires the
+Apty-side halves (a real extension ID, a real global, a real message
+handler), which this session cannot build since it doesn't have access to
+those codebases; the UI reflects this honestly (`not_configured`/
+`not_detected` component-health states, never fabricated "healthy" data).
 
 **Multi-session/multi-chat isolation is now implemented** (this session) —
 see "Multi-Session Isolation — Implementation Notes" below for what changed
@@ -68,20 +72,21 @@ this file.
 
 ## Current Phase
 
-Phase 2 of the informal roadmap below:
+Phase 3 of the informal roadmap below:
 1. ~~Strip AIPex product features, rebrand~~ (done, prior session)
-2. **Build Apty diagnostic infrastructure: evidence model, provider
-   interfaces, DevTools tools, debugging persona** (done, prior session in
-   this phase) **+ harden the Service Worker diagnostics path specifically
-   (validation, redaction, tests, producer reference impl)** (this session)
+2. ~~Build Apty diagnostic infrastructure: evidence model, provider
+   interfaces, DevTools tools, debugging persona~~ (done, prior session)
+   ~~+ harden the Service Worker diagnostics path~~ (done, prior session)
 3. Wire real Apty Studio/Widget/Client integration once extension IDs and
    contracts are available (not started — needs Apty-side input)
-4. ~~Multi-session/multi-chat isolation~~ (implemented) ~~+ deterministic
-   evidence correlation~~ (implemented) ~~+ selector diagnostics~~
-   (implemented, all this session — see "Multi-Session Isolation",
-   "Evidence Correlation & Investigation Timeline", and "Selector
-   Diagnostics" below); recovery/retry behavior; verification loops;
-   investigation-session lifecycle object (not started)
+4. ~~Multi-session/multi-chat isolation~~ ~~+ deterministic evidence
+   correlation~~ ~~+ selector diagnostics~~ (all implemented, prior
+   session) ~~+ investigation-session lifecycle object~~
+   ~~+ investigation-first side panel UI redesign~~ (both implemented
+   **this session** — see "Investigation Session Lifecycle" and "Side
+   Panel Redesign" below); recovery/retry behavior and verification-loop
+   *automation* (beyond the manual "Verify diagnosis" trigger this session
+   added) remain open
 5. ~~Publish a complete engineering documentation package to Confluence~~
    (done, prior session — see `## Confluence Documentation` below;
    explicitly a documentation-only task, no code changes)
@@ -287,6 +292,128 @@ the repo before this.
   `chrome.runtime.lastError`, malformed response, oversized response,
   redaction, and endpoint-preference-over-messaging.
 
+## Investigation Session Lifecycle (this session)
+
+Implements the gap matrix's "investigation session lifecycle" row — the
+evidence store/correlation from the prior session tracked *what was
+observed*; nothing tracked *what the investigation currently believes*
+(hypotheses, suspected components, a diagnosis+confidence, verification
+outcomes) as first-class, queryable state.
+
+**Added**:
+- `packages/browser-runtime/src/apty/investigation-session.ts` —
+  `InvestigationSession { id, conversationId, tabId, startedAt, updatedAt,
+  status, userProblem, suspectedComponents, hypotheses,
+  verificationAttempts, diagnosis?, confidence? }` in a
+  `Map<conversationId, InvestigationSession>`, keyed with the exact same
+  `"pending"`/unscoped-bucket convention as `evidence-store.ts` (see
+  `DECISIONS.md` for why this is a separate store, not bolted onto
+  `Session`/`ConversationData`). `status` is one of `starting |
+  investigating | collecting_evidence | analyzing | verifying | resolved |
+  failed | stopped`. 15 unit tests (`investigation-session.test.ts`)
+  covering the full lifecycle, cross-conversation isolation, and the
+  `"pending"` bucket convention.
+- Five new tools (`packages/browser-runtime/src/tools/investigation.ts`):
+  `start_investigation`, `update_investigation` (status transitions,
+  `addHypothesis`, `addSuspectedComponent`, `diagnosis`+`confidence`),
+  `record_verification_attempt`, `stop_investigation`, and
+  `get_investigation_status`. 6 new tests covering the full lifecycle
+  end-to-end and no-op behavior when no investigation has been started.
+- The system prompt's "THE DEBUGGING LOOP" section
+  (`packages/aipex-react/src/components/chatbot/constants.ts`) now
+  instructs the model to call these tools at each step (start before
+  collecting evidence, update status through collecting/analyzing/
+  verifying, record a diagnosis+confidence via `update_investigation`,
+  record verification outcomes, close out via `stop_investigation`) — this
+  is what makes the new UI's status genuinely reflect application state
+  rather than a guess (see next section).
+
+**Not done**: no server-side enforcement that the model actually calls
+these tools in order (or at all) — a model that ignores the system prompt
+instructions simply leaves the investigation lifecycle at its last state
+(or never starts one), same class of limitation as the evidence-first
+diagnosis format itself. Automated multi-step verification loops (the
+model deciding on its own when to re-verify) — today verification is
+triggered by the user (or the UI's "Verify diagnosis" button, which just
+sends a chat message) — remain a possible future enhancement, not
+attempted this session.
+
+## Side Panel Redesign (this session)
+
+Implements the gap matrix's UI row and the product brief's core ask:
+transform the generic AIPex-inherited chat UI into an investigation-first
+Apty debugging console. Full component-by-component detail is in
+`ARCHITECTURE.md`'s "Side panel UI architecture" section; summary here.
+
+**Added** (`packages/browser-ext/src/lib/investigation/`, new directory):
+- `component-health.ts` (+ 9 unit tests) — pure derivation of Client/
+  Widget/Studio/Service-Worker health from the most recent `*-status`
+  evidence per component; `not_checked` when no evidence exists yet, never
+  a fabricated status.
+- `use-investigation-data.ts` — polling hook reading
+  `getEvidence`/`getInvestigation`/`correlateEvidence` directly from
+  `@aipexstudio/browser-runtime` (safe because tool execution and the side
+  panel UI share one JS realm — see `DECISIONS.md`).
+- `use-current-target.ts` — tracks the bound (or active) tab's title/
+  hostname only, never the full URL, via `chrome.tabs`.
+- `investigation-context-bar.tsx` — rendered inside `BrowserChatHeader`:
+  a quiet context line normally, a "LIVE INVESTIGATION" banner with a real
+  Stop action (confirms via dialog, then calls `stopInvestigation()` +
+  `interrupt()`) while an investigation is actually in progress.
+- `investigation-summary-bar.tsx` — collapsible Timeline/Components/
+  Diagnosis tabs above the chat input (`promptExtras` slot); renders
+  nothing when there's no investigation and no evidence yet.
+- `evidence-timeline.tsx`, `component-health-panel.tsx`, `diagnosis-card.tsx`
+  (+ RTL tests for the latter two) — the three views inside the summary
+  bar, all rendering real store data with progressive disclosure into raw
+  (already-redacted) evidence payloads.
+- `debugging-welcome-screen.tsx` — Apty-specific empty-state prompts,
+  wired via the `emptyState` slot, replacing the generic "how can I help
+  you today" AIPex welcome screen.
+- `selector-analysis-display.tsx` + `apty-tool-display.tsx` — a dedicated
+  visual for `analyze_element_selectors` (recommended selector, ranked
+  candidates, iframe/Shadow-DOM boundary note, copy-selector button),
+  dispatched via the `toolDisplay` slot; every other tool still falls back
+  to the pre-existing `DefaultToolDisplay`.
+- `status-meta.ts` / `tone-classes.ts` — shared label/color mapping so no
+  component invents its own status vocabulary.
+
+**Modified**:
+- `packages/aipex-react/src/i18n/locales/{en,zh}.json` — friendly,
+  emoji-prefixed activity labels for every Apty/investigation/selector
+  tool (e.g. `"get_network_diagnostics": "🌐 Checking network requests"`),
+  added to the existing `tools.*` translation table rather than a new
+  mapping layer (see `DECISIONS.md`).
+- `packages/aipex-react/src/components/chatbot/components/slots/tool-display.tsx`
+  — `DefaultToolDisplay` now shows the raw tool name (and duration) in its
+  expanded technical details when it differs from the friendly label.
+- `packages/browser-ext/src/lib/browser-chat-header.tsx` — now actually
+  renders the `title` prop (previously accepted but never displayed —
+  a real, if minor, pre-existing bug) and hosts `InvestigationContextBar`.
+- `packages/browser-ext/src/lib/conversation-tab-binding.ts` — added
+  `peekConversationTabBinding()`, a read-only lookup for UI display that
+  never mutates or creates a binding (diagnostic tools keep using
+  `resolveConversationRunContext`/`resolveDiagnosticTab`, not this).
+- `packages/browser-ext/vitest.config.ts` — added the same
+  `@aipexstudio/aipex-react/*` → source alias `vite.config.ts` already
+  used for the real build; without it, tests couldn't resolve deep
+  subpaths (`/lib/utils`, `/components/ui/*`) that aren't in
+  `aipex-react`'s `package.json` exports map but do resolve at build time
+  via that alias — a latent test/build resolution mismatch, now fixed.
+
+**Not done**: a dedicated multi-field "start investigation" form/component
+tab (product brief section 11) — the model infers investigation intent
+from natural language per the system prompt's debugging loop, matching the
+brief's own "don't force a form before every question" guidance, so this
+was a deliberate omission, not an oversight. No RTL/component tests exist
+yet for `investigation-context-bar.tsx`/`investigation-summary-bar.tsx`
+themselves (they depend on `useChatContext` + live `chrome.tabs`); the
+pure logic and leaf presentational components they compose are tested.
+Manual verification (loading the built extension and clicking through
+investigation start/stop, evidence collection, and diagnosis states
+against a real Apty deployment) has not been performed this session — see
+`## Known Limitations`.
+
 ## Completed
 
 - Evidence model + 4 provider interfaces with honest `not_configured`/
@@ -296,16 +423,20 @@ the repo before this.
   existing `debuggerManager`/`CdpCommander` infrastructure.
 - Config plumbing: `.env.example` → Vite env → `chrome.storage.local` →
   tool-call-time config read.
-- System prompt rewritten for the debugging persona.
-- All 5 packages build, typecheck, and pass their test suites (623 tests
-  as of the prior session's checkpoint; see `## Tests` below for this
-  session's numbers).
+- System prompt rewritten for the debugging persona, now including the
+  investigation-lifecycle tool calls at each step of the debugging loop.
+- Deterministic evidence correlation, investigation timeline, and selector
+  diagnostics (prior session).
+- Investigation session lifecycle (`InvestigationSession` + 5 tools) and a
+  full investigation-first side panel redesign (this session — see the
+  two sections above).
+- All 5 packages build, typecheck, and pass their test suites — see
+  `## Tests` below for current numbers.
 
 ## Currently Working On
 
 Documentation for this checkpoint (`PROJECT_PROGRESS.md`, `ARCHITECTURE.md`,
-`SECURITY_AUDIT.md`, `CHANGELOG.md`, `DECISIONS.md`) and the commit/push
-sequence.
+`DECISIONS.md`) and the commit/push sequence.
 
 ## Next Steps
 
@@ -321,29 +452,29 @@ In priority order:
    domains once those are known, rather than every site the user visits.
 3. **Scope the console-capture content script** (`apty-console-bridge.ts`,
    currently `<all_urls>`) the same way, for the same privacy reason.
-4. ~~Add an evidence-correlation self-check~~ — done this session, see
-   "Evidence Correlation & Investigation Timeline" above
-   (`get_investigation_timeline`/`evidence-correlation.ts`).
-5. **Investigation session lifecycle object**: an explicit
-   `InvestigationSession` tracking hypotheses, verification attempts, and
-   a final diagnosis+confidence as first-class state — the evidence store
-   this session added is the data layer it would sit on top of, but the
-   session object itself (start/pause/stop/verify lifecycle) doesn't
-   exist yet.
-6. **UI: investigation state banner, evidence panel, timeline, diagnosis
-   card** — the side panel is still a generic chat UI; none of the
-   product spec's dedicated debugging-console UI exists yet. The data it
-   would render (correlated evidence, verdicts) now exists via
-   `get_investigation_timeline` and `analyze_element_selectors` — the UI
-   layer to surface it doesn't.
-7. **Options UI for Apty integration config**: today, `studioExtensionId`
+4. ~~Investigation session lifecycle object~~ ~~+ UI: investigation state
+   banner, evidence panel, timeline, diagnosis card~~ — both done this
+   session, see "Investigation Session Lifecycle" and "Side Panel
+   Redesign" above.
+5. **Manual/browser verification of the new UI** against a real (or
+   locally stubbed) Apty deployment — this session validated the UI
+   through build/typecheck/unit+component tests only; loading the built
+   extension and clicking through a live investigation (start → evidence
+   → diagnosis → verify → stop) has not been done. See `## Known
+   Limitations`.
+6. **Options UI for Apty integration config**: today, `studioExtensionId`
    etc. are only settable via `.env` (build time) or directly writing to
    `chrome.storage.local` (`setAptyIntegrationConfig`). A small settings
    panel would make this actually usable day-to-day.
-8. **Network diagnostics: start/stop capture session UX** — currently a
+7. **Network diagnostics: start/stop capture session UX** — currently a
    fixed 500ms–15s window chosen per call; a "start capture → user
    reproduces → stop → analyze" flow (per the product spec) would be more
    usable but requires new session-lifecycle state, not just a tool tweak.
+8. **A dedicated "start investigation" form/component-picker** (product
+   brief section 11) — deliberately not built this session (natural-
+   language intent + the debugging-loop system prompt cover it, per the
+   brief's own "don't force a form" guidance); revisit if real usage shows
+   the model isn't reliably calling `start_investigation`.
 9. Continue trimming internal "AIPex" naming (package names, class names,
    storage-key prefixes) if/when it's worth the churn — deliberately not
    done yet (see `DECISIONS.md`).
@@ -423,14 +554,16 @@ codebase. Neither exists live today; every call still reports
 
 ## Browser Tools
 
-44 tools registered in `packages/browser-runtime/src/tools/index.ts`:
+49 tools registered in `packages/browser-runtime/src/tools/index.ts`:
 tabs (7), UI operations/element interaction (8), page content (4),
 screenshots (3), downloads (2), interventions (4), skills (6), DevTools (2),
-Apty integration (5), investigation timeline (2, new this session),
-selector diagnostics (1, new this session). See that file for the
-authoritative, categorized list. (`bookmark.ts`, `history.ts` and
-`organize-tabs.ts` exist as source files but are not registered in
-`allBrowserTools`.)
+Apty integration (5), investigation timeline/lifecycle (7:
+`get_investigation_timeline`/`clear_investigation_evidence` plus
+`start_investigation`/`update_investigation`/`record_verification_attempt`/
+`stop_investigation`/`get_investigation_status`, the latter 5 new this
+session), selector diagnostics (1). See that file for the authoritative,
+categorized list. (`bookmark.ts`, `history.ts` and `organize-tabs.ts` exist
+as source files but are not registered in `allBrowserTools`.)
 
 ## DevTools
 
@@ -469,14 +602,16 @@ list to scope to).
 ### Passing
 - `packages/core`: 217 tests
 - `packages/dom-snapshot`: 132 tests
-- `packages/browser-runtime`: 232 tests (179 prior + 17 for
-  `evidence-correlation.ts` + 8 for `evidence-store.ts` + 29 for
-  `selector-analysis.ts` + 3 for `investigation.ts`'s tools + 1 more for
-  `apty.ts`'s evidence recording + 2 for `devtools.ts`'s evidence recording — this session)
+- `packages/browser-runtime`: 250 tests (232 prior + 15 for
+  `investigation-session.ts` + 6 for the new investigation lifecycle
+  tools, this session's `InvestigationSession` work — new backend feature
+  work adds tests, doesn't remove any)
 - `packages/aipex-react`: 114 tests (10 pre-existing skips, unrelated to this work)
-- `packages/browser-ext`: 36 tests
-- **Total: 731 passing**, all packages build and typecheck clean
-  (`pnpm build` also verified end-to-end this session).
+- `packages/browser-ext`: 54 tests (45 prior + 9 for `component-health.ts`
+  + 4 for `peekConversationTabBinding` + RTL tests for
+  `ComponentHealthPanel`/`DiagnosisCard`, this session's UI work)
+- **Total: 767 passing**, all packages build, typecheck, format/lint
+  (`npm run preflight`), and build clean end-to-end this session.
 
 ### Failing
 None known.
@@ -494,9 +629,16 @@ increment, not a blocked task. `tools/selector.ts`'s CDP mechanics (as
 opposed to the pure ranking engine it calls, which has 29 tests) and a
 full `devtools.ts` CDP-mechanics test suite are both in the same category —
 see `smart-locator.test.ts`'s `CdpCommander`/`debugger-manager` mocking
-pattern, now also used by `devtools.test.ts`, as the template. Manual/
-integration testing against a real Apty deployment is still the real
-end-to-end validation path once the Apty-side contracts exist.
+pattern, now also used by `devtools.test.ts`, as the template. No RTL
+component tests exist for `investigation-context-bar.tsx`/
+`investigation-summary-bar.tsx`/`use-investigation-data.ts`/
+`use-current-target.ts` (they depend on `useChatContext` + live
+`chrome.tabs`, which would need a heavier test harness than this session
+built) — the pure logic and leaf presentational components they compose
+(`component-health.ts`, `ComponentHealthPanel`, `DiagnosisCard`) are
+tested. Manual/integration testing of the new UI against a real running
+extension, and against a real Apty deployment, is still the real
+end-to-end validation path — not performed this session.
 
 ## Multi-Session Isolation — Implementation Notes (implemented this session)
 
@@ -714,13 +856,24 @@ commit.
   "Multi-Session Isolation — Implementation Notes" above for what shipped
   and the remaining follow-ups (per-window-only concurrency, no multi-pane
   UI, best-effort first-turn tab binding).
-- Evidence correlation is entirely LLM-driven (via system-prompt
-  instructions), not a deterministic pre-pass.
 - `host-access-config.json` and the console-capture content script are
   scoped to all sites, not just Apty's target applications.
 - `debugger` permission + `<all_urls>` host permissions remain broad,
   inherent to what a browser-debugging tool needs — not fixed, flagged.
 - No tenant isolation / audit logging / governance layer.
+- **Investigation lifecycle correctness depends on the model following the
+  system prompt** — nothing server-side forces `start_investigation`/
+  `update_investigation`/`stop_investigation` to be called; a model that
+  ignores those instructions leaves the UI showing stale/absent
+  investigation state (though evidence/component-health still update
+  independently, since those come from tool calls the model has to make
+  anyway to answer the question).
+- **The new side panel UI has not been manually verified in a running
+  browser** — it passed build/typecheck/lint and unit/component tests this
+  session, but clicking through a live investigation (start → evidence →
+  diagnosis → verify → stop, iframe/Shadow-DOM selector cases, concurrent
+  tab/conversation scenarios) against the actual extension has not been
+  done. See `## Next Steps`.
 
 ## Important Technical Decisions
 
@@ -728,18 +881,18 @@ See `DECISIONS.md`.
 
 ## Last Commit
 
-`a9764f2b9458874fee9504fa6a42d290bbc6e8c4` — "feat: deterministic evidence
-correlation, investigation timeline, and selector diagnostics" (a
-documentation-update commit follows this one). Prior commits:
-`d332683` — "Implement multi-session/multi-chat diagnostic isolation";
-`e4a4a4f` — "docs: publish Confluence engineering documentation package;
-fix stale tool count".
+`428d733` — "feat: redesign Apty debugging side panel into an
+investigation console" (a documentation-update commit follows this one).
+Prior commits this session: `33d5e78` — "feat: add investigation session
+lifecycle (state, tools, tests)"; `adc0cec` — "docs: gap matrix, evidence
+correlation/selector diagnostics writeup, mark isolation fix" (prior
+session's checkpoint).
 
 ## Last Push
 
-Will be pushed to `origin/main` at the head of this session's commits
-(check `git log -1` / `git status` — this note is updated by hand and can
-lag the actual push by one commit within a session).
+Pushed to `origin/claude/keen-knuth-85dqt8` at the head of this session's
+commits (check `git log -1` / `git status` — this note is updated by hand
+and can lag the actual push by one commit within a session).
 
 ## NEXT SESSION HANDOFF
 
@@ -765,28 +918,36 @@ though this repo's own docs remain the source of truth if the two disagree.
 
 **What's safe to continue without asking — in recommended order:**
 1. ~~Multi-session tab-binding~~, ~~deterministic evidence-correlation~~,
-   ~~selector diagnostics~~ (all done — see "Multi-Session Isolation",
-   "Evidence Correlation & Investigation Timeline", and "Selector
-   Diagnostics" above). Follow-ups if picked up next: precise first-turn
-   tab binding; per-conversation `InterventionManager` mode once/if
-   concurrent conversations within one window's UI become a thing.
-2. **Investigation session lifecycle**: wrap the evidence store
-   (`apty/evidence-store.ts`) in an explicit session object tracking
-   hypotheses, verification attempts, and a final diagnosis+confidence —
-   the gap matrix's remaining P1 item in this cluster.
-3. **UI**: a dedicated debugging-console side panel (investigation state,
-   evidence panel, correlated timeline, diagnosis card) instead of the
-   current generic chat UI — the underlying data now exists
-   (`get_investigation_timeline`, `analyze_element_selectors`), the UI to
-   render it doesn't.
-4. Writing tests for `widget-diagnostics.ts`/`client-diagnostics.ts`/
+   ~~selector diagnostics~~, ~~investigation session lifecycle~~, ~~UI
+   redesign~~ (all done — see "Multi-Session Isolation", "Evidence
+   Correlation & Investigation Timeline", "Selector Diagnostics",
+   "Investigation Session Lifecycle", and "Side Panel Redesign" above).
+   Follow-ups if picked up next: precise first-turn tab binding;
+   per-conversation `InterventionManager` mode once/if concurrent
+   conversations within one window's UI become a thing.
+2. **Manually verify the new UI in a running browser** — load the built
+   extension (`packages/browser-ext/dist`), open the side panel, and walk
+   through: empty state → typing a debugging question → the investigation
+   banner appearing → evidence/component-health/diagnosis populating as
+   tools run → Verify Diagnosis → Stop Investigation's confirm dialog. Also
+   check the functional-bug-audit scenarios from the product brief
+   (tab switch mid-conversation, restoring an old conversation, iframe/
+   Shadow DOM selector cases, two conversations bound to two tabs). This
+   session validated the UI via build/typecheck/tests only.
+3. Writing tests for `widget-diagnostics.ts`/`client-diagnostics.ts`/
    `studio-diagnostics.ts` using the same `global.chrome` mock pattern
    proven out in `service-worker-diagnostics.test.ts` and
    `devtools.test.ts`; a full CDP-mechanics test suite for `devtools.ts`
    and `tools/selector.ts` (their pure logic — `evidence-correlation.ts`,
    `selector-analysis.ts` — is already thoroughly tested; the CDP plumbing
-   around them isn't).
-5. An Options UI panel for `AptyIntegrationConfig`
-6. Network diagnostics start/stop capture session UX (see gap matrix)
+   around them isn't). RTL/integration tests for
+   `investigation-context-bar.tsx`/`investigation-summary-bar.tsx` would
+   need a `useChatContext`+`chrome.tabs` test harness this session didn't
+   build.
+4. An Options UI panel for `AptyIntegrationConfig`
+5. Network diagnostics start/stop capture session UX (see gap matrix)
+6. A dedicated "start investigation" form/component-picker (product brief
+   section 11) — only if real usage shows natural-language intent
+   detection isn't reliable enough on its own.
 7. Continuing to remove/rename remaining internal "AIPex" identifiers, if a
    future session judges the churn worth it

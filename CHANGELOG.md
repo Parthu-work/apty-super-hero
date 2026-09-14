@@ -4,6 +4,50 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
+## Unreleased (this session) — investigation session lifecycle + investigation-first side panel redesign
+
+**Added**
+- `InvestigationSession` lifecycle (`packages/browser-runtime/src/apty/investigation-session.ts`):
+  `{ id, conversationId, tabId, startedAt, updatedAt, status, userProblem,
+  suspectedComponents, hypotheses, verificationAttempts, diagnosis?,
+  confidence? }`, keyed per-conversation like the existing evidence store.
+  Five new tools (`packages/browser-runtime/src/tools/investigation.ts`):
+  `start_investigation`, `update_investigation`,
+  `record_verification_attempt`, `stop_investigation`,
+  `get_investigation_status`. The system prompt's debugging loop now
+  instructs the model to call these at each step.
+- A full side-panel UI redesign (`packages/browser-ext/src/lib/investigation/`,
+  new directory) turning the generic AIPex chat UI into an
+  investigation-first Apty debugging console: a live-investigation banner
+  + browser context bar in the header (real Stop action with a confirm
+  dialog), a collapsible Timeline/Components/Diagnosis summary bar above
+  the input, an Apty-specific empty state, and a dedicated selector-
+  analysis visual (recommended selector, ranked candidates, iframe/Shadow-
+  DOM boundary note, copy-selector button) replacing the raw JSON dump for
+  `analyze_element_selectors`. All of it reads real evidence/investigation
+  state directly from `@aipexstudio/browser-runtime` (same JS realm as
+  tool execution — see `DECISIONS.md`); nothing is fabricated.
+- Friendly, emoji-prefixed activity labels for every Apty/investigation/
+  selector tool, added to the existing i18n `tools.*` translation table
+  (`en.json`/`zh.json`) rather than a new mapping layer. The default tool
+  display now also shows the raw tool name in its expanded technical
+  details.
+- 30 new tests: `investigation-session.test.ts` (15), new lifecycle-tool
+  coverage in `tools/investigation.test.ts` (6), `component-health.test.ts`
+  (9), `peekConversationTabBinding` coverage in
+  `conversation-tab-binding.test.ts` (4), plus RTL tests for
+  `ComponentHealthPanel` and `DiagnosisCard`.
+
+**Fixed**
+- `BrowserChatHeader` accepted a `title` prop but never rendered it — the
+  header showed no product name at all. Now renders it (default: "Apty
+  Live Debugging").
+- `packages/browser-ext/vitest.config.ts` was missing the
+  `@aipexstudio/aipex-react/*` → source alias that `vite.config.ts` (the
+  real build) already had, so tests couldn't resolve deep subpaths like
+  `/lib/utils` or `/components/ui/*` that aren't in `aipex-react`'s
+  `package.json` exports map but do resolve at build time via that alias.
+
 ## Unreleased (this session) — evidence correlation, investigation timeline, selector diagnostics
 
 **Added**

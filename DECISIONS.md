@@ -3,6 +3,77 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## `InvestigationSession` is a new, separate store — not bolted onto `Session`/`ConversationData`
+
+`core.Session` (LLM message history) and `ConversationData` (IndexedDB-persisted
+UI conversation) already exist and serve a different purpose: they track
+*what was said*, not *what the investigation currently believes*. Rather
+than overload either with hypotheses/diagnosis/confidence fields, this
+session added `packages/browser-runtime/src/apty/investigation-session.ts`
+as its own `Map<conversationId, InvestigationSession>`, keyed exactly like
+`evidence-store.ts` (including the same `"pending"`/unscoped-bucket
+convention) so the two stay trivially joinable by conversation id without
+coupling their lifecycles. An investigation can be cleared/restarted
+independently of the chat history, and vice versa — conflating them would
+have made "start a fresh investigation in the same chat" awkward to model.
+
+## The side panel UI reads evidence/investigation stores directly, not through a message bus
+
+`packages/browser-ext/src/lib/investigation/use-investigation-data.ts`
+imports `getEvidence`/`getInvestigation`/`correlateEvidence` from
+`@aipexstudio/browser-runtime` and calls them directly from a polling
+React hook, rather than having the UI wait for the model to report state
+back through a chat message, or introducing a new `chrome.runtime` event
+bus. This works *only* because tool `execute()` functions already run in
+the same JS realm as the side panel's React tree — verified against
+`browser-agent-config.ts`'s `useBrowserTools()`, which passes tools
+straight into `useAgent()` inside the side panel page itself, no
+background-service-worker round trip. If tool execution is ever moved to
+the background service worker (it currently is not), this hook would need
+to switch to `chrome.runtime` messaging instead — flagging so a future
+session doesn't assume the module-level `Map`s are always safely
+shareable. Polling (not a bespoke event emitter) was chosen because the
+data volume is small (bounded per-conversation stores) and it avoids
+adding a new pub/sub mechanism for what is fundamentally "re-read some
+in-memory state after a tool call likely changed it".
+
+## Investigation lifecycle changes go through explicit tools, not implicit inference
+
+`start_investigation`/`update_investigation`/`record_verification_attempt`/
+`stop_investigation`/`get_investigation_status`
+(`packages/browser-runtime/src/tools/investigation.ts`) require the model
+to explicitly call them — the system prompt instructs it to do so at each
+step of the debugging loop, but nothing infers "an investigation must have
+started" from message content alone. This matches the project brief's "the
+state must come from actual application state, not fake progress"
+requirement: a UI status of "Analyzing" only ever reflects a real
+`update_investigation` call the model actually made, never a guess based on
+message length or keyword matching.
+
+## Friendly tool-call names reuse the existing i18n `tools.*` translation layer
+
+`packages/aipex-react/src/i18n/tool-names.ts`'s `translatedToolName()`
+already existed (tool name → `tools.<name>` lookup, falling back to
+Title Case) and is already wired into every tool-display variant. Rather
+than build a second, parallel "activity description" mapping layer, this
+session added Apty/investigation/selector tool names directly to
+`i18n/locales/en.json`/`zh.json`'s existing `tools` object (with an emoji
+prefix, e.g. `"get_network_diagnostics": "🌐 Checking network requests"`).
+The raw tool name remains visible in expanded technical details (see
+`DefaultToolDisplay`'s "Tool: `<raw_name>`" line, added this session) for
+engineers who want it.
+
+## No new UI framework/design system
+
+The existing shadcn/radix-based primitives in `packages/aipex-react/src/components/ui/`
+(Badge, Card, Collapsible, Dialog, Tabs, Tooltip) and `ai-elements/`
+(Tool, CodeBlock, Suggestion) already covered every visual need for the
+investigation-first redesign (component health list, evidence timeline,
+diagnosis card, selector analysis). All new browser-ext UI
+(`packages/browser-ext/src/lib/investigation/`) composes these rather than
+introducing new dependencies, consistent with the project brief's "avoid
+introducing a new UI framework unless necessary."
+
 ## No RAG layer, ever, in this repo
 
 Apty already has a separate knowledge/RAG system (Phase 1/2, rolling out

@@ -306,21 +306,97 @@ Enforced at two layers:
    context window; instructing it not to comply is the standard mitigation
    for this class of risk, not a complete guarantee.
 
+## Investigation session lifecycle
+
+`packages/browser-runtime/src/apty/investigation-session.ts` adds the
+first-class lifecycle object the evidence store didn't have: an
+`InvestigationSession { id, conversationId, tabId, startedAt, updatedAt,
+status, userProblem, suspectedComponents, hypotheses,
+verificationAttempts, diagnosis?, confidence? }`, in a
+`Map<conversationId, InvestigationSession>` keyed exactly like
+`evidence-store.ts` (same `"pending"`/unscoped-bucket convention — see
+`DECISIONS.md`). `status` is one of `starting | investigating |
+collecting_evidence | analyzing | verifying | resolved | failed |
+stopped`, always set explicitly by a tool call, never inferred.
+
+Five tools (`packages/browser-runtime/src/tools/investigation.ts`, added
+alongside the pre-existing `get_investigation_timeline`/
+`clear_investigation_evidence`) let the model drive this lifecycle:
+`start_investigation`, `update_investigation` (status transitions,
+hypotheses, suspected components, diagnosis+confidence),
+`record_verification_attempt`, `stop_investigation`, and
+`get_investigation_status`. The system prompt
+(`packages/aipex-react/src/components/chatbot/constants.ts`'s "THE
+DEBUGGING LOOP" section) instructs the model to call these at each step of
+the debugging loop, so a UI status is only ever real application state,
+never a fabricated "Analyzing..." placeholder.
+
+## Side panel UI architecture
+
+The side panel was a generic chat UI (message list + input) with no
+debugging-specific chrome; it is now an investigation-first debugging
+console, built entirely as browser-ext-local components
+(`packages/browser-ext/src/lib/investigation/`) that compose
+`aipex-react`'s existing slot/component-override system
+(`ChatbotSlots`/`ChatbotComponents` — Header, MessageList, InputArea,
+`toolDisplay`, `emptyState`, `promptExtras` were already swappable) rather
+than requiring `aipex-react` to know anything about Apty or browser-runtime
+(preserving the `@aipex-react` must-not-depend-on-`@browser-runtime` rule).
+
+Key pieces:
+- **`use-investigation-data.ts`** — a polling hook that reads
+  `getEvidence`/`getInvestigation`/`correlateEvidence` from
+  `@aipexstudio/browser-runtime` directly (see `DECISIONS.md` for why this
+  is safe: tool `execute()` and the side panel's React tree share one JS
+  realm). Backs off from a 1.2s to a 5s poll interval when the chat isn't
+  actively streaming/running tools.
+- **`component-health.ts`** — pure function deriving Client/Widget/Studio/
+  Service-Worker health from the most recent `*-status` evidence entry per
+  component (recorded unconditionally by every `get_apty_*_diagnostics`
+  tool call, unlike log evidence which is warn/error-only) — `not_checked`
+  when no such evidence exists yet, never a guessed status.
+- **`investigation-context-bar.tsx`** — rendered inside `BrowserChatHeader`,
+  below the title row: a quiet "debugging `<hostname>`" line normally, or a
+  prominent "LIVE INVESTIGATION" banner with a real Stop action (calls
+  `stopInvestigation()` directly, plus `interrupt()`) while a session is
+  actually in progress.
+- **`investigation-summary-bar.tsx`** — a collapsed-by-default bar in the
+  `promptExtras` slot (just above the input) that expands into three tabs:
+  Timeline (`evidence-timeline.tsx`, rendering `CorrelationCluster[]`
+  exactly as computed — the "likely related incident" badge only ever
+  reflects `cluster.likelySameIncident`), Components
+  (`component-health-panel.tsx`), and Diagnosis (`diagnosis-card.tsx`,
+  confidence badge styled to match CONFIRMED/LIKELY/POSSIBLE/UNKNOWN
+  without ever visually upgrading a lower confidence).
+- **`debugging-welcome-screen.tsx`** — replaces the generic "how can I help
+  you" empty state (`toolDisplay`/`emptyState` slots) with Apty-specific
+  example prompts.
+- **`apty-tool-display.tsx` / `selector-analysis-display.tsx`** — gives
+  `analyze_element_selectors` a dedicated visual (recommended selector,
+  ranked candidates, iframe/Shadow-DOM boundary note, copy-selector button)
+  instead of a raw JSON dump; every other tool still renders through the
+  pre-existing `DefaultToolDisplay`, which now also shows the raw tool name
+  in its expanded technical details.
+- Friendly tool-call activity descriptions (e.g. "🌐 Checking network
+  requests") are `tools.*` i18n translations, not a new mapping layer — see
+  `DECISIONS.md`.
+
+Not yet built: a dedicated "start investigation" form/component tab
+(section 11 of the product brief) — the model infers investigation intent
+from natural language and the debugging-loop system prompt, per the
+brief's own "don't force a form before every question" guidance, so no
+separate lifecycle form UI exists yet. No automated component tests cover
+the header/summary-bar components directly (they depend on `useChatContext`
+and `chrome.tabs`); the pure logic they call
+(`component-health.ts`, `investigation-session.ts`,
+`evidence-correlation.ts`) is fully unit-tested, and the presentational
+leaf components (`ComponentHealthPanel`, `DiagnosisCard`) have React
+Testing Library coverage.
+
 ## What was deliberately not built
 
 - **RAG / knowledge base of any kind** — explicitly out of scope per the
   project brief; Apty has a separate system for this.
-- **An investigation-session lifecycle object** — hypotheses, verification
-  attempts, and a final diagnosis+confidence as first-class tracked state.
-  The evidence store (see "Evidence correlation and the investigation
-  timeline" above) is the data layer such a session would sit on top of;
-  the session object itself (explicit start/pause/stop/verify lifecycle)
-  doesn't exist yet.
-- **A dedicated debugging-console UI** — investigation state banner,
-  evidence panel, correlated timeline view, diagnosis card. The side panel
-  is still a generic chat UI (message list + input); the data such a UI
-  would render (`get_investigation_timeline`, `analyze_element_selectors`)
-  now exists, the UI layer to surface it doesn't.
 - **Generic browser automation / productivity features** — bookmark/history
   tool source files (`bookmark.ts`, `history.ts`) still exist from the
   AIPex baseline but are not registered in `allBrowserTools` (verified

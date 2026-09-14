@@ -174,6 +174,30 @@ diagnostic isolation) is now Fixed above.
   finding #4).
 - **Status**: Fixed.
 
+## Reviewed — no new finding
+
+### 7. Investigation-first side panel UI (this session)
+
+- **Affected component**: `packages/browser-ext/src/lib/investigation/`
+- **Review**: the new UI renders `DiagnosticEvidence.data` (evidence
+  timeline) and Apty component-status payloads directly, but only ever
+  reads them from `evidence-store.ts`/`investigation-session.ts` — the
+  same stores every diagnostic tool already writes to *after* redaction
+  (`apty/redact.ts`). No new code path reads raw page/network/log content
+  before redaction, and no new data leaves the extension (the UI's
+  "Verify diagnosis" button sends a chat message through the existing
+  agent loop; "Stop Investigation" calls the same in-process
+  `stopInvestigation()` function a tool would). The browser context bar
+  (`use-current-target.ts`) intentionally exposes only a tab's title and
+  hostname, never the full URL/query string. Selector candidates
+  (`selector-analysis-display.tsx`) render already-redacted attribute/text
+  values (`redactSensitiveText`, applied in `tools/selector.ts` before the
+  candidates are ever generated).
+- **Conclusion**: no new sensitive-data exposure. Cross-conversation
+  isolation is unaffected — the UI reads state keyed by the same
+  `sessionId`/`conversationId` the tools themselves use, never a global.
+- **Status**: Reviewed, no finding.
+
 ## Reviewed — accepted as inherent to the product category
 
 ### 5. `debugger` permission and `<all_urls>` host permissions
