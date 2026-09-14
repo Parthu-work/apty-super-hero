@@ -4,6 +4,35 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
+## Unreleased (this session) — console/runtime event classification
+
+**Added**
+- Console/runtime event classification
+  (`packages/browser-runtime/src/apty/log-classification.ts`):
+  `classifyLogEntry()` buckets every entry `get_apty_page_logs`
+  (`tools/apty.ts`) and `get_runtime_diagnostics` (`tools/devtools.ts`)
+  return into `csp-violation` / `cors-error` / `unhandled-rejection` /
+  `js-exception` / `network-resource-error` / `deprecation-warning` /
+  `apty-error` / `console-error` / `console-warning` / `info`, using
+  already-redacted text plus a structured hint where one exists (CDP
+  `Log.entryAdded`'s own `entry.source` is now captured and passed
+  through for `get_runtime_diagnostics`). Both tools now return a
+  `categoryCounts` tally alongside the entry/event list.
+  `summarizeLogCategories()` is the shared tally helper. Closes the
+  "Console/runtime event classification" gap (P1.7) from the previous
+  session's gap matrix.
+- 14 new/expanded tests: `log-classification.test.ts` (12 cases, new,
+  covering every category plus precedence rules — e.g. a `TypeError`
+  message that happens to mention "Apty" still classifies as
+  `js-exception`, not `apty-error`), plus one integration test each in
+  `apty.test.ts` and `devtools.test.ts` confirming the new fields appear
+  on real tool output.
+
+**Reviewed**
+- `SECURITY_AUDIT.md` finding #10: classification is pure pattern-matching
+  over already-redacted text/metadata — no new permission, no new data
+  read, no redaction-ordering risk.
+
 ## Unreleased (this session) — unified Apty component model, investigation planner, structured hypotheses, verification guard, debugger-manager fix
 
 **Added**

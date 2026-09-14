@@ -23,7 +23,12 @@
 
 import { tool } from "@aipexstudio/aipex-core";
 import { z } from "zod";
-import { recordEvidence } from "../apty/index.js";
+import {
+  classifyLogEntry,
+  type LogCategory,
+  recordEvidence,
+  summarizeLogCategories,
+} from "../apty/index.js";
 import { redactHeaders, redactSensitiveText } from "../apty/redact.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
@@ -210,9 +215,12 @@ export const getNetworkDiagnosticsTool = tool({
 interface CapturedRuntimeEvent {
   type: "log" | "exception" | "cdp-error";
   level?: string;
+  /** CDP `Log.entryAdded`'s `entry.source` (e.g. "javascript", "security", "network", "deprecation") — not set for exceptions, which are classified from `text`/`type` alone. */
+  source?: string;
   text: string;
   timestamp: number;
   stackTrace?: string;
+  category: LogCategory;
 }
 
 export const getRuntimeDiagnosticsTool = tool({
@@ -247,25 +255,30 @@ export const getRuntimeDiagnosticsTool = tool({
           onEvent((method, params) => {
             const p = params as Record<string, any>;
             if (method === "Log.entryAdded") {
+              const level = p.entry?.level;
+              const source = p.entry?.source;
+              const text = redactSensitiveText(String(p.entry?.text ?? ""));
               collected.push({
                 type: "log",
-                level: p.entry?.level,
-                text: redactSensitiveText(String(p.entry?.text ?? "")),
+                level,
+                source,
+                text,
                 timestamp: Date.now(),
+                category: classifyLogEntry({ text, level, hint: source }),
               });
             } else if (method === "Runtime.exceptionThrown") {
               const details = p.exceptionDetails;
+              const text = redactSensitiveText(
+                String(details?.exception?.description ?? details?.text ?? ""),
+              );
               collected.push({
                 type: "exception",
-                text: redactSensitiveText(
-                  String(
-                    details?.exception?.description ?? details?.text ?? "",
-                  ),
-                ),
+                text,
                 stackTrace: details?.stackTrace
                   ? JSON.stringify(details.stackTrace)
                   : undefined,
                 timestamp: Date.now(),
+                category: classifyLogEntry({ text, hint: "exception" }),
               });
             }
           });
@@ -310,6 +323,9 @@ export const getRuntimeDiagnosticsTool = tool({
         url: tab.url,
         windowMs: clampWindow(windowMs),
         count: events.length,
+        categoryCounts: summarizeLogCategories(
+          events.map((event) => event.category),
+        ),
         events,
       };
     } catch (error) {

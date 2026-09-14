@@ -33,7 +33,10 @@ vi.mock("../automation/debugger-manager.js", () => ({
   },
 };
 
-import { getNetworkDiagnosticsTool } from "./devtools";
+import {
+  getNetworkDiagnosticsTool,
+  getRuntimeDiagnosticsTool,
+} from "./devtools";
 
 const TAB_ID = 7;
 
@@ -125,5 +128,55 @@ describe("getNetworkDiagnosticsTool — evidence recording", () => {
     const evidence = getEvidence("conv-network-failed");
     expect(evidence).toHaveLength(1);
     expect(evidence[0]?.type).toBe("network-failed");
+  });
+});
+
+describe("getRuntimeDiagnosticsTool — classification", () => {
+  it("classifies captured log entries and exceptions into categories", async () => {
+    mockSendCommand.mockImplementation(async (command: string) => {
+      if (command === "Log.enable") {
+        fireDebuggerEvent("Log.entryAdded", {
+          entry: {
+            level: "error",
+            source: "security",
+            text: "Refused to load the script because it violates the following Content Security Policy directive",
+          },
+        });
+        fireDebuggerEvent("Log.entryAdded", {
+          entry: { level: "warning", source: "other", text: "just fyi" },
+        });
+      } else if (command === "Runtime.enable") {
+        fireDebuggerEvent("Runtime.exceptionThrown", {
+          exceptionDetails: {
+            exception: { description: "TypeError: boom" },
+          },
+        });
+      }
+      return undefined;
+    });
+
+    const runContext = {
+      context: { conversationId: "conv-runtime-classify", tabId: TAB_ID },
+    };
+    const result = (await getRuntimeDiagnosticsTool.invoke(
+      runContext as any,
+      JSON.stringify({ windowMs: 500 }),
+    )) as any;
+
+    expect(result.events.map((e: any) => e.category)).toEqual([
+      "csp-violation",
+      "console-warning",
+      "js-exception",
+    ]);
+    expect(result.categoryCounts).toEqual({
+      "csp-violation": 1,
+      "console-warning": 1,
+      "js-exception": 1,
+    });
+
+    // Existing significance rule is unchanged by classification: every
+    // warning/error-level log entry and every exception is still recorded.
+    const evidence = getEvidence("conv-runtime-classify");
+    expect(evidence).toHaveLength(3);
   });
 });

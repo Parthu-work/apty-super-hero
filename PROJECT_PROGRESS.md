@@ -48,7 +48,7 @@ components). Audited against that prompt's own P0/P1/P2 ordering:
 | P0.4 | Structured hypotheses (not strings) | `Hypothesis { id, statement, status, confidence, supportingEvidenceIds, contradictingEvidenceIds, createdAt, updatedAt }`; `update_investigation`'s `updateHypothesis` moves one through open→testing→supported/rejected/confirmed/inconclusive | Yes | — | Implemented this session |
 | P0.5 | Real verification loop; never let an unverified hypothesis become a confirmed RCA | `record_verification_attempt` can link to a `hypothesisId` (auto-updates its status); `update_investigation` **enforces** (not just instructs) that `confidence: "confirmed"` is downgraded to `"likely"` server-side unless a confirmed verification attempt already exists — testable, not prompt-only | Yes | — | Implemented this session |
 | P1.6 | Investigation-aware network capture (start/reproduce/stop session, not fixed window) | Still the pre-existing fixed 500ms–15s `get_network_diagnostics` window | No | P1 | Not done — same gap as the original gap matrix's "Network diagnostics" row |
-| P1.7 | Console/runtime classification (Apty error / CSP / CORS / JS exception / etc.) | Raw entries returned as-is | No | P1 | Not done — same gap as the original gap matrix |
+| P1.7 | Console/runtime classification (Apty error / CSP / CORS / JS exception / etc.) | `log-classification.ts`'s `classifyLogEntry()` buckets every `get_apty_page_logs`/`get_runtime_diagnostics` entry into `csp-violation`/`cors-error`/`unhandled-rejection`/`js-exception`/`network-resource-error`/`deprecation-warning`/`apty-error`/`console-error`/`console-warning`/`info`; both tools return a `categoryCounts` tally | Yes | — | Implemented this session (code + unit/integration tests; not yet manually verified in a running browser — see "What's safe to continue" below) |
 | P1.8 | Cross-layer correlation (Studio config ↔ production DOM ↔ Client/Widget resolution) | `evidence-correlation.ts` correlates by time/request-id across sources, but has no Studio-config-vs-production-DOM comparison logic specifically; the *plan* now includes a `studio-vs-production` "compare" step, but no dedicated comparison tool exists | Partial | P1 | Not done — would need a new deterministic comparison tool, not attempted this session |
 | P1.9 | Selector debugging — engineering-grade explanations | Already answers match-count/uniqueness/stability/dynamic-risk/iframe/Shadow-DOM/recommendation with a "why" (`selector-analysis.ts`, unchanged this session) | Yes | — | Done in a prior session |
 | P1.10 | Real Apty Client/Widget/Player integration contract | Unchanged: proposed `window.__APTY_WIDGET__`/`__APTY_CLIENT__` globals, honest `not_configured` until Apty implements them | Blocked | P1 | Blocked on Apty engineering, not actionable from this repo |
@@ -572,6 +572,55 @@ behavior all still work and that `chrome.scripting.executeScript` is never
 called as part of the attach/detach lifecycle. See `SECURITY_AUDIT.md`
 finding #8.
 
+## Console/Runtime Event Classification (this session)
+
+The previous session's own gap matrix flagged P1.7 ("Console/runtime
+classification") as not done: `get_apty_page_logs` and
+`get_runtime_diagnostics` returned raw entries, leaving it to the model to
+re-derive "is this a CSP violation, a CORS failure, or an Apty-widget
+error" from free text on every investigation. Implemented
+`packages/browser-runtime/src/apty/log-classification.ts`:
+`classifyLogEntry({ text, level, hint })` returns one of
+`csp-violation`/`cors-error`/`unhandled-rejection`/`js-exception`/
+`network-resource-error`/`deprecation-warning`/`apty-error`/
+`console-error`/`console-warning`/`info`, checking more specific patterns
+before falling back to a level-based default (so a `TypeError` that
+happens to mention "Apty" still classifies as `js-exception`, not
+`apty-error` — precedence matters and is tested explicitly). Both
+`get_apty_page_logs` (`tools/apty.ts`) and `get_runtime_diagnostics`
+(`tools/devtools.ts`) now attach a `category` to every returned
+entry/event and a `categoryCounts` tally to the response;
+`get_runtime_diagnostics` also now captures CDP `Log.entryAdded`'s own
+`entry.source` field (previously discarded) and passes it through as the
+classifier's structured `hint`, which resolves a few otherwise-ambiguous
+cases (e.g. a CDP-reported `source: "security"` entry with wording that
+doesn't literally contain "Content Security Policy"). This is text/
+metadata pattern-matching only — it runs on already-redacted text
+(`redactSensitiveText`/`redactLogs` already ran), reads no new data,
+calls no new API, and requests no new permission; see `SECURITY_AUDIT.md`
+finding #10.
+
+**Why this stayed a fixed, hand-authored regex taxonomy and not a second
+LLM call or an ML classifier**: the categories are aimed at a small,
+well-understood set of browser/JS failure modes (CSP, CORS, JS exceptions,
+network-resource failures, deprecations) that have stable, recognizable
+text signatures — the same signatures a human engineer would grep for.
+A second model call would add latency and cost to every diagnostic tool
+call for a problem regex already solves deterministically and testably.
+
+Tested in `log-classification.test.ts` (12 cases: one per category, plus a
+precedence case and an unrecognized-hint fallback case) plus one
+integration test each in `apty.test.ts`/`devtools.test.ts` confirming the
+new fields appear on real tool output through the existing mock harnesses.
+
+**What's still open**: this is text/metadata pattern-matching, not a
+guarantee — an entry that doesn't match any pattern and isn't warn/error
+level falls through to `"info"`, which is a reasonable default but not
+infallible; a genuinely novel failure mode with unfamiliar wording could
+be under-classified until a pattern is added for it. No Apty-side
+capability is required or blocked here — this is a pure client-side
+convenience over data the tools already had access to.
+
 ## Completed
 
 - Evidence model + 4 provider interfaces with honest `not_configured`/
@@ -592,6 +641,8 @@ finding #8.
   verification guard (this session — see the two sections above).
 - Fixed `debugger-manager.ts` deleting extension iframes from the live
   page on every diagnostic attach (this session).
+- Console/runtime event classification for `get_apty_page_logs` and
+  `get_runtime_diagnostics` — see the section above (this session).
 - All 5 packages build, typecheck, and pass their test suites — see
   `## Tests` below for current numbers.
 
@@ -762,6 +813,9 @@ count mismatch" note in the original gap matrix's row 23.
 existing `debuggerManager`/`CdpCommander` attach/detach lifecycle. Bounded
 capture windows (500ms–15s, default 3s); cannot see anything before the
 window opens — this is a hard CDP limitation, not a shortcut taken here.
+`get_runtime_diagnostics` (and `get_apty_page_logs` in `tools/apty.ts`) now
+classify every entry into a `category` and return a `categoryCounts` tally
+— see "Console/Runtime Event Classification (this session)" above.
 
 ## MCP
 
@@ -792,18 +846,16 @@ list to scope to).
 ### Passing
 - `packages/core`: 217 tests
 - `packages/dom-snapshot`: 132 tests
-- `packages/browser-runtime`: 279 tests (250 prior + 8 for
-  `investigation-planner.ts` + 5 for `debugger-manager.ts`'s new
-  regression coverage + updated/expanded coverage in
-  `investigation-session.test.ts` and `tools/investigation.test.ts` for
-  the unified component model, structured hypotheses, and the
-  verification guard — this session)
+- `packages/browser-runtime`: 297 tests (279 prior + 12 for the new
+  `log-classification.test.ts` + 1 integration test each in
+  `apty.test.ts`/`devtools.test.ts` for the new `category`/
+  `categoryCounts` fields — this session)
 - `packages/aipex-react`: 114 tests (10 pre-existing skips, unrelated to this work)
 - `packages/browser-ext`: 57 tests (54 prior + updated/expanded coverage
   in `component-health.test.ts`/`component-health-panel.test.tsx`/
   `diagnosis-card.test.tsx` for the grouped component model and
-  structured hypotheses — this session)
-- **Total: 799 passing**, all packages build, typecheck, format/lint
+  structured hypotheses — prior session)
+- **Total: 817 passing**, all packages build, typecheck, format/lint
   (`npm run preflight`), and build clean end-to-end this session.
 
 ### Failing
@@ -812,8 +864,9 @@ None known.
 ### Not Implemented
 No tests exist yet for `widget-diagnostics.ts`, `client-diagnostics.ts`, or
 `studio-diagnostics.ts` (`service-worker-diagnostics.ts` has 16,
-`devtools.ts` now has 2 covering its new evidence-recording behavior
-specifically, not its full CDP mechanics). The remaining untested provider
+`devtools.ts` now has 3 — 2 covering `get_network_diagnostics`'s
+evidence-recording behavior plus 1 covering `get_runtime_diagnostics`'s
+new classification fields — not its full CDP mechanics). The remaining untested provider
 files are thinner wrappers around `chrome.scripting.executeScript`
 specifically (vs. `service-worker-diagnostics.ts`'s
 `chrome.runtime.sendMessage`/`fetch`, which mock cleanly) — extending the
@@ -1073,9 +1126,11 @@ commit.
   external to the model's own tool-selection loop (`packages/core`'s
   agent loop, unchanged) plans/executes/observes/decides on its own. See
   `DECISIONS.md` for why this wasn't attempted this session.
-- **Network capture and console/runtime classification are unchanged** —
-  still a fixed capture window and raw (unclassified) log entries
-  respectively. See the new gap matrix's P1.6/P1.7 rows.
+- **Network capture is still unchanged** — a fixed capture window, not an
+  investigation-scoped start/reproduce/stop session. See the new gap
+  matrix's P1.6 row. **Console/runtime classification (P1.7) is done** —
+  see `log-classification.ts` and the "Console/runtime event
+  classification" writeup in `ARCHITECTURE.md`'s DevTools/CDP section.
 - **`mcp-bridge/src/tool-schemas.ts` still lacks all 8 `investigation.ts`
   tools and `analyze_element_selectors`** — a pre-existing gap (not
   introduced this session), unaddressed; see `## Browser Tools`.
@@ -1130,10 +1185,11 @@ this file for the fuller P0/P1/P2 picture):**
    ~~selector diagnostics~~, ~~investigation session lifecycle~~, ~~UI
    redesign~~, ~~unified two-extension component model~~, ~~investigation
    planner~~, ~~structured hypotheses~~, ~~server-enforced verification
-   guard~~, ~~debugger-manager destructive-behavior fix~~ (all done — see
-   the relevant "(this session)"-tagged sections above for whichever
-   session did each). Follow-ups if picked up next: precise first-turn tab
-   binding; per-conversation `InterventionManager` mode once/if concurrent
+   guard~~, ~~debugger-manager destructive-behavior fix~~, ~~console/
+   runtime event classification~~ (all done — see the relevant "(this
+   session)"-tagged sections above for whichever session did each).
+   Follow-ups if picked up next: precise first-turn tab binding;
+   per-conversation `InterventionManager` mode once/if concurrent
    conversations within one window's UI become a thing.
 2. **Manually verify the UI in a running browser** — load the built
    extension (`packages/browser-ext/dist`), open the side panel, and walk
@@ -1148,18 +1204,16 @@ this file for the fuller P0/P1/P2 picture):**
 3. **Investigation-aware network capture session UX** (P1.6 in the new gap
    matrix) — replace the fixed capture window with a start/reproduce/stop
    flow scoped to the investigation.
-4. **Console/runtime classification** (P1.7) — bucket raw log/exception
-   entries into apty-error/CSP/CORS/JS-exception/etc. categories.
-5. **A Studio-vs-production comparison tool** (P1.8) — the planner's
+4. **A Studio-vs-production comparison tool** (P1.8) — the planner's
    `studio-vs-production` category already has a "compare" step; no tool
    backs it yet beyond calling the existing individual diagnostics
    separately and reasoning about them unassisted.
-6. **An external investigation orchestration loop** (P0.3) — this is the
+5. **An external investigation orchestration loop** (P0.3) — this is the
    one item from the master prompt's own P0 list this session did NOT
    attempt; see `DECISIONS.md` for why it needs its own session. Read that
    entry before starting this — it explains what "orchestration" can
    safely mean here without restructuring `packages/core`'s agent loop.
-7. Writing tests for `widget-diagnostics.ts`/`client-diagnostics.ts`/
+6. Writing tests for `widget-diagnostics.ts`/`client-diagnostics.ts`/
    `studio-diagnostics.ts` using the same `global.chrome` mock pattern
    proven out in `service-worker-diagnostics.test.ts` and
    `devtools.test.ts`; a full CDP-mechanics test suite for `devtools.ts`
@@ -1168,12 +1222,12 @@ this file for the fuller P0/P1/P2 picture):**
    around them isn't). RTL/integration tests for
    `investigation-context-bar.tsx`/`investigation-summary-bar.tsx` would
    need a `useChatContext`+`chrome.tabs` test harness no session has built.
-8. SE/SDE investigation depth modes (P2.12) and the scenario/evaluation
+7. SE/SDE investigation depth modes (P2.12) and the scenario/evaluation
    suite (P2.17) — both meaningful but lower-priority than the P1 items
    above per the master prompt's own ordering.
-9. An Options UI panel for `AptyIntegrationConfig`.
-10. A dedicated "start investigation" form/component-picker — only if real
-    usage shows natural-language intent detection isn't reliable enough on
-    its own.
-11. Continuing to remove/rename remaining internal "AIPex" identifiers, if
+8. An Options UI panel for `AptyIntegrationConfig`.
+9. A dedicated "start investigation" form/component-picker — only if real
+   usage shows natural-language intent detection isn't reliable enough on
+   its own.
+10. Continuing to remove/rename remaining internal "AIPex" identifiers, if
     a future session judges the churn worth it.

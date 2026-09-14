@@ -250,6 +250,28 @@ diagnostic isolation) is now Fixed above.
 - **Conclusion**: no new sensitive-data exposure or injection surface.
 - **Status**: Reviewed, no finding.
 
+### 10. Console/runtime event classification (this session)
+
+- **Affected component**: `packages/browser-runtime/src/apty/log-classification.ts`,
+  `tools/apty.ts` (`get_apty_page_logs`), `tools/devtools.ts`
+  (`get_runtime_diagnostics`)
+- **Review**: `classifyLogEntry()` is pure regex pattern-matching over a
+  `text`/`level`/`hint` triple already produced by the existing
+  redaction/capture path — it reads no new data, calls no new browser API,
+  and requests no new permission. In both call sites it runs *after*
+  `redactSensitiveText()`/`redactLogs()` has already run on the entry, so a
+  secret that redaction would have caught is never re-exposed by a
+  classification label (the classifier only ever adds a `category` field
+  alongside the already-redacted text, never echoes raw input back). The
+  CDP `entry.source` hint added to `get_runtime_diagnostics`'s captured
+  events is a small enum string (`"javascript"`, `"security"`,
+  `"network"`, etc., as defined by the CDP `Log.entryAdded` spec) with no
+  free-form content of its own. `summarizeLogCategories()` only counts
+  already-classified labels.
+- **Conclusion**: no new sensitive-data exposure, no new permissions, no
+  redaction-ordering risk.
+- **Status**: Reviewed, no finding.
+
 ## Reviewed — accepted as inherent to the product category
 
 ### 5. `debugger` permission and `<all_urls>` host permissions
