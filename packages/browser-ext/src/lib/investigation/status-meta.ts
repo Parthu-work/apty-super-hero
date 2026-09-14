@@ -58,3 +58,41 @@ const COMPONENT_HEALTH_META: Record<
 export function describeComponentHealth(state: ComponentHealthState) {
   return COMPONENT_HEALTH_META[state];
 }
+
+/** Friendly labels for `AptyComponentKind` (investigation-session.ts) — the unified two-component model, never a 4-way Client/Widget/Studio/Service-Worker split. */
+const APTY_COMPONENT_LABELS: Record<
+  "apty-client-widget-player" | "apty-studio",
+  string
+> = {
+  "apty-client-widget-player": "Apty Client / Widget / Player",
+  "apty-studio": "Apty Studio",
+};
+
+export function describeAptyComponent(kind: string): string {
+  return (
+    APTY_COMPONENT_LABELS[
+      kind as "apty-client-widget-player" | "apty-studio"
+    ] ?? kind
+  );
+}
+
+const HYPOTHESIS_STATUS_META: Record<
+  "open" | "testing" | "supported" | "rejected" | "confirmed" | "inconclusive",
+  { label: string; tone: StatusMeta["tone"] }
+> = {
+  open: { label: "Open", tone: "neutral" },
+  testing: { label: "Testing", tone: "active" },
+  supported: { label: "Supported", tone: "success" },
+  rejected: { label: "Rejected", tone: "danger" },
+  confirmed: { label: "Confirmed", tone: "success" },
+  inconclusive: { label: "Inconclusive", tone: "neutral" },
+};
+
+export function describeHypothesisStatus(status: string) {
+  return (
+    HYPOTHESIS_STATUS_META[status as keyof typeof HYPOTHESIS_STATUS_META] ?? {
+      label: status,
+      tone: "neutral" as const,
+    }
+  );
+}

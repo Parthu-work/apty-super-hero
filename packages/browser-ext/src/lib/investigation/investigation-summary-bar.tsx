@@ -26,6 +26,7 @@ import { useState } from "react";
 import { ComponentHealthPanel } from "./component-health-panel";
 import { DiagnosisCard } from "./diagnosis-card";
 import { EvidenceTimeline } from "./evidence-timeline";
+import { PlanChecklist } from "./plan-checklist";
 import { describeInvestigationStatus } from "./status-meta";
 import { toneDotClass, toneTextClass } from "./tone-classes";
 import { useInvestigationData } from "./use-investigation-data";
@@ -88,11 +89,15 @@ export function InvestigationSummaryBar() {
           </p>
         )}
         <Tabs defaultValue="timeline">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="plan">Plan</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="components">Components</TabsTrigger>
             <TabsTrigger value="diagnosis">Diagnosis</TabsTrigger>
           </TabsList>
+          <TabsContent value="plan" className="max-h-64 overflow-y-auto">
+            <PlanChecklist plan={investigation?.plan} />
+          </TabsContent>
           <TabsContent value="timeline" className="max-h-64 overflow-y-auto">
             <EvidenceTimeline clusters={clusters} />
           </TabsContent>

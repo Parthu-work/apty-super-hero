@@ -18,36 +18,39 @@ function statusEvidence(
   };
 }
 
-describe("deriveComponentHealth", () => {
-  it("reports not_checked for every component when no evidence exists", () => {
+describe("deriveComponentHealth — unified Apty Client/Widget/Player + Studio grouping", () => {
+  it("returns exactly two groups, never four separate rows", () => {
     const health = deriveComponentHealth([]);
 
-    expect(health).toHaveLength(4);
-    for (const component of health) {
-      expect(component.state).toBe("not_checked");
-    }
+    expect(health).toHaveLength(2);
     expect(health.map((c) => c.kind)).toEqual([
+      "apty-client-widget-player",
+      "apty-studio",
+    ]);
+    expect(health[0]?.label).toBe("Apty Client / Widget / Player");
+    expect(health[1]?.label).toBe("Apty Studio");
+  });
+
+  it("reports not_checked for both groups when no evidence exists", () => {
+    const health = deriveComponentHealth([]);
+
+    for (const group of health) {
+      expect(group.state).toBe("not_checked");
+    }
+  });
+
+  it("nests Client/Widget/Service-Worker as sub-components under the runtime group", () => {
+    const health = deriveComponentHealth([]);
+    const runtime = health.find((c) => c.kind === "apty-client-widget-player")!;
+
+    expect(runtime.subComponents.map((s) => s.key)).toEqual([
       "apty-client",
       "apty-widget",
-      "apty-studio",
       "service-worker",
     ]);
   });
 
-  it("reports not_configured for a widget that hasn't implemented the bridge", () => {
-    const health = deriveComponentHealth([
-      statusEvidence({
-        source: "apty-widget",
-        type: "widget-status",
-        data: { status: "not_configured" },
-      }),
-    ]);
-
-    const widget = health.find((c) => c.kind === "apty-widget")!;
-    expect(widget.state).toBe("not_configured");
-  });
-
-  it("reports healthy for an initialized widget with no error", () => {
+  it("aggregates the runtime group as healthy when a sub-component is confirmed healthy and others are unchecked", () => {
     const health = deriveComponentHealth([
       statusEvidence({
         source: "apty-widget",
@@ -56,41 +59,23 @@ describe("deriveComponentHealth", () => {
       }),
     ]);
 
-    expect(health.find((c) => c.kind === "apty-widget")?.state).toBe("healthy");
+    const runtime = health.find((c) => c.kind === "apty-client-widget-player")!;
+    expect(runtime.state).toBe("healthy");
+    expect(
+      runtime.subComponents.find((s) => s.key === "apty-widget")?.state,
+    ).toBe("healthy");
+    expect(
+      runtime.subComponents.find((s) => s.key === "apty-client")?.state,
+    ).toBe("not_checked");
   });
 
-  it("reports warning for a widget that is ok but not yet initialized", () => {
+  it("aggregates the runtime group as error when any sub-component errors, even if another is healthy", () => {
     const health = deriveComponentHealth([
       statusEvidence({
         source: "apty-widget",
         type: "widget-status",
-        data: { status: "ok", loaded: true, initialized: false },
+        data: { status: "ok", loaded: true, initialized: true },
       }),
-    ]);
-
-    expect(health.find((c) => c.kind === "apty-widget")?.state).toBe("warning");
-  });
-
-  it("reports warning for a widget with a lastError even if initialized", () => {
-    const health = deriveComponentHealth([
-      statusEvidence({
-        source: "apty-widget",
-        type: "widget-status",
-        data: {
-          status: "ok",
-          initialized: true,
-          lastError: "Failed to render tooltip",
-        },
-      }),
-    ]);
-
-    const widget = health.find((c) => c.kind === "apty-widget")!;
-    expect(widget.state).toBe("warning");
-    expect(widget.detail).toBe("Failed to render tooltip");
-  });
-
-  it("reports error when a provider reports status: error", () => {
-    const health = deriveComponentHealth([
       statusEvidence({
         source: "service-worker",
         type: "service-worker-status",
@@ -98,26 +83,57 @@ describe("deriveComponentHealth", () => {
       }),
     ]);
 
-    const sw = health.find((c) => c.kind === "service-worker")!;
-    expect(sw.state).toBe("error");
-    expect(sw.detail).toBe("Malformed response");
+    const runtime = health.find((c) => c.kind === "apty-client-widget-player")!;
+    expect(runtime.state).toBe("error");
+    expect(runtime.detail).toContain("Malformed response");
   });
 
-  it("reports not_detected when configured but unavailable", () => {
+  it("aggregates the runtime group as warning when a sub-component is ok but not initialized", () => {
     const health = deriveComponentHealth([
       statusEvidence({
-        source: "apty-studio",
-        type: "studio-status",
-        data: { status: "unavailable" },
+        source: "apty-client",
+        type: "client-status",
+        data: { status: "ok", initialized: false },
       }),
     ]);
 
-    expect(health.find((c) => c.kind === "apty-studio")?.state).toBe(
-      "not_detected",
-    );
+    const runtime = health.find((c) => c.kind === "apty-client-widget-player")!;
+    expect(runtime.state).toBe("warning");
   });
 
-  it("uses only the most recent status per component", () => {
+  it("keeps Studio as its own group, unaffected by runtime health", () => {
+    const health = deriveComponentHealth([
+      statusEvidence({
+        source: "apty-widget",
+        type: "widget-status",
+        data: { status: "error", error: "Something broke" },
+      }),
+      statusEvidence({
+        source: "apty-studio",
+        type: "studio-status",
+        data: { status: "ok", active: true },
+      }),
+    ]);
+
+    const studio = health.find((c) => c.kind === "apty-studio")!;
+    expect(studio.state).toBe("healthy");
+    expect(studio.subComponents).toHaveLength(1);
+  });
+
+  it("reports not_configured for the runtime group when the only checked sub-component is not configured", () => {
+    const health = deriveComponentHealth([
+      statusEvidence({
+        source: "apty-widget",
+        type: "widget-status",
+        data: { status: "not_configured" },
+      }),
+    ]);
+
+    const runtime = health.find((c) => c.kind === "apty-client-widget-player")!;
+    expect(runtime.state).toBe("not_configured");
+  });
+
+  it("uses only the most recent status per sub-component", () => {
     const health = deriveComponentHealth([
       statusEvidence({
         source: "apty-client",
@@ -133,7 +149,9 @@ describe("deriveComponentHealth", () => {
       }),
     ]);
 
-    const client = health.find((c) => c.kind === "apty-client")!;
+    const client = health
+      .find((c) => c.kind === "apty-client-widget-player")!
+      .subComponents.find((s) => s.key === "apty-client")!;
     expect(client.state).toBe("healthy");
     expect(client.detail).toContain("2.1.0");
     expect(client.lastCheckedAt).toBe(500);

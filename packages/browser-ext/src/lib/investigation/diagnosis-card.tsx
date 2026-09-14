@@ -6,11 +6,14 @@
  */
 import { Badge } from "@aipexstudio/aipex-react/components/ui/badge";
 import { Button } from "@aipexstudio/aipex-react/components/ui/button";
+import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import type {
   DiagnosisConfidence,
   InvestigationSession,
 } from "@aipexstudio/browser-runtime";
 import { ShieldCheckIcon } from "lucide-react";
+import { describeAptyComponent, describeHypothesisStatus } from "./status-meta";
+import { toneTextClass } from "./tone-classes";
 
 const CONFIDENCE_META: Record<
   DiagnosisConfidence,
@@ -61,7 +64,9 @@ export function DiagnosisCard({
         <Badge className={meta.className}>{meta.label}</Badge>
         {investigation.suspectedComponents.length > 0 && (
           <span className="text-xs text-muted-foreground">
-            {investigation.suspectedComponents.join(", ")}
+            {investigation.suspectedComponents
+              .map((c) => describeAptyComponent(c))
+              .join(", ")}
           </span>
         )}
       </div>
@@ -73,10 +78,26 @@ export function DiagnosisCard({
           <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Hypotheses considered
           </h4>
-          <ul className="list-inside list-disc space-y-0.5 text-sm text-muted-foreground">
-            {investigation.hypotheses.map((hypothesis) => (
-              <li key={hypothesis}>{hypothesis}</li>
-            ))}
+          <ul className="space-y-1">
+            {investigation.hypotheses.map((hypothesis) => {
+              const statusMeta = describeHypothesisStatus(hypothesis.status);
+              return (
+                <li
+                  key={hypothesis.id}
+                  className="flex items-start justify-between gap-2 text-sm text-muted-foreground"
+                >
+                  <span>{hypothesis.statement}</span>
+                  <span
+                    className={cn(
+                      "shrink-0 text-xs font-medium",
+                      toneTextClass(statusMeta.tone),
+                    )}
+                  >
+                    {statusMeta.label}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

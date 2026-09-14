@@ -80,4 +80,62 @@ describe("DiagnosisCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /verify diagnosis/i }));
     expect(onVerify).toHaveBeenCalledOnce();
   });
+
+  it("renders structured hypotheses with their statement and status", () => {
+    render(
+      <DiagnosisCard
+        investigation={baseInvestigation({
+          diagnosis: "Widget init request returned HTTP 500",
+          confidence: "likely",
+          hypotheses: [
+            {
+              id: "h1",
+              statement: "Selector is invalid",
+              status: "rejected",
+              confidence: "unknown",
+              supportingEvidenceIds: [],
+              contradictingEvidenceIds: ["ev-1"],
+              createdAt: 0,
+              updatedAt: 0,
+            },
+            {
+              id: "h2",
+              statement: "Widget init request returned HTTP 500",
+              status: "confirmed",
+              confidence: "confirmed",
+              supportingEvidenceIds: ["ev-2"],
+              contradictingEvidenceIds: [],
+              createdAt: 0,
+              updatedAt: 0,
+            },
+          ],
+        })}
+        onVerify={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Selector is invalid")).toBeInTheDocument();
+    expect(screen.getByText("Rejected")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument();
+  });
+
+  it("shows the unified Apty component label, not raw internal kinds", () => {
+    render(
+      <DiagnosisCard
+        investigation={baseInvestigation({
+          diagnosis: "Widget init request returned HTTP 500",
+          confidence: "likely",
+          suspectedComponents: ["apty-client-widget-player"],
+        })}
+        onVerify={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Apty Client / Widget / Player"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("apty-client-widget-player"),
+    ).not.toBeInTheDocument();
+  });
 });

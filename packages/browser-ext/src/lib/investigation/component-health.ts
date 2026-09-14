@@ -1,7 +1,14 @@
 /**
- * Derives Apty component health (Client/Widget/Studio/Service Worker) from
- * real diagnostic evidence already collected for a conversation — never
- * fabricated or polled independently.
+ * Derives Apty component health from real diagnostic evidence already
+ * collected for a conversation — never fabricated or polled independently.
+ *
+ * Apty ships two Chrome extensions: Studio (authoring), and one runtime
+ * extension that goes by several names (Client/Widget/Player) but is
+ * architecturally one component. This module reports exactly two grouped
+ * rows — "Apty Client / Widget / Player" and "Apty Studio" — never four
+ * separate "Client"/"Widget"/"Studio"/"Service Worker" rows, while still
+ * keeping the underlying per-probe detail (which global/channel actually
+ * reported what) available via `subComponents` for drill-down.
  *
  * Every `get_apty_*_diagnostics` tool records a `*-status` evidence entry
  * on every call, success or failure (see `packages/browser-runtime/src/tools/apty.ts`),
@@ -12,11 +19,11 @@
  */
 import type {
   AptyClientStatus,
-  AptyComponentKind,
   AptyServiceWorkerStatus,
   AptyStudioStatus,
   AptyWidgetStatus,
   DiagnosticEvidence,
+  EvidenceSource,
 } from "@aipexstudio/browser-runtime";
 
 export type ComponentHealthState =
@@ -27,45 +34,48 @@ export type ComponentHealthState =
   | "not_detected"
   | "not_checked";
 
-export interface ComponentHealth {
-  kind: AptyComponentKind;
+export interface SubComponentHealth {
+  key: "apty-client" | "apty-widget" | "service-worker" | "apty-studio";
   label: string;
   state: ComponentHealthState;
-  /** Short human-readable explanation, e.g. "Initialized" or "Not yet initialized". */
   detail: string;
-  /** When this component's status was last checked in this conversation, if ever. */
   lastCheckedAt?: number;
 }
 
-const COMPONENT_ORDER: readonly AptyComponentKind[] = [
-  "apty-client",
-  "apty-widget",
-  "apty-studio",
-  "service-worker",
-];
+/** One of the two Apty product components an investigation/UI can present — see the module doc comment. */
+export type ComponentGroupKind = "apty-client-widget-player" | "apty-studio";
 
-const COMPONENT_LABELS: Record<AptyComponentKind, string> = {
+export interface ComponentHealth {
+  kind: ComponentGroupKind;
+  label: string;
+  /** Aggregated across the group's sub-components — the worst signal wins (error > warning > healthy > not_detected > not_configured > not_checked). */
+  state: ComponentHealthState;
+  detail: string;
+  subComponents: SubComponentHealth[];
+}
+
+const SUB_COMPONENT_LABELS: Record<SubComponentHealth["key"], string> = {
   "apty-client": "Client",
   "apty-widget": "Widget",
-  "apty-studio": "Studio",
   "service-worker": "Service Worker",
+  "apty-studio": "Studio",
 };
 
-const STATUS_EVIDENCE_TYPE: Record<AptyComponentKind, string> = {
+const STATUS_EVIDENCE_TYPE: Record<SubComponentHealth["key"], string> = {
   "apty-client": "client-status",
   "apty-widget": "widget-status",
-  "apty-studio": "studio-status",
   "service-worker": "service-worker-status",
+  "apty-studio": "studio-status",
 };
 
 function latestStatusEvidence(
   evidence: DiagnosticEvidence[],
-  kind: AptyComponentKind,
+  source: EvidenceSource,
+  type: string,
 ): DiagnosticEvidence | undefined {
-  const type = STATUS_EVIDENCE_TYPE[kind];
   let latest: DiagnosticEvidence | undefined;
   for (const item of evidence) {
-    if (item.source !== kind || item.type !== type) continue;
+    if (item.source !== source || item.type !== type) continue;
     if (!latest || item.timestamp > latest.timestamp) {
       latest = item;
     }
@@ -164,51 +174,115 @@ function healthFromServiceWorkerStatus(status: AptyServiceWorkerStatus): {
   return { state: "healthy", detail: "Connected" };
 }
 
+function deriveSubComponent(
+  evidence: DiagnosticEvidence[],
+  key: SubComponentHealth["key"],
+  source: EvidenceSource,
+): SubComponentHealth {
+  const found = latestStatusEvidence(
+    evidence,
+    source,
+    STATUS_EVIDENCE_TYPE[key],
+  );
+  if (!found) {
+    return {
+      key,
+      label: SUB_COMPONENT_LABELS[key],
+      state: "not_checked",
+      detail: "Not checked yet in this conversation",
+    };
+  }
+
+  const data = found.data;
+  let derived: { state: ComponentHealthState; detail: string };
+  switch (key) {
+    case "apty-widget":
+      derived = healthFromWidgetStatus(data as AptyWidgetStatus);
+      break;
+    case "apty-client":
+      derived = healthFromClientStatus(data as AptyClientStatus);
+      break;
+    case "service-worker":
+      derived = healthFromServiceWorkerStatus(data as AptyServiceWorkerStatus);
+      break;
+    case "apty-studio":
+      derived = healthFromStudioStatus(data as AptyStudioStatus);
+      break;
+  }
+
+  return {
+    key,
+    label: SUB_COMPONENT_LABELS[key],
+    state: derived.state,
+    detail: derived.detail,
+    lastCheckedAt: found.timestamp,
+  };
+}
+
+/** Worst-signal-wins ordering for aggregating sub-component states into one group state. */
+const STATE_SEVERITY: Record<ComponentHealthState, number> = {
+  error: 5,
+  warning: 4,
+  healthy: 3,
+  not_detected: 2,
+  not_configured: 1,
+  not_checked: 0,
+};
+
+function aggregate(subComponents: SubComponentHealth[]): {
+  state: ComponentHealthState;
+  detail: string;
+} {
+  const worst = subComponents.reduce((a, b) =>
+    STATE_SEVERITY[b.state] > STATE_SEVERITY[a.state] ? b : a,
+  );
+  if (subComponents.length === 1) {
+    return { state: worst.state, detail: worst.detail };
+  }
+  const detail = subComponents
+    .filter((s) => s.state !== "not_checked")
+    .map((s) => `${s.label}: ${s.detail}`)
+    .join(" · ");
+  return {
+    state: worst.state,
+    detail: detail || "Not checked yet in this conversation",
+  };
+}
+
 /**
- * Derive the current health of all four Apty components from evidence
- * already collected in this conversation. Pure function — same evidence in,
- * same result out, so it's trivially testable and safe to call on every
- * render.
+ * Derive the current health of both Apty component groups from evidence
+ * already collected in this conversation. Pure function — same evidence
+ * in, same result out.
  */
 export function deriveComponentHealth(
   evidence: DiagnosticEvidence[],
 ): ComponentHealth[] {
-  return COMPONENT_ORDER.map((kind) => {
-    const found = latestStatusEvidence(evidence, kind);
-    if (!found) {
-      return {
-        kind,
-        label: COMPONENT_LABELS[kind],
-        state: "not_checked" as const,
-        detail: "Not checked yet in this conversation",
-      };
-    }
+  const runtimeSubs: SubComponentHealth[] = [
+    deriveSubComponent(evidence, "apty-client", "apty-client"),
+    deriveSubComponent(evidence, "apty-widget", "apty-widget"),
+    deriveSubComponent(evidence, "service-worker", "service-worker"),
+  ];
+  const studioSubs: SubComponentHealth[] = [
+    deriveSubComponent(evidence, "apty-studio", "apty-studio"),
+  ];
 
-    const data = found.data;
-    let derived: { state: ComponentHealthState; detail: string };
-    switch (kind) {
-      case "apty-widget":
-        derived = healthFromWidgetStatus(data as AptyWidgetStatus);
-        break;
-      case "apty-client":
-        derived = healthFromClientStatus(data as AptyClientStatus);
-        break;
-      case "apty-studio":
-        derived = healthFromStudioStatus(data as AptyStudioStatus);
-        break;
-      case "service-worker":
-        derived = healthFromServiceWorkerStatus(
-          data as AptyServiceWorkerStatus,
-        );
-        break;
-    }
+  const runtimeAggregate = aggregate(runtimeSubs);
+  const studioAggregate = aggregate(studioSubs);
 
-    return {
-      kind,
-      label: COMPONENT_LABELS[kind],
-      state: derived.state,
-      detail: derived.detail,
-      lastCheckedAt: found.timestamp,
-    };
-  });
+  return [
+    {
+      kind: "apty-client-widget-player",
+      label: "Apty Client / Widget / Player",
+      state: runtimeAggregate.state,
+      detail: runtimeAggregate.detail,
+      subComponents: runtimeSubs,
+    },
+    {
+      kind: "apty-studio",
+      label: "Apty Studio",
+      state: studioAggregate.state,
+      detail: studioAggregate.detail,
+      subComponents: studioSubs,
+    },
+  ];
 }
