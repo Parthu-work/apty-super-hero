@@ -45,6 +45,16 @@ export interface AIPexOptions<
    * model: aisdk(openRouter('openai/gpt-4o'))
    */
   model: AiSdkModel;
+  /**
+   * Identifier of the model passed to `model` (e.g. `settings.aiModel`).
+   *
+   * Used only to isolate provider-specific reasoning metadata: a "reasoning"
+   * item replayed from a previous turn is forwarded to the model only when
+   * it was produced by this same model id — see
+   * `utils/model-input-sanitizer.ts`. Omitting it means reasoning items are
+   * never replayed, which is always safe, just more conservative.
+   */
+  modelId?: string;
   tools?: TTools;
   maxTurns?: number;
 
@@ -119,6 +129,16 @@ export interface ChatOptions {
    * whichever tab happens to be focused when the tool runs.
    */
   runContext?: unknown;
+  /**
+   * Override the tool set exposed to the model for this single turn only —
+   * the agent's own default tools (from `AIPexOptions.tools`) are
+   * unaffected and used again on the next call unless overridden again.
+   * Lets a runtime with a large tool registry keep every tool registered
+   * while only sending the subset relevant to the current request in the
+   * model's tool schema (smaller request, same capabilities). Omit to use
+   * the agent's default tools.
+   */
+  tools?: FunctionTool[];
 }
 
 export interface AgentMetrics {

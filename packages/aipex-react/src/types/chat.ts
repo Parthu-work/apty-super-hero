@@ -1,4 +1,4 @@
-import type { AgentMetrics } from "@aipexstudio/aipex-core";
+import type { AgentMetrics, FunctionTool } from "@aipexstudio/aipex-core";
 import type { ComponentType, HTMLAttributes, ReactNode } from "react";
 import type {
   ChatStatus,
@@ -33,6 +33,19 @@ export interface ChatConfig {
    * the first message creates one).
    */
   getRunContext?: (sessionId: string | null) => unknown | Promise<unknown>;
+  /**
+   * Choose which tools to expose to the model for this specific message,
+   * out of the runtime's full tool registry. Runtimes with a large tool
+   * registry (e.g. `@aipexstudio/browser-runtime`) use this to keep every
+   * tool available while only sending the ones relevant to the current
+   * request in the model's tool schema, instead of always sending the
+   * entire registry. Returning `undefined` (or omitting this callback)
+   * falls back to the agent's default tool set.
+   */
+  selectTools?: (
+    text: string,
+    sessionId: string | null,
+  ) => FunctionTool[] | undefined | Promise<FunctionTool[] | undefined>;
 }
 
 // ============ Component Props Types ============

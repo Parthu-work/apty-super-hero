@@ -72,9 +72,9 @@ type BrowserFunctionTool = FunctionTool<
   unknown
 >;
 
-const browserFunctionTools: BrowserFunctionTool[] = [
-  // Browser/Tab Management (7 tools)
-  // Note: organize_tabs temporarily disabled (stub/not shipped)
+// Browser/Tab Management (7 tools)
+// Note: organize_tabs temporarily disabled (stub/not shipped)
+const tabToolGroup: BrowserFunctionTool[] = [
   getAllTabsTool,
   getCurrentTabTool,
   switchToTabTool,
@@ -82,8 +82,10 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   getTabInfoTool,
   closeTabTool,
   ungroupTabsTool,
+];
 
-  // UI Operations (8 tools) - computer tool replaces visual XY tools
+// UI Operations (8 tools) - computer tool replaces visual XY tools
+const uiToolGroup: BrowserFunctionTool[] = [
   searchElementsTool,
   clickTool,
   fillElementByUidTool,
@@ -92,50 +94,105 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   hoverElementByUidTool,
   uploadFileToInputTool,
   computerTool,
+];
 
-  // Page Content (4 tools)
+// Page Content (4 tools)
+const pageToolGroup: BrowserFunctionTool[] = [
   getPageMetadataTool,
   scrollToElementTool,
   highlightElementTool,
   highlightTextInlineTool,
+];
 
-  // Screenshot (3 tools)
+// Screenshot (3 tools)
+const screenshotToolGroup: BrowserFunctionTool[] = [
   captureScreenshotTool,
   captureScreenshotWithHighlightTool,
   captureTabScreenshotTool,
+];
 
-  // Download (2 tools)
+// Download (2 tools)
+const downloadToolGroup: BrowserFunctionTool[] = [
   downloadImageTool,
   downloadChatImagesTool,
+];
 
-  // Intervention (4 tools)
-  ...interventionTools,
+// Intervention (4 tools)
+const interventionToolGroup: BrowserFunctionTool[] =
+  interventionTools as unknown as BrowserFunctionTool[];
 
-  // Skills (6 tools)
-  ...skillTools,
+// Skills (6 tools)
+const skillToolGroup: BrowserFunctionTool[] =
+  skillTools as unknown as BrowserFunctionTool[];
 
-  // DevTools / CDP diagnostics (2 tools)
-  ...devToolsTools,
+// DevTools / CDP diagnostics (2 tools)
+const devToolsToolGroup: BrowserFunctionTool[] =
+  devToolsTools as unknown as BrowserFunctionTool[];
 
-  // Apty integration (5 tools)
-  ...aptyTools,
+// Apty integration (5 tools)
+const aptyToolGroup: BrowserFunctionTool[] =
+  aptyTools as unknown as BrowserFunctionTool[];
 
-  // Investigation lifecycle, timeline/evidence correlation, and the
-  // autonomous orchestrator's next-action recommendation (9 tools)
-  ...investigationTools,
+// Investigation lifecycle, timeline/evidence correlation, and the
+// autonomous orchestrator's next-action recommendation (9 tools)
+const investigationToolGroup: BrowserFunctionTool[] =
+  investigationTools as unknown as BrowserFunctionTool[];
 
-  // Selector diagnostics (1 tool)
-  ...selectorTools,
+// Selector diagnostics (1 tool)
+const selectorToolGroup: BrowserFunctionTool[] =
+  selectorTools as unknown as BrowserFunctionTool[];
 
-  // Investigation-aware network capture (3 tools)
-  ...networkCaptureTools,
+// Investigation-aware network capture (3 tools)
+const networkCaptureToolGroup: BrowserFunctionTool[] =
+  networkCaptureTools as unknown as BrowserFunctionTool[];
 
-  // Apty Client extension Service Worker network inspection (5 tools)
-  ...extensionNetworkTools,
+// Apty Client extension Service Worker network inspection (5 tools)
+const extensionNetworkToolGroup: BrowserFunctionTool[] =
+  extensionNetworkTools as unknown as BrowserFunctionTool[];
+
+const browserFunctionTools: BrowserFunctionTool[] = [
+  ...tabToolGroup,
+  ...uiToolGroup,
+  ...pageToolGroup,
+  ...screenshotToolGroup,
+  ...downloadToolGroup,
+  ...interventionToolGroup,
+  ...skillToolGroup,
+  ...devToolsToolGroup,
+  ...aptyToolGroup,
+  ...investigationToolGroup,
+  ...selectorToolGroup,
+  ...networkCaptureToolGroup,
+  ...extensionNetworkToolGroup,
 ] as const;
 
 export const allBrowserTools: FunctionTool[] =
   browserFunctionTools as unknown as FunctionTool[];
+
+/**
+ * The same tools as `allBrowserTools`, grouped by category. Used by
+ * `./tool-relevance.js` to expose only the tools relevant to a given
+ * request instead of the entire registry — every tool below still exists
+ * and is fully registered; this is only about what's *offered* to the
+ * model for a specific message.
+ */
+export const browserToolGroups = {
+  tabs: tabToolGroup,
+  ui: uiToolGroup,
+  page: pageToolGroup,
+  screenshot: screenshotToolGroup,
+  download: downloadToolGroup,
+  intervention: interventionToolGroup,
+  skill: skillToolGroup,
+  devtools: devToolsToolGroup,
+  apty: aptyToolGroup,
+  investigation: investigationToolGroup,
+  selector: selectorToolGroup,
+  networkCapture: networkCaptureToolGroup,
+  extensionNetwork: extensionNetworkToolGroup,
+} as const;
+
+export type BrowserToolGroupName = keyof typeof browserToolGroups;
 
 export type { BrowserFunctionTool };
 

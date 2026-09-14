@@ -1,5 +1,6 @@
 import {
   type AgentInputItem,
+  type FunctionTool,
   Agent as OpenAIAgent,
   type RunItemStreamEvent,
   run,
@@ -28,6 +29,7 @@ import type {
 } from "../types.js";
 import { AgentError, ErrorCode } from "../utils/errors.js";
 import { safeJsonParse } from "../utils/json.js";
+import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
 
 export class AIPex {
@@ -37,6 +39,7 @@ export class AIPex {
   private maxTurns: number;
   private plugins: AgentPlugin[];
   private pluginContext: AgentPluginContext;
+  private modelId?: string;
 
   private constructor(
     agent: OpenAIAgent,
@@ -44,6 +47,7 @@ export class AIPex {
     contextManager?: ContextManager,
     maxTurns?: number,
     plugins: AgentPlugin[] = [],
+    modelId?: string,
   ) {
     this.agent = agent;
     this.conversationManager = conversationManager;
@@ -51,6 +55,7 @@ export class AIPex {
     this.maxTurns = maxTurns ?? 2000;
     this.plugins = plugins;
     this.pluginContext = { agent: this };
+    this.modelId = modelId;
     this.initializePlugins();
   }
 
@@ -69,6 +74,7 @@ export class AIPex {
       options.contextManager,
       options.maxTurns,
       options.plugins ?? [],
+      options.modelId,
     );
   }
 
@@ -120,6 +126,7 @@ export class AIPex {
     input: string | AgentInputItem[],
     session: Session | null,
     runContext?: unknown,
+    tools?: FunctionTool[],
   ): AsyncGenerator<AgentEvent> {
     const startTime = Date.now();
     const metrics = this.initMetrics(startTime, session);
@@ -131,6 +138,12 @@ export class AIPex {
     const runSession: Session | EphemeralSession =
       session ?? new EphemeralSession();
 
+    // Per-turn tool override (ChatOptions.tools): clone the agent with a
+    // different tool set for this call only. The agent's own default tools
+    // are untouched — every tool still exists, only what's exposed to the
+    // model for this specific request changes.
+    const runAgent = tools ? this.agent.clone({ tools }) : this.agent;
+
     // Track tool-call argument streaming during a single model response.
     // This is best-effort and provider-dependent (e.g. OpenAI ChatCompletions tool_calls deltas).
     const toolArgsStreamByIndex = new Map<
@@ -139,7 +152,7 @@ export class AIPex {
     >();
 
     try {
-      const result = await run(this.agent, input, {
+      const result = await run(runAgent, input, {
         maxTurns: this.maxTurns,
         session: runSession,
         stream: true,
@@ -150,7 +163,9 @@ export class AIPex {
         // strip base64 imageData from tool results and inject a transient
         // user image message so the model can consume images via the vision path.
         callModelInputFilter: async ({ modelData }) => ({
-          input: shapeScreenshotItems(modelData.input),
+          input: shapeScreenshotItems(
+            sanitizeReasoningItemsForModel(modelData.input, this.modelId),
+          ),
           instructions: modelData.instructions,
         }),
       });
@@ -442,7 +457,12 @@ export class AIPex {
         itemCount: session.getItemCount(),
       };
 
-      yield* this.runExecution(finalInput, session, chatOptions?.runContext);
+      yield* this.runExecution(
+        finalInput,
+        session,
+        chatOptions?.runContext,
+        chatOptions?.tools,
+      );
       return;
     }
 
@@ -454,7 +474,12 @@ export class AIPex {
       yield { type: "session_created", sessionId: session.id };
     }
 
-    yield* this.runExecution(finalInput, session, chatOptions?.runContext);
+    yield* this.runExecution(
+      finalInput,
+      session,
+      chatOptions?.runContext,
+      chatOptions?.tools,
+    );
   }
 
   /**

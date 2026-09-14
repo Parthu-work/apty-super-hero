@@ -16,6 +16,7 @@ import {
   allBrowserProviders,
   allBrowserTools,
   IndexedDBStorage,
+  selectRelevantTools,
 } from "@aipexstudio/browser-runtime";
 import { useStorage } from "@aipexstudio/browser-runtime/hooks";
 import { useCallback, useMemo } from "react";
@@ -108,6 +109,33 @@ export function useBrowserTools(): FunctionTool[] {
 
   return useMemo(
     () => filterToolsByMode(allBrowserTools, automationMode),
+    [automationMode],
+  );
+}
+
+/**
+ * Returns a stable `ChatConfig.selectTools` callback: for each message,
+ * picks the subset of `allBrowserTools` relevant to that message (see
+ * `selectRelevantTools`), then applies the same automation-mode filtering
+ * `useBrowserTools` applies to the full registry. Every tool remains
+ * registered — this only narrows what's sent in the model's tool schema
+ * for a given turn, keeping request size proportional to the task instead
+ * of always including all ~59 tools.
+ */
+export function useSelectRelevantTools() {
+  const [automationModeRaw] = useStorage<string>(
+    STORAGE_KEYS.AUTOMATION_MODE,
+    "focus",
+  );
+
+  const automationMode: AutomationMode = useMemo(
+    () => validateAutomationMode(automationModeRaw),
+    [automationModeRaw],
+  );
+
+  return useCallback(
+    (text: string) =>
+      filterToolsByMode(selectRelevantTools(text), automationMode),
     [automationMode],
   );
 }

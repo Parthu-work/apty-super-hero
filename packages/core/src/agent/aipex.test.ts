@@ -295,6 +295,115 @@ describe("AIPex", () => {
       expect(result.instructions).toBe("Test instructions");
     });
 
+    it("callModelInputFilter should drop reasoning items from a different model before the model call (provider-switch safety)", async () => {
+      vi.mocked(run).mockResolvedValue(
+        createMockRunResult({
+          finalOutput: "Reply",
+          streamEvents: [
+            {
+              type: "raw_model_stream_event",
+              data: { type: "output_text_delta", delta: "Reply" },
+            },
+          ],
+        }),
+      );
+
+      const agent = AIPex.create({
+        instructions: "Test",
+        model: mockModel,
+        modelId: "llama-3.3-70b-versatile",
+      });
+
+      for await (const _event of agent.chat("Hi")) {
+        // consume events
+      }
+
+      const runCallArgs = vi.mocked(run).mock.calls[0]!;
+      const runOptions = runCallArgs[2] as unknown as {
+        callModelInputFilter: (args: {
+          modelData: { input: unknown[]; instructions?: string };
+          agent: unknown;
+          context: unknown;
+        }) => Promise<{ input: unknown[]; instructions?: string }>;
+      };
+
+      const staleReasoningFromAnotherProvider = {
+        type: "reasoning",
+        content: [{ type: "input_text", text: "thinking from a prior turn" }],
+        providerData: { model: "openai.chat:gpt-4o" },
+      };
+      const userMessage = {
+        type: "message",
+        role: "user",
+        content: "get flow.json",
+      };
+
+      const result = await runOptions.callModelInputFilter({
+        modelData: {
+          input: [staleReasoningFromAnotherProvider, userMessage],
+          instructions: "Test instructions",
+        },
+        agent: {},
+        context: undefined,
+      });
+
+      // The stale reasoning item (from a different model/provider) must never
+      // reach the model that is about to be called - it caused
+      // "property reasoning_content is unsupported" on providers that don't
+      // accept replayed reasoning they didn't produce.
+      expect(result.input).toEqual([userMessage]);
+    });
+
+    it("callModelInputFilter should keep a reasoning item produced by the same model", async () => {
+      vi.mocked(run).mockResolvedValue(
+        createMockRunResult({
+          finalOutput: "Reply",
+          streamEvents: [
+            {
+              type: "raw_model_stream_event",
+              data: { type: "output_text_delta", delta: "Reply" },
+            },
+          ],
+        }),
+      );
+
+      const agent = AIPex.create({
+        instructions: "Test",
+        model: mockModel,
+        modelId: "gpt-4o",
+      });
+
+      for await (const _event of agent.chat("Hi")) {
+        // consume events
+      }
+
+      const runCallArgs = vi.mocked(run).mock.calls[0]!;
+      const runOptions = runCallArgs[2] as unknown as {
+        callModelInputFilter: (args: {
+          modelData: { input: unknown[]; instructions?: string };
+          agent: unknown;
+          context: unknown;
+        }) => Promise<{ input: unknown[]; instructions?: string }>;
+      };
+
+      const ownReasoning = {
+        type: "reasoning",
+        content: [{ type: "input_text", text: "thinking" }],
+        providerData: { model: "openai.chat:gpt-4o" },
+      };
+
+      const result = await runOptions.callModelInputFilter({
+        modelData: {
+          input: [ownReasoning],
+          instructions: "Test instructions",
+        },
+        agent: {},
+        context: undefined,
+      });
+
+      expect(result.input).toEqual([ownReasoning]);
+    });
+
     it("should forward ChatOptions.runContext to run() as context, for both new and resumed sessions", async () => {
       vi.mocked(run).mockResolvedValue(createMockRunResult());
 

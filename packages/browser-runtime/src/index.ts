@@ -37,5 +37,6 @@ export * from "./skill/index.js";
 export * from "./storage/index.js";
 // Tools
 export * from "./tools/index.js";
+export { selectRelevantTools } from "./tools/tool-relevance.js";
 // WebSocket MCP Bridge
 export * from "./ws-bridge/index.js";

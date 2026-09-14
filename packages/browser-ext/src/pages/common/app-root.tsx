@@ -24,6 +24,7 @@ import {
   useBrowserModelFactory,
   useBrowserStorage,
   useBrowserTools,
+  useSelectRelevantTools,
 } from "../../lib/browser-agent-config";
 import { BrowserChatHeader } from "../../lib/browser-chat-header";
 import { BrowserChatInputArea } from "../../lib/browser-chat-input-area";
@@ -153,6 +154,7 @@ function ChatApp() {
   const modelFactory = useBrowserModelFactory();
   const contextProviders = useBrowserContextProviders();
   const tools = useBrowserTools();
+  const selectTools = useSelectRelevantTools();
 
   const { agent, error } = useAgent({
     settings,
@@ -240,6 +242,7 @@ function ChatApp() {
           initialInput={pendingInput}
           config={{
             getRunContext: resolveConversationRunContext,
+            selectTools,
           }}
           handlers={{
             onStatusChange: handleStatusChange,

@@ -207,6 +207,41 @@ describe("useChat", () => {
     });
   });
 
+  it("resolves and forwards a per-turn tool subset via config.selectTools", async () => {
+    const { agent } = setupDefaultAgent();
+    const debuggingTool = { name: "get_apty_widget_diagnostics" } as any;
+    const selectTools = vi.fn().mockResolvedValue([debuggingTool]);
+    const { result } = await renderUseChat(agent, {
+      config: { selectTools },
+    });
+
+    await act(async () => {
+      await result.current.sendMessage("why is the Apty widget broken");
+    });
+
+    expect(selectTools).toHaveBeenCalledWith(
+      "why is the Apty widget broken",
+      null,
+    );
+    expect(agent.chat).toHaveBeenCalledWith("why is the Apty widget broken", {
+      sessionId: undefined,
+      contexts: undefined,
+      tools: [debuggingTool],
+    });
+  });
+
+  it("omits tools from ChatOptions when config.selectTools is not provided", async () => {
+    const { agent } = setupDefaultAgent();
+    const { result } = await renderUseChat(agent);
+
+    await act(async () => {
+      await result.current.sendMessage("hi");
+    });
+
+    const callArgs = (agent.chat as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect((callArgs[1] as { tools?: unknown }).tools).toBeUndefined();
+  });
+
   it("bindSession rebinds the active session id without creating or deleting a session", async () => {
     const { agent } = setupDefaultAgent();
     const { result } = await renderUseChat(agent);

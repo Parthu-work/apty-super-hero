@@ -163,6 +163,7 @@ export function useAgent({
         name,
         instructions: instructions ?? "You are a helpful AI assistant.",
         model,
+        modelId: aiModel,
         tools: toolsRef.current.length > 0 ? toolsRef.current : undefined,
         storage: storageRef.current,
         contextManager,

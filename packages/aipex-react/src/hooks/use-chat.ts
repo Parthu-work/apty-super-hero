@@ -230,10 +230,12 @@ export function useChat(
       }));
 
       const runContext = await configRef.current?.getRunContext?.(sessionId);
+      const tools = await configRef.current?.selectTools?.(text, sessionId);
       const events = agent.chat(text, {
         sessionId: sessionId ?? undefined,
         contexts: coreContexts,
         runContext,
+        tools,
       });
       await processAgentEvents(events);
     },
@@ -262,7 +264,8 @@ export function useChat(
 
       // Continue conversation
       const runContext = await configRef.current?.getRunContext?.(sessionId);
-      const events = agent.chat(text, { sessionId, runContext });
+      const tools = await configRef.current?.selectTools?.(text, sessionId);
+      const events = agent.chat(text, { sessionId, runContext, tools });
       await processAgentEvents(events);
     },
     [adapter, agent, sessionId, processAgentEvents, sendMessage],
@@ -318,7 +321,8 @@ export function useChat(
 
       adapter.setStatus("submitted");
       const runContext = await configRef.current?.getRunContext?.(sessionId);
-      const events = agent.chat(text, { sessionId, runContext });
+      const tools = await configRef.current?.selectTools?.(text, sessionId);
+      const events = agent.chat(text, { sessionId, runContext, tools });
       await processAgentEvents(events);
     }
   }, [adapter, agent, sessionId, processAgentEvents]);
