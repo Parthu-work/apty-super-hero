@@ -75,6 +75,36 @@ the authoritative source; the Confluence page is a navigable summary of it.
   window. See `PROJECT_PROGRESS.md` for details.
 - **Status**: Fixed.
 
+### 8. `debugger-manager.ts` deleted extension iframes from the customer's live page on every diagnostic attach
+
+- **Severity**: Medium (was) → Fixed
+- **Affected component**: `packages/browser-runtime/src/automation/debugger-manager.ts`
+- **Risk**: `safeAttachDebugger()` ran a content script before every
+  `chrome.debugger.attach()` call that recursively searched the entire
+  page — including into every Shadow DOM subtree — for any `<iframe
+  src="chrome-extension://...">`, from **any** extension (not scoped to
+  this one's own id), and called `.remove()` on each one found. This ran
+  on every use of `get_network_diagnostics`, `get_runtime_diagnostics`,
+  `analyze_element_selectors`, and any other CDP-based tool. Inherited
+  unchanged from the original AIPex import, with no comment explaining
+  why, no test, and no evidence in this codebase that it was ever actually
+  required (nothing here injects such an iframe). For a product whose
+  entire value proposition is "trust the live page as evidence," silently
+  deleting page elements as a side effect of enabling diagnostics is a
+  direct instance of "diagnostics create the problem being diagnosed" —
+  concretely, if Apty's own Widget/Client/Player ever renders as an
+  overlay iframe, this code could delete it while investigating exactly
+  "why isn't the widget showing," manufacturing the symptom under
+  investigation.
+- **Current mitigation**: Removed entirely — `safeAttachDebugger()` no
+  longer touches the page at all, only the CDP attach/detach lifecycle. 5
+  new regression tests (`debugger-manager.test.ts`) assert
+  `chrome.scripting.executeScript` is never called during attach, detach,
+  reuse-of-an-already-attached-tab, a failed attach, or auto-detach.
+- **Recommended fix**: Done. See `DECISIONS.md` for why this was removed
+  outright rather than replaced with a scoped version.
+- **Status**: Fixed.
+
 ## Open — fixable within this repo, not yet done
 
 None currently — the one entry that was here (1b, multi-session/multi-tab
@@ -196,6 +226,28 @@ diagnostic isolation) is now Fixed above.
 - **Conclusion**: no new sensitive-data exposure. Cross-conversation
   isolation is unaffected — the UI reads state keyed by the same
   `sessionId`/`conversationId` the tools themselves use, never a global.
+- **Status**: Reviewed, no finding.
+
+### 9. Investigation planner, structured hypotheses, and the verification guard (this session)
+
+- **Affected component**: `packages/browser-runtime/src/apty/investigation-planner.ts`,
+  `investigation-session.ts`, `packages/browser-runtime/src/tools/investigation.ts`
+- **Review**: `planInvestigation()` is pure string matching against a
+  hardcoded template registry — it never executes anything, reads no page
+  content, and returns only tool names/descriptions authored in this
+  repo, so it cannot be influenced by untrusted page data. `Hypothesis`
+  fields (`statement`, `supportingEvidenceIds`, `contradictingEvidenceIds`)
+  are set by the model via tool calls and rendered as plain text in the UI
+  (`diagnosis-card.tsx`) — no new HTML/script injection surface beyond
+  what already existed for `diagnosis`/`userProblem` text (React escapes
+  text content by default; no `dangerouslySetInnerHTML` was added).
+  `evidenceId` references inside hypotheses are opaque strings the model
+  copies from `get_investigation_timeline` output — never dereferenced
+  into raw evidence data by this new code, so no redaction bypass is
+  possible through this path. The verification guard downgrades
+  `confidence`, a plain string field — no new privileged operation is
+  gated by it, only what gets displayed as "CONFIRMED" to the user.
+- **Conclusion**: no new sensitive-data exposure or injection surface.
 - **Status**: Reviewed, no finding.
 
 ## Reviewed — accepted as inherent to the product category

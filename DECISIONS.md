@@ -3,6 +3,110 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## Unify the Apty component model at the investigation layer, not the evidence layer
+
+Apty ships two extensions — Studio, and one runtime extension that just
+goes by several names (Client/Widget/Player) — not four. The fix could
+have gone in at either of two layers: `EvidenceSource`
+(`apty/types.ts`, used by every diagnostic tool when recording a finding)
+or `AptyComponentKind` (`apty/investigation-session.ts`, used when the
+model states which component it suspects). This session unified at the
+investigation layer only, leaving `EvidenceSource` as
+`"apty-client" | "apty-widget" | "service-worker" | "apty-studio" | ...`
+unchanged. Reasoning: `EvidenceSource` answers "which probe produced this
+evidence" — a `client-status` entry and a `widget-status` entry really did
+come from two different `chrome.scripting.executeScript` calls against two
+different globals, and collapsing that distinction would make evidence
+harder to debug and would touch `evidence-store.ts`, `evidence-correlation.ts`,
+every tool in `apty.ts`, and every existing test for all of them — a much
+larger and riskier change for no real benefit, since nothing about
+correlation or evidence storage cares which *product* component an
+evidence source belongs to. `AptyComponentKind` answers "which Apty
+product component does the investigation concern" — a product-facing
+question where the four-way split was actually wrong and worth fixing.
+The UI (`component-health.ts`) then re-derives the two-group presentation
+from the still-granular evidence at render time (aggregation, not data
+loss) — see `ARCHITECTURE.md`'s "Apty integration layer".
+
+## Removed `debugger-manager.ts`'s extension-iframe deletion outright, no replacement mechanism
+
+Phase 17 of the engineering-automation master prompt asked to audit
+`debugger-manager.ts` for destructive page manipulation and, if found,
+"determine whether it is actually required... replace with safer
+mechanisms where possible." The audit found `ensureNoExtensionFrame()`
+(removed this session) with no comment explaining its purpose, no test, no
+scoping to this extension's own id, and — checked directly — nothing in
+this codebase injects a `chrome-extension://` iframe into a page today, so
+there was no way to even reconstruct what bug it might have been working
+around. Given no evidence it was required, the decision was to remove it
+outright rather than build a "safer" replacement for an unverified need
+(e.g. scoping the removal to this extension's own id would still be
+deleting page content on every attach, just less broadly wrong). If a real
+CDP attach failure is ever observed that correlates with an extension
+iframe being present, the correct fix is to reproduce it, understand the
+actual Chrome-level cause, and handle that specific failure explicitly
+(e.g. retry, or a clear error message) — not to preemptively mutate the
+customer's page as a blanket precaution.
+
+## Why no external investigation orchestration loop this session
+
+The engineering-automation master prompt's own P0 list includes an
+"investigation orchestration loop" (plan → execute → observe → evaluate →
+decide, external to the model). This session implemented every other P0
+item (component model, planner, structured hypotheses, verification
+guard) but deliberately did not attempt this one. Reasoning: this
+codebase's actual execution loop — which tool to call next, when to stop —
+lives inside `packages/core`'s wrapper around `@openai/agents`' `run()`;
+the model itself is the orchestrator today. Building a *second*,
+deterministic orchestration layer that decides what the model should do
+next would mean either (a) constraining or overriding the model's own
+tool-selection loop from outside `packages/core` — a real architectural
+change to the agent's control flow, not an additive tool — or (b) another
+tool the model can *choose* to call for a suggestion, which is not
+meaningfully different from what `get_investigation_plan`/
+`get_investigation_status`/`get_investigation_timeline` already provide
+(decision-support data, not control flow). Doing (a) safely requires
+understanding `packages/core`'s `run()` loop deeply enough to know where
+to intercept it without breaking existing tool-calling behavior across
+every other tool in the registry — a large, separate investigation in its
+own right, and not something to bolt on alongside the same session's
+component-model/planner/hypothesis/verification-guard work without a much
+higher risk of a subtle regression. Recommendation for whoever picks this
+up: start by reading `packages/core/src/agent/aipex.ts`'s `run()` call and
+`@openai/agents`' loop-control hooks (if any) before writing any
+orchestration code — the answer may be "there's no clean interception
+point without a fork," in which case the honest scope for "orchestration"
+in this codebase is exactly the decision-support-tools approach already
+taken, just extended (e.g. a tool that explicitly says "you have not
+called X yet, consider it" based on the plan vs. what's been called).
+
+## Investigation planner is a deterministic pattern registry, not a second LLM call
+
+`investigation-planner.ts`'s `planInvestigation()` matches the problem
+description against a small `PLAN_TEMPLATES` array with plain string
+matching (`.includes()`), not a second model call asking "what should the
+plan be?". This keeps planning instant, free, deterministic, and testable
+(8 unit tests covering every category plus the fallback) — appropriate
+for what the plan actually needs to be: a starting checklist the model can
+consult and deviate from, not a load-bearing decision. An LLM-generated
+plan would add latency, cost, and non-determinism for a component that
+explicitly does not need to be authoritative (the model is told the plan
+is advisory). If real usage shows the five hardcoded categories are too
+coarse, the fix is adding more entries to `PLAN_TEMPLATES` — a small,
+localized change — not switching the mechanism.
+
+## The "no unverified confirmed diagnosis" guard lives in the store, not the tool
+
+`updateInvestigation()` (`apty/investigation-session.ts`) itself downgrades
+an unverified `confidence: "confirmed"` to `"likely"` — not
+`tools/investigation.ts`'s `updateInvestigationTool` wrapper. Any future
+caller of `updateInvestigation()` (another tool, a test, a future UI
+action that writes to the investigation directly) gets the same guarantee
+automatically, rather than needing to remember to re-implement the check.
+The tool layer only adds a `warning` field when it detects the downgrade
+happened (by comparing what was requested to what was returned) — it
+doesn't own the rule, just reports on it.
+
 ## `InvestigationSession` is a new, separate store — not bolted onto `Session`/`ConversationData`
 
 `core.Session` (LLM message history) and `ConversationData` (IndexedDB-persisted

@@ -4,6 +4,57 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
+## Unreleased (this session) — unified Apty component model, investigation planner, structured hypotheses, verification guard, debugger-manager fix
+
+**Added**
+- Corrected the Apty product model the investigation engine reasons about:
+  `AptyComponentKind` (`packages/browser-runtime/src/apty/investigation-session.ts`)
+  is now `"apty-client-widget-player" | "apty-studio"` — Apty ships two
+  extensions, not four separate "Client"/"Widget"/"Studio"/"Service
+  Worker" components. `component-health.ts` (browser-ext) now renders
+  exactly two grouped rows with per-probe drill-down instead of four.
+- Deterministic investigation planner (`apty/investigation-planner.ts`):
+  `planInvestigation(userProblem)` matches known problem patterns
+  (tooltip not showing, Studio can't select an element, works in Studio
+  but not production, workflow not triggering, widget not loading) to an
+  ordered checklist with suggested tools per step, falling back to a
+  generic plan otherwise. `start_investigation` generates and stores it;
+  new `get_investigation_plan` tool surfaces it;
+  `update_investigation`'s `completedPlanStepId`/`skippedPlanStepId`
+  track progress. New `PlanChecklist` UI component renders it as a
+  fourth tab in the investigation summary bar.
+- Structured hypotheses: `Hypothesis { id, statement, status, confidence,
+  supportingEvidenceIds, contradictingEvidenceIds, createdAt, updatedAt }`
+  replaces bare strings. `update_investigation`'s new `updateHypothesis`
+  field moves one through open→testing→supported/rejected/confirmed/
+  inconclusive, citing evidence ids. `DiagnosisCard` renders each with a
+  status badge.
+- Real verification loop: `record_verification_attempt` accepts an
+  optional `hypothesisId` and auto-updates that hypothesis's status.
+  `updateInvestigation()` now **enforces** — server-side, not just via
+  prompt instruction — that `confidence: "confirmed"` is downgraded to
+  `"likely"` unless a confirmed verification attempt already exists;
+  `update_investigation` surfaces the downgrade as a `warning`.
+- System prompt rewritten: a new "APTY PRODUCT ARCHITECTURE" section
+  states the two-extension model up front; the debugging loop now walks
+  through planning, structured hypothesis tracking, and
+  verification-before-confirming explicitly (13 steps, up from 12).
+- 34 new/expanded tests across `investigation-planner.test.ts` (8, new),
+  `investigation-session.test.ts` (expanded for the new model/guard),
+  `tools/investigation.test.ts` (expanded), `component-health.test.ts`/
+  `component-health-panel.test.tsx`/`diagnosis-card.test.tsx` (expanded
+  for the grouped model and structured hypotheses).
+
+**Fixed**
+- `debugger-manager.ts`'s `safeAttachDebugger()` used to delete any
+  `<iframe src="chrome-extension://...">` (any extension's, not scoped to
+  this one, including inside Shadow DOM) from the live page before every
+  CDP attach — inherited unchanged from the original AIPex import,
+  undocumented, untested, and with no evidence it was ever required.
+  Removed entirely; 5 new regression tests
+  (`automation/debugger-manager.test.ts`) confirm attach/detach never
+  touch the page. See `SECURITY_AUDIT.md` finding #8.
+
 ## Unreleased (this session) — investigation session lifecycle + investigation-first side panel redesign
 
 **Added**

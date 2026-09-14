@@ -217,20 +217,32 @@ generation, same discipline as every other Apty-facing tool.
 
 ## Apty integration layer
 
-Four provider interfaces, one per Apty component
-(`packages/browser-runtime/src/apty/*.ts`):
+**Apty ships exactly two Chrome extensions**: Studio (authoring), and one
+runtime extension that goes by several names depending on context —
+Client, Widget, Player — but is architecturally one component (see
+`DECISIONS.md`/`PROJECT_PROGRESS.md`'s "Unified Apty Component Model"
+write-up). Four provider interfaces exist at the code level
+(`packages/browser-runtime/src/apty/*.ts`) because each probes a different
+mechanism, not because there are four product components — three of them
+(`AptyClientDiagnosticsProvider`, `AptyWidgetDiagnosticsProvider`,
+`AptyServiceWorkerDiagnosticsProvider`) all describe facets of the *same*
+Client/Widget/Player runtime extension:
 
-| Provider | Mechanism | Status |
-|---|---|---|
-| `AptyWidgetDiagnosticsProvider` | `chrome.scripting.executeScript` (MAIN world) reads `window.__APTY_WIDGET__` | Probe implemented; Widget doesn't expose this global yet |
-| `AptyClientDiagnosticsProvider` | Same, reads `window.__APTY_CLIENT__` | Probe implemented; Client doesn't expose this global yet |
-| `AptyStudioDiagnosticsProvider` | `chrome.runtime.sendMessage(extensionId, ...)` | Implemented; requires Studio's real extension ID + Studio-side message handler, neither of which exist yet |
-| `AptyServiceWorkerDiagnosticsProvider` | Cross-extension messaging OR HTTP diagnostic endpoint (whichever is configured) | Consumer hardened + tested (Zod-validated responses, redacted logs, bounded acceptance); producer has a complete reference implementation (`docs/apty-integration/apty-widget-service-worker.reference.ts`) not yet adopted by Apty |
+| Provider | Belongs to | Mechanism | Status |
+|---|---|---|---|
+| `AptyClientDiagnosticsProvider` | Client/Widget/Player runtime | `chrome.scripting.executeScript` (MAIN world) reads `window.__APTY_CLIENT__` | Probe implemented; Client doesn't expose this global yet |
+| `AptyWidgetDiagnosticsProvider` | Client/Widget/Player runtime | Same, reads `window.__APTY_WIDGET__` | Probe implemented; Widget doesn't expose this global yet |
+| `AptyServiceWorkerDiagnosticsProvider` | Client/Widget/Player runtime (its service worker) | Cross-extension messaging OR HTTP diagnostic endpoint (whichever is configured) | Consumer hardened + tested (Zod-validated responses, redacted logs, bounded acceptance); producer has a complete reference implementation (`docs/apty-integration/apty-widget-service-worker.reference.ts`) not yet adopted by Apty |
+| `AptyStudioDiagnosticsProvider` | Studio (separate extension) | `chrome.runtime.sendMessage(extensionId, ...)` | Implemented; requires Studio's real extension ID + Studio-side message handler, neither of which exist yet |
 
-Every provider has a `NotConfigured*` fallback that returns
-`status: "not_configured"` — this is intentional and expected until Apty
-engineering wires up the corresponding side, not a bug to silently work
-around. **No provider fabricates data.**
+Above the provider layer, the investigation model (`investigation-session.ts`'s
+`AptyComponentKind`) and the UI (`component-health.ts`) both collapse this
+back into exactly two groups — never four separate "Client"/"Widget"/
+"Studio"/"Service Worker" rows — while still exposing the per-provider
+detail for drill-down. Every provider has a `NotConfigured*` fallback that
+returns `status: "not_configured"` — this is intentional and expected
+until Apty engineering wires up the corresponding side, not a bug to
+silently work around. **No provider fabricates data.**
 
 ### Service Worker diagnostics — evidence scope
 
@@ -279,6 +291,21 @@ attach/detach cost. The two are complementary: the console bridge has
 history but only sees `console.*`-routed output; CDP sees real network
 data and browser-internal events but only forward from attach time.
 
+**`debugger-manager.ts` no longer mutates the page to attach.**
+`safeAttachDebugger()` used to run a content script before every attach
+that recursively searched the page (including into Shadow DOM) for any
+`<iframe src="chrome-extension://...">` and removed it — undocumented,
+untested, inherited unchanged from the original AIPex import, and not
+scoped to this extension's own id. Removed this session (see
+`PROJECT_PROGRESS.md`'s "Debugger Attach No Longer Mutates the Page" and
+`SECURITY_AUDIT.md` finding #8) — for a debugging product, deleting page
+elements as a side effect of enabling diagnostics is exactly the wrong
+failure mode (it could delete Apty's own Widget iframe while investigating
+why the widget isn't showing). `safeAttachDebugger`/`safeDetachDebugger`
+now only manage the CDP attach/detach lifecycle itself, with regression
+tests (`debugger-manager.test.ts`) pinning down that `chrome.scripting.executeScript`
+is never called as part of it.
+
 ## Iframes and Shadow DOM
 
 Inherited from AIPex's DOM-snapshot/locator system
@@ -312,24 +339,72 @@ Enforced at two layers:
 first-class lifecycle object the evidence store didn't have: an
 `InvestigationSession { id, conversationId, tabId, startedAt, updatedAt,
 status, userProblem, suspectedComponents, hypotheses,
-verificationAttempts, diagnosis?, confidence? }`, in a
+verificationAttempts, plan?, diagnosis?, confidence? }`, in a
 `Map<conversationId, InvestigationSession>` keyed exactly like
 `evidence-store.ts` (same `"pending"`/unscoped-bucket convention — see
 `DECISIONS.md`). `status` is one of `starting | investigating |
 collecting_evidence | analyzing | verifying | resolved | failed |
 stopped`, always set explicitly by a tool call, never inferred.
+`suspectedComponents: AptyComponentKind[]` uses the unified two-component
+model (`"apty-client-widget-player" | "apty-studio"`) — see "Apty
+integration layer" above.
 
-Five tools (`packages/browser-runtime/src/tools/investigation.ts`, added
-alongside the pre-existing `get_investigation_timeline`/
-`clear_investigation_evidence`) let the model drive this lifecycle:
-`start_investigation`, `update_investigation` (status transitions,
-hypotheses, suspected components, diagnosis+confidence),
-`record_verification_attempt`, `stop_investigation`, and
-`get_investigation_status`. The system prompt
+**Investigation planner** (`apty/investigation-planner.ts`): pure,
+deterministic `planInvestigation(userProblem)` matches the lowercased
+problem text against a small pattern registry (tooltip not showing,
+Studio can't select an element, works in Studio but not production,
+workflow not triggering, widget not loading), each mapping to an ordered
+`PlanStep[]` (id, description, suggested tool names). Anything unmatched
+falls back to a generic host-app → Apty-runtime → Studio → correlate →
+verify checklist — every investigation gets a plan. `start_investigation`
+calls this and stores the result on `InvestigationSession.plan`;
+`get_investigation_plan` surfaces it, and `update_investigation`'s
+`completedPlanStepId`/`skippedPlanStepId` track real progress. The plan is
+explicitly advisory (both in tool descriptions and the system prompt) —
+not a hard constraint on tool selection.
+
+**Structured hypotheses**: `Hypothesis { id, statement, status,
+confidence, supportingEvidenceIds, contradictingEvidenceIds, createdAt,
+updatedAt }` replaces the earlier bare-string hypotheses. `status` is one
+of `open | testing | supported | rejected | confirmed | inconclusive`.
+`update_investigation`'s `addHypothesis` creates one (starting `open`/
+`unknown`); `updateHypothesis` moves it through the lifecycle and records
+which evidence ids (from `get_investigation_timeline`) support or
+contradict it.
+
+**Server-enforced verification guard**: `record_verification_attempt` can
+carry a `hypothesisId`, which automatically updates that hypothesis's
+status (`confirmed`→confirmed, `not_confirmed`→rejected,
+`inconclusive`→testing). More importantly, `updateInvestigation()` — the
+store function itself, not a tool-layer check that a different call path
+could bypass — refuses to record `confidence: "confirmed"` unless a
+verification attempt with outcome `"confirmed"` already exists in that
+investigation, silently downgrading the request to `"likely"` instead.
+The tool layer detects this and returns a `warning` field so the model
+can't tell the user something is CONFIRMED when it was actually
+downgraded. This is unit-tested
+(`investigation-session.test.ts`/`tools/investigation.test.ts`), not a
+prompt-only convention — see `DECISIONS.md` for why it lives in the store
+rather than the tool.
+
+Eight tools total (`packages/browser-runtime/src/tools/investigation.ts`):
+`get_investigation_timeline`, `clear_investigation_evidence`,
+`start_investigation`, `get_investigation_plan`, `update_investigation`
+(status transitions, hypotheses, suspected components, plan-step
+tracking, diagnosis+confidence), `record_verification_attempt`,
+`stop_investigation`, and `get_investigation_status`. The system prompt
 (`packages/aipex-react/src/components/chatbot/constants.ts`'s "THE
 DEBUGGING LOOP" section) instructs the model to call these at each step of
 the debugging loop, so a UI status is only ever real application state,
 never a fabricated "Analyzing..." placeholder.
+
+**What this is not**: an autonomous orchestration loop. The planner and
+status/timeline tools give the model decision-support data to consult, but
+nothing external to the model's own tool-selection loop
+(`packages/core`'s agent loop, unchanged) actually plans → executes →
+observes → decides on the model's behalf. See `DECISIONS.md` for why
+building that was judged out of scope for this session specifically (not
+a permanent decision — see `PROJECT_PROGRESS.md`'s gap matrix, P0.3).
 
 ## Side panel UI architecture
 
@@ -350,24 +425,29 @@ Key pieces:
   is safe: tool `execute()` and the side panel's React tree share one JS
   realm). Backs off from a 1.2s to a 5s poll interval when the chat isn't
   actively streaming/running tools.
-- **`component-health.ts`** — pure function deriving Client/Widget/Studio/
-  Service-Worker health from the most recent `*-status` evidence entry per
-  component (recorded unconditionally by every `get_apty_*_diagnostics`
-  tool call, unlike log evidence which is warn/error-only) — `not_checked`
-  when no such evidence exists yet, never a guessed status.
+- **`component-health.ts`** — pure function deriving health for exactly
+  the two Apty components (Client/Widget/Player runtime, and Studio) from
+  the most recent `*-status` evidence entry per underlying probe
+  (recorded unconditionally by every `get_apty_*_diagnostics` tool call,
+  unlike log evidence which is warn/error-only), aggregated worst-signal-
+  wins into one row per component with `subComponents` for drill-down —
+  `not_checked` when no such evidence exists yet, never a guessed status.
 - **`investigation-context-bar.tsx`** — rendered inside `BrowserChatHeader`,
   below the title row: a quiet "debugging `<hostname>`" line normally, or a
   prominent "LIVE INVESTIGATION" banner with a real Stop action (calls
   `stopInvestigation()` directly, plus `interrupt()`) while a session is
   actually in progress.
 - **`investigation-summary-bar.tsx`** — a collapsed-by-default bar in the
-  `promptExtras` slot (just above the input) that expands into three tabs:
-  Timeline (`evidence-timeline.tsx`, rendering `CorrelationCluster[]`
-  exactly as computed — the "likely related incident" badge only ever
-  reflects `cluster.likelySameIncident`), Components
-  (`component-health-panel.tsx`), and Diagnosis (`diagnosis-card.tsx`,
-  confidence badge styled to match CONFIRMED/LIKELY/POSSIBLE/UNKNOWN
-  without ever visually upgrading a lower confidence).
+  `promptExtras` slot (just above the input) that expands into four tabs:
+  Plan (`plan-checklist.tsx`, rendering the investigation's
+  `InvestigationPlan` as a real pending/done/skipped checklist), Timeline
+  (`evidence-timeline.tsx`, rendering `CorrelationCluster[]` exactly as
+  computed — the "likely related incident" badge only ever reflects
+  `cluster.likelySameIncident`), Components (`component-health-panel.tsx`,
+  the two grouped rows described above), and Diagnosis
+  (`diagnosis-card.tsx`, confidence badge styled to match CONFIRMED/
+  LIKELY/POSSIBLE/UNKNOWN without ever visually upgrading a lower
+  confidence, structured hypotheses rendered with their status badge).
 - **`debugging-welcome-screen.tsx`** — replaces the generic "how can I help
   you" empty state (`toolDisplay`/`emptyState` slots) with Apty-specific
   example prompts.
@@ -404,12 +484,30 @@ Testing Library coverage.
   tools (list/switch/create/close tabs) are registered and used for
   browser-debugging purposes, and the system prompt does not present any
   of this as the agent's purpose.
-- **Any actual Apty Studio/Widget/Client/Service-Worker communication** —
-  only the client-side halves of these integrations exist; the Apty-side
-  halves (a real extension ID, a real global, a real message handler) do
-  not.
+- **Any actual Apty Studio or Client/Widget/Player communication** — only
+  the client-side halves of these integrations exist; the Apty-side halves
+  (a real extension ID, a real global, a real message handler) do not.
 - **A multi-pane/concurrent chat UI within a single side panel window** —
   the history dropdown switches between conversations one at a time. Not
   needed for evidence isolation itself (see "Conversation/tab binding"
   above) but would be needed for a user to watch two conversations bound
   to two different tabs side by side in the *same* window.
+- **An autonomous investigation orchestration loop** external to the
+  model's own tool-selection — the planner/plan-progress/status/timeline
+  tools are decision-support data the model consults, not logic that
+  plans/executes/observes/decides independently of it. See `DECISIONS.md`.
+- **Investigation-aware network capture sessions** — `get_network_diagnostics`
+  still uses a fixed 500ms–15s window per call, not a start/reproduce/stop
+  flow scoped to an investigation.
+- **Console/runtime event classification** — `get_apty_page_logs`/
+  `get_runtime_diagnostics` return raw entries; no apty-error/CSP/CORS/
+  JS-exception/etc. bucketing exists.
+- **A dedicated Studio-vs-production comparison tool** — the planner's
+  `studio-vs-production` category plans for a "compare" step, but no tool
+  automates the actual Studio-config-vs-live-DOM diff; the model has to
+  reason about it from separate tool outputs.
+- **SE/SDE investigation depth modes** — every investigation runs at one
+  depth; no configurable "SE" vs "SDE" mode exists.
+- **A scenario/evaluation harness** — the master prompt's 12 named SE/SDE
+  scenarios exist only as a list in `PROJECT_PROGRESS.md`, not as a
+  repeatable automated eval suite.
