@@ -19,6 +19,23 @@ export {
   getTrackedConversationCount,
   recordEvidence,
 } from "./evidence-store.js";
+export type {
+  AptyComponentKind,
+  InvestigationSession,
+  InvestigationStatus,
+  StartInvestigationInput,
+  UpdateInvestigationInput,
+  VerificationAttempt,
+} from "./investigation-session.js";
+export {
+  clearInvestigation,
+  getInvestigation,
+  getTrackedInvestigationCount,
+  recordVerificationAttempt,
+  startInvestigation,
+  stopInvestigation,
+  updateInvestigation,
+} from "./investigation-session.js";
 export {
   redactHeaders,
   redactLog,
