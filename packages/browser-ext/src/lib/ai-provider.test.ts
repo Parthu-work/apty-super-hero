@@ -1,5 +1,10 @@
+import { AI_PROVIDERS } from "@aipexstudio/aipex-core";
 import { describe, expect, it, vi } from "vitest";
-import { createAIProvider, createEmptyToolArgsFinalizer } from "./ai-provider";
+import {
+  createAIProvider,
+  createEmptyToolArgsFinalizer,
+  describeConnectionTestError,
+} from "./ai-provider";
 
 // Provide minimal mock for import.meta.env
 vi.stubGlobal("import", { meta: { env: { PROD: false } } });
@@ -109,6 +114,78 @@ describe("createAIProvider", () => {
       });
       expect(provider).toBeDefined();
     });
+
+    it("creates a Groq provider through the OpenAI-compatible path (provider-agnostic, no Groq-specific branch)", () => {
+      // aiProvider "groq" isn't one of the explicitly-cased providers
+      // (anthropic/google/openai) in createAIProvider's switch, so this
+      // exercises the generic OpenAI-compatible fallback branch — the same
+      // code path any other OpenAI-compatible provider goes through.
+      const provider = createAIProvider({
+        aiProvider: "groq" as any,
+        aiToken: "gsk-test",
+        aiHost: "https://api.groq.com/openai/v1",
+      });
+      expect(provider).toBeDefined();
+    });
+  });
+});
+
+describe("Groq provider configuration", () => {
+  it("does not list the decommissioned mixtral-8x7b-32768 model", () => {
+    expect(AI_PROVIDERS.groq.models).not.toContain("mixtral-8x7b-32768");
+  });
+
+  it("lists a currently-supported Groq model as the default (first) model", () => {
+    // This is what settings/index.tsx's provider.models[0] picks as the
+    // default aiModel when the user selects Groq — it must not be a
+    // deprecated/decommissioned model.
+    expect(AI_PROVIDERS.groq.models[0]).toBe("openai/gpt-oss-20b");
+  });
+
+  it("points at Groq's OpenAI-compatible endpoint", () => {
+    expect(AI_PROVIDERS.groq.host).toBe("https://api.groq.com/openai/v1");
+    expect(AI_PROVIDERS.groq.providerType).toBe("openai");
+  });
+});
+
+describe("describeConnectionTestError", () => {
+  it("prefixes the message with the status code when present", () => {
+    const error = Object.assign(new Error("Model not found"), {
+      statusCode: 404,
+    });
+    expect(describeConnectionTestError(error)).toBe("404: Model not found");
+  });
+
+  it("falls back to the plain message when there is no status code", () => {
+    expect(describeConnectionTestError(new Error("network error"))).toBe(
+      "network error",
+    );
+  });
+
+  it("redacts an Authorization header if one ever ends up in an error message", () => {
+    const message = describeConnectionTestError(
+      new Error("failed: Authorization: Bearer sk-abcdef1234567890"),
+    );
+    expect(message).not.toContain("sk-abcdef1234567890");
+    expect(message).toContain("[REDACTED]");
+  });
+
+  it("redacts a provider API key pattern embedded in an error message", () => {
+    const message = describeConnectionTestError(
+      new Error("invalid key gsk_abcdefghijklmnopqrstuvwx"),
+    );
+    expect(message).not.toContain("gsk_abcdefghijklmnopqrstuvwx");
+  });
+
+  it("truncates very long messages", () => {
+    const message = describeConnectionTestError(new Error("x".repeat(1000)));
+    expect(message.length).toBeLessThanOrEqual(304);
+  });
+
+  it("handles a non-Error thrown value", () => {
+    expect(describeConnectionTestError("plain string failure")).toBe(
+      "plain string failure",
+    );
   });
 });
 

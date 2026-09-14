@@ -36,9 +36,12 @@
  */
 
 import { z } from "zod";
-import { redactLogs } from "./redact.js";
+import { sendExternalMessage } from "./external-messaging.js";
+import { redactLogs, redactSensitiveText } from "./redact.js";
 import type {
   AptyLog,
+  AptyObservedResource,
+  AptyResourceBody,
   AptyServiceWorkerDiagnosticsProvider,
   AptyServiceWorkerStatus,
 } from "./types.js";
@@ -65,6 +68,31 @@ const statusResponseSchema = z.object({
 
 const logsResponseSchema = z.object({
   logs: z.array(aptyLogSchema).max(MAX_LOGS_ACCEPTED).optional(),
+});
+
+// Same defensive-ceiling reasoning as MAX_LOGS_ACCEPTED.
+const MAX_RESOURCES_ACCEPTED = 1000;
+const MAX_BODY_CHARS_ACCEPTED = 200_000;
+
+const observedResourceSchema = z.object({
+  requestId: z.string().max(200),
+  url: z.string().max(4000),
+  method: z.string().max(20),
+  status: z.number().finite().optional(),
+  mimeType: z.string().max(200).optional(),
+  failed: z.boolean().optional(),
+  errorText: z.string().max(2000).optional(),
+  timestamp: z.number().finite(),
+});
+
+const resourcesResponseSchema = z.object({
+  resources: z.array(observedResourceSchema).max(MAX_RESOURCES_ACCEPTED),
+});
+
+const resourceBodyResponseSchema = z.object({
+  found: z.boolean(),
+  body: z.string().max(MAX_BODY_CHARS_ACCEPTED).optional(),
+  base64Encoded: z.boolean().optional(),
 });
 
 /** Result of validating an untrusted external response. */
@@ -96,38 +124,6 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
-}
-
-/**
- * Send a message to a specific, already-configured extension ID and wait
- * for a response with a timeout. Never broadcasts and never targets an
- * ID the caller didn't explicitly configure — there is no wildcard path.
- */
-function sendExternalMessage(
-  extensionId: string,
-  message: unknown,
-  timeoutMs: number,
-): Promise<unknown | undefined> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), timeoutMs);
-    try {
-      chrome.runtime.sendMessage(extensionId, message, (response) => {
-        clearTimeout(timer);
-        if (chrome.runtime.lastError) {
-          // Expected when the target extension isn't installed, doesn't
-          // allowlist us, or its service worker isn't currently running
-          // and failed to wake — all of these are "unavailable", not
-          // exceptional errors worth surfacing as a crash.
-          resolve(undefined);
-          return;
-        }
-        resolve(response);
-      });
-    } catch {
-      clearTimeout(timer);
-      resolve(undefined);
-    }
-  });
 }
 
 export interface ServiceWorkerDiagnosticsConfig {
@@ -232,6 +228,70 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
     return [];
   }
+
+  async listResources(): Promise<{
+    ok: boolean;
+    resources: AptyObservedResource[];
+    error?: string;
+  }> {
+    if (!this.config.extensionId) {
+      return {
+        ok: false,
+        resources: [],
+        error:
+          "No Apty Client extension ID is configured for resource inspection.",
+      };
+    }
+
+    const raw = await sendExternalMessage(
+      this.config.extensionId,
+      { type: "apty-debug-agent:list-observed-resources" },
+      REQUEST_TIMEOUT_MS,
+    );
+    if (raw === undefined) {
+      return {
+        ok: false,
+        resources: [],
+        error:
+          "The Apty Client extension did not respond. It may not be installed, may not allowlist this extension (externally_connectable), or may not implement the resource-inspection message contract yet.",
+      };
+    }
+
+    const result = validate(resourcesResponseSchema, raw);
+    if (!result.ok) {
+      return {
+        ok: false,
+        resources: [],
+        error: `malformed resources response: ${result.reason}`,
+      };
+    }
+    return { ok: true, resources: result.value.resources };
+  }
+
+  async getResourceBody(requestId: string): Promise<AptyResourceBody> {
+    if (!this.config.extensionId) {
+      return { found: false };
+    }
+
+    const raw = await sendExternalMessage(
+      this.config.extensionId,
+      { type: "apty-debug-agent:get-resource-body", requestId },
+      REQUEST_TIMEOUT_MS,
+    );
+    if (raw === undefined) return { found: false };
+
+    const result = validate(resourceBodyResponseSchema, raw);
+    if (!result.ok) return { found: false };
+
+    return {
+      found: result.value.found,
+      body:
+        result.value.body !== undefined
+          ? redactSensitiveText(result.value.body)
+          : undefined,
+      base64Encoded: result.value.base64Encoded,
+    };
+  }
 }
 
 export class NotConfiguredServiceWorkerDiagnosticsProvider
@@ -242,5 +302,19 @@ export class NotConfiguredServiceWorkerDiagnosticsProvider
   }
   async getLogs(): Promise<AptyLog[]> {
     return [];
+  }
+  async listResources(): Promise<{
+    ok: boolean;
+    resources: AptyObservedResource[];
+    error?: string;
+  }> {
+    return {
+      ok: false,
+      resources: [],
+      error: "No Apty Client extension ID is configured.",
+    };
+  }
+  async getResourceBody(): Promise<AptyResourceBody> {
+    return { found: false };
   }
 }

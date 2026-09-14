@@ -49,9 +49,9 @@ import { uploadFileToInputTool } from "./tools/upload-file";
 
 /**
  * All browser tools registered for AI use
- * Total: 59 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
+ * Total: 60 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
  * 4 intervention + 6 skill + 2 devtools + 5 apty + 9 investigation +
- * 1 selector + 3 investigation-aware network capture + 5 Apty Client
+ * 1 selector + 3 investigation-aware network capture + 6 Apty Client
  * extension network inspection. Recompute this from the arrays below
  * rather than trusting this comment when auditing — it has gone stale
  * before (see PROJECT_PROGRESS.md's tool-registry audit).
@@ -146,7 +146,7 @@ const selectorToolGroup: BrowserFunctionTool[] =
 const networkCaptureToolGroup: BrowserFunctionTool[] =
   networkCaptureTools as unknown as BrowserFunctionTool[];
 
-// Apty Client extension Service Worker network inspection (5 tools)
+// Apty Client extension Service Worker network inspection (6 tools)
 const extensionNetworkToolGroup: BrowserFunctionTool[] =
   extensionNetworkTools as unknown as BrowserFunctionTool[];
 

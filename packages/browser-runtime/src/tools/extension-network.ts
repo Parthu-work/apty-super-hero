@@ -1,12 +1,23 @@
 /**
- * Apty Client Service Worker network inspection tools (V1).
+ * Apty Client resource/log inspection tools (V1).
  *
  * Resource-agnostic by design: `resourceQuery` is whatever string the model
  * decides identifies the resource the user asked about (a filename, a path,
  * a URL fragment) — there is no fixed list of known Apty resources anywhere
  * in this file or in `../apty/extension-network-inspector.ts`. The model
  * decides *what* it's looking for; the browser runtime deterministically
- * decides *which observed request* actually matches (see `matchResources`).
+ * decides *which reported resource* actually matches (see `matchResources`).
+ *
+ * TRANSPORT: these tools ask the Apty Client extension for its own data via
+ * `chrome.runtime.sendMessage` cross-extension messaging — the only
+ * mechanism Chrome allows for this (see
+ * `../apty/extension-network-inspector.ts`'s header for why a
+ * `chrome.debugger`-based design was tried first and found to be
+ * impossible against real Chrome). This requires the Apty Client to
+ * cooperate: allowlist this extension under `externally_connectable` and
+ * implement the `apty-debug-agent:*` message contract. Without that
+ * cooperation, connect_apty_client reports a clear, honest failure —
+ * never a fabricated success.
  *
  * `inspect_extension_network` auto-connects using `extensionId` (or the
  * configured `clientExtensionId`, see `../apty/config.ts`) if no connection
@@ -23,6 +34,7 @@ import {
   getExtensionConnectionStatus,
   inspectResource,
   listObservedResources,
+  listServiceWorkerLogs,
 } from "../apty/extension-network-inspector.js";
 import { getAptyIntegrationConfig, recordToolCall } from "../apty/index.js";
 import type { ToolRunContext } from "./tab-utils";
@@ -38,10 +50,10 @@ async function resolveExtensionId(
 export const connectAptyClientTool = tool({
   name: "connect_apty_client",
   description:
-    "Connect to the Apty Client extension's Service Worker to begin observing its Network activity — attaches the Chrome debugger and enables Network capture. " +
+    "Verify the Apty Client extension is installed and actually responds to Apty Agent's resource-inspection message contract, then remember it for this conversation. " +
     "Call this before inspect_extension_network / list_extension_network_resources unless a connection is already active (idempotent if already connected to the same extension). " +
     "extensionId is optional — if omitted, uses the configured Apty Client extension ID (see the Apty Client connection settings). " +
-    "IMPORTANT: only traffic that occurs AFTER this call is observed — anything the Service Worker already fetched before connecting is invisible.",
+    "If the extension is installed but does not respond (it hasn't implemented the message contract, or doesn't allowlist this extension under externally_connectable), this reports a clear failure rather than a false success.",
   parameters: z.object({
     extensionId: z
       .string()
@@ -69,7 +81,7 @@ export const connectAptyClientTool = tool({
 export const disconnectAptyClientTool = tool({
   name: "disconnect_apty_client",
   description:
-    "Disconnect from the Apty Client extension's Service Worker, stop Network capture, and detach the debugger. " +
+    "Forget this conversation's connected Apty Client extension (there is no persistent session to tear down — each request is independent). " +
     "Returns an error if no connection is currently active for this conversation.",
   parameters: z.object({}),
   execute: async (_input, context) => {
@@ -82,7 +94,7 @@ export const disconnectAptyClientTool = tool({
 export const getAptyClientConnectionStatusTool = tool({
   name: "get_apty_client_connection_status",
   description:
-    "Check whether this conversation is currently connected to an Apty Client extension Service Worker, and how many network resources have been observed so far.",
+    "Check whether this conversation is currently connected to a cooperating Apty Client extension.",
   parameters: z.object({}),
   execute: async (_input, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
@@ -94,10 +106,10 @@ export const getAptyClientConnectionStatusTool = tool({
 export const inspectExtensionNetworkTool = tool({
   name: "inspect_extension_network",
   description:
-    "Retrieve the actual Network response body for a resource observed on the Apty Client extension's Service Worker — e.g. resourceQuery 'segments.json', 'app.json', 'flow.json', a path like '/api/segments.json', or a fragment like 'segments'. " +
-    "Not hardcoded to any resource name — matches whatever was actually observed (exact filename > path suffix > substring fragment, most-recent match wins ties). " +
+    "Retrieve the actual response body for a resource the Apty Client extension reports having requested itself — e.g. resourceQuery 'segments.json', 'app.json', 'flow.json', a path like '/api/segments.json', or a fragment like 'segments'. " +
+    "Not hardcoded to any resource name — matches whatever the Apty Client actually reports (exact filename > path suffix > substring fragment, most-recent match wins ties). " +
     "Auto-connects using extensionId (or the configured Apty Client extension ID) if not already connected. " +
-    "Returns status: 'not_observed' if the resource hasn't been seen since connecting (capture is not retroactive — ask the user to reproduce the action, or reload the Apty Client, then try again), 'failed'/'http_error' if the request failed, 'pending' if seen but no response yet, or 'body_unavailable' if Chrome couldn't return the body. Never returns fabricated data.",
+    "Returns status: 'not_observed' if the Apty Client didn't report a matching request (ask the user to reproduce the action, or reload the Apty Client, then try again), 'failed'/'http_error' if the request failed, 'pending' if seen but no response yet, or 'body_unavailable' if the Apty Client couldn't provide the body. Never returns fabricated data.",
   parameters: z.object({
     resourceQuery: z
       .string()
@@ -148,7 +160,7 @@ export const inspectExtensionNetworkTool = tool({
 export const listExtensionNetworkResourcesTool = tool({
   name: "list_extension_network_resources",
   description:
-    "List every network resource observed so far on the Apty Client extension's Service Worker since connecting — useful to answer 'what resources did the Apty Client load?' before picking one to inspect with inspect_extension_network. " +
+    "List every resource the Apty Client extension reports having requested itself — useful to answer 'what resources did the Apty Client load?' before picking one to inspect with inspect_extension_network. " +
     "Auto-connects using extensionId (or the configured Apty Client extension ID) if not already connected.",
   parameters: z.object({
     extensionId: z
@@ -183,10 +195,58 @@ export const listExtensionNetworkResourcesTool = tool({
   },
 });
 
+export const getExtensionServiceWorkerLogsTool = tool({
+  name: "get_extension_service_worker_logs",
+  description:
+    "Get console messages, warnings, and errors the Apty Client extension's Service Worker reports about itself — e.g. 'show me errors from the Apty Client Service Worker'. " +
+    "Auto-connects using extensionId (or the configured Apty Client extension ID) if not already connected. " +
+    "Depends entirely on what the Apty Client itself has recorded and is willing to report — if it only keeps a bounded recent history, older entries may no longer be available; that is the Apty Client's limitation, not fabricated data on this side. " +
+    "Set onlyErrors to true to see just warning/error-level entries.",
+  parameters: z.object({
+    onlyErrors: z
+      .boolean()
+      .default(false)
+      .describe(
+        "If true, only return exceptions and warning/error-level log entries.",
+      ),
+    extensionId: z
+      .string()
+      .optional()
+      .describe(
+        "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
+      ),
+  }),
+  execute: async ({ onlyErrors, extensionId }, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    recordToolCall(conversationId, "get_extension_service_worker_logs", {
+      onlyErrors,
+      extensionId,
+    });
+
+    if (!getExtensionConnectionStatus(conversationId).connected) {
+      const id = await resolveExtensionId(extensionId);
+      if (!id) {
+        return {
+          connected: false,
+          error:
+            "Not connected to an Apty Client extension and no extension ID was provided or configured.",
+        };
+      }
+      const connectResult = await connectExtensionClient(conversationId, id);
+      if (!connectResult.connected) {
+        return { connected: false, error: connectResult.error };
+      }
+    }
+
+    return listServiceWorkerLogs(conversationId, { onlyErrors });
+  },
+});
+
 export const extensionNetworkTools = [
   connectAptyClientTool,
   disconnectAptyClientTool,
   getAptyClientConnectionStatusTool,
   inspectExtensionNetworkTool,
   listExtensionNetworkResourcesTool,
+  getExtensionServiceWorkerLogsTool,
 ];

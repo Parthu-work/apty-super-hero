@@ -20,15 +20,16 @@ export {
   recordEvidence,
 } from "./evidence-store.js";
 export type {
+  ConnectErrorCode,
   ConnectResult,
   DisconnectResult,
   ExtensionCaptureEntry,
   ExtensionConnectionStatus,
+  ExtensionLogEntry,
   InspectResourceResult,
   InspectResourceStatus,
+  ListResourcesResult,
   MatchedResource,
-  ResolveTargetErrorCode,
-  ResolveTargetResult,
 } from "./extension-network-inspector.js";
 export {
   connectExtensionClient,
@@ -38,11 +39,11 @@ export {
   inspectResource,
   isValidExtensionId,
   listObservedResources,
-  MAX_CAPTURED_RESOURCES,
+  listServiceWorkerLogs,
   MAX_INLINE_BODY_CHARS,
   matchResources,
-  resolveServiceWorkerTarget,
 } from "./extension-network-inspector.js";
+export { sendExternalMessage } from "./external-messaging.js";
 export type {
   DuplicateCallWarning,
   OrchestratorAction,
@@ -122,6 +123,8 @@ export type {
   AptyClientStatus,
   AptyIntegrationStatus,
   AptyLog,
+  AptyObservedResource,
+  AptyResourceBody,
   AptyServiceWorkerDiagnosticsProvider,
   AptyServiceWorkerStatus,
   AptyStudioDiagnosticsProvider,

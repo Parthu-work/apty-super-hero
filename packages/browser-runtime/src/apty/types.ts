@@ -145,13 +145,50 @@ export interface AptyStudioDiagnosticsProvider {
 }
 
 /**
+ * A network request the Apty Client's own service worker observed itself
+ * making — reported back over the cross-extension messaging channel, not
+ * captured via `chrome.debugger` (see service-worker-diagnostics.ts for why:
+ * Chrome does not allow one extension to attach a debugger to another's
+ * internals).
+ */
+export interface AptyObservedResource {
+  requestId: string;
+  url: string;
+  method: string;
+  status?: number;
+  mimeType?: string;
+  failed?: boolean;
+  errorText?: string;
+  timestamp: number;
+}
+
+/** The actual body of a previously-listed resource, fetched by requestId. */
+export interface AptyResourceBody {
+  found: boolean;
+  body?: string;
+  base64Encoded?: boolean;
+}
+
+/**
  * Diagnostics for Apty's own service worker. A Chrome extension cannot
- * reach into another extension's private service-worker memory — this
- * requires Apty's service worker to expose logs/status through an explicit
- * channel (message passing, a diagnostic endpoint, etc). See
- * service-worker-diagnostics.ts for the current implementation status.
+ * reach into another extension's private service-worker memory, and cannot
+ * attach `chrome.debugger` to another extension's context either — Chrome
+ * enforces this as a hard security boundary regardless of permissions
+ * (verified against a real Chrome build, not assumed). This requires
+ * Apty's service worker to expose logs/status/resources through an
+ * explicit, cooperating channel (message passing, a diagnostic endpoint,
+ * etc). See service-worker-diagnostics.ts for the current implementation
+ * status.
  */
 export interface AptyServiceWorkerDiagnosticsProvider {
   getStatus(): Promise<AptyServiceWorkerStatus>;
   getLogs(): Promise<AptyLog[]>;
+  /** Every resource the Apty Client's service worker has observed itself requesting, oldest-to-newest. `ok: false` when unreachable — never fabricated. */
+  listResources(): Promise<{
+    ok: boolean;
+    resources: AptyObservedResource[];
+    error?: string;
+  }>;
+  /** The actual response body for one previously-listed resource, by its requestId. */
+  getResourceBody(requestId: string): Promise<AptyResourceBody>;
 }

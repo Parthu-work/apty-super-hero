@@ -96,10 +96,13 @@ export const AI_PROVIDERS = {
     name: "Groq",
     icon: "⚡",
     host: "https://api.groq.com/openai/v1",
+    // mixtral-8x7b-32768 was decommissioned by Groq; openai/gpt-oss-* are
+    // Groq's current OpenAI-compatible open-weight models.
     models: [
+      "openai/gpt-oss-20b",
+      "openai/gpt-oss-120b",
       "llama-3.3-70b-versatile",
       "llama-3.1-8b-instant",
-      "mixtral-8x7b-32768",
     ] as const,
     tokenPlaceholder: "gsk_...",
     docs: "https://console.groq.com/keys",

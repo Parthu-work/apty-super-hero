@@ -1,16 +1,18 @@
 /**
  * Apty Client Extension connection panel.
  *
- * V1 resource-agnostic Service Worker inspection (see
+ * V1 resource-agnostic resource/log inspection (see
  * `packages/browser-runtime/src/apty/extension-network-inspector.ts`) needs
  * the Apty Client's Chrome extension ID. This panel lets the user configure
  * it once instead of repeating it in every chat message — the actual
- * debugger attach/Network capture happens lazily, in the background service
- * worker, the first time a chat tool call needs it (see
+ * cross-extension messaging handshake happens lazily, in the background
+ * service worker, the first time a chat tool call needs it (see
  * `../../../browser-runtime/src/tools/extension-network.ts`); this panel
  * only persists the ID and gives early feedback that it resolves to a real,
  * enabled extension via `chrome.management.get`, which any extension page
- * can call.
+ * can call. That check alone does not confirm the Apty Client actually
+ * cooperates with the resource-inspection message contract — the real
+ * handshake happens on first use (see connect_apty_client).
  */
 import {
   type AptyIntegrationConfig,
@@ -86,16 +88,28 @@ export function AptyClientPanel() {
     <div className="rounded-lg border bg-card p-6 shadow-sm">
       <h3 className="text-lg font-semibold mb-4">Apty Client Extension</h3>
       <p className="text-sm text-muted-foreground mb-4">
-        Configure the Apty Client's Chrome extension ID so the agent can inspect
-        its Service Worker Network activity — e.g. "Get segments.json" — without
-        you having to provide the ID in every chat message.
+        Configure the Apty Client's Chrome extension ID so the agent can ask it
+        directly for its resources — e.g. "Get segments.json" — without you
+        having to provide the ID in every chat message. This requires the Apty
+        Client extension to support Apty Agent's resource-inspection message
+        contract.
       </p>
 
       {saved && (
-        <div className="flex items-center gap-2 mb-4 text-sm">
-          <span className="inline-block h-3 w-3 rounded-full bg-green-500" />
-          <span className="font-medium">✓ Apty Client connected</span>
-          <span className="text-xs text-muted-foreground">({saved})</span>
+        <div className="mb-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="inline-block h-3 w-3 rounded-full bg-green-500" />
+            <span className="font-medium">✓ Apty Client configured</span>
+            <span className="text-xs text-muted-foreground">({saved})</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            This extension ID is valid and installed. The agent verifies the
+            Apty Client actually responds to its resource-inspection message
+            contract the first time you ask about it in chat (e.g. "Get
+            segments.json") — that check is a separate, per-conversation step
+            from this configuration, and requires the Apty Client to allowlist
+            this extension under externally_connectable.
+          </p>
         </div>
       )}
 

@@ -4,7 +4,56 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
-## Unreleased (this session) — Apty Client extension Service Worker network inspection (V1)
+## Unreleased (this session) — Apty Client resource inspection: fixed the transport, verified against real Chrome
+
+**Fixed — critical, verified against a real Chrome build, not just mocks**
+- The Apty Client Service Worker network inspection feature below (V1) was
+  built and unit-tested entirely against a mocked `chrome.debugger` API that
+  always succeeded. Built a real two-extension Chromium test harness this
+  session (Puppeteer + the pre-installed Chromium, not part of the repo) and
+  found that `chrome.debugger.attach({targetId: <another extension's
+  Service Worker>})` unconditionally fails in real Chrome with "Cannot
+  access a chrome-extension:// URL of different extension" — a hard
+  security boundary with no permission/flag workaround, confirmed by a
+  sanity check that the identical API call against a plain tab in the same
+  harness succeeds immediately. This means the entire V1 design below could
+  never have retrieved a real Apty Client resource in production.
+  `resolveServiceWorkerTarget`'s target-type filter had a second, smaller
+  real-Chrome-only bug on top of that: `chrome.debugger.getTargets()`
+  reports an MV3 service worker as `type: "worker"`, not
+  `"service_worker"`, in this Chrome build.
+- **Rearchitected the transport to cross-extension messaging**
+  (`chrome.runtime.sendMessage(extensionId, ...)`) — the only mechanism
+  Chrome actually allows for one extension to ask another for data. This
+  requires the Apty Client to cooperate (allowlist this extension under
+  `externally_connectable`, implement the `apty-debug-agent:*` message
+  contract) — the same honest-stub pattern `service-worker-diagnostics.ts`
+  already used for status/logs; extended that provider with
+  `listResources()`/`getResourceBody()` (new `apty-debug-agent:list-observed-resources`
+  / `apty-debug-agent:get-resource-body` message types) instead of building
+  a second messaging mechanism, and rewired
+  `extension-network-inspector.ts`'s public API (`connectExtensionClient`,
+  `inspectResource`, `listObservedResources`, `listServiceWorkerLogs`) to
+  use it, keeping the pure matching/redaction/evidence logic
+  (`matchResources`, MIME/redaction handling) unchanged. All chrome.debugger
+  session/cleanup-listener code for this feature was removed — there is no
+  persistent session with a stateless messaging transport.
+- Re-verified the corrected design against the same real two-extension
+  Chromium harness: connect → list resources → retrieve the actual
+  `segments.json` body (real content, not fabricated) → generic fragment
+  match (`"segment"`) also resolves it → honest `not_observed` for a
+  resource never requested → real Service Worker logs retrieved. All
+  passed.
+- Also fixed: Groq's model list included `mixtral-8x7b-32768`, which Groq
+  has decommissioned — replaced with the current `openai/gpt-oss-20b` /
+  `openai/gpt-oss-120b`, added `get_extension_service_worker_logs` (task
+  item: Service Worker log capability), surfaced sanitized real connection-test
+  errors instead of a generic "Connection failed" (`describeConnectionTestError`
+  in `browser-ext/src/lib/ai-provider.ts`), renamed the manifest's
+  `open-aipex` command to `open-apty-agent` and fixed remaining user-visible
+  "AIPex" text in the MCP bridge panel.
+
+## Unreleased (earlier session) — Apty Client extension Service Worker network inspection (V1)
 
 **Added**
 - Resource-agnostic Apty Client Service Worker Network inspection — the

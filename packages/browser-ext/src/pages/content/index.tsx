@@ -196,7 +196,7 @@ const ContentApp = () => {
   // Message listener for external triggers (keyboard shortcuts from background)
   React.useEffect(() => {
     const handleMessage = (message: any, _sender: any, sendResponse: any) => {
-      if (message.request === "open-aipex") {
+      if (message.request === "open-apty-agent") {
         setIsOmniOpen(true);
         sendResponse({ success: true });
         return true; // Keep message channel open

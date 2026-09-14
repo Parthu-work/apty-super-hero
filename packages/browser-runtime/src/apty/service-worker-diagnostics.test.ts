@@ -58,12 +58,18 @@ afterEach(() => {
 });
 
 describe("NotConfiguredServiceWorkerDiagnosticsProvider", () => {
-  it("reports not_configured status and no logs", async () => {
+  it("reports not_configured status and no logs/resources", async () => {
     const provider = new NotConfiguredServiceWorkerDiagnosticsProvider();
     await expect(provider.getStatus()).resolves.toEqual({
       status: "not_configured",
     });
     await expect(provider.getLogs()).resolves.toEqual([]);
+    const resources = await provider.listResources();
+    expect(resources.ok).toBe(false);
+    expect(resources.resources).toEqual([]);
+    await expect(provider.getResourceBody("req-1")).resolves.toEqual({
+      found: false,
+    });
   });
 });
 
@@ -177,6 +183,116 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
     const logsPromise = provider.getLogs();
     await vi.advanceTimersByTimeAsync(3100);
     await expect(logsPromise).resolves.toEqual([]);
+  });
+
+  describe("listResources", () => {
+    it("returns not-ok with no extensionId configured", async () => {
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({});
+      const result = await provider.listResources();
+      expect(result.ok).toBe(false);
+      expect(result.resources).toEqual([]);
+    });
+
+    it("returns the resources the Apty Client reports", async () => {
+      respondWith({
+        resources: [
+          {
+            requestId: "req-1",
+            url: "https://cdn.apty.io/segments.json",
+            method: "GET",
+            status: 200,
+            mimeType: "application/json",
+            timestamp: 111,
+          },
+        ],
+      });
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      const result = await provider.listResources();
+      expect(result.ok).toBe(true);
+      expect(result.resources).toHaveLength(1);
+      expect(result.resources[0]?.requestId).toBe("req-1");
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        "client-ext-id",
+        { type: "apty-debug-agent:list-observed-resources" },
+        expect.any(Function),
+      );
+    });
+
+    it("reports not ok when the extension never responds", async () => {
+      neverRespond();
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      const resultPromise = provider.listResources();
+      await vi.advanceTimersByTimeAsync(3100);
+      const result = await resultPromise;
+      expect(result.ok).toBe(false);
+      expect(result.error).toBeTruthy();
+    });
+
+    it("reports not ok for a malformed response rather than throwing", async () => {
+      respondWith({ resources: [{ requestId: "req-1" }] }); // missing required fields
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      const result = await provider.listResources();
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  describe("getResourceBody", () => {
+    it("returns not found with no extensionId configured", async () => {
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({});
+      await expect(provider.getResourceBody("req-1")).resolves.toEqual({
+        found: false,
+      });
+    });
+
+    it("returns and redacts the body", async () => {
+      respondWith({
+        found: true,
+        body: JSON.stringify({ token: "abc123secret", ok: true }),
+      });
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      const result = await provider.getResourceBody("req-1");
+      expect(result.found).toBe(true);
+      expect(result.body).not.toContain("abc123secret");
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        "client-ext-id",
+        { type: "apty-debug-agent:get-resource-body", requestId: "req-1" },
+        expect.any(Function),
+      );
+    });
+
+    it("returns not found when the extension reports the resource wasn't found", async () => {
+      respondWith({ found: false });
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      await expect(provider.getResourceBody("req-1")).resolves.toEqual({
+        found: false,
+      });
+    });
+
+    it("returns not found when the extension never responds", async () => {
+      neverRespond();
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      const resultPromise = provider.getResourceBody("req-1");
+      await vi.advanceTimersByTimeAsync(3100);
+      await expect(resultPromise).resolves.toEqual({ found: false });
+    });
   });
 });
 

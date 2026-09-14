@@ -59,6 +59,36 @@ function validateHostUrl(url: string | undefined): string | undefined {
 }
 
 /**
+ * Turn a provider/model connection-test failure into a short, actionable
+ * message safe to show in the UI — never the raw error object, which for
+ * some AI SDK providers can carry request/response bodies. Extracts a
+ * status code when present (e.g. `401`, `404`) and redacts anything that
+ * looks like a credential, in case a provider ever echoes one back.
+ */
+export function describeConnectionTestError(error: unknown): string {
+  const statusCode = (error as { statusCode?: number } | undefined)?.statusCode;
+  const rawMessage =
+    error instanceof Error ? error.message : String(error ?? "Unknown error");
+
+  let message = rawMessage
+    .replace(
+      /Authorization:\s*(Bearer\s+)?[^\s,}"\]]+/gi,
+      "Authorization: [REDACTED]",
+    )
+    .replace(/(bearer\s+)[a-zA-Z0-9._-]{10,}/gi, "$1[REDACTED]")
+    .replace(
+      /\b(sk-ant-|sk-or-v1-|sk-|gsk_|AIza)[a-zA-Z0-9_-]{8,}\b/g,
+      "[REDACTED]",
+    );
+
+  if (message.length > 300) {
+    message = `${message.slice(0, 300)}...`;
+  }
+
+  return typeof statusCode === "number" ? `${statusCode}: ${message}` : message;
+}
+
+/**
  * Check whether the current settings represent a BYOK configuration.
  */
 export function isByokConfigured(settings: AppSettings): boolean {

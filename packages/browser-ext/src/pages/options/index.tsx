@@ -10,7 +10,10 @@ import { generateText } from "ai";
 import React, { useCallback, useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import { chromeStorageAdapter } from "../../hooks";
-import { createAIProvider } from "../../lib/ai-provider";
+import {
+  createAIProvider,
+  describeConnectionTestError,
+} from "../../lib/ai-provider";
 import { AptyClientPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
 import { SkillsOptionsTab } from "./skills-tab";
@@ -39,22 +42,26 @@ function OptionsPageContent() {
   const { tab: initialTab, skill: initialSkill } = useMemo(parseUrlParams, []);
 
   const handleTestConnection = useCallback(async (settings: AppSettings) => {
-    try {
-      const provider = createAIProvider(settings);
-      const modelId = settings.aiModel;
-      if (!modelId) {
-        return false;
-      }
+    const modelId = settings.aiModel;
+    if (!modelId) {
+      throw new Error("No model selected. Choose a model for this provider.");
+    }
 
+    const provider = createAIProvider(settings);
+
+    try {
       await generateText({
         model: provider(modelId) as LanguageModel,
         prompt: "Hi",
       });
-
       return true;
     } catch (error) {
+      // Re-throw with a sanitized message (never the raw error, which some
+      // providers' SDKs attach request/response bodies to) so the settings
+      // UI's existing catch block can show *why* the connection failed
+      // instead of a generic "Connection test failed".
       console.error("Connection test failed:", error);
-      return false;
+      throw new Error(describeConnectionTestError(error));
     }
   }, []);
 

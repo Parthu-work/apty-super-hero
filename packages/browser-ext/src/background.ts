@@ -29,15 +29,15 @@ chrome.action.onClicked.addListener((tab) => {
   }
 });
 
-// Listen for keyboard command to open AIPex
+// Listen for keyboard command to open the Apty Agent command menu
 chrome.commands.onCommand.addListener((command) => {
-  if (command === "open-aipex") {
+  if (command === "open-apty-agent") {
     // Get the active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) {
         // Send message to content script to open omni
         chrome.tabs
-          .sendMessage(tabs[0].id, { request: "open-aipex" })
+          .sendMessage(tabs[0].id, { request: "open-apty-agent" })
           .catch((error) => {
             console.error("Failed to send message to content script:", error);
           });

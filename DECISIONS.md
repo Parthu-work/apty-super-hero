@@ -3,6 +3,50 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## Apty Client resource inspection uses cross-extension messaging, not `chrome.debugger` — verified, not assumed
+
+The original V1 design (see the older entry below and `CHANGELOG.md`)
+attached `chrome.debugger` directly to the Apty Client extension's Service
+Worker target, mirroring how `network-capture-session.ts` captures a
+*tab's* network traffic. That design was carried through multiple sessions
+and 36 passing unit tests without ever running against a real browser —
+every test mocked `chrome.debugger.attach()` to unconditionally succeed.
+
+This session built a real two-extension test harness (Puppeteer driving
+the pre-installed Chromium, not part of the repo — a throwaway
+verification tool) and found `chrome.debugger.attach({targetId: <another
+extension's target>})` unconditionally fails with "Cannot access a
+chrome-extension:// URL of different extension." This is confirmed to be
+a hard Chrome security invariant, not a config issue: the identical API
+call against a plain tab, in the same harness extension, with the same
+`debugger` permission, succeeds immediately. There is no manifest
+permission, flag, or unpacked/dev-mode state that lifts it — Chrome does
+not let one extension debug another's internals, full stop. This means
+the V1 design could never have retrieved a real Apty Client resource in
+production; it only ever "worked" against its own mocks.
+
+The only mechanism Chrome allows for this is `chrome.runtime.sendMessage`
+cross-extension messaging, which requires the target extension to
+cooperate (`externally_connectable` + implementing a message contract).
+`service-worker-diagnostics.ts` already used exactly this pattern for
+status/logs (an intentional honest stub, per the entry below), so rather
+than inventing a second mechanism, that provider was extended with
+`listResources()`/`getResourceBody()` and
+`extension-network-inspector.ts`'s connect/inspect/list functions were
+rewired to call it — same public API, same pure matching/redaction/
+evidence logic, different (and now the *only actually possible*)
+transport. Re-verified against the same real two-extension harness:
+connect, list, and retrieve an actual resource body all passed against a
+cooperating fake Apty Client.
+
+The practical consequence: this tool now only works once Apty ships the
+`apty-debug-agent:*` message contract in the real Apty Client extension
+(allowlisting the Apty Agent extension's id under
+`externally_connectable`). Until then, `connect_apty_client` reports a
+clear, honest "did not respond to the resource-inspection message
+contract" failure — never a fabricated success. This is a real product
+dependency on Apty-side work, not a shortcut this codebase can code around.
+
 ## Investigation-aware network capture was reimplemented fresh on `main`, not merged from PR #11
 
 PR #11 ("Add investigation-aware network capture session", branch

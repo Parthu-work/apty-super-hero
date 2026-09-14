@@ -57,7 +57,7 @@
   },
   "host_permissions": ["https://*/*", "http://*/*", "<all_urls>"],
   "commands": {
-    "open-aipex": {
+    "open-apty-agent": {
       "suggested_key": {
         "default": "Ctrl+M",
         "mac": "Command+M"
