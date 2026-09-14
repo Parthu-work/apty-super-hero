@@ -50,48 +50,6 @@ export class DebuggerManager {
     }
   }
 
-  private async ensureNoExtensionFrame(tabId: number): Promise<boolean> {
-    const chromeApi = this.getChrome();
-    if (!chromeApi?.scripting?.executeScript) {
-      return false;
-    }
-    const result = await chromeApi.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        function queryAllDeepShadow<T extends Element>(
-          selector: string,
-          root: Document | ShadowRoot = document,
-        ): T[] {
-          const results: T[] = [];
-          const currentElements = root.querySelectorAll(selector);
-          results.push(...(Array.from(currentElements) as T[]));
-
-          const allElements = root.querySelectorAll("*");
-          for (const el of allElements) {
-            if (el.shadowRoot) {
-              const shadowResults = queryAllDeepShadow(selector, el.shadowRoot);
-              results.push(...(shadowResults as T[]));
-            }
-          }
-          return results;
-        }
-
-        const frames = queryAllDeepShadow<HTMLIFrameElement>("iframe");
-        const extensionFrames = frames?.filter((frame) =>
-          frame.src.startsWith("chrome-extension://"),
-        );
-        if (extensionFrames && extensionFrames.length > 0) {
-          for (const frame of extensionFrames) {
-            frame.remove();
-          }
-          return true;
-        }
-        return false;
-      },
-    });
-    return result[0]?.result ?? false;
-  }
-
   private scheduleAutoDetach(tabId: number): void {
     if (this.autoDetachTimers.has(tabId)) {
       clearTimeout(this.autoDetachTimers.get(tabId)!);
@@ -127,11 +85,6 @@ export class DebuggerManager {
         this.scheduleAutoDetach(tabId);
       }
       return result;
-    }
-
-    const removeExtensionFrame = await this.ensureNoExtensionFrame(tabId);
-    if (removeExtensionFrame) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
     const attachPromise = new Promise<boolean>((resolve) => {
