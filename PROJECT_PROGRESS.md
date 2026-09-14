@@ -1141,18 +1141,15 @@ See `DECISIONS.md`.
 
 ## Last Commit
 
-`9ad199b` — "feat: show unified component groups, structured hypotheses,
-and plan progress in UI" (a documentation-update commit follows this one).
-Prior commits this session: `adcf8c7` — "feat: unify Apty component model,
-add investigation planner, structured hypotheses, real verification
-guard"; `449910d` — "fix: stop debugger attach from deleting extension
-iframes on the page". Prior session's checkpoint: `da4b786` — "docs:
-record investigation lifecycle + side panel redesign, update handoff".
+`19f53fe` — "feat: classify console/runtime diagnostic events into
+failure categories" (this session's only commit — the doc updates above
+are folded into it, not a separate commit). Prior session's checkpoint:
+`e7c98ff` — "docs: gap-audit against the engineering-automation master
+prompt, record P0 work".
 
 ## Last Push
 
-Pushed to `origin/claude/keen-knuth-85dqt8` and fast-forwarded to
-`origin/main` at the head of this session's commits (check `git log -1` /
+Pushed to `origin/claude/eloquent-brahmagupta-qcz5yw` (check `git log -1` /
 `git status` — this note is updated by hand and can lag the actual push by
 one commit within a session).
 
