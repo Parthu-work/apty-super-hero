@@ -40,6 +40,7 @@ export class AIPex {
   private plugins: AgentPlugin[];
   private pluginContext: AgentPluginContext;
   private modelId?: string;
+  private modelProvider?: string;
 
   private constructor(
     agent: OpenAIAgent,
@@ -48,6 +49,7 @@ export class AIPex {
     maxTurns?: number,
     plugins: AgentPlugin[] = [],
     modelId?: string,
+    modelProvider?: string,
   ) {
     this.agent = agent;
     this.conversationManager = conversationManager;
@@ -56,6 +58,7 @@ export class AIPex {
     this.plugins = plugins;
     this.pluginContext = { agent: this };
     this.modelId = modelId;
+    this.modelProvider = modelProvider;
     this.initializePlugins();
   }
 
@@ -75,6 +78,7 @@ export class AIPex {
       options.maxTurns,
       options.plugins ?? [],
       options.modelId,
+      options.modelProvider,
     );
   }
 
@@ -164,7 +168,11 @@ export class AIPex {
         // user image message so the model can consume images via the vision path.
         callModelInputFilter: async ({ modelData }) => ({
           input: shapeScreenshotItems(
-            sanitizeReasoningItemsForModel(modelData.input, this.modelId),
+            sanitizeReasoningItemsForModel(
+              modelData.input,
+              this.modelId,
+              this.modelProvider,
+            ),
           ),
           instructions: modelData.instructions,
         }),

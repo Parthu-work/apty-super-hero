@@ -50,11 +50,24 @@ export interface AIPexOptions<
    *
    * Used only to isolate provider-specific reasoning metadata: a "reasoning"
    * item replayed from a previous turn is forwarded to the model only when
-   * it was produced by this same model id — see
+   * it was produced by this same model id AND that model/provider is known
+   * to actually support reasoning replay — see
    * `utils/model-input-sanitizer.ts`. Omitting it means reasoning items are
    * never replayed, which is always safe, just more conservative.
    */
   modelId?: string;
+  /**
+   * The provider key behind `model` (e.g. `settings.aiProvider` — "openai",
+   * "groq", "deepseek", "anthropic", ...).
+   *
+   * Used only to decide whether a "reasoning" item is safe to replay at
+   * all: most OpenAI-compatible providers (Groq included) reject an
+   * incoming assistant message carrying `reasoning_content` outright, even
+   * when it was produced by that exact same model — same-model matching
+   * alone is not a safe signal. See `utils/model-input-sanitizer.ts`.
+   * Omitting it means reasoning items are never replayed.
+   */
+  modelProvider?: string;
   tools?: TTools;
   maxTurns?: number;
 

@@ -312,6 +312,7 @@ describe("AIPex", () => {
         instructions: "Test",
         model: mockModel,
         modelId: "llama-3.3-70b-versatile",
+        modelProvider: "groq",
       });
 
       for await (const _event of agent.chat("Hi")) {
@@ -354,7 +355,7 @@ describe("AIPex", () => {
       expect(result.input).toEqual([userMessage]);
     });
 
-    it("callModelInputFilter should keep a reasoning item produced by the same model", async () => {
+    it("callModelInputFilter should drop reasoning even from the SAME model when the provider doesn't support replay — Groq gpt-oss multi-turn regression", async () => {
       vi.mocked(run).mockResolvedValue(
         createMockRunResult({
           finalOutput: "Reply",
@@ -370,7 +371,86 @@ describe("AIPex", () => {
       const agent = AIPex.create({
         instructions: "Test",
         model: mockModel,
-        modelId: "gpt-4o",
+        modelId: "openai/gpt-oss-20b",
+        modelProvider: "groq",
+      });
+
+      for await (const _event of agent.chat("hi")) {
+        // consume events
+      }
+
+      const runCallArgs = vi.mocked(run).mock.calls[0]!;
+      const runOptions = runCallArgs[2] as unknown as {
+        callModelInputFilter: (args: {
+          modelData: { input: unknown[]; instructions?: string };
+          agent: unknown;
+          context: unknown;
+        }) => Promise<{ input: unknown[]; instructions?: string }>;
+      };
+
+      // Exactly the reproduced network capture: this Groq model's own prior
+      // reasoning, followed by its own final answer, replayed on the next turn.
+      const ownReasoning = {
+        type: "reasoning",
+        content: [
+          {
+            type: "input_text",
+            text: 'User says "hi". We must respond appropriately.',
+          },
+        ],
+        providerData: { model: "openai.chat:openai/gpt-oss-20b" },
+      };
+      const finalAnswer = {
+        type: "message",
+        role: "assistant",
+        status: "completed",
+        content: [
+          {
+            type: "output_text",
+            text: "Hi! 👋 What Apty-related issue are you looking to investigate today?",
+          },
+        ],
+      };
+      const nextUserMessage = {
+        type: "message",
+        role: "user",
+        content: "hello",
+      };
+
+      const result = await runOptions.callModelInputFilter({
+        modelData: {
+          input: [ownReasoning, finalAnswer, nextUserMessage],
+          instructions: "Test instructions",
+        },
+        agent: {},
+        context: undefined,
+      });
+
+      // reasoning_content must never reach Groq again, even though this is
+      // the exact same model that produced it - but the final answer and
+      // the next user message must both survive intact.
+      expect(result.input).toEqual([finalAnswer, nextUserMessage]);
+      expect(result.input.some((i: any) => i.type === "reasoning")).toBe(false);
+    });
+
+    it("callModelInputFilter should keep a reasoning item produced by the same model when the provider is known to support replay (DeepSeek reasoner)", async () => {
+      vi.mocked(run).mockResolvedValue(
+        createMockRunResult({
+          finalOutput: "Reply",
+          streamEvents: [
+            {
+              type: "raw_model_stream_event",
+              data: { type: "output_text_delta", delta: "Reply" },
+            },
+          ],
+        }),
+      );
+
+      const agent = AIPex.create({
+        instructions: "Test",
+        model: mockModel,
+        modelId: "deepseek-reasoner",
+        modelProvider: "deepseek",
       });
 
       for await (const _event of agent.chat("Hi")) {
@@ -389,7 +469,7 @@ describe("AIPex", () => {
       const ownReasoning = {
         type: "reasoning",
         content: [{ type: "input_text", text: "thinking" }],
-        providerData: { model: "openai.chat:gpt-4o" },
+        providerData: { model: "deepseek.chat:deepseek-reasoner" },
       };
 
       const result = await runOptions.callModelInputFilter({
