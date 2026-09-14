@@ -19,11 +19,16 @@ export {
   getTrackedConversationCount,
   recordEvidence,
 } from "./evidence-store.js";
+export type { InvestigationPlan, PlanStep } from "./investigation-planner.js";
+export { planInvestigation } from "./investigation-planner.js";
 export type {
   AptyComponentKind,
+  Hypothesis,
+  HypothesisStatus,
   InvestigationSession,
   InvestigationStatus,
   StartInvestigationInput,
+  UpdateHypothesisInput,
   UpdateInvestigationInput,
   VerificationAttempt,
 } from "./investigation-session.js";
