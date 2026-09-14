@@ -27,6 +27,7 @@ import {
   classifyLogEntry,
   type LogCategory,
   recordEvidence,
+  recordToolCall,
   summarizeLogCategories,
 } from "../apty/index.js";
 import { redactHeaders, redactSensitiveText } from "../apty/redact.js";
@@ -120,6 +121,11 @@ export const getNetworkDiagnosticsTool = tool({
       ),
   }),
   execute: async ({ windowMs, onlyErrors }, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "get_network_diagnostics",
+      { windowMs, onlyErrors },
+    );
     const tab = await resolveDiagnosticTab(context as ToolRunContext);
     if (!tab.id) {
       return { available: false, requests: [] };
@@ -240,6 +246,11 @@ export const getRuntimeDiagnosticsTool = tool({
       ),
   }),
   execute: async ({ windowMs }, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "get_runtime_diagnostics",
+      { windowMs },
+    );
     const tab = await resolveDiagnosticTab(context as ToolRunContext);
     if (!tab.id) {
       return { available: false, events: [] };

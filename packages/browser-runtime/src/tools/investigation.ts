@@ -23,6 +23,7 @@ import {
   formatTimeline,
 } from "../apty/evidence-correlation.js";
 import { clearEvidence, getEvidence } from "../apty/evidence-store.js";
+import { decideNextAction } from "../apty/investigation-orchestrator.js";
 import { planInvestigation } from "../apty/investigation-planner.js";
 import {
   getInvestigation,
@@ -356,6 +357,32 @@ export const getInvestigationStatusTool = tool({
   },
 });
 
+export const getNextInvestigationActionTool = tool({
+  name: "get_next_investigation_action",
+  description:
+    "Get a deterministic recommendation for what to do next in the current investigation — the autonomous orchestration layer on top of the plan/hypotheses/evidence you already have. " +
+    "Combines the investigation's plan (get_investigation_plan), its hypotheses, and which diagnostic tools have actually been called to return exactly one of: " +
+    "call_tool (call this specific tool next, with why), verify (a hypothesis has support and should be verified via record_verification_attempt), analyze (evidence/hypotheses need reasoning, not more tool calls), or stop (with a reason: confirmed, budget_exceeded, loop_detected, blocked, or evidence_exhausted). " +
+    "Enforces hard guardrails server-side so the investigation cannot run away: a maximum number of diagnostic tool calls, a wall-clock time budget, and duplicate-call (loop) detection — when a stop reason is returned, do not keep calling diagnostic tools; report the best-supported conclusion at an honest confidence level instead. " +
+    "Call this after start_investigation and again after each round of evidence collection, instead of guessing what to check next. " +
+    "Requires an investigation already started with start_investigation.",
+  parameters: z.object({}),
+  execute: async (_input, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    const investigation = getInvestigation(conversationId);
+    if (!investigation) {
+      return {
+        available: false,
+        message:
+          "No active investigation for this conversation. Call start_investigation first.",
+      };
+    }
+    const evidence = getEvidence(conversationId);
+    const nextAction = decideNextAction(investigation, evidence);
+    return { available: true, evidenceCount: evidence.length, nextAction };
+  },
+});
+
 export const investigationTools = [
   getInvestigationTimelineTool,
   clearInvestigationEvidenceTool,
@@ -365,4 +392,5 @@ export const investigationTools = [
   recordVerificationAttemptTool,
   stopInvestigationTool,
   getInvestigationStatusTool,
+  getNextInvestigationActionTool,
 ];

@@ -32,6 +32,7 @@ import {
   NotConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredStudioDiagnosticsProvider,
   recordEvidence,
+  recordToolCall,
   redactLogs,
   ScriptingClientDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,
@@ -115,6 +116,11 @@ export const getAptyPageLogsTool = tool({
       .describe("Minimum severity to include"),
   }),
   execute: async ({ limit, minLevel }, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "get_apty_page_logs",
+      { limit, minLevel },
+    );
     const tab = await resolveDiagnosticTab(context as ToolRunContext);
     if (!tab.id) {
       return { available: false, entries: [] };
@@ -178,6 +184,10 @@ export const getAptyWidgetDiagnosticsTool = tool({
     "Returns status: 'not_configured' if the Widget hasn't implemented the diagnostic bridge on this page yet — that is an expected result, not necessarily evidence the Widget is broken.",
   parameters: z.object({}),
   execute: async (_input, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "get_apty_widget_diagnostics",
+    );
     const provider = new ScriptingWidgetDiagnosticsProvider(
       makeGetTabId(context as ToolRunContext),
     );
@@ -209,6 +219,10 @@ export const getAptyClientDiagnosticsTool = tool({
     "Returns status: 'not_configured' if the Client hasn't implemented the diagnostic bridge on this page yet.",
   parameters: z.object({}),
   execute: async (_input, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "get_apty_client_diagnostics",
+    );
     const provider = new ScriptingClientDiagnosticsProvider(
       makeGetTabId(context as ToolRunContext),
     );
@@ -240,6 +254,10 @@ export const getAptyStudioDiagnosticsTool = tool({
     "Requires studioExtensionId to be configured (see packages/browser-ext/.env.example) AND Studio to implement the corresponding message handler — until both exist, returns status: 'not_configured' or 'unavailable'.",
   parameters: z.object({}),
   execute: async (_input, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "get_apty_studio_diagnostics",
+    );
     const config = await getAptyIntegrationConfig();
     const provider = config.studioExtensionId
       ? new ExternalMessageStudioDiagnosticsProvider(config.studioExtensionId)
@@ -291,6 +309,10 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
     "IMPORTANT: the service worker is a single global process shared by every tab, not specific to the current page — do not assume these logs are about the tab you're currently investigating unless a timestamp or message content actually ties them to it.",
   parameters: z.object({}),
   execute: async (_input, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "get_apty_service_worker_diagnostics",
+    );
     const config = await getAptyIntegrationConfig();
     const provider =
       config.serviceWorkerExtensionId || config.serviceWorkerDiagnosticEndpoint

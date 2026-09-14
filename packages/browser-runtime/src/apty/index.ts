@@ -19,6 +19,21 @@ export {
   getTrackedConversationCount,
   recordEvidence,
 } from "./evidence-store.js";
+export type {
+  DuplicateCallWarning,
+  OrchestratorAction,
+  OrchestratorBudgetStatus,
+  ToolCallRecord,
+} from "./investigation-orchestrator.js";
+export {
+  clearToolCallLog,
+  decideNextAction,
+  getBudgetStatus,
+  getToolCallLog,
+  getTrackedCallLogCount,
+  ORCHESTRATOR_LIMITS,
+  recordToolCall,
+} from "./investigation-orchestrator.js";
 export type { InvestigationPlan, PlanStep } from "./investigation-planner.js";
 export { planInvestigation } from "./investigation-planner.js";
 export type {

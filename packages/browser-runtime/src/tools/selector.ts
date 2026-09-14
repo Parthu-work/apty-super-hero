@@ -24,6 +24,7 @@
  */
 import { tool } from "@aipexstudio/aipex-core";
 import { z } from "zod";
+import { recordToolCall } from "../apty/index.js";
 import { redactSensitiveText } from "../apty/redact.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
@@ -35,6 +36,7 @@ import {
   rankSelectorCandidates,
 } from "../automation/selector-analysis.js";
 import * as snapshotProvider from "../automation/snapshot-provider.js";
+import type { ToolRunContext } from "./tab-utils";
 
 interface RawElementDescription {
   tagName: string;
@@ -160,7 +162,12 @@ export const analyzeElementSelectorsTool = tool({
         "The unique identifier of an element from the page snapshot (from search_elements or take_snapshot)",
       ),
   }),
-  execute: async ({ tabId, uid }) => {
+  execute: async ({ tabId, uid }, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "analyze_element_selectors",
+      { tabId, uid },
+    );
     const node = snapshotProvider.getNodeByUid(tabId, uid);
     if (!node) {
       return {

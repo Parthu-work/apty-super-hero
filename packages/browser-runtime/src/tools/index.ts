@@ -47,7 +47,11 @@ import { uploadFileToInputTool } from "./tools/upload-file";
 
 /**
  * All browser tools registered for AI use
- * Total: 34 tools (30 core + 4 intervention tools)
+ * Total: 51 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
+ * 4 intervention + 6 skill + 2 devtools + 5 apty + 9 investigation +
+ * 1 selector. Recompute this from the arrays below rather than trusting
+ * this comment when auditing — it has gone stale before (see
+ * PROJECT_PROGRESS.md's tool-registry audit).
  *
  * Disabled tools (per aipex):
  * - duplicate_tab (not in aipex)
@@ -113,7 +117,8 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   // Apty integration (5 tools)
   ...aptyTools,
 
-  // Investigation timeline / evidence correlation (2 tools)
+  // Investigation lifecycle, timeline/evidence correlation, and the
+  // autonomous orchestrator's next-action recommendation (9 tools)
   ...investigationTools,
 
   // Selector diagnostics (1 tool)

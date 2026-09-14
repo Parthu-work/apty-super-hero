@@ -6,6 +6,7 @@ import {
   getInvestigationPlanTool,
   getInvestigationStatusTool,
   getInvestigationTimelineTool,
+  getNextInvestigationActionTool,
   recordVerificationAttemptTool,
   startInvestigationTool,
   stopInvestigationTool,
@@ -388,5 +389,36 @@ describe("record_verification_attempt — real verification loop", () => {
     expect(result.warning).toBeUndefined();
 
     clearInvestigation("conv-verified-tool");
+  });
+});
+
+describe("getNextInvestigationActionTool", () => {
+  it("reports unavailable with no active investigation", async () => {
+    const result = (await getNextInvestigationActionTool.invoke(
+      runContextFor("conv-next-action-none"),
+      JSON.stringify({}),
+    )) as any;
+
+    expect(result.available).toBe(false);
+    expect(result.message).toMatch(/start_investigation/i);
+  });
+
+  it("recommends the first plan step's tool right after starting", async () => {
+    const ctx = runContextFor("conv-next-action-plan");
+    await startInvestigationTool.invoke(
+      ctx,
+      JSON.stringify({ userProblem: "The tooltip isn't showing" }),
+    );
+
+    const result = (await getNextInvestigationActionTool.invoke(
+      ctx,
+      JSON.stringify({}),
+    )) as any;
+
+    expect(result.available).toBe(true);
+    expect(result.nextAction.action).toBe("call_tool");
+    expect(typeof result.nextAction.tool).toBe("string");
+
+    clearInvestigation("conv-next-action-plan");
   });
 });
