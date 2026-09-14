@@ -410,24 +410,81 @@ downgraded. This is unit-tested
 prompt-only convention — see `DECISIONS.md` for why it lives in the store
 rather than the tool.
 
-Eight tools total (`packages/browser-runtime/src/tools/investigation.ts`):
+Nine tools total (`packages/browser-runtime/src/tools/investigation.ts`):
 `get_investigation_timeline`, `clear_investigation_evidence`,
 `start_investigation`, `get_investigation_plan`, `update_investigation`
 (status transitions, hypotheses, suspected components, plan-step
 tracking, diagnosis+confidence), `record_verification_attempt`,
-`stop_investigation`, and `get_investigation_status`. The system prompt
+`stop_investigation`, `get_investigation_status`, and
+`get_next_investigation_action` (new this session — see "Autonomous
+investigation orchestrator" below). The system prompt
 (`packages/aipex-react/src/components/chatbot/constants.ts`'s "THE
 DEBUGGING LOOP" section) instructs the model to call these at each step of
 the debugging loop, so a UI status is only ever real application state,
 never a fabricated "Analyzing..." placeholder.
 
-**What this is not**: an autonomous orchestration loop. The planner and
-status/timeline tools give the model decision-support data to consult, but
-nothing external to the model's own tool-selection loop
-(`packages/core`'s agent loop, unchanged) actually plans → executes →
-observes → decides on the model's behalf. See `DECISIONS.md` for why
-building that was judged out of scope for this session specifically (not
-a permanent decision — see `PROJECT_PROGRESS.md`'s gap matrix, P0.3).
+### Autonomous investigation orchestrator (this session)
+
+Before this session, the plan (`investigation-planner.ts`) was a static
+advisory checklist the model was free to ignore entirely, and nothing
+tracked which diagnostic tools had actually been called or enforced any
+call/time budget — flagged NOT_IMPLEMENTED against the master prompt's
+P0.3 ("investigation orchestration loop") in `PROJECT_PROGRESS.md`'s gap
+matrix. `packages/browser-runtime/src/apty/investigation-orchestrator.ts`
+closes that gap with three pieces:
+
+- **`recordToolCall(conversationId, tool, args)`** — a per-conversation
+  ledger of `{ tool, argsSignature, timestamp }` (capped at 200 entries),
+  called as a side effect from all 8 existing diagnostic tools
+  (`apty.ts`'s 5, `devtools.ts`'s 2, `selector.ts`'s
+  `analyze_element_selectors`), mirroring how `recordEvidence` already
+  works. `argsSignature` is a deterministic, key-sorted JSON stringify, so
+  `{a:1,b:2}` and `{b:2,a:1}` are recognized as the same call.
+- **`getBudgetStatus(conversationId, investigationStartedAt)`** — counts
+  only calls recorded since the current investigation started (a prior
+  investigation in the same conversation never eats into a fresh one's
+  budget) and returns `toolCallsUsed`/`toolCallsRemaining`, `elapsedMs`,
+  `overBudget` (25 calls or 15 minutes, whichever first —
+  `ORCHESTRATOR_LIMITS`), and `duplicateWarnings`/`loopDetected` (same
+  tool+argument signature called 3+ times).
+- **`decideNextAction(session, evidence)`** — a pure, deterministic
+  decision function returning exactly one
+  `{ action: "call_tool" | "verify" | "analyze" | "stop", ... }`.
+  Guardrails are checked first and always win: a detected loop or an
+  exceeded budget stops the investigation regardless of plan progress.
+  After that: an already-`confirmed` diagnosis stops it (nothing left to
+  do); a `"supported"` hypothesis routes to `verify`; the next plan step
+  whose suggested tools haven't all been called routes to `call_tool`
+  (naming the specific tool); an `open`/`testing` hypothesis with no
+  pending plan step routes to `analyze`; evidence with no hypothesis at
+  all also routes to `analyze`; no evidence and no pending plan steps
+  stops with reason `blocked`; otherwise it stops with
+  `evidence_exhausted` and instructs the model to report its
+  best-supported conclusion at an honest confidence level.
+
+Exposed to the model as **`get_next_investigation_action`** (no
+parameters — reads the current conversation's investigation/evidence):
+returns `{ available, evidenceCount, nextAction }`, or
+`available: false` if no investigation has been started yet. The tool
+description tells the model to call it after `start_investigation` and
+after each round of evidence collection, and to treat a `stop` verdict as
+binding rather than a suggestion to keep probing.
+
+**What this is, and isn't**: this is a deterministic recommend+guardrail
+layer the model consults each turn — it does not call tools itself, and
+tool execution in this codebase is still exactly what it was: the model
+calls one tool at a time via `@openai/agents`' `run()`
+(`packages/core`'s agent loop, unchanged). What's new and load-bearing is
+that the budget/loop limits are computed and enforced server-side from
+real call history, not left to prompt discipline alone — see
+`DECISIONS.md` for why this shape was chosen over either a parallel
+tool-execution engine or a generic wrapper around every tool's `execute`.
+Tested in `investigation-orchestrator.test.ts` (16 cases: ledger capping,
+order-independent loop-signature matching, every `decideNextAction`
+branch, and guardrail-precedence-over-plan-progress) plus 2 integration
+tests in `tools/investigation.test.ts` for the new tool. The system
+prompt was not updated to reference this tool explicitly — see
+`PROJECT_PROGRESS.md`'s "Known Limitations".
 
 ## Side panel UI architecture
 
@@ -515,10 +572,15 @@ Testing Library coverage.
   needed for evidence isolation itself (see "Conversation/tab binding"
   above) but would be needed for a user to watch two conversations bound
   to two different tabs side by side in the *same* window.
-- **An autonomous investigation orchestration loop** external to the
-  model's own tool-selection — the planner/plan-progress/status/timeline
-  tools are decision-support data the model consults, not logic that
-  plans/executes/observes/decides independently of it. See `DECISIONS.md`.
+- **A tool-execution engine external to the model's own tool-selection
+  loop** — `get_next_investigation_action` (added this session; see
+  "Autonomous investigation orchestrator" above) gives the model a
+  deterministic recommendation and enforces a real budget/loop guardrail,
+  but it does not call diagnostic tools itself: the model still calls one
+  tool at a time via `@openai/agents`' `run()`, unchanged. A second,
+  separate process that plans/executes/observes/decides independently of
+  the model's own tool-calling loop was deliberately not built. See
+  `DECISIONS.md`.
 - **Investigation-aware network capture sessions** — `get_network_diagnostics`
   still uses a fixed 500ms–15s window per call, not a start/reproduce/stop
   flow scoped to an investigation.

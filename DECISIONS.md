@@ -3,6 +3,57 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## The autonomous orchestrator is a recommend+guardrail layer the model consults, not a second execution engine
+
+The previous session's "Why no external investigation orchestration loop"
+entry below concluded that a full external control loop overriding the
+model's own tool-selection would mean either forking `packages/core`'s
+`run()` loop, or adding another tool the model can choose to call — and
+that the second option "is not meaningfully different from what
+`get_investigation_plan`/`get_investigation_status`/
+`get_investigation_timeline` already provide." This session's
+`investigation-orchestrator.ts` is deliberately the second option, but
+made meaningfully different in one respect: it doesn't just hand back
+inert plan/status data, it enforces two things server-side rather than
+relying on prompt discipline — a hard 25-tool-call/15-minute budget and
+duplicate-call (loop) detection, both computed in `getBudgetStatus()` and
+checked first, ahead of plan/hypothesis progression, inside
+`decideNextAction()`. This is still not a standalone process that calls
+tools on the model's behalf — this codebase's actual execution loop
+remains exactly what it was: the model calls one tool at a time via
+`@openai/agents`' `run()`, unchanged. Building a parallel engine that
+calls `FunctionTool.execute` itself, outside that loop, would fight the
+existing architecture (two things deciding what runs next) rather than
+fit it, for no clear benefit over a tool the model is already instructed
+to call after every round of evidence collection and whose guidance it is
+told to follow (including its `stop` verdicts). If real usage shows the
+model ignores `get_next_investigation_action`'s `stop` recommendation and
+keeps calling tools anyway, the next escalation is enforcing the budget
+inside the diagnostic tools themselves (refuse to execute once
+`overBudget` is true), not building a separate orchestration process —
+still an additive check, not a parallel execution engine.
+
+**Why tool-call tracking is explicit `recordToolCall()` calls, not a
+generic wrapper around every `FunctionTool.execute`**: a wrapper that
+intercepts `browserFunctionTools` at registration time (e.g. replacing
+each tool's `execute` with a version that calls `recordToolCall` then
+delegates) would have been less repetitive than adding one line to each
+of the 8 diagnostic tools individually. It was rejected for this session
+because `@openai/agents`' exact `FunctionTool` shape wasn't verified
+against real type definitions in this environment (no installed
+`node_modules` types were available to confirm wrapping `execute`
+wouldn't break argument validation, context threading, or whatever else
+the library does around that function before/after calling it) — wrapping
+blind risked a subtle regression across every tool in the registry, not
+just the diagnostic ones. Explicit insertions mirror the
+already-established, already-proven `recordEvidence` pattern used
+throughout `apty.ts`/`devtools.ts`, are easy to review one tool at a time,
+and only touch the 8 diagnostic tools that actually need budget/loop
+tracking (not the other 43 browser/tab/UI tools, which don't participate
+in investigation budgets). Revisit a generic wrapper once
+`@openai/agents`'s `FunctionTool` contract can actually be checked against
+its real types.
+
 ## Unify the Apty component model at the investigation layer, not the evidence layer
 
 Apty ships two extensions — Studio, and one runtime extension that just
@@ -49,6 +100,14 @@ actual Chrome-level cause, and handle that specific failure explicitly
 customer's page as a blanket precaution.
 
 ## Why no external investigation orchestration loop this session
+
+**Superseded in part by the entry above** — a later session did build the
+recommend+guardrail layer this entry's own last paragraph anticipated
+("a tool that explicitly says 'you have not called X yet, consider it'...
+just extended"). The reasoning below for why a *full* external
+control-flow loop (overriding the model's own tool-selection from outside
+`packages/core`) remains out of scope still holds and is kept for
+context.
 
 The engineering-automation master prompt's own P0 list includes an
 "investigation orchestration loop" (plan → execute → observe → evaluate →

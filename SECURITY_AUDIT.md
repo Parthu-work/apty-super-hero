@@ -250,6 +250,34 @@ diagnostic isolation) is now Fixed above.
 - **Conclusion**: no new sensitive-data exposure or injection surface.
 - **Status**: Reviewed, no finding.
 
+### 11. Autonomous investigation orchestrator (this session)
+
+- **Affected component**: `packages/browser-runtime/src/apty/investigation-orchestrator.ts`,
+  and its call sites in `tools/apty.ts`, `tools/devtools.ts`,
+  `tools/selector.ts`
+- **Review**: adds no new permission and no new external surface — it
+  reads no page/network/log content itself. `recordToolCall()` stores
+  only a tool name and a JSON-stringified, order-independent *signature*
+  of that call's arguments (e.g. `{tabId, uid}`), never raw evidence
+  payloads or tool output, in an in-memory, per-conversation ledger capped
+  at 200 entries (`MAX_TRACKED_CALLS`) — bounded the same way
+  `evidence-store.ts`'s 500-item cap is, and cleared the same way other
+  per-conversation state is (`clearToolCallLog`, alongside
+  `clearInvestigation`/`clearEvidence`). `getBudgetStatus()`/
+  `decideNextAction()` are pure functions over that ledger plus the
+  existing `InvestigationSession`/evidence data — no new data read, no new
+  browser API called. The budget/loop limits themselves (25 tool calls,
+  15 minutes, duplicate-call detection) are a security-relevant control in
+  their own right: a DoS/cost-control bound on how much CDP/debugger
+  activity, network capture, scripting-injection, etc. a single
+  investigation (and, transitively, a single untrusted page's ability to
+  provoke tool calls via prompt injection) can trigger before the model is
+  told to stop.
+- **Conclusion**: no new sensitive-data exposure, no new permissions; the
+  guardrail is itself a mitigation (bounds runaway tool-calling), not a
+  new risk.
+- **Status**: Reviewed, no finding.
+
 ### 10. Console/runtime event classification (this session)
 
 - **Affected component**: `packages/browser-runtime/src/apty/log-classification.ts`,

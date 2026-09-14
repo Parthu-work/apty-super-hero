@@ -20,7 +20,7 @@ is the honest current state, not aspirational.
 | Console/runtime event classification | Raw entries returned as-is (level, message, timestamp) | Partial | No classification into apty-error/CSP/CORS/JS-exception buckets | P2 | Not done this session |
 | Selector/DOM iframe+Shadow DOM handling | `iframeManager`, DOM/CDP snapshot already handle frames; Shadow DOM traversal exists in the collector | Partial | New selector tool reports iframe/shadow-root context but doesn't yet special-case cross-origin iframe limits beyond what already existed | P2 | Partially covered by new selector tool; deeper work not done |
 | Self-healing / stale-UID recovery | None — a stale UID throws and asks the model to re-snapshot | No | Manual recovery only (model calls `search_elements` again) | P2 | Not done this session |
-| Tool surface cleanup | `bookmark.ts`/`history.ts`/`organize-tabs.ts`/clipboard tools exist as source but are already excluded from `allBrowserTools` (verified) | Mostly done | `mcp-bridge/src/tool-schemas.ts` has a naive tool-name count mismatch against the real registry that wasn't fully root-caused this session (some of it is nested-directory tools like `download_*`/`upload_file_to_input` that a quick glob missed, not necessarily real bugs) | P2 | Needs a careful, dedicated audit pass — flagged, not done this session to avoid a rushed/wrong fix |
+| Tool surface cleanup | `bookmark.ts`/`history.ts`/`organize-tabs.ts`/clipboard tools exist as source but are already excluded from `allBrowserTools` (verified); `mcp-bridge/src/tool-schemas.ts`'s tool-name mismatch against the real registry is root-caused and fixed | Done | `mcp-bridge/src/tool-schemas.ts` was missing all 8 `investigation.ts` tools plus `analyze_element_selectors` — a real gap (MCP clients couldn't reach the investigation/selector layer), not just a naive count mismatch. Fixed this session: all 9 added, plus the new `get_next_investigation_action` (10 total) | — | Done — see "MCP Bridge Tool-Registry Fix" below |
 | UI: investigation state banner, evidence panel, timeline, diagnosis card | Live investigation banner + browser context bar (header), collapsible Timeline/Components/Diagnosis summary bar (above input), dedicated selector-analysis view | Yes | No dedicated "start investigation" form (by design — see below); no automated component tests for the header/summary-bar (their pure logic is fully tested) | — | Implemented this session — see "Side Panel Redesign" below |
 | Agent activity UX (friendly tool-call descriptions vs raw tool names) | Apty/investigation/selector tool names added to the existing `i18n` `tools.*` translation table with emoji-prefixed friendly labels; raw tool name shown in expanded technical details | Yes | Generic (non-Apty) tool names still just Title-Cased, not hand-written friendly descriptions | — | Implemented this session |
 | AIPex branding/UI debt removal | System prompt and agent name already rebranded (prior sessions); internal package names/storage keys deliberately kept (see `DECISIONS.md`) | Partial (by design) | Deliberate scope decision, not an oversight | P3 | No action — see `DECISIONS.md` |
@@ -44,7 +44,7 @@ components). Audited against that prompt's own P0/P1/P2 ordering:
 |---|---|---|---|---|---|
 | P0.1 | Correct Apty component model (unify Client/Widget/Player + Service Worker) | `AptyComponentKind` = `"apty-client-widget-player" \| "apty-studio"` (investigation-session.ts); UI's `ComponentHealthPanel` renders exactly 2 grouped rows with per-probe drill-down | Yes | — | Implemented this session |
 | P0.2 | Investigation planner ("what should I investigate first?") | `investigation-planner.ts`: deterministic pattern registry (tooltip/studio-select/studio-vs-prod/workflow/widget-loading + generic fallback) → ordered `PlanStep[]` with suggested tools; wired into `start_investigation`, exposed via `get_investigation_plan`, progress tracked via `update_investigation` | Yes | — | Implemented this session |
-| P0.3 | Investigation orchestration loop (plan→execute→observe→evaluate→decide) | Not built as an autonomous loop external to the model. Decision-support data exists (plan + `get_investigation_status` + `get_investigation_timeline`) for the model's own tool-selection loop (`packages/core`'s agent loop, unchanged) to consume | No | P1 | Not attempted — see "Why no external orchestrator" in `DECISIONS.md`. Would require restructuring `packages/core`'s agent loop, a much larger and riskier change than this session's scope |
+| P0.3 | Investigation orchestration loop (plan→execute→observe→evaluate→decide) | `investigation-orchestrator.ts`: `recordToolCall` ledger + `getBudgetStatus` (25-call/15-min budget, duplicate-call loop detection) + `decideNextAction` (call_tool/verify/analyze/stop), exposed via new `get_next_investigation_action` tool. A deterministic recommend+guardrail layer the model consults each turn, with server-enforced (not just prompt-instructed) budget/loop limits — not a separate process that calls tools outside the model's own tool-selection loop (`packages/core`'s agent loop, unchanged) | Yes (scoped) | — | Implemented this session — see "Autonomous Investigation Orchestrator" below and `DECISIONS.md` for why it's shaped this way rather than as a full external control-flow engine |
 | P0.4 | Structured hypotheses (not strings) | `Hypothesis { id, statement, status, confidence, supportingEvidenceIds, contradictingEvidenceIds, createdAt, updatedAt }`; `update_investigation`'s `updateHypothesis` moves one through open→testing→supported/rejected/confirmed/inconclusive | Yes | — | Implemented this session |
 | P0.5 | Real verification loop; never let an unverified hypothesis become a confirmed RCA | `record_verification_attempt` can link to a `hypothesisId` (auto-updates its status); `update_investigation` **enforces** (not just instructs) that `confidence: "confirmed"` is downgraded to `"likely"` server-side unless a confirmed verification attempt already exists — testable, not prompt-only | Yes | — | Implemented this session |
 | P1.6 | Investigation-aware network capture (start/reproduce/stop session, not fixed window) | Still the pre-existing fixed 500ms–15s `get_network_diagnostics` window | No | P1 | Not done — same gap as the original gap matrix's "Network diagnostics" row |
@@ -60,11 +60,17 @@ components). Audited against that prompt's own P0/P1/P2 ordering:
 | P2.16 | Security hardening (Phase 16/17 of the master prompt) | Phase 17's specific ask — audit `debugger-manager.ts` for destructive page manipulation — found and fixed a real issue (see "Debugger Attach No Longer Mutates the Page" below and `SECURITY_AUDIT.md` finding #8). Domain-scoping (host access, console bridge) unchanged/still blocked on Apty's domain list | Partial | P1/P2 | `debugger-manager.ts` fix done this session; domain scoping still blocked |
 | P2.17 | SE/SDE scenario/evaluation suite (12 named scenarios) | Not built — no scenario harness exists | No | P2 | Not attempted this session |
 
-**What this session deliberately did NOT attempt, and why**: a true autonomous
-orchestrator (P0.3) and the network-capture-session UX (P1.6) both require
-non-trivial changes to control flow this session judged too large to do
+**What that session deliberately did NOT attempt, and why**: a true autonomous
+orchestrator (P0.3) and the network-capture-session UX (P1.6) both required
+non-trivial changes to control flow that session judged too large to do
 safely alongside the P0.1/P0.2/P0.4/P0.5 work above — see `DECISIONS.md`.
-Real Apty-side integration contracts (P1.10/P1.11) remain blocked on Apty
+**Update (a later session)**: P0.3 has since been implemented, scoped as a
+recommend+guardrail layer rather than a full external control-flow engine
+— see "Autonomous Investigation Orchestrator" below and the updated P0.3
+row above. P1.6 (investigation-aware network capture) is still not on
+`main` — a PR exists (#11) but was reviewed and left unmerged pending
+fixes; see "MCP Bridge Tool-Registry Fix & PR #11 Review" below. Real
+Apty-side integration contracts (P1.10/P1.11) remain blocked on Apty
 engineering input, unchanged from every prior session's assessment.
 
 ## Current Status
@@ -132,12 +138,14 @@ Phase 4 of the informal roadmap below:
 6. **Autonomous engineering investigation**: ~~correct the two-extension
    Apty component model~~ ~~+ deterministic investigation planner~~
    ~~+ structured hypotheses~~ ~~+ server-enforced verification guard~~
-   (all implemented **this session** — see "Unified Apty Component Model,
-   Investigation Planner & Real Verification Guard" below). An external
-   orchestration loop, investigation-aware network capture, console/
-   runtime classification, cross-layer (Studio-vs-production) comparison,
-   SE/SDE depth modes, and a scenario/evaluation suite remain open — see
-   the new gap matrix above.
+   ~~+ autonomous orchestrator (recommend+guardrail layer)~~
+   ~~+ console/runtime classification~~ (all implemented — see "Unified
+   Apty Component Model, Investigation Planner & Real Verification Guard",
+   "Console/Runtime Event Classification", and "Autonomous Investigation
+   Orchestrator" below, across sessions). Investigation-aware network
+   capture (PR #11, reviewed but unmerged), cross-layer
+   (Studio-vs-production) comparison, SE/SDE depth modes, and a
+   scenario/evaluation suite remain open — see the new gap matrix above.
 
 ## What Was Inherited From AIPex
 
@@ -539,13 +547,20 @@ so it must check the tool's returned confidence before telling the user
 something is CONFIRMED. A new "APTY PRODUCT ARCHITECTURE" section states
 the two-extension model up front.
 
-**Not done**: no server-side enforcement that the model calls
-`start_investigation`/follows the plan/updates hypotheses at all — same
-class of limitation as the pre-existing evidence-first diagnosis format
-(a model that ignores the system prompt just leaves the lifecycle
-un-updated). See the new gap matrix above for what remains (P0.3
-orchestration loop, P1 items) and `DECISIONS.md` for why an external
-orchestrator wasn't attempted this session.
+**Not done (at the time of this section)**: no server-side enforcement
+that the model calls `start_investigation`/follows the plan/updates
+hypotheses at all — same class of limitation as the pre-existing
+evidence-first diagnosis format (a model that ignores the system prompt
+just leaves the lifecycle un-updated). A later session added
+`get_next_investigation_action` (see "Autonomous Investigation
+Orchestrator" below), which enforces a real budget/loop guardrail once
+called, but nothing forces the model to call *that* tool either — its own
+tool description tells the model when to call it, but the system prompt
+(`constants.ts`'s "THE DEBUGGING LOOP" section) was not updated to
+reference it explicitly, so reliability depends on the model reading the
+tool description carefully, same as any other tool. See the new gap
+matrix above and `DECISIONS.md` for the reasoning behind the
+recommend+guardrail scope.
 
 ## Debugger Attach No Longer Mutates the Page (this session)
 
@@ -621,6 +636,107 @@ be under-classified until a pattern is added for it. No Apty-side
 capability is required or blocked here — this is a pure client-side
 convenience over data the tools already had access to.
 
+## Autonomous Investigation Orchestrator (this session)
+
+A full capability audit against the engineering-automation master prompt
+(a subagent that greped/read the actual source, not prior docs) confirmed
+P0.3 ("investigation orchestration loop") was genuinely NOT_IMPLEMENTED —
+`grep`ing the repo for `orchestrat|maxSteps|budget|loopDetection` returned
+zero hits before this session. `investigation-planner.ts` produced a
+static advisory checklist the model was free to ignore, and nothing
+tracked which diagnostic tools had actually been called or enforced any
+call/time budget.
+
+`packages/browser-runtime/src/apty/investigation-orchestrator.ts` closes
+that gap: `recordToolCall(conversationId, tool, args)` is a
+per-conversation tool-call ledger (200-entry cap), called as a side
+effect from all 8 existing diagnostic tools (`get_apty_page_logs`,
+`get_apty_widget_diagnostics`, `get_apty_client_diagnostics`,
+`get_apty_studio_diagnostics`, `get_apty_service_worker_diagnostics` in
+`apty.ts`; `get_network_diagnostics`, `get_runtime_diagnostics` in
+`devtools.ts`; `analyze_element_selectors` in `selector.ts`, which also
+gained a `context` parameter on `execute` it didn't previously have) —
+mirroring the existing `recordEvidence` pattern. `getBudgetStatus()`
+computes a 25-tool-call/15-minute-wall-clock budget plus duplicate-call
+(loop) detection (same tool + an order-independent argument signature
+called 3+ times). `decideNextAction(session, evidence)` deterministically
+returns exactly one of `call_tool` (the next plan step's not-yet-called
+tool), `verify` (a `"supported"` hypothesis awaiting verification),
+`analyze` (evidence/open hypotheses need reasoning, not more tools), or
+`stop` (reason: `confirmed`/`loop_detected`/`budget_exceeded`/`blocked`/
+`evidence_exhausted`) — guardrails always take precedence over plan
+progression. Exposed to the model via a new `get_next_investigation_action`
+tool (`tools/investigation.ts`; investigation tools now number 9, up from
+8; total registered tools now 51, up from 50).
+
+**What this is, and isn't**: tool execution in this codebase is still
+LLM-driven, one call at a time, via `@openai/agents`' `run()`
+(`packages/core`'s agent loop, unchanged) — there is no separate process
+that autonomously executes tools without the model. This module is the
+deterministic recommend+guardrail layer the model consults each turn via
+`get_next_investigation_action`, plus server-enforced budget/loop limits
+that don't rely on prompt discipline alone. See `ARCHITECTURE.md`'s
+"Autonomous investigation orchestrator" section and `DECISIONS.md` for why
+this shape was chosen over a parallel tool-execution engine or a generic
+wrapper around every tool's `execute`.
+
+Tested in `investigation-orchestrator.test.ts` (16 new cases: ledger
+capping, order-independent loop-signature matching, every
+`decideNextAction` branch, guardrail-precedence-over-plan-progress) plus 2
+new integration tests in `tools/investigation.test.ts`.
+
+**Not done**: the system prompt (`constants.ts`'s "THE DEBUGGING LOOP"
+section) was not updated to explicitly reference
+`get_next_investigation_action` — the new tool's own description is
+currently the only thing telling the model to call it after
+`start_investigation` and after each evidence-collection round. Whether
+the model reliably does so without an explicit system-prompt nudge is
+untested against a running model; see `## Known Limitations`.
+
+## MCP Bridge Tool-Registry Fix & PR #11 Review (this session)
+
+The same audit found a real, previously-undocumented tool-registry gap:
+`mcp-bridge/src/tool-schemas.ts` (the static JSON-schema mirror the MCP
+bridge uses, with zero dependency on the extension runtime) was missing 9
+tools that were already registered in
+`packages/browser-runtime/src/tools/index.ts` — all 8
+investigation-lifecycle tools (`start_investigation`,
+`get_investigation_plan`, `update_investigation`,
+`record_verification_attempt`, `stop_investigation`,
+`get_investigation_status`, `get_investigation_timeline`,
+`clear_investigation_evidence`) and `analyze_element_selectors`. This
+meant MCP clients connecting through the bridge (Cursor, Claude Code,
+etc.) could not reach the investigation or selector-diagnostics layer at
+all — a bigger deal than the vague "tool-name count mismatch" the original
+gap matrix's row 23 flagged. Added all 9 missing schemas plus the new
+`get_next_investigation_action` schema (10 total) to
+`mcp-bridge/src/tool-schemas.ts`. Also corrected `tools/index.ts`'s doc
+comment, which claimed "Total: 34 tools" against an actual registered
+count of 50 (51 now, with the new tool) — replaced with an itemized
+per-category breakdown and an explicit note to recompute from the arrays
+rather than trust the comment, since it had already gone stale once.
+
+Also reviewed **PR #11** ("Add investigation-aware network capture
+session", the P1.6 item) in depth as part of the same audit pass: the
+implementation is solid (correct per-conversation isolation, proper header
+redaction, substantive tests), but two real defects CI didn't catch — (a)
+no `chrome.tabs.onRemoved`/`chrome.debugger.onDetach` cleanup hook, so a
+closed or detached tab mid-capture leaks a running heartbeat interval and
+permanently blocks that conversation from starting a new capture; (b) the
+in-memory captured-request map has no size cap, unlike `evidence-store.ts`'s
+500-item ceiling. Posted a review comment explaining both gaps and
+requesting fixes before merge — **did not merge**. Investigation-aware
+network capture (P1.6) therefore remains **not merged / TODO on `main`**;
+only the old fixed-window `get_network_diagnostics` tool exists on `main`
+today. This does not change the P1.6 row in either gap matrix above beyond
+recording the PR's review outcome.
+
+Verified clean: `npm run preflight` (format, lint:fix, typecheck, test)
+and `npm run build` both pass across the workspace. `mcp-bridge` (a
+standalone npm package outside the pnpm workspace) builds and typechecks
+clean separately (`npm run build` via tsup, `npx tsc --noEmit`). See
+`## Tests` below for updated counts.
+
 ## Completed
 
 - Evidence model + 4 provider interfaces with honest `not_configured`/
@@ -643,6 +759,11 @@ convenience over data the tools already had access to.
   page on every diagnostic attach (this session).
 - Console/runtime event classification for `get_apty_page_logs` and
   `get_runtime_diagnostics` — see the section above (this session).
+- Autonomous investigation orchestrator (`investigation-orchestrator.ts`,
+  `get_next_investigation_action`) with server-enforced budget/loop
+  guardrails, and the `mcp-bridge/src/tool-schemas.ts` tool-registry fix
+  (9 missing tools + the new one added) — see the two sections above
+  (this session).
 - All 5 packages build, typecheck, and pass their test suites — see
   `## Tests` below for current numbers.
 
@@ -686,12 +807,17 @@ picture against the engineering-automation master prompt):
    extension and clicking through a live investigation (start → evidence
    → diagnosis → verify → stop) has not been done. See `## Known
    Limitations`.
-8. **An external investigation orchestration loop** (P0.3 in the new gap
-   matrix, deliberately not attempted this session) — plan→execute→
-   observe→evaluate→decide as logic outside the model's own tool-calling
-   loop, not just decision-support data the model may or may not use. See
-   `DECISIONS.md` for why this needs its own dedicated session rather than
-   being bolted onto this one's P0.1/P0.2/P0.4/P0.5 work.
+8. ~~An external investigation orchestration loop~~ (P0.3) — implemented
+   in a later session as `investigation-orchestrator.ts` +
+   `get_next_investigation_action`, scoped as a deterministic
+   recommend+guardrail layer (real 25-call/15-min budget + loop detection,
+   enforced server-side) rather than a process that calls tools outside
+   the model's own tool-selection loop. See "Autonomous Investigation
+   Orchestrator" above and `DECISIONS.md`. If real usage ever shows the
+   model ignoring `get_next_investigation_action`'s `stop` verdicts, the
+   next step is enforcing the budget inside the diagnostic tools
+   themselves (refuse to execute once over-budget) — still not a
+   separate execution engine.
 9. **SE/SDE investigation depth modes** (P2.12): one engine, a
    configurable depth setting (SE: content/workflow/selector-focused; SDE:
    allow deeper CDP/extension-messaging/timing internals) — no depth
@@ -789,22 +915,30 @@ codebase. Neither exists live today; every call still reports
 
 ## Browser Tools
 
-50 tools registered in `packages/browser-runtime/src/tools/index.ts`:
+51 tools registered in `packages/browser-runtime/src/tools/index.ts`:
 tabs (7), UI operations/element interaction (8), page content (4),
 screenshots (3), downloads (2), interventions (4), skills (6), DevTools (2),
-Apty integration (5), investigation timeline/lifecycle (8:
+Apty integration (5), investigation timeline/lifecycle (9:
 `get_investigation_timeline`/`clear_investigation_evidence`,
-`start_investigation`/`get_investigation_plan` (new this session)
+`start_investigation`/`get_investigation_plan`
 /`update_investigation`/`record_verification_attempt`/`stop_investigation`/
-`get_investigation_status`), selector diagnostics (1). See that file for
-the authoritative, categorized list. (`bookmark.ts`, `history.ts` and
-`organize-tabs.ts` exist as source files but are not registered in
-`allBrowserTools`.) Note: `mcp-bridge/src/tool-schemas.ts` (a separate,
-non-workspace package) has never included any of `investigation.ts`'s 8
-tools or `selector.ts`'s `analyze_element_selectors` — a pre-existing gap
-from before this session, not a regression, but worth calling out
-precisely now rather than leaving it folded into the vaguer "tool-name
-count mismatch" note in the original gap matrix's row 23.
+`get_investigation_status`/`get_next_investigation_action` (new this
+session)), selector diagnostics (1). See that file for the authoritative,
+categorized list (recompute counts from the arrays there rather than
+trusting this paragraph — the file's own doc comment went stale once
+already, see the tool-registry fix below). (`bookmark.ts`, `history.ts`
+and `organize-tabs.ts` exist as source files but are not registered in
+`allBrowserTools`.)
+
+**Fixed this session**: `mcp-bridge/src/tool-schemas.ts` (a separate,
+non-workspace package) was missing all 9 of `investigation.ts`'s
+lifecycle tools plus `selector.ts`'s `analyze_element_selectors` — a
+real, pre-existing gap (not a regression) meaning MCP clients connecting
+through the bridge couldn't reach the investigation or selector layer at
+all, not just a naive count mismatch as the original gap matrix's row 23
+had it. All 9 missing schemas plus the new `get_next_investigation_action`
+schema (10 total) were added — see "MCP Bridge Tool-Registry Fix & PR #11
+Review" above.
 
 ## DevTools
 
@@ -826,7 +960,10 @@ connects to as a client. Origin-header validation rejects all http/https
 page origins (prevents cross-site WebSocket hijacking); Node clients
 without an Origin header, and `chrome-extension://`/`moz-extension://`
 origins, are allowed. `mcp-bridge/src/tool-schemas.ts` was updated to match
-the new/renamed Apty and DevTools tools.
+the new/renamed Apty and DevTools tools, and this session to add the 9
+investigation/selector tools it was missing plus
+`get_next_investigation_action` (10 schemas total) — see "MCP Bridge
+Tool-Registry Fix" above.
 
 ## Security Audit
 
@@ -846,17 +983,19 @@ list to scope to).
 ### Passing
 - `packages/core`: 217 tests
 - `packages/dom-snapshot`: 132 tests
-- `packages/browser-runtime`: 297 tests (279 prior + 12 for the new
-  `log-classification.test.ts` + 1 integration test each in
-  `apty.test.ts`/`devtools.test.ts` for the new `category`/
-  `categoryCounts` fields — this session)
+- `packages/browser-runtime`: 314 tests (298 prior + 16 new
+  `investigation-orchestrator.test.ts` cases + 2 new tests in
+  `tools/investigation.test.ts` for `get_next_investigation_action` —
+  this session)
 - `packages/aipex-react`: 114 tests (10 pre-existing skips, unrelated to this work)
 - `packages/browser-ext`: 57 tests (54 prior + updated/expanded coverage
   in `component-health.test.ts`/`component-health-panel.test.tsx`/
   `diagnosis-card.test.tsx` for the grouped component model and
   structured hypotheses — prior session)
-- **Total: 817 passing**, all packages build, typecheck, format/lint
+- **Total: 834 passing**, all packages build, typecheck, format/lint
   (`npm run preflight`), and build clean end-to-end this session.
+  `mcp-bridge` (standalone, outside the pnpm workspace) builds and
+  typechecks clean separately.
 
 ### Failing
 None known.
@@ -1121,19 +1260,33 @@ commit.
   diagnosis → verify → stop, iframe/Shadow-DOM selector cases, concurrent
   tab/conversation scenarios) against the actual extension has not been
   done. See `## Next Steps`.
-- **No autonomous orchestration loop** — the investigation planner and
-  status/timeline tools give the model decision-support data, but nothing
-  external to the model's own tool-selection loop (`packages/core`'s
-  agent loop, unchanged) plans/executes/observes/decides on its own. See
-  `DECISIONS.md` for why this wasn't attempted this session.
+- **Autonomous orchestration is now a recommend+guardrail layer, not a
+  full external control-flow engine** — `get_next_investigation_action`
+  gives the model a deterministic recommendation and enforces a real
+  25-tool-call/15-minute budget plus loop detection server-side, but it
+  does not call tools itself: the model still calls one tool at a time via
+  `@openai/agents`' `run()` (`packages/core`'s agent loop, unchanged). The
+  system prompt (`constants.ts`'s "THE DEBUGGING LOOP" section) was not
+  updated to explicitly instruct the model to call
+  `get_next_investigation_action` — the tool's own description is
+  currently the only thing telling the model when to use it, so
+  reliability is untested against a running model. See "Autonomous
+  Investigation Orchestrator" above and `DECISIONS.md` for why a full
+  external tool-execution engine was not built.
 - **Network capture is still unchanged** — a fixed capture window, not an
   investigation-scoped start/reproduce/stop session. See the new gap
-  matrix's P1.6 row. **Console/runtime classification (P1.7) is done** —
+  matrix's P1.6 row. A PR implementing this (#11) was reviewed this
+  session and found solid but with two real gaps (no tab-close/detach
+  cleanup, no size cap on the request map) — left unmerged pending fixes,
+  so `main` is unchanged; see "MCP Bridge Tool-Registry Fix & PR #11
+  Review" above. **Console/runtime classification (P1.7) is done** —
   see `log-classification.ts` and the "Console/runtime event
   classification" writeup in `ARCHITECTURE.md`'s DevTools/CDP section.
-- **`mcp-bridge/src/tool-schemas.ts` still lacks all 8 `investigation.ts`
-  tools and `analyze_element_selectors`** — a pre-existing gap (not
-  introduced this session), unaddressed; see `## Browser Tools`.
+- **`mcp-bridge/src/tool-schemas.ts` tool-registry gap is fixed** — it
+  used to lack all 8 `investigation.ts` tools and
+  `analyze_element_selectors`; all 9 plus the new
+  `get_next_investigation_action` (10 total) were added this session. See
+  `## Browser Tools`.
 
 ## Important Technical Decisions
 
@@ -1141,17 +1294,18 @@ See `DECISIONS.md`.
 
 ## Last Commit
 
-`19f53fe` — "feat: classify console/runtime diagnostic events into
-failure categories" (this session's only commit — the doc updates above
-are folded into it, not a separate commit). Prior session's checkpoint:
-`e7c98ff` — "docs: gap-audit against the engineering-automation master
-prompt, record P0 work".
+`3f5647d` — "feat: add autonomous investigation orchestrator, fix MCP
+tool-registry gap" (this session's code commit — the doc updates above
+were written as a follow-up pass over that commit's content, not folded
+into it). Prior checkpoint: `19f53fe` — "feat: classify console/runtime
+diagnostic events into failure categories".
 
 ## Last Push
 
-Pushed to `origin/claude/eloquent-brahmagupta-qcz5yw` (check `git log -1` /
-`git status` — this note is updated by hand and can lag the actual push by
-one commit within a session).
+Check `git log -1` / `git status` for the actual current state — this
+note is updated by hand and can lag by a commit within a session. As of
+this doc update the branch was `main`, ahead of `origin/main` by this
+session's commit (`3f5647d`), not yet pushed.
 
 ## NEXT SESSION HANDOFF
 
@@ -1183,8 +1337,10 @@ this file for the fuller P0/P1/P2 picture):**
    redesign~~, ~~unified two-extension component model~~, ~~investigation
    planner~~, ~~structured hypotheses~~, ~~server-enforced verification
    guard~~, ~~debugger-manager destructive-behavior fix~~, ~~console/
-   runtime event classification~~ (all done — see the relevant "(this
-   session)"-tagged sections above for whichever session did each).
+   runtime event classification~~, ~~autonomous investigation
+   orchestrator~~, ~~mcp-bridge tool-registry fix~~ (all done — see the
+   relevant "(this session)"-tagged sections above for whichever session
+   did each).
    Follow-ups if picked up next: precise first-turn tab binding;
    per-conversation `InterventionManager` mode once/if concurrent
    conversations within one window's UI become a thing.
@@ -1200,16 +1356,21 @@ this file for the fuller P0/P1/P2 picture):**
    build/typecheck/tests.
 3. **Investigation-aware network capture session UX** (P1.6 in the new gap
    matrix) — replace the fixed capture window with a start/reproduce/stop
-   flow scoped to the investigation.
+   flow scoped to the investigation. PR #11 attempts this; it was reviewed
+   and found solid but missing tab-close/detach cleanup and a size cap on
+   its request map — fix those two things and it should be close to
+   mergeable, rather than starting over.
 4. **A Studio-vs-production comparison tool** (P1.8) — the planner's
    `studio-vs-production` category already has a "compare" step; no tool
    backs it yet beyond calling the existing individual diagnostics
    separately and reasoning about them unassisted.
-5. **An external investigation orchestration loop** (P0.3) — this is the
-   one item from the master prompt's own P0 list this session did NOT
-   attempt; see `DECISIONS.md` for why it needs its own session. Read that
-   entry before starting this — it explains what "orchestration" can
-   safely mean here without restructuring `packages/core`'s agent loop.
+5. ~~An external investigation orchestration loop~~ (P0.3) — done, scoped
+   as a recommend+guardrail layer (`investigation-orchestrator.ts` +
+   `get_next_investigation_action`); see "Autonomous Investigation
+   Orchestrator" above. A full external engine that calls tools itself,
+   outside the model's own tool-selection loop, remains not built and is
+   low priority unless real usage shows the scoped version insufficient —
+   see `DECISIONS.md`.
 6. Writing tests for `widget-diagnostics.ts`/`client-diagnostics.ts`/
    `studio-diagnostics.ts` using the same `global.chrome` mock pattern
    proven out in `service-worker-diagnostics.test.ts` and

@@ -4,6 +4,77 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
+## Unreleased (this session) — autonomous investigation orchestrator, MCP bridge tool-registry fix
+
+**Added**
+- P0 autonomous investigation orchestrator
+  (`packages/browser-runtime/src/apty/investigation-orchestrator.ts`):
+  closes the gap the previous session's own gap matrix flagged as
+  NOT_IMPLEMENTED (P0.3) — `investigation-planner.ts` only produced a
+  static advisory checklist the model was free to ignore, with nothing
+  tracking which diagnostic tools had actually run or enforcing any
+  budget/loop limit. `recordToolCall(conversationId, tool, args)` is a
+  per-conversation tool-call ledger (200-entry cap), called as a side
+  effect from every diagnostic tool, mirroring the existing
+  `recordEvidence` pattern. `getBudgetStatus()` computes a 25-tool-call /
+  15-minute-wall-clock budget plus duplicate-call (loop) detection (same
+  tool+an order-independent argument signature called ≥3 times).
+  `decideNextAction(session, evidence)` deterministically returns exactly
+  one of `call_tool` (next unattempted plan-step tool), `verify` (a
+  `"supported"` hypothesis awaiting verification), `analyze` (evidence/
+  open hypotheses need reasoning, not more tools), or `stop` (reason:
+  `confirmed` / `loop_detected` / `budget_exceeded` / `blocked` /
+  `evidence_exhausted`) — guardrails always take precedence over plan
+  progression. Exposed to the model via a new
+  `get_next_investigation_action` tool (`tools/investigation.ts`;
+  investigation tools now number 9, up from 8). Instrumented all 8
+  existing diagnostic tools to call `recordToolCall`: `get_apty_page_logs`,
+  `get_apty_widget_diagnostics`, `get_apty_client_diagnostics`,
+  `get_apty_studio_diagnostics`, `get_apty_service_worker_diagnostics`
+  (`tools/apty.ts`), `get_network_diagnostics`, `get_runtime_diagnostics`
+  (`tools/devtools.ts`), and `analyze_element_selectors`
+  (`tools/selector.ts`, which also gained a `context` parameter on its
+  `execute` it previously lacked). This is a "recommend + guardrail"
+  layer the model consults each turn, not a standalone execution engine —
+  see `DECISIONS.md` for why, given this codebase's actual LLM-driven
+  one-call-at-a-time tool execution via `@openai/agents`.
+- 18 new/expanded tests: `investigation-orchestrator.test.ts` (16, new,
+  covering ledger capping, order-independent loop signatures, every
+  `decideNextAction` branch, and guardrail precedence), plus 2 new tests
+  in `tools/investigation.test.ts` for `get_next_investigation_action`.
+
+**Fixed**
+- `mcp-bridge/src/tool-schemas.ts` (the MCP bridge's static JSON-schema
+  mirror, with zero dependency on the extension runtime) was missing 9
+  tools that were already registered in
+  `packages/browser-runtime/src/tools/index.ts`: all 8
+  investigation-lifecycle tools (`start_investigation`,
+  `get_investigation_plan`, `update_investigation`,
+  `record_verification_attempt`, `stop_investigation`,
+  `get_investigation_status`, `get_investigation_timeline`,
+  `clear_investigation_evidence`) and `analyze_element_selectors` — MCP
+  clients connecting through the bridge (Cursor, Claude Code, etc.) could
+  not reach the investigation or selector-diagnostics layer at all. Added
+  all 9 missing schemas plus `get_next_investigation_action` (10 total).
+- A stale doc comment in `tools/index.ts` claiming "Total: 34 tools" when
+  the actual registered count was 50 (51 with the new tool) — replaced
+  with an itemized per-category breakdown and a note to recompute rather
+  than trust the comment, since it had already gone stale once.
+
+**Reviewed**
+- PR #11 ("Add investigation-aware network capture session", the P1.6
+  item from the master-prompt gap matrix): implementation is solid
+  (correct per-conversation isolation, proper header redaction,
+  substantive tests), but two real defects CI didn't catch — no
+  `chrome.tabs.onRemoved`/`chrome.debugger.onDetach` cleanup, so a closed
+  or detached tab mid-capture leaks a running heartbeat interval and
+  permanently blocks that conversation from starting a new capture; and
+  the in-memory captured-request map has no size cap, unlike the evidence
+  store's 500-item ceiling. Posted a review requesting both fixes before
+  merge — **not merged**; investigation-aware network capture remains
+  unmerged/TODO on `main`, which still only has the old fixed-window
+  `get_network_diagnostics`.
+
 ## Unreleased (this session) — console/runtime event classification
 
 **Added**
