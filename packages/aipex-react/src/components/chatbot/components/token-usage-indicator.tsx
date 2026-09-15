@@ -145,9 +145,7 @@ export function TokenUsageIndicator({
             <span
               className={cn(
                 "font-mono font-medium text-xs",
-                isSummarizing
-                  ? "text-info"
-                  : getColorClass(usage.percentage),
+                isSummarizing ? "text-info" : getColorClass(usage.percentage),
               )}
             >
               {usage.percentage.toFixed(0)}%
@@ -214,9 +212,7 @@ export function TokenUsageIndicator({
             strokeDasharray={`${2 * Math.PI * 6}`}
             strokeDashoffset={`${2 * Math.PI * 6 * (1 - usage.percentage / 100)}`}
             className={
-              isSummarizing
-                ? "stroke-info"
-                : getProgressColor(usage.percentage)
+              isSummarizing ? "stroke-info" : getProgressColor(usage.percentage)
             }
             strokeLinecap="round"
           />
@@ -228,9 +224,7 @@ export function TokenUsageIndicator({
         <span
           className={cn(
             "font-mono font-medium",
-            isSummarizing
-              ? "text-info"
-              : getColorClass(usage.percentage),
+            isSummarizing ? "text-info" : getColorClass(usage.percentage),
           )}
         >
           {usage.percentage.toFixed(1)}%
@@ -244,9 +238,7 @@ export function TokenUsageIndicator({
       {isSummarizing ? (
         <div className="ml-auto flex items-center gap-1">
           <div className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
-          <span className="text-info text-xs">
-            Summarizing...
-          </span>
+          <span className="text-info text-xs">Summarizing...</span>
         </div>
       ) : usage.percentage >= (watermarkTokens / maxTokens) * 100 ? (
         <div className="ml-auto">

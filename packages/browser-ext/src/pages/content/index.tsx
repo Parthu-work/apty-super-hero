@@ -1,7 +1,7 @@
 import { FakeMouse } from "@aipexstudio/aipex-react/components/fake-mouse";
 import type { FakeMouseController } from "@aipexstudio/aipex-react/components/fake-mouse/types";
-import { Omni } from "@aipexstudio/aipex-react/components/omni";
 import type { OmniCommandGroup } from "@aipexstudio/aipex-react/components/omni";
+import { Omni } from "@aipexstudio/aipex-react/components/omni";
 import { collectDomSnapshot } from "@aipexstudio/dom-snapshot";
 import { MessageSquareText } from "lucide-react";
 import React from "react";

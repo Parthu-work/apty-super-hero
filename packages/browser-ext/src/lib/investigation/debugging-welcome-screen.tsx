@@ -73,7 +73,10 @@ export function DebuggingWelcomeScreen({
 }: WelcomeScreenProps) {
   return (
     <div
-      className={cn("flex h-full flex-col items-center justify-center p-4", className)}
+      className={cn(
+        "flex h-full flex-col items-center justify-center p-4",
+        className,
+      )}
       {...props}
     >
       <div className="mb-6 text-center">

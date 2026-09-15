@@ -1,5 +1,4 @@
-import { Fragment } from "react";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import {
   CommandDialog,
   CommandEmpty,

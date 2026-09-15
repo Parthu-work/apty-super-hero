@@ -232,7 +232,10 @@ export function UpdateBanner({
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex-shrink-0 p-1.5 rounded-full bg-info/15">
-            <ArrowUpCircleIcon className="size-4 text-info" aria-hidden="true" />
+            <ArrowUpCircleIcon
+              className="size-4 text-info"
+              aria-hidden="true"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-foreground truncate">

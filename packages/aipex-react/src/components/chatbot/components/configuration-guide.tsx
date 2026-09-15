@@ -35,10 +35,7 @@ export function ConfigurationGuide({
       <div className="text-center max-w-md">
         <div className="mb-6 flex justify-center">
           <div className="w-16 h-16 rounded-full bg-warning/15 flex items-center justify-center">
-            <SettingsIcon
-              className="w-8 h-8 text-warning"
-              aria-hidden="true"
-            />
+            <SettingsIcon className="w-8 h-8 text-warning" aria-hidden="true" />
           </div>
         </div>
 
