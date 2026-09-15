@@ -348,7 +348,125 @@ export const getRuntimeDiagnosticsTool = tool({
   },
 });
 
+const MAX_EXPRESSION_LENGTH = 2000;
+const MAX_RESULT_LENGTH = 2000;
+
+function truncateText(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}… (truncated)` : text;
+}
+
+interface EvaluationResult {
+  type?: string;
+  value?: unknown;
+  description?: string;
+}
+
+/** Renders a CDP `Runtime.evaluate` result to a bounded, redacted string. `returnByValue` puts JSON-serializable results under `.value`; functions/DOM nodes/etc. only get a `.description`. */
+function serializeEvaluationResult(result?: EvaluationResult): string {
+  if (!result || result.type === "undefined") return "undefined";
+  if (Object.hasOwn(result, "value")) {
+    const { value } = result;
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    return truncateText(
+      redactSensitiveText(text ?? String(value)),
+      MAX_RESULT_LENGTH,
+    );
+  }
+  return truncateText(
+    redactSensitiveText(result.description ?? `[${result.type ?? "unknown"}]`),
+    MAX_RESULT_LENGTH,
+  );
+}
+
+export const runConsoleCommandTool = tool({
+  name: "run_console_command",
+  description:
+    "Execute a short JavaScript expression or statement in the current tab's page — the console-level debugging operation a human would normally perform by opening DevTools and typing into the Console panel (e.g. `console.log('hi')`, reading a global variable, checking `document.title`). " +
+    "Uses the Chrome DevTools Protocol, the same remote-debugging mechanism DevTools itself uses — this does NOT open the visible DevTools panel (extensions cannot toggle that UI), but it runs the expression against the page exactly as the DevTools console would, and returns its result, any thrown error, or notes that it ran as a side effect (e.g. a console.log call). " +
+    `Expression is limited to ${MAX_EXPRESSION_LENGTH} characters; the result is truncated if very large, and sensitive-looking values (tokens, passwords, cookies) are redacted before being returned. ` +
+    "Use this for diagnostics — reading state, checking a value, reproducing a console command the user asked about — not for taking actions a real user wouldn't (submitting forms, navigating away); use the dedicated UI/navigation tools for that.",
+  parameters: z.object({
+    expression: z
+      .string()
+      .min(1)
+      .max(MAX_EXPRESSION_LENGTH)
+      .describe(
+        'The JavaScript expression or statement to evaluate in the page, e.g. "console.log(\'hi\')" or "document.title"',
+      ),
+  }),
+  execute: async ({ expression }, context) => {
+    recordToolCall(
+      (context as ToolRunContext)?.context?.conversationId,
+      "run_console_command",
+      { expression },
+    );
+    const tab = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!tab.id) {
+      return { available: false, error: "No active tab found." };
+    }
+    const tabId = tab.id;
+
+    const attached = await debuggerManager.safeAttachDebugger(tabId);
+    if (!attached) {
+      return {
+        available: false,
+        error: "Failed to attach the debugger to this tab.",
+      };
+    }
+
+    try {
+      const cdp = new CdpCommander(tabId);
+      const evalResult = await cdp.sendCommand<{
+        result?: EvaluationResult;
+        exceptionDetails?: {
+          text?: string;
+          exception?: { description?: string };
+        };
+      }>("Runtime.evaluate", {
+        expression,
+        returnByValue: true,
+        awaitPromise: true,
+        userGesture: true,
+      });
+
+      if (evalResult?.exceptionDetails) {
+        const message =
+          evalResult.exceptionDetails.exception?.description ??
+          evalResult.exceptionDetails.text ??
+          "The expression threw an error.";
+        return {
+          available: true,
+          success: false,
+          url: tab.url,
+          expression,
+          error: truncateText(
+            redactSensitiveText(String(message)),
+            MAX_RESULT_LENGTH,
+          ),
+        };
+      }
+
+      return {
+        available: true,
+        success: true,
+        url: tab.url,
+        expression,
+        resultType: evalResult?.result?.type,
+        result: serializeEvaluationResult(evalResult?.result),
+      };
+    } catch (error) {
+      return {
+        available: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      await debuggerManager.safeDetachDebugger(tabId);
+    }
+  },
+});
+
 export const devToolsTools = [
   getNetworkDiagnosticsTool,
   getRuntimeDiagnosticsTool,
+  runConsoleCommandTool,
 ];

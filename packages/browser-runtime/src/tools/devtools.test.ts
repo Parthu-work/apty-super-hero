@@ -36,6 +36,7 @@ vi.mock("../automation/debugger-manager.js", () => ({
 import {
   getNetworkDiagnosticsTool,
   getRuntimeDiagnosticsTool,
+  runConsoleCommandTool,
 } from "./devtools";
 
 const TAB_ID = 7;
@@ -178,5 +179,135 @@ describe("getRuntimeDiagnosticsTool — classification", () => {
     // warning/error-level log entry and every exception is still recorded.
     const evidence = getEvidence("conv-runtime-classify");
     expect(evidence).toHaveLength(3);
+  });
+});
+
+describe("runConsoleCommandTool", () => {
+  it("evaluates an expression and returns its JSON-serializable result", async () => {
+    mockSendCommand.mockImplementation(async (command: string) => {
+      if (command === "Runtime.evaluate") {
+        return { result: { type: "number", value: 42 } };
+      }
+      return undefined;
+    });
+
+    const runContext = {
+      context: { conversationId: "conv-console", tabId: TAB_ID },
+    };
+    const result = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "1 + 41" }),
+    )) as any;
+
+    expect(result.available).toBe(true);
+    expect(result.success).toBe(true);
+    expect(result.result).toBe("42");
+    expect(mockSafeAttachDebugger).toHaveBeenCalledWith(TAB_ID);
+    expect(mockSafeDetachDebugger).toHaveBeenCalledWith(TAB_ID);
+  });
+
+  it("reports console.log-style undefined results as a successful no-value run", async () => {
+    mockSendCommand.mockImplementation(async (command: string) => {
+      if (command === "Runtime.evaluate") {
+        return { result: { type: "undefined" } };
+      }
+      return undefined;
+    });
+
+    const runContext = {
+      context: { conversationId: "conv-console-log", tabId: TAB_ID },
+    };
+    const result = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "console.log('hi')" }),
+    )) as any;
+
+    expect(result.available).toBe(true);
+    expect(result.success).toBe(true);
+    expect(result.result).toBe("undefined");
+  });
+
+  it("reports a thrown exception as an honest failure, not a tool error", async () => {
+    mockSendCommand.mockImplementation(async (command: string) => {
+      if (command === "Runtime.evaluate") {
+        return {
+          exceptionDetails: {
+            exception: { description: "ReferenceError: x is not defined" },
+          },
+        };
+      }
+      return undefined;
+    });
+
+    const runContext = {
+      context: { conversationId: "conv-console-error", tabId: TAB_ID },
+    };
+    const result = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "x.doSomething()" }),
+    )) as any;
+
+    expect(result.available).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("ReferenceError");
+    expect(mockSafeDetachDebugger).toHaveBeenCalledWith(TAB_ID);
+  });
+
+  it("redacts sensitive-looking values before returning the result", async () => {
+    mockSendCommand.mockImplementation(async (command: string) => {
+      if (command === "Runtime.evaluate") {
+        return {
+          result: { type: "string", value: 'token: "abc123secrettoken"' },
+        };
+      }
+      return undefined;
+    });
+
+    const runContext = {
+      context: { conversationId: "conv-console-redact", tabId: TAB_ID },
+    };
+    const result = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "getAuthHeader()" }),
+    )) as any;
+
+    expect(result.result).not.toContain("abc123secrettoken");
+    expect(result.result).toContain("REDACTED");
+  });
+
+  it("truncates very large results", async () => {
+    const hugeValue = "x".repeat(5000);
+    mockSendCommand.mockImplementation(async (command: string) => {
+      if (command === "Runtime.evaluate") {
+        return { result: { type: "string", value: hugeValue } };
+      }
+      return undefined;
+    });
+
+    const runContext = {
+      context: { conversationId: "conv-console-truncate", tabId: TAB_ID },
+    };
+    const result = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "getHugeString()" }),
+    )) as any;
+
+    expect(result.result.length).toBeLessThan(5000);
+    expect(result.result).toContain("truncated");
+  });
+
+  it("reports failure without throwing when the debugger cannot attach", async () => {
+    mockSafeAttachDebugger.mockResolvedValueOnce(false);
+
+    const runContext = {
+      context: { conversationId: "conv-console-noattach", tabId: TAB_ID },
+    };
+    const result = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "1 + 1" }),
+    )) as any;
+
+    expect(result.available).toBe(false);
+    expect(mockSendCommand).not.toHaveBeenCalled();
   });
 });

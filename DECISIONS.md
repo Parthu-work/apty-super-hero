@@ -3,6 +3,51 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## Apty DOM Health uses two snapshots and a fixed weighted rule engine, not a persistent recorder or an LLM-scored heuristic
+
+The DOM Readiness Score automates the manual "run a DOM analysis script,
+run it again, diff the JSON" workflow SEs already do by hand. It takes
+exactly two DOM snapshots (`@aipexstudio/dom-snapshot`'s
+`collectDomHealthSnapshot`, a separate collector from the existing
+accessibility-tree `collectDomSnapshot` used for element search) roughly
+800ms apart and scores them with fixed weights
+(`apty/dom-health-scoring.ts`) — never a third "just in case" snapshot,
+never a background/continuous recorder. Three reasons: (1) determinism —
+the product spec requires "same input → same score," which a persistent
+recorder sampling at arbitrary intervals can't guarantee; (2) the LLM must
+never calculate the score itself, so the scoring logic has to be pure,
+testable code, not something an agent infers from raw snapshots; (3) perf
+— an on-demand two-snapshot audit is bounded and cheap, while a persistent
+recorder would mean holding content-script listeners/timers alive
+indefinitely for a side panel feature nobody may ever open. Selector-value
+dynamism reuses `automation/selector-analysis.ts`'s `looksDynamic()` — the
+same function `analyze_element_selectors` already uses — so "does this
+id/class look machine-generated" has one definition, not two that could
+quietly drift apart. Cross-origin iframes and closed Shadow DOM are
+reported as accessibility boundaries (partial credit / capped penalty),
+never scored as defects, matching the existing "Apty diagnostics are
+honest stubs" precedent below. Revisit the two-snapshot choice (spec
+explicitly allows an optional third) if real usage shows single-window
+sampling misses debounced re-renders on a specific class of pages.
+
+## `run_console_command` executes scoped JS via the existing CDP debugger session, not a new execution architecture
+
+Asked to "open DevTools and run a console command," the honest answer is
+that an extension has no API to toggle the visible DevTools panel open —
+but it can achieve the same debugging outcome via `Runtime.evaluate` over
+the same `chrome.debugger` connection `get_network_diagnostics`/
+`get_runtime_diagnostics`/`analyze_element_selectors` already use
+(`automation/debugger-manager.ts`'s `debuggerManager` singleton +
+`automation/cdp-commander.ts`'s `CdpCommander` — see `devtools.ts`). No new
+attach/detach lifecycle, no new permission (`debugger` was already
+declared), and the tool description says plainly that it can't open the
+visible panel rather than implying it did. The expression is length-capped
+and the result is redacted/truncated the same way `get_runtime_diagnostics`
+already redacts log text, so this doesn't introduce a new class of data
+exposure. Deliberately NOT a generic "run any JS anywhere" tool — it only
+targets the current/bound tab's page, same as every other diagnostic tool
+here.
+
 ## Apty Client resource inspection uses cross-extension messaging, not `chrome.debugger` — verified, not assumed
 
 The original V1 design (see the older entry below and `CHANGELOG.md`)

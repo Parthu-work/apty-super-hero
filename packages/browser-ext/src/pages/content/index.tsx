@@ -2,7 +2,10 @@ import { FakeMouse } from "@aipexstudio/aipex-react/components/fake-mouse";
 import type { FakeMouseController } from "@aipexstudio/aipex-react/components/fake-mouse/types";
 import type { OmniCommandGroup } from "@aipexstudio/aipex-react/components/omni";
 import { Omni } from "@aipexstudio/aipex-react/components/omni";
-import { collectDomSnapshot } from "@aipexstudio/dom-snapshot";
+import {
+  collectDomHealthSnapshot,
+  collectDomSnapshot,
+} from "@aipexstudio/dom-snapshot";
 import { MessageSquareText } from "lucide-react";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -332,6 +335,22 @@ const ContentApp = () => {
           }
         })();
         return true; // Keep channel open for async response
+      } else if (message.request === "collect-dom-health-snapshot") {
+        // Apty DOM Health audit — separate from the accessibility-tree
+        // snapshot above; see @aipexstudio/dom-snapshot's health-collector.
+        try {
+          const snapshot = collectDomHealthSnapshot(document);
+          sendResponse({ success: true, data: snapshot });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to collect a DOM Health snapshot",
+          });
+        }
+        return true;
       }
 
       return false;

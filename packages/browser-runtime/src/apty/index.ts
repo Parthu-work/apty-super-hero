@@ -7,6 +7,18 @@ export {
   getAptyIntegrationConfig,
   setAptyIntegrationConfig,
 } from "./config.js";
+export type { DomHealthAuditOutcome } from "./dom-health.js";
+export { runDomHealthAudit } from "./dom-health.js";
+export type {
+  DomHealthAuditResult,
+  DomHealthGrade,
+  DomHealthMetricDetails,
+  DomHealthMetricKey,
+  DomHealthMetrics,
+  DomHealthRecommendation,
+  DomHealthRisk,
+} from "./dom-health-scoring.js";
+export { buildDomHealthAuditResult } from "./dom-health-scoring.js";
 export {
   type CorrelateOptions,
   type CorrelationCluster,

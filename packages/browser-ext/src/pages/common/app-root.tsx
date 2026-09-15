@@ -38,6 +38,7 @@ import { InterventionModeProvider } from "../../lib/intervention-mode-context";
 import { InterventionUI } from "../../lib/intervention-ui";
 import { AptyToolDisplay } from "../../lib/investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "../../lib/investigation/debugging-welcome-screen";
+import { DomHealthCard } from "../../lib/investigation/dom-health-card";
 import { InvestigationSummaryBar } from "../../lib/investigation/investigation-summary-bar";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
@@ -268,6 +269,7 @@ function ChatApp() {
             promptExtras: () => (
               <>
                 <InvestigationSummaryBar />
+                <DomHealthCard />
                 <BrowserContextLoader />
               </>
             ),
