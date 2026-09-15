@@ -4,7 +4,7 @@ import { cn } from "../../../lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { useChatContext } from "../context";
 
-// Default thresholds (matching legacy aipex behavior)
+// Default token thresholds for the usage meter (override via props)
 const DEFAULT_WATERMARK_TOKENS = 150_000;
 const DEFAULT_UI_MAX_TOKENS = 180_000;
 
@@ -76,19 +76,19 @@ export function TokenUsageIndicator({
 
   // Determine color based on usage percentage
   const getColorClass = (percentage: number): string => {
-    if (percentage >= 90) return "text-red-500";
+    if (percentage >= 90) return "text-destructive";
     if (percentage >= (watermarkTokens / maxTokens) * 100)
-      return "text-orange-500";
-    if (percentage >= 60) return "text-yellow-500";
-    return "text-gray-500";
+      return "text-warning";
+    if (percentage >= 60) return "text-warning/70";
+    return "text-muted-foreground";
   };
 
   const getProgressColor = (percentage: number): string => {
-    if (percentage >= 90) return "stroke-red-500";
+    if (percentage >= 90) return "stroke-destructive";
     if (percentage >= (watermarkTokens / maxTokens) * 100)
-      return "stroke-orange-500";
-    if (percentage >= 60) return "stroke-yellow-500";
-    return "stroke-gray-400";
+      return "stroke-warning";
+    if (percentage >= 60) return "stroke-warning/70";
+    return "stroke-muted-foreground";
   };
 
   // Compact mode: only show percentage and circular progress, hover for details
@@ -119,7 +119,7 @@ export function TokenUsageIndicator({
                   stroke="currentColor"
                   strokeWidth="2"
                   fill="none"
-                  className="text-gray-300 dark:text-gray-600"
+                  className="text-muted-foreground/20"
                 />
                 {/* Progress circle */}
                 <circle
@@ -133,7 +133,7 @@ export function TokenUsageIndicator({
                   strokeDashoffset={`${2 * Math.PI * 6 * (1 - usage.percentage / 100)}`}
                   className={
                     isSummarizing
-                      ? "stroke-blue-500"
+                      ? "stroke-info"
                       : getProgressColor(usage.percentage)
                   }
                   strokeLinecap="round"
@@ -146,7 +146,7 @@ export function TokenUsageIndicator({
               className={cn(
                 "font-mono font-medium text-xs",
                 isSummarizing
-                  ? "text-blue-600 dark:text-blue-400"
+                  ? "text-info"
                   : getColorClass(usage.percentage),
               )}
             >
@@ -167,7 +167,7 @@ export function TokenUsageIndicator({
               </div>
             )}
             {isSummarizing && (
-              <div className="text-blue-400 text-xs mt-1">Summarizing...</div>
+              <div className="text-info text-xs mt-1">Summarizing...</div>
             )}
           </div>
         </TooltipContent>
@@ -181,7 +181,7 @@ export function TokenUsageIndicator({
       className={cn(
         "flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground",
         "bg-muted/30 rounded-md border border-border/50",
-        isSummarizing && "border-blue-400 bg-blue-50/50 dark:bg-blue-950/20",
+        isSummarizing && "border-info/40 bg-info/10",
         className,
       )}
     >
@@ -201,7 +201,7 @@ export function TokenUsageIndicator({
             stroke="currentColor"
             strokeWidth="2"
             fill="none"
-            className="text-gray-300 dark:text-gray-600"
+            className="text-muted-foreground/20"
           />
           {/* Progress circle */}
           <circle
@@ -215,7 +215,7 @@ export function TokenUsageIndicator({
             strokeDashoffset={`${2 * Math.PI * 6 * (1 - usage.percentage / 100)}`}
             className={
               isSummarizing
-                ? "stroke-blue-500"
+                ? "stroke-info"
                 : getProgressColor(usage.percentage)
             }
             strokeLinecap="round"
@@ -229,7 +229,7 @@ export function TokenUsageIndicator({
           className={cn(
             "font-mono font-medium",
             isSummarizing
-              ? "text-blue-600 dark:text-blue-400"
+              ? "text-info"
               : getColorClass(usage.percentage),
           )}
         >
@@ -243,14 +243,14 @@ export function TokenUsageIndicator({
       {/* Summary indicator */}
       {isSummarizing ? (
         <div className="ml-auto flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-          <span className="text-blue-600 dark:text-blue-400 text-xs">
+          <div className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
+          <span className="text-info text-xs">
             Summarizing...
           </span>
         </div>
       ) : usage.percentage >= (watermarkTokens / maxTokens) * 100 ? (
         <div className="ml-auto">
-          <div className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+          <div className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
         </div>
       ) : null}
     </div>

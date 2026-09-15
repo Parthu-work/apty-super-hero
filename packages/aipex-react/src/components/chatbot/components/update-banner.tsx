@@ -174,23 +174,25 @@ export function UpdateBanner({
       <div
         className={cn(
           "relative flex items-center justify-between gap-3 px-4 py-3",
-          "bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-purple-500/10",
-          "border-b border-purple-200 dark:border-purple-800",
+          "bg-accent border-b border-border",
           "animate-in slide-in-from-top duration-300",
           className,
         )}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="flex-shrink-0 p-1.5 rounded-full bg-purple-500/20">
-            <SparklesIcon className="size-4 text-purple-600 dark:text-purple-400" />
+          <div className="flex-shrink-0 p-1.5 rounded-full bg-background">
+            <SparklesIcon
+              className="size-4 text-foreground"
+              aria-hidden="true"
+            />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-purple-900 dark:text-purple-100 truncate">
+            <p className="text-sm font-medium text-foreground truncate">
               {t("update.whatsNewTitle", {
                 version: versionInfo?.currentVersion,
               })}
             </p>
-            <p className="text-xs text-purple-700 dark:text-purple-300 truncate">
+            <p className="text-xs text-muted-foreground truncate">
               {t("update.whatsNewDescription")}
             </p>
           </div>
@@ -199,7 +201,7 @@ export function UpdateBanner({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 px-3 text-purple-700 hover:text-purple-900 hover:bg-purple-500/20 dark:text-purple-300 dark:hover:text-purple-100"
+            className="h-8 px-3"
             onClick={handleWhatsNew}
           >
             {t("update.viewChanges")}
@@ -207,10 +209,10 @@ export function UpdateBanner({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-purple-700 hover:text-purple-900 hover:bg-purple-500/20 dark:text-purple-300 dark:hover:text-purple-100"
+            className="h-8 w-8"
             onClick={handleDismiss}
           >
-            <XIcon className="size-4" />
+            <XIcon className="size-4" aria-hidden="true" />
           </Button>
         </div>
       </div>
@@ -223,23 +225,22 @@ export function UpdateBanner({
       <div
         className={cn(
           "relative flex items-center justify-between gap-3 px-4 py-3",
-          "bg-gradient-to-r from-blue-500/10 via-cyan-500/10 to-blue-500/10",
-          "border-b border-blue-200 dark:border-blue-800",
+          "bg-info/10 border-b border-info/30",
           "animate-in slide-in-from-top duration-300",
           className,
         )}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="flex-shrink-0 p-1.5 rounded-full bg-blue-500/20">
-            <ArrowUpCircleIcon className="size-4 text-blue-600 dark:text-blue-400" />
+          <div className="flex-shrink-0 p-1.5 rounded-full bg-info/15">
+            <ArrowUpCircleIcon className="size-4 text-info" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 truncate">
+            <p className="text-sm font-medium text-foreground truncate">
               {t("update.newVersionAvailable", {
                 version: versionInfo.latestVersion,
               })}
             </p>
-            <p className="text-xs text-blue-700 dark:text-blue-300 truncate">
+            <p className="text-xs text-muted-foreground truncate">
               {t("update.currentVersion", {
                 version: versionInfo.currentVersion,
               })}
@@ -248,14 +249,14 @@ export function UpdateBanner({
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {updateStatus === "ready" ? (
-            <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+            <div className="text-xs text-info font-medium">
               {t("update.restartRequired")}
             </div>
           ) : (
             <Button
               variant="default"
               size="sm"
-              className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white"
+              className="h-8 px-3"
               onClick={handleUpdate}
               disabled={
                 updateStatus === "checking" || updateStatus === "failed"
@@ -271,10 +272,10 @@ export function UpdateBanner({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-blue-700 hover:text-blue-900 hover:bg-blue-500/20 dark:text-blue-300 dark:hover:text-blue-100"
+            className="h-8 w-8"
             onClick={handleDismiss}
           >
-            <XIcon className="size-4" />
+            <XIcon className="size-4" aria-hidden="true" />
           </Button>
         </div>
       </div>

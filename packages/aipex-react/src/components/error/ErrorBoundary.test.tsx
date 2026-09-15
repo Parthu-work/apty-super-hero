@@ -47,8 +47,8 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText("Error details")).toBeTruthy();
-    expect(screen.getByText("Test rendering error")).toBeTruthy();
+    expect(screen.getByText("View technical details")).toBeTruthy();
+    expect(screen.getByText(/Test rendering error/)).toBeTruthy();
   });
 
   it("resets error state when Try Again is clicked", () => {

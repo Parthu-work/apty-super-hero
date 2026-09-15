@@ -176,7 +176,16 @@ export function DefaultMessageList({
           )}
           {/* Loading indicator */}
           {status === "submitted" &&
-            (slots.loadingIndicator ? slots.loadingIndicator() : <Loader />)}
+            (slots.loadingIndicator ? (
+              slots.loadingIndicator()
+            ) : (
+              <div className="flex w-full justify-end py-2">
+                <div className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">
+                  <Loader size={14} />
+                  <span>{t("common.processing")}</span>
+                </div>
+              </div>
+            ))}
           {/* After messages slot - for platform-specific content */}
           {slots.afterMessages?.()}
         </ConversationContent>
