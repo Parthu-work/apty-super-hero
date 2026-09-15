@@ -153,42 +153,43 @@ export function BrowserChatHeader({
 
   return (
     <div className={cn("flex flex-col", className)} {...props}>
-      <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="shrink-0 truncate text-sm font-semibold tracking-tight">
-            {title}
-          </span>
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+        <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-foreground">
+          {title}
+        </span>
 
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleOpenOptions}
-              title={t("tooltip.settings")}
-              className="size-8"
-            >
-              <SettingsIcon className="size-4" />
-            </Button>
-
-            {/* Conversation History */}
-            <ConversationHistory
-              currentConversationId={currentConversationId}
-              onConversationSelect={handleConversationSelect}
-              onNewConversation={handleNewChat}
-            />
-          </div>
-        </div>
-
-        {/* Right side - New Chat */}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost"
+            size="icon"
+            onClick={handleOpenOptions}
+            title={t("tooltip.settings")}
+            className="size-8 text-muted-foreground hover:text-foreground"
+          >
+            <SettingsIcon className="size-4" />
+          </Button>
+
+          {/* Conversation History */}
+          <ConversationHistory
+            currentConversationId={currentConversationId}
+            onConversationSelect={handleConversationSelect}
+            onNewConversation={handleNewChat}
+            className="size-8 p-0 text-muted-foreground hover:text-foreground"
+          />
+
+          <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+
+          <Button
+            variant="outline"
             size="sm"
             onClick={handleNewChat}
-            className="gap-2"
+            title={t("tooltip.newChat")}
+            className="gap-1.5"
           >
-            <PlusIcon className="size-4" />
-            {t("common.newChat")}
+            <PlusIcon className="size-3.5" />
+            <span className="hidden min-[360px]:inline">
+              {t("common.newChat")}
+            </span>
           </Button>
         </div>
       </div>

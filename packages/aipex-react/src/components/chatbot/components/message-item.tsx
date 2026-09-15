@@ -1,4 +1,14 @@
-import { CopyIcon, RefreshCcwIcon, WrenchIcon } from "lucide-react";
+import {
+  BookmarkIcon,
+  ClipboardIcon,
+  CopyIcon,
+  FileTextIcon,
+  GlobeIcon,
+  ImageIcon,
+  PaperclipIcon,
+  RefreshCcwIcon,
+  WrenchIcon,
+} from "lucide-react";
 import { Fragment, useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
@@ -32,15 +42,15 @@ import { DefaultToolDisplay } from "./slots/tool-display";
 /**
  * Get icon for context type
  */
-function getContextIcon(contextType: string): string {
-  const icons: Record<string, string> = {
-    page: "🌐",
-    tab: "📄",
-    bookmark: "🔖",
-    clipboard: "📋",
-    screenshot: "📷",
+function getContextIcon(contextType: string) {
+  const icons: Record<string, typeof GlobeIcon> = {
+    page: GlobeIcon,
+    tab: FileTextIcon,
+    bookmark: BookmarkIcon,
+    clipboard: ClipboardIcon,
+    screenshot: ImageIcon,
   };
-  return icons[contextType] || "📝";
+  return icons[contextType] || FileTextIcon;
 }
 
 /**
@@ -163,7 +173,7 @@ export function DefaultMessageItem({
                       <img
                         src={part.url}
                         alt={part.filename || "Attached image"}
-                        className="rounded-lg border border-gray-200 dark:border-gray-700"
+                        className="rounded-lg border border-border"
                       />
                       {part.filename && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -172,13 +182,16 @@ export function DefaultMessageItem({
                       )}
                     </div>
                   ) : (
-                    <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
-                      <p className="text-sm">
-                        📎 {part.filename || "Attached file"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {part.mediaType}
-                      </p>
+                    <div className="flex items-center gap-2 rounded-lg border border-border p-3">
+                      <PaperclipIcon className="size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-sm truncate">
+                          {part.filename || "Attached file"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {part.mediaType}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </MessageContent>
@@ -209,7 +222,8 @@ export function DefaultMessageItem({
               </Reasoning>
             );
 
-          case "context":
+          case "context": {
+            const ContextIcon = getContextIcon(part.contextType);
             return (
               <div
                 key={key}
@@ -221,9 +235,7 @@ export function DefaultMessageItem({
                 )}
               >
                 <div className="flex items-center gap-2 max-w-[80%] px-3 py-1.5 text-sm rounded-md bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-colors">
-                  <span className="text-primary flex-shrink-0">
-                    {getContextIcon(part.contextType)}
-                  </span>
+                  <ContextIcon className="size-3.5 shrink-0 text-primary" />
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="font-medium text-foreground truncate">
                       {part.label}
@@ -240,6 +252,7 @@ export function DefaultMessageItem({
                 </div>
               </div>
             );
+          }
 
           case "source-url":
             // Already handled above

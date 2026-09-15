@@ -5,8 +5,16 @@
  * redacted) data. Never implies correlation the backend didn't establish —
  * the "likely related incident" badge only ever reflects
  * `cluster.likelySameIncident`.
+ *
+ * Visual hierarchy: each cluster surfaces its plain-language `summary` as
+ * the headline "Observation" — the thing a non-developer reads first — with
+ * the underlying `evidence` records available underneath as the "Evidence"
+ * that backs it, collapsed by default behind an explicit "View details"
+ * affordance.
  */
+
 import { CodeBlock } from "@aipexstudio/aipex-react/components/ai-elements/code-block";
+import { Badge } from "@aipexstudio/aipex-react/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
@@ -17,7 +25,8 @@ import type {
   CorrelationCluster,
   DiagnosticEvidence,
 } from "@aipexstudio/browser-runtime";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, TriangleAlertIcon } from "lucide-react";
+import { toneBadgeClass, toneTextClass } from "./tone-classes";
 
 const SOURCE_ICON: Record<DiagnosticEvidence["source"], string> = {
   dom: "🧱",
@@ -54,7 +63,7 @@ function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
             <span
               className={cn(
                 "truncate font-medium",
-                isFailure(item.type) && "text-red-600 dark:text-red-400",
+                isFailure(item.type) && toneTextClass("danger"),
               )}
             >
               {item.type}
@@ -67,9 +76,18 @@ function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
             <p className="truncate text-xs text-muted-foreground">{item.url}</p>
           )}
         </div>
-        <ChevronDownIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
+          <span className="hidden group-data-[state=closed]:inline">
+            View details
+          </span>
+          <span className="hidden group-data-[state=open]:inline">Hide</span>
+          <ChevronDownIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-180" />
+        </span>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pb-1 pl-8 pr-2">
+      <CollapsibleContent className="space-y-1 pb-1 pl-8 pr-2">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Raw evidence data
+        </p>
         <CodeBlock code={JSON.stringify(item.data, null, 2)} language="json" />
       </CollapsibleContent>
     </Collapsible>
@@ -78,22 +96,33 @@ function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
 
 function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
   return (
-    <li className="rounded-md border p-2">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">
-          {formatClockTime(cluster.startTimestamp)}
-        </span>
-        {cluster.likelySameIncident && (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-            ⚠ Likely related incident
+    <li className="overflow-hidden rounded-md border bg-card">
+      <div className="space-y-1 p-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Observation · {formatClockTime(cluster.startTimestamp)}
           </span>
-        )}
+          {cluster.likelySameIncident && (
+            <Badge
+              className={cn("gap-1", toneBadgeClass("warning"))}
+              variant="outline"
+            >
+              <TriangleAlertIcon className="size-3" />
+              Likely related incident
+            </Badge>
+          )}
+        </div>
+        <p className="text-sm font-medium leading-snug">{cluster.summary}</p>
       </div>
-      <p className="mb-1 text-sm">{cluster.summary}</p>
-      <div className="divide-y divide-border/60">
-        {cluster.evidence.map((item) => (
-          <EvidenceRow key={item.evidenceId} item={item} />
-        ))}
+      <div className="border-t px-2 py-1.5">
+        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Evidence ({cluster.evidence.length})
+        </p>
+        <div className="divide-y divide-border/60">
+          {cluster.evidence.map((item) => (
+            <EvidenceRow key={item.evidenceId} item={item} />
+          ))}
+        </div>
       </div>
     </li>
   );

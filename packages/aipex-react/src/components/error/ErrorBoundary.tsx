@@ -4,7 +4,9 @@
  * instead of an unrecoverable white screen.
  */
 
+import { AlertTriangleIcon, RotateCcwIcon } from "lucide-react";
 import React from "react";
+import { Button } from "../ui/button";
 
 export interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -50,91 +52,40 @@ export class ErrorBoundary extends React.Component<
       }
 
       return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            padding: "24px",
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            textAlign: "center",
-            color: "var(--foreground, #333)",
-            backgroundColor: "var(--background, #fff)",
-          }}
-        >
+        <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-y-auto bg-background p-6 text-center text-foreground">
           <div
-            style={{
-              fontSize: "48px",
-              marginBottom: "16px",
-              lineHeight: 1,
-            }}
+            className="flex size-12 shrink-0 items-center justify-center rounded-full bg-destructive/10"
             aria-hidden="true"
           >
-            !
+            <AlertTriangleIcon className="size-6 text-destructive" />
           </div>
-          <h2
-            style={{
-              fontSize: "18px",
-              fontWeight: 600,
-              margin: "0 0 8px",
-            }}
-          >
-            Something went wrong
-          </h2>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "var(--muted-foreground, #666)",
-              margin: "0 0 20px",
-              maxWidth: "320px",
-            }}
-          >
-            An unexpected error occurred. Click the button below to try
-            recovering.
-          </p>
-          <button
-            type="button"
-            onClick={this.handleRetry}
-            style={{
-              padding: "8px 20px",
-              fontSize: "14px",
-              fontWeight: 500,
-              borderRadius: "6px",
-              border: "1px solid var(--border, #ddd)",
-              backgroundColor: "var(--primary, #333)",
-              color: "var(--primary-foreground, #fff)",
-              cursor: "pointer",
-            }}
-          >
+
+          <div className="max-w-xs space-y-2">
+            <h2 className="text-base font-semibold">Something went wrong</h2>
+            <p className="text-sm text-muted-foreground">
+              This screen couldn&apos;t be displayed because of an unexpected
+              error. It may have been caused by a temporary glitch, a recent
+              update, or an unusual page state.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Try again below, or close and reopen the panel if the problem
+              keeps happening.
+            </p>
+          </div>
+
+          <Button type="button" size="sm" onClick={this.handleRetry}>
+            <RotateCcwIcon className="size-4" aria-hidden="true" />
             Try Again
-          </button>
+          </Button>
+
           {this.state.error && (
-            <details
-              style={{
-                marginTop: "16px",
-                fontSize: "12px",
-                color: "var(--muted-foreground, #888)",
-                maxWidth: "400px",
-                textAlign: "left",
-              }}
-            >
-              <summary style={{ cursor: "pointer" }}>Error details</summary>
-              <pre
-                style={{
-                  marginTop: "8px",
-                  padding: "8px",
-                  borderRadius: "4px",
-                  backgroundColor: "var(--muted, #f5f5f5)",
-                  overflow: "auto",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  maxHeight: "120px",
-                }}
-              >
-                {this.state.error.message}
+            <details className="w-full max-w-xs text-left">
+              <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+                View technical details
+              </summary>
+              <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-2 text-left text-[11px] leading-relaxed text-muted-foreground">
+                {this.state.error.stack ??
+                  `${this.state.error.name}: ${this.state.error.message}`}
               </pre>
             </details>
           )}

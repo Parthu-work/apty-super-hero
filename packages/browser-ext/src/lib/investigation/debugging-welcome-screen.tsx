@@ -1,8 +1,8 @@
 /**
- * Investigation-first empty state (product spec section 22) — replaces the
- * generic "how can I help you today" AIPex welcome screen with prompts that
- * make the product's purpose obvious: debugging a live Apty issue, not
- * open-ended browser assistance.
+ * Investigation-first empty state (product spec section 22). Apty's start
+ * screen for the debugging agent — every prompt here is a real diagnostic
+ * entry point into a live Apty Widget/Client/Studio/Service Worker issue,
+ * not an open-ended "how can I help you today" AI-assistant greeting.
  */
 import {
   Suggestion,
@@ -11,48 +11,58 @@ import {
 import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import type { WelcomeScreenProps } from "@aipexstudio/aipex-react/types";
 import {
+  ChevronRightIcon,
   CrosshairIcon,
-  NetworkIcon,
   PuzzleIcon,
+  SearchCodeIcon,
   WifiOffIcon,
   WorkflowIcon,
 } from "lucide-react";
 
+type PromptTone = "danger" | "active" | "warning" | "success";
+
+const TONE_ICON_CLASSES: Record<PromptTone, string> = {
+  danger: "bg-destructive/10 text-destructive",
+  active: "bg-info/10 text-info",
+  warning: "bg-warning/10 text-warning",
+  success: "bg-success/10 text-success",
+};
+
 const DEBUG_PROMPTS: Array<{
+  category: string;
   text: string;
   icon: typeof PuzzleIcon;
-  iconColor: string;
-  bgColor: string;
+  tone: PromptTone;
 }> = [
   {
+    category: "Widget",
     text: "Why isn't my Apty Widget showing?",
     icon: PuzzleIcon,
-    iconColor: "text-blue-600",
-    bgColor: "bg-blue-100 dark:bg-blue-950",
+    tone: "danger",
   },
   {
+    category: "Studio",
     text: "Why can't Studio select this element?",
     icon: CrosshairIcon,
-    iconColor: "text-purple-600",
-    bgColor: "bg-purple-100 dark:bg-purple-950",
+    tone: "active",
   },
   {
+    category: "Workflow",
     text: "Why did this workflow stop?",
     icon: WorkflowIcon,
-    iconColor: "text-orange-600",
-    bgColor: "bg-orange-100 dark:bg-orange-950",
+    tone: "warning",
   },
   {
+    category: "Selectors",
     text: "Is this selector reliable?",
-    icon: NetworkIcon,
-    iconColor: "text-cyan-600",
-    bgColor: "bg-cyan-100 dark:bg-cyan-950",
+    icon: SearchCodeIcon,
+    tone: "success",
   },
   {
+    category: "Network",
     text: "What caused this network failure?",
     icon: WifiOffIcon,
-    iconColor: "text-red-600",
-    bgColor: "bg-red-100 dark:bg-red-950",
+    tone: "danger",
   },
 ];
 
@@ -63,26 +73,25 @@ export function DebuggingWelcomeScreen({
 }: WelcomeScreenProps) {
   return (
     <div
-      className={cn(
-        "flex h-full flex-col items-center justify-center p-4 sm:p-8",
-        className,
-      )}
+      className={cn("flex h-full flex-col items-center justify-center p-4", className)}
       {...props}
     >
-      <div className="mb-6 text-center sm:mb-8">
-        <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
+      <div className="mb-6 text-center">
+        <h3 className="mb-1.5 text-lg font-semibold tracking-tight text-foreground">
           Apty Live Debugging
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-muted-foreground">
           Investigate a live Apty Widget, Client, Studio, or Service Worker
-          issue with evidence from the actual page — describe what's broken to
-          start.
+          issue with evidence from the actual page.
         </p>
       </div>
 
       <div className="w-full max-w-2xl">
-        <Suggestions className="grid w-full gap-3 sm:grid-cols-2 sm:gap-4">
-          {DEBUG_PROMPTS.map(({ text, icon: Icon, iconColor, bgColor }) => (
+        <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Start an investigation
+        </p>
+        <Suggestions className="grid w-full gap-2 sm:grid-cols-2">
+          {DEBUG_PROMPTS.map(({ category, text, icon: Icon, tone }) => (
             <Suggestion
               key={text}
               suggestion={text}
@@ -90,24 +99,27 @@ export function DebuggingWelcomeScreen({
               variant="outline"
               size="lg"
               className={cn(
-                "h-auto w-full items-center justify-start rounded-xl border p-4 transition-all duration-200 sm:p-5",
-                "bg-white/70 hover:shadow-md dark:bg-gray-800/70",
-                "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600",
+                "h-auto w-full items-center justify-start gap-3 rounded-lg border-border p-3 text-left transition-colors",
+                "hover:border-foreground/20 hover:bg-accent",
               )}
             >
-              <div className="flex w-full items-center gap-3">
-                <div
-                  className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-xl",
-                    bgColor,
-                  )}
-                >
-                  <Icon className={cn("size-5", iconColor)} />
+              <div
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-md",
+                  TONE_ICON_CLASSES[tone],
+                )}
+              >
+                <Icon className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {category}
                 </div>
-                <div className="flex-1 whitespace-normal break-words text-left text-xs text-gray-700 dark:text-gray-300">
+                <div className="whitespace-normal break-words text-xs font-medium text-foreground">
                   {text}
                 </div>
               </div>
+              <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/60" />
             </Suggestion>
           ))}
         </Suggestions>

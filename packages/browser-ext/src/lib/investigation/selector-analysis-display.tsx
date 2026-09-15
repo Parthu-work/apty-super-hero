@@ -5,13 +5,24 @@
  * boundary) deserves better presentation than a raw JSON dump. Falls back
  * to the default tool display for every other tool, in-flight states, and
  * errors, so nothing here can hide a real failure.
+ *
+ * The recommended selector is rendered as a visually dominant card (larger
+ * type, tinted background, its full reasoning spelled out); every other
+ * candidate gets a compact row with the same reliability meter so the whole
+ * ranked list stays easy to scan at a glance.
  */
 import { Badge } from "@aipexstudio/aipex-react/components/ui/badge";
 import { Button } from "@aipexstudio/aipex-react/components/ui/button";
 import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import type { ToolDisplaySlotProps } from "@aipexstudio/aipex-react/types";
-import { CopyIcon, LayersIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  CopyIcon,
+  LayersIcon,
+  XCircleIcon,
+} from "lucide-react";
 import { useState } from "react";
+import { toneDotClass, toneTextClass } from "./tone-classes";
 
 interface RankedSelectorCandidate {
   selector: string;
@@ -46,39 +57,165 @@ function isSelectorAnalysisOutput(
 
 const VERDICT_META: Record<
   RankedSelectorCandidate["verdict"],
-  { icon: string; className: string }
+  { label: string; tone: "success" | "warning" | "danger" }
 > = {
-  recommended: { icon: "✓", className: "text-green-600 dark:text-green-400" },
-  risky: { icon: "⚠", className: "text-amber-600 dark:text-amber-400" },
-  broken: { icon: "✕", className: "text-red-600 dark:text-red-400" },
+  recommended: { label: "Recommended", tone: "success" },
+  risky: { label: "Risky", tone: "warning" },
+  broken: { label: "Broken", tone: "danger" },
 };
 
-function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
-  const meta = VERDICT_META[candidate.verdict];
-  const [copied, setCopied] = useState(false);
+const RISK_META: Record<
+  RankedSelectorCandidate["staticRisk"],
+  { label: string; bars: number; tone: "success" | "warning" | "danger" }
+> = {
+  low: { label: "Strong", bars: 3, tone: "success" },
+  medium: { label: "Moderate", bars: 2, tone: "warning" },
+  high: { label: "Weak", bars: 1, tone: "danger" },
+};
 
+function ReliabilityMeter({
+  risk,
+}: {
+  risk: RankedSelectorCandidate["staticRisk"];
+}) {
+  const meta = RISK_META[risk];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5"
+      title={`Reliability: ${meta.label.toLowerCase()}`}
+    >
+      <span className="flex items-end gap-0.5" aria-hidden="true">
+        {[1, 2, 3].map((bar) => (
+          <span
+            key={bar}
+            className={cn(
+              "w-1 rounded-sm",
+              bar === 1 ? "h-1.5" : bar === 2 ? "h-2.5" : "h-3.5",
+              bar <= meta.bars ? toneDotClass(meta.tone) : "bg-muted",
+            )}
+          />
+        ))}
+      </span>
+      <span className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
+        {meta.label}
+      </span>
+    </span>
+  );
+}
+
+function useCopySelector(selector: string) {
+  const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(candidate.selector);
+      await navigator.clipboard.writeText(selector);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
       // Clipboard access can be denied — the selector is still visible to copy manually.
     }
   };
+  return { copied, handleCopy };
+}
+
+function RecommendedCandidate({
+  candidate,
+}: {
+  candidate: RankedSelectorCandidate;
+}) {
+  const { copied, handleCopy } = useCopySelector(candidate.selector);
+
+  return (
+    <div className="rounded-lg border border-success/30 bg-success/5 p-3">
+      <div className="mb-2 flex items-center gap-1.5">
+        <CheckCircle2Icon
+          className={cn("size-4 shrink-0", toneTextClass("success"))}
+        />
+        <span
+          className={cn(
+            "text-xs font-semibold uppercase tracking-wide",
+            toneTextClass("success"),
+          )}
+        >
+          Recommended selector
+        </span>
+      </div>
+      <div className="flex items-start gap-2">
+        <code className="block min-w-0 flex-1 break-all rounded-sm bg-background/80 px-2 py-1.5 text-sm font-medium">
+          {candidate.selector}
+        </code>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 shrink-0"
+          onClick={() => void handleCopy()}
+          aria-label={`Copy selector ${candidate.selector}`}
+        >
+          <CopyIcon className="size-3.5" />
+        </Button>
+      </div>
+      {copied && (
+        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>Copied</p>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <ReliabilityMeter risk={candidate.staticRisk} />
+        {candidate.live && (
+          <span className="text-xs text-muted-foreground">
+            Matches {candidate.live.matchCount} element
+            {candidate.live.matchCount === 1 ? "" : "s"} on the page
+          </span>
+        )}
+      </div>
+      {candidate.reasons.length > 0 && (
+        <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          {candidate.reasons.map((reason) => (
+            <li key={reason} className="flex gap-1.5">
+              <span aria-hidden="true">·</span>
+              <span>{reason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
+  const meta = VERDICT_META[candidate.verdict];
+  const { copied, handleCopy } = useCopySelector(candidate.selector);
 
   return (
     <li className="rounded-md border p-2">
       <div className="flex items-start gap-2">
-        <span
-          className={cn("font-semibold", meta.className)}
-          aria-hidden="true"
-        >
-          {meta.icon}
-        </span>
-        <div className="min-w-0 flex-1">
+        {candidate.verdict === "broken" ? (
+          <XCircleIcon
+            className={cn("mt-0.5 size-3.5 shrink-0", toneTextClass(meta.tone))}
+            aria-hidden="true"
+          />
+        ) : (
+          <span
+            className={cn(
+              "mt-0.5 shrink-0 font-semibold",
+              toneTextClass(meta.tone),
+            )}
+            aria-hidden="true"
+          >
+            ⚠
+          </span>
+        )}
+        <div className="min-w-0 flex-1 space-y-1">
           <code className="block break-all text-xs">{candidate.selector}</code>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <ReliabilityMeter risk={candidate.staticRisk} />
+            <span
+              className={cn(
+                "text-[11px] font-medium",
+                toneTextClass(meta.tone),
+              )}
+            >
+              {meta.label}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
             {candidate.verdictReason}
           </p>
           {candidate.live && (
@@ -99,9 +236,7 @@ function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
         </Button>
       </div>
       {copied && (
-        <p className="mt-1 text-xs text-green-600 dark:text-green-400">
-          Copied
-        </p>
+        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>Copied</p>
       )}
     </li>
   );
@@ -139,7 +274,13 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
       </div>
 
       {(output.inIframe || output.inShadowDom) && (
-        <div className="flex items-start gap-2 rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+        <div
+          className={cn(
+            "flex items-start gap-2 rounded-md p-2 text-xs",
+            toneTextClass("warning"),
+            "bg-warning/10",
+          )}
+        >
           <LayersIcon className="mt-0.5 size-3.5 shrink-0" />
           <span>
             This element is inside{" "}
@@ -153,14 +294,7 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
         </div>
       )}
 
-      {recommended && (
-        <div>
-          <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Recommended
-          </h4>
-          <CandidateRow candidate={recommended} />
-        </div>
-      )}
+      {recommended && <RecommendedCandidate candidate={recommended} />}
 
       {others.length > 0 && (
         <div>

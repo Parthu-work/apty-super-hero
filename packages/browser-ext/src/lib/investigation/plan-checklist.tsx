@@ -4,16 +4,24 @@
  * pending/done/skipped status, never a fabricated progress bar.
  */
 
+import { Progress } from "@aipexstudio/aipex-react/components/ui/progress";
 import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import type { InvestigationPlan } from "@aipexstudio/browser-runtime";
+import { toneBadgeClass } from "./tone-classes";
 
-const STATUS_SYMBOL: Record<
+const STATUS_MARKER: Record<
   "pending" | "done" | "skipped",
-  { symbol: string; className: string }
+  { symbol: (index: number) => string; className: string }
 > = {
-  pending: { symbol: "○", className: "text-muted-foreground" },
-  done: { symbol: "✓", className: "text-green-600 dark:text-green-400" },
-  skipped: { symbol: "—", className: "text-muted-foreground" },
+  pending: {
+    symbol: (index) => String(index + 1),
+    className: "border-border text-muted-foreground",
+  },
+  done: { symbol: () => "✓", className: toneBadgeClass("success") },
+  skipped: {
+    symbol: () => "–",
+    className: "border-border text-muted-foreground",
+  },
 };
 
 export function PlanChecklist({
@@ -30,30 +38,43 @@ export function PlanChecklist({
   }
 
   const doneCount = plan.steps.filter((s) => s.status === "done").length;
+  const progress =
+    plan.steps.length > 0 ? (doneCount / plan.steps.length) * 100 : 0;
 
   return (
     <div className="space-y-2">
-      <p className="px-1 text-xs text-muted-foreground">
-        {doneCount}/{plan.steps.length} steps done · pattern: {plan.category}
-      </p>
+      <div className="space-y-1 px-1">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            {doneCount}/{plan.steps.length} steps done
+          </span>
+          <span className="capitalize">{plan.category.replace(/_/g, " ")}</span>
+        </div>
+        <Progress value={progress} className="h-1" />
+      </div>
       <ol className="space-y-1">
-        {plan.steps.map((step) => {
-          const meta = STATUS_SYMBOL[step.status];
+        {plan.steps.map((step, index) => {
+          const marker = STATUS_MARKER[step.status];
           return (
             <li
               key={step.id}
               className={cn(
-                "flex items-start gap-2 rounded-md px-2 py-1 text-sm",
+                "flex items-start gap-2.5 rounded-md px-2 py-1 text-sm transition-colors duration-300",
                 step.status === "skipped" && "opacity-60",
               )}
             >
               <span
-                className={cn("mt-0.5 shrink-0 font-semibold", meta.className)}
+                className={cn(
+                  "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors duration-300",
+                  marker.className,
+                )}
+                aria-hidden="true"
               >
-                {meta.symbol}
+                {marker.symbol(index)}
               </span>
               <span
                 className={cn(
+                  "pt-0.5",
                   step.status === "done" &&
                     "line-through text-muted-foreground",
                 )}

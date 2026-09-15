@@ -83,7 +83,7 @@ export function DefaultMessageList({
   const lastMessageId = lastMessage?.id ?? null;
 
   return (
-    <div className={cn("flex-1 overflow-hidden", className)} {...props}>
+    <div className={cn("min-w-0 flex-1 overflow-hidden", className)} {...props}>
       <Conversation className="h-full">
         <ConversationContent>
           {/* Before messages slot - for banners, announcements */}

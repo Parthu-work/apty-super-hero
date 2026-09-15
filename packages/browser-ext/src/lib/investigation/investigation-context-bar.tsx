@@ -21,7 +21,7 @@ import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import { stopInvestigation } from "@aipexstudio/browser-runtime";
 import { useState } from "react";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
-import { toneDotClass, toneTextClass } from "./tone-classes";
+import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useCurrentTarget } from "./use-current-target";
 import { useInvestigationData } from "./use-investigation-data";
 
@@ -60,7 +60,7 @@ export function InvestigationContextBar() {
     return (
       <div className="flex items-center gap-1.5 border-b bg-muted/10 px-4 py-1.5 text-xs text-muted-foreground">
         <span
-          className="size-1.5 rounded-full bg-green-500"
+          className={cn("size-1.5 rounded-full", toneDotClass("neutral"))}
           aria-hidden="true"
         />
         <span className="truncate">
@@ -74,32 +74,36 @@ export function InvestigationContextBar() {
   const meta = describeInvestigationStatus(investigation.status);
 
   return (
-    <div className="border-b bg-muted/20 px-4 py-2">
+    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-300">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-1.5">
             <span
-              className={cn("size-2 rounded-full", toneDotClass(meta.tone))}
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                toneDotClass(meta.tone),
+                meta.inProgress && "animate-pulse",
+              )}
               aria-hidden="true"
             />
             <span
               className={cn(
-                "text-xs font-semibold uppercase tracking-wide",
-                toneTextClass(meta.tone),
+                "rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                toneBadgeClass(meta.tone),
               )}
             >
               Live investigation
             </span>
           </div>
           {target.hostname && (
-            <p className="mt-1 truncate text-sm font-medium">
+            <p className="truncate text-sm font-medium text-foreground">
               {target.hostname}
             </p>
           )}
           <p className="line-clamp-2 text-xs text-muted-foreground">
             {investigation.userProblem}
           </p>
-          <p className={cn("mt-0.5 text-xs", toneTextClass(meta.tone))}>
+          <p className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
             {meta.label}
           </p>
         </div>

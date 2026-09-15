@@ -15,6 +15,7 @@ import {
   EyeOff,
   Globe,
   Info,
+  Key,
   Mic,
   Package,
   Palette,
@@ -849,82 +850,88 @@ export function SettingsPage({
                 className="flex items-center gap-2"
               >
                 <Plug className="h-4 w-4" />
-                {language === "zh" ? "连接" : "Connection"}
+                {language === "zh" ? "Apty 集成" : "Apty Integration"}
               </TabsTrigger>
             )}
           </TabsList>
 
           {/* General Tab */}
           <TabsContent value="general" className="space-y-6">
-            {/* Language Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  {t("settings.language")}
-                </CardTitle>
-                <CardDescription>
-                  {language === "zh"
-                    ? "选择您的首选语言"
-                    : "Choose your preferred language"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3">
-                  {(["en", "zh"] as const).map((lang) => (
-                    <Button
-                      key={lang}
-                      variant={language === lang ? "default" : "outline"}
-                      onClick={() => changeLanguage(lang)}
-                      className="h-auto p-4 flex flex-col items-center gap-2"
-                    >
-                      <span className="text-lg">
-                        {lang === "en" ? "🇺🇸" : "🇨🇳"}
-                      </span>
-                      <span className="font-medium">
-                        {t(`language.${lang}`)}
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {/* Language Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    {t("settings.language")}
+                  </CardTitle>
+                  <CardDescription>
+                    {language === "zh"
+                      ? "选择您的首选语言"
+                      : "Choose your preferred language"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(["en", "zh"] as const).map((lang) => (
+                      <Button
+                        key={lang}
+                        variant={language === lang ? "default" : "outline"}
+                        onClick={() => changeLanguage(lang)}
+                        className="h-auto p-4 flex flex-col items-center gap-2"
+                      >
+                        <span className="text-lg">
+                          {lang === "en" ? "🇺🇸" : "🇨🇳"}
+                        </span>
+                        <span className="font-medium">
+                          {t(`language.${lang}`)}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Theme Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Palette className="h-5 w-5" />
-                  {t("settings.theme")}
-                </CardTitle>
-                <CardDescription>
-                  {language === "zh"
-                    ? "选择您喜欢的主题"
-                    : "Choose your preferred theme"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-3">
-                  {(["light", "dark", "system"] as const).map((themeOption) => (
-                    <Button
-                      key={themeOption}
-                      variant={theme === themeOption ? "default" : "outline"}
-                      onClick={() => changeTheme(themeOption)}
-                      className="h-auto p-4 flex flex-col items-center gap-2"
-                    >
-                      <span className="text-2xl">
-                        {themeOption === "light" && "☀️"}
-                        {themeOption === "dark" && "🌙"}
-                        {themeOption === "system" && "💻"}
-                      </span>
-                      <span className="text-sm font-medium">
-                        {t(`theme.${themeOption}`)}
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+              {/* Theme Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Palette className="h-5 w-5" />
+                    {t("settings.theme")}
+                  </CardTitle>
+                  <CardDescription>
+                    {language === "zh"
+                      ? "选择您喜欢的主题"
+                      : "Choose your preferred theme"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(["light", "dark", "system"] as const).map(
+                      (themeOption) => (
+                        <Button
+                          key={themeOption}
+                          variant={
+                            theme === themeOption ? "default" : "outline"
+                          }
+                          onClick={() => changeTheme(themeOption)}
+                          className="h-auto p-4 flex flex-col items-center gap-2"
+                        >
+                          <span className="text-2xl">
+                            {themeOption === "light" && "☀️"}
+                            {themeOption === "dark" && "🌙"}
+                            {themeOption === "system" && "💻"}
+                          </span>
+                          <span className="text-sm font-medium">
+                            {t(`theme.${themeOption}`)}
+                          </span>
+                        </Button>
+                      ),
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Privacy Section */}
             <Card>
@@ -933,46 +940,44 @@ export function SettingsPage({
                   <Info className="h-5 w-5" />
                   {t("settings.privacy")}
                 </CardTitle>
+                <CardDescription>
+                  {language === "zh"
+                    ? "控制是否与 Apty 共享匿名使用数据"
+                    : "Control whether anonymous usage data is shared with Apty"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="flex items-center justify-center w-5 h-5 rounded border border-foreground/20">
-                          {dataSharingEnabled && (
-                            <CheckCircle className="w-3 h-3 text-foreground" />
-                          )}
-                        </div>
-                        <span className="font-medium text-sm">
-                          {dataSharingEnabled
-                            ? t("settings.dataSharingEnabled")
-                            : t("settings.dataSharingDisabled")}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {dataSharingEnabled
-                          ? t("settings.dataSharingDescription")
-                          : t("settings.privacyModeDescription")}
-                      </p>
-                    </div>
-                    <Select
-                      value={dataSharingEnabled ? "share" : "privacy"}
-                      onValueChange={handleDataSharingChange}
+                <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex-1 space-y-1.5">
+                    <Badge
+                      variant={dataSharingEnabled ? "default" : "secondary"}
                     >
-                      <SelectTrigger className="w-32 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="share">
-                          {language === "zh" ? "共享数据" : "Share Data"}
-                        </SelectItem>
-                        <SelectItem value="privacy">
-                          {language === "zh" ? "隐私模式" : "Privacy Mode"}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                      {dataSharingEnabled
+                        ? t("settings.dataSharingEnabled")
+                        : t("settings.dataSharingDisabled")}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {dataSharingEnabled
+                        ? t("settings.dataSharingDescription")
+                        : t("settings.privacyModeDescription")}
+                    </p>
                   </div>
+                  <Select
+                    value={dataSharingEnabled ? "share" : "privacy"}
+                    onValueChange={handleDataSharingChange}
+                  >
+                    <SelectTrigger className="w-full sm:w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="share">
+                        {language === "zh" ? "共享数据" : "Share Data"}
+                      </SelectItem>
+                      <SelectItem value="privacy">
+                        {language === "zh" ? "隐私模式" : "Privacy Mode"}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
@@ -1118,24 +1123,25 @@ export function SettingsPage({
 
           {/* AI Configuration Tab */}
           <TabsContent value="ai" className="space-y-6">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-semibold">
-                      {language === "zh" ? "默认模型" : "Default model"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {language === "zh"
-                        ? "新建会话优先使用该模型；未选择时使用列表首个可用模型"
-                        : "New chats start with this model; otherwise use the first available"}
-                    </p>
-                  </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bot className="h-5 w-5" />
+                    {language === "zh" ? "默认模型" : "Default model"}
+                  </CardTitle>
+                  <CardDescription>
+                    {language === "zh"
+                      ? "新建会话优先使用该模型；未选择时使用列表首个可用模型"
+                      : "New chats start with this model; otherwise use the first available"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
                   <Select
                     value={settings.defaultModel || DEFAULT_MODEL_AUTO_VALUE}
                     onValueChange={handleDefaultModelChange}
                   >
-                    <SelectTrigger className="w-full sm:w-64">
+                    <SelectTrigger className="w-full">
                       <SelectValue
                         placeholder={
                           language === "zh"
@@ -1157,31 +1163,31 @@ export function SettingsPage({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* BYOK Toggle */}
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-1">
-                      {t("settings.byok")}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {t("settings.byokDescription")}
-                    </p>
-                  </div>
-                  <div className="ml-6">
+              {/* BYOK Toggle */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <CardTitle className="flex items-center gap-2">
+                        <Key className="h-5 w-5" />
+                        {t("settings.byok")}
+                      </CardTitle>
+                      <CardDescription>
+                        {t("settings.byokDescription")}
+                      </CardDescription>
+                    </div>
                     <Switch
                       checked={settings.byokEnabled || false}
                       onCheckedChange={handleToggleByok}
+                      className="mt-1 shrink-0"
                     />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardHeader>
+              </Card>
+            </div>
 
             {/* AI Configuration - Only show when BYOK is enabled */}
             {settings.byokEnabled && (

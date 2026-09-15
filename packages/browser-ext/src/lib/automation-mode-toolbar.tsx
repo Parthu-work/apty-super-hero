@@ -28,6 +28,7 @@ import { useTranslation } from "@aipexstudio/aipex-react/i18n/context";
 import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import { useStorage } from "@aipexstudio/browser-runtime/hooks";
 import {
+  CheckIcon,
   EyeIcon,
   Loader2Icon,
   MoonIcon,
@@ -91,9 +92,9 @@ export function AutomationModeInputToolbar({
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-8 w-8",
+                  "h-8 w-8 transition-colors duration-200",
                   automationMode === "focus"
-                    ? "text-blue-500 hover:text-blue-600"
+                    ? "text-primary hover:text-primary/90"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 disabled={isLoadingMode}
@@ -107,7 +108,10 @@ export function AutomationModeInputToolbar({
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t("mode.selectMode")}</p>
+            <p className="font-medium">
+              {t(automationMode === "focus" ? "mode.focus" : "mode.background")}
+            </p>
+            <p className="text-xs opacity-80">{t("mode.selectMode")}</p>
           </TooltipContent>
         </Tooltip>
         <DropdownMenuContent align="end" className="w-56">
@@ -119,12 +123,12 @@ export function AutomationModeInputToolbar({
             )}
           >
             <div className="flex items-start gap-2 py-1">
-              <EyeIcon className="size-4 mt-0.5 text-blue-500" />
+              <EyeIcon className="size-4 mt-0.5 text-primary" />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm">{t("mode.focus")}</span>
                   {automationMode === "focus" && (
-                    <span className="text-xs text-blue-600">✓</span>
+                    <CheckIcon className="size-3.5 text-primary" />
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">
@@ -141,14 +145,14 @@ export function AutomationModeInputToolbar({
             )}
           >
             <div className="flex items-start gap-2 py-1">
-              <MoonIcon className="size-4 mt-0.5 text-gray-500" />
+              <MoonIcon className="size-4 mt-0.5 text-muted-foreground" />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm">
                     {t("mode.background")}
                   </span>
                   {automationMode === "background" && (
-                    <span className="text-xs text-blue-600">✓</span>
+                    <CheckIcon className="size-3.5 text-primary" />
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">

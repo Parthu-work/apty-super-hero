@@ -15,7 +15,7 @@ import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import type { ComponentHealth } from "./component-health";
 import { describeComponentHealth } from "./status-meta";
-import { toneTextClass } from "./tone-classes";
+import { toneBadgeClass } from "./tone-classes";
 
 export function ComponentHealthPanel({
   components,
@@ -27,13 +27,16 @@ export function ComponentHealthPanel({
       {components.map((component) => {
         const meta = describeComponentHealth(component.state);
         return (
-          <li key={component.kind} className="rounded-md border">
+          <li
+            key={component.kind}
+            className="overflow-hidden rounded-md border transition-colors duration-300"
+          >
             <Collapsible>
               <CollapsibleTrigger className="group flex w-full items-start gap-2 px-2 py-1.5 text-left text-sm hover:bg-muted/40">
                 <span
                   className={cn(
-                    "mt-0.5 w-4 shrink-0 text-center font-semibold",
-                    toneTextClass(meta.tone),
+                    "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition-colors duration-300",
+                    toneBadgeClass(meta.tone),
                   )}
                   aria-hidden="true"
                 >
@@ -44,8 +47,8 @@ export function ComponentHealthPanel({
                     <span className="font-medium">{component.label}</span>
                     <span
                       className={cn(
-                        "text-xs font-medium",
-                        toneTextClass(meta.tone),
+                        "shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors duration-300",
+                        toneBadgeClass(meta.tone),
                       )}
                     >
                       {meta.label}
@@ -68,8 +71,8 @@ export function ComponentHealthPanel({
                       <span className="flex items-center gap-1.5">
                         <span
                           className={cn(
-                            "font-semibold",
-                            toneTextClass(subMeta.tone),
+                            "flex size-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold",
+                            toneBadgeClass(subMeta.tone),
                           )}
                           aria-hidden="true"
                         >
@@ -77,7 +80,7 @@ export function ComponentHealthPanel({
                         </span>
                         {sub.label}
                       </span>
-                      <span className="text-muted-foreground">
+                      <span className="truncate text-muted-foreground">
                         {sub.detail}
                       </span>
                     </div>

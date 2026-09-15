@@ -252,8 +252,11 @@ export function DefaultInputArea({
     status === "idle" ? undefined : (status as ChatStatus);
 
   return (
-    <div className={cn("border-t p-4", className)} {...props}>
-      <PromptInput onSubmit={handleSubmit} className="mt-4" globalDrop multiple>
+    <div
+      className={cn("border-t border-border bg-background p-3", className)}
+      {...props}
+    >
+      <PromptInput onSubmit={handleSubmit} globalDrop multiple>
         <PromptInputBody>
           {/* Context Tags */}
           <PromptInputContextTags>
@@ -285,8 +288,8 @@ export function DefaultInputArea({
 
           {/* Queue indicator */}
           {queueCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md mt-2">
-              <ClockIcon className="size-4" />
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-info/20 bg-info/10 px-3 py-2 text-xs font-medium text-info">
+              <ClockIcon className="size-3.5" />
               <span>
                 {queueCount} message{queueCount > 1 ? "s" : ""} queued
               </span>

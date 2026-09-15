@@ -28,7 +28,7 @@ import { DiagnosisCard } from "./diagnosis-card";
 import { EvidenceTimeline } from "./evidence-timeline";
 import { PlanChecklist } from "./plan-checklist";
 import { describeInvestigationStatus } from "./status-meta";
-import { toneDotClass, toneTextClass } from "./tone-classes";
+import { toneBadgeClass, toneDotClass } from "./tone-classes";
 import { useInvestigationData } from "./use-investigation-data";
 
 export function InvestigationSummaryBar() {
@@ -55,33 +55,53 @@ export function InvestigationSummaryBar() {
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="mb-2 rounded-md border bg-muted/20"
+      className="mb-2 overflow-hidden rounded-lg border bg-card shadow-sm"
     >
       <CollapsibleTrigger
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40"
         aria-label={`Investigation status: ${meta.label}. ${evidence.length} evidence items collected${warningCount > 0 ? `, ${warningCount} component warnings` : ""}. Click to ${open ? "collapse" : "expand"}.`}
       >
         <span
           className={cn(
             "size-2 shrink-0 rounded-full",
             toneDotClass(meta.tone),
+            meta.inProgress && "animate-pulse",
           )}
           aria-hidden="true"
         />
-        <span className={cn("text-sm font-medium", toneTextClass(meta.tone))}>
+        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Investigation
+        </span>
+        <span
+          className={cn(
+            "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+            toneBadgeClass(meta.tone),
+          )}
+        >
           {meta.label}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="truncate text-xs text-muted-foreground">
           {evidence.length} evidence
-          {warningCount > 0 &&
-            ` · ${warningCount} component${warningCount === 1 ? "" : "s"} need attention`}
         </span>
+        {warningCount > 0 && (
+          <span
+            className={cn(
+              "ml-auto shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+              toneBadgeClass("warning"),
+            )}
+          >
+            {warningCount} need{warningCount === 1 ? "s" : ""} attention
+          </span>
+        )}
         <ChevronDownIcon
-          className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform data-[state=open]:rotate-180"
+          className={cn(
+            "size-4 shrink-0 text-muted-foreground transition-transform duration-200 data-[state=open]:rotate-180",
+            warningCount === 0 && "ml-auto",
+          )}
           data-state={open ? "open" : "closed"}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="border-t px-2 pb-2 pt-2">
+      <CollapsibleContent className="overflow-hidden border-t px-2 pb-2 pt-2 data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out data-[state=open]:fade-in data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 duration-200">
         {investigation?.userProblem && (
           <p className="mb-2 px-1 text-xs text-muted-foreground">
             Investigating:{" "}
@@ -89,11 +109,19 @@ export function InvestigationSummaryBar() {
           </p>
         )}
         <Tabs defaultValue="timeline">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="plan">Plan</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="components">Components</TabsTrigger>
-            <TabsTrigger value="diagnosis">Diagnosis</TabsTrigger>
+          <TabsList className="grid h-9 w-full grid-cols-4 p-0.5">
+            <TabsTrigger value="plan" className="px-1 text-xs">
+              Plan
+            </TabsTrigger>
+            <TabsTrigger value="timeline" className="px-1 text-xs">
+              Timeline
+            </TabsTrigger>
+            <TabsTrigger value="components" className="px-1 text-xs">
+              Components
+            </TabsTrigger>
+            <TabsTrigger value="diagnosis" className="px-1 text-xs">
+              Diagnosis
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="plan" className="max-h-64 overflow-y-auto">
             <PlanChecklist plan={investigation?.plan} />
