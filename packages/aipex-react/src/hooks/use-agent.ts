@@ -87,7 +87,7 @@ export function useAgent({
   contextProviders = [],
   tools = [],
   instructions,
-  name = "AIPex Assistant",
+  name = "Assistant",
   maxTurns = 2000,
   agentOptions = {},
 }: UseAgentOptions): UseAgentReturn {

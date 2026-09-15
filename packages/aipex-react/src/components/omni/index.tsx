@@ -1,11 +1,4 @@
-import {
-  Calculator,
-  Calendar,
-  CreditCard,
-  Settings,
-  Smile,
-  User,
-} from "lucide-react";
+import { Fragment } from "react";
 import { useEffect } from "react";
 import {
   CommandDialog,
@@ -18,12 +11,35 @@ import {
   CommandShortcut,
 } from "../ui/command";
 
+export interface OmniCommandItem {
+  id: string;
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  shortcut?: string;
+  onSelect: () => void;
+}
+
+export interface OmniCommandGroup {
+  heading: string;
+  items: OmniCommandItem[];
+}
+
 export interface OmniProps {
   open: boolean;
   setOpen: (open: boolean | ((open: boolean) => boolean)) => void;
+  /** Command groups to render. Kept generic so this library component stays platform-agnostic — callers supply their own product-specific actions. */
+  groups?: OmniCommandGroup[];
+  placeholder?: string;
+  emptyLabel?: string;
 }
 
-export function Omni({ open, setOpen }: OmniProps) {
+export function Omni({
+  open,
+  setOpen,
+  groups = [],
+  placeholder = "Type a command or search...",
+  emptyLabel = "No results found.",
+}: OmniProps) {
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
@@ -37,41 +53,34 @@ export function Omni({ open, setOpen }: OmniProps) {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search..." />
+      <CommandInput placeholder={placeholder} />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        <CommandGroup heading="Suggestions">
-          <CommandItem>
-            <Calendar />
-            <span>Calendar</span>
-          </CommandItem>
-          <CommandItem>
-            <Smile />
-            <span>Search Emoji</span>
-          </CommandItem>
-          <CommandItem>
-            <Calculator />
-            <span>Calculator</span>
-          </CommandItem>
-        </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="Settings">
-          <CommandItem>
-            <User />
-            <span>Profile</span>
-            <CommandShortcut>⌘P</CommandShortcut>
-          </CommandItem>
-          <CommandItem>
-            <CreditCard />
-            <span>Billing</span>
-            <CommandShortcut>⌘B</CommandShortcut>
-          </CommandItem>
-          <CommandItem>
-            <Settings />
-            <span>Settings</span>
-            <CommandShortcut>⌘S</CommandShortcut>
-          </CommandItem>
-        </CommandGroup>
+        <CommandEmpty>{emptyLabel}</CommandEmpty>
+        {groups.map((group, index) => (
+          <Fragment key={group.heading}>
+            {index > 0 && <CommandSeparator />}
+            <CommandGroup heading={group.heading}>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <CommandItem
+                    key={item.id}
+                    onSelect={() => {
+                      item.onSelect();
+                      setOpen(false);
+                    }}
+                  >
+                    {Icon ? <Icon /> : null}
+                    <span>{item.label}</span>
+                    {item.shortcut ? (
+                      <CommandShortcut>{item.shortcut}</CommandShortcut>
+                    ) : null}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </Fragment>
+        ))}
       </CommandList>
     </CommandDialog>
   );

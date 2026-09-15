@@ -4,13 +4,13 @@ import type { StatusMeta } from "./status-meta";
 export function toneTextClass(tone: StatusMeta["tone"]): string {
   switch (tone) {
     case "success":
-      return "text-green-600 dark:text-green-400";
+      return "text-success";
     case "warning":
-      return "text-amber-600 dark:text-amber-400";
+      return "text-warning";
     case "danger":
-      return "text-red-600 dark:text-red-400";
+      return "text-destructive";
     case "active":
-      return "text-blue-600 dark:text-blue-400";
+      return "text-info";
     default:
       return "text-muted-foreground";
   }
@@ -20,14 +20,30 @@ export function toneTextClass(tone: StatusMeta["tone"]): string {
 export function toneDotClass(tone: StatusMeta["tone"]): string {
   switch (tone) {
     case "success":
-      return "bg-green-500";
+      return "bg-success";
     case "warning":
-      return "bg-amber-500";
+      return "bg-warning";
     case "danger":
-      return "bg-red-500";
+      return "bg-destructive";
     case "active":
-      return "bg-blue-500";
+      return "bg-info";
     default:
       return "bg-muted-foreground";
+  }
+}
+
+/** Tailwind classes for a soft status badge (background + matching text). */
+export function toneBadgeClass(tone: StatusMeta["tone"]): string {
+  switch (tone) {
+    case "success":
+      return "bg-success/10 text-success border-success/20";
+    case "warning":
+      return "bg-warning/10 text-warning border-warning/20";
+    case "danger":
+      return "bg-destructive/10 text-destructive border-destructive/20";
+    case "active":
+      return "bg-info/10 text-info border-info/20";
+    default:
+      return "bg-muted text-muted-foreground border-border";
   }
 }

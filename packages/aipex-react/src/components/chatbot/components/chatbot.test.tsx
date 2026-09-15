@@ -92,7 +92,7 @@ describe("Chatbot Component", () => {
       await renderWithAct(<Chatbot agent={mockAgent} />);
 
       // Should show header with title
-      expect(screen.getByText("AIPex")).toBeInTheDocument();
+      expect(screen.getByText("Assistant")).toBeInTheDocument();
     });
 
     it("should render with custom title", async () => {

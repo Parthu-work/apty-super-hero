@@ -1,7 +1,9 @@
 import { FakeMouse } from "@aipexstudio/aipex-react/components/fake-mouse";
 import type { FakeMouseController } from "@aipexstudio/aipex-react/components/fake-mouse/types";
 import { Omni } from "@aipexstudio/aipex-react/components/omni";
+import type { OmniCommandGroup } from "@aipexstudio/aipex-react/components/omni";
 import { collectDomSnapshot } from "@aipexstudio/dom-snapshot";
+import { MessageSquareText } from "lucide-react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 // Import CSS as a string to inject into Shadow DOM
@@ -11,6 +13,22 @@ interface CaptureState {
   isCapturing: boolean;
   highlightedElement: Element | null;
 }
+
+const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
+  {
+    heading: "Apty",
+    items: [
+      {
+        id: "open-apty-live-debugging",
+        label: "Open Apty Live Debugging",
+        icon: MessageSquareText,
+        onSelect: () => {
+          chrome.runtime.sendMessage({ request: "open-sidepanel" });
+        },
+      },
+    ],
+  },
+];
 
 const ContentApp = () => {
   const [isOmniOpen, setIsOmniOpen] = React.useState(false);
@@ -329,7 +347,14 @@ const ContentApp = () => {
   // Return UI
   return (
     <>
-      {isOmniOpen && <Omni open={isOmniOpen} setOpen={setIsOmniOpen} />}
+      {isOmniOpen && (
+        <Omni
+          open={isOmniOpen}
+          setOpen={setIsOmniOpen}
+          groups={OMNI_COMMAND_GROUPS}
+          placeholder="Search Apty commands..."
+        />
+      )}
       <FakeMouse
         onReady={(controller) => {
           fakeMouseRef.current = controller;

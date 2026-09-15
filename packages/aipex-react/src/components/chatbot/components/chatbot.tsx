@@ -234,7 +234,7 @@ export function Chatbot({
   storageAdapter,
   models = DEFAULT_MODELS,
   placeholderTexts,
-  title = "AIPex",
+  title = "Assistant",
   initialInput,
 }: ChatbotProps) {
   return (
