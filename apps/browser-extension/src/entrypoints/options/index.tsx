@@ -13,7 +13,7 @@ import { chromeStorageAdapter } from "../../hooks";
 import {
   createAIProvider,
   describeConnectionTestError,
-} from "../../lib/ai-provider";
+} from "../../services/ai-provider";
 import { AptyClientPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
 import { SkillsOptionsTab } from "./skills-tab";

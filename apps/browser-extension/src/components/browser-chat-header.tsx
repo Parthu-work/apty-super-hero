@@ -13,9 +13,9 @@ import { conversationStorage } from "@apty/browser-runtime";
 import { PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationHistory } from "./conversation-history";
-import { releaseConversationTabBinding } from "./conversation-tab-binding";
+import { releaseConversationTabBinding } from "../services/conversation-tab-binding";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
-import { fromStorageFormat, toStorageFormat } from "./message-adapter";
+import { fromStorageFormat, toStorageFormat } from "../services/message-adapter";
 
 export function BrowserChatHeader({
   title = "Apty Live Debugging",

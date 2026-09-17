@@ -20,7 +20,7 @@ import {
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
 import { useCallback, useMemo } from "react";
-import { createAIProvider, isByokConfigured } from "./ai-provider";
+import { createAIProvider, isByokConfigured } from "../services/ai-provider";
 
 /**
  * Create browser-specific storage instance

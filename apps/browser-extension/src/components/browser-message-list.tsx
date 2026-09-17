@@ -6,7 +6,7 @@
 
 import { DefaultMessageList } from "@apty/ui/components/chatbot/components";
 import type { MessageListProps } from "@apty/ui/types";
-import { useInputMode } from "./input-mode-context";
+import { useInputMode } from "../state/input-mode-context";
 
 export function BrowserMessageList(
   props: MessageListProps & { onSuggestionClick?: (text: string) => void },

@@ -9,7 +9,7 @@
  * elsewhere in this codebase).
  */
 import { useEffect, useState } from "react";
-import { peekConversationTabBinding } from "../conversation-tab-binding";
+import { peekConversationTabBinding } from "../../services/conversation-tab-binding";
 
 export interface CurrentTarget {
   tabId: number | null;

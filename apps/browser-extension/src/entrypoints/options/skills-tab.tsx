@@ -18,7 +18,7 @@ import {
   type SkillMetadata,
   SkillUploader,
 } from "../../components/skill";
-import { skillClientAdapter } from "../../lib/skill-client-adapter";
+import { skillClientAdapter } from "../../services/skill-client-adapter";
 import { FileExplorerWrapper } from "./file-explorer-wrapper";
 
 interface SkillsOptionsTabProps {
