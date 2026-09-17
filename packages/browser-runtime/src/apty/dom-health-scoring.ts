@@ -18,6 +18,7 @@
  * "unique but wrong" or "ambiguous" candidate ever counted as a success.
  */
 import type {
+  AnalysisCoverage,
   DomHealthIframeInfo,
   DomHealthShadowDomInfo,
   DomHealthSnapshot,
@@ -57,8 +58,9 @@ export interface DomHealthMetricDetails {
   selectorStability: {
     trackedFromPrevious: number;
     stable: number;
-    unstable: number;
+    changed: number;
     detached: number;
+    new: number;
   };
   recoveryEfficacy: {
     neededRecovery: number;
@@ -119,6 +121,8 @@ export interface DomHealthAuditResult {
     snapshotsCompared: number;
     elementsAnalyzed: number;
     interactiveElementsInPage: number;
+    /** Whether the runaway-safety element ceiling was hit on the current snapshot (spec section 6) — never silently absorbed into the score. */
+    analysis: AnalysisCoverage;
   };
   /** % of analyzed elements that could not be reliably resolved by any simulated automatic strategy (positional-only, ambiguous, wrong-target, or unresolved). */
   manualSelectorDependency: number;
@@ -148,7 +152,7 @@ export interface DomHealthAuditResult {
 // ---------------------------------------------------------------------------
 
 /** Sums to 1 — kept explicit per component so the score is reproducible and reviewable, not a black box (spec section 26). */
-const WEIGHTS: DomHealthMetrics = {
+export const WEIGHTS: DomHealthMetrics = {
   automaticSelection: 0.35,
   selectorStability: 0.2,
   recoveryEfficacy: 0.1,
@@ -167,14 +171,14 @@ const GRADE_THRESHOLDS: Array<{ min: number; grade: DomHealthGrade }> = [
   { min: 0, grade: "HIGH_RISK" },
 ];
 
-function gradeForScore(score: number): DomHealthGrade {
+export function gradeForScore(score: number): DomHealthGrade {
   for (const { min, grade } of GRADE_THRESHOLDS) {
     if (score >= min) return grade;
   }
   return "HIGH_RISK";
 }
 
-function pct(numerator: number, denominator: number): number {
+export function pct(numerator: number, denominator: number): number {
   if (denominator <= 0) return 100;
   return Math.round((numerator / denominator) * 100);
 }
@@ -184,112 +188,172 @@ function pct(numerator: number, denominator: number): number {
 // present on the snapshot; none re-derives anything from raw attributes.
 // ---------------------------------------------------------------------------
 
-function computeAutomaticSelection(current: DomHealthSnapshot) {
-  const {
-    totalAnalyzed,
-    directSuccess,
-    recoveredByIgnore,
-    recoveredByPartial,
-    recoveredByContext,
-  } = current.selectorAnalysis;
+/**
+ * Each `score*` kernel below takes only the plain aggregate counts it
+ * needs (never a whole snapshot) so the exact same math can be reused for
+ * a single page (`compute*`, fed from one snapshot) and for a real,
+ * element-weighted application-level rollup (`application-scoring.ts`,
+ * fed from raw counts SUMMED across every successfully-audited page) —
+ * never a blind average of per-page percentages (spec section 26).
+ */
+export function scoreAutomaticSelection(agg: {
+  totalAnalyzed: number;
+  directSuccess: number;
+  recoveredByIgnore: number;
+  recoveredByPartial: number;
+  recoveredByContext: number;
+}) {
   const resolved =
-    directSuccess + recoveredByIgnore + recoveredByPartial + recoveredByContext;
+    agg.directSuccess +
+    agg.recoveredByIgnore +
+    agg.recoveredByPartial +
+    agg.recoveredByContext;
   return {
-    score: pct(resolved, totalAnalyzed),
+    score: pct(resolved, agg.totalAnalyzed),
     detail: {
-      totalAnalyzed,
-      directSuccess,
-      recoveredByIgnore,
-      recoveredByPartial,
-      recoveredByContext,
+      totalAnalyzed: agg.totalAnalyzed,
+      directSuccess: agg.directSuccess,
+      recoveredByIgnore: agg.recoveredByIgnore,
+      recoveredByPartial: agg.recoveredByPartial,
+      recoveredByContext: agg.recoveredByContext,
     },
   };
 }
 
-function computeSelectorStability(current: DomHealthSnapshot) {
-  const { trackedFromPrevious, stable, unstable, detached } = current.stability;
+function computeAutomaticSelection(current: DomHealthSnapshot) {
+  return scoreAutomaticSelection(current.selectorAnalysis);
+}
+
+export function scoreSelectorStability(agg: {
+  trackedFromPrevious: number;
+  stable: number;
+  changed: number;
+  detached: number;
+  new: number;
+}) {
   // No prior snapshot to compare against yet — genuinely unknown, not a
   // free pass. Scored neutrally (60) rather than 100, and confidence
   // reflects the missing evidence (see computeConfidence).
-  if (trackedFromPrevious === 0) {
-    return {
-      score: 60,
-      detail: { trackedFromPrevious, stable, unstable, detached },
-    };
+  if (agg.trackedFromPrevious === 0) {
+    return { score: 60, detail: { ...agg } };
   }
   return {
-    score: pct(stable, trackedFromPrevious),
-    detail: { trackedFromPrevious, stable, unstable, detached },
+    score: pct(agg.stable, agg.trackedFromPrevious),
+    detail: { ...agg },
+  };
+}
+
+function computeSelectorStability(current: DomHealthSnapshot) {
+  const {
+    trackedFromPrevious,
+    stable,
+    changed,
+    detached,
+    new: newCount,
+  } = current.stability;
+  return scoreSelectorStability({
+    trackedFromPrevious,
+    stable,
+    changed,
+    detached,
+    new: newCount,
+  });
+}
+
+export function scoreRecoveryEfficacy(agg: {
+  totalAnalyzed: number;
+  directSuccess: number;
+  recoveredByIgnore: number;
+  recoveredByPartial: number;
+  recoveredByContext: number;
+}) {
+  const neededRecovery = agg.totalAnalyzed - agg.directSuccess;
+  const recovered =
+    agg.recoveredByIgnore + agg.recoveredByPartial + agg.recoveredByContext;
+  return {
+    score: pct(recovered, neededRecovery),
+    detail: {
+      neededRecovery: Math.max(0, neededRecovery),
+      recovered,
+    },
   };
 }
 
 function computeRecoveryEfficacy(current: DomHealthSnapshot) {
-  const {
-    totalAnalyzed,
-    directSuccess,
-    recoveredByIgnore,
-    recoveredByPartial,
-    recoveredByContext,
-  } = current.selectorAnalysis;
-  const neededRecovery = totalAnalyzed - directSuccess;
-  const recovered = recoveredByIgnore + recoveredByPartial + recoveredByContext;
-  return {
-    score: pct(recovered, neededRecovery),
-    detail: { neededRecovery: Math.max(0, neededRecovery), recovered },
-  };
+  return scoreRecoveryEfficacy(current.selectorAnalysis);
 }
 
-function computeSelectorComplexity(current: DomHealthSnapshot) {
-  const totalAnalyzed = current.selectorAnalysis.totalAnalyzed;
-  const { deepTraversalCount } = current.ancestorTraversal;
-  const { positionalCount } = current.positionalDependency;
-  if (totalAnalyzed === 0) {
-    return {
-      score: 100,
-      detail: { totalAnalyzed, deepTraversalCount, positionalCount },
-    };
+export function scoreSelectorComplexity(agg: {
+  totalAnalyzed: number;
+  deepTraversalCount: number;
+  positionalCount: number;
+}) {
+  if (agg.totalAnalyzed === 0) {
+    return { score: 100, detail: { ...agg } };
   }
   const penalty = Math.min(
     100,
     Math.round(
-      ((deepTraversalCount * 1.5 + positionalCount) / totalAnalyzed) * 100,
+      ((agg.deepTraversalCount * 1.5 + agg.positionalCount) /
+        agg.totalAnalyzed) *
+        100,
     ),
   );
-  return {
-    score: 100 - penalty,
-    detail: { totalAnalyzed, deepTraversalCount, positionalCount },
-  };
+  return { score: 100 - penalty, detail: { ...agg } };
 }
 
-function computeAmbiguityRisk(current: DomHealthSnapshot) {
-  const { totalAnalyzed, ambiguous, wrongTarget } = current.selectorAnalysis;
-  if (totalAnalyzed === 0) {
-    return { score: 100, detail: { totalAnalyzed, ambiguous, wrongTarget } };
+function computeSelectorComplexity(current: DomHealthSnapshot) {
+  return scoreSelectorComplexity({
+    totalAnalyzed: current.selectorAnalysis.totalAnalyzed,
+    deepTraversalCount: current.ancestorTraversal.deepTraversalCount,
+    positionalCount: current.positionalDependency.positionalCount,
+  });
+}
+
+export function scoreAmbiguityRisk(agg: {
+  totalAnalyzed: number;
+  ambiguous: number;
+  wrongTarget: number;
+}) {
+  if (agg.totalAnalyzed === 0) {
+    return { score: 100, detail: { ...agg } };
   }
   // Wrong-target candidates are weighted more heavily than mere ambiguity —
   // spec section 31 treats "unique but wrong" as more severe than "not unique".
   const penalty = Math.min(
     100,
-    Math.round(((ambiguous + wrongTarget * 1.5) / totalAnalyzed) * 100),
+    Math.round(
+      ((agg.ambiguous + agg.wrongTarget * 1.5) / agg.totalAnalyzed) * 100,
+    ),
   );
+  return { score: 100 - penalty, detail: { ...agg } };
+}
+
+function computeAmbiguityRisk(current: DomHealthSnapshot) {
+  const { totalAnalyzed, ambiguous, wrongTarget } = current.selectorAnalysis;
+  return scoreAmbiguityRisk({ totalAnalyzed, ambiguous, wrongTarget });
+}
+
+export function scoreHitTestTargetability(agg: {
+  tested: number;
+  fullyTargetable: number;
+  partiallyTargetable: number;
+}) {
+  const occludedOrHidden =
+    agg.tested - agg.fullyTargetable - agg.partiallyTargetable;
   return {
-    score: 100 - penalty,
-    detail: { totalAnalyzed, ambiguous, wrongTarget },
+    score: pct(agg.fullyTargetable + agg.partiallyTargetable, agg.tested),
+    detail: { ...agg, occludedOrHidden: Math.max(0, occludedOrHidden) },
   };
 }
 
 function computeHitTestTargetability(current: DomHealthSnapshot) {
   const { tested, fullyTargetable, partiallyTargetable } = current.hitTesting;
-  const occludedOrHidden = tested - fullyTargetable - partiallyTargetable;
-  return {
-    score: pct(fullyTargetable + partiallyTargetable, tested),
-    detail: {
-      tested,
-      fullyTargetable,
-      partiallyTargetable,
-      occludedOrHidden: Math.max(0, occludedOrHidden),
-    },
-  };
+  return scoreHitTestTargetability({
+    tested,
+    fullyTargetable,
+    partiallyTargetable,
+  });
 }
 
 function computeDomVolatility(snapshots: DomHealthSnapshot[]) {
@@ -311,12 +375,21 @@ function computeDomVolatility(snapshots: DomHealthSnapshot[]) {
   };
 }
 
-function computeAccessibilitySignal(current: DomHealthSnapshot) {
-  const { totalInteractive, missingAccessibleName } = current.accessibility;
+export function scoreAccessibilitySignal(agg: {
+  totalInteractive: number;
+  missingAccessibleName: number;
+}) {
   return {
-    score: pct(totalInteractive - missingAccessibleName, totalInteractive),
-    detail: { totalInteractive, missingAccessibleName },
+    score: pct(
+      agg.totalInteractive - agg.missingAccessibleName,
+      agg.totalInteractive,
+    ),
+    detail: { ...agg },
   };
+}
+
+function computeAccessibilitySignal(current: DomHealthSnapshot) {
+  return scoreAccessibilitySignal(current.accessibility);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,7 +424,9 @@ function computeConfidence(
 // Manual selector dependency (spec section 30)
 // ---------------------------------------------------------------------------
 
-function computeManualSelectorDependency(current: DomHealthSnapshot): number {
+export function computeManualSelectorDependency(
+  current: DomHealthSnapshot,
+): number {
   const { totalAnalyzed, positionalOnly, ambiguous, wrongTarget, notResolved } =
     current.selectorAnalysis;
   return pct(
@@ -364,7 +439,7 @@ function computeManualSelectorDependency(current: DomHealthSnapshot): number {
 // Strengths, risks, recommendations — every claim maps to a real number.
 // ---------------------------------------------------------------------------
 
-function buildStrengths(
+export function buildStrengths(
   metrics: DomHealthMetrics,
   details: DomHealthMetricDetails,
 ): string[] {
@@ -398,12 +473,24 @@ function buildStrengths(
   return strengths;
 }
 
-function buildRisks(
+export function buildRisks(
   metrics: DomHealthMetrics,
   details: DomHealthMetricDetails,
   manualSelectorDependency: number,
+  analysisCoverage: AnalysisCoverage,
 ): DomHealthRisk[] {
   const risks: DomHealthRisk[] = [];
+
+  if (analysisCoverage.capped) {
+    risks.push({
+      id: "analysis-coverage-capped",
+      severity: "medium",
+      title: "Not every interactive element on this page was analyzed",
+      evidence:
+        analysisCoverage.capReason ??
+        `${analysisCoverage.candidatesAnalyzed} of ${analysisCoverage.candidatesFound} interactive elements were analyzed.`,
+    });
+  }
 
   if (metrics.automaticSelection < 70) {
     const unresolved =
@@ -428,7 +515,7 @@ function buildRisks(
       id: "selector-volatility",
       severity: metrics.selectorStability < 50 ? "high" : "medium",
       title: "Selector volatility detected across snapshots",
-      evidence: `${details.selectorStability.unstable} of ${details.selectorStability.trackedFromPrevious} previously-resolved selectors broke or stopped pointing at the same element when re-verified; ${details.selectorStability.detached} elements were no longer present.`,
+      evidence: `${details.selectorStability.changed} of ${details.selectorStability.trackedFromPrevious} previously-resolved selectors broke or stopped pointing at the same element when re-verified; ${details.selectorStability.detached} elements were no longer present.`,
     });
   }
 
@@ -483,7 +570,7 @@ function buildRisks(
   return risks;
 }
 
-function buildRecommendations(
+export function buildRecommendations(
   metrics: DomHealthMetrics,
   details: DomHealthMetricDetails,
 ): DomHealthRecommendation[] {
@@ -499,11 +586,11 @@ function buildRecommendations(
     });
   }
 
-  if (details.selectorStability.unstable > 0) {
+  if (details.selectorStability.changed > 0) {
     recommendations.push({
       id: "reduce-generated-id-reliance",
       title: "Reduce reliance on generated ids/classes",
-      detail: `${details.selectorStability.unstable} previously-working selector(s) broke across snapshots. Prefer stable semantic or application-specific attributes over framework-generated ids/classes for elements users are guided to.`,
+      detail: `${details.selectorStability.changed} previously-working selector(s) broke across snapshots. Prefer stable semantic or application-specific attributes over framework-generated ids/classes for elements users are guided to.`,
       relatedStudioConcept: "Ignore Selector",
     });
   }
@@ -540,7 +627,7 @@ function buildRecommendations(
 // Evidence-driven summary (spec section 28) — every sentence maps to a real number.
 // ---------------------------------------------------------------------------
 
-function buildSummary(
+export function buildSummary(
   score: number,
   metrics: DomHealthMetrics,
   details: DomHealthMetricDetails,
@@ -578,7 +665,7 @@ function buildSummary(
   return `The score is ${score}/100 because ${clauses.join("; ")}.`;
 }
 
-const METHODOLOGY: string[] = [
+export const METHODOLOGY: string[] = [
   "Collect a DOM snapshot in-page, classifying every element into an interactive/structural/decorative/hidden/inaccessible/iframe/shadow-DOM population.",
   "For each analyzed interactive element, generate ranked candidate selectors (id, stable data attributes, aria-label, name, class, semantic attributes).",
   "Test every candidate live with querySelectorAll: verify it resolves to exactly one element, and that the element is the intended target.",
@@ -675,6 +762,7 @@ export function buildDomHealthAuditResult(
       snapshotsCompared: snapshots.length,
       elementsAnalyzed: current.selectorAnalysis.totalAnalyzed,
       interactiveElementsInPage: current.counts.interactiveElements,
+      analysis: current.analysisCoverage,
     },
     manualSelectorDependency,
     metrics,
@@ -686,7 +774,12 @@ export function buildDomHealthAuditResult(
       manualSelectorDependency,
     ),
     strengths: buildStrengths(metrics, metricDetails),
-    risks: buildRisks(metrics, metricDetails, manualSelectorDependency),
+    risks: buildRisks(
+      metrics,
+      metricDetails,
+      manualSelectorDependency,
+      current.analysisCoverage,
+    ),
     recommendations: buildRecommendations(metrics, metricDetails),
     elementSamples,
     methodology: METHODOLOGY,

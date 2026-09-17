@@ -9,15 +9,20 @@
  * in `@aipexstudio/browser-runtime` only aggregates and weights numbers
  * that already exist on the snapshot it's given.
  *
- * Cross-snapshot stability (spec section 23) is tracked with a real,
- * identity-based comparison rather than pairing elements by array index:
- * this module keeps a short-lived, in-memory registry (`Element -> the
- * selector last chosen for it`) across the 2-3 calls that make up one
- * audit run (see `DomHealthCollectorOptions.freshAudit`). On each
- * subsequent call, a previously-seen element's stored selector is
- * re-queried against the live DOM right now — if it no longer resolves,
- * or resolves to a different element, that is real, verified instability,
- * not a guess from reordered array positions.
+ * Cross-snapshot stability (spec section 18/23) is tracked with a LOGICAL
+ * fingerprint (`computeElementFingerprint` — tag/role/accessible-name/
+ * stable-attributes/text sample), not raw DOM-node identity and not array
+ * position: a framework can replace the underlying node on rerender while
+ * the logical control persists, and a fingerprint match survives that. The
+ * previously-chosen selector for a matched fingerprint is re-queried
+ * against the live DOM right now — if it no longer resolves, or resolves
+ * to a different element, that is real, verified instability.
+ *
+ * The full interactive-element universe is analyzed in yielding batches
+ * (spec section 6) rather than silently truncated at a fixed sample size —
+ * see `BATCH_SIZE`/`DEFAULT_ELEMENT_CEILING`. `analysisCoverage.capped`
+ * is only ever true if the runaway-safety ceiling was actually hit, and
+ * that fact is reported, never hidden.
  *
  * Known, honest limitations (documented rather than silently glossed over):
  * - Cross-origin iframes cannot be read — this is the browser's same-origin
@@ -29,13 +34,14 @@
  *   to `maxStyleChecks` elements (default 2000) to avoid forcing a full-page
  *   style recalculation on very large pages; elements beyond that bound are
  *   assumed visible/non-overlay rather than the audit becoming slow/blocking.
- * - The selector-resolution + hit-test pipeline (the expensive part) only
- *   runs on the bounded `maxInteractiveElements` sample (default 300); true
- *   element-universe counts are exact, but per-element evidence is a sample
- *   on very large pages — this is reported, never hidden.
+ * - A fingerprint collision (two distinct elements sharing tag/role/name/
+ *   stable-attrs/text-sample) is possible on a pathological DOM; correlation
+ *   takes the first match. This is documented, probabilistic evidence, not
+ *   a cryptographic identity guarantee.
  */
 import { hitTestElement } from "./health-hit-test.js";
 import {
+  computeElementFingerprint,
   extractElementAttributes,
   hasAccessibleName,
   resolveElement,
@@ -49,7 +55,16 @@ import type {
   StabilityVerdict,
 } from "./health-types.js";
 
-const DEFAULT_MAX_INTERACTIVE_ELEMENTS = 300;
+/**
+ * Runaway-safety ceiling on how many interactive elements get the full
+ * selector-resolution + hit-test pipeline — NOT a target sample size. A
+ * real page is expected to stay far below this; if it's ever hit, that
+ * fact is reported via `analysisCoverage.capped`, never silently absorbed
+ * into the score.
+ */
+const DEFAULT_ELEMENT_CEILING = 4000;
+/** How many elements are analyzed per batch before yielding to the event loop, so a large page's audit never blocks the tab. */
+const BATCH_SIZE = 150;
 const DEFAULT_MAX_STYLE_CHECKS = 2000;
 /** Maximum iframe nesting depth traversed — guards against pathological/adversarial nesting. */
 const MAX_FRAME_DEPTH = 3;
@@ -113,6 +128,7 @@ const SEMANTIC_CONTAINER_ROLES = new Set([
 ]);
 
 interface RegistryEntry {
+  el: Element;
   selector: string;
   root: ParentNode;
   id?: string;
@@ -121,12 +137,12 @@ interface RegistryEntry {
 
 /**
  * Module-scoped, short-lived: holds the previous snapshot's chosen selector
- * per element for exactly as long as one audit run's 2-3 calls take. Reset
- * whenever a new audit starts (`freshAudit !== false`). Never sent across
- * the extension message boundary — only plain data on `DomHealthSnapshot`
- * is serialized.
+ * per LOGICAL fingerprint (not per DOM-node object) for exactly as long as
+ * one audit run's 2-3 calls take. Reset whenever a new audit starts
+ * (`freshAudit !== false`). Never sent across the extension message
+ * boundary — only plain data on `DomHealthSnapshot` is serialized.
  */
-let auditRegistry = new Map<Element, RegistryEntry>();
+let auditRegistry = new Map<string, RegistryEntry>();
 
 interface StyleSignals {
   hidden: boolean;
@@ -209,6 +225,8 @@ interface CollectorState {
   forms: number;
   contentEditable: number;
   interactiveCount: number;
+  /** Interactive elements found during traversal, queued for the batched analysis pass. */
+  interactiveCandidates: Array<{ el: Element; root: ParentNode }>;
   elementReports: ElementSelectorReport[];
   universe: {
     meaningful: number;
@@ -247,9 +265,11 @@ interface CollectorState {
   stability: {
     trackedFromPrevious: number;
     stable: number;
-    unstable: number;
+    changed: number;
     detached: number;
+    new: number;
     unknown: number;
+    nodeReplacedButLogicallyStable: number;
   };
   hitTesting: {
     tested: number;
@@ -269,7 +289,7 @@ interface CollectorState {
   positional: {
     positionalCount: number;
     stableAcrossSnapshots: number;
-    unstableAcrossSnapshots: number;
+    changedAcrossSnapshots: number;
   };
   accessibility: {
     totalInteractive: number;
@@ -288,6 +308,7 @@ function createState(): CollectorState {
     forms: 0,
     contentEditable: 0,
     interactiveCount: 0,
+    interactiveCandidates: [],
     elementReports: [],
     universe: {
       meaningful: 0,
@@ -326,9 +347,11 @@ function createState(): CollectorState {
     stability: {
       trackedFromPrevious: 0,
       stable: 0,
-      unstable: 0,
+      changed: 0,
       detached: 0,
+      new: 0,
       unknown: 0,
+      nodeReplacedButLogicallyStable: 0,
     },
     hitTesting: {
       tested: 0,
@@ -348,7 +371,7 @@ function createState(): CollectorState {
     positional: {
       positionalCount: 0,
       stableAcrossSnapshots: 0,
-      unstableAcrossSnapshots: 0,
+      changedAcrossSnapshots: 0,
     },
     accessibility: { totalInteractive: 0, missingAccessibleName: 0 },
   };
@@ -389,39 +412,42 @@ function recordSelectorOutcome(
   }
 }
 
-function determineStability(
-  el: Element,
-  previous: RegistryEntry | undefined,
-  root: ParentNode,
-): StabilityVerdict {
-  if (!previous) return "UNKNOWN";
-  if (!el.isConnected) return "DETACHED";
-  const result = testSelector(previous.root ?? root, previous.selector, el);
-  return result.matchCount === 1 && result.matchesTarget
-    ? "STABLE"
-    : "UNSTABLE";
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function analyzeInteractiveElement(
   el: Element,
   root: ParentNode,
   state: CollectorState,
-  previousRegistry: Map<Element, RegistryEntry>,
-  currentRegistry: Map<Element, RegistryEntry>,
+  hasMultiSnapshotEvidence: boolean,
+  previousRegistry: Map<string, RegistryEntry>,
+  currentRegistry: Map<string, RegistryEntry>,
 ): void {
   const attributes = extractElementAttributes(el);
   const resolution = resolveElement(root, el);
   const hitTest = hitTestElement(el);
   const accessibleName = hasAccessibleName(el);
+  const fingerprint = computeElementFingerprint(el);
 
-  const previous = previousRegistry.get(el);
-  const stability = determineStability(el, previous, root);
+  const previous = previousRegistry.get(fingerprint);
+  let stability: StabilityVerdict;
+  let nodeReplaced = false;
 
-  if (previous) {
+  if (!hasMultiSnapshotEvidence) {
+    stability = "UNKNOWN";
+  } else if (!previous) {
+    stability = "NEW";
+    state.stability.new++;
+  } else {
     state.stability.trackedFromPrevious++;
+    nodeReplaced = previous.el !== el;
+    const result = testSelector(previous.root, previous.selector, el);
+    stability =
+      result.matchCount === 1 && result.matchesTarget ? "STABLE" : "CHANGED";
     if (stability === "STABLE") state.stability.stable++;
-    else if (stability === "UNSTABLE") state.stability.unstable++;
-    else if (stability === "DETACHED") state.stability.detached++;
+    else state.stability.changed++;
+    if (nodeReplaced) state.stability.nodeReplacedButLogicallyStable++;
 
     if (
       previous.id !== undefined &&
@@ -440,19 +466,22 @@ function analyzeInteractiveElement(
 
     if (resolution.usesPositionalSelector) {
       if (stability === "STABLE") state.positional.stableAcrossSnapshots++;
-      else if (stability === "UNSTABLE")
-        state.positional.unstableAcrossSnapshots++;
+      else state.positional.changedAcrossSnapshots++;
     }
-  } else {
-    state.stability.unknown++;
   }
 
-  currentRegistry.set(el, {
-    selector: resolution.bestSelector ?? "",
-    root,
-    id: attributes.id,
-    className: attributes.className,
-  });
+  // First interactive element wins a given fingerprint slot for this pass —
+  // a collision on a pathological DOM degrades to "not tracked", never to
+  // a false stability claim.
+  if (!currentRegistry.has(fingerprint)) {
+    currentRegistry.set(fingerprint, {
+      el,
+      selector: resolution.bestSelector ?? "",
+      root,
+      id: attributes.id,
+      className: attributes.className,
+    });
+  }
 
   if (attributes.id) {
     state.dynamicAttrs.idsObserved++;
@@ -522,21 +551,20 @@ function analyzeInteractiveElement(
     usesPositionalSelector: resolution.usesPositionalSelector,
     dynamicAttributeNames: resolution.dynamicAttributeNames,
     stableAttributeNames: resolution.stableAttributeNames,
+    winningAttribute: resolution.winningAttribute,
     hasAccessibleName: accessibleName,
     hitTest,
     stability,
   });
 }
 
-/** Walks one root (a Document or an open ShadowRoot) — recurses into open shadow roots and accessible same-origin iframes. */
+/** Walks one root (a Document or an open ShadowRoot) — recurses into open shadow roots and accessible same-origin iframes. Only classifies/counts elements and queues interactive candidates; the expensive per-element pipeline runs afterward, in batches. */
 function collectFromRoot(
   root: ParentNode,
   state: CollectorState,
-  options: Required<Omit<DomHealthCollectorOptions, "freshAudit">>,
+  options: { maxStyleChecks: number },
   depth: number,
   insideShadowDom: boolean,
-  previousRegistry: Map<Element, RegistryEntry>,
-  currentRegistry: Map<Element, RegistryEntry>,
 ): void {
   const all = root.querySelectorAll("*");
   state.totalElements += all.length;
@@ -587,29 +615,13 @@ function collectFromRoot(
 
     if (interactive) {
       state.interactiveCount++;
-      if (state.elementReports.length < options.maxInteractiveElements) {
-        analyzeInteractiveElement(
-          el,
-          root,
-          state,
-          previousRegistry,
-          currentRegistry,
-        );
-      }
+      state.interactiveCandidates.push({ el, root });
     }
 
     const shadowRoot = (el as HTMLElement).shadowRoot;
     if (shadowRoot) {
       state.shadowRoots++;
-      collectFromRoot(
-        shadowRoot,
-        state,
-        options,
-        depth,
-        true,
-        previousRegistry,
-        currentRegistry,
-      );
+      collectFromRoot(shadowRoot, state, options, depth, true);
     }
   }
 
@@ -635,8 +647,6 @@ function collectFromRoot(
         options,
         depth + 1,
         false,
-        previousRegistry,
-        currentRegistry,
       );
     } else {
       state.iframeCrossOrigin++;
@@ -646,42 +656,62 @@ function collectFromRoot(
 }
 
 /**
- * Collect a DOM Health snapshot from the given document. Synchronous and
- * single-pass. Safe to call 2-3 times across one audit run (see
- * `DomHealthCollectorOptions.freshAudit`) — cross-snapshot stability is
- * tracked internally via a short-lived element registry, not by the caller.
+ * Collect a DOM Health snapshot from the given document. Safe to call 2-3
+ * times across one audit run (see `DomHealthCollectorOptions.freshAudit`) —
+ * cross-snapshot stability is tracked internally via a short-lived logical
+ * registry, not by the caller. Async: the full interactive-element universe
+ * is processed in yielding batches so a large page's audit never blocks the
+ * tab (spec section 6/36).
  */
-export function collectDomHealthSnapshot(
+export async function collectDomHealthSnapshot(
   rootDocument: Document,
   options: DomHealthCollectorOptions = {},
-): DomHealthSnapshot {
-  const resolvedOptions = {
-    maxInteractiveElements:
-      options.maxInteractiveElements ?? DEFAULT_MAX_INTERACTIVE_ELEMENTS,
-    maxStyleChecks: options.maxStyleChecks ?? DEFAULT_MAX_STYLE_CHECKS,
-  };
+): Promise<DomHealthSnapshot> {
+  const elementCeiling =
+    options.maxInteractiveElements ?? DEFAULT_ELEMENT_CEILING;
+  const maxStyleChecks = options.maxStyleChecks ?? DEFAULT_MAX_STYLE_CHECKS;
   const freshAudit = options.freshAudit !== false;
 
   const previousRegistry = freshAudit
-    ? new Map<Element, RegistryEntry>()
+    ? new Map<string, RegistryEntry>()
     : auditRegistry;
-  const currentRegistry = new Map<Element, RegistryEntry>();
+  const currentRegistry = new Map<string, RegistryEntry>();
   const hasMultiSnapshotEvidence = previousRegistry.size > 0;
 
   const state = createState();
   collectFromRoot(
     rootDocument.body ?? rootDocument,
     state,
-    resolvedOptions,
+    { maxStyleChecks },
     0,
     false,
-    previousRegistry,
-    currentRegistry,
   );
 
+  const capped = state.interactiveCandidates.length > elementCeiling;
+  const candidatesToAnalyze = capped
+    ? state.interactiveCandidates.slice(0, elementCeiling)
+    : state.interactiveCandidates;
+
+  for (let i = 0; i < candidatesToAnalyze.length; i += BATCH_SIZE) {
+    const batch = candidatesToAnalyze.slice(i, i + BATCH_SIZE);
+    for (const { el, root } of batch) {
+      analyzeInteractiveElement(
+        el,
+        root,
+        state,
+        hasMultiSnapshotEvidence,
+        previousRegistry,
+        currentRegistry,
+      );
+    }
+    if (i + BATCH_SIZE < candidatesToAnalyze.length) {
+      await yieldToEventLoop();
+    }
+  }
+
   if (hasMultiSnapshotEvidence) {
-    for (const [el] of previousRegistry) {
-      if (!currentRegistry.has(el)) state.stability.detached++;
+    for (const [fingerprint] of previousRegistry) {
+      if (!currentRegistry.has(fingerprint)) state.stability.detached++;
     }
   }
 
@@ -712,6 +742,14 @@ export function collectDomHealthSnapshot(
       shadowDomElements: state.universe.shadowDomElements,
     },
     elementReports: state.elementReports,
+    analysisCoverage: {
+      candidatesFound: state.interactiveCandidates.length,
+      candidatesAnalyzed: candidatesToAnalyze.length,
+      capped,
+      capReason: capped
+        ? `Runaway-safety ceiling of ${elementCeiling} interactive elements reached — this page has more than that many; analysis covers the first ${elementCeiling} found in document order.`
+        : null,
+    },
     selectorAnalysis: {
       totalAnalyzed: state.elementReports.length,
       ...state.selectorAnalysis,
@@ -726,7 +764,7 @@ export function collectDomHealthSnapshot(
     positionalDependency: {
       positionalCount: state.positional.positionalCount,
       stableAcrossSnapshots: state.positional.stableAcrossSnapshots,
-      unstableAcrossSnapshots: state.positional.unstableAcrossSnapshots,
+      changedAcrossSnapshots: state.positional.changedAcrossSnapshots,
     },
     accessibility: state.accessibility,
     iframes: {

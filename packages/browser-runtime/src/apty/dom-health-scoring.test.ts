@@ -20,6 +20,7 @@ function makeReport(
     usesPositionalSelector: false,
     dynamicAttributeNames: [],
     stableAttributeNames: ["id"],
+    winningAttribute: "id",
     hasAccessibleName: true,
     hitTest: { pointsPassed: 9, classification: "fully-targetable" },
     stability: "STABLE",
@@ -75,13 +76,17 @@ function aggregateSelectorAnalysis(reports: ElementSelectorReport[]) {
 }
 
 function aggregateStability(reports: ElementSelectorReport[]) {
-  const tracked = reports.filter((r) => r.stability !== "UNKNOWN");
+  const tracked = reports.filter(
+    (r) => r.stability !== "UNKNOWN" && r.stability !== "NEW",
+  );
   return {
     trackedFromPrevious: tracked.length,
     stable: tracked.filter((r) => r.stability === "STABLE").length,
-    unstable: tracked.filter((r) => r.stability === "UNSTABLE").length,
-    detached: tracked.filter((r) => r.stability === "DETACHED").length,
+    changed: tracked.filter((r) => r.stability === "CHANGED").length,
+    detached: reports.filter((r) => r.stability === "DETACHED").length,
+    new: reports.filter((r) => r.stability === "NEW").length,
     unknown: reports.filter((r) => r.stability === "UNKNOWN").length,
+    nodeReplacedButLogicallyStable: 0,
   };
 }
 
@@ -136,6 +141,12 @@ function makeSnapshot(
       shadowDomElements: 0,
     },
     elementReports: reports,
+    analysisCoverage: {
+      candidatesFound: reports.length,
+      candidatesAnalyzed: reports.length,
+      capped: false,
+      capReason: null,
+    },
     selectorAnalysis: aggregateSelectorAnalysis(reports),
     dynamicAttributes: {
       idsObserved: 0,
@@ -161,7 +172,7 @@ function makeSnapshot(
     positionalDependency: {
       positionalCount: reports.filter((r) => r.usesPositionalSelector).length,
       stableAcrossSnapshots: 0,
-      unstableAcrossSnapshots: 0,
+      changedAcrossSnapshots: 0,
     },
     accessibility: {
       totalInteractive: reports.length,

@@ -104,8 +104,27 @@ export type SelectorStrategy =
   | "positional"
   | "none";
 
-/** Cross-snapshot verdict for one element's previously-chosen selector (spec section 23). UNKNOWN when there is nothing to compare against yet (first snapshot of the audit). */
-export type StabilityVerdict = "STABLE" | "UNSTABLE" | "DETACHED" | "UNKNOWN";
+/**
+ * Cross-snapshot verdict for one element, from LOGICAL correlation (spec
+ * section 18) — never from array position, and never from raw DOM-node
+ * identity alone (a framework may replace the node on rerender while the
+ * logical control persists; see `computeElementFingerprint`).
+ *
+ * - UNKNOWN: no prior snapshot exists yet (first snapshot of the audit).
+ * - NEW: prior snapshot(s) exist, but no matching logical element was seen before.
+ * - STABLE: a matching logical element existed before, and its previously-chosen
+ *   selector still resolves uniquely to it now (whether or not the underlying
+ *   DOM node object was replaced).
+ * - CHANGED: a matching logical element existed before, but its previously-chosen
+ *   selector no longer resolves correctly — the control persisted, the selector broke.
+ * - DETACHED: a previously-tracked logical element has no match now at all.
+ */
+export type StabilityVerdict =
+  | "STABLE"
+  | "CHANGED"
+  | "DETACHED"
+  | "NEW"
+  | "UNKNOWN";
 
 export type HitTestClassification =
   | "fully-targetable"
@@ -138,6 +157,8 @@ export interface ElementSelectorReport {
   usesPositionalSelector: boolean;
   dynamicAttributeNames: string[];
   stableAttributeNames: string[];
+  /** The attribute the winning candidate was built from (spec section 14's "which attribute won and why"); null for context/positional/unresolved outcomes. */
+  winningAttribute: string | null;
   hasAccessibleName: boolean;
   hitTest: HitTestResult | null;
   stability: StabilityVerdict;
@@ -172,9 +193,15 @@ export interface StabilityStats {
   /** Elements that had a resolvable selector in a previous snapshot of this same audit and were re-verified now. */
   trackedFromPrevious: number;
   stable: number;
-  unstable: number;
+  /** Logical element persisted (fingerprint matched) but its previously-chosen selector no longer resolves correctly — needs regeneration. */
+  changed: number;
+  /** A previously-tracked logical element (by fingerprint) has no match in the current snapshot at all. */
   detached: number;
+  /** Present now but not seen (by fingerprint) in any previous snapshot of this audit. */
+  new: number;
   unknown: number;
+  /** Count of STABLE/CHANGED elements where the underlying DOM node object was replaced but the logical fingerprint still matched — evidence the tracker isn't just relying on object identity. */
+  nodeReplacedButLogicallyStable: number;
 }
 
 export interface HitTestStats {
@@ -198,14 +225,30 @@ export interface AncestorTraversalStats {
 
 export interface PositionalDependencyStats {
   positionalCount: number;
-  /** Of the positional selectors, how many kept resolving to the same node when re-verified (requires >=2 snapshots). */
+  /** Of the positional selectors, how many kept resolving correctly when re-verified (requires >=2 snapshots). */
   stableAcrossSnapshots: number;
-  unstableAcrossSnapshots: number;
+  changedAcrossSnapshots: number;
 }
 
 export interface AccessibilitySignalStats {
   totalInteractive: number;
   missingAccessibleName: number;
+}
+
+/**
+ * Whether every interactive element found got the full selector-resolution
+ * + hit-test pipeline, or whether the runaway-safety ceiling was hit
+ * (spec section 6) — `capped` must never be true without `capReason`
+ * explaining it, and coverage is reported rather than silently absorbed
+ * into the score.
+ */
+export interface AnalysisCoverage {
+  /** Total interactive elements found in the DOM (exact, never sampled). */
+  candidatesFound: number;
+  /** How many actually received the full pipeline this snapshot. */
+  candidatesAnalyzed: number;
+  capped: boolean;
+  capReason: string | null;
 }
 
 export interface DomHealthSnapshot {
@@ -214,8 +257,9 @@ export interface DomHealthSnapshot {
   title: string;
   counts: DomHealthCounts;
   elementUniverse: ElementUniverseCounts;
-  /** Bounded sample of analyzed elements (see `maxInteractiveElements`) — aggregates above/below reflect true totals even when this array is truncated. */
+  /** Every analyzed element (up to `analysisCoverage.candidatesAnalyzed`) — aggregates above/below reflect true totals even when the runaway-safety ceiling was hit. */
   elementReports: ElementSelectorReport[];
+  analysisCoverage: AnalysisCoverage;
   selectorAnalysis: SelectorAnalysisAggregate;
   dynamicAttributes: DynamicAttributeStats;
   stability: StabilityStats;
@@ -229,7 +273,13 @@ export interface DomHealthSnapshot {
 }
 
 export interface DomHealthCollectorOptions {
-  /** Caps how many elements get the full selector-resolution + hit-test pipeline (perf bound — this is the expensive path). Defaults to 300. */
+  /**
+   * Runaway-safety ceiling on how many interactive elements get the full
+   * selector-resolution + hit-test pipeline — NOT a target sample size.
+   * Defaults to 4000; a real page is expected to stay far below this. If
+   * hit, `analysisCoverage.capped` reports it explicitly rather than the
+   * score silently reflecting a partial page.
+   */
   maxInteractiveElements?: number;
   /** Caps how many positioned elements get a computed-style z-index/visibility check (perf bound). Defaults to 2000. */
   maxStyleChecks?: number;

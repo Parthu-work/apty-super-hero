@@ -6,6 +6,12 @@ export {
 export { extractStablePrefix, looksDynamic } from "./health-dynamic.js";
 export { hitTestElement } from "./health-hit-test.js";
 export {
+  type CollectDiscoverableLinksOptions,
+  collectDiscoverableLinks,
+  type DiscoverableLink,
+  isSafeToDiscover,
+} from "./health-links.js";
+export {
   type ElementResolution,
   extractElementAttributes,
   hasAccessibleName,

@@ -56,11 +56,18 @@ function snapshotFixture(
         usesPositionalSelector: false,
         dynamicAttributeNames: [],
         stableAttributeNames: ["data-testid"],
+        winningAttribute: "data-testid",
         hasAccessibleName: true,
         hitTest: { pointsPassed: 9, classification: "fully-targetable" },
         stability: "UNKNOWN",
       },
     ],
+    analysisCoverage: {
+      candidatesFound: 1,
+      candidatesAnalyzed: 1,
+      capped: false,
+      capReason: null,
+    },
     selectorAnalysis: {
       totalAnalyzed: 1,
       directSuccess: 1,
@@ -85,9 +92,11 @@ function snapshotFixture(
     stability: {
       trackedFromPrevious: 0,
       stable: 0,
-      unstable: 0,
+      changed: 0,
       detached: 0,
+      new: 0,
       unknown: 1,
+      nodeReplacedButLogicallyStable: 0,
     },
     hitTesting: {
       tested: 1,
@@ -107,7 +116,7 @@ function snapshotFixture(
     positionalDependency: {
       positionalCount: 0,
       stableAcrossSnapshots: 0,
-      unstableAcrossSnapshots: 0,
+      changedAcrossSnapshots: 0,
     },
     accessibility: { totalInteractive: 1, missingAccessibleName: 0 },
     iframes: { total: 0, accessible: 0, crossOrigin: 0 },

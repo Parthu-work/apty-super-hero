@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRunDomHealthAudit = vi.hoisted(() => vi.fn());
+const mockRunApplicationDomHealthAudit = vi.hoisted(() => vi.fn());
 const mockRecordToolCall = vi.hoisted(() => vi.fn());
 
 vi.mock("../apty/index.js", () => ({
   runDomHealthAudit: mockRunDomHealthAudit,
+  runApplicationDomHealthAudit: mockRunApplicationDomHealthAudit,
   recordToolCall: mockRecordToolCall,
 }));
 
@@ -15,7 +17,10 @@ vi.mock("../apty/index.js", () => ({
   },
 };
 
-import { runDomHealthAuditTool } from "./dom-health";
+import {
+  runApplicationDomHealthAuditTool,
+  runDomHealthAuditTool,
+} from "./dom-health";
 
 describe("runDomHealthAuditTool", () => {
   beforeEach(() => {
@@ -64,6 +69,62 @@ describe("runDomHealthAuditTool", () => {
 
     const runContext = { context: { conversationId: "conv-3", tabId: 1 } };
     const result = await runDomHealthAuditTool.invoke(
+      runContext as any,
+      JSON.stringify({}),
+    );
+
+    expect(result).toEqual(outcome);
+  });
+});
+
+describe("runApplicationDomHealthAuditTool", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (global as any).chrome.tabs.get = vi.fn(async (tabId: number) => ({
+      id: tabId,
+    }));
+    (global as any).chrome.tabs.query = vi.fn(async () => [{ id: 7 }]);
+  });
+
+  it("delegates to runApplicationDomHealthAudit for the tab bound to the conversation, forwarding maxPages", async () => {
+    mockRunApplicationDomHealthAudit.mockResolvedValue({
+      available: true,
+      scope: "application",
+      score: 70,
+    });
+
+    const runContext = { context: { conversationId: "conv-1", tabId: 9 } };
+    const result = await runApplicationDomHealthAuditTool.invoke(
+      runContext as any,
+      JSON.stringify({ maxPages: 5 }),
+    );
+
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(9, {
+      maxPages: 5,
+    });
+    expect(result).toEqual({
+      available: true,
+      scope: "application",
+      score: 70,
+    });
+    expect(mockRecordToolCall).toHaveBeenCalledWith(
+      "conv-1",
+      "run_application_dom_health_audit",
+      { maxPages: 5 },
+    );
+  });
+
+  it("returns the application audit outcome exactly as computed", async () => {
+    const outcome = {
+      available: true,
+      scope: "page",
+      score: 55,
+      coverage: { pagesDiscovered: 1, pagesAudited: 1 },
+    };
+    mockRunApplicationDomHealthAudit.mockResolvedValue(outcome);
+
+    const runContext = { context: { conversationId: "conv-2", tabId: 3 } };
+    const result = await runApplicationDomHealthAuditTool.invoke(
       runContext as any,
       JSON.stringify({}),
     );

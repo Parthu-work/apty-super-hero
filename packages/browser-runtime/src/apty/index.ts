@@ -1,3 +1,19 @@
+export type {
+  ApplicationAuditLimits,
+  ApplicationAuditOutcome,
+  ApplicationAuditProgress,
+  RunApplicationAuditOptions,
+} from "./application-audit.js";
+export { runApplicationDomHealthAudit } from "./application-audit.js";
+export type {
+  ApplicationAuditResult,
+  ApplicationCoverage,
+  PageAuditRecord,
+  PageAuditStatus,
+  PageDiscoverySource,
+  PageNavigationModel,
+} from "./application-scoring.js";
+export { buildApplicationAuditResult } from "./application-scoring.js";
 export {
   NotConfiguredClientDiagnosticsProvider,
   ScriptingClientDiagnosticsProvider,
@@ -8,7 +24,7 @@ export {
   setAptyIntegrationConfig,
 } from "./config.js";
 export type { DomHealthAuditOutcome } from "./dom-health.js";
-export { runDomHealthAudit } from "./dom-health.js";
+export { isUnsupportedPage, runDomHealthAudit } from "./dom-health.js";
 export type {
   DomHealthAuditResult,
   DomHealthConfidence,
@@ -116,6 +132,14 @@ export {
   startNetworkCapture,
   stopNetworkCapture,
 } from "./network-capture-session.js";
+export type { NavigationModel } from "./page-navigation.js";
+export {
+  collectPageLinks,
+  getNavigationModel,
+  navigateTab,
+  waitForDomStable,
+  waitForTabLoad,
+} from "./page-navigation.js";
 export {
   redactHeaders,
   redactLog,

@@ -39,7 +39,8 @@ export type DomHealthAuditOutcome =
   | ({ available: true } & DomHealthAuditResult)
   | { available: false; error: string };
 
-function isUnsupportedPage(url: string | undefined): boolean {
+/** Exported for reuse by `application-audit.ts`, which applies the same check before navigating to a discovered page. */
+export function isUnsupportedPage(url: string | undefined): boolean {
   if (!url) return true;
   return UNSUPPORTED_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
 }

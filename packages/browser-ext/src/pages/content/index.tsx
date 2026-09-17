@@ -3,6 +3,7 @@ import type { FakeMouseController } from "@aipexstudio/aipex-react/components/fa
 import type { OmniCommandGroup } from "@aipexstudio/aipex-react/components/omni";
 import { Omni } from "@aipexstudio/aipex-react/components/omni";
 import {
+  collectDiscoverableLinks,
   collectDomHealthSnapshot,
   collectDomSnapshot,
 } from "@aipexstudio/dom-snapshot";
@@ -15,6 +16,78 @@ import tailwindCss from "../tailwind.css?inline";
 interface CaptureState {
   isCapturing: boolean;
   highlightedElement: Element | null;
+}
+
+/**
+ * SPA navigation-model detection (spec section 24) — installed once, at
+ * module scope, when this content script loads (which happens fresh on
+ * every real page navigation, per the manifest). `history` is a shared
+ * platform object between the isolated content-script world and the
+ * page's own main-world script, so patching it here also observes the
+ * page's own `pushState`/`replaceState` calls — diagnostic only, never
+ * used to decide safety or to affect the DOM Health score.
+ */
+let historyApiCallCount = 0;
+if (
+  typeof history !== "undefined" &&
+  !(history as any).__aptyDomHealthPatched
+) {
+  (history as any).__aptyDomHealthPatched = true;
+  const originalPushState = history.pushState.bind(history);
+  const originalReplaceState = history.replaceState.bind(history);
+  history.pushState = function patchedPushState(...args) {
+    historyApiCallCount++;
+    return originalPushState(...args);
+  };
+  history.replaceState = function patchedReplaceState(...args) {
+    historyApiCallCount++;
+    return originalReplaceState(...args);
+  };
+  window.addEventListener("popstate", () => {
+    historyApiCallCount++;
+  });
+}
+
+/**
+ * DOM-stabilization signal for the application-wide audit (spec section 5)
+ * — reports once the DOM has been quiet for `quietMs`, or `timeoutMs` has
+ * elapsed, whichever comes first. A MutationObserver-based quiet period,
+ * never a fixed sleep, so a debounced re-render gets real time to settle.
+ */
+function waitForDomToStabilize(
+  quietMs: number,
+  timeoutMs: number,
+): Promise<{ settled: boolean; elapsedMs: number }> {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    let resolved = false;
+    let quietTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = (settled: boolean) => {
+      if (resolved) return;
+      resolved = true;
+      observer.disconnect();
+      if (quietTimer) clearTimeout(quietTimer);
+      resolve({ settled, elapsedMs: Date.now() - start });
+    };
+
+    const observer = new MutationObserver(() => {
+      if (quietTimer) clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => finish(true), quietMs);
+    });
+
+    const target = document.body ?? document.documentElement;
+    if (target) {
+      observer.observe(target, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      });
+    }
+    // Starts the quiet-period clock immediately in case nothing mutates again.
+    quietTimer = setTimeout(() => finish(true), quietMs);
+    setTimeout(() => finish(false), timeoutMs);
+  });
 }
 
 const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
@@ -341,20 +414,59 @@ const ContentApp = () => {
         // `sequenceIndex === 0` starts a fresh audit (resets the collector's
         // cross-snapshot element registry); later snapshots in the same
         // audit continue it so selector stability is tracked correctly.
+        // The collector is async (it yields between batches on large
+        // pages), so this responds asynchronously like the branch above.
+        (async () => {
+          try {
+            const snapshot = await collectDomHealthSnapshot(document, {
+              freshAudit: (message.sequenceIndex ?? 0) === 0,
+            });
+            sendResponse({ success: true, data: snapshot });
+          } catch (error) {
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to collect a DOM Health snapshot",
+            });
+          }
+        })();
+        return true;
+      } else if (message.request === "collect-dom-health-links") {
+        // Safe same-origin page discovery for the application-wide audit —
+        // see @aipexstudio/dom-snapshot's health-links. Only ever reads
+        // existing <a href> elements; never simulates a click.
         try {
-          const snapshot = collectDomHealthSnapshot(document, {
-            freshAudit: (message.sequenceIndex ?? 0) === 0,
-          });
-          sendResponse({ success: true, data: snapshot });
+          const links = collectDiscoverableLinks(document);
+          sendResponse({ success: true, data: links });
         } catch (error) {
           sendResponse({
             success: false,
             error:
               error instanceof Error
                 ? error.message
-                : "Failed to collect a DOM Health snapshot",
+                : "Failed to collect discoverable links",
           });
         }
+        return true;
+      } else if (message.request === "wait-for-dom-stable") {
+        const quietMs =
+          typeof message.quietMs === "number" ? message.quietMs : 400;
+        const timeoutMs =
+          typeof message.timeoutMs === "number" ? message.timeoutMs : 8000;
+        waitForDomToStabilize(quietMs, timeoutMs).then((data) => {
+          sendResponse({ success: true, data });
+        });
+        return true;
+      } else if (message.request === "get-dom-health-navigation-model") {
+        sendResponse({
+          success: true,
+          data: {
+            usesHistoryApiRouting: historyApiCallCount > 0,
+            historyApiCallCount,
+          },
+        });
         return true;
       }
 

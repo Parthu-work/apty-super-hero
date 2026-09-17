@@ -1,28 +1,35 @@
 /**
  * Apty DOM Health card — a persistent, always-visible surface above the
  * chat input, independent of whether an investigation is active. Never
- * runs automatically: the audit only starts when the user clicks "Check
- * DOM Health" / "Recheck".
+ * runs automatically: an audit only starts when the user clicks "Check
+ * DOM Health" (current page) or "Audit Application" (multi-page).
  *
- * Renders the evidence-driven report produced by `runDomHealthAudit`:
- * every number shown here came from live selector generation/verification,
- * cross-snapshot stability tracking, and hit testing performed in-page —
- * this component only displays it, it never computes or adjusts a score.
+ * Renders the evidence-driven report produced by `runDomHealthAudit` /
+ * `runApplicationDomHealthAudit`: every number shown here came from live
+ * selector generation/verification, cross-snapshot stability tracking, and
+ * hit testing performed in-page — this component only displays it, it
+ * never computes or adjusts a score.
  *
- * Calls `runDomHealthAudit` directly from `@aipexstudio/browser-runtime` —
- * the same function the `run_dom_health_audit` agent tool calls — so the
- * button works without any agent/LLM turn, and always reports the same
- * deterministic result either way.
+ * Both call directly into `@aipexstudio/browser-runtime` — the same
+ * functions the `run_dom_health_audit` / `run_application_dom_health_audit`
+ * agent tools call — so the buttons work without any agent/LLM turn, and
+ * always report the same deterministic result either way.
  */
 import { useChatContext } from "@aipexstudio/aipex-react/components/chatbot";
 import { Button } from "@aipexstudio/aipex-react/components/ui/button";
 import { cn } from "@aipexstudio/aipex-react/lib/utils";
 import {
+  type ApplicationAuditOutcome,
+  type ApplicationAuditProgress,
   type DomHealthAuditOutcome,
   type DomHealthConfidence,
   type DomHealthGrade,
   type DomHealthMetricKey,
+  type DomHealthMetrics,
+  type DomHealthRecommendation,
   type DomHealthRisk,
+  type PageAuditRecord,
+  runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "@aipexstudio/browser-runtime";
 import { ChevronDownIcon, Loader2Icon, ScanSearchIcon } from "lucide-react";
@@ -107,6 +114,14 @@ const OUTCOME_LABELS: Record<string, string> = {
   INACCESSIBLE: "Inaccessible",
 };
 
+const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], string> = {
+  completed: "Audited",
+  failed: "Failed",
+  "skipped-unsafe": "Skipped (unsafe)",
+  "skipped-cross-origin": "Skipped (cross-origin)",
+  "skipped-duplicate": "Skipped (duplicate)",
+};
+
 function metricTone(score: number): StatusMeta["tone"] {
   if (score >= 80) return "success";
   if (score >= 60) return "warning";
@@ -125,11 +140,165 @@ function outcomeTone(outcome: string): StatusMeta["tone"] {
   return "danger";
 }
 
+function pageStatusTone(status: PageAuditRecord["status"]): StatusMeta["tone"] {
+  if (status === "completed") return "success";
+  if (status === "failed") return "danger";
+  return "neutral";
+}
+
+/** Shape shared by both a single-page result and the application-level rollup — every field here is evidence-driven, never text this component invents. */
+interface SharedEvidence {
+  confidence: DomHealthConfidence;
+  manualSelectorDependency: number;
+  metrics: DomHealthMetrics;
+  summary: string;
+  strengths: string[];
+  risks: DomHealthRisk[];
+  recommendations: DomHealthRecommendation[];
+  methodology: string[];
+}
+
+function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
+  return (
+    <>
+      <p className="text-xs text-muted-foreground">{result.summary}</p>
+
+      <div className="rounded-md border bg-muted/30 px-2.5 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Manual Selector Dependency
+          </span>
+          <span
+            className={cn(
+              "font-mono text-sm font-semibold",
+              toneTextClass(
+                result.manualSelectorDependency > 30
+                  ? "danger"
+                  : result.manualSelectorDependency > 15
+                    ? "warning"
+                    : "success",
+              ),
+            )}
+          >
+            {result.manualSelectorDependency}%
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Metrics
+        </h4>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          {METRIC_ORDER.map((key) => {
+            const score = result.metrics[key];
+            return (
+              <div
+                key={key}
+                className="flex items-center justify-between gap-2 text-xs"
+              >
+                <span className="truncate text-muted-foreground">
+                  {METRIC_LABELS[key]}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 font-mono font-medium",
+                    toneTextClass(metricTone(score)),
+                  )}
+                >
+                  {score}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {result.strengths.length > 0 && (
+        <div>
+          <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            What's working well
+          </h4>
+          <ul className="space-y-1 text-xs text-foreground">
+            {result.strengths.map((s) => (
+              <li key={s} className="flex items-start gap-1.5">
+                <span className="text-success">✓</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.risks.length > 0 && (
+        <div>
+          <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Risks
+          </h4>
+          <ul className="space-y-1.5">
+            {result.risks.map((risk) => (
+              <li key={risk.id} className="text-xs">
+                <div className="flex items-start gap-1.5">
+                  <span
+                    className={cn(
+                      "mt-1 size-1.5 shrink-0 rounded-full",
+                      toneDotClass(riskTone(risk.severity)),
+                    )}
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">{risk.title}</p>
+                    <p className="text-muted-foreground">{risk.evidence}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.recommendations.length > 0 && (
+        <div>
+          <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Recommendations
+          </h4>
+          <ul className="space-y-1.5">
+            {result.recommendations.map((rec) => (
+              <li key={rec.id} className="text-xs">
+                <p className="font-medium text-foreground">{rec.title}</p>
+                <p className="text-muted-foreground">{rec.detail}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <details className="text-xs">
+        <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+          How was this score calculated?
+        </summary>
+        <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-muted-foreground">
+          {result.methodology.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      </details>
+    </>
+  );
+}
+
 export function DomHealthCard() {
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
   const [isLoading, setIsLoading] = useState(false);
   const [outcome, setOutcome] = useState<DomHealthAuditOutcome | null>(null);
+  const [isAppLoading, setIsAppLoading] = useState(false);
+  const [appOutcome, setAppOutcome] = useState<ApplicationAuditOutcome | null>(
+    null,
+  );
+  const [appProgress, setAppProgress] =
+    useState<ApplicationAuditProgress | null>(null);
+  const [view, setView] = useState<"page" | "application">("page");
   const [expanded, setExpanded] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -143,6 +312,7 @@ export function DomHealthCard() {
 
   const runCheck = useCallback(async () => {
     if (!target.tabId) return;
+    setView("page");
     setIsLoading(true);
     setExpanded(true);
     setStageIndex(0);
@@ -160,7 +330,25 @@ export function DomHealthCard() {
     setIsLoading(false);
   }, [target.tabId]);
 
-  const hasResult = outcome !== null;
+  const runApplicationCheck = useCallback(async () => {
+    if (!target.tabId) return;
+    setView("application");
+    setIsAppLoading(true);
+    setExpanded(true);
+    setAppProgress(null);
+
+    const result = await runApplicationDomHealthAudit(target.tabId, {
+      onProgress: (progress) => setAppProgress(progress),
+    });
+
+    setAppOutcome(result);
+    setIsAppLoading(false);
+    setAppProgress(null);
+  }, [target.tabId]);
+
+  const hasResult = outcome !== null || appOutcome !== null;
+  const active = view === "application" ? appOutcome : outcome;
+  const activeIsLoading = view === "application" ? isAppLoading : isLoading;
 
   return (
     <div className="mb-2 overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -170,7 +358,7 @@ export function DomHealthCard() {
           onClick={() => setExpanded((v) => !v)}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
           aria-expanded={expanded}
-          aria-label={`DOM Health: ${outcome?.available ? `${outcome.score} out of 100, ${GRADE_META[outcome.grade].label}` : outcome ? "unavailable" : "not checked yet"}. Click to ${expanded ? "collapse" : "expand"}.`}
+          aria-label={`DOM Health: ${active?.available ? `${active.score} out of 100, ${GRADE_META[active.grade ?? "HIGH_RISK"].label}` : active ? "unavailable" : "not checked yet"}. Click to ${expanded ? "collapse" : "expand"}.`}
         >
           <ScanSearchIcon
             className="size-3.5 shrink-0 text-muted-foreground"
@@ -179,17 +367,17 @@ export function DomHealthCard() {
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             DOM Health
           </span>
-          {outcome?.available && (
+          {active?.available && (
             <span
               className={cn(
                 "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
-                GRADE_META[outcome.grade].badgeClassName,
+                GRADE_META[active.grade].badgeClassName,
               )}
             >
-              {outcome.score}/100 · {GRADE_META[outcome.grade].label}
+              {active.score}/100 · {GRADE_META[active.grade].label}
             </span>
           )}
-          {outcome && !outcome.available && (
+          {active && !active.available && (
             <span
               className={cn(
                 "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
@@ -199,18 +387,33 @@ export function DomHealthCard() {
               Unavailable
             </span>
           )}
-          {!outcome && !isLoading && (
+          {!active && !activeIsLoading && (
             <span className="truncate text-xs text-muted-foreground">
               Not checked yet
             </span>
           )}
-          {isLoading && (
+          {activeIsLoading && view === "page" && (
             <span className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
               <Loader2Icon
                 className="size-3 shrink-0 animate-spin"
                 aria-hidden="true"
               />
               <span className="truncate">{LOADING_STAGES[stageIndex]}</span>
+            </span>
+          )}
+          {activeIsLoading && view === "application" && (
+            <span className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
+              <Loader2Icon
+                className="size-3 shrink-0 animate-spin"
+                aria-hidden="true"
+              />
+              <span className="truncate">
+                {appProgress?.phase === "auditing"
+                  ? `Auditing page ${appProgress.pageIndex + 1}...`
+                  : appProgress?.phase === "discovering-links"
+                    ? "Discovering pages..."
+                    : "Starting application audit..."}
+              </span>
             </span>
           )}
           <ChevronDownIcon
@@ -223,50 +426,107 @@ export function DomHealthCard() {
         </button>
         <Button
           size="sm"
-          variant={hasResult ? "outline" : "default"}
-          disabled={isLoading || !target.tabId}
+          variant={outcome ? "outline" : "default"}
+          disabled={isLoading || isAppLoading || !target.tabId}
           onClick={(e) => {
             e.stopPropagation();
             void runCheck();
           }}
           className="shrink-0"
         >
-          {isLoading
-            ? "Checking..."
-            : hasResult
-              ? "Recheck"
-              : "Check DOM Health"}
+          {isLoading ? "Checking..." : outcome ? "Recheck" : "Check DOM Health"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isLoading || isAppLoading || !target.tabId}
+          onClick={(e) => {
+            e.stopPropagation();
+            void runApplicationCheck();
+          }}
+          className="shrink-0"
+        >
+          {isAppLoading
+            ? "Auditing..."
+            : appOutcome
+              ? "Re-audit App"
+              : "Audit Application"}
         </Button>
       </div>
 
       {expanded && (
         <div className="animate-in fade-in slide-in-from-top-1 border-t px-3 pb-3 pt-2 duration-200">
-          {!outcome && !isLoading && (
+          {hasResult && (
+            <div className="mb-2 flex gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setView("page")}
+                className={cn(
+                  "rounded px-2 py-0.5",
+                  view === "page"
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                disabled={!outcome}
+              >
+                Current Page
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("application")}
+                className={cn(
+                  "rounded px-2 py-0.5",
+                  view === "application"
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                disabled={!appOutcome}
+              >
+                Application
+              </button>
+            </div>
+          )}
+
+          {!active && !activeIsLoading && (
             <p className="py-2 text-xs text-muted-foreground">
               Assess how reliably Apty-style element selection could target this
-              page: real selector generation, live uniqueness/stability
-              verification, and hit testing — not a generic DOM statistic.
-              Nothing runs until you click "Check DOM Health".
+              page or application: real selector generation, live
+              uniqueness/stability verification, and hit testing — not a generic
+              DOM statistic. Nothing runs until you click "Check DOM Health" or
+              "Audit Application".
             </p>
           )}
 
-          {isLoading && (
+          {activeIsLoading && view === "page" && (
             <p className="py-2 text-xs text-muted-foreground">
               Taking three DOM snapshots over a few seconds and verifying
               selectors live against the page — this takes a few seconds.
             </p>
           )}
 
-          {outcome && !outcome.available && (
+          {activeIsLoading && view === "application" && (
+            <p className="py-2 text-xs text-muted-foreground">
+              Discovering same-origin pages from real links already on the page
+              (never by clicking anything), then auditing each one in turn —
+              this can take up to a few minutes and will navigate this tab
+              through several pages.
+            </p>
+          )}
+
+          {active && !active.available && (
             <div className="space-y-1 py-1">
               <p className="text-sm text-foreground">
-                Unable to audit this page.
+                Unable to{" "}
+                {view === "application"
+                  ? "run the application audit"
+                  : "audit this page"}
+                .
               </p>
-              <p className="text-xs text-muted-foreground">{outcome.error}</p>
+              <p className="text-xs text-muted-foreground">{active.error}</p>
             </div>
           )}
 
-          {outcome?.available && (
+          {view === "page" && outcome?.available && (
             <div className="space-y-3 pt-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                 <span>{CONFIDENCE_LABEL[outcome.confidence]}</span>
@@ -278,125 +538,17 @@ export function DomHealthCard() {
                 <span>
                   {outcome.coverage.elementsAnalyzed} elements analyzed
                 </span>
+                {outcome.coverage.analysis.capped && (
+                  <>
+                    <span>·</span>
+                    <span className={toneTextClass("warning")}>
+                      analysis capped
+                    </span>
+                  </>
+                )}
               </div>
 
-              <p className="text-xs text-muted-foreground">{outcome.summary}</p>
-
-              <div className="rounded-md border bg-muted/30 px-2.5 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Manual Selector Dependency
-                  </span>
-                  <span
-                    className={cn(
-                      "font-mono text-sm font-semibold",
-                      toneTextClass(
-                        outcome.manualSelectorDependency > 30
-                          ? "danger"
-                          : outcome.manualSelectorDependency > 15
-                            ? "warning"
-                            : "success",
-                      ),
-                    )}
-                  >
-                    {outcome.manualSelectorDependency}%
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Metrics
-                </h4>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  {METRIC_ORDER.map((key) => {
-                    const score = outcome.metrics[key];
-                    return (
-                      <div
-                        key={key}
-                        className="flex items-center justify-between gap-2 text-xs"
-                      >
-                        <span className="truncate text-muted-foreground">
-                          {METRIC_LABELS[key]}
-                        </span>
-                        <span
-                          className={cn(
-                            "shrink-0 font-mono font-medium",
-                            toneTextClass(metricTone(score)),
-                          )}
-                        >
-                          {score}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {outcome.strengths.length > 0 && (
-                <div>
-                  <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    What's working well
-                  </h4>
-                  <ul className="space-y-1 text-xs text-foreground">
-                    {outcome.strengths.map((s) => (
-                      <li key={s} className="flex items-start gap-1.5">
-                        <span className="text-success">✓</span>
-                        <span>{s}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {outcome.risks.length > 0 && (
-                <div>
-                  <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Risks
-                  </h4>
-                  <ul className="space-y-1.5">
-                    {outcome.risks.map((risk) => (
-                      <li key={risk.id} className="text-xs">
-                        <div className="flex items-start gap-1.5">
-                          <span
-                            className={cn(
-                              "mt-1 size-1.5 shrink-0 rounded-full",
-                              toneDotClass(riskTone(risk.severity)),
-                            )}
-                            aria-hidden="true"
-                          />
-                          <div className="min-w-0">
-                            <p className="font-medium text-foreground">
-                              {risk.title}
-                            </p>
-                            <p className="text-muted-foreground">
-                              {risk.evidence}
-                            </p>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {outcome.recommendations.length > 0 && (
-                <div>
-                  <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Recommendations
-                  </h4>
-                  <ul className="space-y-1.5">
-                    {outcome.recommendations.map((rec) => (
-                      <li key={rec.id} className="text-xs">
-                        <p className="font-medium text-foreground">
-                          {rec.title}
-                        </p>
-                        <p className="text-muted-foreground">{rec.detail}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              <SharedEvidenceSections result={outcome} />
 
               {outcome.elementSamples.length > 0 && (
                 <details className="text-xs">
@@ -473,19 +625,79 @@ export function DomHealthCard() {
                 </dl>
               </details>
 
-              <details className="text-xs">
-                <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-                  How was this score calculated?
-                </summary>
-                <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-muted-foreground">
-                  {outcome.methodology.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              </details>
-
               <p className="text-[11px] text-muted-foreground">
                 Last checked: {new Date(outcome.timestamp).toLocaleTimeString()}
+              </p>
+            </div>
+          )}
+
+          {view === "application" && appOutcome?.available && (
+            <div className="space-y-3 pt-1">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                <span>{CONFIDENCE_LABEL[appOutcome.confidence]}</span>
+                <span>·</span>
+                <span>
+                  Scope:{" "}
+                  {appOutcome.scope === "application"
+                    ? "Application"
+                    : "Current Page"}
+                </span>
+                <span>·</span>
+                <span>
+                  {appOutcome.coverage.pagesAudited}/
+                  {appOutcome.coverage.pagesDiscovered} pages audited (
+                  {appOutcome.coverage.coveragePercent}% coverage)
+                </span>
+              </div>
+
+              <SharedEvidenceSections result={appOutcome} />
+
+              {appOutcome.pages.length > 0 && (
+                <details className="text-xs" open>
+                  <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+                    Pages ({appOutcome.pages.length})
+                  </summary>
+                  <div className="mt-1.5 max-h-64 overflow-y-auto rounded-md border">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
+                        <tr>
+                          <th className="px-1.5 py-1 font-medium">Page</th>
+                          <th className="px-1.5 py-1 font-medium">Status</th>
+                          <th className="px-1.5 py-1 font-medium">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {appOutcome.pages.map((page, i) => (
+                          <tr
+                            // biome-ignore lint/suspicious/noArrayIndexKey: page URLs can repeat across statuses
+                            key={i}
+                            className="border-t"
+                          >
+                            <td className="max-w-[180px] truncate px-1.5 py-1 font-mono text-muted-foreground">
+                              {page.title ?? page.url}
+                            </td>
+                            <td
+                              className={cn(
+                                "px-1.5 py-1 font-medium",
+                                toneTextClass(pageStatusTone(page.status)),
+                              )}
+                            >
+                              {PAGE_STATUS_LABELS[page.status]}
+                            </td>
+                            <td className="px-1.5 py-1 text-muted-foreground">
+                              {page.result ? `${page.result.score}/100` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
+
+              <p className="text-[11px] text-muted-foreground">
+                Last checked:{" "}
+                {new Date(appOutcome.timestamp).toLocaleTimeString()}
               </p>
             </div>
           )}

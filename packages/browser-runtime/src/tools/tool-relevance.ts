@@ -100,6 +100,11 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
     "selector stability",
     "check dom health",
     "apty dom readiness",
+    "application dom health",
+    "application audit",
+    "audit the whole application",
+    "audit across pages",
+    "manual selector dependency",
   ],
   apty: [
     "apty",

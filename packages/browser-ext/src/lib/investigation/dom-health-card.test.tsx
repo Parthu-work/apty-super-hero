@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockUseChatContext = vi.hoisted(() => vi.fn());
 const mockUseCurrentTarget = vi.hoisted(() => vi.fn());
 const mockRunDomHealthAudit = vi.hoisted(() => vi.fn());
+const mockRunApplicationDomHealthAudit = vi.hoisted(() => vi.fn());
 
 vi.mock("@aipexstudio/aipex-react/components/chatbot", () => ({
   useChatContext: mockUseChatContext,
@@ -15,6 +16,7 @@ vi.mock("./use-current-target", () => ({
 
 vi.mock("@aipexstudio/browser-runtime", () => ({
   runDomHealthAudit: mockRunDomHealthAudit,
+  runApplicationDomHealthAudit: mockRunApplicationDomHealthAudit,
 }));
 
 import { DomHealthCard } from "./dom-health-card";
@@ -73,6 +75,12 @@ describe("DomHealthCard", () => {
         snapshotsCompared: 3,
         elementsAnalyzed: 20,
         interactiveElementsInPage: 20,
+        analysis: {
+          candidatesFound: 20,
+          candidatesAnalyzed: 20,
+          capped: false,
+          capReason: null,
+        },
       },
       manualSelectorDependency: 5,
       metrics: {
@@ -151,6 +159,12 @@ describe("DomHealthCard", () => {
         snapshotsCompared: 3,
         elementsAnalyzed: 10,
         interactiveElementsInPage: 10,
+        analysis: {
+          candidatesFound: 10,
+          candidatesAnalyzed: 10,
+          capped: false,
+          capReason: null,
+        },
       },
       manualSelectorDependency: 40,
       metrics: {
@@ -190,7 +204,7 @@ describe("DomHealthCard", () => {
           stableAttributeNames: [],
           hasAccessibleName: false,
           hitTest: { pointsPassed: 9, classification: "fully-targetable" },
-          stability: "UNSTABLE",
+          stability: "CHANGED",
         },
       ],
       methodology: ["Collect a DOM snapshot in-page."],
@@ -222,6 +236,93 @@ describe("DomHealthCard", () => {
     expect(screen.getByText("Manual likely (positional)")).toBeInTheDocument();
   });
 
+  it("runs and renders an application-wide audit without touching the page-scope result", async () => {
+    mockRunApplicationDomHealthAudit.mockResolvedValue({
+      available: true,
+      auditId: "app-1",
+      timestamp: Date.now(),
+      scope: "application",
+      score: 65,
+      grade: "FAIR",
+      confidence: "MEDIUM",
+      coverage: {
+        pagesDiscovered: 3,
+        pagesAudited: 2,
+        pagesFailed: 1,
+        pagesSkippedUnsafe: 0,
+        pagesSkippedDuplicate: 0,
+        coveragePercent: 67,
+      },
+      analysisCoverage: {
+        candidatesFound: 20,
+        candidatesAnalyzed: 20,
+        capped: false,
+        capReason: null,
+      },
+      manualSelectorDependency: 20,
+      metrics: {
+        automaticSelection: 80,
+        selectorStability: 80,
+        recoveryEfficacy: 80,
+        selectorComplexity: 80,
+        ambiguityRisk: 80,
+        hitTestTargetability: 80,
+        domVolatility: 80,
+        accessibilitySignal: 80,
+      },
+      metricDetails: {} as any,
+      summary: "The application score is 65/100.",
+      strengths: [],
+      risks: [
+        {
+          id: "incomplete-application-coverage",
+          severity: "medium",
+          title: "Application discovery/audit coverage is incomplete",
+          evidence: "3 page(s) discovered, 2 audited, 1 failed.",
+        },
+      ],
+      recommendations: [],
+      pages: [
+        {
+          url: "https://example.com/",
+          title: "Home",
+          discoverySource: "seed",
+          status: "completed",
+          result: { score: 90 },
+        },
+        {
+          url: "https://example.com/orders",
+          title: "Orders",
+          discoverySource: "same-origin-link",
+          status: "completed",
+          result: { score: 40 },
+        },
+        {
+          url: "https://example.com/broken",
+          title: null,
+          discoverySource: "same-origin-link",
+          status: "failed",
+        },
+      ],
+      methodology: ["Discover same-origin pages via real <a href> elements."],
+    });
+
+    render(<DomHealthCard />);
+    fireEvent.click(screen.getByRole("button", { name: /audit application/i }));
+
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(
+      5,
+      expect.objectContaining({ onProgress: expect.any(Function) }),
+    );
+    expect(await screen.findByText("65/100 · FAIR")).toBeInTheDocument();
+    expect(
+      screen.getByText("Application discovery/audit coverage is incomplete"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Home")).toBeInTheDocument();
+    expect(screen.getByText("Orders")).toBeInTheDocument();
+    expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
+  });
+
   it("disables the check button when there is no target tab", () => {
     mockUseCurrentTarget.mockReturnValue({
       tabId: null,
@@ -233,6 +334,9 @@ describe("DomHealthCard", () => {
 
     expect(
       screen.getByRole("button", { name: /check dom health/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /audit application/i }),
     ).toBeDisabled();
   });
 });

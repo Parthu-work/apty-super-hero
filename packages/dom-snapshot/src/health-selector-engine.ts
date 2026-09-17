@@ -10,12 +10,20 @@
  *
  * Pipeline per element (spec section 8, DES-inspired, section 13):
  *   direct (single stable attribute)
- *     -> ignore (compound of stable attributes, simulating an Ignore
- *        Selector rule dropping the dynamic ones)
  *     -> partial (stable substring of a dynamic value, simulating a
  *        Partial Selector rule)
+ *     -> ignore (compound of stable attributes, simulating an Ignore
+ *        Selector rule dropping the dynamic ones)
  *     -> context (nearest identifiable ancestor + own descriptive part)
  *     -> positional (nth-of-type path, last resort)
+ * Partial is tried before ignore: when a single dynamic-looking attribute
+ * (e.g. a generated id) has a safe stable prefix, simulated Partial
+ * Selector behavior takes precedence over simulated Ignore Selector
+ * behavior for that same attribute, per Apty's documented precedence.
+ * These are DEFAULT, LOCALLY-SIMULATED rules, not real Apty Studio
+ * configuration — nothing here reads or claims Studio state (this
+ * analyzer is standalone).
+ *
  * The first stage whose candidate resolves to exactly one element, and that
  * element is the intended target, wins. A selector that is unique but
  * wrong, or that matches several elements including the target, is never
@@ -37,6 +45,8 @@ export interface ElementResolution {
   usesPositionalSelector: boolean;
   dynamicAttributeNames: string[];
   stableAttributeNames: string[];
+  /** The attribute (e.g. "id", "data-testid", "class") the winning candidate was built from — null when nothing resolved (context/positional wins report the strategy instead, since they combine multiple signals). Exposes the attribute-priority decision rather than hiding it inside an opaque score. */
+  winningAttribute: string | null;
 }
 
 export interface ResolveElementOptions {
@@ -356,40 +366,19 @@ export function resolveElement(
         usesPositionalSelector: false,
         dynamicAttributeNames,
         stableAttributeNames,
+        winningAttribute: candidate.name,
       };
     }
   }
 
-  // Stage 2: ignore — compound of every stable attribute together,
-  // simulating an Ignore Selector rule that drops the dynamic ones.
-  const stableCombo = attributeCandidates.filter((c) => !c.dynamic);
-  if (stableCombo.length > 1) {
-    const tag = el.tagName.toLowerCase();
-    const combined = `${tag}${stableCombo.map((c) => c.selector.replace(new RegExp(`^${tag}`), "")).join("")}`;
-    const result = testSelector(root, combined, el);
-    record(result);
-    if (result.matchCount === 1 && result.matchesTarget) {
-      return {
-        outcome: "RECOVERED_BY_IGNORE",
-        strategy: "ignore",
-        bestSelector: combined,
-        matchCount: 1,
-        ancestorDepthUsed: 0,
-        usesPositionalSelector: false,
-        dynamicAttributeNames,
-        stableAttributeNames,
-      };
-    }
-  }
-
-  // Stage 3: partial — stable substring of a dynamic value.
+  // Stage 2: partial — stable substring of a dynamic value. Tried before
+  // ignore: simulated Partial Selector behavior takes precedence over
+  // simulated Ignore Selector behavior for the same attribute.
   const tag = el.tagName.toLowerCase();
   for (const candidate of attributeCandidates.filter((c) => c.dynamic)) {
     const prefix = extractStablePrefix(candidate.value);
     if (!prefix) continue;
-    const attrName = candidate.name.startsWith("data-")
-      ? candidate.name
-      : candidate.name;
+    const attrName = candidate.name;
     const selector =
       attrName === "id"
         ? `${tag}[id^="${escapeAttributeValue(prefix)}"]`
@@ -408,6 +397,29 @@ export function resolveElement(
         usesPositionalSelector: false,
         dynamicAttributeNames,
         stableAttributeNames,
+        winningAttribute: attrName,
+      };
+    }
+  }
+
+  // Stage 3: ignore — compound of every stable attribute together,
+  // simulating an Ignore Selector rule that drops the dynamic ones.
+  const stableCombo = attributeCandidates.filter((c) => !c.dynamic);
+  if (stableCombo.length > 1) {
+    const combined = `${tag}${stableCombo.map((c) => c.selector.replace(new RegExp(`^${tag}`), "")).join("")}`;
+    const result = testSelector(root, combined, el);
+    record(result);
+    if (result.matchCount === 1 && result.matchesTarget) {
+      return {
+        outcome: "RECOVERED_BY_IGNORE",
+        strategy: "ignore",
+        bestSelector: combined,
+        matchCount: 1,
+        ancestorDepthUsed: 0,
+        usesPositionalSelector: false,
+        dynamicAttributeNames,
+        stableAttributeNames,
+        winningAttribute: stableCombo.map((c) => c.name).join("+"),
       };
     }
   }
@@ -424,6 +436,7 @@ export function resolveElement(
       usesPositionalSelector: false,
       dynamicAttributeNames,
       stableAttributeNames,
+      winningAttribute: null,
     };
   }
 
@@ -439,6 +452,7 @@ export function resolveElement(
       usesPositionalSelector: true,
       dynamicAttributeNames,
       stableAttributeNames,
+      winningAttribute: null,
     };
   }
 
@@ -451,7 +465,51 @@ export function resolveElement(
     usesPositionalSelector: false,
     dynamicAttributeNames,
     stableAttributeNames,
+    winningAttribute: null,
   };
+}
+
+/**
+ * A logical fingerprint for cross-snapshot element correlation (spec
+ * section 18) — deliberately NOT a single attribute, and deliberately NOT
+ * object identity. Combines tag, semantic role, an approximate accessible
+ * name, every stable (non-dynamic-looking) attribute, and a text sample, so
+ * that a node a framework replaces on rerender (same logical control, new
+ * DOM object) can still be recognized as "the same element" while two
+ * genuinely different elements essentially never collide.
+ *
+ * This is intentionally coarser than a full structural-path fingerprint:
+ * it is used only to ask "does a plausible match for this exist now", not
+ * to generate a selector — selectors are always separately live-verified.
+ */
+export function computeElementFingerprint(el: Element): string {
+  const tag = el.tagName.toLowerCase();
+  const role = (el.getAttribute("role") ?? "").toLowerCase();
+  const accessibleName = (
+    el.getAttribute("aria-label") ??
+    el.getAttribute("name") ??
+    el.getAttribute("placeholder") ??
+    ""
+  ).trim();
+  // Deliberately excludes `id`: it is the single attribute most likely to
+  // be regenerated by a framework on rerender even when its value doesn't
+  // "look" dynamic by heuristic — including it here would make the
+  // fingerprint itself unstable exactly when correlation matters most.
+  const stableAttrSignature = collectAttributeCandidates(el)
+    .filter((c) => !c.dynamic && c.name !== "id")
+    .map((c) => `${c.name}=${c.value}`)
+    .sort()
+    .join(",");
+  const textSample = (el.textContent ?? "").trim().slice(0, 60);
+  const positionHint = nthOfTypeIndex(el);
+  return [
+    tag,
+    role,
+    accessibleName,
+    stableAttrSignature,
+    textSample,
+    positionHint,
+  ].join("||");
 }
 
 export function extractElementAttributes(
