@@ -2,9 +2,9 @@
 
 An AI agent, packaged as a Chrome extension, that helps an Apty engineer debug a live issue in their actual browser — "why isn't the Apty widget showing?", "why can't Studio select this element?" — by inspecting the current page's DOM, console, network activity, and Apty's own runtime state, then giving an evidence-first diagnosis.
 
-Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a RAG/knowledge-base system** — see `PROJECT_PROGRESS.md` and `DECISIONS.md` for the reasoning behind that scope.
+Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a RAG/knowledge-base system** — see `docs/development/PROJECT_PROGRESS.md` and `DECISIONS.md` for the reasoning behind that scope.
 
-**Start here for the real state of the project**: `PROJECT_PROGRESS.md` (what's done, what's not, next steps), `ARCHITECTURE.md` (what's actually implemented), `SECURITY_AUDIT.md`, `DECISIONS.md`, `CHANGELOG.md`. Those files, not this README, are the source of truth across coding sessions.
+**Start here for the real state of the project**: `docs/development/PROJECT_PROGRESS.md` (what's done, what's not, next steps), `ARCHITECTURE.md` (what's actually implemented), `docs/security/SECURITY_AUDIT.md`, `DECISIONS.md`, `CHANGELOG.md`. Those files, not this README, are the source of truth across coding sessions.
 
 ---
 
@@ -13,7 +13,7 @@ Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which 
 - Inspects the current page's DOM, elements, iframes, and Shadow DOM
 - Reads console output/errors captured since page load (`get_apty_page_logs`)
 - Watches live network requests and browser-level runtime errors via Chrome DevTools Protocol (`get_network_diagnostics`, `get_runtime_diagnostics`)
-- Has provider interfaces ready for Apty Widget/Client/Studio/Service-Worker diagnostics (`get_apty_widget_diagnostics`, etc.) — **these currently report `not_configured`**, because the Apty-side integration (a real extension ID, a documented global, a message handler) doesn't exist yet. See `PROJECT_PROGRESS.md`'s Apty Integration sections for exactly what's needed.
+- Has provider interfaces ready for Apty Widget/Client/Studio/Service-Worker diagnostics (`get_apty_widget_diagnostics`, etc.) — **these currently report `not_configured`**, because the Apty-side integration (a real extension ID, a documented global, a message handler) doesn't exist yet. See `docs/development/PROJECT_PROGRESS.md`'s Apty Integration sections for exactly what's needed.
 - Reasons over all of the above and answers with a confidence-scored diagnosis (Confirmed/Likely/Possible/Unknown), never fabricating evidence
 
 ## Core infrastructure
@@ -47,7 +47,7 @@ On first use, open the extension's **Options** page and configure an AI provider
 
 ## Configuring Apty Studio/Widget/Client/Service-Worker integration
 
-Copy `apps/browser-extension/.env.example` to `apps/browser-extension/.env` and fill in whatever Apty engineering has actually made available (a Studio extension ID, a service-worker diagnostic endpoint, etc.) — every value defaults to empty, which is honestly reported as `not_configured` rather than faked. See `PROJECT_PROGRESS.md`'s per-component integration sections for exactly what each one needs on the Apty side before it can do anything.
+Copy `apps/browser-extension/.env.example` to `apps/browser-extension/.env` and fill in whatever Apty engineering has actually made available (a Studio extension ID, a service-worker diagnostic endpoint, etc.) — every value defaults to empty, which is honestly reported as `not_configured` rather than faked. See `docs/development/PROJECT_PROGRESS.md`'s per-component integration sections for exactly what each one needs on the Apty side before it can do anything.
 
 ## Use with AI Coding Agents (MCP)
 

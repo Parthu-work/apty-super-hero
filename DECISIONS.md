@@ -96,7 +96,7 @@ dependency on Apty-side work, not a shortcut this codebase can code around.
 
 PR #11 ("Add investigation-aware network capture session", branch
 `claude/busy-fermat-xyu2po`) was reviewed in an earlier session (see
-`PROJECT_PROGRESS.md`'s "MCP Bridge Tool-Registry Fix & PR #11 Review" and
+`docs/development/PROJECT_PROGRESS.md`'s "MCP Bridge Tool-Registry Fix & PR #11 Review" and
 `CHANGELOG.md`'s "Reviewed" entry from that session) and judged sound in
 its core design: per-conversation isolation, a heartbeat re-attach
 approach to outlive CDP's normal capture window, and header redaction all
@@ -437,7 +437,7 @@ this is too limiting.
 `apty/redact.ts` matches known header names and common
 `key: value`/`Bearer ...` patterns. This is a best-effort mitigation, not a
 guarantee that no secret ever reaches the model — documented as such in the
-code and in `SECURITY_AUDIT.md`. A more exhaustive approach (e.g.
+code and in `docs/security/SECURITY_AUDIT.md`. A more exhaustive approach (e.g.
 allowlisting only known-safe fields instead of blocklisting known-sensitive
 ones) would be more conservative but was judged disproportionate for a
 first pass; revisit if a real secret leak is ever observed in practice.

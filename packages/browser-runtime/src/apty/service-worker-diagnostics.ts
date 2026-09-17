@@ -31,7 +31,7 @@
  * asked for it. Every result here is tagged `scope: "shared-global"` so
  * the agent (and any session-isolation logic built on top of this) never
  * falsely attributes a service-worker log to one specific tab or
- * conversation — see PROJECT_PROGRESS.md's Known Limitations for the
+ * conversation — see docs/development/PROJECT_PROGRESS.md's Known Limitations for the
  * broader multi-session work this feeds into.
  */
 

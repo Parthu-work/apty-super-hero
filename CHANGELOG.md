@@ -113,7 +113,7 @@ full commit-level history.
     actual debugger attach/capture happens lazily in whichever context
     runs the chat tools, per `AptyIntegrationConfig`'s existing
     lazy-read-at-call-time pattern. Addresses
-    `PROJECT_PROGRESS.md`'s previously-open "Options UI panel for
+    `docs/development/PROJECT_PROGRESS.md`'s previously-open "Options UI panel for
     `AptyIntegrationConfig`" item.
 - 36 new tests (`extension-network-inspector.test.ts`): extension ID
   validation, Service Worker target resolution (invalid id/extension not
@@ -131,7 +131,7 @@ resource-agnostic-retrieval product brief)**: no fake
 `window.__APTY_CLIENT__`-style contract, no RAG, no new evidence/
 investigation architecture (reuses `evidence-store.ts`/`redact.ts`
 as-is), no attempt at a mass AIPex→Apty internal-package rename (see
-`PROJECT_PROGRESS.md` item 10 — still judged not worth the churn/
+`docs/development/PROJECT_PROGRESS.md` item 10 — still judged not worth the churn/
 regression risk this session; the user-facing product surface already
 says "Apty Live Debugging" throughout, per `browser-chat-header.tsx`/
 `debugging-welcome-screen.tsx` from earlier sessions).
@@ -297,7 +297,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   on real tool output.
 
 **Reviewed**
-- `SECURITY_AUDIT.md` finding #10: classification is pure pattern-matching
+- `docs/security/SECURITY_AUDIT.md` finding #10: classification is pure pattern-matching
   over already-redacted text/metadata — no new permission, no new data
   read, no redaction-ordering risk.
 
@@ -350,7 +350,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   undocumented, untested, and with no evidence it was ever required.
   Removed entirely; 5 new regression tests
   (`automation/debugger-manager.test.ts`) confirm attach/detach never
-  touch the page. See `SECURITY_AUDIT.md` finding #8.
+  touch the page. See `docs/security/SECURITY_AUDIT.md` finding #8.
 
 ## Unreleased (this session) — investigation session lifecycle + investigation-first side panel redesign
 
@@ -420,7 +420,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   (data-apty-* attributes, stable id, aria, semantic attributes, stable
   classes, text, structural path), and live-tests every candidate's actual
   match count against the page.
-- A gap matrix in `PROJECT_PROGRESS.md` auditing the repo against the full
+- A gap matrix in `docs/development/PROJECT_PROGRESS.md` auditing the repo against the full
   product specification (evidence correlation, investigation sessions,
   selector diagnostics, UI redesign, security hardening, tool cleanup),
   identifying what's done, partial, or not started with priorities.
@@ -430,12 +430,12 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   `devtools.test.ts` (2).
 
 **Fixed**
-- `SECURITY_AUDIT.md` finding 1b (no multi-session/multi-tab diagnostic
+- `docs/security/SECURITY_AUDIT.md` finding 1b (no multi-session/multi-tab diagnostic
   isolation) updated from Open to Fixed, reflecting the prior session's
   isolation work — the finding's own status had not been updated when
   that work shipped.
 
-**Not done this session** (see `PROJECT_PROGRESS.md`'s gap matrix and Next
+**Not done this session** (see `docs/development/PROJECT_PROGRESS.md`'s gap matrix and Next
 Steps): an explicit `InvestigationSession` lifecycle object (hypotheses,
 verification attempts, final diagnosis+confidence) on top of the new
 evidence store; the dedicated debugging-console UI (investigation state
@@ -484,7 +484,7 @@ console-bridge domain scoping (blocked on Apty's target domain list).
   conversation's actual agent memory. Now rebinds via `bindSession()`
   using the newly-persisted `agentSessionId`.
 
-See `PROJECT_PROGRESS.md`'s "Multi-Session Isolation — Implementation
+See `docs/development/PROJECT_PROGRESS.md`'s "Multi-Session Isolation — Implementation
 Notes" and `ARCHITECTURE.md`'s "Conversation/tab binding" section for the
 full writeup, including what's still a follow-up (best-effort first-turn
 binding, no concurrent multi-pane UI within one window,
@@ -503,12 +503,12 @@ binding, no concurrent multi-pane UI within one window,
   gap, a full implementation inventory, a consolidated Apty engineering
   requirements ask, open questions for Apty engineering, security
   architecture, limitations with recommended sequencing, and an
-  engineering handoff summary. Full page index in `PROJECT_PROGRESS.md`'s
+  engineering handoff summary. Full page index in `docs/development/PROJECT_PROGRESS.md`'s
   "Confluence Documentation" section. This was a documentation-only task —
   no application code was changed to produce it.
 
 **Fixed**
-- Corrected a pre-existing inaccuracy in `PROJECT_PROGRESS.md` and
+- Corrected a pre-existing inaccuracy in `docs/development/PROJECT_PROGRESS.md` and
   `ARCHITECTURE.md`: the tool-registry count was documented as 47 but is
   actually 41, verified directly against `allBrowserTools` in
   `packages/browser-runtime/src/tools/index.ts`. Also corrected a claim
@@ -518,14 +518,14 @@ binding, no concurrent multi-pane UI within one window,
 ## Previous session — Apty Service-Worker diagnostics hardening
 
 **Added**
-- `docs/apty-integration/apty-widget-service-worker.reference.ts` — a
+- `docs/integrations/apty/apty-widget-service-worker.reference.ts` — a
   complete, adaptable reference implementation for the Apty Widget team's
   service-worker side of the Service Worker diagnostics integration: safe
   circular-safe log serialization, a bounded (1000-entry) buffer
   debounce-persisted to `chrome.storage.local` (survives MV3
   service-worker restarts), and a sender-validated `onMessageExternal`
   handler. Not part of this extension's build — hand-off documentation
-  only, see `docs/apty-integration/README.md`.
+  only, see `docs/integrations/apty/README.md`.
 - 16 new tests for `service-worker-diagnostics.ts` covering both the
   extension-messaging and HTTP-endpoint paths: success, timeout,
   `chrome.runtime.lastError`, malformed response, oversized response,
@@ -535,7 +535,7 @@ binding, no concurrent multi-pane UI within one window,
 - `service-worker-diagnostics.ts` now validates every external response
   against a Zod schema before use (previously an unchecked `as` cast) and
   redacts log messages before returning them (previously not redacted at
-  all, unlike the Widget/Client providers) — see `SECURITY_AUDIT.md`
+  all, unlike the Widget/Client providers) — see `docs/security/SECURITY_AUDIT.md`
   finding #4a.
 - `get_apty_service_worker_diagnostics` now tags its result
   `scope: "shared-global"` with an explanatory note, so the agent doesn't
@@ -544,8 +544,8 @@ binding, no concurrent multi-pane UI within one window,
 
 **Investigated, not implemented** (explicitly redirected mid-investigation
 to the narrower Service Worker task above): full multi-session/multi-tab
-diagnostic isolation. See `PROJECT_PROGRESS.md`'s "Multi-Session Isolation
-— Research Notes" and `SECURITY_AUDIT.md` finding #1b for what was found —
+diagnostic isolation. See `docs/development/PROJECT_PROGRESS.md`'s "Multi-Session Isolation
+— Research Notes" and `docs/security/SECURITY_AUDIT.md` finding #1b for what was found —
 in short, every diagnostic tool operates on whichever tab is currently
 active rather than a conversation-bound tab, and the fix is to thread a
 `context` object through `@openai/agents`' existing (currently unused)
@@ -576,8 +576,8 @@ active rather than a conversation-bound tab, and the fix is to thread a
   placeholders (Studio/Widget/Client/Service-Worker extension IDs,
   service-worker diagnostic endpoint) — wired through `background.ts` →
   `chrome.storage.local` → `apty/config.ts`.
-- `PROJECT_PROGRESS.md`, `ARCHITECTURE.md`, `DECISIONS.md` (new),
-  `SECURITY_AUDIT.md` and this `CHANGELOG.md` rewritten/updated to reflect
+- `docs/development/PROJECT_PROGRESS.md`, `ARCHITECTURE.md`, `DECISIONS.md` (new),
+  `docs/security/SECURITY_AUDIT.md` and this `CHANGELOG.md` rewritten/updated to reflect
   actual implemented state.
 
 **Changed**
@@ -596,7 +596,7 @@ active rather than a conversation-bound tab, and the fix is to thread a
 
 **Tests**: 640 passing across all 5 packages (was 623; +7 for `redact.ts`,
 +10 net from the tool-count increase not requiring new tests of their own
-since they're thin Chrome-API wrappers — see `PROJECT_PROGRESS.md`'s "Not
+since they're thin Chrome-API wrappers — see `docs/development/PROJECT_PROGRESS.md`'s "Not
 Implemented" test section for why).
 
 ## Prior session
@@ -616,7 +616,7 @@ Implemented" test section for why).
 - Rebranded manifest name/description, page titles, chat header default
   title, README as "Apty Agent"
 - `externally_connectable` locked from `{"matches":
-  ["http://localhost:*/*"]}` to `{"ids": []}` — see `SECURITY_AUDIT.md`
+  ["http://localhost:*/*"]}` to `{"ids": []}` — see `docs/security/SECURITY_AUDIT.md`
   finding #1
 
 **Added**:

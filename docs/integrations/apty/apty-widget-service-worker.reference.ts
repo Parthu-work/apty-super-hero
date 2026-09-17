@@ -10,7 +10,7 @@
  * WHAT THIS IS
  * ------------
  * A complete, adaptable reference for the producer side of Option A
- * (live Apty service-worker diagnostics, see PROJECT_PROGRESS.md /
+ * (live Apty service-worker diagnostics, see docs/development/PROJECT_PROGRESS.md /
  * ARCHITECTURE.md): the code that should live inside the Apty Widget's own
  * Manifest V3 service worker so the Apty Live Browser Debugging Agent can
  * request its status and recent logs. The debugging agent's consumer side
@@ -26,7 +26,7 @@
  * file is the specification + implementation for that side; adapt the
  * paths/build tooling to Apty Widget's actual project.
  *
- * DESIGN DECISIONS (see PROJECT_PROGRESS.md / DECISIONS.md for the parallel
+ * DESIGN DECISIONS (see docs/development/PROJECT_PROGRESS.md / DECISIONS.md for the parallel
  * reasoning on the consumer side)
  * ------------------------------------------------------------------------
  * 1. Persist to chrome.storage.local, not just an in-memory array — MV3

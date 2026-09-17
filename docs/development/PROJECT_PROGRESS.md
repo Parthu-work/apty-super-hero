@@ -89,7 +89,7 @@ it, modeling Apty's actual two-extension architecture (Studio, and one
 Client/Widget/Player runtime — not four separate components). The Apty
 Service Worker diagnostics path has a hardened, tested consumer
 implementation plus a complete producer-side reference implementation for
-the Apty Widget team (`docs/apty-integration/`). No real Apty Studio/
+the Apty Widget team (`docs/integrations/apty/`). No real Apty Studio/
 Widget/Client/Service Worker integration is *live* yet — that requires the
 Apty-side halves (a real extension ID, a real global, a real message
 handler), which this session cannot build since it doesn't have access to
@@ -338,14 +338,14 @@ the repo before this.
   `scope: "shared-global"` and an explicit note that the service worker is
   shared across every tab, so the agent doesn't misattribute a log to
   whichever tab is currently being investigated.
-- `docs/apty-integration/apty-widget-service-worker.reference.ts` — a
+- `docs/integrations/apty/apty-widget-service-worker.reference.ts` — a
   complete, adaptable reference implementation of the producer side
   (safe circular-safe argument serialization, a bounded + debounced +
   `chrome.storage.local`-persisted log buffer that survives MV3
   service-worker restarts, and a sender-validated `onMessageExternal`
   handler). This is documentation/hand-off material for the Apty Widget
   team, not part of this extension's build — see
-  `docs/apty-integration/README.md`.
+  `docs/integrations/apty/README.md`.
 - 16 new tests (`service-worker-diagnostics.test.ts`) covering both the
   extension-messaging and HTTP-endpoint paths: success, timeout,
   `chrome.runtime.lastError`, malformed response, oversized response,
@@ -1084,7 +1084,7 @@ validate the response with Zod, redact log messages, and cap accepted
 array size (2000 entries) before returning anything to the model.
 Configuration: `VITE_APTY_SERVICE_WORKER_EXTENSION_ID` or
 `VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT` (configure at most one).
-Producer reference: `docs/apty-integration/apty-widget-service-worker.reference.ts`
+Producer reference: `docs/integrations/apty/apty-widget-service-worker.reference.ts`
 is a complete, adaptable implementation of what needs to live inside the
 Apty Widget's own service worker (safe log serialization, a bounded
 buffer persisted to `chrome.storage.local` so it survives MV3
@@ -1511,7 +1511,7 @@ though this repo's own docs remain the source of truth if the two disagree.
   `window.__APTY_WIDGET__` / `window.__APTY_CLIENT__` contracts — these are
   this session's best-guess design, not confirmed with the Widget/Client
   teams
-- Whether Apty will adopt `docs/apty-integration/apty-widget-service-worker.reference.ts`
+- Whether Apty will adopt `docs/integrations/apty/apty-widget-service-worker.reference.ts`
   (or an HTTP-endpoint equivalent) for Service Worker diagnostics — the
   reference implementation is ready, but nothing on the Apty side has
   adopted it yet

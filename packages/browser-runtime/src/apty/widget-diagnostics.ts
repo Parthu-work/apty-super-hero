@@ -20,7 +20,7 @@
  *
  * Until the Widget sets this, getStatus()/getLogs() report
  * `status: "not_configured"` — this is expected, not a bug, and is the
- * signal that Apty-side work is still needed (see docs/apty-integration.md).
+ * signal that Apty-side work is still needed (see docs/integrations/apty/README.md).
  */
 
 import { redactLogs } from "./redact";

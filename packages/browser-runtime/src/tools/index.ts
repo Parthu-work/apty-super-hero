@@ -55,7 +55,7 @@ import { uploadFileToInputTool } from "./tools/upload-file";
  * 9 investigation + 1 selector + 3 investigation-aware network capture +
  * 6 Apty Client extension network inspection. Recompute this from the arrays below
  * rather than trusting this comment when auditing — it has gone stale
- * before (see PROJECT_PROGRESS.md's tool-registry audit).
+ * before (see docs/development/PROJECT_PROGRESS.md's tool-registry audit).
  *
  * Disabled tools (per aipex):
  * - duplicate_tab (not in aipex)

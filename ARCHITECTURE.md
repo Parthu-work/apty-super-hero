@@ -10,7 +10,7 @@ engineering handoff summary — lives in Apty's Confluence as a 12-page
 documentation package rooted at
 ["Apty Live Browser Debugging Agent"](https://apty.atlassian.net/wiki/spaces/~712020ef582a34887949aa80daf20d290f4d9e/pages/1467679209),
 grounded in this repository at commit `14693a9`. See
-`PROJECT_PROGRESS.md`'s "Confluence Documentation" section for the full
+`docs/development/PROJECT_PROGRESS.md`'s "Confluence Documentation" section for the full
 page index. This file remains the fastest-to-update, code-adjacent source
 of truth; treat Confluence as a snapshot.
 
@@ -144,7 +144,7 @@ this closed was *tool execution* silently ignoring which conversation it
 was running for. Concurrency across separate side panel *windows* already
 worked (independent JS realms); a single window still shows one
 conversation at a time (the history dropdown is a switcher, not multiple
-panes) — see `PROJECT_PROGRESS.md`'s "Multi-Session Isolation —
+panes) — see `docs/development/PROJECT_PROGRESS.md`'s "Multi-Session Isolation —
 Implementation Notes" for the full writeup and remaining follow-ups.
 
 ### Evidence correlation and the investigation timeline
@@ -220,7 +220,7 @@ generation, same discipline as every other Apty-facing tool.
 **Apty ships exactly two Chrome extensions**: Studio (authoring), and one
 runtime extension that goes by several names depending on context —
 Client, Widget, Player — but is architecturally one component (see
-`DECISIONS.md`/`PROJECT_PROGRESS.md`'s "Unified Apty Component Model"
+`DECISIONS.md`/`docs/development/PROJECT_PROGRESS.md`'s "Unified Apty Component Model"
 write-up). Four provider interfaces exist at the code level
 (`packages/browser-runtime/src/apty/*.ts`) because each probes a different
 mechanism, not because there are four product components — three of them
@@ -232,7 +232,7 @@ Client/Widget/Player runtime extension:
 |---|---|---|---|
 | `AptyClientDiagnosticsProvider` | Client/Widget/Player runtime | `chrome.scripting.executeScript` (MAIN world) reads `window.__APTY_CLIENT__` | Probe implemented; Client doesn't expose this global yet |
 | `AptyWidgetDiagnosticsProvider` | Client/Widget/Player runtime | Same, reads `window.__APTY_WIDGET__` | Probe implemented; Widget doesn't expose this global yet |
-| `AptyServiceWorkerDiagnosticsProvider` | Client/Widget/Player runtime (its service worker) | Cross-extension messaging OR HTTP diagnostic endpoint (whichever is configured) | Consumer hardened + tested (Zod-validated responses, redacted logs, bounded acceptance); producer has a complete reference implementation (`docs/apty-integration/apty-widget-service-worker.reference.ts`) not yet adopted by Apty |
+| `AptyServiceWorkerDiagnosticsProvider` | Client/Widget/Player runtime (its service worker) | Cross-extension messaging OR HTTP diagnostic endpoint (whichever is configured) | Consumer hardened + tested (Zod-validated responses, redacted logs, bounded acceptance); producer has a complete reference implementation (`docs/integrations/apty/apty-widget-service-worker.reference.ts`) not yet adopted by Apty |
 | `AptyStudioDiagnosticsProvider` | Studio (separate extension) | `chrome.runtime.sendMessage(extensionId, ...)` | Implemented; requires Studio's real extension ID + Studio-side message handler, neither of which exist yet |
 
 Above the provider layer, the investigation model (`investigation-session.ts`'s
@@ -293,7 +293,7 @@ that happens to mention "Apty" still classifies as `js-exception`, not
 alongside the full entry/event list, so the model gets a quick-glance
 breakdown instead of having to re-derive it from free text every time.
 This closes the "Console/runtime event classification" gap from the
-previous session's gap matrix — see `PROJECT_PROGRESS.md`. Unit-tested in
+previous session's gap matrix — see `docs/development/PROJECT_PROGRESS.md`. Unit-tested in
 `log-classification.test.ts` (12 cases covering every category plus two
 precedence/fallback cases); `apty.test.ts`/`devtools.test.ts` each add one
 integration test confirming the `category`/`categoryCounts` fields appear
@@ -320,8 +320,8 @@ that recursively searched the page (including into Shadow DOM) for any
 `<iframe src="chrome-extension://...">` and removed it — undocumented,
 untested, inherited unchanged from the original AIPex import, and not
 scoped to this extension's own id. Removed this session (see
-`PROJECT_PROGRESS.md`'s "Debugger Attach No Longer Mutates the Page" and
-`SECURITY_AUDIT.md` finding #8) — for a debugging product, deleting page
+`docs/development/PROJECT_PROGRESS.md`'s "Debugger Attach No Longer Mutates the Page" and
+`docs/security/SECURITY_AUDIT.md` finding #8) — for a debugging product, deleting page
 elements as a side effect of enabling diagnostics is exactly the wrong
 failure mode (it could delete Apty's own Widget iframe while investigating
 why the widget isn't showing). `safeAttachDebugger`/`safeDetachDebugger`
@@ -396,7 +396,7 @@ Tested in `network-capture-session.test.ts` (13 cases, including
 simulated `chrome.tabs.onRemoved`/`chrome.debugger.onDetach` mid-capture
 and a 2001-request cap-eviction case) plus `tools/network-capture.test.ts`
 (4). See `DECISIONS.md` for why this was built fresh on `main` rather than
-by fixing PR #11's branch, and `SECURITY_AUDIT.md` for the finding
+by fixing PR #11's branch, and `docs/security/SECURITY_AUDIT.md` for the finding
 covering its permission surface.
 
 ## Iframes and Shadow DOM
@@ -499,7 +499,7 @@ Before this session, the plan (`investigation-planner.ts`) was a static
 advisory checklist the model was free to ignore entirely, and nothing
 tracked which diagnostic tools had actually been called or enforced any
 call/time budget — flagged NOT_IMPLEMENTED against the master prompt's
-P0.3 ("investigation orchestration loop") in `PROJECT_PROGRESS.md`'s gap
+P0.3 ("investigation orchestration loop") in `docs/development/PROJECT_PROGRESS.md`'s gap
 matrix. `packages/browser-runtime/src/apty/investigation-orchestrator.ts`
 closes that gap with three pieces:
 
@@ -554,7 +554,7 @@ order-independent loop-signature matching, every `decideNextAction`
 branch, and guardrail-precedence-over-plan-progress) plus 2 integration
 tests in `tools/investigation.test.ts` for the new tool. The system
 prompt was not updated to reference this tool explicitly — see
-`PROJECT_PROGRESS.md`'s "Known Limitations".
+`docs/development/PROJECT_PROGRESS.md`'s "Known Limitations".
 
 ## Side panel UI architecture
 
@@ -658,5 +658,5 @@ Testing Library coverage.
 - **SE/SDE investigation depth modes** — every investigation runs at one
   depth; no configurable "SE" vs "SDE" mode exists.
 - **A scenario/evaluation harness** — the master prompt's 12 named SE/SDE
-  scenarios exist only as a list in `PROJECT_PROGRESS.md`, not as a
+  scenarios exist only as a list in `docs/development/PROJECT_PROGRESS.md`, not as a
   repeatable automated eval suite.
