@@ -7,7 +7,7 @@ import {
   type SkillMetadata,
   simpleFS,
   skillStorage,
-} from "../../skill/lib/storage/skill-storage";
+} from "../skills/lib/storage/skill-storage";
 import { zenfs } from "./zenfs-manager";
 
 const MIGRATION_KEY = "aipex_zenfs_migration_status";

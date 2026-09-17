@@ -1,7 +1,7 @@
-import { autoMigrate } from "../../../lib/vm/migration";
-import { quickjs } from "../../../lib/vm/quickjs-manager";
-import { createSkillAPIBridge } from "../../../lib/vm/skill-api";
-import { zenfs } from "../../../lib/vm/zenfs-manager";
+import { autoMigrate } from "../../../vm/migration";
+import { quickjs } from "../../../vm/quickjs-manager";
+import { createSkillAPIBridge } from "../../../vm/skill-api";
+import { zenfs } from "../../../vm/zenfs-manager";
 
 type ToolDefinition = {
   name: string;

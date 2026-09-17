@@ -10,9 +10,9 @@
 
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
-import { interventionManager } from "../../intervention/intervention-manager.js";
-import { interventionRegistry } from "../../intervention/intervention-registry.js";
-import type { InterventionType } from "../../intervention/types.js";
+import { interventionManager } from "../../interventions/intervention-manager.js";
+import { interventionRegistry } from "../../interventions/intervention-registry.js";
+import type { InterventionType } from "../../interventions/types.js";
 
 /**
  * List all available interventions

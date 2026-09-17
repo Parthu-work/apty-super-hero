@@ -12,17 +12,17 @@ export * from "./conversation/index.js";
 // Import hooks directly from "@apty/browser-runtime/hooks" if needed in React components
 // export * from "./hooks/index.js";
 // Intervention
-export * from "./intervention/index.js";
+export * from "./interventions/index.js";
 // Screenshot Storage (IndexedDB)
-export { RuntimeScreenshotStorage } from "./lib/screenshot-storage.js";
+export { RuntimeScreenshotStorage } from "./storage/screenshot-storage.js";
 export type {
   DiskUsage,
   FileInfo,
   FileTreeNode,
   SkillUsage,
-} from "./lib/vm/zenfs-manager.js";
+} from "./vm/zenfs-manager.js";
 // Virtual File System
-export { zenfs } from "./lib/vm/zenfs-manager.js";
+export { zenfs } from "./vm/zenfs-manager.js";
 export * from "./runtime/automation-mode.js";
 export * from "./runtime/browser-automation-host.js";
 export * from "./runtime/context-providers.js";
@@ -32,7 +32,7 @@ export * from "./runtime/omni-action-registry.js";
 export * from "./runtime/runtime-addon.js";
 export * from "./runtime/types.js";
 // Skill System
-export * from "./skill/index.js";
+export * from "./skills/index.js";
 // Storage
 export * from "./storage/index.js";
 // Tools

@@ -8,7 +8,7 @@
   },
   "include": ["src/**/*"],
   "exclude": [
-    "src/skill/components/**",
+    "src/skills/components/**",
     "src/**/__tests__/**",
     "src/**/*.test.ts"
   ],

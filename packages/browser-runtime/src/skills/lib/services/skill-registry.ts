@@ -1,4 +1,4 @@
-import { zenfs } from "../../../lib/vm/zenfs-manager";
+import { zenfs } from "../../../vm/zenfs-manager";
 import {
   type ParsedSkill,
   type SkillMetadata,

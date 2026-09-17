@@ -1,7 +1,7 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
-import { skillManager } from "../skill/lib/services/skill-manager";
-import { getSkillInfo as getSkillInfoImpl } from "../skill/mcp-servers/skills";
+import { skillManager } from "../skills/lib/services/skill-manager";
+import { getSkillInfo as getSkillInfoImpl } from "../skills/mcp-servers/skills";
 
 export const loadSkillTool = tool({
   name: "load_skill",

@@ -1,7 +1,7 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { cacheScreenshotMetadata } from "../automation/computer";
-import { RuntimeScreenshotStorage } from "../lib/screenshot-storage";
+import { RuntimeScreenshotStorage } from "../storage/screenshot-storage";
 import { getAutomationMode } from "../runtime/automation-mode";
 import {
   captureVisibleTabWithElementCrop,

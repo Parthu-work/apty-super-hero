@@ -1,4 +1,4 @@
-import { zenfs } from "../../../lib/vm/zenfs-manager";
+import { zenfs } from "../../../vm/zenfs-manager";
 import licenseText from "../../built-in/skill-creator-browser/LICENSE.txt?raw";
 // Import built-in skill content files
 import skillCreatorMarkdown from "../../built-in/skill-creator-browser/SKILL.md?raw";

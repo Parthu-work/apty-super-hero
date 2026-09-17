@@ -4,7 +4,7 @@
  */
 
 import { strFromU8, unzipSync } from "fflate";
-import { zenfs } from "../../../lib/vm/zenfs-manager";
+import { zenfs } from "../../../vm/zenfs-manager";
 
 export interface ParsedSkillMetadata {
   name: string;
