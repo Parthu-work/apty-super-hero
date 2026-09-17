@@ -47,7 +47,7 @@ code (`ChromeStorageAdapter`, browser tools, DOM APIs) stays in
   are `packages/browser-runtime/src/tools/apty.ts` and `devtools.ts`; the UI is
   `apps/browser-extension/src/components/investigation/` and
   `apps/browser-extension/src/entrypoints/options/apty-client-panel.tsx`.
-- **A new built-in skill** (QuickJS-sandboxed, user-invokable): add a folder
+- **A new built-in skill** (QuickJS-sandboxed, user-invocable): add a folder
   under `packages/browser-runtime/src/skills/built-in/` with a `SKILL.md` plus
   any scripts; register it the way the existing built-ins are registered in
   `packages/browser-runtime/src/skills/`.
