@@ -14,7 +14,7 @@ import {
 } from "../src/index.js";
 
 async function main() {
-  console.log("🤖 AIPex Core - Basic Example\n");
+  console.log("🤖 Apty Agent Core - Basic Example\n");
 
   const model = aisdk(google("gemini-2.5-flash"));
 

@@ -1,6 +1,6 @@
-# aipex-mcp-bridge
+# apty-mcp-bridge
 
-Local bridge, daemon, and CLI tools for connecting AI agents to the AIPex browser extension.
+Local bridge, daemon, and CLI tools for connecting AI agents to the Apty Agent browser extension.
 
 ## How It Works
 

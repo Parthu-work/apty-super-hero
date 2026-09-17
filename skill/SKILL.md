@@ -1,6 +1,6 @@
 ---
 name: aipex-browser
-description: AI-powered browser automation using the AIPex Chrome Extension via MCP bridge. Use this skill when the agent needs to control a Chrome browser — navigating pages, clicking elements, filling forms, capturing screenshots, managing tabs, or downloading content — by connecting to the AIPex MCP bridge.
+description: AI-powered browser automation using the Apty Agent Chrome Extension via MCP bridge. Use this skill when the agent needs to control a Chrome browser — navigating pages, clicking elements, filling forms, capturing screenshots, managing tabs, or downloading content — by connecting to the Apty Agent MCP bridge.
 version: 1.0.0
 metadata:
   openclaw:
@@ -12,13 +12,13 @@ metadata:
     os: [macos, linux, windows]
 ---
 
-# AIPex Browser Control
+# Apty Agent Browser Control
 
-AIPex is a Chrome extension that exposes 30+ browser automation tools over the Model Context Protocol (MCP). Once connected, the agent can control any Chrome tab using natural language — clicking, typing, navigating, capturing screenshots, downloading content, and more.
+Apty Agent is a Chrome extension that exposes 30+ browser automation tools over the Model Context Protocol (MCP). Once connected, the agent can control any Chrome tab using natural language — clicking, typing, navigating, capturing screenshots, downloading content, and more.
 
 **Architecture:**
 ```
-Agent (MCP client) ──stdio──▶ aipex-mcp-bridge ──WebSocket──▶ AIPex Chrome Extension ──▶ Browser APIs
+Agent (MCP client) ──stdio──▶ aipex-mcp-bridge ──WebSocket──▶ Apty Agent Chrome Extension ──▶ Browser APIs
 ```
 
 ---
@@ -38,10 +38,10 @@ Use this skill when the user wants to:
 
 ## Prerequisites
 
-- **AIPex Chrome extension** installed (available on the Chrome Web Store or via developer build)
+- **Apty Agent Chrome extension** installed (available on the Chrome Web Store or via developer build)
 - **Node.js >= 18** installed on the local machine
 
-The user is assumed to have AIPex installed. The agent only needs to complete the two connection steps below.
+The user is assumed to have Apty Agent installed. The agent only needs to complete the two connection steps below.
 
 ---
 
@@ -126,11 +126,11 @@ Then use `ws://localhost:9224` in Step 2.
 
 ---
 
-## Step 2: Connect the AIPex Extension to the Bridge
+## Step 2: Connect the Apty Agent Extension to the Bridge
 
 After the MCP server is registered and running:
 
-1. Open Chrome and click the **AIPex** extension icon
+1. Open Chrome and click the **Apty Agent** extension icon
 2. Go to **Options** (or right-click the icon → "Extension options")
 3. Find the **WebSocket Connection** section
 4. Enter: `ws://localhost:9223`
@@ -250,8 +250,8 @@ capture_screenshot(sendToLLM=true)
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| Only `check_aipex_connection` visible | Extension not connected to bridge | Open AIPex Options → set WebSocket URL → Connect |
+| Only `check_aipex_connection` visible | Extension not connected to bridge | Open Apty Agent Options → set WebSocket URL → Connect |
 | Port 9223 already in use | Port conflict on machine | Use `--port 9224` in MCP config and `ws://localhost:9224` in extension |
 | `search_elements` returns 0 results | Page uses canvas or non-semantic HTML | Fall back to `capture_screenshot(sendToLLM=true)` + `computer` tool |
-| Connection drops frequently | Service worker sleep cycle | AIPex uses keepalive pings; reconnect extension from Options if needed |
+| Connection drops frequently | Service worker sleep cycle | Apty Agent uses keepalive pings; reconnect extension from Options if needed |
 | Tools appear but calls time out | Bridge not receiving WebSocket messages | Restart bridge: reload MCP server in agent settings |

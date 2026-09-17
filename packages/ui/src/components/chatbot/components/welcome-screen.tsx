@@ -13,7 +13,7 @@ import { Suggestion, Suggestions } from "../../ai-elements/suggestion";
 import { useComponentsContext } from "../context";
 
 /**
- * Build i18n-driven default suggestions matching legacy AIPex layout.
+ * Build i18n-driven default suggestions matching the legacy layout.
  */
 function useDefaultSuggestions(): WelcomeSuggestion[] {
   const { t } = useTranslation();

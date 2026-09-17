@@ -1,6 +1,6 @@
 /**
  * Plugin System Type Definitions
- * Enables extensibility for AIPex applications
+ * Enables extensibility for Apty Agent applications
  */
 
 import type { ReactNode } from "react";

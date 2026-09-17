@@ -162,7 +162,7 @@ export const createNewTabTool = tool({
     url: z.string().url().describe("The URL to open in the new tab"),
   }),
   execute: async ({ url }) => {
-    // Prepend protocol if missing (align with aipex behavior)
+    // Prepend protocol if missing
     let finalUrl = url?.trim();
     if (!finalUrl) {
       throw new Error("URL is required");

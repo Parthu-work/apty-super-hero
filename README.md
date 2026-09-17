@@ -10,16 +10,16 @@ Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which 
 
 ## What it does today
 
-- Inspects the current page's DOM, elements, iframes, and Shadow DOM (inherited AIPex infrastructure)
+- Inspects the current page's DOM, elements, iframes, and Shadow DOM
 - Reads console output/errors captured since page load (`get_apty_page_logs`)
 - Watches live network requests and browser-level runtime errors via Chrome DevTools Protocol (`get_network_diagnostics`, `get_runtime_diagnostics`)
 - Has provider interfaces ready for Apty Widget/Client/Studio/Service-Worker diagnostics (`get_apty_widget_diagnostics`, etc.) — **these currently report `not_configured`**, because the Apty-side integration (a real extension ID, a documented global, a message handler) doesn't exist yet. See `PROJECT_PROGRESS.md`'s Apty Integration sections for exactly what's needed.
 - Reasons over all of the above and answers with a confidence-scored diagnosis (Confirmed/Likely/Possible/Unknown), never fabricating evidence
 
-## Inherited AIPex infrastructure
+## Core infrastructure
 
 - A **Chrome/Chromium extension** (side panel + content script + background service worker)
-- An **MCP bridge** (`mcp-bridge/`) so external AI clients (Claude Code, Cursor, VS Code Copilot) can drive the browser
+- An **MCP bridge** (`apps/mcp-bridge/`) so external AI clients (Claude Code, Cursor, VS Code Copilot) can drive the browser
 - A **DOM snapshot** package that assigns stable UIDs to elements instead of raw selectors
 - A **Human-in-the-Loop intervention system** (monitor an operation, ask the user to pick among candidates)
 
@@ -28,7 +28,7 @@ Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which 
 - Removed AIPex's own SaaS backend integrations (login/proxy mode, conversation sharing, user-manual replay-from-website, recording/screenshot upload, version checking) — this fork is **BYOK-only**: it talks directly to your configured AI provider (or, eventually, Apty's own backend), never through a third-party proxy.
 - Removed voice input (ElevenLabs STT + VAD) and its `three.js`-based particle visualization.
 - Removed AIPex's own marketing/community UI and release automation.
-- Rebranded as **Apty Live Browser Debugging Agent**; system prompt rewritten from a generic browser assistant into the debugging persona (see `packages/aipex-react/src/components/chatbot/constants.ts`).
+- Rebranded as **Apty Live Browser Debugging Agent**; system prompt rewritten from a generic browser assistant into the debugging persona (see `packages/ui/src/components/chatbot/constants.ts`).
 - Added the Apty diagnostics layer described above (`packages/browser-runtime/src/apty/`).
 
 See `CHANGELOG.md` for the full list with commit references.
@@ -37,17 +37,17 @@ See `CHANGELOG.md` for the full list with commit references.
 
 ```bash
 pnpm install
-pnpm build   # builds workspace packages, then the extension into packages/browser-ext/dist
+pnpm build   # builds workspace packages, then the extension into apps/browser-extension/dist
 pnpm dev     # or: watch mode with HMR
 ```
 
-Load `packages/browser-ext/dist` as an unpacked extension via `chrome://extensions` → Developer mode → Load unpacked.
+Load `apps/browser-extension/dist` as an unpacked extension via `chrome://extensions` → Developer mode → Load unpacked.
 
 On first use, open the extension's **Options** page and configure an AI provider + API key (BYOK) — there is no login/proxy fallback.
 
 ## Configuring Apty Studio/Widget/Client/Service-Worker integration
 
-Copy `packages/browser-ext/.env.example` to `packages/browser-ext/.env` and fill in whatever Apty engineering has actually made available (a Studio extension ID, a service-worker diagnostic endpoint, etc.) — every value defaults to empty, which is honestly reported as `not_configured` rather than faked. See `PROJECT_PROGRESS.md`'s per-component integration sections for exactly what each one needs on the Apty side before it can do anything.
+Copy `apps/browser-extension/.env.example` to `apps/browser-extension/.env` and fill in whatever Apty engineering has actually made available (a Studio extension ID, a service-worker diagnostic endpoint, etc.) — every value defaults to empty, which is honestly reported as `not_configured` rather than faked. See `PROJECT_PROGRESS.md`'s per-component integration sections for exactly what each one needs on the Apty side before it can do anything.
 
 ## Use with AI Coding Agents (MCP)
 
@@ -59,7 +59,7 @@ AI Agent ──stdio──▶ mcp-bridge ──WebSocket──▶ Apty Agent Ext
 claude mcp add apty-browser -- npx -y aipex-mcp-bridge
 ```
 
-Then in the extension's Options page, set the WebSocket URL (`ws://localhost:9223/extension`) and click Connect. See [`mcp-bridge/README.md`](mcp-bridge/README.md) for details.
+Then in the extension's Options page, set the WebSocket URL (`ws://localhost:9223/extension`) and click Connect. See [`apps/mcp-bridge/README.md`](apps/mcp-bridge/README.md) for details.
 
 ## License
 

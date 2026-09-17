@@ -228,7 +228,7 @@ const pageContext: Context = {
   type: "page",
   providerId: "manual",
   label: "Example page",
-  value: "This page describes the AIPex Core API.",
+  value: "This page describes the Apty Agent Core API.",
   timestamp: Date.now(),
 };
 

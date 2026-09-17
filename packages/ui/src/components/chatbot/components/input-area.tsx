@@ -44,11 +44,11 @@ export interface ExtendedInputAreaProps extends InputAreaProps {
   queueCount?: number;
   /**
    * Whether to fetch and display the server-side/proxy model list (labeled
-   * "AIPex Models" in the selector). Defaults to true for backward
+   * "Server Models" in the selector). Defaults to true for backward
    * compatibility with existing consumers of this shared component.
    *
    * A BYOK-only product with no server-side proxy (e.g. Apty's browser
-   * extension — see `apps/browser-extension/src/lib/browser-chat-input-area.tsx`)
+   * extension — see `apps/browser-extension/src/components/browser-chat-input-area.tsx`)
    * must set this to `false`: leaving it enabled makes an undisclosed
    * network request to a third-party host on every mount
    * (`fetchModelsForSelector()` → `MODELS_API_URL`) and can present
@@ -241,7 +241,7 @@ export function DefaultInputArea({
         return;
       }
 
-      // Server (AIPex) model selected → switch to proxy mode
+      // Server-proxy model selected → switch to proxy mode
       void updateSettings({ aiModel: trimmed, byokEnabled: false });
     },
     [selectedModel, enabledCustomModels, updateSettings],

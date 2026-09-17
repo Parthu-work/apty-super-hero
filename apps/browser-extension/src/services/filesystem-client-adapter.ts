@@ -2,7 +2,7 @@
  * FileSystemClient Adapter Implementation
  *
  * Adapts browser-runtime zenfs to the FileSystemClient interface
- * used by aipex-react UI components.
+ * used by @apty/ui UI components.
  */
 
 import type {

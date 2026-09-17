@@ -1,6 +1,6 @@
 # @apty/ui
 
-React UI toolkit for building AIPex-powered chat and extension experiences.
+React UI toolkit for building Apty Agent-powered chat and extension experiences.
 
 This package depends on `@apty/agent-core` only (no browser-specific runtime code). It provides:
 

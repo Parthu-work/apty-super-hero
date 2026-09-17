@@ -1,7 +1,7 @@
 /**
  * FileExplorer Wrapper
  *
- * Wraps the full FileExplorer implementation from aipex with proper imports for new-aipex.
+ * Wraps the full FileExplorer implementation with proper imports for the extension package.
  * This component uses the zenfs manager from @apty/browser-runtime.
  */
 

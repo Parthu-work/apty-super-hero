@@ -141,7 +141,7 @@ export class ChatAdapter {
 
       case "content_delta":
         // When text arrives after tool calls, start a new assistant message.
-        // This mirrors aipex's behavior where each model response after tool
+        // This mirrors the upstream behavior where each model response after tool
         // execution becomes a separate message, enabling the turn-based
         // collapsing logic in the message list.
         if (this.toolsAddedSinceLastText) {

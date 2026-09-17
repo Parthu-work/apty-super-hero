@@ -251,7 +251,7 @@ export const getAptyStudioDiagnosticsTool = tool({
   name: "get_apty_studio_diagnostics",
   description:
     "Get Apty Studio's status (active, selection mode, last selected selector) and recent logs, via cross-extension messaging. " +
-    "Requires studioExtensionId to be configured (see packages/browser-ext/.env.example) AND Studio to implement the corresponding message handler — until both exist, returns status: 'not_configured' or 'unavailable'.",
+    "Requires studioExtensionId to be configured (see apps/browser-extension/.env.example) AND Studio to implement the corresponding message handler — until both exist, returns status: 'not_configured' or 'unavailable'.",
   parameters: z.object({}),
   execute: async (_input, context) => {
     recordToolCall(
@@ -305,7 +305,7 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
   name: "get_apty_service_worker_diagnostics",
   description:
     "Get Apty's service-worker status and recent logs, via a configured extension message channel or diagnostic HTTP endpoint. " +
-    "Chrome does not allow one extension to read another's private service-worker memory directly, so this always returns status: 'not_configured' until Apty exposes one of those channels (see packages/browser-ext/.env.example). " +
+    "Chrome does not allow one extension to read another's private service-worker memory directly, so this always returns status: 'not_configured' until Apty exposes one of those channels (see apps/browser-extension/.env.example). " +
     "IMPORTANT: the service worker is a single global process shared by every tab, not specific to the current page — do not assume these logs are about the tab you're currently investigating unless a timestamp or message content actually ties them to it.",
   parameters: z.object({}),
   execute: async (_input, context) => {

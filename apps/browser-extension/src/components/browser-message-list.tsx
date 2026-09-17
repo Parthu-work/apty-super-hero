@@ -1,7 +1,7 @@
 /**
  * BrowserMessageList
  * Wraps the default MessageList and hides it when inputMode is "voice",
- * matching aipex's behaviour where messages are hidden in voice mode.
+ * matching the upstream behaviour where messages are hidden in voice mode.
  */
 
 import { DefaultMessageList } from "@apty/ui/components/chatbot/components";
@@ -13,7 +13,7 @@ export function BrowserMessageList(
 ) {
   const { inputMode } = useInputMode();
 
-  // In voice mode, hide the message list (matching aipex full-screen voice behaviour)
+  // In voice mode, hide the message list (matching full-screen voice behaviour)
   if (inputMode === "voice") {
     return null;
   }

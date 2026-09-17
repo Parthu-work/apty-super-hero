@@ -9,7 +9,7 @@ import {
 } from "../src/index.js";
 
 async function main() {
-  console.log("🤖 AIPex Core - Session Fork Example\n");
+  console.log("🤖 Apty Agent Core - Session Fork Example\n");
 
   const storage = new SessionStorage(new InMemoryStorage<SerializedSession>());
   const manager = new ConversationManager(storage);

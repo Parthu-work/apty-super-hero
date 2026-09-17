@@ -11,7 +11,7 @@ import { chromeStorageAdapter } from "@apty/browser-runtime";
  * Sound effect types
  */
 export type SoundEffectType =
-  | "enter-immersive" // User enters focus mode (focus on Chrome + AIPex group)
+  | "enter-immersive" // User enters focus mode (focus on Chrome + Apty Agent group)
   | "enter-background" // User enters background mode (switches away)
   | "conversation-start" // Conversation begins
   | "conversation-end"; // Conversation ends

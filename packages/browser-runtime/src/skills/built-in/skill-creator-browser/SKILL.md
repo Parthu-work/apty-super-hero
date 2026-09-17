@@ -10,9 +10,9 @@ This skill provides guidance for creating effective skills.
 
 ## About Skills
 
-Skills are modular, self-contained packages that extend AIPex's capabilities by providing
+Skills are modular, self-contained packages that extend Apty Agent's capabilities by providing
 specialized knowledge, workflows, and tools. Think of them as "onboarding guides" for specific
-domains or tasks—they transform AIPex from a general-purpose agent into a specialized agent
+domains or tasks—they transform Apty Agent from a general-purpose agent into a specialized agent
 equipped with procedural knowledge that no model can fully possess.
 
 ### What Skills Provide
@@ -41,7 +41,7 @@ skill-name/
 
 #### SKILL.md (required)
 
-**Metadata Quality:** The `name` and `description` in YAML frontmatter determine when AIPex will use the skill. Be specific about what the skill does and when to use it. Use the third-person (e.g. "This skill should be used when..." instead of "Use this skill when...").
+**Metadata Quality:** The `name` and `description` in YAML frontmatter determine when Apty Agent will use the skill. Be specific about what the skill does and when to use it. Use the third-person (e.g. "This skill should be used when..." instead of "Use this skill when...").
 
 #### Bundled Resources (optional)
 
@@ -67,27 +67,27 @@ Executable code (JavaScript/Browser/etc.) for tasks that require deterministic r
     }
     module.exports = { main };
     ```
-- **Note**: Scripts may still need to be read by AIPex for patching or environment-specific adjustments
+- **Note**: Scripts may still need to be read by Apty Agent for patching or environment-specific adjustments
 
 ##### References (`references/`)
 
-Documentation and reference material intended to be loaded as needed into context to inform AIPex's process and thinking.
+Documentation and reference material intended to be loaded as needed into context to inform Apty Agent's process and thinking.
 
-- **When to include**: For documentation that AIPex should reference while working
+- **When to include**: For documentation that Apty Agent should reference while working
 - **Examples**: `references/finance.md` for financial schemas, `references/mnda.md` for company NDA template, `references/policies.md` for company policies, `references/api_docs.md` for API specifications
 - **Use cases**: Database schemas, API documentation, domain knowledge, company policies, detailed workflow guides
-- **Benefits**: Keeps SKILL.md lean, loaded only when AIPex determines it's needed
+- **Benefits**: Keeps SKILL.md lean, loaded only when Apty Agent determines it's needed
 - **Best practice**: If files are large (>10k words), include grep search patterns in SKILL.md
 - **Avoid duplication**: Information should live in either SKILL.md or references files, not both. Prefer references files for detailed information unless it's truly core to the skill—this keeps SKILL.md lean while making information discoverable without hogging the context window. Keep only essential procedural instructions and workflow guidance in SKILL.md; move detailed reference material, schemas, and examples to references files.
 
 ##### Assets (`assets/`)
 
-Files not intended to be loaded into context, but rather used within the output AIPex produces.
+Files not intended to be loaded into context, but rather used within the output Apty Agent produces.
 
 - **When to include**: When the skill needs files that will be used in the final output
 - **Examples**: `assets/logo.png` for brand assets, `assets/slides.pptx` for PowerPoint templates, `assets/frontend-template/` for HTML/React boilerplate, `assets/font.ttf` for typography
 - **Use cases**: Templates, images, icons, boilerplate code, fonts, sample documents that get copied or modified
-- **Benefits**: Separates output resources from documentation, enables AIPex to use files without loading them into context
+- **Benefits**: Separates output resources from documentation, enables Apty Agent to use files without loading them into context
 
 ### Progressive Disclosure Design Principle
 
@@ -95,7 +95,7 @@ Skills use a three-level loading system to manage context efficiently:
 
 1. **Metadata (name + description)** - Always in context (~100 words)
 2. **SKILL.md body** - When skill triggers (<5k words)
-3. **Bundled resources** - As needed by AIPex (Unlimited\*)
+3. **Bundled resources** - As needed by Apty Agent (Unlimited\*)
 
 \*Unlimited because scripts can be executed without reading into context window.
 
@@ -222,7 +222,7 @@ After initialization, customize or remove the generated SKILL.md and example fil
 
 ### Step 4: Edit the Skill
 
-When editing the (newly-generated or existing) skill, remember that the skill is being created for another instance of AIPex to use. Focus on including information that would be beneficial and non-obvious to AIPex. Consider what procedural knowledge, domain-specific details, or reusable assets would help another AIPex instance execute these tasks more effectively.
+When editing the (newly-generated or existing) skill, remember that the skill is being created for another instance of Apty Agent to use. Focus on including information that would be beneficial and non-obvious to Apty Agent. Consider what procedural knowledge, domain-specific details, or reusable assets would help another Apty Agent instance execute these tasks more effectively.
 
 #### Start with Reusable Skill Contents
 
@@ -238,7 +238,7 @@ To complete SKILL.md, answer the following questions:
 
 1. What is the purpose of the skill, in a few sentences?
 2. When should the skill be used?
-3. In practice, how should AIPex use the skill? All reusable skill contents developed above should be referenced so that AIPex knows how to use them.
+3. In practice, how should Apty Agent use the skill? All reusable skill contents developed above should be referenced so that Apty Agent knows how to use them.
 4. If the skill contains scripts, what are the arguments to pass to the `main` function? What is the expected output of the script? Remember that each script must export a `main` function or have a `main` function as the entry point.
 
 ### Step 5: Packaging a Skill

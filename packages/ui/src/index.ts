@@ -6,7 +6,7 @@ export * from "./components/file-manager/index.js";
 export * from "./components/intervention/index.js";
 export * from "./components/omni/index.js";
 export * from "./components/settings/index.js";
-// Skill UI components moved to browser-ext - no longer exported from aipex-react
+// Skill UI components moved to the browser extension - no longer exported from @apty/ui
 // export * from "./components/skill/index.js";
 export * from "./hooks/index.js";
 export * from "./lib/index.js";

@@ -1,5 +1,5 @@
 /**
- * Website URL configuration for aipex-react
+ * Website URL configuration for @apty/ui
  * Provides centralized, env-configurable website base URL.
  */
 

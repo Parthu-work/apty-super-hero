@@ -24,7 +24,7 @@ of truth; treat Confluence as a snapshot.
                             │
                             ▼
                         AI Agent
-              (packages/core — model-agnostic loop)
+              (packages/agent-core — model-agnostic loop)
                             │
       ┌───────────────┬───────────────┬───────────────┬───────────────┐
       ▼               ▼               ▼               ▼               ▼
@@ -67,12 +67,12 @@ reasons over live browser state.
 
 | Package | Role |
 |---|---|
-| `packages/core` | Model-agnostic agent loop (tool-calling, conversation state), Vercel AI SDK based. No browser-specific code. |
+| `packages/agent-core` | Model-agnostic agent loop (tool-calling, conversation state), Vercel AI SDK based. No browser-specific code. |
 | `packages/dom-snapshot` | DOM → normalized element list with stable UIDs. Avoids sending raw DOM to the model. |
 | `packages/browser-runtime` | Everything that talks to Chrome APIs: automation (CDP, DOM locators, iframe/shadow handling), tools, the intervention system, the skill sandbox, the Apty diagnostics module, the MCP WebSocket bridge. |
-| `packages/aipex-react` | Shared React UI (chat, settings, system prompt constants). |
-| `packages/browser-ext` | The actual Manifest V3 extension: manifest, background service worker, content scripts, side panel/options pages. Wires the above packages together. |
-| `mcp-bridge/` | Standalone Node package (own `package.json`, outside the pnpm workspace) — a WebSocket daemon external AI clients (Claude Code, Cursor) connect to, which relays to the extension. |
+| `packages/ui` | Shared React UI (chat, settings, system prompt constants). |
+| `apps/browser-extension` | The actual Manifest V3 extension: manifest, background service worker, content scripts, side panel/options pages. Wires the above packages together. |
+| `apps/mcp-bridge/` | Standalone Node package (own `package.json`, outside the pnpm workspace) — a WebSocket daemon external AI clients (Claude Code, Cursor) connect to, which relays to the extension. |
 
 ## AI reasoning vs. deterministic execution
 
@@ -81,7 +81,7 @@ name with structured parameters (validated by Zod schemas); a plain
 TypeScript function executes the actual Chrome API call and returns a
 structured result; the model only ever sees that result. This is enforced
 by construction — tools are the only thing exposed to the model
-(`packages/core`'s `tool()` factory + `allBrowserTools` registry), there is
+(`packages/agent-core`'s `tool()` factory + `allBrowserTools` registry), there is
 no code path where model output is `eval`'d or otherwise turned directly
 into a DOM/browser operation.
 
@@ -107,7 +107,7 @@ a diagnosis engine — clustering narrows the model's search space, but the
 actual root-cause reasoning, hypothesis verification, and confidence
 rating remain the model's responsibility, guided by the system prompt's
 required loop and output format (see
-`packages/aipex-react/src/components/chatbot/constants.ts`).
+`packages/ui/src/components/chatbot/constants.ts`).
 
 ### Conversation/tab binding — evidence isolation
 
@@ -118,11 +118,11 @@ debugging. Every evidence-gathering tool (`apty.ts`'s 5 tools,
 instead of unconditionally querying "whichever tab is focused right now":
 
 1. `AIPex.chat()` accepts an opaque `runContext` (`ChatOptions.runContext`,
-   `packages/core/src/types.ts`) forwarded verbatim to `@openai/agents`'
+   `packages/agent-core/src/types.ts`) forwarded verbatim to `@openai/agents`'
    `run()` as its `context` option, and from there to every tool's
    `execute(input, context)` as `context.context` — no new plumbing, just
    using SDK capability that already existed.
-2. `packages/browser-ext/src/lib/conversation-tab-binding.ts` supplies the
+2. `apps/browser-extension/src/services/conversation-tab-binding.ts` supplies the
    concrete value: a `Map<sessionId, tabId>` that binds a conversation to
    whichever tab was active the first time it had a real session id, and
    keeps returning that tab even if the user's focus moves elsewhere. This
@@ -256,7 +256,7 @@ timestamp, a message that names the page/origin, etc.) — this follows the
 project brief's instruction to mark unattributable evidence as
 shared/unattributed rather than inventing attribution.
 
-Configuration flows: `packages/browser-ext/.env.example` (build-time Vite
+Configuration flows: `apps/browser-extension/.env.example` (build-time Vite
 env vars) → seeded into `chrome.storage.local` on service-worker startup
 (`background.ts`) → read at tool-call time via
 `packages/browser-runtime/src/apty/config.ts`. This indirection means
@@ -307,7 +307,7 @@ from before the tool was called. Each tool opens a bounded capture window
 
 This is distinct from `get_apty_page_logs`
 (`packages/browser-runtime/src/tools/apty.ts`), which reads a buffer
-continuously filled by `packages/browser-ext/src/apty-console-bridge.ts` — a
+continuously filled by `apps/browser-extension/src/entrypoints/content/console-bridge.ts` — a
 MAIN-world content script that has been capturing `console.*` calls and
 `window.onerror`/`unhandledrejection` since page load, with no debugger
 attach/detach cost. The two are complementary: the console bridge has
@@ -389,7 +389,7 @@ The 3 tool wrappers (`packages/browser-runtime/src/tools/network-capture.ts`:
 call `recordToolCall()` (`investigation-orchestrator.ts`), so network
 capture participates in the orchestrator's tool-call budget/loop-detection
 ledger — PR #11 predated the orchestrator and didn't have this. The tool
-registry grows from 51 to 54 tools; `mcp-bridge/src/tool-schemas.ts` gained
+registry grows from 51 to 54 tools; `apps/mcp-bridge/src/tool-schemas.ts` gained
 matching schemas.
 
 Tested in `network-capture-session.test.ts` (13 cases, including
@@ -488,7 +488,7 @@ tracking, diagnosis+confidence), `record_verification_attempt`,
 `stop_investigation`, `get_investigation_status`, and
 `get_next_investigation_action` (new this session — see "Autonomous
 investigation orchestrator" below). The system prompt
-(`packages/aipex-react/src/components/chatbot/constants.ts`'s "THE
+(`packages/ui/src/components/chatbot/constants.ts`'s "THE
 DEBUGGING LOOP" section) instructs the model to call these at each step of
 the debugging loop, so a UI status is only ever real application state,
 never a fabricated "Analyzing..." placeholder.
@@ -544,7 +544,7 @@ binding rather than a suggestion to keep probing.
 layer the model consults each turn — it does not call tools itself, and
 tool execution in this codebase is still exactly what it was: the model
 calls one tool at a time via `@openai/agents`' `run()`
-(`packages/core`'s agent loop, unchanged). What's new and load-bearing is
+(`packages/agent-core`'s agent loop, unchanged). What's new and load-bearing is
 that the budget/loop limits are computed and enforced server-side from
 real call history, not left to prompt discipline alone — see
 `DECISIONS.md` for why this shape was chosen over either a parallel
@@ -560,13 +560,13 @@ prompt was not updated to reference this tool explicitly — see
 
 The side panel was a generic chat UI (message list + input) with no
 debugging-specific chrome; it is now an investigation-first debugging
-console, built entirely as browser-ext-local components
-(`packages/browser-ext/src/lib/investigation/`) that compose
-`aipex-react`'s existing slot/component-override system
+console, built entirely as browser-extension-local components
+(`apps/browser-extension/src/components/investigation/`) that compose
+`@apty/ui`'s existing slot/component-override system
 (`ChatbotSlots`/`ChatbotComponents` — Header, MessageList, InputArea,
 `toolDisplay`, `emptyState`, `promptExtras` were already swappable) rather
-than requiring `aipex-react` to know anything about Apty or browser-runtime
-(preserving the `@aipex-react` must-not-depend-on-`@browser-runtime` rule).
+than requiring `@apty/ui` to know anything about Apty or browser-runtime
+(preserving the `@apty/ui` must-not-depend-on-`@apty/browser-runtime` rule).
 
 Key pieces:
 - **`use-investigation-data.ts`** — a polling hook that reads

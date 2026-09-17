@@ -1,5 +1,5 @@
 /**
- * Environment type definitions for aipex-react
+ * Environment type definitions for @apty/ui
  * These are build-time environment variables when bundled with Vite.
  */
 

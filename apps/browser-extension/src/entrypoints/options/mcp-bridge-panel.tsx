@@ -1,6 +1,6 @@
 /**
  * MCP WebSocket Bridge Panel
- * UI for connecting/disconnecting the extension to the aipex-mcp-bridge.
+ * UI for connecting/disconnecting the extension to the apty-mcp-bridge.
  */
 
 import {

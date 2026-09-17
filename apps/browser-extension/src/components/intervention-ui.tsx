@@ -2,7 +2,7 @@
  * Intervention UI - Platform-specific integration for browser extension
  *
  * This component bridges the intervention system from @browser-runtime
- * with the UI components from @aipex-react, respecting package architecture.
+ * with the UI components from @apty/ui, respecting package architecture.
  */
 
 import {

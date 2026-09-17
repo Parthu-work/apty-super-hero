@@ -1,6 +1,6 @@
 /**
  * Message Adapter
- * Converts between aipex-react UIMessage and browser-runtime ConversationData format
+ * Converts between @apty/ui UIMessage and browser-runtime ConversationData format
  */
 
 import type { UIMessage as ReactUIMessage } from "@apty/ui/types";
@@ -89,7 +89,7 @@ function stripImageDataFromToolOutput(
 }
 
 /**
- * Convert aipex-react UIMessage to runtime UIMessage for storage
+ * Convert @apty/ui UIMessage to runtime UIMessage for storage
  */
 export function toStorageFormat(
   messages: ReactUIMessage[],
@@ -214,7 +214,7 @@ function extractBusinessFailure(
 }
 
 /**
- * Convert runtime UIMessage back to aipex-react UIMessage for display.
+ * Convert runtime UIMessage back to @apty/ui UIMessage for display.
  * This function:
  * - Correlates tool_use and tool_result parts by id to restore proper toolName and input
  * - Parses JSON-stringified tool content

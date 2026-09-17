@@ -33,7 +33,7 @@ export default defineConfig({
         find: "@apty/agent-core",
         replacement: path.resolve(__dirname, "../../packages/agent-core/src/index.ts"),
       },
-      // Mirrors vite.config.ts: aipex-react's package.json exports map only
+      // Mirrors vite.config.ts: ui's package.json exports map only
       // covers a subset of its subpaths (e.g. no "./lib/*"), but the real
       // extension build resolves straight to source via this same alias —
       // tests need the same resolution, not a narrower one, to match what

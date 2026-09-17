@@ -1,6 +1,6 @@
-# AIPex Browser Extension (`@apty/browser-extension`)
+# Apty Browser Extension (`@apty/browser-extension`)
 
-Chrome/Chromium extension (Manifest V3) that assembles the AIPex packages:
+Chrome/Chromium extension (Manifest V3) that assembles the Apty Agent packages:
 
 - `@apty/agent-core` (agent framework)
 - `@apty/browser-runtime` (Chrome/extension runtime implementations)
@@ -10,30 +10,30 @@ Built with Vite + `@crxjs/vite-plugin`.
 
 ## What this extension does
 
-- **Side panel**: runs the main AIPex chat UI
+- **Side panel**: runs the main Apty Agent chat UI
 - **Content script**: provides an Omni command menu and page-side helpers (e.g. element capture, fake mouse)
 - **Options page**: configure providers, models, and UI settings
 
 ## Architecture (MV3)
 
-### Background service worker (`src/background.ts`)
+### Background service worker (`src/entrypoints/background/`)
 
 - Opens the side panel when the extension action icon is clicked
 - Handles keyboard commands (see `manifest.json` → `commands`)
 - Relays element capture events and persists the latest event to `chrome.storage.local`
 
-### Content script (`src/content.tsx` → `src/pages/content/`)
+### Content script (`src/entrypoints/content/`)
 
 - Injects a React UI into the page context (using Shadow DOM + inline Tailwind CSS)
-- Listens for messages such as `{ request: "open-aipex" }` (sent by the background command handler)
+- Listens for messages such as `{ request: "open-apty-agent" }` (sent by the background command handler)
 - Implements element capture mode and publishes results via `chrome.runtime.sendMessage`
 
-### Side panel (`src/pages/sidepanel/`)
+### Side panel (`src/entrypoints/sidepanel/`)
 
 - Hosts the main chat experience
 - Uses workspace packages directly during development via Vite aliases (see `vite.config.ts`)
 
-### Options page (`src/pages/options/`)
+### Options page (`src/entrypoints/options/`)
 
 - Uses `SettingsPage` from `@apty/ui`
 - Wraps i18n and theme providers (`@apty/ui/i18n/context`, `@apty/ui/theme/context`)
@@ -59,7 +59,7 @@ pnpm --filter @apty/browser-extension dev
 - Open `chrome://extensions`
 - Enable **Developer mode**
 - Click **Load unpacked**
-- Select the Vite output directory (by default `packages/browser-ext/dist/`)
+- Select the Vite output directory (by default `apps/browser-extension/dist/`)
 - Keep the dev server running for HMR
 
 ## Build

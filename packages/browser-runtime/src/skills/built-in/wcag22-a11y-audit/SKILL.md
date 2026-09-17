@@ -416,7 +416,7 @@ After completing the audit, generate a Markdown report with this structure:
 **Target**: [URL or Page Name]  
 **Date**: [Audit Date]  
 **Scope**: [Full page / Component / User flow]  
-**Auditor**: AIPex WCAG 2.2 A11y Audit Skill
+**Auditor**: Apty Agent WCAG 2.2 A11y Audit Skill
 
 ---
 

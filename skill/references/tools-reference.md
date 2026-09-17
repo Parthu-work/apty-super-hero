@@ -1,6 +1,6 @@
-# AIPex Browser Tools Reference
+# Apty Agent Browser Tools Reference
 
-Complete parameter schemas and usage examples for all AIPex MCP tools exposed via `aipex-mcp-bridge`.
+Complete parameter schemas and usage examples for all Apty Agent MCP tools exposed via `aipex-mcp-bridge`.
 
 ---
 

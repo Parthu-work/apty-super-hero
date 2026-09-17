@@ -1,13 +1,15 @@
 ## Package Architecture
 
 ```
-@core                 → Pure TS, no platform deps. Defines interfaces.
-@browser-runtime      → Implements @core for Chrome. Depends on @core only.
-@aipex-react          → UI library. Depends on @core only (NOT browser-runtime).
-browser-ext           → Extension entry. Assembles all packages.
+packages/agent-core       (@apty/agent-core)      → Pure TS, no platform deps. Defines interfaces.
+packages/browser-runtime  (@apty/browser-runtime) → Implements @apty/agent-core for Chrome. Depends on agent-core + dom-snapshot only.
+packages/ui               (@apty/ui)              → UI library. Depends on @apty/agent-core only (NOT browser-runtime).
+packages/dom-snapshot     (@apty/dom-snapshot)     → Leaf: DOM snapshot/serialization, no workspace deps.
+apps/browser-extension    (@apty/browser-extension)→ Extension entry. Assembles all four packages above.
+apps/mcp-bridge                                    → Standalone MCP bridge CLI/daemon (own pnpm project, not a workspace member).
 ```
 
-**Key rule**: `@aipex-react` must NOT depend on `@browser-runtime`. Browser-specific code (ChromeStorageAdapter, browser tools) stays in `@browser-runtime` or `browser-ext`.
+**Key rule**: `@apty/ui` must NOT depend on `@apty/browser-runtime`. Browser-specific code (ChromeStorageAdapter, browser tools) stays in `@apty/browser-runtime` or `apps/browser-extension`.
 
 ## Building and running
 

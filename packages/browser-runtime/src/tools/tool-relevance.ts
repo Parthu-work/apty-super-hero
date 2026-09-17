@@ -10,7 +10,7 @@
  * (`allBrowserTools`, `registerDefaultBrowserTools`) — this module only
  * narrows what's offered to the model's tool schema for one turn, via
  * `ChatOptions.tools` (see `browser-agent-config.ts`'s `useSelectRelevantTools`
- * and `aipex-react`'s `ChatConfig.selectTools`).
+ * and `@apty/ui`'s `ChatConfig.selectTools`).
  *
  * This is plain keyword matching, not a second model call: the categories
  * below have stable, recognizable vocabulary, so a deterministic rule set

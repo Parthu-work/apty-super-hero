@@ -8,18 +8,18 @@ This package is where **browser-specific** code lives (Manifest V3 friendly). It
 - **Context providers** for common browser data sources (tabs, bookmarks, history, current page, screenshots)
 - **Storage adapters** for extension environments (`ChromeStorageAdapter`, `IndexedDBStorage`)
 - A CDP-based automation layer (via `chrome.debugger`) and related helpers
-- Runtime contracts used by the AIPex extension (hosts, addons, omni action registry)
+- Runtime contracts used by the Apty Agent extension (hosts, addons, omni action registry)
 
 > Note: These APIs depend on `chrome.*` and/or `indexedDB`. They are not meant to run in plain Node.js.
 
 ## Why a separate runtime package?
 
-AIPex is split into layers so each stays focused:
+The system is split into layers so each stays focused:
 
 - `@apty/agent-core`: platform-agnostic agent + events + contexts + sessions
 - `@apty/browser-runtime`: Chrome/extension implementations (tools, providers, storage, automation)
 - `@apty/ui`: React UI toolkit that depends only on core
-- `browser-ext`: the actual extension that wires everything together
+- `apps/browser-extension`: the actual extension that wires everything together
 
 ## Features
 
@@ -176,7 +176,7 @@ console.log(title);
 import { IndexedDBStorage } from "@apty/browser-runtime";
 
 const storage = new IndexedDBStorage<{ id: string; value: string }>({
-  dbName: "aipex",
+  dbName: "apty",
   storeName: "sessions",
 });
 ```

@@ -1,7 +1,7 @@
 /**
  * WebSocket client transport for MCP-over-WebSocket.
  *
- * Uses the browser-native WebSocket API. AIPex connects as a WebSocket
+ * Uses the browser-native WebSocket API. Apty Agent connects as a WebSocket
  * client to the host agent's WebSocket server, then JSON-RPC 2.0 messages
  * flow bidirectionally over that connection.
  *
