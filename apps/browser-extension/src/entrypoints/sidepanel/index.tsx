@@ -1,6 +1,6 @@
 import { zenfs } from "@apty/browser-runtime";
 import { quickjs } from "@apty/browser-runtime/lib/vm/quickjs-manager";
-import { renderChatApp } from "../common/app-root";
+import { renderChatApp } from "../../components/app-root";
 
 // Pre-initialize QuickJS and ZenFS on sidepanel startup so that
 // the first skill execution doesn't incur a cold-start WASM load.

@@ -15,9 +15,9 @@ import type { AuthCheckResult } from "@apty/ui/types";
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { chromeStorageAdapter } from "../../hooks";
-import { isByokConfigured } from "../../lib/ai-provider";
-import { AutomationModeInputToolbar } from "../../lib/automation-mode-toolbar";
+import { chromeStorageAdapter } from "../hooks";
+import { isByokConfigured } from "../lib/ai-provider";
+import { AutomationModeInputToolbar } from "../lib/automation-mode-toolbar";
 import {
   BROWSER_AGENT_CONFIG,
   useBrowserContextProviders,
@@ -25,21 +25,21 @@ import {
   useBrowserStorage,
   useBrowserTools,
   useSelectRelevantTools,
-} from "../../lib/browser-agent-config";
-import { BrowserChatHeader } from "../../lib/browser-chat-header";
-import { BrowserChatInputArea } from "../../lib/browser-chat-input-area";
-import { BrowserContextLoader } from "../../lib/browser-context-loader";
-import { BrowserMessageActions } from "../../lib/browser-message-actions";
-import { BrowserMessageList } from "../../lib/browser-message-list";
-import { ChatImagesListener } from "../../lib/chat-images-listener";
-import { resolveConversationRunContext } from "../../lib/conversation-tab-binding";
-import { InputModeProvider } from "../../lib/input-mode-context";
-import { InterventionModeProvider } from "../../lib/intervention-mode-context";
-import { InterventionUI } from "../../lib/intervention-ui";
-import { AptyToolDisplay } from "../../lib/investigation/apty-tool-display";
-import { DebuggingWelcomeScreen } from "../../lib/investigation/debugging-welcome-screen";
-import { DomHealthCard } from "../../lib/investigation/dom-health-card";
-import { InvestigationSummaryBar } from "../../lib/investigation/investigation-summary-bar";
+} from "../lib/browser-agent-config";
+import { BrowserChatHeader } from "../lib/browser-chat-header";
+import { BrowserChatInputArea } from "../lib/browser-chat-input-area";
+import { BrowserContextLoader } from "../lib/browser-context-loader";
+import { BrowserMessageActions } from "../lib/browser-message-actions";
+import { BrowserMessageList } from "../lib/browser-message-list";
+import { ChatImagesListener } from "../lib/chat-images-listener";
+import { resolveConversationRunContext } from "../lib/conversation-tab-binding";
+import { InputModeProvider } from "../lib/input-mode-context";
+import { InterventionModeProvider } from "../lib/intervention-mode-context";
+import { InterventionUI } from "../lib/intervention-ui";
+import { AptyToolDisplay } from "../lib/investigation/apty-tool-display";
+import { DebuggingWelcomeScreen } from "../lib/investigation/debugging-welcome-screen";
+import { DomHealthCard } from "../lib/investigation/dom-health-card";
+import { InvestigationSummaryBar } from "../lib/investigation/investigation-summary-bar";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();

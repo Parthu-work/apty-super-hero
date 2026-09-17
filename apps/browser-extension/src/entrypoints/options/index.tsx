@@ -33,7 +33,7 @@ function parseUrlParams() {
   return { tab, skill };
 }
 
-import "../tailwind.css";
+import "../../styles/tailwind.css";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();

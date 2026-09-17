@@ -11,7 +11,7 @@ import { MessageSquareText } from "lucide-react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 // Import CSS as a string to inject into Shadow DOM
-import tailwindCss from "../tailwind.css?inline";
+import tailwindCss from "../../styles/tailwind.css?inline";
 
 interface CaptureState {
   isCapturing: boolean;
