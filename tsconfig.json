@@ -9,9 +9,9 @@
     "./types/**/*.d.ts"
   ],
   "references": [
-    { "path": "./packages/core" },
+    { "path": "./packages/agent-core" },
     { "path": "./packages/browser-runtime" },
-    { "path": "./packages/aipex-react" },
-    { "path": "./packages/browser-ext" }
+    { "path": "./packages/ui" },
+    { "path": "./apps/browser-extension" }
   ]
 }

@@ -571,7 +571,7 @@ than requiring `aipex-react` to know anything about Apty or browser-runtime
 Key pieces:
 - **`use-investigation-data.ts`** — a polling hook that reads
   `getEvidence`/`getInvestigation`/`correlateEvidence` from
-  `@aipexstudio/browser-runtime` directly (see `DECISIONS.md` for why this
+  `@apty/browser-runtime` directly (see `DECISIONS.md` for why this
   is safe: tool `execute()` and the side panel's React tree share one JS
   realm). Backs off from a 1.2s to a 5s poll interval when the chat isn't
   actively streaming/running tools.

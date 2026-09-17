@@ -11,7 +11,7 @@
  *    heuristic alone — see `DynamicAttributeStats.hasMultiSnapshotEvidence`.
  *
  * This is the canonical definition of "looks dynamic" for the DOM Health
- * feature. `@aipexstudio/browser-runtime`'s `automation/selector-analysis.ts`
+ * feature. `@apty/browser-runtime`'s `automation/selector-analysis.ts`
  * re-exports it from here rather than keeping its own copy, so the two
  * features can't quietly drift apart on what counts as "generated".
  */

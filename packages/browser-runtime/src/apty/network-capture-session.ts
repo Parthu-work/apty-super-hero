@@ -32,7 +32,7 @@
  * it to that alone would leak a `setInterval` forever and permanently wedge
  * the conversation's capture slot into "busy" if the tab closes mid-capture.
  */
-import { generateId } from "@aipexstudio/aipex-core";
+import { generateId } from "@apty/agent-core";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
 import { recordEvidence } from "./evidence-store.js";

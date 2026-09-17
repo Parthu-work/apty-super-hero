@@ -9,11 +9,11 @@
  *
  * Deliberately `Map<conversationId, DiagnosticEvidence[]>`, not a single
  * global array — the same isolation principle as
- * `packages/browser-ext/src/lib/conversation-tab-binding.ts`'s
+ * `apps/browser-extension/src/lib/conversation-tab-binding.ts`'s
  * `Map<sessionId, tabId>`. Evidence collected for one conversation must
  * never appear when a different conversation asks for its timeline.
  */
-import { generateId } from "@aipexstudio/aipex-core";
+import { generateId } from "@apty/agent-core";
 import type { DiagnosticEvidence, NewDiagnosticEvidence } from "./types.js";
 
 /** Evidence collected outside any bound conversation (e.g. via the MCP bridge) is kept here — still bounded, but not attributable to a specific chat. */

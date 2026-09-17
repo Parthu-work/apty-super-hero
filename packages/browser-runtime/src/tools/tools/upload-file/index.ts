@@ -1,4 +1,4 @@
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { CdpCommander } from "../../../automation/cdp-commander";
 import { debuggerManager } from "../../../automation/debugger-manager";

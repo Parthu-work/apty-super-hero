@@ -10,7 +10,7 @@ import {
   type AutomationMode,
   STORAGE_KEYS,
   validateAutomationMode,
-} from "@aipexstudio/aipex-core";
+} from "@apty/agent-core";
 import { ChromeStorageAdapter } from "../storage/storage-adapter";
 
 const storage = new ChromeStorageAdapter<string>();

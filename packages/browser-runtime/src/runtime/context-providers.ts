@@ -1,4 +1,4 @@
-import type { ContextProvider } from "@aipexstudio/aipex-core";
+import type { ContextProvider } from "@apty/agent-core";
 
 /**
  * Extended ContextProvider interface for browser-specific lifecycle methods

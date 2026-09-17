@@ -3,7 +3,7 @@
  * Exports all available browser context providers
  */
 
-import type { ContextManager } from "@aipexstudio/aipex-core";
+import type { ContextManager } from "@apty/agent-core";
 
 export { BookmarksProvider } from "./bookmarks-provider";
 export { CurrentPageProvider } from "./current-page-provider";

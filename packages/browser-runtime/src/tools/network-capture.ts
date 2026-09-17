@@ -11,7 +11,7 @@
  * `../apty/network-capture-session.ts` for the session mechanics, including
  * its request-count cap and forced-cleanup-on-tab-close/detach handling.
  */
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { recordToolCall } from "../apty/index.js";
 import {

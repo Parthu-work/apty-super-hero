@@ -1,0 +1,186 @@
+{
+  "name": "@apty/ui",
+  "version": "0.1.0",
+  "description": "React UI toolkit, hooks, and adapters for building Apty Agent chat experiences",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Parthu-work/apty-super-hero.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./adapters/*": {
+      "types": "./dist/src/adapters/*.d.ts",
+      "import": "./dist/src/adapters/*.js"
+    },
+    "./hooks/*": {
+      "types": "./dist/src/hooks/*.d.ts",
+      "import": "./dist/src/hooks/*.js"
+    },
+    "./components/chatbot": {
+      "types": "./dist/src/components/chatbot/index.d.ts",
+      "import": "./dist/src/components/chatbot/index.js"
+    },
+    "./components/chatbot/*": {
+      "types": "./dist/src/components/chatbot/*.d.ts",
+      "import": "./dist/src/components/chatbot/*.js"
+    },
+    "./components/omni": {
+      "types": "./dist/src/components/omni/index.d.ts",
+      "import": "./dist/src/components/omni/index.js"
+    },
+    "./components/ai-elements/*": {
+      "types": "./dist/src/components/ai-elements/*.d.ts",
+      "import": "./dist/src/components/ai-elements/*.js"
+    },
+    "./components/*": {
+      "types": "./dist/src/components/*/index.d.ts",
+      "import": "./dist/src/components/*/index.js"
+    },
+    "./types": {
+      "types": "./dist/src/types/index.d.ts",
+      "import": "./dist/src/types/index.js"
+    },
+    "./types/*": {
+      "types": "./dist/src/types/*.d.ts",
+      "import": "./dist/src/types/*.js"
+    },
+    "./i18n/context": {
+      "types": "./dist/src/i18n/context.d.ts",
+      "import": "./dist/src/i18n/context.js"
+    },
+    "./i18n/*": {
+      "types": "./dist/src/i18n/*.d.ts",
+      "import": "./dist/src/i18n/*.js"
+    },
+    "./theme/types": {
+      "types": "./dist/src/theme/types.d.ts",
+      "import": "./dist/src/theme/types.js"
+    },
+    "./theme/*": {
+      "types": "./dist/src/theme/*.d.ts",
+      "import": "./dist/src/theme/*.js"
+    }
+  },
+  "files": [
+    "dist/src/**/*.js",
+    "dist/src/**/*.d.ts",
+    "dist/src/i18n/locales/*.json",
+    "!dist/src/**/*.test.js",
+    "!dist/src/**/*.test.d.ts"
+  ],
+  "typesVersions": {
+    "*": {
+      "adapters/*": [
+        "dist/src/adapters/*"
+      ],
+      "hooks/*": [
+        "dist/src/hooks/*"
+      ],
+      "components/chatbot": [
+        "dist/src/components/chatbot/index.d.ts"
+      ],
+      "components/chatbot/*": [
+        "dist/src/components/chatbot/*"
+      ],
+      "components/omni": [
+        "dist/src/components/omni/index.d.ts"
+      ],
+      "components/ai-elements/*": [
+        "dist/src/components/ai-elements/*"
+      ],
+      "components/*": [
+        "dist/src/components/*/index.d.ts"
+      ],
+      "types": [
+        "dist/src/types/index.d.ts"
+      ],
+      "types/*": [
+        "dist/src/types/*"
+      ],
+      "i18n/context": [
+        "dist/src/i18n/context.d.ts"
+      ],
+      "i18n/*": [
+        "dist/src/i18n/*"
+      ],
+      "theme/types": [
+        "dist/src/theme/types.d.ts"
+      ],
+      "theme/*": [
+        "dist/src/theme/*"
+      ]
+    }
+  },
+  "author": "Apty",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --project tsconfig.json",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@apty/agent-core": "workspace:*",
+    "@radix-ui/react-avatar": "^1.1.11",
+    "@radix-ui/react-collapsible": "^1.1.12",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-hover-card": "^1.1.15",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@radix-ui/react-use-controllable-state": "^1.2.2",
+    "ai": "^6.0.116",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "embla-carousel-react": "^8.6.0",
+    "framer-motion": "^12.35.1",
+    "lucide-react": "^0.577.0",
+    "markdown-to-jsx": "^9.6.1",
+    "nanoid": "^5.1.7",
+    "react-syntax-highlighter": "^16.1.1",
+    "remark-gfm": "^4.0.1",
+    "streamdown": "^2.3.0",
+    "tailwind-merge": "^3.5.0",
+    "tokenlens": "^1.3.1",
+    "use-stick-to-bottom": "^1.1.4"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/chrome": "0.1.38",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/three": "^0.177.0",
+    "jsdom": "^29.0.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tsc-alias": "^1.8.13",
+    "vitest": "^4.1.0"
+  }
+}

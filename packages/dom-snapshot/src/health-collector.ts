@@ -6,7 +6,7 @@
  * cross-snapshot stability, and hit-testing — can only be produced against
  * a live DOM. This collector is where "measure" and "verify" happen (see
  * `health-selector-engine.ts` and `health-hit-test.ts`); the scoring engine
- * in `@aipexstudio/browser-runtime` only aggregates and weights numbers
+ * in `@apty/browser-runtime` only aggregates and weights numbers
  * that already exist on the snapshot it's given.
  *
  * Cross-snapshot stability (spec section 18/23) is tracked with a LOGICAL

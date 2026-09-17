@@ -2,7 +2,7 @@
  * Application-wide DOM Health audit orchestrator (spec sections 2-6, 23-25).
  *
  * Discovers same-origin pages via real `<a href>` elements already in the
- * DOM (see `@aipexstudio/dom-snapshot`'s `health-links.ts` — never a
+ * DOM (see `@apty/dom-snapshot`'s `health-links.ts` — never a
  * simulated click), navigates the tab to each one in turn, waits for a
  * real load-complete signal plus a DOM-quiet-period signal (never a fixed
  * sleep), runs the exact same per-page audit pipeline `runDomHealthAudit`
@@ -19,7 +19,7 @@
  * is re-checked here even though the content script already applied it —
  * defense in depth, not because either check alone is trusted blindly.
  */
-import { isSafeToDiscover } from "@aipexstudio/dom-snapshot";
+import { isSafeToDiscover } from "@apty/dom-snapshot";
 import {
   type ApplicationAuditResult,
   buildApplicationAuditResult,

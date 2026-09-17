@@ -14,7 +14,7 @@ import { snapshotManager } from "./snapshot-manager";
 import type { TextSnapshotNode } from "./types";
 
 /**
- * DOM snapshot node structure from @aipexstudio/dom-snapshot
+ * DOM snapshot node structure from @apty/dom-snapshot
  */
 export interface DomSnapshotNode {
   id: string;
@@ -38,7 +38,7 @@ export interface DomSnapshotNode {
 }
 
 /**
- * DOM snapshot result from @aipexstudio/dom-snapshot
+ * DOM snapshot result from @apty/dom-snapshot
  */
 export interface SerializedDomSnapshot {
   root: DomSnapshotNode;

@@ -9,7 +9,7 @@ export * from "./context/index.js";
 // Conversation Storage
 export * from "./conversation/index.js";
 // Hooks - NOT exported from main entry to avoid React dependency in non-React environments
-// Import hooks directly from "@aipexstudio/browser-runtime/hooks" if needed in React components
+// Import hooks directly from "@apty/browser-runtime/hooks" if needed in React components
 // export * from "./hooks/index.js";
 // Intervention
 export * from "./intervention/index.js";

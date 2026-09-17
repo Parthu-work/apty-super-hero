@@ -1,4 +1,4 @@
-import type { FunctionTool } from "@aipexstudio/aipex-core";
+import type { FunctionTool } from "@apty/agent-core";
 import type { z } from "zod";
 import { aptyTools } from "./apty";
 import { computerTool } from "./computer";

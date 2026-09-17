@@ -22,7 +22,7 @@
  * extension's build.
  *
  * Configure at most one of `extensionId` / `diagnosticEndpoint` (see
- * config.ts / .env.example in packages/browser-ext). With neither
+ * config.ts / .env.example in apps/browser-extension). With neither
  * configured, this always reports `status: "not_configured"` — do not
  * treat that as a failure, it means the integration hasn't been set up.
  *

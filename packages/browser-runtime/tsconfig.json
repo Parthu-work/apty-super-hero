@@ -14,7 +14,7 @@
   ],
   "references": [
     {
-      "path": "../core/tsconfig.json"
+      "path": "../agent-core/tsconfig.json"
     },
     {
       "path": "../dom-snapshot/tsconfig.json"

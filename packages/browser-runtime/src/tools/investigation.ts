@@ -16,7 +16,7 @@
  * confidence rating to the model, per the system prompt's
  * CONFIRMED/LIKELY/POSSIBLE/UNKNOWN discipline.
  */
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
   correlateEvidence,

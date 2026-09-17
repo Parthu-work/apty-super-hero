@@ -13,7 +13,7 @@
  * side — the bridge handles that entirely with static tool schemas.
  */
 
-import type { FunctionTool } from "@aipexstudio/aipex-core";
+import type { FunctionTool } from "@apty/agent-core";
 import { allBrowserTools } from "../tools/index.js";
 import {
   type JSONRPCMessage,

@@ -1,4 +1,4 @@
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 
 interface SessionTab {

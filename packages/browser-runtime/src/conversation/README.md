@@ -14,7 +14,7 @@ A robust conversation storage system for managing chat history with IndexedDB, L
 ## Installation
 
 ```typescript
-import { conversationStorage } from '@aipexstudio/browser-runtime';
+import { conversationStorage } from '@apty/browser-runtime';
 ```
 
 ## Quick Start
@@ -22,8 +22,8 @@ import { conversationStorage } from '@aipexstudio/browser-runtime';
 ### Basic Usage
 
 ```typescript
-import { conversationStorage } from '@aipexstudio/browser-runtime';
-import type { UIMessage } from '@aipexstudio/browser-runtime';
+import { conversationStorage } from '@apty/browser-runtime';
+import type { UIMessage } from '@apty/browser-runtime';
 
 // Create messages
 const messages: UIMessage[] = [
@@ -61,7 +61,7 @@ await conversationStorage.clearAllConversations();
 ### Custom Configuration
 
 ```typescript
-import { ConversationStorage } from '@aipexstudio/browser-runtime';
+import { ConversationStorage } from '@apty/browser-runtime';
 
 const customStorage = new ConversationStorage({
   maxConversations: 10,  // Keep 10 conversations instead of 5
@@ -271,7 +271,7 @@ const conversations = await ConversationStorage.getAllConversations();
 ### After (new-aipex)
 
 ```typescript
-import { conversationStorage } from '@aipexstudio/browser-runtime';
+import { conversationStorage } from '@apty/browser-runtime';
 
 const id = await conversationStorage.saveConversation(messages);
 const conversations = await conversationStorage.getAllConversations();
@@ -299,7 +299,7 @@ const conversations = await conversationStorage.getAllConversations();
 ### React Hook
 
 ```typescript
-import { conversationStorage } from '@aipexstudio/browser-runtime';
+import { conversationStorage } from '@apty/browser-runtime';
 import { useState, useEffect } from 'react';
 
 function useConversations() {

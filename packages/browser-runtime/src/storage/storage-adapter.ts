@@ -1,4 +1,4 @@
-import { type KeyValueStorage, safeJsonParse } from "@aipexstudio/aipex-core";
+import { type KeyValueStorage, safeJsonParse } from "@apty/agent-core";
 
 export type WatchCallback<T> = (change: { newValue?: T; oldValue?: T }) => void;
 

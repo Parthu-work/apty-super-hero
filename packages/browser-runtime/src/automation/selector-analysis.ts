@@ -16,12 +16,12 @@
  *   ⚠️ .MuiInputBase-input — matches 8 elements on the page, not unique
  *   ✅ [data-apty-id="patient-name"] — unique and not dynamic-looking
  *
- * `looksDynamic` is re-exported from `@aipexstudio/dom-snapshot` (the DOM
+ * `looksDynamic` is re-exported from `@apty/dom-snapshot` (the DOM
  * Health feature's selector engine) rather than duplicated here, so "does
  * this id/class look machine-generated" has exactly one definition across
  * the codebase.
  */
-import { looksDynamic } from "@aipexstudio/dom-snapshot";
+import { looksDynamic } from "@apty/dom-snapshot";
 
 export { looksDynamic };
 

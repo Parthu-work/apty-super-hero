@@ -91,7 +91,7 @@ const conversations = await ConversationStorage.getAllConversations();
 
 **new-aipex (Singleton Instance - Recommended)**:
 ```typescript
-import { conversationStorage } from '@aipexstudio/browser-runtime';
+import { conversationStorage } from '@apty/browser-runtime';
 
 const id = await conversationStorage.saveConversation(messages);
 const conversations = await conversationStorage.getAllConversations();
@@ -176,7 +176,7 @@ const conversations = await conversationStorage.getAllConversations();
    await ConversationStorage.saveConversation(messages);
    
    // New (new-aipex) - Just change import
-   import { conversationStorage } from '@aipexstudio/browser-runtime';
+   import { conversationStorage } from '@apty/browser-runtime';
    await conversationStorage.saveConversation(messages);
    ```
 

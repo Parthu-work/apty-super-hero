@@ -1,4 +1,4 @@
-import type { ContextProvider } from "@aipexstudio/aipex-core";
+import type { ContextProvider } from "@apty/agent-core";
 import type { BrowserAutomationHost } from "./browser-automation-host.js";
 import type { InterventionHost } from "./intervention-host.js";
 import type { OmniAction, OmniActionRegistry } from "./omni-action-registry.js";

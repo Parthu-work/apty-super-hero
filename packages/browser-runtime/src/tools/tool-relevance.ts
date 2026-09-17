@@ -20,7 +20,7 @@
  * — see `DECISIONS.md`).
  */
 
-import type { FunctionTool } from "@aipexstudio/aipex-core";
+import type { FunctionTool } from "@apty/agent-core";
 import { type BrowserToolGroupName, browserToolGroups } from "./index.js";
 
 const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {

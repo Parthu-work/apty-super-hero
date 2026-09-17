@@ -22,7 +22,7 @@
  * degraded behavior: see `DECISIONS.md`'s "Apty diagnostics are honest
  * stubs" precedent.
  */
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { recordToolCall } from "../apty/index.js";
 import { redactSensitiveText } from "../apty/redact.js";

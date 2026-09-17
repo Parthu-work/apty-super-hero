@@ -13,7 +13,7 @@
  * `evidence-store.ts`'s per-conversation isolation — one investigation per
  * conversation, never leaking into another's.
  */
-import { generateId } from "@aipexstudio/aipex-core";
+import { generateId } from "@apty/agent-core";
 import type { InvestigationPlan } from "./investigation-planner.js";
 import type { DiagnosisConfidence } from "./types.js";
 

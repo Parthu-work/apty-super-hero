@@ -7,7 +7,7 @@ import type {
   Context,
   ContextProvider,
   ContextQuery,
-} from "@aipexstudio/aipex-core";
+} from "@apty/agent-core";
 
 export class HistoryProvider implements ContextProvider {
   id = "browser.history";

@@ -1,7 +1,7 @@
 import type {
   DomHealthSnapshot,
   ElementSelectorReport,
-} from "@aipexstudio/dom-snapshot";
+} from "@apty/dom-snapshot";
 import { describe, expect, it } from "vitest";
 import {
   buildApplicationAuditResult,

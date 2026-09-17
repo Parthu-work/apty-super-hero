@@ -7,7 +7,7 @@ doesn't re-litigate them without knowing the reasoning. Newest first.
 
 The DOM Readiness Score automates the manual "run a DOM analysis script,
 run it again, diff the JSON" workflow SEs already do by hand. It takes
-exactly two DOM snapshots (`@aipexstudio/dom-snapshot`'s
+exactly two DOM snapshots (`@apty/dom-snapshot`'s
 `collectDomHealthSnapshot`, a separate collector from the existing
 accessibility-tree `collectDomSnapshot` used for element search) roughly
 800ms apart and scores them with fixed weights
@@ -307,7 +307,7 @@ have made "start a fresh investigation in the same chat" awkward to model.
 
 `packages/browser-ext/src/lib/investigation/use-investigation-data.ts`
 imports `getEvidence`/`getInvestigation`/`correlateEvidence` from
-`@aipexstudio/browser-runtime` and calls them directly from a polling
+`@apty/browser-runtime` and calls them directly from a polling
 React hook, rather than having the UI wait for the model to report state
 back through a chat message, or introducing a new `chrome.runtime` event
 bus. This works *only* because tool `execute()` functions already run in

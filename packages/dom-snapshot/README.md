@@ -1,4 +1,4 @@
-# @aipexstudio/dom-snapshot
+# @apty/dom-snapshot
 
 A lightweight library for capturing DOM snapshots without relying on Chrome DevTools Protocol (CDP) Accessibility Tree (AXTree). This library provides a pure JavaScript/TypeScript solution for creating structured page snapshots that can be used for web automation, testing, and AI-powered browser agents.
 
@@ -28,9 +28,9 @@ This library takes a different approach by directly traversing the DOM and build
 ## Installation
 
 ```bash
-npm install @aipexstudio/dom-snapshot
+npm install @apty/dom-snapshot
 # or
-pnpm add @aipexstudio/dom-snapshot
+pnpm add @apty/dom-snapshot
 ```
 
 ## Usage
@@ -38,7 +38,7 @@ pnpm add @aipexstudio/dom-snapshot
 ### Basic Snapshot Collection
 
 ```typescript
-import { collectDomSnapshot, collectDomSnapshotInPage } from '@aipexstudio/dom-snapshot';
+import { collectDomSnapshot, collectDomSnapshotInPage } from '@apty/dom-snapshot';
 
 // Collect snapshot from current page
 const snapshot = collectDomSnapshotInPage();
@@ -59,7 +59,7 @@ console.log(snapshot.metadata.url);      // Page URL
 ### Converting to Text Format
 
 ```typescript
-import { collectDomSnapshot, buildTextSnapshot, formatSnapshot } from '@aipexstudio/dom-snapshot';
+import { collectDomSnapshot, buildTextSnapshot, formatSnapshot } from '@apty/dom-snapshot';
 
 // Collect raw snapshot
 const serialized = collectDomSnapshot(document);
@@ -89,7 +89,7 @@ Markers:
 ### Searching Snapshots
 
 ```typescript
-import { searchSnapshotText, searchAndFormat, buildTextSnapshot, formatSnapshot } from '@aipexstudio/dom-snapshot';
+import { searchSnapshotText, searchAndFormat, buildTextSnapshot, formatSnapshot } from '@apty/dom-snapshot';
 
 const textSnapshot = buildTextSnapshot(serialized);
 const formatted = formatSnapshot(textSnapshot);

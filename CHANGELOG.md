@@ -373,7 +373,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   analysis visual (recommended selector, ranked candidates, iframe/Shadow-
   DOM boundary note, copy-selector button) replacing the raw JSON dump for
   `analyze_element_selectors`. All of it reads real evidence/investigation
-  state directly from `@aipexstudio/browser-runtime` (same JS realm as
+  state directly from `@apty/browser-runtime` (same JS realm as
   tool execution — see `DECISIONS.md`); nothing is fabricated.
 - Friendly, emoji-prefixed activity labels for every Apty/investigation/
   selector tool, added to the existing i18n `tools.*` translation table
@@ -391,7 +391,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   header showed no product name at all. Now renders it (default: "Apty
   Live Debugging").
 - `packages/browser-ext/vitest.config.ts` was missing the
-  `@aipexstudio/aipex-react/*` → source alias that `vite.config.ts` (the
+  `@apty/ui/*` → source alias that `vite.config.ts` (the
   real build) already had, so tests couldn't resolve deep subpaths like
   `/lib/utils` or `/components/ui/*` that aren't in `aipex-react`'s
   `package.json` exports map but do resolve at build time via that alias.

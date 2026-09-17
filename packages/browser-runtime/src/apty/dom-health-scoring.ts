@@ -11,7 +11,7 @@
  * measurement — candidate generation, live `querySelectorAll` uniqueness
  * and target-identity verification, ignore/partial/contextual recovery,
  * cross-snapshot stability, hit testing — already happened in-page inside
- * `@aipexstudio/dom-snapshot`'s collector (the only place that can touch
+ * `@apty/dom-snapshot`'s collector (the only place that can touch
  * the live DOM). This module's only job is to aggregate and weight numbers
  * that are already real, verified evidence, and to explain the result from
  * that same evidence (spec sections 26-29): no invented measurements, no
@@ -24,7 +24,7 @@ import type {
   DomHealthSnapshot,
   DomHealthZIndexInfo,
   ElementSelectorReport,
-} from "@aipexstudio/dom-snapshot";
+} from "@apty/dom-snapshot";
 
 export type DomHealthMetricKey =
   | "automaticSelection"

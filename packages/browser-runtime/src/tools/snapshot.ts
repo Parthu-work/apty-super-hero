@@ -1,4 +1,4 @@
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import * as snapshotProvider from "../automation/snapshot-provider";
 import { getActiveTab } from "./tab-utils";

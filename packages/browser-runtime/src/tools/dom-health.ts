@@ -8,7 +8,7 @@
  * e.g. "check DOM health" or "why is the readiness score low" — it must
  * never invent a different score, only report what this tool returns.
  */
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
   recordToolCall,

@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - apps/browser-extension
 allowBuilds:
   '@j178/prek': true
   esbuild: true

@@ -11,7 +11,7 @@
  *   client-diagnostics.ts for the exact contract and current status.
  * - `get_apty_studio_diagnostics` / `get_apty_service_worker_diagnostics`:
  *   require a configured extension ID or diagnostic endpoint (see
- *   packages/browser-ext/.env.example) and Apty-side messaging support that
+ *   apps/browser-extension/.env.example) and Apty-side messaging support that
  *   does not exist yet — these report `status: "not_configured"` until
  *   that's wired up on both sides.
  *
@@ -20,7 +20,7 @@
  * output or Apty's own log messages.
  */
 
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
   type AptyLog,

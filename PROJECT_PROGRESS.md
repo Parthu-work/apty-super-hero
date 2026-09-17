@@ -411,7 +411,7 @@ Apty debugging console. Full component-by-component detail is in
   a fabricated status.
 - `use-investigation-data.ts` — polling hook reading
   `getEvidence`/`getInvestigation`/`correlateEvidence` directly from
-  `@aipexstudio/browser-runtime` (safe because tool execution and the side
+  `@apty/browser-runtime` (safe because tool execution and the side
   panel UI share one JS realm — see `DECISIONS.md`).
 - `use-current-target.ts` — tracks the bound (or active) tab's title/
   hostname only, never the full URL, via `chrome.tabs`.
@@ -454,7 +454,7 @@ Apty debugging console. Full component-by-component detail is in
   never mutates or creates a binding (diagnostic tools keep using
   `resolveConversationRunContext`/`resolveDiagnosticTab`, not this).
 - `packages/browser-ext/vitest.config.ts` — added the same
-  `@aipexstudio/aipex-react/*` → source alias `vite.config.ts` already
+  `@apty/ui/*` → source alias `vite.config.ts` already
   used for the real build; without it, tests couldn't resolve deep
   subpaths (`/lib/utils`, `/components/ui/*`) that aren't in
   `aipex-react`'s `package.json` exports map but do resolve at build time

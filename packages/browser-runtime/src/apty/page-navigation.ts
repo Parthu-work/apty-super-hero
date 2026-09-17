@@ -11,7 +11,7 @@
  * configurable window (or a hard timeout elapses), so a debounced re-render
  * genuinely gets time to settle rather than being sampled mid-flight.
  */
-import type { DiscoverableLink } from "@aipexstudio/dom-snapshot";
+import type { DiscoverableLink } from "@apty/dom-snapshot";
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 20_000;
 const DEFAULT_STABILIZE_QUIET_MS = 400;
@@ -88,7 +88,7 @@ export function waitForDomStable(
   });
 }
 
-/** Read every safe-to-discover same-origin link on the current page (see `@aipexstudio/dom-snapshot`'s `health-links.ts`). Never triggers a click. */
+/** Read every safe-to-discover same-origin link on the current page (see `@apty/dom-snapshot`'s `health-links.ts`). Never triggers a click. */
 export function collectPageLinks(tabId: number): Promise<DiscoverableLink[]> {
   return new Promise((resolve) => {
     try {

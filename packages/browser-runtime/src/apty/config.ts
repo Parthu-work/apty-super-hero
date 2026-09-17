@@ -5,9 +5,9 @@
  * Worker integrations are deployment-specific and must never be hardcoded
  * here — they're placeholders until Apty engineering supplies real values.
  *
- * Source of truth at build time: packages/browser-ext/.env.example (copy to
+ * Source of truth at build time: apps/browser-extension/.env.example (copy to
  * .env and fill in). browser-ext seeds these into chrome.storage.local on
- * install/startup (see packages/browser-ext/src/background.ts), and this
+ * install/startup (see apps/browser-extension/src/background.ts), and this
  * module reads them back at call time — which also means they can be
  * updated later via an Options UI without a rebuild, if that's added.
  */

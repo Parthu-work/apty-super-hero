@@ -26,7 +26,7 @@
  * `disconnect_apty_client` remain available for the explicit
  * "Use Apty Client extension: <id>" / Options-panel flow.
  */
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
   connectExtensionClient,

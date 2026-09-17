@@ -1,4 +1,4 @@
-import type { DomHealthSnapshot } from "@aipexstudio/dom-snapshot";
+import type { DomHealthSnapshot } from "@apty/dom-snapshot";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockSendMessage = vi.hoisted(() => vi.fn());

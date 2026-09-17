@@ -1,7 +1,7 @@
 /**
  * Apty DOM Health audit orchestrator.
  *
- * Ties the content-script DOM Health collector (`@aipexstudio/dom-snapshot`)
+ * Ties the content-script DOM Health collector (`@apty/dom-snapshot`)
  * together with the deterministic scoring engine (`./dom-health-scoring.js`)
  * into one on-demand audit: three snapshots of the same tab, spaced apart to
  * catch both a quick debounced re-render and a slower one, scored and
@@ -17,7 +17,7 @@
  * it only needs the page's own DOM, so it keeps working even when those
  * integrations are unavailable or unconfigured.
  */
-import type { DomHealthSnapshot } from "@aipexstudio/dom-snapshot";
+import type { DomHealthSnapshot } from "@apty/dom-snapshot";
 import {
   buildDomHealthAuditResult,
   type DomHealthAuditResult,

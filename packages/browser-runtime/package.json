@@ -1,12 +1,12 @@
 {
-  "name": "@aipexstudio/browser-runtime",
+  "name": "@apty/browser-runtime",
   "version": "0.1.0",
-  "description": "Browser automation runtime, context providers, and extension host contracts for AIPex",
+  "description": "Browser automation runtime, context providers, and extension host contracts for Apty Agent",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AIPexStudio/AIPex.git"
+    "url": "git+https://github.com/Parthu-work/apty-super-hero.git"
   },
   "exports": {
     ".": {
@@ -24,7 +24,7 @@
     "!dist/src/**/*.test.js",
     "!dist/src/**/*.test.d.ts"
   ],
-  "author": "AIPex Studio",
+  "author": "Apty",
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc --project tsconfig.json",
@@ -35,8 +35,8 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "@aipexstudio/aipex-core": "workspace:*",
-    "@aipexstudio/dom-snapshot": "workspace:*",
+    "@apty/agent-core": "workspace:*",
+    "@apty/dom-snapshot": "workspace:*",
     "@jitl/quickjs-ng-wasmfile-release-sync": "^0.31.0",
     "@zenfs/core": "^2.4.2",
     "@zenfs/dom": "^1.2.7",

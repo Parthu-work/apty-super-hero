@@ -17,7 +17,7 @@
  * Neither side of that contract exists today. This provider is wired to
  * attempt `chrome.runtime.sendMessage(studioExtensionId, ...)` once an
  * extension ID is configured (see config.ts / .env.example in
- * packages/browser-ext), but until Studio implements the corresponding
+ * apps/browser-extension), but until Studio implements the corresponding
  * listener, every call will resolve to `status: "unavailable"` — that is
  * the honest, expected result, not a bug in this code.
  */

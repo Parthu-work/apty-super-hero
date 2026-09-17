@@ -1,12 +1,12 @@
 {
-  "name": "@aipexstudio/dom-snapshot",
+  "name": "@apty/dom-snapshot",
   "version": "0.1.0",
   "description": "DOM snapshot utility for capturing and serializing web page state",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AIPexStudio/AIPex.git"
+    "url": "git+https://github.com/Parthu-work/apty-super-hero.git"
   },
   "exports": {
     ".": {
@@ -33,7 +33,7 @@
     "web",
     "browser"
   ],
-  "author": "AIPex Studio",
+  "author": "Apty",
   "license": "MIT",
   "type": "module",
   "devDependencies": {

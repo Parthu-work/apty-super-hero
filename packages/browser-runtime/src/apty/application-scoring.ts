@@ -14,7 +14,7 @@
  * if application-wide discovery was requested (spec section 54: never call
  * a single-page score an application score).
  */
-import type { AnalysisCoverage } from "@aipexstudio/dom-snapshot";
+import type { AnalysisCoverage } from "@apty/dom-snapshot";
 import {
   buildRecommendations,
   buildRisks,

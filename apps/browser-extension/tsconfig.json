@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["node", "chrome"]
+  },
+  "include": ["src/**/*", "vite.config.ts", "manifest.json"],
+  "references": [
+    {
+      "path": "../../packages/ui/tsconfig.json"
+    },
+    {
+      "path": "../../packages/browser-runtime/tsconfig.json"
+    },
+    {
+      "path": "../../packages/agent-core/tsconfig.json"
+    },
+    {
+      "path": "../../packages/dom-snapshot/tsconfig.json"
+    }
+  ]
+}

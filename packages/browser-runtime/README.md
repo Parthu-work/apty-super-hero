@@ -1,6 +1,6 @@
-# @aipexstudio/browser-runtime
+# @apty/browser-runtime
 
-Chrome/Chromium runtime implementations for `@aipexstudio/aipex-core`.
+Chrome/Chromium runtime implementations for `@apty/agent-core`.
 
 This package is where **browser-specific** code lives (Manifest V3 friendly). It provides:
 
@@ -16,9 +16,9 @@ This package is where **browser-specific** code lives (Manifest V3 friendly). It
 
 AIPex is split into layers so each stays focused:
 
-- `@aipexstudio/aipex-core`: platform-agnostic agent + events + contexts + sessions
-- `@aipexstudio/browser-runtime`: Chrome/extension implementations (tools, providers, storage, automation)
-- `@aipexstudio/aipex-react`: React UI toolkit that depends only on core
+- `@apty/agent-core`: platform-agnostic agent + events + contexts + sessions
+- `@apty/browser-runtime`: Chrome/extension implementations (tools, providers, storage, automation)
+- `@apty/ui`: React UI toolkit that depends only on core
 - `browser-ext`: the actual extension that wires everything together
 
 ## Features
@@ -105,15 +105,15 @@ Under `automation/`, you'll find building blocks for browser automation:
 **Snapshot management**:
 - `SnapshotManager` - Supports dual snapshot strategies:
   - `cdp`: CDP-based accessibility tree snapshots
-  - `dom`: Pure DOM-based snapshots (using `@aipexstudio/dom-snapshot`)
+  - `dom`: Pure DOM-based snapshots (using `@apty/dom-snapshot`)
 - Snapshot text search utilities (`searchSnapshotText`, `parseSearchQuery`, `hasGlobPatterns`)
 
 ## Installation
 
 ```bash
-npm install @aipexstudio/browser-runtime
+npm install @apty/browser-runtime
 # or
-pnpm add @aipexstudio/browser-runtime
+pnpm add @apty/browser-runtime
 ```
 
 Peer dependencies:
@@ -127,8 +127,8 @@ Peer dependencies:
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk } from "@aipexstudio/aipex-core";
-import { allBrowserTools } from "@aipexstudio/browser-runtime";
+import { AIPex, aisdk } from "@apty/agent-core";
+import { allBrowserTools } from "@apty/browser-runtime";
 
 const agent = AIPex.create({
   instructions: "You can control the current browser tab.",
@@ -140,8 +140,8 @@ const agent = AIPex.create({
 ### 2) Register default browser context providers
 
 ```ts
-import { ContextManager } from "@aipexstudio/aipex-core";
-import { registerDefaultBrowserContextProviders } from "@aipexstudio/browser-runtime";
+import { ContextManager } from "@apty/agent-core";
+import { registerDefaultBrowserContextProviders } from "@apty/browser-runtime";
 
 const contextManager = new ContextManager({ autoInitialize: true });
 registerDefaultBrowserContextProviders(contextManager);
@@ -149,12 +149,12 @@ registerDefaultBrowserContextProviders(contextManager);
 
 ### 3) Use extension storage in UI packages
 
-`@aipexstudio/aipex-react` accepts any `KeyValueStorage` implementation for persisting settings.
+`@apty/ui` accepts any `KeyValueStorage` implementation for persisting settings.
 In a Chrome extension, you can pass `chromeStorageAdapter`:
 
 ```tsx
-import { Chatbot } from "@aipexstudio/aipex-react";
-import { chromeStorageAdapter } from "@aipexstudio/browser-runtime";
+import { Chatbot } from "@apty/ui";
+import { chromeStorageAdapter } from "@apty/browser-runtime";
 
 export function App({ agent }: { agent: any }) {
   return <Chatbot agent={agent} storageAdapter={chromeStorageAdapter} />;
@@ -164,7 +164,7 @@ export function App({ agent }: { agent: any }) {
 ### 4) Execute a function in the active tab
 
 ```ts
-import { executeScriptInActiveTab } from "@aipexstudio/browser-runtime";
+import { executeScriptInActiveTab } from "@apty/browser-runtime";
 
 const title = await executeScriptInActiveTab(() => document.title, []);
 console.log(title);
@@ -173,7 +173,7 @@ console.log(title);
 ### 5) IndexedDB-backed storage
 
 ```ts
-import { IndexedDBStorage } from "@aipexstudio/browser-runtime";
+import { IndexedDBStorage } from "@apty/browser-runtime";
 
 const storage = new IndexedDBStorage<{ id: string; value: string }>({
   dbName: "aipex",
@@ -226,9 +226,9 @@ const storage = new IndexedDBStorage<{ id: string; value: string }>({
 From the repository root:
 
 ```bash
-pnpm --filter @aipexstudio/browser-runtime build
-pnpm --filter @aipexstudio/browser-runtime typecheck
-pnpm --filter @aipexstudio/browser-runtime test
+pnpm --filter @apty/browser-runtime build
+pnpm --filter @apty/browser-runtime typecheck
+pnpm --filter @apty/browser-runtime test
 ```
 
 ### Testing
@@ -243,7 +243,7 @@ These tests use Puppeteer to simulate a browser environment without requiring a 
 To run tests:
 
 ```bash
-pnpm --filter @aipexstudio/browser-runtime test
+pnpm --filter @apty/browser-runtime test
 ```
 
 **CI Considerations**: The tests are configured to work in CI environments (GitHub Actions) with:

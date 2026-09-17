@@ -1,4 +1,4 @@
-import { tool } from "@aipexstudio/aipex-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { cacheScreenshotMetadata } from "../automation/computer";
 import { RuntimeScreenshotStorage } from "../lib/screenshot-storage";
