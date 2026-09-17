@@ -5,10 +5,7 @@
  * message.
  */
 
-import {
-  Action,
-  Actions,
-} from "@apty/ui/components/ai-elements/actions";
+import { Action, Actions } from "@apty/ui/components/ai-elements/actions";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import type { MessageActionsSlotProps } from "@apty/ui/types";
 import { CopyIcon, PuzzleIcon, RefreshCcwIcon } from "lucide-react";

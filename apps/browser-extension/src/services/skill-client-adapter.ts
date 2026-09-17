@@ -5,11 +5,7 @@
  * used by browser-ext UI components.
  */
 
-import {
-  SkillConflictError,
-  skillManager,
-  zenfs,
-} from "@apty/browser-runtime";
+import { SkillConflictError, skillManager, zenfs } from "@apty/browser-runtime";
 import type {
   SkillClient,
   SkillDetail,

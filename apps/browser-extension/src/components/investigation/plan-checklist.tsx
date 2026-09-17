@@ -4,9 +4,9 @@
  * pending/done/skipped status, never a fabricated progress bar.
  */
 
+import type { InvestigationPlan } from "@apty/browser-runtime";
 import { Progress } from "@apty/ui/components/ui/progress";
 import { cn } from "@apty/ui/lib/utils";
-import type { InvestigationPlan } from "@apty/browser-runtime";
 import { toneBadgeClass } from "./tone-classes";
 
 const STATUS_MARKER: Record<

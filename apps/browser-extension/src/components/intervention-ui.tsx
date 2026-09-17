@@ -6,6 +6,12 @@
  */
 
 import {
+  type InterventionEvent,
+  type InterventionState,
+  interventionManager,
+  selectionManager,
+} from "@apty/browser-runtime";
+import {
   type InterventionMode,
   InterventionModeToggle,
   MonitorCard,
@@ -13,12 +19,6 @@ import {
   type SelectionOption,
   type UserSelectionResult,
 } from "@apty/ui/components/intervention";
-import {
-  type InterventionEvent,
-  type InterventionState,
-  interventionManager,
-  selectionManager,
-} from "@apty/browser-runtime";
 import { useEffect, useState } from "react";
 
 interface InterventionUIProps {

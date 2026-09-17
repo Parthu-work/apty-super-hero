@@ -3,19 +3,22 @@
  * Custom header with conversation persistence and history dropdown
  */
 
+import { conversationStorage } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { getRuntime } from "@apty/ui/lib/runtime";
 import { cn } from "@apty/ui/lib/utils";
 import type { HeaderProps } from "@apty/ui/types";
-import { conversationStorage } from "@apty/browser-runtime";
 import { PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ConversationHistory } from "./conversation-history";
 import { releaseConversationTabBinding } from "../services/conversation-tab-binding";
+import {
+  fromStorageFormat,
+  toStorageFormat,
+} from "../services/message-adapter";
+import { ConversationHistory } from "./conversation-history";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
-import { fromStorageFormat, toStorageFormat } from "../services/message-adapter";
 
 export function BrowserChatHeader({
   title = "Apty Live Debugging",

@@ -4,12 +4,12 @@
  */
 
 import type { Context } from "@apty/agent-core";
-import type { ContextItem } from "@apty/ui/components/ai-elements/prompt-input";
 import {
   BookmarksProvider,
   CurrentPageProvider,
   TabsProvider,
 } from "@apty/browser-runtime";
+import type { ContextItem } from "@apty/ui/components/ai-elements/prompt-input";
 import { useCallback, useEffect, useRef } from "react";
 
 const currentPageProvider = new CurrentPageProvider();

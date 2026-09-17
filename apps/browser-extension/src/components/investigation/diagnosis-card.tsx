@@ -12,13 +12,14 @@
  * dashed, muted one for UNKNOWN) so the verdict can never read as more
  * certain than the data actually states.
  */
-import { Badge } from "@apty/ui/components/ui/badge";
-import { Button } from "@apty/ui/components/ui/button";
-import { cn } from "@apty/ui/lib/utils";
+
 import type {
   DiagnosisConfidence,
   InvestigationSession,
 } from "@apty/browser-runtime";
+import { Badge } from "@apty/ui/components/ui/badge";
+import { Button } from "@apty/ui/components/ui/button";
+import { cn } from "@apty/ui/lib/utils";
 import {
   CheckCircle2Icon,
   CircleHelpIcon,

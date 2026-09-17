@@ -3,6 +3,7 @@
  * Simple wrapper using browser-specific hooks
  */
 
+import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import { useAgent, useChatConfig } from "@apty/ui";
 import ChatBot from "@apty/ui/components/chatbot";
 import { ErrorBoundary } from "@apty/ui/components/error/ErrorBoundary";
@@ -12,12 +13,9 @@ import type { Language } from "@apty/ui/i18n/types";
 import { ThemeProvider } from "@apty/ui/theme/context";
 import type { Theme } from "@apty/ui/theme/types";
 import type { AuthCheckResult } from "@apty/ui/types";
-import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { chromeStorageAdapter } from "../hooks";
-import { isByokConfigured } from "../services/ai-provider";
-import { AutomationModeInputToolbar } from "./automation-mode-toolbar";
 import {
   BROWSER_AGENT_CONFIG,
   useBrowserContextProviders,
@@ -26,15 +24,17 @@ import {
   useBrowserTools,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
+import { isByokConfigured } from "../services/ai-provider";
+import { resolveConversationRunContext } from "../services/conversation-tab-binding";
+import { InputModeProvider } from "../state/input-mode-context";
+import { InterventionModeProvider } from "../state/intervention-mode-context";
+import { AutomationModeInputToolbar } from "./automation-mode-toolbar";
 import { BrowserChatHeader } from "./browser-chat-header";
 import { BrowserChatInputArea } from "./browser-chat-input-area";
 import { BrowserContextLoader } from "./browser-context-loader";
 import { BrowserMessageActions } from "./browser-message-actions";
 import { BrowserMessageList } from "./browser-message-list";
 import { ChatImagesListener } from "./chat-images-listener";
-import { resolveConversationRunContext } from "../services/conversation-tab-binding";
-import { InputModeProvider } from "../state/input-mode-context";
-import { InterventionModeProvider } from "../state/intervention-mode-context";
 import { InterventionUI } from "./intervention-ui";
 import { AptyToolDisplay } from "./investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";

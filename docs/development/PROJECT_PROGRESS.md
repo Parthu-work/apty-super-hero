@@ -20,7 +20,7 @@ is the honest current state, not aspirational.
 | Console/runtime event classification | Raw entries returned as-is (level, message, timestamp) | Partial | No classification into apty-error/CSP/CORS/JS-exception buckets | P2 | Not done this session |
 | Selector/DOM iframe+Shadow DOM handling | `iframeManager`, DOM/CDP snapshot already handle frames; Shadow DOM traversal exists in the collector | Partial | New selector tool reports iframe/shadow-root context but doesn't yet special-case cross-origin iframe limits beyond what already existed | P2 | Partially covered by new selector tool; deeper work not done |
 | Self-healing / stale-UID recovery | None — a stale UID throws and asks the model to re-snapshot | No | Manual recovery only (model calls `search_elements` again) | P2 | Not done this session |
-| Tool surface cleanup | `bookmark.ts`/`history.ts`/`organize-tabs.ts`/clipboard tools exist as source but are already excluded from `allBrowserTools` (verified); `mcp-bridge/src/tool-schemas.ts`'s tool-name mismatch against the real registry is root-caused and fixed | Done | `mcp-bridge/src/tool-schemas.ts` was missing all 8 `investigation.ts` tools plus `analyze_element_selectors` — a real gap (MCP clients couldn't reach the investigation/selector layer), not just a naive count mismatch. Fixed this session: all 9 added, plus the new `get_next_investigation_action` (10 total) | — | Done — see "MCP Bridge Tool-Registry Fix" below |
+| Tool surface cleanup | `bookmark.ts`/`history.ts`/`organize-tabs.ts`/clipboard tools exist as source but are already excluded from `allBrowserTools` (verified); `apps/mcp-bridge/src/tool-schemas.ts`'s tool-name mismatch against the real registry is root-caused and fixed | Done | `apps/mcp-bridge/src/tool-schemas.ts` was missing all 8 `investigation.ts` tools plus `analyze_element_selectors` — a real gap (MCP clients couldn't reach the investigation/selector layer), not just a naive count mismatch. Fixed this session: all 9 added, plus the new `get_next_investigation_action` (10 total) | — | Done — see "MCP Bridge Tool-Registry Fix" below |
 | UI: investigation state banner, evidence panel, timeline, diagnosis card | Live investigation banner + browser context bar (header), collapsible Timeline/Components/Diagnosis summary bar (above input), dedicated selector-analysis view | Yes | No dedicated "start investigation" form (by design — see below); no automated component tests for the header/summary-bar (their pure logic is fully tested) | — | Implemented this session — see "Side Panel Redesign" below |
 | Agent activity UX (friendly tool-call descriptions vs raw tool names) | Apty/investigation/selector tool names added to the existing `i18n` `tools.*` translation table with emoji-prefixed friendly labels; raw tool name shown in expanded technical details | Yes | Generic (non-Apty) tool names still just Title-Cased, not hand-written friendly descriptions | — | Implemented this session |
 | AIPex branding/UI debt removal | System prompt and agent name already rebranded (prior sessions); internal package names/storage keys deliberately kept (see `DECISIONS.md`) | Partial (by design) | Deliberate scope decision, not an oversight | P3 | No action — see `DECISIONS.md` |
@@ -44,7 +44,7 @@ components). Audited against that prompt's own P0/P1/P2 ordering:
 |---|---|---|---|---|---|
 | P0.1 | Correct Apty component model (unify Client/Widget/Player + Service Worker) | `AptyComponentKind` = `"apty-client-widget-player" \| "apty-studio"` (investigation-session.ts); UI's `ComponentHealthPanel` renders exactly 2 grouped rows with per-probe drill-down | Yes | — | Implemented this session |
 | P0.2 | Investigation planner ("what should I investigate first?") | `investigation-planner.ts`: deterministic pattern registry (tooltip/studio-select/studio-vs-prod/workflow/widget-loading + generic fallback) → ordered `PlanStep[]` with suggested tools; wired into `start_investigation`, exposed via `get_investigation_plan`, progress tracked via `update_investigation` | Yes | — | Implemented this session |
-| P0.3 | Investigation orchestration loop (plan→execute→observe→evaluate→decide) | `investigation-orchestrator.ts`: `recordToolCall` ledger + `getBudgetStatus` (25-call/15-min budget, duplicate-call loop detection) + `decideNextAction` (call_tool/verify/analyze/stop), exposed via new `get_next_investigation_action` tool. A deterministic recommend+guardrail layer the model consults each turn, with server-enforced (not just prompt-instructed) budget/loop limits — not a separate process that calls tools outside the model's own tool-selection loop (`packages/core`'s agent loop, unchanged) | Yes (scoped) | — | Implemented this session — see "Autonomous Investigation Orchestrator" below and `DECISIONS.md` for why it's shaped this way rather than as a full external control-flow engine |
+| P0.3 | Investigation orchestration loop (plan→execute→observe→evaluate→decide) | `investigation-orchestrator.ts`: `recordToolCall` ledger + `getBudgetStatus` (25-call/15-min budget, duplicate-call loop detection) + `decideNextAction` (call_tool/verify/analyze/stop), exposed via new `get_next_investigation_action` tool. A deterministic recommend+guardrail layer the model consults each turn, with server-enforced (not just prompt-instructed) budget/loop limits — not a separate process that calls tools outside the model's own tool-selection loop (`packages/agent-core`'s agent loop, unchanged) | Yes (scoped) | — | Implemented this session — see "Autonomous Investigation Orchestrator" below and `DECISIONS.md` for why it's shaped this way rather than as a full external control-flow engine |
 | P0.4 | Structured hypotheses (not strings) | `Hypothesis { id, statement, status, confidence, supportingEvidenceIds, contradictingEvidenceIds, createdAt, updatedAt }`; `update_investigation`'s `updateHypothesis` moves one through open→testing→supported/rejected/confirmed/inconclusive | Yes | — | Implemented this session |
 | P0.5 | Real verification loop; never let an unverified hypothesis become a confirmed RCA | `record_verification_attempt` can link to a `hypothesisId` (auto-updates its status); `update_investigation` **enforces** (not just instructs) that `confidence: "confirmed"` is downgraded to `"likely"` server-side unless a confirmed verification attempt already exists — testable, not prompt-only | Yes | — | Implemented this session |
 | P1.6 | Investigation-aware network capture (start/reproduce/stop session, not fixed window) | `apty/network-capture-session.ts`: per-conversation start/stop/status session, 15s heartbeat re-attach, 2000-request cap with a `truncated` flag, forced cleanup on tab-close/debugger-detach, failed/4xx/5xx requests recorded as evidence | Yes | — | Implemented this session — see "Investigation-Aware Network Capture Session" below |
@@ -155,13 +155,13 @@ Phase 4 of the informal roadmap below:
 Kept as generic browser-agent infrastructure (see section 12 of the task
 brief's classification: this is infrastructure, not AIPex-the-product):
 - Chrome extension shell (Manifest V3, side panel, content script,
-  background service worker) — `packages/browser-ext`
+  background service worker) — `apps/browser-extension`
 - DOM snapshot / element UID system — `packages/dom-snapshot`
 - Agent core (tool loop, model abstraction via Vercel AI SDK) —
-  `packages/core`
+  `packages/agent-core`
 - Browser automation: CDP commander + debugger lifecycle management, DOM
   locators, iframe manager, screenshot capture — `packages/browser-runtime/src/automation`
-- MCP bridge (WebSocket, Origin-validated, loopback-only) — `mcp-bridge/`
+- MCP bridge (WebSocket, Origin-validated, loopback-only) — `apps/mcp-bridge/`
 - Human-in-the-loop intervention system (`monitor-operation`,
   `user-selection`) — `packages/browser-runtime/src/intervention`
 - Skill system with a real QuickJS WASM sandbox (not `eval`) —
@@ -179,7 +179,7 @@ AIPex's release automation (`bump`/`release` workflows).
 
 ## What Was Modified
 
-- **System prompt** (`packages/aipex-react/src/components/chatbot/constants.ts`):
+- **System prompt** (`packages/ui/src/components/chatbot/constants.ts`):
   rewritten from a generic "AIPex browser assistant" (tab/bookmark/history/
   clipboard management, shopping-style task examples) into the Apty Live
   Browser Debugging Agent persona: the debugging loop, evidence-first
@@ -188,7 +188,7 @@ AIPex's release automation (`bump`/`release` workflows).
   Also fixed a latent type bug: it was a `string[]` assigned to a field
   typed `instructions?: string` — now a real joined string.
 - Agent name: `"AIPex Browser Assistant"` → `"Apty Live Browser Debugging Agent"`
-  (`packages/browser-ext/src/lib/browser-agent-config.ts`)
+  (`apps/browser-extension/src/lib/browser-agent-config.ts`)
 - `get_apty_debug_logs` renamed to `get_apty_page_logs` and now redacts
   sensitive values before returning log entries.
 
@@ -213,7 +213,7 @@ AIPex's release automation (`bump`/`release` workflows).
   mechanism exists on the Apty side yet.**
 - `config.ts` — reads/writes the above extension IDs and endpoints via
   `chrome.storage.local`, seeded at service-worker startup from build-time
-  Vite env vars (see `packages/browser-ext/.env.example`).
+  Vite env vars (see `apps/browser-extension/.env.example`).
 
 **New agent tools** (`packages/browser-runtime/src/tools/`):
 - `apty.ts` (5 tools): `get_apty_page_logs`, `get_apty_widget_diagnostics`,
@@ -232,7 +232,7 @@ corrected). **Now 44** — see "Evidence Correlation & Investigation
 Timeline" and "Selector Diagnostics" below for the 3 tools added this
 session.
 
-- `packages/browser-ext/src/apty-console-bridge.ts` (prior session): a
+- `apps/browser-extension/src/entrypoints/content/console-bridge.ts` (prior session): a
   MAIN-world content script that buffers console output/errors on every
   page since load — this is what `get_apty_page_logs` reads.
 
@@ -379,7 +379,7 @@ outcomes) as first-class, queryable state.
   `get_investigation_status`. 6 new tests covering the full lifecycle
   end-to-end and no-op behavior when no investigation has been started.
 - The system prompt's "THE DEBUGGING LOOP" section
-  (`packages/aipex-react/src/components/chatbot/constants.ts`) now
+  (`packages/ui/src/components/chatbot/constants.ts`) now
   instructs the model to call these tools at each step (start before
   collecting evidence, update status through collecting/analyzing/
   verifying, record a diagnosis+confidence via `update_investigation`,
@@ -404,7 +404,7 @@ transform the generic AIPex-inherited chat UI into an investigation-first
 Apty debugging console. Full component-by-component detail is in
 `ARCHITECTURE.md`'s "Side panel UI architecture" section; summary here.
 
-**Added** (`packages/browser-ext/src/lib/investigation/`, new directory):
+**Added** (`apps/browser-extension/src/components/investigation/`, new directory):
 - `component-health.ts` (+ 9 unit tests) — pure derivation of Client/
   Widget/Studio/Service-Worker health from the most recent `*-status`
   evidence per component; `not_checked` when no evidence exists yet, never
@@ -438,22 +438,22 @@ Apty debugging console. Full component-by-component detail is in
   component invents its own status vocabulary.
 
 **Modified**:
-- `packages/aipex-react/src/i18n/locales/{en,zh}.json` — friendly,
+- `packages/ui/src/i18n/locales/{en,zh}.json` — friendly,
   emoji-prefixed activity labels for every Apty/investigation/selector
   tool (e.g. `"get_network_diagnostics": "🌐 Checking network requests"`),
   added to the existing `tools.*` translation table rather than a new
   mapping layer (see `DECISIONS.md`).
-- `packages/aipex-react/src/components/chatbot/components/slots/tool-display.tsx`
+- `packages/ui/src/components/chatbot/components/slots/tool-display.tsx`
   — `DefaultToolDisplay` now shows the raw tool name (and duration) in its
   expanded technical details when it differs from the friendly label.
-- `packages/browser-ext/src/lib/browser-chat-header.tsx` — now actually
+- `apps/browser-extension/src/lib/browser-chat-header.tsx` — now actually
   renders the `title` prop (previously accepted but never displayed —
   a real, if minor, pre-existing bug) and hosts `InvestigationContextBar`.
-- `packages/browser-ext/src/lib/conversation-tab-binding.ts` — added
+- `apps/browser-extension/src/services/conversation-tab-binding.ts` — added
   `peekConversationTabBinding()`, a read-only lookup for UI display that
   never mutates or creates a binding (diagnostic tools keep using
   `resolveConversationRunContext`/`resolveDiagnosticTab`, not this).
-- `packages/browser-ext/vitest.config.ts` — added the same
+- `apps/browser-extension/vitest.config.ts` — added the same
   `@apty/ui/*` → source alias `vite.config.ts` already
   used for the real build; without it, tests couldn't resolve deep
   subpaths (`/lib/utils`, `/components/ui/*`) that aren't in
@@ -494,7 +494,7 @@ verification guard.
   matters which probe produced a given piece of evidence — the
   unification happens one layer up, at the product-facing "which
   component" concept, not by throwing away probe-level detail.
-- `packages/browser-ext/src/lib/investigation/component-health.ts` now
+- `apps/browser-extension/src/components/investigation/component-health.ts` now
   derives exactly two grouped rows ("Apty Client / Widget / Player" and
   "Apty Studio") instead of four, each with `subComponents` for per-probe
   drill-down, aggregated worst-signal-wins (error > warning > healthy >
@@ -674,7 +674,7 @@ tool (`tools/investigation.ts`; investigation tools now number 9, up from
 
 **What this is, and isn't**: tool execution in this codebase is still
 LLM-driven, one call at a time, via `@openai/agents`' `run()`
-(`packages/core`'s agent loop, unchanged) — there is no separate process
+(`packages/agent-core`'s agent loop, unchanged) — there is no separate process
 that autonomously executes tools without the model. This module is the
 deterministic recommend+guardrail layer the model consults each turn via
 `get_next_investigation_action`, plus server-enforced budget/loop limits
@@ -699,7 +699,7 @@ untested against a running model; see `## Known Limitations`.
 ## MCP Bridge Tool-Registry Fix & PR #11 Review (this session)
 
 The same audit found a real, previously-undocumented tool-registry gap:
-`mcp-bridge/src/tool-schemas.ts` (the static JSON-schema mirror the MCP
+`apps/mcp-bridge/src/tool-schemas.ts` (the static JSON-schema mirror the MCP
 bridge uses, with zero dependency on the extension runtime) was missing 9
 tools that were already registered in
 `packages/browser-runtime/src/tools/index.ts` — all 8
@@ -713,7 +713,7 @@ etc.) could not reach the investigation or selector-diagnostics layer at
 all — a bigger deal than the vague "tool-name count mismatch" the original
 gap matrix's row 23 flagged. Added all 9 missing schemas plus the new
 `get_next_investigation_action` schema (10 total) to
-`mcp-bridge/src/tool-schemas.ts`. Also corrected `tools/index.ts`'s doc
+`apps/mcp-bridge/src/tool-schemas.ts`. Also corrected `tools/index.ts`'s doc
 comment, which claimed "Total: 34 tools" against an actual registered
 count of 50 (51 now, with the new tool) — replaced with an itemized
 per-category breakdown and an explicit note to recompute from the arrays
@@ -796,7 +796,7 @@ param, `get_network_capture_status`) also call `recordToolCall()`
 toward the orchestrator's tool-call budget/loop-detection ledger — PR #11
 predated the orchestrator and didn't have this integration. Registered in
 `tools/index.ts` (tool registry: 51 → 54, see `## Browser Tools` below);
-schemas added to `mcp-bridge/src/tool-schemas.ts` (also now 54, matching
+schemas added to `apps/mcp-bridge/src/tool-schemas.ts` (also now 54, matching
 browser-runtime).
 
 Tested in `network-capture-session.test.ts` (13 new cases, including
@@ -866,7 +866,7 @@ rather than a fabricated response.
 
 5 new tools (`packages/browser-runtime/src/tools/extension-network.ts`,
 registered in `tools/index.ts`: 54 → 59; schemas added to
-`mcp-bridge/src/tool-schemas.ts`): `connect_apty_client` (idempotent,
+`apps/mcp-bridge/src/tool-schemas.ts`): `connect_apty_client` (idempotent,
 falls back to the configured `clientExtensionId` from
 `apty/config.ts` — a field that already existed but had no reader or UI
 before this), `disconnect_apty_client`, `get_apty_client_connection_status`,
@@ -875,7 +875,7 @@ the primary "Get segments.json" chat flow needs no separate connect
 step), and `list_extension_network_resources` (answers "what resources
 did the Apty Client load?").
 
-A new Options UI panel (`packages/browser-ext/src/pages/options/
+A new Options UI panel (`apps/browser-extension/src/pages/options/
 apty-client-panel.tsx`, in the existing "connection" tab next to the MCP
 bridge panel) lets the user configure the extension ID once — it validates
 the id resolves to a real, enabled extension via `chrome.management.get`
@@ -908,7 +908,7 @@ as-is), and no mass AIPex→Apty internal-package rename — the user-facing
 product surface already says "Apty Live Debugging" throughout (from
 earlier sessions; see `browser-chat-header.tsx`/
 `debugging-welcome-screen.tsx`), and the remaining "AIPex" strings found
-in `packages/aipex-react`'s library defaults/i18n fallbacks are not on the
+in `packages/ui`'s library defaults/i18n fallbacks are not on the
 actual product surface (`browser-ext` overrides them), so rewriting them
 was judged not worth the regression risk this session (see the "safe to
 continue" list below, item 10).
@@ -941,7 +941,7 @@ Verified: `pnpm -r run typecheck`, `pnpm -r run test`, and
   `get_runtime_diagnostics` — see the section above (this session).
 - Autonomous investigation orchestrator (`investigation-orchestrator.ts`,
   `get_next_investigation_action`) with server-enforced budget/loop
-  guardrails, and the `mcp-bridge/src/tool-schemas.ts` tool-registry fix
+  guardrails, and the `apps/mcp-bridge/src/tool-schemas.ts` tool-registry fix
   (9 missing tools + the new one added) — see the two sections above
   (this session).
 - Investigation-aware network capture session
@@ -978,7 +978,7 @@ picture against the engineering-automation master prompt):
    selector/content state and the live production DOM/Client state — the
    planner's `studio-vs-production` category already has a "compare" step,
    but no tool backs it yet beyond the existing individual diagnostics.
-5. **Scope `host-access-config.json`** (`packages/browser-ext/host-access-config.json`,
+5. **Scope `host-access-config.json`** (`apps/browser-extension/host-access-config.json`,
    currently `"mode": "include-all"`) to Apty's actual target application
    domains once those are known, rather than every site the user visits.
 6. **Scope the console-capture content script** (`apty-console-bridge.ts`,
@@ -1034,9 +1034,9 @@ transport, not the automation engine; there is no RAG layer.
   four Apty provider interfaces + implementations
 - `packages/browser-runtime/src/tools/apty.ts` — Apty-facing agent tools
 - `packages/browser-runtime/src/tools/devtools.ts` — CDP network/runtime tools
-- `packages/browser-ext/src/apty-console-bridge.ts` — MAIN-world console capture
-- `packages/browser-ext/.env.example` — Apty integration config placeholders
-- `packages/aipex-react/src/components/chatbot/constants.ts` — system prompt
+- `apps/browser-extension/src/entrypoints/content/console-bridge.ts` — MAIN-world console capture
+- `apps/browser-extension/.env.example` — Apty integration config placeholders
+- `packages/ui/src/components/chatbot/constants.ts` — system prompt
 - `packages/browser-runtime/src/tools/index.ts` — the tool registry
 
 ## Apty Studio Integration
@@ -1046,7 +1046,7 @@ Implementation: `packages/browser-runtime/src/apty/studio-diagnostics.ts`
 (`ExternalMessageStudioDiagnosticsProvider`) — sends
 `{type: "apty-debug-agent:get-studio-status"}` / `get-studio-logs` via
 `chrome.runtime.sendMessage(studioExtensionId, ...)`.
-Configuration: `VITE_APTY_STUDIO_EXTENSION_ID` in `packages/browser-ext/.env`.
+Configuration: `VITE_APTY_STUDIO_EXTENSION_ID` in `apps/browser-extension/.env`.
 Remaining: Studio needs (1) a real extension ID to configure here, (2) its
 own `externally_connectable` allowlisting this extension's ID, and (3) a
 message handler that responds to the two message types above. None of that
@@ -1113,7 +1113,7 @@ own doc comment went stale once already, see the tool-registry fix
 below). (`bookmark.ts`, `history.ts` and `organize-tabs.ts` exist as
 source files but are not registered in `allBrowserTools`.)
 
-**Fixed a prior session**: `mcp-bridge/src/tool-schemas.ts` (a separate,
+**Fixed a prior session**: `apps/mcp-bridge/src/tool-schemas.ts` (a separate,
 non-workspace package) was missing all 9 of `investigation.ts`'s
 lifecycle tools plus `selector.ts`'s `analyze_element_selectors` — a
 real, pre-existing gap (not a regression) meaning MCP clients connecting
@@ -1139,13 +1139,13 @@ classify every entry into a `category` and return a `categoryCounts` tally
 
 ## MCP
 
-Unchanged architecture from AIPex: `mcp-bridge/` is a standalone Node
+Unchanged architecture from AIPex: `apps/mcp-bridge/` is a standalone Node
 package (own `package.json`, not part of the pnpm workspace) exposing a
 WebSocket daemon (`ws://127.0.0.1:9223` by default) that the extension
 connects to as a client. Origin-header validation rejects all http/https
 page origins (prevents cross-site WebSocket hijacking); Node clients
 without an Origin header, and `chrome-extension://`/`moz-extension://`
-origins, are allowed. `mcp-bridge/src/tool-schemas.ts` was updated to match
+origins, are allowed. `apps/mcp-bridge/src/tool-schemas.ts` was updated to match
 the new/renamed Apty and DevTools tools, and this session to add the 9
 investigation/selector tools it was missing plus
 `get_next_investigation_action` (10 schemas total) — see "MCP Bridge
@@ -1167,15 +1167,15 @@ list to scope to).
 ## Tests
 
 ### Passing
-- `packages/core`: 217 tests
+- `packages/agent-core`: 217 tests
 - `packages/dom-snapshot`: 132 tests
 - `packages/browser-runtime`: 331 tests (314 prior + 13 new
   `network-capture-session.test.ts` cases + 4 new
   `tools/network-capture.test.ts` cases — this session; the 314 itself
   was 298 prior + 16 `investigation-orchestrator.test.ts` cases + 2 in
   `tools/investigation.test.ts` from an earlier session)
-- `packages/aipex-react`: 114 tests (10 pre-existing skips, unrelated to this work)
-- `packages/browser-ext`: 57 tests (54 prior + updated/expanded coverage
+- `packages/ui`: 114 tests (10 pre-existing skips, unrelated to this work)
+- `apps/browser-extension`: 57 tests (54 prior + updated/expanded coverage
   in `component-health.test.ts`/`component-health-panel.test.tsx`/
   `diagnosis-card.test.tsx` for the grouped component model and
   structured hypotheses — prior session)
@@ -1223,9 +1223,9 @@ exactly that, plus one more concrete bug the research didn't catch.
 **What shipped:**
 
 - **`RunContext` threading (core → tools).**
-  `packages/core/src/types.ts`'s `ChatOptions` gained an opaque
+  `packages/agent-core/src/types.ts`'s `ChatOptions` gained an opaque
   `runContext?: unknown` field, forwarded by `AIPex.chat()` /
-  `runExecution()` (`packages/core/src/agent/aipex.ts`) to `run()`'s
+  `runExecution()` (`packages/agent-core/src/agent/aipex.ts`) to `run()`'s
   `context` option. `core` stays browser-agnostic — it doesn't interpret
   the value, just passes it through to every tool's
   `execute(input, context)` as `context.context` (confirmed against
@@ -1249,14 +1249,14 @@ exactly that, plus one more concrete bug the research didn't catch.
   unattributed evidence" pattern the service-worker tool already used for
   its `scope: "shared-global"` field.
 - **Per-conversation tab binding, `Map<sessionId, tabId>`**
-  (`packages/browser-ext/src/lib/conversation-tab-binding.ts`, new): binds
+  (`apps/browser-extension/src/services/conversation-tab-binding.ts`, new): binds
   a conversation to whichever tab was active when it first got a real
   session id, and keeps reusing that tab even if the user later switches
   focus elsewhere — the actual isolation guarantee. Deliberately a keyed
   map, not a `currentTabId` global. Wired into the chat hook via a new
-  `ChatConfig.getRunContext` callback (`packages/aipex-react`'s
+  `ChatConfig.getRunContext` callback (`packages/ui`'s
   `useChat`/`ChatConfig`) so `aipex-react` itself stays runtime-agnostic;
-  `packages/browser-ext/src/pages/common/app-root.tsx` supplies the
+  `apps/browser-extension/src/components/app-root.tsx` supplies the
   Chrome-specific resolver. Released on "new chat" and on switching to a
   different stored conversation.
 - **Fixed a real cross-conversation contamination bug**, found while
@@ -1265,7 +1265,7 @@ exactly that, plus one more concrete bug the research didn't catch.
   between) and `core.Session.id` (the actual LLM message history /
   `RunContext`-bound conversation) are two different id spaces, and
   nothing reconciled them.
-  `packages/browser-ext/src/lib/browser-chat-header.tsx`'s
+  `apps/browser-extension/src/lib/browser-chat-header.tsx`'s
   `handleConversationSelect` restored the UI's message list from the
   selected `ConversationData` but never rebound `useChat`'s internal
   `sessionId` — so sending a message right after restoring an old
@@ -1279,15 +1279,15 @@ exactly that, plus one more concrete bug the research didn't catch.
   a `bindSession()` escape hatch to `useChat` (exposed through
   `ChatContextValue`) that `handleConversationSelect` now calls to rebind
   the live session to match, instead of leaving it dangling.
-- **Tests**: `packages/core/src/agent/aipex.test.ts` (`runContext` →
+- **Tests**: `packages/agent-core/src/agent/aipex.test.ts` (`runContext` →
   `run()` passthrough, new + resumed sessions),
   `packages/browser-runtime/src/tools/tab-utils.test.ts` +
   `apty.test.ts` (bound-tab vs active-tab resolution, including a real
   `.invoke()` call through `getAptyPageLogsTool`),
   `packages/browser-runtime/src/conversation/__tests__/conversation-storage.test.ts`
-  (`agentSessionId` persistence), `packages/aipex-react/src/hooks/use-chat.test.ts`
+  (`agentSessionId` persistence), `packages/ui/src/hooks/use-chat.test.ts`
   (`getRunContext` resolution + `bindSession`), and
-  `packages/browser-ext/src/lib/conversation-tab-binding.test.ts` (the
+  `apps/browser-extension/src/lib/conversation-tab-binding.test.ts` (the
   per-session map itself, including a "two concurrent sessions must not
   share a tab" case).
 
@@ -1332,7 +1332,7 @@ task above. Recording what was found so the next session doesn't have to
 re-discover it:
 
 - **Chat/conversation isolation already exists at the message-history
-  level.** `packages/core/src/conversation/session.ts`'s `Session` class
+  level.** `packages/agent-core/src/conversation/session.ts`'s `Session` class
   (id, message items, token metrics, a generic `metadata: Record<string,
   unknown>` bag via `setMetadata`/`getMetadata`) plus
   `packages/browser-runtime/src/conversation/conversation-storage.ts`
@@ -1350,10 +1350,10 @@ re-discover it:
   cross-session evidence leakage, and it's a real, verifiable gap today,
   not a hypothetical one.
 - **The agent SDK already supports exactly the fix needed, unused today.**
-  `@openai/agents` (which `packages/core` wraps) supports a generic
+  `@openai/agents` (which `packages/agent-core` wraps) supports a generic
   `RunContext<Context>` threaded through every tool call:
   `execute(input, context?: RunContext<Context>, details?: ToolCallDetails)`.
-  `packages/core/src/agent/aipex.ts`'s call to `run(this.agent, input,
+  `packages/agent-core/src/agent/aipex.ts`'s call to `run(this.agent, input,
   {...})` does not currently pass a `context` option at all. The fix is to
   (1) pass `context: { tabId, sessionId }` (or similar) when invoking
   `run()`, bound at conversation-start time to whichever tab the
@@ -1420,6 +1420,18 @@ commit.
 
 ## Known Limitations
 
+- **Existing issue discovered during the repository restructure**: `pnpm
+  audit:tools` (`tooling/scripts/audit-tools.mjs`, added this session)
+  found a pre-existing duplicate tool name — `ungroup_tabs` is registered
+  in both `packages/browser-runtime/src/tools/tab.ts` and
+  `packages/browser-runtime/src/tools/tools/tab-groups/index.ts`. The
+  latter is one of the gated/unregistered tool implementations under
+  `tools/tools/` awaiting security review (not currently wired into
+  `allBrowserTools`), so this isn't a live runtime collision today, but it
+  will become one if `tab-groups` is ever registered without also
+  resolving the name clash first. Not fixed as part of this restructure —
+  deciding which implementation should own that name is a product/behavior
+  call, not a structural one.
 - No real Apty Widget/Client/Studio/Service-Worker integration — every
   Apty-specific tool currently reports `not_configured`/`unavailable`
   against a real deployment until Apty-side work happens (Service Worker
@@ -1452,7 +1464,7 @@ commit.
   gives the model a deterministic recommendation and enforces a real
   25-tool-call/15-minute budget plus loop detection server-side, but it
   does not call tools itself: the model still calls one tool at a time via
-  `@openai/agents`' `run()` (`packages/core`'s agent loop, unchanged). The
+  `@openai/agents`' `run()` (`packages/agent-core`'s agent loop, unchanged). The
   system prompt (`constants.ts`'s "THE DEBUGGING LOOP" section) was not
   updated to explicitly instruct the model to call
   `get_next_investigation_action` — the tool's own description is
@@ -1470,7 +1482,7 @@ commit.
   **Console/runtime classification (P1.7) is done** — see
   `log-classification.ts` and the "Console/runtime event classification"
   writeup in `ARCHITECTURE.md`'s DevTools/CDP section.
-- **`mcp-bridge/src/tool-schemas.ts` tool-registry gap is fixed** — it
+- **`apps/mcp-bridge/src/tool-schemas.ts` tool-registry gap is fixed** — it
   used to lack all 8 `investigation.ts` tools and
   `analyze_element_selectors`; all 9 plus the new
   `get_next_investigation_action` (10 total) were added this session. See
@@ -1534,7 +1546,7 @@ this file for the fuller P0/P1/P2 picture):**
    per-conversation `InterventionManager` mode once/if concurrent
    conversations within one window's UI become a thing.
 2. **Manually verify the UI in a running browser** — load the built
-   extension (`packages/browser-ext/dist`), open the side panel, and walk
+   extension (`apps/browser-extension/dist`), open the side panel, and walk
    through: empty state → typing a debugging question → the investigation
    banner appearing → the Plan tab's checklist populating → evidence/
    component-health/diagnosis populating as tools run → Verify Diagnosis →

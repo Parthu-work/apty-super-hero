@@ -1,5 +1,5 @@
-import { Badge } from "@apty/ui/components/ui/badge";
 import type { FileTreeNode } from "@apty/browser-runtime";
+import { Badge } from "@apty/ui/components/ui/badge";
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import type React from "react";
 import { FileActions } from "./FileActions";

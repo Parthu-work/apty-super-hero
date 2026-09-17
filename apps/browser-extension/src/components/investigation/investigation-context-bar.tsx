@@ -7,6 +7,8 @@
  * action) only while an `InvestigationSession` is actually in progress —
  * never a fabricated "Investigating..." state.
  */
+
+import { stopInvestigation } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import {
@@ -18,7 +20,6 @@ import {
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
 import { cn } from "@apty/ui/lib/utils";
-import { stopInvestigation } from "@apty/browser-runtime";
 import { useState } from "react";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";

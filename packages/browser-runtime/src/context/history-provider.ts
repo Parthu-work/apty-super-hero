@@ -3,11 +3,7 @@
  * Provides contexts from browser browsing history
  */
 
-import type {
-  Context,
-  ContextProvider,
-  ContextQuery,
-} from "@apty/agent-core";
+import type { Context, ContextProvider, ContextQuery } from "@apty/agent-core";
 
 export class HistoryProvider implements ContextProvider {
   id = "browser.history";

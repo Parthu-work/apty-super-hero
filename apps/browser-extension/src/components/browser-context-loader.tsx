@@ -7,13 +7,13 @@
  * browser-runtime providers into the PromptInput context hooks.
  */
 
+import type { SkillMetadata } from "@apty/browser-runtime";
+import { skillManager, skillStorage } from "@apty/browser-runtime";
 import {
   type SkillItem,
   usePromptInputContexts,
   usePromptInputSkills,
 } from "@apty/ui/components/ai-elements/prompt-input";
-import type { SkillMetadata } from "@apty/browser-runtime";
-import { skillManager, skillStorage } from "@apty/browser-runtime";
 import { useEffect } from "react";
 import { useTabsSync } from "../hooks/use-tabs-sync";
 

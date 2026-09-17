@@ -3,6 +3,10 @@
  * Clock-icon dropdown that lists recent conversations with select/delete/new actions
  */
 
+import {
+  type ConversationData,
+  conversationStorage,
+} from "@apty/browser-runtime";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -18,10 +22,6 @@ import {
 } from "@apty/ui/components/ui/tooltip";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
-import {
-  type ConversationData,
-  conversationStorage,
-} from "@apty/browser-runtime";
 import { ClockIcon, MessageSquareIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 

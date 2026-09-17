@@ -16,7 +16,11 @@
     "lint:fix": "biome check . --fix --unsafe",
     "lint:dependencies": "knip --strict",
     "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "audit:branding": "node tooling/scripts/check-branding.mjs",
+    "audit:architecture": "node tooling/scripts/check-architecture.mjs",
+    "audit:tools": "node tooling/scripts/audit-tools.mjs",
+    "validate:extension": "node tooling/scripts/validate-manifest.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",

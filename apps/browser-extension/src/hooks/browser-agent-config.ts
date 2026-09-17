@@ -11,7 +11,6 @@ import {
   STORAGE_KEYS,
   validateAutomationMode,
 } from "@apty/agent-core";
-import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import {
   allBrowserProviders,
   allBrowserTools,
@@ -19,6 +18,7 @@ import {
   selectRelevantTools,
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
+import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo } from "react";
 import { createAIProvider, isByokConfigured } from "../services/ai-provider";
 

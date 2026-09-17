@@ -10,6 +10,7 @@ import {
   STORAGE_KEYS,
   validateAutomationMode,
 } from "@apty/agent-core";
+import { useStorage } from "@apty/browser-runtime/hooks";
 import type { InputToolbarSlotProps } from "@apty/ui";
 import { TokenUsageIndicator } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
@@ -26,7 +27,6 @@ import {
 } from "@apty/ui/components/ui/tooltip";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
-import { useStorage } from "@apty/browser-runtime/hooks";
 import {
   CheckIcon,
   EyeIcon,

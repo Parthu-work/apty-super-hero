@@ -130,7 +130,7 @@ already has a corrected version of what it attempted.
 
 The previous session's "Why no external investigation orchestration loop"
 entry below concluded that a full external control loop overriding the
-model's own tool-selection would mean either forking `packages/core`'s
+model's own tool-selection would mean either forking `packages/agent-core`'s
 `run()` loop, or adding another tool the model can choose to call — and
 that the second option "is not meaningfully different from what
 `get_investigation_plan`/`get_investigation_status`/
@@ -229,7 +229,7 @@ recommend+guardrail layer this entry's own last paragraph anticipated
 ("a tool that explicitly says 'you have not called X yet, consider it'...
 just extended"). The reasoning below for why a *full* external
 control-flow loop (overriding the model's own tool-selection from outside
-`packages/core`) remains out of scope still holds and is kept for
+`packages/agent-core`) remains out of scope still holds and is kept for
 context.
 
 The engineering-automation master prompt's own P0 list includes an
@@ -238,23 +238,23 @@ decide, external to the model). This session implemented every other P0
 item (component model, planner, structured hypotheses, verification
 guard) but deliberately did not attempt this one. Reasoning: this
 codebase's actual execution loop — which tool to call next, when to stop —
-lives inside `packages/core`'s wrapper around `@openai/agents`' `run()`;
+lives inside `packages/agent-core`'s wrapper around `@openai/agents`' `run()`;
 the model itself is the orchestrator today. Building a *second*,
 deterministic orchestration layer that decides what the model should do
 next would mean either (a) constraining or overriding the model's own
-tool-selection loop from outside `packages/core` — a real architectural
+tool-selection loop from outside `packages/agent-core` — a real architectural
 change to the agent's control flow, not an additive tool — or (b) another
 tool the model can *choose* to call for a suggestion, which is not
 meaningfully different from what `get_investigation_plan`/
 `get_investigation_status`/`get_investigation_timeline` already provide
 (decision-support data, not control flow). Doing (a) safely requires
-understanding `packages/core`'s `run()` loop deeply enough to know where
+understanding `packages/agent-core`'s `run()` loop deeply enough to know where
 to intercept it without breaking existing tool-calling behavior across
 every other tool in the registry — a large, separate investigation in its
 own right, and not something to bolt on alongside the same session's
 component-model/planner/hypothesis/verification-guard work without a much
 higher risk of a subtle regression. Recommendation for whoever picks this
-up: start by reading `packages/core/src/agent/aipex.ts`'s `run()` call and
+up: start by reading `packages/agent-core/src/agent/aipex.ts`'s `run()` call and
 `@openai/agents`' loop-control hooks (if any) before writing any
 orchestration code — the answer may be "there's no clean interception
 point without a fork," in which case the honest scope for "orchestration"
@@ -305,7 +305,7 @@ have made "start a fresh investigation in the same chat" awkward to model.
 
 ## The side panel UI reads evidence/investigation stores directly, not through a message bus
 
-`packages/browser-ext/src/lib/investigation/use-investigation-data.ts`
+`apps/browser-extension/src/components/investigation/use-investigation-data.ts`
 imports `getEvidence`/`getInvestigation`/`correlateEvidence` from
 `@apty/browser-runtime` and calls them directly from a polling
 React hook, rather than having the UI wait for the model to report state
@@ -338,7 +338,7 @@ message length or keyword matching.
 
 ## Friendly tool-call names reuse the existing i18n `tools.*` translation layer
 
-`packages/aipex-react/src/i18n/tool-names.ts`'s `translatedToolName()`
+`packages/ui/src/i18n/tool-names.ts`'s `translatedToolName()`
 already existed (tool name → `tools.<name>` lookup, falling back to
 Title Case) and is already wired into every tool-display variant. Rather
 than build a second, parallel "activity description" mapping layer, this
@@ -351,12 +351,12 @@ engineers who want it.
 
 ## No new UI framework/design system
 
-The existing shadcn/radix-based primitives in `packages/aipex-react/src/components/ui/`
+The existing shadcn/radix-based primitives in `packages/ui/src/components/ui/`
 (Badge, Card, Collapsible, Dialog, Tabs, Tooltip) and `ai-elements/`
 (Tool, CodeBlock, Suggestion) already covered every visual need for the
 investigation-first redesign (component health list, evidence timeline,
 diagnosis card, selector analysis). All new browser-ext UI
-(`packages/browser-ext/src/lib/investigation/`) composes these rather than
+(`apps/browser-extension/src/components/investigation/`) composes these rather than
 introducing new dependencies, consistent with the project brief's "avoid
 introducing a new UI framework unless necessary."
 
@@ -386,7 +386,7 @@ it's obvious where real Apty-side work is still needed.
 ## Config lives in `chrome.storage.local`, seeded from build-time env, not read directly from `import.meta.env` in browser-runtime
 
 `packages/browser-runtime` is a plain `tsc`-built package with no Vite
-dependency; only `packages/browser-ext` has `import.meta.env` access. Rather
+dependency; only `apps/browser-extension` has `import.meta.env` access. Rather
 than make `browser-runtime` Vite-aware (wrong direction — runtime/browser
 logic shouldn't depend on a specific bundler), `browser-ext`'s
 `background.ts` reads the Vite env vars once at service-worker startup and
@@ -409,12 +409,25 @@ snapshot, element UIDs, the MCP bridge, WebSocket transport, the
 intervention system, and the tab/screenshot/skill tools are generic
 browser-agent infrastructure that AIPex happens to have built well — kept
 as-is. Internal package names (`@aipexstudio/*`), the core agent class
-name (`AipexAgent`), and `chrome.storage` key prefixes (`aipex-*`) were
+name (`AIPex`), and `chrome.storage` key prefixes (`aipex-*`) were
 *not* renamed. This is a deliberate scope decision, not an oversight: it's
 a large, purely-cosmetic refactor with real regression risk (every import
 path, every serialized storage key) for zero functional benefit. Revisit
 only if there's a concrete reason (e.g. npm-publishing this fork under
 Apty's own name) rather than "it still says AIPex somewhere."
+
+**Update (repository restructure)**: the concrete reason arrived — this repo
+was restructured into an `apps/`+`packages/` layout under Apty's own naming.
+Package names were renamed (`@aipexstudio/*` -> `@apty/*`) and directories
+moved to match (`packages/core` -> `packages/agent-core`,
+`packages/aipex-react` -> `packages/ui`, `packages/browser-ext` ->
+`apps/browser-extension`), since renaming a package name/directory doesn't
+touch any serialized data. The other half of this decision still holds and
+was deliberately *not* revisited: the `AIPex` class name and every
+`chrome.storage`/IndexedDB key (`aipex-*`, `aipex_*`) are unchanged, because
+those are real persisted-data contracts for existing installs, not cosmetic
+branding — renaming them remains the large-regression-risk-for-zero-benefit
+move described above.
 
 ## `get_network_diagnostics` / `get_runtime_diagnostics` use a bounded live capture window, not a persistent recorder
 

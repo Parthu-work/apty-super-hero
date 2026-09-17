@@ -14,10 +14,14 @@
  * cooperates with the resource-inspection message contract — the real
  * handshake happens on first use (see connect_apty_client).
  */
+
 import {
-  Alert,
-  AlertDescription,
-} from "@apty/ui/components/ui/alert";
+  type AptyIntegrationConfig,
+  getAptyIntegrationConfig,
+  isValidExtensionId,
+  setAptyIntegrationConfig,
+} from "@apty/browser-runtime";
+import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
@@ -30,12 +34,6 @@ import {
 import { Input } from "@apty/ui/components/ui/input";
 import { Label } from "@apty/ui/components/ui/label";
 import { cn } from "@apty/ui/lib/utils";
-import {
-  type AptyIntegrationConfig,
-  getAptyIntegrationConfig,
-  isValidExtensionId,
-  setAptyIntegrationConfig,
-} from "@apty/browser-runtime";
 import { CheckCircle2, Info, Loader2, Plug, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 

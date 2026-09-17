@@ -3,11 +3,7 @@
  * Provides screenshot of the currently visible tab
  */
 
-import type {
-  Context,
-  ContextProvider,
-  ContextQuery,
-} from "@apty/agent-core";
+import type { Context, ContextProvider, ContextQuery } from "@apty/agent-core";
 
 export class ScreenshotProvider implements ContextProvider {
   id = "browser.screenshot";

@@ -1,12 +1,12 @@
-import { FakeMouse } from "@apty/ui/components/fake-mouse";
-import type { FakeMouseController } from "@apty/ui/components/fake-mouse/types";
-import type { OmniCommandGroup } from "@apty/ui/components/omni";
-import { Omni } from "@apty/ui/components/omni";
 import {
   collectDiscoverableLinks,
   collectDomHealthSnapshot,
   collectDomSnapshot,
 } from "@apty/dom-snapshot";
+import { FakeMouse } from "@apty/ui/components/fake-mouse";
+import type { FakeMouseController } from "@apty/ui/components/fake-mouse/types";
+import type { OmniCommandGroup } from "@apty/ui/components/omni";
+import { Omni } from "@apty/ui/components/omni";
 import { MessageSquareText } from "lucide-react";
 import React from "react";
 import ReactDOM from "react-dom/client";

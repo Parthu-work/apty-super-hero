@@ -31,7 +31,10 @@ export default defineConfig({
       { find: "@", replacement: path.resolve(__dirname, "./") },
       {
         find: "@apty/agent-core",
-        replacement: path.resolve(__dirname, "../../packages/agent-core/src/index.ts"),
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/agent-core/src/index.ts",
+        ),
       },
       // Mirrors vite.config.ts: ui's package.json exports map only
       // covers a subset of its subpaths (e.g. no "./lib/*"), but the real

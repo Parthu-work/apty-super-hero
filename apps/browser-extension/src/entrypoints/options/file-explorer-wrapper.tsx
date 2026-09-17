@@ -5,10 +5,9 @@
  * This component uses the zenfs manager from @apty/browser-runtime.
  */
 
-import {
-  Alert,
-  AlertDescription,
-} from "@apty/ui/components/ui/alert";
+import type { DiskUsage, FileTreeNode } from "@apty/browser-runtime";
+import { zenfs } from "@apty/browser-runtime";
+import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
@@ -19,8 +18,6 @@ import {
   CardTitle,
 } from "@apty/ui/components/ui/card";
 import { Input } from "@apty/ui/components/ui/input";
-import type { DiskUsage, FileTreeNode } from "@apty/browser-runtime";
-import { zenfs } from "@apty/browser-runtime";
 import {
   AlertCircle,
   Files,

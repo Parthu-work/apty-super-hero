@@ -5,13 +5,13 @@
  * used by @apty/ui UI components.
  */
 
+import { zenfs } from "@apty/browser-runtime";
 import type {
   DiskUsage,
   FileStats,
   FileSystemClient,
   FileTreeNode,
 } from "@apty/ui";
-import { zenfs } from "@apty/browser-runtime";
 
 export class FileSystemClientAdapter implements FileSystemClient {
   async initialize(): Promise<void> {

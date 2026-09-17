@@ -3,11 +3,7 @@
  * Provides context from the currently active browser tab
  */
 
-import type {
-  Context,
-  ContextProvider,
-  ContextQuery,
-} from "@apty/agent-core";
+import type { Context, ContextProvider, ContextQuery } from "@apty/agent-core";
 
 export class CurrentPageProvider implements ContextProvider {
   id = "browser.current-page";

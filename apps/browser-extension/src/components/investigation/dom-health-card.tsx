@@ -15,9 +15,7 @@
  * agent tools call — so the buttons work without any agent/LLM turn, and
  * always report the same deterministic result either way.
  */
-import { useChatContext } from "@apty/ui/components/chatbot";
-import { Button } from "@apty/ui/components/ui/button";
-import { cn } from "@apty/ui/lib/utils";
+
 import {
   type ApplicationAuditOutcome,
   type ApplicationAuditProgress,
@@ -32,6 +30,9 @@ import {
   runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "@apty/browser-runtime";
+import { useChatContext } from "@apty/ui/components/chatbot";
+import { Button } from "@apty/ui/components/ui/button";
+import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, Loader2Icon, ScanSearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StatusMeta } from "./status-meta";

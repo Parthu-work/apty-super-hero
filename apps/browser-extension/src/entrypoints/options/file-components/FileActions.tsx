@@ -1,3 +1,4 @@
+import type { FileTreeNode } from "@apty/browser-runtime";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -6,7 +7,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@apty/ui/components/ui/dropdown-menu";
-import type { FileTreeNode } from "@apty/browser-runtime";
 import { Eye, Info, MoreVertical, Trash2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";

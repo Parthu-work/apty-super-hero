@@ -1,7 +1,6 @@
-import {
-  Alert,
-  AlertDescription,
-} from "@apty/ui/components/ui/alert";
+import type { FileInfo } from "@apty/browser-runtime";
+import { skillManager, zenfs } from "@apty/browser-runtime";
+import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
@@ -13,8 +12,6 @@ import {
 } from "@apty/ui/components/ui/dialog";
 import { Textarea } from "@apty/ui/components/ui/textarea";
 import { useTheme } from "@apty/ui/theme/context";
-import type { FileInfo } from "@apty/browser-runtime";
-import { skillManager, zenfs } from "@apty/browser-runtime";
 import {
   AlertCircle,
   Code,

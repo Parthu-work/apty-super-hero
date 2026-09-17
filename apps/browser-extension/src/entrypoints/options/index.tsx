@@ -1,10 +1,10 @@
 import type { AppSettings } from "@apty/agent-core";
+import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import { SettingsPage } from "@apty/ui";
 import { I18nProvider } from "@apty/ui/i18n/context";
 import type { Language } from "@apty/ui/i18n/types";
 import { ThemeProvider } from "@apty/ui/theme/context";
 import type { Theme } from "@apty/ui/theme/types";
-import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import type { LanguageModel } from "ai";
 import { generateText } from "ai";
 import React, { useCallback, useMemo } from "react";

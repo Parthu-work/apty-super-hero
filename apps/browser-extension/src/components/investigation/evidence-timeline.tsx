@@ -13,6 +13,10 @@
  * affordance.
  */
 
+import type {
+  CorrelationCluster,
+  DiagnosticEvidence,
+} from "@apty/browser-runtime";
 import { CodeBlock } from "@apty/ui/components/ai-elements/code-block";
 import { Badge } from "@apty/ui/components/ui/badge";
 import {
@@ -21,10 +25,6 @@ import {
   CollapsibleTrigger,
 } from "@apty/ui/components/ui/collapsible";
 import { cn } from "@apty/ui/lib/utils";
-import type {
-  CorrelationCluster,
-  DiagnosticEvidence,
-} from "@apty/browser-runtime";
 import { ChevronDownIcon, TriangleAlertIcon } from "lucide-react";
 import { toneBadgeClass, toneTextClass } from "./tone-classes";
 

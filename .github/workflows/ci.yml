@@ -51,3 +51,21 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate extension manifest
+        run: npm run validate:extension
+
+      - name: Architecture boundary check
+        run: npm run audit:architecture
+
+      - name: Branding check
+        run: npm run audit:branding
+
+      # Not gated on tools/audit-tools.mjs yet: it currently flags a
+      # pre-existing duplicate tool name (see DECISIONS.md/PROJECT_PROGRESS.md's
+      # Known Limitations) that predates this workflow and needs a deliberate
+      # fix, not a CI-red surprise on an unrelated PR. Run `pnpm audit:tools`
+      # locally; wire it in here once that's resolved.

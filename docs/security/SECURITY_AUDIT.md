@@ -17,14 +17,14 @@ the authoritative source; the Confluence page is a navigable summary of it.
 ### 1. `externally_connectable` allowed any localhost webpage to control the extension
 
 - **Severity**: High
-- **Affected component**: `packages/browser-ext/manifest.json`
+- **Affected component**: `apps/browser-extension/manifest.json`
 - **Risk**: The manifest allowlisted `"http://localhost:*/*"`. Any web page
   served from `http://localhost` on **any port** — a dev server, a
   Docker container's exposed port, another compromised local tool — could
   call `chrome.runtime.sendMessage(extensionId, {action: "openWithPrompt",
   prompt: "..."})`, forcing the side panel open and injecting a prompt that
   gets auto-submitted to the AI agent (`usePendingPrompt` in
-  `packages/browser-ext/src/pages/common/app-root.tsx`). Combined with the
+  `apps/browser-extension/src/components/app-root.tsx`). Combined with the
   extension's broad permissions (`debugger`, `<all_urls>`), this is a real
   local-webpage-to-agent-action escalation path.
 - **Current mitigation**: `externally_connectable` changed to `{"ids": []}`
@@ -42,7 +42,7 @@ the authoritative source; the Confluence page is a navigable summary of it.
 - **Severity**: Medium (was) → Fixed
 - **Affected component**: all tools in `packages/browser-runtime/src/tools/`
   that call `getActiveTab()` (`tab-utils.ts`) — `apty.ts`, `devtools.ts`,
-  and others; the agent invocation in `packages/core/src/agent/aipex.ts`
+  and others; the agent invocation in `packages/agent-core/src/agent/aipex.ts`
 - **Risk**: every diagnostic tool operated on "whichever tab is currently
   active in the window," not a tab bound to a specific debugging
   conversation. If a user had two conversations open (different windows,
@@ -56,7 +56,7 @@ the authoritative source; the Confluence page is a navigable summary of it.
   (LLM message history), not just the wrong tab.
 - **Current mitigation**: `ChatOptions.runContext` is now threaded through
   `@openai/agents`' `run()` and forwarded to every tool as
-  `context.context`. `packages/browser-ext/src/lib/conversation-tab-binding.ts`
+  `context.context`. `apps/browser-extension/src/services/conversation-tab-binding.ts`
   binds each conversation to whichever tab was active the first time it
   had a real session id (`Map<sessionId, tabId>`, not a global), and
   `resolveDiagnosticTab()` (`tab-utils.ts`) prefers that bound tab —
@@ -115,7 +115,7 @@ diagnostic isolation) is now Fixed above.
 ### 2. `host-access-config.json` defaults to all sites
 
 - **Severity**: Medium
-- **Affected component**: `packages/browser-ext/host-access-config.json`
+- **Affected component**: `apps/browser-extension/host-access-config.json`
 - **Risk**: `{"mode": "include-all", "whitelist": ["*.google.com"],
   "blocklist": ["youtube.com"]}` — the agent is permitted to act on every
   site the user visits except youtube.com. Combined with `<all_urls>` host
@@ -135,7 +135,7 @@ diagnostic isolation) is now Fixed above.
 ### 3. Console-capture bridge runs on `<all_urls>`
 
 - **Severity**: Medium
-- **Affected component**: `packages/browser-ext/src/apty-console-bridge.ts`,
+- **Affected component**: `apps/browser-extension/src/entrypoints/content/console-bridge.ts`,
   registered in `manifest.json`'s `content_scripts` with `"matches":
   ["<all_urls>"]`
 - **Risk**: This MAIN-world script wraps `console.log/info/warn/error/debug`
@@ -289,7 +289,7 @@ diagnostic isolation) is now Fixed above.
 
 ### 7. Investigation-first side panel UI (this session)
 
-- **Affected component**: `packages/browser-ext/src/lib/investigation/`
+- **Affected component**: `apps/browser-extension/src/components/investigation/`
 - **Review**: the new UI renders `DiagnosticEvidence.data` (evidence
   timeline) and Apty component-status payloads directly, but only ever
   reads them from `evidence-store.ts`/`investigation-session.ts` — the
@@ -386,7 +386,7 @@ diagnostic isolation) is now Fixed above.
 ### 5. `debugger` permission and `<all_urls>` host permissions
 
 - **Severity**: Informational
-- **Affected component**: `packages/browser-ext/manifest.json`
+- **Affected component**: `apps/browser-extension/manifest.json`
 - **Risk**: `chrome.debugger` grants full Chrome DevTools Protocol access
   to any attached tab (network, DOM, runtime, ability to inject JS via
   `Runtime.evaluate` if ever used) — broader than what any single tool
@@ -411,7 +411,7 @@ diagnostic isolation) is now Fixed above.
 ### 6. API keys stored in `chrome.storage.local` in plaintext
 
 - **Severity**: Informational
-- **Affected component**: BYOK settings (`packages/aipex-react/src/components/settings/index.tsx`)
+- **Affected component**: BYOK settings (`packages/ui/src/components/settings/index.tsx`)
 - **Risk**: No OS keychain integration; a user's Anthropic/OpenAI API key
   sits in the browser's local storage unencrypted.
 - **Current mitigation**: None beyond what Chrome itself provides
@@ -428,7 +428,7 @@ diagnostic isolation) is now Fixed above.
 |---|---|
 | Are permissions excessive? | Broad (`debugger`, `<all_urls>`) but consistent with what a browser-debugging tool needs; see findings #2/#3/#5 for the concrete scoping gap. |
 | Can arbitrary extensions communicate with this one? | No — `externally_connectable: {"ids": []}` (finding #1, fixed). |
-| Is the local WebSocket server (MCP bridge daemon) properly protected? | Yes — binds to `127.0.0.1` only, validates the `Origin` header and rejects all http/https page origins (`mcp-bridge/src/daemon.ts`), inherited from AIPex and reviewed this session; no change needed. |
+| Is the local WebSocket server (MCP bridge daemon) properly protected? | Yes — binds to `127.0.0.1` only, validates the `Origin` header and rejects all http/https page origins (`apps/mcp-bridge/src/daemon.ts`), inherited from AIPex and reviewed this session; no change needed. |
 | Can arbitrary tools be invoked via MCP? | Only tools in `allBrowserTools`/`toolSchemas` are invocable; there's no dynamic eval-based tool execution path. |
 | Are incoming messages validated? | Internal `chrome.runtime.onMessage` handlers switch on a known `request` string and validate payload shape per-branch (see `background.ts`); the (now unreachable) external handler validated `prompt` as a string before use. |
 | Are origins validated? | Yes for the WebSocket daemon (see above); N/A for `chrome.runtime.onMessage` (same-extension only) now that `externally_connectable` is locked down. |

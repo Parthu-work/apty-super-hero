@@ -37,7 +37,10 @@ export default defineConfig({
       // Point to workspace packages source code directly for better dev experience
       {
         find: "@apty/agent-core",
-        replacement: path.resolve(__dirname, "../../packages/agent-core/src/index.ts"),
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/agent-core/src/index.ts",
+        ),
       },
       {
         find: /^@apty\/ui\/(.*)$/,
@@ -49,19 +52,31 @@ export default defineConfig({
       },
       {
         find: /^@apty\/browser-runtime\/(.*)$/,
-        replacement: path.resolve(__dirname, "../../packages/browser-runtime/src/$1"),
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/browser-runtime/src/$1",
+        ),
       },
       {
         find: "@apty/browser-runtime",
-        replacement: path.resolve(__dirname, "../../packages/browser-runtime/src/index.ts"),
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/browser-runtime/src/index.ts",
+        ),
       },
       {
         find: /^@apty\/dom-snapshot\/(.*)$/,
-        replacement: path.resolve(__dirname, "../../packages/dom-snapshot/src/$1"),
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/dom-snapshot/src/$1",
+        ),
       },
       {
         find: "@apty/dom-snapshot",
-        replacement: path.resolve(__dirname, "../../packages/dom-snapshot/src/index.ts"),
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/dom-snapshot/src/index.ts",
+        ),
       },
     ],
   },

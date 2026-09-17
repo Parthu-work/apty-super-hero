@@ -96,7 +96,7 @@ full commit-level history.
     outside an explicit `disconnect_apty_client` call.
   - 5 new tools (`packages/browser-runtime/src/tools/extension-network.ts`,
     registered in `tools/index.ts`: 54 → 59) and matching schemas added to
-    `mcp-bridge/src/tool-schemas.ts`: `connect_apty_client` (idempotent;
+    `apps/mcp-bridge/src/tool-schemas.ts`: `connect_apty_client` (idempotent;
     falls back to the configured `clientExtensionId`, see `apty/config.ts`),
     `disconnect_apty_client`, `get_apty_client_connection_status`,
     `inspect_extension_network` (auto-connects if needed — the primary
@@ -104,7 +104,7 @@ full commit-level history.
     step), and `list_extension_network_resources` (answers "what
     resources did the Apty Client load?").
   - Options UI: a new "Apty Client Extension" panel
-    (`packages/browser-ext/src/pages/options/apty-client-panel.tsx`,
+    (`apps/browser-extension/src/pages/options/apty-client-panel.tsx`,
     wired into the existing "connection" tab alongside the MCP bridge
     panel) lets the user configure the extension ID once via
     `setAptyIntegrationConfig` — the panel itself only persists the ID and
@@ -178,7 +178,7 @@ says "Apty Live Debugging" throughout, per `browser-chat-header.tsx`/
     toward the orchestrator's tool-call budget/loop-detection ledger — PR
     #11 predated the orchestrator and didn't have this.
   - Registered in `tools/index.ts` (tool registry: 51 → 54 tools);
-    schemas added to `mcp-bridge/src/tool-schemas.ts` (also now 54,
+    schemas added to `apps/mcp-bridge/src/tool-schemas.ts` (also now 54,
     matching browser-runtime).
 - 17 new tests: `network-capture-session.test.ts` (13 — including firing a
   simulated `chrome.tabs.onRemoved` mid-capture and asserting the
@@ -241,7 +241,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   in `tools/investigation.test.ts` for `get_next_investigation_action`.
 
 **Fixed**
-- `mcp-bridge/src/tool-schemas.ts` (the MCP bridge's static JSON-schema
+- `apps/mcp-bridge/src/tool-schemas.ts` (the MCP bridge's static JSON-schema
   mirror, with zero dependency on the extension runtime) was missing 9
   tools that were already registered in
   `packages/browser-runtime/src/tools/index.ts`: all 8
@@ -364,7 +364,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   `record_verification_attempt`, `stop_investigation`,
   `get_investigation_status`. The system prompt's debugging loop now
   instructs the model to call these at each step.
-- A full side-panel UI redesign (`packages/browser-ext/src/lib/investigation/`,
+- A full side-panel UI redesign (`apps/browser-extension/src/components/investigation/`,
   new directory) turning the generic AIPex chat UI into an
   investigation-first Apty debugging console: a live-investigation banner
   + browser context bar in the header (real Stop action with a confirm
@@ -390,7 +390,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
 - `BrowserChatHeader` accepted a `title` prop but never rendered it — the
   header showed no product name at all. Now renders it (default: "Apty
   Live Debugging").
-- `packages/browser-ext/vitest.config.ts` was missing the
+- `apps/browser-extension/vitest.config.ts` was missing the
   `@apty/ui/*` → source alias that `vite.config.ts` (the
   real build) already had, so tests couldn't resolve deep subpaths like
   `/lib/utils` or `/components/ui/*` that aren't in `aipex-react`'s
@@ -449,7 +449,7 @@ console-bridge domain scoping (blocked on Apty's target domain list).
 
 **Added**
 - Per-conversation browser-tab binding: `ChatOptions.runContext`
-  (`packages/core`) is forwarded by `AIPex.chat()` to `@openai/agents`'
+  (`packages/agent-core`) is forwarded by `AIPex.chat()` to `@openai/agents`'
   `run()` as its `context` option, reaching every tool's
   `execute(input, context)` as `context.context`. Diagnostic tools
   (`apty.ts`'s 5 tools, `devtools.ts`'s 2 tools) resolve their target tab
@@ -458,7 +458,7 @@ console-bridge domain scoping (blocked on Apty's target domain list).
   `getActiveTab()` call, so evidence stays scoped to the tab a
   conversation is actually about even if the user's focus moves
   elsewhere. The binding itself is a `Map<sessionId, tabId>`
-  (`packages/browser-ext/src/lib/conversation-tab-binding.ts`), wired into
+  (`apps/browser-extension/src/services/conversation-tab-binding.ts`), wired into
   the chat hook via a new `ChatConfig.getRunContext` callback so
   `aipex-react` stays runtime-agnostic.
 - `ConversationData.agentSessionId` (`packages/browser-runtime`'s
@@ -477,7 +477,7 @@ console-bridge domain scoping (blocked on Apty's target domain list).
 **Fixed**
 - A real cross-conversation contamination bug: restoring a past
   conversation from the history dropdown
-  (`packages/browser-ext/src/lib/browser-chat-header.tsx`'s
+  (`apps/browser-extension/src/lib/browser-chat-header.tsx`'s
   `handleConversationSelect`) updated the UI's message list but never
   rebound the active agent session, so the next message sent after
   restoring an old conversation could silently continue a *different*
@@ -572,7 +572,7 @@ active rather than a conversation-bound tab, and the fix is to thread a
   `get_apty_client_diagnostics`, `get_apty_studio_diagnostics`,
   `get_apty_service_worker_diagnostics` (4, plus the pre-existing
   `get_apty_page_logs`, renamed from `get_apty_debug_logs`).
-- `packages/browser-ext/.env.example` with Apty integration config
+- `apps/browser-extension/.env.example` with Apty integration config
   placeholders (Studio/Widget/Client/Service-Worker extension IDs,
   service-worker diagnostic endpoint) — wired through `background.ts` →
   `chrome.storage.local` → `apty/config.ts`.
@@ -581,7 +581,7 @@ active rather than a conversation-bound tab, and the fix is to thread a
   actual implemented state.
 
 **Changed**
-- System prompt (`packages/aipex-react/src/components/chatbot/constants.ts`)
+- System prompt (`packages/ui/src/components/chatbot/constants.ts`)
   rewritten from a generic "AIPex browser assistant" persona (tab/bookmark/
   history/shopping-style examples) to the Apty Live Browser Debugging Agent
   persona: the debugging loop, evidence-first CONFIRMED/LIKELY/POSSIBLE/
@@ -592,7 +592,7 @@ active rather than a conversation-bound tab, and the fix is to thread a
   Agent"` (`browser-agent-config.ts`).
 - `get_apty_debug_logs` renamed to `get_apty_page_logs`; now redacts log
   entries before returning them (previously did not).
-- `mcp-bridge/src/tool-schemas.ts` updated to match the renamed/new tools.
+- `apps/mcp-bridge/src/tool-schemas.ts` updated to match the renamed/new tools.
 
 **Tests**: 640 passing across all 5 packages (was 623; +7 for `redact.ts`,
 +10 net from the tool-count increase not requiring new tests of their own
@@ -620,7 +620,7 @@ Implemented" test section for why).
   finding #1
 
 **Added**:
-- `packages/browser-ext/src/apty-console-bridge.ts` — MAIN-world content
+- `apps/browser-extension/src/entrypoints/content/console-bridge.ts` — MAIN-world content
   script buffering console output/errors since page load
 - Initial `get_apty_debug_logs` and `get_apty_widget_snapshot` tools (the
   latter later replaced by `get_apty_widget_diagnostics`, see Unreleased above)

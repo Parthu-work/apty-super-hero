@@ -3,8 +3,8 @@
  * Converts between @apty/ui UIMessage and browser-runtime ConversationData format
  */
 
-import type { UIMessage as ReactUIMessage } from "@apty/ui/types";
 import type { UIMessage as RuntimeUIMessage } from "@apty/browser-runtime";
+import type { UIMessage as ReactUIMessage } from "@apty/ui/types";
 
 /** Tool names whose results may include screenshot image data */
 const SCREENSHOT_TOOL_NAMES = new Set([

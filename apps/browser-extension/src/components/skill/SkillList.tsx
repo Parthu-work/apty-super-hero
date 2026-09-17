@@ -1,7 +1,4 @@
-import {
-  Alert,
-  AlertDescription,
-} from "@apty/ui/components/ui/alert";
+import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
