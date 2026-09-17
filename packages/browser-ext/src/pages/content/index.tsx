@@ -338,8 +338,13 @@ const ContentApp = () => {
       } else if (message.request === "collect-dom-health-snapshot") {
         // Apty DOM Health audit — separate from the accessibility-tree
         // snapshot above; see @aipexstudio/dom-snapshot's health-collector.
+        // `sequenceIndex === 0` starts a fresh audit (resets the collector's
+        // cross-snapshot element registry); later snapshots in the same
+        // audit continue it so selector stability is tracked correctly.
         try {
-          const snapshot = collectDomHealthSnapshot(document);
+          const snapshot = collectDomHealthSnapshot(document, {
+            freshAudit: (message.sequenceIndex ?? 0) === 0,
+          });
           sendResponse({ success: true, data: snapshot });
         } catch (error) {
           sendResponse({

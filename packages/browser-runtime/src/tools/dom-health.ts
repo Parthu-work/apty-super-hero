@@ -16,8 +16,8 @@ import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
 export const runDomHealthAuditTool = tool({
   name: "run_dom_health_audit",
   description:
-    "Run an explicit Apty DOM Readiness audit of the current tab's page: takes two DOM snapshots a short moment apart, analyzes selector quality and stability, attribute quality, DOM stability, iframe/Shadow DOM accessibility, DOM complexity, and overlay/z-index risk, and returns a deterministic 0-100 Apty DOM Readiness Score with a grade, risks, and recommendations. " +
-    "This score is calculated by code, not by you — always report the score, metrics, risks, and recommendations exactly as returned; never calculate your own score or invent metrics/evidence that aren't in the result. " +
+    "Run an explicit Apty DOM Readiness audit of the current tab's page: takes three DOM snapshots over a few seconds, simulates Apty-style element-selection (candidate generation, live uniqueness/target-identity verification, ignore/partial/contextual recovery, cross-snapshot stability, 9-point hit testing), and returns a deterministic 0-100 Apty DOM Readiness Score with a confidence level, manual-selector-dependency estimate, evidence-backed risks, and recommendations. " +
+    "This score is calculated by code, not by you — always report the score, confidence, metrics, risks, and recommendations exactly as returned; never calculate your own score or invent metrics/evidence that aren't in the result. " +
     "Use this when asked to check DOM health/readiness, or to explain why a readiness score is low — call it again to get a fresh, current result rather than guessing. " +
     "Independent of Apty Client/Studio/Service-Worker state — it only reads the page's own DOM, so it works even when those integrations are unavailable.",
   parameters: z.object({}),

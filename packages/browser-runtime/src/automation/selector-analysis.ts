@@ -15,7 +15,15 @@
  *   ❌ #input-928731 — looks dynamically generated (numeric/hash suffix)
  *   ⚠️ .MuiInputBase-input — matches 8 elements on the page, not unique
  *   ✅ [data-apty-id="patient-name"] — unique and not dynamic-looking
+ *
+ * `looksDynamic` is re-exported from `@aipexstudio/dom-snapshot` (the DOM
+ * Health feature's selector engine) rather than duplicated here, so "does
+ * this id/class look machine-generated" has exactly one definition across
+ * the codebase.
  */
+import { looksDynamic } from "@aipexstudio/dom-snapshot";
+
+export { looksDynamic };
 
 export interface ElementDescriptor {
   tagName: string;
@@ -63,43 +71,6 @@ export interface RankedSelectorCandidate extends SelectorCandidate {
   verdict: SelectorVerdict;
   /** Combined static + live explanation, e.g. "unique and not dynamic-looking" or "matches 8 elements, not unique". */
   verdictReason: string;
-}
-
-// ---------------------------------------------------------------------------
-// Dynamic-value heuristics
-// ---------------------------------------------------------------------------
-
-/** Framework/tooling prefixes that generate non-deterministic class/id names on every build or render. */
-const DYNAMIC_PREFIXES = [
-  "css-", // styled-components / emotion
-  "sc-", // styled-components
-  "jss", // JSS
-  "ember", // Ember.js auto-generated ids
-  "react-select-", // react-select instance ids
-  "mui-", // MUI auto-generated ids (lowercase form)
-];
-
-const UUID_PATTERN =
-  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-/** A trailing run of 4+ digits or a 6+ char hex-looking suffix, e.g. "input-928731" or "btn-4f9a21". */
-const DYNAMIC_SUFFIX_PATTERN = /[-_:](\d{4,}|[0-9a-f]{6,})$/i;
-/** A value that is *entirely* numeric (e.g. an auto-incrementing id: "382910"). */
-const ALL_NUMERIC_PATTERN = /^\d+$/;
-
-/**
- * Heuristic check for whether an id/class value looks machine-generated
- * and likely to change on the next build/render, as opposed to a stable,
- * intentionally-authored name.
- */
-export function looksDynamic(value: string): boolean {
-  if (!value) return false;
-  const trimmed = value.trim();
-  if (ALL_NUMERIC_PATTERN.test(trimmed)) return true;
-  if (UUID_PATTERN.test(trimmed)) return true;
-  if (DYNAMIC_SUFFIX_PATTERN.test(trimmed)) return true;
-  return DYNAMIC_PREFIXES.some((prefix) =>
-    trimmed.toLowerCase().startsWith(prefix),
-  );
 }
 
 function escapeAttributeValue(value: string): string {

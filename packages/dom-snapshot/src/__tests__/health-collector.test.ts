@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { collectDomHealthSnapshot } from "../health-collector";
+import {
+  __resetDomHealthRegistryForTests,
+  collectDomHealthSnapshot,
+} from "../health-collector";
 
 function setHtml(html: string) {
   document.body.innerHTML = html;
@@ -7,6 +10,7 @@ function setHtml(html: string) {
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  __resetDomHealthRegistryForTests();
 });
 
 describe("collectDomHealthSnapshot — element counts", () => {
@@ -35,7 +39,8 @@ describe("collectDomHealthSnapshot — element counts", () => {
     expect(snapshot.counts.forms).toBe(1);
     expect(snapshot.counts.contentEditable).toBe(1);
     // button, input, select, textarea, a[href], contenteditable div, role=button span
-    expect(snapshot.counts.interactiveElements).toBe(6);
+    expect(snapshot.counts.interactiveElements).toBe(7);
+    expect(snapshot.elementUniverse.interactiveElements).toBe(7);
   });
 
   it("never collects input values, only attribute signals", () => {
@@ -44,7 +49,7 @@ describe("collectDomHealthSnapshot — element counts", () => {
     );
 
     const snapshot = collectDomHealthSnapshot(document);
-    const el = snapshot.interactiveElements.find(
+    const el = snapshot.elementReports.find(
       (e) => e.attributes.id === "password-field",
     );
 
@@ -53,7 +58,7 @@ describe("collectDomHealthSnapshot — element counts", () => {
     expect(JSON.stringify(el)).not.toContain("super-secret");
   });
 
-  it("bounds the interactiveElements sample without under-counting totals", () => {
+  it("bounds the analyzed-element sample without under-counting totals", () => {
     const buttons = Array.from(
       { length: 10 },
       (_, i) => `<button id="btn-${i}">${i}</button>`,
@@ -65,7 +70,93 @@ describe("collectDomHealthSnapshot — element counts", () => {
     });
 
     expect(snapshot.counts.interactiveElements).toBe(10);
-    expect(snapshot.interactiveElements).toHaveLength(3);
+    expect(snapshot.elementReports).toHaveLength(3);
+  });
+});
+
+describe("collectDomHealthSnapshot — selector resolution", () => {
+  it("resolves a uniquely-identified element directly", () => {
+    setHtml(`<button id="save-button">Save</button>`);
+    const snapshot = collectDomHealthSnapshot(document);
+
+    expect(snapshot.selectorAnalysis.directSuccess).toBe(1);
+    const report = snapshot.elementReports[0]!;
+    expect(report.outcome).toBe("DIRECT_SUCCESS");
+    expect(report.bestSelector).toBe("#save-button");
+  });
+
+  it("does NOT count a shared, non-unique id/class as a successful selector", () => {
+    const rows = Array.from(
+      { length: 20 },
+      () => `<button id="row" class="item">Row</button>`,
+    ).join("");
+    setHtml(rows);
+
+    const snapshot = collectDomHealthSnapshot(document);
+
+    expect(snapshot.selectorAnalysis.directSuccess).toBe(0);
+    // Every element is structurally identical with no unique attribute of
+    // its own, so recovery must fall back to a positional path, not be
+    // silently counted as a direct/ignore/partial success.
+    expect(snapshot.selectorAnalysis.positionalOnly).toBeGreaterThan(0);
+  });
+
+  it("recovers via a stable partial-attribute prefix when the id is dynamic", () => {
+    setHtml(`<button id="app-wrapper-4f9a21">Save</button>`);
+    const snapshot = collectDomHealthSnapshot(document);
+
+    const report = snapshot.elementReports[0]!;
+    expect(report.outcome).toBe("RECOVERED_BY_PARTIAL");
+    expect(report.bestSelector).toContain("app-wrapper");
+  });
+
+  it("recovers via ancestor context when the element itself has no stable attribute", () => {
+    setHtml(`
+      <div id="toolbar">
+        <button>A</button>
+        <button>B</button>
+      </div>
+    `);
+    const snapshot = collectDomHealthSnapshot(document);
+
+    for (const report of snapshot.elementReports) {
+      expect(["RECOVERED_BY_CONTEXT", "POSITIONAL_ONLY"]).toContain(
+        report.outcome,
+      );
+    }
+  });
+});
+
+describe("collectDomHealthSnapshot — cross-snapshot stability", () => {
+  it("marks a selector STABLE when re-verified against the same live element", () => {
+    setHtml(`<button id="stable-btn">Go</button>`);
+    collectDomHealthSnapshot(document, { freshAudit: true });
+    const second = collectDomHealthSnapshot(document, { freshAudit: false });
+
+    expect(second.elementReports[0]!.stability).toBe("STABLE");
+    expect(second.stability.stable).toBe(1);
+  });
+
+  it("marks a selector UNSTABLE when the same element's id changes between snapshots", () => {
+    // Both values individually "look" stable to the single-observation
+    // heuristic (no digit/hash suffix) — only comparing the same live
+    // element across snapshots reveals the id actually changed.
+    setHtml(`<button id="btn-alpha">Go</button>`);
+    collectDomHealthSnapshot(document, { freshAudit: true });
+
+    document.querySelector("button")!.id = "btn-beta";
+    const second = collectDomHealthSnapshot(document, { freshAudit: false });
+
+    expect(second.elementReports[0]!.stability).toBe("UNSTABLE");
+    expect(second.dynamicAttributes.idsChangedAcrossSnapshots).toBe(1);
+  });
+
+  it("reports UNKNOWN stability on the first snapshot of a fresh audit", () => {
+    setHtml(`<button id="btn">Go</button>`);
+    const snapshot = collectDomHealthSnapshot(document, { freshAudit: true });
+
+    expect(snapshot.elementReports[0]!.stability).toBe("UNKNOWN");
+    expect(snapshot.dynamicAttributes.hasMultiSnapshotEvidence).toBe(false);
   });
 });
 
@@ -100,6 +191,7 @@ describe("collectDomHealthSnapshot — iframes", () => {
     expect(snapshot.iframes.total).toBe(1);
     expect(snapshot.iframes.accessible).toBe(0);
     expect(snapshot.iframes.crossOrigin).toBe(1);
+    expect(snapshot.elementUniverse.inaccessibleElements).toBeGreaterThan(0);
   });
 });
 

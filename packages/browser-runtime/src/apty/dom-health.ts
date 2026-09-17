@@ -3,8 +3,9 @@
  *
  * Ties the content-script DOM Health collector (`@aipexstudio/dom-snapshot`)
  * together with the deterministic scoring engine (`./dom-health-scoring.js`)
- * into one on-demand audit: two snapshots of the same tab, a short
- * stabilization interval apart, scored and returned.
+ * into one on-demand audit: three snapshots of the same tab, spaced apart to
+ * catch both a quick debounced re-render and a slower one, scored and
+ * returned.
  *
  * `runDomHealthAudit` is the single source of truth for the score — it is
  * called both by the `run_dom_health_audit` agent tool (`../tools/dom-health.ts`)
@@ -23,8 +24,8 @@ import {
 } from "./dom-health-scoring.js";
 
 const COLLECT_MESSAGE = "collect-dom-health-snapshot";
-/** Short pause between the two snapshots — long enough to catch a debounced re-render, short enough not to make the user wait. */
-const STABILIZATION_DELAY_MS = 800;
+/** Delays (ms, from the audit's start) at which each snapshot after the first is taken — short enough not to make the user wait, long enough apart to catch both a quick and a slower debounced re-render. */
+const SNAPSHOT_DELAYS_MS = [0, 800, 2000];
 const MESSAGE_TIMEOUT_MS = 8000;
 const UNSUPPORTED_URL_PREFIXES = [
   "chrome://",
@@ -47,7 +48,10 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function sendCollectMessage(tabId: number): Promise<DomHealthSnapshot> {
+function sendCollectMessage(
+  tabId: number,
+  sequenceIndex: number,
+): Promise<DomHealthSnapshot> {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(
@@ -59,7 +63,7 @@ function sendCollectMessage(tabId: number): Promise<DomHealthSnapshot> {
 
     chrome.tabs.sendMessage(
       tabId,
-      { request: COLLECT_MESSAGE },
+      { request: COLLECT_MESSAGE, sequenceIndex },
       (
         response:
           | { success?: boolean; data?: DomHealthSnapshot; error?: string }
@@ -94,9 +98,9 @@ function generateAuditId(): string {
 }
 
 /**
- * Run a full Apty DOM Health audit against the given tab. Two DOM snapshots
- * are taken `STABILIZATION_DELAY_MS` apart and scored deterministically —
- * the same two snapshots always produce the same score.
+ * Run a full Apty DOM Health audit against the given tab. Snapshots are
+ * taken at `SNAPSHOT_DELAYS_MS` and scored deterministically from the full
+ * set — the same sequence of snapshots always produces the same score.
  */
 export async function runDomHealthAudit(
   tabId: number,
@@ -120,10 +124,17 @@ export async function runDomHealthAudit(
   }
 
   try {
-    const before = await sendCollectMessage(tabId);
-    await delay(STABILIZATION_DELAY_MS);
-    const after = await sendCollectMessage(tabId);
-    const result = buildDomHealthAuditResult(before, after, generateAuditId());
+    const snapshots: DomHealthSnapshot[] = [];
+    for (let i = 0; i < SNAPSHOT_DELAYS_MS.length; i++) {
+      if (i === 0) {
+        snapshots.push(await sendCollectMessage(tabId, 0));
+      } else {
+        const waitMs = SNAPSHOT_DELAYS_MS[i]! - SNAPSHOT_DELAYS_MS[i - 1]!;
+        await delay(waitMs);
+        snapshots.push(await sendCollectMessage(tabId, i));
+      }
+    }
+    const result = buildDomHealthAuditResult(snapshots, generateAuditId());
     return { available: true, ...result };
   } catch (error) {
     return {

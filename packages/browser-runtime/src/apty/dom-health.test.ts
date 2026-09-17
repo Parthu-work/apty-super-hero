@@ -34,9 +34,82 @@ function snapshotFixture(
       forms: 0,
       contentEditable: 0,
     },
-    interactiveElements: [
-      { tagName: "button", attributes: { dataAttributes: { testid: "go" } } },
+    elementUniverse: {
+      totalElements: 10,
+      meaningfulElements: 10,
+      interactiveElements: 2,
+      hiddenElements: 0,
+      inaccessibleElements: 0,
+      iframeElements: 0,
+      shadowDomElements: 0,
+    },
+    elementReports: [
+      {
+        tagName: "button",
+        classification: "interactive",
+        attributes: { dataAttributes: { testid: "go" } },
+        outcome: "DIRECT_SUCCESS",
+        strategy: "direct",
+        bestSelector: '[data-testid="go"]',
+        matchCount: 1,
+        ancestorDepthUsed: 0,
+        usesPositionalSelector: false,
+        dynamicAttributeNames: [],
+        stableAttributeNames: ["data-testid"],
+        hasAccessibleName: true,
+        hitTest: { pointsPassed: 9, classification: "fully-targetable" },
+        stability: "UNKNOWN",
+      },
     ],
+    selectorAnalysis: {
+      totalAnalyzed: 1,
+      directSuccess: 1,
+      recoveredByIgnore: 0,
+      recoveredByPartial: 0,
+      recoveredByContext: 0,
+      positionalOnly: 0,
+      ambiguous: 0,
+      wrongTarget: 0,
+      notResolved: 0,
+      inaccessible: 0,
+    },
+    dynamicAttributes: {
+      idsObserved: 0,
+      idsDynamicByHeuristic: 0,
+      idsChangedAcrossSnapshots: 0,
+      classesObserved: 0,
+      classesDynamicByHeuristic: 0,
+      classesChangedAcrossSnapshots: 0,
+      hasMultiSnapshotEvidence: false,
+    },
+    stability: {
+      trackedFromPrevious: 0,
+      stable: 0,
+      unstable: 0,
+      detached: 0,
+      unknown: 1,
+    },
+    hitTesting: {
+      tested: 1,
+      fullyTargetable: 1,
+      partiallyTargetable: 0,
+      mostlyOccluded: 0,
+      fullyOccluded: 0,
+      zeroSize: 0,
+      outsideViewport: 0,
+      hidden: 0,
+    },
+    ancestorTraversal: {
+      contextualRecoveryCount: 0,
+      deepTraversalCount: 0,
+      maxAncestorDepthObserved: 0,
+    },
+    positionalDependency: {
+      positionalCount: 0,
+      stableAcrossSnapshots: 0,
+      unstableAcrossSnapshots: 0,
+    },
+    accessibility: { totalInteractive: 1, missingAccessibleName: 0 },
     iframes: { total: 0, accessible: 0, crossOrigin: 0 },
     shadowDom: { roots: 0, elements: 0 },
     zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
@@ -57,7 +130,7 @@ afterEach(() => {
 });
 
 describe("runDomHealthAudit", () => {
-  it("collects two snapshots a stabilization interval apart and returns a scored result", async () => {
+  it("collects three snapshots over the audit window and returns a scored result", async () => {
     mockSendMessage.mockImplementation(
       (_tabId: number, _msg: unknown, callback: any) => {
         callback({ success: true, data: snapshotFixture() });
@@ -71,9 +144,25 @@ describe("runDomHealthAudit", () => {
     expect(result.available).toBe(true);
     if (result.available) {
       expect(typeof result.score).toBe("number");
-      expect(result.metadata.snapshotsCompared).toBe(2);
+      expect(result.metadata.snapshotsCompared).toBe(3);
     }
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendMessage).toHaveBeenCalledTimes(3);
+  });
+
+  it("passes an increasing sequenceIndex so the collector knows which snapshot starts a fresh audit", async () => {
+    const seenSequenceIndexes: number[] = [];
+    mockSendMessage.mockImplementation(
+      (_tabId: number, msg: { sequenceIndex: number }, callback: any) => {
+        seenSequenceIndexes.push(msg.sequenceIndex);
+        callback({ success: true, data: snapshotFixture() });
+      },
+    );
+
+    const promise = runDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(seenSequenceIndexes).toEqual([0, 1, 2]);
   });
 
   it("rejects unsupported browser-internal pages without messaging the content script", async () => {

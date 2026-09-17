@@ -11,6 +11,7 @@ export type { DomHealthAuditOutcome } from "./dom-health.js";
 export { runDomHealthAudit } from "./dom-health.js";
 export type {
   DomHealthAuditResult,
+  DomHealthConfidence,
   DomHealthGrade,
   DomHealthMetricDetails,
   DomHealthMetricKey,
