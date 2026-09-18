@@ -3,3 +3,8 @@
 # Exclude bundled-modules directory (contains third-party bundled code)
 # Exclude mcp-bridge directory (tool schemas contain glob patterns that trigger false positives)
 extend-exclude = ["README*.md", "**/bundled-modules/**", "apps/mcp-bridge/**"]
+
+[default.extend-words]
+# "Infor" is the ERP vendor name (Infor LN) referenced in the DOM Health
+# forensic audit — not a typo of "Info"/"Inform".
+Infor = "Infor"
