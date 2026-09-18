@@ -52,6 +52,7 @@
  *   a fingerprint with another element in THIS snapshot is reported
  *   `AMBIGUOUS`, never silently resolved by taking the first match.
  */
+import { resetDesPerformanceCaches } from "./des-engine.js";
 import { hitTestElement } from "./health-hit-test.js";
 import {
   computeElementFingerprint,
@@ -681,6 +682,13 @@ export async function collectDomHealthSnapshot(
     options.maxInteractiveElements ?? DEFAULT_ELEMENT_CEILING;
   const maxStyleChecks = options.maxStyleChecks ?? DEFAULT_MAX_STYLE_CHECKS;
   const freshAudit = options.freshAudit !== false;
+
+  // DES's per-parent sibling-order cache (a perf optimization — see
+  // des-engine.ts's `getSiblingInfo`) is only ever valid for the DOM as it
+  // exists RIGHT NOW; a later round of the same audit may have
+  // legitimately inserted/removed/reordered a sibling, so it is reset at
+  // the start of every collection, not just fresh audits.
+  resetDesPerformanceCaches();
 
   const previousRegistry = freshAudit
     ? new Map<string, RegistryEntry>()
