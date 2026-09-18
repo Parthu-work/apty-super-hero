@@ -110,6 +110,7 @@ function makeSnapshot(reports: ElementSelectorReport[]): DomHealthSnapshot {
       new: 0,
       unknown: reports.length,
       nodeReplacedButLogicallyStable: 0,
+      ambiguous: 0,
     },
     hitTesting: {
       tested: reports.length,
@@ -135,7 +136,12 @@ function makeSnapshot(reports: ElementSelectorReport[]): DomHealthSnapshot {
       totalInteractive: reports.length,
       missingAccessibleName: 0,
     },
-    iframes: { total: 0, accessible: 0, crossOrigin: 0 },
+    iframes: {
+      total: 0,
+      accessible: 0,
+      crossOrigin: 0,
+      byTag: { iframe: 0, frame: 0 },
+    },
     shadowDom: { roots: 0, elements: 0 },
     zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
   };
@@ -264,5 +270,66 @@ describe("buildApplicationAuditResult — confidence requires real multi-page co
     const result = buildApplicationAuditResult(pages, "app-6");
 
     expect(result.confidence).not.toBe("HIGH");
+  });
+});
+
+describe("buildApplicationAuditResult — evidence state, never a fabricated application score", () => {
+  it("reports NO_EVIDENCE and a null score when every audited page genuinely had zero interactive elements", () => {
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/shell", []),
+    ];
+
+    const result = buildApplicationAuditResult(pages, "app-7");
+
+    expect(result.evidenceState).toBe("NO_EVIDENCE");
+    expect(result.score).toBeNull();
+    expect(result.grade).toBe("NOT_ASSESSED");
+  });
+
+  it("reports INACCESSIBLE when zero elements were found and a frame across the audited pages could not be inspected", () => {
+    const page = completedPage("https://a.example/shell", []);
+    page.frameAccessibility = {
+      framesTotal: 3,
+      framesAccessible: 2,
+      framesFailed: 1,
+      framesInaccessible: 0,
+    };
+
+    const result = buildApplicationAuditResult([page], "app-8");
+
+    expect(result.evidenceState).toBe("INACCESSIBLE");
+    expect(result.score).toBeNull();
+    expect(result.risks.some((r) => r.id === "evidence-inaccessible")).toBe(
+      true,
+    );
+  });
+
+  it("reports OBSERVED_COVERAGE, never a claim of total application coverage", () => {
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/1", [makeReport()]),
+    ];
+
+    const result = buildApplicationAuditResult(pages, "app-9");
+
+    expect(result.coverage.coverageLabel).toBe("OBSERVED_COVERAGE");
+  });
+
+  it("reports pagesNotDiscovered explicitly, never silently folded into pagesDiscovered", () => {
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/1", [makeReport()]),
+      {
+        url: "https://a.example/1#menu:orders",
+        title: null,
+        discoverySource: "safe-navigation-control",
+        status: "not-discovered",
+      },
+    ];
+
+    const result = buildApplicationAuditResult(pages, "app-10");
+
+    expect(result.coverage.pagesNotDiscovered).toBe(1);
+    expect(
+      result.risks.some((r) => r.id === "navigation-candidates-not-explored"),
+    ).toBe(true);
   });
 });

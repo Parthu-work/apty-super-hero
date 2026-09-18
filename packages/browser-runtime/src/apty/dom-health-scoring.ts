@@ -25,6 +25,7 @@ import type {
   DomHealthZIndexInfo,
   ElementSelectorReport,
 } from "@apty/dom-snapshot";
+import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
 export type DomHealthMetricKey =
   | "automaticSelection"
@@ -43,9 +44,75 @@ export type DomHealthGrade =
   | "GOOD"
   | "FAIR"
   | "NEEDS_ATTENTION"
-  | "HIGH_RISK";
+  | "HIGH_RISK"
+  /** No numeric score exists — see `EvidenceState`. Never paired with a non-null `score`, and never chosen by anything other than `determineEvidenceState`. */
+  | "NOT_ASSESSED";
 
 export type DomHealthConfidence = "HIGH" | "MEDIUM" | "LOW";
+
+/**
+ * Evidence completeness/quality — deliberately separate from the score
+ * itself (forensic audit RC-3). "No interactive elements found" and
+ * "genuinely excellent" must never collapse into the same number just
+ * because both divide-by-zero to the same default:
+ *
+ * - HEALTHY_EVIDENCE: real elements were analyzed, and every frame that was
+ *   supposed to answer, did — the score is meaningful.
+ * - PARTIAL_EVIDENCE: real elements were analyzed, but at least one frame
+ *   could not be inspected — the score is meaningful for what WAS seen, but
+ *   coverage is incomplete (see the caller's coverage/risk reporting).
+ * - NO_EVIDENCE: every frame that should have answered, did, and genuinely
+ *   found zero interactive elements — the page may really be empty, but
+ *   this is a "nothing to score" state, never a perfect one.
+ * - INACCESSIBLE: zero interactive elements were found, AND at least one
+ *   frame could not be inspected — "genuinely empty" cannot honestly be
+ *   claimed, because part of the picture is missing.
+ * - FAILED: not even the frames we could reach answered — there is no
+ *   evidence at all.
+ * - NOT_ASSESSED: the audit never attempted to collect evidence in the
+ *   first place (e.g. an unsupported page) — set by the caller, never by
+ *   `determineEvidenceState`.
+ */
+export type EvidenceState =
+  | "HEALTHY_EVIDENCE"
+  | "PARTIAL_EVIDENCE"
+  | "NO_EVIDENCE"
+  | "INACCESSIBLE"
+  | "FAILED"
+  | "NOT_ASSESSED";
+
+export const DEFAULT_FRAME_ACCESSIBILITY: FrameAccessibilitySummary = {
+  framesTotal: 1,
+  framesAccessible: 1,
+  framesFailed: 0,
+  framesInaccessible: 0,
+};
+
+/**
+ * The single gate between "how much real evidence do we have" and "is a
+ * numeric score meaningful". `totalAnalyzed === 0` MUST NOT be scored as
+ * healthy just because every per-metric percentage's zero-denominator
+ * default happens to be 100 — that default is a reasonable choice WITHIN a
+ * metric that already has other real evidence, never a substitute for
+ * evidence that never existed.
+ */
+export function determineEvidenceState(
+  totalAnalyzed: number,
+  frames: FrameAccessibilitySummary,
+): EvidenceState {
+  if (frames.framesAccessible === 0) return "FAILED";
+  const incomplete = frames.framesFailed > 0 || frames.framesInaccessible > 0;
+  if (totalAnalyzed > 0) {
+    return incomplete ? "PARTIAL_EVIDENCE" : "HEALTHY_EVIDENCE";
+  }
+  return incomplete ? "INACCESSIBLE" : "NO_EVIDENCE";
+}
+
+export function isScoreMeaningful(evidenceState: EvidenceState): boolean {
+  return (
+    evidenceState === "HEALTHY_EVIDENCE" || evidenceState === "PARTIAL_EVIDENCE"
+  );
+}
 
 export interface DomHealthMetricDetails {
   automaticSelection: {
@@ -112,9 +179,13 @@ export interface DomHealthAuditResult {
   timestamp: number;
   url: string;
   pageTitle: string;
-  score: number;
+  /** Null exactly when `evidenceState` is not `HEALTHY_EVIDENCE`/`PARTIAL_EVIDENCE` — see `EvidenceState`. Never a fabricated number standing in for "we don't actually know". */
+  score: number | null;
   grade: DomHealthGrade;
   confidence: DomHealthConfidence;
+  /** Evidence completeness this score (or lack of one) is actually built on — always present, always checked before `score` is treated as a health signal. */
+  evidenceState: EvidenceState;
+  frameAccessibility: FrameAccessibilitySummary;
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
   scope: "page";
   coverage: {
@@ -628,14 +699,24 @@ export function buildRecommendations(
 // ---------------------------------------------------------------------------
 
 export function buildSummary(
-  score: number,
+  score: number | null,
   metrics: DomHealthMetrics,
   details: DomHealthMetricDetails,
   manualSelectorDependency: number,
+  evidenceState: EvidenceState = "HEALTHY_EVIDENCE",
 ): string {
   const total = details.automaticSelection.totalAnalyzed;
+  if (evidenceState === "FAILED") {
+    return "This page could not be inspected at all — no frame responded, so there is no evidence to score.";
+  }
+  if (evidenceState === "INACCESSIBLE") {
+    return "No interactive elements were found, and at least one frame could not be inspected — this page's readiness cannot be honestly assessed from what was actually seen.";
+  }
   if (total === 0) {
     return "No interactive elements were found to analyze on this page.";
+  }
+  if (score === null) {
+    return "Evidence was incomplete — see risks for what could not be inspected.";
   }
   const resolved =
     details.automaticSelection.directSuccess +
@@ -693,6 +774,7 @@ export const METHODOLOGY: string[] = [
 export function buildDomHealthAuditResult(
   snapshots: DomHealthSnapshot[],
   auditId: string,
+  frameAccessibility: FrameAccessibilitySummary = DEFAULT_FRAME_ACCESSIBILITY,
 ): DomHealthAuditResult {
   if (snapshots.length === 0) {
     throw new Error("buildDomHealthAuditResult requires at least one snapshot");
@@ -719,13 +801,30 @@ export function buildDomHealthAuditResult(
     accessibilitySignal: accessibilitySignal.score,
   };
 
+  const evidenceState = determineEvidenceState(
+    current.selectorAnalysis.totalAnalyzed,
+    frameAccessibility,
+  );
+  const scoreIsMeaningful = isScoreMeaningful(evidenceState);
+
   const rawScore = (Object.keys(WEIGHTS) as DomHealthMetricKey[]).reduce(
     (sum, key) => sum + metrics[key] * WEIGHTS[key],
     0,
   );
-  const score = Math.round(Math.min(100, Math.max(0, rawScore)));
-  const grade = gradeForScore(score);
-  const confidence = computeConfidence(current, snapshots.length);
+  // 0 analyzed elements MUST NOT produce a healthy score (forensic audit
+  // RC-3): every per-metric zero-denominator default above is a reasonable
+  // "N/A" WITHIN that metric, but the composite is only ever a real number
+  // when there is real evidence behind it.
+  const score = scoreIsMeaningful
+    ? Math.round(Math.min(100, Math.max(0, rawScore)))
+    : null;
+  const grade = score === null ? "NOT_ASSESSED" : gradeForScore(score);
+  const confidence =
+    evidenceState === "FAILED" ||
+    evidenceState === "NO_EVIDENCE" ||
+    evidenceState === "INACCESSIBLE"
+      ? "LOW"
+      : computeConfidence(current, snapshots.length);
   const manualSelectorDependency = computeManualSelectorDependency(current);
 
   const metricDetails: DomHealthMetricDetails = {
@@ -749,6 +848,35 @@ export function buildDomHealthAuditResult(
   );
   const elementSamples = [...nonDirect, ...direct].slice(0, 25);
 
+  const risks = buildRisks(
+    metrics,
+    metricDetails,
+    manualSelectorDependency,
+    current.analysisCoverage,
+  );
+  if (evidenceState === "FAILED") {
+    risks.unshift({
+      id: "evidence-failed",
+      severity: "high",
+      title: "This page could not be inspected at all",
+      evidence: `${frameAccessibility.framesTotal} frame(s) were found in this tab; none of them responded. There is no evidence behind this result — it is not a passing score.`,
+    });
+  } else if (evidenceState === "INACCESSIBLE") {
+    risks.unshift({
+      id: "evidence-inaccessible",
+      severity: "high",
+      title: "No interactive elements found, and coverage is incomplete",
+      evidence: `${frameAccessibility.framesAccessible} of ${frameAccessibility.framesTotal} frame(s) were inspected and found no interactive elements, but at least one frame could not be inspected — a genuinely empty page cannot be honestly claimed here.`,
+    });
+  } else if (evidenceState === "PARTIAL_EVIDENCE") {
+    risks.unshift({
+      id: "evidence-partial",
+      severity: "medium",
+      title: "Not every frame in this page could be inspected",
+      evidence: `${frameAccessibility.framesAccessible} of ${frameAccessibility.framesTotal} frame(s) responded. The score below reflects only what was actually inspected.`,
+    });
+  }
+
   return {
     auditId,
     timestamp: current.collectedAt,
@@ -757,6 +885,8 @@ export function buildDomHealthAuditResult(
     score,
     grade,
     confidence,
+    evidenceState,
+    frameAccessibility,
     scope: "page",
     coverage: {
       snapshotsCompared: snapshots.length,
@@ -772,14 +902,10 @@ export function buildDomHealthAuditResult(
       metrics,
       metricDetails,
       manualSelectorDependency,
+      evidenceState,
     ),
     strengths: buildStrengths(metrics, metricDetails),
-    risks: buildRisks(
-      metrics,
-      metricDetails,
-      manualSelectorDependency,
-      current.analysisCoverage,
-    ),
+    risks,
     recommendations: buildRecommendations(metrics, metricDetails),
     elementSamples,
     methodology: METHODOLOGY,

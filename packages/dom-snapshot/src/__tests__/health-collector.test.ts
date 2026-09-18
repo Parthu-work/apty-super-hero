@@ -228,23 +228,84 @@ describe("collectDomHealthSnapshot — cross-snapshot stability (logical fingerp
     expect(snapshot.elementReports[0]!.stability).toBe("UNKNOWN");
     expect(snapshot.dynamicAttributes.hasMultiSnapshotEvidence).toBe(false);
   });
+
+  it("reports AMBIGUOUS, never a silent first-match STABLE, when two elements in the same snapshot share a fingerprint", async () => {
+    // Two structurally identical, unlabeled buttons under different parents:
+    // same tag, no id/class/aria-label/name, same text, same nth-of-type
+    // index relative to their own parent — a genuine fingerprint collision,
+    // not a contrived one.
+    setHtml(`
+      <div><button>Ok</button></div>
+      <div><button>Ok</button></div>
+    `);
+
+    const snapshot = await collectDomHealthSnapshot(document, {
+      freshAudit: true,
+    });
+
+    expect(snapshot.stability.ambiguous).toBe(2);
+    for (const report of snapshot.elementReports) {
+      expect(report.stability).toBe("AMBIGUOUS");
+    }
+  });
+
+  it("does not let an ambiguous-fingerprint element poison a later snapshot's correlation", async () => {
+    setHtml(`
+      <div><button>Ok</button></div>
+      <div><button>Ok</button></div>
+    `);
+    await collectDomHealthSnapshot(document, { freshAudit: true });
+
+    // Resolve the collision: give one of them a stable, unique identity.
+    document.querySelectorAll("button")[0]!.id = "unique-ok";
+    const second = await collectDomHealthSnapshot(document, {
+      freshAudit: false,
+    });
+
+    const unique = second.elementReports.find(
+      (r) => r.attributes.id === "unique-ok",
+    );
+    // Never falsely STABLE against whichever of the two colliding entries
+    // happened to be registered first in the prior snapshot.
+    expect(unique?.stability).not.toBe("STABLE");
+  });
 });
 
-describe("collectDomHealthSnapshot — iframes", () => {
-  it("traverses an accessible same-origin iframe", async () => {
+describe("collectDomHealthSnapshot — iframes and legacy frames", () => {
+  it("never reaches into an iframe's contentDocument — only counts it as an owned child frame", async () => {
     setHtml(`<iframe id="frame"></iframe>`);
     const iframe = document.getElementById("frame") as HTMLIFrameElement;
+    // Even a same-origin, fully accessible iframe's content must NOT show up
+    // in this document's own counts — that content belongs to a separate
+    // browsing context, audited independently by frame-audit.ts via its own
+    // frameId, never read through the parent's contentDocument.
     iframe.contentDocument!.body.innerHTML = `<button>Inside frame</button>`;
 
     const snapshot = await collectDomHealthSnapshot(document);
 
     expect(snapshot.iframes.total).toBe(1);
-    expect(snapshot.iframes.accessible).toBe(1);
+    expect(snapshot.iframes.byTag).toEqual({ iframe: 1, frame: 0 });
+    expect(snapshot.iframes.accessible).toBe(0);
     expect(snapshot.iframes.crossOrigin).toBe(0);
-    expect(snapshot.counts.buttons).toBe(1);
+    expect(snapshot.counts.buttons).toBe(0);
   });
 
-  it("reports a cross-origin iframe as an accessibility boundary, not a defect", async () => {
+  it("counts a legacy <frame> element exactly like an <iframe> — never invisible", async () => {
+    // jsdom doesn't implement <frameset>/<frame> as functional browsing
+    // contexts, but it does parse the elements themselves, which is all
+    // this collector is allowed to look at anyway (see module doc comment).
+    document.body.innerHTML = "";
+    const frame = document.createElement("frame");
+    frame.setAttribute("src", "https://example.com/menu");
+    document.body.appendChild(frame);
+
+    const snapshot = await collectDomHealthSnapshot(document);
+
+    expect(snapshot.iframes.total).toBe(1);
+    expect(snapshot.iframes.byTag).toEqual({ iframe: 0, frame: 1 });
+  });
+
+  it("does not attempt to classify cross-origin accessibility at all — that is the frame-tree layer's job", async () => {
     setHtml(`<iframe id="frame"></iframe>`);
     const iframe = document.getElementById("frame") as HTMLIFrameElement;
     Object.defineProperty(iframe, "contentDocument", {
@@ -259,8 +320,7 @@ describe("collectDomHealthSnapshot — iframes", () => {
 
     expect(snapshot.iframes.total).toBe(1);
     expect(snapshot.iframes.accessible).toBe(0);
-    expect(snapshot.iframes.crossOrigin).toBe(1);
-    expect(snapshot.elementUniverse.inaccessibleElements).toBeGreaterThan(0);
+    expect(snapshot.iframes.crossOrigin).toBe(0);
   });
 });
 

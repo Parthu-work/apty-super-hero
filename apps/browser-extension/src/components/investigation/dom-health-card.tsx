@@ -73,6 +73,23 @@ const GRADE_META: Record<
     badgeClassName:
       "border-transparent bg-destructive text-destructive-foreground",
   },
+  // Deliberately NOT green/red/any tone that reads as "healthy" or
+  // "unhealthy" — there is no score behind this grade at all (see
+  // EvidenceState). A neutral, clearly-different treatment so this can
+  // never be mistaken for a passing or failing result.
+  NOT_ASSESSED: {
+    label: "NOT ASSESSED",
+    badgeClassName: "border-muted-foreground/40 bg-muted text-muted-foreground",
+  },
+};
+
+const EVIDENCE_STATE_LABEL: Record<string, string> = {
+  HEALTHY_EVIDENCE: "Full evidence",
+  PARTIAL_EVIDENCE: "Partial evidence — some frames could not be inspected",
+  NO_EVIDENCE: "No interactive elements found",
+  INACCESSIBLE: "No elements found, and coverage is incomplete",
+  FAILED: "Could not be inspected at all",
+  NOT_ASSESSED: "Not assessed",
 };
 
 const CONFIDENCE_LABEL: Record<DomHealthConfidence, string> = {
@@ -121,6 +138,7 @@ const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], string> = {
   "skipped-unsafe": "Skipped (unsafe)",
   "skipped-cross-origin": "Skipped (cross-origin)",
   "skipped-duplicate": "Skipped (duplicate)",
+  "not-discovered": "Detected, not explored",
 };
 
 function metricTone(score: number): StatusMeta["tone"] {
@@ -150,6 +168,7 @@ function pageStatusTone(status: PageAuditRecord["status"]): StatusMeta["tone"] {
 /** Shape shared by both a single-page result and the application-level rollup — every field here is evidence-driven, never text this component invents. */
 interface SharedEvidence {
   confidence: DomHealthConfidence;
+  evidenceState: string;
   manualSelectorDependency: number;
   metrics: DomHealthMetrics;
   summary: string;
@@ -160,8 +179,24 @@ interface SharedEvidence {
 }
 
 function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
+  const evidenceIsIncomplete = result.evidenceState !== "HEALTHY_EVIDENCE";
   return (
     <>
+      {evidenceIsIncomplete && (
+        <p
+          className={cn(
+            "rounded-md border px-2.5 py-1.5 text-xs font-medium",
+            toneTextClass(
+              result.evidenceState === "PARTIAL_EVIDENCE"
+                ? "warning"
+                : "danger",
+            ),
+          )}
+        >
+          Evidence:{" "}
+          {EVIDENCE_STATE_LABEL[result.evidenceState] ?? result.evidenceState}
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">{result.summary}</p>
 
       <div className="rounded-md border bg-muted/30 px-2.5 py-2">
@@ -359,7 +394,7 @@ export function DomHealthCard() {
           onClick={() => setExpanded((v) => !v)}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
           aria-expanded={expanded}
-          aria-label={`DOM Health: ${active?.available ? `${active.score} out of 100, ${GRADE_META[active.grade ?? "HIGH_RISK"].label}` : active ? "unavailable" : "not checked yet"}. Click to ${expanded ? "collapse" : "expand"}.`}
+          aria-label={`DOM Health: ${active?.available ? (active.score !== null ? `${active.score} out of 100, ${GRADE_META[active.grade].label}` : `not assessed — ${EVIDENCE_STATE_LABEL[active.evidenceState] ?? active.evidenceState}`) : active ? "unavailable" : "not checked yet"}. Click to ${expanded ? "collapse" : "expand"}.`}
         >
           <ScanSearchIcon
             className="size-3.5 shrink-0 text-muted-foreground"
@@ -375,7 +410,9 @@ export function DomHealthCard() {
                 GRADE_META[active.grade].badgeClassName,
               )}
             >
-              {active.score}/100 · {GRADE_META[active.grade].label}
+              {active.score !== null
+                ? `${active.score}/100 · ${GRADE_META[active.grade].label}`
+                : GRADE_META[active.grade].label}
             </span>
           )}
           {active && !active.available && (
@@ -615,13 +652,19 @@ export function DomHealthCard() {
                   <dd className="text-right font-mono">
                     {outcome.metadata.interactiveElementsAnalyzed}
                   </dd>
-                  <dt>Iframes</dt>
+                  <dt>Iframes / frames</dt>
                   <dd className="text-right font-mono">
-                    {outcome.metadata.iframeCount}
+                    {outcome.iframes.byTag.iframe} /{" "}
+                    {outcome.iframes.byTag.frame}
                   </dd>
                   <dt>Shadow roots</dt>
                   <dd className="text-right font-mono">
                     {outcome.metadata.shadowRootCount}
+                  </dd>
+                  <dt>Frames reached</dt>
+                  <dd className="text-right font-mono">
+                    {outcome.frameAccessibility.framesAccessible}/
+                    {outcome.frameAccessibility.framesTotal}
                   </dd>
                 </dl>
               </details>
@@ -646,10 +689,29 @@ export function DomHealthCard() {
                 <span>·</span>
                 <span>
                   {appOutcome.coverage.pagesAudited}/
-                  {appOutcome.coverage.pagesDiscovered} pages audited (
-                  {appOutcome.coverage.coveragePercent}% coverage)
+                  {appOutcome.coverage.pagesDiscovered} states audited (
+                  {appOutcome.coverage.coveragePercent}% observed coverage)
                 </span>
+                <span>·</span>
+                <span>
+                  {appOutcome.coverage.framesInspected}/
+                  {appOutcome.coverage.framesDiscovered} frames reached
+                </span>
+                {appOutcome.coverage.pagesNotDiscovered > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className={toneTextClass("warning")}>
+                      {appOutcome.coverage.pagesNotDiscovered} control(s)
+                      detected but not explored
+                    </span>
+                  </>
+                )}
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                Coverage is observed, not total — this audit cannot know how
+                many states the application actually has (discovery method:{" "}
+                {appOutcome.coverage.discoveryMethod}).
+              </p>
 
               <SharedEvidenceSections result={appOutcome} />
 
@@ -686,7 +748,11 @@ export function DomHealthCard() {
                               {PAGE_STATUS_LABELS[page.status]}
                             </td>
                             <td className="px-1.5 py-1 text-muted-foreground">
-                              {page.result ? `${page.result.score}/100` : "—"}
+                              {page.result
+                                ? page.result.score !== null
+                                  ? `${page.result.score}/100`
+                                  : GRADE_META[page.result.grade].label
+                                : "—"}
                             </td>
                           </tr>
                         ))}

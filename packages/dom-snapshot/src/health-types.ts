@@ -36,11 +36,28 @@ export interface DomHealthCounts {
 }
 
 export interface DomHealthIframeInfo {
+  /** Child frame-hosting elements (`<iframe>` AND legacy `<frame>`) owned directly by this document. */
   total: number;
-  /** Same-origin iframes whose document could be traversed. */
+  /**
+   * Legacy field, always 0 from this collector going forward.
+   *
+   * A single document can never determine whether a child frame is
+   * accessible by reading its own DOM — that requires actually addressing
+   * the child frame's own content-script instance (see `@apty/browser-runtime`'s
+   * `frame-tree.ts`/`frame-audit.ts`), which is a browser-extension-level
+   * concept, not something this pure-DOM collector can or should attempt.
+   * The previous implementation tried `iframe.contentDocument` from the
+   * parent's own script, which the browser's same-origin policy blocks for
+   * cross-origin frames — and, more importantly, doing so from here could
+   * never see a `<frame>` element's content either way, since `<frame>` and
+   * `<iframe>` are both separate browsing contexts, not something to reach
+   * into from a sibling document's script.
+   */
   accessible: number;
-  /** Iframes whose document could not be read due to the browser's same-origin security boundary — not a DOM defect. */
+  /** Legacy field, always 0 from this collector going forward — see `accessible`. */
   crossOrigin: number;
+  /** Honest breakdown of `total` by owning tag — a `<frame>` and an `<iframe>` are both counted in `total`, but this exposes which. */
+  byTag: { iframe: number; frame: number };
 }
 
 export interface DomHealthShadowDomInfo {
@@ -118,13 +135,19 @@ export type SelectorStrategy =
  * - CHANGED: a matching logical element existed before, but its previously-chosen
  *   selector no longer resolves correctly — the control persisted, the selector broke.
  * - DETACHED: a previously-tracked logical element has no match now at all.
+ * - AMBIGUOUS: two or more distinct elements in THIS snapshot share the same
+ *   logical fingerprint — correlation cannot safely attribute either one to
+ *   a previous entry (or safely anchor a future one), so neither is ever
+ *   silently reported STABLE/CHANGED by first-match. This is a real,
+ *   reportable finding (a fingerprint collision), not a soft fallback.
  */
 export type StabilityVerdict =
   | "STABLE"
   | "CHANGED"
   | "DETACHED"
   | "NEW"
-  | "UNKNOWN";
+  | "UNKNOWN"
+  | "AMBIGUOUS";
 
 export type HitTestClassification =
   | "fully-targetable"
@@ -162,6 +185,23 @@ export interface ElementSelectorReport {
   hasAccessibleName: boolean;
   hitTest: HitTestResult | null;
   stability: StabilityVerdict;
+  /**
+   * Which frame this element was found in — stamped by the multi-frame
+   * aggregator (`@apty/browser-runtime`'s `frame-audit.ts`) when it combines
+   * several frames' snapshots into one audited state, so an ambiguous or
+   * failed element can always be traced back to a real frame. Absent on a
+   * raw single-frame snapshot straight out of `collectDomHealthSnapshot`.
+   */
+  frameId?: number;
+  frameUrl?: string;
+}
+
+/** Identity of the frame a `DomHealthSnapshot` was collected from — set by the caller, never guessed by the collector itself (it only knows its own document, not its place in the tab's frame tree). */
+export interface DomHealthFrameIdentity {
+  frameId: number;
+  url: string;
+  parentFrameId: number;
+  depth: number;
 }
 
 export interface SelectorAnalysisAggregate {
@@ -202,6 +242,8 @@ export interface StabilityStats {
   unknown: number;
   /** Count of STABLE/CHANGED elements where the underlying DOM node object was replaced but the logical fingerprint still matched — evidence the tracker isn't just relying on object identity. */
   nodeReplacedButLogicallyStable: number;
+  /** Elements whose logical fingerprint collided with another element in THIS snapshot — correlation could not safely attribute either one, so both are reported here instead of one silently winning "first match". */
+  ambiguous: number;
 }
 
 export interface HitTestStats {
@@ -270,6 +312,8 @@ export interface DomHealthSnapshot {
   iframes: DomHealthIframeInfo;
   shadowDom: DomHealthShadowDomInfo;
   zIndex: DomHealthZIndexInfo;
+  /** Which frame this snapshot came from, when the caller knows (see `DomHealthCollectorOptions.frameContext`) — absent for a bare, orchestrator-less call. */
+  frame?: DomHealthFrameIdentity | null;
 }
 
 export interface DomHealthCollectorOptions {
@@ -291,4 +335,6 @@ export interface DomHealthCollectorOptions {
    * snapshot after the first in the same audit run.
    */
   freshAudit?: boolean;
+  /** Frame identity to stamp onto the resulting snapshot's `frame` field — supplied by the caller (the content script knows its own `sender.frameId` from `chrome.runtime.onMessage`), never computed by this collector. */
+  frameContext?: DomHealthFrameIdentity | null;
 }

@@ -3,6 +3,61 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## Apty DOM Health frame-addressing uses `chrome.webNavigation`, not `chrome.debugger`/CDP — and click-based state discovery is opt-in, off by default
+
+A forensic audit found the previous DOM Health implementation sent every
+content-script message via an un-addressed `chrome.tabs.sendMessage(tabId,
+message)` while the content script is registered `all_frames: true` — on a
+multi-frame page, every frame answered the same message and the caller got
+back whichever response arrived first, and the collector separately only
+ever recursed into `<iframe>` via `iframe.contentDocument` (blocked by the
+browser for cross-origin frames, and never applicable to a legacy `<frame>`
+either way). Combined with a scoring bug where zero analyzed elements
+defaulted to a ~90+ "healthy" composite score, an enterprise application
+shaped like Infor LN (a menu frame separate from the content frame,
+same-URL menu-driven navigation) could be silently, misleadingly reported
+as healthy while never actually being seen.
+
+The fix (`apty/frame-tree.ts`, `apty/frame-audit.ts`) enumerates the tab's
+real frame tree via `chrome.webNavigation.getAllFrames` and addresses every
+message at an explicit `frameId` — never a broadcast. This was chosen over
+reusing the existing CDP/`chrome.debugger` frame-tree code
+(`automation/iframe-manager.ts`) that this codebase already has for a
+different feature: attaching the debugger shows a visible "this page is
+being debugged" banner and carries a heavier attach/detach lifecycle, which
+would be a real, unrequested UX change for a feature designed to run
+silently from the side panel. `chrome.webNavigation` needs no attach step
+and is sufficient because this design never needs to map a specific DOM
+`<iframe>`/`<frame>` element back to a `frameId` — each frame is audited
+independently, addressed directly, never reached into from a sibling
+frame's script.
+
+Zero-evidence scoring is fixed by making `score: number | null` and adding
+an `EvidenceState` (`HEALTHY_EVIDENCE`/`PARTIAL_EVIDENCE`/`NO_EVIDENCE`/
+`INACCESSIBLE`/`FAILED`/`NOT_ASSESSED`) orthogonal to the score — `null`
+score/`NOT_ASSESSED` grade exactly when there is no real evidence to
+support a number, never a fabricated default.
+
+Same-URL application states (a menu-driven transition that never changes
+the URL) are detected via a structural state fingerprint
+(`apty/state-fingerprint.ts`, built from `@apty/dom-snapshot`'s
+`health-state-signature.ts`: heading sample, active nav item, container
+counts) rather than assuming every transition is a `tabs.onUpdated`
+navigation event.
+
+Broadened discovery (`collectSafeNavigationCandidates` — menu/tab/tree
+items with no real `<a href>`) is detected read-only by default and never
+clicked automatically. `runApplicationDomHealthAudit`'s
+`allowClickDiscovery` option (default `false`, no caller enables it today)
+is the only thing that can turn a detected candidate into a real click, and
+even then only after the content script re-verifies it's still inside the
+safe container allowlist and non-destructive immediately before clicking.
+This is deliberately conservative: the risk of an automated agent clicking
+unknown controls on a live production enterprise application outweighs the
+completeness gained by exploring menu-driven navigation without a human
+opting in. See `docs/development/dom-health-architecture.md` for the full
+model.
+
 ## Apty DOM Health uses two snapshots and a fixed weighted rule engine, not a persistent recorder or an LLM-scored heuristic
 
 The DOM Readiness Score automates the manual "run a DOM analysis script,

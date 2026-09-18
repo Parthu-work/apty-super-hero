@@ -34,8 +34,13 @@ export type {
   DomHealthMetrics,
   DomHealthRecommendation,
   DomHealthRisk,
+  EvidenceState,
 } from "./dom-health-scoring.js";
-export { buildDomHealthAuditResult } from "./dom-health-scoring.js";
+export {
+  buildDomHealthAuditResult,
+  determineEvidenceState,
+  isScoreMeaningful,
+} from "./dom-health-scoring.js";
 export {
   type CorrelateOptions,
   type CorrelationCluster,
@@ -73,6 +78,19 @@ export {
   matchResources,
 } from "./extension-network-inspector.js";
 export { sendExternalMessage } from "./external-messaging.js";
+export type {
+  CaptureStateResult,
+  FrameCaptureResult,
+} from "./frame-audit.js";
+export {
+  aggregateFrameSnapshots,
+  captureApplicationState,
+} from "./frame-audit.js";
+export type {
+  AuditFrame,
+  FrameAccessibilitySummary,
+} from "./frame-tree.js";
+export { getFrameTree } from "./frame-tree.js";
 export type {
   DuplicateCallWarning,
   OrchestratorAction,
@@ -151,6 +169,14 @@ export {
   NotConfiguredServiceWorkerDiagnosticsProvider,
   type ServiceWorkerDiagnosticsConfig,
 } from "./service-worker-diagnostics.js";
+export type {
+  AuditStateFingerprint,
+  StateComparison,
+} from "./state-fingerprint.js";
+export {
+  compareStateFingerprints,
+  computeStateFingerprint,
+} from "./state-fingerprint.js";
 export {
   ExternalMessageStudioDiagnosticsProvider,
   NotConfiguredStudioDiagnosticsProvider,

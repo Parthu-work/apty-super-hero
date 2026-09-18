@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockTabsGet = vi.hoisted(() => vi.fn());
 const mockTabsUpdate = vi.hoisted(() => vi.fn());
 const mockSendMessage = vi.hoisted(() => vi.fn());
+const mockGetAllFrames = vi.hoisted(() => vi.fn());
 const onUpdatedListeners = vi.hoisted(
   () => [] as Array<(id: number, info: { status?: string }) => void>,
 );
 
 let currentUrl = "https://app.example.com/home";
 const linksByUrl = new Map<string, unknown[]>();
+const candidatesByUrl = new Map<string, unknown[]>();
 
 (global as any).chrome = {
   tabs: {
@@ -25,6 +27,9 @@ const linksByUrl = new Map<string, unknown[]>();
         if (i >= 0) onUpdatedListeners.splice(i, 1);
       },
     },
+  },
+  webNavigation: {
+    getAllFrames: mockGetAllFrames,
   },
   runtime: { lastError: undefined as { message?: string } | undefined },
 };
@@ -112,6 +117,7 @@ function snapshotFixture(url: string): DomHealthSnapshot {
       new: 0,
       unknown: 1,
       nodeReplacedButLogicallyStable: 0,
+      ambiguous: 0,
     },
     hitTesting: {
       tested: 1,
@@ -134,17 +140,43 @@ function snapshotFixture(url: string): DomHealthSnapshot {
       changedAcrossSnapshots: 0,
     },
     accessibility: { totalInteractive: 1, missingAccessibleName: 0 },
-    iframes: { total: 0, accessible: 0, crossOrigin: 0 },
+    iframes: {
+      total: 0,
+      accessible: 0,
+      crossOrigin: 0,
+      byTag: { iframe: 0, frame: 0 },
+    },
     shadowDom: { roots: 0, elements: 0 },
     zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
   };
 }
 
+function stateSignatureFixture(url: string) {
+  return {
+    url,
+    title: `Title for ${url}`,
+    headingSample: [],
+    activeNavItem: null,
+    containerCounts: {},
+  };
+}
+
 function setupSendMessageMock() {
   mockSendMessage.mockImplementation(
-    (_tabId: number, msg: { request: string }, callback: any) => {
-      if (msg.request === "collect-dom-health-snapshot") {
-        callback({ success: true, data: snapshotFixture(currentUrl) });
+    (
+      _tabId: number,
+      msg: { request: string },
+      _options: unknown,
+      callback: any,
+    ) => {
+      if (msg.request === "collect-dom-health-frame-bundle") {
+        callback({
+          success: true,
+          data: {
+            snapshot: snapshotFixture(currentUrl),
+            stateSignature: stateSignatureFixture(currentUrl),
+          },
+        });
         return;
       }
       if (msg.request === "wait-for-dom-stable") {
@@ -153,6 +185,13 @@ function setupSendMessageMock() {
       }
       if (msg.request === "collect-dom-health-links") {
         callback({ success: true, data: linksByUrl.get(currentUrl) ?? [] });
+        return;
+      }
+      if (msg.request === "collect-dom-health-safe-navigation-candidates") {
+        callback({
+          success: true,
+          data: candidatesByUrl.get(currentUrl) ?? [],
+        });
         return;
       }
       if (msg.request === "get-dom-health-navigation-model") {
@@ -193,6 +232,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   onUpdatedListeners.length = 0;
   linksByUrl.clear();
+  candidatesByUrl.clear();
   currentUrl = "https://app.example.com/home";
   (global as any).chrome.runtime.lastError = undefined;
   mockTabsGet.mockImplementation(async () => ({ id: TAB_ID, url: currentUrl }));
@@ -207,6 +247,9 @@ beforeEach(() => {
       return {};
     },
   );
+  mockGetAllFrames.mockImplementation(async () => [
+    { frameId: 0, parentFrameId: -1, url: currentUrl, errorOccurred: false },
+  ]);
   setupSendMessageMock();
 });
 
@@ -227,6 +270,7 @@ describe("runApplicationDomHealthAudit", () => {
       expect(result.coverage.pagesDiscovered).toBe(1);
       expect(result.coverage.pagesAudited).toBe(1);
       expect(result.pages[0]?.status).toBe("completed");
+      expect(result.coverage.coverageLabel).toBe("OBSERVED_COVERAGE");
     }
   });
 
@@ -373,6 +417,326 @@ describe("runApplicationDomHealthAudit", () => {
     if (result.available) {
       expect(result.coverage.pagesFailed).toBe(1);
       expect(result.coverage.pagesAudited).toBe(1);
+    }
+  });
+});
+
+describe("runApplicationDomHealthAudit — frame-addressed discovery (RC-1/RC-4)", () => {
+  it("discovers same-origin links from a NON-top frame (a menu frame separate from the content frame)", async () => {
+    mockGetAllFrames.mockResolvedValue([
+      {
+        frameId: 0,
+        parentFrameId: -1,
+        url: "https://app.example.com/home",
+        errorOccurred: false,
+      },
+      {
+        frameId: 3,
+        parentFrameId: 0,
+        url: "https://app.example.com/menu",
+        errorOccurred: false,
+      },
+    ]);
+    mockSendMessage.mockImplementation(
+      (
+        _tabId: number,
+        msg: { request: string },
+        options: { frameId: number },
+        callback: any,
+      ) => {
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          callback({
+            success: true,
+            data: {
+              snapshot: snapshotFixture(currentUrl),
+              stateSignature: stateSignatureFixture(currentUrl),
+            },
+          });
+          return;
+        }
+        if (msg.request === "wait-for-dom-stable") {
+          callback({ success: true, data: { settled: true, elapsedMs: 0 } });
+          return;
+        }
+        if (msg.request === "collect-dom-health-links") {
+          // Only the MENU frame (3) has the navigation link — the top
+          // frame (0) is a bare shell with none, exactly the shape that
+          // defeated top-frame-only discovery before this fix.
+          if (options.frameId === 3) {
+            callback({
+              success: true,
+              data: [link({ absoluteUrl: "https://app.example.com/orders" })],
+            });
+          } else {
+            callback({ success: true, data: [] });
+          }
+          return;
+        }
+        if (msg.request === "collect-dom-health-safe-navigation-candidates") {
+          callback({ success: true, data: [] });
+          return;
+        }
+        if (msg.request === "get-dom-health-navigation-model") {
+          callback({
+            success: true,
+            data: { usesHistoryApiRouting: false, historyApiCallCount: 0 },
+          });
+          return;
+        }
+        callback({ success: false, error: "unhandled message in test" });
+      },
+    );
+
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.scope).toBe("application");
+      expect(mockTabsUpdate).toHaveBeenCalledWith(
+        TAB_ID,
+        expect.objectContaining({ url: "https://app.example.com/orders" }),
+      );
+    }
+  });
+});
+
+describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/RC-5)", () => {
+  it("reports a detected menu/tab control as not-discovered by default — never clicks it", async () => {
+    candidatesByUrl.set("https://app.example.com/home", [
+      {
+        domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
+        role: "menuitem",
+        tagName: "div",
+        text: "Customers",
+        looksDestructive: false,
+        destructiveReason: null,
+      },
+    ]);
+
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.coverage.pagesNotDiscovered).toBe(1);
+      expect(result.pages.some((p) => p.status === "not-discovered")).toBe(
+        true,
+      );
+      expect(result.coverage.discoveryMethod).toBe("anchor-links");
+    }
+    // The click-dispatch message is never sent unless allowClickDiscovery is set.
+    expect(mockSendMessage).not.toHaveBeenCalledWith(
+      TAB_ID,
+      expect.objectContaining({ request: "click-safe-navigation-candidate" }),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("discovers a same-URL state via a click when allowClickDiscovery is explicitly enabled", async () => {
+    candidatesByUrl.set("https://app.example.com/home", [
+      {
+        domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
+        role: "menuitem",
+        tagName: "div",
+        text: "Customers",
+        looksDestructive: false,
+        destructiveReason: null,
+      },
+    ]);
+    let clicked = false;
+    mockSendMessage.mockImplementation(
+      (
+        _tabId: number,
+        msg: { request: string },
+        _options: unknown,
+        callback: any,
+      ) => {
+        if (msg.request === "click-safe-navigation-candidate") {
+          clicked = true;
+          callback({ success: true, data: { clicked: true } });
+          return;
+        }
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          // After the click, the "page" (menu item selected + heading)
+          // changes even though the URL never does.
+          const snapshot = snapshotFixture(currentUrl);
+          const signature = clicked
+            ? {
+                ...stateSignatureFixture(currentUrl),
+                activeNavItem: "Customers",
+                headingSample: ["Customer Overview"],
+              }
+            : stateSignatureFixture(currentUrl);
+          callback({
+            success: true,
+            data: { snapshot, stateSignature: signature },
+          });
+          return;
+        }
+        if (msg.request === "wait-for-dom-stable") {
+          callback({ success: true, data: { settled: true, elapsedMs: 0 } });
+          return;
+        }
+        if (msg.request === "collect-dom-health-links") {
+          callback({ success: true, data: [] });
+          return;
+        }
+        if (msg.request === "collect-dom-health-safe-navigation-candidates") {
+          callback({
+            success: true,
+            data: clicked ? [] : (candidatesByUrl.get(currentUrl) ?? []),
+          });
+          return;
+        }
+        if (msg.request === "get-dom-health-navigation-model") {
+          callback({
+            success: true,
+            data: { usesHistoryApiRouting: false, historyApiCallCount: 0 },
+          });
+          return;
+        }
+        callback({ success: false, error: "unhandled message in test" });
+      },
+    );
+
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      allowClickDiscovery: true,
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.coverage.pagesAudited).toBe(2);
+      expect(result.coverage.discoveryMethod).toBe(
+        "anchor-links+navigation-controls",
+      );
+      const clickState = result.pages.find(
+        (p) =>
+          p.discoverySource === "safe-navigation-control" &&
+          p.status === "completed",
+      );
+      expect(clickState).toBeDefined();
+      expect(clickState?.transitionReason).toContain("Customers");
+      // The URL never changed — this state was only distinguishable by its
+      // structural fingerprint, exactly the LN-shaped case RC-5 targets.
+      expect(clickState?.url).toBe("https://app.example.com/home");
+    }
+  });
+
+  it("reports not-discovered (never a fabricated state) when a click produces no real change", async () => {
+    candidatesByUrl.set("https://app.example.com/home", [
+      {
+        domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
+        role: "menuitem",
+        tagName: "div",
+        text: "Dead End",
+        looksDestructive: false,
+        destructiveReason: null,
+      },
+    ]);
+    mockSendMessage.mockImplementation(
+      (
+        _tabId: number,
+        msg: { request: string },
+        _options: unknown,
+        callback: any,
+      ) => {
+        if (msg.request === "click-safe-navigation-candidate") {
+          callback({ success: true, data: { clicked: true } });
+          return;
+        }
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          callback({
+            success: true,
+            data: {
+              snapshot: snapshotFixture(currentUrl),
+              stateSignature: stateSignatureFixture(currentUrl),
+            },
+          });
+          return;
+        }
+        if (msg.request === "wait-for-dom-stable") {
+          callback({ success: true, data: { settled: true, elapsedMs: 0 } });
+          return;
+        }
+        if (msg.request === "collect-dom-health-links") {
+          callback({ success: true, data: [] });
+          return;
+        }
+        if (msg.request === "collect-dom-health-safe-navigation-candidates") {
+          callback({
+            success: true,
+            data: candidatesByUrl.get(currentUrl) ?? [],
+          });
+          return;
+        }
+        if (msg.request === "get-dom-health-navigation-model") {
+          callback({
+            success: true,
+            data: { usesHistoryApiRouting: false, historyApiCallCount: 0 },
+          });
+          return;
+        }
+        callback({ success: false, error: "unhandled message in test" });
+      },
+    );
+
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      allowClickDiscovery: true,
+      maxPages: 3,
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      // Only the seed page audited — the click never produced a different
+      // fingerprint, so it must be reported not-discovered, never audited
+      // as if it were a real second state.
+      expect(result.coverage.pagesAudited).toBe(1);
+      expect(
+        result.pages.some(
+          (p) =>
+            p.status === "not-discovered" &&
+            p.discoverySource === "safe-navigation-control",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("never sends a click message for a candidate flagged destructive, even with allowClickDiscovery enabled", async () => {
+    candidatesByUrl.set("https://app.example.com/home", [
+      {
+        domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
+        role: "menuitem",
+        tagName: "div",
+        text: "Delete account",
+        looksDestructive: true,
+        destructiveReason: "delete",
+      },
+    ]);
+
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      allowClickDiscovery: true,
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    expect(mockSendMessage).not.toHaveBeenCalledWith(
+      TAB_ID,
+      expect.objectContaining({ request: "click-safe-navigation-candidate" }),
+      expect.anything(),
+      expect.anything(),
+    );
+    if (result.available) {
+      const skipped = result.pages.find((p) => p.title === "Delete account");
+      expect(skipped?.status).toBe("skipped-unsafe");
     }
   });
 });

@@ -25,9 +25,22 @@
  * that fact is reported, never hidden.
  *
  * Known, honest limitations (documented rather than silently glossed over):
- * - Cross-origin iframes cannot be read — this is the browser's same-origin
- *   security boundary, not something a content script can work around, and
- *   is reported as `iframes.crossOrigin`, never conflated with a DOM defect.
+ * - This collector NEVER reaches into a child `<iframe>`/`<frame>`'s
+ *   `contentDocument` from the parent's own script. Two reasons: (1) the
+ *   browser's same-origin policy blocks that for cross-origin frames
+ *   regardless, and (2) even for a same-origin frame, that isn't actually
+ *   the right way to see it — a real `<frame>`/`<iframe>` is a separate
+ *   browsing context with its OWN content-script instance (the extension's
+ *   manifest injects with `all_frames: true`), which can see that frame's
+ *   document natively, with no cross-origin restriction at all, as long as
+ *   it is addressed directly. That addressing is a browser-extension
+ *   concept this pure-DOM package deliberately has no access to — it's
+ *   handled by `@apty/browser-runtime`'s `frame-tree.ts` (enumerates every
+ *   frame via `chrome.webNavigation.getAllFrames`) and `frame-audit.ts`
+ *   (messages each frame directly by `frameId` and combines the results).
+ *   This collector only ever reports how many child frame-hosting elements
+ *   (`<iframe>` AND legacy `<frame>`, see `iframes.byTag`) this ONE document
+ *   owns — never their contents, and never a same-origin/cross-origin guess.
  * - Closed Shadow DOM roots (`{mode: "closed"}`) are invisible to any
  *   content script by design — only open roots are counted/traversed.
  * - Style-based checks (hidden/overlay classification, z-index) are bounded
@@ -35,9 +48,9 @@
  *   style recalculation on very large pages; elements beyond that bound are
  *   assumed visible/non-overlay rather than the audit becoming slow/blocking.
  * - A fingerprint collision (two distinct elements sharing tag/role/name/
- *   stable-attrs/text-sample) is possible on a pathological DOM; correlation
- *   takes the first match. This is documented, probabilistic evidence, not
- *   a cryptographic identity guarantee.
+ *   stable-attrs/text-sample) is detected explicitly: every element sharing
+ *   a fingerprint with another element in THIS snapshot is reported
+ *   `AMBIGUOUS`, never silently resolved by taking the first match.
  */
 import { hitTestElement } from "./health-hit-test.js";
 import {
@@ -66,8 +79,6 @@ const DEFAULT_ELEMENT_CEILING = 4000;
 /** How many elements are analyzed per batch before yielding to the event loop, so a large page's audit never blocks the tab. */
 const BATCH_SIZE = 150;
 const DEFAULT_MAX_STYLE_CHECKS = 2000;
-/** Maximum iframe nesting depth traversed — guards against pathological/adversarial nesting. */
-const MAX_FRAME_DEPTH = 3;
 /** A positioned element at or above this z-index is counted as "high" for overlay-risk scoring. */
 const HIGH_Z_INDEX_THRESHOLD = 1000;
 
@@ -193,7 +204,7 @@ function classifyElement(
   insideShadowDom: boolean,
   isInteractive: boolean,
 ): ElementClassification {
-  if (tag === "iframe") return "iframe";
+  if (tag === "iframe" || tag === "frame") return "iframe";
   if ((el as HTMLElement).shadowRoot) return "shadow-host";
   if (style?.hidden) return "hidden";
   if (isInteractive) return "interactive";
@@ -236,8 +247,7 @@ interface CollectorState {
     shadowDomElements: number;
   };
   iframeTotal: number;
-  iframeAccessible: number;
-  iframeCrossOrigin: number;
+  iframeByTag: { iframe: number; frame: number };
   shadowRoots: number;
   shadowElements: number;
   maxZIndex: number;
@@ -270,6 +280,7 @@ interface CollectorState {
     new: number;
     unknown: number;
     nodeReplacedButLogicallyStable: number;
+    ambiguous: number;
   };
   hitTesting: {
     tested: number;
@@ -318,8 +329,7 @@ function createState(): CollectorState {
       shadowDomElements: 0,
     },
     iframeTotal: 0,
-    iframeAccessible: 0,
-    iframeCrossOrigin: 0,
+    iframeByTag: { iframe: 0, frame: 0 },
     shadowRoots: 0,
     shadowElements: 0,
     maxZIndex: 0,
@@ -352,6 +362,7 @@ function createState(): CollectorState {
       new: 0,
       unknown: 0,
       nodeReplacedButLogicallyStable: 0,
+      ambiguous: 0,
     },
     hitTesting: {
       tested: 0,
@@ -423,18 +434,28 @@ function analyzeInteractiveElement(
   hasMultiSnapshotEvidence: boolean,
   previousRegistry: Map<string, RegistryEntry>,
   currentRegistry: Map<string, RegistryEntry>,
+  duplicateFingerprintsThisSnapshot: Set<string>,
 ): void {
   const attributes = extractElementAttributes(el);
   const resolution = resolveElement(root, el);
   const hitTest = hitTestElement(el);
   const accessibleName = hasAccessibleName(el);
   const fingerprint = computeElementFingerprint(el);
+  const fingerprintIsAmbiguous =
+    duplicateFingerprintsThisSnapshot.has(fingerprint);
 
   const previous = previousRegistry.get(fingerprint);
   let stability: StabilityVerdict;
   let nodeReplaced = false;
 
-  if (!hasMultiSnapshotEvidence) {
+  if (fingerprintIsAmbiguous) {
+    // Two or more distinct elements in THIS snapshot share the fingerprint —
+    // correlation cannot safely attribute a previous entry (or anchor a
+    // future one) to any single one of them, so every element sharing it is
+    // reported AMBIGUOUS rather than one silently winning "first match".
+    stability = "AMBIGUOUS";
+    state.stability.ambiguous++;
+  } else if (!hasMultiSnapshotEvidence) {
     stability = "UNKNOWN";
   } else if (!previous) {
     stability = "NEW";
@@ -470,10 +491,10 @@ function analyzeInteractiveElement(
     }
   }
 
-  // First interactive element wins a given fingerprint slot for this pass —
-  // a collision on a pathological DOM degrades to "not tracked", never to
-  // a false stability claim.
-  if (!currentRegistry.has(fingerprint)) {
+  // An ambiguous-fingerprint element is never trusted as a future "previous"
+  // anchor either — degrade to "not tracked" for next time, never a false
+  // stability claim built on an unreliable identity.
+  if (!fingerprintIsAmbiguous && !currentRegistry.has(fingerprint)) {
     currentRegistry.set(fingerprint, {
       el,
       selector: resolution.bestSelector ?? "",
@@ -558,12 +579,20 @@ function analyzeInteractiveElement(
   });
 }
 
-/** Walks one root (a Document or an open ShadowRoot) — recurses into open shadow roots and accessible same-origin iframes. Only classifies/counts elements and queues interactive candidates; the expensive per-element pipeline runs afterward, in batches. */
+/**
+ * Walks one root (a Document or an open ShadowRoot) — recurses into open
+ * shadow roots ONLY. Never reaches into a child `<iframe>`/`<frame>`'s
+ * `contentDocument` — see the module doc comment for why; a child frame's
+ * own document is a separate browsing context with its own content-script
+ * instance, addressed directly by `@apty/browser-runtime`'s
+ * `frame-audit.ts`, not read through this one. Only classifies/counts
+ * elements and queues interactive candidates; the expensive per-element
+ * pipeline runs afterward, in batches.
+ */
 function collectFromRoot(
   root: ParentNode,
   state: CollectorState,
   options: { maxStyleChecks: number },
-  depth: number,
   insideShadowDom: boolean,
 ): void {
   const all = root.querySelectorAll("*");
@@ -621,38 +650,19 @@ function collectFromRoot(
     const shadowRoot = (el as HTMLElement).shadowRoot;
     if (shadowRoot) {
       state.shadowRoots++;
-      collectFromRoot(shadowRoot, state, options, depth, true);
+      collectFromRoot(shadowRoot, state, options, true);
     }
   }
 
-  const iframes = root.querySelectorAll("iframe");
-  for (const iframe of Array.from(iframes)) {
-    state.iframeTotal++;
-    if (depth >= MAX_FRAME_DEPTH) {
-      state.iframeCrossOrigin++;
-      state.universe.inaccessible++;
-      continue;
-    }
-    let innerDoc: Document | null = null;
-    try {
-      innerDoc = (iframe as HTMLIFrameElement).contentDocument;
-    } catch {
-      innerDoc = null;
-    }
-    if (innerDoc) {
-      state.iframeAccessible++;
-      collectFromRoot(
-        innerDoc.body ?? innerDoc,
-        state,
-        options,
-        depth + 1,
-        false,
-      );
-    } else {
-      state.iframeCrossOrigin++;
-      state.universe.inaccessible++;
-    }
-  }
+  // Tally child frame-hosting elements this document owns, by tag — never
+  // attempt to read their content (see module/function doc comments). A
+  // legacy `<frame>` counts exactly like an `<iframe>`: both are separate
+  // browsing contexts, addressed independently by the frame-tree layer.
+  const iframeCount = root.querySelectorAll("iframe").length;
+  const frameCount = root.querySelectorAll("frame").length;
+  state.iframeByTag.iframe += iframeCount;
+  state.iframeByTag.frame += frameCount;
+  state.iframeTotal += iframeCount + frameCount;
 }
 
 /**
@@ -683,7 +693,6 @@ export async function collectDomHealthSnapshot(
     rootDocument.body ?? rootDocument,
     state,
     { maxStyleChecks },
-    0,
     false,
   );
 
@@ -691,6 +700,24 @@ export async function collectDomHealthSnapshot(
   const candidatesToAnalyze = capped
     ? state.interactiveCandidates.slice(0, elementCeiling)
     : state.interactiveCandidates;
+
+  // Pre-pass: find every fingerprint shared by 2+ elements in THIS
+  // snapshot before doing any stability comparison, so a collision can be
+  // reported AMBIGUOUS for every element that shares it — never resolved
+  // by whichever one happens to be analyzed first.
+  const fingerprintCounts = new Map<string, number>();
+  for (const { el } of candidatesToAnalyze) {
+    const fingerprint = computeElementFingerprint(el);
+    fingerprintCounts.set(
+      fingerprint,
+      (fingerprintCounts.get(fingerprint) ?? 0) + 1,
+    );
+  }
+  const duplicateFingerprintsThisSnapshot = new Set(
+    Array.from(fingerprintCounts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([fingerprint]) => fingerprint),
+  );
 
   for (let i = 0; i < candidatesToAnalyze.length; i += BATCH_SIZE) {
     const batch = candidatesToAnalyze.slice(i, i + BATCH_SIZE);
@@ -702,6 +729,7 @@ export async function collectDomHealthSnapshot(
         hasMultiSnapshotEvidence,
         previousRegistry,
         currentRegistry,
+        duplicateFingerprintsThisSnapshot,
       );
     }
     if (i + BATCH_SIZE < candidatesToAnalyze.length) {
@@ -769,8 +797,9 @@ export async function collectDomHealthSnapshot(
     accessibility: state.accessibility,
     iframes: {
       total: state.iframeTotal,
-      accessible: state.iframeAccessible,
-      crossOrigin: state.iframeCrossOrigin,
+      accessible: 0,
+      crossOrigin: 0,
+      byTag: { ...state.iframeByTag },
     },
     shadowDom: {
       roots: state.shadowRoots,
@@ -780,6 +809,7 @@ export async function collectDomHealthSnapshot(
       maxZIndex: state.maxZIndex,
       highZIndexElementCount: state.highZIndexElementCount,
     },
+    frame: options.frameContext ?? null,
   };
 }
 

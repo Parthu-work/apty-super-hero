@@ -1,11 +1,19 @@
 /**
  * Apty DOM Health audit orchestrator.
  *
- * Ties the content-script DOM Health collector (`@apty/dom-snapshot`)
+ * Ties the frame-aware, multi-frame capture layer (`frame-audit.ts`)
  * together with the deterministic scoring engine (`./dom-health-scoring.js`)
- * into one on-demand audit: three snapshots of the same tab, spaced apart to
- * catch both a quick debounced re-render and a slower one, scored and
- * returned.
+ * into one on-demand audit: three ROUNDS across every reachable frame in
+ * the tab, spaced apart to catch both a quick debounced re-render and a
+ * slower one, aggregated and scored.
+ *
+ * Forensic-audit fix (RC-1/RC-2): the previous implementation sent exactly
+ * one un-addressed `chrome.tabs.sendMessage` per round and trusted whatever
+ * frame happened to answer. This version enumerates the tab's real frame
+ * tree and messages every frame explicitly by `frameId`, so a page whose
+ * real UI lives inside an iframe or a legacy frameset is actually seen,
+ * deterministically, instead of depending on which frame's content script
+ * wins an unaddressed race.
  *
  * `runDomHealthAudit` is the single source of truth for the score — it is
  * called both by the `run_dom_health_audit` agent tool (`../tools/dom-health.ts`)
@@ -22,11 +30,16 @@ import {
   buildDomHealthAuditResult,
   type DomHealthAuditResult,
 } from "./dom-health-scoring.js";
+import {
+  aggregateFrameSnapshots,
+  captureApplicationState,
+  type FrameCaptureResult,
+} from "./frame-audit.js";
+import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
-const COLLECT_MESSAGE = "collect-dom-health-snapshot";
-/** Delays (ms, from the audit's start) at which each snapshot after the first is taken — short enough not to make the user wait, long enough apart to catch both a quick and a slower debounced re-render. */
+/** Delays (ms, from the audit's start) at which each round's capture is taken — short enough not to make the user wait, long enough apart to catch both a quick and a slower debounced re-render. */
 const SNAPSHOT_DELAYS_MS = [0, 800, 2000];
-const MESSAGE_TIMEOUT_MS = 8000;
+const FRAME_MESSAGE_TIMEOUT_MS = 8000;
 const UNSUPPORTED_URL_PREFIXES = [
   "chrome://",
   "chrome-extension://",
@@ -49,59 +62,34 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function sendCollectMessage(
-  tabId: number,
-  sequenceIndex: number,
-): Promise<DomHealthSnapshot> {
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(
-        new Error(
-          "Timed out waiting for the page to respond. It may still be loading, or DOM Health may not be supported on this page.",
-        ),
-      );
-    }, MESSAGE_TIMEOUT_MS);
-
-    chrome.tabs.sendMessage(
-      tabId,
-      { request: COLLECT_MESSAGE, sequenceIndex },
-      (
-        response:
-          | { success?: boolean; data?: DomHealthSnapshot; error?: string }
-          | undefined,
-      ) => {
-        clearTimeout(timeoutId);
-        if (chrome.runtime.lastError) {
-          reject(
-            new Error(
-              chrome.runtime.lastError.message ??
-                "Could not reach this page — it may not have finished loading yet.",
-            ),
-          );
-          return;
-        }
-        if (!response?.success || !response.data) {
-          reject(
-            new Error(response?.error ?? "Failed to collect a DOM snapshot."),
-          );
-          return;
-        }
-        resolve(response.data);
-      },
-    );
-  });
-}
-
 let auditSequence = 0;
 function generateAuditId(): string {
   auditSequence += 1;
   return `dom-health-${Date.now()}-${auditSequence}`;
 }
 
+function mergeFrameAccessibility(
+  rounds: FrameAccessibilitySummary[],
+): FrameAccessibilitySummary {
+  // The last round is the most representative snapshot of "can we currently
+  // see this page" — earlier rounds can differ if a frame was mid-navigation
+  // when the audit started, but the FINAL state is what the score describes.
+  return (
+    rounds[rounds.length - 1] ?? {
+      framesTotal: 0,
+      framesAccessible: 0,
+      framesFailed: 0,
+      framesInaccessible: 0,
+    }
+  );
+}
+
 /**
- * Run a full Apty DOM Health audit against the given tab. Snapshots are
- * taken at `SNAPSHOT_DELAYS_MS` and scored deterministically from the full
- * set — the same sequence of snapshots always produces the same score.
+ * Run a full Apty DOM Health audit against the given tab. Each round
+ * captures every reachable frame (never a single un-addressed message) and
+ * aggregates them into one snapshot; the aggregated sequence is scored
+ * deterministically — the same sequence of captures always produces the
+ * same score.
  */
 export async function runDomHealthAudit(
   tabId: number,
@@ -124,24 +112,33 @@ export async function runDomHealthAudit(
     };
   }
 
-  try {
-    const snapshots: DomHealthSnapshot[] = [];
-    for (let i = 0; i < SNAPSHOT_DELAYS_MS.length; i++) {
-      if (i === 0) {
-        snapshots.push(await sendCollectMessage(tabId, 0));
-      } else {
-        const waitMs = SNAPSHOT_DELAYS_MS[i]! - SNAPSHOT_DELAYS_MS[i - 1]!;
-        await delay(waitMs);
-        snapshots.push(await sendCollectMessage(tabId, i));
-      }
+  const snapshots: DomHealthSnapshot[] = [];
+  const frameAccessibilityByRound: FrameAccessibilitySummary[] = [];
+
+  for (let i = 0; i < SNAPSHOT_DELAYS_MS.length; i++) {
+    if (i > 0) {
+      const waitMs = SNAPSHOT_DELAYS_MS[i]! - SNAPSHOT_DELAYS_MS[i - 1]!;
+      await delay(waitMs);
     }
-    const result = buildDomHealthAuditResult(snapshots, generateAuditId());
-    return { available: true, ...result };
-  } catch (error) {
-    return {
-      available: false,
-      error:
-        error instanceof Error ? error.message : "Unable to audit this page.",
-    };
+
+    const outcome = await captureApplicationState(tabId, {
+      sequenceIndex: i,
+      timeoutMs: FRAME_MESSAGE_TIMEOUT_MS,
+    });
+
+    if (!outcome.available) {
+      return { available: false, error: outcome.error };
+    }
+
+    const captured: FrameCaptureResult[] = outcome.result.frames;
+    snapshots.push(aggregateFrameSnapshots(captured));
+    frameAccessibilityByRound.push(outcome.result.frameAccessibility);
   }
+
+  const result = buildDomHealthAuditResult(
+    snapshots,
+    generateAuditId(),
+    mergeFrameAccessibility(frameAccessibilityByRound),
+  );
+  return { available: true, ...result };
 }

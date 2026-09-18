@@ -19,6 +19,7 @@ import {
   buildRecommendations,
   buildRisks,
   buildStrengths,
+  DEFAULT_FRAME_ACCESSIBILITY,
   type DomHealthAuditResult,
   type DomHealthConfidence,
   type DomHealthGrade,
@@ -27,7 +28,10 @@ import {
   type DomHealthMetrics,
   type DomHealthRecommendation,
   type DomHealthRisk,
+  determineEvidenceState,
+  type EvidenceState,
   gradeForScore,
+  isScoreMeaningful,
   METHODOLOGY,
   pct,
   scoreAccessibilitySignal,
@@ -39,15 +43,21 @@ import {
   scoreSelectorStability,
   WEIGHTS,
 } from "./dom-health-scoring.js";
+import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
 export type PageAuditStatus =
   | "completed"
   | "failed"
   | "skipped-unsafe"
   | "skipped-cross-origin"
-  | "skipped-duplicate";
+  | "skipped-duplicate"
+  /** A candidate application state was detected (e.g. a menu/tab/tree item with no real href) but never acted on — see `application-audit.ts`'s `allowClickDiscovery` gate. Reported explicitly, never folded into "discovered". */
+  | "not-discovered";
 
-export type PageDiscoverySource = "seed" | "same-origin-link";
+export type PageDiscoverySource =
+  | "seed"
+  | "same-origin-link"
+  | "safe-navigation-control";
 
 export interface PageNavigationModel {
   usesHistoryApiRouting: boolean;
@@ -64,15 +74,35 @@ export interface PageAuditRecord {
   result?: DomHealthAuditResult;
   /** Diagnostic only (spec section 24) — never affects scoring. */
   navigationModel?: PageNavigationModel;
+  /** How this audited state's identity was determined — "url" when the URL changed, or a description of which structural signal did (see `state-fingerprint.ts`) when it did not. Present only when `status === "completed"`. */
+  transitionReason?: string;
+  /** This state's own frame-tree accessibility — summed into the application-level `frameAccessibility` below. Present only when `status === "completed"`. */
+  frameAccessibility?: FrameAccessibilitySummary;
 }
 
+/**
+ * Deliberately called "observed", not "total" — this audit can only ever
+ * report what it discovered and attempted; it has no way to know how many
+ * states/pages an application actually has (spec section 9's honesty
+ * requirement). `coveragePercent` is coverage OF WHAT WAS DISCOVERED, never
+ * a claim of total application coverage.
+ */
 export interface ApplicationCoverage {
   pagesDiscovered: number;
   pagesAudited: number;
   pagesFailed: number;
   pagesSkippedUnsafe: number;
   pagesSkippedDuplicate: number;
+  /** States a candidate was detected for but never acted on (click-discovery gate off, or a click that didn't produce a new state) — visibility into what discovery COULD explore further, never hidden. */
+  pagesNotDiscovered: number;
   coveragePercent: number;
+  /** Always "OBSERVED_COVERAGE" — never "TOTAL_APPLICATION_COVERAGE", because this audit cannot know the true size of the application. */
+  coverageLabel: "OBSERVED_COVERAGE";
+  /** How additional states were looked for: literal `<a href>` links, and (only when explicitly enabled) safe non-anchor navigation controls. */
+  discoveryMethod: string;
+  framesDiscovered: number;
+  framesInspected: number;
+  framesInaccessible: number;
 }
 
 export interface ApplicationAuditResult {
@@ -80,9 +110,12 @@ export interface ApplicationAuditResult {
   timestamp: number;
   /** "application" only when >=2 pages were actually audited — never a lie about coverage. */
   scope: "application" | "page";
-  score: number;
+  /** Null exactly when `evidenceState` is not HEALTHY_EVIDENCE/PARTIAL_EVIDENCE — see `dom-health-scoring.ts`'s `EvidenceState`. */
+  score: number | null;
   grade: DomHealthGrade;
   confidence: DomHealthConfidence;
+  evidenceState: EvidenceState;
+  frameAccessibility: FrameAccessibilitySummary;
   coverage: ApplicationCoverage;
   analysisCoverage: AnalysisCoverage;
   manualSelectorDependency: number;
@@ -122,6 +155,7 @@ const APPLICATION_METHODOLOGY_PREFIX: string[] = [
 export function buildApplicationAuditResult(
   pages: PageAuditRecord[],
   auditId: string,
+  options: { discoveryMethod?: string } = {},
 ): ApplicationAuditResult {
   const completed = pages.filter((p) => p.status === "completed" && p.result);
   const failed = pages.filter((p) => p.status === "failed").length;
@@ -131,8 +165,28 @@ export function buildApplicationAuditResult(
   const skippedDuplicate = pages.filter(
     (p) => p.status === "skipped-duplicate",
   ).length;
+  const notDiscovered = pages.filter(
+    (p) => p.status === "not-discovered",
+  ).length;
   const discovered = pages.length;
   const audited = completed.length;
+
+  const framesDiscovered = completed.reduce(
+    (sum, p) => sum + (p.frameAccessibility?.framesTotal ?? 0),
+    0,
+  );
+  const framesInspected = completed.reduce(
+    (sum, p) => sum + (p.frameAccessibility?.framesAccessible ?? 0),
+    0,
+  );
+  const framesFailedAcrossPages = completed.reduce(
+    (sum, p) => sum + (p.frameAccessibility?.framesFailed ?? 0),
+    0,
+  );
+  const framesInaccessibleAcrossPages = completed.reduce(
+    (sum, p) => sum + (p.frameAccessibility?.framesInaccessible ?? 0),
+    0,
+  );
 
   const coverage: ApplicationCoverage = {
     pagesDiscovered: discovered,
@@ -140,7 +194,13 @@ export function buildApplicationAuditResult(
     pagesFailed: failed,
     pagesSkippedUnsafe: skippedUnsafe,
     pagesSkippedDuplicate: skippedDuplicate,
+    pagesNotDiscovered: notDiscovered,
     coveragePercent: discovered === 0 ? 0 : pct(audited, discovered),
+    coverageLabel: "OBSERVED_COVERAGE",
+    discoveryMethod: options.discoveryMethod ?? "anchor-links",
+    framesDiscovered,
+    framesInspected,
+    framesInaccessible: framesFailedAcrossPages + framesInaccessibleAcrossPages,
   };
 
   const automaticSelection = scoreAutomaticSelection({
@@ -271,12 +331,40 @@ export function buildApplicationAuditResult(
     accessibilitySignal: accessibilitySignal.score,
   };
 
+  const applicationFrameAccessibility: FrameAccessibilitySummary =
+    framesDiscovered === 0
+      ? DEFAULT_FRAME_ACCESSIBILITY
+      : {
+          framesTotal: framesDiscovered,
+          framesAccessible: framesInspected,
+          framesFailed: framesFailedAcrossPages,
+          framesInaccessible: framesInaccessibleAcrossPages,
+        };
+  const totalAnalyzedForEvidence = sumField(
+    completed,
+    "automaticSelection",
+    "totalAnalyzed",
+  );
+  const evidenceState: EvidenceState =
+    audited === 0
+      ? "FAILED"
+      : determineEvidenceState(
+          totalAnalyzedForEvidence,
+          applicationFrameAccessibility,
+        );
+  const scoreIsMeaningful = isScoreMeaningful(evidenceState);
+
   const rawScore = (Object.keys(WEIGHTS) as DomHealthMetricKey[]).reduce(
     (sum, key) => sum + metrics[key] * WEIGHTS[key],
     0,
   );
-  const score = Math.round(Math.min(100, Math.max(0, rawScore)));
-  const grade = gradeForScore(score);
+  // Same RC-3 gate as the single-page scorer: zero analyzed elements across
+  // every audited page/state must never round-trip into a healthy-looking
+  // application score.
+  const score = scoreIsMeaningful
+    ? Math.round(Math.min(100, Math.max(0, rawScore)))
+    : null;
+  const grade = score === null ? "NOT_ASSESSED" : gradeForScore(score);
 
   const metricDetails: DomHealthMetricDetails = {
     automaticSelection: automaticSelection.detail,
@@ -326,8 +414,9 @@ export function buildApplicationAuditResult(
   // for a single audited page, whatever scope the caller requested.
   const scope: "application" | "page" = audited >= 2 ? "application" : "page";
 
-  const confidence: DomHealthConfidence =
-    audited >= 3 && coverage.coveragePercent >= 70 && totalAnalyzed >= 50
+  const confidence: DomHealthConfidence = !scoreIsMeaningful
+    ? "LOW"
+    : audited >= 3 && coverage.coveragePercent >= 70 && totalAnalyzed >= 50
       ? "HIGH"
       : audited >= 2 && totalAnalyzed >= 10
         ? "MEDIUM"
@@ -347,11 +436,44 @@ export function buildApplicationAuditResult(
       evidence: `${discovered} page(s) discovered, ${audited} audited, ${failed} failed to load/audit, ${skippedUnsafe} skipped as unsafe or cross-origin (${coverage.coveragePercent}% coverage). The score below reflects only the ${audited} audited page(s).`,
     });
   }
+  if (evidenceState === "INACCESSIBLE") {
+    risks.unshift({
+      id: "evidence-inaccessible",
+      severity: "high",
+      title:
+        "No interactive elements found across any audited page, and coverage is incomplete",
+      evidence: `${audited} page(s) were audited and found no interactive elements, and at least one frame across those pages could not be inspected — a genuinely empty application cannot be honestly claimed here.`,
+    });
+  } else if (evidenceState === "NO_EVIDENCE") {
+    risks.unshift({
+      id: "evidence-none",
+      severity: "medium",
+      title: "No interactive elements were found on any audited page",
+      evidence: `${audited} page(s) were fully inspected and genuinely contained no interactive elements analyzed by the pipeline.`,
+    });
+  } else if (evidenceState === "PARTIAL_EVIDENCE") {
+    risks.unshift({
+      id: "evidence-partial",
+      severity: "medium",
+      title: "Not every frame across the audited pages could be inspected",
+      evidence: `${framesInspected} of ${framesDiscovered} frame(s) across audited pages responded. The score below reflects only what was actually inspected.`,
+    });
+  }
+  if (notDiscovered > 0) {
+    risks.push({
+      id: "navigation-candidates-not-explored",
+      severity: "low",
+      title: "Some navigation controls were detected but never explored",
+      evidence: `${notDiscovered} menu/tab/tree-style control(s) with no real <a href> were detected but not clicked (click-based discovery is off by default — see coverage.discoveryMethod). Enable it explicitly to explore them.`,
+    });
+  }
 
   const summary =
     audited === 0
       ? "No pages could be audited — see risks for why discovery/navigation failed."
-      : `The application score is ${score}/100, aggregated from ${audited} of ${discovered} discovered page(s) (${coverage.coveragePercent}% coverage). ${automaticSelection.detail.directSuccess + automaticSelection.detail.recoveredByIgnore + automaticSelection.detail.recoveredByPartial + automaticSelection.detail.recoveredByContext} of ${totalAnalyzed} analyzed elements across those pages were resolved to the intended element by a simulated automatic strategy; an estimated ${manualSelectorDependency}% would likely require manual selector configuration.`;
+      : score === null
+        ? `Evidence was incomplete or empty across the ${audited} audited page(s) of ${discovered} discovered — see risks for detail. No score is reported rather than a fabricated one.`
+        : `The application score is ${score}/100, aggregated from ${audited} of ${discovered} discovered page(s) (${coverage.coveragePercent}% coverage). ${automaticSelection.detail.directSuccess + automaticSelection.detail.recoveredByIgnore + automaticSelection.detail.recoveredByPartial + automaticSelection.detail.recoveredByContext} of ${totalAnalyzed} analyzed elements across those pages were resolved to the intended element by a simulated automatic strategy; an estimated ${manualSelectorDependency}% would likely require manual selector configuration.`;
 
   return {
     auditId,
@@ -360,6 +482,8 @@ export function buildApplicationAuditResult(
     score,
     grade,
     confidence,
+    evidenceState,
+    frameAccessibility: applicationFrameAccessibility,
     coverage,
     analysisCoverage,
     manualSelectorDependency,

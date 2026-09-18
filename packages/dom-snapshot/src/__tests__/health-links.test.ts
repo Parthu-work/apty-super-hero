@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { collectDiscoverableLinks, isSafeToDiscover } from "../health-links";
+import {
+  collectDiscoverableLinks,
+  collectSafeNavigationCandidates,
+  isSafeNavigationCandidate,
+  isSafeToDiscover,
+} from "../health-links";
 
 function setHtml(html: string) {
   document.body.innerHTML = html;
@@ -85,5 +90,70 @@ describe("collectDiscoverableLinks", () => {
     const result = collectDiscoverableLinks(document, { maxLinks: 3 });
 
     expect(result).toHaveLength(3);
+  });
+});
+
+describe("collectSafeNavigationCandidates", () => {
+  it("finds menu/tab/tree items that have no real href, inside a safe nav container", () => {
+    setHtml(`
+      <nav>
+        <div role="menuitem">Customers</div>
+        <div role="menuitem">Orders</div>
+      </nav>
+    `);
+
+    const candidates = collectSafeNavigationCandidates(document);
+
+    expect(candidates.map((c) => c.text)).toEqual(["Customers", "Orders"]);
+    expect(candidates.every(isSafeNavigationCandidate)).toBe(true);
+  });
+
+  it("never proposes anything inside a <form>, even inside a nav-like container", () => {
+    setHtml(`
+      <nav>
+        <form>
+          <button role="menuitem">Should never appear</button>
+        </form>
+        <div role="menuitem">Should appear</div>
+      </nav>
+    `);
+
+    const candidates = collectSafeNavigationCandidates(document);
+
+    expect(candidates.map((c) => c.text)).toEqual(["Should appear"]);
+  });
+
+  it("never proposes a submit-like control", () => {
+    setHtml(`
+      <div role="tablist">
+        <button type="submit" role="tab">Save and continue</button>
+        <div role="tab">Details</div>
+      </div>
+    `);
+
+    const candidates = collectSafeNavigationCandidates(document);
+
+    expect(candidates.map((c) => c.text)).toEqual(["Details"]);
+  });
+
+  it("flags a destructive-looking item and excludes it from safe navigation", () => {
+    setHtml(`
+      <nav>
+        <div role="menuitem">Delete customer</div>
+      </nav>
+    `);
+
+    const candidates = collectSafeNavigationCandidates(document);
+
+    expect(candidates[0]?.looksDestructive).toBe(true);
+    expect(isSafeNavigationCandidate(candidates[0]!)).toBe(false);
+  });
+
+  it("ignores clickable-looking elements outside any safe nav container", () => {
+    setHtml(`<div role="menuitem">Not inside a nav container</div>`);
+
+    const candidates = collectSafeNavigationCandidates(document);
+
+    expect(candidates).toHaveLength(0);
   });
 });

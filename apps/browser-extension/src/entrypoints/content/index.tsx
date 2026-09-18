@@ -2,6 +2,9 @@ import {
   collectDiscoverableLinks,
   collectDomHealthSnapshot,
   collectDomSnapshot,
+  collectSafeNavigationCandidates,
+  computeFrameStateSignature,
+  isSafeNavigationCandidate,
 } from "@apty/dom-snapshot";
 import { FakeMouse } from "@apty/ui/components/fake-mouse";
 import type { FakeMouseController } from "@apty/ui/components/fake-mouse/types";
@@ -408,9 +411,19 @@ const ContentApp = () => {
           }
         })();
         return true; // Keep channel open for async response
-      } else if (message.request === "collect-dom-health-snapshot") {
-        // Apty DOM Health audit — separate from the accessibility-tree
-        // snapshot above; see @apty/dom-snapshot's health-collector.
+      } else if (message.request === "dom-health-ping") {
+        // Cheap reachability probe (see @apty/browser-runtime's
+        // frame-tree.ts) — lets the orchestrator build honest frame
+        // accessibility evidence without paying for a full snapshot.
+        sendResponse({ success: true, data: { pong: true } });
+        return true;
+      } else if (message.request === "collect-dom-health-frame-bundle") {
+        // Apty DOM Health audit, ONE frame's worth — separate from the
+        // accessibility-tree snapshot above; see @apty/dom-snapshot's
+        // health-collector. This handler never reaches into a child
+        // iframe/frame's document; @apty/browser-runtime's frame-audit.ts
+        // messages every real frame in the tab directly, by frameId, and
+        // combines the results — see that module for why.
         // `sequenceIndex === 0` starts a fresh audit (resets the collector's
         // cross-snapshot element registry); later snapshots in the same
         // audit continue it so selector stability is tracked correctly.
@@ -420,15 +433,25 @@ const ContentApp = () => {
           try {
             const snapshot = await collectDomHealthSnapshot(document, {
               freshAudit: (message.sequenceIndex ?? 0) === 0,
+              maxInteractiveElements:
+                typeof message.maxInteractiveElements === "number"
+                  ? message.maxInteractiveElements
+                  : undefined,
+              // The content script cannot determine its own frameId/depth
+              // (chrome.webNavigation isn't available here) — the caller
+              // already knows it from the real frame tree and hands it
+              // down rather than asking this script to guess.
+              frameContext: message.frameContext ?? null,
             });
-            sendResponse({ success: true, data: snapshot });
+            const stateSignature = computeFrameStateSignature(document);
+            sendResponse({ success: true, data: { snapshot, stateSignature } });
           } catch (error) {
             sendResponse({
               success: false,
               error:
                 error instanceof Error
                   ? error.message
-                  : "Failed to collect a DOM Health snapshot",
+                  : "Failed to collect a DOM Health frame bundle",
             });
           }
         })();
@@ -447,6 +470,66 @@ const ContentApp = () => {
               error instanceof Error
                 ? error.message
                 : "Failed to collect discoverable links",
+          });
+        }
+        return true;
+      } else if (
+        message.request === "collect-dom-health-safe-navigation-candidates"
+      ) {
+        // Read-only detection of non-anchor navigation controls (menu
+        // items, tabs, tree nodes) — see @apty/dom-snapshot's
+        // health-links. Finding a candidate never clicks it; only
+        // "click-safe-navigation-candidate" below can do that, and only
+        // when the application-audit orchestrator was explicitly told to
+        // allow it.
+        try {
+          const candidates = collectSafeNavigationCandidates(document);
+          sendResponse({ success: true, data: candidates });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to collect safe navigation candidates",
+          });
+        }
+        return true;
+      } else if (message.request === "click-safe-navigation-candidate") {
+        // The ONLY handler anywhere in DOM Health that can cause a real
+        // click. Re-verifies the candidate is still safe (same allowlisted
+        // container, non-destructive, outside any <form>) immediately
+        // before clicking — defense in depth, never trusting the
+        // orchestrator's earlier read-only detection pass alone.
+        try {
+          const domPath =
+            typeof message.domPath === "string" ? message.domPath : "";
+          const target = domPath ? document.querySelector(domPath) : null;
+          const stillSafe =
+            target &&
+            collectSafeNavigationCandidates(document).some(
+              (c) => c.domPath === domPath && isSafeNavigationCandidate(c),
+            );
+          if (!target || !stillSafe) {
+            sendResponse({
+              success: true,
+              data: {
+                clicked: false,
+                reason:
+                  "This control could no longer be found, or no longer verifies as a safe navigation candidate.",
+              },
+            });
+            return;
+          }
+          (target as HTMLElement).click();
+          sendResponse({ success: true, data: { clicked: true } });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to click this navigation candidate",
           });
         }
         return true;

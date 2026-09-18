@@ -70,6 +70,13 @@ describe("DomHealthCard", () => {
       score: 88,
       grade: "GOOD",
       confidence: "HIGH",
+      evidenceState: "HEALTHY_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 1,
+        framesAccessible: 1,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
       scope: "page",
       coverage: {
         snapshotsCompared: 3,
@@ -101,7 +108,12 @@ describe("DomHealthCard", () => {
       recommendations: [],
       elementSamples: [],
       methodology: ["Collect a DOM snapshot in-page."],
-      iframes: { total: 0, accessible: 0, crossOrigin: 0 },
+      iframes: {
+        total: 0,
+        accessible: 0,
+        crossOrigin: 0,
+        byTag: { iframe: 0, frame: 0 },
+      },
       shadowDom: { roots: 0, elements: 0 },
       zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
       metadata: {
@@ -154,6 +166,13 @@ describe("DomHealthCard", () => {
       score: 52,
       grade: "NEEDS_ATTENTION",
       confidence: "MEDIUM",
+      evidenceState: "HEALTHY_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 1,
+        framesAccessible: 1,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
       scope: "page",
       coverage: {
         snapshotsCompared: 3,
@@ -208,7 +227,12 @@ describe("DomHealthCard", () => {
         },
       ],
       methodology: ["Collect a DOM snapshot in-page."],
-      iframes: { total: 0, accessible: 0, crossOrigin: 0 },
+      iframes: {
+        total: 0,
+        accessible: 0,
+        crossOrigin: 0,
+        byTag: { iframe: 0, frame: 0 },
+      },
       shadowDom: { roots: 0, elements: 0 },
       zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
       metadata: {
@@ -236,6 +260,81 @@ describe("DomHealthCard", () => {
     expect(screen.getByText("Manual likely (positional)")).toBeInTheDocument();
   });
 
+  it("never shows a healthy-looking score badge when evidence is NO_EVIDENCE — shows NOT ASSESSED instead", async () => {
+    mockRunDomHealthAudit.mockResolvedValue({
+      available: true,
+      auditId: "a3",
+      timestamp: Date.now(),
+      url: "https://example.com",
+      pageTitle: "Frameset shell",
+      score: null,
+      grade: "NOT_ASSESSED",
+      confidence: "LOW",
+      evidenceState: "NO_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 1,
+        framesAccessible: 1,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
+      scope: "page",
+      coverage: {
+        snapshotsCompared: 3,
+        elementsAnalyzed: 0,
+        interactiveElementsInPage: 0,
+        analysis: {
+          candidatesFound: 0,
+          candidatesAnalyzed: 0,
+          capped: false,
+          capReason: null,
+        },
+      },
+      manualSelectorDependency: 0,
+      metrics: {
+        automaticSelection: 100,
+        selectorStability: 60,
+        recoveryEfficacy: 100,
+        selectorComplexity: 100,
+        ambiguityRisk: 100,
+        hitTestTargetability: 100,
+        domVolatility: 100,
+        accessibilitySignal: 100,
+      },
+      metricDetails: {} as any,
+      summary: "No interactive elements were found to analyze on this page.",
+      strengths: [],
+      risks: [],
+      recommendations: [],
+      elementSamples: [],
+      methodology: [],
+      iframes: {
+        total: 0,
+        accessible: 0,
+        crossOrigin: 0,
+        byTag: { iframe: 0, frame: 0 },
+      },
+      shadowDom: { roots: 0, elements: 0 },
+      zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
+      metadata: {
+        elementsAnalyzed: 3,
+        interactiveElementsAnalyzed: 0,
+        iframeCount: 0,
+        shadowRootCount: 0,
+        snapshotsCompared: 3,
+      },
+    });
+
+    render(<DomHealthCard />);
+    fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
+
+    expect(await screen.findByText("NOT ASSESSED")).toBeInTheDocument();
+    // Never a numeric score paired with this evidence state.
+    expect(screen.queryByText(/\/100/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/No interactive elements were found/),
+    ).toBeInTheDocument();
+  });
+
   it("runs and renders an application-wide audit without touching the page-scope result", async () => {
     mockRunApplicationDomHealthAudit.mockResolvedValue({
       available: true,
@@ -245,13 +344,26 @@ describe("DomHealthCard", () => {
       score: 65,
       grade: "FAIR",
       confidence: "MEDIUM",
+      evidenceState: "HEALTHY_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 2,
+        framesAccessible: 2,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
       coverage: {
         pagesDiscovered: 3,
         pagesAudited: 2,
         pagesFailed: 1,
         pagesSkippedUnsafe: 0,
         pagesSkippedDuplicate: 0,
+        pagesNotDiscovered: 0,
         coveragePercent: 67,
+        coverageLabel: "OBSERVED_COVERAGE",
+        discoveryMethod: "anchor-links",
+        framesDiscovered: 2,
+        framesInspected: 2,
+        framesInaccessible: 0,
       },
       analysisCoverage: {
         candidatesFound: 20,

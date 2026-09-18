@@ -148,3 +148,130 @@ export function collectDiscoverableLinks(
 export function isSafeToDiscover(link: DiscoverableLink): boolean {
   return link.sameOrigin && !link.looksDestructive;
 }
+
+/**
+ * A candidate for triggering an in-place application-state transition that
+ * is NOT a literal `<a href>` — a menu item, tab, or tree node an enterprise
+ * app's navigation is built from. Read-only detection only: finding this
+ * candidate never clicks anything by itself (see
+ * `@apty/browser-runtime`'s `application-audit.ts` for the explicit,
+ * off-by-default gate that decides whether any of these are ever actually
+ * clicked).
+ */
+export interface SafeNavigationCandidate {
+  /** A short, stable-ish description of where this element is in the DOM — used only to re-find it later via `document.elementsFromPoint`-free re-query, never persisted as a selector claim. */
+  domPath: string;
+  role: string | null;
+  tagName: string;
+  text: string;
+  looksDestructive: boolean;
+  destructiveReason: string | null;
+}
+
+/**
+ * Containers whose descendants are conservatively assumed to be pure
+ * navigation controls, never data-mutating actions — a real-world nav
+ * menu, tab strip, or tree view. Deliberately narrow: this is an allowlist
+ * of CONTAINERS, not a general "anything clickable" heuristic.
+ */
+const SAFE_NAV_CONTAINER_SELECTOR =
+  'nav, [role="navigation"], [role="tablist"], [role="menu"], [role="menubar"], [role="tree"]';
+
+/** Candidate item roles/tags inside a safe nav container — never a bare `<button>`/`<input>` outside this allowlist, and never anything inside a `<form>`. */
+const SAFE_NAV_ITEM_SELECTOR = [
+  '[role="menuitem"]',
+  '[role="tab"]',
+  '[role="treeitem"]',
+  "a",
+  "li",
+].join(", ");
+
+const SUBMIT_LIKE_SELECTOR =
+  'button[type="submit"], input[type="submit"], input[type="button"]';
+
+function buildDomPath(el: Element): string {
+  const parts: string[] = [];
+  let current: Element | null = el;
+  let depth = 0;
+  while (current && depth < 6) {
+    const tag = current.tagName.toLowerCase();
+    let index = 1;
+    let sibling = current.previousElementSibling;
+    while (sibling) {
+      if (sibling.tagName === current.tagName) index++;
+      sibling = sibling.previousElementSibling;
+    }
+    parts.unshift(`${tag}:nth-of-type(${index})`);
+    current = current.parentElement;
+    depth++;
+  }
+  return parts.join(" > ");
+}
+
+/**
+ * Read-only detection of safe-looking, non-anchor navigation controls
+ * (menu items, tabs, tree nodes) inside a conservative container allowlist
+ * — see the module doc comment for why `<a href>` alone misses these on a
+ * menu-driven enterprise application. Excludes anything inside a `<form>`
+ * and anything that looks like a submit/destructive control, exactly like
+ * `collectDiscoverableLinks` excludes destructive-looking hrefs.
+ */
+export function collectSafeNavigationCandidates(
+  doc: Document,
+  options: { maxCandidates?: number } = {},
+): SafeNavigationCandidate[] {
+  const maxCandidates = options.maxCandidates ?? 100;
+  const out: SafeNavigationCandidate[] = [];
+  const seenPaths = new Set<string>();
+
+  const containers = Array.from(
+    doc.querySelectorAll(SAFE_NAV_CONTAINER_SELECTOR),
+  );
+  for (const container of containers) {
+    if (out.length >= maxCandidates) break;
+    const items = Array.from(
+      container.querySelectorAll(SAFE_NAV_ITEM_SELECTOR),
+    );
+    for (const item of items) {
+      if (out.length >= maxCandidates) break;
+      if (item.closest("form")) continue;
+      if (
+        item.matches(SUBMIT_LIKE_SELECTOR) ||
+        item.querySelector(SUBMIT_LIKE_SELECTOR)
+      ) {
+        continue;
+      }
+      const text = (item.textContent ?? "").trim().slice(0, 120);
+      if (!text) continue;
+      const domPath = buildDomPath(item);
+      if (seenPaths.has(domPath)) continue;
+      seenPaths.add(domPath);
+
+      const destructiveReason = matchesDestructiveKeyword(
+        text,
+        item.getAttribute("aria-label"),
+        item.getAttribute("class"),
+        item.getAttribute("id"),
+        item.getAttribute("title"),
+      );
+
+      out.push({
+        domPath,
+        role: item.getAttribute("role"),
+        tagName: item.tagName.toLowerCase(),
+        text,
+        looksDestructive: destructiveReason !== null,
+        destructiveReason,
+      });
+    }
+  }
+
+  return out;
+}
+
+/** Same defense-in-depth shape as `isSafeToDiscover`, for non-anchor candidates. */
+export function isSafeNavigationCandidate(
+  candidate: SafeNavigationCandidate,
+): boolean {
+  return !candidate.looksDestructive;
+}

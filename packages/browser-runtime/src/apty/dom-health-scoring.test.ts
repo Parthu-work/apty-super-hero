@@ -3,7 +3,11 @@ import type {
   ElementSelectorReport,
 } from "@apty/dom-snapshot";
 import { describe, expect, it } from "vitest";
-import { buildDomHealthAuditResult } from "./dom-health-scoring";
+import {
+  buildDomHealthAuditResult,
+  determineEvidenceState,
+} from "./dom-health-scoring";
+import type { FrameAccessibilitySummary } from "./frame-tree";
 
 function makeReport(
   overrides: Partial<ElementSelectorReport> = {},
@@ -178,7 +182,12 @@ function makeSnapshot(
       totalInteractive: reports.length,
       missingAccessibleName: reports.filter((r) => !r.hasAccessibleName).length,
     },
-    iframes: { total: 0, accessible: 0, crossOrigin: 0 },
+    iframes: {
+      total: 0,
+      accessible: 0,
+      crossOrigin: 0,
+      byTag: { iframe: 0, frame: 0 },
+    },
     shadowDom: { roots: 0, elements: 0 },
     zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
     ...overrides,
@@ -322,11 +331,17 @@ describe("buildDomHealthAuditResult — DOM volatility", () => {
 });
 
 describe("buildDomHealthAuditResult — confidence", () => {
-  it("reports LOW confidence when nothing could be analyzed", () => {
+  it("reports LOW confidence when nothing could be analyzed, and never a fabricated healthy score", () => {
     const snapshot = makeSnapshot([]);
     const result = buildDomHealthAuditResult([snapshot], "empty");
 
     expect(result.confidence).toBe("LOW");
+    // The regression this locks in: totalAnalyzed === 0 must never produce
+    // a ~90+ composite score just because every per-metric percentage's
+    // zero-denominator default happens to be 100.
+    expect(result.score).toBeNull();
+    expect(result.grade).toBe("NOT_ASSESSED");
+    expect(result.evidenceState).toBe("NO_EVIDENCE");
   });
 
   it("reports HIGH confidence with a large, multi-snapshot, mostly-tracked sample", () => {
@@ -360,5 +375,102 @@ describe("buildDomHealthAuditResult — scope and coverage are honest", () => {
 
     expect(result.scope).toBe("page");
     expect(result.coverage.snapshotsCompared).toBe(1);
+  });
+});
+
+describe("determineEvidenceState — the forensic-audit RC-3 fix", () => {
+  const healthy: FrameAccessibilitySummary = {
+    framesTotal: 1,
+    framesAccessible: 1,
+    framesFailed: 0,
+    framesInaccessible: 0,
+  };
+
+  it("is HEALTHY_EVIDENCE when real elements were analyzed and every frame answered", () => {
+    expect(determineEvidenceState(10, healthy)).toBe("HEALTHY_EVIDENCE");
+  });
+
+  it("is NO_EVIDENCE — never a healthy default — when nothing was analyzed but every frame answered", () => {
+    expect(determineEvidenceState(0, healthy)).toBe("NO_EVIDENCE");
+  });
+
+  it("is FAILED when not even one frame could be reached", () => {
+    const noFramesReached: FrameAccessibilitySummary = {
+      framesTotal: 3,
+      framesAccessible: 0,
+      framesFailed: 3,
+      framesInaccessible: 0,
+    };
+    expect(determineEvidenceState(0, noFramesReached)).toBe("FAILED");
+    // Even if a stray count somehow suggested elements were seen, zero
+    // reachable frames means there is no real evidence — FAILED wins.
+    expect(determineEvidenceState(5, noFramesReached)).toBe("FAILED");
+  });
+
+  it("is INACCESSIBLE when zero elements were found AND coverage is known to be incomplete", () => {
+    const partiallyReached: FrameAccessibilitySummary = {
+      framesTotal: 3,
+      framesAccessible: 2,
+      framesFailed: 1,
+      framesInaccessible: 0,
+    };
+    expect(determineEvidenceState(0, partiallyReached)).toBe("INACCESSIBLE");
+  });
+
+  it("is PARTIAL_EVIDENCE when real elements were found but coverage is incomplete", () => {
+    const partiallyReached: FrameAccessibilitySummary = {
+      framesTotal: 3,
+      framesAccessible: 2,
+      framesFailed: 1,
+      framesInaccessible: 0,
+    };
+    expect(determineEvidenceState(10, partiallyReached)).toBe(
+      "PARTIAL_EVIDENCE",
+    );
+  });
+});
+
+describe("buildDomHealthAuditResult — evidence state gates the score end to end", () => {
+  it("never reports a healthy-looking score when every frame failed to respond", () => {
+    const snapshot = makeSnapshot([]);
+    const noFramesReached: FrameAccessibilitySummary = {
+      framesTotal: 2,
+      framesAccessible: 0,
+      framesFailed: 2,
+      framesInaccessible: 0,
+    };
+
+    const result = buildDomHealthAuditResult(
+      [snapshot],
+      "failed",
+      noFramesReached,
+    );
+
+    expect(result.score).toBeNull();
+    expect(result.grade).toBe("NOT_ASSESSED");
+    expect(result.evidenceState).toBe("FAILED");
+    expect(result.confidence).toBe("LOW");
+    expect(result.risks[0]?.id).toBe("evidence-failed");
+  });
+
+  it("still reports a real score for the frames that DID respond when others did not (PARTIAL_EVIDENCE)", () => {
+    const reports = Array.from({ length: 20 }, () => makeReport());
+    const snapshot = makeSnapshot(reports);
+    const partiallyReached: FrameAccessibilitySummary = {
+      framesTotal: 2,
+      framesAccessible: 1,
+      framesFailed: 1,
+      framesInaccessible: 0,
+    };
+
+    const result = buildDomHealthAuditResult(
+      [snapshot],
+      "partial",
+      partiallyReached,
+    );
+
+    expect(result.score).not.toBeNull();
+    expect(result.evidenceState).toBe("PARTIAL_EVIDENCE");
+    expect(result.risks.some((r) => r.id === "evidence-partial")).toBe(true);
   });
 });
