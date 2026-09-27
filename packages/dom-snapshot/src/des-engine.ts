@@ -1,1603 +1,1076 @@
 /**
- * Apty Dynamic Element Selection (DES) engine.
+ * Apty Dynamic Element Selection (DES) engine — a faithful reconstruction
+ * of the REAL Apty Studio algorithm, recovered by reverse-engineering the
+ * actual shipped `studio-extension_63` build (`workflowPreview.js`'s
+ * webpack modules; property/function names below are unmangled in that
+ * bundle and are quoted here, not invented). This replaces an earlier
+ * from-scratch engine (Jaccard similarity, 5 named strategies, a 70/±5
+ * threshold, flat ignore/partial rule lists) that a prior session built
+ * without access to real Apty source and that, on comparison, diverged
+ * from the real product in nearly every load-bearing detail. See
+ * `docs/development/des-engine.md` for the full reverse-engineering notes,
+ * including exactly what was recovered with confidence and what is an
+ * honestly-labeled best-effort reconstruction.
  *
- * Replaces the previous "collect attribute candidates, try them one at a
- * time" heuristic (formerly the whole of `health-selector-engine.ts`) with
- * a structured pipeline: ElementPattern/ElementPath capture, five ordered
- * strategies, deterministic structural similarity, an explicit acceptance
- * threshold, and mandatory target-identity verification. There is exactly
- * one automatic element-selection algorithm in this package — see
- * `health-selector-engine.ts`'s `resolveElement`, which is now a thin
- * adapter over `runDes` for backward compatibility with existing callers
- * (`health-collector.ts`, and every test written against the older,
- * narrower `ElementResolution` shape).
+ * Two distinct real algorithms are reconstructed here:
  *
- * Ground rules enforced throughout this file (never relaxed to inflate a
- * score):
- *   - A selector is never "successful" merely because `querySelectorAll`
- *     returned something, or returned exactly one element. Every match is
- *     verified against the actual target (live object identity when the
- *     target is a live element in the same document; a logical
- *     fingerprint comparison — never cross-snapshot object identity — when
- *     it is not, per the Phase 1 identity model).
- *   - A tie between multiple above-threshold candidates is AMBIGUOUS, not
- *     a coin-flip pick of the first one.
- *   - A unique-but-incorrect match is WRONG_TARGET, not a quiet success.
- *   - Nothing here calls an LLM, and nothing here is tuned to raise a
- *     score — the threshold and weights are fixed, documented constants
- *     (see `similarityThreshold`/`ambiguousGap` in `DesConfig` and
- *     `computeSimilarity` below).
+ *  1. CAPTURE — `buildElementPattern`/`buildElementPath` build a FULL
+ *     descriptive pattern per DOM level (every non-ignored attribute,
+ *     class, and pseudo-fact — module 61503's `createPath`, which never
+ *     early-exits). This is what a stored `ElementPath` actually contains,
+ *     and what candidate patterns are compared against during recovery.
+ *     `generateMinimalSelector` separately builds the MINIMAL unique CSS
+ *     selector a Studio user would see (module 39842/59772's
+ *     `match`/`optimize` — early-exits as soon as one attribute makes the
+ *     selector-so-far unique, then trims). This second algorithm's exact
+ *     trim ordering could not be recovered with full confidence from the
+ *     minified bundle (see the doc comment on `generateMinimalSelector`);
+ *     it is a faithful-intent reconstruction, not a byte-identical port,
+ *     and is labeled as such.
+ *
+ *  2. RECOVERY — `findElement` is a faithful, byte-level port of module
+ *     15906's `find()`: seed candidates from the literal captured path,
+ *     score every candidate via `diffScore`, then run exactly four
+ *     relaxation strategies (module 81948's `strategies` array) in order,
+ *     early-accepting the first RENDERED candidate scoring >=0.92 as soon
+ *     as one appears; once every strategy is exhausted or the candidate
+ *     pool hits the 50-candidate ceiling, fall back to the best-scoring
+ *     rendered candidate if it clears 0.90, else the single best-scoring
+ *     candidate overall if it clears 0.90, else `null`. There is no
+ *     discrete "ambiguous"/"wrong target" state in the real algorithm at
+ *     all — it is a single ranked candidate pool with a top-1 pick above a
+ *     floor. `runDes` in `health-selector-engine.ts` adds an evidence
+ *     layer on top (comparing the real algorithm's actual pick against
+ *     ground truth, and flagging a thin score margin as a stability risk)
+ *     — that evidence layer is this package's own addition for DOM Health
+ *     reporting purposes, never presented as part of Apty's own runtime
+ *     decision.
+ *
+ * Ground rules preserved from this package's original design (never
+ * relaxed to inflate a score): a selector is never "successful" merely
+ * because `querySelectorAll` returned something; nothing here calls an
+ * LLM or is tuned per fixture; every constant quoted above is a real,
+ * confirmed Apty value, not an invented one.
  */
 import {
-  type ClassifiedAttribute,
-  type ClassifiedClassAttribute,
-  classifyAttribute,
-  classifyClassAttribute,
   DEFAULT_DES_CONFIG,
   type DesConfig,
-  priorityRankOf,
-  resolveAttributePriorityOrder,
+  ignoreFnForAttribute,
+  ignoreFnForClass,
+  ignoreFnForTag,
+  isValueDynamic,
+  partialFnForAttribute,
+  resolveAttributeOrder,
 } from "./health-attribute-classification.js";
 
 // ---------------------------------------------------------------------------
-// ElementPattern / ElementPath (Step 1)
+// Pattern / Path — the real Apty shape (module 65913's `createPattern`,
+// module 5757's `patternToSelector`). Deliberately NOT tag+id+class: every
+// classifiable attribute, class token, and pseudo-fact (including
+// position and text content) is preserved per level.
 // ---------------------------------------------------------------------------
 
-export interface RelationshipInfo {
-  parentTag: string | null;
-  parentId: string | null;
-  parentStableClasses: string[];
-  /** How this node relates to the parent in a generated selector — direct child (">") by default; strategies may relax this to "descendant" (" "). */
-  combinator: "child" | "descendant";
+export type AttributeSelectionType = "exact" | "prefix" | "suffix" | "partial";
+
+export interface PatternAttribute {
+  name: string;
+  /** undefined -> a value-less predicate, `[name]`. */
+  value?: string;
+  selectionType?: AttributeSelectionType;
 }
 
-export interface OrderInfo {
-  /** 1-based index among siblings sharing this tag under the same parent. */
-  nthOfType: number;
-  /** Total siblings (including this one) sharing this tag under the same parent. */
-  siblingCountOfType: number;
+export interface PatternClass {
+  class: string;
+  selectionType: AttributeSelectionType;
+  length: number;
+}
+
+export interface PatternPseudo {
+  /** e.g. "nth-child", "nth-of-type", "contains". */
+  name: string;
+  value?: string;
 }
 
 export interface ElementPattern {
+  /** Combinator to the parent level: "child" (direct, `>`) or undefined (descendant). */
+  relates?: "child";
   tag: string;
-  /** Every classifiable single-valued attribute found (id, data-*, aria-label, name, role) — never every attribute on the element indiscriminately. */
-  attributes: ClassifiedAttribute[];
-  classInfo: ClassifiedClassAttribute;
-  relationship: RelationshipInfo;
-  order: OrderInfo;
-  role: string | null;
-  accessibleName: string | null;
-  /** Trimmed, length-bounded text sample — a similarity signal only, never used to build a selector predicate. */
-  textSample: string | null;
+  attributes: PatternAttribute[];
+  classes: PatternClass[];
+  pseudo: PatternPseudo[];
 }
 
-export interface ElementPathNode {
-  pattern: ElementPattern;
-}
-
-export interface ElementPath {
-  target: ElementPathNode;
-  /** Innermost first (direct parent, grandparent, ...), bounded by `DesConfig.maxAncestorDepth`. */
-  ancestors: ElementPathNode[];
-}
+/** Root-to-leaf order (outermost ancestor first, target element last) — matches real `createPath`'s `unshift`-while-walking-up construction. */
+export type ElementPath = ElementPattern[];
 
 // ---------------------------------------------------------------------------
-// Candidates, similarity, strategy evidence, and the result contract
+// Rendered / visibility check (module 92516's `isElementRendered`).
 // ---------------------------------------------------------------------------
 
-export interface SimilarityBreakdown {
-  tagMatches: boolean;
-  stableAttributeScore: number;
-  partialAttributeScore: number;
-  classScore: number;
-  accessibilityScore: number;
-  relationshipScore: number;
-  orderScore: number;
-  /** 0-100. 0 whenever `tagMatches` is false, regardless of every other axis — two different tags are never "the same element" no matter how similar everything else is. */
-  total: number;
-}
-
-export interface Candidate {
-  element: Element;
-  pattern: ElementPattern;
-  similarity: SimilarityBreakdown;
-}
-
-export type IdentityVerdict =
-  | "CORRECT_TARGET"
-  | "WRONG_TARGET"
-  | "AMBIGUOUS_TARGET"
-  | "UNKNOWN_IDENTITY";
-
-export type DesStrategyName =
-  | "checkInitialPath"
-  | "checkSimplifyDynamic"
-  | "checkSimplifyNth"
-  | "checkContainers"
-  | "checkDirectElement";
-
-export interface StrategyAttemptEvidence {
-  strategy: DesStrategyName;
-  selector: string | null;
-  candidatesFound: number;
-  candidatesAboveThreshold: number;
-  bestSimilarity: number | null;
-  attributesUsed: string[];
-  attributesRemoved: string[];
-  outcome:
-    | "resolved"
-    | "ambiguous"
-    | "wrong-target"
-    | "no-candidates"
-    | "below-threshold"
-    | "inaccessible";
-  reason: string;
-}
-
-export type DesOutcome =
-  | "RESOLVED"
-  | "AMBIGUOUS"
-  | "WRONG_TARGET"
-  | "NOT_RESOLVED"
-  | "INACCESSIBLE";
-
-interface DesResultCommon {
-  attempts: StrategyAttemptEvidence[];
-}
-
-export interface DesResolved extends DesResultCommon {
-  outcome: "RESOLVED";
-  strategy: DesStrategyName;
-  selector: string;
-  similarity: number;
-  identity: IdentityVerdict;
-  candidateCount: number;
-  attributesUsed: string[];
-  attributesRemoved: string[];
-}
-
-export interface DesAmbiguous extends DesResultCommon {
-  outcome: "AMBIGUOUS";
-  selector: string | null;
-  candidateCount: number;
-  similarity: number | null;
-  reason: string;
-}
-
-export interface DesWrongTarget extends DesResultCommon {
-  outcome: "WRONG_TARGET";
-  strategy: DesStrategyName;
-  selector: string;
-  similarity: number;
-  reason: string;
-}
-
-export interface DesNotResolved extends DesResultCommon {
-  outcome: "NOT_RESOLVED";
-  bestSimilarity: number | null;
-  failureReason: string;
-}
-
-export interface DesInaccessible extends DesResultCommon {
-  outcome: "INACCESSIBLE";
-  reason: string;
-}
-
-export type DesResult =
-  | DesResolved
-  | DesAmbiguous
-  | DesWrongTarget
-  | DesNotResolved
-  | DesInaccessible;
-
-// ---------------------------------------------------------------------------
-// Small deterministic helpers
-// ---------------------------------------------------------------------------
-
-function escapeAttributeValue(value: string): string {
-  return value.replace(/"/g, '\\"');
-}
-
-function cssEscapeIdent(value: string): string {
-  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
-    return CSS.escape(value);
+export function isElementRendered(el: Element): boolean {
+  const withCheckVisibility = el as Element & {
+    checkVisibility?: (opts: {
+      visibilityProperty: boolean;
+      checkVisibilityCSS: boolean;
+    }) => boolean;
+  };
+  if (typeof withCheckVisibility.checkVisibility === "function") {
+    return withCheckVisibility.checkVisibility({
+      visibilityProperty: true,
+      checkVisibilityCSS: true,
+    });
   }
-  return value.replace(/([^a-zA-Z0-9_-])/g, "\\$1");
+  // Fallback for environments without `checkVisibility` (older browsers,
+  // and jsdom — which has no layout engine at all, so `getClientRects()`
+  // is always empty and cannot be used as a signal here). Computed
+  // `display`/`visibility` is the real check's own first-order signal.
+  const view = el.ownerDocument?.defaultView;
+  if (!view) return true;
+  const style = view.getComputedStyle(el);
+  return style.display !== "none" && style.visibility !== "hidden";
 }
 
-interface SiblingInfo {
-  nthOfType: number;
-  siblingCountOfType: number;
+// ---------------------------------------------------------------------------
+// elementMatches (module 99823) — the real "is this selector-so-far
+// unique enough" check used during capture. Non-strict mode (the real
+// default): several raw matches still count as unique if exactly one of
+// them is actually rendered — a hidden template/duplicate row never
+// blocks recognizing the one visible real instance.
+// ---------------------------------------------------------------------------
+
+export function elementMatches(
+  target: Element,
+  matches: Element[],
+  strict: boolean,
+): boolean {
+  if (matches.length === 1) return matches[0] === target;
+  if (strict) return false;
+  let renderedWinner: Element | null = null;
+  for (const m of matches) {
+    if (isElementRendered(m)) {
+      if (renderedWinner) return false;
+      renderedWinner = m;
+    }
+  }
+  return renderedWinner === target;
+}
+
+// ---------------------------------------------------------------------------
+// Selector generation (module 5757's `patternToSelector`/`pathToSelector`).
+// ---------------------------------------------------------------------------
+
+function escapeSelectorValue(value: string): string {
+  return value.replace(/['"`\\/:?&!#$%^()[\]{|}*+;,.<=>@~]/g, "\\$&");
+}
+
+const VALID_IDENTIFIER =
+  /^(?!\d)(?!--)(?!-\d)(?:[^\\'"`/:?&!#$%^()[\]{|}*+;,.<=>@~]|\\.)+$/;
+
+function isValidIdentifier(value: string): boolean {
+  return VALID_IDENTIFIER.test(value);
+}
+
+function attributesToSelector(attributes: PatternAttribute[]): string {
+  return attributes
+    .map(({ name, value, selectionType }) => {
+      if (value === undefined) return `[${name}]`;
+      const escaped = escapeSelectorValue(value);
+      switch (selectionType) {
+        case "partial":
+          return `[${name}*="${escaped}"]`;
+        case "suffix":
+          return `[${name}$="${escaped}"]`;
+        case "prefix":
+          return `[${name}^="${escaped}"]`;
+        default:
+          return `[${name}="${escaped}"]`;
+      }
+    })
+    .join("");
+}
+
+function classesToSelector(classes: PatternClass[]): string {
+  if (classes.length === 0) return "";
+  return classes
+    .map(({ class: className, selectionType }) => {
+      const escaped = escapeSelectorValue(className);
+      if (!isValidIdentifier(escaped)) return `[class~="${escaped}"]`;
+      return selectionType === "partial"
+        ? `[class*="${escaped}"]`
+        : `.${escaped}`;
+    })
+    .join("");
+}
+
+function pseudoToSelector(pseudo: PatternPseudo[]): string {
+  return pseudo
+    .map(({ name, value }) => {
+      const arg =
+        name === "contains" ? `"${escapeSelectorValue(value ?? "")}"` : value;
+      return `:${name}(${arg})`;
+    })
+    .join("");
+}
+
+export function patternToSelector(pattern: ElementPattern): string {
+  const combinator = pattern.relates === "child" ? "> " : "";
+  return (
+    combinator +
+    (pattern.tag ?? "") +
+    attributesToSelector(pattern.attributes) +
+    classesToSelector(pattern.classes) +
+    pseudoToSelector(pattern.pseudo)
+  );
+}
+
+export function pathToSelector(path: ElementPath): string {
+  if (path.length === 0) return "";
+  // Real `pathToSelector` (module 5757) explicitly clears the FIRST node's
+  // `relates` combinator before joining — every node is captured with
+  // `relates: "child"` unconditionally (real `createPath`), since a node
+  // doesn't know until selector-generation time whether it will end up
+  // first in the final path (no combinator needed) or receive an ancestor
+  // before it (needs "> "). Skipping this produces an invalid leading
+  // "> ..." selector that silently matches nothing.
+  const [first, ...rest] = path;
+  return [{ ...first!, relates: undefined }, ...rest]
+    .map(patternToSelector)
+    .join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Capture — full descriptive pattern (module 65913's `initAttributes`/
+// `addAttribute`/`initTag`/`initNthChild`, module 61503's `createPath`).
+// Never early-exits: every non-ignored attribute/class the priority order
+// surfaces is added, because this is the pattern candidates get diffed
+// against during recovery, not the minimal display selector.
+// ---------------------------------------------------------------------------
+
+function classifyRelation(
+  original: string,
+  matched: string,
+): AttributeSelectionType {
+  if (matched === original) return "exact";
+  if (original.endsWith(matched)) return "suffix";
+  if (original.startsWith(matched)) return "prefix";
+  return "partial";
+}
+
+const VALID_ATTR_NAME = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
+
+/** Real `addAttribute` (module 65913) — Partial Selector checked first, Ignore Selector only consulted when Partial returns nothing. */
+function addAttribute(
+  name: string,
+  value: string,
+  out: ElementPattern,
+  config: DesConfig,
+): boolean {
+  if (!VALID_ATTR_NAME.test(name)) return false;
+
+  if (name === "class") {
+    const partialFn = partialFnForAttribute(config, "class");
+    const partialResult = partialFn?.(name, value);
+    const partialValues = (
+      Array.isArray(partialResult) ? partialResult : [partialResult]
+    ).filter((v): v is string => Boolean(v));
+    if (partialValues.length > 0) {
+      for (const v of partialValues) {
+        out.classes.push({
+          class: v,
+          selectionType: classifyRelation(value, v),
+          length: v.length,
+        });
+      }
+      return out.classes.length > 0;
+    }
+    if (ignoreFnForClass(config)(name, value)) return false;
+    const tokens = value.trim().split(/\s+/).filter(Boolean);
+    out.classes = tokens.map((t) => ({
+      class: t,
+      selectionType: "exact" as const,
+      length: t.length,
+    }));
+    return out.classes.length > 0;
+  }
+
+  const partialFn = partialFnForAttribute(config, name);
+  const partialResult = partialFn?.(name, value);
+  const partialValues = (
+    Array.isArray(partialResult) ? partialResult : [partialResult]
+  ).filter((v): v is string => Boolean(v));
+  if (partialValues.length > 0) {
+    const usable = partialValues.filter((v) => !/\n/.test(v) && v.length < 500);
+    if (usable.length > 0) {
+      for (const v of usable) {
+        out.attributes.push({
+          name,
+          value: v,
+          selectionType: classifyRelation(value, v),
+        });
+      }
+      return true;
+    }
+    out.attributes.push({ name, value: undefined, selectionType: undefined });
+    return true;
+  }
+
+  if (ignoreFnForAttribute(config, name)(name, value)) return false;
+  const safeValue = !/\n/.test(value) && value.length < 500 ? value : undefined;
+  out.attributes.push({ name, value: safeValue, selectionType: undefined });
+  return true;
+}
+
+/** Real `initAttributes` (module 65913) — priority-ordered attribute names, `partialSelectorAttributes` always first, with an optional early-exit `stopCallback` (used only by `generateMinimalSelector`; full descriptive capture never passes one). */
+function initAttributes(
+  el: Element,
+  out: ElementPattern,
+  config: DesConfig,
+  stopCallback?: (pattern: ElementPattern) => boolean,
+): boolean {
+  const attrs = Array.from(el.attributes);
+  if (attrs.length === 0) return false;
+  const order = resolveAttributeOrder(
+    attrs.map((a) => a.name),
+    config,
+  );
+  let addedAny = false;
+  for (const name of order) {
+    const attr = attrs.find((a) => a.name === name);
+    if (!attr) continue;
+    if (addAttribute(name, attr.value, out, config)) {
+      addedAny = true;
+      if (stopCallback?.(out)) return true;
+    }
+  }
+  return addedAny;
+}
+
+function initTag(el: Element, out: ElementPattern, config: DesConfig): boolean {
+  const tag = el.tagName.toLowerCase();
+  if (ignoreFnForTag(config)("tag", tag)) return false;
+  out.tag = tag;
+  return true;
 }
 
 /**
- * Performance (Step 20): a naive per-element `nthOfType`/`siblingCountOfType`
- * (walking `previousElementSibling` and re-scanning `parent.children`) is
- * O(siblings) PER CALL — on a page with N same-tag siblings (a table of
- * rows, a list of repeated rows) that is O(N) per element and O(N^2)
- * across all of them. This computes every sibling's order info for a
- * given parent in ONE pass and caches it per-child, so a page with 400
- * sibling buttons costs one O(400) pass, not 400 of them. The cache is
- * reset at the start of every `collectDomHealthSnapshot` round (see
+ * Performance: a naive per-element `nth-child` scan (walking
+ * `parent.children` to find `el`'s own index) is O(siblings) per call — on
+ * a page with N siblings (a table of rows, a repeated list) that is O(N)
+ * per element and O(N^2) across all of them, since recovery scoring calls
+ * `buildElementPattern` once per candidate. This computes every sibling's
+ * 1-based index for a given parent in ONE pass and caches it per-child, so
+ * a page with 400 sibling rows costs one O(400) pass, not 400 of them.
+ * Reset at the start of every `collectDomHealthSnapshot` round (see
  * `resetDesPerformanceCaches`) so a later round that legitimately
- * inserted/removed/reordered a sibling is never served stale counts from
- * an earlier one.
+ * inserted/removed/reordered a sibling is never served a stale index.
  */
-let siblingInfoCache = new WeakMap<Element, SiblingInfo>();
+let nthChildCache = new WeakMap<Element, number>();
 
 export function resetDesPerformanceCaches(): void {
-  siblingInfoCache = new WeakMap();
+  nthChildCache = new WeakMap();
 }
 
-function getSiblingInfo(el: Element): SiblingInfo {
-  const cached = siblingInfoCache.get(el);
-  if (cached) return cached;
-
+/** Real `initNthChild` (module 65913) — 1-based index among ALL sibling elements (CSS `:nth-child`), not per-tag `:nth-of-type`. */
+function initNthChild(el: Element): PatternPseudo | null {
+  const cached = nthChildCache.get(el);
+  if (cached !== undefined) return { name: "nth-child", value: String(cached) };
   const parent = el.parentElement;
-  if (!parent) {
-    const info: SiblingInfo = { nthOfType: 1, siblingCountOfType: 1 };
-    siblingInfoCache.set(el, info);
-    return info;
-  }
-
-  const countByTag = new Map<string, number>();
+  if (!parent) return null;
   const children = Array.from(parent.children);
-  for (const child of children) {
-    const nextIndex = (countByTag.get(child.tagName) ?? 0) + 1;
-    countByTag.set(child.tagName, nextIndex);
-    siblingInfoCache.set(child, {
-      nthOfType: nextIndex,
-      siblingCountOfType: 0,
-    });
+  for (let i = 0; i < children.length; i++) {
+    nthChildCache.set(children[i]!, i + 1);
   }
-  for (const child of children) {
-    siblingInfoCache.get(child)!.siblingCountOfType = countByTag.get(
-      child.tagName,
-    )!;
-  }
-  return siblingInfoCache.get(el)!;
+  const index = nthChildCache.get(el);
+  return index === undefined
+    ? null
+    : { name: "nth-child", value: String(index) };
 }
 
-const CLASSIFIABLE_SINGLE_ATTRS = ["id", "aria-label", "name", "role"] as const;
-
-function dataAttributeEntries(el: Element): Array<[string, string]> {
-  const entries: Array<[string, string]> = [];
-  for (const attr of Array.from(el.attributes)) {
-    if (attr.name.startsWith("data-") && attr.value) {
-      entries.push([attr.name, attr.value]);
-    }
-  }
-  return entries;
+function emptyPattern(relates?: "child"): ElementPattern {
+  return { relates, tag: "", attributes: [], classes: [], pseudo: [] };
 }
 
-// ---------------------------------------------------------------------------
-// ElementPattern / ElementPath construction (Step 2)
-// ---------------------------------------------------------------------------
-
-function buildRelationship(el: Element): RelationshipInfo {
-  const parent = el.parentElement;
-  if (!parent) {
-    return {
-      parentTag: null,
-      parentId: null,
-      parentStableClasses: [],
-      combinator: "child",
-    };
-  }
-  const classInfo = classifyClassAttribute(
-    parent.getAttribute("class") ?? "",
-    DEFAULT_DES_CONFIG,
-  );
-  return {
-    parentTag: parent.tagName.toLowerCase(),
-    parentId: parent.getAttribute("id") || null,
-    parentStableClasses: classInfo.stableTokens,
-    combinator: "child",
-  };
-}
-
-function accessibleNameOf(el: Element): string | null {
-  const ariaLabel = el.getAttribute("aria-label");
-  if (ariaLabel?.trim()) return ariaLabel.trim();
-  const tag = el.tagName.toLowerCase();
-  if (tag === "button" || tag === "a") {
-    const text = el.textContent?.trim();
-    if (text) return text.slice(0, 120);
-  }
-  const placeholder = el.getAttribute("placeholder");
-  if (placeholder?.trim()) return placeholder.trim();
-  const name = el.getAttribute("name");
-  if (name?.trim()) return name.trim();
-  return null;
-}
-
-/** Build the classified-attribute + structural pattern for one element — the unit both target and candidates are compared through. Never reads every DOM attribute indiscriminately; only the classifiable, identity-relevant ones. */
+/** Full descriptive pattern for one element (real `createPath`'s per-level body: tag + every non-ignored attribute/class + nth-child — never early-exits). */
 export function buildElementPattern(
   el: Element,
   config: DesConfig = DEFAULT_DES_CONFIG,
 ): ElementPattern {
-  const attributes: ClassifiedAttribute[] = [];
-  for (const name of CLASSIFIABLE_SINGLE_ATTRS) {
-    const value = el.getAttribute(name);
-    if (value) attributes.push(classifyAttribute(name, value, config));
-  }
-  for (const [name, value] of dataAttributeEntries(el)) {
-    attributes.push(classifyAttribute(name, value, config));
-  }
-
-  const classInfo = classifyClassAttribute(
-    el.getAttribute("class") ?? "",
-    config,
-  );
-
-  return {
-    tag: el.tagName.toLowerCase(),
-    attributes,
-    classInfo,
-    relationship: buildRelationship(el),
-    order: { ...getSiblingInfo(el) },
-    role: el.getAttribute("role"),
-    accessibleName: accessibleNameOf(el),
-    textSample: (el.textContent ?? "").trim().slice(0, 60) || null,
-  };
+  const pattern = emptyPattern("child");
+  initTag(el, pattern, config);
+  initAttributes(el, pattern, config);
+  const nthChild = initNthChild(el);
+  if (nthChild) pattern.pseudo.push(nthChild);
+  return pattern;
 }
 
-/** Build the target's pattern plus its bounded ancestor chain — the ElementPath every strategy below reads from. Deliberately NOT an XPath string: the ancestor chain preserves each level's own classified attributes/classes/order so later comparison can reason about WHICH level changed, not just serialize a path. */
+function resolveScopeRoot(el: Element, config: DesConfig): Element | Document {
+  const doc = el.ownerDocument;
+  if (config.scopeRootSelectors?.length) {
+    let cur: Element | null = el.parentElement;
+    while (cur) {
+      for (const sel of config.scopeRootSelectors) {
+        try {
+          if (cur.matches(sel)) return cur;
+        } catch {
+          // invalid selector in config — ignore, keep climbing
+        }
+      }
+      cur = cur.parentElement;
+    }
+  }
+  return doc.body ?? doc;
+}
+
+/** Full descriptive ElementPath: walk from `el` up to the scope root (or document body), root-to-leaf order — real `createPath`. */
 export function buildElementPath(
   el: Element,
   config: DesConfig = DEFAULT_DES_CONFIG,
 ): ElementPath {
-  const ancestors: ElementPathNode[] = [];
-  let cur = el.parentElement;
-  let depth = 0;
-  while (cur && depth < config.maxAncestorDepth) {
-    ancestors.push({ pattern: buildElementPattern(cur, config) });
+  const root = resolveScopeRoot(el, config);
+  const path: ElementPath = [];
+  let cur: Element | null = el;
+  while (cur && cur !== root && cur.nodeType === 1) {
+    path.unshift(buildElementPattern(cur, config));
     cur = cur.parentElement;
-    depth++;
   }
-  return { target: { pattern: buildElementPattern(el, config) }, ancestors };
+  return path;
 }
 
 // ---------------------------------------------------------------------------
-// Structural similarity (Step 6)
-//
-// Weighting (sums to 100, documented rather than tuned per-fixture):
-//   tag mismatch          -> total forced to 0 (never partial credit for a
-//                            different element kind)
-//   stable attributes  35 -> Jaccard over {name=value} pairs from STABLE
-//   partial attributes 10 -> Jaccard over {name=stablePrefix} pairs from
-//                            PARTIAL_MATCHABLE
-//   classes            15 -> Jaccard over stable class tokens
-//   accessibility      10 -> role equality (5) + accessible-name equality (5)
-//   relationship       20 -> parent tag match (10) + parent id/class
-//                            Jaccard (10)
-//   order              10 -> closeness of nth-of-type index (proportional
-//                            to sibling count), never a hard cliff
+// Scoring — module 17851's `arrayDiffScore`/`patternDiffScore`/`diffScore`.
+// A Dice-coefficient-style diff ratio (exact-equality set intersection),
+// never Jaccard, with tag weighted 7x, attributes/classes/pseudo 1x each
+// (sum /10) at the pattern level, and ancestors (greedy sequential
+// best-match alignment, never simple index-paired comparison) weighted 1x
+// against the leaf's 3x at the path level (sum /4).
 // ---------------------------------------------------------------------------
 
-function jaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 && b.size === 0) return 1;
+function attributeKey(a: PatternAttribute): string {
+  return `attr:${a.name}=${a.value ?? ""}`;
+}
+function classKey(c: PatternClass): string {
+  return `class:${c.class}`;
+}
+function pseudoKey(p: PatternPseudo): string {
+  return `pseudo:${p.name}=${p.value ?? ""}`;
+}
+
+function arrayDiffScore<T>(a: T[], b: T[], key: (item: T) => string): number {
+  const total = a.length + b.length;
+  if (total === 0) return 1;
+  const bKeys = new Set(b.map(key));
   let intersection = 0;
-  for (const v of a) if (b.has(v)) intersection++;
-  const union = a.size + b.size - intersection;
-  return union === 0 ? 1 : intersection / union;
-}
-
-function stableAttrSet(pattern: ElementPattern): Set<string> {
-  return new Set(
-    pattern.attributes
-      .filter((a) => a.classification === "STABLE")
-      .map((a) => `${a.name}=${a.value}`),
-  );
-}
-
-function partialAttrSet(pattern: ElementPattern): Set<string> {
-  return new Set(
-    pattern.attributes
-      .filter((a) => a.classification === "PARTIAL_MATCHABLE" && a.stablePrefix)
-      .map((a) => `${a.name}=${a.stablePrefix}`),
-  );
-}
-
-function orderSimilarity(a: OrderInfo, b: OrderInfo): number {
-  const maxCount = Math.max(a.siblingCountOfType, b.siblingCountOfType, 1);
-  const diff = Math.abs(a.nthOfType - b.nthOfType);
-  return Math.max(0, 1 - diff / maxCount);
-}
-
-/** Deterministic, documented structural similarity between two patterns — 100 identical, 0 for a tag mismatch or total structural disagreement. Never an LLM judgment, never randomized. */
-export function computeSimilarity(
-  target: ElementPattern,
-  candidate: ElementPattern,
-): SimilarityBreakdown {
-  if (target.tag !== candidate.tag) {
-    return {
-      tagMatches: false,
-      stableAttributeScore: 0,
-      partialAttributeScore: 0,
-      classScore: 0,
-      accessibilityScore: 0,
-      relationshipScore: 0,
-      orderScore: 0,
-      total: 0,
-    };
-  }
-
-  const stableAttributeScore =
-    jaccard(stableAttrSet(target), stableAttrSet(candidate)) * 35;
-  const partialAttributeScore =
-    jaccard(partialAttrSet(target), partialAttrSet(candidate)) * 10;
-  const classScore =
-    jaccard(
-      new Set(target.classInfo.stableTokens),
-      new Set(candidate.classInfo.stableTokens),
-    ) * 15;
-
-  const roleMatch = (target.role ?? "") === (candidate.role ?? "") ? 5 : 0;
-  const nameMatch =
-    target.accessibleName && target.accessibleName === candidate.accessibleName
-      ? 5
-      : 0;
-  const accessibilityScore = roleMatch + nameMatch;
-
-  const parentTagMatch =
-    target.relationship.parentTag === candidate.relationship.parentTag ? 10 : 0;
-  const parentClassJaccard = jaccard(
-    new Set([
-      ...(target.relationship.parentId
-        ? [`id=${target.relationship.parentId}`]
-        : []),
-      ...target.relationship.parentStableClasses.map((c) => `class=${c}`),
-    ]),
-    new Set([
-      ...(candidate.relationship.parentId
-        ? [`id=${candidate.relationship.parentId}`]
-        : []),
-      ...candidate.relationship.parentStableClasses.map((c) => `class=${c}`),
-    ]),
-  );
-  const relationshipScore = parentTagMatch + parentClassJaccard * 10;
-
-  const orderScore = orderSimilarity(target.order, candidate.order) * 10;
-
-  const total = Math.round(
-    stableAttributeScore +
-      partialAttributeScore +
-      classScore +
-      accessibilityScore +
-      relationshipScore +
-      orderScore,
-  );
-
-  return {
-    tagMatches: true,
-    stableAttributeScore,
-    partialAttributeScore,
-    classScore,
-    accessibilityScore,
-    relationshipScore,
-    orderScore,
-    total: Math.max(0, Math.min(100, total)),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Selector generation (Step 12) — attribute-fragment candidates
-// ---------------------------------------------------------------------------
-
-interface AttributeFragment {
-  name: string;
-  fragment: string;
-  isPartial: boolean;
-}
-
-function stableFragmentsOf(
-  pattern: ElementPattern,
-  config: DesConfig,
-): AttributeFragment[] {
-  const order = resolveAttributePriorityOrder(config);
-  const out: AttributeFragment[] = [];
-  for (const attr of pattern.attributes) {
-    if (attr.classification !== "STABLE") continue;
-    const fragment =
-      attr.name === "id"
-        ? `#${cssEscapeIdent(attr.value)}`
-        : `[${attr.name}="${escapeAttributeValue(attr.value)}"]`;
-    out.push({ name: attr.name, fragment, isPartial: false });
-  }
-  if (
-    pattern.classInfo.classification === "STABLE" &&
-    pattern.classInfo.stableTokens.length > 0
-  ) {
-    out.push({
-      name: "class",
-      fragment: pattern.classInfo.stableTokens
-        .map((c) => `.${cssEscapeIdent(c)}`)
-        .join(""),
-      isPartial: false,
-    });
-  }
-  return out.sort(
-    (a, b) => priorityRankOf(a.name, order) - priorityRankOf(b.name, order),
-  );
-}
-
-function partialFragmentsOf(
-  pattern: ElementPattern,
-  config: DesConfig,
-): AttributeFragment[] {
-  const order = resolveAttributePriorityOrder(config);
-  const out: AttributeFragment[] = [];
-  for (const attr of pattern.attributes) {
-    if (attr.classification !== "PARTIAL_MATCHABLE" || !attr.stablePrefix)
-      continue;
-    const fragment =
-      attr.name === "id"
-        ? `[id^="${escapeAttributeValue(attr.stablePrefix)}"]`
-        : `[${attr.name}^="${escapeAttributeValue(attr.stablePrefix)}"]`;
-    out.push({ name: attr.name, fragment, isPartial: true });
-  }
-  if (
-    pattern.classInfo.classification === "PARTIAL_MATCHABLE" &&
-    pattern.classInfo.partial
-  ) {
-    out.push({
-      name: "class",
-      fragment: `[class*="${escapeAttributeValue(pattern.classInfo.partial.prefix)}"]`,
-      isPartial: true,
-    });
-  }
-  return out.sort(
-    (a, b) => priorityRankOf(a.name, order) - priorityRankOf(b.name, order),
-  );
-}
-
-interface QueryResult {
-  selector: string;
-  matches: Element[];
-}
-
-function safeQuery(root: ParentNode, selector: string): QueryResult | null {
-  try {
-    return { selector, matches: Array.from(root.querySelectorAll(selector)) };
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Target identity verification (Step 8)
-// ---------------------------------------------------------------------------
-
-/**
- * Compact logical fingerprint used ONLY for cross-snapshot identity
- * verification (never for selector generation) — matches the shape
- * `health-selector-engine.ts`'s `computeElementFingerprint` already uses
- * elsewhere in this package, so the two never drift on what "the same
- * logical element" means. Deliberately excludes `id` (the attribute most
- * likely to be regenerated by a framework on rerender).
- */
-export function computeIdentityFingerprint(pattern: ElementPattern): string {
-  const stableSignature = pattern.attributes
-    .filter((a) => a.classification === "STABLE" && a.name !== "id")
-    .map((a) => `${a.name}=${a.value}`)
-    .sort()
-    .join(",");
-  return [
-    pattern.tag,
-    (pattern.role ?? "").toLowerCase(),
-    pattern.accessibleName ?? "",
-    stableSignature,
-    pattern.textSample ?? "",
-    pattern.order.nthOfType,
-  ].join("||");
-}
-
-export interface IdentityContext {
-  /** The live target element, when this DES run has one (the normal, single-snapshot case — e.g. `health-collector.ts` analyzing the page it is currently in). */
-  liveTarget?: Element;
-  /** A previously-captured identity fingerprint to compare against, for cross-snapshot recovery where no live target object exists — the Phase 1 "never rely on object identity across snapshots" model. */
-  expectedFingerprint?: string;
-}
-
-function verifyIdentity(
-  candidate: Candidate,
-  _targetPattern: ElementPattern,
-  context: IdentityContext,
-): IdentityVerdict {
-  if (context.liveTarget) {
-    return candidate.element === context.liveTarget
-      ? "CORRECT_TARGET"
-      : "WRONG_TARGET";
-  }
-  if (context.expectedFingerprint) {
-    return computeIdentityFingerprint(candidate.pattern) ===
-      context.expectedFingerprint
-      ? "CORRECT_TARGET"
-      : "WRONG_TARGET";
-  }
-  // No ground truth available at all (a genuine production cross-snapshot
-  // resolution with nothing stored to check against) — a high-similarity
-  // unique match is still reported, but its identity is honestly UNKNOWN,
-  // never claimed CORRECT without evidence.
-  return "UNKNOWN_IDENTITY";
-}
-
-// ---------------------------------------------------------------------------
-// Candidate building / ranking shared by every strategy
-// ---------------------------------------------------------------------------
-
-/**
- * Performance (Step 20): building a pattern re-walks sibling/ancestor
- * chains, which is O(siblings) per call — never redo that work when the
- * candidate under test is literally the live target this run already
- * built a pattern for (the overwhelmingly common "resolves to itself"
- * case for every strategy). Correctness is unaffected: the target IS its
- * own pattern.
- */
-function patternFor(
-  element: Element,
-  targetPattern: ElementPattern,
-  config: DesConfig,
-  identityContext: IdentityContext,
-): ElementPattern {
-  if (identityContext.liveTarget && element === identityContext.liveTarget) {
-    return targetPattern;
-  }
-  return buildElementPattern(element, config);
-}
-
-function buildCandidates(
-  _root: ParentNode,
-  matches: Element[],
-  targetPattern: ElementPattern,
-  config: DesConfig,
-  ceiling: number,
-  identityContext: IdentityContext,
-): { candidates: Candidate[]; capped: boolean } {
-  const capped = matches.length > ceiling;
-  const bounded = capped ? matches.slice(0, ceiling) : matches;
-  const candidates = bounded.map((element) => {
-    const pattern = patternFor(element, targetPattern, config, identityContext);
-    return {
-      element,
-      pattern,
-      similarity: computeSimilarity(targetPattern, pattern),
-    };
-  });
-  candidates.sort((a, b) => b.similarity.total - a.similarity.total);
-  return { candidates, capped };
-}
-
-/** Rank already-built candidates and classify the outcome against the configured threshold/gap — shared by checkSimplifyNth and checkDirectElement, the two strategies that must reason about MULTIPLE candidates rather than stopping at the first unique match. */
-function rankAndClassify(
-  candidates: Candidate[],
-  config: DesConfig,
-  identityContext: IdentityContext,
-  targetPattern: ElementPattern,
-):
-  | { decision: "resolved"; candidate: Candidate; identity: IdentityVerdict }
-  | { decision: "ambiguous"; reason: string }
-  | { decision: "wrong-target"; candidate: Candidate }
-  | { decision: "below-threshold" } {
-  const aboveThreshold = candidates.filter(
-    (c) => c.similarity.total >= config.similarityThreshold,
-  );
-  if (aboveThreshold.length === 0) return { decision: "below-threshold" };
-
-  const top = aboveThreshold[0]!;
-  const runnerUp = aboveThreshold[1];
-  if (
-    runnerUp &&
-    top.similarity.total - runnerUp.similarity.total < config.ambiguousGap
-  ) {
-    return {
-      decision: "ambiguous",
-      reason: `${aboveThreshold.length} candidates scored within ${config.ambiguousGap} points of each other (top ${top.similarity.total}, runner-up ${runnerUp.similarity.total})`,
-    };
-  }
-
-  const identity = verifyIdentity(top, targetPattern, identityContext);
-  if (identity === "WRONG_TARGET") {
-    return { decision: "wrong-target", candidate: top };
-  }
-  if (identity === "AMBIGUOUS_TARGET") {
-    return {
-      decision: "ambiguous",
-      reason: "identity verification could not distinguish the top candidate",
-    };
-  }
-  return { decision: "resolved", candidate: top, identity };
-}
-
-function makeEvidence(
-  strategy: DesStrategyName,
-  overrides: Partial<StrategyAttemptEvidence>,
-): StrategyAttemptEvidence {
-  return {
-    strategy,
-    selector: null,
-    candidatesFound: 0,
-    candidatesAboveThreshold: 0,
-    bestSimilarity: null,
-    attributesUsed: [],
-    attributesRemoved: [],
-    outcome: "no-candidates",
-    reason: "",
-    ...overrides,
-  };
-}
-
-interface StrategySuccess {
-  strategy: DesStrategyName;
-  selector: string;
-  similarity: number;
-  identity: IdentityVerdict;
-  candidateCount: number;
-  attributesUsed: string[];
-  attributesRemoved: string[];
-}
-
-type StrategyOutcome =
-  | {
-      kind: "resolved";
-      success: StrategySuccess;
-      evidence: StrategyAttemptEvidence;
+  const consumed = new Set<string>();
+  for (const item of a) {
+    const k = key(item);
+    if (bKeys.has(k) && !consumed.has(k)) {
+      intersection++;
+      consumed.add(k);
     }
-  | {
-      kind: "wrong-target";
-      selector: string;
-      similarity: number;
-      evidence: StrategyAttemptEvidence;
-    }
-  | { kind: "inconclusive"; evidence: StrategyAttemptEvidence };
+  }
+  return (2 * intersection) / total;
+}
 
-// ---------------------------------------------------------------------------
-// Strategy 1 — checkInitialPath (Step 5.1)
-//
-// The naive, "as captured" attempt: try the target's own single stable/
-// partial identifying attribute alone first (the common case — most
-// well-built elements already have one), then fall back to the full,
-// unsimplified nth-of-type ancestor chain. Never uses a DYNAMIC-classified
-// value as a selector predicate — Step 12 forbids unstable generated
-// values in every strategy, not just the later "simplification" ones; what
-// makes this strategy "initial/unsimplified" is that it tries the leaf
-// alone before ever touching ancestor context, and falls back to the full
-// positional path rather than a relaxed one.
-// ---------------------------------------------------------------------------
+const EMPTY_PATTERN: ElementPattern = emptyPattern();
 
-function checkInitialPath(
-  root: ParentNode,
-  path: ElementPath,
-  config: DesConfig,
-  identityContext: IdentityContext,
-): StrategyOutcome {
-  const targetPattern = path.target.pattern;
-  const stableFragments = stableFragmentsOf(targetPattern, config);
-  let sawWrongTarget = false;
-  let sawAmbiguous = false;
+export interface PatternDiffBreakdown {
+  tagMatches: boolean;
+  attributeScore: number;
+  classScore: number;
+  pseudoScore: number;
+  total: number;
+}
 
-  for (const frag of stableFragments) {
-    // An id selector is already globally scoped — prefixing it with the
-    // tag only adds noise, and this file's own tests (and the ecosystem
-    // convention `#id` represents) expect the bare form.
-    const selector =
-      frag.name === "id"
-        ? frag.fragment
-        : `${targetPattern.tag}${frag.fragment}`;
-    const result = safeQuery(root, selector);
-    if (!result) continue;
-    if (result.matches.length === 0) continue;
-    if (result.matches.length === 1) {
-      const candidatePattern = patternFor(
-        result.matches[0]!,
-        targetPattern,
-        config,
-        identityContext,
-      );
-      const similarity = computeSimilarity(targetPattern, candidatePattern);
-      const candidate: Candidate = {
-        element: result.matches[0]!,
-        pattern: candidatePattern,
-        similarity,
-      };
-      const identity = verifyIdentity(
-        candidate,
-        targetPattern,
-        identityContext,
-      );
-      if (identity === "CORRECT_TARGET" || identity === "UNKNOWN_IDENTITY") {
-        return {
-          kind: "resolved",
-          success: {
-            strategy: "checkInitialPath",
-            selector,
-            similarity: similarity.total,
-            identity,
-            candidateCount: 1,
-            attributesUsed: [frag.name],
-            attributesRemoved: [],
-          },
-          evidence: makeEvidence("checkInitialPath", {
-            selector,
-            candidatesFound: 1,
-            candidatesAboveThreshold: 1,
-            bestSimilarity: similarity.total,
-            attributesUsed: [frag.name],
-            outcome: "resolved",
-            reason: `unique match on stable attribute "${frag.name}"`,
-          }),
-        };
+export function patternDiffScore(
+  a: ElementPattern,
+  b: ElementPattern,
+): PatternDiffBreakdown {
+  const tagMatches = a.tag === b.tag;
+  const attributeScore = arrayDiffScore(
+    a.attributes,
+    b.attributes,
+    attributeKey,
+  );
+  const classScore = arrayDiffScore(a.classes, b.classes, classKey);
+  const pseudoScore = arrayDiffScore(a.pseudo, b.pseudo, pseudoKey);
+  const total =
+    (7 * (tagMatches ? 1 : 0) +
+      1 * attributeScore +
+      1 * classScore +
+      1 * pseudoScore) /
+    10;
+  return { tagMatches, attributeScore, classScore, pseudoScore, total };
+}
+
+/** Greedy sequential best-match alignment (real `diffScore`'s inline ancestor-comparison closure): each ancestor from the shorter chain is matched to its best-scoring remaining candidate in the longer chain, consuming forward — never backward — so structure/order is preserved without requiring exact positional alignment (tolerates an inserted/removed ancestor level). */
+function ancestorSequenceScore(
+  a: ElementPattern[],
+  b: ElementPattern[],
+): number {
+  const total = a.length + b.length;
+  if (total === 0) return 1;
+  const [shorter, longer] = a.length > b.length ? [b, a] : [a, b];
+  const shorterCopy = [...shorter];
+  let remainingLonger = longer;
+  const scores: number[] = [];
+  while (shorterCopy.length > 0 && remainingLonger.length > 0) {
+    const next = shorterCopy.shift()!;
+    let bestScore = 0;
+    let bestIndex = -1;
+    remainingLonger.forEach((candidate, idx) => {
+      const score = patternDiffScore(next, candidate).total;
+      if (idx === 0 || score > bestScore) {
+        bestScore = score;
+        bestIndex = idx;
       }
-      sawWrongTarget = true;
-      continue;
-    }
-    sawAmbiguous = true;
+    });
+    scores.push(bestScore);
+    remainingLonger = remainingLonger.slice(bestIndex + 1);
   }
+  return scores.reduce((sum, s) => sum + 2 * s, 0) / total;
+}
 
-  // Deliberately no positional fallback here: checkInitialPath is "try the
-  // target's own literal identifying attribute(s), unsimplified" — the
-  // full unsimplified STRUCTURAL path (ancestor chain, nth positions) is
-  // what later strategies build on top of once a bare attribute isn't
-  // enough; falling back to it here would let it win before
-  // checkSimplifyDynamic's combined-stable ("ignore selector") recovery
-  // ever gets a chance, which is never correct when the target genuinely
-  // has multiple stable attributes that only narrow it down together.
-  return {
-    kind: "inconclusive",
-    evidence: makeEvidence("checkInitialPath", {
-      outcome: sawWrongTarget
-        ? "wrong-target"
-        : sawAmbiguous
-          ? "ambiguous"
-          : "no-candidates",
-      reason: sawWrongTarget
-        ? "a stable attribute resolved uniquely, but not to the target"
-        : sawAmbiguous
-          ? "a stable attribute matched multiple elements including the target"
-          : "the target has no stable identifying attribute of its own",
-    }),
-  };
+export interface DiffScoreBreakdown {
+  ancestorScore: number;
+  leaf: PatternDiffBreakdown;
+  total: number;
+}
+
+/** Real `diffScore`: `(1 * ancestorSequenceScore(ancestors) + 3 * patternDiffScore(leaf)) / 4` — the leaf is weighted 3x an ancestor-chain score that itself never simply pairs index-for-index. */
+export function diffScore(
+  pathA: ElementPath,
+  pathB: ElementPath,
+): DiffScoreBreakdown {
+  const ancestorScore = ancestorSequenceScore(
+    pathA.slice(0, -1),
+    pathB.slice(0, -1),
+  );
+  const leaf = patternDiffScore(
+    pathA[pathA.length - 1] ?? EMPTY_PATTERN,
+    pathB[pathB.length - 1] ?? EMPTY_PATTERN,
+  );
+  const total = (1 * ancestorScore + 3 * leaf.total) / 4;
+  return { ancestorScore, leaf, total };
 }
 
 // ---------------------------------------------------------------------------
-// Strategy 2 — checkSimplifyDynamic (Step 5.2)
-//
-// Removes DYNAMIC-classified attributes/classes entirely; tries
-// PARTIAL_MATCHABLE prefixes first (Partial Selector precedence over
-// Ignore Selector for the same attribute — see
-// `health-attribute-classification.ts`), then a combined "ignore selector"
-// style predicate over every remaining STABLE attribute together. This is
-// the strategy that specifically recovers enterprise apps whose generated
-// ids/classes change between sessions or renders.
+// Recovery — module 15906's `find()`/`findElement()` and module 81948's
+// `checkInitialPath`/`strategies`.
 // ---------------------------------------------------------------------------
 
-function checkSimplifyDynamic(
-  root: ParentNode,
-  path: ElementPath,
-  config: DesConfig,
-  identityContext: IdentityContext,
-): StrategyOutcome {
-  const targetPattern = path.target.pattern;
-  const dynamicRemoved = targetPattern.attributes
-    .filter((a) => a.classification === "DYNAMIC")
-    .map((a) => a.name);
-  if (targetPattern.classInfo.classification === "DYNAMIC")
-    dynamicRemoved.push("class");
-
-  const partialFragments = partialFragmentsOf(targetPattern, config);
-  for (const frag of partialFragments) {
-    const selector = `${targetPattern.tag}${frag.fragment}`;
-    const outcome = evaluateUniqueSelector(
-      root,
-      selector,
-      targetPattern,
-      config,
-      identityContext,
-      "checkSimplifyDynamic",
-      [frag.name],
-      dynamicRemoved,
-      `recovered via a stable prefix of "${frag.name}" (dynamic suffix ignored)`,
-    );
-    if (outcome.kind !== "inconclusive") return outcome;
-  }
-
-  const stableFragments = stableFragmentsOf(targetPattern, config);
-  if (stableFragments.length > 1) {
-    const combined = `${targetPattern.tag}${stableFragments.map((f) => f.fragment).join("")}`;
-    const outcome = evaluateUniqueSelector(
-      root,
-      combined,
-      targetPattern,
-      config,
-      identityContext,
-      "checkSimplifyDynamic",
-      stableFragments.map((f) => f.name),
-      dynamicRemoved,
-      "combined every remaining stable attribute together (dynamic attributes ignored)",
-    );
-    if (outcome.kind !== "inconclusive") return outcome;
-  }
-
-  return {
-    kind: "inconclusive",
-    evidence: makeEvidence("checkSimplifyDynamic", {
-      attributesRemoved: dynamicRemoved,
-      outcome: "no-candidates",
-      reason:
-        "no partial or combined-stable selector resolved uniquely once dynamic attributes were removed",
-    }),
-  };
-}
-
-function evaluateUniqueSelector(
+function safeQueryAll(
   root: ParentNode,
   selector: string,
-  targetPattern: ElementPattern,
-  config: DesConfig,
-  identityContext: IdentityContext,
-  strategy: DesStrategyName,
-  attributesUsed: string[],
-  attributesRemoved: string[],
-  successReason: string,
-): StrategyOutcome {
-  const result = safeQuery(root, selector);
-  if (!result || result.matches.length === 0) {
-    return {
-      kind: "inconclusive",
-      evidence: makeEvidence(strategy, {
-        selector,
-        attributesRemoved,
-        outcome: "no-candidates",
-        reason: "selector matched nothing",
-      }),
-    };
+  limit: number,
+): Element[] {
+  try {
+    const result: Element[] = [];
+    for (const el of Array.from(root.querySelectorAll(selector))) {
+      result.push(el);
+      if (result.length >= limit) break;
+    }
+    return result;
+  } catch {
+    return [];
   }
-  if (result.matches.length > 1) {
-    return {
-      kind: "inconclusive",
-      evidence: makeEvidence(strategy, {
-        selector,
-        candidatesFound: result.matches.length,
-        attributesRemoved,
-        outcome: "ambiguous",
-        reason: "selector matched more than one element",
-      }),
-    };
-  }
-  const candidatePattern = patternFor(
-    result.matches[0]!,
-    targetPattern,
-    config,
-    identityContext,
-  );
-  const similarity = computeSimilarity(targetPattern, candidatePattern);
-  const candidate: Candidate = {
-    element: result.matches[0]!,
-    pattern: candidatePattern,
-    similarity,
-  };
-  const identity = verifyIdentity(candidate, targetPattern, identityContext);
-  if (identity === "CORRECT_TARGET" || identity === "UNKNOWN_IDENTITY") {
-    return {
-      kind: "resolved",
-      success: {
-        strategy,
-        selector,
-        similarity: similarity.total,
-        identity,
-        candidateCount: 1,
-        attributesUsed,
-        attributesRemoved,
-      },
-      evidence: makeEvidence(strategy, {
-        selector,
-        candidatesFound: 1,
-        candidatesAboveThreshold: 1,
-        bestSimilarity: similarity.total,
-        attributesUsed,
-        attributesRemoved,
-        outcome: "resolved",
-        reason: successReason,
-      }),
-    };
-  }
-  return {
-    kind: "wrong-target",
-    selector,
-    similarity: similarity.total,
-    evidence: makeEvidence(strategy, {
-      selector,
-      candidatesFound: 1,
-      attributesRemoved,
-      outcome: "wrong-target",
-      reason: "selector resolved uniquely, but not to the target",
-    }),
-  };
 }
 
-// ---------------------------------------------------------------------------
-// Strategy 3 — checkSimplifyNth (Step 5.3)
-//
-// Relaxes ordering: builds a selector using the target's tag (plus any
-// stable/partial attribute it has) WITHOUT any nth-of-type qualifier,
-// scoped by ancestor context also built without positional pinning. This
-// is the strategy that recovers from sibling reordering/insertion/removal
-// when the element's non-positional identity is still meaningful — it
-// never blindly picks the first of several matches; ties are ranked by
-// structural similarity like every multi-candidate strategy here.
-// ---------------------------------------------------------------------------
-
-interface LeafFragment {
-  fragment: string;
-  usedAttribute: string | null;
-}
-
-function relaxedLeafFragment(
-  pattern: ElementPattern,
-  config: DesConfig,
-): LeafFragment {
-  const stable = stableFragmentsOf(pattern, config)[0];
-  if (stable)
-    return {
-      fragment: `${pattern.tag}${stable.fragment}`,
-      usedAttribute: stable.name,
-    };
-  const partial = partialFragmentsOf(pattern, config)[0];
-  if (partial)
-    return {
-      fragment: `${pattern.tag}${partial.fragment}`,
-      usedAttribute: partial.name,
-    };
-  return { fragment: pattern.tag, usedAttribute: null };
-}
-
-function checkSimplifyNth(
-  root: ParentNode,
-  path: ElementPath,
-  config: DesConfig,
-  identityContext: IdentityContext,
-): StrategyOutcome {
-  const targetPattern = path.target.pattern;
-  const leaf = relaxedLeafFragment(targetPattern, config);
-  // `path.ancestors` is innermost-first (direct parent first) — a CSS
-  // descendant selector needs outermost-first, so the ancestor slice is
-  // reversed on its own before the (already-innermost) leaf is appended.
-  const ancestorFragments = path.ancestors
-    .map((a) => relaxedLeafFragment(a.pattern, config))
-    .reverse();
-  const selector = [
-    ...ancestorFragments.map((f) => f.fragment),
-    leaf.fragment,
-  ].join(" ");
-  const ancestorAttributesUsed = ancestorFragments
-    .filter((f) => f.usedAttribute)
-    .map((f) => f.usedAttribute!);
-
-  const result = safeQuery(root, selector);
-  if (!result || result.matches.length === 0) {
-    return {
-      kind: "inconclusive",
-      evidence: makeEvidence("checkSimplifyNth", {
-        selector,
-        outcome: "no-candidates",
-        reason: "no match once nth-of-type/order was relaxed",
-      }),
-    };
-  }
-  // An ancestor's stable attribute is real context recovery regardless of
-  // match count — that is this strategy's whole point (climb to a stable
-  // ancestor, then let ranking pick among its children). The LEAF's own
-  // attribute only genuinely "resolved" this when it was already unique
-  // among the matches; once ranking had to pick a winner among several
-  // candidates sharing that same leaf attribute, structural similarity
-  // (which folds in order) did the real disambiguating work, so crediting
-  // the shared leaf attribute would overstate how this was resolved.
-  const leafAttributeUsed =
-    result.matches.length === 1 && leaf.usedAttribute
-      ? [leaf.usedAttribute]
-      : [];
-  const attributesUsed = [...ancestorAttributesUsed, ...leafAttributeUsed];
-
-  const { candidates, capped } = buildCandidates(
-    root,
-    result.matches,
-    targetPattern,
-    config,
-    200,
-    identityContext,
-  );
-  const decision = rankAndClassify(
-    candidates,
-    config,
-    identityContext,
-    targetPattern,
-  );
-  const evidenceBase = {
-    selector,
-    candidatesFound: result.matches.length,
-    candidatesAboveThreshold: candidates.filter(
-      (c) => c.similarity.total >= config.similarityThreshold,
-    ).length,
-    bestSimilarity: candidates[0]?.similarity.total ?? null,
-    attributesUsed,
-  };
-
-  if (decision.decision === "resolved") {
-    return {
-      kind: "resolved",
-      success: {
-        strategy: "checkSimplifyNth",
-        selector,
-        similarity: decision.candidate.similarity.total,
-        identity: decision.identity,
-        candidateCount: result.matches.length,
-        attributesUsed,
-        attributesRemoved: [],
-      },
-      evidence: makeEvidence("checkSimplifyNth", {
-        ...evidenceBase,
-        outcome: "resolved",
-        reason: `order relaxed; unique high-similarity match recovered${capped ? " (candidate list capped for performance)" : ""}`,
-      }),
-    };
-  }
-  if (decision.decision === "wrong-target") {
-    return {
-      kind: "wrong-target",
-      selector,
-      similarity: decision.candidate.similarity.total,
-      evidence: makeEvidence("checkSimplifyNth", {
-        ...evidenceBase,
-        outcome: "wrong-target",
-        reason: "the best-ranked candidate is not the target",
-      }),
-    };
-  }
-  return {
-    kind: "inconclusive",
-    evidence: makeEvidence("checkSimplifyNth", {
-      ...evidenceBase,
-      outcome:
-        decision.decision === "ambiguous" ? "ambiguous" : "below-threshold",
-      reason:
-        decision.decision === "ambiguous"
-          ? decision.reason
-          : "no candidate reached the similarity threshold",
-    }),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Strategy 4 — checkContainers (Step 5.4)
-//
-// Progressively simplifies the ancestor chain: drops the FARTHEST ancestor
-// first (least likely to be load-bearing for identity), then the next,
-// trying a direct-child combinator before relaxing to a descendant
-// combinator at each length. Stops at the first length/combinator that
-// resolves uniquely to a correctly-identified target — never broadens
-// further than necessary.
-// ---------------------------------------------------------------------------
-
-function checkContainers(
-  root: ParentNode,
-  path: ElementPath,
-  config: DesConfig,
-  identityContext: IdentityContext,
-): StrategyOutcome {
-  const targetPattern = path.target.pattern;
-  const leaf = relaxedLeafFragment(targetPattern, config);
-  const leafWithOrder = `${leaf.fragment}:nth-of-type(${targetPattern.order.nthOfType})`;
-
-  for (let keep = path.ancestors.length; keep >= 0; keep--) {
-    const keptAncestors = path.ancestors
-      .slice(0, keep)
-      .map((a) => relaxedLeafFragment(a.pattern, config))
-      .reverse();
-    const ancestorAttributesUsed = keptAncestors
-      .filter((f) => f.usedAttribute)
-      .map((f) => f.usedAttribute!);
-    // Try the plain (no nth) leaf first: if THAT alone is what resolves it,
-    // the attribute genuinely did the disambiguating work. Only fall back
-    // to the nth-of-type-augmented variant when the plain one isn't
-    // unique — and when nth is what actually made the difference, report
-    // it as positional (no attributesUsed), never as if a shared
-    // attribute (e.g. an id duplicated across every row of a template)
-    // had meaningfully identified the element on its own.
-    const leafVariants: Array<{ selector: string; attributesUsed: string[] }> =
-      [
-        {
-          selector: leaf.fragment,
-          attributesUsed: leaf.usedAttribute ? [leaf.usedAttribute] : [],
-        },
-        { selector: leafWithOrder, attributesUsed: [] },
-      ];
-    for (const combinator of [" > ", " "] as const) {
-      for (const variant of leafVariants) {
-        const kept = keptAncestors.map((f) => f.fragment);
-        const selector =
-          kept.length > 0
-            ? `${kept.join(combinator)}${combinator}${variant.selector}`
-            : variant.selector;
-        const outcome = evaluateUniqueSelector(
-          root,
-          selector,
-          targetPattern,
-          config,
-          identityContext,
-          "checkContainers",
-          [...ancestorAttributesUsed, ...variant.attributesUsed],
-          [],
-          `resolved with ${kept.length} ancestor level(s) kept, ${combinator === " > " ? "direct-child" : "descendant"} relationship`,
-        );
-        if (outcome.kind === "resolved") return outcome;
-        if (
-          outcome.kind === "wrong-target" &&
-          kept.length === 0 &&
-          combinator === " "
-        ) {
-          // Exhausted every attribute-based simplification level — fall
-          // through to the pure positional chain below rather than giving
-          // up (a wrong-target here doesn't mean position can't recover
-          // it; see the fully-duplicated-siblings fixture this guards).
-          break;
-        }
-      }
+function dedupe(elements: Element[]): Element[] {
+  const seen = new Set<Element>();
+  const out: Element[] = [];
+  for (const el of elements) {
+    if (!seen.has(el)) {
+      seen.add(el);
+      out.push(el);
     }
   }
+  return out;
+}
 
-  // Last resort: every level of every attribute-based simplification
-  // failed (typically because every candidate is structurally identical,
-  // e.g. repeated rows built from a template with duplicated ids/classes
-  // at every level) — fall back to the full nth-of-type chain through
-  // every ancestor. This is reported with NO attributesUsed, which is
-  // what marks it as genuinely positional-only, not contextual.
-  const positionalAncestors = path.ancestors
-    .map((a) => `${a.pattern.tag}:nth-of-type(${a.pattern.order.nthOfType})`)
-    .reverse();
-  const positionalLeaf = `${targetPattern.tag}:nth-of-type(${targetPattern.order.nthOfType})`;
-  const positionalSelector = [...positionalAncestors, positionalLeaf].join(
-    " > ",
-  );
-  const positionalOutcome = evaluateUniqueSelector(
-    root,
-    positionalSelector,
-    targetPattern,
-    config,
-    identityContext,
-    "checkContainers",
-    [],
-    [],
-    "resolved via the full nth-of-type ancestor chain — every candidate was otherwise structurally identical",
-  );
-  if (
-    positionalOutcome.kind === "resolved" ||
-    positionalOutcome.kind === "wrong-target"
+/** Real `checkInitialPath` (module 81948) — the literal captured path, as-is, no relaxation. */
+function checkInitialPath(
+  path: ElementPath,
+  limit: number,
+  root: ParentNode,
+): Element[] {
+  return safeQueryAll(root, pathToSelector(path), limit);
+}
+
+/** Strategy 1 (real `f`): drop dynamic-looking attribute values and class tokens at EVERY level of the path. */
+function dropDynamicValues(path: ElementPath): ElementPath {
+  return path.map((node) => ({
+    ...node,
+    attributes: node.attributes.filter((a) => !isValueDynamic(a.value ?? "")),
+    classes: node.classes.filter((c) => !isValueDynamic(c.class)),
+  }));
+}
+
+/** Strategy 2 (real `d`): drop `nth-child`/`nth-of-type` pseudo entries at every level. */
+function dropPositionalPseudo(path: ElementPath): ElementPath {
+  return path.map((node) => ({
+    ...node,
+    pseudo: node.pseudo.filter(
+      (p) => p.name !== "nth-of-type" && p.name !== "nth-child",
+    ),
+  }));
+}
+
+interface StrategyEvidence {
+  name:
+    | "dropDynamicValues"
+    | "dropPositionalPseudo"
+    | "dropOneAncestor"
+    | "leafFieldCombinations";
+  candidates: Element[];
+}
+
+/** Strategy 3 (real anonymous 3rd strategy): drop exactly ONE ancestor level at a time (never cumulative), stripping relationship/pseudo info from every remaining ancestor, unioning the resulting matches across every single-ancestor-dropped attempt. */
+function dropOneAncestorAtATime(
+  path: ElementPath,
+  limit: number,
+  root: ParentNode,
+): Element[] {
+  if (path.length === 0) return [];
+  const stripped = path.map((node) => ({
+    ...node,
+    relates: undefined,
+    pseudo: [] as PatternPseudo[],
+  }));
+  const leaf = stripped[stripped.length - 1]!;
+  const ancestors = stripped.slice(0, -1);
+  if (ancestors.length === 0) return [];
+  let collected: Element[] = [];
+  for (
+    let dropIndex = 0;
+    dropIndex < ancestors.length && collected.length <= limit;
+    dropIndex++
   ) {
-    return positionalOutcome;
+    const kept = ancestors.filter((_, i) => i !== dropIndex);
+    collected = dedupe(
+      collected.concat(
+        safeQueryAll(root, pathToSelector([...kept, leaf]), limit),
+      ),
+    );
   }
-
-  return {
-    kind: "inconclusive",
-    evidence: makeEvidence("checkContainers", {
-      outcome: "no-candidates",
-      reason:
-        "no ancestor-simplification level, attribute-based or positional, resolved uniquely to the target",
-    }),
-  };
+  return collected.slice(0, limit);
 }
 
-// ---------------------------------------------------------------------------
-// Strategy 5 — checkDirectElement (Step 5.5)
-//
-// Last resort: no ancestor context at all. Uses only the target's own
-// pattern, broadening by dropping up to two of its weakest (lowest
-// Attribute-Priority) identifying fragments if the fully-specific version
-// matches nothing, then ranks EVERY match by structural similarity — this
-// strategy must never simply take the first candidate; see
-// `rankAndClassify`.
-// ---------------------------------------------------------------------------
+function combinationsUpToSize<T>(items: T[], maxSize: number): T[][] {
+  const combos: T[][] = [[]];
+  for (const item of items) {
+    const snapshot = combos;
+    for (const combo of snapshot) {
+      if (combo.length < maxSize) combos.push([...combo, item]);
+    }
+  }
+  combos.shift();
+  return combos;
+}
 
-const DIRECT_ELEMENT_CANDIDATE_CEILING = 500;
+type LeafField = { kind: "attribute" | "class" | "pseudo"; name: string };
 
-function checkDirectElement(
-  root: ParentNode,
+/** Strategy 4 (real anonymous 4th strategy): leaf only, no ancestor context — every size-<=2 combination of dropped attribute/class/pseudo fields on the leaf alone. */
+function leafFieldCombinations(
   path: ElementPath,
-  config: DesConfig,
-  identityContext: IdentityContext,
-): StrategyOutcome {
-  const targetPattern = path.target.pattern;
-  const fragments = [
-    ...stableFragmentsOf(targetPattern, config),
-    ...partialFragmentsOf(targetPattern, config),
-  ];
-
-  const attempts: Array<{ selector: string; dropped: string[] }> = [];
-  if (fragments.length > 0) {
-    attempts.push({
-      selector: `${targetPattern.tag}${fragments.map((f) => f.fragment).join("")}`,
-      dropped: [],
-    });
-  }
-  const maxDrop = Math.min(2, fragments.length);
-  for (let drop = 1; drop <= maxDrop; drop++) {
-    const kept = fragments.slice(0, fragments.length - drop);
-    const dropped = fragments.slice(fragments.length - drop).map((f) => f.name);
-    attempts.push({
-      selector:
-        kept.length > 0
-          ? `${targetPattern.tag}${kept.map((f) => f.fragment).join("")}`
-          : targetPattern.tag,
-      dropped,
-    });
-  }
-  attempts.push({
-    selector: targetPattern.tag,
-    dropped: fragments.map((f) => f.name),
-  });
-
-  for (const attempt of attempts) {
-    const result = safeQuery(root, attempt.selector);
-    if (!result || result.matches.length === 0) continue;
-
-    const { candidates, capped } = buildCandidates(
-      root,
-      result.matches,
-      targetPattern,
-      config,
-      DIRECT_ELEMENT_CANDIDATE_CEILING,
-      identityContext,
-    );
-    const decision = rankAndClassify(
-      candidates,
-      config,
-      identityContext,
-      targetPattern,
-    );
-    const evidenceBase = {
-      selector: attempt.selector,
-      candidatesFound: result.matches.length,
-      candidatesAboveThreshold: candidates.filter(
-        (c) => c.similarity.total >= config.similarityThreshold,
-      ).length,
-      bestSimilarity: candidates[0]?.similarity.total ?? null,
-      attributesRemoved: attempt.dropped,
+  limit: number,
+  root: ParentNode,
+): Element[] {
+  if (path.length === 0) return [];
+  const leaf = path[path.length - 1]!;
+  const fields: LeafField[] = [
+    ...leaf.attributes.map((a) => ({
+      kind: "attribute" as const,
+      name: a.name,
+    })),
+    ...leaf.classes.map((c) => ({ kind: "class" as const, name: c.class })),
+    ...leaf.pseudo.map((p) => ({ kind: "pseudo" as const, name: p.name })),
+  ].reverse();
+  const drops = combinationsUpToSize(fields, 2);
+  let collected: Element[] = [];
+  for (let i = 0; i < drops.length && collected.length <= limit; i++) {
+    const dropped = drops[i]!;
+    const variant: ElementPattern = {
+      ...leaf,
+      attributes: leaf.attributes.filter(
+        (a) =>
+          !dropped.some((f) => f.kind === "attribute" && f.name === a.name),
+      ),
+      classes: leaf.classes.filter(
+        (c) => !dropped.some((f) => f.kind === "class" && f.name === c.class),
+      ),
+      pseudo: leaf.pseudo.filter(
+        (p) => !dropped.some((f) => f.kind === "pseudo" && f.name === p.name),
+      ),
     };
-
-    if (decision.decision === "resolved") {
-      return {
-        kind: "resolved",
-        success: {
-          strategy: "checkDirectElement",
-          selector: attempt.selector,
-          similarity: decision.candidate.similarity.total,
-          identity: decision.identity,
-          candidateCount: result.matches.length,
-          attributesUsed: fragments
-            .filter((f) => !attempt.dropped.includes(f.name))
-            .map((f) => f.name),
-          attributesRemoved: attempt.dropped,
-        },
-        evidence: makeEvidence("checkDirectElement", {
-          ...evidenceBase,
-          outcome: "resolved",
-          reason: `broad search ranked by structural similarity; unique top candidate cleared the threshold${capped ? ` (capped at ${DIRECT_ELEMENT_CANDIDATE_CEILING} candidates for performance)` : ""}`,
-        }),
-      };
-    }
-    if (decision.decision === "ambiguous") {
-      return {
-        kind: "inconclusive",
-        evidence: makeEvidence("checkDirectElement", {
-          ...evidenceBase,
-          outcome: "ambiguous",
-          reason: decision.reason,
-        }),
-      };
-    }
-    if (decision.decision === "wrong-target") {
-      return {
-        kind: "wrong-target",
-        selector: attempt.selector,
-        similarity: decision.candidate.similarity.total,
-        evidence: makeEvidence("checkDirectElement", {
-          ...evidenceBase,
-          outcome: "wrong-target",
-          reason: "the best-ranked candidate is not the target",
-        }),
-      };
-    }
-    // below-threshold — keep broadening to the next attempt.
+    collected = dedupe(
+      collected.concat(
+        safeQueryAll(
+          root,
+          patternToSelector({ ...variant, relates: undefined }),
+          limit,
+        ),
+      ),
+    );
   }
-
-  return {
-    kind: "inconclusive",
-    evidence: makeEvidence("checkDirectElement", {
-      outcome: "below-threshold",
-      reason:
-        "no candidate at any broadening level reached the similarity threshold",
-    }),
-  };
+  return collected;
 }
 
-// ---------------------------------------------------------------------------
-// Main entry point (Step 14) — runs the five strategies in order, stopping
-// at the first genuine RESOLVED, and otherwise classifying the aggregated
-// evidence into AMBIGUOUS / WRONG_TARGET / NOT_RESOLVED.
-// ---------------------------------------------------------------------------
-
-export interface RunDesOptions {
-  /** Ground-truth target to verify against when `target` is a stored `ElementPath` with no live element (cross-snapshot recovery testing — Step 9). Never used/available in real production single-snapshot resolution. */
-  groundTruthTarget?: Element;
-  /** A previously-captured `computeIdentityFingerprint` value to verify a cross-snapshot recovery against, per the Phase 1 "never rely on object identity across snapshots" model — the production-realistic counterpart to `groundTruthTarget`. */
-  expectedFingerprint?: string;
-  /** Short-circuits to INACCESSIBLE with this reason — set by a caller that already knows the target lives behind a boundary DES cannot search (a closed shadow root, a cross-origin frame) rather than letting the query silently find nothing. */
-  inaccessibleReason?: string;
-}
-
-const STRATEGIES: Array<
-  (
-    root: ParentNode,
-    path: ElementPath,
-    config: DesConfig,
-    identityContext: IdentityContext,
-  ) => StrategyOutcome
-> = [
-  checkInitialPath,
-  checkSimplifyDynamic,
-  checkSimplifyNth,
-  checkContainers,
-  checkDirectElement,
+const RECOVERY_STRATEGIES: Array<{
+  name: StrategyEvidence["name"];
+  run: (path: ElementPath, limit: number, root: ParentNode) => Element[];
+}> = [
+  {
+    name: "dropDynamicValues",
+    run: (path, limit, root) =>
+      safeQueryAll(root, pathToSelector(dropDynamicValues(path)), limit),
+  },
+  {
+    name: "dropPositionalPseudo",
+    run: (path, limit, root) =>
+      safeQueryAll(root, pathToSelector(dropPositionalPseudo(path)), limit),
+  },
+  { name: "dropOneAncestor", run: dropOneAncestorAtATime },
+  { name: "leafFieldCombinations", run: leafFieldCombinations },
 ];
 
-/**
- * Deliberately NOT `value instanceof Element`: an element from a different
- * frame/document has its own realm's `Element` constructor, and
- * `instanceof` across realms is unreliable (exactly the cross-frame
- * situation this engine must handle correctly — see the frame-isolation
- * tests). `nodeType` is a plain data property, safe across realms.
- */
-function isLiveElementNode(value: Element | ElementPath): value is Element {
-  return (
-    typeof value === "object" && (value as { nodeType?: number }).nodeType === 1
-  );
+interface ScoredCandidate {
+  element: Element;
+  score: number;
+  rendered: boolean;
+  strategy: "checkInitialPath" | StrategyEvidence["name"];
+}
+
+function scoreCandidates(
+  target: ElementPath,
+  elements: Element[],
+  config: DesConfig,
+  strategy: ScoredCandidate["strategy"],
+): ScoredCandidate[] {
+  return elements.map((element) => ({
+    element,
+    score: diffScore(target, buildElementPath(element, config)).total,
+    rendered: isElementRendered(element),
+    strategy,
+  }));
+}
+
+function byScoreThenRendered(a: ScoredCandidate, b: ScoredCandidate): number {
+  if (b.score !== a.score) return b.score - a.score;
+  if (a.rendered === b.rendered) return 0;
+  return a.rendered ? -1 : 1;
+}
+
+export interface FindResult {
+  element: Element | null;
+  score: number | null;
+  strategy: ScoredCandidate["strategy"] | null;
+  /** Every strategy attempted, in order, with how many raw candidates it produced (before scoring/dedup) — compact evidence, never a raw DOM dump. */
+  attemptsEvidence: Array<{
+    strategy: ScoredCandidate["strategy"];
+    candidatesFound: number;
+  }>;
+  /** Full ranked candidate pool at the moment a decision was made — this package's own addition (the real `find()` never exposes this), used only to flag a thin score margin as a stability risk. */
+  rankedCandidates: ScoredCandidate[];
 }
 
 /**
- * Run the full DES pipeline for one target against `root` (a `Document` or
- * an open `ShadowRoot` — never reach into a different frame's document or
- * a closed shadow root; pass `inaccessibleReason` instead when the caller
- * already knows that boundary applies).
+ * Faithful, byte-level port of real Apty's `find()` (module 15906):
+ * seed from the literal captured path, score everything via `diffScore`,
+ * then run the four relaxation strategies in order, early-accepting the
+ * first RENDERED candidate scoring >= `earlyAcceptScore` (0.92) as soon as
+ * one appears; once every strategy is exhausted or the candidate pool hits
+ * `candidateCeiling` (50), fall back to the best-scoring rendered
+ * candidate if it clears `fallbackAcceptScore` (0.90), else the single
+ * best-scoring candidate overall if it clears 0.90, else `null`.
  */
-export function runDes(
+export function findElement(
+  target: ElementPath,
   root: ParentNode,
-  target: Element | ElementPath,
   config: DesConfig = DEFAULT_DES_CONFIG,
-  options: RunDesOptions = {},
-): DesResult {
-  if (options.inaccessibleReason) {
+): FindResult {
+  const attemptsEvidence: FindResult["attemptsEvidence"] = [];
+  const ceiling = config.candidateCeiling;
+
+  const initial = checkInitialPath(target, ceiling, root);
+  attemptsEvidence.push({
+    strategy: "checkInitialPath",
+    candidatesFound: initial.length,
+  });
+  if (initial.length === 1 && isElementRendered(initial[0]!)) {
     return {
-      outcome: "INACCESSIBLE",
-      reason: options.inaccessibleReason,
-      attempts: [],
+      element: initial[0]!,
+      score: 1,
+      strategy: "checkInitialPath",
+      attemptsEvidence,
+      rankedCandidates: [
+        {
+          element: initial[0]!,
+          score: 1,
+          rendered: true,
+          strategy: "checkInitialPath",
+        },
+      ],
     };
   }
 
-  const path: ElementPath = isLiveElementNode(target)
-    ? buildElementPath(target, config)
-    : target;
-  const identityContext: IdentityContext = {
-    liveTarget: isLiveElementNode(target) ? target : options.groundTruthTarget,
-    expectedFingerprint: options.expectedFingerprint,
-  };
+  let ranked = scoreCandidates(
+    target,
+    initial,
+    config,
+    "checkInitialPath",
+  ).sort(byScoreThenRendered);
 
-  const attempts: StrategyAttemptEvidence[] = [];
-  let sawWrongTarget: {
-    strategy: DesStrategyName;
-    selector: string;
-    similarity: number;
-  } | null = null;
-  let sawAmbiguous: {
-    selector: string | null;
-    candidateCount: number;
-    reason: string;
-  } | null = null;
-  let bestSimilaritySeen: number | null = null;
-
-  for (const strategy of STRATEGIES) {
-    const outcome = strategy(root, path, config, identityContext);
-    attempts.push(outcome.evidence);
-    if (outcome.evidence.bestSimilarity != null) {
-      bestSimilaritySeen = Math.max(
-        bestSimilaritySeen ?? 0,
-        outcome.evidence.bestSimilarity,
-      );
-    }
-
-    if (outcome.kind === "resolved") {
+  for (const strategy of RECOVERY_STRATEGIES) {
+    if (ranked.length > ceiling) break;
+    const found = strategy.run(target, ceiling - ranked.length, root);
+    attemptsEvidence.push({
+      strategy: strategy.name,
+      candidatesFound: found.length,
+    });
+    ranked = ranked
+      .concat(scoreCandidates(target, found, config, strategy.name))
+      .sort(byScoreThenRendered);
+    const earlyWinner = ranked.find(
+      (c) => c.rendered && c.score >= config.earlyAcceptScore,
+    );
+    if (earlyWinner) {
       return {
-        outcome: "RESOLVED",
-        strategy: outcome.success.strategy,
-        selector: outcome.success.selector,
-        similarity: outcome.success.similarity,
-        identity: outcome.success.identity,
-        candidateCount: outcome.success.candidateCount,
-        attributesUsed: outcome.success.attributesUsed,
-        attributesRemoved: outcome.success.attributesRemoved,
-        attempts,
-      };
-    }
-    if (
-      outcome.kind === "wrong-target" &&
-      (!sawWrongTarget || outcome.similarity > sawWrongTarget.similarity)
-    ) {
-      sawWrongTarget = {
-        strategy: outcome.evidence.strategy,
-        selector: outcome.selector,
-        similarity: outcome.similarity,
-      };
-    }
-    if (outcome.evidence.outcome === "ambiguous") {
-      sawAmbiguous = {
-        selector: outcome.evidence.selector,
-        candidateCount: outcome.evidence.candidatesFound,
-        reason: outcome.evidence.reason,
+        element: earlyWinner.element,
+        score: earlyWinner.score,
+        strategy: earlyWinner.strategy,
+        attemptsEvidence,
+        rankedCandidates: ranked,
       };
     }
   }
 
-  // A confident unique-but-wrong match is stronger, more specific evidence
-  // than a vague "ambiguous" from an earlier, less-refined attempt — it
-  // wins when both occurred across the five strategies.
-  if (sawWrongTarget) {
-    return {
-      outcome: "WRONG_TARGET",
-      strategy: sawWrongTarget.strategy,
-      selector: sawWrongTarget.selector,
-      similarity: sawWrongTarget.similarity,
-      reason:
-        "every strategy that found a unique match resolved to the wrong element",
-      attempts,
-    };
+  let firstAboveFloor: ScoredCandidate | null = null;
+  for (const candidate of ranked) {
+    if (candidate.score < config.fallbackAcceptScore) break;
+    if (candidate.rendered) {
+      return {
+        element: candidate.element,
+        score: candidate.score,
+        strategy: candidate.strategy,
+        attemptsEvidence,
+        rankedCandidates: ranked,
+      };
+    }
+    if (!firstAboveFloor) firstAboveFloor = candidate;
   }
-  if (sawAmbiguous) {
+  if (firstAboveFloor) {
     return {
-      outcome: "AMBIGUOUS",
-      selector: sawAmbiguous.selector,
-      candidateCount: sawAmbiguous.candidateCount,
-      similarity: bestSimilaritySeen,
-      reason: sawAmbiguous.reason,
-      attempts,
+      element: firstAboveFloor.element,
+      score: firstAboveFloor.score,
+      strategy: firstAboveFloor.strategy,
+      attemptsEvidence,
+      rankedCandidates: ranked,
     };
   }
   return {
-    outcome: "NOT_RESOLVED",
-    bestSimilarity: bestSimilaritySeen,
-    failureReason:
-      "no strategy produced a selector that uniquely and correctly identified the target",
-    attempts,
+    element: null,
+    score: null,
+    strategy: null,
+    attemptsEvidence,
+    rankedCandidates: ranked,
   };
 }
 
-/**
- * Cross-snapshot recovery (Step 9): given a target's `ElementPath` as
- * captured in an earlier snapshot, attempt to recover it in a (possibly
- * different) live document — never via JavaScript object identity across
- * snapshots. Callers doing genuine production re-verification pass
- * `expectedFingerprint` (computed once from the original live target);
- * callers writing a controlled test that still has the "new" ground-truth
- * element in hand may pass `groundTruthTarget` instead for a stronger
- * assertion. This is `runDes` with no live element of its own — see there
- * for the full pipeline.
- */
-export function recoverElementFromPath(
-  root: ParentNode,
-  storedPath: ElementPath,
+// ---------------------------------------------------------------------------
+// checkContainersScore (module 74456) — a runtime context-validity gate,
+// distinct from `findElement`: given a previously-captured ancestor
+// container chain (as CSS selectors) and a fraction threshold, checks
+// whether at least `ceil(containers.length * threshold)` of those
+// selectors still resolve to SOMETHING in `root`. Exported for a future
+// "verify a stored selector is still contextually sound" flow; not yet
+// wired into `health-collector.ts`'s per-round resolution — see
+// docs/development/des-engine.md's explicit scoping note on this.
+// ---------------------------------------------------------------------------
+
+export function getContainerSelectors(
+  el: Element,
   config: DesConfig = DEFAULT_DES_CONFIG,
-  options: Pick<
-    RunDesOptions,
-    "groundTruthTarget" | "expectedFingerprint"
-  > = {},
-): DesResult {
-  return runDes(root, storedPath, config, options);
+): string[] {
+  const root = resolveScopeRoot(el, config);
+  const containers: Element[] = [];
+  let cur = el.parentElement;
+  while (cur && cur !== root) {
+    containers.push(cur);
+    cur = cur.parentElement;
+  }
+  return containers.filter(isElementRendered).map((c) =>
+    patternToSelector({
+      ...buildElementPattern(c, config),
+      relates: undefined,
+    }),
+  );
+}
+
+export function checkContainersScore(
+  containerSelectors: string[],
+  root: ParentNode,
+  threshold: number,
+): boolean {
+  if (containerSelectors.length === 0) return true;
+  let remaining = Math.ceil(containerSelectors.length * threshold);
+  for (const selector of containerSelectors) {
+    if (safeQueryAll(root, selector, 1).length > 0) {
+      remaining--;
+      if (remaining <= 0) return true;
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Minimal selector generation — faithful-intent reconstruction of real
+// `match()`/`optimize()` (modules 39842/59772). The real algorithm's exact
+// per-branch trim ordering (a live 1-second-per-step timing budget, a
+// dual attribute/text-content-first-node special case) could not be
+// recovered with full confidence from the minified bundle; this
+// reconstruction preserves the documented INTENT (try one attribute in
+// priority order that alone makes the selector-so-far unique via the same
+// non-strict `elementMatches`; else fall back to `nth-child`; climb one
+// ancestor level and repeat until unique or the scope root is reached)
+// without claiming byte-identical behavior.
+// ---------------------------------------------------------------------------
+
+export interface MinimalSelectorResult {
+  selector: string;
+  /** Attribute names actually used to build the winning selector, root-to-leaf. */
+  attributesUsed: string[];
+  ancestorLevelsUsed: number;
+  usesPositionalSelector: boolean;
+  /** The leaf (target) level's own final pattern — exposed so a caller can tell an exact-match attribute from one a Partial Selector function anchored on a substring (`selectionType !== "exact"`), without re-deriving it. */
+  leafPattern: ElementPattern;
+}
+
+/**
+ * Build one level's pattern by growing it ONE attribute at a time, in
+ * priority order (real `u()`'s `initAttributes(..., stopCallback)`):
+ * after each attribute is added, re-check whether the FULL selector so
+ * far (every already-fixed outer level, plus this level's growing
+ * pattern) already uniquely resolves to `el` within `root`. Only when no
+ * combination of this level's attributes achieves that does it fall back
+ * to a bare tag match, and finally to `nth-child` (real `d()`/`f()`).
+ * This is what lets a single level's Attribute Priority walk combine
+ * MULTIPLE attributes (e.g. `.btn` + `[name="submit"]` together) when
+ * neither alone is unique — never just "the first attribute added".
+ */
+function buildLevelWithLiveUniquenessCheck(
+  /** The element THIS level's pattern describes — an ancestor of `target` on every iteration after the first. */
+  levelElement: Element,
+  /** The ORIGINAL element `generateMinimalSelector` is building a selector for — uniqueness is always checked against THIS, never against `levelElement` (which trivially "matches itself" and would make every level look falsely unique). */
+  target: Element,
+  config: DesConfig,
+  relates: "child" | undefined,
+  /** Already-fixed INNER levels (closer to the leaf; built by an earlier iteration of `generateMinimalSelector`'s climb) — the new pattern built here is an ANCESTOR of these, so it must be prepended, never appended, when composing a root-to-leaf selector. */
+  innerLevels: ElementPattern[],
+  root: ParentNode,
+): { pattern: ElementPattern; usedAttributes: string[] } {
+  const pattern = emptyPattern(relates);
+  initTag(levelElement, pattern, config);
+  const usedAttributes: string[] = [];
+
+  const attrs = Array.from(levelElement.attributes);
+  const order = resolveAttributeOrder(
+    attrs.map((a) => a.name),
+    config,
+  );
+  let achievedUnique = false;
+  for (const name of order) {
+    const attr = attrs.find((a) => a.name === name);
+    if (!attr) continue;
+    if (!addAttribute(name, attr.value, pattern, config)) continue;
+    usedAttributes.push(name);
+    const candidateSelector = pathToSelector([pattern, ...innerLevels]);
+    if (
+      elementMatches(
+        target,
+        safeQueryAll(root, candidateSelector, 2),
+        config.strictUniqueness,
+      )
+    ) {
+      achievedUnique = true;
+      break;
+    }
+  }
+
+  if (!achievedUnique) {
+    // Real `d()`: bare tag alone, no attributes.
+    const tagOnly = emptyPattern(relates);
+    initTag(levelElement, tagOnly, config);
+    const tagSelector = pathToSelector([tagOnly, ...innerLevels]);
+    if (
+      elementMatches(
+        target,
+        safeQueryAll(root, tagSelector, 2),
+        config.strictUniqueness,
+      )
+    ) {
+      pattern.attributes = [];
+      pattern.classes = [];
+      usedAttributes.length = 0;
+      achievedUnique = true;
+    }
+  }
+
+  if (!achievedUnique) {
+    // Real `f()`: nth-child fallback — the level's only remaining lever.
+    const nthChild = initNthChild(levelElement);
+    pattern.attributes = [];
+    pattern.classes = [];
+    pattern.pseudo = nthChild ? [nthChild] : [];
+    usedAttributes.length = 0;
+  }
+
+  return { pattern, usedAttributes };
+}
+
+export function generateMinimalSelector(
+  el: Element,
+  root: ParentNode,
+  config: DesConfig = DEFAULT_DES_CONFIG,
+): MinimalSelectorResult | null {
+  const scopeRoot = resolveScopeRoot(el, config);
+  const levels: ElementPattern[] = [];
+  const usedAttributesPerLevel: string[][] = [];
+  let cur: Element | null = el;
+  let ancestorLevelsUsed = 0;
+
+  while (cur && cur !== scopeRoot && cur.nodeType === 1) {
+    const relates: "child" | undefined = cur === el ? undefined : "child";
+    const { pattern, usedAttributes } = buildLevelWithLiveUniquenessCheck(
+      cur,
+      el,
+      config,
+      relates,
+      levels,
+      root,
+    );
+    levels.unshift(pattern);
+    usedAttributesPerLevel.unshift(usedAttributes);
+
+    const selector = pathToSelector(levels);
+    if (
+      elementMatches(
+        el,
+        safeQueryAll(root, selector, 2),
+        config.strictUniqueness,
+      )
+    ) {
+      return {
+        selector,
+        attributesUsed: usedAttributesPerLevel.flat(),
+        ancestorLevelsUsed,
+        usesPositionalSelector: usedAttributesPerLevel.every(
+          (names) => names.length === 0,
+        ),
+        leafPattern: levels[levels.length - 1]!,
+      };
+    }
+    cur = cur.parentElement;
+    ancestorLevelsUsed++;
+  }
+  return null;
 }

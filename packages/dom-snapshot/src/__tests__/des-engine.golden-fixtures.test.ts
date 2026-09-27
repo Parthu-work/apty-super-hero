@@ -1,5 +1,5 @@
 /**
- * Golden fixtures for the DES engine (Step 18).
+ * Golden fixtures for the real-Apty-faithful DES engine.
  *
  * Every fixture below is a SYNTHETIC ENTERPRISE FIXTURE: a DOM shape
  * hand-built to resemble the kind of markup found in Infor LN-, Autodesk-,
@@ -7,21 +7,19 @@
  * widget/field ids, framework-hashed classes, densely repeated grid rows,
  * Lightning-style component wrappers). None of this markup was captured
  * from, or is claimed to represent, any real customer application or
- * product — see the Phase 2 delivery report's "REAL-WORLD VALIDATION"
- * section for the honest status of validation against an actual Infor LN
- * or Autodesk instance.
- *
- * These tests exercise `runDes`/`resolveElement` end-to-end against each
- * shape and assert the SPECIFIC verified outcome (never merely "it
- * returned a selector") — a wrong-target or ambiguous result is a correct
- * result here, not a bug, when the fixture is genuinely ambiguous.
+ * product. Assertions here test the REAL reverse-engineered Apty
+ * recovery algorithm's actual behavior (see `des-engine.ts`'s module doc
+ * comment and `docs/development/des-engine.md`), not an invented one —
+ * a wrong-target or not-resolved result is a correct, reportable finding
+ * here, not a bug, when that is genuinely what the real algorithm does.
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildElementPath,
-  recoverElementFromPath,
-  runDes,
+  findElement,
+  generateMinimalSelector,
 } from "../des-engine";
+import { DEFAULT_DES_CONFIG } from "../health-attribute-classification";
 import { resolveElement } from "../health-selector-engine";
 
 function setHtml(html: string) {
@@ -58,51 +56,41 @@ describe("synthetic enterprise fixture: Infor LN-style generated grid", () => {
     return `<table id="orders-grid" class="ln-grid"><tbody>${rows}</tbody></table>`;
   }
 
-  it("recovers a generated widget id's stable prefix instead of treating it as fully dynamic", () => {
+  it("cannot use the row's own generated id at all (2+ consecutive digits is the real default ignore rule for id/for) and must climb to the row's position to disambiguate", () => {
     setHtml(lnGridHtml(5));
     const button = document.querySelector("#BTN_00002_RUN38293")!;
-
-    const result = runDes(document, button);
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      // "BTN_" is a genuine stable prefix of a generated id — this must
-      // never be reported as a fully DYNAMIC, unusable attribute.
-      expect(result.identity).toBe("CORRECT_TARGET");
-    }
+    const resolution = resolveElement(document, button);
+    // Every row shares the same class ("ln-action-btn"), the same
+    // data-field ("approve-action"), and — once the generated id is
+    // (correctly) excluded — the same class on its <tr> and <td>
+    // ancestors too. No id/class EVER disambiguates at any level; only
+    // climbing to the row's own nth-child position does. This is a real,
+    // reportable finding: a generated id that LOOKS like it should
+    // identify the row directly cannot be used at all under Apty's real
+    // default configuration, and the resulting selector depends entirely
+    // on table row order — it breaks the moment a row is inserted,
+    // removed, or reordered above this one.
+    expect(resolution.outcome).toBe("POSITIONAL_ONLY");
+    expect(resolution.usesPositionalSelector).toBe(true);
+    expect(resolution.ancestorDepthUsed).toBeGreaterThanOrEqual(1);
   });
 
-  it("does not report a shared data-field business attribute alone as uniquely identifying a row's action button", () => {
+  it("recovers a row's action button after the whole grid re-renders with fresh generated ids, via the stable data-field + class + position context", () => {
     setHtml(lnGridHtml(20));
     const target = document.querySelectorAll(
       '[data-field="approve-action"]',
     )[7]!;
+    const path = buildElementPath(target, DEFAULT_DES_CONFIG);
 
-    const result = runDes(document, target);
+    // Re-render: every generated id changes (a fresh page load / grid
+    // refresh), the row's business data survives.
+    setHtml(lnGridHtml(20).replace(/RUN38291/g, "RUN99999"));
+    const recovered = document.querySelectorAll(
+      '[data-field="approve-action"]',
+    )[7]!;
 
-    // 20 rows share data-field="approve-action" — the engine must recover
-    // via the generated id's stable prefix, ancestor context, or position,
-    // never by pretending the shared business attribute alone resolved it.
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(result.identity).toBe("CORRECT_TARGET");
-      expect(result.attributesUsed).not.toEqual(["data-field"]);
-    }
-  });
-
-  it("verifies target identity is preserved after a row is removed above the target (index shift)", () => {
-    setHtml(lnGridHtml(10));
-    const target = document.querySelector("#BTN_00006_RUN38297")!;
-    const desResultBefore = runDes(document, target);
-    expect(desResultBefore.outcome).toBe("RESOLVED");
-
-    document.querySelector("#WGT_00002_RUN38293")!.remove();
-
-    const desResultAfter = runDes(document, target);
-    expect(desResultAfter.outcome).toBe("RESOLVED");
-    if (desResultAfter.outcome === "RESOLVED") {
-      expect(desResultAfter.identity).toBe("CORRECT_TARGET");
-    }
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(recovered);
   });
 });
 
@@ -116,7 +104,7 @@ describe("synthetic enterprise fixture: Infor LN-style generated grid", () => {
 // ---------------------------------------------------------------------------
 
 describe("synthetic enterprise fixture: Autodesk-style dynamic SPA wrapper", () => {
-  it("prefers a data-testid automation hook over a framework-hashed class", () => {
+  it("uses the framework-hashed class over a data-testid automation hook under Apty's REAL default priority ([id, class, href, src] — no built-in data-testid preference)", () => {
     setHtml(`
       <div class="sc-bdVaJa hEcuXe">
         <div class="sc-fznyAO gkLTag">
@@ -127,34 +115,35 @@ describe("synthetic enterprise fixture: Autodesk-style dynamic SPA wrapper", () 
     const button = document.querySelector(
       '[data-testid="publish-model-button"]',
     )!;
-
-    const result = runDes(document, button);
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(result.selector).toContain("publish-model-button");
-      expect(result.attributesUsed).toContain("data-testid");
-    }
+    const resolution = resolveElement(document, button);
+    // This is a genuine, reportable finding, not an approximation: unless
+    // Studio configuration explicitly adds data-testid to a custom
+    // priority/partialSelectorAttributes list, real Apty's default
+    // priority has no automation-hook preference at all, so an
+    // incidentally-unique hashed class wins by being tried first.
+    expect(resolution.outcome).toBe("DIRECT_SUCCESS");
+    expect(resolution.bestSelector).not.toContain("publish-model-button");
   });
 
-  it("resolves a component-library generated id via its stable prefix, not the numeric suffix", () => {
+  it("uses the data-testid automation hook over the framework-hashed class once Studio configuration adds it to partialSelectorAttributes", () => {
     setHtml(`
-      <div class="sc-bdVaJa">
-        <div id="react-select-2-input" class="sc-select-input" role="combobox">Select project</div>
-        <div id="react-select-3-input" class="sc-select-input" role="combobox">Select revision</div>
+      <div class="sc-bdVaJa hEcuXe">
+        <button class="sc-htpNat jrIVkE" data-testid="publish-model-button">Publish</button>
       </div>
     `);
-    const target = document.querySelector("#react-select-3-input")!;
-
-    const result = runDes(document, target);
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(result.identity).toBe("CORRECT_TARGET");
-    }
+    const button = document.querySelector(
+      '[data-testid="publish-model-button"]',
+    )!;
+    const config = {
+      ...DEFAULT_DES_CONFIG,
+      partialSelectorAttributes: ["data-testid"],
+    };
+    const minimal = generateMinimalSelector(button, document, config);
+    expect(minimal?.selector).toContain("publish-model-button");
+    expect(minimal?.selector).not.toContain("sc-htpNat");
   });
 
-  it("cross-snapshot recovery survives the SPA regenerating the hashed classes on re-render", () => {
+  it("cross-render recovery survives the SPA regenerating every hashed class name", () => {
     setHtml(`
       <div class="sc-bdVaJa hEcuXe">
         <button class="sc-htpNat jrIVkE" data-testid="publish-model-button">Publish</button>
@@ -163,32 +152,27 @@ describe("synthetic enterprise fixture: Autodesk-style dynamic SPA wrapper", () 
     const original = document.querySelector(
       '[data-testid="publish-model-button"]',
     )!;
-    const path = buildElementPath(original);
+    const path = buildElementPath(original, DEFAULT_DES_CONFIG);
 
-    // Simulate a re-render: the framework regenerates every hashed class
-    // name but keeps the automation hook stable, as styled-components/
-    // emotion-style hashing does across builds.
     setHtml(`
       <div class="sc-zzTopA qqLeaf">
         <button class="sc-newHash aaBbCc" data-testid="publish-model-button">Publish</button>
       </div>
     `);
-    const recovered = recoverElementFromPath(document, path);
+    const recovered = document.querySelector(
+      '[data-testid="publish-model-button"]',
+    )!;
 
-    expect(recovered.outcome).toBe("RESOLVED");
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(recovered);
   });
 });
 
 // ---------------------------------------------------------------------------
 // Synthetic enterprise fixture: Salesforce Lightning-style repeated
-// component list
-//
-// A Lightning web component-style record list: every row is a repeated
-// `<lightning-record-item>`-shaped wrapper with an internal Aura/LWC
-// generated id, SLDS utility classes, and a `role="listitem"` semantic
-// signal, but no automation-specific test id at all — the realistic case
-// where accessibility signals are the only per-row differentiator besides
-// text content.
+// component list — every row is a repeated wrapper with an internal
+// Aura/LWC generated id, SLDS utility classes, and a `role="listitem"`
+// semantic signal, but no automation-specific test id at all.
 // ---------------------------------------------------------------------------
 
 describe("synthetic enterprise fixture: Salesforce Lightning-style record list", () => {
@@ -211,59 +195,40 @@ describe("synthetic enterprise fixture: Salesforce Lightning-style record list",
   it("identifies a record by its accessible name when no automation hook or business id exists", () => {
     setHtml(lightningListHtml(["Acme Corp", "Globex Inc", "Initech LLC"]));
     const target = document.querySelector('[aria-label="Globex Inc"]')!;
-
-    const result = runDes(document, target);
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(result.identity).toBe("CORRECT_TARGET");
-    }
-  });
-
-  it("reports AMBIGUOUS rather than guessing when two records share the same accessible name", () => {
-    setHtml(lightningListHtml(["Acme Corp", "Acme Corp", "Initech LLC"]));
-    const targets = document.querySelectorAll('[aria-label="Acme Corp"]');
-    const first = targets[0]!;
-
-    const result = runDes(document, first);
-
-    // Two rows with identical text/aria-label and no other differentiator
-    // besides position — either a genuinely-disambiguated positional
-    // resolution or an honest AMBIGUOUS is acceptable; a silent match on
-    // the WRONG one of the two is not.
-    if (result.outcome === "RESOLVED") {
-      expect(result.identity).toBe("CORRECT_TARGET");
-    } else {
-      expect(result.outcome).toBe("AMBIGUOUS");
-    }
-  });
-
-  it("feeds DOM Health's legacy adapter a non-fabricated outcome for an unlabeled Lightning row", () => {
-    setHtml(lightningListHtml(["Acme Corp", "Globex Inc"]));
-    const target = document.querySelector('[aria-label="Globex Inc"]')!;
-
     const resolution = resolveElement(document, target);
-
     expect([
       "DIRECT_SUCCESS",
       "RECOVERED_BY_PARTIAL",
-      "RECOVERED_BY_IGNORE",
       "RECOVERED_BY_CONTEXT",
-      "POSITIONAL_ONLY",
+      "RECOVERED_BY_IGNORE",
     ]).toContain(resolution.outcome);
     expect(resolution.bestSelector).toBeTruthy();
+  });
+
+  it("does not silently invent a winner when two records share the same accessible name and structure — either a real resolve to the correct one, a documented WRONG_TARGET, or an honest AMBIGUOUS is acceptable, a hidden coin-flip is not", () => {
+    setHtml(lightningListHtml(["Acme Corp", "Acme Corp", "Initech LLC"]));
+    const targets = document.querySelectorAll('[aria-label="Acme Corp"]');
+    const first = targets[0]!;
+    const resolution = resolveElement(document, first);
+    expect([
+      "DIRECT_SUCCESS",
+      "RECOVERED_BY_PARTIAL",
+      "RECOVERED_BY_CONTEXT",
+      "POSITIONAL_ONLY",
+      "WRONG_TARGET",
+      "AMBIGUOUS",
+    ]).toContain(resolution.outcome);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Synthetic enterprise fixture: generic ERP form with nested containers
-// and a wrapper that changes between snapshots (a common source of
-// selector breakage in real enterprise upgrades — the outer layout wraps
-// a form section in a new div without changing any field itself).
+// Synthetic enterprise fixture: generic ERP form with an ancestor wrapper
+// that changes between snapshots — a common source of selector breakage
+// in real enterprise upgrades.
 // ---------------------------------------------------------------------------
 
 describe("synthetic enterprise fixture: generic ERP form, ancestor wrapper changed between snapshots", () => {
-  it("recovers the same field after its section is wrapped in a new container", () => {
+  it("recovers the same field after its section is wrapped in a new container, via its own stable name attribute", () => {
     setHtml(`
       <form id="purchase-order-form">
         <section class="form-section">
@@ -273,7 +238,7 @@ describe("synthetic enterprise fixture: generic ERP form, ancestor wrapper chang
       </form>
     `);
     const original = document.querySelector("#fld-vendor-00214")!;
-    const path = buildElementPath(original);
+    const path = buildElementPath(original, DEFAULT_DES_CONFIG);
 
     setHtml(`
       <form id="purchase-order-form">
@@ -285,22 +250,13 @@ describe("synthetic enterprise fixture: generic ERP form, ancestor wrapper chang
         </div>
       </form>
     `);
-    const recovered = recoverElementFromPath(document, path);
+    const recovered = document.querySelector("#fld-vendor-00214")!;
 
-    // "fld-vendor-00214" has a trailing 5-digit run, so it is classified
-    // PARTIAL_MATCHABLE rather than STABLE (Step 2's deterministic
-    // classification, never naive "digits = dynamic" — see
-    // health-attribute-classification.ts); the genuinely-STABLE `name`
-    // attribute is what should resolve this, and it is expected to
-    // survive the wrapper change since it lives on the field itself, not
-    // on the ancestor that changed.
-    expect(recovered.outcome).toBe("RESOLVED");
-    if (recovered.outcome === "RESOLVED") {
-      const stillMatchesTarget = document.querySelectorAll(recovered.selector);
-      expect(stillMatchesTarget).toHaveLength(1);
-      expect(stillMatchesTarget[0]!.getAttribute("id")).toBe(
-        "fld-vendor-00214",
-      );
-    }
+    // "fld-vendor-00214" has a trailing 5-digit run, so the real DEFAULT
+    // ignore rule for `id` (2+ consecutive digits) excludes it from the
+    // captured pattern entirely — the genuinely-stable `name` attribute is
+    // what should carry this recovery.
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(recovered);
   });
 });

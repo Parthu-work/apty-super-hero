@@ -100,7 +100,7 @@ describe("collectDomHealthSnapshot — selector resolution", () => {
     expect(snapshot.selectorAnalysis.directSuccess).toBe(1);
     const report = snapshot.elementReports[0]!;
     expect(report.outcome).toBe("DIRECT_SUCCESS");
-    expect(report.bestSelector).toBe("#save-button");
+    expect(report.bestSelector).toBe('button[id="save-button"]');
     expect(report.winningAttribute).toBe("id");
   });
 
@@ -120,13 +120,19 @@ describe("collectDomHealthSnapshot — selector resolution", () => {
     expect(snapshot.selectorAnalysis.positionalOnly).toBeGreaterThan(0);
   });
 
-  it("recovers via a stable partial-attribute prefix when the id is dynamic", async () => {
+  it("falls back to a positional selector when the id is excluded by the real default ignore rule (2+ consecutive digits) and no other attribute exists", async () => {
+    // Real Apty has no automatic "detect a stable prefix" fallback for an
+    // excluded attribute — Partial Selector requires EXPLICIT Studio
+    // configuration (see health-selector-engine.test.ts's Partial
+    // Selector tests for that path). collectDomHealthSnapshot always
+    // resolves with Apty's real DEFAULT configuration, so this id
+    // (containing "21", a 2+ digit run) is excluded outright, and with no
+    // other attribute on the element, recovery is genuinely positional.
     setHtml(`<button id="app-wrapper-4f9a21">Save</button>`);
     const snapshot = await collectDomHealthSnapshot(document);
 
     const report = snapshot.elementReports[0]!;
-    expect(report.outcome).toBe("RECOVERED_BY_PARTIAL");
-    expect(report.bestSelector).toContain("app-wrapper");
+    expect(report.outcome).toBe("POSITIONAL_ONLY");
   });
 
   it("recovers via ancestor context when the element itself has no stable attribute", async () => {

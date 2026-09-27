@@ -1,8 +1,22 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { PartialFn } from "../health-attribute-classification";
 import {
   computeElementFingerprint,
   resolveElement,
 } from "../health-selector-engine";
+
+/**
+ * Real Apty requires an EXPLICIT Studio-configured Partial Selector
+ * function per attribute (module 65913's `addAttribute`) — there is no
+ * automatic "detect a stable prefix in a dynamic-looking value" fallback
+ * baked into the default. This simulates a simple Studio-configured rule:
+ * anchor on a value's leading run of lowercase letters/hyphens, when at
+ * least 3 characters long.
+ */
+const stablePrefixPartialFn: PartialFn = (_name, value) => {
+  const match = value.match(/^[a-z-]+/);
+  return match && match[0].length >= 3 ? match[0] : undefined;
+};
 
 function setHtml(html: string) {
   document.body.innerHTML = html;
@@ -21,7 +35,7 @@ describe("resolveElement — direct success", () => {
 
     expect(result.outcome).toBe("DIRECT_SUCCESS");
     expect(result.strategy).toBe("direct");
-    expect(result.bestSelector).toBe("#save-button");
+    expect(result.bestSelector).toBe('button[id="save-button"]');
     expect(result.matchCount).toBe(1);
   });
 
@@ -96,17 +110,21 @@ describe("resolveElement — partial-attribute recovery", () => {
     `);
     const el = document.querySelector("#app-wrapper-4f9a21")!;
 
-    const result = resolveElement(document, el);
+    const result = resolveElement(document, el, {
+      desConfig: { partialSelectors: { id: stablePrefixPartialFn } },
+    });
 
     expect(result.outcome).toBe("RECOVERED_BY_PARTIAL");
     expect(result.bestSelector).toContain("app-wrapper");
   });
 
-  it("never builds a partial candidate from a value with no safe stable prefix", () => {
-    setHtml(`<div id="382910192">A</div>`);
-    const el = document.querySelector("div")!;
+  it("never builds a partial candidate from a value with no safe stable prefix, even with Partial Selector configured", () => {
+    setHtml(`<div id="382910192">A</div><div id="other">B</div>`);
+    const el = document.querySelectorAll("div")[0]!;
 
-    const result = resolveElement(document, el);
+    const result = resolveElement(document, el, {
+      desConfig: { partialSelectors: { id: stablePrefixPartialFn } },
+    });
 
     expect(result.outcome).not.toBe("RECOVERED_BY_PARTIAL");
   });
@@ -114,13 +132,22 @@ describe("resolveElement — partial-attribute recovery", () => {
 
 describe("resolveElement — contextual (ancestor) recovery", () => {
   it("climbs to a stable ancestor when the element itself has no identifying attribute", () => {
+    // Two structurally-identical toolbars: neither the leaf's own
+    // position (2nd button) nor its immediate container's is globally
+    // unique alone, so real Apty's own capture algorithm must climb an
+    // extra level and use the ANCESTOR's own stable id to disambiguate —
+    // a genuine attribute contributing at that level, not just position.
     setHtml(`
-      <div id="toolbar">
+      <div id="toolbar-a">
+        <button>First</button>
+        <button>Second</button>
+      </div>
+      <div id="toolbar-b">
         <button>First</button>
         <button>Second</button>
       </div>
     `);
-    const el = document.querySelectorAll("button")[1]!;
+    const el = document.querySelectorAll("#toolbar-b button")[1]!;
 
     const result = resolveElement(document, el);
 
@@ -158,11 +185,18 @@ describe("resolveElement — Partial Selector precedes Ignore Selector for the s
     `);
     const el = document.querySelectorAll("button")[0]!;
 
-    const result = resolveElement(document, el);
+    const result = resolveElement(document, el, {
+      // Both an Ignore rule AND a Partial rule target `id` here — Partial
+      // must win (real `addAttribute`'s confirmed precedence).
+      desConfig: {
+        partialSelectors: { id: stablePrefixPartialFn },
+        ignore: { id: () => true },
+      },
+    });
 
     // The class alone (".btn") is shared and not unique, so recovery must
-    // come from the dynamic id's stable prefix (Partial), not from
-    // dropping the id and combining remaining stable attributes (Ignore).
+    // come from the dynamic id's stable prefix (Partial), not from the
+    // Ignore rule dropping id and falling back to position.
     expect(result.outcome).toBe("RECOVERED_BY_PARTIAL");
     expect(result.strategy).toBe("partial");
   });
@@ -242,6 +276,6 @@ describe("resolveElement — shadow DOM scoping", () => {
     const result = resolveElement(shadow, el);
 
     expect(result.outcome).toBe("DIRECT_SUCCESS");
-    expect(result.bestSelector).toBe("#shadow-btn");
+    expect(result.bestSelector).toBe('button[id="shadow-btn"]');
   });
 });

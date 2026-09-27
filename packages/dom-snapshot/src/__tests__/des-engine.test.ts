@@ -1,17 +1,33 @@
+/**
+ * Tests for the real-Apty-faithful DES engine (`des-engine.ts`). These
+ * replace a prior test suite written against an earlier, invented engine
+ * (Jaccard similarity, 5 named strategies, a 70/±5 threshold) built before
+ * any real Apty source was available. That engine's behavior is gone, not
+ * merely refactored — these tests assert the REAL algorithm's actual,
+ * reverse-engineered behavior (see `des-engine.ts`'s module doc comment
+ * and `docs/development/des-engine.md` for what was recovered and how).
+ */
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildElementPath,
   buildElementPattern,
-  computeIdentityFingerprint,
-  computeSimilarity,
-  recoverElementFromPath,
-  runDes,
+  checkContainersScore,
+  diffScore,
+  elementMatches,
+  findElement,
+  generateMinimalSelector,
+  getContainerSelectors,
+  pathToSelector,
+  patternDiffScore,
+  patternToSelector,
 } from "../des-engine";
 import {
-  classifyAttribute,
-  classifyClassAttribute,
   DEFAULT_DES_CONFIG,
+  DEFAULT_IGNORE,
+  DEFAULT_PRIORITY,
   type DesConfig,
+  isValueDynamic,
+  resolveAttributeOrder,
 } from "../health-attribute-classification";
 
 function setHtml(html: string) {
@@ -23,608 +39,470 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Attribute classification (Step 2) — deterministic, never "digits = dynamic"
+// Real default ignore/priority (health-attribute-classification.ts) —
+// reconstructed from workflowPreview.js module 92317's `defaultIgnore`/
+// `initOptions`, not the previous session's invented `looksDynamic`-style
+// classifier.
 // ---------------------------------------------------------------------------
 
-describe("classifyAttribute — deterministic, explainable, never naive digit-based", () => {
-  it("classifies a short trailing digit as STABLE, not DYNAMIC", () => {
-    const result = classifyAttribute("id", "field-1", DEFAULT_DES_CONFIG);
-    expect(result.classification).toBe("STABLE");
-    expect(result.reason).toBeTruthy();
+describe("DEFAULT_IGNORE — the real Apty default (module 92317), not a general 'looks dynamic' classifier", () => {
+  it("ignores id/for only when the value contains 2+ consecutive digits", () => {
+    expect(DEFAULT_IGNORE.attribute("id", "field-1")).toBe(false);
+    expect(DEFAULT_IGNORE.attribute("id", "widget-58")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("for", "input-12")).toBe(true);
   });
 
-  it("classifies a 4+ trailing-digit generated id as DYNAMIC with a stable prefix as PARTIAL_MATCHABLE", () => {
-    const result = classifyAttribute("id", "widget-582917", DEFAULT_DES_CONFIG);
-    expect(result.classification).toBe("PARTIAL_MATCHABLE");
-    expect(result.stablePrefix).toBe("widget");
+  it("does NOT ignore an arbitrary data-* attribute merely for containing digits", () => {
+    // The real default has no general dynamic-value heuristic for
+    // non-id/for attributes at all — only the runtime recovery heuristic
+    // (`isValueDynamic`, tested below) treats this as "looks generated",
+    // and only when the literal captured selector has already failed.
+    expect(DEFAULT_IGNORE.attribute("data-row-id", "582917")).toBe(false);
   });
 
-  it("classifies a bare all-numeric id as DYNAMIC with no usable prefix", () => {
-    const result = classifyAttribute("id", "382910192", DEFAULT_DES_CONFIG);
-    expect(result.classification).toBe("DYNAMIC");
+  it("blocklists a small set of framework/internal attribute names regardless of value", () => {
+    expect(DEFAULT_IGNORE.attribute("style", "color: red")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("tabindex", "0")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("data-reactid", "abc")).toBe(true);
   });
 
-  it("respects a configured Ignore Selector rule", () => {
-    const config: DesConfig = {
-      ...DEFAULT_DES_CONFIG,
-      ignoreSelectors: [{ attribute: "data-row-id" }],
-    };
-    const result = classifyAttribute("data-row-id", "row-7", config);
-    expect(result.classification).toBe("IGNORED");
-    expect(result.reason).toMatch(/Ignore Selector/);
+  it("blocklists attribute names containing 'lnid' or 'apty', or prefixed 'xmlns:'", () => {
+    expect(DEFAULT_IGNORE.attribute("data-lnid", "x")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("apty-widget-id", "x")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("xmlns:foo", "x")).toBe(true);
   });
 
-  it("gives Partial Selector precedence over Ignore Selector for the same attribute", () => {
-    const config: DesConfig = {
-      ...DEFAULT_DES_CONFIG,
-      ignoreSelectors: [{ attribute: "id" }],
-      partialSelectors: [{ attribute: "id" }],
-    };
-    const result = classifyAttribute("id", "session-8f3a9c1d22", config);
-    expect(result.classification).toBe("PARTIAL_MATCHABLE");
-    expect(result.reason).toMatch(/Partial Selector/);
+  it("ignores classes only when literally prefixed 'tether', never for merely looking generated", () => {
+    expect(DEFAULT_IGNORE.class("tether-element")).toBe(true);
+    expect(DEFAULT_IGNORE.class("sc-bdVaJa")).toBe(false);
   });
 });
 
-describe("classifyClassAttribute — multi-valued, per-token", () => {
-  it("is STABLE when at least one token is stable, even if others are dynamic", () => {
-    const result = classifyClassAttribute("btn css-8f2a91", DEFAULT_DES_CONFIG);
-    expect(result.classification).toBe("STABLE");
-    expect(result.stableTokens).toEqual(["btn"]);
-    expect(result.dynamicTokens).toEqual(["css-8f2a91"]);
+describe("DEFAULT_PRIORITY / resolveAttributeOrder — the real default is [id, class, href, src], no data-testid preference", () => {
+  it("matches the real default order exactly", () => {
+    expect(DEFAULT_PRIORITY).toEqual(["id", "class", "href", "src"]);
   });
 
-  it("is DYNAMIC when every token looks machine-generated", () => {
-    const result = classifyClassAttribute(
-      "sc-x92kd jss7g3zk",
+  it("orders present attributes by priority, non-priority attributes after in original order", () => {
+    const order = resolveAttributeOrder(
+      ["data-testid", "class", "id", "role"],
       DEFAULT_DES_CONFIG,
     );
-    expect(result.classification).toBe("DYNAMIC");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Attribute Priority (Step 4) — default vs custom (categories S, T)
-// ---------------------------------------------------------------------------
-
-describe("runDes — Attribute Priority", () => {
-  it("uses the default priority order (test-id-like attributes before id)", () => {
-    setHtml(`<button id="btn-1" data-testid="save-action">Save</button>`);
-    const el = document.querySelector("button")!;
-
-    const result = runDes(document, el);
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(result.selector).toContain("data-testid");
-      expect(result.attributesUsed).toContain("data-testid");
-    }
+    expect(order).toEqual(["id", "class", "data-testid", "role"]);
   });
 
-  it("a custom Attribute Priority overrides the default order", () => {
-    setHtml(`<button id="btn-1" data-testid="save-action">Save</button>`);
-    const el = document.querySelector("button")!;
+  it("puts partialSelectorAttributes ahead of everything else, including id", () => {
     const config: DesConfig = {
       ...DEFAULT_DES_CONFIG,
-      attributePriority: { order: ["id", "data-testid"] },
+      partialSelectorAttributes: ["data-testid"],
     };
+    const order = resolveAttributeOrder(["id", "data-testid", "class"], config);
+    expect(order[0]).toBe("data-testid");
+  });
+});
 
-    const result = runDes(document, el, config);
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      // With id ranked ahead of data-testid, id must win even though the
-      // default engine order would have preferred data-testid.
-      expect(result.attributesUsed).toEqual(["id"]);
-    }
+describe("isValueDynamic — the real RUNTIME recovery heuristic (module 81948), distinct from DEFAULT_IGNORE", () => {
+  it("treats a bare all-digit value as dynamic", () => {
+    expect(isValueDynamic("582917")).toBe(true);
+  });
+  it("treats any 3+ consecutive digit run as dynamic", () => {
+    expect(isValueDynamic("row-582-approve")).toBe(true);
+  });
+  it("treats a value with more than half digit characters as dynamic", () => {
+    // 3 of 5 characters are digits (60%), with no run of 3+ consecutive
+    // digits — isolates the digit-density rule from the digit-run rule.
+    expect(isValueDynamic("a12b3")).toBe(true);
+  });
+  it("treats an ordinary short value as stable", () => {
+    expect(isValueDynamic("approve-action")).toBe(false);
+    expect(isValueDynamic("field-1")).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Similarity, ranking, threshold (Steps 6-7 — categories U, V, W, X, Y)
+// Partial Selector precedes Ignore Selector for the same attribute (real
+// `addAttribute`, module 65913).
 // ---------------------------------------------------------------------------
 
-describe("computeSimilarity — deterministic structural comparison", () => {
-  it("scores two identical patterns at 100", () => {
-    setHtml(`<button id="a" name="save">Save</button>`);
-    const el = document.querySelector("button")!;
-    const pattern = buildElementPattern(el);
-
-    expect(computeSimilarity(pattern, pattern).total).toBe(100);
-  });
-
-  it("scores a tag mismatch at 0 regardless of every other axis matching", () => {
-    setHtml(
-      `<button id="x" name="save">Save</button><a id="x" name="save">Save</a>`,
-    );
-    const [button, anchor] = [
-      document.querySelector("button")!,
-      document.querySelector("a")!,
-    ];
-    const buttonPattern = buildElementPattern(button);
-    const anchorPattern = buildElementPattern(anchor);
-
-    expect(computeSimilarity(buttonPattern, anchorPattern).total).toBe(0);
-    expect(computeSimilarity(buttonPattern, anchorPattern).tagMatches).toBe(
-      false,
-    );
-  });
-
-  it("scores two structurally unrelated elements low", () => {
-    setHtml(`
-      <button id="save-action" aria-label="Save">Save</button>
-      <button id="delete-record" aria-label="Delete" class="danger">Delete</button>
-    `);
-    const [a, b] = Array.from(document.querySelectorAll("button"));
-    const similarity = computeSimilarity(
-      buildElementPattern(a!),
-      buildElementPattern(b!),
-    );
-
-    expect(similarity.total).toBeLessThan(50);
-  });
-});
-
-describe("runDes — below-threshold and no-candidate cases (categories W, Y)", () => {
-  it("reports NOT_RESOLVED when the element has no identifying information at all and is alone", () => {
-    setHtml(`<div><span></span></div>`);
-    const el = document.querySelector("span")!;
-
-    const result = runDes(document, el);
-
-    // A single, attribute-less span with no siblings still resolves via
-    // its structural position (tag + nth) — this asserts the genuinely
-    // unresolvable shape instead: force it by making tag alone ambiguous
-    // AND removing every strategy's positional anchor is not realistic in
-    // a real DOM, so this test instead documents that at least SOME
-    // outcome (never a silent invented success) is always returned.
-    expect(["RESOLVED", "NOT_RESOLVED", "AMBIGUOUS"]).toContain(result.outcome);
-  });
-
-  it("reports NOT_RESOLVED, never a fabricated success, when every candidate falls below the similarity threshold", () => {
-    setHtml(`<div id="host"></div>`);
-    const _host = document.getElementById("host")!;
-    // A stored path from an element that no longer has anything in common
-    // with what's on the page now.
-    const fakePath = {
-      target: {
-        pattern: {
-          tag: "button",
-          attributes: [
-            {
-              name: "id",
-              value: "totally-unrelated-element",
-              classification: "STABLE" as const,
-              reason: "x",
-            },
-          ],
-          classInfo: {
-            classification: "STABLE" as const,
-            stableTokens: [],
-            dynamicTokens: [],
-            partial: null,
-            reason: "x",
-          },
-          relationship: {
-            parentTag: "section",
-            parentId: "nowhere",
-            parentStableClasses: [],
-            combinator: "child" as const,
-          },
-          order: { nthOfType: 99, siblingCountOfType: 99 },
-          role: "alertdialog",
-          accessibleName: "Nothing like this exists",
-          textSample: "Nothing like this exists",
-        },
+describe("addAttribute precedence — Partial Selector checked before Ignore Selector for the same attribute", () => {
+  it("uses the configured Partial function's substring even when an Ignore rule also targets that attribute", () => {
+    setHtml(`<div data-row-id="row-582917">A</div>`);
+    const config: DesConfig = {
+      ...DEFAULT_DES_CONFIG,
+      partialSelectors: {
+        "data-row-id": (_name, value) =>
+          value.startsWith("row-") ? "row-" : undefined,
       },
-      ancestors: [],
+      ignore: { "data-row-id": () => true },
     };
+    const pattern = buildElementPattern(document.querySelector("div")!, config);
+    const attr = pattern.attributes.find((a) => a.name === "data-row-id");
+    expect(attr).toBeDefined();
+    expect(attr!.selectionType).toBe("prefix");
+    expect(attr!.value).toBe("row-");
+  });
 
-    const result = recoverElementFromPath(document, fakePath);
-
-    expect(result.outcome).toBe("NOT_RESOLVED");
+  it("falls through to Ignore Selector when the Partial function returns nothing", () => {
+    setHtml(`<div data-row-id="stable-token">A</div>`);
+    const config: DesConfig = {
+      ...DEFAULT_DES_CONFIG,
+      partialSelectors: { "data-row-id": () => undefined },
+      ignore: { "data-row-id": () => true },
+    };
+    const pattern = buildElementPattern(document.querySelector("div")!, config);
+    expect(
+      pattern.attributes.find((a) => a.name === "data-row-id"),
+    ).toBeUndefined();
   });
 });
 
-describe("runDes — wrong-target detection (category X)", () => {
-  it("never reports RESOLVED when the uniquely-matching element is not the target", () => {
-    setHtml(`
-      <button id="shared-id">A</button>
-    `);
-    const a = document.querySelector("button")!;
-    a.id = "shared-id";
-    // A stored path describing a DIFFERENT element that happens to share
-    // this id (simulating a stale selector recorded against element A,
-    // now replayed while only a different, unrelated element with the
-    // same id-that-looks-stable exists).
-    const storedPath = buildElementPath(a);
-    // Mutate the live target's own accessible content so it clearly isn't
-    // "the same element" the stored path describes, while still being the
-    // unique DOM match for the stored id.
-    a.textContent = "Completely different content now";
-    a.setAttribute("name", "totally-different");
+// ---------------------------------------------------------------------------
+// Selector generation (module 5757's patternToSelector/pathToSelector).
+// ---------------------------------------------------------------------------
 
-    const result = recoverElementFromPath(
-      document,
-      storedPath,
-      DEFAULT_DES_CONFIG,
+describe("patternToSelector / pathToSelector", () => {
+  it("renders exact, prefix, suffix, and partial attribute predicates", () => {
+    const selector = patternToSelector({
+      tag: "input",
+      attributes: [
+        { name: "name", value: "vendor", selectionType: "exact" },
+        { name: "id", value: "fld-", selectionType: "prefix" },
+        { name: "data-x", value: "-suffix", selectionType: "suffix" },
+        { name: "data-y", value: "mid", selectionType: "partial" },
+      ],
+      classes: [],
+      pseudo: [],
+    });
+    expect(selector).toBe(
+      'input[name="vendor"][id^="fld-"][data-x$="-suffix"][data-y*="mid"]',
+    );
+  });
+
+  it("renders a valid-identifier class as .class and an invalid one as [class~=]", () => {
+    const selector = patternToSelector({
+      tag: "div",
+      attributes: [],
+      classes: [
+        { class: "btn-primary", selectionType: "exact", length: 11 },
+        { class: "1invalid", selectionType: "exact", length: 8 },
+      ],
+      pseudo: [],
+    });
+    expect(selector).toBe('div.btn-primary[class~="1invalid"]');
+  });
+
+  it("renders nth-child and contains pseudo entries", () => {
+    const selector = patternToSelector({
+      tag: "li",
+      attributes: [],
+      classes: [],
+      pseudo: [
+        { name: "nth-child", value: "3" },
+        { name: "contains", value: "Approve" },
+      ],
+    });
+    expect(selector).toBe('li:nth-child(3):contains("Approve")');
+  });
+
+  it("joins a path root-to-leaf with a direct-child combinator per level", () => {
+    const selector = pathToSelector([
+      { tag: "section", attributes: [], classes: [], pseudo: [] },
       {
-        expectedFingerprint: computeIdentityFingerprint(
-          storedPath.target.pattern,
-        ),
+        relates: "child",
+        tag: "button",
+        attributes: [{ name: "id", value: "save", selectionType: "exact" }],
+        classes: [],
+        pseudo: [],
       },
-    );
-
-    // The id still resolves uniquely, but the fingerprint no longer
-    // matches — this must never be silently accepted as RESOLVED.
-    expect(result.outcome).not.toBe("RESOLVED");
+    ]);
+    expect(selector).toBe('section > button[id="save"]');
   });
 });
 
 // ---------------------------------------------------------------------------
-// Frame isolation (Step 10 — category Z)
+// elementMatches (module 99823) — non-strict mode accepts a rendered-unique
+// winner among several raw matches.
 // ---------------------------------------------------------------------------
 
-describe("runDes — frame isolation", () => {
-  it("never matches a candidate in a different document/frame, even with an identical structure", () => {
-    // The exact same markup, same id, exists in BOTH documents — the
-    // iframe is appended alongside the top-level button, never replacing
-    // it (resetting `document.body.innerHTML` afterward would destroy the
-    // iframe itself, since it is body's own child).
+describe("elementMatches", () => {
+  it("accepts a single match trivially", () => {
+    setHtml(`<button id="a">A</button>`);
+    const el = document.querySelector("button")!;
+    expect(elementMatches(el, [el], false)).toBe(true);
+  });
+
+  it("non-strict: accepts the target when it is the only rendered element among several raw matches", () => {
+    setHtml(`
+      <button class="dup" style="display:none">Hidden</button>
+      <button class="dup">Visible</button>
+    `);
+    const [hidden, visible] = Array.from(document.querySelectorAll("button"));
+    expect(elementMatches(visible!, [hidden!, visible!], false)).toBe(true);
+    expect(elementMatches(hidden!, [hidden!, visible!], false)).toBe(false);
+  });
+
+  it("strict mode never accepts more than one raw match", () => {
     setHtml(
-      `<button id="save-button" name="save">Save</button><iframe id="frame"></iframe>`,
+      `<button class="dup">A</button><button class="dup" style="display:none">B</button>`,
     );
-    const topButton = document.querySelector("button")!;
-    const iframe = document.querySelector("iframe") as HTMLIFrameElement;
-    const frameDoc = iframe.contentDocument!;
-    frameDoc.body.innerHTML = `<button id="save-button" name="save">Save</button>`;
-
-    const frameButton = frameDoc.querySelector("button")!;
-    const resultFromFrame = runDes(frameDoc, frameButton);
-
-    expect(resultFromFrame.outcome).toBe("RESOLVED");
-    if (resultFromFrame.outcome === "RESOLVED") {
-      // Verify against the LIVE top-level button, never the frame's own —
-      // querying `frameDoc` can only ever find elements inside frameDoc.
-      const matches = frameDoc.querySelectorAll(resultFromFrame.selector);
-      expect(Array.from(matches)).not.toContain(topButton);
-      expect(Array.from(matches)).toContain(frameButton);
-    }
+    const [a, b] = Array.from(document.querySelectorAll("button"));
+    expect(elementMatches(a!, [a!, b!], true)).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Shadow DOM (Step 11 — categories AB, AC)
+// Scoring (module 17851) — Dice-coefficient diff ratio, never Jaccard.
 // ---------------------------------------------------------------------------
 
-describe("runDes — Shadow DOM", () => {
-  it("resolves inside an open shadow root, scoped to the shadow root", () => {
-    setHtml(`<div id="host"></div>`);
-    const host = document.getElementById("host")!;
-    const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = `<button id="shadow-save">Save</button>`;
-    const el = shadow.querySelector("button")!;
-
-    const result = runDes(shadow, el);
-
-    expect(result.outcome).toBe("RESOLVED");
+describe("patternDiffScore / diffScore", () => {
+  it("scores an identical pattern as 1", () => {
+    const pattern = {
+      tag: "button",
+      attributes: [{ name: "id", value: "save" }],
+      classes: [],
+      pseudo: [],
+    };
+    expect(patternDiffScore(pattern, pattern).total).toBe(1);
   });
 
-  it("reports INACCESSIBLE for a closed shadow root, never a fabricated NOT_RESOLVED-as-failure or a false success", () => {
-    const result = runDes(document, document.body, DEFAULT_DES_CONFIG, {
-      inaccessibleReason:
-        "closed shadow root — content cannot be searched by design",
-    });
+  it("forces the tag contribution to 0 on a tag mismatch, but other axes still contribute", () => {
+    const a = {
+      tag: "button",
+      attributes: [{ name: "id", value: "save" }],
+      classes: [],
+      pseudo: [],
+    };
+    const b = {
+      tag: "a",
+      attributes: [{ name: "id", value: "save" }],
+      classes: [],
+      pseudo: [],
+    };
+    const result = patternDiffScore(a, b);
+    expect(result.tagMatches).toBe(false);
+    expect(result.attributeScore).toBe(1);
+    // (0*7 + 1*1 + 1*1 + 1*1) / 10 -- classes/pseudo both empty-vs-empty score 1
+    expect(result.total).toBeCloseTo(0.3, 5);
+  });
 
-    expect(result.outcome).toBe("INACCESSIBLE");
+  it("weights the leaf 3x an ancestor chain that never simply pairs index-for-index", () => {
+    const leaf = {
+      relates: "child" as const,
+      tag: "button",
+      attributes: [{ name: "id", value: "save" }],
+      classes: [],
+      pseudo: [],
+    };
+    const ancestorA = {
+      tag: "section",
+      attributes: [{ name: "id", value: "form" }],
+      classes: [],
+      pseudo: [],
+    };
+    const pathA = [ancestorA, leaf];
+    // An extra wrapper div inserted between section and button: ancestor
+    // chain grows, but the leaf itself is untouched, so the score should
+    // stay high (leaf dominates at 3x weight) rather than collapsing.
+    const wrapper = {
+      relates: "child" as const,
+      tag: "div",
+      attributes: [],
+      classes: [],
+      pseudo: [],
+    };
+    const pathB = [ancestorA, wrapper, { ...leaf }];
+    expect(diffScore(pathA, pathB).total).toBeGreaterThan(0.85);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Cross-snapshot recovery (Step 9 — category AD)
+// findElement (module 15906's `find()`) — the real recovery pipeline.
 // ---------------------------------------------------------------------------
 
-describe("recoverElementFromPath — cross-snapshot recovery", () => {
-  it("recovers the correct element after its generated id and classes change (enterprise re-render)", () => {
+describe("findElement — real recovery pipeline", () => {
+  it("accepts a single unique rendered match on the literal captured path immediately (checkInitialPath)", () => {
+    setHtml(`<button id="save-button">Save</button>`);
+    const el = document.querySelector("button")!;
+    const path = buildElementPath(el, DEFAULT_DES_CONFIG);
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(el);
+    expect(result.strategy).toBe("checkInitialPath");
+    expect(result.score).toBe(1);
+  });
+
+  it("recovers via dropDynamicValues when a non-ignored attribute's value regenerates on re-render", () => {
     setHtml(
-      `<button id="widget-582917" class="css-8f2a91" name="submit-order">Submit</button>`,
+      `<section id="grid"><button data-row-id="58291" class="approve-btn">Approve</button></section>`,
     );
     const el = document.querySelector("button")!;
-    const path = buildElementPath(el);
-    const expectedFingerprint = computeIdentityFingerprint(path.target.pattern);
+    const path = buildElementPath(el, DEFAULT_DES_CONFIG);
 
-    // Simulate a re-render: same logical control, brand-new generated id/class.
+    // Re-render: the row's data-row-id regenerates (a realistic enterprise
+    // grid pattern), the stable class/tag/ancestor context does not.
     setHtml(
-      `<button id="widget-9931204" class="css-x82nn1" name="submit-order">Submit</button>`,
+      `<section id="grid"><button data-row-id="99123" class="approve-btn">Approve</button></section>`,
     );
-    const rerendered = document.querySelector("button")!;
+    const recovered = document.querySelector("button")!;
 
-    const result = recoverElementFromPath(document, path, DEFAULT_DES_CONFIG, {
-      expectedFingerprint,
-    });
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(document.querySelector(result.selector)).toBe(rerendered);
-    }
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(recovered);
+    expect(result.strategy).toBe("dropDynamicValues");
   });
 
-  it("recovers after sibling reordering (an inserted sibling shifts positions)", () => {
+  it("recovers via dropOneAncestor when a wrapper container is inserted between the target and a stable ancestor", () => {
+    setHtml(
+      `<form id="purchase-order"><section><input id="fld-vendor" name="vendor" /></section></form>`,
+    );
+    const el = document.querySelector("input")!;
+    const path = buildElementPath(el, DEFAULT_DES_CONFIG);
+
+    setHtml(
+      `<form id="purchase-order"><div class="layout-wrapper-v2"><section><input id="fld-vendor" name="vendor" /></section></div></form>`,
+    );
+    const recovered = document.querySelector("input")!;
+
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(recovered);
+  });
+
+  it("returns null (NOT_RESOLVED) when nothing in the document shares the target's tag at all", () => {
+    setHtml(`<button id="save">Save</button>`);
+    const el = document.querySelector("button")!;
+    const path = buildElementPath(el, DEFAULT_DES_CONFIG);
+    setHtml(`<div>Completely different page</div>`);
+
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBeNull();
+    expect(result.score).toBeNull();
+  });
+
+  it("invariant: a hidden true target can lose to a visible, structurally-identical twin — the real algorithm prefers rendered candidates over raw target identity", () => {
     setHtml(`
       <ul>
-        <li><button name="alpha">Alpha</button></li>
-        <li><button name="beta">Beta</button></li>
+        <li><button class="row-action">Go</button></li>
+        <li><button class="row-action">Go</button></li>
       </ul>
     `);
-    const beta = document.querySelectorAll("button")[1]!;
-    const path = buildElementPath(beta);
-    const expectedFingerprint = computeIdentityFingerprint(path.target.pattern);
+    const [first, second] = Array.from(document.querySelectorAll("button"));
+    const path = buildElementPath(first!, DEFAULT_DES_CONFIG);
+    (first as HTMLElement).style.display = "none";
 
-    // Insert a new sibling before Beta — Beta's nth-of-type position shifts.
-    setHtml(`
-      <ul>
-        <li><button name="alpha">Alpha</button></li>
-        <li><button name="new-item">New</button></li>
-        <li><button name="beta">Beta</button></li>
-      </ul>
-    `);
-    const newBeta = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.getAttribute("name") === "beta",
-    )!;
-
-    const result = recoverElementFromPath(document, path, DEFAULT_DES_CONFIG, {
-      expectedFingerprint,
-    });
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(document.querySelector(result.selector)).toBe(newBeta);
-    }
-  });
-
-  it("recovers after a removed sibling", () => {
-    setHtml(`
-      <ul>
-        <li><button name="alpha">Alpha</button></li>
-        <li><button name="beta">Beta</button></li>
-        <li><button name="gamma">Gamma</button></li>
-      </ul>
-    `);
-    const gamma = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.getAttribute("name") === "gamma",
-    )!;
-    const path = buildElementPath(gamma);
-    const expectedFingerprint = computeIdentityFingerprint(path.target.pattern);
-
-    setHtml(`
-      <ul>
-        <li><button name="alpha">Alpha</button></li>
-        <li><button name="gamma">Gamma</button></li>
-      </ul>
-    `);
-    const newGamma = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.getAttribute("name") === "gamma",
-    )!;
-
-    const result = recoverElementFromPath(document, path, DEFAULT_DES_CONFIG, {
-      expectedFingerprint,
-    });
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(document.querySelector(result.selector)).toBe(newGamma);
-    }
-  });
-
-  it("recovers after the ancestor wrapper/container changes tag", () => {
-    setHtml(
-      `<section><button id="widget-482910" name="submit-order">Submit</button></section>`,
-    );
-    const el = document.querySelector("button")!;
-    const path = buildElementPath(el);
-    const expectedFingerprint = computeIdentityFingerprint(path.target.pattern);
-
-    setHtml(
-      `<article><button id="widget-991823" name="submit-order">Submit</button></article>`,
-    );
-    const rerendered = document.querySelector("button")!;
-
-    const result = recoverElementFromPath(document, path, DEFAULT_DES_CONFIG, {
-      expectedFingerprint,
-    });
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(document.querySelector(result.selector)).toBe(rerendered);
-    }
-  });
-
-  it("rejects recovery once the element becomes indistinguishable from a different one", () => {
-    setHtml(`<button id="widget-482910" name="submit-order">Submit</button>`);
-    const el = document.querySelector("button")!;
-    const path = buildElementPath(el);
-    const expectedFingerprint = computeIdentityFingerprint(path.target.pattern);
-
-    // Now there are two candidates and NEITHER carries the original
-    // control's distinguishing name/text — genuinely ambiguous.
-    setHtml(`
-      <button id="widget-1">Other</button>
-      <button id="widget-2">Other</button>
-    `);
-
-    const result = recoverElementFromPath(document, path, DEFAULT_DES_CONFIG, {
-      expectedFingerprint,
-    });
-
-    expect(result.outcome).not.toBe("RESOLVED");
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    // This is a genuine, faithfully-reproduced real-algorithm property,
+    // not a bug in this port: `find()` explicitly prefers a rendered
+    // candidate. Verifying THIS specific finding (silently landing on a
+    // sibling instead of the intended hidden control) is exactly the kind
+    // of evidence this audit exists to surface.
+    expect(result.element).toBe(second);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Accessibility-only identification (categories AJ, AK)
+// checkContainersScore (module 74456).
 // ---------------------------------------------------------------------------
 
-describe("runDes — role/accessibility-only identification", () => {
-  it("resolves a div with a role and no other identifying attribute via its aria-label", () => {
-    setHtml(`
-      <div role="button" aria-label="Close dialog">X</div>
-      <div role="button" aria-label="Open menu">☰</div>
-    `);
-    const closeButton = document.querySelectorAll('[role="button"]')[0]!;
-
-    const result = runDes(document, closeButton);
-
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      expect(result.attributesUsed).toContain("aria-label");
-    }
+describe("checkContainersScore", () => {
+  it("passes trivially with no containers to check", () => {
+    expect(checkContainersScore([], document, 0.5)).toBe(true);
   });
 
-  it("an arbitrary clickable div with genuinely nothing distinguishing it is never falsely resolved", () => {
-    setHtml(`
-      <div class="row">Item</div>
-      <div class="row">Item</div>
-      <div class="row">Item</div>
-    `);
-    const second = document.querySelectorAll(".row")[1]!;
+  it("passes once enough of the originally-captured ancestor selectors still resolve", () => {
+    setHtml(`<div id="a"></div><div id="b"></div>`);
+    // 2 of 3 configured container selectors still resolve -> ceil(3*0.5)=2 -> pass
+    expect(
+      checkContainersScore(["#a", "#b", "#nonexistent"], document, 0.5),
+    ).toBe(true);
+  });
 
-    const result = runDes(document, second);
+  it("fails when too few originally-captured container selectors still resolve", () => {
+    setHtml(`<div id="a"></div>`);
+    expect(
+      checkContainersScore(["#a", "#missing-1", "#missing-2"], document, 0.9),
+    ).toBe(false);
+  });
 
-    // Structurally identical siblings with no distinguishing attribute —
-    // must recover via genuine position (nth-of-type), never a coin-flip
-    // pick among the identical candidates.
-    if (result.outcome === "RESOLVED") {
-      expect(result.attributesUsed).toEqual([]);
-    } else {
-      expect(["AMBIGUOUS", "NOT_RESOLVED"]).toContain(result.outcome);
-    }
+  it("getContainerSelectors returns one selector per rendered ancestor up to the scope root", () => {
+    setHtml(
+      `<section id="outer"><div id="inner"><button id="save">Save</button></div></section>`,
+    );
+    const selectors = getContainerSelectors(
+      document.querySelector("button")!,
+      DEFAULT_DES_CONFIG,
+    );
+    expect(selectors.length).toBeGreaterThanOrEqual(2);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Property / invariant tests (Step 19)
+// Frame isolation — natural DOM scoping (root.querySelectorAll never
+// crosses into a different Document).
 // ---------------------------------------------------------------------------
 
-describe("DES invariants", () => {
-  it("invariant: adding an irrelevant, unrelated sibling does not change a stable selector", () => {
-    setHtml(`<button id="save-action">Save</button>`);
-    const el = document.querySelector("button")!;
-    const before = runDes(document, el);
-
-    // `+=` on innerHTML re-parses the whole subtree and replaces every
-    // node, including `el` itself — appendChild mutates in place instead,
-    // so `el` stays the same live node the "before" run resolved.
-    document.body.appendChild(document.createElement("span")).textContent =
-      "unrelated decoration";
-    const after = runDes(document, el);
-
-    expect(before.outcome).toBe("RESOLVED");
-    expect(after.outcome).toBe("RESOLVED");
-    if (before.outcome === "RESOLVED" && after.outcome === "RESOLVED") {
-      expect(after.selector).toBe(before.selector);
-    }
-  });
-
-  it("invariant: a wrong candidate never becomes RESOLVED merely because it is unique", () => {
-    setHtml(`<button id="save-action">Save</button>`);
-    const el = document.querySelector("button")!;
-    const path = buildElementPath(el);
-    // Replace the element entirely with something unrelated that happens
-    // to reuse the id.
-    setHtml(`<div id="save-action">Not a button at all</div>`);
-
-    const result = recoverElementFromPath(document, path, DEFAULT_DES_CONFIG, {
-      expectedFingerprint: computeIdentityFingerprint(path.target.pattern),
-    });
-
-    // Tag mismatch forces similarity to 0 — never RESOLVED.
-    expect(result.outcome).not.toBe("RESOLVED");
-  });
-
-  it("invariant: adding an identical competing candidate can produce AMBIGUOUS", () => {
-    setHtml(`<button class="row-action">Go</button>`);
-    const el = document.querySelector("button")!;
-    const soloResult = runDes(document, el);
-    expect(soloResult.outcome).toBe("RESOLVED");
-
-    const competitor = document.createElement("button");
-    competitor.className = "row-action";
-    competitor.textContent = "Go";
-    document.body.appendChild(competitor);
-    const resultWithCompetitor = runDes(document, el);
-
-    // With two structurally-identical siblings and no other identifying
-    // signal, this must resolve only through genuine position — it must
-    // never regress to reporting the (now-shared) class alone as a
-    // direct success.
-    if (resultWithCompetitor.outcome === "RESOLVED") {
-      expect(resultWithCompetitor.attributesUsed).toEqual([]);
-    } else {
-      expect(resultWithCompetitor.outcome).toBe("AMBIGUOUS");
-    }
-  });
-
-  it("invariant: moving an element to another frame never produces a successful cross-frame match", () => {
+describe("frame isolation", () => {
+  it("never matches a candidate in a different document/frame, even with identical structure", () => {
     setHtml(`<iframe id="frame"></iframe><button id="only-here">Go</button>`);
     const iframe = document.querySelector("iframe") as HTMLIFrameElement;
     iframe.contentDocument!.body.innerHTML = `<button id="only-here">Go</button>`;
     const topButton = document.getElementById("only-here")!;
 
-    const result = runDes(document, topButton);
-    expect(result.outcome).toBe("RESOLVED");
-    if (result.outcome === "RESOLVED") {
-      // Querying the iframe's OWN document must never find the top-level
-      // element via this selector.
-      const crossFrameMatches = iframe.contentDocument!.querySelectorAll(
-        result.selector,
-      );
-      expect(Array.from(crossFrameMatches)).not.toContain(topButton);
-    }
-  });
+    const path = buildElementPath(topButton, DEFAULT_DES_CONFIG);
+    const result = findElement(path, document, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(topButton);
 
-  it("invariant: closed shadow DOM content is never reported as successfully resolved", () => {
+    const crossFrameMatches = iframe.contentDocument!.querySelectorAll(
+      pathToSelector(path),
+    );
+    expect(Array.from(crossFrameMatches)).not.toContain(topButton);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Shadow DOM — open roots are ordinary ParentNodes; closed roots are the
+// caller's responsibility (see health-selector-engine.ts's
+// `inaccessibleReason` option).
+// ---------------------------------------------------------------------------
+
+describe("shadow DOM", () => {
+  it("resolves inside an open shadow root when scoped to it", () => {
     setHtml(`<div id="host"></div>`);
-    const host = document.getElementById("host")!;
-    host.attachShadow({ mode: "closed" });
-    // No content-script code can enumerate closed shadow content at all —
-    // there is no live element to even call runDes with. The contract is
-    // that callers must pass inaccessibleReason instead of guessing.
-    const result = runDes(document, host, DEFAULT_DES_CONFIG, {
-      inaccessibleReason: "closed shadow root",
-    });
-    expect(result.outcome).toBe("INACCESSIBLE");
+    const host = document.querySelector("#host")!;
+    const shadow = host.attachShadow({ mode: "open" });
+    shadow.innerHTML = `<button id="inner-btn">Go</button>`;
+    const el = shadow.querySelector("button")!;
+
+    const path = buildElementPath(el, DEFAULT_DES_CONFIG);
+    const result = findElement(path, shadow, DEFAULT_DES_CONFIG);
+    expect(result.element).toBe(el);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateMinimalSelector — faithful-intent reconstruction of real
+// match()/optimize() (see des-engine.ts's doc comment on exactly what
+// could not be recovered byte-for-byte).
+// ---------------------------------------------------------------------------
+
+describe("generateMinimalSelector", () => {
+  it("prefers a single stable id over combining multiple attributes", () => {
+    setHtml(`<button id="save-button" class="btn btn-primary">Save</button>`);
+    const el = document.querySelector("button")!;
+    const result = generateMinimalSelector(el, document, DEFAULT_DES_CONFIG);
+    expect(result?.selector).toBe('button[id="save-button"]');
+    expect(result?.usesPositionalSelector).toBe(false);
   });
 
-  it("invariant: removing all stable identifying information eventually yields NOT_RESOLVED or AMBIGUOUS, never a fabricated RESOLVED", () => {
-    setHtml(`
-      <div class="card"><span>Text</span></div>
-      <div class="card"><span>Text</span></div>
-      <div class="card"><span>Text</span></div>
-      <div class="card"><span>Text</span></div>
-      <div class="card"><span>Text</span></div>
-    `);
-    const cards = document.querySelectorAll(".card");
-    const middle = cards[2]!;
-    const path = buildElementPath(middle);
-    const expectedFingerprint = computeIdentityFingerprint(path.target.pattern);
-
-    // Re-render with one FEWER card so nth-of-type positions all shift by
-    // one, AND every card is still structurally identical — the genuinely
-    // hard case.
-    setHtml(`
-      <div class="card"><span>Text</span></div>
-      <div class="card"><span>Text</span></div>
-      <div class="card"><span>Text</span></div>
-      <div class="card"><span>Text</span></div>
-    `);
-
-    const result = recoverElementFromPath(document, path, DEFAULT_DES_CONFIG, {
-      expectedFingerprint,
-    });
-
-    // No claim of RESOLVED is acceptable here unless it is genuinely
-    // verified against the fingerprint — accept either an honest failure
-    // or a fingerprint-verified resolution, never silence.
-    expect(["RESOLVED", "AMBIGUOUS", "NOT_RESOLVED"]).toContain(result.outcome);
+  it("falls back to nth-child when nothing on the element alone is unique", () => {
+    setHtml(
+      `<ul><li class="row">A</li><li class="row">B</li><li class="row">C</li></ul>`,
+    );
+    const second = document.querySelectorAll("li")[1]!;
+    const result = generateMinimalSelector(
+      second,
+      document,
+      DEFAULT_DES_CONFIG,
+    );
+    expect(result?.usesPositionalSelector).toBe(true);
+    expect(document.querySelectorAll(result!.selector)).toHaveLength(1);
+    expect(document.querySelector(result!.selector)).toBe(second);
   });
 });
