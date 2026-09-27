@@ -205,6 +205,10 @@ function setupSendMessageMock() {
         });
         return;
       }
+      if (msg.request === "replay-dom-health-element-paths") {
+        callback({ success: true, data: [] });
+        return;
+      }
       callback({ success: false, error: "unhandled message in test" });
     },
   );
@@ -296,6 +300,77 @@ describe("runApplicationDomHealthAudit", () => {
         expect.objectContaining({ url: "https://app.example.com/orders" }),
       );
     }
+  });
+
+  it("replays the seed state's captured ElementPath samples against every other discovered state (spec section 7) and aggregates the verdicts as crossStateEvidence", async () => {
+    linksByUrl.set("https://app.example.com/home", [
+      link({ absoluteUrl: "https://app.example.com/orders" }),
+    ]);
+
+    let replayCallCount = 0;
+    const originalImpl = mockSendMessage.getMockImplementation()!;
+    mockSendMessage.mockImplementation((tabId, msg: any, options, callback) => {
+      if (msg.request === "collect-dom-health-frame-bundle") {
+        // Only the SEED snapshot carries a captured path sample — a
+        // realistic shape, since only the seed's samples get replayed.
+        const snapshot = {
+          ...snapshotFixture(currentUrl),
+          elementPathSamples:
+            currentUrl === "https://app.example.com/home"
+              ? [
+                  {
+                    fingerprint: "fp-save-button",
+                    path: [],
+                    tagName: "button",
+                    selector: "#save",
+                    outcome: "DIRECT_SUCCESS",
+                  },
+                ]
+              : [],
+        };
+        callback({
+          success: true,
+          data: {
+            snapshot,
+            stateSignature: stateSignatureFixture(currentUrl),
+          },
+        });
+        return;
+      }
+      if (msg.request === "replay-dom-health-element-paths") {
+        replayCallCount++;
+        callback({
+          success: true,
+          data: msg.samples.map((s: { fingerprint: string }) => ({
+            fingerprint: s.fingerprint,
+            verdict: "RECOVERED_STABLE",
+          })),
+        });
+        return;
+      }
+      originalImpl(tabId, msg, options, callback);
+    });
+
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+
+    expect(result.coverage.pagesAudited).toBe(2);
+    // Replayed once against the second (non-seed) state, never against the
+    // seed state itself.
+    expect(replayCallCount).toBe(1);
+    expect(result.crossStateEvidence).toEqual({
+      attempted: 1,
+      directStable: 0,
+      recoveredStable: 1,
+      positionalStable: 0,
+      wrongTarget: 0,
+      notResolved: 0,
+      statesTested: 1,
+    });
   });
 
   it('discoveryMode "page" never navigates away or discovers further links/candidates, even when some exist', async () => {

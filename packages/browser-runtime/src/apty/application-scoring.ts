@@ -20,6 +20,7 @@ import {
   buildRisks,
   buildStrengths,
   DEFAULT_FRAME_ACCESSIBILITY,
+  DEFAULT_SELECTOR_CONFIGURATION,
   type DomHealthAuditResult,
   type DomHealthConfidence,
   type DomHealthGrade,
@@ -34,6 +35,7 @@ import {
   isScoreMeaningful,
   METHODOLOGY,
   pct,
+  type SelectorConfigurationEvidence,
   scoreAccessibilitySignal,
   scoreAmbiguityRisk,
   scoreAutomaticSelection,
@@ -144,6 +146,43 @@ export interface RestorationEvidence {
   reason?: string;
 }
 
+/**
+ * Cross-APPLICATION-STATE selector validation (spec section 7) — the
+ * primary answer to "can a selector/path captured in one application state
+ * still resolve correctly when the application changes state", as distinct
+ * from same-state, time-spaced volatility (which each page's own
+ * `stability` already covers). Real `ElementPath`s captured at the seed
+ * state are REPLAYED (via `verifyStoredElementPath`, never regenerated)
+ * against every other state this run actually audited.
+ *
+ * Deliberately seed-vs-every-other-state, not a full all-pairs replay
+ * across every discovered state — a tractable, honestly-scoped design
+ * documented as a known limitation (see
+ * `docs/development/dom-health-architecture.md`), not an attempt at
+ * exhaustive cross-state coverage.
+ */
+export interface CrossStateSelectorEvidence {
+  /** Total replay attempts across every non-seed state this run audited. */
+  attempted: number;
+  directStable: number;
+  recoveredStable: number;
+  positionalStable: number;
+  wrongTarget: number;
+  notResolved: number;
+  /** How many OTHER states (beyond the seed itself) had at least one replay attempted against them. */
+  statesTested: number;
+}
+
+export const EMPTY_CROSS_STATE_SELECTOR_EVIDENCE: CrossStateSelectorEvidence = {
+  attempted: 0,
+  directStable: 0,
+  recoveredStable: 0,
+  positionalStable: 0,
+  wrongTarget: 0,
+  notResolved: 0,
+  statesTested: 0,
+};
+
 export interface ApplicationAuditResult {
   auditId: string;
   timestamp: number;
@@ -170,6 +209,12 @@ export interface ApplicationAuditResult {
   stateGraph?: StateGraphSummary;
   /** Every backtracking attempt made during this run (restoring the live tab to a previously-discovered state before exploring one of its other children), success or failure — never silently retried and hidden. */
   restorations: RestorationEvidence[];
+  /** Real Apty ElementPaths captured at the seed state, replayed against every other audited state (spec section 7) — see `CrossStateSelectorEvidence`'s doc comment. Its counts are already folded into `metricDetails.selectorStability`, and reported here again on their own so this specific evidence is never buried. */
+  crossStateEvidence: CrossStateSelectorEvidence;
+  /** Human-readable companion to `scope` — "APPLICATION" when `scope === "application"`, "CURRENT_PAGE" otherwise (spec sections 1/18). A result labeled CURRENT_PAGE here is never described as application health, however this tool was invoked. */
+  scopeLabel: "APPLICATION" | "CURRENT_PAGE";
+  /** Whether real customer-specific Apty Studio configuration or Apty's own defaults were used (spec section 8) — see `dom-health-scoring.ts`'s `DEFAULT_SELECTOR_CONFIGURATION`. */
+  selectorConfiguration: SelectorConfigurationEvidence;
 }
 
 /**
@@ -259,8 +304,11 @@ export function buildApplicationAuditResult(
     discoveryMethod?: string;
     stateGraph?: StateGraphSummary;
     restorations?: RestorationEvidence[];
+    crossStateEvidence?: CrossStateSelectorEvidence;
   } = {},
 ): ApplicationAuditResult {
+  const crossStateEvidence =
+    options.crossStateEvidence ?? EMPTY_CROSS_STATE_SELECTOR_EVIDENCE;
   const completed = pages.filter((p) => p.status === "completed" && p.result);
   const failed = pages.filter((p) => p.status === "failed").length;
   const skippedUnsafe = pages.filter(
@@ -327,25 +375,31 @@ export function buildApplicationAuditResult(
     ),
   });
 
+  // Cross-application-state replay evidence (spec section 7) is folded
+  // into the SAME totals as same-state stability, rather than a parallel
+  // scoring system — both answer "does a captured selector/path still
+  // resolve correctly", just at different time/state scales. This makes
+  // cross-state stability a REAL, additive contributor to the application's
+  // selectorStability metric, never a side channel the score can ignore.
   const selectorStability = scoreSelectorStability({
-    trackedFromPrevious: sumField(
-      completed,
-      "selectorStability",
-      "trackedFromPrevious",
-    ),
-    directStable: sumField(completed, "selectorStability", "directStable"),
-    recoveredStable: sumField(
-      completed,
-      "selectorStability",
-      "recoveredStable",
-    ),
-    positionalStable: sumField(
-      completed,
-      "selectorStability",
-      "positionalStable",
-    ),
-    wrongTarget: sumField(completed, "selectorStability", "wrongTarget"),
-    notResolved: sumField(completed, "selectorStability", "notResolved"),
+    trackedFromPrevious:
+      sumField(completed, "selectorStability", "trackedFromPrevious") +
+      crossStateEvidence.attempted,
+    directStable:
+      sumField(completed, "selectorStability", "directStable") +
+      crossStateEvidence.directStable,
+    recoveredStable:
+      sumField(completed, "selectorStability", "recoveredStable") +
+      crossStateEvidence.recoveredStable,
+    positionalStable:
+      sumField(completed, "selectorStability", "positionalStable") +
+      crossStateEvidence.positionalStable,
+    wrongTarget:
+      sumField(completed, "selectorStability", "wrongTarget") +
+      crossStateEvidence.wrongTarget,
+    notResolved:
+      sumField(completed, "selectorStability", "notResolved") +
+      crossStateEvidence.notResolved,
     detached: sumField(completed, "selectorStability", "detached"),
     new: sumField(completed, "selectorStability", "new"),
   });
@@ -637,5 +691,8 @@ export function buildApplicationAuditResult(
     methodology: [...APPLICATION_METHODOLOGY_PREFIX, ...METHODOLOGY],
     stateGraph: options.stateGraph,
     restorations: options.restorations ?? [],
+    crossStateEvidence,
+    scopeLabel: scope === "application" ? "APPLICATION" : "CURRENT_PAGE",
+    selectorConfiguration: DEFAULT_SELECTOR_CONFIGURATION,
   };
 }

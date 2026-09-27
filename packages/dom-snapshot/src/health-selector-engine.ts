@@ -61,12 +61,18 @@ export interface ElementResolution {
 
 export interface ResolveElementOptions {
   /**
-   * Bounds how many ancestor levels the engine may climb while building
-   * the element's path. The real Apty algorithm has no such cap (it walks
-   * to `document.body`, or a configured `scopeRootSelectors` container);
-   * this option is DOM Health's own safety bound, preserved from the
-   * previous engine for API compatibility with existing callers. Defaults
-   * to 4.
+   * Optionally bounds how many ancestor levels the engine may climb while
+   * building the element's path. Left unset by default (unbounded, the
+   * full path to the scope root / `document.body`) — the real Apty
+   * algorithm has no depth cap of its own (`buildElementPath` walks to
+   * `document.body`, or a configured `scopeRootSelectors` container), and
+   * an earlier version of this adapter capped this at 4 as its own
+   * "safety bound" — that cap was never derived from real Apty behavior,
+   * and truncating the path here before `findElement` ever sees it could
+   * cause this adapter to report failure/positional-fallback for an
+   * element real Apty could resolve by climbing further. Only set this
+   * when a caller has a specific reason to bound the search (e.g. a perf
+   * ceiling on a pathologically deep DOM).
    */
   maxAncestorDepth?: number;
   /** Short-circuits to INACCESSIBLE with this reason — set by a caller that already knows the target lives behind a boundary this engine cannot search (a closed shadow root, a cross-origin frame). */
@@ -252,11 +258,15 @@ export function resolveElement(
   }
 
   const config: DesConfig = { ...DEFAULT_DES_CONFIG, ...options.desConfig };
-  const maxAncestorDepth = options.maxAncestorDepth ?? 4;
   const fullPath = buildElementPath(el, config);
-  const path = fullPath.slice(
-    Math.max(0, fullPath.length - 1 - maxAncestorDepth),
-  );
+  // Faithful to real Apty: no depth cap unless the caller explicitly asks
+  // for one (see `ResolveElementOptions.maxAncestorDepth`'s doc comment).
+  const path =
+    options.maxAncestorDepth === undefined
+      ? fullPath
+      : fullPath.slice(
+          Math.max(0, fullPath.length - 1 - options.maxAncestorDepth),
+        );
 
   const result = findElement(path, root, config);
   const leafInfo = leafAttributeNames(path[path.length - 1]!);
@@ -438,6 +448,34 @@ export function verifyStoredElementPath(
     return { verdict: "DIRECT_STABLE", element: result.element, selector };
   }
   return { verdict: "RECOVERED_STABLE", element: result.element, selector };
+}
+
+export interface ElementPathReplayResult {
+  fingerprint: string;
+  verdict: CrossStateVerdict;
+}
+
+/**
+ * Batch form of `verifyStoredElementPath` — replays every sample (each
+ * captured at some OTHER application state) against `root`'s current live
+ * DOM. This is the primitive the content script's cross-application-state
+ * replay message handler calls; see `application-audit.ts` for how the
+ * results get aggregated into application-level evidence.
+ */
+export function replayElementPathSamples(
+  root: ParentNode,
+  samples: Array<{ fingerprint: string; path: ElementPath }>,
+  config: DesConfig = DEFAULT_DES_CONFIG,
+): ElementPathReplayResult[] {
+  return samples.map((sample) => ({
+    fingerprint: sample.fingerprint,
+    verdict: verifyStoredElementPath(
+      root,
+      sample.path,
+      sample.fingerprint,
+      config,
+    ).verdict,
+  }));
 }
 
 export function extractElementAttributes(

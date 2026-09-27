@@ -455,3 +455,51 @@ describe("buildApplicationAuditResult — score calibration (spec section 36)", 
     expect(result.score).not.toBeNull();
   });
 });
+
+describe("buildApplicationAuditResult — cross-application-state selector replay (spec section 7)", () => {
+  it("folds cross-state replay evidence into the same selectorStability totals as same-state stability, never a side channel the score can ignore", () => {
+    const reports = Array.from({ length: 20 }, () => makeReport());
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/a", reports),
+      completedPage("https://a.example/b", reports),
+    ];
+
+    const withoutCrossState = buildApplicationAuditResult(
+      pages,
+      "no-cross-state",
+    );
+    const withBrokenCrossState = buildApplicationAuditResult(
+      pages,
+      "broken-cross-state",
+      {
+        crossStateEvidence: {
+          attempted: 20,
+          directStable: 0,
+          recoveredStable: 0,
+          positionalStable: 0,
+          wrongTarget: 15,
+          notResolved: 5,
+          statesTested: 1,
+        },
+      },
+    );
+
+    expect(withBrokenCrossState.metrics.selectorStability).toBeLessThan(
+      withoutCrossState.metrics.selectorStability,
+    );
+    expect(withBrokenCrossState.crossStateEvidence.attempted).toBe(20);
+    expect(withBrokenCrossState.crossStateEvidence.wrongTarget).toBe(15);
+  });
+
+  it("reports scopeLabel/selectorConfiguration honestly", () => {
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/a", [makeReport()]),
+      completedPage("https://a.example/b", [makeReport()]),
+    ];
+
+    const result = buildApplicationAuditResult(pages, "labels");
+
+    expect(result.scopeLabel).toBe("APPLICATION");
+    expect(result.selectorConfiguration.source).toBe("default");
+  });
+});

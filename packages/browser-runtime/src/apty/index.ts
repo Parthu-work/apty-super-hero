@@ -2,12 +2,14 @@ export type {
   ApplicationAuditLimits,
   ApplicationAuditOutcome,
   ApplicationAuditProgress,
+  ApplicationDiscoveryMode,
   RunApplicationAuditOptions,
 } from "./application-audit.js";
 export { runApplicationDomHealthAudit } from "./application-audit.js";
 export type {
   ApplicationAuditResult,
   ApplicationCoverage,
+  CrossStateSelectorEvidence,
   PageAuditRecord,
   PageAuditStatus,
   PageDiscoverySource,
@@ -35,6 +37,7 @@ export type {
   DomHealthRecommendation,
   DomHealthRisk,
   EvidenceState,
+  SelectorConfigurationEvidence,
 } from "./dom-health-scoring.js";
 export {
   buildDomHealthAuditResult,

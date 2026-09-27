@@ -19,9 +19,11 @@
 import {
   type ApplicationAuditOutcome,
   type ApplicationAuditProgress,
+  type ApplicationDiscoveryMode,
   type DomHealthAuditOutcome,
   type DomHealthConfidence,
   type DomHealthGrade,
+  type DomHealthMetricDetails,
   type DomHealthMetricKey,
   type DomHealthMetrics,
   type DomHealthRecommendation,
@@ -134,6 +136,26 @@ const OUTCOME_LABELS: Record<string, string> = {
   INACCESSIBLE: "Inaccessible",
 };
 
+const DISCOVERY_MODE_DESCRIPTION: Record<ApplicationDiscoveryMode, string> = {
+  page: "Audits ONLY the current page/state — no navigation, no clicking, nothing else visited.",
+  "application-safe":
+    "Discovers other same-origin pages via real <a href> links only, and DETECTS (never clicks) menu/tab/tree-style controls with no real href.",
+  "application-deep":
+    "Additionally CLICKS detected safe navigation controls to explore same-URL, menu-driven application states — a real click on the live application.",
+};
+
+const DISCOVERY_MODE_LABEL: Record<ApplicationDiscoveryMode, string> = {
+  page: "Current page only",
+  "application-safe": "Safe link discovery",
+  "application-deep": "Deep state discovery",
+};
+
+const DISCOVERY_METHOD_LABEL: Record<string, string> = {
+  "single-page-only": "Current page only (no discovery)",
+  "anchor-links": "Safe link discovery",
+  "anchor-links+navigation-controls": "Deep state discovery",
+};
+
 const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], string> = {
   completed: "Audited",
   failed: "Failed",
@@ -173,6 +195,8 @@ interface SharedEvidence {
   evidenceState: string;
   manualSelectorDependency: number;
   metrics: DomHealthMetrics;
+  metricDetails: DomHealthMetricDetails;
+  selectorConfiguration: { source: "default" | "customer"; detail: string };
   summary: string;
   strengths: string[];
   risks: DomHealthRisk[];
@@ -182,6 +206,9 @@ interface SharedEvidence {
 
 function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
   const evidenceIsIncomplete = result.evidenceState !== "HEALTHY_EVIDENCE";
+  const auto = result.metricDetails?.automaticSelection;
+  const hitTest = result.metricDetails?.hitTestTargetability;
+  const a11y = result.metricDetails?.accessibilitySignal;
   return (
     <>
       {evidenceIsIncomplete && (
@@ -200,6 +227,96 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
         </p>
       )}
       <p className="text-xs text-muted-foreground">{result.summary}</p>
+
+      {/* Never let a recovered resolution look identical to a direct one, and
+          never let hit-test/accessibility failures hide behind a high
+          aggregate score (spec sections 9-11). */}
+      {auto && auto.totalAnalyzed > 0 && (
+        <div className="rounded-md border bg-muted/30 px-2.5 py-2">
+          <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Automatic Selection Breakdown
+          </div>
+          <div className="grid grid-cols-3 gap-x-2 text-center">
+            <div>
+              <div
+                className={cn(
+                  "font-mono text-sm font-semibold",
+                  toneTextClass("success"),
+                )}
+              >
+                {auto.directSuccessRate}%
+              </div>
+              <div className="text-[10px] text-muted-foreground">Direct</div>
+            </div>
+            <div>
+              <div
+                className={cn(
+                  "font-mono text-sm font-semibold",
+                  toneTextClass("warning"),
+                )}
+              >
+                {auto.recoveredSuccessRate}%
+              </div>
+              <div className="text-[10px] text-muted-foreground">Recovered</div>
+            </div>
+            <div>
+              <div
+                className={cn(
+                  "font-mono text-sm font-semibold",
+                  toneTextClass(
+                    auto.manualDependencyRate > 15 ? "danger" : "success",
+                  ),
+                )}
+              >
+                {auto.manualDependencyRate}%
+              </div>
+              <div className="text-[10px] text-muted-foreground">Manual</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hitTest && hitTest.tested > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+          <span className="text-muted-foreground">Hit-Test Failures</span>
+          <span
+            className={cn(
+              "font-mono font-semibold",
+              toneTextClass(
+                hitTest.occludedOrHidden / hitTest.tested > 0.3
+                  ? "danger"
+                  : hitTest.occludedOrHidden > 0
+                    ? "warning"
+                    : "success",
+              ),
+            )}
+          >
+            {hitTest.occludedOrHidden}/{hitTest.tested}
+          </span>
+        </div>
+      )}
+
+      {a11y && a11y.totalInteractive > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+          <span className="text-muted-foreground">
+            Missing Accessible Names
+          </span>
+          <span
+            className={cn(
+              "font-mono font-semibold",
+              toneTextClass(
+                a11y.missingAccessibleName / a11y.totalInteractive > 0.3
+                  ? "danger"
+                  : a11y.missingAccessibleName > 0
+                    ? "warning"
+                    : "success",
+              ),
+            )}
+          >
+            {a11y.missingAccessibleName}/{a11y.totalInteractive}
+          </span>
+        </div>
+      )}
 
       <div className="rounded-md border bg-muted/30 px-2.5 py-2">
         <div className="flex items-center justify-between gap-2">
@@ -222,6 +339,13 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
           </span>
         </div>
       </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        Selector Configuration:{" "}
+        {result.selectorConfiguration?.source === "customer"
+          ? "Customer Apty DES configuration"
+          : "Default/reconstructed DES configuration"}
+      </p>
 
       <div>
         <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -337,6 +461,8 @@ export function DomHealthCard() {
   const [appProgress, setAppProgress] =
     useState<ApplicationAuditProgress | null>(null);
   const [view, setView] = useState<"page" | "application">("page");
+  const [discoveryMode, setDiscoveryMode] =
+    useState<ApplicationDiscoveryMode>("application-safe");
   const [expanded, setExpanded] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -376,13 +502,14 @@ export function DomHealthCard() {
     setAppProgress(null);
 
     const result = await runApplicationDomHealthAudit(target.tabId, {
+      discoveryMode,
       onProgress: (progress) => setAppProgress(progress),
     });
 
     setAppOutcome(result);
     setIsAppLoading(false);
     setAppProgress(null);
-  }, [target.tabId]);
+  }, [target.tabId, discoveryMode]);
 
   const hasResult = outcome !== null || appOutcome !== null;
   const active = view === "application" ? appOutcome : outcome;
@@ -476,6 +603,26 @@ export function DomHealthCard() {
         >
           {isLoading ? "Checking..." : outcome ? "Recheck" : "Check DOM Health"}
         </Button>
+        <select
+          value={discoveryMode}
+          onChange={(e) => {
+            e.stopPropagation();
+            setDiscoveryMode(e.target.value as ApplicationDiscoveryMode);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          disabled={isLoading || isAppLoading || !target.tabId}
+          aria-label="Application discovery mode"
+          title={DISCOVERY_MODE_DESCRIPTION[discoveryMode]}
+          className="shrink-0 rounded-md border bg-background px-1.5 py-1 text-[11px] text-muted-foreground"
+        >
+          <option value="page">{DISCOVERY_MODE_LABEL.page}</option>
+          <option value="application-safe">
+            {DISCOVERY_MODE_LABEL["application-safe"]}
+          </option>
+          <option value="application-deep">
+            {DISCOVERY_MODE_LABEL["application-deep"]}
+          </option>
+        </select>
         <Button
           size="sm"
           variant="outline"
@@ -587,6 +734,14 @@ export function DomHealthCard() {
                   </>
                 )}
               </div>
+              <p className="text-xs font-medium text-foreground">
+                Observed current-page DOM health:{" "}
+                {outcome.score !== null
+                  ? `${outcome.score}/100`
+                  : "NOT ENOUGH EVIDENCE"}{" "}
+                — never application-wide health from a single page. For the
+                whole application, use "Audit Application".
+              </p>
 
               <SharedEvidenceSections result={outcome} />
 
@@ -684,7 +839,7 @@ export function DomHealthCard() {
                 <span>·</span>
                 <span>
                   Scope:{" "}
-                  {appOutcome.scope === "application"
+                  {appOutcome.scopeLabel === "APPLICATION"
                     ? "Application"
                     : "Current Page"}
                 </span>
@@ -709,55 +864,154 @@ export function DomHealthCard() {
                   </>
                 )}
               </div>
+              <p className="text-xs font-medium text-foreground">
+                {appOutcome.scopeLabel === "APPLICATION"
+                  ? `Application DOM health: ${appOutcome.score !== null ? `${appOutcome.score}/100` : "NOT ENOUGH EVIDENCE"}`
+                  : `Observed current-page DOM health: ${appOutcome.score !== null ? `${appOutcome.score}/100` : "NOT ENOUGH EVIDENCE"}`}
+              </p>
               <p className="text-[11px] text-muted-foreground">
                 Coverage is observed, not total — this audit cannot know how
-                many states the application actually has (discovery method:{" "}
-                {appOutcome.coverage.discoveryMethod}).
+                many states the application actually has. Discovery:{" "}
+                {DISCOVERY_METHOD_LABEL[appOutcome.coverage.discoveryMethod] ??
+                  appOutcome.coverage.discoveryMethod}
+                .
               </p>
+
+              {appOutcome.crossStateEvidence &&
+                appOutcome.crossStateEvidence.attempted > 0 && (
+                  <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]">
+                    <div className="mb-1 font-medium uppercase tracking-wide text-muted-foreground">
+                      Cross-State Selector Replay (
+                      {appOutcome.crossStateEvidence.statesTested} other state
+                      {appOutcome.crossStateEvidence.statesTested === 1
+                        ? ""
+                        : "s"}{" "}
+                      tested)
+                    </div>
+                    <p className="text-muted-foreground">
+                      Of {appOutcome.crossStateEvidence.attempted} element
+                      path(s) captured at the seed state and replayed against
+                      other discovered states:{" "}
+                      {appOutcome.crossStateEvidence.directStable +
+                        appOutcome.crossStateEvidence.recoveredStable +
+                        appOutcome.crossStateEvidence.positionalStable}{" "}
+                      still resolved correctly,{" "}
+                      <span className={toneTextClass("danger")}>
+                        {appOutcome.crossStateEvidence.wrongTarget} resolved to
+                        the wrong element
+                      </span>
+                      , and {appOutcome.crossStateEvidence.notResolved} resolved
+                      to nothing.
+                    </p>
+                  </div>
+                )}
 
               <SharedEvidenceSections result={appOutcome} />
 
               {appOutcome.pages.length > 0 && (
                 <details className="text-xs" open>
                   <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-                    Pages ({appOutcome.pages.length})
+                    Pages/States ({appOutcome.pages.length}) —{" "}
+                    {appOutcome.coverage.pagesAudited} audited,{" "}
+                    {appOutcome.coverage.pagesFailed} failed,{" "}
+                    {appOutcome.coverage.pagesSkippedUnsafe +
+                      appOutcome.coverage.pagesSkippedDuplicate}{" "}
+                    skipped, {appOutcome.coverage.pagesNotDiscovered} not
+                    explored
                   </summary>
-                  <div className="mt-1.5 max-h-64 overflow-y-auto rounded-md border">
+                  <div className="mt-1.5 max-h-96 overflow-y-auto rounded-md border">
                     <table className="w-full text-left text-[11px]">
                       <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
                         <tr>
-                          <th className="px-1.5 py-1 font-medium">Page</th>
+                          <th className="px-1.5 py-1 font-medium">
+                            Page/State
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">Discovery</th>
                           <th className="px-1.5 py-1 font-medium">Status</th>
+                          <th className="px-1.5 py-1 font-medium">Elements</th>
+                          <th className="px-1.5 py-1 font-medium">
+                            Direct/Recovered/Manual
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            Hit-Test Fail
+                          </th>
                           <th className="px-1.5 py-1 font-medium">Score</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {appOutcome.pages.map((page, i) => (
-                          <tr
-                            // biome-ignore lint/suspicious/noArrayIndexKey: page URLs can repeat across statuses
-                            key={i}
-                            className="border-t"
-                          >
-                            <td className="max-w-[180px] truncate px-1.5 py-1 font-mono text-muted-foreground">
-                              {page.title ?? page.url}
-                            </td>
-                            <td
-                              className={cn(
-                                "px-1.5 py-1 font-medium",
-                                toneTextClass(pageStatusTone(page.status)),
-                              )}
-                            >
-                              {PAGE_STATUS_LABELS[page.status]}
-                            </td>
-                            <td className="px-1.5 py-1 text-muted-foreground">
-                              {page.result
-                                ? page.result.score !== null
-                                  ? `${page.result.score}/100`
-                                  : GRADE_META[page.result.grade].label
-                                : "—"}
-                            </td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          // Same-URL states must stay distinguishable — a
+                          // shared title/url never collapses two real
+                          // states into one indistinguishable row (spec
+                          // section 23).
+                          const labelCounts = new Map<string, number>();
+                          for (const page of appOutcome.pages) {
+                            const label = page.title ?? page.url;
+                            labelCounts.set(
+                              label,
+                              (labelCounts.get(label) ?? 0) + 1,
+                            );
+                          }
+                          const labelSeen = new Map<string, number>();
+                          return appOutcome.pages.map((page, i) => {
+                            const label = page.title ?? page.url;
+                            const isDuplicateLabel =
+                              (labelCounts.get(label) ?? 0) > 1;
+                            const occurrence = (labelSeen.get(label) ?? 0) + 1;
+                            labelSeen.set(label, occurrence);
+                            const auto =
+                              page.result?.metricDetails?.automaticSelection;
+                            const hitTest =
+                              page.result?.metricDetails?.hitTestTargetability;
+                            return (
+                              <tr
+                                // biome-ignore lint/suspicious/noArrayIndexKey: page URLs can repeat across statuses/states
+                                key={i}
+                                className="border-t align-top"
+                              >
+                                <td className="max-w-[160px] px-1.5 py-1 font-mono text-muted-foreground">
+                                  <span className="block truncate">
+                                    {label}
+                                    {isDuplicateLabel
+                                      ? ` (state ${occurrence})`
+                                      : ""}
+                                  </span>
+                                </td>
+                                <td className="px-1.5 py-1 text-muted-foreground">
+                                  {page.discoverySource}
+                                </td>
+                                <td
+                                  className={cn(
+                                    "px-1.5 py-1 font-medium",
+                                    toneTextClass(pageStatusTone(page.status)),
+                                  )}
+                                >
+                                  {PAGE_STATUS_LABELS[page.status]}
+                                </td>
+                                <td className="px-1.5 py-1 text-muted-foreground">
+                                  {auto ? auto.totalAnalyzed : "—"}
+                                </td>
+                                <td className="px-1.5 py-1 text-muted-foreground">
+                                  {auto
+                                    ? `${auto.directSuccessRate}%/${auto.recoveredSuccessRate}%/${auto.manualDependencyRate}%`
+                                    : "—"}
+                                </td>
+                                <td className="px-1.5 py-1 text-muted-foreground">
+                                  {hitTest
+                                    ? `${hitTest.occludedOrHidden}/${hitTest.tested}`
+                                    : "—"}
+                                </td>
+                                <td className="px-1.5 py-1 text-muted-foreground">
+                                  {page.result
+                                    ? page.result.score !== null
+                                      ? `${page.result.score}/100`
+                                      : GRADE_META[page.result.grade].label
+                                    : "—"}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
                       </tbody>
                     </table>
                   </div>

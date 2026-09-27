@@ -65,6 +65,7 @@ import type {
   DomHealthCollectorOptions,
   DomHealthSnapshot,
   ElementClassification,
+  ElementPathSample,
   ElementSelectorReport,
   StabilityVerdict,
 } from "./health-types.js";
@@ -80,6 +81,8 @@ const DEFAULT_ELEMENT_CEILING = 4000;
 /** How many elements are analyzed per batch before yielding to the event loop, so a large page's audit never blocks the tab. */
 const BATCH_SIZE = 150;
 const DEFAULT_MAX_STYLE_CHECKS = 2000;
+/** Caps `elementPathSamples` (cross-application-state replay candidates) so the message payload never grows unbounded on a huge page — first-N-in-document-order, not a "most important" ranking. */
+const MAX_ELEMENT_PATH_SAMPLES = 50;
 /** A positioned element at or above this z-index is counted as "high" for overlay-risk scoring. */
 const HIGH_Z_INDEX_THRESHOLD = 1000;
 
@@ -240,6 +243,7 @@ interface CollectorState {
   /** Interactive elements found during traversal, queued for the batched analysis pass. */
   interactiveCandidates: Array<{ el: Element; root: ParentNode }>;
   elementReports: ElementSelectorReport[];
+  elementPathSamples: ElementPathSample[];
   universe: {
     meaningful: number;
     hidden: number;
@@ -326,6 +330,7 @@ function createState(): CollectorState {
     interactiveCount: 0,
     interactiveCandidates: [],
     elementReports: [],
+    elementPathSamples: [],
     universe: {
       meaningful: 0,
       hidden: 0,
@@ -631,6 +636,29 @@ function analyzeInteractiveElement(
     hitTest,
     stability,
   });
+
+  // A bounded sample of this element's real Apty-style path, for a caller
+  // (application-audit.ts) to later REPLAY against a different discovered
+  // application state — cross-STATE validation, never cross-snapshot-only.
+  // Never sampled from an ambiguous-fingerprint or unresolved element: a
+  // colliding or nonexistent anchor is useless as a later identity check.
+  if (
+    !fingerprintIsAmbiguous &&
+    resolution.elementPath &&
+    resolution.outcome !== "AMBIGUOUS" &&
+    resolution.outcome !== "WRONG_TARGET" &&
+    resolution.outcome !== "NOT_RESOLVED" &&
+    resolution.outcome !== "INACCESSIBLE" &&
+    state.elementPathSamples.length < MAX_ELEMENT_PATH_SAMPLES
+  ) {
+    state.elementPathSamples.push({
+      fingerprint,
+      path: resolution.elementPath,
+      tagName: el.tagName.toLowerCase(),
+      selector: resolution.bestSelector,
+      outcome: resolution.outcome,
+    });
+  }
 }
 
 /**
@@ -871,6 +899,7 @@ export async function collectDomHealthSnapshot(
       highZIndexElementCount: state.highZIndexElementCount,
     },
     frame: options.frameContext ?? null,
+    elementPathSamples: state.elementPathSamples,
   };
 }
 

@@ -5,6 +5,7 @@ import {
   collectSafeNavigationCandidates,
   computeFrameStateSignature,
   isSafeNavigationCandidate,
+  replayElementPathSamples,
 } from "@apty/dom-snapshot";
 import { FakeMouse } from "@apty/ui/components/fake-mouse";
 import type { FakeMouseController } from "@apty/ui/components/fake-mouse/types";
@@ -557,6 +558,26 @@ const ContentApp = () => {
             historyApiCallCount,
           },
         });
+        return true;
+      } else if (message.request === "replay-dom-health-element-paths") {
+        // Cross-APPLICATION-STATE selector validation (spec section 7):
+        // replay paths CAPTURED at some OTHER discovered state against
+        // THIS frame's current live DOM via the real, unmodified DES
+        // recovery pipeline — never regenerate a fresh path here and
+        // compare it to the old one.
+        try {
+          const samples = Array.isArray(message.samples) ? message.samples : [];
+          const results = replayElementPathSamples(document, samples);
+          sendResponse({ success: true, data: results });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to replay stored element paths",
+          });
+        }
         return true;
       }
 

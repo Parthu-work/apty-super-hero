@@ -152,6 +152,30 @@ describe("collectDomHealthSnapshot — selector resolution", () => {
   });
 });
 
+describe("collectDomHealthSnapshot — element-path samples for cross-application-state replay", () => {
+  it("captures a real ElementPath sample for a resolvable interactive element", async () => {
+    setHtml(`<button id="save-button">Save</button>`);
+    const snapshot = await collectDomHealthSnapshot(document);
+
+    expect(snapshot.elementPathSamples).toHaveLength(1);
+    expect(snapshot.elementPathSamples[0]!.outcome).toBe("DIRECT_SUCCESS");
+    expect(snapshot.elementPathSamples[0]!.path.length).toBeGreaterThan(0);
+    expect(snapshot.elementPathSamples[0]!.selector).toBe(
+      'button[id="save-button"]',
+    );
+  });
+
+  it("never samples an element whose fingerprint collided with another in the same snapshot", async () => {
+    setHtml(`
+      <div><button>Ok</button></div>
+      <div><button>Ok</button></div>
+    `);
+    const snapshot = await collectDomHealthSnapshot(document);
+
+    expect(snapshot.elementPathSamples).toHaveLength(0);
+  });
+});
+
 describe("collectDomHealthSnapshot — cross-STATE stability (real DES replay of a stored ElementPath, not a re-query of a string)", () => {
   it("marks a selector DIRECT_STABLE when the stored path is replayed against the same live element unchanged", async () => {
     setHtml(`<button id="stable-btn">Go</button>`);

@@ -281,6 +281,32 @@ describe("resolveElement — shadow DOM scoping", () => {
   });
 });
 
+describe("resolveElement — no artificial ancestor-depth cap (real Apty has none)", () => {
+  it("resolves via a disambiguating ancestor 5 levels up when unbounded, but fails to disambiguate when capped at the old default of 4", () => {
+    // Two structurally-identical 5-level-deep branches; the ONLY
+    // distinguishing signal (a unique id) lives on the 5th ancestor. Real
+    // Apty's own `buildElementPath` has no depth limit at all — walking
+    // only 4 ancestors up (this adapter's old hard-coded default) would
+    // never even see that id, and would report a non-unique/positional
+    // result for something real Apty could resolve directly.
+    setHtml(`
+      <div id="root-a"><div><div><div><div><button>Go</button></div></div></div></div></div>
+      <div id="root-b"><div><div><div><div><button>Go</button></div></div></div></div></div>
+    `);
+    const el = document.querySelectorAll("button")[0]!;
+
+    const capped = resolveElement(document, el, { maxAncestorDepth: 4 });
+    expect(capped.outcome).not.toBe("DIRECT_SUCCESS");
+    expect(capped.outcome).not.toBe("RECOVERED_BY_CONTEXT");
+
+    const unbounded = resolveElement(document, el);
+    expect(["DIRECT_SUCCESS", "RECOVERED_BY_CONTEXT"]).toContain(
+      unbounded.outcome,
+    );
+    expect(unbounded.bestSelector).toContain("root-a");
+  });
+});
+
 describe("verifyStoredElementPath — the GOOD cross-state pattern (replay a captured path, never regenerate-and-compare)", () => {
   it("returns DIRECT_STABLE when the exact same element is replayed unchanged", () => {
     setHtml(`<button id="save-button">Save</button>`);

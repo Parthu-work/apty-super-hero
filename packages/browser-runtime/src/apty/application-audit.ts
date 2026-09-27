@@ -62,12 +62,14 @@
  * defense in depth, never a single check trusted alone.
  */
 import {
+  type ElementPathSample,
   isSafeNavigationCandidate,
   isSafeToDiscover,
 } from "@apty/dom-snapshot";
 import {
   type ApplicationAuditResult,
   buildApplicationAuditResult,
+  type CrossStateSelectorEvidence,
   type PageAuditRecord,
   type RestorationEvidence,
   type StateGraphSummary,
@@ -81,10 +83,12 @@ import {
   clickSafeNavigationCandidate,
   collectPageLinks,
   collectSafeNavigationCandidates,
+  type ElementPathReplaySample,
   type FrameTaggedLink,
   type FrameTaggedSafeNavigationCandidate,
   getNavigationModel,
   navigateTab,
+  replayElementPathSamplesInFrame,
   waitForDomStable,
 } from "./page-navigation.js";
 import {
@@ -368,6 +372,68 @@ export async function runApplicationDomHealthAudit(
   const skippedCandidates = new Set<string>();
   const restorations: RestorationEvidence[] = [];
 
+  // Cross-application-state selector validation (spec section 7): a
+  // bounded sample of real Apty paths captured at the SEED state, later
+  // replayed (via `replayElementPathSamplesInFrame` — never regenerated)
+  // against every OTHER state this run actually audits. Seed-vs-every-
+  // other-state, not full all-pairs replay — a tractable, honestly-scoped
+  // design (see `docs/development/dom-health-architecture.md`).
+  let seedElementPathSamples: ElementPathSample[] = [];
+  const crossStateEvidence: CrossStateSelectorEvidence = {
+    attempted: 0,
+    directStable: 0,
+    recoveredStable: 0,
+    positionalStable: 0,
+    wrongTarget: 0,
+    notResolved: 0,
+    statesTested: 0,
+  };
+
+  async function replaySeedPathsAgainstCurrentState(): Promise<void> {
+    if (seedElementPathSamples.length === 0) return;
+    const byFrame = new Map<number, ElementPathReplaySample[]>();
+    for (const sample of seedElementPathSamples) {
+      const frameId = sample.frameId ?? 0;
+      const list = byFrame.get(frameId) ?? [];
+      list.push({ fingerprint: sample.fingerprint, path: sample.path });
+      byFrame.set(frameId, list);
+    }
+    let attemptedAny = false;
+    for (const [frameId, samples] of byFrame) {
+      const results = await replayElementPathSamplesInFrame(
+        tabId,
+        frameId,
+        samples,
+      ).catch(() => []);
+      for (const r of results) {
+        attemptedAny = true;
+        crossStateEvidence.attempted++;
+        switch (r.verdict) {
+          case "DIRECT_STABLE":
+            crossStateEvidence.directStable++;
+            break;
+          case "RECOVERED_STABLE":
+            crossStateEvidence.recoveredStable++;
+            break;
+          case "POSITIONAL_STABLE":
+            crossStateEvidence.positionalStable++;
+            break;
+          case "WRONG_TARGET":
+            crossStateEvidence.wrongTarget++;
+            break;
+          case "NOT_RESOLVED":
+            crossStateEvidence.notResolved++;
+            break;
+          case "AMBIGUOUS":
+            // Consumes the denominator (a genuine, if inconclusive,
+            // attempt) without claiming any specific stability verdict.
+            break;
+        }
+      }
+    }
+    if (attemptedAny) crossStateEvidence.statesTested++;
+  }
+
   const graph = new StateGraph();
   const seedFingerprint = (await captureFingerprint(tabId)) ?? {
     fingerprint: "unknown-seed",
@@ -569,6 +635,12 @@ export async function runApplicationDomHealthAudit(
         frameAccessibility: auditOutcome.frameAccessibility,
       });
 
+      if (next.source === "seed") {
+        seedElementPathSamples = auditOutcome.elementPathSamples;
+      } else {
+        await replaySeedPathsAgainstCurrentState();
+      }
+
       if (auditedCount >= limits.maxPages) break;
       if (Date.now() - startedAt >= limits.maxTotalAuditMs) break;
 
@@ -736,6 +808,10 @@ export async function runApplicationDomHealthAudit(
       frameAccessibility: auditOutcome.frameAccessibility,
     });
 
+    // A click-driven state is never the seed itself — always replay the
+    // seed's captured paths against it.
+    await replaySeedPathsAgainstCurrentState();
+
     if (auditedCount >= limits.maxPages) break;
     if (Date.now() - startedAt >= limits.maxTotalAuditMs) break;
 
@@ -751,6 +827,7 @@ export async function runApplicationDomHealthAudit(
           : "anchor-links",
     stateGraph: buildStateGraphSummary(graph),
     restorations,
+    crossStateEvidence,
   });
   return { available: true, ...result };
 }

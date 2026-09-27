@@ -435,6 +435,126 @@ describe("DomHealthCard", () => {
     expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
   });
 
+  it("passes the selected discovery mode through to runApplicationDomHealthAudit, defaulting to safe link discovery", async () => {
+    mockRunApplicationDomHealthAudit.mockResolvedValue({
+      available: true,
+      auditId: "app-2",
+      timestamp: Date.now(),
+      scope: "page",
+      scopeLabel: "CURRENT_PAGE",
+      score: 91,
+      grade: "EXCELLENT",
+      confidence: "LOW",
+      evidenceState: "INCOMPLETE_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 1,
+        framesAccessible: 1,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
+      coverage: {
+        pagesDiscovered: 1,
+        pagesAudited: 1,
+        pagesFailed: 0,
+        pagesSkippedUnsafe: 0,
+        pagesSkippedDuplicate: 0,
+        pagesNotDiscovered: 0,
+        coveragePercent: 100,
+        coverageLabel: "OBSERVED_COVERAGE",
+        discoveryMethod: "anchor-links",
+        framesDiscovered: 1,
+        framesInspected: 1,
+        framesInaccessible: 0,
+      },
+      analysisCoverage: {
+        candidatesFound: 7,
+        candidatesAnalyzed: 7,
+        capped: false,
+        capReason: null,
+      },
+      manualSelectorDependency: 0,
+      metrics: {
+        automaticSelection: 100,
+        selectorStability: 60,
+        recoveryEfficacy: 100,
+        selectorComplexity: 100,
+        ambiguityRisk: 100,
+        hitTestTargetability: 14,
+        domVolatility: 100,
+        accessibilitySignal: 0,
+      },
+      metricDetails: {
+        automaticSelection: {
+          totalAnalyzed: 7,
+          directSuccess: 7,
+          recoveredByIgnore: 0,
+          recoveredByPartial: 0,
+          recoveredByContext: 0,
+          directSuccessRate: 100,
+          recoveredSuccessRate: 0,
+          manualDependencyRate: 0,
+        },
+        hitTestTargetability: {
+          tested: 7,
+          fullyTargetable: 1,
+          partiallyTargetable: 0,
+          occludedOrHidden: 6,
+        },
+        accessibilitySignal: { totalInteractive: 7, missingAccessibleName: 7 },
+      } as any,
+      selectorConfiguration: {
+        source: "default",
+        detail: "Default/reconstructed DES configuration.",
+      },
+      crossStateEvidence: {
+        attempted: 0,
+        directStable: 0,
+        recoveredStable: 0,
+        positionalStable: 0,
+        wrongTarget: 0,
+        notResolved: 0,
+        statesTested: 0,
+      },
+      summary: "Evidence was incomplete.",
+      strengths: [],
+      risks: [],
+      recommendations: [],
+      pages: [
+        {
+          url: "https://example.com/",
+          title: "Home",
+          discoverySource: "seed",
+          status: "completed",
+          result: { score: 91, grade: "EXCELLENT", metricDetails: {} as any },
+        },
+      ],
+      methodology: [],
+    });
+
+    render(<DomHealthCard />);
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: /application discovery mode/i }),
+      { target: { value: "page" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /audit application/i }));
+
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(
+      5,
+      expect.objectContaining({ discoveryMode: "page" }),
+    );
+
+    // Never presents an INCOMPLETE_EVIDENCE, single-page result as if it
+    // were application-wide health (spec sections 1/18).
+    expect(
+      await screen.findByText(/Observed current-page DOM health: 91\/100/i),
+    ).toBeInTheDocument();
+    // Hit-test and accessibility failures stay visible even though the
+    // headline score is high (spec sections 10-11).
+    expect(screen.getByText("6/7")).toBeInTheDocument();
+    expect(screen.getByText("7/7")).toBeInTheDocument();
+  });
+
   it("disables the check button when there is no target tab", () => {
     mockUseCurrentTarget.mockReturnValue({
       tabId: null,

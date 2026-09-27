@@ -23,6 +23,7 @@ import type {
   DomHealthShadowDomInfo,
   DomHealthSnapshot,
   DomHealthZIndexInfo,
+  ElementPathSample,
   ElementSelectorReport,
 } from "@apty/dom-snapshot";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
@@ -100,6 +101,30 @@ export const DEFAULT_FRAME_ACCESSIBILITY: FrameAccessibilitySummary = {
 };
 
 /**
+ * Whether this analysis actually retrieved customer-specific Apty Studio
+ * selector configuration (Ignore Selector / Partial Selector / Attribute
+ * Priority) or fell back to Apty's own real defaults — spec section 8:
+ * never claim Studio was consulted unless real evidence was retrieved.
+ * There is currently no real integration channel anywhere in this codebase
+ * that CAN retrieve a customer's live Apty Studio configuration (see
+ * `docs/development/des-engine.md`'s Studio/Client forensics), so this is
+ * always `"default"` today — an honest, static fact, not an invented
+ * production API. The `"customer"` variant exists in the type so a future
+ * real integration has somewhere truthful to report through, without this
+ * report ever silently claiming it in the meantime.
+ */
+export interface SelectorConfigurationEvidence {
+  source: "default" | "customer";
+  detail: string;
+}
+
+export const DEFAULT_SELECTOR_CONFIGURATION: SelectorConfigurationEvidence = {
+  source: "default",
+  detail:
+    "Customer-specific Apty selector configuration is unavailable in this session; analysis uses Apty's real default DES behavior (Ignore Selector / Partial Selector / Attribute Priority defaults), never an invented substitute.",
+};
+
+/**
  * The single gate between "how much real evidence do we have" and "is a
  * numeric score meaningful". `totalAnalyzed === 0` MUST NOT be scored as
  * healthy just because every per-metric percentage's zero-denominator
@@ -132,6 +157,12 @@ export interface DomHealthMetricDetails {
     recoveredByIgnore: number;
     recoveredByPartial: number;
     recoveredByContext: number;
+    /** % resolved WITHOUT any recovery strategy — the strongest signal (spec section 9). */
+    directSuccessRate: number;
+    /** % resolved only via ignore/partial/contextual recovery — working, but only because recovery compensated. */
+    recoveredSuccessRate: number;
+    /** % not resolved by any simulated automatic strategy at all. */
+    manualDependencyRate: number;
   };
   selectorStability: {
     trackedFromPrevious: number;
@@ -202,6 +233,12 @@ export interface DomHealthAuditResult {
   frameAccessibility: FrameAccessibilitySummary;
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
   scope: "page";
+  /** Human-readable companion to `scope`, so a caller never has to invent its own scope wording — always "CURRENT_PAGE" here, paired with "APPLICATION" on `ApplicationAuditResult` (spec sections 1/18). A result with this scope is never described as "application health". */
+  scopeLabel: "CURRENT_PAGE";
+  /** Whether real customer-specific Apty Studio configuration or Apty's own defaults were used (spec section 8) — always `DEFAULT_SELECTOR_CONFIGURATION` today; see its doc comment. */
+  selectorConfiguration: SelectorConfigurationEvidence;
+  /** Bounded sample of real Apty-style paths captured THIS audit, for a caller (`application-audit.ts`) to replay against a different discovered application state — see `ElementPathSample`'s doc comment. Not rendered directly by the page-level UI. */
+  elementPathSamples: ElementPathSample[];
   coverage: {
     snapshotsCompared: number;
     elementsAnalyzed: number;
@@ -303,12 +340,15 @@ export function scoreAutomaticSelection(agg: {
   recoveredByPartial: number;
   recoveredByContext: number;
 }) {
-  const resolved =
-    agg.directSuccess +
-    agg.recoveredByIgnore +
-    agg.recoveredByPartial +
-    agg.recoveredByContext;
+  const recovered =
+    agg.recoveredByIgnore + agg.recoveredByPartial + agg.recoveredByContext;
+  const resolved = agg.directSuccess + recovered;
   return {
+    // The headline score deliberately still counts a recovered resolution
+    // as automatic success (spec: "do not remove these outcomes") — but
+    // `detail` below breaks direct vs. recovered vs. manual out explicitly,
+    // so a consumer can tell whether selectors are naturally stable or
+    // only working because recovery logic is compensating (spec section 9).
     score: pct(resolved, agg.totalAnalyzed),
     detail: {
       totalAnalyzed: agg.totalAnalyzed,
@@ -316,6 +356,15 @@ export function scoreAutomaticSelection(agg: {
       recoveredByIgnore: agg.recoveredByIgnore,
       recoveredByPartial: agg.recoveredByPartial,
       recoveredByContext: agg.recoveredByContext,
+      /** % of analyzed elements resolved WITHOUT any recovery strategy — the strongest signal. */
+      directSuccessRate: pct(agg.directSuccess, agg.totalAnalyzed),
+      /** % of analyzed elements resolved only via ignore/partial/contextual recovery — working, but only because recovery logic compensated. */
+      recoveredSuccessRate: pct(recovered, agg.totalAnalyzed),
+      /** % of analyzed elements NOT resolved by any simulated automatic strategy — positional/ambiguous/wrong-target/unresolved/inaccessible. */
+      manualDependencyRate: pct(
+        Math.max(0, agg.totalAnalyzed - resolved),
+        agg.totalAnalyzed,
+      ),
     },
   };
 }
@@ -947,6 +996,9 @@ export function buildDomHealthAuditResult(
     evidenceState,
     frameAccessibility,
     scope: "page",
+    scopeLabel: "CURRENT_PAGE",
+    selectorConfiguration: DEFAULT_SELECTOR_CONFIGURATION,
+    elementPathSamples: current.elementPathSamples,
     coverage: {
       snapshotsCompared: snapshots.length,
       elementsAnalyzed: current.selectorAnalysis.totalAnalyzed,

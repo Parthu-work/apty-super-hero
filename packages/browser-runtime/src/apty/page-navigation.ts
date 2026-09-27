@@ -21,7 +21,9 @@
  * un-addressed broadcast) could never see it.
  */
 import type {
+  CrossStateVerdict,
   DiscoverableLink,
+  ElementPath,
   SafeNavigationCandidate,
 } from "@apty/dom-snapshot";
 import { getFrameTree, sendFrameMessage } from "./frame-tree.js";
@@ -227,5 +229,43 @@ export async function getNavigationModel(
   if (!response.success || !response.data) {
     return { usesHistoryApiRouting: false, historyApiCallCount: 0 };
   }
+  return response.data;
+}
+
+export interface ElementPathReplaySample {
+  fingerprint: string;
+  path: ElementPath;
+}
+
+export interface ElementPathReplayResponseItem {
+  fingerprint: string;
+  verdict: CrossStateVerdict;
+}
+
+/**
+ * Replay element paths CAPTURED at some other application state against
+ * `frameId`'s CURRENT live DOM — the cross-application-state selector
+ * validation primitive (spec section 7: "can the selector/config captured
+ * in one application state still resolve correctly when the application
+ * changes state"). Delegates entirely to `@apty/dom-snapshot`'s
+ * `replayElementPathSamples`/`verifyStoredElementPath` inside the content
+ * script — never regenerates a fresh path from the current DOM and
+ * compares it to the old one. A frame that doesn't respond (or has none of
+ * the requested samples reachable) contributes nothing rather than a
+ * fabricated verdict.
+ */
+export async function replayElementPathSamplesInFrame(
+  tabId: number,
+  frameId: number,
+  samples: ElementPathReplaySample[],
+): Promise<ElementPathReplayResponseItem[]> {
+  if (samples.length === 0) return [];
+  const response = await sendFrameMessage<ElementPathReplayResponseItem[]>(
+    tabId,
+    frameId,
+    { request: "replay-dom-health-element-paths", samples },
+    DISCOVERY_FRAME_TIMEOUT_MS,
+  );
+  if (!response.success || !response.data) return [];
   return response.data;
 }

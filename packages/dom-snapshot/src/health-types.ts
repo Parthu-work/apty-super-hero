@@ -9,6 +9,7 @@
  * already exist here; it must never re-derive them from raw attribute
  * presence.
  */
+import type { ElementPath } from "./des-engine.js";
 
 /** Attributes on an analyzed element — never includes input values. */
 export interface DomHealthElementAttributes {
@@ -120,6 +121,32 @@ export type SelectorStrategy =
   | "context"
   | "positional"
   | "none";
+
+/**
+ * A captured, real Apty-style path for one element at THIS state — the
+ * building block for cross-APPLICATION-STATE validation (as distinct from
+ * cross-SNAPSHOT-of-the-same-state stability, which `StabilityStats`
+ * already tracks). A caller (`@apty/browser-runtime`'s `application-audit.ts`)
+ * stores a bounded sample of these from one discovered state and REPLAYS
+ * them (via `verifyStoredElementPath`, never regenerated) against another
+ * discovered state's live DOM, to answer "can a selector/path captured in
+ * one application state still resolve correctly when the application
+ * changes state" — a materially different, stronger question than same-state
+ * volatility. Bounded per snapshot (see `health-collector.ts`'s
+ * `MAX_ELEMENT_PATH_SAMPLES`) so the message payload never grows unbounded
+ * on a huge page. Never includes an element whose fingerprint collided with
+ * another element in the same snapshot (an ambiguous anchor is useless for
+ * later identity verification).
+ */
+export interface ElementPathSample {
+  fingerprint: string;
+  path: ElementPath;
+  tagName: string;
+  selector: string | null;
+  outcome: SelectorResolutionOutcome;
+  /** Which frame this sample was captured in — stamped by the multi-frame aggregator (`@apty/browser-runtime`'s `frame-audit.ts`), same pattern as `ElementSelectorReport.frameId`. Absent on a raw single-frame snapshot straight out of `collectDomHealthSnapshot`. */
+  frameId?: number;
+}
 
 /**
  * Cross-STATE verdict for one element, from LOGICAL correlation (spec
@@ -347,6 +374,8 @@ export interface DomHealthSnapshot {
   zIndex: DomHealthZIndexInfo;
   /** Which frame this snapshot came from, when the caller knows (see `DomHealthCollectorOptions.frameContext`) — absent for a bare, orchestrator-less call. */
   frame?: DomHealthFrameIdentity | null;
+  /** Bounded sample of real Apty-style paths captured this snapshot, for cross-APPLICATION-STATE replay (see `ElementPathSample`'s doc comment) — never used for same-state stability, which `stability` above already covers. */
+  elementPathSamples: ElementPathSample[];
 }
 
 export interface DomHealthCollectorOptions {

@@ -1,4 +1,5 @@
 export { collectDomSnapshot, collectDomSnapshotInPage } from "./collector.js";
+export type { ElementPath } from "./des-engine.js";
 export {
   __resetDomHealthRegistryForTests,
   collectDomHealthSnapshot,
@@ -15,12 +16,18 @@ export {
   type SafeNavigationCandidate,
 } from "./health-links.js";
 export {
+  type CrossStateVerdict,
+  type CrossStateVerification,
+  computeElementFingerprint,
+  type ElementPathReplayResult,
   type ElementResolution,
   extractElementAttributes,
   hasAccessibleName,
   type ResolveElementOptions,
+  replayElementPathSamples,
   resolveElement,
   testSelector,
+  verifyStoredElementPath,
 } from "./health-selector-engine.js";
 export {
   computeFrameStateSignature,

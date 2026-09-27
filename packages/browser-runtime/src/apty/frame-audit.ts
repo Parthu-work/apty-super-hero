@@ -19,6 +19,7 @@
  */
 import type {
   DomHealthSnapshot,
+  ElementPathSample,
   ElementSelectorReport,
   FrameStateSignature,
 } from "@apty/dom-snapshot";
@@ -175,6 +176,9 @@ function emptySelectorAnalysis() {
  * correct stability verdicts; this only concatenates them, tagging each
  * with where it came from).
  */
+/** Overall cap on `elementPathSamples` after merging across every frame — bounds the cross-application-state replay payload size regardless of how many frames a page has. */
+const MAX_AGGREGATED_ELEMENT_PATH_SAMPLES = 50;
+
 export function aggregateFrameSnapshots(
   frames: FrameCaptureResult[],
 ): DomHealthSnapshot {
@@ -187,6 +191,7 @@ export function aggregateFrameSnapshots(
     captured.find((f) => f.frame.frameType === "top") ?? captured[0];
 
   const elementReports: ElementSelectorReport[] = [];
+  const elementPathSamples: ElementPathSample[] = [];
   const selectorAnalysis = emptySelectorAnalysis();
   let totalElements = 0;
   let interactiveElements = 0;
@@ -265,6 +270,12 @@ export function aggregateFrameSnapshots(
         frameId: entry.frame.frameId,
         frameUrl: s.url,
       });
+    }
+    for (const sample of s.elementPathSamples ?? []) {
+      if (elementPathSamples.length >= MAX_AGGREGATED_ELEMENT_PATH_SAMPLES) {
+        break;
+      }
+      elementPathSamples.push({ ...sample, frameId: entry.frame.frameId });
     }
     selectorAnalysis.totalAnalyzed += s.selectorAnalysis.totalAnalyzed;
     selectorAnalysis.directSuccess += s.selectorAnalysis.directSuccess;
@@ -394,6 +405,7 @@ export function aggregateFrameSnapshots(
       shadowDomElements,
     },
     elementReports,
+    elementPathSamples,
     analysisCoverage: {
       candidatesFound,
       candidatesAnalyzed,
