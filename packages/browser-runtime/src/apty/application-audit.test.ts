@@ -111,13 +111,17 @@ function snapshotFixture(url: string): DomHealthSnapshot {
     },
     stability: {
       trackedFromPrevious: 0,
-      stable: 0,
-      changed: 0,
+      directStable: 0,
+      recoveredStable: 0,
+      positionalStable: 0,
+      wrongTarget: 0,
+      notResolved: 0,
       detached: 0,
       new: 0,
       unknown: 1,
       nodeReplacedButLogicallyStable: 0,
       ambiguous: 0,
+      inaccessible: 0,
     },
     hitTesting: {
       tested: 1,
@@ -292,6 +296,37 @@ describe("runApplicationDomHealthAudit", () => {
         expect.objectContaining({ url: "https://app.example.com/orders" }),
       );
     }
+  });
+
+  it('discoveryMode "page" never navigates away or discovers further links/candidates, even when some exist', async () => {
+    linksByUrl.set("https://app.example.com/home", [
+      link({ absoluteUrl: "https://app.example.com/orders" }),
+    ]);
+    candidatesByUrl.set("https://app.example.com/home", [
+      {
+        domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
+        role: "menuitem",
+        tagName: "div",
+        text: "Customers",
+        looksDestructive: false,
+        destructiveReason: null,
+      },
+    ]);
+
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      discoveryMode: "page",
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.scope).toBe("page");
+      expect(result.coverage.pagesDiscovered).toBe(1);
+      expect(result.coverage.pagesAudited).toBe(1);
+      expect(result.coverage.discoveryMethod).toBe("single-page-only");
+    }
+    expect(mockTabsUpdate).not.toHaveBeenCalled();
   });
 
   it("never navigates to a cross-origin link and records it as skipped", async () => {
@@ -527,7 +562,7 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
       );
       expect(result.coverage.discoveryMethod).toBe("anchor-links");
     }
-    // The click-dispatch message is never sent unless allowClickDiscovery is set.
+    // The click-dispatch message is never sent unless discoveryMode "application-deep" is set.
     expect(mockSendMessage).not.toHaveBeenCalledWith(
       TAB_ID,
       expect.objectContaining({ request: "click-safe-navigation-candidate" }),
@@ -536,7 +571,7 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     );
   });
 
-  it("discovers a same-URL state via a click when allowClickDiscovery is explicitly enabled", async () => {
+  it('discovers a same-URL state via a click when discoveryMode "application-deep" is explicitly requested', async () => {
     candidatesByUrl.set("https://app.example.com/home", [
       {
         domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
@@ -604,7 +639,7 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     );
 
     const promise = runApplicationDomHealthAudit(TAB_ID, {
-      allowClickDiscovery: true,
+      discoveryMode: "application-deep",
     });
     await vi.runAllTimersAsync();
     const result = await promise;
@@ -687,7 +722,7 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     );
 
     const promise = runApplicationDomHealthAudit(TAB_ID, {
-      allowClickDiscovery: true,
+      discoveryMode: "application-deep",
       maxPages: 3,
     });
     await vi.runAllTimersAsync();
@@ -709,7 +744,7 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     }
   });
 
-  it("never sends a click message for a candidate flagged destructive, even with allowClickDiscovery enabled", async () => {
+  it('never sends a click message for a candidate flagged destructive, even with discoveryMode "application-deep"', async () => {
     candidatesByUrl.set("https://app.example.com/home", [
       {
         domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
@@ -722,7 +757,7 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     ]);
 
     const promise = runApplicationDomHealthAudit(TAB_ID, {
-      allowClickDiscovery: true,
+      discoveryMode: "application-deep",
     });
     await vi.runAllTimersAsync();
     const result = await promise;
@@ -877,7 +912,7 @@ describe("runApplicationDomHealthAudit — state graph + backtracking (RC-6, the
     const { visitCounts } = setupLnLikeMock();
 
     const promise = runApplicationDomHealthAudit(TAB_ID, {
-      allowClickDiscovery: true,
+      discoveryMode: "application-deep",
     });
     await vi.runAllTimersAsync();
     const result = await promise;
@@ -935,7 +970,7 @@ describe("runApplicationDomHealthAudit — state graph + backtracking (RC-6, the
     });
 
     const promise = runApplicationDomHealthAudit(TAB_ID, {
-      allowClickDiscovery: true,
+      discoveryMode: "application-deep",
     });
     await vi.runAllTimersAsync();
     const result = await promise;

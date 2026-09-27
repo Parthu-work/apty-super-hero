@@ -69,6 +69,16 @@ export type DomHealthConfidence = "HIGH" | "MEDIUM" | "LOW";
  *   claimed, because part of the picture is missing.
  * - FAILED: not even the frames we could reach answered — there is no
  *   evidence at all.
+ * - INCOMPLETE_EVIDENCE: application-level only (see `application-scoring.ts`'s
+ *   `determineApplicationEvidenceState`) — real per-element evidence exists
+ *   and every reachable frame answered, but real APPLICATION/navigation
+ *   coverage did not: a meaningful share of detected navigation candidates
+ *   were never explored, and/or at least one backtracking restoration
+ *   failed, so states beyond the failure point were never reached either.
+ *   This is the direct fix for "the tool reported 92/100 on an application
+ *   that was never actually comprehensively explored" — a score is still
+ *   reported (it is honest about what WAS seen), but it is never treated as
+ *   equivalent to full, meaningful coverage.
  * - NOT_ASSESSED: the audit never attempted to collect evidence in the
  *   first place (e.g. an unsupported page) — set by the caller, never by
  *   `determineEvidenceState`.
@@ -78,6 +88,7 @@ export type EvidenceState =
   | "PARTIAL_EVIDENCE"
   | "NO_EVIDENCE"
   | "INACCESSIBLE"
+  | "INCOMPLETE_EVIDENCE"
   | "FAILED"
   | "NOT_ASSESSED";
 
@@ -124,8 +135,11 @@ export interface DomHealthMetricDetails {
   };
   selectorStability: {
     trackedFromPrevious: number;
-    stable: number;
-    changed: number;
+    directStable: number;
+    recoveredStable: number;
+    positionalStable: number;
+    wrongTarget: number;
+    notResolved: number;
     detached: number;
     new: number;
   };
@@ -222,15 +236,30 @@ export interface DomHealthAuditResult {
 // Weights and grading
 // ---------------------------------------------------------------------------
 
-/** Sums to 1 — kept explicit per component so the score is reproducible and reviewable, not a black box (spec section 26). */
+/**
+ * Sums to 1 — kept explicit per component so the score is reproducible and
+ * reviewable, not a black box (spec section 26).
+ *
+ * `automaticSelection` + `selectorStability` together carry over half the
+ * weight, and `ambiguityRisk` (which folds in same-snapshot wrong-target
+ * candidates) is weighted above the presentation-layer signals
+ * (`hitTestTargetability`/`domVolatility`/`accessibilitySignal`) —
+ * deliberately, so that real selector-resolution/cross-state-stability/
+ * wrong-target evidence dominates the headline score, and a page that
+ * resolves perfectly today but is barely findable across application
+ * states (or worse, resolves to the WRONG element) can never be diluted
+ * back up to "excellent" just because everything ELSE about it (hit
+ * testing, DOM volatility, accessible names) happens to be clean (spec
+ * section 13/36 Case C).
+ */
 export const WEIGHTS: DomHealthMetrics = {
-  automaticSelection: 0.35,
-  selectorStability: 0.2,
-  recoveryEfficacy: 0.1,
-  selectorComplexity: 0.1,
-  ambiguityRisk: 0.1,
-  hitTestTargetability: 0.08,
-  domVolatility: 0.05,
+  automaticSelection: 0.3,
+  selectorStability: 0.3,
+  recoveryEfficacy: 0.08,
+  selectorComplexity: 0.08,
+  ambiguityRisk: 0.12,
+  hitTestTargetability: 0.06,
+  domVolatility: 0.04,
   accessibilitySignal: 0.02,
 };
 
@@ -297,8 +326,11 @@ function computeAutomaticSelection(current: DomHealthSnapshot) {
 
 export function scoreSelectorStability(agg: {
   trackedFromPrevious: number;
-  stable: number;
-  changed: number;
+  directStable: number;
+  recoveredStable: number;
+  positionalStable: number;
+  wrongTarget: number;
+  notResolved: number;
   detached: number;
   new: number;
 }) {
@@ -308,24 +340,41 @@ export function scoreSelectorStability(agg: {
   if (agg.trackedFromPrevious === 0) {
     return { score: 60, detail: { ...agg } };
   }
-  return {
-    score: pct(agg.stable, agg.trackedFromPrevious),
-    detail: { ...agg },
-  };
+  // Positional-only stability is real evidence (the stored path DID
+  // resolve to the correct element via `leafFieldCombinations`), but it is
+  // never worth the same credit as an attribute-anchored match — a
+  // positional match survives only because nothing nearby shifted order
+  // either, a much thinner guarantee (spec section 4: never treat a
+  // positional-only match as equivalent to a stable attribute match).
+  // `wrongTarget`/`notResolved`/`detached` earn zero credit — a broken or
+  // wrong-target selector is always a failure here, never folded away.
+  const weightedFound =
+    agg.directStable + agg.recoveredStable + agg.positionalStable * 0.5;
+  const score = Math.min(
+    100,
+    Math.round((weightedFound / agg.trackedFromPrevious) * 100),
+  );
+  return { score, detail: { ...agg } };
 }
 
 function computeSelectorStability(current: DomHealthSnapshot) {
   const {
     trackedFromPrevious,
-    stable,
-    changed,
+    directStable,
+    recoveredStable,
+    positionalStable,
+    wrongTarget,
+    notResolved,
     detached,
     new: newCount,
   } = current.stability;
   return scoreSelectorStability({
     trackedFromPrevious,
-    stable,
-    changed,
+    directStable,
+    recoveredStable,
+    positionalStable,
+    wrongTarget,
+    notResolved,
     detached,
     new: newCount,
   });
@@ -529,8 +578,12 @@ export function buildStrengths(
     metrics.selectorStability >= 80 &&
     details.selectorStability.trackedFromPrevious > 0
   ) {
+    const foundCorrectly =
+      details.selectorStability.directStable +
+      details.selectorStability.recoveredStable +
+      details.selectorStability.positionalStable;
     strengths.push(
-      `${metrics.selectorStability}% of tracked selectors (${details.selectorStability.stable}/${details.selectorStability.trackedFromPrevious}) remained stable across snapshots.`,
+      `${metrics.selectorStability}% of tracked selectors (${foundCorrectly}/${details.selectorStability.trackedFromPrevious} — ${details.selectorStability.directStable} directly, ${details.selectorStability.recoveredStable} via DES recovery, ${details.selectorStability.positionalStable} positionally) resolved correctly across states when replayed.`,
     );
   }
   if (metrics.hitTestTargetability >= 85 && hitTestTargetability.tested > 0) {
@@ -582,11 +635,14 @@ export function buildRisks(
     metrics.selectorStability < 70 &&
     details.selectorStability.trackedFromPrevious > 0
   ) {
+    const broken =
+      details.selectorStability.wrongTarget +
+      details.selectorStability.notResolved;
     risks.push({
       id: "selector-volatility",
       severity: metrics.selectorStability < 50 ? "high" : "medium",
-      title: "Selector volatility detected across snapshots",
-      evidence: `${details.selectorStability.changed} of ${details.selectorStability.trackedFromPrevious} previously-resolved selectors broke or stopped pointing at the same element when re-verified; ${details.selectorStability.detached} elements were no longer present.`,
+      title: "Selector volatility detected across states",
+      evidence: `${broken} of ${details.selectorStability.trackedFromPrevious} previously-captured element paths broke (${details.selectorStability.wrongTarget} resolved to the wrong element, ${details.selectorStability.notResolved} resolved to nothing) when replayed against a later state; ${details.selectorStability.detached} elements were no longer present at all.`,
     });
   }
 
@@ -657,11 +713,14 @@ export function buildRecommendations(
     });
   }
 
-  if (details.selectorStability.changed > 0) {
+  const brokenAcrossStates =
+    details.selectorStability.wrongTarget +
+    details.selectorStability.notResolved;
+  if (brokenAcrossStates > 0) {
     recommendations.push({
       id: "reduce-generated-id-reliance",
       title: "Reduce reliance on generated ids/classes",
-      detail: `${details.selectorStability.changed} previously-working selector(s) broke across snapshots. Prefer stable semantic or application-specific attributes over framework-generated ids/classes for elements users are guided to.`,
+      detail: `${brokenAcrossStates} previously-captured element path(s) broke when replayed against a later state. Prefer stable semantic or application-specific attributes over framework-generated ids/classes for elements users are guided to.`,
       relatedStudioConcept: "Ignore Selector",
     });
   }

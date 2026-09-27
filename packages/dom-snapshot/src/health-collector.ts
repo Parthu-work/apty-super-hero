@@ -52,14 +52,14 @@
  *   a fingerprint with another element in THIS snapshot is reported
  *   `AMBIGUOUS`, never silently resolved by taking the first match.
  */
-import { resetDesPerformanceCaches } from "./des-engine.js";
+import { type ElementPath, resetDesPerformanceCaches } from "./des-engine.js";
 import { hitTestElement } from "./health-hit-test.js";
 import {
   computeElementFingerprint,
   extractElementAttributes,
   hasAccessibleName,
   resolveElement,
-  testSelector,
+  verifyStoredElementPath,
 } from "./health-selector-engine.js";
 import type {
   DomHealthCollectorOptions,
@@ -141,8 +141,8 @@ const SEMANTIC_CONTAINER_ROLES = new Set([
 
 interface RegistryEntry {
   el: Element;
-  selector: string;
-  root: ParentNode;
+  /** The real Apty-style path captured for this element at the PREVIOUS state — replayed (never regenerated) against the current live DOM by `verifyStoredElementPath`. Null only when the previous resolution was `INACCESSIBLE`. */
+  path: ElementPath | null;
   id?: string;
   className?: string;
 }
@@ -275,13 +275,17 @@ interface CollectorState {
   };
   stability: {
     trackedFromPrevious: number;
-    stable: number;
-    changed: number;
+    directStable: number;
+    recoveredStable: number;
+    positionalStable: number;
+    wrongTarget: number;
+    notResolved: number;
     detached: number;
     new: number;
     unknown: number;
     nodeReplacedButLogicallyStable: number;
     ambiguous: number;
+    inaccessible: number;
   };
   hitTesting: {
     tested: number;
@@ -357,13 +361,17 @@ function createState(): CollectorState {
     },
     stability: {
       trackedFromPrevious: 0,
-      stable: 0,
-      changed: 0,
+      directStable: 0,
+      recoveredStable: 0,
+      positionalStable: 0,
+      wrongTarget: 0,
+      notResolved: 0,
       detached: 0,
       new: 0,
       unknown: 0,
       nodeReplacedButLogicallyStable: 0,
       ambiguous: 0,
+      inaccessible: 0,
     },
     hitTesting: {
       tested: 0,
@@ -464,12 +472,58 @@ function analyzeInteractiveElement(
   } else {
     state.stability.trackedFromPrevious++;
     nodeReplaced = previous.el !== el;
-    const result = testSelector(previous.root, previous.selector, el);
-    stability =
-      result.matchCount === 1 && result.matchesTarget ? "STABLE" : "CHANGED";
-    if (stability === "STABLE") state.stability.stable++;
-    else state.stability.changed++;
-    if (nodeReplaced) state.stability.nodeReplacedButLogicallyStable++;
+
+    if (!previous.path) {
+      // The previous state's resolution was INACCESSIBLE — there was never
+      // a path to store, so there is nothing real to replay. Never
+      // fabricate a stability verdict from nothing.
+      stability = "INACCESSIBLE";
+      state.stability.inaccessible++;
+    } else {
+      // The GOOD cross-state pattern: replay the path CAPTURED at the
+      // previous state against THIS state's live DOM via the real,
+      // unmodified DES `findElement` pipeline — never regenerate a fresh
+      // path from the current DOM and compare it to the old one.
+      const verification = verifyStoredElementPath(
+        root,
+        previous.path,
+        fingerprint,
+      );
+      switch (verification.verdict) {
+        case "DIRECT_STABLE":
+          stability = "DIRECT_STABLE";
+          state.stability.directStable++;
+          break;
+        case "RECOVERED_STABLE":
+          stability = "RECOVERED_STABLE";
+          state.stability.recoveredStable++;
+          break;
+        case "POSITIONAL_STABLE":
+          stability = "POSITIONAL_STABLE";
+          state.stability.positionalStable++;
+          break;
+        case "WRONG_TARGET":
+          stability = "WRONG_TARGET";
+          state.stability.wrongTarget++;
+          break;
+        case "NOT_RESOLVED":
+          stability = "NOT_RESOLVED";
+          state.stability.notResolved++;
+          break;
+        case "AMBIGUOUS":
+          stability = "AMBIGUOUS";
+          state.stability.ambiguous++;
+          break;
+      }
+    }
+
+    const foundCorrectly =
+      stability === "DIRECT_STABLE" ||
+      stability === "RECOVERED_STABLE" ||
+      stability === "POSITIONAL_STABLE";
+    if (nodeReplaced && foundCorrectly) {
+      state.stability.nodeReplacedButLogicallyStable++;
+    }
 
     if (
       previous.id !== undefined &&
@@ -487,7 +541,7 @@ function analyzeInteractiveElement(
     }
 
     if (resolution.usesPositionalSelector) {
-      if (stability === "STABLE") state.positional.stableAcrossSnapshots++;
+      if (foundCorrectly) state.positional.stableAcrossSnapshots++;
       else state.positional.changedAcrossSnapshots++;
     }
   }
@@ -498,8 +552,7 @@ function analyzeInteractiveElement(
   if (!fingerprintIsAmbiguous && !currentRegistry.has(fingerprint)) {
     currentRegistry.set(fingerprint, {
       el,
-      selector: resolution.bestSelector ?? "",
-      root,
+      path: resolution.elementPath,
       id: attributes.id,
       className: attributes.className,
     });

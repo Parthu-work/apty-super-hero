@@ -152,16 +152,16 @@ describe("collectDomHealthSnapshot — selector resolution", () => {
   });
 });
 
-describe("collectDomHealthSnapshot — cross-snapshot stability (logical fingerprint, not object identity)", () => {
-  it("marks a selector STABLE when re-verified against the same live element", async () => {
+describe("collectDomHealthSnapshot — cross-STATE stability (real DES replay of a stored ElementPath, not a re-query of a string)", () => {
+  it("marks a selector DIRECT_STABLE when the stored path is replayed against the same live element unchanged", async () => {
     setHtml(`<button id="stable-btn">Go</button>`);
     await collectDomHealthSnapshot(document, { freshAudit: true });
     const second = await collectDomHealthSnapshot(document, {
       freshAudit: false,
     });
 
-    expect(second.elementReports[0]!.stability).toBe("STABLE");
-    expect(second.stability.stable).toBe(1);
+    expect(second.elementReports[0]!.stability).toBe("DIRECT_STABLE");
+    expect(second.stability.directStable).toBe(1);
   });
 
   it("still recognizes the same logical element after the DOM node object is replaced (fingerprint match)", async () => {
@@ -175,14 +175,19 @@ describe("collectDomHealthSnapshot — cross-snapshot stability (logical fingerp
       freshAudit: false,
     });
 
-    expect(second.elementReports[0]!.stability).toBe("STABLE");
+    expect(second.elementReports[0]!.stability).toBe("DIRECT_STABLE");
     expect(second.stability.nodeReplacedButLogicallyStable).toBe(1);
   });
 
-  it("marks a selector CHANGED when the same logical element's selector breaks between snapshots", async () => {
-    // Both values individually "look" stable to the single-observation
-    // heuristic (no digit/hash suffix) — only comparing the same logical
-    // element across snapshots reveals the id actually changed.
+  it("recovers via a surviving stable attribute (real DES relaxation) when the id changes between states — the GOOD replay pattern, not a naive string re-query", async () => {
+    // The stored path's id ("btn-alpha") is replayed against a DOM where
+    // that id no longer exists. A naive re-query of the OLD selector string
+    // would report this broken. Real DES replay tries its relaxation
+    // strategies against the CURRENT DOM and finds the same logical button
+    // via its still-matching "name" attribute — this is real recovery
+    // evidence, not a failure, and must be reported as such (never
+    // silently reported as if nothing changed, and never as NOT_RESOLVED
+    // when a real recovery strategy actually found it).
     setHtml(`<button id="btn-alpha" name="go">Go</button>`);
     await collectDomHealthSnapshot(document, { freshAudit: true });
 
@@ -191,11 +196,13 @@ describe("collectDomHealthSnapshot — cross-snapshot stability (logical fingerp
       freshAudit: false,
     });
 
-    expect(second.elementReports[0]!.stability).toBe("CHANGED");
+    expect(["RECOVERED_STABLE", "POSITIONAL_STABLE"]).toContain(
+      second.elementReports[0]!.stability,
+    );
     expect(second.dynamicAttributes.idsChangedAcrossSnapshots).toBe(1);
   });
 
-  it("marks a newly-appeared logical element as NEW rather than STABLE/CHANGED", async () => {
+  it("marks a newly-appeared logical element as NEW rather than a stability verdict", async () => {
     setHtml(`<button id="existing" name="existing">A</button>`);
     await collectDomHealthSnapshot(document, { freshAudit: true });
 
@@ -271,9 +278,11 @@ describe("collectDomHealthSnapshot — cross-snapshot stability (logical fingerp
     const unique = second.elementReports.find(
       (r) => r.attributes.id === "unique-ok",
     );
-    // Never falsely STABLE against whichever of the two colliding entries
+    // Never falsely stable against whichever of the two colliding entries
     // happened to be registered first in the prior snapshot.
-    expect(unique?.stability).not.toBe("STABLE");
+    expect(unique?.stability).not.toBe("DIRECT_STABLE");
+    expect(unique?.stability).not.toBe("RECOVERED_STABLE");
+    expect(unique?.stability).not.toBe("POSITIONAL_STABLE");
   });
 });
 

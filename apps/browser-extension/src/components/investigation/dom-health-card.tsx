@@ -88,6 +88,8 @@ const EVIDENCE_STATE_LABEL: Record<string, string> = {
   PARTIAL_EVIDENCE: "Partial evidence — some frames could not be inspected",
   NO_EVIDENCE: "No interactive elements found",
   INACCESSIBLE: "No elements found, and coverage is incomplete",
+  INCOMPLETE_EVIDENCE:
+    "Application coverage incomplete — real states/navigation candidates were never explored, or a backtracking restoration failed",
   FAILED: "Could not be inspected at all",
   NOT_ASSESSED: "Not assessed",
 };

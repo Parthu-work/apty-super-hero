@@ -43,10 +43,12 @@ export const runDomHealthAuditTool = tool({
 export const runApplicationDomHealthAuditTool = tool({
   name: "run_application_dom_health_audit",
   description:
-    "Run an application-wide Apty DOM Readiness audit starting from the current tab's page: discovers other same-origin pages via real <a href> links already in the DOM (never by clicking anything), navigates to each safe one in turn, audits every page with the same deterministic pipeline as run_dom_health_audit, and aggregates an element-weighted application score (never a blind average of per-page scores). " +
-    "Returns an explicit page inventory (audited/failed/skipped-unsafe/skipped-cross-origin/skipped-duplicate) and a coverage percentage — the result's `scope` is only ever 'application' when 2+ pages were actually audited; a single-page result reports scope 'page' even though this tool was called. " +
-    "This can take up to a few minutes and will navigate the user's active tab away from its current page through several pages — only call this when the user clearly wants application-wide/multi-page coverage, not for a single-page check (use run_dom_health_audit for that). " +
-    "Never clicks buttons, submits forms, or executes page JavaScript — discovery is read-only link inspection, and destructive-looking links (delete/logout/submit/pay/...) are always skipped. " +
+    "Run an application-wide Apty DOM Readiness audit starting from the current tab's page, with an EXPLICIT discoveryMode you must choose (see that parameter) — it never silently defaults to the deepest/most-invasive option. " +
+    "By default ('application-safe'): discovers other same-origin pages via real <a href> links already in the DOM (never by clicking anything), navigates to each safe one in turn, audits every page with the same deterministic pipeline as run_dom_health_audit, and aggregates an element-weighted application score (never a blind average of per-page scores). " +
+    "Returns an explicit page/state inventory (audited/failed/skipped-unsafe/skipped-cross-origin/skipped-duplicate/not-discovered) and a coverage percentage — the result's `scope` is only ever 'application' when 2+ states were actually audited; a single-state result reports scope 'page' even though this tool was called. " +
+    "The result's `evidenceState` can be `INCOMPLETE_EVIDENCE` even when a numeric score is present — that means real application states/navigation candidates were left unexplored or a backtracking restoration failed, so the score reflects only what was actually covered, never the whole application; always report that distinction, never call a page 'healthy' or the audit 'complete' from evidenceState alone. " +
+    "This can take up to a few minutes and will navigate the user's active tab away from its current page through several pages/states — only call this when the user clearly wants application-wide/multi-page coverage, not for a single-page check (use run_dom_health_audit for that). " +
+    "Destructive-looking links/controls (delete/logout/submit/pay/...) are always skipped regardless of discoveryMode. " +
     "The score, coverage, risks, and recommendations are calculated by code, not by you — report them exactly as returned.",
   parameters: z.object({
     maxPages: z
@@ -56,6 +58,15 @@ export const runApplicationDomHealthAuditTool = tool({
       .max(30)
       .optional()
       .describe("Maximum number of pages to audit (default 15)."),
+    discoveryMode: z
+      .enum(["page", "application-safe", "application-deep"])
+      .optional()
+      .describe(
+        "How far this run is allowed to explore beyond the current page/state — never silently defaults to the deepest option. " +
+          "'page': audit ONLY the current page/state — no navigation, no clicking, nothing else visited. " +
+          "'application-safe' (default): discover other same-origin pages via real <a href> links only, and DETECT (never click) menu/tab/tree-style controls with no real href — reported as not-discovered. " +
+          "'application-deep': additionally CLICKS detected safe navigation controls to explore same-URL, menu-driven application states — a real click on the live application; only use this when the user has explicitly asked for deeper same-URL/menu-driven exploration.",
+      ),
   }),
   execute: async (input, context) => {
     recordToolCall(
@@ -69,6 +80,7 @@ export const runApplicationDomHealthAuditTool = tool({
     }
     return runApplicationDomHealthAudit(tab.id, {
       maxPages: input.maxPages,
+      discoveryMode: input.discoveryMode,
     });
   },
 });

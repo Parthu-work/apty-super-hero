@@ -27,7 +27,7 @@ function makeReport(
     winningAttribute: "id",
     hasAccessibleName: true,
     hitTest: { pointsPassed: 9, classification: "fully-targetable" },
-    stability: "STABLE",
+    stability: "DIRECT_STABLE",
     ...overrides,
   };
 }
@@ -85,12 +85,19 @@ function aggregateStability(reports: ElementSelectorReport[]) {
   );
   return {
     trackedFromPrevious: tracked.length,
-    stable: tracked.filter((r) => r.stability === "STABLE").length,
-    changed: tracked.filter((r) => r.stability === "CHANGED").length,
+    directStable: tracked.filter((r) => r.stability === "DIRECT_STABLE").length,
+    recoveredStable: tracked.filter((r) => r.stability === "RECOVERED_STABLE")
+      .length,
+    positionalStable: tracked.filter((r) => r.stability === "POSITIONAL_STABLE")
+      .length,
+    wrongTarget: tracked.filter((r) => r.stability === "WRONG_TARGET").length,
+    notResolved: tracked.filter((r) => r.stability === "NOT_RESOLVED").length,
     detached: reports.filter((r) => r.stability === "DETACHED").length,
     new: reports.filter((r) => r.stability === "NEW").length,
     unknown: reports.filter((r) => r.stability === "UNKNOWN").length,
     nodeReplacedButLogicallyStable: 0,
+    ambiguous: reports.filter((r) => r.stability === "AMBIGUOUS").length,
+    inaccessible: reports.filter((r) => r.stability === "INACCESSIBLE").length,
   };
 }
 
@@ -251,10 +258,10 @@ describe("buildDomHealthAuditResult — the core regression: repeated non-unique
 describe("buildDomHealthAuditResult — selector stability", () => {
   it("penalizes the score when previously-resolved selectors break across snapshots", () => {
     const stableReports = Array.from({ length: 20 }, () =>
-      makeReport({ stability: "STABLE" }),
+      makeReport({ stability: "DIRECT_STABLE" }),
     );
     const unstableReports = Array.from({ length: 20 }, () =>
-      makeReport({ stability: "UNSTABLE" }),
+      makeReport({ stability: "NOT_RESOLVED" }),
     );
 
     const stableResult = buildDomHealthAuditResult(
@@ -346,7 +353,7 @@ describe("buildDomHealthAuditResult — confidence", () => {
 
   it("reports HIGH confidence with a large, multi-snapshot, mostly-tracked sample", () => {
     const reports = Array.from({ length: 40 }, () =>
-      makeReport({ stability: "STABLE" }),
+      makeReport({ stability: "DIRECT_STABLE" }),
     );
     const snapshot = makeSnapshot(reports);
 

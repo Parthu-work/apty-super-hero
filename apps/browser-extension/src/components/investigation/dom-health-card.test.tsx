@@ -223,7 +223,7 @@ describe("DomHealthCard", () => {
           stableAttributeNames: [],
           hasAccessibleName: false,
           hitTest: { pointsPassed: 9, classification: "fully-targetable" },
-          stability: "CHANGED",
+          stability: "WRONG_TARGET",
         },
       ],
       methodology: ["Collect a DOM snapshot in-page."],

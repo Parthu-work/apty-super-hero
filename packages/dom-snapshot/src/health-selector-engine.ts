@@ -18,6 +18,7 @@
 import {
   buildElementPath,
   buildElementPattern,
+  type ElementPath,
   type ElementPattern,
   type FindResult,
   findElement,
@@ -47,6 +48,15 @@ export interface ElementResolution {
   stableAttributeNames: string[];
   /** The attribute (e.g. "id", "class") the winning candidate's leaf pattern is anchored on — null when nothing resolved, or when the winning strategy combined enough different signals that naming one attribute would be misleading (context/positional wins report the strategy instead). */
   winningAttribute: string | null;
+  /**
+   * The real Apty-style path captured for this element at THIS state — the
+   * exact thing a caller must store and later REPLAY (via
+   * `verifyStoredElementPath`) against a later state's live DOM to validate
+   * cross-state stability. Null only for `INACCESSIBLE` (no path was ever
+   * built because the element lives behind a boundary this engine cannot
+   * search).
+   */
+  elementPath: ElementPath | null;
 }
 
 export interface ResolveElementOptions {
@@ -237,6 +247,7 @@ export function resolveElement(
       dynamicAttributeNames: [],
       stableAttributeNames: [],
       winningAttribute: null,
+      elementPath: null,
     };
   }
 
@@ -256,6 +267,7 @@ export function resolveElement(
   const base = {
     dynamicAttributeNames: leafInfo.dynamic,
     stableAttributeNames: leafInfo.stable,
+    elementPath: path,
   };
 
   if (result.element === null) {
@@ -354,6 +366,78 @@ export function computeElementFingerprint(el: Element): string {
   const nthChild =
     pattern.pseudo.find((p) => p.name === "nth-child")?.value ?? "";
   return [pattern.tag, stableSignature, stableClasses, nthChild].join("||");
+}
+
+export type CrossStateVerdict =
+  | "DIRECT_STABLE"
+  | "RECOVERED_STABLE"
+  | "POSITIONAL_STABLE"
+  | "WRONG_TARGET"
+  | "NOT_RESOLVED"
+  | "AMBIGUOUS";
+
+export interface CrossStateVerification {
+  verdict: CrossStateVerdict;
+  /** The live element the stored path actually resolved to now, when found at all — populated even for WRONG_TARGET so a caller can inspect what it found. */
+  element: Element | null;
+  selector: string | null;
+}
+
+/**
+ * The GOOD cross-state validation pattern (as opposed to the BAD pattern of
+ * regenerating a fresh selector at the new state and comparing it to the
+ * old one): replay a `ElementPath` CAPTURED at a previous state against the
+ * CURRENT live DOM, via the exact same, unmodified real DES `findElement`
+ * recovery pipeline used for same-snapshot resolution (`checkInitialPath`
+ * then the four real relaxation strategies) — never a second, independent
+ * generation of a selector from the current DOM.
+ *
+ * Verdict is derived entirely from real evidence already produced by
+ * `findElement`/`generateMinimalSelector`/`computeElementFingerprint` —
+ * no new heuristics are introduced here:
+ * - `NOT_RESOLVED`: the stored path resolved to nothing live right now.
+ * - `WRONG_TARGET`: it resolved to SOME element, but that element's logical
+ *   fingerprint does not match the one captured with the path — checked
+ *   BEFORE the near-tie check, mirroring `resolveElement`'s own ordering
+ *   (a wrong target is a failure regardless of how confident the match was).
+ * - `AMBIGUOUS`: the correct element was found, but the ranked candidate
+ *   pool was a near-tie (`detectNearTie`) — a thin margin that could
+ *   plausibly flip on a small unrelated DOM change.
+ * - `DIRECT_STABLE` / `RECOVERED_STABLE` / `POSITIONAL_STABLE`: the correct
+ *   element was found, distinguished by which real strategy `findElement`
+ *   needed — `checkInitialPath` alone vs. one of the three attribute-level
+ *   relaxations vs. `leafFieldCombinations` (positional-only fallback).
+ */
+export function verifyStoredElementPath(
+  root: ParentNode,
+  storedPath: ElementPath,
+  expectedFingerprint: string,
+  config: DesConfig = DEFAULT_DES_CONFIG,
+): CrossStateVerification {
+  const result = findElement(storedPath, root, config);
+
+  if (result.element === null) {
+    return { verdict: "NOT_RESOLVED", element: null, selector: null };
+  }
+
+  const minimal = generateMinimalSelector(result.element, root, config);
+  const selector = minimal?.selector ?? pathToSelector(storedPath);
+
+  if (computeElementFingerprint(result.element) !== expectedFingerprint) {
+    return { verdict: "WRONG_TARGET", element: result.element, selector };
+  }
+
+  if (detectNearTie(result, config)) {
+    return { verdict: "AMBIGUOUS", element: result.element, selector };
+  }
+
+  if (result.strategy === "leafFieldCombinations") {
+    return { verdict: "POSITIONAL_STABLE", element: result.element, selector };
+  }
+  if (result.strategy === "checkInitialPath") {
+    return { verdict: "DIRECT_STABLE", element: result.element, selector };
+  }
+  return { verdict: "RECOVERED_STABLE", element: result.element, selector };
 }
 
 export function extractElementAttributes(

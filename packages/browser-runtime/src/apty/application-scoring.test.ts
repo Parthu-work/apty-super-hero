@@ -27,7 +27,7 @@ function makeReport(
     winningAttribute: "id",
     hasAccessibleName: true,
     hitTest: { pointsPassed: 9, classification: "fully-targetable" },
-    stability: "STABLE",
+    stability: "DIRECT_STABLE",
     ...overrides,
   };
 }
@@ -104,13 +104,17 @@ function makeSnapshot(reports: ElementSelectorReport[]): DomHealthSnapshot {
     },
     stability: {
       trackedFromPrevious: 0,
-      stable: 0,
-      changed: 0,
+      directStable: 0,
+      recoveredStable: 0,
+      positionalStable: 0,
+      wrongTarget: 0,
+      notResolved: 0,
       detached: 0,
       new: 0,
       unknown: reports.length,
       nodeReplacedButLogicallyStable: 0,
       ambiguous: 0,
+      inaccessible: 0,
     },
     hitTesting: {
       tested: reports.length,
@@ -152,6 +156,22 @@ function completedPage(
   reports: ElementSelectorReport[],
 ): PageAuditRecord {
   const snapshot = makeSnapshot(reports);
+  return {
+    url,
+    title: url,
+    discoverySource: "seed",
+    status: "completed",
+    result: buildDomHealthAuditResult([snapshot], `audit-${url}`),
+  };
+}
+
+/** Like `completedPage`, but with an explicit cross-state stability aggregate — for calibration tests that need to prove same-DOM resolution and cross-state stability are scored independently. */
+function completedPageWithStability(
+  url: string,
+  reports: ElementSelectorReport[],
+  stability: DomHealthSnapshot["stability"],
+): PageAuditRecord {
+  const snapshot = { ...makeSnapshot(reports), stability };
   return {
     url,
     title: url,
@@ -331,5 +351,107 @@ describe("buildApplicationAuditResult — evidence state, never a fabricated app
     expect(
       result.risks.some((r) => r.id === "navigation-candidates-not-explored"),
     ).toBe(true);
+  });
+});
+
+describe("buildApplicationAuditResult — score calibration (spec section 36)", () => {
+  it("Case C: high same-DOM selector resolution + terrible cross-state stability must NOT score excellent", () => {
+    // Every element resolves perfectly against the CURRENT DOM (the exact
+    // "92/100 on an application that was never comprehensively explored"
+    // shape this whole task exists to fix) — but replaying those same
+    // captured paths against other real states mostly failed or landed on
+    // the wrong element. A high automaticSelection score must never be
+    // allowed to launder that away.
+    const reports = Array.from({ length: 50 }, () => makeReport());
+    const page = completedPageWithStability("https://a.example/app", reports, {
+      trackedFromPrevious: 50,
+      directStable: 2,
+      recoveredStable: 0,
+      positionalStable: 0,
+      wrongTarget: 40,
+      notResolved: 8,
+      detached: 0,
+      new: 0,
+      unknown: 0,
+      nodeReplacedButLogicallyStable: 0,
+      ambiguous: 0,
+      inaccessible: 0,
+    });
+
+    const result = buildApplicationAuditResult([page], "case-c");
+
+    expect(result.metrics.automaticSelection).toBe(100);
+    expect(result.metrics.selectorStability).toBeLessThan(20);
+    expect(result.score).not.toBeNull();
+    expect(result.score!).toBeLessThan(80);
+    expect(["FAIR", "NEEDS_ATTENTION", "HIGH_RISK"]).toContain(result.grade);
+  });
+
+  it("Case D: incomplete discovery (a failed backtracking restoration) must not show a clean high score", () => {
+    const reports = Array.from({ length: 30 }, () => makeReport());
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/a", reports),
+      completedPage("https://a.example/b", reports),
+    ];
+
+    const result = buildApplicationAuditResult(pages, "case-d", {
+      restorations: [
+        { targetStateId: "state-0", success: true, stepCount: 1 },
+        {
+          targetStateId: "state-1",
+          success: false,
+          stepCount: 2,
+          failedAtStep: 1,
+          reason: "Replay diverged from the originally-recorded state.",
+        },
+      ],
+    });
+
+    expect(result.evidenceState).toBe("INCOMPLETE_EVIDENCE");
+    expect(result.score).toBeNull();
+    expect(result.grade).toBe("NOT_ASSESSED");
+    expect(
+      result.risks.some(
+        (r) => r.id === "evidence-incomplete-application-coverage",
+      ),
+    ).toBe(true);
+  });
+
+  it("gates the score to INCOMPLETE_EVIDENCE when real navigation candidates were found but this run never got beyond the seed state", () => {
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/home", [makeReport()]),
+      {
+        url: "https://a.example/home#control:menu-2",
+        title: "Menu 2",
+        discoverySource: "safe-navigation-control",
+        status: "not-discovered",
+        failureReason: "Click-based discovery is off by default.",
+      },
+    ];
+
+    const result = buildApplicationAuditResult(pages, "case-single-state");
+
+    expect(result.evidenceState).toBe("INCOMPLETE_EVIDENCE");
+    expect(result.score).toBeNull();
+  });
+
+  it("does not gate a well-covered multi-state audit just because a couple of incidental candidates were left unexplored", () => {
+    const reports = Array.from({ length: 20 }, () => makeReport());
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/a", reports),
+      completedPage("https://a.example/b", reports),
+      completedPage("https://a.example/c", reports),
+      {
+        url: "https://a.example/c#control:stray-menu",
+        title: "Stray",
+        discoverySource: "safe-navigation-control",
+        status: "not-discovered",
+      },
+    ];
+
+    const result = buildApplicationAuditResult(pages, "case-well-covered");
+
+    expect(result.evidenceState).not.toBe("INCOMPLETE_EVIDENCE");
+    expect(result.score).not.toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import type { PartialFn } from "../health-attribute-classification";
 import {
   computeElementFingerprint,
   resolveElement,
+  verifyStoredElementPath,
 } from "../health-selector-engine";
 
 /**
@@ -277,5 +278,83 @@ describe("resolveElement — shadow DOM scoping", () => {
 
     expect(result.outcome).toBe("DIRECT_SUCCESS");
     expect(result.bestSelector).toBe('button[id="shadow-btn"]');
+  });
+});
+
+describe("verifyStoredElementPath — the GOOD cross-state pattern (replay a captured path, never regenerate-and-compare)", () => {
+  it("returns DIRECT_STABLE when the exact same element is replayed unchanged", () => {
+    setHtml(`<button id="save-button">Save</button>`);
+    const el = document.querySelector("button")!;
+    const captured = resolveElement(document, el);
+    const fingerprint = computeElementFingerprint(el);
+
+    const verification = verifyStoredElementPath(
+      document,
+      captured.elementPath!,
+      fingerprint,
+    );
+
+    expect(verification.verdict).toBe("DIRECT_STABLE");
+    expect(verification.element).toBe(el);
+  });
+
+  it("returns NOT_RESOLVED when the element is gone and no candidate exists at all", () => {
+    setHtml(`<button id="save-button">Save</button>`);
+    const el = document.querySelector("button")!;
+    const captured = resolveElement(document, el);
+    const fingerprint = computeElementFingerprint(el);
+
+    setHtml(
+      `<section>completely unrelated content, no button anywhere</section>`,
+    );
+
+    const verification = verifyStoredElementPath(
+      document,
+      captured.elementPath!,
+      fingerprint,
+    );
+
+    expect(verification.verdict).toBe("NOT_RESOLVED");
+    expect(verification.element).toBeNull();
+  });
+
+  it("returns WRONG_TARGET, never a silent success, when the path resolves to a different logical element", () => {
+    // Capture button A's path, then swap in a DIFFERENT button (B) at the
+    // exact same position with the SAME stable attributes DES anchors on,
+    // but a distinguishing attribute (data-row-id) that differs — real
+    // Apty's own `find()` has no discrete "wrong target" state (see this
+    // module's doc comment); it is DOM Health's own known-ground-truth
+    // check on top, and it must never be skipped just because a candidate
+    // was found and scored well.
+    setHtml(
+      `<button data-row-id="row-1" class="row-action" name="edit">Edit</button>`,
+    );
+    const elA = document.querySelector("button")!;
+    const captured = resolveElement(document, elA);
+    const fingerprintA = computeElementFingerprint(elA);
+
+    setHtml(
+      `<button data-row-id="row-2" class="row-action" name="edit">Edit</button>`,
+    );
+    const elB = document.querySelector("button")!;
+    const fingerprintB = computeElementFingerprint(elB);
+    expect(fingerprintB).not.toBe(fingerprintA);
+
+    const verification = verifyStoredElementPath(
+      document,
+      captured.elementPath!,
+      fingerprintA,
+    );
+
+    // Whatever findElement's real relaxation strategies land on here, it is
+    // never reported as a stable success against the WRONG logical row.
+    expect(verification.verdict).not.toBe("DIRECT_STABLE");
+    expect(verification.verdict).not.toBe("RECOVERED_STABLE");
+    expect(verification.verdict).not.toBe("POSITIONAL_STABLE");
+    if (verification.element !== null) {
+      expect(verification.verdict).toBe("WRONG_TARGET");
+    } else {
+      expect(verification.verdict).toBe("NOT_RESOLVED");
+    }
   });
 });

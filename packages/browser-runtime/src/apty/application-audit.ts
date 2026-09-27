@@ -117,18 +117,35 @@ export type ApplicationAuditProgress =
   | { phase: "discovering-links"; url: string }
   | { phase: "restoring-state"; targetUrl: string };
 
+/**
+ * Explicit discovery scope — the caller must say how far this run is
+ * allowed to go; there is no silent "deepest available" default:
+ *
+ * - "page": audit ONLY the seed page/state. No link discovery, no
+ *   safe-navigation-candidate discovery, no navigation away from the
+ *   current page at all — the narrowest possible scope, useful when the
+ *   caller wants the application-audit result SHAPE (coverage/evidence
+ *   fields) without any multi-state exploration.
+ * - "application-safe": discover other same-origin pages via real
+ *   `<a href>` links, and DETECT (but never click) menu/tab/tree-style
+ *   navigation controls with no real href — those are reported
+ *   `not-discovered`, never silently explored. This is the previous
+ *   default behavior (formerly `allowClickDiscovery: false`).
+ * - "application-deep": additionally CLICKS detected safe navigation
+ *   candidates to explore same-URL, menu-driven application states
+ *   (the Infor-LN-shaped case) — a real click on the live application,
+ *   never enabled unless the caller explicitly asks for it (formerly
+ *   `allowClickDiscovery: true`).
+ */
+export type ApplicationDiscoveryMode =
+  | "page"
+  | "application-safe"
+  | "application-deep";
+
 export interface RunApplicationAuditOptions extends ApplicationAuditLimits {
   onProgress?: (progress: ApplicationAuditProgress) => void;
-  /**
-   * Off by default, deliberately. When true, a detected safe-navigation
-   * candidate (a menu/tab/tree item with no real `<a href>`) may actually
-   * be clicked to see whether it produces a new application state — this
-   * is the only way to explore a menu-driven enterprise application's
-   * other screens automatically, but it is a real click on a live
-   * application, so it is never enabled unless the caller explicitly asks
-   * for it.
-   */
-  allowClickDiscovery?: boolean;
+  /** Defaults to "application-safe" — never silently "application-deep". See `ApplicationDiscoveryMode`. */
+  discoveryMode?: ApplicationDiscoveryMode;
 }
 
 export type ApplicationAuditOutcome =
@@ -321,7 +338,9 @@ export async function runApplicationDomHealthAudit(
     ...DEFAULT_LIMITS,
     ...options,
   };
-  const allowClickDiscovery = options.allowClickDiscovery ?? false;
+  const discoveryMode: ApplicationDiscoveryMode =
+    options.discoveryMode ?? "application-safe";
+  const allowClickDiscovery = discoveryMode === "application-deep";
   const startedAt = Date.now();
 
   let tab: chrome.tabs.Tab;
@@ -553,7 +572,11 @@ export async function runApplicationDomHealthAudit(
       if (auditedCount >= limits.maxPages) break;
       if (Date.now() - startedAt >= limits.maxTotalAuditMs) break;
 
-      await discoverFromCurrentState(auditOutcome.url, stateId);
+      // "page" mode never explores beyond the seed state at all — no link
+      // discovery, no candidate discovery, no navigation away from it.
+      if (discoveryMode !== "page") {
+        await discoverFromCurrentState(auditOutcome.url, stateId);
+      }
       continue;
     }
 
@@ -720,9 +743,12 @@ export async function runApplicationDomHealthAudit(
   }
 
   const result = buildApplicationAuditResult(pages, generateAuditId(), {
-    discoveryMethod: allowClickDiscovery
-      ? "anchor-links+navigation-controls"
-      : "anchor-links",
+    discoveryMethod:
+      discoveryMode === "page"
+        ? "single-page-only"
+        : allowClickDiscovery
+          ? "anchor-links+navigation-controls"
+          : "anchor-links",
     stateGraph: buildStateGraphSummary(graph),
     restorations,
   });

@@ -114,6 +114,25 @@ describe("runApplicationDomHealthAuditTool", () => {
     );
   });
 
+  it("forwards an explicit discoveryMode through to runApplicationDomHealthAudit, never silently defaulting to a deeper scope than requested", async () => {
+    mockRunApplicationDomHealthAudit.mockResolvedValue({
+      available: true,
+      scope: "page",
+      score: 80,
+    });
+
+    const runContext = { context: { conversationId: "conv-3", tabId: 11 } };
+    await runApplicationDomHealthAuditTool.invoke(
+      runContext as any,
+      JSON.stringify({ discoveryMode: "page" }),
+    );
+
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(11, {
+      maxPages: undefined,
+      discoveryMode: "page",
+    });
+  });
+
   it("returns the application audit outcome exactly as computed", async () => {
     const outcome = {
       available: true,

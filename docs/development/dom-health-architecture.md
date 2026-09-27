@@ -136,14 +136,22 @@ Both discovery functions now run across every frame in the tab
 tagged with the frame they came from — the fix that lets a menu frame
 separate from the content frame actually get discovered.
 
-### Click-based discovery is opt-in, off by default
+### Click-based discovery is opt-in via an explicit `discoveryMode`
 
-`runApplicationDomHealthAudit`'s `allowClickDiscovery` option (default
-`false`) is the only thing that can turn a detected candidate into an
-actual click. When it's off (the default for every caller today), every
-detected candidate is recorded with `status: "not-discovered"` and a
+`runApplicationDomHealthAudit`'s `discoveryMode` option (`"page"` |
+`"application-safe"` | `"application-deep"`, default `"application-safe"`)
+is the only thing that can turn a detected candidate into an actual click —
+it replaces an earlier boolean `allowClickDiscovery` flag with an explicit,
+named scope so a caller (including the `run_application_dom_health_audit`
+agent tool) states its intent rather than the audit silently defaulting to
+the deepest option. `"page"` audits only the seed state — no link
+discovery, no candidate discovery, no navigation away from it at all.
+`"application-safe"` (the default) discovers same-origin links and
+DETECTS but never clicks non-anchor candidates. Only `"application-deep"`
+allows an actual click. When clicking is off (`"page"`/`"application-safe"`),
+every detected candidate is recorded with `status: "not-discovered"` and a
 reason — visible in the inventory, never silently dropped, never
-autonomously acted on. When enabled, a click is followed by a
+autonomously acted on. When `"application-deep"` is set, a click is followed by a
 before/after state-fingerprint comparison: `same` → `not-discovered`
 ("this control didn't produce a new state"), `uncertain` →
 `not-discovered` with that reason, `different` → audited as a real new
@@ -213,11 +221,77 @@ affect the DOM Health score itself, only the discovery decision.
 `ApplicationCoverage.coverageLabel` is always `"OBSERVED_COVERAGE"` — this
 audit has no way to know how many states/pages an application actually
 has, so it never claims total application coverage. `discoveryMethod`
-records whether click-discovery was enabled for a given run.
+records the effective `discoveryMode` for a given run (`"single-page-only"`
+/ `"anchor-links"` / `"anchor-links+navigation-controls"`).
 `pagesNotDiscovered` counts detected-but-unexplored candidates explicitly,
 separate from `pagesFailed`/`pagesSkippedUnsafe`. `framesDiscovered`/
 `framesInspected`/`framesInaccessible` roll up frame-level coverage across
 every audited state.
+
+### Application-level evidence gating (`INCOMPLETE_EVIDENCE`)
+
+Real per-element evidence on the states that WERE audited (clean selector
+resolution, high stability) is never enough on its own to call the
+**application** well-evidenced — that was the root cause behind a report
+like "92/100" on an application that was never actually comprehensively
+explored. `application-scoring.ts`'s `determineApplicationEvidenceState`
+downgrades an otherwise-healthy per-element evidence state to
+`INCOMPLETE_EVIDENCE` — which, like `NO_EVIDENCE`/`FAILED`/`INACCESSIBLE`,
+is never scoreable (`isScoreMeaningful` returns `false` for it) — whenever:
+
+- at least one backtracking restoration failed (whatever state lay beyond
+  that failure point was never reached, let alone audited), or
+- real navigation candidates were detected but this run never got beyond
+  the seed state (`notDiscovered > 0 && audited < 2`), or
+- a large, statistically meaningful share (>50% of at least 5 known
+  states/candidates) of everything this run knew about was never actually
+  explored.
+
+When gated, the result still reports a full risk (`id:
+"evidence-incomplete-application-coverage"`) naming exactly which signal
+tripped it, but `score`/`grade` are `null`/`"NOT_ASSESSED"` — an honest "we
+don't know enough" beats a clean-looking number.
+
+### Scoring weights favor resolution/stability over presentation signals
+
+`dom-health-scoring.ts`'s `WEIGHTS` puts more than half the total weight on
+`automaticSelection` (0.30) + `selectorStability` (0.30) combined, with
+`ambiguityRisk` (0.12, folding in same-snapshot wrong-target candidates)
+above the presentation-layer signals (`hitTestTargetability` 0.06,
+`domVolatility` 0.04, `accessibilitySignal` 0.02). This is deliberate: a
+page that resolves every selector perfectly against today's DOM but whose
+captured paths mostly fail (or land on the wrong element) when replayed
+against other real application states must not be diluted back up to
+"excellent" just because everything else about it — hit testing, DOM
+volatility, accessible names — happens to be clean.
+
+## Cross-STATE selector-stability validation (real DES replay, never a re-query)
+
+`health-collector.ts`'s stability tracking stores, per logical
+(fingerprint-correlated) element, the real Apty-style `ElementPath`
+captured for it at the previous state (`RegistryEntry.path`) — not a
+selector string. On the next state, `health-selector-engine.ts`'s
+`verifyStoredElementPath` REPLAYS that exact stored path through the
+unmodified, real DES `findElement` recovery pipeline (`checkInitialPath`
+then the four real relaxation strategies) against the new live DOM, then
+verifies the result's logical fingerprint matches what was originally
+captured. This is deliberately never "regenerate a fresh selector at the
+new state and compare it to the old one" — two independently-generated
+selectors can differ for reasons that have nothing to do with whether the
+original element is still findable; replaying the same stored path is the
+only way to answer "is Apty's own selection actually reliable across the
+states a user really moves through."
+
+The resulting `StabilityVerdict` is intentionally more granular than a
+binary stable/broken: `DIRECT_STABLE` (resolved via `checkInitialPath`
+alone), `RECOVERED_STABLE` (needed a real attribute-level relaxation
+strategy), `POSITIONAL_STABLE` (only the last-resort, most
+position-dependent relaxation strategy found it — never treated as
+equivalent to an attribute-anchored match), `WRONG_TARGET` (resolved to
+some element, but not the right one — always a failure, never folded into
+"stable"), `NOT_RESOLVED`, `DETACHED`, `AMBIGUOUS`, `INACCESSIBLE`, plus
+the pre-existing `NEW`/`UNKNOWN` for elements with no prior-state evidence
+yet.
 
 ## Known limitations (honest, not hidden)
 
@@ -252,3 +326,14 @@ every audited state.
   integration adapter were not attempted in this pass** — this pass's
   scope was the confirmed state-discovery/backtracking root cause only; see
   the delivery report's "remaining limitations" for the full list.
+- **This later pass (cross-state selector-stability replay, explicit
+  `discoveryMode`, application-level `INCOMPLETE_EVIDENCE` gating, and the
+  resolution/stability-dominant scoring weights above) still has not been
+  validated against any real Infor LN/Athena/Autodesk application** — the
+  same honesty caveat above still applies; only the described unit/
+  integration-style fixture tests exercise these paths.
+- **The full `AptyExtensionAdapter` interface (runtime metadata / imported
+  Studio configuration / live selector verification against a real Apty
+  Client), a 9-point hit-test breakdown surfaced in the report, and
+  frame/shadow-DOM evidence enrichment beyond what's described above were
+  not attempted in this pass either** — out of scope; not claimed as done.

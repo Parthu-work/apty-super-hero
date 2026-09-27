@@ -172,6 +172,63 @@ export interface ApplicationAuditResult {
   restorations: RestorationEvidence[];
 }
 
+/**
+ * The direct fix for "the tool reported 92/100 on an application that was
+ * never actually comprehensively explored": per-element evidence (real
+ * selector resolution/stability on the states that WERE audited) is never
+ * enough on its own to call the APPLICATION well-evidenced. Real coverage
+ * signals — candidates detected but never explored, and backtracking
+ * restorations that failed (meaning whatever lay beyond that failure point
+ * was never reached at all) — can downgrade an otherwise-healthy page-level
+ * evidence state to `INCOMPLETE_EVIDENCE`, which is never scoreable (see
+ * `isScoreMeaningful`): a real number is never reported standing in for
+ * "we don't actually know how much of this application this covers."
+ */
+export function determineApplicationEvidenceState(inputs: {
+  pageLevelEvidenceState: EvidenceState;
+  audited: number;
+  /** Total known page/state inventory rows (`pages.length`) — completed, failed, and skipped alike. */
+  discovered: number;
+  /** Detected navigation candidates that were never explored (click discovery off, or a click that produced nothing new). */
+  notDiscovered: number;
+  /** Backtracking attempts (`restorations`) that did not reproduce their originally-recorded target state. */
+  restorationFailures: number;
+}): EvidenceState {
+  const {
+    pageLevelEvidenceState,
+    audited,
+    discovered,
+    notDiscovered,
+    restorationFailures,
+  } = inputs;
+  // No per-element evidence exists at all, or a frame that should have
+  // answered didn't — those states already say everything that needs
+  // saying; application-coverage gating on top would only obscure it.
+  if (
+    pageLevelEvidenceState === "FAILED" ||
+    pageLevelEvidenceState === "NO_EVIDENCE" ||
+    pageLevelEvidenceState === "INACCESSIBLE"
+  ) {
+    return pageLevelEvidenceState;
+  }
+  // `discovered` (`pages.length`) already includes every `not-discovered`
+  // row as a subset — it is the full known-about universe, not a disjoint
+  // count to add `notDiscovered` on top of.
+  const unexploredShare = discovered === 0 ? 0 : notDiscovered / discovered;
+  const insufficientCoverage =
+    // At least one branch of the discovery tree could not be reliably
+    // reached again — whatever lies beyond it was never audited, and never
+    // will be reported as if it had been.
+    restorationFailures > 0 ||
+    // Real navigation candidates were detected, proving a larger
+    // application exists, yet this run never got beyond the seed state.
+    (notDiscovered > 0 && audited < 2) ||
+    // A large, statistically meaningful share of everything this run knew
+    // about was never actually explored.
+    (discovered >= 5 && unexploredShare > 0.5);
+  return insufficientCoverage ? "INCOMPLETE_EVIDENCE" : pageLevelEvidenceState;
+}
+
 function sumField<K extends DomHealthMetricKey>(
   completed: PageAuditRecord[],
   metric: K,
@@ -276,8 +333,19 @@ export function buildApplicationAuditResult(
       "selectorStability",
       "trackedFromPrevious",
     ),
-    stable: sumField(completed, "selectorStability", "stable"),
-    changed: sumField(completed, "selectorStability", "changed"),
+    directStable: sumField(completed, "selectorStability", "directStable"),
+    recoveredStable: sumField(
+      completed,
+      "selectorStability",
+      "recoveredStable",
+    ),
+    positionalStable: sumField(
+      completed,
+      "selectorStability",
+      "positionalStable",
+    ),
+    wrongTarget: sumField(completed, "selectorStability", "wrongTarget"),
+    notResolved: sumField(completed, "selectorStability", "notResolved"),
     detached: sumField(completed, "selectorStability", "detached"),
     new: sumField(completed, "selectorStability", "new"),
   });
@@ -392,13 +460,23 @@ export function buildApplicationAuditResult(
     "automaticSelection",
     "totalAnalyzed",
   );
-  const evidenceState: EvidenceState =
+  const pageLevelEvidenceState: EvidenceState =
     audited === 0
       ? "FAILED"
       : determineEvidenceState(
           totalAnalyzedForEvidence,
           applicationFrameAccessibility,
         );
+  const restorationFailures = (options.restorations ?? []).filter(
+    (r) => !r.success,
+  ).length;
+  const evidenceState = determineApplicationEvidenceState({
+    pageLevelEvidenceState,
+    audited,
+    discovered,
+    notDiscovered,
+    restorationFailures,
+  });
   const scoreIsMeaningful = isScoreMeaningful(evidenceState);
 
   const rawScore = (Object.keys(WEIGHTS) as DomHealthMetricKey[]).reduce(
@@ -504,6 +582,21 @@ export function buildApplicationAuditResult(
       severity: "medium",
       title: "Not every frame across the audited pages could be inspected",
       evidence: `${framesInspected} of ${framesDiscovered} frame(s) across audited pages responded. The score below reflects only what was actually inspected.`,
+    });
+  } else if (evidenceState === "INCOMPLETE_EVIDENCE") {
+    risks.unshift({
+      id: "evidence-incomplete-application-coverage",
+      severity: "high",
+      title:
+        "Real per-element evidence exists, but application coverage is too incomplete to score honestly",
+      evidence:
+        (restorationFailures > 0
+          ? `${restorationFailures} backtracking restoration(s) failed, so whatever application state lay beyond that point was never reached or audited. `
+          : "") +
+        (notDiscovered > 0
+          ? `${notDiscovered} detected navigation candidate(s) were never explored (out of ${discovered} known). `
+          : "") +
+        `No score is reported — a numeric score here would misrepresent how much of this application was actually observed.`,
     });
   }
   if (notDiscovered > 0) {

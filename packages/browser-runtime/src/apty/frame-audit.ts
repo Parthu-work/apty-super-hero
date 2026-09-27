@@ -217,13 +217,17 @@ export function aggregateFrameSnapshots(
   let hasMultiSnapshotEvidence = false;
   const stability = {
     trackedFromPrevious: 0,
-    stable: 0,
-    changed: 0,
+    directStable: 0,
+    recoveredStable: 0,
+    positionalStable: 0,
+    wrongTarget: 0,
+    notResolved: 0,
     detached: 0,
     new: 0,
     unknown: 0,
     nodeReplacedButLogicallyStable: 0,
     ambiguous: 0,
+    inaccessible: 0,
   };
   const hitTesting = {
     tested: 0,
@@ -313,14 +317,18 @@ export function aggregateFrameSnapshots(
       hasMultiSnapshotEvidence || s.dynamicAttributes.hasMultiSnapshotEvidence;
 
     stability.trackedFromPrevious += s.stability.trackedFromPrevious;
-    stability.stable += s.stability.stable;
-    stability.changed += s.stability.changed;
+    stability.directStable += s.stability.directStable;
+    stability.recoveredStable += s.stability.recoveredStable;
+    stability.positionalStable += s.stability.positionalStable;
+    stability.wrongTarget += s.stability.wrongTarget;
+    stability.notResolved += s.stability.notResolved;
     stability.detached += s.stability.detached;
     stability.new += s.stability.new;
     stability.unknown += s.stability.unknown;
     stability.nodeReplacedButLogicallyStable +=
       s.stability.nodeReplacedButLogicallyStable;
     stability.ambiguous += s.stability.ambiguous;
+    stability.inaccessible += s.stability.inaccessible;
 
     hitTesting.tested += s.hitTesting.tested;
     hitTesting.fullyTargetable += s.hitTesting.fullyTargetable;

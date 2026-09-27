@@ -122,32 +122,56 @@ export type SelectorStrategy =
   | "none";
 
 /**
- * Cross-snapshot verdict for one element, from LOGICAL correlation (spec
- * section 18) — never from array position, and never from raw DOM-node
- * identity alone (a framework may replace the node on rerender while the
- * logical control persists; see `computeElementFingerprint`).
+ * Cross-STATE verdict for one element, from LOGICAL correlation (spec
+ * section 18) plus a REAL replay of its previously-captured `ElementPath`
+ * against the current live DOM via the unmodified DES `findElement`
+ * pipeline (`verifyStoredElementPath` in `health-selector-engine.ts`) —
+ * never from array position, never from raw DOM-node identity alone (a
+ * framework may replace the node on rerender while the logical control
+ * persists; see `computeElementFingerprint`), and never by regenerating a
+ * fresh selector at the new state and merely comparing it to the old one
+ * (the BAD pattern this replaces: GOOD is capture-at-A, replay-at-B,
+ * verify-identity).
  *
  * - UNKNOWN: no prior snapshot exists yet (first snapshot of the audit).
  * - NEW: prior snapshot(s) exist, but no matching logical element was seen before.
- * - STABLE: a matching logical element existed before, and its previously-chosen
- *   selector still resolves uniquely to it now (whether or not the underlying
- *   DOM node object was replaced).
- * - CHANGED: a matching logical element existed before, but its previously-chosen
- *   selector no longer resolves correctly — the control persisted, the selector broke.
- * - DETACHED: a previously-tracked logical element has no match now at all.
+ * - DIRECT_STABLE: the stored path still resolves via `checkInitialPath` alone —
+ *   the strongest possible cross-state signal, no relaxation needed at all.
+ * - RECOVERED_STABLE: the stored path only resolved to the correct element after
+ *   one of DES's real relaxation strategies (dropDynamicValues/
+ *   dropPositionalPseudo/dropOneAncestor) fired — the control is still correctly
+ *   findable, but a literal attribute value changed between states.
+ * - POSITIONAL_STABLE: the stored path only resolved via `leafFieldCombinations`
+ *   (nth-child/positional fallback) — findable, but on the weakest possible
+ *   signal; never treated as equivalent to an attribute-anchored match.
+ * - WRONG_TARGET: the stored path resolved to SOME element at the new state, but
+ *   its logical fingerprint does not match the originally-captured element — a
+ *   unique-but-wrong resolution, always a failure, never folded into "stable".
+ * - NOT_RESOLVED: the stored path resolved to nothing at the new state at all.
+ * - DETACHED: a previously-tracked logical element has no match now at all
+ *   (no candidate for `findElement` to even evaluate).
  * - AMBIGUOUS: two or more distinct elements in THIS snapshot share the same
- *   logical fingerprint — correlation cannot safely attribute either one to
- *   a previous entry (or safely anchor a future one), so neither is ever
- *   silently reported STABLE/CHANGED by first-match. This is a real,
- *   reportable finding (a fingerprint collision), not a soft fallback.
+ *   logical fingerprint, OR the replay landed in a near-tie between two
+ *   candidates — correlation cannot safely attribute either one to a
+ *   previous entry (or safely anchor a future one), so neither is ever
+ *   silently reported stable by first-match. This is a real, reportable
+ *   finding (a fingerprint collision or a fragile score margin), not a soft
+ *   fallback.
+ * - INACCESSIBLE: the element lives behind a boundary this engine cannot
+ *   search (closed shadow root, cross-origin frame) — never silently
+ *   counted as stable or as a failure.
  */
 export type StabilityVerdict =
-  | "STABLE"
-  | "CHANGED"
+  | "DIRECT_STABLE"
+  | "RECOVERED_STABLE"
+  | "POSITIONAL_STABLE"
+  | "WRONG_TARGET"
+  | "NOT_RESOLVED"
   | "DETACHED"
   | "NEW"
   | "UNKNOWN"
-  | "AMBIGUOUS";
+  | "AMBIGUOUS"
+  | "INACCESSIBLE";
 
 export type HitTestClassification =
   | "fully-targetable"
@@ -230,20 +254,29 @@ export interface DynamicAttributeStats {
 }
 
 export interface StabilityStats {
-  /** Elements that had a resolvable selector in a previous snapshot of this same audit and were re-verified now. */
+  /** Elements that had a resolvable selector/path in a previous state of this same audit and were re-verified now, via a real replay (`verifyStoredElementPath`) — never a re-query of a selector string. */
   trackedFromPrevious: number;
-  stable: number;
-  /** Logical element persisted (fingerprint matched) but its previously-chosen selector no longer resolves correctly — needs regeneration. */
-  changed: number;
+  /** The stored path resolved via `checkInitialPath` alone — the strongest possible cross-state signal. */
+  directStable: number;
+  /** The stored path only resolved after a real DES relaxation strategy (dropDynamicValues/dropPositionalPseudo/dropOneAncestor) fired — still correctly found, but a literal attribute value changed. */
+  recoveredStable: number;
+  /** The stored path only resolved via `leafFieldCombinations` (the weakest, most position-dependent fallback) — never treated as equivalent to an attribute-anchored match. */
+  positionalStable: number;
+  /** The stored path resolved to SOME element, but its logical fingerprint does not match the originally-captured element — a unique-but-wrong resolution, always a failure. */
+  wrongTarget: number;
+  /** The stored path resolved to nothing at all when replayed against the new state. */
+  notResolved: number;
   /** A previously-tracked logical element (by fingerprint) has no match in the current snapshot at all. */
   detached: number;
   /** Present now but not seen (by fingerprint) in any previous snapshot of this audit. */
   new: number;
   unknown: number;
-  /** Count of STABLE/CHANGED elements where the underlying DOM node object was replaced but the logical fingerprint still matched — evidence the tracker isn't just relying on object identity. */
+  /** Count of stable-verdict elements where the underlying DOM node object was replaced but the logical fingerprint still matched — evidence the tracker isn't just relying on object identity. */
   nodeReplacedButLogicallyStable: number;
-  /** Elements whose logical fingerprint collided with another element in THIS snapshot — correlation could not safely attribute either one, so both are reported here instead of one silently winning "first match". */
+  /** Elements whose logical fingerprint collided with another element in THIS snapshot, OR whose replay landed in a near-tie — correlation could not safely attribute either one, so both are reported here instead of one silently winning "first match". */
   ambiguous: number;
+  /** The element lived behind a boundary this engine cannot search at the previous state — never silently counted as stable or as a failure. */
+  inaccessible: number;
 }
 
 export interface HitTestStats {
