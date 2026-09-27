@@ -159,6 +159,55 @@ real clicks against a live enterprise application. It is NOT a general
 click-discovery engine; it will not explore an application whose
 navigation controls fall outside the container allowlist above.
 
+## Same-URL states are a real discovery tree, with backtracking (`state-graph.ts`)
+
+The click-discovery design above was originally a flat FIFO queue: every
+safe-navigation candidate found on a state was queued as soon as that
+state was audited, then drained strictly first-in-first-out. That broke
+for exactly the same-URL, menu-driven shape it exists to explore: clicking
+into state B (there is no other way to reach a same-URL state) leaves the
+*live* browser tab sitting in B's DOM. A second, later-dequeued click
+recorded from state A — e.g. a sibling menu item — would then either match
+nothing in B's unrelated markup, or silently match a different element
+that happened to share the same recorded path. Sibling branches were lost
+or corrupted, not actually explored.
+
+`state-graph.ts`'s `StateGraph` tracks every discovered state as a node
+(identified by its `AuditStateFingerprint`, never by URL alone) and every
+transition as an edge carrying real evidence: the triggering click or
+navigation, the before/after fingerprint, whether the URL stayed the same,
+and how many `pushState`/`replaceState`/`popstate`/`hashchange` calls
+fired across it. Every non-seed node remembers the edge that first
+discovered it, making the graph a spanning tree for restoration purposes
+even though later transitions between already-known states are also
+recorded as evidence.
+
+Before `application-audit.ts` acts on a queued click candidate, it checks
+whether the live tab is already showing the state that candidate was found
+on (`graph.getCurrentStateId() === item.sourceStateId`). If not,
+`restoreToState` replays the exact path of transitions from the seed state
+back to it — a pure-URL path is restored with one direct navigation (cheap
+and always available since a literal URL never needs backtracking at all);
+a path containing any click short-circuits to a hard reset (re-navigate to
+the seed URL, which reliably reinitializes a real SPA) followed by
+replaying each recorded click in order, verifying the resulting fingerprint
+against what was originally recorded at every hop. A hop that doesn't
+reproduce its recorded fingerprint fails the whole restoration immediately
+— the branch is recorded `not-discovered` with the reason, never silently
+skipped and never treated as if the state had been reached. Every
+restoration attempt (success or failure) is returned in
+`ApplicationAuditResult.restorations`; the full discovery tree is returned
+in `ApplicationAuditResult.stateGraph`.
+
+History-API evidence (`pushState`/`replaceState`/`popstate`/`hashchange`,
+patched once per content-script load in `content/index.tsx`) is promoted
+from purely diagnostic telemetry into an actual discovery signal: a click
+whose structural fingerprint comparison alone reads `"same"` is still
+counted as a real transition when a nonzero history-event delta was
+observed across it (a client-side route genuinely changed even though this
+audit's narrow structural signature didn't capture it) — never used to
+affect the DOM Health score itself, only the discovery decision.
+
 ## Coverage is "observed", never "total"
 
 `ApplicationCoverage.coverageLabel` is always `"OBSERVED_COVERAGE"` — this
@@ -172,11 +221,17 @@ every audited state.
 
 ## Known limitations (honest, not hidden)
 
-- **No backtracking after a click-discovered state.** Click-discovery
-  follows one path forward; it does not attempt to return to a sibling
-  menu item after auditing a state reached by a click. Exploring a whole
-  menu tree this way would need an explicit "go back" strategy, which is
-  not implemented.
+- **Restoration always resets to the seed URL for any click-involving
+  path**, even when only the last hop actually needs replaying — correct,
+  but not the cheapest possible strategy (a real browser-history `back()`
+  is never used, since an enterprise SPA's same-URL clicks are not
+  guaranteed to push a history entry at all).
+- **A state is deduplicated purely by structural fingerprint equality.**
+  Two genuinely different application states that happen to produce an
+  identical fingerprint (same title/active-nav-item/heading-sample/
+  container-counts) would be treated as the same node — a real, accepted
+  tradeoff of the same signature design documented above, not new to the
+  state graph.
 - **`waitForDomStable` only watches the top frame.** A debounced re-render
   inside a non-top content frame is not directly waited on by this signal;
   each frame's own snapshot collection still measures real, live evidence
@@ -184,9 +239,16 @@ every audited state.
   only.
 - **Closed Shadow DOM remains genuinely invisible** — a real browser
   security boundary, not a gap in this design.
-- **No real Infor LN or Autodesk validation has been performed** — see the
-  delivery report for this phase. The frame-addressed-messaging and
-  same-URL-state fixes are validated by unit/integration-style tests that
-  construct the exact shapes described (a menu frame separate from a
-  content frame; a same-URL click that changes the active nav item), not
-  by a live run against either application.
+- **No real Infor LN, Athena, or Autodesk validation has been performed** —
+  see the delivery report for this phase. The frame-addressed-messaging,
+  same-URL-state, and state-graph/backtracking fixes are validated by
+  unit/integration-style tests that construct the exact shapes described (a
+  menu frame separate from a content frame; a same-URL branching menu tree
+  requiring backtracking to avoid losing a sibling state), not by a live
+  run against any of these applications.
+- **Canonical evidence-model unification across every DOM Health entry
+  point (side panel, agent tool, application/page/frame audit), a UI
+  redesign of the report, and reformalizing the Apty Studio/Client
+  integration adapter were not attempted in this pass** — this pass's
+  scope was the confirmed state-discovery/backtracking root cause only; see
+  the delivery report's "remaining limitations" for the full list.

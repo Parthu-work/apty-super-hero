@@ -105,6 +105,45 @@ export interface ApplicationCoverage {
   framesInaccessible: number;
 }
 
+/** One state-graph node, presentation-shaped (see `state-graph.ts`'s `ApplicationStateNode` for the full internal model this is derived from). */
+export interface StateGraphNodeSummary {
+  stateId: string;
+  url: string;
+  title: string | null;
+  /** True when this state's URL (ignoring hash) equals the seed state's — the Infor LN-shaped case same-URL discovery exists for. */
+  sameUrlAsSeed: boolean;
+  discoveredAt: number;
+}
+
+/** One state-graph edge, presentation-shaped. */
+export interface StateGraphEdgeSummary {
+  id: string;
+  sourceStateId: string;
+  targetStateId: string;
+  triggerKind: "seed" | "url-navigation" | "click";
+  /** Human-readable label for the transition — the clicked control's text, or the navigated-to URL. */
+  triggerLabel: string;
+  sameUrl: boolean;
+  historyEventDelta: number;
+  confidence: "confirmed" | "restored";
+}
+
+export interface StateGraphSummary {
+  seedStateId: string | null;
+  nodes: StateGraphNodeSummary[];
+  edges: StateGraphEdgeSummary[];
+}
+
+/** Evidence for one backtracking attempt — restoring the live tab to a previously-discovered state before exploring one of its other children. */
+export interface RestorationEvidence {
+  targetStateId: string;
+  success: boolean;
+  stepCount: number;
+  /** Set only on failure — the 0-based step where replay diverged from the originally-recorded transition. */
+  failedAtStep?: number;
+  reason?: string;
+}
+
 export interface ApplicationAuditResult {
   auditId: string;
   timestamp: number;
@@ -127,6 +166,10 @@ export interface ApplicationAuditResult {
   recommendations: DomHealthRecommendation[];
   pages: PageAuditRecord[];
   methodology: string[];
+  /** The real state-discovery tree this run built — never a flat page list — see `state-graph.ts`. Absent only if the caller didn't pass one (e.g. an older/degenerate call path). */
+  stateGraph?: StateGraphSummary;
+  /** Every backtracking attempt made during this run (restoring the live tab to a previously-discovered state before exploring one of its other children), success or failure — never silently retried and hidden. */
+  restorations: RestorationEvidence[];
 }
 
 function sumField<K extends DomHealthMetricKey>(
@@ -155,7 +198,11 @@ const APPLICATION_METHODOLOGY_PREFIX: string[] = [
 export function buildApplicationAuditResult(
   pages: PageAuditRecord[],
   auditId: string,
-  options: { discoveryMethod?: string } = {},
+  options: {
+    discoveryMethod?: string;
+    stateGraph?: StateGraphSummary;
+    restorations?: RestorationEvidence[];
+  } = {},
 ): ApplicationAuditResult {
   const completed = pages.filter((p) => p.status === "completed" && p.result);
   const failed = pages.filter((p) => p.status === "failed").length;
@@ -495,5 +542,7 @@ export function buildApplicationAuditResult(
     recommendations: buildRecommendations(metrics, metricDetails),
     pages,
     methodology: [...APPLICATION_METHODOLOGY_PREFIX, ...METHODOLOGY],
+    stateGraph: options.stateGraph,
+    restorations: options.restorations ?? [],
   };
 }

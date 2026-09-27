@@ -25,6 +25,24 @@
  *   a menu frame separate from the content frame is exactly the shape a
  *   classic enterprise frameset uses, and is no longer invisible to
  *   discovery.
+ * - RC-6 (no backtracking — sibling branches were lost or corrupted): the
+ *   previous design queued every same-URL click candidate found on a
+ *   state as soon as that state was audited, then drained the queue
+ *   strictly FIFO. Because a click actually changes the LIVE browser tab
+ *   (there is no other way to reach a same-URL, menu-driven state), the
+ *   second and later queued clicks from a state were only ever valid
+ *   while the tab was still showing THAT state's DOM — but by the time
+ *   they were dequeued, the crawler had already navigated deeper (and
+ *   possibly explored several more levels). The stored `domPath`/`frameId`
+ *   either matched nothing in the new, unrelated DOM, or worse, silently
+ *   matched a different element that happened to share the same path.
+ *   Every state is now tracked in a real discovery tree (`state-graph.ts`),
+ *   and before acting on ANY click-based candidate whose source state
+ *   isn't the one currently live in the tab, `restoreToState` replays the
+ *   exact recorded path of clicks/navigations from the seed state back to
+ *   it, verifying the fingerprint at every hop — a branch whose
+ *   restoration doesn't reproduce the originally-recorded state is marked
+ *   failed and skipped, never silently treated as restored.
  *
  * Hard limits (`maxPages`/`maxTotalAuditMs`/`maxQueueSize`) bound the whole
  * run; every state attempted — audited, failed, skipped, or detected-but-
@@ -51,6 +69,8 @@ import {
   type ApplicationAuditResult,
   buildApplicationAuditResult,
   type PageAuditRecord,
+  type RestorationEvidence,
+  type StateGraphSummary,
 } from "./application-scoring.js";
 import { isUnsupportedPage, runDomHealthAudit } from "./dom-health.js";
 import {
@@ -72,6 +92,7 @@ import {
   compareStateFingerprints,
   computeStateFingerprint,
 } from "./state-fingerprint.js";
+import { StateGraph, type StateTransitionEdge } from "./state-graph.js";
 
 export interface ApplicationAuditLimits {
   /** Maximum number of states actually audited in one run. Defaults to 15. */
@@ -93,7 +114,8 @@ const DEFAULT_LIMITS: Required<ApplicationAuditLimits> = {
 
 export type ApplicationAuditProgress =
   | { phase: "auditing"; url: string; pageIndex: number; pagesQueued: number }
-  | { phase: "discovering-links"; url: string };
+  | { phase: "discovering-links"; url: string }
+  | { phase: "restoring-state"; targetUrl: string };
 
 export interface RunApplicationAuditOptions extends ApplicationAuditLimits {
   onProgress?: (progress: ApplicationAuditProgress) => void;
@@ -133,6 +155,8 @@ interface UrlQueueItem {
   kind: "url";
   url: string;
   source: "seed" | "same-origin-link";
+  /** Which graph state was live when this URL was discovered/queued — kept for graph completeness even though URL items always restore by direct navigation. */
+  sourceStateId: string;
 }
 
 interface ClickQueueItem {
@@ -141,6 +165,8 @@ interface ClickQueueItem {
   frameId: number;
   domPath: string;
   candidateText: string;
+  /** The graph state this candidate was found on — the live tab MUST be showing this exact state before the click is valid; see `restoreToState`. */
+  sourceStateId: string;
 }
 
 type QueueItem = UrlQueueItem | ClickQueueItem;
@@ -156,6 +182,128 @@ async function captureFingerprint(
   return computeStateFingerprint(
     toFrameSignatureEntries(outcome.result.frames),
   );
+}
+
+/**
+ * Restore the live tab to `targetStateId` before acting on one of its
+ * children, by replaying the exact recorded path of transitions from the
+ * seed state (`graph.getRestorationPath`) — verifying the fingerprint at
+ * every hop against what was originally recorded. A pure-URL path (every
+ * edge a real navigation, no click involved) short-circuits to a single
+ * direct `navigateTab` to the target's own URL, since that's always cheap
+ * and unambiguous; a path containing any click-based edge requires a full
+ * reset to the seed URL followed by a faithful replay, because there is no
+ * other way to reach a same-URL, click-driven state deterministically.
+ * Never pretends success: a hop whose replay doesn't reproduce the
+ * originally-recorded fingerprint fails the whole restoration immediately.
+ */
+async function restoreToState(
+  tabId: number,
+  seedUrl: string,
+  graph: StateGraph,
+  targetStateId: string,
+): Promise<RestorationEvidence> {
+  if (graph.getCurrentStateId() === targetStateId) {
+    return { targetStateId, success: true, stepCount: 0 };
+  }
+  const targetNode = graph.getNode(targetStateId);
+  if (!targetNode) {
+    return {
+      targetStateId,
+      success: false,
+      stepCount: 0,
+      reason: "Target state is not present in the discovery graph.",
+    };
+  }
+  const path = graph.getRestorationPath(targetStateId);
+
+  const isPureUrlPath = path.every((e) => e.trigger.kind !== "click");
+  if (isPureUrlPath) {
+    await navigateTab(tabId, targetNode.url);
+    await waitForDomStable(tabId);
+    const observed = await captureFingerprint(tabId);
+    const success =
+      observed?.fingerprint === targetNode.fingerprint.fingerprint;
+    if (success) graph.setCurrentStateId(targetStateId);
+    return {
+      targetStateId,
+      success,
+      stepCount: path.length,
+      failedAtStep: success ? undefined : Math.max(0, path.length - 1),
+      reason: success
+        ? undefined
+        : "Direct navigation to this state's URL did not reproduce its originally-recorded fingerprint.",
+    };
+  }
+
+  await navigateTab(tabId, seedUrl);
+  await waitForDomStable(tabId);
+
+  for (let i = 0; i < path.length; i++) {
+    const edge: StateTransitionEdge = path[i]!;
+    if (edge.trigger.kind === "click") {
+      const clickResult = await clickSafeNavigationCandidate(
+        tabId,
+        edge.trigger.frameId!,
+        edge.trigger.domPath!,
+      );
+      if (!clickResult.clicked) {
+        return {
+          targetStateId,
+          success: false,
+          stepCount: path.length,
+          failedAtStep: i,
+          reason: `Replaying step ${i + 1}/${path.length} ("${edge.trigger.candidateText ?? edge.trigger.domPath}") failed: ${clickResult.reason ?? "click did not succeed"}.`,
+        };
+      }
+    } else if (edge.trigger.kind === "url-navigation" && edge.trigger.url) {
+      await navigateTab(tabId, edge.trigger.url);
+    }
+    await waitForDomStable(tabId);
+    const observed = await captureFingerprint(tabId);
+    if (observed?.fingerprint !== edge.afterFingerprint) {
+      return {
+        targetStateId,
+        success: false,
+        stepCount: path.length,
+        failedAtStep: i,
+        reason: `Replaying step ${i + 1}/${path.length} produced a different state than originally recorded — the application may not be deterministically restorable via this path.`,
+      };
+    }
+  }
+
+  graph.setCurrentStateId(targetStateId);
+  return { targetStateId, success: true, stepCount: path.length };
+}
+
+function buildStateGraphSummary(graph: StateGraph): StateGraphSummary {
+  const seedStateId = graph.getSeedStateId();
+  const seedNode = seedStateId ? graph.getNode(seedStateId) : undefined;
+  return {
+    seedStateId,
+    nodes: graph.getAllNodes().map((node) => ({
+      stateId: node.stateId,
+      url: node.url,
+      title: node.title,
+      sameUrlAsSeed: seedNode
+        ? normalizeUrl(node.url) === normalizeUrl(seedNode.url)
+        : false,
+      discoveredAt: node.discoveredAt,
+    })),
+    edges: graph.getAllEdges().map((edge) => ({
+      id: edge.id,
+      sourceStateId: edge.sourceStateId,
+      targetStateId: edge.targetStateId,
+      triggerKind: edge.trigger.kind,
+      triggerLabel:
+        edge.trigger.kind === "click"
+          ? (edge.trigger.candidateText ?? edge.trigger.domPath ?? "click")
+          : (edge.trigger.url ?? "seed"),
+      sameUrl: edge.sameUrl,
+      historyEventDelta: edge.historyEventDelta,
+      confidence: edge.confidence,
+    })),
+  };
 }
 
 /**
@@ -198,16 +346,30 @@ export async function runApplicationDomHealthAudit(
   const visitedUrls = new Set<string>();
   const queuedUrls = new Set<string>();
   const skippedUrls = new Set<string>();
-  const visitedFingerprints = new Set<string>();
   const skippedCandidates = new Set<string>();
-  const queue: QueueItem[] = [{ kind: "url", url: seedUrl!, source: "seed" }];
+  const restorations: RestorationEvidence[] = [];
+
+  const graph = new StateGraph();
+  const seedFingerprint = (await captureFingerprint(tabId)) ?? {
+    fingerprint: "unknown-seed",
+    frameUrls: [],
+    frames: [],
+  };
+  const seedStateId = graph.addSeedState(seedFingerprint, seedUrl!, null);
+
+  const queue: QueueItem[] = [
+    { kind: "url", url: seedUrl!, source: "seed", sourceStateId: seedStateId },
+  ];
   queuedUrls.add(normalizeUrl(seedUrl!));
   const pages: PageAuditRecord[] = [];
   let isFirstItem = true;
   let auditedCount = 0;
 
-  /** Discover more work from the state just audited at `currentUrl` — same for both URL-based and click-based states. */
-  async function discoverFromCurrentState(currentUrl: string): Promise<void> {
+  /** Discover more work from the state just audited — same for both URL-based and click-based states. `currentStateId` is the graph node this state resolved to, so newly-found candidates carry a correct, restorable `sourceStateId`. */
+  async function discoverFromCurrentState(
+    currentUrl: string,
+    currentStateId: string,
+  ): Promise<void> {
     options.onProgress?.({ phase: "discovering-links", url: currentUrl });
 
     // Best-effort, non-fatal: if discovery fails for any reason, the audit
@@ -246,6 +408,7 @@ export async function runApplicationDomHealthAudit(
         kind: "url",
         url: link.absoluteUrl,
         source: "same-origin-link",
+        sourceStateId: currentStateId,
       });
       queuedUrls.add(normalizedLink);
     }
@@ -256,7 +419,7 @@ export async function runApplicationDomHealthAudit(
       await collectSafeNavigationCandidates(tabId).catch(() => []);
     for (const candidate of candidates) {
       if (queue.length >= limits.maxQueueSize) break;
-      const key = `${candidate.frameId}:${candidate.domPath}`;
+      const key = `${currentStateId}:${candidate.frameId}:${candidate.domPath}`;
       if (skippedCandidates.has(key)) continue;
 
       if (!isSafeNavigationCandidate(candidate)) {
@@ -294,6 +457,7 @@ export async function runApplicationDomHealthAudit(
         frameId: candidate.frameId,
         domPath: candidate.domPath,
         candidateText: candidate.text,
+        sourceStateId: currentStateId,
       });
     }
   }
@@ -358,6 +522,24 @@ export async function runApplicationDomHealthAudit(
       }
 
       auditedCount++;
+
+      let stateId = graph.getCurrentStateId()!;
+      if (next.source !== "seed") {
+        const fingerprint =
+          (await captureFingerprint(tabId)) ?? seedFingerprint;
+        const transition = graph.recordTransition({
+          sourceStateId: next.sourceStateId,
+          trigger: { kind: "url-navigation", url: next.url },
+          beforeFingerprint:
+            graph.getNode(next.sourceStateId)?.fingerprint ?? seedFingerprint,
+          afterFingerprint: fingerprint,
+          url: auditOutcome.url,
+          title: auditOutcome.pageTitle,
+          historyEventDelta: 0,
+        });
+        stateId = transition.stateId;
+      }
+
       pages.push({
         url: auditOutcome.url,
         title: auditOutcome.pageTitle,
@@ -371,11 +553,36 @@ export async function runApplicationDomHealthAudit(
       if (auditedCount >= limits.maxPages) break;
       if (Date.now() - startedAt >= limits.maxTotalAuditMs) break;
 
-      await discoverFromCurrentState(auditOutcome.url);
+      await discoverFromCurrentState(auditOutcome.url, stateId);
       continue;
     }
 
     // next.kind === "click" — only ever reached when allowClickDiscovery is true.
+    if (graph.getCurrentStateId() !== next.sourceStateId) {
+      options.onProgress?.({
+        phase: "restoring-state",
+        targetUrl: graph.getNode(next.sourceStateId)?.url ?? next.fromUrl,
+      });
+      const restoration = await restoreToState(
+        tabId,
+        seedUrl!,
+        graph,
+        next.sourceStateId,
+      );
+      restorations.push(restoration);
+      if (!restoration.success) {
+        pages.push({
+          url: `${next.fromUrl}#control:${next.domPath}`,
+          title: next.candidateText,
+          discoverySource: "safe-navigation-control",
+          status: "not-discovered",
+          failureReason: `Could not restore to the state this control was found on before exploring it: ${restoration.reason ?? "restoration failed"}`,
+        });
+        continue;
+      }
+    }
+
+    const beforeNavModel = await getNavigationModel(tabId).catch(() => null);
     const beforeFingerprint = await captureFingerprint(tabId);
     const clickResult = await clickSafeNavigationCandidate(
       tabId,
@@ -395,6 +602,15 @@ export async function runApplicationDomHealthAudit(
 
     await waitForDomStable(tabId);
     const afterFingerprint = await captureFingerprint(tabId);
+    const afterNavModel = await getNavigationModel(tabId).catch(() => null);
+    const historyEventDelta =
+      beforeNavModel && afterNavModel
+        ? Math.max(
+            0,
+            afterNavModel.historyApiCallCount -
+              beforeNavModel.historyApiCallCount,
+          )
+        : 0;
 
     if (!beforeFingerprint || !afterFingerprint) {
       pages.push({
@@ -412,7 +628,16 @@ export async function runApplicationDomHealthAudit(
       beforeFingerprint,
       afterFingerprint,
     );
-    if (comparison.result !== "different") {
+    // A click that leaves the structural fingerprint unchanged is only
+    // treated as a real transition when real history-API evidence (a
+    // pushState/replaceState/popstate/hashchange call this click actually
+    // triggered) says a client-side route change happened anyway — real
+    // evidence promoted into the discovery decision, not left as
+    // diagnostic-only telemetry.
+    const isRealTransition =
+      comparison.result === "different" ||
+      (comparison.result === "same" && historyEventDelta > 0);
+    if (!isRealTransition) {
       pages.push({
         url: `${next.fromUrl}#control:${next.domPath}`,
         title: next.candidateText,
@@ -426,7 +651,22 @@ export async function runApplicationDomHealthAudit(
       continue;
     }
 
-    if (visitedFingerprints.has(afterFingerprint.fingerprint)) {
+    const transition = graph.recordTransition({
+      sourceStateId: next.sourceStateId,
+      trigger: {
+        kind: "click",
+        frameId: next.frameId,
+        domPath: next.domPath,
+        candidateText: next.candidateText,
+      },
+      beforeFingerprint,
+      afterFingerprint,
+      url: next.fromUrl,
+      title: next.candidateText,
+      historyEventDelta,
+    });
+
+    if (!transition.isNew) {
       pages.push({
         url: `${next.fromUrl}#control:${next.domPath}`,
         title: next.candidateText,
@@ -435,7 +675,6 @@ export async function runApplicationDomHealthAudit(
       });
       continue;
     }
-    visitedFingerprints.add(afterFingerprint.fingerprint);
 
     options.onProgress?.({
       phase: "auditing",
@@ -457,6 +696,10 @@ export async function runApplicationDomHealthAudit(
     }
 
     auditedCount++;
+    const reasonSuffix =
+      comparison.result === "different"
+        ? comparison.reasons.join("; ")
+        : `no structural signal changed, but ${historyEventDelta} client-side history API call(s) (pushState/replaceState/popstate/hashchange) fired`;
     // No new top-level URL exists for a same-URL state transition — the
     // audited page's own URL is reused, and the fingerprint (recorded in
     // transitionReason) is what actually distinguishes this state.
@@ -466,20 +709,22 @@ export async function runApplicationDomHealthAudit(
       discoverySource: "safe-navigation-control",
       status: "completed",
       result: auditOutcome,
-      transitionReason: `structural signal changed after clicking "${next.candidateText}": ${comparison.reasons.join("; ")}`,
+      transitionReason: `structural signal changed after clicking "${next.candidateText}": ${reasonSuffix}`,
       frameAccessibility: auditOutcome.frameAccessibility,
     });
 
     if (auditedCount >= limits.maxPages) break;
     if (Date.now() - startedAt >= limits.maxTotalAuditMs) break;
 
-    await discoverFromCurrentState(auditOutcome.url);
+    await discoverFromCurrentState(auditOutcome.url, transition.stateId);
   }
 
   const result = buildApplicationAuditResult(pages, generateAuditId(), {
     discoveryMethod: allowClickDiscovery
       ? "anchor-links+navigation-controls"
       : "anchor-links",
+    stateGraph: buildStateGraphSummary(graph),
+    restorations,
   });
   return { available: true, ...result };
 }

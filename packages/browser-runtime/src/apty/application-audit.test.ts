@@ -740,3 +740,217 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     }
   });
 });
+
+describe("runApplicationDomHealthAudit — state graph + backtracking (RC-6, the Infor-LN-shaped critical fixture)", () => {
+  /**
+   * A same-URL, menu-driven application: the URL NEVER changes, but four
+   * distinct application states exist, reachable only via clicks:
+   *
+   *   A (seed)
+   *    +-- click "Menu 1" --> B
+   *    |                       +-- click "Submenu 1" --> D
+   *    +-- click "Menu 2" --> C
+   *
+   * Exploring B (and D beneath it) must not lose C — the exact failure
+   * mode a flat FIFO queue with no backtracking produces (by the time
+   * "Menu 2" is dequeued, the live tab would already be sitting in B or D's
+   * DOM, so clicking "menu-2" there must fail rather than silently
+   * clicking the wrong element or fabricating state C).
+   */
+  type AppState = "A" | "B" | "C" | "D";
+  const TRANSITIONS: Record<string, AppState> = {
+    "A:menu-1": "B",
+    "A:menu-2": "C",
+    "B:submenu-1": "D",
+  };
+  const CANDIDATES_BY_STATE: Record<
+    AppState,
+    Array<{ domPath: string; text: string }>
+  > = {
+    A: [
+      { domPath: "menu-1", text: "Menu 1" },
+      { domPath: "menu-2", text: "Menu 2" },
+    ],
+    B: [{ domPath: "submenu-1", text: "Submenu 1" }],
+    C: [],
+    D: [],
+  };
+
+  function setupLnLikeMock() {
+    let appState: AppState = "A";
+    const visitCounts: Record<AppState, number> = { A: 0, B: 0, C: 0, D: 0 };
+
+    mockTabsUpdate.mockImplementation(
+      async (_tabId: number, updateInfo: { url?: string }) => {
+        if (updateInfo.url) {
+          currentUrl = updateInfo.url;
+          // A real navigation reloads the SPA back to its initial state —
+          // this is exactly why restoring a same-URL click-driven state
+          // requires a full reset-then-replay, not just re-navigating.
+          appState = "A";
+        }
+        queueMicrotask(() => {
+          for (const listener of [...onUpdatedListeners]) {
+            listener(TAB_ID, { status: "complete" });
+          }
+        });
+        return {};
+      },
+    );
+
+    mockSendMessage.mockImplementation(
+      (
+        _tabId: number,
+        msg: { request: string; domPath?: string },
+        _options: unknown,
+        callback: any,
+      ) => {
+        if (msg.request === "click-safe-navigation-candidate") {
+          const key = `${appState}:${msg.domPath}`;
+          const target = TRANSITIONS[key];
+          if (!target) {
+            callback({
+              success: true,
+              data: {
+                clicked: false,
+                reason: `no element matches "${msg.domPath}" in the current state`,
+              },
+            });
+            return;
+          }
+          appState = target;
+          callback({ success: true, data: { clicked: true } });
+          return;
+        }
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          visitCounts[appState]++;
+          callback({
+            success: true,
+            data: {
+              snapshot: snapshotFixture(currentUrl),
+              stateSignature: {
+                ...stateSignatureFixture(currentUrl),
+                activeNavItem: appState,
+                headingSample: [`Screen ${appState}`],
+              },
+            },
+          });
+          return;
+        }
+        if (msg.request === "wait-for-dom-stable") {
+          callback({ success: true, data: { settled: true, elapsedMs: 0 } });
+          return;
+        }
+        if (msg.request === "collect-dom-health-links") {
+          callback({ success: true, data: [] });
+          return;
+        }
+        if (msg.request === "collect-dom-health-safe-navigation-candidates") {
+          callback({
+            success: true,
+            data: CANDIDATES_BY_STATE[appState].map((c) => ({
+              domPath: c.domPath,
+              role: "menuitem",
+              tagName: "div",
+              text: c.text,
+              looksDestructive: false,
+              destructiveReason: null,
+            })),
+          });
+          return;
+        }
+        if (msg.request === "get-dom-health-navigation-model") {
+          callback({
+            success: true,
+            data: { usesHistoryApiRouting: false, historyApiCallCount: 0 },
+          });
+          return;
+        }
+        callback({ success: false, error: "unhandled message in test" });
+      },
+    );
+
+    return { visitCounts, getAppState: () => appState };
+  }
+
+  it("discovers all four same-URL states (A, B, C, D) and does not lose sibling C after descending into B", async () => {
+    const { visitCounts } = setupLnLikeMock();
+
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      allowClickDiscovery: true,
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+
+    expect(result.coverage.pagesAudited).toBe(4);
+    const completedHeadings = result.pages
+      .filter((p) => p.status === "completed")
+      .map((p) => p.transitionReason);
+    // All four states were genuinely visited and audited — not merely
+    // discovered as candidates.
+    expect(visitCounts.A).toBeGreaterThan(0);
+    expect(visitCounts.B).toBeGreaterThan(0);
+    expect(visitCounts.C).toBeGreaterThan(0);
+    expect(visitCounts.D).toBeGreaterThan(0);
+    expect(completedHeadings.some((r) => r?.includes("Menu 2"))).toBe(true);
+    expect(completedHeadings.some((r) => r?.includes("Submenu 1"))).toBe(true);
+
+    // The state graph reflects a real tree: 4 nodes, 3 edges (A->B, A->C, B->D).
+    expect(result.stateGraph?.nodes).toHaveLength(4);
+    expect(result.stateGraph?.edges).toHaveLength(3);
+    expect(result.stateGraph?.edges.every((e) => e.sameUrl)).toBe(true);
+
+    // Backtracking evidence: restoring to A (before Menu 2) and to B
+    // (before Submenu 1) were both attempted and both succeeded.
+    expect(result.restorations.length).toBeGreaterThanOrEqual(2);
+    expect(result.restorations.every((r) => r.success)).toBe(true);
+  });
+
+  it("records restoration failure honestly rather than fabricating a state when replay diverges", async () => {
+    setupLnLikeMock();
+    // Sabotage the replay: once the FIRST click into B has happened once
+    // (state B reached and audited), any FURTHER click on "menu-1" fails —
+    // simulating an application whose same-URL state is not deterministically
+    // re-enterable via the same click sequence.
+    let menu1ClickCount = 0;
+    const originalImpl = mockSendMessage.getMockImplementation()!;
+    mockSendMessage.mockImplementation((tabId, msg: any, options, callback) => {
+      if (
+        msg.request === "click-safe-navigation-candidate" &&
+        msg.domPath === "menu-1"
+      ) {
+        menu1ClickCount++;
+        if (menu1ClickCount > 1) {
+          callback({
+            success: true,
+            data: { clicked: false, reason: "element became stale" },
+          });
+          return;
+        }
+      }
+      originalImpl(tabId, msg, options, callback);
+    });
+
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      allowClickDiscovery: true,
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+
+    // Restoring to B (to explore Submenu 1) requires replaying "menu-1" a
+    // second time — which this sabotage makes fail. The branch must be
+    // reported as failed, never silently skipped or fabricated as success.
+    expect(result.restorations.some((r) => !r.success)).toBe(true);
+    const failedSubmenu = result.pages.find(
+      (p) => p.title === "Submenu 1" && p.status === "not-discovered",
+    );
+    expect(failedSubmenu).toBeDefined();
+    expect(failedSubmenu?.failureReason).toMatch(/restor/i);
+  });
+});

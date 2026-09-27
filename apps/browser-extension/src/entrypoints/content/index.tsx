@@ -27,8 +27,12 @@ interface CaptureState {
  * every real page navigation, per the manifest). `history` is a shared
  * platform object between the isolated content-script world and the
  * page's own main-world script, so patching it here also observes the
- * page's own `pushState`/`replaceState` calls — diagnostic only, never
- * used to decide safety or to affect the DOM Health score.
+ * page's own `pushState`/`replaceState`/`popstate`/`hashchange` calls.
+ * This count is real discovery evidence, not diagnostic-only telemetry:
+ * `application-audit.ts` uses a nonzero delta across a click as
+ * confirmation that a client-side route change happened even when the
+ * structural state fingerprint alone didn't change — it is still never
+ * used to decide safety, and never affects the DOM Health score itself.
  */
 let historyApiCallCount = 0;
 if (
@@ -47,6 +51,9 @@ if (
     return originalReplaceState(...args);
   };
   window.addEventListener("popstate", () => {
+    historyApiCallCount++;
+  });
+  window.addEventListener("hashchange", () => {
     historyApiCallCount++;
   });
 }
