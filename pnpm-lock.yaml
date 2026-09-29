@@ -248,11 +248,27 @@ importers:
         specifier: ^4.21.0
         version: 4.21.0
 
+  packages/apty-debug-contract:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^25.2.3
+        version: 25.3.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+
   packages/browser-runtime:
     dependencies:
       '@apty/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+      '@apty/debug-contract':
+        specifier: workspace:*
+        version: link:../apty-debug-contract
       '@apty/dom-snapshot':
         specifier: workspace:*
         version: link:../dom-snapshot

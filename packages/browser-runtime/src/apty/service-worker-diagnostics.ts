@@ -35,9 +35,9 @@
  * broader multi-session work this feeds into.
  */
 
+import { redactLogs, redactSensitiveText } from "@apty/debug-contract";
 import { z } from "zod";
 import { sendExternalMessage } from "./external-messaging.js";
-import { redactLogs, redactSensitiveText } from "./redact.js";
 import type {
   AptyLog,
   AptyObservedResource,

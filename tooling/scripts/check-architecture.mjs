@@ -3,10 +3,15 @@
  * Enforces the dependency-direction rules from ARCHITECTURE.md/CONTRIBUTING.md:
  *
  *   apps            -> packages
- *   packages/ui               -> packages/agent-core only (never browser-runtime)
- *   packages/browser-runtime  -> packages/agent-core, packages/dom-snapshot
- *   packages/agent-core, packages/dom-snapshot -> nothing (leaf packages)
+ *   packages/ui               -> packages/agent-core only (never browser-runtime, never debug-contract)
+ *   packages/browser-runtime  -> packages/agent-core, packages/dom-snapshot, packages/apty-debug-contract
+ *   packages/agent-core, packages/dom-snapshot, packages/apty-debug-contract -> nothing (leaf packages)
  *   packages/*      -> never apps/*
+ *
+ * `packages/apty-debug-contract` is a leaf by design (WP2): a producer
+ * extension (Apty Client/Studio, in a different repo) vendors it too, so it
+ * must never depend on anything browser-extension-specific — no `chrome`
+ * types, no other `@apty/*` package.
  *
  * Static, import-based checks (grep for import specifiers), not a full
  * module-graph analysis -- deliberately simple so it stays easy to reason
@@ -59,23 +64,41 @@ function checkPackage(srcDir, forbiddenPrefixes) {
   }
 }
 
-// packages/ui must never import @apty/browser-runtime
-checkPackage("packages/ui/src", ["@apty/browser-runtime"]);
+// packages/ui must never import @apty/browser-runtime or @apty/debug-contract
+checkPackage("packages/ui/src", [
+  "@apty/browser-runtime",
+  "@apty/debug-contract",
+]);
 
-// packages/agent-core and packages/dom-snapshot are leaves: no @apty/* imports at all
+// packages/agent-core, packages/dom-snapshot, packages/apty-debug-contract are
+// leaves: no @apty/* imports at all
 checkPackage("packages/agent-core/src", [
   "@apty/dom-snapshot",
   "@apty/browser-runtime",
   "@apty/ui",
+  "@apty/debug-contract",
 ]);
 checkPackage("packages/dom-snapshot/src", [
   "@apty/agent-core",
   "@apty/browser-runtime",
   "@apty/ui",
+  "@apty/debug-contract",
+]);
+checkPackage("packages/apty-debug-contract/src", [
+  "@apty/agent-core",
+  "@apty/browser-runtime",
+  "@apty/dom-snapshot",
+  "@apty/ui",
 ]);
 
 // packages/* must never import from apps/*
-for (const pkg of ["agent-core", "dom-snapshot", "browser-runtime", "ui"]) {
+for (const pkg of [
+  "agent-core",
+  "dom-snapshot",
+  "browser-runtime",
+  "ui",
+  "apty-debug-contract",
+]) {
   checkPackage(`packages/${pkg}/src`, [
     "apps/",
     "../../apps/",

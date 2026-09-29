@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "product": {
+      "type": "string",
+      "enum": ["apty-client", "apty-studio"]
+    },
+    "extensionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string"
+    },
+    "contractVersion": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["logs", "network", "capture-control"]
+      }
+    },
+    "now": {
+      "type": "number"
+    },
+    "swStartedAt": {
+      "type": "number"
+    },
+    "captureEnabled": {
+      "type": "boolean"
+    },
+    "buffers": {
+      "type": "object",
+      "properties": {
+        "logs": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "oldestSeq": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "newestSeq": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["count", "oldestSeq", "newestSeq", "dropped"],
+          "additionalProperties": false
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "oldestSeq": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "newestSeq": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["count", "oldestSeq", "newestSeq", "dropped"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["logs"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "product",
+    "extensionId",
+    "version",
+    "contractVersion",
+    "capabilities",
+    "now",
+    "swStartedAt",
+    "captureEnabled",
+    "buffers"
+  ],
+  "additionalProperties": false
+}

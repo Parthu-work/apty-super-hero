@@ -1,3 +1,10 @@
+export {
+  redactHeaders,
+  redactLog,
+  redactLogs,
+  redactSensitiveText,
+  redactUrl,
+} from "@apty/debug-contract";
 export type {
   ApplicationAuditLimits,
   ApplicationAuditOutcome,
@@ -161,12 +168,6 @@ export {
   waitForDomStable,
   waitForTabLoad,
 } from "./page-navigation.js";
-export {
-  redactHeaders,
-  redactLog,
-  redactLogs,
-  redactSensitiveText,
-} from "./redact.js";
 export {
   ConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredServiceWorkerDiagnosticsProvider,

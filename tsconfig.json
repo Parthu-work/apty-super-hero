@@ -10,6 +10,7 @@
   ],
   "references": [
     { "path": "./packages/agent-core" },
+    { "path": "./packages/apty-debug-contract" },
     { "path": "./packages/browser-runtime" },
     { "path": "./packages/ui" },
     { "path": "./apps/browser-extension" }

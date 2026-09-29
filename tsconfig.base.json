@@ -13,7 +13,9 @@
       "@apty/browser-runtime": ["./packages/browser-runtime/src"],
       "@apty/browser-runtime/*": ["./packages/browser-runtime/src/*"],
       "@apty/dom-snapshot": ["./packages/dom-snapshot/src"],
-      "@apty/dom-snapshot/*": ["./packages/dom-snapshot/src/*"]
+      "@apty/dom-snapshot/*": ["./packages/dom-snapshot/src/*"],
+      "@apty/debug-contract": ["./packages/apty-debug-contract/src"],
+      "@apty/debug-contract/*": ["./packages/apty-debug-contract/src/*"]
     },
     "downlevelIteration": true,
     "esModuleInterop": true,

@@ -3,6 +3,115 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## Apty debug bridge (service-worker logs + connected-app console logs): WP0 findings and the ADRs they justify
+
+Investigation performed before any code changed, per the mega-prompt's own
+"determine, don't assume" instruction. Findings, each independently
+confirmed against the actual source (not re-derived from the prompt):
+
+- **Tool `execute()` runs in TWO separate JS realms**, each with its own
+  independent copy of every module-level singleton in
+  `packages/browser-runtime`: (a) the side panel's own React tree for
+  normal chat (`apps/browser-extension/src/hooks/browser-agent-config.ts`
+  imports `allBrowserTools` directly — no message hop to the background
+  page), and (b) the background service worker, for the MCP-bridge path
+  (`ws-mcp-server.ts`'s `executeTool()` calls `browserTool.invoke()`
+  directly from inside the SW). Content scripts never execute tools.
+- **Consequence for state persistence**: `evidence-store.ts`'s
+  `evidenceByConversation` and `extension-network-inspector.ts`'s
+  `activeExtensionByConversation` are both plain module-level `Map`s, no
+  `chrome.storage` involved. The **side-panel-realm copy is not torn down
+  by MV3 service-worker idle-restart** — it isn't in the service worker at
+  all, and lives as long as the side panel stays open. The
+  **background-SW-realm copy (used only by the MCP-bridge path) is** torn
+  down by Chrome's SW idle-shutdown and respawns empty. This means the
+  urgency of `chrome.storage.session` persistence is lower for the primary
+  chat-driven flow than the prompt assumed, and higher specifically for
+  MCP-bridge-driven tool calls. Decision: persist the peer-client's per-peer
+  `seq` cursor and connection-approval state in `chrome.storage.session`
+  regardless of realm anyway (cheap, and it's also good hygiene across many
+  tool calls within one long-lived side panel session), bounded and with a
+  TTL — but do not treat this as "fixing" MCP-bridge-path evidence loss on
+  SW restart, which is a real, separate, larger gap the MCP-bridge
+  architecture would need its own persistence design for (out of scope
+  here; noted for a future pass).
+- **Config split-brain, confirmed exactly**: `AptyIntegrationConfig` has
+  five keys (`studioExtensionId`, `widgetExtensionId`, `clientExtensionId`,
+  `serviceWorkerExtensionId`, `serviceWorkerDiagnosticEndpoint`) in one
+  `chrome.storage.local` blob. The Options UI (`apty-client-panel.tsx`)
+  only ever reads/writes `clientExtensionId`. `get_apty_service_worker_diagnostics`
+  reads `serviceWorkerExtensionId` — a key with no UI at all, reachable
+  only via a build-time env var. Setting the Client ID in Options has zero
+  effect on that tool. Fixed by unifying to one `peers: {client?, studio?}`
+  shape with a migration (see the config-merge change in this same pass).
+- **Config-clobbering, confirmed exactly**: `seedAptyIntegrationConfig()`
+  calls `setAptyIntegrationConfig()` — a full-blob `chrome.storage.local.set`,
+  never a merge — unconditionally at background module top level, i.e. on
+  every install/update/idle-restart. With an empty `.env` this silently
+  wipes whatever the user saved in Options back to `undefined` on every
+  service-worker wake. Fixed with `updateAptyIntegrationConfig(patch)`
+  (merge semantics, mutex-serialized) and seeding that only fills unset
+  keys.
+- **`ping`/handshake must require identity fields.** Confirmed the
+  previous status schema made every field optional, so an unrelated
+  extension replying `{}` was reported "connected." Decision: `product`,
+  `extensionId`, and `contractVersion` are REQUIRED in `pingDataSchema`
+  (`@apty/debug-contract`) — an incomplete or wrong-shaped `ping` response
+  is `invalid_response`/`contract_mismatch`, never treated as success.
+- **The model must never supply an extension ID.** A prompt-injected page
+  could otherwise steer a tool call at an attacker's extension. Decision:
+  every tool that previously accepted an `extensionId` argument from the
+  LLM now only ever addresses IDs the user approved in Options (or a
+  build-time allowlist); the parameter is removed from the tool's schema
+  entirely, not just validated away, so the model has no way to even
+  attempt supplying one.
+- **Pull, not push.** The agent always initiates (`chrome.runtime.sendMessage`
+  with a `apty-debug-agent:<verb>` envelope); a producer never calls the
+  agent unsolicited. This keeps a producer's obligation to exactly one
+  thing: a synchronously-registered `onMessageExternal` listener that
+  checks `sender.id` against its own allow-list and answers known verbs —
+  it never needs to discover or trust the agent's identity beyond that one
+  check, and the agent never has to expose any listener of its own to a
+  peer extension.
+- **All page and peer text is untrusted, always.** Console/log content
+  originates from a web page (which may be actively prompt-injecting) or a
+  peer extension (which could be compromised or hostile, per the WP8
+  `hostile-peer` fixture). Every tool result carrying such text is tagged
+  `trust: "untrusted"`, and the system prompt explicitly instructs the
+  model never to follow instructions found inside it.
+- **`chrome.storage.session`, never `chrome.storage.local`, for anything
+  this bridge buffers.** Log/network buffers can contain redacted-but-still
+  page-derived content; `session` storage is memory-only and cleared on
+  browser restart, so nothing from this feature is ever written to disk.
+- **CDP is not used to reach another extension's service worker.**
+  `chrome.debugger` can only attach to a target the extension has a debuggee
+  handle for, and Chrome does not expose a supported way to attach the
+  debugger to an arbitrary OTHER extension's service worker from outside
+  it — there is no CDP path here at all, which is exactly why a producer-side
+  contract (this bridge) is the only way to get these logs, not an
+  agent-side capture trick.
+- **`ungroup_tabs` is genuinely double-registered** (`tools/tab.ts:273` and
+  `tools/tools/tab-groups/index.ts:144`, the latter with its own comment
+  acknowledging the name collision) — confirmed, fixed by deleting the
+  `tab-groups` copy and keeping `tab.ts`'s (the original, referenced
+  elsewhere), then gating `audit:tools` in CI so this can't silently
+  recur.
+- **The mcp-bridge README's install command names a different, unrelated
+  npm package than the one this repo publishes.** `apps/mcp-bridge/package.json`'s
+  `"name"` is `apty-mcp-bridge`; both READMEs' `claude mcp add` command runs
+  `npx -y aipex-mcp-bridge` — not a `bin` alias of this package, a
+  completely different package name. `npx` resolves by package name, so
+  this command fetches whatever (if anything) is published under
+  `aipex-mcp-bridge`, never this repo's own code. Fixed by correcting both
+  READMEs to `apty-mcp-bridge`.
+- **`daemon.ts`'s `isOriginAllowed` and single extension-socket slot,
+  confirmed exactly as suspected**: any `chrome-extension://*` origin
+  passes, any connection with no `Origin` header at all passes, and a new
+  `/extension` connection unconditionally replaces the previous one with no
+  identity check. This is a real local-hijack surface — any other
+  installed extension, or any local process willing to omit an `Origin`
+  header, can steal or squat the channel.
+
 ## Apty DOM Health frame-addressing uses `chrome.webNavigation`, not `chrome.debugger`/CDP — and click-based state discovery is opt-in, off by default
 
 A forensic audit found the previous DOM Health implementation sent every

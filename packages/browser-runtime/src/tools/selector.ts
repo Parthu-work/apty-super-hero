@@ -23,9 +23,9 @@
  * stubs" precedent.
  */
 import { tool } from "@apty/agent-core";
+import { redactSensitiveText } from "@apty/debug-contract";
 import { z } from "zod";
 import { recordToolCall } from "../apty/index.js";
-import { redactSensitiveText } from "../apty/redact.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
 import {

@@ -43,9 +43,10 @@
  * observable; `inspectResource` reports `not_observed` rather than
  * inventing history either way.
  */
+
+import { redactSensitiveText } from "@apty/debug-contract";
 import { recordEvidence } from "./evidence-store.js";
 import { classifyLogEntry, type LogCategory } from "./log-classification.js";
-import { redactSensitiveText } from "./redact.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
 import type { AptyObservedResource } from "./types.js";
 

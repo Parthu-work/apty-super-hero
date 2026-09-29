@@ -33,11 +33,11 @@
  * the conversation's capture slot into "busy" if the tab closes mid-capture.
  */
 import { generateId } from "@apty/agent-core";
+import { redactHeaders, redactUrl } from "@apty/debug-contract";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
 import { recordEvidence } from "./evidence-store.js";
 import { getInvestigation } from "./investigation-session.js";
-import { redactHeaders } from "./redact.js";
 
 export interface CapturedNetworkRequest {
   requestId: string;
@@ -226,7 +226,7 @@ export async function startNetworkCapture(
       }
       requests.set(p.requestId, {
         requestId: p.requestId,
-        url: p.request?.url,
+        url: redactUrl(String(p.request?.url ?? "")),
         method: p.request?.method,
         resourceType: p.type,
         initiatorType: p.initiator?.type,

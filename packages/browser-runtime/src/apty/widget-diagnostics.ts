@@ -23,7 +23,7 @@
  * signal that Apty-side work is still needed (see docs/integrations/apty/README.md).
  */
 
-import { redactLogs } from "./redact";
+import { redactLogs } from "@apty/debug-contract";
 import type {
   AptyLog,
   AptyWidgetDiagnosticsProvider,

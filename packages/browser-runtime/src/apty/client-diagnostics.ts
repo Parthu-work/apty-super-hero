@@ -21,7 +21,7 @@
  * short of the documented global.
  */
 
-import { redactLogs } from "./redact";
+import { redactLogs } from "@apty/debug-contract";
 import type {
   AptyClientDiagnosticsProvider,
   AptyClientStatus,

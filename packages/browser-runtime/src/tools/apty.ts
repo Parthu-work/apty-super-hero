@@ -3,7 +3,8 @@
  *
  * The bridge between the AI agent and Apty-specific runtime state:
  * - `get_apty_page_logs`: generic console/error capture (works on any page,
- *   via the MAIN-world content script in apty-console-bridge.ts).
+ *   via the MAIN-world content script in
+ *   apps/browser-extension/src/entrypoints/content/console-bridge.ts).
  * - `get_apty_widget_diagnostics` / `get_apty_client_diagnostics`: probe a
  *   documented `window.__APTY_WIDGET__` / `window.__APTY_CLIENT__` contract
  *   that the Widget/Client do not yet implement — see
@@ -15,7 +16,7 @@
  *   does not exist yet — these report `status: "not_configured"` until
  *   that's wired up on both sides.
  *
- * All log output is redacted (see apty/redact.ts) before being returned to
+ * All log output is redacted (see @apty/debug-contract/src/redact.ts) before being returned to
  * the model — the page is untrusted and may contain secrets in console
  * output or Apty's own log messages.
  */

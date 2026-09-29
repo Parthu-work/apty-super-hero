@@ -18,6 +18,9 @@
     },
     {
       "path": "../dom-snapshot/tsconfig.json"
+    },
+    {
+      "path": "../apty-debug-contract/tsconfig.json"
     }
   ]
 }

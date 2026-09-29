@@ -17,11 +17,16 @@
  * it was running, ask the user to reproduce the issue, then call again.
  *
  * All response/request headers are redacted before being returned to the
- * model (see apty/redact.ts) — the page is untrusted and may pass secrets
+ * model (see @apty/debug-contract/src/redact.ts) — the page is untrusted and may pass secrets
  * in headers.
  */
 
 import { tool } from "@apty/agent-core";
+import {
+  redactHeaders,
+  redactSensitiveText,
+  redactUrl,
+} from "@apty/debug-contract";
 import { z } from "zod";
 import {
   classifyLogEntry,
@@ -30,7 +35,6 @@ import {
   recordToolCall,
   summarizeLogCategories,
 } from "../apty/index.js";
-import { redactHeaders, redactSensitiveText } from "../apty/redact.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
 import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
@@ -143,7 +147,7 @@ export const getNetworkDiagnosticsTool = tool({
           if (method === "Network.requestWillBeSent") {
             byId.set(p.requestId, {
               requestId: p.requestId,
-              url: p.request?.url,
+              url: redactUrl(String(p.request?.url ?? "")),
               method: p.request?.method,
               requestHeaders: redactHeaders(p.request?.headers),
               timestamp: Date.now(),
