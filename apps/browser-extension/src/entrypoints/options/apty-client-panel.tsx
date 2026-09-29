@@ -19,7 +19,7 @@ import {
   type AptyIntegrationConfig,
   getAptyIntegrationConfig,
   isValidExtensionId,
-  setAptyIntegrationConfig,
+  updateAptyIntegrationConfig,
 } from "@apty/browser-runtime";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
@@ -79,8 +79,7 @@ export function AptyClientPanel() {
         });
         return;
       }
-      const config = await getAptyIntegrationConfig();
-      await setAptyIntegrationConfig({ ...config, clientExtensionId: id });
+      await updateAptyIntegrationConfig({ clientExtensionId: id });
       setSaved(id);
       setCheck({ status: "ok", name: info.name });
     } catch {
@@ -93,8 +92,7 @@ export function AptyClientPanel() {
   };
 
   const handleDisconnect = async () => {
-    const config = await getAptyIntegrationConfig();
-    await setAptyIntegrationConfig({ ...config, clientExtensionId: undefined });
+    await updateAptyIntegrationConfig({ clientExtensionId: undefined });
     setSaved(undefined);
     setCheck({ status: "idle" });
   };

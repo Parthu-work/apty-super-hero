@@ -631,10 +631,19 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
       "get_apty_service_worker_diagnostics",
     );
     const config = await getAptyIntegrationConfig();
+    // `serviceWorkerExtensionId` is a distinct, separately-configured field,
+    // but the common real-world case is one extension (the Apty Client)
+    // whose own service worker is what this tool wants to reach — fall back
+    // to the same extension ID the user already configured for Client
+    // resource inspection (Options → Apty Client Extension) rather than
+    // reporting not_configured just because this specific field was never
+    // set through a second, separate UI.
+    const serviceWorkerExtensionId =
+      config.serviceWorkerExtensionId ?? config.clientExtensionId;
     const provider =
-      config.serviceWorkerExtensionId || config.serviceWorkerDiagnosticEndpoint
+      serviceWorkerExtensionId || config.serviceWorkerDiagnosticEndpoint
         ? new ConfiguredServiceWorkerDiagnosticsProvider({
-            extensionId: config.serviceWorkerExtensionId,
+            extensionId: serviceWorkerExtensionId,
             diagnosticEndpoint: config.serviceWorkerDiagnosticEndpoint,
           })
         : new NotConfiguredServiceWorkerDiagnosticsProvider();

@@ -12,7 +12,6 @@ interface ImportMetaEnv {
   // "not configured", which the corresponding diagnostics provider reports
   // as status: "not_configured" rather than failing.
   readonly VITE_APTY_STUDIO_EXTENSION_ID?: string;
-  readonly VITE_APTY_WIDGET_EXTENSION_ID?: string;
   readonly VITE_APTY_CLIENT_EXTENSION_ID?: string;
   readonly VITE_APTY_SERVICE_WORKER_EXTENSION_ID?: string;
   readonly VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT?: string;

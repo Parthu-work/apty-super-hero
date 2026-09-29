@@ -30,7 +30,9 @@ export {
 export {
   type AptyIntegrationConfig,
   getAptyIntegrationConfig,
+  seedAptyIntegrationConfigDefaults,
   setAptyIntegrationConfig,
+  updateAptyIntegrationConfig,
 } from "./config.js";
 export type { DomHealthAuditOutcome } from "./dom-health.js";
 export { isUnsupportedPage, runDomHealthAudit } from "./dom-health.js";
