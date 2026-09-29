@@ -1008,16 +1008,10 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
   {
     name: "connect_apty_client",
     description:
-      "Connect to the Apty Client extension's Service Worker to begin observing its Network activity — attaches the Chrome debugger and enables Network capture. extensionId is optional if a default is configured. Only traffic after this call is observed.",
+      "Connect to the Apty Client extension's Service Worker to begin observing its Network activity — attaches the Chrome debugger and enables Network capture. Always connects to the extension ID configured in Options; this tool never accepts an extension ID as input (the model must not choose which extension gets contacted). Only traffic after this call is observed.",
     inputSchema: {
       type: "object",
-      properties: {
-        extensionId: {
-          type: "string",
-          description:
-            "The Apty Client Chrome extension ID (32 lowercase a-p characters). Omit to use the configured default.",
-        },
-      },
+      properties: {},
       required: [],
     },
   },
@@ -1036,7 +1030,7 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
   {
     name: "inspect_extension_network",
     description:
-      "Retrieve the actual Network response body for a resource observed on the Apty Client extension's Service Worker (e.g. segments.json, app.json, flow.json, a path, or a fragment). Not hardcoded to any resource name — matches whatever was actually observed. Auto-connects if not already connected.",
+      "Retrieve the actual Network response body for a resource observed on the Apty Client extension's Service Worker (e.g. segments.json, app.json, flow.json, a path, or a fragment). Not hardcoded to any resource name — matches whatever was actually observed. Auto-connects using the configured extension ID if not already connected; this tool never accepts an extension ID as input.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1045,11 +1039,6 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
           description:
             "The resource to look for: a filename (segments.json), a path (/api/segments.json), or a fragment (segments).",
         },
-        extensionId: {
-          type: "string",
-          description:
-            "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
-        },
       },
       required: ["resourceQuery"],
     },
@@ -1057,16 +1046,10 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
   {
     name: "list_extension_network_resources",
     description:
-      "List every network resource observed so far on the Apty Client extension's Service Worker since connecting. Auto-connects if not already connected.",
+      "List every network resource observed so far on the Apty Client extension's Service Worker since connecting. Auto-connects using the configured extension ID if not already connected; this tool never accepts an extension ID as input.",
     inputSchema: {
       type: "object",
-      properties: {
-        extensionId: {
-          type: "string",
-          description:
-            "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
-        },
-      },
+      properties: {},
       required: [],
     },
   },

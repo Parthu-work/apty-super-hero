@@ -19,12 +19,21 @@
  * cooperation, connect_apty_client reports a clear, honest failure —
  * never a fabricated success.
  *
- * `inspect_extension_network` auto-connects using `extensionId` (or the
- * configured `clientExtensionId`, see `../apty/config.ts`) if no connection
- * is active yet, so the primary chat flow ("Get segments.json") doesn't
- * force an explicit connect step. `connect_apty_client` /
- * `disconnect_apty_client` remain available for the explicit
- * "Use Apty Client extension: <id>" / Options-panel flow.
+ * `inspect_extension_network` auto-connects using the configured
+ * `clientExtensionId` (see `../apty/config.ts`) if no connection is active
+ * yet, so the primary chat flow ("Get segments.json") doesn't force an
+ * explicit connect step. `connect_apty_client` / `disconnect_apty_client`
+ * remain available to trigger that connection explicitly.
+ *
+ * SECURITY: none of these tools accept an `extensionId` parameter. A page
+ * the model is investigating can inject arbitrary text into a tool call's
+ * arguments (prompt injection) — if the model could be steered into
+ * supplying an extension ID, a hostile page could redirect this
+ * cross-extension messaging at an attacker-controlled extension instead of
+ * the user's actual Apty Client. The only extension ID ever contacted is
+ * the one the user explicitly configured via the Options UI
+ * (`clientExtensionId`); there is no code path from model input to which
+ * extension gets messaged.
  */
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
@@ -39,10 +48,10 @@ import {
 import { getAptyIntegrationConfig, recordToolCall } from "../apty/index.js";
 import type { ToolRunContext } from "./tab-utils";
 
-async function resolveExtensionId(
-  provided: string | undefined,
-): Promise<string | undefined> {
-  if (provided) return provided;
+const NOT_CONFIGURED_ERROR =
+  "No Apty Client extension is configured. Configure its extension ID in the Apty Client connection settings (Options) — the model cannot supply one directly.";
+
+async function resolveConfiguredExtensionId(): Promise<string | undefined> {
   const config = await getAptyIntegrationConfig();
   return config.clientExtensionId;
 }
@@ -52,26 +61,18 @@ export const connectAptyClientTool = tool({
   description:
     "Verify the Apty Client extension is installed and actually responds to Apty Agent's resource-inspection message contract, then remember it for this conversation. " +
     "Call this before inspect_extension_network / list_extension_network_resources unless a connection is already active (idempotent if already connected to the same extension). " +
-    "extensionId is optional — if omitted, uses the configured Apty Client extension ID (see the Apty Client connection settings). " +
+    "Always connects to the extension ID configured in the Apty Client connection settings (Options) — this tool never accepts an extension ID as input. " +
     "If the extension is installed but does not respond (it hasn't implemented the message contract, or doesn't allowlist this extension under externally_connectable), this reports a clear failure rather than a false success.",
-  parameters: z.object({
-    extensionId: z
-      .string()
-      .optional()
-      .describe(
-        "The Apty Client Chrome extension ID (32 lowercase a-p characters). Omit to use the configured default.",
-      ),
-  }),
-  execute: async ({ extensionId }, context) => {
+  parameters: z.object({}),
+  execute: async (_input, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
-    recordToolCall(conversationId, "connect_apty_client", { extensionId });
+    recordToolCall(conversationId, "connect_apty_client");
 
-    const id = await resolveExtensionId(extensionId);
+    const id = await resolveConfiguredExtensionId();
     if (!id) {
       return {
         connected: false,
-        error:
-          "No Apty Client extension ID was provided and none is configured. Provide an extension ID or configure one in the Apty Client connection settings.",
+        error: NOT_CONFIGURED_ERROR,
       };
     }
     return connectExtensionClient(conversationId, id);
@@ -108,7 +109,7 @@ export const inspectExtensionNetworkTool = tool({
   description:
     "Retrieve the actual response body for a resource the Apty Client extension reports having requested itself — e.g. resourceQuery 'segments.json', 'app.json', 'flow.json', a path like '/api/segments.json', or a fragment like 'segments'. " +
     "Not hardcoded to any resource name — matches whatever the Apty Client actually reports (exact filename > path suffix > substring fragment, most-recent match wins ties). " +
-    "Auto-connects using extensionId (or the configured Apty Client extension ID) if not already connected. " +
+    "Auto-connects using the configured Apty Client extension ID if not already connected (this tool never accepts an extension ID as input). " +
     "Returns status: 'not_observed' if the Apty Client didn't report a matching request (ask the user to reproduce the action, or reload the Apty Client, then try again), 'failed'/'http_error' if the request failed, 'pending' if seen but no response yet, or 'body_unavailable' if the Apty Client couldn't provide the body. Never returns fabricated data.",
   parameters: z.object({
     resourceQuery: z
@@ -117,29 +118,21 @@ export const inspectExtensionNetworkTool = tool({
       .describe(
         "The resource to look for: a filename (segments.json), a path (/api/segments.json), or a fragment (segments).",
       ),
-    extensionId: z
-      .string()
-      .optional()
-      .describe(
-        "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
-      ),
   }),
-  execute: async ({ resourceQuery, extensionId }, context) => {
+  execute: async ({ resourceQuery }, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
     recordToolCall(conversationId, "inspect_extension_network", {
       resourceQuery,
-      extensionId,
     });
 
     if (!getExtensionConnectionStatus(conversationId).connected) {
-      const id = await resolveExtensionId(extensionId);
+      const id = await resolveConfiguredExtensionId();
       if (!id) {
         return {
           found: false,
           status: "not_connected",
           resourceQuery,
-          error:
-            "Not connected to an Apty Client extension and no extension ID was provided or configured.",
+          error: NOT_CONFIGURED_ERROR,
         };
       }
       const connectResult = await connectExtensionClient(conversationId, id);
@@ -161,28 +154,18 @@ export const listExtensionNetworkResourcesTool = tool({
   name: "list_extension_network_resources",
   description:
     "List every resource the Apty Client extension reports having requested itself — useful to answer 'what resources did the Apty Client load?' before picking one to inspect with inspect_extension_network. " +
-    "Auto-connects using extensionId (or the configured Apty Client extension ID) if not already connected.",
-  parameters: z.object({
-    extensionId: z
-      .string()
-      .optional()
-      .describe(
-        "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
-      ),
-  }),
-  execute: async ({ extensionId }, context) => {
+    "Auto-connects using the configured Apty Client extension ID if not already connected (this tool never accepts an extension ID as input).",
+  parameters: z.object({}),
+  execute: async (_input, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
-    recordToolCall(conversationId, "list_extension_network_resources", {
-      extensionId,
-    });
+    recordToolCall(conversationId, "list_extension_network_resources");
 
     if (!getExtensionConnectionStatus(conversationId).connected) {
-      const id = await resolveExtensionId(extensionId);
+      const id = await resolveConfiguredExtensionId();
       if (!id) {
         return {
           connected: false,
-          error:
-            "Not connected to an Apty Client extension and no extension ID was provided or configured.",
+          error: NOT_CONFIGURED_ERROR,
         };
       }
       const connectResult = await connectExtensionClient(conversationId, id);
@@ -199,7 +182,7 @@ export const getExtensionServiceWorkerLogsTool = tool({
   name: "get_extension_service_worker_logs",
   description:
     "Get console messages, warnings, and errors the Apty Client extension's Service Worker reports about itself — e.g. 'show me errors from the Apty Client Service Worker'. " +
-    "Auto-connects using extensionId (or the configured Apty Client extension ID) if not already connected. " +
+    "Auto-connects using the configured Apty Client extension ID if not already connected (this tool never accepts an extension ID as input). " +
     "Depends entirely on what the Apty Client itself has recorded and is willing to report — if it only keeps a bounded recent history, older entries may no longer be available; that is the Apty Client's limitation, not fabricated data on this side. " +
     "Set onlyErrors to true to see just warning/error-level entries.",
   parameters: z.object({
@@ -209,27 +192,19 @@ export const getExtensionServiceWorkerLogsTool = tool({
       .describe(
         "If true, only return exceptions and warning/error-level log entries.",
       ),
-    extensionId: z
-      .string()
-      .optional()
-      .describe(
-        "The Apty Client Chrome extension ID. Omit to use the configured default or an already-active connection.",
-      ),
   }),
-  execute: async ({ onlyErrors, extensionId }, context) => {
+  execute: async ({ onlyErrors }, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
     recordToolCall(conversationId, "get_extension_service_worker_logs", {
       onlyErrors,
-      extensionId,
     });
 
     if (!getExtensionConnectionStatus(conversationId).connected) {
-      const id = await resolveExtensionId(extensionId);
+      const id = await resolveConfiguredExtensionId();
       if (!id) {
         return {
           connected: false,
-          error:
-            "Not connected to an Apty Client extension and no extension ID was provided or configured.",
+          error: NOT_CONFIGURED_ERROR,
         };
       }
       const connectResult = await connectExtensionClient(conversationId, id);
