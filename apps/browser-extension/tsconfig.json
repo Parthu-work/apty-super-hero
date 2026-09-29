@@ -17,6 +17,9 @@
       "path": "../../packages/agent-core/tsconfig.json"
     },
     {
+      "path": "../../packages/apty-debug-contract/tsconfig.json"
+    },
+    {
       "path": "../../packages/dom-snapshot/tsconfig.json"
     }
   ]

@@ -53,6 +53,9 @@ importers:
       '@apty/browser-runtime':
         specifier: workspace:*
         version: link:../../packages/browser-runtime
+      '@apty/debug-contract':
+        specifier: workspace:*
+        version: link:../../packages/apty-debug-contract
       '@apty/dom-snapshot':
         specifier: workspace:*
         version: link:../../packages/dom-snapshot
