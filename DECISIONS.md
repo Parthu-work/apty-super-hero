@@ -3,6 +3,67 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## Apty debug bridge: what actually shipped in this pass, and what's still open
+
+Follow-up to the WP0 findings entry directly below, after implementing
+WP1/WP2/WP5 in full and WP3/WP4/WP9 partially. Recorded here so a future
+session picks up exactly where this one stopped instead of re-scoping the
+whole WP0-WP10 brief from zero. Commit hashes are on `feat/apty-debug-bridge`.
+
+- **Shipped, in priority order**: WP1 (redactor rewrite, `d0dceff`), WP2
+  (`@apty/debug-contract` package, `d0dceff`), WP5 (console bridge rebuild —
+  safe serialization, all-frames read, tamper-resistant buffer, `27f81e0`),
+  WP4 security fix only (no tool accepts an `extensionId` from the model
+  any more, `db6fd85`), WP9 quick wins (`ungroup_tabs` dedup + `audit:tools`
+  gated in CI, `e29dc20`), WP3 practical fix (config seeding no longer
+  clobbers user values; service-worker/client config split-brain fixed via
+  fallback, `8c75077`).
+- **WP4's remaining scope — `ExtensionPeerClient` consolidation, a
+  build-time `VITE_APTY_ALLOWED_PEER_IDS` allowlist, required-identity-field
+  ping validation, and the full
+  not_installed/disabled/not_allowlisted_or_no_listener/timeout/
+  contract_mismatch error-code taxonomy — was not attempted.** The
+  security-critical half (the model can no longer supply an extension ID)
+  is done; the remaining half is a larger refactor of three existing
+  `sendExternalMessage`-shaped call sites and deserves its own dedicated
+  pass with its own tests, not a rushed version bolted onto this one.
+- **WP3's `peers: { client?, studio? }` shape unification, `configVersion`,
+  and legacy-key migration was deliberately not done.** The two concrete
+  bugs the task described (seeding clobbers user config; service-worker
+  diagnostics reads a field the UI never writes) are both fixed
+  (`updateAptyIntegrationConfig` / `seedAptyIntegrationConfigDefaults` in
+  `config.ts`, and a `clientExtensionId` fallback in
+  `get_apty_service_worker_diagnostics`). The bigger rename touches the
+  Options UI, every diagnostics provider, and needs a migration test suite
+  of its own — decided that shipping the two real bug fixes now was better
+  than leaving both unfixed while a bigger rename was in flight.
+- **`apps/mcp-bridge/src/daemon.ts`'s auth gap (High severity, found during
+  WP0, NOT fixed): deliberately left alone this pass.** `isOriginAllowed()`
+  accepts any `chrome-extension://*` origin and requests with no `Origin`
+  header at all (not just this extension's), and `setExtensionSocket()`
+  silently replaces an already-connected extension socket with whatever
+  connects next — so any other locally installed Chrome extension that
+  discovers the fixed `ws://127.0.0.1:9223` port can pose as the Apty
+  Agent's own MCP bridge connection, hijacking an existing session or
+  establishing its own. The fix design is straightforward (per-install
+  secret token in a `0600` file, `crypto.timingSafeEqual` comparison,
+  reject rather than replace a live `/extension` connection, pin the
+  allowed origin to a specific configured extension ID once WP7's stable
+  ID exists) but was NOT implemented: `apps/mcp-bridge` is a standalone
+  project with no test suite, no way to exercise the real WebSocket
+  upgrade handshake in this environment, and no real Chrome to verify a
+  fixed extension-side connect flow against — per this task's own ground
+  rule ("prove it in a real browser," WP8), shipping an unverified change
+  to this specific security boundary was judged riskier than leaving the
+  known gap documented here for a session that can actually test it
+  end-to-end.
+- **WP6 (tool renaming/consolidation), WP7 (Options UI rebuild, stable
+  extension ID, producer hand-off docs), WP8 (real-Chrome e2e fixtures and
+  tests), and the rest of WP9 (manifest hardening, AIPex dead-code removal,
+  remaining doc rot) were not attempted this pass.** Each is a substantial
+  standalone effort; see the final report delivered alongside this commit
+  for the full accounting.
+
 ## Apty debug bridge (service-worker logs + connected-app console logs): WP0 findings and the ADRs they justify
 
 Investigation performed before any code changed, per the mega-prompt's own
