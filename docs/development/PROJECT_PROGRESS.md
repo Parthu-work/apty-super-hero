@@ -1420,18 +1420,14 @@ commit.
 
 ## Known Limitations
 
-- **Existing issue discovered during the repository restructure**: `pnpm
-  audit:tools` (`tooling/scripts/audit-tools.mjs`, added this session)
-  found a pre-existing duplicate tool name — `ungroup_tabs` is registered
-  in both `packages/browser-runtime/src/tools/tab.ts` and
-  `packages/browser-runtime/src/tools/tools/tab-groups/index.ts`. The
-  latter is one of the gated/unregistered tool implementations under
-  `tools/tools/` awaiting security review (not currently wired into
-  `allBrowserTools`), so this isn't a live runtime collision today, but it
-  will become one if `tab-groups` is ever registered without also
-  resolving the name clash first. Not fixed as part of this restructure —
-  deciding which implementation should own that name is a product/behavior
-  call, not a structural one.
+- ~~**Existing issue discovered during the repository restructure**: `pnpm
+  audit:tools` found a pre-existing duplicate tool name — `ungroup_tabs`
+  registered in both `tools/tab.ts` and `tools/tools/tab-groups/index.ts`.~~
+  **Resolved** (Apty debug bridge work): the `tools/tools/tab-groups/index.ts`
+  copy was dead code (never imported into `allBrowserTools` or anywhere
+  else) — deleted, keeping `tab.ts`'s `ungroupTabsTool` as the only
+  implementation. `audit:tools` is now gated in CI (`.github/workflows/ci.yml`)
+  so this can't silently recur. See DECISIONS.md.
 - No real Apty Widget/Client/Studio/Service-Worker integration — every
   Apty-specific tool currently reports `not_configured`/`unavailable`
   against a real deployment until Apty-side work happens (Service Worker

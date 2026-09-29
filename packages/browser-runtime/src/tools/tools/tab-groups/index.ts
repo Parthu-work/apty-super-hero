@@ -11,36 +11,6 @@ export interface TabGroup {
 }
 
 /**
- * Remove all tab groups in the current window
- */
-export async function ungroupAllTabs(): Promise<{
-  success: boolean;
-  groupsUngrouped?: number;
-  error?: string;
-}> {
-  try {
-    const currentWindow = await chrome.windows.getCurrent();
-    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
-    if (groups.length === 0) {
-      return { success: true, groupsUngrouped: 0 };
-    }
-    for (const group of groups) {
-      const tabs = await chrome.tabs.query({ groupId: group.id });
-      const tabIds = tabs.map((t) => t.id).filter(Boolean) as number[];
-      if (tabIds.length > 0) {
-        await chrome.tabs.ungroup(tabIds as [number, ...number[]]);
-      }
-    }
-    return { success: true, groupsUngrouped: groups.length };
-  } catch (error: unknown) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
  * Get all tab groups across all windows
  */
 export async function getAllTabGroups(): Promise<TabGroup[]> {
@@ -135,20 +105,10 @@ export async function deleteTabGroup(groupId: number): Promise<{
   }
 }
 
-/**
- * Tool to remove all tab groups in the current window.
- * Note: This tool uses the name "ungroup_tabs" for consistency with legacy naming.
- * Do not register this alongside the default ungroupTabsTool from ./tab.ts to avoid
- * duplicate tool name registration.
- */
-export const ungroupAllTabsTool = tool({
-  name: "ungroup_tabs",
-  description: "Remove all tab groups in the current window",
-  parameters: z.object({}),
-  execute: async () => {
-    return await ungroupAllTabs();
-  },
-});
+// A second "ungroup_tabs" tool used to be defined here, duplicating
+// ungroupTabsTool from ../../tab.ts (the one actually registered in
+// allBrowserTools) — audit:tools flagged it as a registered duplicate
+// name. Removed; ../../tab.ts's ungroupTabsTool is the only implementation.
 
 export const getAllTabGroupsTool = tool({
   name: "get_all_tab_groups",
