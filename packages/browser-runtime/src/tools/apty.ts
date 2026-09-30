@@ -39,7 +39,9 @@ import {
   summarizeLogCategories,
 } from "../apty/index.js";
 import {
-  getActiveTab,
+  type DiagnosticTabFailureCode,
+  describeTabForMeta,
+  describeTabResolutionFailure,
   resolveDiagnosticTab,
   type ToolRunContext,
 } from "./tab-utils";
@@ -88,7 +90,7 @@ interface FrameReadResult {
 type PageLogsErrorCode = "restricted_page" | "no_permission" | "tab_closed";
 
 interface PageLogsFailure {
-  code: PageLogsErrorCode | "bound_tab_closed";
+  code: PageLogsErrorCode | DiagnosticTabFailureCode;
   message: string;
   nextSteps: string[];
 }
@@ -303,12 +305,21 @@ function recordAptyLogsAsEvidence<
  */
 function makeGetTabId(runContext?: ToolRunContext): () => Promise<number> {
   return async () => {
-    const tab = await resolveDiagnosticTab(runContext);
-    if (!tab.id) {
-      throw new Error("No active tab found");
+    const resolution = await resolveDiagnosticTab(runContext);
+    if (!resolution.ok) {
+      throw new TabResolutionError(resolution.code);
     }
-    return tab.id;
+    return resolution.tab.id as number;
   };
+}
+
+/** Thrown by `makeGetTabId`'s callback; callers should catch this specifically
+ * and return `describeTabResolutionFailure(error.code)` rather than letting
+ * it surface as a generic tool error. */
+class TabResolutionError extends Error {
+  constructor(public readonly code: DiagnosticTabFailureCode) {
+    super(`resolveDiagnosticTab: ${code}`);
+  }
 }
 
 /**
@@ -349,33 +360,13 @@ export const getAptyPageLogsTool = tool({
       { limit, minLevel, frames },
     );
     const runContext = context as ToolRunContext;
-    const boundTabId = runContext?.context?.tabId;
 
-    let tab: chrome.tabs.Tab;
-    if (typeof boundTabId === "number") {
-      try {
-        tab = await chrome.tabs.get(boundTabId);
-      } catch {
-        return pageLogsFailure({
-          code: "bound_tab_closed",
-          message:
-            "The tab this conversation was bound to has been closed, so its console logs are no longer available.",
-          nextSteps: [
-            "Ask the user to reopen the app, then retry (this will bind to whichever tab you're actively investigating next).",
-          ],
-        });
-      }
-    } else {
-      tab = await getActiveTab();
+    const resolution = await resolveDiagnosticTab(runContext);
+    if (!resolution.ok) {
+      return pageLogsFailure(describeTabResolutionFailure(resolution.code));
     }
-
-    if (!tab.id) {
-      return pageLogsFailure({
-        code: "tab_closed",
-        message: "No open tab is available to read console logs from.",
-        nextSteps: ["Open a tab on the app being debugged and retry."],
-      });
-    }
+    const tab = resolution.tab;
+    const tabId = tab.id as number;
 
     if (isRestrictedUrl(tab.url)) {
       return pageLogsFailure({
@@ -391,7 +382,7 @@ export const getAptyPageLogsTool = tool({
       frames: frameResults,
       errorCode,
       errorMessage,
-    } = await readFrameConsoleLogs(tab.id);
+    } = await readFrameConsoleLogs(tabId);
     if (errorCode) {
       return pageLogsFailure({
         code: errorCode,
@@ -432,7 +423,7 @@ export const getAptyPageLogsTool = tool({
         .reverse(),
     );
 
-    recordAptyLogsAsEvidence(filtered, "console", runContext, tab.id);
+    recordAptyLogsAsEvidence(filtered, "console", runContext, tabId);
 
     const classified = filtered.map((entry) => ({
       ...entry,
@@ -465,6 +456,7 @@ export const getAptyPageLogsTool = tool({
       ),
       coverage,
       entries: classified,
+      meta: { tab: describeTabForMeta(tab) },
     };
   },
 });
@@ -508,10 +500,22 @@ export const getAptyWidgetDiagnosticsTool = tool({
     const provider = new ScriptingWidgetDiagnosticsProvider(
       makeGetTabId(context as ToolRunContext),
     );
-    const [status, logs] = await Promise.all([
-      provider.getStatus(),
-      provider.getLogs(),
-    ]);
+    let status: Awaited<ReturnType<typeof provider.getStatus>>;
+    let logs: Awaited<ReturnType<typeof provider.getLogs>>;
+    try {
+      [status, logs] = await Promise.all([
+        provider.getStatus(),
+        provider.getLogs(),
+      ]);
+    } catch (error) {
+      if (error instanceof TabResolutionError) {
+        return {
+          status: describeTabResolutionFailure(error.code),
+          logs: [],
+        };
+      }
+      throw error;
+    }
 
     const runContext = context as ToolRunContext;
     const tabId = runContext?.context?.tabId ?? null;
@@ -543,10 +547,22 @@ export const getAptyClientDiagnosticsTool = tool({
     const provider = new ScriptingClientDiagnosticsProvider(
       makeGetTabId(context as ToolRunContext),
     );
-    const [status, logs] = await Promise.all([
-      provider.getStatus(),
-      provider.getLogs(),
-    ]);
+    let status: Awaited<ReturnType<typeof provider.getStatus>>;
+    let logs: Awaited<ReturnType<typeof provider.getLogs>>;
+    try {
+      [status, logs] = await Promise.all([
+        provider.getStatus(),
+        provider.getLogs(),
+      ]);
+    } catch (error) {
+      if (error instanceof TabResolutionError) {
+        return {
+          status: describeTabResolutionFailure(error.code),
+          logs: [],
+        };
+      }
+      throw error;
+    }
 
     const runContext = context as ToolRunContext;
     const tabId = runContext?.context?.tabId ?? null;

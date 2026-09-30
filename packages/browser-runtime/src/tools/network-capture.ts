@@ -19,7 +19,12 @@ import {
   startNetworkCapture,
   stopNetworkCapture,
 } from "../apty/network-capture-session.js";
-import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
+import {
+  describeTabForMeta,
+  describeTabResolutionFailure,
+  resolveDiagnosticTab,
+  type ToolRunContext,
+} from "./tab-utils";
 
 export const startNetworkCaptureTool = tool({
   name: "start_network_capture",
@@ -31,11 +36,18 @@ export const startNetworkCaptureTool = tool({
   execute: async (_input, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
     recordToolCall(conversationId, "start_network_capture");
-    const tab = await resolveDiagnosticTab(context as ToolRunContext);
-    if (!tab.id) {
-      return { started: false, error: "No active tab found" };
+    const resolution = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!resolution.ok) {
+      return {
+        started: false,
+        status: describeTabResolutionFailure(resolution.code),
+      };
     }
-    return startNetworkCapture(conversationId, tab.id);
+    const tab = resolution.tab;
+    return {
+      ...(await startNetworkCapture(conversationId, tab.id as number)),
+      meta: { tab: describeTabForMeta(tab) },
+    };
   },
 });
 

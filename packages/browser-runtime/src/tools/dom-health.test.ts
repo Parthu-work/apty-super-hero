@@ -31,7 +31,7 @@ describe("runDomHealthAuditTool", () => {
     (global as any).chrome.tabs.query = vi.fn(async () => [{ id: 7 }]);
   });
 
-  it("delegates to runDomHealthAudit for the tab bound to the conversation", async () => {
+  it("delegates to runDomHealthAudit for the tab bound to the conversation, and adds a tab meta block", async () => {
     mockRunDomHealthAudit.mockResolvedValue({ available: true, score: 88 });
 
     const runContext = { context: { conversationId: "conv-1", tabId: 9 } };
@@ -41,7 +41,11 @@ describe("runDomHealthAuditTool", () => {
     );
 
     expect(mockRunDomHealthAudit).toHaveBeenCalledWith(9);
-    expect(result).toEqual({ available: true, score: 88 });
+    expect(result).toEqual({
+      available: true,
+      score: 88,
+      meta: { tab: { id: 9, origin: null, title: null } },
+    });
     expect(mockRecordToolCall).toHaveBeenCalledWith(
       "conv-1",
       "run_dom_health_audit",
@@ -49,13 +53,38 @@ describe("runDomHealthAuditTool", () => {
     );
   });
 
-  it("falls back to the active tab when no tab is bound to the conversation", async () => {
-    mockRunDomHealthAudit.mockResolvedValue({ available: true, score: 50 });
+  it("never silently uses the active tab when no tab is bound to the conversation — returns no_bound_tab instead", async () => {
     const runContext = { context: { conversationId: "conv-2", tabId: null } };
 
-    await runDomHealthAuditTool.invoke(runContext as any, JSON.stringify({}));
+    const result = await runDomHealthAuditTool.invoke(
+      runContext as any,
+      JSON.stringify({}),
+    );
 
-    expect(mockRunDomHealthAudit).toHaveBeenCalledWith(7);
+    expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
+    expect((global as any).chrome.tabs.query).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      available: false,
+      status: expect.objectContaining({ code: "no_bound_tab" }),
+    });
+  });
+
+  it("returns bound_tab_closed (never the active tab) when the bound tab has been closed", async () => {
+    (global as any).chrome.tabs.get = vi.fn(async () => {
+      throw new Error("No tab with id: 9");
+    });
+    const runContext = { context: { conversationId: "conv-4", tabId: 9 } };
+
+    const result = await runDomHealthAuditTool.invoke(
+      runContext as any,
+      JSON.stringify({}),
+    );
+
+    expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      available: false,
+      status: expect.objectContaining({ code: "bound_tab_closed" }),
+    });
   });
 
   it("returns the audit outcome exactly as computed — never a different score", async () => {
@@ -73,7 +102,10 @@ describe("runDomHealthAuditTool", () => {
       JSON.stringify({}),
     );
 
-    expect(result).toEqual(outcome);
+    expect(result).toEqual({
+      ...outcome,
+      meta: { tab: { id: 1, origin: null, title: null } },
+    });
   });
 });
 
@@ -106,6 +138,7 @@ describe("runApplicationDomHealthAuditTool", () => {
       available: true,
       scope: "application",
       score: 70,
+      meta: { tab: { id: 9, origin: null, title: null } },
     });
     expect(mockRecordToolCall).toHaveBeenCalledWith(
       "conv-1",
@@ -133,6 +166,21 @@ describe("runApplicationDomHealthAuditTool", () => {
     });
   });
 
+  it("never silently uses the active tab when no tab is bound to the conversation", async () => {
+    const runContext = { context: { conversationId: "conv-5", tabId: null } };
+
+    const result = await runApplicationDomHealthAuditTool.invoke(
+      runContext as any,
+      JSON.stringify({}),
+    );
+
+    expect(mockRunApplicationDomHealthAudit).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      available: false,
+      status: expect.objectContaining({ code: "no_bound_tab" }),
+    });
+  });
+
   it("returns the application audit outcome exactly as computed", async () => {
     const outcome = {
       available: true,
@@ -148,6 +196,9 @@ describe("runApplicationDomHealthAuditTool", () => {
       JSON.stringify({}),
     );
 
-    expect(result).toEqual(outcome);
+    expect(result).toEqual({
+      ...outcome,
+      meta: { tab: { id: 3, origin: null, title: null } },
+    });
   });
 });

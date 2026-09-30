@@ -70,21 +70,19 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
     );
   });
 
-  it("falls back to the active tab when no conversation context is bound", async () => {
+  it("never falls back to the active tab when no conversation context is bound — returns no_bound_tab instead", async () => {
     mockTabsQuery.mockResolvedValue([tab(12)]);
-    mockExecuteScript.mockResolvedValue([frameResult(0, [])]);
 
-    await getAptyPageLogsTool.invoke(
+    const result = (await getAptyPageLogsTool.invoke(
       {} as any,
       JSON.stringify({ limit: 100, minLevel: "log" }),
-    );
+    )) as any;
 
-    expect(mockExecuteScript).toHaveBeenCalledWith(
-      expect.objectContaining({
-        target: { tabId: 12, allFrames: true },
-        world: "MAIN",
-      }),
-    );
+    expect(mockTabsQuery).not.toHaveBeenCalled();
+    expect(mockExecuteScript).not.toHaveBeenCalled();
+    expect(result.available).toBe(false);
+    expect(result.status.code).toBe("no_bound_tab");
+    expect(result.entries).toEqual([]);
   });
 
   it("reports bound_tab_closed (not the active tab) when the conversation's bound tab has been closed", async () => {

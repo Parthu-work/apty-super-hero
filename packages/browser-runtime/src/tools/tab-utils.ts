@@ -42,33 +42,97 @@ export interface ToolRunContext {
   context?: ConversationRunContext;
 }
 
+/** Why `resolveDiagnosticTab` could not resolve a tab to target. */
+export type DiagnosticTabFailureCode = "no_bound_tab" | "bound_tab_closed";
+
+export type DiagnosticTabResolution =
+  | { ok: true; tab: chrome.tabs.Tab }
+  | { ok: false; code: DiagnosticTabFailureCode };
+
 /**
  * Resolve which tab a diagnostic tool call should target.
  *
- * Prefers the tab bound to the calling conversation (`context.context.tabId`)
- * so evidence collection stays scoped to the conversation that asked for
- * it. Falls back to `getActiveTab()` — same as before this existed — when
- * no context was threaded through (e.g. tools invoked outside the chat
- * agent loop, such as via the MCP bridge) or when the bound tab has since
- * been closed.
+ * Only ever returns the tab bound to the calling conversation
+ * (`context.context.tabId`) — it never falls back to "whichever tab
+ * happens to be active right now". A tool call made with no bound tab at
+ * all (e.g. via the MCP bridge, which does not thread a conversation's
+ * `ConversationRunContext` through) or one whose bound tab has since been
+ * closed gets an explicit `{ok: false, code: ...}` instead of a plausible-
+ * looking but potentially wrong tab — this is exactly the class of bug
+ * that once ran a network capture against the side panel's own claude.ai
+ * tab instead of the application tab the user was actually looking at.
+ *
+ * Callers should surface `no_bound_tab`/`bound_tab_closed` as a real
+ * failure (see `describeTabResolutionFailure`), not paper over it.
  */
 export async function resolveDiagnosticTab(
   runContext?: ToolRunContext,
-): Promise<chrome.tabs.Tab> {
+): Promise<DiagnosticTabResolution> {
   const boundTabId = runContext?.context?.tabId;
-  if (typeof boundTabId === "number") {
-    try {
-      const tab = await chrome.tabs.get(boundTabId);
-      if (tab?.id) {
-        return tab;
-      }
-    } catch {
-      // Bound tab no longer exists (closed) — fall back to the active tab
-      // below rather than failing the tool call outright.
-    }
+  if (typeof boundTabId !== "number") {
+    return { ok: false, code: "no_bound_tab" };
   }
 
-  return getActiveTab();
+  try {
+    const tab = await chrome.tabs.get(boundTabId);
+    if (tab?.id) {
+      return { ok: true, tab };
+    }
+  } catch {
+    // Bound tab no longer exists (closed).
+  }
+
+  return { ok: false, code: "bound_tab_closed" };
+}
+
+/**
+ * Turn a `resolveDiagnosticTab` failure into the `{code, message,
+ * nextSteps}` shape every diagnostic tool's failure result should use
+ * (see the accuracy contract in the master prompt: "never return `[]`
+ * where the truth is failed/unknown").
+ */
+export function describeTabResolutionFailure(code: DiagnosticTabFailureCode): {
+  code: DiagnosticTabFailureCode;
+  message: string;
+  nextSteps: string[];
+} {
+  if (code === "no_bound_tab") {
+    return {
+      code,
+      message:
+        "This conversation has no bound tab yet, so this tool has no specific tab to target.",
+      nextSteps: [
+        "Send a message while a tab is open and active so this conversation binds to it, then retry.",
+      ],
+    };
+  }
+  return {
+    code,
+    message:
+      "The tab this conversation was bound to has been closed, so this tool has no tab to target.",
+    nextSteps: [
+      "Open the application tab you want to debug and send another message to re-bind, then retry.",
+    ],
+  };
+}
+
+/** The `tab` field every diagnostic tool's successful result should carry. */
+export interface DiagnosticTabMeta {
+  id: number;
+  origin: string | null;
+  title: string | null;
+}
+
+export function describeTabForMeta(tab: chrome.tabs.Tab): DiagnosticTabMeta {
+  let origin: string | null = null;
+  if (tab.url) {
+    try {
+      origin = new URL(tab.url).origin;
+    } catch {
+      origin = null;
+    }
+  }
+  return { id: tab.id ?? -1, origin, title: tab.title ?? null };
 }
 
 /**

@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getActiveTab, resolveDiagnosticTab } from "./tab-utils";
+import {
+  describeTabForMeta,
+  describeTabResolutionFailure,
+  getActiveTab,
+  resolveDiagnosticTab,
+} from "./tab-utils";
 
 const mockTabsQuery = vi.fn();
 const mockTabsGet = vi.fn();
@@ -41,24 +46,25 @@ describe("getActiveTab", () => {
 });
 
 describe("resolveDiagnosticTab", () => {
-  it("falls back to the active tab when no run context is provided", async () => {
+  it("never silently uses the active tab: no run context at all returns no_bound_tab", async () => {
     mockTabsQuery.mockResolvedValue([activeTab(12)]);
 
-    const tab = await resolveDiagnosticTab(undefined);
+    const result = await resolveDiagnosticTab(undefined);
 
-    expect(tab).toEqual(activeTab(12));
+    expect(result).toEqual({ ok: false, code: "no_bound_tab" });
+    expect(mockTabsQuery).not.toHaveBeenCalled();
     expect(mockTabsGet).not.toHaveBeenCalled();
   });
 
-  it("falls back to the active tab when the run context has no bound tabId", async () => {
+  it("never silently uses the active tab: a run context with no bound tabId returns no_bound_tab", async () => {
     mockTabsQuery.mockResolvedValue([activeTab(12)]);
 
-    const tab = await resolveDiagnosticTab({
+    const result = await resolveDiagnosticTab({
       context: { conversationId: "conv-1", tabId: null },
     });
 
-    expect(tab).toEqual(activeTab(12));
-    expect(mockTabsGet).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, code: "no_bound_tab" });
+    expect(mockTabsQuery).not.toHaveBeenCalled();
   });
 
   it("targets the conversation's bound tab instead of whatever is active — the core isolation guarantee", async () => {
@@ -70,23 +76,62 @@ describe("resolveDiagnosticTab", () => {
     mockTabsQuery.mockResolvedValue([activeTab(12)]);
     mockTabsGet.mockResolvedValue(activeTab(27));
 
-    const tab = await resolveDiagnosticTab({
+    const result = await resolveDiagnosticTab({
       context: { conversationId: "conv-1", tabId: 27 },
     });
 
-    expect(tab).toEqual(activeTab(27));
+    expect(result).toEqual({ ok: true, tab: activeTab(27) });
     expect(mockTabsGet).toHaveBeenCalledWith(27);
     expect(mockTabsQuery).not.toHaveBeenCalled();
   });
 
-  it("falls back to the active tab when the bound tab has been closed", async () => {
+  it("returns bound_tab_closed (never the active tab) when the bound tab has been closed", async () => {
     mockTabsQuery.mockResolvedValue([activeTab(12)]);
     mockTabsGet.mockRejectedValue(new Error("No tab with id: 27"));
 
-    const tab = await resolveDiagnosticTab({
+    const result = await resolveDiagnosticTab({
       context: { conversationId: "conv-1", tabId: 27 },
     });
 
-    expect(tab).toEqual(activeTab(12));
+    expect(result).toEqual({ ok: false, code: "bound_tab_closed" });
+    expect(mockTabsQuery).not.toHaveBeenCalled();
+  });
+});
+
+describe("describeTabResolutionFailure", () => {
+  it("describes no_bound_tab with an actionable next step", () => {
+    const described = describeTabResolutionFailure("no_bound_tab");
+    expect(described.code).toBe("no_bound_tab");
+    expect(described.nextSteps.length).toBeGreaterThan(0);
+  });
+
+  it("describes bound_tab_closed with an actionable next step", () => {
+    const described = describeTabResolutionFailure("bound_tab_closed");
+    expect(described.code).toBe("bound_tab_closed");
+    expect(described.nextSteps.length).toBeGreaterThan(0);
+  });
+});
+
+describe("describeTabForMeta", () => {
+  it("extracts id, origin, and title from a tab", () => {
+    expect(
+      describeTabForMeta({
+        id: 27,
+        url: "https://app.example.com/path?query=1",
+        title: "Example App",
+      } as chrome.tabs.Tab),
+    ).toEqual({
+      id: 27,
+      origin: "https://app.example.com",
+      title: "Example App",
+    });
+  });
+
+  it("handles a tab with no url or title", () => {
+    expect(describeTabForMeta({ id: 27 } as chrome.tabs.Tab)).toEqual({
+      id: 27,
+      origin: null,
+      title: null,
+    });
   });
 });

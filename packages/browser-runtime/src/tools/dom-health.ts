@@ -15,7 +15,12 @@ import {
   runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "../apty/index.js";
-import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
+import {
+  describeTabForMeta,
+  describeTabResolutionFailure,
+  resolveDiagnosticTab,
+  type ToolRunContext,
+} from "./tab-utils";
 
 export const runDomHealthAuditTool = tool({
   name: "run_dom_health_audit",
@@ -32,11 +37,16 @@ export const runDomHealthAuditTool = tool({
       "run_dom_health_audit",
       {},
     );
-    const tab = await resolveDiagnosticTab(context as ToolRunContext);
-    if (!tab.id) {
-      return { available: false, error: "No active tab found." };
+    const resolution = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!resolution.ok) {
+      return {
+        available: false,
+        status: describeTabResolutionFailure(resolution.code),
+      };
     }
-    return runDomHealthAudit(tab.id);
+    const tab = resolution.tab;
+    const result = await runDomHealthAudit(tab.id as number);
+    return { ...result, meta: { tab: describeTabForMeta(tab) } };
   },
 });
 
@@ -74,14 +84,19 @@ export const runApplicationDomHealthAuditTool = tool({
       "run_application_dom_health_audit",
       input,
     );
-    const tab = await resolveDiagnosticTab(context as ToolRunContext);
-    if (!tab.id) {
-      return { available: false, error: "No active tab found." };
+    const resolution = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!resolution.ok) {
+      return {
+        available: false,
+        status: describeTabResolutionFailure(resolution.code),
+      };
     }
-    return runApplicationDomHealthAudit(tab.id, {
+    const tab = resolution.tab;
+    const result = await runApplicationDomHealthAudit(tab.id as number, {
       maxPages: input.maxPages,
       discoveryMode: input.discoveryMode,
     });
+    return { ...result, meta: { tab: describeTabForMeta(tab) } };
   },
 });
 

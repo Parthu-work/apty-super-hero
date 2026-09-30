@@ -37,7 +37,12 @@ import {
 } from "../apty/index.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
-import { resolveDiagnosticTab, type ToolRunContext } from "./tab-utils";
+import {
+  describeTabForMeta,
+  describeTabResolutionFailure,
+  resolveDiagnosticTab,
+  type ToolRunContext,
+} from "./tab-utils";
 
 const MIN_WINDOW_MS = 500;
 const MAX_WINDOW_MS = 15000;
@@ -130,11 +135,16 @@ export const getNetworkDiagnosticsTool = tool({
       "get_network_diagnostics",
       { windowMs, onlyErrors },
     );
-    const tab = await resolveDiagnosticTab(context as ToolRunContext);
-    if (!tab.id) {
-      return { available: false, requests: [] };
+    const resolution = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!resolution.ok) {
+      return {
+        available: false,
+        requests: [],
+        status: describeTabResolutionFailure(resolution.code),
+      };
     }
-    const tabId = tab.id;
+    const tab = resolution.tab;
+    const tabId = tab.id as number;
 
     try {
       const requests = await withDebuggerEventCapture<
@@ -212,6 +222,7 @@ export const getNetworkDiagnosticsTool = tool({
         windowMs: clampWindow(windowMs),
         count: list.length,
         requests: list,
+        meta: { tab: describeTabForMeta(tab) },
       };
     } catch (error) {
       return {
@@ -255,11 +266,16 @@ export const getRuntimeDiagnosticsTool = tool({
       "get_runtime_diagnostics",
       { windowMs },
     );
-    const tab = await resolveDiagnosticTab(context as ToolRunContext);
-    if (!tab.id) {
-      return { available: false, events: [] };
+    const resolution = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!resolution.ok) {
+      return {
+        available: false,
+        events: [],
+        status: describeTabResolutionFailure(resolution.code),
+      };
     }
-    const tabId = tab.id;
+    const tab = resolution.tab;
+    const tabId = tab.id as number;
 
     try {
       const events = await withDebuggerEventCapture<CapturedRuntimeEvent[]>(
@@ -342,6 +358,7 @@ export const getRuntimeDiagnosticsTool = tool({
           events.map((event) => event.category),
         ),
         events,
+        meta: { tab: describeTabForMeta(tab) },
       };
     } catch (error) {
       return {
@@ -404,11 +421,15 @@ export const runConsoleCommandTool = tool({
       "run_console_command",
       { expression },
     );
-    const tab = await resolveDiagnosticTab(context as ToolRunContext);
-    if (!tab.id) {
-      return { available: false, error: "No active tab found." };
+    const resolution = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!resolution.ok) {
+      return {
+        available: false,
+        status: describeTabResolutionFailure(resolution.code),
+      };
     }
-    const tabId = tab.id;
+    const tab = resolution.tab;
+    const tabId = tab.id as number;
 
     const attached = await debuggerManager.safeAttachDebugger(tabId);
     if (!attached) {
@@ -447,6 +468,7 @@ export const runConsoleCommandTool = tool({
             redactSensitiveText(String(message)),
             MAX_RESULT_LENGTH,
           ),
+          meta: { tab: describeTabForMeta(tab) },
         };
       }
 
@@ -457,6 +479,7 @@ export const runConsoleCommandTool = tool({
         expression,
         resultType: evalResult?.result?.type,
         result: serializeEvaluationResult(evalResult?.result),
+        meta: { tab: describeTabForMeta(tab) },
       };
     } catch (error) {
       return {
