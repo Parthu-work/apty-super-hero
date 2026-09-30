@@ -21,8 +21,6 @@ export interface TranslationResources {
     subtitle: string;
     language: string;
     theme: string;
-    byok: string;
-    byokDescription: string;
     aiHost: string;
     aiToken: string;
     aiModel: string;
@@ -38,11 +36,6 @@ export interface TranslationResources {
     reset: string;
     resetConfirm: string;
     privacy: string;
-    dataSharing: string;
-    dataSharingEnabled: string;
-    dataSharingDisabled: string;
-    dataSharingDescription: string;
-    privacyModeDescription: string;
     aboutUs: string;
     aboutDescription: string;
     starOnGithub: string;
@@ -237,8 +230,6 @@ export type BaseTranslationKey =
   | "settings.subtitle"
   | "settings.language"
   | "settings.theme"
-  | "settings.byok"
-  | "settings.byokDescription"
   | "settings.aiHost"
   | "settings.aiToken"
   | "settings.aiModel"
@@ -254,11 +245,6 @@ export type BaseTranslationKey =
   | "settings.reset"
   | "settings.resetConfirm"
   | "settings.privacy"
-  | "settings.dataSharing"
-  | "settings.dataSharingEnabled"
-  | "settings.dataSharingDisabled"
-  | "settings.dataSharingDescription"
-  | "settings.privacyModeDescription"
   | "settings.aboutUs"
   | "settings.aboutDescription"
   | "settings.starOnGithub"
