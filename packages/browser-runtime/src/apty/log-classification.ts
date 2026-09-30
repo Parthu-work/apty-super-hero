@@ -87,7 +87,11 @@ export function classifyLogEntry({
   if (DEPRECATION_PATTERN.test(text) || hint === "deprecation") {
     return "deprecation-warning";
   }
-  if (APTY_PATTERN.test(text)) {
+  // Gated by level: an info-level line that merely mentions "apty" (e.g. a
+  // routine "[apty-debug-bridge] enabled" log) is not an error — tagging it
+  // "apty-error" regardless of level previously mislabeled ordinary info
+  // output. An actual error/warning that mentions Apty still gets flagged.
+  if (APTY_PATTERN.test(text) && (level === "error" || level === "warn")) {
     return "apty-error";
   }
   if (level === "error") {

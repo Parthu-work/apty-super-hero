@@ -69,6 +69,24 @@ describe("classifyLogEntry", () => {
       "apty-error",
     ],
     [
+      "an Apty-mentioning error wrapped around a real network failure (axios 403 against apty.ai)",
+      {
+        text: "Request failed with status code 403 (https://client.app.apty.ai/tag.json)",
+        level: "error",
+      },
+      "apty-error",
+    ],
+    [
+      "a routine info-level line that merely mentions Apty — not an error",
+      { text: "[apty-debug-bridge] enabled", level: "info" },
+      "info",
+    ],
+    [
+      "another routine info-level Apty line",
+      { text: "Fetching tenant file for apty widget", level: "info" },
+      "info",
+    ],
+    [
       "a generic error-level entry with no specific signal",
       { text: "Something went wrong", level: "error" },
       "console-error",
