@@ -66,3 +66,6 @@ jobs:
 
       - name: Tool registry audit
         run: npm run audit:tools
+
+      - name: MCP bridge docs check
+        run: npm run check:mcp-bridge-docs

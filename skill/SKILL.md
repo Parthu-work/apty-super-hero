@@ -1,14 +1,14 @@
 ---
-name: aipex-browser
+name: apty-browser
 description: AI-powered browser automation using the Apty Agent Chrome Extension via MCP bridge. Use this skill when the agent needs to control a Chrome browser — navigating pages, clicking elements, filling forms, capturing screenshots, managing tabs, or downloading content — by connecting to the Apty Agent MCP bridge.
 version: 1.0.0
 metadata:
   openclaw:
     requires:
       bins:
-        - npx
+        - node
     emoji: "🌐"
-    homepage: https://aipex.ai
+    homepage: https://github.com/Parthu-work/apty-super-hero
     os: [macos, linux, windows]
 ---
 
@@ -18,8 +18,10 @@ Apty Agent is a Chrome extension that exposes 30+ browser automation tools over 
 
 **Architecture:**
 ```
-Agent (MCP client) ──stdio──▶ aipex-mcp-bridge ──WebSocket──▶ Apty Agent Chrome Extension ──▶ Browser APIs
+Agent (MCP client) ──stdio──▶ apty-mcp-bridge ──WebSocket──▶ Apty Agent Chrome Extension ──▶ Browser APIs
 ```
+
+**`apty-mcp-bridge` (`apps/mcp-bridge` in the `apty-super-hero` repo) is not published to npm.** It must be built locally first; there is nothing to `npx` by name. Never run `npx -y aipex-mcp-bridge` — that resolves a different, unrelated package on the public npm registry, not this one.
 
 ---
 
@@ -40,23 +42,24 @@ Use this skill when the user wants to:
 
 - **Apty Agent Chrome extension** installed (available on the Chrome Web Store or via developer build)
 - **Node.js >= 18** installed on the local machine
+- A local clone of the `apty-super-hero` repo, with `apps/mcp-bridge` built (`cd apps/mcp-bridge && pnpm build`) — this produces `dist/bridge.js`, which Step 1 below points at directly
 
-The user is assumed to have Apty Agent installed. The agent only needs to complete the two connection steps below.
+The user is assumed to have Apty Agent installed and the bridge built. The agent only needs to complete the two connection steps below.
 
 ---
 
 ## Step 1: Register the MCP Server
 
-Add the following to the agent's MCP configuration. No manual installation is needed — `npx` downloads and runs `aipex-mcp-bridge` automatically.
+Add the following to the agent's MCP configuration, replacing `/path/to/apty-super-hero` with the actual local clone path. This package is not published, so every config below invokes the built file directly with `node` rather than `npx`-ing it by name.
 
 ### Cursor (`.cursor/mcp.json`)
 
 ```json
 {
   "mcpServers": {
-    "aipex-browser": {
-      "command": "npx",
-      "args": ["-y", "aipex-mcp-bridge"]
+    "apty-browser": {
+      "command": "node",
+      "args": ["/path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js"]
     }
   }
 }
@@ -67,9 +70,9 @@ Add the following to the agent's MCP configuration. No manual installation is ne
 ```json
 {
   "mcpServers": {
-    "aipex-browser": {
-      "command": "npx",
-      "args": ["-y", "aipex-mcp-bridge"]
+    "apty-browser": {
+      "command": "node",
+      "args": ["/path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js"]
     }
   }
 }
@@ -78,7 +81,7 @@ Add the following to the agent's MCP configuration. No manual installation is ne
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add aipex-browser -- npx -y aipex-mcp-bridge
+claude mcp add apty-browser -- node /path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js
 ```
 
 ### VS Code Copilot (`.vscode/mcp.json`)
@@ -86,9 +89,9 @@ claude mcp add aipex-browser -- npx -y aipex-mcp-bridge
 ```json
 {
   "servers": {
-    "aipex-browser": {
-      "command": "npx",
-      "args": ["-y", "aipex-mcp-bridge"]
+    "apty-browser": {
+      "command": "node",
+      "args": ["/path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js"]
     }
   }
 }
@@ -99,9 +102,9 @@ claude mcp add aipex-browser -- npx -y aipex-mcp-bridge
 ```json
 {
   "mcpServers": {
-    "aipex-browser": {
-      "command": "npx",
-      "args": ["-y", "aipex-mcp-bridge"]
+    "apty-browser": {
+      "command": "node",
+      "args": ["/path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js"]
     }
   }
 }
@@ -114,9 +117,9 @@ The bridge listens on `localhost:9223` by default. To use a different port:
 ```json
 {
   "mcpServers": {
-    "aipex-browser": {
-      "command": "npx",
-      "args": ["-y", "aipex-mcp-bridge", "--port", "9224"]
+    "apty-browser": {
+      "command": "node",
+      "args": ["/path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js", "--port", "9224"]
     }
   }
 }
@@ -138,7 +141,7 @@ After the MCP server is registered and running:
 
 The bridge and extension will handshake, and all browser tools will become available to the agent.
 
-**Verifying the connection:** If only a single tool called `check_aipex_connection` is visible, the extension has not yet connected. Follow Step 2 again, then reload the MCP server in agent settings.
+**Verifying the connection:** If only a single tool called `check_apty_connection` is visible, the extension has not yet connected. Follow Step 2 again, then reload the MCP server in agent settings.
 
 ---
 
@@ -205,7 +208,7 @@ get_all_tabs()
 To load complete parameter schemas and examples for every tool:
 
 ```
-read_skill_reference("aipex-browser", "references/tools-reference.md")
+read_skill_reference("apty-browser", "references/tools-reference.md")
 ```
 
 ---
@@ -250,7 +253,7 @@ capture_screenshot(sendToLLM=true)
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| Only `check_aipex_connection` visible | Extension not connected to bridge | Open Apty Agent Options → set WebSocket URL → Connect |
+| Only `check_apty_connection` visible | Extension not connected to bridge | Open Apty Agent Options → set WebSocket URL → Connect |
 | Port 9223 already in use | Port conflict on machine | Use `--port 9224` in MCP config and `ws://localhost:9224` in extension |
 | `search_elements` returns 0 results | Page uses canvas or non-semantic HTML | Fall back to `capture_screenshot(sendToLLM=true)` + `computer` tool |
 | Connection drops frequently | Service worker sleep cycle | Apty Agent uses keepalive pings; reconnect extension from Options if needed |

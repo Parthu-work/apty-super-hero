@@ -6,10 +6,18 @@
  * identifiers that are real data/behavior contracts, not cosmetic branding:
  * chrome.storage/IndexedDB keys and DB names, DOM attribute/class names,
  * cross-context message action strings, the AIPex class name in
- * @apty/agent-core, and apps/mcp-bridge's external CLI identity (bin names,
- * env vars, log prefixes). Renaming any of those would be a behavior change,
- * not a branding fix -- see DECISIONS.md and the git history of this script's
- * introduction for the reasoning.
+ * @apty/agent-core, and two apps/mcp-bridge env var names kept as-is from
+ * the upstream fork's raw CLI protocol. Renaming any of those would be a
+ * behavior change, not a branding fix -- see DECISIONS.md and the git
+ * history of this script's introduction for the reasoning.
+ *
+ * apps/mcp-bridge's bin names, PID file and log prefixes used to be
+ * allow-listed here too ("aipex-mcp-bridge" etc.) but were a real bug, not
+ * an intentional contract: both READMEs told users to `npx -y
+ * aipex-mcp-bridge` / `npm install -g aipex-mcp-bridge`, which resolves a
+ * different, unrelated package on the public npm registry. Fixed by
+ * renaming the bins to "apty-*" and documenting a local-build install
+ * instead -- see DECISIONS.md.
  *
  * This script scans for the word "aipex" (case-insensitive) and reports
  * anything NOT already covered by the allowlist below, so an accidental new
@@ -67,22 +75,20 @@ const ALLOWED_SUBSTRINGS = [
   "aipex_close_omni",
   "aipex-screenshot.invalid",
   "AIPEX_SCREENSHOT_URL_PREFIX",
-  // apps/mcp-bridge's own external CLI identity (bin names, env vars, PID file)
-  "aipex-mcp-bridge",
-  "aipex-mcp-daemon",
-  "aipex-cli",
-  "aipex-browser-cli",
-  "aipex-browser",
-  "aipex-daemon",
-  "aipex-bridge",
+  // apps/mcp-bridge's env vars, kept as-is from the upstream fork's raw
+  // CLI protocol (not a reference to the unrelated "aipex-mcp-bridge" npm
+  // package — see apps/mcp-bridge/README.md). The bin names, PID file and
+  // log prefixes this list used to allow here were renamed to "apty-*" —
+  // see DECISIONS.md for why the old names were a real install hazard,
+  // not just cosmetic branding.
   "AIPEX_WS_URL",
   "AIPEX_CONNECT_TIMEOUT",
-  ".aipex-daemon.pid",
-  "check_aipex_connection",
-  "aipex.ai",
   // historical/narrative references (fork origin, changelog, decisions, security log)
   "AIPexStudio",
   "aipex-whole",
+  // explicit "never run this" warnings naming the real, wrong upstream
+  // npm package, in README.md / apps/mcp-bridge/README.md / skill/SKILL.md
+  "aipex-mcp-bridge",
 ];
 
 const args = process.argv.slice(2);

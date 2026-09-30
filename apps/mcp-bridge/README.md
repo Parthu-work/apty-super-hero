@@ -2,39 +2,45 @@
 
 Local bridge, daemon, and CLI tools for connecting AI agents to the Apty Agent browser extension.
 
+**This package is not published to npm** (`"private": true`) — there is nothing under this package's name for `npm install -g` or `npx` to fetch, and you should never run `npm install -g aipex-mcp-bridge` either: that is a different, unrelated package on the public registry, not this one. Run it from a local build instead (see below).
+
 ## How It Works
 
 ```
-Cursor / Claude Code / VS Code ──stdio──▶ aipex-mcp-bridge ──WS /bridge──┐
-browser-cli / aipex-cli        ──WS /cli─────────────────────────────────┤
-                                                                         ├── aipex-mcp-daemon (:9223) ──WS /extension──▶ AIPex Extension ──▶ Browser
+Cursor / Claude Code / VS Code ──stdio──▶ apty-mcp-bridge ──WS /bridge──┐
+browser-cli / apty-cli         ──WS /cli────────────────────────────────┤
+                                                                         ├── apty-mcp-daemon (:9223) ──WS /extension──▶ Apty Agent extension ──▶ Browser
                                                                          │
 Other bridge clients            ──WS /bridge─────────────────────────────┘
 ```
 
-The daemon is auto-spawned by the bridge or CLI when needed, shared by multiple clients, and exits after idle time. The AIPex extension connects to `ws://localhost:9223/extension`.
+The daemon is auto-spawned by the bridge or CLI when needed, shared by multiple clients, and exits after idle time. The Apty Agent extension connects to `ws://localhost:9223/extension`.
 
-## Install
+## Build
 
 ```bash
-npm install -g aipex-mcp-bridge
+cd apps/mcp-bridge
+pnpm build   # or: pnpm --filter apty-mcp-bridge build, from the repo root
 ```
+
+This produces `dist/bridge.js`, `dist/daemon.js`, `dist/cli.js`, and `dist/browser-cli.js`.
 
 Requirements:
 
 - Node.js >= 18
-- AIPex Chrome or Edge extension installed
+- The Apty Agent Chrome or Edge extension installed and running (see the repo root `README.md`)
 
 ## Use with MCP Agents
 
-**Cursor**, **Claude Desktop**, **Windsurf**, and other stdio MCP clients:
+**Cursor**, **Claude Desktop**, **Windsurf**, and other stdio MCP clients — point `command`/`args` at the built file directly (use an absolute path; replace `/path/to/apty-super-hero` with where you cloned this repo):
+
 
 ```json
 {
   "mcpServers": {
-    "aipex-browser": {
-      "command": "npx",
-      "args": ["-y", "aipex-mcp-bridge"]
+    "apty-browser": {
+      "command": "node",
+      "args": ["/path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js"]
     }
   }
 }
@@ -43,27 +49,32 @@ Requirements:
 **Claude Code**:
 
 ```bash
-claude mcp add aipex-browser -- npx -y aipex-mcp-bridge
+claude mcp add apty-browser -- node /path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js
 ```
 
-Then open the AIPex extension options and set the WebSocket URL to:
+Then open the Apty Agent extension's Options page and set the WebSocket URL to:
 
 ```text
 ws://localhost:9223/extension
 ```
 
+If you'd rather not repeat the absolute path everywhere, run `pnpm link --global` from inside `apps/mcp-bridge` (after building) to put `apty-mcp-bridge`/`apty-cli`/`browser-cli` on your `PATH`, then use the bin name directly as `command` instead of `node <path>`.
+
 ## Browser CLI
 
-`browser-cli` is now included in this package. It provides friendly command groups over the same local daemon used by MCP.
+`browser-cli` is included in this package. It provides friendly command groups over the same local daemon used by MCP.
 
 ```bash
-browser-cli status
-browser-cli tab list
-browser-cli tab new https://example.com
-browser-cli page search "button*" --tab 123
-browser-cli interact click btn-42 --tab 123
-browser-cli page screenshot
+# from apps/mcp-bridge, after `pnpm build`
+node dist/browser-cli.js status
+node dist/browser-cli.js tab list
+node dist/browser-cli.js tab new https://example.com
+node dist/browser-cli.js page search "button*" --tab 123
+node dist/browser-cli.js interact click btn-42 --tab 123
+node dist/browser-cli.js page screenshot
 ```
+
+(Or just `browser-cli ...` if you've linked it globally as above.)
 
 Command groups:
 
@@ -72,23 +83,21 @@ Command groups:
 - `interact` — click, fill, hover, upload files, and use coordinate-based computer actions
 - `download` — save images and chat images
 - `intervention` — request or cancel human intervention during automation
-- `skill` — list, inspect, load, and run AIPex skills
+- `skill` — list, inspect, load, and run skills
 
 ## Raw CLI
 
-`aipex-cli` remains available for direct tool calls:
+`apty-cli` remains available for direct tool calls:
 
 ```bash
-aipex-cli --list
-aipex-cli get_all_tabs
-aipex-cli create_new_tab --url https://example.com
-aipex-cli search_elements --tabId 123 --query "button*"
-aipex-cli --json '{"name":"capture_screenshot","arguments":{}}'
+node dist/cli.js --list
+node dist/cli.js get_all_tabs
+node dist/cli.js create_new_tab --url https://example.com
+node dist/cli.js search_elements --tabId 123 --query "button*"
+node dist/cli.js --json '{"name":"capture_screenshot","arguments":{}}'
 ```
 
 ## Why It Is Fast
-
-AIPex avoids the slow path common in browser agents:
 
 - It controls your local browser directly through the extension instead of streaming a remote browser.
 - It prefers structured DOM snapshots and stable element UIDs before falling back to screenshots.
@@ -98,10 +107,12 @@ AIPex avoids the slow path common in browser agents:
 ## Options
 
 ```bash
-aipex-mcp-bridge [--port <port>] [--host <host>]
-browser-cli [--port <port>] [--host <host>] <group> <command>
-aipex-mcp-daemon [--port <port>] [--host <host>]
+node dist/bridge.js [--port <port>] [--host <host>]
+node dist/browser-cli.js [--port <port>] [--host <host>] <group> <command>
+node dist/daemon.js [--port <port>] [--host <host>]
 ```
+
+(Or `apty-mcp-bridge`/`browser-cli`/`apty-mcp-daemon` if linked globally.)
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -114,8 +125,8 @@ aipex-mcp-daemon [--port <port>] [--host <host>]
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `AIPEX_WS_URL` | `ws://localhost:9223/cli` | WebSocket URL for raw `aipex-cli` |
-| `AIPEX_CONNECT_TIMEOUT` | `60000` | Max wait time for raw `aipex-cli` |
+| `AIPEX_WS_URL` | `ws://localhost:9223/cli` | WebSocket URL for the raw CLI (`apty-cli`) — kept as-is from the upstream fork this fork's CLI protocol descends from; not a reference to the unrelated `aipex-mcp-bridge` npm package |
+| `AIPEX_CONNECT_TIMEOUT` | `60000` | Max wait time for the raw CLI |
 | `BROWSER_CLI_WS_URL` | `ws://127.0.0.1:9223/cli` | WebSocket URL for `browser-cli` |
 | `BROWSER_CLI_CONNECT_TIMEOUT` | `60000` | Max wait time for `browser-cli` |
 

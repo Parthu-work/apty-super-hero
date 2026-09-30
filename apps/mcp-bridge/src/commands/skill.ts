@@ -1,6 +1,6 @@
 import { addCommand, defineGroup } from "../lib/command-registry.js";
 
-defineGroup("skill", "Manage AIPex skills");
+defineGroup("skill", "Manage Apty Agent skills");
 
 addCommand("skill", {
   name: "list",

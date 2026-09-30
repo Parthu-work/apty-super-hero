@@ -55,8 +55,11 @@ Copy `apps/browser-extension/.env.example` to `apps/browser-extension/.env` and 
 AI Agent ──stdio──▶ mcp-bridge ──WebSocket──▶ Apty Agent Extension ──▶ Browser
 ```
 
+`apps/mcp-bridge` is not published to npm — build it locally, then point your MCP client at the built file (never `npm install -g aipex-mcp-bridge`; that resolves an unrelated package on the public registry):
+
 ```bash
-claude mcp add apty-browser -- npx -y aipex-mcp-bridge
+cd apps/mcp-bridge && pnpm build
+claude mcp add apty-browser -- node /path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js
 ```
 
 Then in the extension's Options page, set the WebSocket URL (`ws://localhost:9223/extension`) and click Connect. See [`apps/mcp-bridge/README.md`](apps/mcp-bridge/README.md) for details.

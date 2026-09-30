@@ -215,7 +215,7 @@ export async function callTool(
       return {
         ok: false,
         error: `Timed out after ${MAX_RETRY_TIMEOUT_MS / 1000}s waiting for daemon at ${wsUrl}`,
-        hint: "Make sure AIPex extension is connected. Run: browser-cli status",
+        hint: "Make sure the Apty Agent extension is connected. Run: browser-cli status",
       };
     }
 
@@ -238,7 +238,7 @@ export async function callTool(
         daemonSpawned = true;
       }
       process.stderr.write(
-        "[browser-cli] Waiting for AIPex daemon + extension...\n",
+        "[browser-cli] Waiting for the daemon + Apty Agent extension...\n",
       );
     }
 

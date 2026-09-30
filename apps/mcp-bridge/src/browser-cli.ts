@@ -15,7 +15,6 @@ import {
 } from "./lib/command-registry.js";
 import { callTool, type DaemonClientOptions } from "./lib/daemon-client.js";
 import { error, printHelp, printResult, success } from "./lib/output.js";
-import { runSelfUpdate, startVersionCheck } from "./lib/version-check.js";
 
 const VERSION = "3.1.0";
 
@@ -64,10 +63,6 @@ function printTopLevelHelp(): void {
   lines.push(
     `  ${"status".padEnd(maxLen + 4)}Check daemon and extension connection status`,
   );
-  lines.push(
-    `  ${"update".padEnd(maxLen + 4)}Update browser-cli to the latest version`,
-  );
-
   lines.push("");
   lines.push("OPTIONS:");
   lines.push("  --port <n>    Daemon port (default: 9223)");
@@ -79,10 +74,13 @@ function printTopLevelHelp(): void {
   lines.push("  browser-cli <group>                  Show group help");
   lines.push("  browser-cli <group> <command> [args]  Execute a command");
   lines.push("");
-  lines.push("SETUP:");
-  lines.push("  npm install -g aipex-mcp-bridge");
   lines.push(
-    "  # Then connect AIPex extension → Options → ws://localhost:9223/extension",
+    "SETUP (this package is not published — run it from a local build):",
+  );
+  lines.push("  cd apps/mcp-bridge && pnpm build");
+  lines.push("  node dist/browser-cli.js --help");
+  lines.push(
+    "  # Then, in the Apty Agent extension: Options → ws://localhost:9223/extension",
   );
 
   printHelp(lines.join("\n"));
@@ -95,13 +93,9 @@ async function main() {
   const { args, port, host } = extractGlobalOptions(rawArgs);
   const daemonOpts: DaemonClientOptions = { port, host };
 
-  // Version check (non-blocking)
-  const showUpdateNotice = startVersionCheck(VERSION);
-
   // No args or help flag
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     printTopLevelHelp();
-    showUpdateNotice();
     process.exit(0);
   }
 
@@ -111,17 +105,10 @@ async function main() {
     process.exit(0);
   }
 
-  // Update command
-  if (args[0] === "update") {
-    await runSelfUpdate();
-    process.exit(0);
-  }
-
   // Status command
   if (args[0] === "status") {
     const result = await runStatusCommand(daemonOpts);
     printResult(result as ReturnType<typeof success>);
-    showUpdateNotice();
     process.exit(result.ok ? 0 : 1);
   }
 
@@ -142,7 +129,6 @@ async function main() {
   // Group help (no subcommand)
   if (args.length === 1 || args[1] === "--help" || args[1] === "-h") {
     printHelp(formatGroupHelp(group));
-    showUpdateNotice();
     process.exit(0);
   }
 
@@ -163,7 +149,6 @@ async function main() {
   // Subcommand help
   if (args.includes("--help") || args.includes("-h")) {
     printHelp(formatCommandHelp(group, command));
-    showUpdateNotice();
     process.exit(0);
   }
 
@@ -214,7 +199,6 @@ async function main() {
     printResult(error(result.error!, result.hint));
   }
 
-  showUpdateNotice();
   process.exit(result.ok ? 0 : 1);
 }
 

@@ -22,6 +22,7 @@
     "audit:tools": "node tooling/scripts/audit-tools.mjs",
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
+    "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",
     "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },
   "devDependencies": {

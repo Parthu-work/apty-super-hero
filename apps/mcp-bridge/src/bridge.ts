@@ -1,12 +1,12 @@
 /**
- * AIPex MCP Bridge
+ * Apty MCP Bridge
  *
  * A stdio MCP server that auto-starts a shared daemon and relays tool calls
- * to the AIPex Chrome extension through it.
+ * to the Apty Agent extension through it.
  *
  * Architecture:
  *
- *   IDE ──stdio──▶ this bridge ──WS /bridge──▶ daemon ──WS /extension──▶ AIPex extension
+ *   IDE ──stdio──▶ this bridge ──WS /bridge──▶ daemon ──WS /extension──▶ Apty Agent extension
  *
  * On startup:
  *   1. Try connecting to existing daemon at ws://localhost:<port>/bridge
@@ -17,7 +17,7 @@
  * Multiple bridge instances share one daemon (multi-client support).
  *
  * Usage:
- *   npx aipex-mcp-bridge [--port 9223]
+ *   node dist/bridge.js [--port 9223]
  */
 
 import { fork } from "node:child_process";
@@ -39,10 +39,10 @@ const cliArgs = process.argv.slice(2);
 
 if (cliArgs.includes("--help") || cliArgs.includes("-h")) {
   process.stderr.write(`
-AIPex MCP Bridge — connect AI agents to AIPex browser extension
+Apty MCP Bridge — connect AI agents to Apty Agent extension
 
 Usage:
-  npx aipex-mcp-bridge [--port <port>] [--host <host>]
+  node dist/bridge.js [--port <port>] [--host <host>]
 
 Options:
   --port <port>  Daemon port (default: 9223)
@@ -53,13 +53,13 @@ Options:
 The bridge auto-starts a background daemon if one isn't already running.
 Multiple IDE instances (Cursor, Claude Code) can run simultaneously.
 
-After starting, connect AIPex extension → Options → ws://localhost:<port>/extension
+After starting, connect Apty Agent extension → Options → ws://localhost:<port>/extension
 `);
   process.exit(0);
 }
 
 if (cliArgs.includes("--version") || cliArgs.includes("-v")) {
-  process.stderr.write("aipex-mcp-bridge 3.1.0\n");
+  process.stderr.write("apty-mcp-bridge 3.1.0\n");
   process.exit(0);
 }
 
@@ -78,7 +78,7 @@ const TOOL_CALL_TIMEOUT_MS = 60_000;
 // ── Logging (stderr only — stdout reserved for MCP) ─────────────────────────
 
 function log(msg: string) {
-  process.stderr.write(`[aipex-bridge] ${msg}\n`);
+  process.stderr.write(`[apty-bridge] ${msg}\n`);
 }
 
 // ── Daemon connection ───────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function sendToolCallToDaemon(
   if (!isDaemonConnected()) {
     return Promise.reject(
       new Error(
-        "Not connected to AIPex daemon. The daemon may have stopped.\n" +
+        "Not connected to Apty daemon. The daemon may have stopped.\n" +
           "Restart the bridge or check if port " +
           PORT +
           " is available.",
@@ -273,7 +273,7 @@ async function ensureDaemonConnection() {
 // ── MCP Server (stdio to IDE) ───────────────────────────────────────────────
 
 const server = new Server(
-  { name: "aipex-mcp-bridge", version: "3.1.0" },
+  { name: "apty-mcp-bridge", version: "3.1.0" },
   { capabilities: { tools: {} } },
 );
 
@@ -336,7 +336,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  log("AIPex MCP Bridge started (stdio → daemon relay)");
+  log("Apty MCP Bridge started (stdio → daemon relay)");
   log(`Connected to daemon at ${DAEMON_URL}`);
 }
 

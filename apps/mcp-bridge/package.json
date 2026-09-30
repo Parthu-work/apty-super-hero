@@ -1,14 +1,14 @@
 {
   "name": "apty-mcp-bridge",
   "version": "3.1.0",
-  "description": "MCP bridge that connects AI agents (Cursor, Claude Code, VS Code Copilot, etc.) to the Apty Agent browser extension. Auto-spawns a shared daemon to support multiple simultaneous clients.",
+  "private": true,
+  "description": "MCP bridge that connects AI agents (Cursor, Claude Code, VS Code Copilot, etc.) to the Apty Agent browser extension. Auto-spawns a shared daemon to support multiple simultaneous clients. Not published — run it locally (see README.md).",
   "type": "module",
   "bin": {
-    "aipex-mcp-bridge": "./dist/bridge.js",
-    "aipex-mcp-daemon": "./dist/daemon.js",
-    "aipex-cli": "./dist/cli.js",
-    "browser-cli": "./dist/browser-cli.js",
-    "aipex-browser-cli": "./dist/browser-cli.js"
+    "apty-mcp-bridge": "./dist/bridge.js",
+    "apty-mcp-daemon": "./dist/daemon.js",
+    "apty-cli": "./dist/cli.js",
+    "browser-cli": "./dist/browser-cli.js"
   },
   "files": [
     "dist",
@@ -33,7 +33,7 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "aipex",
+    "apty",
     "browser",
     "cursor",
     "claude",

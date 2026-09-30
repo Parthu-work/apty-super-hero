@@ -1,14 +1,14 @@
 /**
- * AIPex CLI — command-line tool for controlling the browser via AIPex.
+ * Apty CLI — command-line tool for controlling the browser via the Apty Agent extension.
  *
- * Connects to the AIPex daemon via WebSocket at /cli endpoint.
+ * Connects to the Apty daemon via WebSocket at /cli endpoint.
  * Auto-spawns the daemon if it's not running (same as bridge.ts).
  *
  * Usage:
- *   aipex-cli <tool_name> [--param value ...]
- *   aipex-cli --list
- *   aipex-cli --help <tool_name>
- *   aipex-cli --json '{"name":"create_new_tab","arguments":{"url":"..."}}'
+ *   apty-cli <tool_name> [--param value ...]
+ *   apty-cli --list
+ *   apty-cli --help <tool_name>
+ *   apty-cli --json '{"name":"create_new_tab","arguments":{"url":"..."}}'
  */
 
 import { fork, spawn } from "node:child_process";
@@ -46,7 +46,7 @@ if (args[0] === "--list") {
 if (args[0] === "--help") {
   const toolName = args[1];
   if (!toolName) {
-    process.stderr.write("Usage: aipex-cli --help <tool_name>\n");
+    process.stderr.write("Usage: apty-cli --help <tool_name>\n");
     process.exit(1);
   }
   printToolHelp(toolName);
@@ -57,7 +57,7 @@ if (args[0] === "--json") {
   const jsonStr = args[1];
   if (!jsonStr) {
     process.stderr.write(
-      'Usage: aipex-cli --json \'{"name":"...","arguments":{...}}\'\n',
+      'Usage: apty-cli --json \'{"name":"...","arguments":{...}}\'\n',
     );
     process.exit(1);
   }
@@ -80,20 +80,20 @@ if (args[0] === "--json") {
 
 function printUsage(): void {
   process.stderr.write(`
-AIPex CLI — control the browser from the command line
+Apty CLI — control the browser from the command line
 
 Usage:
-  aipex-cli <tool_name> [--param value ...]
-  aipex-cli --list                          List all available tools
-  aipex-cli --help <tool_name>              Show tool parameters
-  aipex-cli --json '{"name":"...","arguments":{...}}'
+  apty-cli <tool_name> [--param value ...]
+  apty-cli --list                          List all available tools
+  apty-cli --help <tool_name>              Show tool parameters
+  apty-cli --json '{"name":"...","arguments":{...}}'
 
 Examples:
-  aipex-cli get_all_tabs
-  aipex-cli create_new_tab --url https://google.com
-  aipex-cli click --tabId 123 --uid btn-42
-  aipex-cli search_elements --tabId 123 --query "button*"
-  aipex-cli capture_screenshot
+  apty-cli get_all_tabs
+  apty-cli create_new_tab --url https://google.com
+  apty-cli click --tabId 123 --uid btn-42
+  apty-cli search_elements --tabId 123 --query "button*"
+  apty-cli capture_screenshot
 
 Environment:
   AIPEX_WS_URL              Daemon WebSocket URL (default: ws://localhost:9223/cli)
@@ -113,7 +113,7 @@ function printToolHelp(name: string): void {
   const tool = toolSchemas.find((t) => t.name === name);
   if (!tool) {
     process.stderr.write(`Unknown tool: ${name}\n`);
-    process.stderr.write(`Run 'aipex-cli --list' to see available tools.\n`);
+    process.stderr.write(`Run 'apty-cli --list' to see available tools.\n`);
     process.exit(1);
   }
   process.stdout.write(`${tool.name}\n`);
@@ -371,7 +371,7 @@ async function runTool(
       // In Docker, try the entrypoint script
       if (existsSync(ENTRYPOINT_PATH)) {
         process.stderr.write(
-          `[aipex-cli] Auto-starting services via ${ENTRYPOINT_PATH} ...\n`,
+          `[apty-cli] Auto-starting services via ${ENTRYPOINT_PATH} ...\n`,
         );
         const child = spawn(ENTRYPOINT_PATH, [], {
           detached: true,
@@ -382,19 +382,19 @@ async function runTool(
         child.on("error", () => {});
         child.unref();
       } else if (!daemonSpawned) {
-        process.stderr.write("[aipex-cli] Spawning daemon...\n");
+        process.stderr.write("[apty-cli] Spawning daemon...\n");
         spawnDaemon();
         daemonSpawned = true;
       }
       process.stderr.write(
-        `[aipex-cli] Waiting for AIPex daemon + extension ...\n`,
+        `[apty-cli] Waiting for Apty daemon + extension ...\n`,
       );
     }
 
     const remaining = Math.max(0, deadline - Date.now());
     const wait = Math.min(backoff, remaining, MAX_BACKOFF_MS);
     process.stderr.write(
-      `[aipex-cli] Retry #${attempt} in ${(wait / 1000).toFixed(1)}s\n`,
+      `[apty-cli] Retry #${attempt} in ${(wait / 1000).toFixed(1)}s\n`,
     );
     await sleep(wait);
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);

@@ -1,7 +1,7 @@
 /**
  * WebSocket command executor for the Apty Agent extension.
  *
- * Connects as a WebSocket client to the aipex-mcp-bridge and listens
+ * Connects as a WebSocket client to apty-mcp-bridge and listens
  * for tool execution commands. The bridge is the true MCP server — this
  * class simply executes tools and returns results.
  *

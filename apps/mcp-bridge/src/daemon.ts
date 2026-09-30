@@ -1,14 +1,14 @@
 /**
- * AIPex MCP Daemon
+ * Apty MCP Daemon
  *
  * A background WebSocket relay that bridges multiple MCP bridge instances
- * to a single AIPex Chrome extension connection.
+ * to a single Apty Agent extension connection.
  *
  * Architecture:
  *
  *   bridge.ts #1 ──WS /bridge──┐
- *   bridge.ts #2 ──WS /bridge──┤── this daemon ──WS /extension──▶ AIPex extension
- *   aipex-cli   ──WS /cli─────┘
+ *   bridge.ts #2 ──WS /bridge──┤── this daemon ──WS /extension──▶ Apty Agent extension
+ *   apty-cli   ──WS /cli─────┘
  *
  * Spawned automatically by bridge.ts when no daemon is running.
  * Self-terminates after IDLE_TIMEOUT_MS with no connections.
@@ -33,7 +33,7 @@ function getArg(name: string, fallback: string): string {
 
 const PORT = parseInt(getArg("--port", "9223"), 10);
 const HOST = getArg("--host", "127.0.0.1");
-const PID_FILE = join(homedir(), ".aipex-daemon.pid");
+const PID_FILE = join(homedir(), ".apty-daemon.pid");
 const IDLE_TIMEOUT_MS = 30_000;
 const TOOL_CALL_TIMEOUT_MS = 60_000;
 const PING_INTERVAL_MS = 15_000;
@@ -42,7 +42,7 @@ const PING_TIMEOUT_MS = 5_000;
 // ── Logging ─────────────────────────────────────────────────────────────────
 
 function log(msg: string) {
-  process.stderr.write(`[aipex-daemon] ${msg}\n`);
+  process.stderr.write(`[apty-daemon] ${msg}\n`);
 }
 
 // ── Origin validation ───────────────────────────────────────────────────────
@@ -52,8 +52,8 @@ function log(msg: string) {
  * cross-site WebSocket hijacking (CSWSH).
  *
  * Allowed origins:
- *   - No Origin header (Node.js clients: bridge.ts, cli.ts, aipex-cli)
- *   - chrome-extension:// (the AIPex browser extension)
+ *   - No Origin header (Node.js clients: bridge.ts, cli.ts, apty-cli)
+ *   - chrome-extension:// (the Apty Agent extension)
  *   - moz-extension:// (Firefox extension equivalent)
  *
  * Rejected origins:
@@ -164,8 +164,8 @@ function forwardToolCall(
       error: {
         code: -1,
         message:
-          "AIPex extension is not connected. To connect:\n" +
-          "1. Open Chrome → AIPex extension → Options page\n" +
+          "Apty Agent extension is not connected. To connect:\n" +
+          "1. Open Chrome → Apty Agent extension → Options page\n" +
           `2. Set WebSocket URL to ws://localhost:${PORT}/extension\n` +
           "3. Click Connect",
       },
@@ -441,7 +441,7 @@ function removePidFile() {
 
 httpServer.listen(PORT, HOST, () => {
   writePidFile();
-  log(`AIPex MCP Daemon started (v3.1.0) pid=${process.pid}`);
+  log(`Apty MCP Daemon started (v3.1.0) pid=${process.pid}`);
   log(`Extension WS:  ws://${HOST}:${PORT}/extension`);
   log(`Bridge WS:     ws://${HOST}:${PORT}/bridge`);
   log(`CLI WS:        ws://${HOST}:${PORT}/cli`);
