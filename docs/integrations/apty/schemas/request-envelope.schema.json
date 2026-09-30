@@ -22,6 +22,10 @@
       "additionalProperties": {}
     }
   },
-  "required": ["v", "type", "requestId"],
+  "required": [
+    "v",
+    "type",
+    "requestId"
+  ],
   "additionalProperties": false
 }

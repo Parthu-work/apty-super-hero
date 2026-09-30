@@ -2,12 +2,21 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "captureEnabled": {
+    "found": {
       "type": "boolean"
+    },
+    "body": {
+      "type": "string"
+    },
+    "base64Encoded": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
     }
   },
   "required": [
-    "captureEnabled"
+    "found"
   ],
   "additionalProperties": false
 }

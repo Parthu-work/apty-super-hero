@@ -23,6 +23,7 @@ export const CONTRACT_VERBS = [
   "ping",
   "get-logs",
   "get-network",
+  "get-resource-body",
   "set-capture",
   "clear",
 ] as const;
@@ -38,7 +39,6 @@ export const LEGACY_VERBS = [
   "get-service-worker-status",
   "get-service-worker-logs",
   "list-observed-resources",
-  "get-resource-body",
   "get-studio-status",
   "get-studio-logs",
 ] as const;
@@ -101,13 +101,17 @@ export type LogEntry = z.infer<typeof logEntrySchema>;
 
 export const networkEntrySchema = z.object({
   seq: z.number().int().nonnegative(),
+  /** The producer's own id for this request — what `get-resource-body`'s `requestId` param refers back to (distinct from the envelope's own `requestId`, which correlates one request/response pair). */
+  requestId: z.string(),
   ts: z.number(),
   method: z.string(),
   url: z.string(),
   status: z.number().int().optional(),
-  requestHeaders: z.record(z.string(), z.string()).optional(),
-  responseHeaders: z.record(z.string(), z.string()).optional(),
-  error: z.string().optional(),
+  mimeType: z.string().optional(),
+  failed: z.boolean().optional(),
+  errorText: z.string().optional(),
+  durationMs: z.number().optional(),
+  context: logContextSchema,
 });
 export type NetworkEntry = z.infer<typeof networkEntrySchema>;
 
@@ -177,6 +181,23 @@ export const getNetworkResponseSchema = z.object({
 });
 export type GetNetworkResponse = z.infer<typeof getNetworkResponseSchema>;
 
+export const getResourceBodyParamsSchema = z.object({
+  /** A `NetworkEntry.requestId` from a prior `get-network` response. */
+  requestId: z.string().min(1),
+});
+export type GetResourceBodyParams = z.infer<typeof getResourceBodyParamsSchema>;
+
+export const getResourceBodyResponseSchema = z.object({
+  found: z.boolean(),
+  body: z.string().optional(),
+  base64Encoded: z.boolean().optional(),
+  /** Present when `found` is false, or when a body exists but couldn't be provided (e.g. capture wasn't enabled, or the body was already evicted) — never silently omitted in favor of an empty `found:true`. */
+  reason: z.string().optional(),
+});
+export type GetResourceBodyResponse = z.infer<
+  typeof getResourceBodyResponseSchema
+>;
+
 export const setCaptureParamsSchema = z.object({
   enabled: z.boolean(),
   ttlMs: z.number().int().positive().optional(),
@@ -198,6 +219,10 @@ export const VERB_SCHEMAS = {
   "get-network": {
     params: getNetworkParamsSchema,
     response: getNetworkResponseSchema,
+  },
+  "get-resource-body": {
+    params: getResourceBodyParamsSchema,
+    response: getResourceBodyResponseSchema,
   },
   "set-capture": {
     params: setCaptureParamsSchema,

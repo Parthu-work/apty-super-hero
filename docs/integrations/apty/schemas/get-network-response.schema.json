@@ -12,6 +12,9 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
+          "requestId": {
+            "type": "string"
+          },
           "ts": {
             "type": "number"
           },
@@ -26,29 +29,35 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
-          "requestHeaders": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "responseHeaders": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "error": {
+          "mimeType": {
             "type": "string"
+          },
+          "failed": {
+            "type": "boolean"
+          },
+          "errorText": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "context": {
+            "type": "string",
+            "enum": [
+              "service-worker",
+              "content-script",
+              "popup"
+            ]
           }
         },
-        "required": ["seq", "ts", "method", "url"],
+        "required": [
+          "seq",
+          "requestId",
+          "ts",
+          "method",
+          "url",
+          "context"
+        ],
         "additionalProperties": false
       }
     },
@@ -78,6 +87,12 @@
       "type": "boolean"
     }
   },
-  "required": ["entries", "nextSeq", "oldestSeq", "dropped", "truncated"],
+  "required": [
+    "entries",
+    "nextSeq",
+    "oldestSeq",
+    "dropped",
+    "truncated"
+  ],
   "additionalProperties": false
 }
