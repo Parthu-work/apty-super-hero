@@ -6,8 +6,6 @@
       "type": "boolean"
     }
   },
-  "required": [
-    "captureEnabled"
-  ],
+  "required": ["captureEnabled"],
   "additionalProperties": false
 }

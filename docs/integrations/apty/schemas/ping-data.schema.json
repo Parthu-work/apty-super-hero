@@ -4,10 +4,7 @@
   "properties": {
     "product": {
       "type": "string",
-      "enum": [
-        "apty-client",
-        "apty-studio"
-      ]
+      "enum": ["apty-client", "apty-studio"]
     },
     "extensionId": {
       "type": "string",
@@ -25,11 +22,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "logs",
-          "network",
-          "capture-control"
-        ]
+        "enum": ["logs", "network", "capture-control"]
       }
     },
     "now": {
@@ -82,12 +75,7 @@
               "maximum": 9007199254740991
             }
           },
-          "required": [
-            "count",
-            "oldestSeq",
-            "newestSeq",
-            "dropped"
-          ],
+          "required": ["count", "oldestSeq", "newestSeq", "dropped"],
           "additionalProperties": false
         },
         "network": {
@@ -128,18 +116,11 @@
               "maximum": 9007199254740991
             }
           },
-          "required": [
-            "count",
-            "oldestSeq",
-            "newestSeq",
-            "dropped"
-          ],
+          "required": ["count", "oldestSeq", "newestSeq", "dropped"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "logs"
-      ],
+      "required": ["logs"],
       "additionalProperties": false
     }
   },

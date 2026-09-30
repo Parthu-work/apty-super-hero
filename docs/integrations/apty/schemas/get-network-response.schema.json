@@ -43,21 +43,10 @@
           },
           "context": {
             "type": "string",
-            "enum": [
-              "service-worker",
-              "content-script",
-              "popup"
-            ]
+            "enum": ["service-worker", "content-script", "popup"]
           }
         },
-        "required": [
-          "seq",
-          "requestId",
-          "ts",
-          "method",
-          "url",
-          "context"
-        ],
+        "required": ["seq", "requestId", "ts", "method", "url", "context"],
         "additionalProperties": false
       }
     },
@@ -87,12 +76,6 @@
       "type": "boolean"
     }
   },
-  "required": [
-    "entries",
-    "nextSeq",
-    "oldestSeq",
-    "dropped",
-    "truncated"
-  ],
+  "required": ["entries", "nextSeq", "oldestSeq", "dropped", "truncated"],
   "additionalProperties": false
 }

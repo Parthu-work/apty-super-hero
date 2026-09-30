@@ -14,24 +14,13 @@
     },
     "minLevel": {
       "type": "string",
-      "enum": [
-        "trace",
-        "debug",
-        "log",
-        "info",
-        "warn",
-        "error"
-      ]
+      "enum": ["trace", "debug", "log", "info", "warn", "error"]
     },
     "contexts": {
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "service-worker",
-          "content-script",
-          "popup"
-        ]
+        "enum": ["service-worker", "content-script", "popup"]
       }
     }
   },

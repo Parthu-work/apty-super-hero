@@ -17,14 +17,7 @@
           },
           "level": {
             "type": "string",
-            "enum": [
-              "trace",
-              "debug",
-              "log",
-              "info",
-              "warn",
-              "error"
-            ]
+            "enum": ["trace", "debug", "log", "info", "warn", "error"]
           },
           "message": {
             "type": "string",
@@ -32,11 +25,7 @@
           },
           "context": {
             "type": "string",
-            "enum": [
-              "service-worker",
-              "content-script",
-              "popup"
-            ]
+            "enum": ["service-worker", "content-script", "popup"]
           },
           "tabId": {
             "type": "integer",
@@ -52,13 +41,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "seq",
-          "ts",
-          "level",
-          "message",
-          "context"
-        ],
+        "required": ["seq", "ts", "level", "message", "context"],
         "additionalProperties": false
       }
     },
@@ -88,12 +71,6 @@
       "type": "boolean"
     }
   },
-  "required": [
-    "entries",
-    "nextSeq",
-    "oldestSeq",
-    "dropped",
-    "truncated"
-  ],
+  "required": ["entries", "nextSeq", "oldestSeq", "dropped", "truncated"],
   "additionalProperties": false
 }

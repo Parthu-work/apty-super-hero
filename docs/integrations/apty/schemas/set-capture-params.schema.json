@@ -11,8 +11,6 @@
       "maximum": 9007199254740991
     }
   },
-  "required": [
-    "enabled"
-  ],
+  "required": ["enabled"],
   "additionalProperties": false
 }

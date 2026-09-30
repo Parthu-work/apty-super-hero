@@ -7,8 +7,6 @@
       "minLength": 1
     }
   },
-  "required": [
-    "requestId"
-  ],
+  "required": ["requestId"],
   "additionalProperties": false
 }
