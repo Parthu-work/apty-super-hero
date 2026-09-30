@@ -32,7 +32,11 @@ describe("redactHeaders", () => {
 describe("redactSensitiveText — pre-existing behavior (never weakened)", () => {
   it("redacts a JSON-style token field", () => {
     const input = '{"token": "eyJhbGciOiJIUzI1NiJ9.abc.def"}';
-    expect(redactSensitiveText(input)).toBe('{"token": "<REDACTED>"}');
+    // Whole-input JSON now round-trips through JSON.parse/stringify (see
+    // json-redact.ts) to guarantee valid JSON out — compact spacing is an
+    // incidental, harmless side effect; the token itself is still redacted.
+    expect(redactSensitiveText(input)).toBe('{"token":"<REDACTED>"}');
+    expect(() => JSON.parse(redactSensitiveText(input))).not.toThrow();
   });
 
   it("redacts a password field", () => {

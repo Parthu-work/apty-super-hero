@@ -20,6 +20,8 @@
  * `redactHeaders`) before falling back to the free-text pass.
  */
 
+import { type RedactionMode, redactJsonAware } from "./json-redact.js";
+
 /** Emails are redacted by default — flip only for a deliberate, documented reason (e.g. a debugging build), never silently. */
 export const REDACT_EMAILS = true;
 
@@ -188,8 +190,19 @@ function redactKeyValuePairs(text: string): string {
  * messages, error strings, request/response bodies serialized as text, URLs).
  * Order matters: each pass below only needs to worry about patterns it
  * could otherwise collide with, documented pass-by-pass.
+ *
+ * `mode` gates the JSON-aware key-profile pass (0, below) only — "off" is a
+ * deliberate, explicit development-only escape hatch for over-eager PII/
+ * page-context stripping (see json-redact.ts), never for the structural
+ * passes that follow it (PEM/JWT/Bearer/known token shapes/emails): those
+ * catch a credential by its SHAPE regardless of what key it sits under, and
+ * always run, in every mode, because there is no comparable "false
+ * positive" cost to weigh against leaving a real credential exposed.
  */
-export function redactSensitiveText(text: string): string {
+export function redactSensitiveText(
+  text: string,
+  mode: RedactionMode = "strict",
+): string {
   let truncated = text;
   let truncationNotice = "";
   if (truncated.length > MAX_REDACT_INPUT_LENGTH) {
@@ -198,7 +211,13 @@ export function redactSensitiveText(text: string): string {
   }
 
   let result = truncated;
-  // 0. A known fully-sensitive header name at the start of a line — blank
+  // 0. JSON-aware key-profile redaction (secrets/pii/page-context, by exact
+  //    key name) — must run first so an object/array-valued sensitive key
+  //    (e.g. `"cookie": {...}`) is redacted as a whole, balanced unit
+  //    instead of the scalar-oriented regex below only partially consuming
+  //    it and corrupting the surrounding JSON.
+  result = redactJsonAware(result, mode);
+  // 0.5. A known fully-sensitive header name at the start of a line — blank
   //    the whole rest of that line first (see SENSITIVE_HEADER_LINE_PATTERN's
   //    doc comment), before any other pass gets a chance to only partially
   //    redact it.
