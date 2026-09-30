@@ -437,6 +437,9 @@ describe("useChat", () => {
   });
 
   it.skip("should call onError when the generator throws", async () => {
+    // NOTE: onError now receives a normalized AgentError (see emitError/
+    // toAgentError in use-chat.ts), not the raw thrown Error by reference —
+    // update this assertion if/when this suite is unskipped.
     const testError = new Error("boom");
     const { agent } = setupDefaultAgent();
     (agent.chat as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
@@ -450,7 +453,9 @@ describe("useChat", () => {
       await result.current.sendMessage("Hello");
     });
 
-    expect(onError).toHaveBeenCalledWith(testError);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "boom" }),
+    );
     expect(result.current.status).toBe("error");
   });
 
@@ -486,6 +491,185 @@ describe("useChat", () => {
       toolName: "fetch",
       state: "completed",
     });
+  });
+
+  it("never leaves status stuck on 'submitted' when config.getRunContext throws", async () => {
+    const { agent } = setupDefaultAgent();
+    const getRunContext = vi.fn().mockRejectedValue(new Error("boom"));
+    const onError = vi.fn();
+    const { result } = await renderUseChat(agent, {
+      config: { getRunContext },
+      handlers: { onError },
+    });
+
+    await act(async () => {
+      await result.current.sendMessage("Hi there");
+    });
+
+    // Previously: adapter.setStatus("submitted") ran, then the unguarded
+    // `await configRef.current?.getRunContext?.(...)` threw with nothing
+    // downstream to catch it — status stayed "submitted" forever and
+    // agent.chat() was never even called.
+    expect(result.current.status).toBe("error");
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "boom" }),
+    );
+    expect(agent.chat).not.toHaveBeenCalled();
+  });
+
+  it("never leaves status stuck on 'submitted' when config.selectTools throws", async () => {
+    const { agent } = setupDefaultAgent();
+    const selectTools = vi
+      .fn()
+      .mockRejectedValue(new Error("tool selection failed"));
+    const { result } = await renderUseChat(agent, { config: { selectTools } });
+
+    await act(async () => {
+      await result.current.sendMessage("Hi there");
+    });
+
+    expect(result.current.status).toBe("error");
+  });
+
+  it("shows the failure in the transcript (not just a status flip) when a pre-step throws", async () => {
+    const { agent } = setupDefaultAgent();
+    const getRunContext = vi.fn().mockRejectedValue(new Error("boom"));
+    const { result } = await renderUseChat(agent, {
+      config: { getRunContext },
+    });
+
+    await act(async () => {
+      await result.current.sendMessage("Hi there");
+    });
+
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last?.role).toBe("assistant");
+    const textPart = last?.parts.find((p) => p.type === "text");
+    expect(textPart && "text" in textPart ? textPart.text : "").toContain(
+      "boom",
+    );
+  });
+
+  it("recovers from a failed send — the next message still works (never stuck for good)", async () => {
+    const { agent } = setupDefaultAgent();
+    const getRunContext = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("first call fails"))
+      .mockResolvedValueOnce(undefined);
+    const { result } = await renderUseChat(agent, {
+      config: { getRunContext },
+    });
+
+    await act(async () => {
+      await result.current.sendMessage("first, fails");
+    });
+    expect(result.current.status).toBe("error");
+
+    await act(async () => {
+      await result.current.sendMessage("second, should work");
+    });
+
+    expect(result.current.status).not.toBe("submitted");
+    expect(agent.chat).toHaveBeenCalledWith(
+      "second, should work",
+      expect.anything(),
+    );
+  });
+
+  it("queues a message sent while a turn is already in flight instead of starting a second concurrent turn", async () => {
+    const { agent } = setupMockAgent();
+    const streamingGenerator = createStreamingGenerator();
+    (agent.chat as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      streamingGenerator,
+    );
+    const { result } = await renderUseChat(agent);
+
+    // Don't await — this leaves the turn "in flight" (streaming forever
+    // until the generator's `next()` is resolved below).
+    act(() => {
+      void result.current.sendMessage("first");
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.status).not.toBe("idle");
+
+    await act(async () => {
+      await result.current.sendMessage("second, sent while first is in flight");
+    });
+
+    // Only ONE call to agent.chat() so far — the second message was queued,
+    // not run as a second concurrent turn.
+    expect(agent.chat).toHaveBeenCalledTimes(1);
+    expect(result.current.queueCount).toBe(1);
+
+    // Finish the first turn — the queued second message should now fire.
+    (agent.chat as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      createEventGenerator([createExecutionCompleteEvent()]),
+    );
+    await act(async () => {
+      await streamingGenerator.return(undefined);
+    });
+
+    expect(agent.chat).toHaveBeenCalledTimes(2);
+    expect(agent.chat).toHaveBeenLastCalledWith(
+      "second, sent while first is in flight",
+      expect.anything(),
+    );
+    expect(result.current.queueCount).toBe(0);
+  });
+
+  it("drops a queued message on interrupt rather than auto-firing it right after Stop", async () => {
+    const { agent } = setupMockAgent();
+    const streamingGenerator = createStreamingGenerator();
+    (agent.chat as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      streamingGenerator,
+    );
+    const { result } = await renderUseChat(agent);
+
+    act(() => {
+      void result.current.sendMessage("first");
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.sendMessage("queued, should be dropped");
+    });
+    expect(result.current.queueCount).toBe(1);
+
+    await act(async () => {
+      await result.current.interrupt();
+    });
+
+    expect(result.current.queueCount).toBe(0);
+    expect(agent.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it("never leaves status stuck on 'submitted' when regenerate's rollback throws", async () => {
+    const { agent } = setupDefaultAgent();
+    const { result } = await renderUseChat(agent);
+
+    await act(async () => {
+      await result.current.sendMessage("Hello");
+    });
+
+    (
+      agent as unknown as {
+        rollbackLastAssistantTurn: ReturnType<typeof vi.fn>;
+      }
+    ).rollbackLastAssistantTurn = vi
+      .fn()
+      .mockRejectedValue(new Error("rollback failed"));
+
+    await act(async () => {
+      await result.current.regenerate();
+    });
+
+    expect(result.current.status).toBe("error");
   });
 
   it("should update metrics state when metrics_update event is received", async () => {

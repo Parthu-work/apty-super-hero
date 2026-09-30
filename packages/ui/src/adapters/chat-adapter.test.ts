@@ -2,7 +2,11 @@ import type * as AIPexCore from "@apty/agent-core";
 import { AgentError, ErrorCode } from "@apty/agent-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "../types";
-import { ChatAdapter, createChatAdapter } from "./chat-adapter";
+import {
+  ChatAdapter,
+  createChatAdapter,
+  formatAgentErrorForDisplay,
+} from "./chat-adapter";
 
 // Mock generateId to return predictable IDs
 vi.mock("@apty/agent-core", async (importOriginal) => {
@@ -312,6 +316,42 @@ describe("ChatAdapter", () => {
       });
 
       expect(adapter.getStatus()).toBe("error");
+    });
+
+    it("makes the failure visible in the transcript, not just a status flip — the cause was previously silently swallowed", () => {
+      adapter.processEvent({
+        type: "error",
+        error: new AgentError("boom", ErrorCode.LLM_RATE_LIMIT, true, {
+          retryAfterMs: 5000,
+        }),
+      });
+
+      const messages = adapter.getMessages();
+      const last = messages[messages.length - 1];
+      expect(last?.role).toBe("assistant");
+      expect(last?.metadata?.errorCode).toBe(ErrorCode.LLM_RATE_LIMIT);
+      const textPart = last?.parts.find((p) => p.type === "text");
+      expect(textPart && "text" in textPart ? textPart.text : "").toMatch(
+        /rate-limiting/i,
+      );
+    });
+
+    it("appends the error notice to already-streamed content instead of discarding it", () => {
+      adapter.processEvent({ type: "content_delta", delta: "partial answer" });
+      adapter.processEvent({
+        type: "error",
+        error: new AgentError("boom", ErrorCode.LLM_TIMEOUT, true),
+      });
+
+      const messages = adapter.getMessages();
+      const last = messages[messages.length - 1];
+      const texts = last?.parts
+        .filter(
+          (p): p is Extract<typeof p, { type: "text" }> => p.type === "text",
+        )
+        .map((p) => p.text);
+      expect(texts).toContain("partial answer");
+      expect(texts?.some((t) => /timed out/i.test(t))).toBe(true);
     });
 
     it("should not duplicate status notifications", () => {
@@ -782,5 +822,36 @@ describe("ChatAdapter", () => {
 
       expect(onStatusChange).toHaveBeenCalledWith("idle");
     });
+  });
+});
+
+describe("formatAgentErrorForDisplay", () => {
+  it("never returns a bare 'Error' — every known code gets a specific, actionable message", () => {
+    const codes: Array<[ErrorCode, RegExp]> = [
+      [ErrorCode.LLM_RATE_LIMIT, /rate-limiting/i],
+      [ErrorCode.LLM_AUTH_ERROR, /api key/i],
+      [ErrorCode.LLM_TIMEOUT, /timed out/i],
+      [ErrorCode.TURN_CANCELLED, /cancelled/i],
+      [ErrorCode.MAX_TURNS_REACHED, /step limit/i],
+    ];
+    for (const [code, expected] of codes) {
+      const text = formatAgentErrorForDisplay(new AgentError("x", code, true));
+      expect(text).toMatch(expected);
+      expect(text).not.toBe("Error");
+    }
+  });
+
+  it("includes a retry-after estimate when the error carries one", () => {
+    const error = new AgentError("x", ErrorCode.LLM_RATE_LIMIT, true, {
+      retryAfterMs: 12_000,
+    });
+    expect(formatAgentErrorForDisplay(error)).toMatch(/retry in about 12s/i);
+  });
+
+  it("falls back to the raw message for an unrecognized code, never a blank string", () => {
+    const text = formatAgentErrorForDisplay(
+      new AgentError("connection reset", ErrorCode.TOOL_EXECUTION_ERROR, false),
+    );
+    expect(text).toContain("connection reset");
   });
 });

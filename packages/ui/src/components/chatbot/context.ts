@@ -27,6 +27,8 @@ export interface ChatContextValue {
   sessionId: string | null;
   /** Latest token metrics from most recent execution */
   metrics: AgentMetrics | null;
+  /** Number of messages waiting behind an in-flight turn. */
+  queueCount: number;
   /** Send a message */
   sendMessage: (
     text: string,

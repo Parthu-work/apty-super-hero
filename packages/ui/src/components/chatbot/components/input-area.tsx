@@ -395,7 +395,19 @@ export function DefaultInputArea({
             <PromptInputSubmit
               disabled={!value && !submitStatus}
               status={submitStatus}
-              onClick={status === "streaming" ? onStop : undefined}
+              onClick={
+                status === "streaming" || status === "submitted"
+                  ? (event) => {
+                      // The button stays type="submit" for the idle case
+                      // (Enter/click sends); while a turn is in flight it
+                      // means Stop instead, and must not ALSO trigger the
+                      // form's onSubmit (which would otherwise start a
+                      // second concurrent turn on the same session).
+                      event.preventDefault();
+                      onStop?.();
+                    }
+                  : undefined
+              }
             />
           )}
         </PromptInputToolbar>

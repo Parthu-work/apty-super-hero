@@ -4,6 +4,7 @@ import type {
   AIPex,
   Context,
 } from "@apty/agent-core";
+import { AgentError, classifyLlmError } from "@apty/agent-core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatAdapter } from "../adapters/chat-adapter";
 import type {
@@ -13,6 +14,19 @@ import type {
   ContextItem,
   UIMessage,
 } from "../types";
+
+/** Normalize any thrown value into an `AgentError`, classifying it the same way `AIPex`'s own internal chat loop does — so a failure in a caller-supplied `getRunContext`/`selectTools` hook (which runs OUTSIDE that loop, before `agent.chat()` is even called) is reported with the same specificity as one from inside it, not a generic swallowed exception. */
+function toAgentError(error: unknown): AgentError {
+  if (error instanceof AgentError) return error;
+  const classified = classifyLlmError(error);
+  const message =
+    error instanceof Error ? error.message : String(error ?? "Unknown error");
+  return new AgentError(message, classified.code, classified.recoverable, {
+    cause: error instanceof Error ? error.stack : error,
+    statusCode: classified.statusCode,
+    retryAfterMs: classified.retryAfterMs,
+  });
+}
 
 export interface UseChatOptions {
   /** Chat configuration */
@@ -30,6 +44,8 @@ export interface UseChatReturn {
   sessionId: string | null;
   /** Latest token metrics from the most recent execution */
   metrics: AgentMetrics | null;
+  /** Number of messages waiting behind an in-flight turn — see `sendMessage`. */
+  queueCount: number;
   /** Send a new message */
   sendMessage: (
     text: string,
@@ -109,6 +125,19 @@ export function useChat(
   const activeGeneratorRef = useRef<AsyncGenerator<AgentEvent> | null>(null);
   const prevAgentRef = useRef<AIPex | undefined>(agent);
 
+  // A message sent while a turn is already in flight is queued (FIFO)
+  // rather than starting a second concurrent `agent.chat()` call on the
+  // same session — firing two generators against one session at once is
+  // unsupported and was previously possible from, e.g., pressing Enter
+  // again before a response finished. Drained one at a time on a clean
+  // "idle" transition (never after "error" — that turn needs the user's
+  // attention, not a queued message firing straight into the same failure).
+  const messageQueueRef = useRef<
+    Array<{ text: string; files?: File[]; contexts?: ContextItem[] }>
+  >([]);
+  const [queueCount, setQueueCount] = useState(0);
+  const drainQueueRef = useRef<() => void>(() => {});
+
   // When the agent instance changes (e.g. model switch), reset the sessionId
   // so subsequent messages create a fresh session on the new agent, but
   // preserve existing UI messages so the conversation history stays visible.
@@ -136,6 +165,9 @@ export function useChat(
       onStatusChange: (newStatus) => {
         setStatus(newStatus);
         handlersRef.current?.onStatusChange?.(newStatus);
+        if (newStatus === "idle") {
+          drainQueueRef.current();
+        }
       },
     });
   }, []);
@@ -146,6 +178,19 @@ export function useChat(
       adapter.setMessages(config.initialMessages);
     }
   }, [adapter, config?.initialMessages]);
+
+  // Report a failure through the exact same path a normal generator-yielded
+  // "error" event takes (onError handler + adapter visibility) — used both
+  // by processAgentEvents' catch block below and by every call site that
+  // can fail BEFORE a generator even exists (getRunContext/selectTools).
+  const emitError = useCallback(
+    (error: unknown): void => {
+      const agentError = toAgentError(error);
+      handlersRef.current?.onError?.(agentError);
+      adapter.processEvent({ type: "error", error: agentError });
+    },
+    [adapter],
+  );
 
   // Process agent events
   const processAgentEvents = useCallback(
@@ -186,19 +231,20 @@ export function useChat(
           adapter.processEvent(event);
         }
       } catch (error) {
-        handlersRef.current?.onError?.(error as Error);
-        adapter.setStatus("error");
+        emitError(error);
       } finally {
         if (activeGeneratorRef.current === eventGenerator) {
           activeGeneratorRef.current = null;
         }
       }
     },
-    [adapter],
+    [adapter, emitError],
   );
 
-  // Send a new message
-  const sendMessage = useCallback(
+  // The actual send: always runs a turn immediately. `sendMessage` (below)
+  // is the public entry point and decides whether to call this now or
+  // queue it for later.
+  const runSendMessage = useCallback(
     async (
       text: string,
       files?: File[],
@@ -209,37 +255,85 @@ export function useChat(
         return;
       }
 
-      if (!text.trim() && !files?.length && !contexts?.length) {
-        return;
-      }
-
       // Add user message to adapter
       const userMessage = adapter.addUserMessage(text, files, contexts);
       handlersRef.current?.onMessageSent?.(userMessage);
       adapter.setStatus("submitted");
 
-      // Convert ContextItem to core Context type
-      const coreContexts: Context[] | undefined = contexts?.map((ctx) => ({
-        id: ctx.id,
-        type: ctx.type as Context["type"],
-        providerId: "ui-selected",
-        label: ctx.label,
-        value: ctx.value,
-        metadata: ctx.metadata,
-        timestamp: Date.now(),
-      }));
+      try {
+        // Convert ContextItem to core Context type
+        const coreContexts: Context[] | undefined = contexts?.map((ctx) => ({
+          id: ctx.id,
+          type: ctx.type as Context["type"],
+          providerId: "ui-selected",
+          label: ctx.label,
+          value: ctx.value,
+          metadata: ctx.metadata,
+          timestamp: Date.now(),
+        }));
 
-      const runContext = await configRef.current?.getRunContext?.(sessionId);
-      const tools = await configRef.current?.selectTools?.(text, sessionId);
-      const events = agent.chat(text, {
-        sessionId: sessionId ?? undefined,
-        contexts: coreContexts,
-        runContext,
-        tools,
-      });
-      await processAgentEvents(events);
+        const runContext = await configRef.current?.getRunContext?.(sessionId);
+        const tools = await configRef.current?.selectTools?.(text, sessionId);
+        const events = agent.chat(text, {
+          sessionId: sessionId ?? undefined,
+          contexts: coreContexts,
+          runContext,
+          tools,
+        });
+        await processAgentEvents(events);
+      } catch (error) {
+        // getRunContext/selectTools (or agent.chat() itself, if it validates
+        // eagerly) throwing here — BEFORE processAgentEvents' own try/catch
+        // even starts — used to leave the status stuck on "submitted"
+        // forever, with the user's message sent but no response and no
+        // visible failure.
+        emitError(error);
+      } finally {
+        // Defensive: whatever happened above, the status must never be left
+        // on "submitted" — every path that legitimately keeps it "streaming"
+        // or later sets "idle"/"error" already ran by the time we get here.
+        if (adapter.getStatus() === "submitted") {
+          adapter.setStatus("idle");
+        }
+      }
     },
-    [adapter, agent, sessionId, processAgentEvents],
+    [adapter, agent, sessionId, processAgentEvents, emitError],
+  );
+
+  // Dequeue and run the next queued message, if any and if actually idle —
+  // kept in a ref (rather than referenced directly from the adapter's
+  // onStatusChange closure above) so it always calls the LATEST
+  // runSendMessage without making the adapter's own useMemo depend on it.
+  drainQueueRef.current = () => {
+    if (adapter.getStatus() !== "idle") return;
+    const next = messageQueueRef.current.shift();
+    setQueueCount(messageQueueRef.current.length);
+    if (next) {
+      void runSendMessage(next.text, next.files, next.contexts);
+    }
+  };
+
+  // Send a new message — queues it instead of starting a second concurrent
+  // turn if one is already in flight (see messageQueueRef above).
+  const sendMessage = useCallback(
+    async (
+      text: string,
+      files?: File[],
+      contexts?: ContextItem[],
+    ): Promise<void> => {
+      if (!text.trim() && !files?.length && !contexts?.length) {
+        return;
+      }
+
+      if (adapter.getStatus() !== "idle" && adapter.getStatus() !== "error") {
+        messageQueueRef.current.push({ text, files, contexts });
+        setQueueCount(messageQueueRef.current.length);
+        return;
+      }
+
+      await runSendMessage(text, files, contexts);
+    },
+    [adapter, runSendMessage],
   );
 
   // Continue conversation (for multi-turn without creating new user message)
@@ -262,13 +356,21 @@ export function useChat(
 
       adapter.setStatus("submitted");
 
-      // Continue conversation
-      const runContext = await configRef.current?.getRunContext?.(sessionId);
-      const tools = await configRef.current?.selectTools?.(text, sessionId);
-      const events = agent.chat(text, { sessionId, runContext, tools });
-      await processAgentEvents(events);
+      try {
+        // Continue conversation
+        const runContext = await configRef.current?.getRunContext?.(sessionId);
+        const tools = await configRef.current?.selectTools?.(text, sessionId);
+        const events = agent.chat(text, { sessionId, runContext, tools });
+        await processAgentEvents(events);
+      } catch (error) {
+        emitError(error);
+      } finally {
+        if (adapter.getStatus() === "submitted") {
+          adapter.setStatus("idle");
+        }
+      }
     },
-    [adapter, agent, sessionId, processAgentEvents, sendMessage],
+    [adapter, agent, sessionId, processAgentEvents, sendMessage, emitError],
   );
 
   // Interrupt current operation
@@ -278,6 +380,10 @@ export function useChat(
       await generator.return(undefined);
     }
     activeGeneratorRef.current = null;
+    // A user-initiated Stop shouldn't have a queued follow-up immediately
+    // auto-fire right after — drop it rather than surprise them.
+    messageQueueRef.current = [];
+    setQueueCount(0);
     adapter.setStatus("idle");
   }, [adapter]);
 
@@ -287,6 +393,8 @@ export function useChat(
       void agent.getConversationManager()?.deleteSession(sessionId);
     }
     activeGeneratorRef.current = null;
+    messageQueueRef.current = [];
+    setQueueCount(0);
     setSessionId(null);
     setMetrics(null);
     adapter.reset(configRef.current?.initialMessages ?? []);
@@ -316,16 +424,24 @@ export function useChat(
     const text = textPart?.type === "text" ? textPart.text : "";
 
     if (sessionId && text) {
-      // Roll back the session so the agent doesn't see the old assistant turn
-      await agent.rollbackLastAssistantTurn(sessionId);
+      try {
+        // Roll back the session so the agent doesn't see the old assistant turn
+        await agent.rollbackLastAssistantTurn(sessionId);
 
-      adapter.setStatus("submitted");
-      const runContext = await configRef.current?.getRunContext?.(sessionId);
-      const tools = await configRef.current?.selectTools?.(text, sessionId);
-      const events = agent.chat(text, { sessionId, runContext, tools });
-      await processAgentEvents(events);
+        adapter.setStatus("submitted");
+        const runContext = await configRef.current?.getRunContext?.(sessionId);
+        const tools = await configRef.current?.selectTools?.(text, sessionId);
+        const events = agent.chat(text, { sessionId, runContext, tools });
+        await processAgentEvents(events);
+      } catch (error) {
+        emitError(error);
+      } finally {
+        if (adapter.getStatus() === "submitted") {
+          adapter.setStatus("idle");
+        }
+      }
     }
-  }, [adapter, agent, sessionId, processAgentEvents]);
+  }, [adapter, agent, sessionId, processAgentEvents, emitError]);
 
   // Set messages directly
   const setMessagesDirectly = useCallback(
@@ -349,6 +465,7 @@ export function useChat(
     status,
     sessionId,
     metrics,
+    queueCount,
     sendMessage,
     continueConversation,
     interrupt,

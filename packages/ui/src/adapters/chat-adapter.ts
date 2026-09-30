@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@apty/agent-core";
+import type { AgentError, AgentEvent } from "@apty/agent-core";
 import { generateId } from "@apty/agent-core";
 import { ScreenshotStorage } from "../lib/screenshot-storage";
 import {
@@ -191,11 +191,32 @@ export class ChatAdapter {
         break;
 
       case "error":
+        this.showErrorInChat(event.error);
         this.updateStatus("error");
         this.state.currentAssistantMessageId = null;
         this.toolsAddedSinceLastText = false;
         break;
     }
+  }
+
+  /**
+   * Make a chat failure visible in the transcript instead of only flipping
+   * `status` to "error" — previously the ONLY user-visible sign of a
+   * provider failure was the submit button's icon changing to an X, with no
+   * indication of what went wrong or whether trying again might help. This
+   * appends a plain-language line (reusing whatever text/tool-call content
+   * already streamed before the failure, if any) tagged with the error's
+   * code in `metadata.errorCode` — existing message-level Retry/Copy actions
+   * apply to it exactly like any other last assistant message.
+   */
+  private showErrorInChat(error: AgentError): void {
+    this.ensureAssistantMessage();
+    const text = formatAgentErrorForDisplay(error);
+    this.updateCurrentAssistantMessage((message) => ({
+      ...message,
+      parts: [...message.parts, { type: "text", text } as UITextPart],
+      metadata: { ...message.metadata, errorCode: error.code },
+    }));
   }
 
   /**
@@ -614,4 +635,28 @@ export function createChatAdapter(
   options: ChatAdapterOptions = {},
 ): ChatAdapter {
   return new ChatAdapter(options);
+}
+
+/** A short, human-readable explanation of an `AgentError` for display in the chat transcript — never just the raw error code or a bare "Error". */
+export function formatAgentErrorForDisplay(error: AgentError): string {
+  const retryAfterMs = error.context?.retryAfterMs;
+  const retryNote =
+    typeof retryAfterMs === "number" && retryAfterMs > 0
+      ? ` Retry in about ${Math.ceil(retryAfterMs / 1000)}s.`
+      : "";
+
+  switch (error.code) {
+    case "LLM_RATE_LIMIT":
+      return `⚠️ The AI provider is rate-limiting requests right now.${retryNote}`;
+    case "LLM_AUTH_ERROR":
+      return "⚠️ The AI provider rejected the request — check the API key in Settings.";
+    case "LLM_TIMEOUT":
+      return "⚠️ The request to the AI provider timed out.";
+    case "TURN_CANCELLED":
+      return "⚠️ The request was cancelled before it finished.";
+    case "MAX_TURNS_REACHED":
+      return "⚠️ Reached the step limit for this turn before finishing.";
+    default:
+      return `⚠️ Something went wrong: ${error.message || "an unknown error occurred"}.`;
+  }
 }

@@ -27,7 +27,7 @@ import type {
   SessionStorageAdapter,
   ToolEventPayload,
 } from "../types.js";
-import { AgentError, ErrorCode } from "../utils/errors.js";
+import { AgentError, classifyLlmError } from "../utils/errors.js";
 import { safeJsonParse } from "../utils/json.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
@@ -811,9 +811,12 @@ export class AIPex {
 
     const message =
       error instanceof Error ? error.message : String(error ?? "Unknown error");
+    const classified = classifyLlmError(error);
 
-    return new AgentError(message, ErrorCode.LLM_API_ERROR, false, {
+    return new AgentError(message, classified.code, classified.recoverable, {
       cause: error instanceof Error ? error.stack : error,
+      statusCode: classified.statusCode,
+      retryAfterMs: classified.retryAfterMs,
     });
   }
 

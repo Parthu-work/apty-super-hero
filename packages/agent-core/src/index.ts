@@ -96,9 +96,11 @@ export {
   CancellationError,
   CancellationToken,
 } from "./utils/cancellation-token.js";
+export type { ClassifiedLlmError } from "./utils/errors.js";
 // Utils
 export {
   AgentError,
+  classifyLlmError,
   ErrorCode,
   LLMError,
   LLMStreamError,

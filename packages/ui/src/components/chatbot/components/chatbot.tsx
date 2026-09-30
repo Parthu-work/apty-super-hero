@@ -138,6 +138,7 @@ export function ChatbotProvider({
       status: chatState.status,
       sessionId: chatState.sessionId,
       metrics: chatState.metrics,
+      queueCount: chatState.queueCount,
       sendMessage: wrappedSendMessage,
       continueConversation: chatState.continueConversation,
       interrupt: chatState.interrupt,
@@ -278,8 +279,15 @@ function ChatbotContent({
   const chatCtx = useContext(ChatContext);
 
   const { className, style } = themeCtx;
-  const { messages, status, sendMessage, interrupt, reset, regenerate } =
-    chatCtx || {};
+  const {
+    messages,
+    status,
+    sendMessage,
+    interrupt,
+    reset,
+    regenerate,
+    queueCount,
+  } = chatCtx || {};
 
   const { t } = useTranslation();
   const [input, setInput] = useState(initialInputProp ?? "");
@@ -362,6 +370,7 @@ function ChatbotContent({
         onSubmit={handleSubmit}
         onStop={interrupt}
         status={status || "idle"}
+        queueCount={queueCount ?? 0}
         models={models}
         placeholderTexts={placeholderTexts}
       />

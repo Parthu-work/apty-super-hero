@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AgentError,
+  classifyLlmError,
   ErrorCode,
   LLMError,
   LLMStreamError,
@@ -113,5 +114,109 @@ describe("TurnCancelledError", () => {
     expect(error.code).toBe(ErrorCode.TURN_CANCELLED);
     expect(error.recoverable).toBe(false);
     expect(error.name).toBe("TurnCancelledError");
+  });
+});
+
+describe("classifyLlmError — every failure no longer collapses to the same code", () => {
+  it("passes an AgentError through unchanged", () => {
+    const original = new AgentError("x", ErrorCode.TOOL_TIMEOUT, true);
+    expect(classifyLlmError(original)).toEqual({
+      code: ErrorCode.TOOL_TIMEOUT,
+      recoverable: true,
+    });
+  });
+
+  it("classifies a 429 status code as rate-limited and recoverable", () => {
+    const error = Object.assign(new Error("Too Many Requests"), {
+      statusCode: 429,
+    });
+    const result = classifyLlmError(error);
+    expect(result.code).toBe(ErrorCode.LLM_RATE_LIMIT);
+    expect(result.recoverable).toBe(true);
+  });
+
+  it("classifies a rate-limit MESSAGE with no status code the same way", () => {
+    const error = new Error("rate limit exceeded, please slow down");
+    const result = classifyLlmError(error);
+    expect(result.code).toBe(ErrorCode.LLM_RATE_LIMIT);
+  });
+
+  it("extracts retry-after (seconds) from response headers as milliseconds", () => {
+    const error = Object.assign(new Error("429"), {
+      statusCode: 429,
+      responseHeaders: { "retry-after": "12" },
+    });
+    expect(classifyLlmError(error).retryAfterMs).toBe(12_000);
+  });
+
+  it("treats an implausibly large retry-after value as already-milliseconds", () => {
+    const error = Object.assign(new Error("429"), {
+      statusCode: 429,
+      responseHeaders: new Headers({ "retry-after": "9000" }),
+    });
+    expect(classifyLlmError(error).retryAfterMs).toBe(9000);
+  });
+
+  it("classifies 401/403 as auth errors, never recoverable", () => {
+    for (const statusCode of [401, 403]) {
+      const error = Object.assign(new Error("nope"), { statusCode });
+      const result = classifyLlmError(error);
+      expect(result.code).toBe(ErrorCode.LLM_AUTH_ERROR);
+      expect(result.recoverable).toBe(false);
+    }
+  });
+
+  it("classifies an 'invalid api key' message with no status code as an auth error", () => {
+    const result = classifyLlmError(new Error("Invalid API key provided"));
+    expect(result.code).toBe(ErrorCode.LLM_AUTH_ERROR);
+  });
+
+  it("classifies 408/504 and a 'timed out' message as LLM_TIMEOUT, recoverable", () => {
+    const byStatus = classifyLlmError(
+      Object.assign(new Error("x"), { statusCode: 504 }),
+    );
+    expect(byStatus.code).toBe(ErrorCode.LLM_TIMEOUT);
+    expect(byStatus.recoverable).toBe(true);
+
+    const byMessage = classifyLlmError(new Error("request timed out"));
+    expect(byMessage.code).toBe(ErrorCode.LLM_TIMEOUT);
+  });
+
+  it("classifies a 5xx as a recoverable API error (transient), a plain 4xx as not", () => {
+    const serverError = classifyLlmError(
+      Object.assign(new Error("x"), { statusCode: 503 }),
+    );
+    expect(serverError.code).toBe(ErrorCode.LLM_API_ERROR);
+    expect(serverError.recoverable).toBe(true);
+
+    const clientError = classifyLlmError(
+      Object.assign(new Error("x"), { statusCode: 422 }),
+    );
+    expect(clientError.code).toBe(ErrorCode.LLM_API_ERROR);
+    expect(clientError.recoverable).toBe(false);
+  });
+
+  it("classifies an AbortError (and 'aborted' message) as TURN_CANCELLED", () => {
+    const abortError = new Error("The operation was aborted");
+    abortError.name = "AbortError";
+    expect(classifyLlmError(abortError).code).toBe(ErrorCode.TURN_CANCELLED);
+
+    const plainAborted = new Error("request was aborted by the user");
+    expect(classifyLlmError(plainAborted).code).toBe(ErrorCode.TURN_CANCELLED);
+  });
+
+  it("follows one level of `.cause` nesting to find a status code", () => {
+    const wrapped = new Error("wrapped");
+    (wrapped as unknown as { cause: unknown }).cause = Object.assign(
+      new Error("inner"),
+      { statusCode: 429 },
+    );
+    expect(classifyLlmError(wrapped).code).toBe(ErrorCode.LLM_RATE_LIMIT);
+  });
+
+  it("falls back to a generic, recoverable API error for a totally unrecognized failure", () => {
+    const result = classifyLlmError(new Error("something weird happened"));
+    expect(result.code).toBe(ErrorCode.LLM_API_ERROR);
+    expect(result.recoverable).toBe(true);
   });
 });
