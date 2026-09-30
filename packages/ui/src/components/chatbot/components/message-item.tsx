@@ -1,7 +1,9 @@
 import {
   BookmarkIcon,
+  CheckIcon,
   ClipboardIcon,
   CopyIcon,
+  DownloadIcon,
   FileTextIcon,
   GlobeIcon,
   ImageIcon,
@@ -9,9 +11,10 @@ import {
   RefreshCcwIcon,
   WrenchIcon,
 } from "lucide-react";
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
+import { downloadText, timestampedFilename } from "../../../lib/download";
 import { transformScreenshotPlaceholders } from "../../../lib/screenshot-utils";
 import { cn } from "../../../lib/utils";
 import type {
@@ -66,6 +69,12 @@ export function DefaultMessageItem({
   ...props
 }: MessageItemProps) {
   const { slots } = useComponentsContext();
+
+  // Tracks which part's Copy button most recently succeeded, so the icon
+  // can briefly swap to a checkmark — the only previous feedback for a
+  // copy was none at all (handleCopy was fire-and-forget with no
+  // indication of success, failure, or even that anything happened).
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Collect screenshot data from tool parts for placeholder resolution
   const { screenshotUidList, screenshotDataMap } = useMemo(() => {
@@ -151,10 +160,42 @@ export function DefaultMessageItem({
                         </Action>
                       )}
                       {onCopy && (
-                        <Action onClick={() => onCopy(part.text)} label="Copy">
-                          <CopyIcon className="size-3" />
+                        <Action
+                          onClick={async () => {
+                            const result = await onCopy(part.text);
+                            const succeeded = result === undefined || result;
+                            if (succeeded) {
+                              setCopiedKey(key);
+                              setTimeout(
+                                () =>
+                                  setCopiedKey((current) =>
+                                    current === key ? null : current,
+                                  ),
+                                2000,
+                              );
+                            }
+                          }}
+                          label={copiedKey === key ? "Copied" : "Copy"}
+                        >
+                          {copiedKey === key ? (
+                            <CheckIcon className="size-3" />
+                          ) : (
+                            <CopyIcon className="size-3" />
+                          )}
                         </Action>
                       )}
+                      <Action
+                        onClick={() =>
+                          downloadText(
+                            timestampedFilename("message", "md"),
+                            part.text,
+                            "text/markdown",
+                          )
+                        }
+                        label="Download"
+                      >
+                        <DownloadIcon className="size-3" />
+                      </Action>
                     </Actions>
                   ))}
               </Fragment>

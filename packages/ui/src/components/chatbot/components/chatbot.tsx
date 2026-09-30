@@ -1,6 +1,7 @@
 import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useChat, useChatConfig } from "../../../hooks";
 import { useTranslation } from "../../../i18n/context";
+import { copyText } from "../../../lib/clipboard";
 import { cn } from "../../../lib/utils";
 import type {
   ChatbotThemeVariables,
@@ -331,8 +332,8 @@ function ChatbotContent({
     [t, sendMessage],
   );
 
-  const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopy = useCallback(async (text: string): Promise<boolean> => {
+    return copyText(text);
   }, []);
 
   const handleNewChat = useCallback(() => {

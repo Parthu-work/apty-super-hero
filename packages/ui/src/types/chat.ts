@@ -55,7 +55,8 @@ export interface MessageListProps
   messages: UIMessage[];
   status: ChatStatus;
   onRegenerate?: () => void;
-  onCopy?: (text: string) => void;
+  // biome-ignore lint/suspicious/noConfusingVoidType: void must stay to accept existing (text: string) => void consumer implementations
+  onCopy?: (text: string) => void | Promise<boolean>;
 }
 
 export interface MessageItemProps
@@ -64,7 +65,8 @@ export interface MessageItemProps
   isLast?: boolean;
   isStreaming?: boolean;
   onRegenerate?: () => void;
-  onCopy?: (text: string) => void;
+  // biome-ignore lint/suspicious/noConfusingVoidType: void must stay to accept existing (text: string) => void consumer implementations
+  onCopy?: (text: string) => void | Promise<boolean>;
 }
 
 export interface InputAreaProps
@@ -100,7 +102,8 @@ export interface FooterProps extends HTMLAttributes<HTMLDivElement> {
 export interface MessageActionsSlotProps {
   message: UIMessage;
   onRegenerate?: () => void;
-  onCopy?: (text: string) => void;
+  // biome-ignore lint/suspicious/noConfusingVoidType: void must stay to accept existing (text: string) => void consumer implementations
+  onCopy?: (text: string) => void | Promise<boolean>;
 }
 
 export interface InputToolbarSlotProps {

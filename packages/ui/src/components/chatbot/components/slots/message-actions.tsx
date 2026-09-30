@@ -1,9 +1,11 @@
 import {
+  CheckIcon,
   CopyIcon,
   RefreshCcwIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
 } from "lucide-react";
+import { useState } from "react";
 import type { MessageActionsSlotProps } from "../../../../types";
 import { Action, Actions } from "../../../ai-elements/actions";
 
@@ -15,6 +17,8 @@ export function DefaultMessageActions({
   onRegenerate,
   onCopy,
 }: MessageActionsSlotProps) {
+  const [copied, setCopied] = useState(false);
+
   // Find text content for copy
   const textContent = message.parts
     .filter((p) => p.type === "text")
@@ -29,8 +33,21 @@ export function DefaultMessageActions({
         </Action>
       )}
       {onCopy && textContent && (
-        <Action onClick={() => onCopy(textContent)} label="Copy">
-          <CopyIcon className="size-3" />
+        <Action
+          onClick={async () => {
+            const result = await onCopy(textContent);
+            if (result === undefined || result) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }
+          }}
+          label={copied ? "Copied" : "Copy"}
+        >
+          {copied ? (
+            <CheckIcon className="size-3" />
+          ) : (
+            <CopyIcon className="size-3" />
+          )}
         </Action>
       )}
     </Actions>
@@ -48,6 +65,8 @@ export function MessageActionsWithFeedback({
 }: MessageActionsSlotProps & {
   onFeedback?: (messageId: string, type: "up" | "down") => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
   const textContent = message.parts
     .filter((p) => p.type === "text")
     .map((p) => (p.type === "text" ? p.text : ""))
@@ -61,8 +80,21 @@ export function MessageActionsWithFeedback({
         </Action>
       )}
       {onCopy && textContent && (
-        <Action onClick={() => onCopy(textContent)} label="Copy">
-          <CopyIcon className="size-3" />
+        <Action
+          onClick={async () => {
+            const result = await onCopy(textContent);
+            if (result === undefined || result) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }
+          }}
+          label={copied ? "Copied" : "Copy"}
+        >
+          {copied ? (
+            <CheckIcon className="size-3" />
+          ) : (
+            <CopyIcon className="size-3" />
+          )}
         </Action>
       )}
       {onFeedback && (
