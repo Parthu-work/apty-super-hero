@@ -25,13 +25,6 @@ export interface AppSettings {
   language?: string;
   theme?: string;
   /**
-   * This product is BYOK-only (there is no login/proxy fallback); the
-   * Settings UI always forces this true and no longer exposes a toggle
-   * for it. Kept as a field (rather than removed) because
-   * `packages/ui/src/hooks/use-agent.ts` still gates agent creation on it.
-   */
-  byokEnabled?: boolean;
-  /**
    * Global toggle for BYOK/provider usage
    */
   providerEnabled?: boolean;

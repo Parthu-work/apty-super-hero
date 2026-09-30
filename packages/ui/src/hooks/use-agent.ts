@@ -88,7 +88,7 @@ export function useAgent({
   tools = [],
   instructions,
   name = "Assistant",
-  maxTurns = 2000,
+  maxTurns = 30,
   agentOptions = {},
 }: UseAgentOptions): UseAgentReturn {
   const [agent, setAgent] = useState<AIPex | undefined>(undefined);
@@ -114,11 +114,11 @@ export function useAgent({
   const aiToken = settings.aiToken;
   const aiModel = settings.aiModel;
   const aiProvider = settings.aiProvider;
-  const byokEnabled = settings.byokEnabled;
 
-  // For BYOK mode, require token + model. For non-BYOK (proxy) mode, always proceed.
-  const isByok = Boolean(byokEnabled && aiToken?.trim());
-  const isByokConfigured = isByok && Boolean(aiModel?.trim());
+  // This product is BYOK-only (there is no login/proxy fallback): a
+  // non-empty token and model is what "configured" means, full stop — no
+  // separate flag the user has to also set.
+  const isConfigured = Boolean(aiToken?.trim() && aiModel?.trim());
 
   useEffect(() => {
     // Wait for loading to complete
@@ -126,8 +126,7 @@ export function useAgent({
       return;
     }
 
-    // Only block if BYOK is explicitly enabled but incomplete
-    if (isByok && !isByokConfigured) {
+    if (!isConfigured) {
       setAgent(undefined);
       setError((prev: Error | undefined) =>
         prev?.message === NOT_CONFIGURED_ERROR_MESSAGE
@@ -146,8 +145,7 @@ export function useAgent({
     };
 
     try {
-      // Create the model using provided factory
-      // The factory handles both BYOK and proxy mode internally
+      // Create the model using the provided factory
       const model = modelFactoryRef.current(currentSettings);
 
       let contextManager: ContextManager | undefined;
@@ -188,8 +186,7 @@ export function useAgent({
     }
   }, [
     isLoading,
-    isByok,
-    isByokConfigured,
+    isConfigured,
     aiToken,
     aiModel,
     aiProvider,

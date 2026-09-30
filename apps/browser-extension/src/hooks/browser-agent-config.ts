@@ -20,7 +20,10 @@ import {
 import { useStorage } from "@apty/browser-runtime/hooks";
 import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo } from "react";
-import { createAIProvider, isByokConfigured } from "../services/ai-provider";
+import {
+  createAIProvider,
+  isProviderConfigured,
+} from "../services/ai-provider";
 
 /**
  * Create browser-specific storage instance
@@ -46,7 +49,7 @@ export function useBrowserStorage() {
  */
 export function useBrowserModelFactory() {
   return useCallback((settings: AppSettings) => {
-    if (!isByokConfigured(settings)) {
+    if (!isProviderConfigured(settings)) {
       throw new Error(
         "AI provider is not configured. Set an API key and model in Settings.",
       );

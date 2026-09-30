@@ -24,7 +24,7 @@ import {
   useBrowserTools,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
-import { isByokConfigured } from "../services/ai-provider";
+import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
 import { InputModeProvider } from "../state/input-mode-context";
 import { InterventionModeProvider } from "../state/intervention-mode-context";
@@ -140,7 +140,7 @@ function useConversationHeartbeat() {
 async function checkAuth(
   settings: ReturnType<typeof useChatConfig>["settings"],
 ): Promise<AuthCheckResult> {
-  if (isByokConfigured(settings)) {
+  if (isProviderConfigured(settings)) {
     return { needsAuth: false, hasCustomConfig: true };
   }
   return { needsAuth: true, hasCustomConfig: false };
@@ -188,7 +188,7 @@ function ChatApp() {
     chrome.runtime?.openOptionsPage?.();
   }, []);
   useEffect(() => {
-    if (authDraft !== null && isByokConfigured(settings)) {
+    if (authDraft !== null && isProviderConfigured(settings)) {
       setAuthDraft(null);
     }
   }, [authDraft, settings]);

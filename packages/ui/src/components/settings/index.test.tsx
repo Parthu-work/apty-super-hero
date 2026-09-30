@@ -43,8 +43,14 @@ function createMemoryStorage<T>() {
   };
 }
 
-function renderSettings(initialTab: "ai" | "general" = "ai") {
+function renderSettings(
+  initialTab: "ai" | "general" = "ai",
+  storedSettings?: unknown,
+) {
   const storageAdapter = createMemoryStorage<unknown>();
+  if (storedSettings !== undefined) {
+    storageAdapter.load.mockResolvedValue(storedSettings);
+  }
   const i18nStorage = createMemoryStorage<string>();
   const themeStorage = createMemoryStorage<string>();
   return render(
@@ -72,6 +78,25 @@ describe("SettingsPage", () => {
     // a toggle the user has to find and enable first.
     expect(await screen.findByText(/add model/i)).toBeInTheDocument();
     expect(screen.queryByText(/bring your own key/i)).not.toBeInTheDocument();
+  });
+
+  it("migrates a stored legacy 'byokEnabled:false' with a real token/model into a configured, enabled model", async () => {
+    // Before byokEnabled was removed, a legacy flat settings object with
+    // the flag false (its default) but a real token+model already saved
+    // would be silently skipped by the one-time customModels migration,
+    // showing "No providers found" despite having a real key stored.
+    renderSettings("ai", {
+      aiToken: "sk-legacy-test",
+      aiModel: "gpt-legacy-test",
+      aiProvider: "openai",
+      providerType: "openai",
+      byokEnabled: false,
+    });
+
+    expect(
+      (await screen.findAllByText("gpt-legacy-test")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/no providers found/i)).not.toBeInTheDocument();
   });
 
   it("never renders a Data Sharing control (there is nothing for it to control)", async () => {

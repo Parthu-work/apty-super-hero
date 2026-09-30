@@ -126,8 +126,6 @@ export function DefaultInputArea({
   }, [showServerModels]);
 
   const enabledCustomModels = useMemo(() => {
-    // Always collect enabled BYOK models regardless of byokEnabled flag,
-    // so they appear in the BYOK group even when proxy mode is active.
     return (settings.customModels ?? []).filter((model) => model.enabled);
   }, [settings.customModels]);
 
@@ -224,25 +222,25 @@ export function DefaultInputArea({
 
       setSelectedModel(trimmed);
 
-      // Check if the selected model belongs to the BYOK group
+      // If the selected model belongs to a configured provider, switch to
+      // its full config (token/host/provider type); otherwise it's a
+      // server-provided model (see showServerModels), so just record the
+      // model id.
       const customConfig = enabledCustomModels.find(
         (m) => m.aiModel === trimmed,
       );
 
       if (customConfig) {
-        // BYOK model selected → switch to BYOK mode with this config
         void updateSettings({
           aiModel: trimmed,
           aiToken: customConfig.aiToken,
           aiHost: customConfig.aiHost ?? "",
           providerType: customConfig.providerType,
-          byokEnabled: true,
         });
         return;
       }
 
-      // Server-proxy model selected → switch to proxy mode
-      void updateSettings({ aiModel: trimmed, byokEnabled: false });
+      void updateSettings({ aiModel: trimmed });
     },
     [selectedModel, enabledCustomModels, updateSettings],
   );

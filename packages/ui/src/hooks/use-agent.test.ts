@@ -54,6 +54,40 @@ describe("useAgent", () => {
     expect(console.error).not.toHaveBeenCalled();
   });
 
+  it("treats a stored legacy 'byokEnabled:false' with a real token and model as configured (migration)", async () => {
+    // Before byokEnabled was removed, a stored settings object with the
+    // flag false (its default) but a real token+model already saved would
+    // be treated as "not configured" until the user pressed Save again.
+    // `AppSettings` no longer has this field, but a real stored object
+    // from before this change still carries it — it must be ignored, not
+    // required to be absent.
+    const legacyStoredSettings = {
+      aiToken: "sk-test",
+      aiModel: "gpt-test",
+      aiProvider: "openai",
+      byokEnabled: false,
+    } as unknown as Parameters<typeof useAgent>[0]["settings"];
+
+    const model = { id: "fake-model" };
+    const modelFactory = vi.fn(() => model);
+
+    const { result } = renderHook(() =>
+      useAgent({
+        settings: legacyStoredSettings,
+        isLoading: false,
+        modelFactory,
+        storage: createFakeSessionStorage(),
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.agent).toBeDefined();
+    });
+
+    expect(result.current.error).toBeUndefined();
+    expect(modelFactory).toHaveBeenCalled();
+  });
+
   it("still logs a console.error for a genuinely unexpected model-factory failure", async () => {
     const modelFactory = vi.fn(() => {
       throw new Error("network timeout while fetching model list");
@@ -61,7 +95,7 @@ describe("useAgent", () => {
 
     const { result } = renderHook(() =>
       useAgent({
-        settings: {},
+        settings: { aiToken: "sk-test", aiModel: "gpt-test" },
         isLoading: false,
         modelFactory,
         storage: createFakeSessionStorage(),

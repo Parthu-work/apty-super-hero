@@ -147,18 +147,11 @@ const resolveActiveModel = (
   customModels: CustomModelConfig[],
   selectedModelId: string | null,
 ): ResolvedModelConfig => {
-  const enabledModels = settings.byokEnabled
-    ? customModels.filter((model) => model.enabled)
-    : [];
+  const enabledModels = customModels.filter((model) => model.enabled);
   const selected = selectedModelId
     ? customModels.find((model) => model.id === selectedModelId)
     : undefined;
-  const activeModel =
-    settings.byokEnabled && selected?.enabled
-      ? selected
-      : settings.byokEnabled
-        ? enabledModels[0]
-        : undefined;
+  const activeModel = selected?.enabled ? selected : enabledModels[0];
 
   const providerType =
     activeModel?.providerType ?? settings.providerType ?? "openai";
@@ -270,7 +263,6 @@ export function SettingsPage({
             "openai";
 
           if (
-            loadedSettings.byokEnabled &&
             loadedCustomModels.length === 0 &&
             (loadedSettings.aiHost ||
               loadedSettings.aiToken ||
@@ -297,9 +289,6 @@ export function SettingsPage({
             customModels: mergedCustomModels,
             providerType: resolvedProviderType,
             providerEnabled: loadedSettings.providerEnabled ?? false,
-            // This product is BYOK-only (no login/proxy fallback exists), so
-            // the AI configuration fields are always shown.
-            byokEnabled: true,
           });
 
           setCustomModels(mergedCustomModels);
@@ -337,14 +326,13 @@ export function SettingsPage({
       aiModel: model.aiModel,
       aiProvider: providerKey,
       providerType: model.providerType,
-      providerEnabled: (prev.byokEnabled ?? false) && model.enabled,
+      providerEnabled: model.enabled,
     }));
   }, []);
 
   useEffect(() => {
     setSettings((prev: AppSettings) => {
-      const byok = prev.byokEnabled ?? false;
-      const anyEnabled = byok && customModels.some((model) => model.enabled);
+      const anyEnabled = customModels.some((model) => model.enabled);
       return {
         ...prev,
         customModels,
@@ -481,9 +469,7 @@ export function SettingsPage({
     setIsSaving(true);
     setSaveStatus({ type: "", message: "" });
 
-    const enabledModels = settings.byokEnabled
-      ? customModels.filter((model) => model.enabled)
-      : [];
+    const enabledModels = customModels.filter((model) => model.enabled);
 
     const availableDefaultModels = new Set(
       defaultModelOptions.map((option) => option.value),
@@ -493,18 +479,16 @@ export function SettingsPage({
         ? settings.defaultModel
         : undefined;
 
-    if (settings.byokEnabled) {
-      const hasIncomplete = enabledModels.some(
-        (model) => !model.aiToken || !model.aiModel,
-      );
-      if (hasIncomplete) {
-        setSaveStatus({
-          type: "error",
-          message: createErrorMessage("fillRequired", language),
-        });
-        setIsSaving(false);
-        return;
-      }
+    const hasIncomplete = enabledModels.some(
+      (model) => !model.aiToken || !model.aiModel,
+    );
+    if (hasIncomplete) {
+      setSaveStatus({
+        type: "error",
+        message: createErrorMessage("fillRequired", language),
+      });
+      setIsSaving(false);
+      return;
     }
 
     try {
@@ -525,9 +509,7 @@ export function SettingsPage({
         aiProvider: providerKey,
         providerType,
         providerEnabled:
-          settings.byokEnabled && enabledModels.length > 0
-            ? (activeModel?.enabled ?? false)
-            : false,
+          enabledModels.length > 0 ? (activeModel?.enabled ?? false) : false,
         customModels,
         defaultModel: resolvedDefaultModel,
       };
@@ -566,7 +548,7 @@ export function SettingsPage({
     const { activeModel, aiHost, aiToken, aiModel, providerType, providerKey } =
       resolveActiveModel(settings, customModels, selectedModelId);
 
-    if (settings.byokEnabled && !activeModel) {
+    if (!activeModel) {
       setSaveStatus({
         type: "error",
         message: createErrorMessage("enableOneModel", language),
@@ -690,10 +672,7 @@ export function SettingsPage({
     actionModel.enabled &&
     Boolean(actionModel.aiToken) &&
     Boolean(actionModel.aiModel);
-  const canSave =
-    !settings.byokEnabled ||
-    enabledCustomModelsForActions.length === 0 ||
-    canTest;
+  const canSave = enabledCustomModelsForActions.length === 0 || canTest;
 
   if (isLoading) {
     return (

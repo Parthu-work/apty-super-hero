@@ -89,12 +89,11 @@ export function describeConnectionTestError(error: unknown): string {
 }
 
 /**
- * Check whether the current settings represent a BYOK configuration.
+ * Check whether the current settings have a usable provider configured.
+ * This product is BYOK-only: a non-empty token and model is the whole
+ * definition — there is no separate enable flag.
  */
-export function isByokConfigured(settings: AppSettings): boolean {
-  const byokEnabled = Boolean(settings.byokEnabled);
-  if (!byokEnabled) return false;
-
+export function isProviderConfigured(settings: AppSettings): boolean {
   const hasToken = Boolean(settings.aiToken?.trim());
   const hasModel = Boolean(settings.aiModel?.trim());
   return hasToken && hasModel;
