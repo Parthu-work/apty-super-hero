@@ -167,7 +167,7 @@ describe("evidence-store — per-conversation isolation", () => {
     expect(getEvidence(conversationId)).toHaveLength(2);
   });
 
-  it("falls back to timestamp for de-duplication when there is no requestId (non-network evidence)", () => {
+  it("falls back to content (not timestamp) for de-duplication when there is no requestId", () => {
     const conversationId = "conv-dedupe-no-request-id";
     const record = {
       conversationId,
@@ -182,6 +182,32 @@ describe("evidence-store — per-conversation isolation", () => {
     recordEvidence(record);
 
     expect(getEvidence(conversationId)).toHaveLength(1);
+  });
+
+  it("does not conflate two distinct non-network events that happen to share a timestamp — a real regression", () => {
+    // Two different CDP log entries fired synchronously within the same
+    // tool call can legitimately get the same `Date.now()` timestamp; a
+    // timestamp-only fallback key would incorrectly treat the second as a
+    // duplicate of the first and silently drop it.
+    const conversationId = "conv-same-timestamp-distinct-content";
+    recordEvidence({
+      conversationId,
+      source: "runtime",
+      type: "runtime-log",
+      timestamp: 1000,
+      tabId: 1,
+      data: { text: "Refused to load the script: CSP violation" },
+    });
+    recordEvidence({
+      conversationId,
+      source: "runtime",
+      type: "runtime-log",
+      timestamp: 1000,
+      tabId: 1,
+      data: { text: "just fyi" },
+    });
+
+    expect(getEvidence(conversationId)).toHaveLength(2);
   });
 
   it("caps a single noisy source at its own per-source quota without evicting a different, rarer source's evidence", () => {

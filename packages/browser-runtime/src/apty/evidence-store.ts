@@ -54,22 +54,44 @@ function keyFor(conversationId: string | undefined): string {
 
 /**
  * De-duplication key for one piece of evidence: `(source, type, tabId,
- * frameId, requestId ?? timestamp)`. `requestId` is preferred over
- * `timestamp` alone when present (network evidence) since it uniquely
- * identifies one request/response pair even if two capture windows
- * happen to overlap and both observe it; non-network evidence falls back
- * to `timestamp`, which is precise enough in practice since duplicates
- * here come from the same underlying event being recorded twice (e.g. a
- * page reload re-emitting an identical log line has a different
- * timestamp, so it is correctly treated as new evidence, not a dupe).
+ * frameId, requestId ?? serialized data)`. `requestId` is preferred over
+ * content when present (network evidence) since it uniquely identifies
+ * one request/response pair even if two capture windows happen to
+ * overlap and both observe it.
+ *
+ * Non-network evidence falls back to a content hash (`JSON.stringify
+ * (data)`), not `timestamp` — two independent tool calls that both
+ * observe the *same real-world event* (e.g. a CDP log line captured by
+ * two overlapping runtime-diagnostics windows) each stamp it with their
+ * own `Date.now()` at observation time, so timestamps can differ even
+ * for a genuine duplicate. Content is what actually distinguishes "the
+ * same log line recorded twice" from "two different log lines that
+ * happen to land in the same millisecond" — the latter is a real,
+ * observed failure mode of a timestamp-only key (two distinct captured
+ * log entries synchronously fired in the same test/turn collided and one
+ * was incorrectly dropped).
  */
 function dedupeKey(evidence: NewDiagnosticEvidence): string {
+  let contentKey: unknown;
+  if (evidence.requestId !== undefined) {
+    contentKey = evidence.requestId;
+  } else {
+    try {
+      contentKey = JSON.stringify(evidence.data);
+    } catch {
+      // Non-serializable payload (shouldn't happen — evidence must already
+      // be JSON-safe to eventually reach an LLM — but never let a
+      // stringify failure crash evidence recording); fall back to
+      // timestamp so this record simply isn't de-duplicated.
+      contentKey = evidence.timestamp;
+    }
+  }
   return JSON.stringify([
     evidence.source,
     evidence.type,
     evidence.tabId ?? null,
     evidence.frameId ?? null,
-    evidence.requestId ?? evidence.timestamp,
+    contentKey,
   ]);
 }
 
