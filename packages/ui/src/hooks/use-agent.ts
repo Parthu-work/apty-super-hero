@@ -175,9 +175,16 @@ export function useAgent({
       setAgent(newAgent);
       setError(undefined);
     } catch (err) {
-      console.error("Failed to create agent:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      // "Not configured" is the expected state on every fresh install
+      // (before a provider is set up), not an application error — logging
+      // it as console.error fails a "zero console errors" CI gate for a
+      // completely normal first-run screen. Anything else is unexpected.
+      if (!/not configured/i.test(message)) {
+        console.error("Failed to create agent:", err);
+      }
       setAgent(undefined);
-      setError(err instanceof Error ? err : new Error(String(err)));
+      setError(err instanceof Error ? err : new Error(message));
     }
   }, [
     isLoading,

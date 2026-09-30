@@ -107,53 +107,7 @@ export function ModeIndicator({
   );
 }
 
-/**
- * Add custom animations to global CSS
- * (This should be added to your global stylesheet or tailwind config)
- *
- * @keyframes mode-pulse {
- *   0%, 100% {
- *     box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
- *   }
- *   50% {
- *     box-shadow: 0 0 30px rgba(59, 130, 246, 0.8);
- *   }
- * }
- *
- * @keyframes transition-enter-immersive {
- *   0% {
- *     transform: scale(0.9);
- *     opacity: 0.5;
- *   }
- *   50% {
- *     transform: scale(1.1);
- *   }
- *   100% {
- *     transform: scale(1);
- *     opacity: 1;
- *   }
- * }
- *
- * @keyframes transition-enter-background {
- *   0% {
- *     transform: scale(1.05);
- *     opacity: 1;
- *   }
- *   100% {
- *     transform: scale(1);
- *     opacity: 0.7;
- *   }
- * }
- *
- * .animate-mode-pulse {
- *   animation: mode-pulse 2s ease-in-out infinite;
- * }
- *
- * .animate-transition-enter-immersive {
- *   animation: transition-enter-immersive 0.6s ease-out;
- * }
- *
- * .animate-transition-enter-background {
- *   animation: transition-enter-background 0.4s ease-out;
- * }
- */
+// The animate-mode-pulse / animate-transition-enter-* classes above are
+// defined in apps/browser-extension/src/styles/tailwind.css. Any other
+// consumer of this component needs the same @keyframes/utility classes in
+// its own stylesheet.

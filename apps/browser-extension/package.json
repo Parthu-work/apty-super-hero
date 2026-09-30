@@ -30,10 +30,10 @@
     "@ai-sdk/openai": "^3.0.47",
     "@ai-sdk/openai-compatible": "^2.0.37",
     "@apty/agent-core": "workspace:*",
-    "@apty/ui": "workspace:*",
     "@apty/browser-runtime": "workspace:*",
     "@apty/debug-contract": "workspace:*",
     "@apty/dom-snapshot": "workspace:*",
+    "@apty/ui": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-collapsible": "^1.1.12",
@@ -70,9 +70,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@testing-library/dom": "^10.4.0",
     "@crxjs/vite-plugin": "^2.4.0",
     "@tailwindcss/postcss": "^4.2.2",
+    "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/chrome": "0.1.38",

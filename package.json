@@ -7,7 +7,7 @@
   "author": "Apty",
   "scripts": {
     "postinstall": "prek install",
-    "build": "pnpm -r --if-present build",
+    "build": "pnpm -r --if-present build && npm run check:tailwind-sources",
     "dev": "pnpm --filter @apty/browser-extension dev",
     "preflight": "npm run format && npm run lint:fix && npm run typecheck && npm run test",
     "format": "biome format . --write",
@@ -21,6 +21,7 @@
     "audit:architecture": "node tooling/scripts/check-architecture.mjs",
     "audit:tools": "node tooling/scripts/audit-tools.mjs",
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
+    "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
     "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },
   "devDependencies": {
@@ -29,6 +30,7 @@
     "@types/chrome": "0.1.38",
     "@types/node": "^25.2.3",
     "knip": "^5.82.1",
+    "playwright-core": "^1.63.0",
     "tinyglobby": "^0.2.15",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"

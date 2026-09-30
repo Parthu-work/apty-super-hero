@@ -1,13 +1,45 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap");
-
 @import "tailwindcss";
 @import "tw-animate-css";
 
 /* Include workspace packages source files for Tailwind to scan */
 @source "../../src";
-@source "../../../aipex-react/src";
-@source "../../../browser-runtime/src";
-@source "../../../core/src";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/browser-runtime/src";
+
+/*
+ * Inter, bundled locally so no extension page makes a network request on
+ * open (WP16 item 3 — the previous `@import url("https://fonts.googleapis
+ * .com/...")` contacted Google Fonts on every load). The woff2 files are
+ * copied from @fontsource/inter into apps/browser-extension/assets/fonts,
+ * which the existing viteStaticCopy `assets/*` target already copies into
+ * dist/assets verbatim, giving a stable, predictable URL. (A plain
+ * `@import "@fontsource/inter/400.css"` was tried first, but Tailwind's own
+ * import bundling inlines that CSS without rewriting its relative
+ * `url(files/...)` paths, so Vite cannot resolve them and the font files
+ * are silently never copied into dist — the built page would fall back to
+ * the system font stack with six failed local requests on every open.)
+ */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../assets/fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../assets/fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../assets/fonts/inter-latin-700-normal.woff2") format("woff2");
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -95,6 +127,7 @@
 }
 
 @theme inline {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -149,5 +182,61 @@
   }
   #root {
     @apply h-full;
+  }
+}
+
+/*
+ * Mode-indicator animations (used by
+ * packages/ui/src/components/chatbot/components/mode-indicator.tsx). These
+ * were previously left as a code comment ("add this to your global
+ * stylesheet") rather than real CSS, so the classes it referenced did not
+ * exist anywhere in the built stylesheet.
+ */
+@layer utilities {
+  @keyframes mode-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(59, 130, 246, 0.8);
+    }
+  }
+
+  @keyframes transition-enter-immersive {
+    0% {
+      transform: scale(0.9);
+      opacity: 0.5;
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes transition-enter-background {
+    0% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+  }
+
+  .animate-mode-pulse {
+    animation: mode-pulse 2s ease-in-out infinite;
+  }
+
+  .animate-transition-enter-immersive {
+    animation: transition-enter-immersive 0.6s ease-out;
+  }
+
+  .animate-transition-enter-background {
+    animation: transition-enter-background 0.4s ease-out;
   }
 }
