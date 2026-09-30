@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
  * server (not file://, so ES module imports resolve like they do when
  * loaded from a real `chrome-extension://` origin), with a minimal
  * `window.chrome` stub standing in for the extension APIs these pages
- * call during initial render, and captures PNGs at the viewports WP16/
+ * call during initial render, and captures ONGs at the viewports WP16/
  * WP18/WP21 care about, in both themes.
  *
  * This does not load the page as a real installed MV3 extension (no
