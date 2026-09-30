@@ -13,7 +13,9 @@ import {
   registerSidepanelActionClick,
   registerSidepanelPortLifecycle,
 } from "./sidepanel";
+import { lockdownStorageAccess } from "./storage-lockdown";
 
+lockdownStorageAccess();
 seedAptyIntegrationConfig();
 registerSidepanelActionClick();
 registerCommandHandlers();
