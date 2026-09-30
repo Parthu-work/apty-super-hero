@@ -863,3 +863,41 @@ wording that consistently fall through to `"info"`/`"console-error"`, the
 fix is adding another pattern to the fixed list — not switching the
 mechanism, following the same precedent as the investigation planner's
 `PLAN_TEMPLATES`.
+
+## WP1.7 (always-on `<all_urls>` MAIN-world console-bridge content script) not converted to dynamic registration this round
+
+The v6 mega-prompt's WP1.7 asks for `chrome.scripting.registerContentScripts`
+against "an allow-list of hosts" in place of the static `<all_urls>`
+MAIN-world console-bridge declared in `manifest.json`. Investigated and
+deliberately deferred rather than rushed, for a reason specific to this
+product, not a general reluctance to touch content scripts:
+
+`docs/security/PERMISSIONS.md`'s own justification for `host_permissions:
+<all_urls>` states the premise directly — "this product's whole purpose is
+debugging *some other* web application the user has open, so it cannot be
+scoped to a fixed domain list." The console bridge
+(`entrypoints/content/console-bridge.ts`) is a passive buffer that starts
+recording at `document_start`, before the extension has any way to know
+which tab a future conversation will bind to, or whether the user opened
+the side panel on this page at all — `get_apty_page_logs` reads it back
+later, potentially minutes into a session, relying on it having been
+buffering the whole time. A literal fixed allow-list would defeat the
+product's core promise (debug whatever page is open right now); it is not
+a drop-in substitute.
+
+A narrower, real improvement is plausible — e.g. registering the bridge
+dynamically per-tab only once a conversation actually binds to that tab
+(`conversation-tab-binding.ts`), instead of on every frame of every page
+load, trading "always buffering everywhere" for "buffering only in tabs
+the agent is actually attached to." That is a genuine behavior change to
+the diagnostic story (console history from before the side panel was
+opened on a tab would no longer be available) and to the MAIN-world
+injection timing (a dynamically registered script attaches after the
+static manifest declaration would have, risking a race against early
+page-load console output on a slow late-detach path) — exactly the kind
+of change this round's verification budget (vitest + `validate-manifest`,
+no live-Chrome interactive session) cannot fully validate before calling
+it done. Left for a dedicated future session with real-browser e2e
+coverage (the harness added in WP16) exercising the bridge across a
+slow-loading page, a page that never binds a conversation, and a
+mid-session re-bind to a second tab.
