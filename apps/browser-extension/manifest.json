@@ -84,5 +84,6 @@
     "debugger",
     "webNavigation",
     "alarms"
-  ]
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsAfH4fjNoYRu91+b3bh7zyk6gwZxN2iDFCxkoi5Ok2TSUfeRqk8ypW8ub5RzInr8QpXsupI5nyXt3nbITRJnrKl+HDcD+IdE6lBw7T+K2hRm0HV28C9qNlOwpAPOGev+iGmDDYGjtQMM7TGEmQA8iqkiwyFYQVKCs+Sahji/U80XZ66av4uER0USgG+jUIxf3ox+LGz4PyH5yaep541PWDBOtR8RFjWEkqSgE8w/qs9+mC5M6fYiZyrzH7NEgjKcUfQNv0lwLfOVhu05USTGs32GRqdnmTEQGZvgCQkTBE+xHJPlsP+zLmNa2nWV5Lt9sRn4oqPAH22uZ/J8XbfxzQIDAQAB"
 }

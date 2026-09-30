@@ -20,7 +20,8 @@
     "audit:branding": "node tooling/scripts/check-branding.mjs",
     "audit:architecture": "node tooling/scripts/check-architecture.mjs",
     "audit:tools": "node tooling/scripts/audit-tools.mjs",
-    "validate:extension": "node tooling/scripts/validate-manifest.mjs"
+    "validate:extension": "node tooling/scripts/validate-manifest.mjs",
+    "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
