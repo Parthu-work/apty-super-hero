@@ -251,6 +251,103 @@ describe("Chatbot Component", () => {
   });
 });
 
+describe("Chatbot needsAuth pre-flight (WP19)", () => {
+  let mockAgent: AIPex;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockAgent = createMockAgent();
+    (mockAgent.chat as ReturnType<typeof vi.fn>).mockReturnValue(
+      createEventGenerator([
+        { type: "session_created", sessionId: "session-1" },
+        createExecutionCompleteEvent(),
+      ]),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls onNeedsAuth with the typed text instead of sending, and never injects messages into the conversation", async () => {
+    const onNeedsAuth = vi.fn();
+    const TestChild = () => {
+      const { messages, sendMessage } = useChatContext();
+      return (
+        <div>
+          <span data-testid="count">{messages.length}</span>
+          <button type="button" onClick={() => sendMessage("hello there")}>
+            send
+          </button>
+        </div>
+      );
+    };
+
+    await renderWithAct(
+      <ChatbotProvider
+        agent={mockAgent}
+        handlers={{
+          checkAuthBeforeSend: async () => ({
+            needsAuth: true,
+            hasCustomConfig: false,
+          }),
+          onNeedsAuth,
+        }}
+      >
+        <TestChild />
+      </ChatbotProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("send"));
+    });
+
+    await waitFor(() => {
+      expect(onNeedsAuth).toHaveBeenCalledWith("hello there");
+    });
+
+    // Nothing was sent and nothing was added to the persisted conversation.
+    expect(mockAgent.chat).not.toHaveBeenCalled();
+    expect(screen.getByTestId("count")).toHaveTextContent("0");
+  });
+
+  it("sends normally when checkAuthBeforeSend reports no auth is needed", async () => {
+    const onNeedsAuth = vi.fn();
+    const TestChild = () => {
+      const { sendMessage } = useChatContext();
+      return (
+        <button type="button" onClick={() => sendMessage("hello there")}>
+          send
+        </button>
+      );
+    };
+
+    await renderWithAct(
+      <ChatbotProvider
+        agent={mockAgent}
+        handlers={{
+          checkAuthBeforeSend: async () => ({
+            needsAuth: false,
+            hasCustomConfig: true,
+          }),
+          onNeedsAuth,
+        }}
+      >
+        <TestChild />
+      </ChatbotProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("send"));
+    });
+
+    await waitFor(() => {
+      expect(mockAgent.chat).toHaveBeenCalled();
+    });
+    expect(onNeedsAuth).not.toHaveBeenCalled();
+  });
+});
+
 describe("ChatbotProvider", () => {
   let mockAgent: AIPex;
 

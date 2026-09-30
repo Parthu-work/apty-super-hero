@@ -40,6 +40,7 @@ import { AptyToolDisplay } from "./investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
 import { DomHealthCard } from "./investigation/dom-health-card";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
+import { SetupNeededCard } from "./setup-needed-card";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
@@ -176,6 +177,22 @@ function ChatApp() {
 
   const handleCheckAuth = useCallback(() => checkAuth(settingsRef.current), []);
 
+  // First-run / not-configured dead end: instead of injecting messages into
+  // the conversation, show one dismissible setup card that carries the
+  // draft the user tried to send.
+  const [authDraft, setAuthDraft] = useState<string | null>(null);
+  const handleNeedsAuth = useCallback((draftText: string) => {
+    setAuthDraft(draftText);
+  }, []);
+  const handleOpenSettingsFromSetupCard = useCallback(() => {
+    chrome.runtime?.openOptionsPage?.();
+  }, []);
+  useEffect(() => {
+    if (authDraft !== null && isByokConfigured(settings)) {
+      setAuthDraft(null);
+    }
+  }, [authDraft, settings]);
+
   const handleStatusChange = useCallback(
     (status: string) => {
       if (status === "streaming" || status === "submitted") {
@@ -248,6 +265,7 @@ function ChatApp() {
           handlers={{
             onStatusChange: handleStatusChange,
             checkAuthBeforeSend: handleCheckAuth,
+            onNeedsAuth: handleNeedsAuth,
           }}
           components={{
             Header: BrowserChatHeader,
@@ -255,6 +273,14 @@ function ChatApp() {
             InputArea: BrowserChatInputArea,
           }}
           slots={{
+            beforeMessages: () =>
+              authDraft !== null ? (
+                <SetupNeededCard
+                  draftText={authDraft}
+                  onOpenSettings={handleOpenSettingsFromSetupCard}
+                  onDismiss={() => setAuthDraft(null)}
+                />
+              ) : null,
             afterMessages: () => (
               <>
                 <InterventionUI

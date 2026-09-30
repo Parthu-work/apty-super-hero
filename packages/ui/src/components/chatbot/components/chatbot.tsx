@@ -3,11 +3,7 @@ import { useChat, useChatConfig } from "../../../hooks";
 import { useTranslation } from "../../../i18n/context";
 import { copyText } from "../../../lib/clipboard";
 import { cn } from "../../../lib/utils";
-import type {
-  ChatbotThemeVariables,
-  ContextItem,
-  UIMessage,
-} from "../../../types";
+import type { ChatbotThemeVariables, ContextItem } from "../../../types";
 import { DEFAULT_MODELS } from "../constants";
 import {
   AgentContext,
@@ -71,9 +67,12 @@ export function ChatbotProvider({
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
-  // Wrap sendMessage with a pre-flight auth check.
-  // If the caller supplied checkAuthBeforeSend and it returns needsAuth,
-  // we inject a LoginPrompt message instead of hitting the network.
+  // Wrap sendMessage with a pre-flight auth check. If the caller supplied
+  // checkAuthBeforeSend and it returns needsAuth, we do not send anything
+  // and do not touch the persisted conversation — no provider is
+  // configured, so nothing was actually sent. Instead we hand the typed
+  // text to onNeedsAuth so the host app can show one setup surface (not a
+  // pair of stacked chat messages) and restore the text as a draft.
   const wrappedSendMessage = useCallback(
     async (text: string, files?: File[], contexts?: ContextItem[]) => {
       const authCheck = handlersRef.current?.checkAuthBeforeSend;
@@ -81,26 +80,7 @@ export function ChatbotProvider({
         try {
           const result = await authCheck();
           if (result.needsAuth) {
-            // Build a user message + auth-error assistant message inline
-            const userMsg: UIMessage = {
-              id: `user-${Date.now()}`,
-              role: "user",
-              parts: [{ type: "text", text }],
-              timestamp: Date.now(),
-            };
-            const authMsg: UIMessage = {
-              id: `auth-error-${Date.now()}`,
-              role: "assistant",
-              parts: [
-                {
-                  type: "text",
-                  text: "**Authentication Required**\n\nPlease login to continue using the AI assistant, or configure your own API key.",
-                },
-              ],
-              timestamp: Date.now(),
-              metadata: { needLogin: true },
-            };
-            chatState.setMessages([...chatState.messages, userMsg, authMsg]);
+            handlersRef.current?.onNeedsAuth?.(text);
             return;
           }
         } catch {

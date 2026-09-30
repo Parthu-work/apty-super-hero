@@ -244,10 +244,18 @@ export interface ChatbotEventHandlers {
   onMetricsUpdate?: (metrics: AgentMetrics, sessionId?: string) => void;
   /**
    * Pre-flight auth check called before sending a message.
-   * If this returns `{ needsAuth: true }`, the chatbot will display a
-   * LoginPrompt inline instead of sending the message.
+   * If this returns `{ needsAuth: true }`, the chatbot calls
+   * `onNeedsAuth` instead of sending the message.
    */
   checkAuthBeforeSend?: () => Promise<AuthCheckResult>;
+  /**
+   * Called when `checkAuthBeforeSend` reports `needsAuth: true`. Nothing is
+   * sent and nothing is added to the persisted conversation; `draftText` is
+   * the message the user typed, so the host app can restore it as a draft
+   * once a provider is configured and show a single setup surface instead
+   * of injecting messages into the chat history.
+   */
+  onNeedsAuth?: (draftText: string) => void;
 }
 
 // Re-export AgentMetrics for convenience
