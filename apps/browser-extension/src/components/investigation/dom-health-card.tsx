@@ -517,11 +517,11 @@ export function DomHealthCard() {
 
   return (
     <div className="mb-2 overflow-hidden rounded-lg border bg-card shadow-sm">
-      <div className="flex w-full items-center gap-2 px-3 py-2">
+      <div className="flex w-full flex-col gap-1.5 px-3 py-2">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          className="flex w-full min-w-0 items-center gap-2 text-left"
           aria-expanded={expanded}
           aria-label={`DOM Health: ${active?.available ? (active.score !== null ? `${active.score} out of 100, ${GRADE_META[active.grade].label}` : `not assessed — ${EVIDENCE_STATE_LABEL[active.evidenceState] ?? active.evidenceState}`) : active ? "unavailable" : "not checked yet"}. Click to ${expanded ? "collapse" : "expand"}.`}
         >
@@ -591,54 +591,70 @@ export function DomHealthCard() {
             aria-hidden="true"
           />
         </button>
-        <Button
-          size="sm"
-          variant={outcome ? "outline" : "default"}
-          disabled={isLoading || isAppLoading || !target.tabId}
-          onClick={(e) => {
-            e.stopPropagation();
-            void runCheck();
-          }}
-          className="shrink-0"
-        >
-          {isLoading ? "Checking..." : outcome ? "Recheck" : "Check DOM Health"}
-        </Button>
-        <select
-          value={discoveryMode}
-          onChange={(e) => {
-            e.stopPropagation();
-            setDiscoveryMode(e.target.value as ApplicationDiscoveryMode);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          disabled={isLoading || isAppLoading || !target.tabId}
-          aria-label="Application discovery mode"
-          title={DISCOVERY_MODE_DESCRIPTION[discoveryMode]}
-          className="shrink-0 rounded-md border bg-background px-1.5 py-1 text-[11px] text-muted-foreground"
-        >
-          <option value="page">{DISCOVERY_MODE_LABEL.page}</option>
-          <option value="application-safe">
-            {DISCOVERY_MODE_LABEL["application-safe"]}
-          </option>
-          <option value="application-deep">
-            {DISCOVERY_MODE_LABEL["application-deep"]}
-          </option>
-        </select>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={isLoading || isAppLoading || !target.tabId}
-          onClick={(e) => {
-            e.stopPropagation();
-            void runApplicationCheck();
-          }}
-          className="shrink-0"
-        >
-          {isAppLoading
-            ? "Auditing..."
-            : appOutcome
-              ? "Re-audit App"
-              : "Audit Application"}
-        </Button>
+        {/* Actions row — wraps at narrow widths instead of squeezing the
+            title above into unreadable clipped text (see WP13). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant={outcome ? "outline" : "default"}
+            disabled={isLoading || isAppLoading || !target.tabId}
+            onClick={(e) => {
+              e.stopPropagation();
+              void runCheck();
+            }}
+            aria-label={
+              isLoading
+                ? "Checking DOM Health..."
+                : outcome
+                  ? "Recheck DOM Health"
+                  : "Check DOM Health"
+            }
+          >
+            {isLoading ? "Checking..." : outcome ? "Recheck" : "Check"}
+          </Button>
+          <select
+            value={discoveryMode}
+            onChange={(e) => {
+              e.stopPropagation();
+              setDiscoveryMode(e.target.value as ApplicationDiscoveryMode);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            disabled={isLoading || isAppLoading || !target.tabId}
+            aria-label="Application discovery mode"
+            title={DISCOVERY_MODE_DESCRIPTION[discoveryMode]}
+            className="rounded-md border bg-background px-1.5 py-1 text-[11px] text-muted-foreground"
+          >
+            <option value="page">{DISCOVERY_MODE_LABEL.page}</option>
+            <option value="application-safe">
+              {DISCOVERY_MODE_LABEL["application-safe"]}
+            </option>
+            <option value="application-deep">
+              {DISCOVERY_MODE_LABEL["application-deep"]}
+            </option>
+          </select>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isLoading || isAppLoading || !target.tabId}
+            onClick={(e) => {
+              e.stopPropagation();
+              void runApplicationCheck();
+            }}
+            aria-label={
+              isAppLoading
+                ? "Auditing application..."
+                : appOutcome
+                  ? "Re-audit application"
+                  : "Audit application"
+            }
+          >
+            {isAppLoading
+              ? "Auditing..."
+              : appOutcome
+                ? "Re-audit"
+                : "Audit app"}
+          </Button>
+        </div>
       </div>
 
       {expanded && (

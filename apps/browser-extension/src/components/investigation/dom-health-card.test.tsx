@@ -571,4 +571,27 @@ describe("DomHealthCard", () => {
       screen.getByRole("button", { name: /audit application/i }),
     ).toBeDisabled();
   });
+
+  it("puts the title toggle and the action buttons on separate rows (not one unbreakable row that squeezes the title at narrow widths)", () => {
+    render(<DomHealthCard />);
+
+    const titleToggle = screen.getByRole("button", { name: /dom health:/i });
+    const checkButton = screen.getByRole("button", {
+      name: /check dom health/i,
+    });
+
+    // The title toggle and the action buttons must not be flex siblings in
+    // the same row — that's exactly the layout that squeezed the title to
+    // nothing at narrow widths. The title toggle sits directly in the
+    // header container; the action buttons sit one level deeper, inside
+    // their own wrapping row — so the title's parent is the action row's
+    // grandparent, not its parent.
+    expect(titleToggle.parentElement).not.toBe(checkButton.parentElement);
+    expect(titleToggle.parentElement).toBe(
+      checkButton.parentElement?.parentElement,
+    );
+
+    // The action row wraps instead of forcing everything onto one line.
+    expect(checkButton.parentElement?.className).toContain("flex-wrap");
+  });
 });
