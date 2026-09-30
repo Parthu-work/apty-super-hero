@@ -80,6 +80,70 @@ for (const [size, path] of Object.entries(manifest.icons ?? {})) {
   requireFile(`icons.${size}`, path);
 }
 
+// externally_connectable must stay empty: omitting this field entirely, or
+// listing any id, lets other installed extensions message this one.
+if (
+  !manifest.externally_connectable ||
+  !Array.isArray(manifest.externally_connectable.ids) ||
+  manifest.externally_connectable.ids.length !== 0
+) {
+  errors.push(
+    "externally_connectable.ids must be present and an empty array ([]) — " +
+      "cross-extension messaging (e.g. the Apty Client peer connection) is " +
+      "user-approved at the application layer, not granted to arbitrary " +
+      "extensions via the manifest.",
+  );
+}
+
+// Every permission must have a documented, verified justification in
+// docs/security/PERMISSIONS.md, and every justification there must still
+// correspond to a real permission — this fails on either an unreviewed
+// new permission or a stale doc entry for one that's been removed.
+const PERMISSIONS_DOC_PATH = join(ROOT, "docs/security/PERMISSIONS.md");
+if (!existsSync(PERMISSIONS_DOC_PATH)) {
+  errors.push(
+    `docs/security/PERMISSIONS.md not found at ${PERMISSIONS_DOC_PATH}`,
+  );
+} else {
+  const doc = readFileSync(PERMISSIONS_DOC_PATH, "utf8");
+  // Rows of the form "| `permName` | ... |" in the top-level table — not
+  // host_permissions (documented separately, see below) and not anything
+  // inside the "Confirmed unused, removed" / "Not attempted" sections
+  // (backtick-quoted permission names there are historical notes, not
+  // current justifications).
+  const tableSection = doc.split(/^## /m)[0];
+  const documented = new Set(
+    [...tableSection.matchAll(/^\| `([a-zA-Z]+)` \|/gm)].map((m) => m[1]),
+  );
+
+  const manifestPermissions = new Set(manifest.permissions ?? []);
+
+  for (const perm of manifestPermissions) {
+    if (!documented.has(perm)) {
+      errors.push(
+        `permission "${perm}" is in manifest.json but not justified in docs/security/PERMISSIONS.md`,
+      );
+    }
+  }
+  for (const perm of documented) {
+    if (!manifestPermissions.has(perm)) {
+      errors.push(
+        `docs/security/PERMISSIONS.md documents "${perm}", which is no longer in manifest.json's permissions — remove the stale entry`,
+      );
+    }
+  }
+
+  const hasAllUrlsHostPermDoc = /<all_urls>/.test(doc);
+  if (
+    (manifest.host_permissions ?? []).includes("<all_urls>") &&
+    !hasAllUrlsHostPermDoc
+  ) {
+    errors.push(
+      'host_permissions includes "<all_urls>" but docs/security/PERMISSIONS.md has no justification for it',
+    );
+  }
+}
+
 if (errors.length > 0) {
   console.error(
     `\n✗ manifest.json validation failed (${errors.length} issue(s)):\n`,
