@@ -3,6 +3,7 @@
     "title": "AI Chat",
     "settings": "Settings",
     "newChat": "New Chat",
+    "back": "Back",
     "close": "Close",
     "save": "Save Settings",
     "saving": "Saving...",
@@ -58,6 +59,7 @@
     "system": "System"
   },
   "tooltip": {
+    "back": "Back to Welcome",
     "newChat": "New Chat",
     "settings": "Settings",
     "close": "Close",

@@ -10,7 +10,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import { getRuntime } from "@apty/ui/lib/runtime";
 import { cn } from "@apty/ui/lib/utils";
 import type { HeaderProps } from "@apty/ui/types";
-import { PlusIcon, SettingsIcon } from "lucide-react";
+import { ArrowLeftIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { releaseConversationTabBinding } from "../services/conversation-tab-binding";
 import {
@@ -28,26 +28,23 @@ export function BrowserChatHeader({
   children,
   ...props
 }: HeaderProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const runtime = getRuntime();
-  const { messages, setMessages, interrupt, sessionId, bindSession } =
+  const { messages, status, setMessages, interrupt, sessionId, bindSession } =
     useChatContext();
 
   const [currentConversationId, setCurrentConversationId] = useState<
     string | undefined
   >();
 
-  // Persistence: debounced save/update on messages change
+  // Persistence: debounced save/update on messages change, plus an
+  // immediate flush used by Back (below) so leaving the conversation can
+  // never race the debounce timer and lose the last turn.
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const saveNowRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
-    // Clear any pending save
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Debounce save for 1 second
-    saveTimeoutRef.current = setTimeout(async () => {
+    const saveNow = async () => {
       // Only save if we have non-system messages
       const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
       if (nonSystemMessages.length === 0) return;
@@ -77,7 +74,16 @@ export function BrowserChatHeader({
       } catch (error) {
         console.error("❌ Failed to save conversation:", error);
       }
-    }, 1000);
+    };
+    saveNowRef.current = saveNow;
+
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Debounce save for 1 second
+    saveTimeoutRef.current = setTimeout(saveNow, 1000);
 
     return () => {
       if (saveTimeoutRef.current) {
@@ -154,12 +160,60 @@ export function BrowserChatHeader({
     onNewChat?.();
   }, [onNewChat, sessionId]);
 
+  const hasConversation =
+    messages.filter((msg) => msg.role !== "system").length > 0;
+
+  const handleBack = useCallback(async () => {
+    const isRunning = status === "streaming" || status === "submitted";
+    if (isRunning) {
+      const confirmed = window.confirm(
+        language === "zh"
+          ? "对话仍在进行中。停止并返回欢迎页？"
+          : "A response is still in progress. Stop it and go back?",
+      );
+      if (!confirmed) return;
+      await interrupt();
+    }
+
+    // Flush the pending debounced save immediately so leaving never races
+    // it — the conversation must already be in History before we clear it.
+    await saveNowRef.current();
+
+    handleNewChat();
+  }, [status, interrupt, handleNewChat, language]);
+
+  useEffect(() => {
+    if (!hasConversation) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && event.key === "ArrowLeft") {
+        event.preventDefault();
+        void handleBack();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hasConversation, handleBack]);
+
   return (
     <div className={cn("flex flex-col", className)} {...props}>
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-        <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-foreground">
-          {title}
-        </span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {hasConversation && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleBack}
+              title={t("tooltip.back")}
+              aria-label={t("tooltip.back")}
+              className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeftIcon className="size-4" />
+            </Button>
+          )}
+          <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-foreground">
+            {title}
+          </span>
+        </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
           <Button

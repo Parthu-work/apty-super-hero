@@ -5,6 +5,7 @@ export interface TranslationResources {
     title: string;
     settings: string;
     newChat: string;
+    back: string;
     close: string;
     save: string;
     saving: string;
@@ -58,6 +59,7 @@ export interface TranslationResources {
     system: string;
   };
   tooltip: {
+    back: string;
     newChat: string;
     settings: string;
     close: string;
@@ -216,6 +218,7 @@ export type BaseTranslationKey =
   | "common.title"
   | "common.settings"
   | "common.newChat"
+  | "common.back"
   | "common.close"
   | "common.save"
   | "common.saving"
@@ -265,6 +268,7 @@ export type BaseTranslationKey =
   | "theme.light"
   | "theme.dark"
   | "theme.system"
+  | "tooltip.back"
   | "tooltip.newChat"
   | "tooltip.settings"
   | "tooltip.close"
