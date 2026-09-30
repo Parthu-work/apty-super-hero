@@ -1,5 +1,52 @@
 # Apty Browser Debugging Agent
 
+## Phase 0 (v5 mega-prompt session): inventory, re-verified with evidence
+
+Per v5 §3/§0.9: recorded at the start of the session, and re-verified
+against the code (not the prior round's own claims) before trusting them.
+Work-package numbers refer to the v5 mega-prompt's WP1-WP21.
+
+| Marker (v5 §3) | Evidence | State |
+|---|---|---|
+| `packages/apty-debug-contract/` | exists, with `json-redact.ts`, `contract.ts`, `serialize.ts` | Done |
+| `packages/browser-runtime/src/apty/peer/` (WP4 `ExtensionPeerClient`) | directory does not exist | **Missing** |
+| `updateAptyIntegrationConfig` (config-clobber fix, WP3) | `seedAptyIntegrationConfigDefaults` in `apty/config.ts`, called from `lifecycle.ts` with an explicit "only fills unset keys" comment; `seedAptyIntegrationConfig()` still runs unconditionally on every service-worker start but no longer clobbers | Done |
+| `AptyPeersPanel` (WP3) | no such component exists; `apty-client-panel.tsx` exists but is a single-Client panel, not the Client+Studio peers panel with Detect/Test-connection-with-remediation the spec describes | **Missing** |
+| `grep -n extensionId … extension-network.ts` (WP3: model must not choose IDs) | file's own header comment: "none of these tools accept an `extensionId` parameter" — confirmed, no tool schema in `browser-runtime/src/tools` accepts one | Done |
+| bare `APTY_PATTERN` in `log-classification.ts` (WP6 classifier fix) | `APTY_PATTERN.test(text) && (level === "error" \|\| level === "warn")` — level-gated, not bare | Done |
+| manifest `key` / `minimum_chrome_version` (WP9) | both present (`minimum_chrome_version: "116"`, real RSA `key`) | Done |
+| `tooling/e2e/` (WP8 fixtures) | now exists, but only holds this session's `screenshot-harness.mjs` (WP16 item 5) — no fake-Client/hostile-peer/local-app fixtures, no real-Chrome extension-loaded e2e, no exactness tests | **Missing** (WP8 not attempted) |
+| `pnpm audit:tools` | passes (124 tool registrations, no duplicates/naming violations) | Done |
+| `seedAptyIntegrationConfig()` unconditional on every start | yes, still runs unconditionally — by design, since it's now a no-clobber merge (see above), not a bug | Done (as designed) |
+| `clipboardWrite` in manifest | present | Done |
+| any `setAccessLevel` call | `storage-lockdown.ts` calls it for both `local` and `session` at background startup, with a test | Done |
+| `useChat.sendMessage` unguarded `getRunContext`/`selectTools` | now wrapped in try/catch/finally with `emitError`, tested (stuck-status-never-happens tests) | Done |
+| `dom-health-card.tsx` header a single non-wrapping row | now two rows (`flex-col gap-1.5` wrapping a title row and a `flex-wrap` action row) | Done |
+| chat Download handler | `message-item.tsx` has a Download action using `downloadText`/`timestampedFilename`, tested | Done |
+
+**This session's own work** (WP16-WP19, WP17 partial — see individual commits for full detail and what's still missing within each):
+- **WP16 (styling foundation) — done.** Root-cause `@source` path fix (verified: built CSS grew from 37KB to ~93KB, the `data-[state=active]` tab-highlight rule now compiles); remote Google Fonts `@import` replaced with locally-bundled Inter woff2 (verified: zero `https://` in built CSS/HTML, and zero network requests for the font at runtime — an initial attempt via `@import "@fontsource/inter/*.css"` looked fine at the CSS-text level but silently 404'd all six font files at runtme, caught only by the new screenshot harness, not by the build); `tooling/scripts/check-tailwind-sources.mjs` guard wired into `pnpm build`; a real-Chrome (via pre-installed Chromium + `playwright-core`) screenshot harness at `tooling/e2e/screenshot-harness.mjs` capturing the side panel (320/360/420px) and options page (360/768/1280/1600px) in both themes, checking for console errors/warnings and horizontal scroll. Not done: WP16 doesn't explicitly require it, but the harness only renders the built pages standalone (mocked `chrome.*`, no real extension load, no `chrome-extension://` origin) — real extension-boundary behavior still needs WP8.
+- **WP18 (Settings rebuild) — partial.** Removed the BYOK gate toggle (fields now always shown — this is a BYOK-only product) and the dead "Data Sharing" toggle (replaced with a truthful statement). Not done: the responsive left-nav (≥768px) / segmented-tabs (<768px) layout, the sticky header, and an automated computed-style tab-highlight regression test (the highlight itself is fixed by WP16 and confirmed visually via the screenshot harness, just not asserted by a test).
+- **WP19 (first-run onboarding) — partial.** Replaced the two-stacked-message dead end (a redundant "Authentication Required...login" text bubble the product has no login for, plus a separate card, both permanently saved to history) with one dismissible, non-persisted setup card. Not done: auto-restoring the draft into the input and auto-sending after Settings is saved (the card shows the draft text instead); the first-run checklist; the Agent-ID-change notice; the full copy/branding audit sweep.
+- **WP17 (navigation) — partial.** Added a Back control (button + Alt+Left) to the side panel header, with an in-progress-run confirmation and an immediate (non-debounced) save-before-clearing. Not done: the hash-based in-panel router, Options hash deep-linking (it already has non-hash `?tab=` query-param deep-linking from a prior round) and its "Back to Assistant" action, and the "Saved to History, Undo" toast.
+- **WP20, WP21 — not attempted this session.** See `docs/audit/UI_AUDIT.md` for what a partial visual sweep found and the residual risks.
+
+**Everything else the v5 prompt asks for (WP1 remainder, WP2, WP3 remainder,
+WP4-WP15) was not attempted this session** beyond what the inventory table
+above already shows as inherited from a prior round. In particular: no
+`ExtensionPeerClient`/`AptyPeersPanel` (WP3-4), no console-bridge rebuild
+beyond the level-gated classifier fix (WP5), no new tool set/output caps/
+response-bodies-for-4xx (WP6), no producer hand-off module (WP7), no
+real-Chrome e2e fixtures or exactness tests (WP8), no release-readiness
+checklist/compatibility matrix/feature flag (WP10), no new ADRs beyond
+what already exists (WP11), no LLM resilience work beyond what the prior
+round shipped (WP12 remainder), no further UI polish beyond WP13's prior
+DOM-Health/Copy/Download work (WP13 remainder), no policy layer for
+untrusted-content-triggered actions or `pnpm audit` run (WP14 remainder),
+and no demo-readiness preflight/scripts (WP15). These are large,
+multi-session efforts in their own right — see the final delivery message
+for the honest accounting.
+
 ## Gap Matrix (audited against the full product spec)
 
 Audited against the "final implementation" specification (evidence

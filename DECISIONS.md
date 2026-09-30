@@ -3,6 +3,66 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## v5 mega-prompt: styling root cause and the first UI/product-shell slice (this round)
+
+The v5 prompt supersedes v1-v4, adds WP16-WP21 (styling foundation,
+navigation, Settings rebuild, first-run onboarding, chat polish, full
+audit sweep) on top of carrying forward WP1-WP15, and introduces a hard
+rule not present in earlier rounds: **never push to `main` or any remote,
+commit locally only** — the owner applies the result manually (see
+`DELIVERY.md` for this round's artifacts and commands). This round
+followed the prompt's explicit work order (WP16 first, since nothing
+visual could be judged before it) and completed WP16 plus the highest-
+value slice of WP17-WP19; see the Phase 0 table in
+`docs/development/PROJECT_PROGRESS.md` and `docs/audit/UI_AUDIT.md` for
+the full accounting of what was and wasn't done, including several
+findings only a real-browser check could catch (the font-file 404s, the
+first-run console.error, the dead `mode-indicator.tsx` CSS, the inert
+`not-prose` classes, and a first-run provider-seeding edge case) — see
+those two files for detail rather than duplicating it here.
+
+**Why a screenshot harness using the sandbox's pre-installed Chromium,
+rather than deferring all real-browser verification to WP8**: the v5
+prompt's own diagnosis of the WP16 bug was reached by a human manually
+inspecting real Chrome, because the previous round had no way to verify
+visual claims itself (jsdom has no real CSS layout engine). This
+environment happens to have Chromium pre-installed with Playwright
+already configured to find it, so building a lightweight (non-extension-
+loaded) screenshot harness was low-cost and turned up two real bugs a
+build-only check would have missed. It intentionally does not attempt
+real MV3 extension loading (`chrome-extension://` origin, service worker,
+`chrome.management`, cross-extension messaging) — that's WP8's job, and
+substantially more involved (fixture extensions, a hostile-peer fixture, a
+local test app with same-origin/cross-site iframes, exactness tests across
+a service-worker restart). Building this lighter harness now and
+reusing/extending it for WP8's real-Chrome scenarios later seemed better
+than deferring all real-browser verification to a single large future
+effort, per the prompt's own "prove it in real Chrome... mocked chrome.*
+tests are necessary, not sufficient" rule.
+
+**Why the BYOK gate toggle was removed rather than kept and just
+restyled**: `use-agent.ts`'s own gating logic already treats "non-BYOK" as
+a dead code path ("For non-BYOK (proxy) mode, always proceed" — but no
+proxy exists in this product; `checkAuth()` in `app-root.tsx` already
+states outright "there is no external login/proxy fallback"). A toggle
+that gates the *only* mode the product actually has is pure friction, not
+a real setting — removing it (while keeping `byokEnabled` as an internal
+field, forced true, since `use-agent.ts`'s gating still reads it) was a
+smaller, safer change than threading a "byokEnabled is now always true"
+refactor through `packages/agent-core`'s `AppSettings` type and every
+consumer of it, for a session already carrying a large diff.
+
+**Why `onNeedsAuth` replaces pushing messages into chat state, rather than
+just de-duplicating the two messages into one**: the v5 prompt's WP19
+item 1 explicitly says "do not save the blocked message to history" — a
+message that was never actually sent to a provider isn't a real turn in
+the conversation, so writing a plausible-looking single message is still
+the wrong shape. A dedicated handler that hands the draft text back to the
+host app (rather than mutating shared chat state) keeps `@apty/ui`
+agnostic to how the host chooses to show "you need to configure a
+provider first", which matters since `@apty/ui` is meant to be reusable
+beyond this one extension.
+
 ## v4 mega-prompt: what shipped, by work package (this round)
 
 The v4 prompt (15 work packages, real-athenahealth/real-Chrome verified
