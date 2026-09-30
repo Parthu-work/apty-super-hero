@@ -3,6 +3,103 @@
 Key architectural decisions and why they were made, so a future session
 doesn't re-litigate them without knowing the reasoning. Newest first.
 
+## v4 mega-prompt: what shipped, by work package (this round)
+
+The v4 prompt (15 work packages, real-athenahealth/real-Chrome verified
+behaviour, an explicit accuracy contract) supersedes the earlier v1-v3
+prompts referenced in the entry below. Commits are on
+`claude/confident-hawking-1b8l61`. Given the scope, this round targeted
+the P0/security items and the most concretely-scoped, safely-verifiable
+slice of each remaining work package, in roughly the session order the
+prompt itself specified (WP1-4, then WP12, then WP5/6/13, ...).
+
+- **WP1 (partial)**: JSON-aware, key-path redaction (`json-redact.ts`) —
+  balanced-brace-aware so an object-valued sensitive key (`"cookie": {...}`)
+  is redacted as a whole valid unit instead of the old regex partially
+  consuming it and corrupting the JSON; `strict`/`standard`/`off` modes;
+  `user_id` pseudonymized (stable, salted, non-reversible-in-practice) so
+  repeated entries for the same user stay correlatable without exposing
+  the real id; `page_title`/`page_search`/`page_path` handling. **Not
+  done**: the Options "Data handling" UI (mode selector, body opt-in,
+  deny-list, output preview).
+- **WP2 (partial)**: `get-resource-body` promoted to a first-class v1
+  verb with its own schema; `networkEntrySchema` updated to the v4 shape;
+  added `contract.test.ts` (none existed).
+- **WP3 (partial)**: stable manifest `key` (`generate-extension-key.mjs`)
+  so this extension's own id is stable across reloads/checkouts —
+  prerequisite for any future allow-list. The reload-loses-connection bug
+  itself was already fixed in the prior round's WP3 work (config seeding
+  never overwrites a user value). **Not done**: `peers:{client?,studio?}`
+  shape, `AptyPeersPanel`, `VITE_APTY_ALLOWED_PEER_IDS`.
+- **WP6**: `apty-error` classification now requires level error/warn, not
+  just the Apty pattern — an info-level line mentioning "apty" no longer
+  gets mislabeled as an error.
+- **WP9 (partial)**: `minimum_chrome_version: "116"`, deduplicated
+  `host_permissions` (`<all_urls>` alone already covered the other two
+  entries), `web_accessible_resources.assets/*` now sets
+  `use_dynamic_url:true` (the code already resolves these via
+  `chrome.runtime.getURL()`, so no source changes needed) — note CRXJS's
+  own auto-generated `web_accessible_resources` entry for its
+  content-script loader chunks stays `use_dynamic_url:false`, which is
+  the build tool's own required behaviour, not something this fix
+  touches. **Not done**: the rest of the permissions audit / `PERMISSIONS.md`,
+  AIPex dead-code removal, mcp-bridge `daemon.ts` auth (still the
+  documented, unfixed gap from the prior round).
+- **WP12 (partial, the biggest piece this round)**: `useChat`'s
+  sendMessage/continueConversation/regenerate now wrap their pre-steps
+  (`getRunContext`/`selectTools`/`rollbackLastAssistantTurn`) in
+  try/catch/finally — previously a rejection there left the status stuck
+  on "submitted" forever with no recovery. `AIPex.normalizeError()` now
+  actually classifies errors (`classifyLlmError`, by HTTP status or
+  message heuristic) into the error-code enum's existing but previously
+  unused `LLM_RATE_LIMIT`/`LLM_AUTH_ERROR`/`LLM_TIMEOUT` values instead of
+  always returning `LLM_API_ERROR`/non-recoverable. `ChatAdapter`'s
+  "error" case now appends a plain-language line to the transcript
+  (`formatAgentErrorForDisplay`) instead of only flipping `status` — a
+  failure was previously invisible except for the submit button's icon
+  turning into an X. A message sent while a turn is in flight is now
+  queued (FIFO) instead of starting a second concurrent `agent.chat()`
+  call on the same session; the already-built-but-unwired `queueCount`
+  input-area UI is now actually driven. Stop now works during
+  "submitted", not just "streaming". **Not done**: retry/backoff with
+  jitter, time-to-first-token/stream-inactivity/total-run watchdogs,
+  lowering `maxTurns` from 2000 (deliberately skipped — risky without the
+  paired "step limit reached — Continue" UX, and this codebase's own
+  multi-tool investigations can legitimately need far more than 30 turns),
+  client-side rate/token throttling, per-call LLM diagnostics, the
+  fake-LLM-server test harness.
+- **WP13 (partial)**: DOM Health card's header no longer squeezes its own
+  title — split into a title row and a separate `flex flex-wrap` actions
+  row (couldn't verify pixel-level behaviour without real Chrome). Copy
+  is now robust (`copyText`: awaits the Clipboard API, falls back to
+  `execCommand`, never throws) with visible checkmark feedback where
+  there was previously none at all; a Download action now exists on
+  chat messages (`downloadText`, Blob+anchor with a `chrome.downloads`
+  fallback) — previously Download existed nowhere except Skills.
+  `clipboardWrite` permission added. **Not done**: Copy/Download on
+  tool-result cards/evidence/the whole conversation, CSV export, the
+  320/360/420px axe + screenshot regression suite.
+- **WP14**: `chrome.storage.local`/`session` now restricted to
+  `TRUSTED_CONTEXTS` at background startup — the isolated-world content
+  script (registered on `<all_urls>`) could previously read LLM API keys
+  and peer approvals out of `storage.local`. Verified (not assumed)
+  Streamdown's untrusted-markdown rendering: raw `<script>`/event-handler
+  attributes never render, and `linkSafety` (enabled by default) gates
+  every link behind a confirmation dialog rather than a direct `<a
+  href>` — added `response.test.tsx` since no test existed. **Not
+  done**: the rest of the security-review checklist (item 3's broader
+  policy layer for untrusted-content-triggered actions, `pnpm audit`,
+  the hostile-page e2e).
+- **WP4/WP5/WP7/WP8/WP10/WP11/WP15**: not attempted this round beyond
+  what the prior round already did for WP5. Each is a substantial
+  standalone effort; WP8/WP15 in particular need real Chrome + a real
+  Apty Client + a real LLM provider, none of which this sandboxed session
+  has.
+
+Full monorepo suite: 1281 tests passing (was 1207 at the end of the prior
+round), typecheck/lint/build/validate:extension/all audits green
+throughout.
+
 ## Apty debug bridge: what actually shipped in this pass, and what's still open
 
 Follow-up to the WP0 findings entry directly below, after implementing
