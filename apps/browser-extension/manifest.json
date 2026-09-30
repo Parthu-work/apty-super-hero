@@ -3,6 +3,7 @@
   "name": "Apty Agent",
   "version": "0.1.0",
   "description": "Apty's AI browser agent - understands the page, resolves elements, and drives Apty workflows",
+  "minimum_chrome_version": "116",
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",
@@ -49,13 +50,14 @@
   "web_accessible_resources": [
     {
       "resources": ["assets/*"],
-      "matches": ["<all_urls>"]
+      "matches": ["<all_urls>"],
+      "use_dynamic_url": true
     }
   ],
   "externally_connectable": {
     "ids": []
   },
-  "host_permissions": ["https://*/*", "http://*/*", "<all_urls>"],
+  "host_permissions": ["<all_urls>"],
   "commands": {
     "open-apty-agent": {
       "suggested_key": {
