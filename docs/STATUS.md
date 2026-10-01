@@ -55,24 +55,77 @@ an only-chosen-sites toggle). The owner chose to keep the current all-sites
 console bridge; no code change this round. Revisit in WP12 (security
 review / release readiness).
 
-## WP2–WP13
+## WP2 — MCP bridge hardening (security)
 
-Not started this round. WP1 was this session's sole work package, per rule
-8 ("one work package per session").
+Done, commit `d2a573e`. `apps/mcp-bridge/src/daemon.ts`'s `isOriginAllowed`
+accepted any `chrome-extension://*` origin and any client with no `Origin`
+header, and a new `/extension` connection silently replaced the live one —
+a real local-hijack surface (the WP0 finding `DECISIONS.md` already
+documented). Fixed per the owner's WP2 spec and its clarifications:
+
+- A per-install secret token (`crypto.randomBytes`, `0600` under
+  `~/.apty/mcp-daemon/token`) is now required as `?token=<token>` on every
+  WS path (`/extension`, `/bridge`, `/cli`) — a query param, since that's
+  the only mechanism available uniformly to Node `ws` clients and the
+  browser's native `WebSocket`. Compared with a hash-then-`timingSafeEqual`
+  check so mismatched lengths never throw.
+- `/extension` additionally requires an origin matching a configured
+  `allowedExtensionId`; with none configured, every extension origin is
+  rejected (fail closed). `--set-extension-id`/`--print-extension-id` CLI
+  flags persist/read it.
+- A second `/extension` connection while one is live is now **rejected**
+  (WS close code 4001), never silently swapped in — a genuinely stale
+  socket is still reclaimed, but only via the existing ping-timeout path.
+- `--host` non-loopback now logs a WARNING; `GET /health` stays
+  unauthenticated and was verified to reveal no secrets.
+- `--print-token-path`/`--rotate-token` (daemon.ts, cli.ts,
+  `browser-cli.ts`'s `daemon token-path`/`daemon rotate-token`) let an
+  operator find/invalidate the token without hand-editing files.
+- Extension Options (MCP WebSocket Bridge panel) gained an Auth Token
+  field; `wsMcpServer.connect()` now takes `(url, token)`, persisted under
+  separate `chrome.storage.local` keys — the token is never in
+  `getStatus()`'s `url` field or any log line.
+
+`daemon.ts` (previously a ~480-line script with top-level side effects —
+argv parsing, `listen()`, PID file, signal handlers) was split into
+`daemon-server.ts` (a `startDaemonServer()` factory with no import-time
+side effects) and a thin CLI entrypoint, specifically so the auth/origin/
+duplicate-connection logic could be tested at all —
+`apps/mcp-bridge/src/daemon-server.test.ts` spins up the real server on an
+ephemeral port and drives it with real `ws` clients (wrong token, wrong
+origin, origin-less client on `/extension` vs. `/bridge`, rejected second
+connection, ping-timeout recovery, fail-closed, correct flow on all three
+paths — 16 tests); `daemon-cli.test.ts` spawns the real CLI entrypoint as a
+child process for the `--host` warning and token-command tests (4 tests);
+`lib/auth-token.test.ts` covers the token/constant-time-compare/extension-id
+logic directly (14 tests). 34 new tests total, all green.
+
+`apps/mcp-bridge` had no test setup at all before this (its own standalone
+pnpm project, not a workspace member — see `CLAUDE.md`); added `vitest` +
+`test`/`typecheck` scripts there, and wired both into this repo's own root
+`test`/`typecheck`/`build` scripts (`test:mcp-bridge` etc.) so
+`verify-quiet.sh` actually covers it going forward, not just this round.
+
+Both READMEs' setup steps are updated for the token + extension-id pinning
+flow. Gate (auth tests green; documented setup steps updated): **green**.
+
+## WP3–WP13
+
+Not started this round.
 
 ## Verification
 
 `tooling/scripts/verify-quiet.sh typecheck lint test build audit` is green
-as of the last commit (`e67598b`) on `claude/confident-hawking-1b8l61`.
+as of the last commit (`d2a573e`) on `claude/confident-hawking-1b8l61`.
 
 ## Delivery
 
-Per rule 9, nothing has been pushed to `main` or any remote. All 6 commits
-this round (`9257066` through `e67598b`) are local to
-`claude/confident-hawking-1b8l61`, on top of `main`'s `6b84f4a`. Delivery
-artifacts (build zip, git bundle, SHA256SUMS, DELIVERY.md) per v6 §8/§13
-have **not** been produced this round — §13 reads as gated on "every gate
-above is green," i.e. all 13 work packages, not WP1 alone. Flagging this
-interpretation rather than assuming it: if delivery is instead wanted after
-each work package (the pattern used in prior v1–v5 rounds), say so and it
-can be produced for WP1's diff alone.
+Per rule 9, nothing has been pushed to `main` or any remote. All 8 commits
+this round (`9257066` through `d2a573e`) are local to
+`claude/confident-hawking-1b8l61`, on top of `main`'s `6b84f4a`. A
+lightweight checkpoint (git bundle + `SHA256SUMS.txt` + `CHECKPOINT.md`,
+no build zip) was produced and handed off after WP1; a corresponding
+checkpoint covering WP1+WP2 together follows this update. Delivery
+artifacts per v6 §8/§13's full format (build zip, full secret scan,
+`DELIVERY.md`) are still open per the same interpretation flagged after
+WP1 — §13 reads as gated on all 13 work packages, not any one alone.
