@@ -17,18 +17,21 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/bridge.ts",
-    "dev:daemon": "tsx src/daemon.ts"
+    "dev:daemon": "tsx src/daemon.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.13",
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
     "tsup": "^8.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vitest": "^4.1.11"
   },
   "keywords": [
     "mcp",

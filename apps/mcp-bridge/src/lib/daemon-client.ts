@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
 
+import { appendToken, getOrCreateToken } from "./auth-token.js";
+
 const ENTRYPOINT_PATH = "/entrypoint.sh";
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_RETRY_TIMEOUT_MS = parseInt(
@@ -195,7 +197,11 @@ export async function callTool(
 ): Promise<ToolCallResult> {
   const port = opts.port ?? 9223;
   const host = opts.host ?? "127.0.0.1";
-  const wsUrl = process.env.BROWSER_CLI_WS_URL ?? `ws://${host}:${port}/cli`;
+  const token = getOrCreateToken();
+  const wsUrl = appendToken(
+    process.env.BROWSER_CLI_WS_URL ?? `ws://${host}:${port}/cli`,
+    token,
+  );
 
   const deadline = Date.now() + MAX_RETRY_TIMEOUT_MS;
   let backoff = INITIAL_BACKOFF_MS;

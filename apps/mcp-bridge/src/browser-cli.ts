@@ -6,6 +6,7 @@ import "./commands/intervention.js";
 import "./commands/skill.js";
 
 import { runStatusCommand } from "./commands/status.js";
+import { getTokenPath, rotateToken } from "./lib/auth-token.js";
 import {
   formatCommandHelp,
   formatGroupHelp,
@@ -63,6 +64,12 @@ function printTopLevelHelp(): void {
   lines.push(
     `  ${"status".padEnd(maxLen + 4)}Check daemon and extension connection status`,
   );
+  lines.push(
+    `  ${"daemon token-path".padEnd(maxLen + 4)}Print the daemon auth token's file path`,
+  );
+  lines.push(
+    `  ${"daemon rotate-token".padEnd(maxLen + 4)}Generate and print a new token`,
+  );
   lines.push("");
   lines.push("OPTIONS:");
   lines.push("  --port <n>    Daemon port (default: 9223)");
@@ -110,6 +117,22 @@ async function main() {
     const result = await runStatusCommand(daemonOpts);
     printResult(result as ReturnType<typeof success>);
     process.exit(result.ok ? 0 : 1);
+  }
+
+  // Daemon auth-token commands
+  if (args[0] === "daemon" && args[1] === "token-path") {
+    printResult(success(getTokenPath()));
+    process.exit(0);
+  }
+  if (args[0] === "daemon" && args[1] === "rotate-token") {
+    const token = rotateToken();
+    printResult(success(token, { tool: "rotate-token", elapsed_ms: 0 }));
+    process.stderr.write(
+      "New token generated. Update every already-configured client " +
+        "(the extension's Options page, any other machine-local client) " +
+        "with this value.\n",
+    );
+    process.exit(0);
   }
 
   // Group routing

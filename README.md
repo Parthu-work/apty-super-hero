@@ -62,7 +62,7 @@ cd apps/mcp-bridge && pnpm build
 claude mcp add apty-browser -- node /path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js
 ```
 
-Then in the extension's Options page, set the WebSocket URL (`ws://localhost:9223/extension`) and click Connect. See [`apps/mcp-bridge/README.md`](apps/mcp-bridge/README.md) for details.
+Then in the extension's Options page, set the WebSocket URL (`ws://localhost:9223/extension`) and paste in the daemon's auth token (every connection requires one — find it with `cd apps/mcp-bridge && node dist/daemon.js --print-token-path`, then read that file; a fresh one is generated on first run). The daemon also needs your extension's id pinned once, the first time: `node dist/daemon.js --set-extension-id <id>` (find `<id>` in `chrome://extensions` with Developer mode on). Then click Connect. See [`apps/mcp-bridge/README.md`](apps/mcp-bridge/README.md) for details.
 
 ## License
 

@@ -16,8 +16,9 @@ export function registerMcpBridge(): void {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.request === "ws-bridge-connect") {
       const url = message.url as string;
+      const token = message.token as string;
       wsMcpServer
-        .connect(url)
+        .connect(url, token)
         .then(() => {
           updateMcpBadge(true);
           sendResponse({ success: true });
@@ -66,12 +67,11 @@ export function registerMcpBridge(): void {
   });
 
   // Auto-connect to saved URL on startup
-  wsMcpServer
-    .getSavedUrl()
-    .then((url) => {
-      if (url) {
+  Promise.all([wsMcpServer.getSavedUrl(), wsMcpServer.getSavedToken()])
+    .then(([url, token]) => {
+      if (url && token) {
         console.log("[WsMcpServer] Auto-connecting to saved URL:", url);
-        wsMcpServer.connect(url).catch(() => {
+        wsMcpServer.connect(url, token).catch(() => {
           // connect() handles its own retry logic
         });
       }

@@ -30,6 +30,35 @@ Requirements:
 - Node.js >= 18
 - The Apty Agent Chrome or Edge extension installed and running (see the repo root `README.md`)
 
+## Auth (do this once, before connecting anything)
+
+Every WebSocket connection to the daemon — the extension, this package's own CLIs, any other MCP client — requires a per-install secret token. There is no unauthenticated path except `GET /health`, and the daemon won't let a second `/extension` connection silently replace an already-connected one.
+
+1. **Generate/find the token.** It's created automatically the first time anything needs it, stored `0600` under `~/.apty/mcp-daemon/token`. To see the path without starting anything:
+
+   ```bash
+   node dist/daemon.js --print-token-path
+   # then: cat <that path>
+   ```
+
+2. **Pin your extension's id** (so the daemon only ever accepts `/extension` connections from *your* installed extension, not any other locally-installed `chrome-extension://` origin). Find your id in `chrome://extensions` with Developer mode on, then:
+
+   ```bash
+   node dist/daemon.js --set-extension-id <your-extension-id>
+   ```
+
+   Until this is set, **every** `/extension` connection is rejected — the daemon fails closed rather than accepting the first thing that connects.
+
+3. **Paste the token into the extension's Options page** (MCP WebSocket Bridge panel, "Auth Token" field) alongside the WebSocket URL, then click Connect.
+
+If you ever need to invalidate the current token (e.g. you suspect it leaked):
+
+```bash
+node dist/daemon.js --rotate-token
+```
+
+This prints the new token and immediately invalidates the old one — every already-configured client (the extension's Options page, any other machine-local client) needs the new value before it can reconnect.
+
 ## Use with MCP Agents
 
 **Cursor**, **Claude Desktop**, **Windsurf**, and other stdio MCP clients — point `command`/`args` at the built file directly (use an absolute path; replace `/path/to/apty-super-hero` with where you cloned this repo):
@@ -52,11 +81,13 @@ Requirements:
 claude mcp add apty-browser -- node /path/to/apty-super-hero/apps/mcp-bridge/dist/bridge.js
 ```
 
-Then open the Apty Agent extension's Options page and set the WebSocket URL to:
+Then open the Apty Agent extension's Options page, set the WebSocket URL to:
 
 ```text
 ws://localhost:9223/extension
 ```
+
+and paste in the auth token from the **Auth** section above (both the URL field and the token field must be filled in — Connect is disabled until they are).
 
 If you'd rather not repeat the absolute path everywhere, run `pnpm link --global` from inside `apps/mcp-bridge` (after building) to put `apty-mcp-bridge`/`apty-cli`/`browser-cli` on your `PATH`, then use the bin name directly as `command` instead of `node <path>`.
 
@@ -95,6 +126,8 @@ node dist/cli.js get_all_tabs
 node dist/cli.js create_new_tab --url https://example.com
 node dist/cli.js search_elements --tabId 123 --query "button*"
 node dist/cli.js --json '{"name":"capture_screenshot","arguments":{}}'
+node dist/cli.js --token-path     # print the auth token's file path
+node dist/cli.js --rotate-token   # generate and print a new token
 ```
 
 ## Why It Is Fast
@@ -109,7 +142,7 @@ node dist/cli.js --json '{"name":"capture_screenshot","arguments":{}}'
 ```bash
 node dist/bridge.js [--port <port>] [--host <host>]
 node dist/browser-cli.js [--port <port>] [--host <host>] <group> <command>
-node dist/daemon.js [--port <port>] [--host <host>]
+node dist/daemon.js [--port <port>] [--host <host>] [--extension-id <id>]
 ```
 
 (Or `apty-mcp-bridge`/`browser-cli`/`apty-mcp-daemon` if linked globally.)
@@ -117,7 +150,12 @@ node dist/daemon.js [--port <port>] [--host <host>]
 | Option | Default | Description |
 | --- | --- | --- |
 | `--port <port>` | `9223` | Local daemon port |
-| `--host <host>` | `127.0.0.1` | Bind/connect host |
+| `--host <host>` | `127.0.0.1` | Bind/connect host — anything non-loopback logs a WARNING, since it means the daemon (and its token) become reachable from other machines |
+| `--extension-id <id>` | | Daemon only. Pins the one extension id `/extension` connections are accepted from (persisted — only needs passing once); with none configured, every `/extension` connection is rejected |
+| `--print-token-path` | | Daemon only. Prints the auth token's file path and exits (no server started) |
+| `--rotate-token` | | Daemon only. Generates, persists, and prints a new token, invalidating the old one |
+| `--print-extension-id` | | Daemon only. Prints the currently pinned extension id (if any) and exits |
+| `--set-extension-id <id>` | | Daemon only. Persists the pinned extension id and exits (no server started) |
 | `--help`, `-h` | | Show help |
 | `--version`, `-v` | | Show version |
 
@@ -129,6 +167,7 @@ node dist/daemon.js [--port <port>] [--host <host>]
 | `AIPEX_CONNECT_TIMEOUT` | `60000` | Max wait time for the raw CLI |
 | `BROWSER_CLI_WS_URL` | `ws://127.0.0.1:9223/cli` | WebSocket URL for `browser-cli` |
 | `BROWSER_CLI_CONNECT_TIMEOUT` | `60000` | Max wait time for `browser-cli` |
+| `APTY_MCP_CONFIG_DIR` | `~/.apty/mcp-daemon` | Where the auth token and pinned-extension-id config are stored — override for tests or an isolated install, never needed in normal use |
 
 ## License
 

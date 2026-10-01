@@ -38,8 +38,14 @@ const STATUS_BADGE_CLASSES: Record<ConnectionStatus, string> = {
   error: "border-destructive/30 bg-destructive/10 text-destructive",
 };
 
+// Same storage keys @apty/browser-runtime's WsMcpServer persists to —
+// duplicated here (not imported) because they're an internal storage
+// implementation detail, not part of its public API surface.
+const STORAGE_KEY_WS_TOKEN = "ws-mcp-token";
+
 export function McpBridgePanel() {
   const [url, setUrl] = useState(DEFAULT_URL);
+  const [token, setToken] = useState("");
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
   const [connectedAt, setConnectedAt] = useState<number | null>(null);
@@ -68,12 +74,28 @@ export function McpBridgePanel() {
     return () => clearInterval(interval);
   }, [refreshStatus]);
 
+  // Pre-fill the saved token directly from storage — deliberately NOT
+  // through the "ws-bridge-status" message above, which is also used for
+  // the badge/keepalive status and must never carry the token.
+  useEffect(() => {
+    chrome.storage.local
+      .get(STORAGE_KEY_WS_TOKEN)
+      .then((result) => {
+        const saved = result[STORAGE_KEY_WS_TOKEN];
+        if (typeof saved === "string") setToken(saved);
+      })
+      .catch(() => {
+        // Background may not be ready yet
+      });
+  }, []);
+
   const handleConnect = async () => {
     setError(null);
     try {
       const response = await chrome.runtime.sendMessage({
         request: "ws-bridge-connect",
         url,
+        token,
       });
       if (!response.success) {
         setError(response.error || "Connection failed");
@@ -159,7 +181,9 @@ export function McpBridgePanel() {
               <Button
                 type="button"
                 onClick={handleConnect}
-                disabled={status === "connecting" || !url.trim()}
+                disabled={
+                  status === "connecting" || !url.trim() || !token.trim()
+                }
               >
                 {status === "connecting" && (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -170,6 +194,25 @@ export function McpBridgePanel() {
           </div>
           <p className="text-xs text-muted-foreground">
             Only localhost connections (127.0.0.1, ::1) are allowed.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="mcp-bridge-token">Auth Token</Label>
+          <Input
+            id="mcp-bridge-token"
+            type="password"
+            autoComplete="off"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste the daemon's token"
+            disabled={isBusy}
+          />
+          <p className="text-xs text-muted-foreground">
+            Every connection requires this per-install secret. Find it by
+            running <code>apty-cli --token-path</code> (or{" "}
+            <code>browser-cli daemon token-path</code>) and reading that file —
+            never shown in logs or exported from here.
           </p>
         </div>
 

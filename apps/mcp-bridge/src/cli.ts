@@ -17,6 +17,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
 
+import {
+  appendToken,
+  getOrCreateToken,
+  getTokenPath,
+  rotateToken,
+} from "./lib/auth-token.js";
 import { toolSchemas } from "./tool-schemas.js";
 
 const DEFAULT_WS_URL = "ws://localhost:9223/cli";
@@ -35,6 +41,22 @@ const args = process.argv.slice(2);
 
 if (args.length === 0 || args[0] === "-h") {
   printUsage();
+  process.exit(0);
+}
+
+if (args[0] === "--token-path") {
+  process.stdout.write(`${getTokenPath()}\n`);
+  process.exit(0);
+}
+
+if (args[0] === "--rotate-token") {
+  const token = rotateToken();
+  process.stderr.write(
+    "New token generated. Update every already-configured client " +
+      "(the extension's Options page, any other machine-local client) " +
+      "with this value:\n",
+  );
+  process.stdout.write(`${token}\n`);
   process.exit(0);
 }
 
@@ -87,6 +109,8 @@ Usage:
   apty-cli --list                          List all available tools
   apty-cli --help <tool_name>              Show tool parameters
   apty-cli --json '{"name":"...","arguments":{...}}'
+  apty-cli --token-path                    Print the daemon auth token's file path
+  apty-cli --rotate-token                  Generate and print a new token
 
 Examples:
   apty-cli get_all_tabs
@@ -345,7 +369,8 @@ async function runTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<void> {
-  const wsUrl = process.env.AIPEX_WS_URL ?? DEFAULT_WS_URL;
+  const token = getOrCreateToken();
+  const wsUrl = appendToken(process.env.AIPEX_WS_URL ?? DEFAULT_WS_URL, token);
   const deadline = Date.now() + MAX_RETRY_TIMEOUT_MS;
   let backoff = INITIAL_BACKOFF_MS;
   let attempt = 0;

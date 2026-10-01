@@ -31,6 +31,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { WebSocket } from "ws";
 
+import { appendToken, getOrCreateToken } from "./lib/auth-token.js";
 import { toolSchemas } from "./tool-schemas.js";
 
 // ── CLI args ────────────────────────────────────────────────────────────────
@@ -54,6 +55,8 @@ The bridge auto-starts a background daemon if one isn't already running.
 Multiple IDE instances (Cursor, Claude Code) can run simultaneously.
 
 After starting, connect Apty Agent extension → Options → ws://localhost:<port>/extension
+(with the daemon's auth token — run 'apty-cli --token-path' to find it, or
+'node dist/daemon.js --print-token-path').
 `);
   process.exit(0);
 }
@@ -70,7 +73,8 @@ function getArg(name: string, fallback: string): string {
 
 const PORT = parseInt(getArg("--port", "9223"), 10);
 const HOST = getArg("--host", "127.0.0.1");
-const DAEMON_URL = `ws://${HOST}:${PORT}/bridge`;
+const DAEMON_TOKEN = getOrCreateToken();
+const DAEMON_URL = appendToken(`ws://${HOST}:${PORT}/bridge`, DAEMON_TOKEN);
 const MAX_CONNECT_ATTEMPTS = 10;
 const INITIAL_BACKOFF_MS = 300;
 const TOOL_CALL_TIMEOUT_MS = 60_000;

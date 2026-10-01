@@ -42,6 +42,14 @@ const KEEPALIVE_INTERVAL_MINUTES = 0.4;
 const TOOL_CALL_TIMEOUT_MS = 60_000;
 
 const STORAGE_KEY_WS_URL = "ws-mcp-url";
+const STORAGE_KEY_WS_TOKEN = "ws-mcp-token";
+
+/** Appends `?token=<token>` to the bridge URL — the daemon requires it on every WS path (see WP2). Query string, not a header, since the browser's native `WebSocket` can't set custom headers on a handshake. */
+function appendToken(url: string, token: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("token", token);
+  return parsed.toString();
+}
 
 function getReconnectDelayMs(attempt: number): number {
   const withJitter = (base: number) =>
@@ -94,6 +102,14 @@ export class WsMcpServer {
   private listeners: Set<StatusListener> = new Set();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private autoReconnectEnabled = true;
+  /**
+   * The daemon auth token for the current/last connection attempt — kept
+   * as a private field, never on `state`, so it can never be echoed back
+   * through `getStatus()`/`onStatusChange()` to anything that only needs
+   * connection status (e.g. the badge, or a log line). Needed internally
+   * to rebuild the authenticated URL on reconnect.
+   */
+  private token: string | null = null;
 
   private validateUrl(url: string): void {
     let parsed: URL;
@@ -118,7 +134,7 @@ export class WsMcpServer {
     }
   }
 
-  async connect(url: string): Promise<void> {
+  async connect(url: string, token: string): Promise<void> {
     this.validateUrl(url);
     this.cancelReconnect();
 
@@ -129,6 +145,7 @@ export class WsMcpServer {
       await this.disconnect();
     }
 
+    this.token = token;
     this.updateState({
       status: "connecting",
       url,
@@ -137,7 +154,7 @@ export class WsMcpServer {
     });
 
     try {
-      const transport = new WebSocketClientTransport(url);
+      const transport = new WebSocketClientTransport(appendToken(url, token));
       this.transport = transport;
 
       transport.onclose = () => {
@@ -159,14 +176,14 @@ export class WsMcpServer {
         reconnectAttempt: 0,
       });
       this.startKeepalive();
-      this.persistUrl(url);
+      this.persist(url, token);
       this.autoReconnectEnabled = true;
       console.log(`[WsMcpServer] Connected to ${url}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.updateState({ status: "error", error: message, connectedAt: null });
       this.transport = null;
-      this.scheduleReconnect(url);
+      this.scheduleReconnect(url, token);
       throw error;
     }
   }
@@ -185,6 +202,7 @@ export class WsMcpServer {
       this.transport = null;
     }
 
+    this.token = null;
     this.updateState({
       status: "disconnected",
       url: null,
@@ -192,7 +210,7 @@ export class WsMcpServer {
       connectedAt: null,
       reconnectAttempt: 0,
     });
-    this.clearPersistedUrl();
+    this.clearPersisted();
     console.log("[WsMcpServer] Disconnected");
   }
 
@@ -218,9 +236,19 @@ export class WsMcpServer {
     }
   }
 
+  /** Never logged, returned from `getStatus()`, or otherwise echoed anywhere — only ever read back to feed straight into a new `connect()` call. */
+  async getSavedToken(): Promise<string | null> {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEY_WS_TOKEN);
+      return (result[STORAGE_KEY_WS_TOKEN] as string) || null;
+    } catch {
+      return null;
+    }
+  }
+
   // -- Auto-reconnect with exponential backoff --
 
-  private scheduleReconnect(url: string): void {
+  private scheduleReconnect(url: string, token: string): void {
     if (!this.autoReconnectEnabled) return;
     this.cancelReconnect();
 
@@ -233,7 +261,7 @@ export class WsMcpServer {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.updateState({ reconnectAttempt: attempt + 1 });
-      this.connect(url).catch(() => {
+      this.connect(url, token).catch(() => {
         // connect() itself schedules next retry on failure
       });
     }, delay);
@@ -246,17 +274,20 @@ export class WsMcpServer {
     }
   }
 
-  private persistUrl(url: string): void {
+  private persist(url: string, token: string): void {
     try {
-      chrome.storage.local.set({ [STORAGE_KEY_WS_URL]: url });
+      chrome.storage.local.set({
+        [STORAGE_KEY_WS_URL]: url,
+        [STORAGE_KEY_WS_TOKEN]: token,
+      });
     } catch {
       // ignore storage errors
     }
   }
 
-  private clearPersistedUrl(): void {
+  private clearPersisted(): void {
     try {
-      chrome.storage.local.remove(STORAGE_KEY_WS_URL);
+      chrome.storage.local.remove([STORAGE_KEY_WS_URL, STORAGE_KEY_WS_TOKEN]);
     } catch {
       // ignore
     }
@@ -380,6 +411,7 @@ export class WsMcpServer {
   private handleDisconnect(): void {
     this.stopKeepalive();
     const lastUrl = this.state.url;
+    const lastToken = this.token;
     this.transport = null;
     if (this.state.status !== "disconnected") {
       this.updateState({
@@ -388,8 +420,8 @@ export class WsMcpServer {
         connectedAt: null,
       });
       console.log("[WsMcpServer] Connection closed by remote");
-      if (lastUrl && this.autoReconnectEnabled) {
-        this.scheduleReconnect(lastUrl);
+      if (lastUrl && lastToken && this.autoReconnectEnabled) {
+        this.scheduleReconnect(lastUrl, lastToken);
       }
     }
   }
@@ -438,8 +470,9 @@ export class WsMcpServer {
     }
 
     const url = this.state.url;
-    if (url && this.autoReconnectEnabled) {
-      this.connect(url).catch(() => {
+    const token = this.token;
+    if (url && token && this.autoReconnectEnabled) {
+      this.connect(url, token).catch(() => {
         // connect() schedules its own retry on failure
       });
     }
