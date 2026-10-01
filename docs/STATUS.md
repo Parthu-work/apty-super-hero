@@ -30,7 +30,7 @@ contents.
 | 4 | `resolveDiagnosticTab` never silently uses the active tab | Done | `75e7ef8` |
 | 5 | Evidence store de-dup + per-source quotas | Done | `9031b3c`, with a follow-up correctness fix in `a720de1` (see below) |
 | 6 | Permission audit → `docs/security/PERMISSIONS.md` + validator enforcement | Done | `e67598b` |
-| 7 | Dynamic content-script registration (replace static `<all_urls>` MAIN-world console-bridge) | **Not attempted — deferred with reasoning** | — |
+| 7 | Dynamic content-script registration (replace static `<all_urls>` MAIN-world console-bridge) | **Owner decision: keep all-sites for now** | — |
 
 ### Item 5's follow-up fix
 
@@ -47,21 +47,13 @@ collision. Verified via `packages/browser-runtime`'s full test suite plus
 `tooling/scripts/verify-quiet.sh typecheck lint test build audit` (all
 green) before committing.
 
-### Item 7 — why it's deferred, not done
+### Item 7 — owner decision, not a code change
 
-See `DECISIONS.md`'s "WP1.7 ... not converted to dynamic registration this
-round" entry for the full reasoning. In short: this product's `host_permissions:
-<all_urls>` is justified specifically because it debugs *whatever page the
-user currently has open* — a fixed host allow-list (what WP1.7 as literally
-specified asks for) would defeat that premise, not just narrow it. A
-different, real narrowing (registering the bridge per-tab only once a
-conversation binds to that tab, instead of on every page load) is plausible
-but is a genuine behavior and timing change to a core diagnostic feature
-that this round's verification budget (vitest + static validators, no live
-interactive Chrome session) cannot fully validate. Left for a dedicated
-future session with the WP16 real-Chromium harness exercising: a
-slow-loading page, a page that never binds a conversation, and a
-mid-session re-bind to a second tab.
+See `DECISIONS.md`'s "WP1.7 ... owner decision — keep all-sites for now"
+entry for the full reasoning and the two options presented (all sites vs.
+an only-chosen-sites toggle). The owner chose to keep the current all-sites
+console bridge; no code change this round. Revisit in WP12 (security
+review / release readiness).
 
 ## WP2–WP13
 
