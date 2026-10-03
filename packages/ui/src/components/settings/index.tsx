@@ -254,50 +254,48 @@ export function SettingsPage({
     const loadSettings = async () => {
       try {
         const result = await storageAdapter.load(storageKey);
-        if (result) {
-          const loadedSettings = result as AppSettings;
-          let loadedCustomModels = loadedSettings.customModels ?? [];
-          const resolvedProviderType =
-            loadedSettings.providerType ??
-            PROVIDER_KEY_TO_TYPE[loadedSettings.aiProvider as AIProviderKey] ??
-            "openai";
+        const loadedSettings = (result ?? {}) as AppSettings;
+        let loadedCustomModels = loadedSettings.customModels ?? [];
+        const resolvedProviderType =
+          loadedSettings.providerType ??
+          PROVIDER_KEY_TO_TYPE[loadedSettings.aiProvider as AIProviderKey] ??
+          "openai";
 
-          if (
-            loadedCustomModels.length === 0 &&
-            (loadedSettings.aiHost ||
-              loadedSettings.aiToken ||
-              loadedSettings.aiModel)
-          ) {
-            loadedCustomModels = [
-              {
-                id: generateId(),
-                name: loadedSettings.aiModel,
-                providerType: resolvedProviderType,
-                aiHost: loadedSettings.aiHost ?? "",
-                aiToken: loadedSettings.aiToken ?? "",
-                aiModel: loadedSettings.aiModel ?? "",
-                enabled: true,
-              },
-            ];
-          }
-
-          const mergedCustomModels =
-            mergeWithDefaultProviders(loadedCustomModels);
-
-          setSettings({
-            ...loadedSettings,
-            customModels: mergedCustomModels,
-            providerType: resolvedProviderType,
-            providerEnabled: loadedSettings.providerEnabled ?? false,
-          });
-
-          setCustomModels(mergedCustomModels);
-          const initialSelection =
-            mergedCustomModels.find((model) => model.enabled)?.id ||
-            mergedCustomModels[0]?.id ||
-            null;
-          setSelectedModelId(initialSelection);
+        if (
+          loadedCustomModels.length === 0 &&
+          (loadedSettings.aiHost ||
+            loadedSettings.aiToken ||
+            loadedSettings.aiModel)
+        ) {
+          loadedCustomModels = [
+            {
+              id: generateId(),
+              name: loadedSettings.aiModel,
+              providerType: resolvedProviderType,
+              aiHost: loadedSettings.aiHost ?? "",
+              aiToken: loadedSettings.aiToken ?? "",
+              aiModel: loadedSettings.aiModel ?? "",
+              enabled: true,
+            },
+          ];
         }
+
+        const mergedCustomModels =
+          mergeWithDefaultProviders(loadedCustomModels);
+
+        setSettings({
+          ...loadedSettings,
+          customModels: mergedCustomModels,
+          providerType: resolvedProviderType,
+          providerEnabled: loadedSettings.providerEnabled ?? false,
+        });
+
+        setCustomModels(mergedCustomModels);
+        const initialSelection =
+          mergedCustomModels.find((model) => model.enabled)?.id ||
+          mergedCustomModels[0]?.id ||
+          null;
+        setSelectedModelId(initialSelection);
       } catch (error) {
         console.error("Failed to load settings:", error);
       } finally {

@@ -80,6 +80,21 @@ describe("SettingsPage", () => {
     expect(screen.queryByText(/bring your own key/i)).not.toBeInTheDocument();
   });
 
+  it("seeds the built-in providers on a genuinely fresh install (storage.load returns null, not {})", async () => {
+    // Regression test for a real bug: storageAdapter.load returning null
+    // (no settings key written yet, as on first install) used to skip the
+    // provider-seeding branch entirely, leaving "No providers found" with
+    // nothing to enable instead of the three disabled built-in providers.
+    renderSettings("ai", null);
+
+    expect(screen.queryByText(/no providers found/i)).not.toBeInTheDocument();
+    expect((await screen.findAllByText(/openai/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/anthropic/i)).length).toBeGreaterThan(
+      0,
+    );
+    expect((await screen.findAllByText(/google/i)).length).toBeGreaterThan(0);
+  });
+
   it("migrates a stored legacy 'byokEnabled:false' with a real token/model into a configured, enabled model", async () => {
     // Before byokEnabled was removed, a legacy flat settings object with
     // the flag false (its default) but a real token+model already saved
