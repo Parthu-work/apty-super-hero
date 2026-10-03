@@ -20,6 +20,18 @@
  * its id is attached to the session so evidence recorded at stop time is
  * traceable back to the investigation that triggered the capture.
  *
+ * That "does not survive a restart" risk is not just theoretical: Chrome
+ * suspends an MV3 service worker after ~30s of no activity, which wipes
+ * every module-level `Map`/timer in this file (observed in practice — a
+ * real session with ~30-60s gaps between turns, e.g. waiting out an LLM
+ * rate limit, lost its capture between "start" and "stop" every single
+ * time). While at least one capture is active, a `chrome.alarms` keepalive
+ * (`ensureCaptureKeepaliveAlarm`/`maybeClearCaptureKeepaliveAlarm` below)
+ * fires every ~24s specifically to keep the service worker from going
+ * idle long enough to be suspended — the same mechanism
+ * `ws-mcp-server.ts`'s own keepalive already uses for the same reason,
+ * reused here rather than inventing a second one.
+ *
  * Bounded in two ways a fixed-window capture doesn't need to worry about:
  * `requests` is capped at `MAX_CAPTURED_REQUESTS`, oldest evicted first
  * (mirrors evidence-store.ts's per-conversation cap), since a capture can
@@ -127,6 +139,49 @@ export const MAX_CAPTURED_REQUESTS = 2000;
 /** Skip fetching a response body above this encoded size entirely (never even ask CDP for it) — a multi-MB response gets truncated down to MAX_INLINE_BODY_CHARS anyway, so pulling the whole thing into memory first buys nothing. Checked against `Network.loadingFinished`'s `encodedDataLength`, which is the compressed-over-the-wire size, not necessarily the decoded text length — an approximation, not an exact bound. */
 export const MAX_BODY_FETCH_BYTES = 1_000_000;
 
+/** Same alarm-based keepalive mechanism and interval as ws-mcp-server.ts's `KEEPALIVE_ALARM_NAME`/`KEEPALIVE_INTERVAL_MINUTES` — a distinct alarm name since the two keepalives are independent (one WS-bridge-connection-shaped, one capture-shaped), but there is no reason for a second interval value; 0.4 min (~24s) is proven to keep the service worker from idling into MV3's ~30s suspension threshold. */
+export const CAPTURE_KEEPALIVE_ALARM_NAME = "apty-network-capture-keepalive";
+const CAPTURE_KEEPALIVE_INTERVAL_MINUTES = 0.4;
+
+function getChromeApi(): typeof chrome | undefined {
+  return (globalThis as any).chrome as typeof chrome | undefined;
+}
+
+/** Creates the keepalive alarm exactly when the FIRST capture (across all conversations) starts — a reference-counted create, not one-per-capture, since chrome.alarms has no concept of "this alarm, but only while condition X" and recreating an already-existing alarm with the same name just resets its schedule (harmless but pointless). */
+function ensureCaptureKeepaliveAlarm(): void {
+  const chromeApi = getChromeApi();
+  if (!chromeApi?.alarms) return;
+  if (activeByConversation.size !== 1) return; // already had >=1 active capture before this one
+  chromeApi.alarms.create(CAPTURE_KEEPALIVE_ALARM_NAME, {
+    periodInMinutes: CAPTURE_KEEPALIVE_INTERVAL_MINUTES,
+  });
+}
+
+/** Clears the keepalive alarm once the LAST active capture (across all conversations) is torn down — never while any conversation still has one running. */
+function maybeClearCaptureKeepaliveAlarm(): void {
+  const chromeApi = getChromeApi();
+  if (!chromeApi?.alarms) return;
+  if (activeByConversation.size > 0) return;
+  chromeApi.alarms.clear(CAPTURE_KEEPALIVE_ALARM_NAME);
+}
+
+/**
+ * Handle the keepalive alarm firing — Chrome delivering ANY alarm event is
+ * itself what resets the service worker's MV3 idle-suspend timer, so the
+ * alarm needs no payload-specific handling to do its one job. Also
+ * re-asserts the debugger attachment for every still-active capture as
+ * defense in depth, in case a capture's own 15s-interval heartbeat
+ * (`HEARTBEAT_MS`) was delayed by the service worker having been briefly
+ * busy — cheap, and `safeAttachDebugger` is a no-op against an
+ * already-attached tab.
+ */
+function handleCaptureKeepaliveAlarm(alarm: { name: string }): void {
+  if (alarm.name !== CAPTURE_KEEPALIVE_ALARM_NAME) return;
+  for (const active of activeByConversation.values()) {
+    debuggerManager.safeAttachDebugger(active.session.tabId).catch(() => {});
+  }
+}
+
 function toPublicSession(active: ActiveCapture): NetworkCaptureSession {
   return {
     ...active.session,
@@ -140,6 +195,7 @@ function teardown(key: string, active: ActiveCapture): void {
   activeByConversation.delete(key);
   clearInterval(active.heartbeat);
   chrome.debugger.onEvent.removeListener(active.listener);
+  maybeClearCaptureKeepaliveAlarm();
 }
 
 /**
@@ -195,6 +251,7 @@ function ensureCleanupListenersRegistered(): void {
       forceCleanupForTab(source.tabId);
     }
   });
+  chromeApi.alarms?.onAlarm?.addListener(handleCaptureKeepaliveAlarm);
 }
 
 /**
@@ -372,6 +429,7 @@ export async function startNetworkCapture(
     heartbeat,
   };
   activeByConversation.set(key, active);
+  ensureCaptureKeepaliveAlarm();
   return { started: true, session: toPublicSession(active) };
 }
 

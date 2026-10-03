@@ -20,6 +20,9 @@ const mockOnEventAddListener = vi.hoisted(() => vi.fn());
 const mockOnEventRemoveListener = vi.hoisted(() => vi.fn());
 const mockOnRemovedAddListener = vi.hoisted(() => vi.fn());
 const mockOnDetachAddListener = vi.hoisted(() => vi.fn());
+const mockAlarmsCreate = vi.hoisted(() => vi.fn());
+const mockAlarmsClear = vi.hoisted(() => vi.fn());
+const mockOnAlarmAddListener = vi.hoisted(() => vi.fn());
 
 vi.mock("../automation/cdp-commander.js", () => ({
   CdpCommander: class {
@@ -45,10 +48,16 @@ vi.mock("../automation/debugger-manager.js", () => ({
   tabs: {
     onRemoved: { addListener: mockOnRemovedAddListener },
   },
+  alarms: {
+    create: mockAlarmsCreate,
+    clear: mockAlarmsClear,
+    onAlarm: { addListener: mockOnAlarmAddListener },
+  },
 };
 
 import {
   __simulateForcedCleanupForTab,
+  CAPTURE_KEEPALIVE_ALARM_NAME,
   getActiveCaptureCount,
   getNetworkCaptureStatus,
   MAX_BODY_FETCH_BYTES,
@@ -92,6 +101,7 @@ function fireDebuggerEvent(method: string, params: unknown) {
  */
 let onRemovedListener: (tabId: number) => void;
 let onDetachListener: (source: { tabId: number }, reason: string) => void;
+let onAlarmListener: (alarm: { name: string }) => void;
 
 function fireTabRemoved(tabId: number) {
   onRemovedListener(tabId);
@@ -101,6 +111,10 @@ function fireDebuggerDetach(tabId: number) {
   onDetachListener({ tabId }, "target_closed");
 }
 
+function fireKeepaliveAlarm() {
+  onAlarmListener({ name: CAPTURE_KEEPALIVE_ALARM_NAME });
+}
+
 beforeAll(async () => {
   mockSafeAttachDebugger.mockResolvedValue(true);
   mockSafeDetachDebugger.mockResolvedValue(undefined);
@@ -108,6 +122,7 @@ beforeAll(async () => {
   await startNetworkCapture("conv-warmup", 999);
   onRemovedListener = mockOnRemovedAddListener.mock.calls[0][0];
   onDetachListener = mockOnDetachAddListener.mock.calls[0][0];
+  onAlarmListener = mockOnAlarmAddListener.mock.calls[0][0];
   await stopNetworkCapture("conv-warmup");
 });
 
@@ -620,5 +635,88 @@ describe("network-capture-session — response body capture", () => {
 
     const stopped = await stopNetworkCapture("conv-a");
     expect(stopped.requests?.[0].bodyUnavailable).toBe(true);
+  });
+});
+
+describe("network-capture-session — service-worker keepalive", () => {
+  // Regression coverage: a real session with ~30-60s gaps between turns
+  // (e.g. waiting out an LLM rate limit) lost its capture between "start"
+  // and "stop" every time — the MV3 service worker was suspending after
+  // ~30s idle, wiping the in-memory activeByConversation Map. The keepalive
+  // alarm exists specifically to stop that from happening while any
+  // capture is active.
+
+  it("creates the keepalive alarm when the first capture starts", async () => {
+    await startNetworkCapture("conv-a", TAB_ID);
+
+    expect(mockAlarmsCreate).toHaveBeenCalledWith(
+      CAPTURE_KEEPALIVE_ALARM_NAME,
+      expect.objectContaining({ periodInMinutes: expect.any(Number) }),
+    );
+
+    await stopNetworkCapture("conv-a");
+  });
+
+  it("does not create a second alarm for a second concurrent capture", async () => {
+    await startNetworkCapture("conv-a", TAB_ID);
+    mockAlarmsCreate.mockClear();
+
+    await startNetworkCapture("conv-b", TAB_ID + 1);
+    expect(mockAlarmsCreate).not.toHaveBeenCalled();
+
+    await stopNetworkCapture("conv-a");
+    await stopNetworkCapture("conv-b");
+  });
+
+  it("does not clear the alarm while another capture is still active", async () => {
+    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-b", TAB_ID + 1);
+
+    await stopNetworkCapture("conv-a");
+    expect(mockAlarmsClear).not.toHaveBeenCalled();
+
+    await stopNetworkCapture("conv-b");
+    expect(mockAlarmsClear).toHaveBeenCalledWith(CAPTURE_KEEPALIVE_ALARM_NAME);
+  });
+
+  it("clears the alarm once the only active capture stops", async () => {
+    await startNetworkCapture("conv-a", TAB_ID);
+    await stopNetworkCapture("conv-a");
+
+    expect(mockAlarmsClear).toHaveBeenCalledWith(CAPTURE_KEEPALIVE_ALARM_NAME);
+  });
+
+  it("clears the alarm on forced cleanup (tab closed mid-capture), not just explicit stop", async () => {
+    await startNetworkCapture("conv-a", TAB_ID);
+    mockAlarmsClear.mockClear();
+
+    fireTabRemoved(TAB_ID);
+
+    expect(mockAlarmsClear).toHaveBeenCalledWith(CAPTURE_KEEPALIVE_ALARM_NAME);
+  });
+
+  it("re-asserts the debugger attachment for every active capture when the alarm fires", async () => {
+    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-b", TAB_ID + 1);
+    mockSafeAttachDebugger.mockClear();
+
+    fireKeepaliveAlarm();
+
+    expect(mockSafeAttachDebugger).toHaveBeenCalledWith(TAB_ID);
+    expect(mockSafeAttachDebugger).toHaveBeenCalledWith(TAB_ID + 1);
+
+    await stopNetworkCapture("conv-a");
+    await stopNetworkCapture("conv-b");
+  });
+
+  it("ignores an alarm event with an unrelated name", async () => {
+    await startNetworkCapture("conv-a", TAB_ID);
+    mockSafeAttachDebugger.mockClear();
+
+    onAlarmListener({ name: "ws-mcp-keepalive" });
+
+    expect(mockSafeAttachDebugger).not.toHaveBeenCalled();
+
+    await stopNetworkCapture("conv-a");
   });
 });
