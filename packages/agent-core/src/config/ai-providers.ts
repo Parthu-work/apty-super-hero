@@ -45,11 +45,14 @@ export const AI_PROVIDERS = {
   google: {
     name: "Google",
     icon: "🔍",
-    models: [
-      "gemini-2.5-flash-exp",
-      "gemini-1.5-pro",
-      "gemini-1.5-flash",
-    ] as const,
+    // Google's own floating aliases, not a pinned model snapshot — a
+    // pinned id (gemini-2.5-flash-exp, gemini-1.5-pro, ...) reliably goes
+    // stale as Google retires each generation, which is exactly the 404
+    // ("models/X is not found for API version v1beta") users kept hitting
+    // here. "-latest" is remapped by Google itself to whatever the
+    // current production model is, so this list doesn't need to be
+    // manually re-pinned every time Google ships a new generation.
+    models: ["gemini-flash-latest", "gemini-pro-latest"] as const,
     tokenPlaceholder: "AIza...",
     docs: "https://aistudio.google.com/app/apikey",
     providerType: "google",
