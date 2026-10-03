@@ -962,26 +962,30 @@ export function buildDomHealthAuditResult(
     manualSelectorDependency,
     current.analysisCoverage,
   );
+  const failureReasonSuffix = frameAccessibility.sampleFailureReasons?.length
+    ? ` Reason(s) reported: ${frameAccessibility.sampleFailureReasons.join("; ")}.`
+    : "";
+
   if (evidenceState === "FAILED") {
     risks.unshift({
       id: "evidence-failed",
       severity: "high",
       title: "This page could not be inspected at all",
-      evidence: `${frameAccessibility.framesTotal} frame(s) were found in this tab; none of them responded. There is no evidence behind this result — it is not a passing score.`,
+      evidence: `${frameAccessibility.framesTotal} frame(s) were found in this tab; none of them responded. There is no evidence behind this result — it is not a passing score.${failureReasonSuffix}`,
     });
   } else if (evidenceState === "INACCESSIBLE") {
     risks.unshift({
       id: "evidence-inaccessible",
       severity: "high",
       title: "No interactive elements found, and coverage is incomplete",
-      evidence: `${frameAccessibility.framesAccessible} of ${frameAccessibility.framesTotal} frame(s) were inspected and found no interactive elements, but at least one frame could not be inspected — a genuinely empty page cannot be honestly claimed here.`,
+      evidence: `${frameAccessibility.framesAccessible} of ${frameAccessibility.framesTotal} frame(s) were inspected and found no interactive elements, but at least one frame could not be inspected — a genuinely empty page cannot be honestly claimed here.${failureReasonSuffix}`,
     });
   } else if (evidenceState === "PARTIAL_EVIDENCE") {
     risks.unshift({
       id: "evidence-partial",
       severity: "medium",
       title: "Not every frame in this page could be inspected",
-      evidence: `${frameAccessibility.framesAccessible} of ${frameAccessibility.framesTotal} frame(s) responded. The score below reflects only what was actually inspected.`,
+      evidence: `${frameAccessibility.framesAccessible} of ${frameAccessibility.framesTotal} frame(s) responded. The score below reflects only what was actually inspected.${failureReasonSuffix}`,
     });
   }
 

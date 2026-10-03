@@ -27,6 +27,7 @@ import {
   type AuditFrame,
   type FrameAccessibilitySummary,
   getFrameTree,
+  sampleFailureReasons,
   sendFrameMessage,
 } from "./frame-tree.js";
 import type { FrameSignatureEntry } from "./state-fingerprint.js";
@@ -135,19 +136,22 @@ export async function captureApplicationState(
   );
 
   const framesAccessible = frames.filter((f) => f.status === "captured").length;
-  const framesFailed = frames.filter(
+  const failedFrames = frames.filter(
     (f) => f.status === "failed" || f.status === "skipped-navigation-error",
-  ).length;
+  );
 
   const frameAccessibility: FrameAccessibilitySummary = {
     framesTotal: frameTree.length,
     framesAccessible,
-    framesFailed,
+    framesFailed: failedFrames.length,
     // This layer has no additional "reached, but blocked inside" signal
     // beyond a captured/failed split — a frame either answered with a real
     // snapshot or it did not. Reserved for a future signal (e.g. "entirely
     // closed-shadow-DOM content"), never fabricated here.
     framesInaccessible: 0,
+    sampleFailureReasons: sampleFailureReasons(
+      failedFrames.map((f) => f.error),
+    ),
   };
 
   return { available: true, result: { frameTree, frames, frameAccessibility } };

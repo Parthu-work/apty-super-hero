@@ -114,6 +114,30 @@ export interface FrameAccessibilitySummary {
   framesFailed: number;
   /** Reached, but a boundary inside it blocked meaningful inspection (e.g. entirely closed-shadow-DOM content) — a best-effort signal, not exhaustive. */
   framesInaccessible: number;
+  /**
+   * A handful (never the whole list — this is for a human reading one
+   * evidence sentence, not a log dump) of distinct, actual per-frame
+   * failure messages (e.g. "Could not establish connection. Receiving
+   * end does not exist.", "Timed out waiting for this frame to
+   * respond.") — so "none of them responded" can say *why*, instead of
+   * stopping at a bare count. Omitted/empty when nothing failed.
+   */
+  sampleFailureReasons?: string[];
+}
+
+/** Cap on `sampleFailureReasons` — a handful of distinct reasons is enough to explain the failure pattern; more would read as noise in a one-sentence evidence string. */
+export const MAX_SAMPLE_FAILURE_REASONS = 3;
+
+/** Build a short, de-duplicated sample of per-frame failure reasons for `FrameAccessibilitySummary.sampleFailureReasons`. */
+export function sampleFailureReasons(errors: (string | undefined)[]): string[] {
+  const distinct: string[] = [];
+  for (const error of errors) {
+    if (!error) continue;
+    if (distinct.includes(error)) continue;
+    distinct.push(error);
+    if (distinct.length >= MAX_SAMPLE_FAILURE_REASONS) break;
+  }
+  return distinct;
 }
 
 export interface FrameMessageResult<T> {

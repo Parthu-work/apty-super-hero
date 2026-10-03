@@ -460,6 +460,47 @@ describe("buildDomHealthAuditResult — evidence state gates the score end to en
     expect(result.risks[0]?.id).toBe("evidence-failed");
   });
 
+  it("surfaces the actual per-frame failure reason in the evidence text, not just a bare count", () => {
+    const snapshot = makeSnapshot([]);
+    const noFramesReached: FrameAccessibilitySummary = {
+      framesTotal: 2,
+      framesAccessible: 0,
+      framesFailed: 2,
+      framesInaccessible: 0,
+      sampleFailureReasons: [
+        "Could not establish connection. Receiving end does not exist.",
+      ],
+    };
+
+    const result = buildDomHealthAuditResult(
+      [snapshot],
+      "failed",
+      noFramesReached,
+    );
+
+    expect(result.risks[0]?.evidence).toContain(
+      "Could not establish connection. Receiving end does not exist.",
+    );
+  });
+
+  it("omits the reason suffix entirely when no sample reasons were collected (never shows an empty 'Reason(s) reported:')", () => {
+    const snapshot = makeSnapshot([]);
+    const noFramesReached: FrameAccessibilitySummary = {
+      framesTotal: 2,
+      framesAccessible: 0,
+      framesFailed: 2,
+      framesInaccessible: 0,
+    };
+
+    const result = buildDomHealthAuditResult(
+      [snapshot],
+      "failed",
+      noFramesReached,
+    );
+
+    expect(result.risks[0]?.evidence).not.toContain("Reason(s) reported");
+  });
+
   it("still reports a real score for the frames that DID respond when others did not (PARTIAL_EVIDENCE)", () => {
     const reports = Array.from({ length: 20 }, () => makeReport());
     const snapshot = makeSnapshot(reports);

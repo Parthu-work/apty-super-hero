@@ -329,6 +329,12 @@ describe("runDomHealthAudit", () => {
     expect(result.available).toBe(true);
     if (result.available) {
       expect(result.evidenceState).toBe("FAILED");
+      // The actual chrome.runtime.lastError message must reach the
+      // evidence text end to end (frame-tree -> frame-audit ->
+      // dom-health-scoring), not just a bare "none responded" count.
+      expect(result.risks[0]?.evidence).toContain(
+        "Could not establish connection",
+      );
     }
   });
 

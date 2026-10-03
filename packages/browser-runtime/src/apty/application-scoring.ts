@@ -45,7 +45,10 @@ import {
   scoreSelectorStability,
   WEIGHTS,
 } from "./dom-health-scoring.js";
-import type { FrameAccessibilitySummary } from "./frame-tree.js";
+import {
+  type FrameAccessibilitySummary,
+  sampleFailureReasons,
+} from "./frame-tree.js";
 
 export type PageAuditStatus =
   | "completed"
@@ -508,6 +511,11 @@ export function buildApplicationAuditResult(
           framesAccessible: framesInspected,
           framesFailed: framesFailedAcrossPages,
           framesInaccessible: framesInaccessibleAcrossPages,
+          sampleFailureReasons: sampleFailureReasons(
+            completed.flatMap(
+              (p) => p.frameAccessibility?.sampleFailureReasons ?? [],
+            ),
+          ),
         };
   const totalAnalyzedForEvidence = sumField(
     completed,
