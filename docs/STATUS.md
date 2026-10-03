@@ -1,7 +1,17 @@
 # Status — v6 mega-prompt round
 
 Tracks progress against the v6 mega-prompt's 13 work packages (WP1–WP13),
-audited against `main` at `6b84f4a`. Updated before stopping, per rule 8.
+originally audited against `main` at `6b84f4a`. Updated before stopping,
+per rule 8.
+
+**Update**: the WP1+WP2 checkpoint below was applied and pushed —
+`origin/main` is now at `618f9a7` (the WP1+WP2 checkpoint's own last
+commit). The "Post-WP2: ad-hoc fixes and features" section below tracks a
+new round of work on top of that, driven directly by the owner reporting
+real bugs while testing the build, not by the next numbered work package
+(WP3) — flagged explicitly since it's a process deviation from "one work
+package per session," made because the owner asked for these specific
+fixes by name, not because the numbered-WP process was abandoned.
 
 ## Phase 0
 
@@ -118,14 +128,42 @@ Not started this round.
 `tooling/scripts/verify-quiet.sh typecheck lint test build audit` is green
 as of the last commit (`d2a573e`) on `claude/confident-hawking-1b8l61`.
 
-## Delivery
+## Delivery (WP1+WP2 checkpoint)
 
-Per rule 9, nothing has been pushed to `main` or any remote. All 8 commits
-this round (`9257066` through `d2a573e`) are local to
-`claude/confident-hawking-1b8l61`, on top of `main`'s `6b84f4a`. A
-lightweight checkpoint (git bundle + `SHA256SUMS.txt` + `CHECKPOINT.md`,
-no build zip) was produced and handed off after WP1; a corresponding
-checkpoint covering WP1+WP2 together follows this update. Delivery
-artifacts per v6 §8/§13's full format (build zip, full secret scan,
-`DELIVERY.md`) are still open per the same interpretation flagged after
-WP1 — §13 reads as gated on all 13 work packages, not any one alone.
+Applied — `origin/main` is at `618f9a7`, the last commit of this
+checkpoint. Per rule 9, this session never pushed it itself; the owner
+applied the handed-off bundle.
+
+## Post-WP2: ad-hoc fixes and features (this round, on top of `618f9a7`)
+
+Driven by the owner testing the real build and reporting concrete bugs,
+plus one explicitly-requested feature. 5 commits:
+
+| Commit | What |
+|---|---|
+| `eef9164` | Google's AI-provider model dropdown used 3 dead pinned model ids (`gemini-2.5-flash-exp` never existed; `gemini-1.5-pro`/`gemini-1.5-flash` since retired — confirmed live against a real account's 404). Switched to Google's own floating aliases (`gemini-flash-latest`, `gemini-pro-latest`), which Google itself remaps as generations retire, so this list doesn't need re-pinning again. |
+| `e055531` | Anthropic's model list was similarly pinned to 3 retired snapshots (`claude-sonnet-4-20250514` etc.) — updated to the current Claude 5 family. Unlike Google, Anthropic has no floating-alias convention, so this one will need updating again by hand once these are themselves superseded. |
+| `7643641` | DOM Health's expanded report card had no scroll boundary of its own — it renders inside the chat panel's footer area (promptExtras), not the message list (the only ancestor with a real scroll container), so a large report could get silently clipped by the outer shell's `overflow-hidden` with nothing to scroll. Gave the report its own `max-h-[60vh] overflow-y-auto`. |
+| `5217718` | **New feature**: network capture (`start_network_capture`/`stop_network_capture`) now captures actual response bodies for XHR/Fetch requests with a textual mimeType (redacted, truncated at 8000 chars, skipped above 1MB) — directly answers "what did segments.json return" against whatever page is being debugged, since the Apty Widget runs embedded in that page and CDP already sees its network calls. Extracted the decode/redact/bound helpers that already existed (privately) in the cross-extension body-inspection path into a shared `resource-body-utils.ts` so both paths use identical logic. |
+| `e332eeb` | DOM Health's "no frame responded" evidence text now includes the actual per-frame failure reason (timeout message, `chrome.runtime.lastError`'s real message, etc.) instead of stopping at a bare frame count — the detail already existed per-frame, it was just being discarded before reaching the UI. |
+
+**Explicitly NOT done, flagged rather than silently skipped:**
+
+- **The other 11 AI providers' model lists** (OpenAI, Groq, Mistral, DeepSeek, etc.) were not audited/fixed. This sandbox's network access can't reach most providers' own docs reliably, and web search returned inconsistent, partly-fabricated-looking results for some (e.g. an unverifiable claim about "GPT-6"/"GPT-5.6") — replacing a possibly-stale id with a confidently-wrong invented one would be worse than leaving it. Fix on request, same as Google, once a real failure is reported.
+- **`get_network_diagnostics`** (`devtools.ts`, the older fixed-window network tool) has the identical "never captures response bodies" gap as `start_network_capture` had — not extended this round. `start_network_capture`/`stop_network_capture` is the one the capture-then-inspect workflow actually uses, so it was prioritized; the fixed-window tool is a known follow-up, not forgotten.
+- **Cross-extension log/body pulling from a separate Apty Client/Studio extension** (the "Apty integration" panel) remains gated on that *other* product shipping its `apty-debug-agent:*` message-contract cooperation (`externally_connectable` allowlisting this extension's id) — a real product dependency this repo cannot unilaterally fix, already documented in `DECISIONS.md`. Investigated and confirmed still accurate this round, not re-attempted.
+- **A known, deliberate tradeoff in the new body-capture feature**: a JSON response key literally named `name` (or `email`/`phone`/etc.) is redacted to `<REDACTED>` by the same `redactSensitiveText` every other response body in this codebase already goes through — this is existing, consistent, conservative behavior, not a new bug, but it does mean a real API response containing a field exactly named `name` will show that field masked. Not loosened without being asked to, since doing so would be a real privacy-tradeoff decision made silently.
+- **"Fix all gaps and bugs, make it demo ready"** — not attempted as a single unscoped action. Only the specifically-named items above were addressed.
+
+## Verification
+
+`tooling/scripts/verify-quiet.sh typecheck lint test build audit` is green
+as of the last commit (`e332eeb`) on `claude/confident-hawking-1b8l61`.
+
+## Delivery (this round)
+
+Per rule 9, nothing has been pushed. The 5 commits above are local to
+`claude/confident-hawking-1b8l61`, on top of `origin/main`'s `618f9a7` —
+confirmed a clean fast-forward. This round's handoff includes a production
+build zip (the owner asked to actually demo it), a git bundle, and exact
+push-to-main commands.
