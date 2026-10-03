@@ -33,10 +33,15 @@ export const AI_PROVIDERS = {
     name: "Anthropic",
     icon: "🧠",
     host: "https://api.anthropic.com",
+    // claude-sonnet-4-20250514/claude-3-5-sonnet-20241022/claude-3-opus-20240229
+    // are all superseded generations — kept pinned-snapshot ids (not
+    // floating aliases, unlike Google/Mistral above) since that's
+    // Anthropic's own naming convention; update this list again once
+    // these current ones are themselves superseded.
     models: [
-      "claude-sonnet-4-20250514",
-      "claude-3-5-sonnet-20241022",
-      "claude-3-opus-20240229",
+      "claude-opus-5-5",
+      "claude-sonnet-5-5",
+      "claude-haiku-4-5-20251001",
     ] as const,
     tokenPlaceholder: "sk-ant-...",
     docs: "https://console.anthropic.com/settings/keys",
