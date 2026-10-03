@@ -186,9 +186,39 @@ investigation machinery runs at all.
 `tooling/scripts/verify-quiet.sh typecheck lint test build audit` is green
 as of the last commit (`c17c241`) on `claude/confident-hawking-1b8l61`.
 
+## Delivery (post-WP2, round 2)
+
+The owner applied this round's bundle themselves (not this session) —
+confirmed via `git fetch origin main`: `origin/main` reached `8d2f161`, a
+clean fast-forward from `1dc8089`.
+
+## Post-WP2, round 3: fresh-install provider-seeding bug, found live
+
+The owner loaded the pushed build (`8d2f161`) on a genuinely fresh install
+(no prior `chrome.storage.local` state) and hit "No providers found" on
+the AI Configuration tab — the built-in OpenAI/Anthropic/Google providers
+never appeared. 1 commit, on top of `8d2f161`:
+
+| Commit | What |
+|---|---|
+| `c510f4f` | `SettingsPage`'s settings-load effect only ran its provider-seeding logic (`mergeWithDefaultProviders`) when `storageAdapter.load()` returned a non-null object — i.e. when *some* settings had already been written, even an empty `{}`. A real fresh install has no settings key at all, so `load()` resolves to `null`, the whole seeding branch was skipped, and `customModels` stayed `[]`. Fixed by treating a `null` load result the same as `{}`. Added a regression test covering exactly this (`load` resolving `null`). |
+
+This was already flagged as a real, unverified risk in a prior audit
+(`docs/audit/UI_AUDIT.md`'s "first-run edge case in Settings' provider
+seeding" item) — that audit couldn't confirm whether `chrome.storage.local`
+really returns a bare `null`/absent key on first install vs. an empty
+object, since it only had a mocked-storage screenshot harness, not a real
+extension load. The owner's live report confirms it does, and that the bug
+is real in production, not just in the mocked harness.
+
+## Verification (round 3)
+
+`tooling/scripts/verify-quiet.sh typecheck lint test build audit` is green
+as of `c510f4f` on `claude/confident-hawking-1b8l61`.
+
 ## Delivery (this round)
 
-Per rule 9, nothing has been pushed. The 3 commits above are local to
-`claude/confident-hawking-1b8l61`, on top of `origin/main`'s `1dc8089` —
+Per rule 9, nothing has been pushed. `c510f4f` is local to
+`claude/confident-hawking-1b8l61`, on top of `origin/main`'s `8d2f161` —
 confirmed a clean fast-forward. This round's handoff includes a production
 build zip, a git bundle, and exact push-to-main commands.
