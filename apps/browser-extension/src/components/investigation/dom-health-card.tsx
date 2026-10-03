@@ -658,7 +658,7 @@ export function DomHealthCard() {
       </div>
 
       {expanded && (
-        <div className="animate-in fade-in slide-in-from-top-1 border-t px-3 pb-3 pt-2 duration-200">
+        <div className="animate-in fade-in slide-in-from-top-1 max-h-[60vh] overflow-y-auto border-t px-3 pb-3 pt-2 duration-200">
           {hasResult && (
             <div className="mb-2 flex gap-1.5 text-[11px]">
               <button
