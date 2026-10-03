@@ -2,6 +2,33 @@ import { describe, expect, it } from "vitest";
 import { planInvestigation } from "./investigation-planner";
 
 describe("planInvestigation", () => {
+  it("matches the retrieve-resource-data pattern for a direct data request, not a failure to diagnose", () => {
+    const plan = planInvestigation(
+      "User wants to retrieve the segments.json resource loaded by the Apty Client extension.",
+    );
+
+    expect(plan.category).toBe("retrieve-resource-data");
+    expect(plan.steps.map((s) => s.id)).toEqual([
+      "start-capture",
+      "reproduce-and-stop",
+      "fallback-cross-extension",
+    ]);
+    expect(plan.steps[0]?.suggestedTools).toContain("start_network_capture");
+    expect(plan.steps[1]?.suggestedTools).toContain("stop_network_capture");
+  });
+
+  it("matches retrieve-resource-data for plain 'get X.json' phrasing", () => {
+    const plan = planInvestigation("get segments.json");
+    expect(plan.category).toBe("retrieve-resource-data");
+  });
+
+  it("does not misroute an actual failure report into retrieve-resource-data", () => {
+    const plan = planInvestigation(
+      "The tooltip isn't showing on the Accounts page",
+    );
+    expect(plan.category).toBe("tooltip-not-showing");
+  });
+
   it("matches the tooltip-not-showing pattern", () => {
     const plan = planInvestigation(
       "The tooltip isn't showing on the Accounts page",
@@ -58,6 +85,7 @@ describe("planInvestigation", () => {
 
   it("every step has a non-empty description and at least one suggested tool", () => {
     for (const problem of [
+      "get segments.json",
       "tooltip not showing",
       "studio can't select this",
       "works in studio but not production",

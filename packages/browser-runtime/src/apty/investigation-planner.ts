@@ -46,6 +46,45 @@ function step(
 
 const PLAN_TEMPLATES: PlanTemplate[] = [
   {
+    // Deliberately checked first: "get me segments.json" is a data-
+    // retrieval request, not a failure to diagnose — routing it through
+    // the hypothesis/verification-shaped plans below (which is what used
+    // to happen, since nothing matched and it fell to GENERIC_PLAN_STEPS)
+    // led the model to connect_apty_client/start_investigation instead of
+    // the tool that can actually answer it.
+    category: "retrieve-resource-data",
+    matches: (p) =>
+      (p.includes(".json") ||
+        p.includes("resource") ||
+        p.includes("network response") ||
+        p.includes("response body") ||
+        p.includes("response data")) &&
+      (p.includes("get ") ||
+        p.includes("retrieve") ||
+        p.includes("fetch") ||
+        p.includes("show me") ||
+        p.includes("what does") ||
+        p.includes("pull ") ||
+        p.includes("data from")),
+    steps: [
+      step(
+        "start-capture",
+        "Start a network capture (start_network_capture) so the resource's actual request/response can be observed as it happens — this reads the page's own network traffic directly and needs no cooperation from any other extension",
+        ["start_network_capture"],
+      ),
+      step(
+        "reproduce-and-stop",
+        "Ask the user to reproduce the action that triggers this resource (or perform it yourself), then stop the capture and find the matching request's bodyPreview field in the result",
+        ["stop_network_capture"],
+      ),
+      step(
+        "fallback-cross-extension",
+        "If the resource never appears in the page-level capture (e.g. it's fetched independently by a cooperating extension's own service worker, not the page itself), try the cross-extension resource inspector instead",
+        ["connect_apty_client", "inspect_extension_network"],
+      ),
+    ],
+  },
+  {
     category: "tooltip-not-showing",
     matches: (p) => p.includes("tooltip"),
     steps: [
@@ -83,7 +122,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
       step(
         "check-network",
         "Check for failed requests related to tooltip content",
-        ["get_network_diagnostics"],
+        ["get_network_diagnostics", "start_network_capture"],
       ),
       step("correlate", "Correlate the collected evidence", [
         "get_investigation_timeline",
@@ -167,7 +206,11 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
       step(
         "check-content-loading",
         "Check whether content loaded and target resolution succeeded on production",
-        ["get_apty_widget_diagnostics", "get_network_diagnostics"],
+        [
+          "get_apty_widget_diagnostics",
+          "get_network_diagnostics",
+          "start_network_capture",
+        ],
       ),
       step(
         "analyze-selector-on-production",
@@ -225,6 +268,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
       ),
       step("check-network", "Check network requests around the trigger", [
         "get_network_diagnostics",
+        "start_network_capture",
       ]),
       step("correlate", "Correlate collected evidence", [
         "get_investigation_timeline",
@@ -265,7 +309,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
       step(
         "check-network",
         "Check for failed requests loading Client/Widget resources",
-        ["get_network_diagnostics"],
+        ["get_network_diagnostics", "start_network_capture"],
       ),
       step(
         "check-service-worker",
@@ -305,6 +349,7 @@ const GENERIC_PLAN_STEPS: Array<Omit<PlanStep, "status">> = [
   ]),
   step("check-network", "Check for related failed network requests", [
     "get_network_diagnostics",
+    "start_network_capture",
   ]),
   step(
     "check-studio",
