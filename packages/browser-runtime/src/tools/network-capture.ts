@@ -54,7 +54,7 @@ export const startNetworkCaptureTool = tool({
 export const stopNetworkCaptureTool = tool({
   name: "stop_network_capture",
   description:
-    "Stop the network capture started by start_network_capture and return every request seen while it was running — correlated request/response pairs, status codes, resource types, and failures. Failed/4xx/5xx requests are also recorded as investigation evidence (see get_investigation_timeline). Check session.truncated — if true, the oldest requests were dropped past the 2000-request cap and the returned set is incomplete. " +
+    "Stop the network capture started by start_network_capture and return every request seen while it was running — correlated request/response pairs, status codes, resource types, and failures. For XHR/Fetch requests with a textual (JSON/text) response under ~1MB, the actual response body is included too (redacted, truncated at 8000 chars — see bodyTruncated/bodyTooLarge/bodyUnavailable on each request) — e.g. if the user asks 'what did segments.json return', find the matching request by URL in this result and read its bodyPreview. Failed/4xx/5xx requests are also recorded as investigation evidence (see get_investigation_timeline). Check session.truncated — if true, the oldest requests were dropped past the 2000-request cap and the returned set is incomplete. " +
     "Returns an error if no capture is currently running for this conversation.",
   parameters: z.object({
     onlyErrors: z

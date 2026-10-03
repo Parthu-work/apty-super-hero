@@ -33,11 +33,20 @@
  * the conversation's capture slot into "busy" if the tab closes mid-capture.
  */
 import { generateId } from "@apty/agent-core";
-import { redactHeaders, redactUrl } from "@apty/debug-contract";
+import {
+  redactHeaders,
+  redactSensitiveText,
+  redactUrl,
+} from "@apty/debug-contract";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
 import { recordEvidence } from "./evidence-store.js";
 import { getInvestigation } from "./investigation-session.js";
+import {
+  decodeBase64Utf8,
+  isTextualMime,
+  MAX_INLINE_BODY_CHARS,
+} from "./resource-body-utils.js";
 
 export interface CapturedNetworkRequest {
   requestId: string;
@@ -55,6 +64,14 @@ export interface CapturedNetworkRequest {
   failed?: boolean;
   errorText?: string;
   timestamp: number;
+  /** Redacted, truncated-at-MAX_INLINE_BODY_CHARS response body text — only ever populated for XHR/Fetch requests with a textual mimeType; see `maybeFetchResponseBody`. */
+  bodyPreview?: string;
+  /** True if the real (redacted) body was longer than MAX_INLINE_BODY_CHARS and bodyPreview was cut off. */
+  bodyTruncated?: boolean;
+  /** True if this response's encoded size exceeded MAX_BODY_FETCH_BYTES, so no body fetch was attempted at all. */
+  bodyTooLarge?: boolean;
+  /** True if a body fetch was attempted (textual XHR/Fetch, under the size cap) but CDP couldn't return it (e.g. the request raced the debugger detaching). */
+  bodyUnavailable?: boolean;
 }
 
 export type NetworkCaptureStatus = "capturing" | "stopped";
@@ -106,6 +123,9 @@ const HEARTBEAT_MS = 15000;
 
 /** Per-conversation cap on captured requests, oldest evicted first — mirrors evidence-store.ts's MAX_EVIDENCE_PER_CONVERSATION so an unbounded reproduction on a noisy page can't grow memory without limit. */
 export const MAX_CAPTURED_REQUESTS = 2000;
+
+/** Skip fetching a response body above this encoded size entirely (never even ask CDP for it) — a multi-MB response gets truncated down to MAX_INLINE_BODY_CHARS anyway, so pulling the whole thing into memory first buys nothing. Checked against `Network.loadingFinished`'s `encodedDataLength`, which is the compressed-over-the-wire size, not necessarily the decoded text length — an approximation, not an exact bound. */
+export const MAX_BODY_FETCH_BYTES = 1_000_000;
 
 function toPublicSession(active: ActiveCapture): NetworkCaptureSession {
   return {
@@ -175,6 +195,66 @@ function ensureCleanupListenersRegistered(): void {
       forceCleanupForTab(source.tabId);
     }
   });
+}
+
+/**
+ * Fire-and-forget fetch of one response's body via CDP, writing the
+ * result back onto the already-recorded request object once it resolves
+ * (re-looked-up by id each time, in case eviction or a stop happened
+ * while this was in flight — never writes through a stale reference).
+ * Only attempted for XHR/Fetch requests with a textual mimeType under
+ * MAX_BODY_FETCH_BYTES: scripts/stylesheets/images/fonts are not "data"
+ * in the sense this exists for (the user asking "get me segments.json's
+ * response"), and eagerly pulling every textual response — including
+ * multi-hundred-KB minified JS bundles, which also satisfy
+ * `isTextualMime` — would dominate capture memory for no benefit. Never
+ * throws; a failure just leaves `bodyUnavailable: true` on the request.
+ */
+async function maybeFetchResponseBody(
+  tabId: number,
+  requests: Map<string, CapturedNetworkRequest>,
+  requestId: string,
+  encodedDataLength: number | undefined,
+): Promise<void> {
+  const req = requests.get(requestId);
+  if (!req) return;
+  if (req.resourceType !== "XHR" && req.resourceType !== "Fetch") return;
+  if (!isTextualMime(req.mimeType)) return;
+
+  if (
+    typeof encodedDataLength === "number" &&
+    encodedDataLength > MAX_BODY_FETCH_BYTES
+  ) {
+    req.bodyTooLarge = true;
+    return;
+  }
+
+  try {
+    const result = (await new CdpCommander(tabId).sendCommand(
+      "Network.getResponseBody",
+      { requestId },
+    )) as { body?: string; base64Encoded?: boolean } | undefined;
+
+    const current = requests.get(requestId);
+    if (!current) return; // evicted, or the capture stopped while this was in flight
+
+    if (!result || result.body === undefined) {
+      current.bodyUnavailable = true;
+      return;
+    }
+
+    const decoded = result.base64Encoded
+      ? decodeBase64Utf8(result.body)
+      : result.body;
+    const redacted = redactSensitiveText(decoded);
+    current.bodyTruncated = redacted.length > MAX_INLINE_BODY_CHARS;
+    current.bodyPreview = current.bodyTruncated
+      ? redacted.slice(0, MAX_INLINE_BODY_CHARS)
+      : redacted;
+  } catch {
+    const current = requests.get(requestId);
+    if (current) current.bodyUnavailable = true;
+  }
 }
 
 export interface StartCaptureResult {
@@ -247,6 +327,13 @@ export async function startNetworkCapture(
         req.failed = true;
         req.errorText = p.errorText;
       }
+    } else if (method === "Network.loadingFinished") {
+      void maybeFetchResponseBody(
+        tabId,
+        requests,
+        p.requestId,
+        p.encodedDataLength,
+      );
     }
   };
 

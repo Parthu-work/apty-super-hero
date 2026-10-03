@@ -47,8 +47,19 @@
 import { redactSensitiveText } from "@apty/debug-contract";
 import { recordEvidence } from "./evidence-store.js";
 import { classifyLogEntry, type LogCategory } from "./log-classification.js";
+import {
+  decodeBase64Utf8,
+  isTextualMime,
+  MAX_INLINE_BODY_CHARS,
+  resourceNameFor,
+} from "./resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
 import type { AptyObservedResource } from "./types.js";
+
+// Re-exported for existing consumers (apty/index.ts) — the canonical
+// definition now lives in resource-body-utils.ts, shared with
+// network-capture-session.ts's CDP-based body capture.
+export { MAX_INLINE_BODY_CHARS };
 
 export type ExtensionCaptureEntry = AptyObservedResource;
 
@@ -224,12 +235,6 @@ export function getExtensionConnectionStatus(
 // Resource matching (deterministic — never left to the model to guess)
 // ---------------------------------------------------------------------------
 
-function resourceNameFor(url: string): string {
-  const withoutQuery = url.split("?")[0] ?? url;
-  const segments = withoutQuery.split("/").filter(Boolean);
-  return segments[segments.length - 1] || withoutQuery;
-}
-
 /**
  * Match resources the Apty Client reported against a resource query.
  * Supports an exact filename (`segments.json`), a path/URL suffix
@@ -358,23 +363,6 @@ export async function listServiceWorkerLogs(
 // ---------------------------------------------------------------------------
 // Response body retrieval
 // ---------------------------------------------------------------------------
-
-/** Preview cap for inline chat display — the full (redacted) body is always stored as evidence (see get_investigation_timeline), this just keeps the chat response readable. */
-export const MAX_INLINE_BODY_CHARS = 8000;
-
-const TEXTUAL_MIME_PATTERN =
-  /^(text\/|application\/json|application\/javascript|application\/xml|application\/x-www-form-urlencoded)/i;
-
-function isTextualMime(mimeType: string | undefined): boolean {
-  return !mimeType || TEXTUAL_MIME_PATTERN.test(mimeType);
-}
-
-function decodeBase64Utf8(base64: string): string {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-}
 
 export type InspectResourceStatus =
   | "ok"

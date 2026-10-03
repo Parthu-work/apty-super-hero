@@ -51,10 +51,19 @@ import {
   __simulateForcedCleanupForTab,
   getActiveCaptureCount,
   getNetworkCaptureStatus,
+  MAX_BODY_FETCH_BYTES,
   MAX_CAPTURED_REQUESTS,
   startNetworkCapture,
   stopNetworkCapture,
 } from "./network-capture-session";
+import { MAX_INLINE_BODY_CHARS } from "./resource-body-utils";
+
+/** Waits for any already-scheduled microtasks (e.g. an in-flight `maybeFetchResponseBody` promise chain) to settle before the test asserts on their result. */
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 const TAB_ID = 42;
 
@@ -327,5 +336,289 @@ describe("network-capture-session — request cap", () => {
         (r) => r.requestId === `req-${MAX_CAPTURED_REQUESTS}`,
       ),
     ).toBe(true);
+  });
+});
+
+describe("network-capture-session — response body capture", () => {
+  /** Configures mockSendCommand to answer Network.getResponseBody with a fixed result, while leaving Network.enable/disable resolving as the other tests expect. */
+  function mockResponseBody(
+    result: { body?: string; base64Encoded?: boolean } | undefined,
+  ) {
+    mockSendCommand.mockImplementation((method: string) => {
+      if (method === "Network.getResponseBody") {
+        return Promise.resolve(result);
+      }
+      return Promise.resolve(undefined);
+    });
+  }
+
+  it("fetches and attaches the body for an XHR request with a textual mimeType", async () => {
+    mockResponseBody({
+      body: JSON.stringify([{ id: 4385, segmentName: "sales-team" }]),
+      base64Encoded: false,
+    });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-segments",
+      request: { url: "https://example.com/segments.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-segments",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-segments",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    const req = stopped.requests?.find((r) => r.requestId === "req-segments");
+    expect(req?.bodyPreview).toBe(
+      JSON.stringify([{ id: 4385, segmentName: "sales-team" }]),
+    );
+    expect(req?.bodyTruncated).toBe(false);
+    expect(req?.bodyTooLarge).toBeUndefined();
+    expect(req?.bodyUnavailable).toBeUndefined();
+  });
+
+  it("redacts a JSON key literally named 'name' as PII — same existing behavior as every other redacted path in this codebase, not special-cased for response bodies", async () => {
+    mockResponseBody({
+      body: JSON.stringify([{ id: 4385, name: "sales-team" }]),
+      base64Encoded: false,
+    });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-segments",
+      request: { url: "https://example.com/segments.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-segments",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-segments",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    const req = stopped.requests?.find((r) => r.requestId === "req-segments");
+    expect(req?.bodyPreview).toBe(
+      JSON.stringify([{ id: 4385, name: "<REDACTED>" }]),
+    );
+  });
+
+  it("decodes a base64Encoded body before redaction/truncation", async () => {
+    const raw = JSON.stringify({ hello: "world" });
+    mockResponseBody({
+      body: Buffer.from(raw, "utf-8").toString("base64"),
+      base64Encoded: true,
+    });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/data.json", method: "GET" },
+      type: "Fetch",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyPreview).toBe(raw);
+  });
+
+  it("redacts sensitive content inside the response body", async () => {
+    mockResponseBody({
+      body: JSON.stringify({ apiKey: "sk-super-secret-value", ok: true }),
+      base64Encoded: false,
+    });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/config.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyPreview).not.toContain(
+      "sk-super-secret-value",
+    );
+    expect(stopped.requests?.[0].bodyPreview).toContain("ok");
+  });
+
+  it("truncates a body longer than MAX_INLINE_BODY_CHARS and sets bodyTruncated", async () => {
+    const longBody = "x".repeat(MAX_INLINE_BODY_CHARS + 500);
+    mockResponseBody({ body: longBody, base64Encoded: false });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/big.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: longBody.length,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyTruncated).toBe(true);
+    expect(stopped.requests?.[0].bodyPreview?.length).toBe(
+      MAX_INLINE_BODY_CHARS,
+    );
+  });
+
+  it("skips the fetch entirely and sets bodyTooLarge above MAX_BODY_FETCH_BYTES", async () => {
+    mockResponseBody({ body: "should never be used", base64Encoded: false });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/huge.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: MAX_BODY_FETCH_BYTES + 1,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyTooLarge).toBe(true);
+    expect(stopped.requests?.[0].bodyPreview).toBeUndefined();
+    expect(mockSendCommand).not.toHaveBeenCalledWith(
+      "Network.getResponseBody",
+      expect.anything(),
+    );
+  });
+
+  it("does not attempt a body fetch for a non-XHR/Fetch resource (e.g. a script)", async () => {
+    mockResponseBody({ body: "console.log(1)", base64Encoded: false });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/app.js", method: "GET" },
+      type: "Script",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "application/javascript" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyPreview).toBeUndefined();
+    expect(stopped.requests?.[0].bodyTooLarge).toBeUndefined();
+  });
+
+  it("does not attempt a body fetch for a non-textual mimeType (e.g. an image)", async () => {
+    mockResponseBody({ body: "binarydata", base64Encoded: true });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/photo.png", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "image/png" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyPreview).toBeUndefined();
+  });
+
+  it("marks bodyUnavailable when CDP returns no body", async () => {
+    mockResponseBody(undefined);
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/data.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyUnavailable).toBe(true);
+  });
+
+  it("marks bodyUnavailable, without throwing, when the CDP call itself rejects", async () => {
+    mockSendCommand.mockImplementation((method: string) => {
+      if (method === "Network.getResponseBody") {
+        return Promise.reject(new Error("debugger detached"));
+      }
+      return Promise.resolve(undefined);
+    });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      request: { url: "https://example.com/data.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-1",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-1",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyUnavailable).toBe(true);
   });
 });
