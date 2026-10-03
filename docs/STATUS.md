@@ -155,15 +155,40 @@ plus one explicitly-requested feature. 5 commits:
 - **A known, deliberate tradeoff in the new body-capture feature**: a JSON response key literally named `name` (or `email`/`phone`/etc.) is redacted to `<REDACTED>` by the same `redactSensitiveText` every other response body in this codebase already goes through — this is existing, consistent, conservative behavior, not a new bug, but it does mean a real API response containing a field exactly named `name` will show that field masked. Not loosened without being asked to, since doing so would be a real privacy-tradeoff decision made silently.
 - **"Fix all gaps and bugs, make it demo ready"** — not attempted as a single unscoped action. Only the specifically-named items above were addressed.
 
+## Delivery (post-WP2 round)
+
+Applied — `origin/main` is at `1dc8089`, the last commit of that round.
+
+## Post-WP2, round 2: live-testing bugs found via the "get segments.json" workflow
+
+The owner actually drove the agent through real chat against a real page
+(`mingle-portal.inforcloudsuite.com`) and hit three distinct, concrete
+bugs in the exact feature just shipped (network response-body capture).
+All three were found from a single real transcript, not speculation. 3
+commits, on top of `1dc8089`:
+
+| Commit | What |
+|---|---|
+| `7c37064` | Investigation planner: no `PLAN_TEMPLATE` matched a direct resource-retrieval request ("get segments.json"), so it fell through to the generic failure-diagnosis plan, whose "check-network" step only ever suggested `get_network_diagnostics` — never the body-capturing `start_network_capture`/`stop_network_capture`. Added a dedicated `retrieve-resource-data` category, checked first; added the capture tool alongside the old one in every existing check-network step too. |
+| `ddd0f06` | **The actual blocker in practice**: "stop the capture" kept turning into "start a new one." Root cause — MV3 suspends an idle service worker after ~30s, and the owner's real rate-limit waits (26-56s between turns) were long enough to wipe the in-memory capture state every time, exactly matching the risk `network-capture-session.ts`'s own header comment already named but didn't defend against. Fixed with a `chrome.alarms` keepalive, reusing the exact mechanism `ws-mcp-server.ts` already uses for the identical problem. 7 new tests. |
+| `c17c241` | **The real root cause, bigger than the planner gap**: the system prompt's own "APTY CLIENT EXTENSION RESOURCE INSPECTION" section explicitly told the model, using "give me segments.json" as its own literal example, to use the cross-extension path (`connect_apty_client`/`inspect_extension_network`) — confirmed broken until the Apty Client ships cooperation — and never mentioned `start_network_capture`/`stop_network_capture` at all. This fired on the very first turn, before `start_investigation` was ever called, so the planner fix alone couldn't have prevented it. Rewrote the section to require trying the capture-based path first, demoting the cross-extension path to an explicit fallback. |
+
+Each was found and fixed in the order the real transcript surfaced it —
+planner gap first, then the keepalive issue once a longer-running
+real test exposed it, then the system-prompt issue once it became clear
+the model wasn't even reaching the planner's fixed logic. `c17c241` is
+very likely the single highest-impact fix of the three for real usage,
+since it's the first instruction the model consults, before any
+investigation machinery runs at all.
+
 ## Verification
 
 `tooling/scripts/verify-quiet.sh typecheck lint test build audit` is green
-as of the last commit (`e332eeb`) on `claude/confident-hawking-1b8l61`.
+as of the last commit (`c17c241`) on `claude/confident-hawking-1b8l61`.
 
 ## Delivery (this round)
 
-Per rule 9, nothing has been pushed. The 5 commits above are local to
-`claude/confident-hawking-1b8l61`, on top of `origin/main`'s `618f9a7` —
+Per rule 9, nothing has been pushed. The 3 commits above are local to
+`claude/confident-hawking-1b8l61`, on top of `origin/main`'s `1dc8089` —
 confirmed a clean fast-forward. This round's handoff includes a production
-build zip (the owner asked to actually demo it), a git bundle, and exact
-push-to-main commands.
+build zip, a git bundle, and exact push-to-main commands.
