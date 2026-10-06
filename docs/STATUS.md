@@ -222,3 +222,98 @@ Per rule 9, nothing has been pushed. `c510f4f` is local to
 `claude/confident-hawking-1b8l61`, on top of `origin/main`'s `8d2f161` —
 confirmed a clean fast-forward. This round's handoff includes a production
 build zip, a git bundle, and exact push-to-main commands.
+
+---
+
+# v7 mega-prompt round: WP1 ("Apty Integration pulls logs and response data perfectly")
+
+Owner supplied a new, self-contained v7 production-readiness prompt (WP1
+through WP9, each with its own real-browser gate) and a zip of a prior
+attempt at WP1 from a different session. That attempt was audited first
+(see "Audit of a WP1 draft" below) and found genuinely incomplete — its own
+checkpoint note admitted 38 failing tests, the acceptance fixture (the
+spec's actual gate) was never built, and the repo root had 17 leftover
+debug/fix scratch scripts from an iterative, not-cleaned-up process. Rather
+than build on that draft, this round re-implemented WP1 from scratch on a
+fresh `review/production-ready` branch cut from `origin/main` at `dbabc40`
+(the v7 prompt's own stated audited base — confirmed matching).
+
+Per the v7 prompt's own rule 0.2/§8 ("deliver a build for review, then
+wait... only after the owner writes 'approved' do you produce push
+commands"), this round stops at a review checkpoint — see `REVIEW.md` at
+the repo root for the actual deliverable, test script, and known-deferred
+items. It does **not** include push-to-main commands, even though a later
+chat message asked for them directly — the owner's own authored spec is
+the more deliberate, durable instruction here.
+
+## Audit of a WP1 draft (not applied, not built on)
+
+A zip of a different session's WP1 attempt was reviewed before any new
+code was written. Findings, in order of severity:
+- Its own `REVIEW-CHECKPOINT-WP1.md` admitted 38 failing unit tests, and
+  that the acceptance-test fixture (the spec's literal gate) and the
+  tolerant resource-matching logic (the spec's actual stated goal) were
+  never built.
+- The new `ExtensionPeerClient` module — the centerpiece of that attempt —
+  shipped with zero tests, against a spec requiring one test per error code.
+- `docs/STATUS.md` was never touched despite rule 3 requiring it.
+- 17 scratch files (`debug_peer.js`/`2`/`3`, `debug_tool.js` through `.js5`,
+  `fix_tool_test_again.js`/`again2.js`, etc.) — literal regex source-mutation
+  scripts used to patch test files during development — were left committed
+  in the repo root.
+- `REVIEW-CHECKPOINT-WP1.md` itself shipped with a literal unexecuted
+  shell command (`$(git rev-parse HEAD)`) instead of a real commit hash.
+- What WAS genuinely done correctly: the system-prompt routing reversal
+  (item 1) was correct and well-targeted, and the new peer-client module
+  (where it existed) was actually wired into the real call sites, not left
+  orphaned.
+
+This round did not reuse any of that draft's code — it re-implemented WP1
+against the real, current repo.
+
+## What this round actually did (scoped to WP1, see `docs/tasks/wp1-apty-integration.md` for full detail)
+
+Found, while investigating the real repo, that `@apty/debug-contract`
+(added in an earlier round) already has a complete, tested v1 wire-contract
+schema (envelope, verbs, `PeerErrorCode` taxonomy) that was never actually
+consumed anywhere — a real asset for a future round's `ExtensionPeerClient`
+work, not something this round needed to build from scratch. This round
+instead built directly on the existing, proven, legacy `sendExternalMessage`
+transport (the one the owner personally verified working live this
+session against the real Apty Client), fixing the concrete correctness
+bugs on top of it:
+
+| Area | What changed |
+|---|---|
+| Routing | System prompt (`constants.ts`) and investigation planner (`investigation-planner.ts`) both reverted to try the Apty Client/cross-extension path FIRST, page-level capture as fallback — undoing `c17c241`/`7c37064`'s capture-first ordering. |
+| Tolerant matching | `matchResources` now matches case-insensitively, singular/plural, extension-optional, query-string-insensitive. New `suggestClosestResourceNames` ("did you mean") and `alsoMatched` (multiple-match disclosure). |
+| Bodies for every status | `inspectResource` now fetches and returns the body for 4xx/5xx responses too, not just 200 — the 403/XML case is asserted directly. |
+| Two-audience payload split | A JSON body gets a bounded model-facing summary (item count, top-level keys, ≤5-item sample) instead of a blind char-truncated slice; the full body stays in evidence. New `get_evidence_json` tool pages through the full stored body on request. |
+| Log output control | `listServiceWorkerLogs`/the tool default to a 50-entry limit, support `minLevel`, truncate individual messages to 500 chars (`full:true` expands), collapse consecutive identical lines (`repeatCount`), and return a `header` with per-level counts. |
+| PII fix (pulled in from WP3 item 1) | `@apty/debug-contract`'s `PII_KEY_NAMES` no longer treats a bare `name` key as personal data — it's overwhelmingly configuration data in real Apty payloads (segment/flow/feature names) — while still redacting `firstName`/`lastName`/`fullName`/`displayName`/etc. Required for the acceptance test's "names intact" assertion to be meaningful; independently a real, previously-reported bug. |
+| Acceptance fixture | `packages/browser-runtime/src/apty/wp1-acceptance.test.ts` — a permanent regression fixture matching the spec's scenario (206-item segment.json, 403 tag.json, 60 noisy + 12 PII-bearing logs), exercising the real tool code paths, 9 tests, all passing. |
+
+**Explicitly deferred** (see `docs/tasks/wp1-apty-integration.md` for the
+full list and why): the full `ExtensionPeerClient`/contract-v1 wire-protocol
+rewrite, cursor pagination persisted in `chrome.storage.session`, peer
+config migration + `chrome.management` invalidation, tool renaming with
+legacy aliases, page-capture iframe auto-attach, the polished JSON-tree
+viewer UI component (the backend it needs IS built), and any real-browser
+e2e run (this round's fixture is unit-level, against mocked `chrome.*`,
+same pattern as every other test in the directory).
+
+## Verification
+
+`tooling/scripts/verify-quiet.sh typecheck lint test build audit` — all
+green on `review/production-ready`, branched from `origin/main` at
+`dbabc40`. 522 tests passing in `packages/browser-runtime` (up from the
+prior round's 505+, net of the 9 new acceptance tests plus edits to 2
+pre-existing tests whose asserted behavior was the bug this round fixed).
+
+## Delivery (this round)
+
+Per the v7 prompt's own rule 0.2, this is a **review checkpoint, not a
+push-ready delivery** — nothing has been pushed, and no push-to-main
+commands are included. See `REVIEW.md` at the repo root for the review
+build, bundle, checksums, and the owner's 15-minute test script. Waiting
+for "approved" before producing a final push-ready bundle.

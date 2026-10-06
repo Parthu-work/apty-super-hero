@@ -907,3 +907,33 @@ round. Revisit in WP12 (security review / release readiness), where the
 full picture (whatever else changed in host permissions by then, and
 whether real-browser coverage for option 2 exists yet) will be clearer than
 deciding it in isolation during WP1.
+
+## v7 WP1 round: scoped to concrete correctness fixes, not the full peer-client rewrite
+
+The v7 prompt's WP1 item 2 asks for a full `ExtensionPeerClient` rewrite of
+the cross-extension transport (v1 envelope, `ping` identity handshake,
+retry/timeout, cursor persistence, peer config migration). A prior
+session's attempt at exactly this (reviewed before this round started, see
+`docs/STATUS.md`'s "Audit of a WP1 draft") shipped that rewrite with 38
+failing tests, zero tests on the new module, and the spec's own acceptance
+fixture never built — i.e., attempting the structural rewrite and the
+correctness fixes in the same pass produced neither reliably.
+
+**Decision:** this round built the concrete, user-visible correctness
+fixes (tolerant matching, bodies for every HTTP status, the PII
+over-redaction bug, the model/user payload split, log output bounding, the
+routing revert) directly on top of the EXISTING, proven legacy transport
+(`sendExternalMessage` / `ConfiguredServiceWorkerDiagnosticsProvider`) —
+the same transport the owner personally verified working live, end-to-end,
+against the real Apty Client this session. The full peer-client/contract-v1
+migration is deferred to a dedicated round, so it can be built and tested
+properly rather than rushed alongside unrelated fixes. `@apty/debug-contract`
+already has the full v1 schema ready and tested for whenever that round
+happens — it was simply never wired up by any session yet.
+
+**Trade-off accepted:** the deferred items (cursor persistence across
+service-worker restarts, the full `PeerErrorCode` taxonomy's identity/
+contract-mismatch cases, peer config migration) remain real gaps. None of
+them block the actual demo path (pull Client logs / segments.json data),
+which this round's acceptance fixture directly verifies end-to-end against
+the real tool code.
