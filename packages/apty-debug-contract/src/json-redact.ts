@@ -71,11 +71,32 @@ const SECRET_KEY_NAMES = new Set(
   ].map(normalizeKey),
 );
 
-/** Exact (post-normalization) key names that are direct personal identifiers — redacted wholesale (there is no safe partial form of a name or email). */
+/**
+ * Exact (post-normalization) key names that are direct personal identifiers
+ * — redacted wholesale (there is no safe partial form of a name or email).
+ *
+ * Deliberately does NOT include a bare `name` — real-world diagnostic
+ * payloads use `name` constantly for non-personal configuration data (a
+ * segment's name, a flow's name, a feature's name); treating every bare
+ * `name` key as PII masked exactly the field most useful for debugging
+ * while doing nothing to actually protect patient data, which arrives
+ * under more specific keys (`patientName`, `fullName`, `firstName`, ...).
+ * Those specific person-identifying keys are listed explicitly instead.
+ */
 const PII_KEY_NAMES = new Set(
-  ["username", "email", "name", "phone", "address", "dob", "ssn", "mrn"].map(
-    normalizeKey,
-  ),
+  [
+    "username",
+    "email",
+    "firstname",
+    "lastname",
+    "fullname",
+    "displayname",
+    "phone",
+    "address",
+    "dob",
+    "ssn",
+    "mrn",
+  ].map(normalizeKey),
 );
 
 /** Prefixes (post-normalization) that mark a key as PII regardless of suffix — `patient_id`, `patientName`, `patientMrn`, ... */

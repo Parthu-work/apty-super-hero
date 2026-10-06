@@ -399,7 +399,12 @@ describe("network-capture-session — response body capture", () => {
     expect(req?.bodyUnavailable).toBeUndefined();
   });
 
-  it("redacts a JSON key literally named 'name' as PII — same existing behavior as every other redacted path in this codebase, not special-cased for response bodies", async () => {
+  it("does NOT redact a bare 'name' key — it's configuration data (a segment/flow/feature name), not personal data", async () => {
+    // Previously a bare `name` key was treated as PII and wholesale-redacted,
+    // which masked exactly the field most useful for debugging (e.g. "which
+    // segment is this?") while doing nothing to protect real patient data,
+    // which arrives under more specific keys (patientName, fullName, ...).
+    // See json-redact.ts's PII_KEY_NAMES comment.
     mockResponseBody({
       body: JSON.stringify([{ id: 4385, name: "sales-team" }]),
       base64Encoded: false,
@@ -424,7 +429,36 @@ describe("network-capture-session — response body capture", () => {
     const stopped = await stopNetworkCapture("conv-a");
     const req = stopped.requests?.find((r) => r.requestId === "req-segments");
     expect(req?.bodyPreview).toBe(
-      JSON.stringify([{ id: 4385, name: "<REDACTED>" }]),
+      JSON.stringify([{ id: 4385, name: "sales-team" }]),
+    );
+  });
+
+  it("still redacts a specific person-identifying key (fullName) even though bare 'name' is no longer treated as PII", async () => {
+    mockResponseBody({
+      body: JSON.stringify([{ id: 1, fullName: "Jane Doe" }]),
+      base64Encoded: false,
+    });
+
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-patient",
+      request: { url: "https://example.com/patients.json", method: "GET" },
+      type: "XHR",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId: "req-patient",
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId: "req-patient",
+      encodedDataLength: 100,
+    });
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    const req = stopped.requests?.find((r) => r.requestId === "req-patient");
+    expect(req?.bodyPreview).toBe(
+      JSON.stringify([{ id: 1, fullName: "<REDACTED>" }]),
     );
   });
 
