@@ -49,8 +49,8 @@ through WP9 are entirely untouched this round; their spec text is saved to
 
 | File | What it is |
 |---|---|
-| `apty-agent-review-3375675.zip` | Production build of `apps/browser-extension/dist`, built from a clean tree (`pnpm install --frozen-lockfile`, `pnpm build`). Unzip and "Load unpacked" in `chrome://extensions`. |
-| `apty-review-3375675.bundle` | Git bundle of the 5 new commits (`origin/main..review/production-ready`), verified with `git bundle verify`. Requires `origin/main`'s current `dbabc40` as a prerequisite — confirmed present. |
+| `apty-agent-review-96055ae.zip` | Production build of `apps/browser-extension/dist`, built from a clean tree (`pnpm install --frozen-lockfile`, `pnpm build`). Unzip and "Load unpacked" in `chrome://extensions`. |
+| `apty-review-96055ae.bundle` | Git bundle of the 5 new commits (`origin/main..review/production-ready`), verified with `git bundle verify`. Requires `origin/main`'s current `dbabc40` as a prerequisite — confirmed present. |
 | `SHA256SUMS.txt` | Checksums for both files above. |
 | `REVIEW.md` | This file (also committed at the repo root on the review branch). |
 
@@ -74,11 +74,11 @@ Unchanged from your current install — this round didn't touch
 ## 5. How to load this build
 
 ```
-unzip apty-agent-review-3375675.zip -d apty-agent-review-3375675
+unzip apty-agent-review-96055ae.zip -d apty-agent-review-96055ae
 ```
 Then `chrome://extensions` → enable Developer mode → remove any previously
 loaded copy if you want a clean reload → "Load unpacked" → select the
-`apty-agent-review-3375675` folder (the one containing `manifest.json` at
+`apty-agent-review-96055ae` folder (the one containing `manifest.json` at
 its top level).
 
 ## 6. 15-minute test script
