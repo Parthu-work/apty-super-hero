@@ -135,11 +135,11 @@ describe("extension-network tools — the model can never supply an extension ID
     ).toEqual([]);
   });
 
-  it("get_extension_service_worker_logs's schema only exposes onlyErrors, never extensionId", () => {
+  it("get_extension_service_worker_logs's schema only exposes output-control fields, never extensionId", () => {
     expect(
       Object.keys(
         getExtensionServiceWorkerLogsTool.parameters?.properties ?? {},
       ),
-    ).toEqual(["onlyErrors"]);
+    ).toEqual(["onlyErrors", "minLevel", "limit", "full"]);
   });
 });

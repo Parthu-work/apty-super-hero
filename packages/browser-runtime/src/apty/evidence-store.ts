@@ -174,6 +174,16 @@ export function getEvidence(
   return [...(evidenceByConversation.get(keyFor(conversationId))?.list ?? [])];
 }
 
+/** One evidence record by id, scoped to a conversation — `undefined` if not found (never fabricated). */
+export function getEvidenceById(
+  conversationId: string | undefined,
+  evidenceId: string,
+): DiagnosticEvidence | undefined {
+  return evidenceByConversation
+    .get(keyFor(conversationId))
+    ?.list.find((e) => e.evidenceId === evidenceId);
+}
+
 /** Drop all evidence for one conversation — call when a conversation/session ends. */
 export function clearEvidence(conversationId: string | undefined): void {
   evidenceByConversation.delete(keyFor(conversationId));

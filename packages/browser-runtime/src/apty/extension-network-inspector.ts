@@ -65,7 +65,7 @@ export type ExtensionCaptureEntry = AptyObservedResource;
 
 export interface MatchedResource extends ExtensionCaptureEntry {
   resourceName: string;
-  matchKind: "exact" | "path" | "fragment";
+  matchKind: "exact" | "tolerant" | "path" | "fragment";
 }
 
 /** A log entry reported by the Apty Client's own service worker. */
@@ -235,12 +235,49 @@ export function getExtensionConnectionStatus(
 // Resource matching (deterministic — never left to the model to guess)
 // ---------------------------------------------------------------------------
 
+/** Strip a trailing filename extension (`.json`, `.js`, ...), if any. */
+function stripExtension(s: string): string {
+  const idx = s.lastIndexOf(".");
+  return idx > 0 ? s.slice(0, idx) : s;
+}
+
+/**
+ * Conservatively strip a trailing plural `s` — only when the result is
+ * non-empty and doesn't end in `ss` (so "status"/"address" aren't mangled
+ * into "statu"/"addres"). Good enough for the common case this exists for
+ * (`segments` ↔ `segment`), not a general English pluralization library.
+ */
+function singularize(s: string): string {
+  if (s.length > 2 && s.endsWith("s") && !s.endsWith("ss")) {
+    return s.slice(0, -1);
+  }
+  return s;
+}
+
+/**
+ * Normalize a resource name/query for tolerant comparison: lowercase,
+ * extension-optional, singular/plural-insensitive. `segments.json`,
+ * `segment.json`, `Segments`, and `segment` all normalize to `segment`.
+ */
+function normalizeForTolerantMatch(s: string): string {
+  return singularize(stripExtension(s.toLowerCase()));
+}
+
+/** Strip a URL's query string (`?...`) before matching — per spec, the query string is ignored for resource-name matching. */
+function stripUrlQuery(url: string): string {
+  const idx = url.indexOf("?");
+  return idx === -1 ? url : url.slice(0, idx);
+}
+
 /**
  * Match resources the Apty Client reported against a resource query.
- * Supports an exact filename (`segments.json`), a path/URL suffix
- * (`/api/segments.json`), and a substring fragment (`segments`). Ranked
- * exact > path > fragment, then most-recent-first, so ties (the same
- * resource fetched twice) resolve deterministically.
+ * Tolerant of case, a missing/present filename extension, and singular vs.
+ * plural (`segments.json` ↔ `segment.json`) — then an exact path/URL suffix
+ * (`/api/segments.json`), then a substring fragment (`segments`). Ranked
+ * exact > tolerant > path > fragment, then most-recent-first, so ties (the
+ * same resource fetched twice, or two variants of the same name) resolve
+ * deterministically. The query string of the candidate URL is never
+ * considered part of its name.
  */
 export function matchResources(
   requests: ExtensionCaptureEntry[],
@@ -249,18 +286,25 @@ export function matchResources(
   const query = resourceQuery.trim().toLowerCase();
   if (!query) return [];
   const normalizedPath = query.replace(/^\/+/, "");
+  const normalizedQuery = normalizeForTolerantMatch(query);
 
   const scored: Array<MatchedResource & { score: number }> = [];
   for (const req of requests) {
     if (!req.url) continue;
     const name = resourceNameFor(req.url);
-    const lowerUrl = req.url.toLowerCase();
+    const lowerUrl = stripUrlQuery(req.url.toLowerCase());
     const lowerName = name.toLowerCase();
 
     let matchKind: MatchedResource["matchKind"] | undefined;
     let score = 0;
     if (lowerName === query) {
       matchKind = "exact";
+      score = 4;
+    } else if (
+      normalizedQuery.length > 0 &&
+      normalizeForTolerantMatch(name) === normalizedQuery
+    ) {
+      matchKind = "tolerant";
       score = 3;
     } else if (lowerUrl.endsWith(`/${normalizedPath}`)) {
       matchKind = "path";
@@ -275,6 +319,64 @@ export function matchResources(
 
   scored.sort((a, b) => b.score - a.score || b.timestamp - a.timestamp);
   return scored.map(({ score: _score, ...rest }) => rest);
+}
+
+/** Bounded Levenshtein edit distance — safe on short resource names (capped length), used only to rank "did you mean" suggestions, never for matching itself. */
+function levenshtein(a: string, b: string): number {
+  const maxLen = 64;
+  const s = a.slice(0, maxLen);
+  const t = b.slice(0, maxLen);
+  const rows = s.length + 1;
+  const cols = t.length + 1;
+  const d: number[][] = Array.from({ length: rows }, (_, i) =>
+    Array.from({ length: cols }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      d[i]![j] = Math.min(
+        d[i - 1]![j]! + 1,
+        d[i]![j - 1]! + 1,
+        d[i - 1]![j - 1]! + cost,
+      );
+    }
+  }
+  return d[rows - 1]![cols - 1]!;
+}
+
+export interface ResourceSuggestion {
+  resourceName: string;
+  count: number;
+}
+
+/**
+ * When nothing matched, suggest the closest observed resource names —
+ * deduplicated with how many times each was observed, ranked by edit
+ * distance to the query (closest first), capped at `limit`.
+ */
+export function suggestClosestResourceNames(
+  requests: ExtensionCaptureEntry[],
+  resourceQuery: string,
+  limit = 5,
+): ResourceSuggestion[] {
+  const query = normalizeForTolerantMatch(resourceQuery.trim().toLowerCase());
+  const counts = new Map<string, number>();
+  for (const req of requests) {
+    if (!req.url) continue;
+    const name = resourceNameFor(req.url);
+    if (!name) continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .map(([resourceName, count]) => ({
+      resourceName,
+      count,
+      distance: levenshtein(query, normalizeForTolerantMatch(resourceName)),
+    }))
+    .sort((a, b) => a.distance - b.distance || b.count - a.count)
+    .slice(0, limit)
+    .map(({ resourceName, count }) => ({ resourceName, count }));
 }
 
 export type ListResourcesResult =
@@ -310,19 +412,83 @@ export async function listObservedResources(
   };
 }
 
+const LOG_LEVEL_ORDER: Record<string, number> = {
+  debug: 0,
+  log: 1,
+  info: 2,
+  warn: 3,
+  error: 4,
+};
+
+const DEFAULT_LOG_LIMIT = 50;
+const MAX_LOG_MESSAGE_CHARS = 500;
+
+export interface ListServiceWorkerLogsOptions {
+  onlyErrors?: boolean;
+  /** Only entries at or above this severity. Ignored if `onlyErrors` is set (which is equivalent to `minLevel: "warn"`). */
+  minLevel?: keyof typeof LOG_LEVEL_ORDER;
+  /** Max entries returned, most-recent-first. Default 50. */
+  limit?: number;
+  /** If true, don't truncate individual message text to 500 chars. */
+  full?: boolean;
+}
+
+export interface ExtensionLogEntryOut extends ExtensionLogEntry {
+  /** Present when this entry represents N≥2 consecutive identical (level+text) entries, collapsed into one. */
+  repeatCount?: number;
+  truncated?: boolean;
+}
+
+export interface ServiceWorkerLogsHeader {
+  /** How many entries existed before `limit` was applied (after collapsing and level filtering). */
+  totalBeforeLimit: number;
+  returned: number;
+  truncatedByLimit: boolean;
+  countsByLevel: Record<string, number>;
+}
+
+/** Collapse consecutive entries with the same level+text into one, tagged with how many were collapsed. */
+function collapseConsecutive(
+  logs: ExtensionLogEntry[],
+): ExtensionLogEntryOut[] {
+  const out: ExtensionLogEntryOut[] = [];
+  for (const entry of logs) {
+    const prev = out[out.length - 1];
+    if (prev && prev.level === entry.level && prev.text === entry.text) {
+      prev.repeatCount = (prev.repeatCount ?? 1) + 1;
+      prev.timestamp = entry.timestamp; // keep the most recent occurrence's time
+      continue;
+    }
+    out.push({ ...entry });
+  }
+  return out;
+}
+
 /**
  * List log entries the Apty Client's service worker reports. Records
  * warning/error-level entries as evidence (mirrors `get_runtime_diagnostics`'
  * selective recording for tabs); routine info-level entries are returned
  * but not persisted as evidence, to avoid flooding the bounded
  * per-conversation store.
+ *
+ * Output is bounded and model-friendly by default: capped to `limit`
+ * (default 50) most-recent entries, individual messages truncated to 500
+ * chars (`full: true` to expand), consecutive identical lines collapsed
+ * into one with a `repeatCount`, and a `header` summarizing counts per
+ * level plus whether the limit cut anything off — so "empty" or "short"
+ * never has to be guessed at by the model.
  */
 export async function listServiceWorkerLogs(
   conversationId: string | undefined,
-  options: { onlyErrors?: boolean } = {},
+  options: ListServiceWorkerLogsOptions = {},
 ): Promise<
   | { connected: false }
-  | { connected: true; extensionId: string; logs: ExtensionLogEntry[] }
+  | {
+      connected: true;
+      extensionId: string;
+      logs: ExtensionLogEntryOut[];
+      header: ServiceWorkerLogsHeader;
+    }
 > {
   const active = activeExtensionByConversation.get(keyFor(conversationId));
   if (!active) return { connected: false };
@@ -332,14 +498,14 @@ export async function listServiceWorkerLogs(
   });
   const rawLogs = await provider.getLogs();
 
-  let logs: ExtensionLogEntry[] = rawLogs.map((l) => ({
+  const allLogs: ExtensionLogEntry[] = rawLogs.map((l) => ({
     level: l.level,
     text: l.message,
     timestamp: l.timestamp,
     category: classifyLogEntry({ text: l.message, level: l.level }),
   }));
 
-  for (const entry of logs) {
+  for (const entry of allLogs) {
     const isSignificant = entry.level === "error" || entry.level === "warn";
     if (!isSignificant) continue;
     recordEvidence({
@@ -353,11 +519,47 @@ export async function listServiceWorkerLogs(
     });
   }
 
-  if (options.onlyErrors) {
-    logs = logs.filter((l) => l.level === "error" || l.level === "warn");
+  const countsByLevel: Record<string, number> = {};
+  for (const entry of allLogs) {
+    countsByLevel[entry.level] = (countsByLevel[entry.level] ?? 0) + 1;
   }
 
-  return { connected: true, extensionId: active.extensionId, logs };
+  const minLevelFloor = options.onlyErrors
+    ? (LOG_LEVEL_ORDER.warn ?? 0)
+    : options.minLevel !== undefined
+      ? (LOG_LEVEL_ORDER[options.minLevel] ?? 0)
+      : 0;
+  const filtered = allLogs.filter(
+    (l) => (LOG_LEVEL_ORDER[l.level] ?? 0) >= minLevelFloor,
+  );
+
+  const collapsed = collapseConsecutive(filtered);
+  const limit =
+    options.limit && options.limit > 0 ? options.limit : DEFAULT_LOG_LIMIT;
+  const limited = collapsed.slice(-limit);
+
+  const logs: ExtensionLogEntryOut[] = limited.map((entry) => {
+    if (options.full || entry.text.length <= MAX_LOG_MESSAGE_CHARS) {
+      return entry;
+    }
+    return {
+      ...entry,
+      text: `${entry.text.slice(0, MAX_LOG_MESSAGE_CHARS)}… [truncated, pass full:true to expand]`,
+      truncated: true,
+    };
+  });
+
+  return {
+    connected: true,
+    extensionId: active.extensionId,
+    logs,
+    header: {
+      totalBeforeLimit: collapsed.length,
+      returned: logs.length,
+      truncatedByLimit: collapsed.length > logs.length,
+      countsByLevel,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -373,6 +575,17 @@ export type InspectResourceStatus =
   | "pending"
   | "body_unavailable";
 
+/** A bounded, model-safe summary of a JSON response body — item count, top-level keys, and a small sample — so the model never receives a blind character-truncated slice of a large array that might cut off mid-item. The full body is always available separately via evidence (`get_evidence_json`). */
+export interface JsonBodySummary {
+  kind: "array" | "object";
+  /** Total element count, when the body is a JSON array. */
+  itemCount?: number;
+  /** Keys of the top-level object, or of the first array element if it's an object. */
+  topLevelKeys?: string[];
+  /** First few elements (if an array) or the object itself (if small), already redacted. */
+  sample: unknown;
+}
+
 export interface InspectResourceResult {
   found: boolean;
   status: InspectResourceStatus;
@@ -384,9 +597,51 @@ export interface InspectResourceResult {
     truncated: boolean;
     isBinary: boolean;
     evidenceId?: string;
+    json?: JsonBodySummary;
   };
   observedResources?: string[];
+  /** Populated when the query didn't match anything — the closest observed resource names, with how many times each was seen, so the model can suggest "did you mean X?" instead of just failing. */
+  suggestions?: ResourceSuggestion[];
+  /** Populated when more than one resource matched — the other candidates that were NOT chosen, so the answer can disclose it picked the most-recent/highest-ranked of several. */
+  alsoMatched?: string[];
   error?: string;
+}
+
+const MAX_JSON_SAMPLE_ITEMS = 5;
+
+/** Build a bounded, model-safe summary of a (already redacted) JSON-parseable body, or `undefined` if it doesn't parse as JSON. */
+function summarizeJsonBody(text: string): JsonBodySummary | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+
+  if (Array.isArray(parsed)) {
+    const sample = parsed.slice(0, MAX_JSON_SAMPLE_ITEMS);
+    const first = sample[0];
+    const topLevelKeys =
+      first && typeof first === "object" && !Array.isArray(first)
+        ? Object.keys(first as Record<string, unknown>)
+        : undefined;
+    return {
+      kind: "array",
+      itemCount: parsed.length,
+      topLevelKeys,
+      sample,
+    };
+  }
+
+  if (parsed && typeof parsed === "object") {
+    return {
+      kind: "object",
+      topLevelKeys: Object.keys(parsed as Record<string, unknown>),
+      sample: parsed,
+    };
+  }
+
+  return undefined;
 }
 
 /** Find the resource matching `resourceQuery` among what the Apty Client reports observing, and retrieve its actual response body. Never fabricates a body — every non-"ok" status is an explicit, structured failure. */
@@ -421,6 +676,10 @@ export async function inspectResource(
   const matches = matchResources(listed.resources, resourceQuery);
   const best = matches[0];
   if (!best) {
+    const suggestions = suggestClosestResourceNames(
+      listed.resources,
+      resourceQuery,
+    );
     const observedResources = Array.from(
       new Set(listed.resources.map((r) => resourceNameFor(r.url ?? ""))),
     ).filter(Boolean);
@@ -429,9 +688,25 @@ export async function inspectResource(
       status: "not_observed",
       resourceQuery,
       observedResources,
-      error: `I connected to the Apty Client, but it did not report a matching observed request for: ${resourceQuery}`,
+      suggestions,
+      error:
+        suggestions.length > 0
+          ? `I connected to the Apty Client, but it did not report a matching observed request for "${resourceQuery}". Did you mean: ${suggestions.map((s) => `${s.resourceName} (seen ${s.count}×)`).join(", ")}?`
+          : `I connected to the Apty Client, but it did not report any observed request matching: ${resourceQuery}`,
     };
   }
+
+  const alsoMatched =
+    matches.length > 1
+      ? Array.from(
+          new Set(
+            matches
+              .slice(1)
+              .map((m) => m.resourceName)
+              .filter((name) => name !== best.resourceName),
+          ),
+        )
+      : undefined;
 
   if (best.failed) {
     return {
@@ -439,16 +714,8 @@ export async function inspectResource(
       status: "failed",
       resourceQuery,
       request: best,
+      alsoMatched,
       error: `${best.resourceName} was requested but failed.${best.errorText ? ` ${best.errorText}` : ""}`,
-    };
-  }
-  if (best.status !== undefined && best.status >= 400) {
-    return {
-      found: true,
-      status: "http_error",
-      resourceQuery,
-      request: best,
-      error: `${best.resourceName} was requested but failed. Status: ${best.status}`,
     };
   }
   if (best.status === undefined) {
@@ -457,20 +724,28 @@ export async function inspectResource(
       status: "pending",
       resourceQuery,
       request: best,
+      alsoMatched,
       error:
         "The Apty Client observed this request but has not yet reported a response. Please try again shortly.",
     };
   }
 
+  // From here on, a response (of SOME status, including 4xx/5xx) exists —
+  // always attempt to fetch the body. An HTTP error status never skips this:
+  // the body of a 403/500 response is frequently the one piece of evidence
+  // that explains the failure (e.g. an error message or access-denied body).
+  const isHttpError = best.status >= 400;
   const body = await provider.getResourceBody(best.requestId);
   if (!body.found || body.body === undefined) {
     return {
       found: true,
-      status: "body_unavailable",
+      status: isHttpError ? "http_error" : "body_unavailable",
       resourceQuery,
       request: best,
-      error:
-        "The request was observed, but the Apty Client did not provide the response body.",
+      alsoMatched,
+      error: isHttpError
+        ? `${best.resourceName} returned HTTP ${best.status}, and the Apty Client did not provide the response body.`
+        : "The request was observed, but the Apty Client did not provide the response body.",
     };
   }
 
@@ -487,12 +762,24 @@ export async function inspectResource(
 
   const redacted = isBinary ? "" : redactSensitiveText(text);
   const fullLength = redacted.length;
-  const truncated = !isBinary && fullLength > MAX_INLINE_BODY_CHARS;
+  const json = isBinary ? undefined : summarizeJsonBody(redacted);
+  // A JSON body is summarized structurally (item count + sample), which is
+  // always far smaller and more useful to the model than a blind character
+  // slice of a potentially 100kB+ array — so its inline preview stays small
+  // regardless of MAX_INLINE_BODY_CHARS. Non-JSON text keeps the existing
+  // char-truncation behavior unchanged.
   const preview = isBinary
     ? "<binary response body, not shown>"
-    : truncated
-      ? redacted.slice(0, MAX_INLINE_BODY_CHARS)
-      : redacted;
+    : json
+      ? JSON.stringify(json.sample)
+      : fullLength > MAX_INLINE_BODY_CHARS
+        ? redacted.slice(0, MAX_INLINE_BODY_CHARS)
+        : redacted;
+  const truncated = isBinary
+    ? false
+    : json
+      ? json.kind === "array" && (json.itemCount ?? 0) > MAX_JSON_SAMPLE_ITEMS
+      : fullLength > MAX_INLINE_BODY_CHARS;
 
   const evidence = recordEvidence({
     conversationId,
@@ -509,21 +796,26 @@ export async function inspectResource(
       status: best.status,
       mimeType: best.mimeType,
       isBinary,
+      // The FULL redacted body (never truncated) — this is what
+      // get_evidence_json reads from. The model-bound `response` above only
+      // ever sees `preview`/`json.sample`, never this.
       body: isBinary ? undefined : redacted,
     },
   });
 
   return {
     found: true,
-    status: "ok",
+    status: isHttpError ? "http_error" : "ok",
     resourceQuery,
     request: best,
+    alsoMatched,
     response: {
       bodyPreview: preview,
       fullLength,
       truncated,
       isBinary,
       evidenceId: evidence.evidenceId,
+      json,
     },
   };
 }

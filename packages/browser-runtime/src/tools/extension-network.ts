@@ -37,6 +37,7 @@
  */
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { queryEvidenceJson } from "../apty/evidence-json-query.js";
 import {
   connectExtensionClient,
   disconnectExtensionClient,
@@ -184,19 +185,40 @@ export const getExtensionServiceWorkerLogsTool = tool({
     "Get console messages, warnings, and errors the Apty Client extension's Service Worker reports about itself — e.g. 'show me errors from the Apty Client Service Worker'. " +
     "Auto-connects using the configured Apty Client extension ID if not already connected (this tool never accepts an extension ID as input). " +
     "Depends entirely on what the Apty Client itself has recorded and is willing to report — if it only keeps a bounded recent history, older entries may no longer be available; that is the Apty Client's limitation, not fabricated data on this side. " +
-    "Set onlyErrors to true to see just warning/error-level entries.",
+    "Returns a bounded, model-friendly view: capped to `limit` most-recent entries (default 50), consecutive identical lines collapsed into one with a repeatCount, individual messages truncated to 500 chars (pass full:true to expand one you need in full), and a header with per-level counts and whether the limit cut anything off. " +
+    "Set onlyErrors to true (equivalent to minLevel:'warn') to see just warning/error-level entries, or use minLevel directly for finer control.",
   parameters: z.object({
     onlyErrors: z
       .boolean()
       .default(false)
       .describe(
-        "If true, only return exceptions and warning/error-level log entries.",
+        "If true, only return exceptions and warning/error-level log entries. Equivalent to minLevel:'warn'.",
+      ),
+    minLevel: z
+      .enum(["debug", "log", "info", "warn", "error"])
+      .optional()
+      .describe("Only return entries at or above this severity."),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(500)
+      .default(50)
+      .describe("Max entries to return, most-recent-first."),
+    full: z
+      .boolean()
+      .default(false)
+      .describe(
+        "If true, don't truncate individual log messages to 500 chars.",
       ),
   }),
-  execute: async ({ onlyErrors }, context) => {
+  execute: async ({ onlyErrors, minLevel, limit, full }, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
     recordToolCall(conversationId, "get_extension_service_worker_logs", {
       onlyErrors,
+      minLevel,
+      limit,
+      full,
     });
 
     if (!getExtensionConnectionStatus(conversationId).connected) {
@@ -213,7 +235,60 @@ export const getExtensionServiceWorkerLogsTool = tool({
       }
     }
 
-    return listServiceWorkerLogs(conversationId, { onlyErrors });
+    return listServiceWorkerLogs(conversationId, {
+      onlyErrors,
+      minLevel,
+      limit,
+      full,
+    });
+  },
+});
+
+export const getEvidenceJsonTool = tool({
+  name: "get_evidence_json",
+  description:
+    "Query a previously-recorded JSON response body (from inspect_extension_network's evidenceId) by path, without re-fetching it. " +
+    "Use this instead of asking inspect_extension_network again when you already have an evidenceId and need more of the data than the initial bounded sample included — e.g. 'how many segments are there', 'show me the sales-team segment', 'what are segments 20-30'. " +
+    "path is a dot/bracket path into the stored JSON ('items[3].name', or '' for the root); limit/offset page through an array result (max 50 per call). " +
+    "Returns found:false with a specific error if the evidence id doesn't exist, has no JSON body, or the path doesn't resolve — never a fabricated result.",
+  parameters: z.object({
+    evidenceId: z
+      .string()
+      .min(1)
+      .describe(
+        "The evidenceId from a prior inspect_extension_network result.",
+      ),
+    path: z
+      .string()
+      .default("")
+      .describe(
+        "Dot/bracket path into the JSON body, e.g. 'items[3].name'. Empty string means the root value.",
+      ),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(50)
+      .default(20)
+      .describe(
+        "Max array elements to return when the resolved value is an array.",
+      ),
+    offset: z
+      .number()
+      .int()
+      .nonnegative()
+      .default(0)
+      .describe("Starting index when the resolved value is an array."),
+  }),
+  execute: async ({ evidenceId, path, limit, offset }, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    recordToolCall(conversationId, "get_evidence_json", {
+      evidenceId,
+      path,
+      limit,
+      offset,
+    });
+    return queryEvidenceJson(conversationId, evidenceId, path, limit, offset);
   },
 });
 
@@ -224,4 +299,5 @@ export const extensionNetworkTools = [
   inspectExtensionNetworkTool,
   listExtensionNetworkResourcesTool,
   getExtensionServiceWorkerLogsTool,
+  getEvidenceJsonTool,
 ];
