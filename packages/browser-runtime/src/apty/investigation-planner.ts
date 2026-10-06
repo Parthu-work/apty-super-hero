@@ -68,19 +68,14 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         p.includes("data from")),
     steps: [
       step(
-        "start-capture",
-        "Start a network capture (start_network_capture) so the resource's actual request/response can be observed as it happens — this reads the page's own network traffic directly and needs no cooperation from any other extension",
-        ["start_network_capture"],
-      ),
-      step(
-        "reproduce-and-stop",
-        "Ask the user to reproduce the action that triggers this resource (or perform it yourself), then stop the capture and find the matching request's bodyPreview field in the result",
-        ["stop_network_capture"],
-      ),
-      step(
-        "fallback-cross-extension",
-        "If the resource never appears in the page-level capture (e.g. it's fetched independently by a cooperating extension's own service worker, not the page itself), try the cross-extension resource inspector instead",
+        "inspect-apty-client",
+        "If an Apty Client extension is configured, try it FIRST: inspect_extension_network with the resource name as resourceQuery (matching is tolerant of case/plural/extension) — it auto-connects, returns the body for any status including 4xx/5xx, and a bounded summary (item count, sample) plus an evidenceId for get_evidence_json follow-up queries on large bodies",
         ["connect_apty_client", "inspect_extension_network"],
+      ),
+      step(
+        "fallback-page-capture",
+        "If no Apty Client is configured, or it doesn't have this resource (not_observed), fall back to page-level capture: start_network_capture, ask the user to reproduce the action (or perform it yourself), then stop_network_capture and find the matching request's bodyPreview field",
+        ["start_network_capture", "stop_network_capture"],
       ),
     ],
   },

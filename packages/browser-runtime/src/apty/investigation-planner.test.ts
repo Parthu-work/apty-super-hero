@@ -9,12 +9,13 @@ describe("planInvestigation", () => {
 
     expect(plan.category).toBe("retrieve-resource-data");
     expect(plan.steps.map((s) => s.id)).toEqual([
-      "start-capture",
-      "reproduce-and-stop",
-      "fallback-cross-extension",
+      "inspect-apty-client",
+      "fallback-page-capture",
     ]);
-    expect(plan.steps[0]?.suggestedTools).toContain("start_network_capture");
-    expect(plan.steps[1]?.suggestedTools).toContain("stop_network_capture");
+    expect(plan.steps[0]?.suggestedTools).toContain(
+      "inspect_extension_network",
+    );
+    expect(plan.steps[1]?.suggestedTools).toContain("start_network_capture");
   });
 
   it("matches retrieve-resource-data for plain 'get X.json' phrasing", () => {
