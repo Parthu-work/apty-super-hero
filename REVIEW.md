@@ -1,8 +1,8 @@
 # Review build — v7 WP1 ("Apty Integration pulls logs and response data perfectly")
 
 Branch `review/production-ready`, cut from `origin/main` at `dbabc40` (the
-v7 prompt's own stated audited base — confirmed matching). 5 new commits.
-Per the v7 prompt's own rule 0.2, **nothing has been pushed, and this is
+v7 prompt's own stated audited base — confirmed matching). Per the v7
+prompt's own rule 0.2, **nothing has been pushed, and this is
 not a push-ready build** — it's a review checkpoint. This file, the build
 zip, the git bundle and checksums are the deliverable; after you test it
 and send feedback, the next round fixes it on this same branch and issues
@@ -49,8 +49,8 @@ through WP9 are entirely untouched this round; their spec text is saved to
 
 | File | What it is |
 |---|---|
-| `apty-agent-review-96055ae.zip` | Production build of `apps/browser-extension/dist`, built from a clean tree (`pnpm install --frozen-lockfile`, `pnpm build`). Unzip and "Load unpacked" in `chrome://extensions`. |
-| `apty-review-96055ae.bundle` | Git bundle of the 5 new commits (`origin/main..review/production-ready`), verified with `git bundle verify`. Requires `origin/main`'s current `dbabc40` as a prerequisite — confirmed present. |
+| `apty-agent-review-wp1.zip` | Production build of `apps/browser-extension/dist`, built from a clean tree (`pnpm install --frozen-lockfile`, `pnpm build`). Unzip and "Load unpacked" in `chrome://extensions`. |
+| `apty-review-wp1.bundle` | Git bundle of every new commit (`origin/main..review/production-ready`), verified with `git bundle verify`. Requires `origin/main`'s current `dbabc40` as a prerequisite — confirmed present. Run `git log --oneline origin/main..review/production-ready` after fetching it to see the exact commit list. |
 | `SHA256SUMS.txt` | Checksums for both files above. |
 | `REVIEW.md` | This file (also committed at the repo root on the review branch). |
 
@@ -74,12 +74,12 @@ Unchanged from your current install — this round didn't touch
 ## 5. How to load this build
 
 ```
-unzip apty-agent-review-96055ae.zip -d apty-agent-review-96055ae
+unzip apty-agent-review-wp1.zip -d apty-agent-review-wp1
 ```
 Then `chrome://extensions` → enable Developer mode → remove any previously
 loaded copy if you want a clean reload → "Load unpacked" → select the
-`apty-agent-review-96055ae` folder (the one containing `manifest.json` at
-its top level).
+`apty-agent-review-wp1` folder (the one containing `manifest.json` at its
+top level).
 
 ## 6. 15-minute test script
 
