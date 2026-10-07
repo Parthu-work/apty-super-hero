@@ -317,3 +317,62 @@ push-ready delivery** — nothing has been pushed, and no push-to-main
 commands are included. See `REVIEW.md` at the repo root for the review
 build, bundle, checksums, and the owner's 15-minute test script. Waiting
 for "approved" before producing a final push-ready bundle.
+
+## v7 WP4+: security hardening, dependency remediation, CI fixes, chat resilience
+
+After the WP1 checkpoint above, the owner asked for a full repo-wide audit
+("go through the whole repo and make an audit on all the bugs, feature
+gaps and implementation gaps... make sure all of them are fixed") framed
+as "zero bugs, prod-ready." That framing was pushed back on directly (a
+genuine "zero bugs" bar isn't realistic, and the v7 spec's own staged
+checkpoints exist specifically to prevent rushed "done" claims) — offered
+three paths via `AskUserQuestion`; the owner explicitly chose "attempt
+broad coverage across WP2-9 now" over the recommended "confirm WP1 first."
+This section covers what that broader pass actually produced, held to the
+same standard as WP1: real fixes, real tests, honest partial/deferred
+labeling.
+
+Commits this round (in order): `acab65d` (B1/B2 approval gate),
+`c04ae4b` (H3 sender checks), `7cd01bb` (M1 MCP daemon hardening),
+`82240d9` (M2 AI host URL validation), `61d7d12` (H2 dependency
+remediation), `d339dd3` (B5 CI fixes), `5614f4e` (B3 skill sandbox gate),
+`a5add3b` (WP5 LLM retry/backoff).
+
+See `docs/tasks/wp4-security.md` for the full done/not-done breakdown
+against WP4's original scope, `docs/tasks/wp5-chat-resilience.md` for
+WP5's, and `DECISIONS.md` for the detailed reasoning behind each change
+(each commit above has its own `DECISIONS.md` entry). Summary:
+
+| Item | Status |
+|---|---|
+| B1/B2 — approval gate for `run_console_command`/`upload_file_to_input` | Done |
+| B4 — real per-site grants (new mechanism, not `HostAccessManager`) | Done |
+| H3 — messaging sender checks (`!sender.tab`) | Done |
+| M1 — MCP daemon: `maxPayload`, origin rejection, dangerous-tool allowlist | Done |
+| M2 — AI endpoint URL validation (full private/loopback/metadata range, IP-literal handling) | Done |
+| H2 — `pnpm audit --prod`: 76→1 (root), 55→0 (mcp-bridge) | Done |
+| B5 — CI: mcp-bridge install step, audit gate, pinned actions, `packageManager`/`engines` | Done |
+| B3 — skill sandbox: pinned-version requirement + off-by-default feature gate | Done, scoped down from the original ask (see wp4-security.md) |
+| WP5 — LLM retry/backoff for 429/5xx, honoring `retry-after` | Done |
+| `computer`/`fill_*`/download tools under the approval gate | Not done |
+| M4 (ZIP import caps), M5 (`optional_permissions`) | Not done |
+| Dead-code removal, leveled logger | Not done |
+| Hostile-page e2e, fake-LLM test suite | Not done (needs WP8 harness) |
+| Watchdogs/timeouts (WP5) | Not done — `ToolTimeoutError`/`CancellationToken` still dead code |
+| WP2, WP6, WP7, WP8, bulk of WP9 | Not started this round |
+
+**Verification:** `tooling/scripts/verify-quiet.sh typecheck lint test
+build audit` green after every commit above, including `apps/mcp-bridge`'s
+own `typecheck`/`test`/`build` (not part of the root `pnpm -r` fan-out).
+New test files this round: `url-guard.test.ts` (22 tests, previously zero
+coverage), `quickjs-manager.test.ts` (7 tests, previously zero coverage),
+`skill.test.ts` (4 tests), plus new cases added to `ai-provider.test.ts`,
+`aipex.test.ts`, `devtools.test.ts`/`upload-file/index.test.ts` (approval
+gate), `tool-relevance.test.ts`, `message-router.test.ts`/
+`mcp-bridge.test.ts` (new files), and `daemon-server.test.ts`.
+
+**Delivery:** no push to `main` yet — all commits are on
+`review/production-ready`. The WP1 round's review bundle (`REVIEW.md` +
+zip) has not been regenerated to include this round's commits; that's the
+next step once the owner has reviewed this round's scope and either asks
+for more WP2-9 coverage or signs off on what exists.
