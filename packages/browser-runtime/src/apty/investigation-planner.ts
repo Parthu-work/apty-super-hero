@@ -69,12 +69,12 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
     steps: [
       step(
         "inspect-apty-client",
-        "If an Apty Client extension is configured, try it FIRST: inspect_extension_network with the resource name as resourceQuery (matching is tolerant of case/plural/extension) — it auto-connects, returns the body for any status including 4xx/5xx, and a bounded summary (item count, sample) plus an evidenceId for get_evidence_json follow-up queries on large bodies",
+        "Try the Apty Client FIRST if configured: inspect_extension_network with the resource name (auto-connects, tolerant matching, body for any status, bounded summary + evidenceId for large bodies)",
         ["connect_apty_client", "inspect_extension_network"],
       ),
       step(
         "fallback-page-capture",
-        "If no Apty Client is configured, or it doesn't have this resource (not_observed), fall back to page-level capture: start_network_capture, ask the user to reproduce the action (or perform it yourself), then stop_network_capture and find the matching request's bodyPreview field",
+        "If no Client or not_observed, fall back: start_network_capture, reproduce the action, then stop_network_capture and check bodyPreview",
         ["start_network_capture", "stop_network_capture"],
       ),
     ],

@@ -108,10 +108,10 @@ export const getAptyClientConnectionStatusTool = tool({
 export const inspectExtensionNetworkTool = tool({
   name: "inspect_extension_network",
   description:
-    "Retrieve the actual response body for a resource the Apty Client extension reports having requested itself — e.g. resourceQuery 'segments.json', 'app.json', 'flow.json', a path like '/api/segments.json', or a fragment like 'segments'. " +
-    "Not hardcoded to any resource name — matches whatever the Apty Client actually reports (exact filename > path suffix > substring fragment, most-recent match wins ties). " +
-    "Auto-connects using the configured Apty Client extension ID if not already connected (this tool never accepts an extension ID as input). " +
-    "Returns status: 'not_observed' if the Apty Client didn't report a matching request (ask the user to reproduce the action, or reload the Apty Client, then try again), 'failed'/'http_error' if the request failed, 'pending' if seen but no response yet, or 'body_unavailable' if the Apty Client couldn't provide the body. Never returns fabricated data.",
+    "Retrieve the actual response body for a resource the Apty Client extension reports having requested itself — e.g. resourceQuery 'segments.json', 'app.json', a path, or a fragment. " +
+    "Tolerant matching (case/plural/extension-insensitive); alsoMatched lists other candidates if several matched. Auto-connects using the configured extension ID (never accepts one as input). " +
+    "Body returns for ANY status, including 4xx/5xx. A large JSON body comes back as a bounded summary (response.json) plus evidenceId — use get_evidence_json for more. " +
+    "Status: not_observed (use returned suggestions), failed/http_error, pending, body_unavailable. Never fabricated.",
   parameters: z.object({
     resourceQuery: z
       .string()
@@ -182,11 +182,9 @@ export const listExtensionNetworkResourcesTool = tool({
 export const getExtensionServiceWorkerLogsTool = tool({
   name: "get_extension_service_worker_logs",
   description:
-    "Get console messages, warnings, and errors the Apty Client extension's Service Worker reports about itself — e.g. 'show me errors from the Apty Client Service Worker'. " +
-    "Auto-connects using the configured Apty Client extension ID if not already connected (this tool never accepts an extension ID as input). " +
-    "Depends entirely on what the Apty Client itself has recorded and is willing to report — if it only keeps a bounded recent history, older entries may no longer be available; that is the Apty Client's limitation, not fabricated data on this side. " +
-    "Returns a bounded, model-friendly view: capped to `limit` most-recent entries (default 50), consecutive identical lines collapsed into one with a repeatCount, individual messages truncated to 500 chars (pass full:true to expand one you need in full), and a header with per-level counts and whether the limit cut anything off. " +
-    "Set onlyErrors to true (equivalent to minLevel:'warn') to see just warning/error-level entries, or use minLevel directly for finer control.",
+    "Get console messages, warnings, and errors the Apty Client extension's Service Worker reports about itself. Auto-connects (never accepts an extension ID as input). " +
+    "Bounded output: capped to `limit` entries (default 50), consecutive identical lines collapsed (repeatCount), messages truncated to 500 chars (full:true to expand), plus a header with per-level counts. " +
+    "onlyErrors (= minLevel:'warn') or minLevel for finer filtering.",
   parameters: z.object({
     onlyErrors: z
       .boolean()
@@ -247,10 +245,8 @@ export const getExtensionServiceWorkerLogsTool = tool({
 export const getEvidenceJsonTool = tool({
   name: "get_evidence_json",
   description:
-    "Query a previously-recorded JSON response body (from inspect_extension_network's evidenceId) by path, without re-fetching it. " +
-    "Use this instead of asking inspect_extension_network again when you already have an evidenceId and need more of the data than the initial bounded sample included — e.g. 'how many segments are there', 'show me the sales-team segment', 'what are segments 20-30'. " +
-    "path is a dot/bracket path into the stored JSON ('items[3].name', or '' for the root); limit/offset page through an array result (max 50 per call). " +
-    "Returns found:false with a specific error if the evidence id doesn't exist, has no JSON body, or the path doesn't resolve — never a fabricated result.",
+    "Query a previously-recorded JSON body (from inspect_extension_network's evidenceId) by path, without re-fetching. Use for follow-ups needing more than the initial bounded sample ('how many segments', 'show segment 20'). " +
+    "path is dot/bracket ('items[3].name', or '' for root); limit/offset page an array (max 50). Returns found:false with a specific error if not resolvable — never fabricated.",
   parameters: z.object({
     evidenceId: z
       .string()
