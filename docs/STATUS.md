@@ -336,40 +336,62 @@ Commits this round (in order): `acab65d` (B1/B2 approval gate),
 `c04ae4b` (H3 sender checks), `7cd01bb` (M1 MCP daemon hardening),
 `82240d9` (M2 AI host URL validation), `61d7d12` (H2 dependency
 remediation), `d339dd3` (B5 CI fixes), `5614f4e` (B3 skill sandbox gate),
-`a5add3b` (WP5 LLM retry/backoff).
+`a5add3b` (WP5 LLM retry/backoff), `ac98bf8` (docs sync),
+`1761fd8` (WP6, scoped to 3 of 8 items), `d8f0039` (approval gate
+extended to `fill_*`/`computer`/downloads; M4 ZIP caps; M5
+`optional_permissions`), `d9e2222` (dead-code cleanup — including a real,
+previously-undiscovered privacy bug in `ModelChangePrompt`), `00f3af2`
+(leveled logger module, built but not adopted).
+
+After the first 8 commits above, the owner was given a progress report
+and a choice (stop and rebuild the review bundle, or keep going into
+WP3/WP6); the owner chose to keep going, then separately said "go ahead
+and do all the fixes" — authorizing the remaining 5 commits without a
+further per-item check-in. Held to the same standard throughout: real
+fixes, real tests, honest partial/deferred labeling, never a fabricated
+"done."
 
 See `docs/tasks/wp4-security.md` for the full done/not-done breakdown
 against WP4's original scope, `docs/tasks/wp5-chat-resilience.md` for
-WP5's, and `DECISIONS.md` for the detailed reasoning behind each change
-(each commit above has its own `DECISIONS.md` entry). Summary:
+WP5's, `docs/tasks/wp6-ai-config.md` for WP6's, and `DECISIONS.md` for
+the detailed reasoning behind each change (every commit above has its own
+`DECISIONS.md` entry). Summary:
 
 | Item | Status |
 |---|---|
-| B1/B2 — approval gate for `run_console_command`/`upload_file_to_input` | Done |
+| B1/B2 — approval gate for `run_console_command`/`upload_file_to_input`, later extended to `fill_element_by_uid`/`fill_form` (full), `computer`'s `type`/`key` actions only, `download_image`/`download_chat_images` (full) | Done |
 | B4 — real per-site grants (new mechanism, not `HostAccessManager`) | Done |
 | H3 — messaging sender checks (`!sender.tab`) | Done |
 | M1 — MCP daemon: `maxPayload`, origin rejection, dangerous-tool allowlist | Done |
 | M2 — AI endpoint URL validation (full private/loopback/metadata range, IP-literal handling) | Done |
+| M4 — ZIP import caps (path-traversal, entry-count, per-file and cumulative size, via `fflate`'s pre-decompress `filter`) | Done — found and fixed a stale type shim that was blocking this |
+| M5 — `optional_permissions` for `bookmarks`/`history`/`management` + a dead (Mac-conflicting) keyboard shortcut fix | Done |
 | H2 — `pnpm audit --prod`: 76→1 (root), 55→0 (mcp-bridge) | Done |
 | B5 — CI: mcp-bridge install step, audit gate, pinned actions, `packageManager`/`engines` | Done |
 | B3 — skill sandbox: pinned-version requirement + off-by-default feature gate | Done, scoped down from the original ask (see wp4-security.md) |
 | WP5 — LLM retry/backoff for 429/5xx, honoring `retry-after` | Done |
-| `computer`/`fill_*`/download tools under the approval gate | Not done |
-| M4 (ZIP import caps), M5 (`optional_permissions`) | Not done |
-| Dead-code removal, leveled logger | Not done |
+| WP6 — model-field combobox, loopback-host banner, model-config import/export | Done, 3 of 8 original items (the other 5 need live-provider or live-browser testing) |
+| Dead-code removal (`external-messaging.ts`, `usePendingPrompt`), a live undisclosed third-party fetch in `ModelChangePrompt` | Done |
+| Leveled logger module (`createLogger`/`setLogLevel`) | Built and tested, **not adopted** at the 523 existing `console.*` call sites — judged too large/risky to migrate safely this round |
+| "`aipex-*` identifiers" cleanup | Scope-corrected: an active naming convention (storage keys, a DOM selector), not dead code — needs a real migration plan, not attempted |
 | Hostile-page e2e, fake-LLM test suite | Not done (needs WP8 harness) |
 | Watchdogs/timeouts (WP5) | Not done — `ToolTimeoutError`/`CancellationToken` still dead code |
-| WP2, WP6, WP7, WP8, bulk of WP9 | Not started this round |
+| "Cross-origin tab creation" / "extension-ID contact" (B1/B2) | Investigated, deliberately left ungated — no specific risk found / no live model-callable capability exists |
+| WP2, WP3, WP7, WP8, bulk of WP9 | Not started this round |
 
 **Verification:** `tooling/scripts/verify-quiet.sh typecheck lint test
 build audit` green after every commit above, including `apps/mcp-bridge`'s
 own `typecheck`/`test`/`build` (not part of the root `pnpm -r` fan-out).
-New test files this round: `url-guard.test.ts` (22 tests, previously zero
-coverage), `quickjs-manager.test.ts` (7 tests, previously zero coverage),
-`skill.test.ts` (4 tests), plus new cases added to `ai-provider.test.ts`,
-`aipex.test.ts`, `devtools.test.ts`/`upload-file/index.test.ts` (approval
-gate), `tool-relevance.test.ts`, `message-router.test.ts`/
-`mcp-bridge.test.ts` (new files), and `daemon-server.test.ts`.
+Test files with zero coverage before this round that now have real tests:
+`url-guard.test.ts` (22), `quickjs-manager.test.ts` (7), `skill.test.ts`
+(4), `element.test.ts` (6), `computer.test.ts` (7),
+`tools/tools/downloads/index.test.ts` (6), `zip-utils.test.ts` (8),
+`optional-permissions.test.ts` (6), `permissions-panel.test.tsx` (5),
+`model-change-prompt.test.tsx` (3), `logger.test.ts` (6) — plus new cases
+added to `ai-provider.test.ts`, `aipex.test.ts` (LLM retry/backoff),
+`devtools.test.ts`/`upload-file/index.test.ts` (approval gate),
+`tool-relevance.test.ts`, `settings/index.test.tsx` (WP6), and
+`message-router.test.ts`/`mcp-bridge.test.ts`/`daemon-server.test.ts`.
 
 **Delivery:** no push to `main` yet — all commits are on
 `review/production-ready`. The WP1 round's review bundle (`REVIEW.md` +
