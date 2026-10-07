@@ -13,8 +13,16 @@ function updateMcpBadge(connected: boolean) {
 
 export function registerMcpBridge(): void {
   // Handle MCP bridge messages
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.request === "ws-bridge-connect") {
+      // Highest-privilege message this handler accepts (connects to an
+      // arbitrary localhost WebSocket with a stored auth token) — restrict
+      // to this extension's own pages (sidepanel/options), never a content
+      // script running inside an arbitrary, possibly-hostile page.
+      if (sender.id !== chrome.runtime.id || sender.tab) {
+        sendResponse({ success: false, error: "Unauthorized sender" });
+        return true;
+      }
       const url = message.url as string;
       const token = message.token as string;
       wsMcpServer

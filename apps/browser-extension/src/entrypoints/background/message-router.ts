@@ -5,7 +5,11 @@ import { setIsRecording } from "./recording";
 import { openSidePanelOnDemand } from "./sidepanel";
 
 export function registerMessageRouter(): void {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    /** Restrict a privileged request to this extension's own pages (sidepanel/options), never a content script running inside an arbitrary, possibly-hostile page. */
+    const isTrustedExtensionPage =
+      sender.id === chrome.runtime.id && !sender.tab;
+
     // Echo capture events to all extension contexts
     if (message.request === "capture-click-event") {
       try {
@@ -37,6 +41,10 @@ export function registerMessageRouter(): void {
 
     // Relay a message to the active tab's content script
     if (message.request === "relay-to-active-tab") {
+      if (!isTrustedExtensionPage) {
+        sendResponse({ success: false, error: "Unauthorized sender" });
+        return true;
+      }
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tabId = tabs[0]?.id;
         if (tabId && message.message) {
@@ -58,11 +66,19 @@ export function registerMessageRouter(): void {
 
     // Recording lifecycle markers
     if (message.request === "start-recording") {
+      if (!isTrustedExtensionPage) {
+        sendResponse({ success: false, error: "Unauthorized sender" });
+        return true;
+      }
       setIsRecording(true);
       sendResponse({ success: true });
       return true;
     }
     if (message.request === "stop-recording") {
+      if (!isTrustedExtensionPage) {
+        sendResponse({ success: false, error: "Unauthorized sender" });
+        return true;
+      }
       setIsRecording(false);
       sendResponse({ success: true });
       return true;
@@ -72,7 +88,7 @@ export function registerMessageRouter(): void {
     if (message.request === "open-sidepanel") {
       (async () => {
         try {
-          await openSidePanelOnDemand(_sender);
+          await openSidePanelOnDemand(sender);
           sendResponse({ success: true });
         } catch (error) {
           sendResponse({
