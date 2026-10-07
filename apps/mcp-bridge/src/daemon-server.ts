@@ -31,6 +31,8 @@ export interface DaemonServerOptions {
   requiredToken: string;
   /** The one extension id `/extension` connections are pinned to, or `undefined` to fail closed (reject every extension origin). */
   allowedExtensionId: string | undefined;
+  /** Tool names a bridge/CLI client may call even though they're state-changing/high-risk by default (see DANGEROUS_TOOL_NAMES) — opt-in, defaults to none allowed. */
+  allowDangerousTools?: boolean;
   idleTimeoutMs?: number;
   toolCallTimeoutMs?: number;
   pingIntervalMs?: number;
@@ -57,6 +59,17 @@ const DEFAULTS = {
 
 /** WS close codes in the private-use range (4000-4999, per RFC 6455 §7.4.2). */
 const CLOSE_CODE_DUPLICATE_EXTENSION = 4001;
+
+/** State-changing/high-risk tool names — blocked by default for bridge/CLI callers unless `allowDangerousTools` is explicitly set. The extension's own approval gate (packages/browser-runtime/src/tools/approval.ts) still applies on top of this for run_console_command/upload_file_to_input even when allowed here. */
+const DANGEROUS_TOOL_NAMES = new Set([
+  "run_console_command",
+  "upload_file_to_input",
+  "computer",
+  "fill_element_by_uid",
+  "fill_form",
+  "download_image",
+  "download_chat_images",
+]);
 
 function isWebPageOrigin(origin: string): boolean {
   return origin.startsWith("http://") || origin.startsWith("https://");
@@ -303,6 +316,24 @@ export function startDaemonServer(
       const params = (msg.params ?? {}) as Record<string, unknown>;
       const name = params.name as string;
       const args = (params.arguments ?? {}) as Record<string, unknown>;
+
+      if (DANGEROUS_TOOL_NAMES.has(name) && !options.allowDangerousTools) {
+        const errResp = {
+          jsonrpc: "2.0",
+          id: id ?? 0,
+          error: {
+            code: -1,
+            message:
+              `Tool '${name}' is state-changing/high-risk and is blocked for bridge/CLI callers by default. ` +
+              "Start the daemon with --allow-dangerous-tools to permit it.",
+          },
+        };
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify(errResp));
+        }
+        return;
+      }
+
       forwardToolCall(socket, id ?? 0, name, args);
       return;
     }
@@ -370,9 +401,23 @@ export function startDaemonServer(
     res.writeHead(404).end("Not found");
   });
 
-  const extensionWss = new WebSocketServer({ noServer: true });
-  const bridgeWss = new WebSocketServer({ noServer: true });
-  const cliWss = new WebSocketServer({ noServer: true });
+  // Bounds worst-case memory from a single oversized/malicious frame —
+  // generous enough for legitimate large payloads (base64 screenshots,
+  // bulk tool results) passing through, not a target.
+  const MAX_WS_PAYLOAD_BYTES = 16 * 1024 * 1024;
+
+  const extensionWss = new WebSocketServer({
+    noServer: true,
+    maxPayload: MAX_WS_PAYLOAD_BYTES,
+  });
+  const bridgeWss = new WebSocketServer({
+    noServer: true,
+    maxPayload: MAX_WS_PAYLOAD_BYTES,
+  });
+  const cliWss = new WebSocketServer({
+    noServer: true,
+    maxPayload: MAX_WS_PAYLOAD_BYTES,
+  });
 
   httpServer.on("upgrade", (req, socket, head) => {
     const origin = req.headers.origin;
@@ -414,7 +459,21 @@ export function startDaemonServer(
         rejectUpgrade(socket, 403, "Forbidden");
         return;
       }
-    } else if (pathname !== "/bridge" && pathname !== "/cli") {
+    } else if (pathname === "/bridge" || pathname === "/cli") {
+      // These paths are for non-browser clients (the MCP bridge CLI/daemon
+      // process, an MCP client like Claude Code) — a real client here never
+      // sends an Origin header at all. The CSWSH guard above already
+      // rejected any web-page origin; this additionally rejects a present
+      // (but non-web-page-shaped, e.g. "null") origin too, since there's no
+      // legitimate reason for one on these paths.
+      if (origin) {
+        log(
+          `Rejected ${pathname} upgrade: unexpected Origin header present (${origin})`,
+        );
+        rejectUpgrade(socket, 403, "Forbidden");
+        return;
+      }
+    } else {
       socket.destroy();
       return;
     }

@@ -98,6 +98,15 @@ if (extensionIdArg) {
 const allowedExtensionId = extensionIdArg || getAllowedExtensionId();
 
 const requiredToken = getOrCreateToken();
+const allowDangerousTools = cliArgs.includes("--allow-dangerous-tools");
+if (allowDangerousTools) {
+  log(
+    "WARNING: --allow-dangerous-tools is set. Bridge/CLI clients may call " +
+      "state-changing/high-risk tools (run_console_command, " +
+      "upload_file_to_input, computer, fill_*, download_*). Only enable " +
+      "this if you trust every client that can reach this daemon.",
+  );
+}
 
 function writePidFile(): void {
   try {
@@ -128,6 +137,7 @@ startDaemonServer({
   host: HOST,
   requiredToken,
   allowedExtensionId,
+  allowDangerousTools,
   onIdleShutdown: shutdown,
 })
   .then((handle) => {

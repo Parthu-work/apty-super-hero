@@ -300,6 +300,74 @@ describe("daemon-server — /bridge and /cli auth", () => {
     expect(outcome.opened).toBe(false);
     expect(outcome.statusCode).toBe(403);
   });
+
+  it("rejects ANY present Origin header on /bridge, even a non-web-page one, with the correct token", async () => {
+    // A real MCP bridge CLI/daemon client never sends an Origin header at
+    // all — one being present at all (even a literal "null", which a
+    // sandboxed/opaque-origin context can send) is itself suspicious here.
+    const h = await startTestDaemon();
+    const { result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
+      { origin: "null" },
+    );
+    const outcome = await result;
+    expect(outcome.opened).toBe(false);
+    expect(outcome.statusCode).toBe(403);
+  });
+
+  it("rejects a present Origin header on /cli too", async () => {
+    const h = await startTestDaemon();
+    const { result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/cli?token=${TOKEN}`,
+      { origin: "null" },
+    );
+    const outcome = await result;
+    expect(outcome.opened).toBe(false);
+    expect(outcome.statusCode).toBe(403);
+  });
+});
+
+describe("daemon-server — dangerous tool allowlist", () => {
+  /** Open a /bridge connection, send one tools/call JSON-RPC message, and resolve with the parsed response. */
+  async function callTool(h: DaemonServerHandle, name: string): Promise<any> {
+    const { ws, result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
+    );
+    await result;
+    return new Promise((resolve) => {
+      ws.on("message", (data) => resolve(JSON.parse(data.toString())));
+      ws.send(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name, arguments: {} },
+        }),
+      );
+    });
+  }
+
+  it("blocks a dangerous tool by default, never reaching the extension", async () => {
+    const h = await startTestDaemon();
+    const response = await callTool(h, "run_console_command");
+    expect(response.error?.message).toMatch(/blocked for bridge\/CLI/i);
+  });
+
+  it("a non-dangerous tool is forwarded (reports extension-not-connected, not blocked)", async () => {
+    const h = await startTestDaemon();
+    const response = await callTool(h, "get_current_tab");
+    expect(response.error?.message).toMatch(/not connected/i);
+    expect(response.error?.message).not.toMatch(/blocked for bridge\/CLI/i);
+  });
+
+  it("allowDangerousTools:true permits a dangerous tool through to forwarding", async () => {
+    const h = await startTestDaemon({ allowDangerousTools: true });
+    const response = await callTool(h, "run_console_command");
+    // Forwarded (not blocked) — reports extension-not-connected instead,
+    // since no real extension is attached in this test.
+    expect(response.error?.message).toMatch(/not connected/i);
+    expect(response.error?.message).not.toMatch(/blocked for bridge\/CLI/i);
+  });
 });
 
 describe("daemon-server — GET /health", () => {
