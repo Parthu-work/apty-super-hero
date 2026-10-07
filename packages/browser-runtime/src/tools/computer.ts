@@ -2,6 +2,23 @@ import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { executeComputerAction } from "../automation/computer";
 import { getAutomationMode } from "../runtime/automation-mode";
+import { gateRiskyAction } from "./approval.js";
+import { getActiveTab, type ToolRunContext } from "./tab-utils";
+
+/** Actions that inject arbitrary text/keystrokes into the page — gated, same risk category as fill_element_by_uid/fill_form. Pointer-only actions (click/hover/scroll/drag) stay ungated, same distinction as click/hover_element_by_uid staying ungated while fill_* is gated. */
+const TEXT_INJECTION_ACTIONS = new Set(["type", "key"]);
+
+async function getTabUrlForGate(
+  tabId: number | undefined,
+): Promise<string | undefined> {
+  try {
+    const tab =
+      tabId !== undefined ? await chrome.tabs.get(tabId) : await getActiveTab();
+    return tab.url;
+  } catch {
+    return undefined;
+  }
+}
 
 export const computerTool = tool({
   name: "computer",
@@ -16,7 +33,9 @@ USE THIS TOOL ONLY WHEN:
 
 PREREQUISITE: If you choose coordinate actions, you MUST first call capture_screenshot(sendToLLM=true). Coordinates are in screenshot pixel space.
 
-* Click element centers, not edges. Adjust if clicks miss.`,
+* Click element centers, not edges. Adjust if clicks miss.
+
+APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so they require explicit user approval before they run (once per page origin — see confirm_risky_action). Click/scroll/hover/drag actions are not gated.`,
   parameters: z.object({
     action: z
       .enum([
@@ -85,7 +104,7 @@ PREREQUISITE: If you choose coordinate actions, you MUST first call capture_scre
       .optional()
       .describe("Element UID from snapshot for scroll_to action."),
   }),
-  execute: async (params) => {
+  execute: async (params, context) => {
     const mode = await getAutomationMode();
     console.log("🔧 [computer] Automation mode:", mode);
 
@@ -96,22 +115,39 @@ PREREQUISITE: If you choose coordinate actions, you MUST first call capture_scre
       );
     }
 
-    return await executeComputerAction({
-      action: params.action,
-      coordinate: params.coordinate
-        ? ([params.coordinate[0], params.coordinate[1]] as [number, number])
-        : undefined,
-      text: params.text ?? undefined,
-      start_coordinate: params.start_coordinate
-        ? ([params.start_coordinate[0], params.start_coordinate[1]] as [
-            number,
-            number,
-          ])
-        : undefined,
-      scroll_direction: params.scroll_direction ?? undefined,
-      scroll_amount: params.scroll_amount ?? undefined,
-      tabId: params.tabId ?? undefined,
-      uid: params.uid ?? undefined,
-    });
+    const runAction = () =>
+      executeComputerAction({
+        action: params.action,
+        coordinate: params.coordinate
+          ? ([params.coordinate[0], params.coordinate[1]] as [number, number])
+          : undefined,
+        text: params.text ?? undefined,
+        start_coordinate: params.start_coordinate
+          ? ([params.start_coordinate[0], params.start_coordinate[1]] as [
+              number,
+              number,
+            ])
+          : undefined,
+        scroll_direction: params.scroll_direction ?? undefined,
+        scroll_amount: params.scroll_amount ?? undefined,
+        tabId: params.tabId ?? undefined,
+        uid: params.uid ?? undefined,
+      });
+
+    if (!TEXT_INJECTION_ACTIONS.has(params.action)) {
+      return runAction();
+    }
+
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    const pageUrl = await getTabUrlForGate(params.tabId);
+    return gateRiskyAction(
+      conversationId,
+      "computer",
+      params.action === "type"
+        ? `Type "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`
+        : `Press key(s) "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`,
+      pageUrl,
+      runAction,
+    );
   },
 });

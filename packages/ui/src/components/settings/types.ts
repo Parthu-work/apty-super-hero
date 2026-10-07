@@ -24,6 +24,15 @@ export interface SettingsPageProps {
   skillsContent?: ReactNode;
   /** Optional content for a "Connection" tab (e.g. MCP bridge panel). */
   connectionContent?: ReactNode;
+  /**
+   * Optional content rendered in the general tab, below the privacy/skill
+   * cards — for host-app-specific optional-permission toggles
+   * (`chrome.permissions.request`/`.remove`), which this platform-agnostic
+   * package cannot call directly (see CLAUDE.md's package architecture:
+   * @apty/ui must not depend on @apty/browser-runtime or assume a Chrome
+   * extension environment).
+   */
+  permissionsContent?: ReactNode;
   /** Optional ElevenLabs STT config adapter; when provided the STT card is shown. */
   sttConfig?: STTConfigAdapter;
   /** Pre-select a tab on mount (e.g. from URL params). */

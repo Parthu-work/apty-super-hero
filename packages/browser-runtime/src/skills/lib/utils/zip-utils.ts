@@ -3,7 +3,7 @@
  * Handles ZIP extraction and parsing for skill uploads
  */
 
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8, type Unzipped, unzipSync } from "fflate";
 import { zenfs } from "../../../vm/zenfs-manager";
 
 export interface ParsedSkillMetadata {
@@ -17,6 +17,89 @@ export class SkillConflictError extends Error {
     super(`Skill "${skillName}" already exists`);
     this.name = "SkillConflictError";
   }
+}
+
+/**
+ * A skill ZIP is an untrusted upload (M4): without caps, `unzipSync` will
+ * synchronously decompress an arbitrarily large payload in one go — a
+ * highly-compressed "zip bomb" (a few KB compressed, gigabytes
+ * decompressed) can exhaust memory before any of the extracted content is
+ * ever inspected. `fflate`'s `filter` callback runs per-entry BEFORE that
+ * entry is decompressed and can report its *declared* `originalSize` —
+ * this lets us reject oversized entries (and stop the whole import) without
+ * ever decompressing them.
+ */
+export class SkillZipTooLargeError extends Error {}
+export class SkillZipTooManyEntriesError extends Error {}
+export class SkillZipUnsafePathError extends Error {}
+
+const MAX_ZIP_ENTRY_COUNT = 2000;
+const MAX_ZIP_SINGLE_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 50 * 1024 * 1024; // 50 MB
+
+/** A `..` path segment in a ZIP entry name is a path-traversal attempt — the
+ * extraction logic below builds `${targetPath}/${relativePath}` directly
+ * from entry names, so an unchecked `../../../elsewhere` entry could write
+ * outside the skill's own directory in ZenFS. */
+function hasPathTraversalSegment(name: string): boolean {
+  return name.split("/").some((segment) => segment === "..");
+}
+
+/**
+ * `unzipSync` wrapper enforcing M4's caps: a hard entry-count limit, a
+ * per-file size limit, a cumulative decompressed-size limit, and rejecting
+ * any entry with a `..` path segment. Throws instead of silently truncating
+ * the import, since a partially-extracted skill is worse than a clearly
+ * failed one.
+ */
+function safeUnzipSync(data: Uint8Array): Unzipped {
+  let entryCount = 0;
+  let totalBytes = 0;
+  let violation: Error | null = null;
+
+  const result = unzipSync(data, {
+    filter(file) {
+      if (violation) return false;
+
+      if (hasPathTraversalSegment(file.name)) {
+        violation = new SkillZipUnsafePathError(
+          `Unsafe path in ZIP entry: ${file.name}`,
+        );
+        return false;
+      }
+
+      entryCount++;
+      if (entryCount > MAX_ZIP_ENTRY_COUNT) {
+        violation = new SkillZipTooManyEntriesError(
+          `ZIP has more than ${MAX_ZIP_ENTRY_COUNT} entries`,
+        );
+        return false;
+      }
+
+      if (file.originalSize > MAX_ZIP_SINGLE_FILE_BYTES) {
+        violation = new SkillZipTooLargeError(
+          `ZIP entry "${file.name}" (${file.originalSize} bytes) exceeds the ${MAX_ZIP_SINGLE_FILE_BYTES}-byte per-file limit`,
+        );
+        return false;
+      }
+
+      totalBytes += file.originalSize;
+      if (totalBytes > MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES) {
+        violation = new SkillZipTooLargeError(
+          `ZIP's total uncompressed size exceeds the ${MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES}-byte limit`,
+        );
+        return false;
+      }
+
+      return true;
+    },
+  });
+
+  if (violation) {
+    throw violation;
+  }
+
+  return result;
 }
 
 /**
@@ -51,7 +134,7 @@ export async function parseSkillMetadataFromZip(
 ): Promise<ParsedSkillMetadata> {
   const arrayBuffer = await zipBlob.arrayBuffer();
   const uint8Array = new Uint8Array(arrayBuffer);
-  const unzipped = unzipSync(uint8Array);
+  const unzipped = safeUnzipSync(uint8Array);
 
   // Find SKILL.md in the ZIP
   let skillMdContent: string | null = null;
@@ -158,7 +241,7 @@ export async function extractZipToFS(
   // Convert blob to array buffer and unzip
   const arrayBuffer = await zipBlob.arrayBuffer();
   const uint8Array = new Uint8Array(arrayBuffer);
-  const unzipped = unzipSync(uint8Array);
+  const unzipped = safeUnzipSync(uint8Array);
 
   // Filter out unwanted files
   const filteredPaths = Object.keys(unzipped).filter(

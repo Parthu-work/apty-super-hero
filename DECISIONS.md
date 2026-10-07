@@ -1254,3 +1254,160 @@ render happens, outside a real extension context — getting a faithful
 live render would need a Playwright `launchPersistentContext` with
 `--load-extension`, judged out of scope for this specific change rather
 than skipped silently.
+
+## v7 WP4 follow-up: extending the approval gate to fill_*/computer/downloads
+
+B1/B2 (this round, earlier commit `acab65d`) gated `run_console_command`
+and `upload_file_to_input`. The original audit's own scope also named
+"computer, fill_*, downloads, cross-origin tab creation, any extension-ID
+contact" as needing the same treatment but deferred all of them. This
+pass picked up the ones with a clear, narrow fit and explicitly left the
+other two investigated-but-not-fixed, rather than force an ill-considered
+gate onto either:
+
+- **`fill_element_by_uid`/`fill_form`** (`packages/browser-runtime/src/
+  tools/element.ts`) — gated in full via `gateRiskyAction`, same pattern
+  as upload_file_to_input. These still take a model-supplied `tabId`
+  directly (unchanged in this pass — narrowing that trust model to
+  `resolveDiagnosticTab`, as `upload_file_to_input` was previously
+  narrowed, is a separate, larger change touching `click`/
+  `hover_element_by_uid`/`get_editor_value` too, not attempted here).
+- **`computer`** (`tools/computer.ts`) — gated **only** the `type` and
+  `key` actions (arbitrary text/keystroke injection), not `left_click`/
+  `right_click`/`double_click`/`triple_click`/`scroll`/`scroll_to`/
+  `hover`/`left_click_drag`. Gating the whole tool would have made basic
+  pointer interaction — used constantly in any visual-automation task —
+  prompt for approval on every new page origin, a severe usability
+  regression for comparatively low-risk actions. This mirrors the
+  existing, already-shipped distinction in `element.ts` itself: `click`/
+  `hover_element_by_uid` are NOT gated while `fill_element_by_uid`/
+  `fill_form` ARE — data-injection risk is what's gated, pointer
+  interaction isn't, consistently across both the UID-based and
+  coordinate-based tool surfaces.
+- **`download_image`/`download_chat_images`** (`tools/tools/downloads/
+  index.ts`) — gated in full. These have no page-origin concept at all
+  (they write agent-generated data — a screenshot, a chat image — to the
+  local filesystem, not content read from a page), so `gateRiskyAction`'s
+  per-origin pageUrl is passed as `undefined`; its own existing fallback
+  behavior for that case (never remember a grant, always re-prompt) is
+  exactly right here and needed no special-casing.
+- **`download_text_as_markdown`, `get_all_downloads`, `open_download`,
+  `show_download_in_folder`, `cancel_download`, `download_current_chat_images`
+  (a stub that always returns `success:false`)** — deliberately NOT
+  gated. None of these write arbitrary new files to disk from
+  attacker-reachable data the way the two gated download tools do; they
+  manage *existing* downloads or save the user's own chat text.
+- **"Cross-origin tab creation" and "any extension-ID contact"** —
+  investigated, not fixed, reasoning recorded rather than silently
+  dropped. `create_new_tab` (`tools/tab.ts`) is a core, extremely common
+  browsing primitive (opening a tab is equivalent in risk to a user
+  clicking a link); gating it would be a severe usability regression with
+  no articulated, specific threat this round could confirm beyond "it
+  navigates somewhere," unlike the concrete data-injection/disk-write
+  risk the other gated tools share. "Any extension-ID contact":
+  `sendExternalMessage(extensionId, ...)` (`apty/external-messaging.ts`)
+  takes a parameterized `extensionId`, but grepping confirmed it is
+  **not wired as an LLM-callable tool anywhere** — only called internally
+  with a fixed, user-configured Apty Client extension id
+  (`studio-diagnostics.ts`), never a model-chosen one. There is no live
+  "contact any extension by ID" capability exposed to the model today to
+  gate.
+
+Added `element.test.ts` (6 tests), `computer.test.ts` (7 tests), and
+`tools/tools/downloads/index.test.ts` (6 tests) — all three files had
+zero test coverage before this pass.
+
+## v7 M4: ZIP import caps, and a stale type shim that was quietly widening fflate's real types
+
+`extractZipToFS`/`parseSkillMetadataFromZip`
+(`packages/browser-runtime/src/skills/lib/utils/zip-utils.ts`) called
+`unzipSync` directly on an untrusted uploaded skill ZIP with no caps at
+all: a highly-compressed "zip bomb" could decompress to gigabytes in one
+synchronous call before any of the extracted content was ever inspected,
+and a `../../../etc/passwd`-style entry name was used directly to build
+`${targetPath}/${relativePath}` with no path-traversal check.
+
+Added `safeUnzipSync()`, wrapping `unzipSync`'s `filter` callback (which
+fflate calls per-entry with the entry's *declared* size, before
+decompressing it) to enforce, in order: reject any `..` path segment
+(`SkillZipUnsafePathError`), a max 2000-entry count
+(`SkillZipTooManyEntriesError`), a 20MB per-file cap, and a 50MB
+cumulative-decompressed-size cap (both `SkillZipTooLargeError`) — the
+per-file and cumulative checks both happen *before* that entry is
+decompressed, so an oversized entry is rejected without ever being
+inflated. Throws rather than silently skipping the oversized/unsafe
+entries and extracting a partial result, since a half-installed skill is
+worse than a clearly failed import.
+
+**Found and fixed along the way**: `packages/browser-runtime/src/types/
+external-modules.d.ts` had a hand-written `declare module "fflate" { ... }`
+ambient shim declaring only a 1-argument `unzipSync(data): Record<string,
+Uint8Array>` and `strFromU8` — far narrower than fflate 0.8.3's real
+shipped types (which include the `filter` option and many more exports),
+and an in-project ambient module declaration like this takes precedence
+over a package's own types. This silently blocked exactly the capability
+(`filter`, per-entry size inspection) needed to fix M4 properly, and
+would have blocked it for any other caller too. Deleted the shim entirely
+and confirmed (via `tsc --traceResolution`) that fflate's own `esm/
+browser.d.ts` resolves correctly without it — this is almost certainly a
+leftover from before fflate shipped usable types, never revisited. No
+other file in the repo imports from `"fflate"`, so nothing else depended
+on the narrower shape.
+
+Added `zip-utils.test.ts` (8 tests, zero coverage before this round),
+including a real 21MB single-entry zip-bomb-shaped test and a
+54MB-across-three-files cumulative-cap test (each individually under the
+per-file cap) — both using `fflate`'s own `zipSync` to build real test
+fixtures rather than mocking the unzip step itself.
+
+## v7 M5: optional_permissions for bookmarks/history/management, and a dead keyboard shortcut
+
+**Keyboard shortcut**: `manifest.json`'s `open-apty-agent` command
+suggested `Command+M` on Mac. Verified against Chrome's own extension
+commands documentation (not assumed from memory) that OS-level window
+management shortcuts "always take priority over Extension command
+shortcuts and cannot be overridden" — Command+M is macOS's system-wide
+"Minimize Window" shortcut, so this keyboard shortcut has never actually
+fired on Mac. Chrome's own documented recommendation is a
+`Ctrl+Shift+<letter>`/`Command+Shift+<letter>` pattern specifically
+because single-modifier combos are the ones most likely to collide;
+changed to `Ctrl+Shift+A`/`Command+Shift+A`.
+
+**optional_permissions**: `bookmarks`, `history`, `management` were
+unconditional `permissions` (granted at install, before the user has done
+anything), each used by exactly one feature: `BookmarksProvider`/
+`HistoryProvider` (ambient context on every turn) and the Apty Client
+"Detect" panel's `chrome.management.get()` call. Moved all three to
+`optional_permissions`, added an Options-page "Optional permissions"
+panel (`entrypoints/options/permissions-panel.tsx`,
+`services/optional-permissions.ts`) with a toggle per permission that
+calls `chrome.permissions.request`/`.remove` from the toggle's own click
+(a real user gesture — required, since Chrome rejects `.request` calls
+made any other way).
+
+**Why this was judged safe with zero changes at the three call sites**:
+read each one first, rather than assuming. `BookmarksProvider` and
+`HistoryProvider` already wrap their calls in try/catch and return `[]`
+on failure; `extension-network-inspector.ts`'s `getManagedExtension()`
+explicitly feature-detects (`if (!c?.management?.get) return undefined`)
+before ever calling it. All three already treat "permission absent" as a
+handled, non-crashing state — converting to optional permissions only
+changes whether that state is ever reached, not whether it's handled.
+
+**Trade-off accepted, stated plainly**: a fresh install now has
+bookmark/history context and the management-based "Detect" check off by
+default until the user opts in via the new panel — fewer scary bullet
+points in Chrome's install-time permission prompt, at the cost of one
+extra settings visit for users who want those specific features. This is
+the standard, Chrome-recommended pattern (least-privilege by default,
+explicit opt-in for extras) rather than a pure win with no trade-off, and
+is called out as such rather than framed as a strict improvement.
+`validate-manifest.mjs` was updated to check `optional_permissions`
+entries against `docs/security/PERMISSIONS.md` the same way as
+unconditional `permissions`, so a future optional permission still needs
+a documented justification, not a loophole around the existing check.
+
+Added `optional-permissions.test.ts` (6 tests) and
+`permissions-panel.test.tsx` (5 tests, using `fireEvent` rather than
+`@testing-library/user-event` — the latter isn't a dependency anywhere
+in this repo, and wasn't worth adding for one test file).

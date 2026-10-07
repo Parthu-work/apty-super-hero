@@ -1,5 +1,7 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { gateRiskyAction } from "../../approval.js";
+import type { ToolRunContext } from "../../tab-utils";
 import { sanitizeDownloadPath, sanitizeSegment } from "./sanitize-path";
 
 interface DownloadInfo {
@@ -238,7 +240,8 @@ export const downloadTextAsMarkdownTool = tool({
 export const downloadImageTool = tool({
   name: "download_image",
   description:
-    "Download an image from base64 data to the user's local filesystem",
+    "Download an image from base64 data to the user's local filesystem. " +
+    "APPROVAL: writes to the user's local filesystem, so it requires explicit user approval before it runs.",
   parameters: z.object({
     imageData: z
       .string()
@@ -255,63 +258,79 @@ export const downloadImageTool = tool({
       .optional()
       .describe("Optional folder path"),
   }),
-  execute: async ({ imageData, filename, folderPath }) => {
-    try {
-      if (!chrome.downloads) {
+  execute: async ({ imageData, filename, folderPath }, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+
+    const runDownload = async () => {
+      try {
+        if (!chrome.downloads) {
+          return {
+            success: false,
+            error:
+              "Downloads permission not available. Please check extension permissions.",
+          };
+        }
+
+        if (!imageData || typeof imageData !== "string") {
+          return {
+            success: false,
+            error: "Image data is required and must be a string",
+          };
+        }
+
+        if (!imageData.startsWith("data:image/")) {
+          return {
+            success: false,
+            error: "Invalid image data format. Expected data:image/ URI",
+          };
+        }
+
+        const mimeMatch = imageData.match(/data:image\/([^;]+)/);
+        const imageFormat = mimeMatch ? mimeMatch[1] : "png";
+
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[:.]/g, "-")
+          .slice(0, -5);
+        const baseFilename = sanitizeSegment(
+          filename || `image-${timestamp}`,
+          `image-${timestamp}`,
+        );
+        const fullFilename = `${baseFilename}.${imageFormat}`;
+        const finalPath = folderPath
+          ? sanitizeDownloadPath(`${folderPath}/${fullFilename}`)
+          : fullFilename;
+
+        const downloadId = await chrome.downloads.download({
+          url: imageData,
+          filename: finalPath,
+          saveAs: false,
+        });
+
+        return {
+          success: true,
+          downloadId,
+          finalPath,
+        };
+      } catch (error: unknown) {
         return {
           success: false,
-          error:
-            "Downloads permission not available. Please check extension permissions.",
+          error: error instanceof Error ? error.message : String(error),
         };
       }
+    };
 
-      if (!imageData || typeof imageData !== "string") {
-        return {
-          success: false,
-          error: "Image data is required and must be a string",
-        };
-      }
-
-      if (!imageData.startsWith("data:image/")) {
-        return {
-          success: false,
-          error: "Invalid image data format. Expected data:image/ URI",
-        };
-      }
-
-      const mimeMatch = imageData.match(/data:image\/([^;]+)/);
-      const imageFormat = mimeMatch ? mimeMatch[1] : "png";
-
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-")
-        .slice(0, -5);
-      const baseFilename = sanitizeSegment(
-        filename || `image-${timestamp}`,
-        `image-${timestamp}`,
-      );
-      const fullFilename = `${baseFilename}.${imageFormat}`;
-      const finalPath = folderPath
-        ? sanitizeDownloadPath(`${folderPath}/${fullFilename}`)
-        : fullFilename;
-
-      const downloadId = await chrome.downloads.download({
-        url: imageData,
-        filename: finalPath,
-        saveAs: false,
-      });
-
-      return {
-        success: true,
-        downloadId,
-        finalPath,
-      };
-    } catch (error: unknown) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
+    // No page-origin concept applies to a local-disk write, so this always
+    // re-prompts (gateRiskyAction's per-origin memory only kicks in when a
+    // pageUrl is given) — same approval-per-call behavior as the original
+    // B1/B2 tools had before any per-origin grant existed.
+    return gateRiskyAction(
+      conversationId,
+      "download_image",
+      `Save an image to your local downloads folder${folderPath ? ` (${folderPath})` : ""}`,
+      undefined,
+      runDownload,
+    );
   },
 });
 
@@ -320,7 +339,9 @@ export const downloadImageTool = tool({
  */
 export const downloadChatImagesTool = tool({
   name: "download_chat_images",
-  description: "Download multiple images from chat messages in batch",
+  description:
+    "Download multiple images from chat messages in batch. " +
+    "APPROVAL: writes to the user's local filesystem, so it requires explicit user approval before it runs.",
   parameters: z.object({
     messages: z
       .array(
@@ -353,105 +374,124 @@ export const downloadChatImagesTool = tool({
       .default(true)
       .describe("Whether to display the download results"),
   }),
-  execute: async ({
-    messages,
-    folderPrefix,
-    filenamingStrategy = "descriptive",
-  }) => {
-    try {
-      if (!chrome.downloads) {
-        return {
-          success: false,
-          errors: [
-            "Downloads permission not available. Please check extension permissions.",
-          ],
-        };
-      }
+  execute: async (
+    { messages, folderPrefix, filenamingStrategy = "descriptive" },
+    context,
+  ) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
 
-      const sanitizedFolderPrefix = folderPrefix
-        ? sanitizeDownloadPath(folderPrefix)
-        : undefined;
+    const runDownloadBatch = async () => {
+      try {
+        if (!chrome.downloads) {
+          return {
+            success: false,
+            errors: [
+              "Downloads permission not available. Please check extension permissions.",
+            ],
+          };
+        }
 
-      const downloadIds: number[] = [];
-      const errors: string[] = [];
-      const filesList: string[] = [];
-      let downloadedCount = 0;
-      let imageIndex = 0;
+        const sanitizedFolderPrefix = folderPrefix
+          ? sanitizeDownloadPath(folderPrefix)
+          : undefined;
 
-      for (const message of messages) {
-        if (!message.parts) continue;
+        const downloadIds: number[] = [];
+        const errors: string[] = [];
+        const filesList: string[] = [];
+        let downloadedCount = 0;
+        let imageIndex = 0;
 
-        for (const part of message.parts) {
-          if (part.type === "image" && part.imageData) {
-            try {
-              imageIndex++;
+        for (const message of messages) {
+          if (!message.parts) continue;
 
-              const timestamp = new Date()
-                .toISOString()
-                .replace(/[:.]/g, "-")
-                .slice(0, -5);
-              const titleSlug = part.imageTitle
-                ? sanitizeSegment(
-                    part.imageTitle
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, "-")
-                      .replace(/^-+|-+$/g, ""),
-                    `image-${imageIndex}`,
-                  )
-                : `image-${imageIndex}`;
+          for (const part of message.parts) {
+            if (part.type === "image" && part.imageData) {
+              try {
+                imageIndex++;
 
-              let baseFilename: string;
-              switch (filenamingStrategy) {
-                case "sequential":
-                  baseFilename = `image-${String(imageIndex).padStart(3, "0")}`;
-                  break;
-                case "timestamp":
-                  baseFilename = `image-${timestamp}`;
-                  break;
-                default:
-                  baseFilename = titleSlug;
-                  break;
+                const timestamp = new Date()
+                  .toISOString()
+                  .replace(/[:.]/g, "-")
+                  .slice(0, -5);
+                const titleSlug = part.imageTitle
+                  ? sanitizeSegment(
+                      part.imageTitle
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, "-")
+                        .replace(/^-+|-+$/g, ""),
+                      `image-${imageIndex}`,
+                    )
+                  : `image-${imageIndex}`;
+
+                let baseFilename: string;
+                switch (filenamingStrategy) {
+                  case "sequential":
+                    baseFilename = `image-${String(imageIndex).padStart(3, "0")}`;
+                    break;
+                  case "timestamp":
+                    baseFilename = `image-${timestamp}`;
+                    break;
+                  default:
+                    baseFilename = titleSlug;
+                    break;
+                }
+
+                const mimeMatch = part.imageData.match(/data:image\/([^;]+)/);
+                const imageFormat = mimeMatch ? mimeMatch[1] : "png";
+                const fullFilename = `${sanitizeSegment(baseFilename)}.${imageFormat}`;
+                const finalPath = sanitizedFolderPrefix
+                  ? `${sanitizedFolderPrefix}/${fullFilename}`
+                  : fullFilename;
+
+                const downloadId = await chrome.downloads.download({
+                  url: part.imageData,
+                  filename: finalPath,
+                  saveAs: false,
+                });
+
+                downloadIds.push(downloadId);
+                filesList.push(finalPath);
+                downloadedCount++;
+              } catch (error: unknown) {
+                errors.push(
+                  `Failed to download image ${imageIndex}: ${error instanceof Error ? error.message : String(error)}`,
+                );
               }
-
-              const mimeMatch = part.imageData.match(/data:image\/([^;]+)/);
-              const imageFormat = mimeMatch ? mimeMatch[1] : "png";
-              const fullFilename = `${sanitizeSegment(baseFilename)}.${imageFormat}`;
-              const finalPath = sanitizedFolderPrefix
-                ? `${sanitizedFolderPrefix}/${fullFilename}`
-                : fullFilename;
-
-              const downloadId = await chrome.downloads.download({
-                url: part.imageData,
-                filename: finalPath,
-                saveAs: false,
-              });
-
-              downloadIds.push(downloadId);
-              filesList.push(finalPath);
-              downloadedCount++;
-            } catch (error: unknown) {
-              errors.push(
-                `Failed to download image ${imageIndex}: ${error instanceof Error ? error.message : String(error)}`,
-              );
             }
           }
         }
-      }
 
-      return {
-        success: downloadedCount > 0,
-        downloadedCount,
-        downloadIds,
-        errors: errors.length > 0 ? errors : undefined,
-        folderPath: sanitizedFolderPrefix ?? undefined,
-        filesList,
-      };
-    } catch (error: unknown) {
-      return {
-        success: false,
-        errors: [error instanceof Error ? error.message : String(error)],
-      };
-    }
+        return {
+          success: downloadedCount > 0,
+          downloadedCount,
+          downloadIds,
+          errors: errors.length > 0 ? errors : undefined,
+          folderPath: sanitizedFolderPrefix ?? undefined,
+          filesList,
+        };
+      } catch (error: unknown) {
+        return {
+          success: false,
+          errors: [error instanceof Error ? error.message : String(error)],
+        };
+      }
+    };
+
+    const imageCount = messages.reduce(
+      (count, message) =>
+        count +
+        (message.parts?.filter((p) => p.type === "image" && p.imageData)
+          .length ?? 0),
+      0,
+    );
+
+    return gateRiskyAction(
+      conversationId,
+      "download_chat_images",
+      `Save ${imageCount} image(s) from this chat to your local downloads folder${folderPrefix ? ` (${folderPrefix})` : ""}`,
+      undefined,
+      runDownloadBatch,
+    );
   },
 });
 

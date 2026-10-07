@@ -16,6 +16,7 @@ import {
 } from "../../services/ai-provider";
 import { AptyClientPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
+import { PermissionsPanel } from "./permissions-panel";
 import { SkillsOptionsTab } from "./skills-tab";
 
 /** Parse and validate URL params for deep-linking. */
@@ -87,6 +88,7 @@ function OptionsPageContent() {
       storageAdapter={chromeStorageAdapter}
       onTestConnection={handleTestConnection}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}
+      permissionsContent={<PermissionsPanel />}
       connectionContent={
         <div className="space-y-6">
           <AptyClientPanel />

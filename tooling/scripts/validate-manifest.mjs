@@ -116,7 +116,13 @@ if (!existsSync(PERMISSIONS_DOC_PATH)) {
     [...tableSection.matchAll(/^\| `([a-zA-Z]+)` \|/gm)].map((m) => m[1]),
   );
 
-  const manifestPermissions = new Set(manifest.permissions ?? []);
+  // optional_permissions (requested at runtime via chrome.permissions.request,
+  // not granted at install) still need the same documented justification as
+  // an unconditional permission — just via a different manifest field.
+  const manifestPermissions = new Set([
+    ...(manifest.permissions ?? []),
+    ...(manifest.optional_permissions ?? []),
+  ]);
 
   for (const perm of manifestPermissions) {
     if (!documented.has(perm)) {
@@ -128,7 +134,7 @@ if (!existsSync(PERMISSIONS_DOC_PATH)) {
   for (const perm of documented) {
     if (!manifestPermissions.has(perm)) {
       errors.push(
-        `docs/security/PERMISSIONS.md documents "${perm}", which is no longer in manifest.json's permissions — remove the stale entry`,
+        `docs/security/PERMISSIONS.md documents "${perm}", which is no longer in manifest.json's permissions/optional_permissions — remove the stale entry`,
       );
     }
   }

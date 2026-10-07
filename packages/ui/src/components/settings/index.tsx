@@ -302,6 +302,7 @@ export function SettingsPage({
   onTestConnection,
   skillsContent,
   connectionContent,
+  permissionsContent,
   sttConfig,
   initialTab,
   initialSkill: _initialSkill,
@@ -1059,6 +1060,8 @@ export function SettingsPage({
                 </Alert>
               </CardContent>
             </Card>
+
+            {permissionsContent}
 
             {/* ElevenLabs STT Configuration (shown when adapter provided) */}
             {sttConfig && (

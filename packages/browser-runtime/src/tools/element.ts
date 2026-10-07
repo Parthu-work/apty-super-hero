@@ -3,11 +3,23 @@ import { z } from "zod";
 import { type ElementHandle, SmartElementHandle } from "../automation";
 import { DomElementHandle } from "../automation/dom-element-handle";
 import * as snapshotProvider from "../automation/snapshot-provider";
+import { gateRiskyAction } from "./approval.js";
+import type { ToolRunContext } from "./tab-utils";
 import {
   playClickAnimationAndReturn,
   scrollAndMoveFakeMouseToElement,
   waitForEventsAfterAction,
 } from "./ui-operations";
+
+/** Best-effort tab URL lookup for the approval gate's per-origin grant — these tools still take a model-supplied tabId (unchanged in this round), so this is just "whatever page that tab happens to show," same trust level as before. */
+async function getTabUrl(tabId: number): Promise<string | undefined> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab.url;
+  } catch {
+    return undefined;
+  }
+}
 
 async function getElementByUid(
   tabId: number,
@@ -91,34 +103,49 @@ export const clickTool = tool({
 
 export const fillElementByUidTool = tool({
   name: "fill_element_by_uid",
-  description: "Fill an input element using its unique UID from a snapshot",
+  description:
+    "Fill an input element using its unique UID from a snapshot. " +
+    "APPROVAL: writes to the page, so it requires explicit user approval before it runs (once per page origin — see confirm_risky_action).",
   parameters: z.object({
     tabId: z.number().describe("The ID of the tab to fill the element in"),
     uid: z.string().describe("The unique identifier of the element to fill"),
     value: z.string().describe("The value to fill into the element"),
   }),
-  execute: async ({ tabId, uid, value }) => {
-    let handle: ElementHandle | null = null;
+  execute: async ({ tabId, uid, value }, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
 
-    try {
-      handle = await getElementByUid(tabId, uid);
-      if (!handle) {
-        throw new Error(
-          "Element not found in current snapshot. Call take_snapshot first.",
-        );
+    const runFill = async () => {
+      let handle: ElementHandle | null = null;
+
+      try {
+        handle = await getElementByUid(tabId, uid);
+        if (!handle) {
+          throw new Error(
+            "Element not found in current snapshot. Call take_snapshot first.",
+          );
+        }
+
+        await handle.asLocator().fill(value);
+
+        return {
+          success: true,
+          message: "Element filled successfully",
+        };
+      } finally {
+        if (handle) {
+          handle.dispose();
+        }
       }
+    };
 
-      await handle.asLocator().fill(value);
-
-      return {
-        success: true,
-        message: "Element filled successfully",
-      };
-    } finally {
-      if (handle) {
-        handle.dispose();
-      }
-    }
+    const pageUrl = await getTabUrl(tabId);
+    return gateRiskyAction(
+      conversationId,
+      "fill_element_by_uid",
+      `Fill a form field with "${value}" on the current page (${pageUrl ?? "unknown URL"})`,
+      pageUrl,
+      runFill,
+    );
   },
 });
 
@@ -203,7 +230,8 @@ export const getEditorValueTool = tool({
 export const fillFormTool = tool({
   name: "fill_form",
   description:
-    "Fill multiple form elements at once using their UIDs from a snapshot",
+    "Fill multiple form elements at once using their UIDs from a snapshot. " +
+    "APPROVAL: writes to the page, so it requires explicit user approval before it runs (once per page origin — see confirm_risky_action).",
   parameters: z.object({
     tabId: z.number().describe("The ID of the tab to fill the elements in"),
     elements: z
@@ -215,76 +243,89 @@ export const fillFormTool = tool({
       )
       .describe("Array of elements to fill with their UIDs and values"),
   }),
-  execute: async ({ tabId, elements }) => {
-    const results: Array<{
-      uid: string;
-      success: boolean;
-      error?: string;
-    }> = [];
+  execute: async ({ tabId, elements }, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
 
-    let successCount = 0;
+    const runFillForm = async () => {
+      const results: Array<{
+        uid: string;
+        success: boolean;
+        error?: string;
+      }> = [];
 
-    for (const element of elements) {
-      let handle: ElementHandle | null = null;
+      let successCount = 0;
 
-      try {
-        handle = await getElementByUid(tabId, element.uid);
+      for (const element of elements) {
+        let handle: ElementHandle | null = null;
 
-        if (!handle) {
+        try {
+          handle = await getElementByUid(tabId, element.uid);
+
+          if (!handle) {
+            results.push({
+              uid: element.uid,
+              success: false,
+              error:
+                "Element not found in current snapshot. Call take_snapshot first.",
+            });
+            continue;
+          }
+
+          // Scroll to element and move fake mouse (optional visual feedback)
+          await scrollAndMoveFakeMouseToElement({
+            tabId,
+            handle,
+          });
+
+          // Fill the element with event handling
+          await waitForEventsAfterAction(async () => {
+            await handle!.asLocator().fill(element.value);
+          });
+
+          results.push({
+            uid: element.uid,
+            success: true,
+          });
+
+          successCount++;
+        } catch (error) {
           results.push({
             uid: element.uid,
             success: false,
-            error:
-              "Element not found in current snapshot. Call take_snapshot first.",
+            error: error instanceof Error ? error.message : "Unknown error",
           });
-          continue;
-        }
-
-        // Scroll to element and move fake mouse (optional visual feedback)
-        await scrollAndMoveFakeMouseToElement({
-          tabId,
-          handle,
-        });
-
-        // Fill the element with event handling
-        await waitForEventsAfterAction(async () => {
-          await handle!.asLocator().fill(element.value);
-        });
-
-        results.push({
-          uid: element.uid,
-          success: true,
-        });
-
-        successCount++;
-      } catch (error) {
-        results.push({
-          uid: element.uid,
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      } finally {
-        if (handle) {
-          handle.dispose();
+        } finally {
+          if (handle) {
+            handle.dispose();
+          }
         }
       }
-    }
 
-    // Play animation after filling all fields
-    if (successCount > 0) {
-      await playClickAnimationAndReturn(tabId);
-    }
+      // Play animation after filling all fields
+      if (successCount > 0) {
+        await playClickAnimationAndReturn(tabId);
+      }
 
-    return {
-      success: successCount === elements.length,
-      totalElements: elements.length,
-      successCount,
-      failureCount: elements.length - successCount,
-      results,
-      message:
-        successCount === elements.length
-          ? `Successfully filled all ${elements.length} form fields`
-          : `Filled ${successCount} of ${elements.length} form fields`,
+      return {
+        success: successCount === elements.length,
+        totalElements: elements.length,
+        successCount,
+        failureCount: elements.length - successCount,
+        results,
+        message:
+          successCount === elements.length
+            ? `Successfully filled all ${elements.length} form fields`
+            : `Filled ${successCount} of ${elements.length} form fields`,
+      };
     };
+
+    const pageUrl = await getTabUrl(tabId);
+    return gateRiskyAction(
+      conversationId,
+      "fill_form",
+      `Fill ${elements.length} form field(s) on the current page (${pageUrl ?? "unknown URL"})`,
+      pageUrl,
+      runFillForm,
+    );
   },
 });
