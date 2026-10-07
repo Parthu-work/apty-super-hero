@@ -5,6 +5,10 @@
   "private": true,
   "description": "Apty's AI browser agent - forked from AIPex, customized for Apty Studio/widget integration",
   "author": "Apty",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "postinstall": "prek install",
     "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources",
@@ -60,6 +64,11 @@
       "fflate": ">=0.8.3",
       "@babel/core": ">=7.29.6",
       "@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33": "^4.0.33"
+    },
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-93687"
+      ]
     }
   }
 }

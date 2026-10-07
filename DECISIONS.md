@@ -984,12 +984,73 @@ green on both after the change, including `apps/mcp-bridge`'s own
 `pnpm -r` fan-out).
 
 **Accepted risk (documented exception):** `braces@3.0.3`'s stack-exhaustion
-DoS advisory (GHSA-vfj7-8cjw-p6xm) has **no patched version published
-upstream yet** (`patched_versions: "<0.0.0"` — pnpm's own way of saying
-"none exists"). It resolves only through `knip` (`micromatch` →
-`fast-glob` → `knip`), a **devDependency** used solely for the
-`lint:dependencies` script; it never ships in the built extension or the
-`apps/mcp-bridge` CLI/daemon bundles. No override is possible until
-upstream ships a fix — tracked here rather than silenced, so a future pass
-can re-check `pnpm audit` and drop this note once a patched `braces` (or a
-`micromatch`/`fast-glob`/`knip` bump that stops pulling it in) exists.
+DoS advisory (GHSA-vfj7-8cjw-p6xm / CVE-2026-93687) has **no patched
+version published upstream yet** (`patched_versions: "<0.0.0"` — pnpm's own
+way of saying "none exists"). It resolves only through `knip`
+(`micromatch` → `fast-glob` → `knip`), a **devDependency** used solely for
+the `lint:dependencies` script; it never ships in the built extension or
+the `apps/mcp-bridge` CLI/daemon bundles. No override is possible until
+upstream ships a fix. Recorded explicitly as `pnpm.auditConfig.ignoreCves:
+["CVE-2026-93687"]` in the root `package.json` (which `pnpm audit --prod
+--ignore-unfixable` writes automatically) rather than silenced via a CLI
+flag in CI — so it's version-controlled, visible in a diff if anyone
+touches it, and scoped to this one CVE ID only (a *new* braces advisory
+would still fail `pnpm audit`). Re-check `pnpm audit` periodically and
+drop the entry once a patched `braces` (or a `micromatch`/`fast-glob`/
+`knip` bump that stops pulling it in) exists.
+
+## v7 WP4 B5: CI workflow fixes
+
+`.github/workflows/ci.yml` had several gaps found during this audit pass:
+
+- **Missing `apps/mcp-bridge` install step — a real, currently-broken CI
+  gap, not a hypothetical one.** `apps/mcp-bridge` is excluded from the
+  root pnpm workspace (own `pnpm-lock.yaml`, see CLAUDE.md's package
+  architecture note), but the root `typecheck`/`test`/`build` npm scripts
+  all shell out into it (`typecheck:mcp-bridge`, `test:mcp-bridge`,
+  `build:mcp-bridge`). Without its own install step, `pnpm install` at the
+  workspace root never touches `apps/mcp-bridge/node_modules`, so every one
+  of those three CI steps would fail trying to run `vitest`/`tsc`/`tsup`
+  that were never installed. Added a dedicated
+  `pnpm install --ignore-workspace` step scoped to `apps/mcp-bridge`
+  (`--ignore-workspace` is required — without it pnpm walks up and tries to
+  fold the install back into the excluded root workspace, as happened when
+  testing this change locally).
+- **No `pnpm audit` step.** Added one for the root workspace and a separate
+  one for `apps/mcp-bridge` (its own lockfile, own exposure), both
+  `pnpm audit --prod`. Both are safe to let gate the build now that H2
+  brought both down to zero *unaccepted* findings (the root's one
+  remaining `braces` finding is explicitly ignored via
+  `pnpm.auditConfig.ignoreCves`, see the H2 entry above) — a newly
+  introduced or newly disclosed vulnerability will fail the build as
+  intended.
+- **`knip --strict` (the `lint:dependencies` script) wired in as
+  informational, not blocking.** It currently reports on the order of a
+  hundred pre-existing unused-export findings (mostly `packages/ui`'s
+  re-exported component prop types — a library package's public surface
+  legitimately exports types its own internal code never references).
+  Fixing those is a real but separate cleanup effort; gating the build on
+  it now would block every PR on unrelated, pre-existing debt. Added with
+  `continue-on-error: true` so the finding count stays visible on every
+  build without blocking anything, and it can be tightened to blocking
+  once that debt is paid down.
+- **Added `packageManager: "pnpm@10.33.0"` and `engines.node` (matching
+  Vite 7's own `engines.node: "^20.19.0 || >=22.12.0"` requirement)** to
+  the root `package.json` — neither existed before, so nothing enforced
+  that a contributor's local pnpm/Node version actually matched what CI
+  runs.
+- **Pinned the three GitHub Actions used (`actions/checkout`,
+  `pnpm/action-setup`, `actions/setup-node`) to the exact commit SHA each
+  moving tag (`v7`, `v5`, `v6`) currently resolves to**, with the human-
+  readable version kept as a trailing comment. A tag can be
+  force-moved by the action's publisher (or, in a supply-chain
+  compromise, by an attacker who gains write access to that repo) to point
+  at different code without the workflow file itself changing; a pinned
+  SHA can't be silently repointed. Resolved via `git ls-remote --tags`
+  against each action's repo rather than guessed, to avoid pinning a wrong
+  or fabricated SHA.
+- **Removed the unused `pull-requests: write` permission.** No step in
+  this workflow posts PR comments, reviews, or labels — grepped the rest
+  of `.github/workflows/` to confirm no other job relied on it being
+  granted at this scope either. Left at the now-sufficient `contents:
+  read`.
