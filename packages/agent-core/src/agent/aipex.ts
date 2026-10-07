@@ -27,10 +27,61 @@ import type {
   SessionStorageAdapter,
   ToolEventPayload,
 } from "../types.js";
-import { AgentError, classifyLlmError } from "../utils/errors.js";
+import { AgentError, classifyLlmError, ErrorCode } from "../utils/errors.js";
 import { safeJsonParse } from "../utils/json.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
+
+/** Call-establishment retry for the LLM request only (before any stream
+ * event has been yielded to the caller) — never mid-stream, where partial
+ * output has already reached the UI and a retry would duplicate or garble
+ * it. */
+const LLM_CALL_MAX_ATTEMPTS = 3;
+const LLM_RETRY_BASE_DELAY_MS = 500;
+const LLM_RETRY_MAX_DELAY_MS = 8_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Exponential backoff with +/-20% jitter, capped at LLM_RETRY_MAX_DELAY_MS — unless the provider told us exactly how long to wait (`retryAfterMs`, from a 429's `retry-after` header), which takes precedence. */
+function computeLlmRetryDelayMs(
+  attempt: number,
+  retryAfterMs: number | undefined,
+): number {
+  if (typeof retryAfterMs === "number" && retryAfterMs > 0) {
+    return retryAfterMs;
+  }
+  const exponential = Math.min(
+    LLM_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+    LLM_RETRY_MAX_DELAY_MS,
+  );
+  const jitter = exponential * 0.2 * (Math.random() * 2 - 1);
+  return Math.max(0, Math.round(exponential + jitter));
+}
+
+/**
+ * Deliberately narrower than "everything `classifyLlmError` marks
+ * recoverable": rate limits, request timeouts, and confirmed 5xx responses
+ * are transport-level failures a retry can plausibly fix. An error with no
+ * HTTP status at all (classifyLlmError's own "assume transient" fallback
+ * for an unrecognized error shape) is NOT retried here — that bucket also
+ * catches bugs in our own code that happen to throw a plain Error, and
+ * silently retrying those would mask them behind a multi-second delay
+ * instead of surfacing them immediately.
+ */
+function isRetryableLlmError(classified: {
+  code: ErrorCode;
+  statusCode?: number;
+}): boolean {
+  if (classified.code === ErrorCode.LLM_RATE_LIMIT) return true;
+  if (classified.code === ErrorCode.LLM_TIMEOUT) return true;
+  return (
+    classified.code === ErrorCode.LLM_API_ERROR &&
+    typeof classified.statusCode === "number" &&
+    classified.statusCode >= 500
+  );
+}
 
 export class AIPex {
   private agent: OpenAIAgent;
@@ -156,27 +207,50 @@ export class AIPex {
     >();
 
     try {
-      const result = await run(runAgent, input, {
-        maxTurns: this.maxTurns,
-        session: runSession,
-        stream: true,
-        // Forwarded to every tool's execute(input, context) as
-        // context.context — see ChatOptions.runContext for why.
-        context: runContext,
-        // Shape screenshot tool results before every model call:
-        // strip base64 imageData from tool results and inject a transient
-        // user image message so the model can consume images via the vision path.
-        callModelInputFilter: async ({ modelData }) => ({
-          input: shapeScreenshotItems(
-            sanitizeReasoningItemsForModel(
-              modelData.input,
-              this.modelId,
-              this.modelProvider,
-            ),
-          ),
-          instructions: modelData.instructions,
-        }),
-      });
+      let result: Awaited<ReturnType<typeof run>> | undefined;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          result = await run(runAgent, input, {
+            maxTurns: this.maxTurns,
+            session: runSession,
+            stream: true,
+            // Forwarded to every tool's execute(input, context) as
+            // context.context — see ChatOptions.runContext for why.
+            context: runContext,
+            // Shape screenshot tool results before every model call:
+            // strip base64 imageData from tool results and inject a transient
+            // user image message so the model can consume images via the vision path.
+            callModelInputFilter: async ({ modelData }) => ({
+              input: shapeScreenshotItems(
+                sanitizeReasoningItemsForModel(
+                  modelData.input,
+                  this.modelId,
+                  this.modelProvider,
+                ),
+              ),
+              instructions: modelData.instructions,
+            }),
+          });
+          break;
+        } catch (callError) {
+          const classified = classifyLlmError(callError);
+          if (
+            attempt >= LLM_CALL_MAX_ATTEMPTS ||
+            !isRetryableLlmError(classified)
+          ) {
+            throw callError;
+          }
+          const delay = computeLlmRetryDelayMs(
+            attempt,
+            classified.retryAfterMs,
+          );
+          console.warn(
+            `[AIPex] LLM call failed (attempt ${attempt}/${LLM_CALL_MAX_ATTEMPTS}), retrying in ${delay}ms:`,
+            callError,
+          );
+          await sleep(delay);
+        }
+      }
 
       let streamedOutput = "";
       let toolCallsDetectedInRaw = 0;

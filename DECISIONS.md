@@ -1133,3 +1133,62 @@ Full hardening (DNS pinning via a native host, SRI-style hashing if/when
 `esm.sh` or an alternative CDN supports it) is deferred, consistent with
 this round's standing discipline of honest partial fixes over rushed,
 unverifiable completeness claims.
+
+## v7 WP5: automatic LLM retry/backoff, scoped narrower than "everything recoverable"
+
+`classifyLlmError` (`packages/agent-core/src/utils/errors.ts`) already
+classified a thrown/rejected LLM error into a rate-limit/auth/timeout/API-
+error shape and extracted `retryAfterMs` from a `retry-after` header — but
+nothing ever acted on it. `AIPex.normalizeError` and `useChat`'s
+`toAgentError` both just re-classify and yield an `error` event;
+`retryAfterMs` was read back out in exactly one place
+(`chat-adapter.ts`'s `formatAgentErrorForDisplay`) purely to build a
+cosmetic "Retry in about Xs." string. `LLMError`/`LLMStreamError`'s
+`retryDelay` field was dead code too — never constructed outside their own
+test file.
+
+**Fix:** wrapped the single real provider-call site —
+`packages/agent-core/src/agent/aipex.ts`'s `await run(runAgent, input,
+{...})` inside `runExecution` — in a retry loop (`LLM_CALL_MAX_ATTEMPTS =
+3`), backing off per `computeLlmRetryDelayMs` (honors the provider's own
+`retryAfterMs` when present; otherwise exponential from 500ms, capped at
+8s, with ±20% jitter). This is the one chokepoint shared by new-session,
+continue-conversation, and regenerate paths — all three route through
+`AIPex.chat()` → `runExecution()` → this one `run()` call — so one change
+here covers all three without touching the UI/hook layer, which stays a
+thin event consumer.
+
+**Scoped to call-establishment failures only, never mid-stream.** The
+retry loop wraps only the `await run(...)` call itself, not the
+`for await (const streamEvent of result)` loop that follows it. A 429/5xx
+from the provider is where this actually surfaces (the SDK throws before
+yielding the async iterator on a non-2xx response); once token deltas have
+started streaming to the UI, a retry would duplicate or garble output
+the user has already seen, so that path is deliberately left to the
+existing single `catch` as before — unchanged behavior there.
+
+**Deliberately narrower retry trigger than "everything `classifyLlmError`
+marks recoverable."** Only `LLM_RATE_LIMIT`, `LLM_TIMEOUT`, and an
+`LLM_API_ERROR` with a *confirmed* `statusCode >= 500` are retried
+automatically. `classifyLlmError`'s own fallback case — no HTTP status at
+all, "assume transient" — is excluded from auto-retry. Two reasons: (1)
+that fallback also catches bugs in our own code that happen to throw a
+plain `Error`, and silently retrying those 3x would mask them behind a
+multi-second delay instead of surfacing them immediately; (2) confirmed by
+testing — the pre-existing test `"should emit error event when run
+fails"` uses a bare `new Error("LLM failed")` with no status code, and an
+initial broader implementation (retrying anything `recoverable`) made that
+one test alone take ~1.6s of real wall-clock backoff before correctly
+giving up — a real behavior regression on top of being the wrong default,
+not just a test-speed annoyance.
+
+Added 3 tests to `aipex.test.ts` using `vi.useFakeTimers()` +
+`vi.advanceTimersByTimeAsync()`: a 429 that honors `retry-after` and
+succeeds on the 2nd attempt with no `error` event; a 503 that exhausts all
+3 attempts and surfaces the `error` event; and a 401 that is never
+retried (1 call, immediate `error` event). See `docs/tasks/wp5-chat-
+resilience.md` for what's still deferred from the original WP5 scope
+(watchdogs/timeouts — `ToolTimeoutError`/`CancellationToken` remain dead
+code, no `AbortSignal` is threaded from the Stop button to an in-flight
+request or tool call — token budgeting, a fake-LLM test suite, and
+network-level transport-error handling).

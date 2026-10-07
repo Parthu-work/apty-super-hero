@@ -1168,6 +1168,85 @@ describe("AIPex", () => {
     });
   });
 
+  describe("LLM call retry/backoff", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("retries a 429 rate limit honoring retry-after, then succeeds without an error event", async () => {
+      vi.useFakeTimers();
+      const rateLimitError = Object.assign(new Error("Too Many Requests"), {
+        statusCode: 429,
+        responseHeaders: { "retry-after": "2" }, // seconds -> 2000ms
+      });
+      vi.mocked(run)
+        .mockRejectedValueOnce(rateLimitError)
+        .mockResolvedValueOnce(
+          createMockRunResult({ finalOutput: "Recovered" }),
+        );
+
+      const agent = AIPex.create({ instructions: "Retry", model: mockModel });
+
+      const events: AgentEvent[] = [];
+      const runPromise = (async () => {
+        for await (const event of agent.chat("retry me")) {
+          events.push(event);
+        }
+      })();
+
+      await vi.advanceTimersByTimeAsync(2000);
+      await runPromise;
+
+      expect(run).toHaveBeenCalledTimes(2);
+      expect(events.some((event) => event.type === "error")).toBe(false);
+      expect(events.some((event) => event.type === "execution_complete")).toBe(
+        true,
+      );
+    });
+
+    it("retries a 5xx error with backoff up to the max attempts, then surfaces the error", async () => {
+      vi.useFakeTimers();
+      const serverError = Object.assign(new Error("Internal Server Error"), {
+        statusCode: 503,
+      });
+      vi.mocked(run).mockRejectedValue(serverError);
+
+      const agent = AIPex.create({ instructions: "Retry", model: mockModel });
+
+      const events: AgentEvent[] = [];
+      const runPromise = (async () => {
+        for await (const event of agent.chat("retry me")) {
+          events.push(event);
+        }
+      })();
+
+      // Generous enough to cover both backoff delays (attempt 1->2, 2->3)
+      // including jitter; the 3rd attempt throws immediately with no delay.
+      await vi.advanceTimersByTimeAsync(20_000);
+      await runPromise;
+
+      expect(run).toHaveBeenCalledTimes(3);
+      expect(events.some((event) => event.type === "error")).toBe(true);
+    });
+
+    it("does not retry a non-retryable error (e.g. 401 auth)", async () => {
+      const authError = Object.assign(new Error("Unauthorized"), {
+        statusCode: 401,
+      });
+      vi.mocked(run).mockRejectedValue(authError);
+
+      const agent = AIPex.create({ instructions: "Retry", model: mockModel });
+
+      const events: AgentEvent[] = [];
+      for await (const event of agent.chat("auth fail")) {
+        events.push(event);
+      }
+
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(events.some((event) => event.type === "error")).toBe(true);
+    });
+  });
+
   describe("tools and errors", () => {
     it("should emit tool_call_args_streaming_complete before tool_call_start", async () => {
       vi.mocked(run).mockResolvedValue(
