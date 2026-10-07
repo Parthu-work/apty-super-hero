@@ -46,7 +46,34 @@ import type {
   AptyServiceWorkerStatus,
 } from "./types.js";
 
+// A cross-extension message wakes the target's service worker if it was
+// suspended (Chrome does this automatically) — but a cold SW start is
+// measurably slower than an already-running one responding instantly, and
+// this codebase's own usage pattern (long waits between turns for a
+// rate-limited LLM provider) means the Apty Client's SW is suspended more
+// often than not by the time the next message reaches it. A single short
+// timeout turned a cold-start-is-still-in-progress case into a false
+// "did not respond" failure. First attempt gets a longer timeout to absorb
+// a cold start; if it still times out, one retry follows (matching the v7
+// spec's "timeout 5s (8s on the first call) with one retry").
+const FIRST_ATTEMPT_TIMEOUT_MS = 8000;
+const RETRY_TIMEOUT_MS = 5000;
+/** Timeout for the separate HTTP-diagnostic-endpoint fallback path (not cross-extension messaging, so the cold-SW-wake reasoning above doesn't apply here). */
 const REQUEST_TIMEOUT_MS = 3000;
+
+/** Send a cross-extension message with one retry on timeout/no-response — see the comment above for why a single short timeout isn't enough for a cold service-worker wake. */
+async function sendExternalMessageWithRetry(
+  extensionId: string,
+  message: unknown,
+): Promise<unknown | undefined> {
+  const first = await sendExternalMessage(
+    extensionId,
+    message,
+    FIRST_ATTEMPT_TIMEOUT_MS,
+  );
+  if (first !== undefined) return first;
+  return sendExternalMessage(extensionId, message, RETRY_TIMEOUT_MS);
+}
 
 // Bounded so a hostile/misbehaving Widget extension can't hand us an
 // unbounded array and balloon memory/token usage — this is a defensive
@@ -138,11 +165,9 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
   async getStatus(): Promise<AptyServiceWorkerStatus> {
     if (this.config.extensionId) {
-      const raw = await sendExternalMessage(
-        this.config.extensionId,
-        { type: "apty-debug-agent:get-service-worker-status" },
-        REQUEST_TIMEOUT_MS,
-      );
+      const raw = await sendExternalMessageWithRetry(this.config.extensionId, {
+        type: "apty-debug-agent:get-service-worker-status",
+      });
       if (raw === undefined) return { status: "unavailable" };
 
       const result = validate(statusResponseSchema, raw);
@@ -195,11 +220,9 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
   async getLogs(): Promise<AptyLog[]> {
     if (this.config.extensionId) {
-      const raw = await sendExternalMessage(
-        this.config.extensionId,
-        { type: "apty-debug-agent:get-service-worker-logs" },
-        REQUEST_TIMEOUT_MS,
-      );
+      const raw = await sendExternalMessageWithRetry(this.config.extensionId, {
+        type: "apty-debug-agent:get-service-worker-logs",
+      });
       if (raw === undefined) return [];
 
       const result = validate(logsResponseSchema, raw);
@@ -243,11 +266,9 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
       };
     }
 
-    const raw = await sendExternalMessage(
-      this.config.extensionId,
-      { type: "apty-debug-agent:list-observed-resources" },
-      REQUEST_TIMEOUT_MS,
-    );
+    const raw = await sendExternalMessageWithRetry(this.config.extensionId, {
+      type: "apty-debug-agent:list-observed-resources",
+    });
     if (raw === undefined) {
       return {
         ok: false,
@@ -273,11 +294,10 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
       return { found: false };
     }
 
-    const raw = await sendExternalMessage(
-      this.config.extensionId,
-      { type: "apty-debug-agent:get-resource-body", requestId },
-      REQUEST_TIMEOUT_MS,
-    );
+    const raw = await sendExternalMessageWithRetry(this.config.extensionId, {
+      type: "apty-debug-agent:get-resource-body",
+      requestId,
+    });
     if (raw === undefined) return { found: false };
 
     const result = validate(resourceBodyResponseSchema, raw);

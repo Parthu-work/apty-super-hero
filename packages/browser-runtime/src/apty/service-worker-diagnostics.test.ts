@@ -118,7 +118,7 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
     });
 
     const statusPromise = provider.getStatus();
-    await vi.advanceTimersByTimeAsync(3100);
+    await vi.advanceTimersByTimeAsync(13100);
     await expect(statusPromise).resolves.toEqual({ status: "unavailable" });
   });
 
@@ -181,7 +181,7 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
     });
 
     const logsPromise = provider.getLogs();
-    await vi.advanceTimersByTimeAsync(3100);
+    await vi.advanceTimersByTimeAsync(13100);
     await expect(logsPromise).resolves.toEqual([]);
   });
 
@@ -228,7 +228,7 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
       });
 
       const resultPromise = provider.listResources();
-      await vi.advanceTimersByTimeAsync(3100);
+      await vi.advanceTimersByTimeAsync(13100);
       const result = await resultPromise;
       expect(result.ok).toBe(false);
       expect(result.error).toBeTruthy();
@@ -290,7 +290,7 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
       });
 
       const resultPromise = provider.getResourceBody("req-1");
-      await vi.advanceTimersByTimeAsync(3100);
+      await vi.advanceTimersByTimeAsync(13100);
       await expect(resultPromise).resolves.toEqual({ found: false });
     });
   });
