@@ -31,7 +31,7 @@ const BLOCKED_HOSTNAMES = new Set<string>([
 /** Reserved hostname suffixes (mDNS / link-local naming). */
 const BLOCKED_HOSTNAME_SUFFIXES = [".localhost", ".local", ".internal"];
 
-function isIPv4(host: string): boolean {
+export function isIPv4(host: string): boolean {
   const parts = host.split(".");
   if (parts.length !== 4) return false;
   return parts.every(
@@ -39,7 +39,8 @@ function isIPv4(host: string): boolean {
   );
 }
 
-function isPrivateIPv4(host: string): boolean {
+/** True for ANY of the non-public IPv4 ranges below, including loopback (127.0.0.0/8) — callers that need to allow loopback specifically (e.g. a local AI model server) must check that separately before treating this as "blocked". */
+export function isPrivateIPv4(host: string): boolean {
   if (!isIPv4(host)) return false;
   const parts = host.split(".").map(Number);
   const a = parts[0] ?? -1;
@@ -75,7 +76,8 @@ function normalizeIPv6(host: string): string {
   return host.replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
 }
 
-function isPrivateIPv6(rawHost: string): boolean {
+/** True for ANY of the non-public IPv6 ranges below, including loopback (::1) — see isPrivateIPv4's note on callers needing to allow loopback specifically. */
+export function isPrivateIPv6(rawHost: string): boolean {
   const host = normalizeIPv6(rawHost);
   if (!host.includes(":")) return false;
   // Loopback ::1

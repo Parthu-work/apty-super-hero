@@ -36,6 +36,19 @@ export default defineConfig({
           "../../packages/agent-core/src/index.ts",
         ),
       },
+      // Mirrors vite.config.ts: ai-provider.ts imports the pure SSRF-range
+      // helpers from this subpath specifically to avoid pulling in the full
+      // browser-runtime barrel (which has module-scope side effects, e.g.
+      // ConversationStorage touching IndexedDB, unavailable in this test
+      // environment). Tests need the same subpath resolution the real
+      // build uses, not the barrel.
+      {
+        find: /^@apty\/browser-runtime\/(.*)$/,
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/browser-runtime/src/$1",
+        ),
+      },
       // Mirrors vite.config.ts: ui's package.json exports map only
       // covers a subset of its subpaths (e.g. no "./lib/*"), but the real
       // extension build resolves straight to source via this same alias —

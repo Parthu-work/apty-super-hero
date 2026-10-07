@@ -11,6 +11,11 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { AIProviderKey, AppSettings } from "@apty/agent-core";
+import {
+  isIPv4,
+  isPrivateIPv4,
+  isPrivateIPv6,
+} from "@apty/browser-runtime/vm/url-guard";
 
 export interface ProviderConfig {
   provider: AIProviderKey;
@@ -18,9 +23,27 @@ export interface ProviderConfig {
   baseURL?: string;
 }
 
+const CLOUD_METADATA_HOSTNAMES = new Set([
+  "metadata.google.internal",
+  "169.254.169.254",
+]);
+
+const LOOPBACK_HOSTNAMES = new Set([
+  "localhost",
+  "ip6-localhost",
+  "ip6-loopback",
+]);
+
 /**
  * Validate that a user-provided host URL is safe to use.
- * Rejects private/internal addresses to mitigate SSRF risks.
+ * Rejects private/internal addresses to mitigate SSRF risks, with an
+ * explicit loopback exception so local model servers (Ollama, LM Studio,
+ * etc.) on localhost/127.0.0.1 keep working.
+ *
+ * IP-literal obfuscation (decimal, hex, octal, trailing-dot forms like
+ * `2130706433` or `0x7f.0.0.1` for `127.0.0.1`) is handled by the WHATWG URL
+ * parser itself: `new URL(...).hostname` is already normalized to
+ * dotted-decimal/canonical form before we read it below.
  */
 function validateHostUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
@@ -32,27 +55,36 @@ function validateHostUrl(url: string | undefined): string | undefined {
     throw new Error(`Invalid aiHost URL: ${url}`);
   }
 
-  // Only allow http/https schemes
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new Error(
       `Unsupported protocol in aiHost: ${parsed.protocol} (only http/https allowed)`,
     );
   }
 
-  // Block common internal/private hostnames
-  const hostname = parsed.hostname.toLowerCase();
-  const blocked = [
-    "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
-    "[::1]",
-    "metadata.google.internal",
-    "169.254.169.254",
-  ];
+  const hostname = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[/, "")
+    .replace(/\]$/, "");
 
-  // In production, block private addresses
-  if (import.meta.env.PROD && blocked.includes(hostname)) {
+  if (CLOUD_METADATA_HOSTNAMES.has(hostname)) {
     throw new Error(`aiHost points to a restricted address: ${hostname}`);
+  }
+
+  const isLoopback =
+    LOOPBACK_HOSTNAMES.has(hostname) ||
+    hostname === "::1" ||
+    (isIPv4(hostname) && hostname.startsWith("127."));
+
+  const isPrivate = isPrivateIPv4(hostname) || isPrivateIPv6(hostname);
+
+  if (isPrivate && !isLoopback) {
+    throw new Error(`aiHost points to a restricted address: ${hostname}`);
+  }
+
+  if (parsed.protocol !== "https:" && !isLoopback) {
+    throw new Error(
+      "Unsupported protocol in aiHost: http: (only https is allowed for non-loopback hosts)",
+    );
   }
 
   return parsed.origin + parsed.pathname.replace(/\/+$/, "");

@@ -70,6 +70,96 @@ describe("createAIProvider", () => {
         }),
       ).toThrow("Unsupported protocol");
     });
+
+    it("allows http on loopback hosts (local model servers)", () => {
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "http://localhost:11434/v1",
+        }),
+      ).not.toThrow();
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "http://127.0.0.1:11434/v1",
+        }),
+      ).not.toThrow();
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "http://[::1]:11434/v1",
+        }),
+      ).not.toThrow();
+    });
+
+    it("always blocks cloud metadata hosts, regardless of mode", () => {
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "http://169.254.169.254/latest/meta-data",
+        }),
+      ).toThrow("restricted address");
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "https://metadata.google.internal/",
+        }),
+      ).toThrow("restricted address");
+    });
+
+    it("blocks broader private ranges even outside of PROD", () => {
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "https://10.0.0.5/v1",
+        }),
+      ).toThrow("restricted address");
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "https://192.168.1.50/v1",
+        }),
+      ).toThrow("restricted address");
+    });
+
+    it("rejects http for non-loopback hosts", () => {
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "http://api.openai.com/v1",
+        }),
+      ).toThrow("Unsupported protocol");
+    });
+
+    it("normalizes an obfuscated decimal IP literal and allows it as loopback", () => {
+      // 2130706433 === 127.0.0.1
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "http://2130706433/v1",
+        }),
+      ).not.toThrow();
+    });
+
+    it("normalizes an obfuscated hex/octet-form private IP and still blocks it", () => {
+      // 0x0a.0.0.1 === 10.0.0.1 (private, non-loopback)
+      expect(() =>
+        createAIProvider({
+          aiProvider: "openai",
+          aiToken: "sk-test",
+          aiHost: "https://0x0a.0.0.1/v1",
+        }),
+      ).toThrow("restricted address");
+    });
   });
 
   describe("provider creation", () => {
