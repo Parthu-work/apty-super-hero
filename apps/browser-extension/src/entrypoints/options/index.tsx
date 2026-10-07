@@ -41,6 +41,8 @@ const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 function OptionsPageContent() {
   const { tab: initialTab, skill: initialSkill } = useMemo(parseUrlParams, []);
 
+  const TEST_CONNECTION_TIMEOUT_MS = 20_000;
+
   const handleTestConnection = useCallback(async (settings: AppSettings) => {
     const modelId = settings.aiModel;
     if (!modelId) {
@@ -53,6 +55,13 @@ function OptionsPageContent() {
       await generateText({
         model: provider(modelId) as LanguageModel,
         prompt: "Hi",
+        // Without this, a request to an unreachable or misconfigured host
+        // (e.g. a website URL typed into "AI Host" instead of an API
+        // endpoint) can hang indefinitely with no error and no way for the
+        // "Test connection" button to ever stop spinning. maxRetries: 0
+        // so a test fails fast and clearly instead of silently retrying.
+        timeout: TEST_CONNECTION_TIMEOUT_MS,
+        maxRetries: 0,
       });
       return true;
     } catch (error) {
@@ -61,6 +70,14 @@ function OptionsPageContent() {
       // UI's existing catch block can show *why* the connection failed
       // instead of a generic "Connection test failed".
       console.error("Connection test failed:", error);
+      const isAbort =
+        error instanceof Error &&
+        (error.name === "AbortError" || error.name === "TimeoutError");
+      if (isAbort) {
+        throw new Error(
+          `Connection test timed out after ${TEST_CONNECTION_TIMEOUT_MS / 1000}s — the host may be unreachable, or this provider's "AI Host" field may be set to the wrong URL (a website instead of an API endpoint).`,
+        );
+      }
       throw new Error(describeConnectionTestError(error));
     }
   }, []);
