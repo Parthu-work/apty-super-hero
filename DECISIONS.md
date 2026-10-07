@@ -1192,3 +1192,65 @@ resilience.md` for what's still deferred from the original WP5 scope
 code, no `AbortSignal` is threaded from the Stop button to an in-flight
 request or tool call — token budgeting, a fake-LLM test suite, and
 network-level transport-error handling).
+
+## v7 WP6: scoped to the 3 items verifiable without live-provider or live-browser testing
+
+WP6 ("AI configuration and model management") has 8 items in its original
+scope. A research pass mapped the current state of each against the
+codebase first (not assumed) — several things the spec implies don't
+exist already partly do: `customModels` already supports an arbitrary
+OpenAI-compatible endpoint via "Add Model" (just not labeled as a distinct
+"custom model" action), and `resolveActiveModel` already picks one active
+model from potentially-multiple `enabled: true` entries. Ranked the 8
+items by whether they could be validated with the tools actually available
+in this session (unit/RTL tests, `tsc`, `biome`) versus needing a real
+provider API or a real loaded Chrome extension, and implemented only the
+former group:
+
+1. **Free-text combobox for the model field** — replaced a conditional
+   Select-or-plain-Input split with one `<Input>` + native `<datalist>`:
+   preset models still suggest, but any provider now accepts an arbitrary
+   model id (a new release not yet in the hardcoded preset list, a
+   fine-tune, etc.) without switching providers to "custom" first. Chose
+   native `<input list>`/`<datalist>` over building a new Radix
+   Popover+Command-based combobox component — the repo has no Popover
+   primitive yet, and native datalist gives the same "suggestions +
+   free text" behavior with zero new dependencies, no JS-side filtering
+   logic to get wrong, and no new accessibility surface to test.
+2. **Local/private endpoint handling** — a UI-level info banner (not a
+   confirmation gate the spec's wording suggested) under the API Host
+   field, shown when the host resolves to loopback (Ollama/LM Studio).
+   Judged a reassuring banner was the better UX for a case that's working
+   exactly as designed (M2 already allows it at the enforcement layer),
+   not a risk serious enough to require a click-through.
+3. **Import/export of model configs** — reused the existing
+   `downloadText`/`timestampedFilename` utilities
+   (`packages/ui/src/lib/download.ts`, already tested, already handling
+   the Chrome-API download fallback) rather than writing new Blob/anchor
+   logic. API keys are stripped by default, included only via an explicit
+   opt-in switch (default off) — "opt-in to leak credentials, not
+   opt-out," matching the spec's exact wording. Imported models always get
+   fresh ids and always start disabled, so an import can never silently
+   become the active provider.
+
+**Explicitly not attempted this round**: live model lists per provider,
+auditing all 15 presets for OpenAI-compatible-adapter compatibility, Test
+Connection improvements (specific-cause messages beyond the existing
+numeric status prefix, latency, rate-limit headers, a tool-calling probe),
+and true concurrent multi-model operation. Each needs either real calls
+against multiple live provider APIs or touches the single-active-model
+assumption through the chat/runtime layer, not just this settings page —
+judged too large/unverifiable to attempt alongside the smaller, directly
+testable items above. See `docs/tasks/wp6-ai-config.md` for the full
+reasoning per item.
+
+**Verification limitation, stated plainly, not glossed over:** this was
+validated via the existing RTL test suite (renders the real `SettingsPage`
+component against mocked `chrome.storage`) plus `tsc`/`biome`/build — not
+against a real, loaded Chrome extension in a live browser. Attempting a
+live check: a plain static-file or bare-HTTP serve of the built `dist/`
+options page throws immediately on `chrome.tabs.onActivated` before any
+render happens, outside a real extension context — getting a faithful
+live render would need a Playwright `launchPersistentContext` with
+`--load-extension`, judged out of scope for this specific change rather
+than skipped silently.

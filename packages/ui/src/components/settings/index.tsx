@@ -10,6 +10,7 @@ import {
 import {
   Bot,
   CheckCircle,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
@@ -23,10 +24,13 @@ import {
   Search,
   Settings,
   Trash2,
+  Upload,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../i18n/context";
+import { downloadText, timestampedFilename } from "../../lib/download";
 import { cn } from "../../lib/utils";
 import { useTheme } from "../../theme/context";
 import { DEFAULT_MODELS } from "../chatbot/constants";
@@ -111,6 +115,30 @@ const resolveProviderKey = (
 
 const DEFAULT_MODEL_AUTO_VALUE = "__use-first-available__";
 
+/**
+ * UI-only hint, not a security boundary — the real enforcement (full
+ * private-range handling, IP-literal normalization) lives in
+ * validateHostUrl (apps/browser-extension/src/services/ai-provider.ts).
+ * This just flags the common case so a user pointing at Ollama/LM Studio
+ * sees a reassuring note instead of wondering why a non-https local host
+ * is accepted.
+ */
+export const isLikelyLoopbackHost = (hostInput: string): boolean => {
+  if (!hostInput) return false;
+  let hostname: string;
+  try {
+    hostname = new URL(hostInput).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return (
+    hostname === "localhost" ||
+    hostname === "::1" ||
+    hostname === "[::1]" ||
+    hostname.startsWith("127.")
+  );
+};
+
 const generateId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -132,6 +160,72 @@ const createEmptyCustomModel = (
     enabled: false,
   };
 };
+
+const MODEL_EXPORT_FORMAT_VERSION = 1;
+
+const VALID_PROVIDER_TYPES: readonly ProviderType[] = [
+  "openai",
+  "claude",
+  "google",
+];
+
+interface ModelConfigExportFile {
+  formatVersion: number;
+  exportedAt: string;
+  includesApiKeys: boolean;
+  models: Partial<CustomModelConfig>[];
+}
+
+/** Serializes custom model configs to a portable JSON document. API keys are stripped unless `includeKeys` is explicitly true — exporting is opt-in to leak credentials, not opt-out. */
+export function serializeModelsForExport(
+  models: CustomModelConfig[],
+  includeKeys: boolean,
+): string {
+  const exported: ModelConfigExportFile = {
+    formatVersion: MODEL_EXPORT_FORMAT_VERSION,
+    exportedAt: new Date().toISOString(),
+    includesApiKeys: includeKeys,
+    models: models.map((model) => {
+      if (includeKeys) return model;
+      const { aiToken: _aiToken, ...withoutToken } = model;
+      return withoutToken;
+    }),
+  };
+  return JSON.stringify(exported, null, 2);
+}
+
+/** Parses a model-config export file back into CustomModelConfig entries. Always assigns fresh ids (avoids colliding with existing models on import) and always imports as disabled (an imported config shouldn't silently become the active provider — the user re-enables it explicitly after reviewing it). Throws with a descriptive message on malformed input rather than silently producing garbage entries. */
+export function parseImportedModels(jsonText: string): CustomModelConfig[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    throw new Error("Not valid JSON.");
+  }
+  const models = (parsed as Partial<ModelConfigExportFile> | null)?.models;
+  if (!Array.isArray(models)) {
+    throw new Error(
+      "Missing a 'models' array — not a model-config export file.",
+    );
+  }
+  return models.map((entry) => {
+    const raw = (entry ?? {}) as Partial<CustomModelConfig>;
+    const providerType = VALID_PROVIDER_TYPES.includes(
+      raw.providerType as ProviderType,
+    )
+      ? (raw.providerType as ProviderType)
+      : "openai";
+    return {
+      id: generateId(),
+      name: typeof raw.name === "string" ? raw.name : "",
+      providerType,
+      aiHost: typeof raw.aiHost === "string" ? raw.aiHost : "",
+      aiToken: typeof raw.aiToken === "string" ? raw.aiToken : "",
+      aiModel: typeof raw.aiModel === "string" ? raw.aiModel : "",
+      enabled: false,
+    };
+  });
+}
 
 interface ResolvedModelConfig {
   activeModel: CustomModelConfig | undefined;
@@ -243,6 +337,9 @@ export function SettingsPage({
     initialTab ?? "general",
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [includeKeysOnExport, setIncludeKeysOnExport] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   // ElevenLabs STT state (independent of main settings blob)
   const [sttApiKey, setSttApiKey] = useState("");
@@ -385,6 +482,42 @@ export function SettingsPage({
     setSelectedModelId(newModel.id);
     updateSettingsFromModel(newModel);
   }, [settings.providerType, updateSettingsFromModel]);
+
+  const handleExportModels = useCallback(() => {
+    const json = serializeModelsForExport(customModels, includeKeysOnExport);
+    downloadText(
+      timestampedFilename("apty-model-configs", "json"),
+      json,
+      "application/json",
+    );
+  }, [customModels, includeKeysOnExport]);
+
+  const handleImportFileSelected = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      // Allow re-selecting the same file later even if this import fails.
+      e.target.value = "";
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const imported = parseImportedModels(text);
+        setCustomModels((prev) => [...prev, ...imported]);
+        setImportError(null);
+        setSaveStatus({
+          type: "success",
+          message:
+            language === "zh"
+              ? `已导入 ${imported.length} 个模型配置（已禁用，保存后生效）`
+              : `Imported ${imported.length} model config(s) (disabled — save to persist, then enable).`,
+        });
+        setTimeout(() => setSaveStatus({ type: "", message: "" }), 4000);
+      } catch (error) {
+        setImportError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [language],
+  );
 
   const handleDeleteModel = useCallback(
     (id: string) => {
@@ -1138,6 +1271,53 @@ export function SettingsPage({
                       <Plus className="h-4 w-4 mr-2" />
                       {language === "zh" ? "新增模型" : "Add Model"}
                     </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1"
+                        onClick={handleExportModels}
+                        disabled={customModels.length === 0}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        {language === "zh" ? "导出" : "Export"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => importFileInputRef.current?.click()}
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        {language === "zh" ? "导入" : "Import"}
+                      </Button>
+                      <input
+                        ref={importFileInputRef}
+                        type="file"
+                        accept="application/json"
+                        className="hidden"
+                        onChange={handleImportFileSelected}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        {language === "zh"
+                          ? "导出时包含 API 密钥"
+                          : "Include API keys when exporting"}
+                      </span>
+                      <Switch
+                        checked={includeKeysOnExport}
+                        onCheckedChange={setIncludeKeysOnExport}
+                      />
+                    </div>
+                    {importError && (
+                      <Alert variant="destructive">
+                        <AlertDescription className="text-xs">
+                          {language === "zh" ? "导入失败：" : "Import failed: "}
+                          {importError}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
 
                   {/* Model List */}
@@ -1346,6 +1526,15 @@ export function SettingsPage({
                                 : ""
                             }
                           />
+                          {isLikelyLoopbackHost(selectedModel.aiHost || "") && (
+                            <Alert>
+                              <AlertDescription className="text-xs leading-relaxed">
+                                {language === "zh"
+                                  ? "这是本机地址（如 Ollama、LM Studio）。请求不会离开这台电脑，且允许使用 http。"
+                                  : "This is a local-machine address (e.g. Ollama, LM Studio). Requests won't leave this computer, and http is allowed here."}
+                              </AlertDescription>
+                            </Alert>
+                          )}
                         </div>
 
                         {/* API Token */}
@@ -1386,61 +1575,41 @@ export function SettingsPage({
                           </div>
                         </div>
 
-                        {/* Model Selection */}
+                        {/* Model Selection — a free-text combobox: presets
+                            (when the provider has any) show as native
+                            suggestions, but typing an arbitrary model id
+                            always works, for providers/models not in the
+                            preset list. */}
                         <div className="space-y-2">
                           <Label htmlFor="aiModel">
                             {t("settings.aiModel")}
                             <span className="text-destructive ml-1">*</span>
                           </Label>
-                          {selectedProviderMeta.models.length > 0 ? (
-                            <Select
-                              value={selectedModel.aiModel || ""}
-                              onValueChange={(value: string) =>
-                                handleModelFieldChange("aiModel", value)
-                              }
+                          <Input
+                            id="aiModel"
+                            type="text"
+                            list={`aiModel-suggestions-${selectedModel.id}`}
+                            value={selectedModel.aiModel || ""}
+                            onChange={(e) =>
+                              handleModelFieldChange("aiModel", e.target.value)
+                            }
+                            placeholder={t("settings.modelPlaceholder")}
+                          />
+                          {selectedProviderMeta.models.length > 0 && (
+                            <datalist
+                              id={`aiModel-suggestions-${selectedModel.id}`}
                             >
-                              <SelectTrigger>
-                                <SelectValue
-                                  placeholder={t("settings.modelPlaceholder")}
-                                />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {selectedProviderMeta.models.map(
-                                  (model: string) => (
-                                    <SelectItem key={model} value={model}>
-                                      {model}
-                                    </SelectItem>
-                                  ),
-                                )}
-                                {/* Allow keeping a custom value that is not in the preset list */}
-                                {selectedModel.aiModel &&
-                                  !selectedProviderMeta.models.includes(
-                                    selectedModel.aiModel as never,
-                                  ) && (
-                                    <SelectItem value={selectedModel.aiModel}>
-                                      {selectedModel.aiModel}
-                                    </SelectItem>
-                                  )}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Input
-                              id="aiModel"
-                              type="text"
-                              value={selectedModel.aiModel || ""}
-                              onChange={(e) =>
-                                handleModelFieldChange(
-                                  "aiModel",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder={t("settings.modelPlaceholder")}
-                            />
+                              {selectedProviderMeta.models.map(
+                                (model: string) => (
+                                  <option key={model} value={model} />
+                                ),
+                              )}
+                            </datalist>
                           )}
                           <p className="text-xs text-muted-foreground">
                             {language === "zh"
-                              ? "提示: 选择适合你需求的模型。"
-                              : "Tip: Choose a model that fits your needs."}
+                              ? "提示: 从建议列表中选择，或输入任意模型 ID。"
+                              : "Tip: Pick a suggestion or type any model id."}
                           </p>
                         </div>
                       </>

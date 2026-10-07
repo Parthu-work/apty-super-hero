@@ -1,8 +1,14 @@
+import type { CustomModelConfig } from "@apty/agent-core";
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n/context";
 import { ThemeProvider } from "../../theme/context";
-import { SettingsPage } from "./index";
+import {
+  isLikelyLoopbackHost,
+  parseImportedModels,
+  SettingsPage,
+  serializeModelsForExport,
+} from "./index";
 
 // jsdom does not implement matchMedia; the theme provider's "system" theme
 // resolution needs it.
@@ -123,5 +129,81 @@ describe("SettingsPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/data sharing/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/privacy mode/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("isLikelyLoopbackHost", () => {
+  it("recognizes localhost, 127.x, and ::1 as loopback", () => {
+    expect(isLikelyLoopbackHost("http://localhost:11434")).toBe(true);
+    expect(isLikelyLoopbackHost("http://127.0.0.1:11434")).toBe(true);
+    expect(isLikelyLoopbackHost("http://[::1]:11434")).toBe(true);
+  });
+
+  it("does not flag an ordinary public or private-but-non-loopback host", () => {
+    expect(isLikelyLoopbackHost("https://api.openai.com/v1")).toBe(false);
+    expect(isLikelyLoopbackHost("https://10.0.0.5/v1")).toBe(false);
+  });
+
+  it("returns false for an empty or invalid URL rather than throwing", () => {
+    expect(isLikelyLoopbackHost("")).toBe(false);
+    expect(isLikelyLoopbackHost("not a url")).toBe(false);
+  });
+});
+
+describe("serializeModelsForExport / parseImportedModels", () => {
+  const sampleModels: CustomModelConfig[] = [
+    {
+      id: "m1",
+      name: "My GPT",
+      providerType: "openai",
+      aiHost: "https://api.openai.com/v1",
+      aiToken: "sk-secret",
+      aiModel: "gpt-4o",
+      enabled: true,
+    },
+  ];
+
+  it("strips API keys by default", () => {
+    const json = serializeModelsForExport(sampleModels, false);
+    const parsed = JSON.parse(json);
+    expect(parsed.includesApiKeys).toBe(false);
+    expect(parsed.models[0].aiToken).toBeUndefined();
+    expect(parsed.models[0].aiModel).toBe("gpt-4o");
+  });
+
+  it("includes API keys only when explicitly opted in", () => {
+    const json = serializeModelsForExport(sampleModels, true);
+    const parsed = JSON.parse(json);
+    expect(parsed.includesApiKeys).toBe(true);
+    expect(parsed.models[0].aiToken).toBe("sk-secret");
+  });
+
+  it("round-trips an exported file back into disabled model configs with fresh ids", () => {
+    const json = serializeModelsForExport(sampleModels, true);
+    const imported = parseImportedModels(json);
+
+    expect(imported).toHaveLength(1);
+    const first = imported[0];
+    expect(first?.id).not.toBe("m1");
+    expect(first?.enabled).toBe(false);
+    expect(first?.aiModel).toBe("gpt-4o");
+    expect(first?.aiToken).toBe("sk-secret");
+  });
+
+  it("defaults a missing/invalid providerType to openai instead of throwing", () => {
+    const imported = parseImportedModels(
+      JSON.stringify({ models: [{ aiModel: "x", providerType: "bogus" }] }),
+    );
+    expect(imported[0]?.providerType).toBe("openai");
+  });
+
+  it("throws a descriptive error for non-JSON input", () => {
+    expect(() => parseImportedModels("not json")).toThrow(/not valid json/i);
+  });
+
+  it("throws a descriptive error when the models array is missing", () => {
+    expect(() => parseImportedModels(JSON.stringify({ foo: 1 }))).toThrow(
+      /models.*array/i,
+    );
   });
 });
