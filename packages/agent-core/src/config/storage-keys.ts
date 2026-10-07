@@ -6,6 +6,8 @@ export const STORAGE_KEYS = {
   SETTINGS: `${PREFIX}settings`,
   HOST_ACCESS_CONFIG: `${PREFIX}host_access_config`,
   AUTOMATION_MODE: `${PREFIX}automation_mode`,
+  /** Origins the user has explicitly approved a risky tool call on — see tools/approval.ts. */
+  RISKY_ORIGIN_GRANTS: `${PREFIX}risky_origin_grants`,
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

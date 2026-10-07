@@ -149,5 +149,10 @@ export function useSelectRelevantTools() {
 export const BROWSER_AGENT_CONFIG = {
   instructions: SYSTEM_PROMPT,
   name: "Apty Live Browser Debugging Agent",
-  maxTurns: 2000,
+  // A prior round lowered useAgent's own default from 2000 to 30 (a runaway
+  // loop should hit a step limit in a normal session) — but this object is
+  // spread into useAgent's options in app-root.tsx, so its own explicit
+  // value here always wins over that default. Leaving this at 2000 silently
+  // defeated that fix for the actual shipped extension the whole time.
+  maxTurns: 30,
 } as const;

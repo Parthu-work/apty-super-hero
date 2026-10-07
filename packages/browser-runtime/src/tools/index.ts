@@ -1,5 +1,6 @@
 import type { FunctionTool } from "@apty/agent-core";
 import type { z } from "zod";
+import { confirmRiskyActionTool } from "./approval.js";
 import { aptyTools } from "./apty";
 import { computerTool } from "./computer";
 import { devToolsTools } from "./devtools.js";
@@ -155,6 +156,11 @@ const networkCaptureToolGroup: BrowserFunctionTool[] =
 const extensionNetworkToolGroup: BrowserFunctionTool[] =
   extensionNetworkTools as unknown as BrowserFunctionTool[];
 
+// Approval gate for high-risk tools (1 tool) — see tools/approval.ts
+const approvalToolGroup: BrowserFunctionTool[] = [
+  confirmRiskyActionTool as unknown as BrowserFunctionTool,
+];
+
 const browserFunctionTools: BrowserFunctionTool[] = [
   ...tabToolGroup,
   ...uiToolGroup,
@@ -170,6 +176,7 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   ...selectorToolGroup,
   ...networkCaptureToolGroup,
   ...extensionNetworkToolGroup,
+  ...approvalToolGroup,
 ] as const;
 
 export const allBrowserTools: FunctionTool[] =
@@ -197,6 +204,7 @@ export const browserToolGroups = {
   selector: selectorToolGroup,
   networkCapture: networkCaptureToolGroup,
   extensionNetwork: extensionNetworkToolGroup,
+  approval: approvalToolGroup,
 } as const;
 
 export type BrowserToolGroupName = keyof typeof browserToolGroups;

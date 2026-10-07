@@ -21,11 +21,15 @@ function names(tools: { name: string }[]): string[] {
 }
 
 describe("selectRelevantTools", () => {
-  it("returns no tools for casual chat", () => {
-    expect(selectRelevantTools("hi")).toEqual([]);
-    expect(selectRelevantTools("thanks!")).toEqual([]);
-    expect(selectRelevantTools("hello")).toEqual([]);
-    expect(selectRelevantTools("ok")).toEqual([]);
+  it("returns only the always-on approval tool for casual chat — never a completely empty set", () => {
+    // A short reply like "ok" is exactly how a user answers a pending
+    // risky-action approval from a prior turn, so confirm_risky_action must
+    // stay callable even here — see tool-relevance.ts's approval handling.
+    for (const message of ["hi", "thanks!", "hello", "ok"]) {
+      expect(names(selectRelevantTools(message))).toEqual([
+        "confirm_risky_action",
+      ]);
+    }
   });
 
   it("returns page + selector tools for a DOM/page question", () => {

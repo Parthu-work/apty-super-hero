@@ -1,7 +1,14 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { recordToolCall } from "../../../apty/index.js";
 import { CdpCommander } from "../../../automation/cdp-commander";
 import { debuggerManager } from "../../../automation/debugger-manager";
+import { gateRiskyAction } from "../../approval.js";
+import {
+  describeTabResolutionFailure,
+  resolveDiagnosticTab,
+  type ToolRunContext,
+} from "../../tab-utils";
 
 /**
  * Resolve the target file input element on the page.
@@ -59,18 +66,17 @@ export const uploadFileToInputTool = tool({
 Uses Chrome DevTools Protocol to set the file directly — no file content is read into memory.
 
 WORKFLOW:
-1. Provide the tabId and a local file_path
+1. Provide a local file_path — this always targets the conversation's own current tab, never a model-supplied tab id
 2. The tool automatically finds the file input (including hidden ones)
 3. If the page has multiple file inputs, use input_index to select which one (0 = first)
 4. Optionally provide uid from a snapshot if you know the exact element
 
 NOTE: Most websites hide the actual <input type="file"> behind a styled button. This tool handles both visible and hidden file inputs automatically.
 
+APPROVAL: this writes to the page and reads an arbitrary local file path, so it requires explicit user approval before it runs (once per page origin — see confirm_risky_action).
+
 AFTER UPLOAD: take a screenshot to verify the file was accepted, then proceed to submit the form.`,
   parameters: z.object({
-    tabId: z
-      .number()
-      .describe("The ID of the tab containing the file input element"),
     file_path: z
       .string()
       .describe(
@@ -92,69 +98,95 @@ AFTER UPLOAD: take a screenshot to verify the file was accepted, then proceed to
           "Defaults to 0. Only used when uid is not provided or not found.",
       ),
   }),
-  execute: async ({ tabId, file_path, uid, input_index }) => {
+  execute: async ({ file_path, uid, input_index }, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    recordToolCall(conversationId, "upload_file_to_input", { file_path });
+
+    const resolution = await resolveDiagnosticTab(context as ToolRunContext);
+    if (!resolution.ok) {
+      return {
+        success: false,
+        message: describeTabResolutionFailure(resolution.code).message,
+      };
+    }
+    const tab = resolution.tab;
+    const tabId = tab.id as number;
     const inputIndex = input_index ?? 0;
 
-    const attached = await debuggerManager.safeAttachDebugger(tabId);
-    if (!attached) {
-      return { success: false, message: "Failed to attach debugger to tab" };
-    }
-
-    const cdp = new CdpCommander(tabId);
-
-    try {
-      await cdp.sendCommand("DOM.enable", {});
-
-      const { root } = (await cdp.sendCommand("DOM.getDocument", {
-        depth: 0,
-      })) as { root: { nodeId: number } };
-
-      const resolved = await resolveFileInputNodeId(
-        tabId,
-        cdp,
-        root.nodeId,
-        uid,
-        inputIndex,
-      );
-
-      if (!resolved.nodeId) {
-        return {
-          success: false,
-          message: resolved.error ?? "File input element not found",
-        };
+    const runUpload = async () => {
+      const attached = await debuggerManager.safeAttachDebugger(tabId);
+      if (!attached) {
+        return { success: false, message: "Failed to attach debugger to tab" };
       }
 
-      await cdp.sendCommand("DOM.setFileInputFiles", {
-        nodeId: resolved.nodeId,
-        files: [file_path],
-      });
+      const cdp = new CdpCommander(tabId);
 
-      const filename = file_path.split(/[\\/]/).pop() ?? file_path;
-      return {
-        success: true,
-        message: `File "${filename}" successfully uploaded to the file input element`,
-        filename,
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("No node") || msg.toLowerCase().includes("nodeid")) {
+      try {
+        await cdp.sendCommand("DOM.enable", {});
+
+        const { root } = (await cdp.sendCommand("DOM.getDocument", {
+          depth: 0,
+        })) as { root: { nodeId: number } };
+
+        const resolved = await resolveFileInputNodeId(
+          tabId,
+          cdp,
+          root.nodeId,
+          uid,
+          inputIndex,
+        );
+
+        if (!resolved.nodeId) {
+          return {
+            success: false,
+            message: resolved.error ?? "File input element not found",
+          };
+        }
+
+        await cdp.sendCommand("DOM.setFileInputFiles", {
+          nodeId: resolved.nodeId,
+          files: [file_path],
+        });
+
+        const filename = file_path.split(/[\\/]/).pop() ?? file_path;
         return {
-          success: false,
-          message:
-            "File input element not found. Use search_elements to verify the element exists.",
+          success: true,
+          message: `File "${filename}" successfully uploaded to the file input element`,
+          filename,
         };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("No node") || msg.toLowerCase().includes("nodeid")) {
+          return {
+            success: false,
+            message:
+              "File input element not found. Use search_elements to verify the element exists.",
+          };
+        }
+        if (
+          msg.includes("File not found") ||
+          msg.includes("ENOENT") ||
+          msg.includes("no such file")
+        ) {
+          return {
+            success: false,
+            message: `Local file not found: ${file_path}`,
+          };
+        }
+        return { success: false, message: `CDP error: ${msg}` };
+      } finally {
+        await debuggerManager.safeDetachDebugger(tabId);
       }
-      if (
-        msg.includes("File not found") ||
-        msg.includes("ENOENT") ||
-        msg.includes("no such file")
-      ) {
-        return {
-          success: false,
-          message: `Local file not found: ${file_path}`,
-        };
-      }
-      return { success: false, message: `CDP error: ${msg}` };
-    }
+    };
+
+    // Reads an arbitrary local file path and writes to the page — gated
+    // behind explicit user approval, same as run_console_command.
+    return gateRiskyAction(
+      conversationId,
+      "upload_file_to_input",
+      `Upload the local file "${file_path}" to a file input on the current page (${tab.url ?? "unknown URL"})`,
+      tab.url,
+      runUpload,
+    );
   },
 });

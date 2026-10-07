@@ -20,6 +20,8 @@ vi.mock("../automation/debugger-manager.js", () => ({
   },
 }));
 
+let storageStore: Record<string, unknown> = {};
+
 (global as any).chrome = {
   debugger: {
     onEvent: {
@@ -28,11 +30,24 @@ vi.mock("../automation/debugger-manager.js", () => ({
     },
   },
   tabs: {
-    get: vi.fn(async (tabId: number) => ({ id: tabId })),
-    query: vi.fn(async () => [{ id: 7 }]),
+    get: vi.fn(async (tabId: number) => ({
+      id: tabId,
+      url: "https://example.com/page",
+    })),
+    query: vi.fn(async () => [{ id: 7, url: "https://example.com/page" }]),
+  },
+  storage: {
+    local: {
+      get: (key: string) => Promise.resolve({ [key]: storageStore[key] }),
+      set: (items: Record<string, unknown>) => {
+        storageStore = { ...storageStore, ...items };
+        return Promise.resolve();
+      },
+    },
   },
 };
 
+import { confirmRiskyAction, resetApprovalStateForTests } from "./approval";
 import {
   getNetworkDiagnosticsTool,
   getRuntimeDiagnosticsTool,
@@ -53,10 +68,12 @@ function fireDebuggerEvent(method: string, params: unknown) {
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   mockSafeAttachDebugger.mockResolvedValue(true);
   mockSafeDetachDebugger.mockResolvedValue(undefined);
+  storageStore = {};
+  await resetApprovalStateForTests();
 });
 
 afterEach(() => {
@@ -183,6 +200,103 @@ describe("getRuntimeDiagnosticsTool — classification", () => {
 });
 
 describe("runConsoleCommandTool", () => {
+  /** Invoke the tool, confirm the resulting pending approval, and return the EXECUTED result. */
+  async function invokeAndApprove(
+    conversationId: string,
+    expression: string,
+  ): Promise<any> {
+    const runContext = { context: { conversationId, tabId: TAB_ID } };
+    const pending = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression }),
+    )) as any;
+    expect(pending.status).toBe("needs_approval");
+    expect(pending.approvalId).toBeTruthy();
+    const confirmed = await confirmRiskyAction(
+      conversationId,
+      pending.approvalId,
+      true,
+    );
+    expect(confirmed.found).toBe(true);
+    expect(confirmed.executed).toBe(true);
+    return confirmed.result;
+  }
+
+  it("never executes on the first call — always returns a pending approval", async () => {
+    const runContext = {
+      context: { conversationId: "conv-console-gate", tabId: TAB_ID },
+    };
+    const result = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "1 + 41" }),
+    )) as any;
+
+    expect(result.status).toBe("needs_approval");
+    expect(result.approvalId).toBeTruthy();
+    expect(mockSendCommand).not.toHaveBeenCalled();
+    expect(mockSafeAttachDebugger).not.toHaveBeenCalled();
+  });
+
+  it("denying the approval never executes the expression", async () => {
+    const runContext = {
+      context: { conversationId: "conv-console-deny", tabId: TAB_ID },
+    };
+    const pending = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "1 + 1" }),
+    )) as any;
+
+    const confirmed = await confirmRiskyAction(
+      "conv-console-deny",
+      pending.approvalId,
+      false,
+    );
+    expect(confirmed.found).toBe(true);
+    expect(confirmed.denied).toBe(true);
+    expect(confirmed.executed).toBeFalsy();
+    expect(mockSendCommand).not.toHaveBeenCalled();
+  });
+
+  it("a different conversation cannot confirm another conversation's pending approval", async () => {
+    const runContext = {
+      context: { conversationId: "conv-console-owner", tabId: TAB_ID },
+    };
+    const pending = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "1 + 1" }),
+    )) as any;
+
+    const confirmed = await confirmRiskyAction(
+      "conv-console-attacker",
+      pending.approvalId,
+      true,
+    );
+    expect(confirmed.found).toBe(false);
+    expect(mockSendCommand).not.toHaveBeenCalled();
+  });
+
+  it("a second risky call on the SAME origin after one approval runs immediately, no re-approval", async () => {
+    mockSendCommand.mockImplementation(async (command: string) => {
+      if (command === "Runtime.evaluate") {
+        return { result: { type: "number", value: 1 } };
+      }
+      return undefined;
+    });
+    const conv = "conv-console-regrant";
+    await invokeAndApprove(conv, "1");
+
+    const runContext = { context: { conversationId: conv, tabId: TAB_ID } };
+    const second = (await runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression: "2" }),
+    )) as any;
+
+    // No "needs_approval" this time — the origin was already granted.
+    expect(second.status).toBeUndefined();
+    expect(second.available).toBe(true);
+    expect(second.success).toBe(true);
+  });
+
   it("evaluates an expression and returns its JSON-serializable result", async () => {
     mockSendCommand.mockImplementation(async (command: string) => {
       if (command === "Runtime.evaluate") {
@@ -191,13 +305,7 @@ describe("runConsoleCommandTool", () => {
       return undefined;
     });
 
-    const runContext = {
-      context: { conversationId: "conv-console", tabId: TAB_ID },
-    };
-    const result = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "1 + 41" }),
-    )) as any;
+    const result = await invokeAndApprove("conv-console", "1 + 41");
 
     expect(result.available).toBe(true);
     expect(result.success).toBe(true);
@@ -214,13 +322,10 @@ describe("runConsoleCommandTool", () => {
       return undefined;
     });
 
-    const runContext = {
-      context: { conversationId: "conv-console-log", tabId: TAB_ID },
-    };
-    const result = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "console.log('hi')" }),
-    )) as any;
+    const result = await invokeAndApprove(
+      "conv-console-log",
+      "console.log('hi')",
+    );
 
     expect(result.available).toBe(true);
     expect(result.success).toBe(true);
@@ -239,13 +344,10 @@ describe("runConsoleCommandTool", () => {
       return undefined;
     });
 
-    const runContext = {
-      context: { conversationId: "conv-console-error", tabId: TAB_ID },
-    };
-    const result = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "x.doSomething()" }),
-    )) as any;
+    const result = await invokeAndApprove(
+      "conv-console-error",
+      "x.doSomething()",
+    );
 
     expect(result.available).toBe(true);
     expect(result.success).toBe(false);
@@ -263,13 +365,10 @@ describe("runConsoleCommandTool", () => {
       return undefined;
     });
 
-    const runContext = {
-      context: { conversationId: "conv-console-redact", tabId: TAB_ID },
-    };
-    const result = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "getAuthHeader()" }),
-    )) as any;
+    const result = await invokeAndApprove(
+      "conv-console-redact",
+      "getAuthHeader()",
+    );
 
     expect(result.result).not.toContain("abc123secrettoken");
     expect(result.result).toContain("REDACTED");
@@ -284,13 +383,10 @@ describe("runConsoleCommandTool", () => {
       return undefined;
     });
 
-    const runContext = {
-      context: { conversationId: "conv-console-truncate", tabId: TAB_ID },
-    };
-    const result = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "getHugeString()" }),
-    )) as any;
+    const result = await invokeAndApprove(
+      "conv-console-truncate",
+      "getHugeString()",
+    );
 
     expect(result.result.length).toBeLessThan(5000);
     expect(result.result).toContain("truncated");
@@ -299,13 +395,7 @@ describe("runConsoleCommandTool", () => {
   it("reports failure without throwing when the debugger cannot attach", async () => {
     mockSafeAttachDebugger.mockResolvedValueOnce(false);
 
-    const runContext = {
-      context: { conversationId: "conv-console-noattach", tabId: TAB_ID },
-    };
-    const result = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "1 + 1" }),
-    )) as any;
+    const result = await invokeAndApprove("conv-console-noattach", "1 + 1");
 
     expect(result.available).toBe(false);
     expect(mockSendCommand).not.toHaveBeenCalled();

@@ -37,6 +37,7 @@ import {
 } from "../apty/index.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
+import { gateRiskyAction } from "./approval.js";
 import {
   describeTabForMeta,
   describeTabResolutionFailure,
@@ -416,11 +417,8 @@ export const runConsoleCommandTool = tool({
       ),
   }),
   execute: async ({ expression }, context) => {
-    recordToolCall(
-      (context as ToolRunContext)?.context?.conversationId,
-      "run_console_command",
-      { expression },
-    );
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    recordToolCall(conversationId, "run_console_command", { expression });
     const resolution = await resolveDiagnosticTab(context as ToolRunContext);
     if (!resolution.ok) {
       return {
@@ -431,64 +429,77 @@ export const runConsoleCommandTool = tool({
     const tab = resolution.tab;
     const tabId = tab.id as number;
 
-    const attached = await debuggerManager.safeAttachDebugger(tabId);
-    if (!attached) {
-      return {
-        available: false,
-        error: "Failed to attach the debugger to this tab.",
-      };
-    }
-
-    try {
-      const cdp = new CdpCommander(tabId);
-      const evalResult = await cdp.sendCommand<{
-        result?: EvaluationResult;
-        exceptionDetails?: {
-          text?: string;
-          exception?: { description?: string };
-        };
-      }>("Runtime.evaluate", {
-        expression,
-        returnByValue: true,
-        awaitPromise: true,
-        userGesture: true,
-      });
-
-      if (evalResult?.exceptionDetails) {
-        const message =
-          evalResult.exceptionDetails.exception?.description ??
-          evalResult.exceptionDetails.text ??
-          "The expression threw an error.";
+    const runEvaluate = async () => {
+      const attached = await debuggerManager.safeAttachDebugger(tabId);
+      if (!attached) {
         return {
-          available: true,
-          success: false,
-          url: tab.url,
-          expression,
-          error: truncateText(
-            redactSensitiveText(String(message)),
-            MAX_RESULT_LENGTH,
-          ),
-          meta: { tab: describeTabForMeta(tab) },
+          available: false,
+          error: "Failed to attach the debugger to this tab.",
         };
       }
 
-      return {
-        available: true,
-        success: true,
-        url: tab.url,
-        expression,
-        resultType: evalResult?.result?.type,
-        result: serializeEvaluationResult(evalResult?.result),
-        meta: { tab: describeTabForMeta(tab) },
-      };
-    } catch (error) {
-      return {
-        available: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    } finally {
-      await debuggerManager.safeDetachDebugger(tabId);
-    }
+      try {
+        const cdp = new CdpCommander(tabId);
+        const evalResult = await cdp.sendCommand<{
+          result?: EvaluationResult;
+          exceptionDetails?: {
+            text?: string;
+            exception?: { description?: string };
+          };
+        }>("Runtime.evaluate", {
+          expression,
+          returnByValue: true,
+          awaitPromise: true,
+          userGesture: true,
+        });
+
+        if (evalResult?.exceptionDetails) {
+          const message =
+            evalResult.exceptionDetails.exception?.description ??
+            evalResult.exceptionDetails.text ??
+            "The expression threw an error.";
+          return {
+            available: true,
+            success: false,
+            url: tab.url,
+            expression,
+            error: truncateText(
+              redactSensitiveText(String(message)),
+              MAX_RESULT_LENGTH,
+            ),
+            meta: { tab: describeTabForMeta(tab) },
+          };
+        }
+
+        return {
+          available: true,
+          success: true,
+          url: tab.url,
+          expression,
+          resultType: evalResult?.result?.type,
+          result: serializeEvaluationResult(evalResult?.result),
+          meta: { tab: describeTabForMeta(tab) },
+        };
+      } catch (error) {
+        return {
+          available: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      } finally {
+        await debuggerManager.safeDetachDebugger(tabId);
+      }
+    };
+
+    // Arbitrary JS execution in the page is the highest-risk tool in this
+    // registry — gated behind explicit user approval (see tools/approval.ts),
+    // not run on the model's say-so alone.
+    return gateRiskyAction(
+      conversationId,
+      "run_console_command",
+      `Run this JavaScript in the current page (${tab.url ?? "unknown URL"}): ${expression}`,
+      tab.url,
+      runEvaluate,
+    );
   },
 });
 

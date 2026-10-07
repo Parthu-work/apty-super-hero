@@ -169,6 +169,9 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
     "get app.json",
     ".json",
   ],
+  // Always exposed regardless of keyword match (see selectRelevantTools) —
+  // these keywords are defense in depth only, not the actual gate.
+  approval: ["approve", "confirm", "proceed", "deny", "cancel", "go ahead"],
 };
 
 // Cheap, deterministic context every investigative request benefits from,
@@ -232,12 +235,20 @@ export function selectRelevantTools(userMessage: string): FunctionTool[] {
 
   if (matchedGroups.size === 0) {
     if (isLikelyCasualMessage(text)) {
-      return [];
+      // A short reply like "yes" or "go ahead" is exactly how a user
+      // answers a pending risky-action approval from a prior turn — it
+      // must never resolve to a completely empty tool set, or
+      // confirm_risky_action becomes uncallable right when it's needed.
+      return [...browserToolGroups.approval] as unknown as FunctionTool[];
     }
     for (const group of DEFAULT_FALLBACK_GROUPS) {
       matchedGroups.add(group);
     }
   }
+
+  // Always exposed: a pending approval from ANY prior turn must always be
+  // resolvable, independent of what this turn's own keywords matched.
+  matchedGroups.add("approval");
 
   const seenNames = new Set<string>();
   const selected: FunctionTool[] = [];
