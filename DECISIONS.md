@@ -937,3 +937,59 @@ contract-mismatch cases, peer config migration) remain real gaps. None of
 them block the actual demo path (pull Client logs / segments.json data),
 which this round's acceptance fixture directly verifies end-to-end against
 the real tool code.
+
+## v7 WP4 H2: pnpm.overrides for dependency vulnerabilities
+
+`pnpm audit --prod` at the start of this item found 76 advisories against
+the root workspace (1 critical, 24 high, 43 moderate, 8 low), almost all
+transitive — pulled in through `@modelcontextprotocol/sdk`'s own bundled
+HTTP stack (`express`, `hono`, `ws`, `ip-address`, `fast-uri`, `qs`,
+`body-parser`, ...) and a few unrelated leaves (`lodash`, `js-cookie`,
+`tmp`, `nanoid`, `browserslist`, `minimatch`, `path-to-regexp`,
+`@babel/core`). `apps/mcp-bridge` is excluded from the root pnpm workspace
+(its own `pnpm-lock.yaml`, see the package architecture note at the top of
+this repo's `CLAUDE.md`) and carried an overlapping but separate set of 55
+advisories (1 critical, 11 high, 40 moderate, 3 low) against its own lockfile.
+
+**Fixes applied:**
+- Bumped `@modelcontextprotocol/sdk` to `^1.32.1` in both
+  `apps/browser-extension` and `apps/mcp-bridge` (was `^1.26.0` /
+  `^1.28.0`) — this alone resolved most of the `hono`/`ip-address`/
+  `fast-uri` chain, since those are the SDK's own transitive deps and the
+  newer SDK release line already carries patched versions.
+- Bumped `ws` to `^8.21.0` directly in `apps/mcp-bridge` (was `^8.18.0`).
+- Added `pnpm.overrides` to the root `package.json` (covering the
+  workspace: `packages/*` + `apps/browser-extension`) and a **separate**
+  `pnpm.overrides` block to `apps/mcp-bridge/package.json` (its own,
+  independent lockfile needs its own override set — the root's overrides
+  do not reach it) for the remaining narrowly-patchable leaf packages:
+  `proxy-addr`, `minimatch`, `path-to-regexp`, `lodash`, `js-cookie`,
+  `tmp`, `ws`, `hono`, `@hono/node-server`, `fast-uri`, `ip-address`,
+  `nanoid`, `browserslist`, `baseline-browser-mapping`, `qs`,
+  `body-parser`, `fflate`, `@babel/core`.
+- One override (`@ai-sdk/provider-utils`) needed a second pass: the first
+  attempt used an open-ended `>=4.0.33` floor, which pnpm satisfied by
+  jumping all the way to the latest `5.0.56` — a different major line
+  whose API had actually changed (`createProviderToolFactory` no longer
+  exported the same way), which broke `apps/browser-extension`'s test
+  suite at import time. Re-scoped to `^4.0.33` (same `4.x` line, just the
+  patched minor) fixed it — a reminder that an override's *target* range
+  needs the same major-version discipline as the dependency's own semver
+  range, not just "anything higher."
+
+**Result:** root workspace audit: 76 → 1 (down to a single high). mcp-bridge
+audit: 55 → 0. Full `verify-quiet.sh typecheck lint test build audit` gate
+green on both after the change, including `apps/mcp-bridge`'s own
+`typecheck`/`test`/`build` run separately (it is not part of the root
+`pnpm -r` fan-out).
+
+**Accepted risk (documented exception):** `braces@3.0.3`'s stack-exhaustion
+DoS advisory (GHSA-vfj7-8cjw-p6xm) has **no patched version published
+upstream yet** (`patched_versions: "<0.0.0"` — pnpm's own way of saying
+"none exists"). It resolves only through `knip` (`micromatch` →
+`fast-glob` → `knip`), a **devDependency** used solely for the
+`lint:dependencies` script; it never ships in the built extension or the
+`apps/mcp-bridge` CLI/daemon bundles. No override is possible until
+upstream ships a fix — tracked here rather than silenced, so a future pass
+can re-check `pnpm audit` and drop this note once a patched `braces` (or a
+`micromatch`/`fast-glob`/`knip` bump that stops pulling it in) exists.
