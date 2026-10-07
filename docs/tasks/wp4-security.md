@@ -97,10 +97,21 @@ done/not-done against the original scope below.
   fired on Mac; changed to `Command+Shift+A`/`Ctrl+Shift+A` (Chrome's own
   documented-recommended pattern).
 
+- **Dead-code removal.** `external-messaging.ts` (unreachable
+  `onMessageExternal` listener, `externally_connectable.ids: []` means it
+  can never fire) and `app-root.tsx`'s `usePendingPrompt()` (sole reader
+  of the storage keys that listener used to write) both deleted. The
+  `claudechrome.com` model-list path turned out to be a live, reachable
+  bug in `ModelChangePrompt` (not dead — see `DECISIONS.md`), now fixed
+  with an explicit `fetchFromServer` opt-in flag, matching the sibling
+  `DefaultInputArea` component's existing `showServerModels` pattern.
+  `aipex-*` identifiers: scope-corrected, not completed — these are an
+  active naming convention (storage-key prefix, a DOM attribute selector)
+  across 19+ files, not unused branding residue; renaming needs a real
+  migration plan, which wasn't attempted this round (see `DECISIONS.md`).
+
 ## Not done this round (deferred)
 
-- **Dead-code removal** (`external-messaging.ts`, the `claudechrome.com`
-  model-list path, `aipex-*` identifiers).
 - **Replacing `console.*` calls with a leveled logger.**
 - **A hostile-page end-to-end test** — needs the WP8 real-browser e2e
   harness, which doesn't exist yet.

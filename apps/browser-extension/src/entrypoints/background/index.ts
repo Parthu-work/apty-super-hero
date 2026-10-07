@@ -5,7 +5,6 @@
 
 import { registerCommandHandlers } from "./commands";
 import { registerGlobalDownloadHelper } from "./downloads";
-import { registerExternalMessaging } from "./external-messaging";
 import { registerInstallHandler, seedAptyIntegrationConfig } from "./lifecycle";
 import { registerMcpBridge } from "./mcp-bridge";
 import { registerMessageRouter } from "./message-router";
@@ -23,7 +22,6 @@ registerInstallHandler();
 registerSidepanelPortLifecycle();
 registerMessageRouter();
 registerGlobalDownloadHelper();
-registerExternalMessaging();
 registerMcpBridge();
 
-console.log("AIPex background service worker started");
+console.log("Apty Agent background service worker started");

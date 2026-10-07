@@ -45,57 +45,6 @@ import { SetupNeededCard } from "./setup-needed-card";
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 
-// ---------------------------------------------------------------------------
-// Pending prompt
-// ---------------------------------------------------------------------------
-
-/**
- * Reads and consumes a pending prompt saved by the openWithPrompt external
- * message handler in the background service worker.  Prompts older than 5 s
- * are treated as expired and silently discarded.
- */
-function usePendingPrompt() {
-  const [pendingInput, setPendingInput] = useState<string | undefined>(
-    undefined,
-  );
-
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const result = await chrome.storage.local.get([
-          "aipex-pending-prompt",
-          "aipex-pending-prompt-timestamp",
-        ]);
-
-        const prompt = result["aipex-pending-prompt"];
-        const timestamp = result["aipex-pending-prompt-timestamp"];
-
-        if (prompt && typeof prompt === "string") {
-          const now = Date.now();
-          // Only use prompts that are less than 5 seconds old
-          if (typeof timestamp === "number" && now - timestamp < 5000) {
-            setPendingInput(prompt);
-          }
-        }
-
-        // Always clear storage regardless of expiry
-        if (prompt) {
-          chrome.storage.local.remove([
-            "aipex-pending-prompt",
-            "aipex-pending-prompt-timestamp",
-          ]);
-        }
-      } catch {
-        // Silently ignore – storage may not be available yet
-      }
-    };
-
-    check();
-  }, []);
-
-  return pendingInput;
-}
-
 /**
  * Manages the "aipex-conversation-active" heartbeat in chrome.storage.local
  * so content scripts can show the breathing border overlay while the AI is
@@ -168,7 +117,6 @@ function ChatApp() {
     ...BROWSER_AGENT_CONFIG,
   });
 
-  const pendingInput = usePendingPrompt();
   const heartbeat = useConversationHeartbeat();
 
   // Keep a ref to settings so the auth check always sees latest values
@@ -257,7 +205,6 @@ function ChatApp() {
           configError={error}
           initialSettings={settings}
           storageAdapter={chromeStorageAdapter}
-          initialInput={pendingInput}
           config={{
             getRunContext: resolveConversationRunContext,
             selectTools,

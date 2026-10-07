@@ -1411,3 +1411,71 @@ Added `optional-permissions.test.ts` (6 tests) and
 `permissions-panel.test.tsx` (5 tests, using `fireEvent` rather than
 `@testing-library/user-event` — the latter isn't a dependency anywhere
 in this repo, and wasn't worth adding for one test file).
+
+## v7 WP4 dead-code cleanup: a live undisclosed third-party fetch, an unreachable external-message handler, and a mis-scoped "aipex-* identifiers" item
+
+Three small items, one of which turned out to matter more than its
+"cleanup" framing suggested:
+
+- **`ModelChangePrompt`'s default third-party fetch — a real bug, not
+  just dead code.** `packages/ui/src/lib/models.ts` fetches a live model
+  list from `https://www.claudechrome.com/api/models` — an unrelated
+  third party, clearly left over from the upstream fork this project
+  started from (`package.json`: "forked from AIPex"). A prior round
+  already fixed the main model-selector path
+  (`DefaultInputArea`'s `showServerModels={false}`,
+  `apps/browser-extension/src/components/browser-chat-input-area.tsx`,
+  with its own comment explaining exactly this risk) — but
+  `ModelChangePrompt` (`packages/ui/src/components/chatbot/components/
+  model-change-prompt.tsx`), rendered by `message-item.tsx` for an
+  assistant message with `metadata.needChangeModel`, had **no such
+  guard**: its own comment read "Fetch models from API (always runs — no
+  longer gated on onFetchModels)." This directly contradicts the
+  product's own Privacy card ("No analytics or telemetry are collected").
+  Confirmed this specific path is not reachable *today* (`needChangeModel`
+  is never actually set anywhere in the real message pipeline — only
+  referenced in the type definition and this one render site), so no user
+  has actually triggered this fetch yet — but it was one metadata flag
+  away from firing, and the shared `packages/ui` component had no
+  opt-in/opt-out mechanism at all for a future consumer, unlike its
+  sibling. Added the same kind of explicit flag
+  (`fetchFromServer`, default `false`) — matching `showServerModels`'s
+  precedent exactly rather than inventing a different shape — so the
+  built-in third-party fetch only runs when a host app explicitly opts in.
+  Added `model-change-prompt.test.tsx` (3 tests, zero coverage before).
+- **`external-messaging.ts`'s dead `onMessageExternal` listener.**
+  `apps/browser-extension/src/entrypoints/background/external-messaging.ts`
+  registered a `chrome.runtime.onMessageExternal` listener implementing an
+  `"openWithPrompt"` action — by its own comment, "intentionally
+  unreachable" since `manifest.json`'s `externally_connectable.ids` is
+  `[]` (enforced by `validate-manifest.mjs`). Deleted the file and its
+  registration in `background/index.ts`. Also deleted
+  `app-root.tsx`'s `usePendingPrompt()` hook, the sole reader of the
+  `aipex-pending-prompt`/`-timestamp` storage keys that listener used to
+  write — with the writer gone, that hook was equally dead (always
+  resolves to `undefined`), and its one call site
+  (`<ChatBot initialInput={pendingInput}>`) now simply omits the
+  (optional) prop rather than always passing `undefined`. Kept the
+  `initialInput` prop itself on `ChatBot` — it's a generic, legitimate
+  prop a host app could still use for other reasons, only this one
+  specific *source* of its value was dead. Also fixed a stray branding
+  leftover found in the same file: `console.log("AIPex background
+  service worker started")` → `"Apty Agent ..."`.
+- **"`aipex-*` identifiers" — scope-corrected, not completed as
+  originally framed.** The original audit item described these as
+  something to clean up alongside other dead code. Investigating found
+  `aipex-`/`aipex_` is actually a **deeply embedded, active naming
+  convention** across 19+ files — `STORAGE_KEYS`' own prefix
+  (`aipex_settings`, etc.), a DOM attribute selector
+  (`data-aipex-nodeid`) matched by CDP automation code, and more — not
+  unused branding residue. Renaming a persisted storage-key prefix would
+  silently "lose" existing users' settings on upgrade without a migration
+  path, and renaming a functional DOM-attribute selector risks subtle
+  automation breakage if any single call site is missed. This is a
+  real, legitimate branding-consistency task, but it is **not** a safe
+  "remove dead code" change — it needs a deliberate migration plan (e.g.
+  read-old-key-as-fallback-then-write-new-key), which is a different and
+  larger piece of work than what the original item's framing implied. Not
+  attempted this round; flagging the scope correction here rather than
+  either silently skipping it or renaming functional identifiers without
+  a migration path.

@@ -17,6 +17,18 @@ interface ModelChangePromptProps {
   availableModels?: ModelInfo[];
   /** Function to fetch models from API */
   onFetchModels?: () => Promise<ModelInfo[]>;
+  /**
+   * Whether to fall back to the built-in `fetchModelsForPrompt()` (an
+   * undisclosed network request to a third-party host, `lib/models.ts`'s
+   * `MODELS_API_URL`) when `onFetchModels` isn't provided. Defaults to
+   * `false` — a BYOK-only product with no server-side proxy for this
+   * component to legitimately call (see
+   * `apps/browser-extension/src/components/browser-chat-input-area.tsx`'s
+   * `showServerModels={false}` for the same reasoning on the sibling
+   * model-selector component) must not get a surprise remote fetch just
+   * because it didn't pass `onFetchModels`.
+   */
+  fetchFromServer?: boolean;
 }
 
 // Default translations for model change prompt
@@ -39,6 +51,7 @@ export const ModelChangePrompt: React.FC<ModelChangePromptProps> = ({
   currentModel,
   availableModels = [],
   onFetchModels,
+  fetchFromServer = false,
 }) => {
   // Simple translation function
   const t = (key: string): string => {
@@ -47,20 +60,25 @@ export const ModelChangePrompt: React.FC<ModelChangePromptProps> = ({
   const [allModels, setAllModels] = useState<ModelInfo[]>(availableModels);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-  // Resolve the fetch function: use the provided callback or fall back to
-  // the built-in fetchModelsForPrompt so models are always loaded.
-  const resolvedFetch = useCallback(
-    () => (onFetchModels ? onFetchModels() : fetchModelsForPrompt()),
-    [onFetchModels],
-  );
+  // Resolve the fetch function: use the provided callback, or the built-in
+  // fetchModelsForPrompt only when explicitly opted into via
+  // fetchFromServer — otherwise null, meaning "don't fetch, just use
+  // availableModels".
+  const resolvedFetch = useCallback(() => {
+    if (onFetchModels) return onFetchModels();
+    if (fetchFromServer) return fetchModelsForPrompt();
+    return null;
+  }, [onFetchModels, fetchFromServer]);
 
-  // Fetch models from API (always runs — no longer gated on onFetchModels)
   useEffect(() => {
+    const fetchPromise = resolvedFetch();
+    if (!fetchPromise) return;
+
     let cancelled = false;
     const loadModels = async () => {
       setIsLoadingModels(true);
       try {
-        const fetched = await resolvedFetch();
+        const fetched = await fetchPromise;
         if (!cancelled) {
           setAllModels(fetched);
         }
