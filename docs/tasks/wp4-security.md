@@ -109,10 +109,17 @@ done/not-done against the original scope below.
   active naming convention (storage-key prefix, a DOM attribute selector)
   across 19+ files, not unused branding residue; renaming needs a real
   migration plan, which wasn't attempted this round (see `DECISIONS.md`).
+- **Leveled logger — built, not adopted.** `createLogger`/`setLogLevel`
+  (`packages/agent-core/src/utils/logger.ts`, 6 tests) is a real, tested,
+  ready-to-use module. Migrating the 523 existing `console.*` call sites
+  across 74 files was judged too large and too risky to do safely this
+  round (several are read directly by existing `console`-spy-based test
+  assertions) — see `DECISIONS.md` for why a token partial migration was
+  rejected in favor of shipping the tested module and saying plainly that
+  adoption is a separate follow-up.
 
 ## Not done this round (deferred)
 
-- **Replacing `console.*` calls with a leveled logger.**
 - **A hostile-page end-to-end test** — needs the WP8 real-browser e2e
   harness, which doesn't exist yet.
 

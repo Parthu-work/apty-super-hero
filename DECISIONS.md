@@ -1479,3 +1479,34 @@ Three small items, one of which turned out to matter more than its
   attempted this round; flagging the scope correction here rather than
   either silently skipping it or renaming functional identifiers without
   a migration path.
+
+## v7 WP4: leveled logger — built, not adopted at the 523 existing call sites
+
+The original audit item was "replace `console.*` calls with a leveled
+logger." Grepping confirmed the real scope: **523** `console.log`/`.warn`/
+`.error`/`.debug` calls across **74 files** in `packages/browser-runtime`,
+`packages/agent-core`, and `apps/browser-extension`.
+
+Built the actual logger (`packages/agent-core/src/utils/logger.ts`,
+exported from the package root): `createLogger(namespace)` returns a
+`{debug, info, warn, error}` object that prefixes every call with
+`[namespace]` — `createLogger("QuickJS").debug("loaded", url)` produces
+byte-identical output to the existing `console.log("[QuickJS] loaded",
+url)` convention already used throughout this codebase — plus a
+process-wide `setLogLevel`/`getLogLevel` so a level can be raised (e.g. to
+`"warn"` in a production build) without touching every call site again.
+Defaults to `"debug"` (log everything), so adopting it anywhere is a pure
+rename with zero behavior change until something explicitly calls
+`setLogLevel`. 6 tests, all passing.
+
+**Deliberately not migrating the 523 existing call sites this round.**
+Several of them are read directly by existing tests
+(`vi.spyOn(console, "error")`-style assertions appear throughout the
+suite) — a mechanical codemod across 74 files risks silently breaking
+those without a file-by-file check that this session's remaining budget
+didn't allow for carefully. A single demonstrative migration of one or
+two files was considered and rejected as arbitrary — it would prove
+nothing beyond what the 6 unit tests already prove, while still leaving
+521 sites unmigrated and the item just as "not actually done" either way.
+Shipping the tested, ready-to-adopt module and saying so plainly was
+judged more honest than a token partial migration dressed up as progress.
