@@ -1054,3 +1054,82 @@ drop the entry once a patched `braces` (or a `micromatch`/`fast-glob`/
   of `.github/workflows/` to confirm no other job relied on it being
   granted at this scope either. Left at the now-sufficient `contents:
   read`.
+
+## v7 WP4 B3: skill sandbox — opt-in gate instead of a full rewrite
+
+The skills feature lets a skill script run in a QuickJS VM that can
+`import` CDN packages (fetched from `esm.sh` at runtime, executed
+immediately) and make outbound `fetch` calls through a host-side bridge.
+The audit found three concrete issues:
+
+1. **No integrity pinning on CDN imports** (`quickjs-manager.ts`'s
+   `loadFromCDN`): a skill's `import _ from "lodash"` resolves to whatever
+   `esm.sh` currently serves as that package's latest version — if the
+   registry or that package's publish pipeline is compromised, or a new
+   "latest" is simply buggier/malicious, the same skill silently executes
+   different code on its next run, with no record anywhere of what changed.
+2. **The fetch bridge's SSRF guard has a documented residual DNS-rebinding
+   risk** (`url-guard.ts`'s own module comment, unchanged by this round):
+   `assertSkillFetchUrlAllowed` checks the hostname's resolved meaning at
+   validation time, but the actual `fetch()` call resolves DNS again
+   independently — an attacker controlling DNS for the target hostname
+   could serve a public IP for the check and a private one for the real
+   connection. Closing this fully would need a network layer that
+   resolves DNS once and connects to the pinned IP directly, which isn't
+   available through the browser `fetch()` API this bridge is built on.
+3. **Zero test coverage existed for any of this** — `packages/browser-
+   runtime/src/vm/` had no `url-guard.test.ts` and no `quickjs-manager.
+   test.ts` at all before this round, despite being the two files this
+   feature's entire security posture rests on.
+
+**What this round actually did**, in order of confidence:
+
+- **Added `url-guard.test.ts`** (22 tests) covering `isIPv4`/
+  `isPrivateIPv4`/`isPrivateIPv6`/`assertSkillFetchUrlAllowed` directly —
+  every range comment in that file now has a corresponding assertion,
+  including the IP-literal-obfuscation case (confirming, same as M2, that
+  the WHATWG URL parser normalizes those before this code ever sees them).
+- **`requirePinnedVersion()` in `quickjs-manager.ts`**: `loadFromCDN` now
+  rejects any CDN import specifier without an explicit version (`lodash`
+  → rejected, `lodash@4.17.21` → accepted; same rule for scoped packages).
+  This doesn't add cryptographic integrity (no subresource-integrity hash
+  pinning — `esm.sh` doesn't publish per-file hashes to check against), but
+  it does close the specific "same import silently resolves to different
+  code tomorrow" failure mode: a pinned version resolves to the same
+  published artifact every time. Added `quickjs-manager.test.ts` (7 tests)
+  for the new function.
+- **Left the DNS-rebinding risk as-is**, documented rather than attempted —
+  a real fix needs a different network primitive this extension doesn't
+  have access to from a content/background script context. Revisit if/when
+  this feature needs that level of hardening (e.g. via a native messaging
+  host that can resolve+pin the IP itself).
+- **Gated the entire feature behind a new, off-by-default settings
+  toggle** (`AppSettings.skillExecutionEnabled`, `packages/agent-core/src/
+  config/settings.ts`) rather than attempting to fully close item 1/2 under
+  this round's time constraints — exactly the escape hatch the original
+  spec suggested. Enforced at the one real choke point
+  (`execute_skill_script`'s tool handler in `packages/browser-runtime/src/
+  tools/skill.ts`, checked via `ChromeStorageAdapter`/`STORAGE_KEYS.
+  SETTINGS` — same idiom as the WP4 B1/B2 approval gate) and, as cheap
+  defense-in-depth, at the sidepanel's QuickJS/ZenFS pre-warm (`apps/
+  browser-extension/src/entrypoints/sidepanel/index.tsx` — now skips
+  initializing the VM at all when the flag is off, rather than merely
+  refusing to run scripts later). The other skill tools (`load_skill`,
+  `read_skill_reference`, `get_skill_asset`, `list_skills`,
+  `get_skill_info`) are **not** gated — they only read bundled
+  SKILL.md/reference/asset files or list metadata, never execute code or
+  make network requests, so gating them would only block legitimate
+  "what does this skill do" inspection for no security benefit. Exposed in
+  Settings UI (`packages/ui/src/components/settings/index.tsx`, general
+  tab) as an explicit toggle with a destructive-styled warning describing
+  exactly what enabling it allows. Added `skill.test.ts` (4 tests)
+  confirming the gate blocks by default, blocks when explicitly false,
+  runs when true, and does NOT block the read-only tools.
+
+**Trade-off accepted:** this is deliberately not "skills are now fully
+SSRF-proof and supply-chain-safe" — it's "skills are off by default, and
+a user who turns them on sees an explicit warning naming the actual risk."
+Full hardening (DNS pinning via a native host, SRI-style hashing if/when
+`esm.sh` or an alternative CDN supports it) is deferred, consistent with
+this round's standing discipline of honest partial fixes over rushed,
+unverifiable completeness claims.

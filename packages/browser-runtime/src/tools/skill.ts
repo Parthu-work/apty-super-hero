@@ -1,7 +1,24 @@
-import { tool } from "@apty/agent-core";
+import type { AppSettings } from "@apty/agent-core";
+import { STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { skillManager } from "../skills/lib/services/skill-manager";
 import { getSkillInfo as getSkillInfoImpl } from "../skills/mcp-servers/skills";
+import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
+
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
+
+/**
+ * Skill *scripts* run in a QuickJS sandbox that can import CDN packages
+ * (fetched and executed with no integrity pinning) through a fetch bridge
+ * with a documented residual DNS-rebinding risk (see
+ * packages/browser-runtime/src/vm/url-guard.ts). Gated behind an explicit,
+ * off-by-default settings toggle — reading SKILL.md/references/assets or
+ * listing skills below is unaffected, since none of that executes code.
+ */
+async function isSkillExecutionEnabled(): Promise<boolean> {
+  const settings = await settingsStorage.load(STORAGE_KEYS.SETTINGS);
+  return settings?.skillExecutionEnabled === true;
+}
 
 export const loadSkillTool = tool({
   name: "load_skill",
@@ -43,6 +60,13 @@ export const executeSkillScriptTool = tool({
   }),
   execute: async ({ skillName, scriptPath, args }) => {
     try {
+      if (!(await isSkillExecutionEnabled())) {
+        return {
+          success: false,
+          error:
+            "Skill execution is disabled. Enable it in Settings before running skill scripts.",
+        };
+      }
       await skillManager.initialize();
       const normalizedPath = scriptPath.startsWith("scripts/")
         ? scriptPath

@@ -881,6 +881,52 @@ export function SettingsPage({
               </CardContent>
             </Card>
 
+            {/* Skill execution toggle — off by default. Running a skill
+                script executes untrusted, author-supplied code in a QuickJS
+                sandbox that can import packages from a CDN (esm.sh) at
+                runtime with no integrity pinning, through a fetch bridge
+                with a documented residual DNS-rebinding risk. */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  {language === "zh"
+                    ? "技能执行（实验性）"
+                    : "Skill execution (experimental)"}
+                </CardTitle>
+                <CardDescription>
+                  {language === "zh"
+                    ? "允许技能脚本在沙盒中运行。默认关闭。"
+                    : "Allow skill scripts to run in a sandbox. Off by default."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {language === "zh"
+                      ? "启用技能执行"
+                      : "Enable skill execution"}
+                  </span>
+                  <Switch
+                    checked={settings.skillExecutionEnabled === true}
+                    onCheckedChange={(checked) =>
+                      setSettings((prev: AppSettings) => ({
+                        ...prev,
+                        skillExecutionEnabled: checked,
+                      }))
+                    }
+                  />
+                </div>
+                <Alert variant="destructive">
+                  <AlertDescription className="text-sm leading-relaxed">
+                    {language === "zh"
+                      ? "启用后，技能脚本可以从 CDN 导入第三方代码包并在沙盒中执行，这些包未经完整性校验。仅在信任所安装的技能时启用。"
+                      : "When enabled, skill scripts can import third-party packages from a CDN and execute them in the sandbox, with no integrity verification on those packages. Only enable this if you trust the skills you've installed."}
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
             {/* ElevenLabs STT Configuration (shown when adapter provided) */}
             {sttConfig && (
               <Card>

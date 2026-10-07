@@ -32,6 +32,34 @@ interface QuickJSVariantLike {
 // Type assertion for the variant - the default export type is not fully recognized
 const variant = RELEASE_SYNC as unknown as QuickJSVariantLike;
 
+/**
+ * Requires an explicit, pinned version in a CDN package specifier (e.g.
+ * "lodash@4.17.21" or "@scope/pkg@1.2.3"). A bare package name (e.g.
+ * "lodash") would let esm.sh silently resolve to whatever its "latest" tag
+ * currently points to — unpinned supply-chain risk, since that's remote
+ * code a skill author doesn't control and this host then executes. Does
+ * not validate that the version is well-formed semver, only that one was
+ * given.
+ */
+export function requirePinnedVersion(packageName: string): void {
+  const slashIndex = packageName.startsWith("@")
+    ? packageName.indexOf("/")
+    : -1;
+  const nameAndVersion =
+    slashIndex === -1 ? packageName : packageName.slice(slashIndex + 1);
+
+  const atIndex = nameAndVersion.indexOf("@");
+  const version = atIndex === -1 ? "" : nameAndVersion.slice(atIndex + 1);
+  const isPinned =
+    atIndex > 0 && version.length > 0 && !version.startsWith("/");
+
+  if (!isPinned) {
+    throw new Error(
+      `CDN import "${packageName}" must pin an exact version (e.g. "${packageName}@1.2.3") — unpinned imports can silently resolve to different code over time.`,
+    );
+  }
+}
+
 interface ExecutionContext {
   skillId: string;
   workingDir: string;
@@ -237,6 +265,8 @@ class QuickJSManager {
    * Load module from CDN (esm.sh) with recursive dependency resolution
    */
   private async loadFromCDN(packageName: string): Promise<string> {
+    requirePinnedVersion(packageName);
+
     // Check cache first
     if (this.moduleCache.has(packageName)) {
       console.log(`[QuickJS] Loading from cache: ${packageName}`);
