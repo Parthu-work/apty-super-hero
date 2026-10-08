@@ -4,7 +4,7 @@ An AI agent, packaged as a Chrome extension, that helps an Apty engineer debug a
 
 Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a RAG/knowledge-base system** — see `docs/development/PROJECT_PROGRESS.md` and `DECISIONS.md` for the reasoning behind that scope.
 
-**Start here for the real state of the project**: `docs/development/PROJECT_PROGRESS.md` (what's done, what's not, next steps), `ARCHITECTURE.md` (what's actually implemented), `docs/security/SECURITY_AUDIT.md`, `DECISIONS.md`, `CHANGELOG.md`. Those files, not this README, are the source of truth across coding sessions.
+**Start here for the real state of the project**: [`docs/STATUS.md`](docs/STATUS.md) (what works and what's open), `ARCHITECTURE.md` (what's actually implemented), `docs/security/SECURITY_AUDIT.md`, `DECISIONS.md`, `CHANGELOG.md`. Those files, not this README, are the source of truth across coding sessions. Something not working? See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md). What data goes where: [`PRIVACY.md`](PRIVACY.md).
 
 ---
 
@@ -44,7 +44,7 @@ pnpm dev     # or: watch mode with HMR
 
 Load `apps/browser-extension/dist` as an unpacked extension via `chrome://extensions` → Developer mode → Load unpacked.
 
-On first use, open the extension's **Options** page and configure an AI provider + API key (BYOK) — there is no login/proxy fallback.
+On first use, open the side panel: its readiness check links to the AI provider settings, where you add your own API key and model (BYOK) — there is no login/proxy fallback.
 
 ## Configuring Apty Studio/Widget/Client/Service-Worker integration
 

@@ -18,7 +18,7 @@ WP1, to the concrete correctness bugs that are the actual substance of
 wire-protocol rewrite (`ExtensionPeerClient`) in the same pass. A prior
 session's attempt at doing both at once is exactly why that draft shipped
 broken: 38 failing tests, the acceptance fixture never built, zero tests
-on its new module. See `docs/STATUS.md`'s "Audit of a WP1 draft" section
+on its new module. See `docs/development/STATUS_HISTORY.md`'s "Audit of a WP1 draft" section
 for the full findings from reviewing that attempt (not applied, not built
 on — this round re-implemented WP1 from scratch against the real repo).
 
@@ -118,7 +118,7 @@ e2e work.
 ## 7. Known, not-yet-addressed items
 
 See `docs/tasks/wp1-apty-integration.md`'s "explicitly deferred" list and
-`docs/STATUS.md` for the full detail. In short: the deeper wire-protocol
+`docs/development/STATUS_HISTORY.md` for the full detail. In short: the deeper wire-protocol
 rewrite (cursor persistence, full identity/contract-mismatch error
 handling, peer config migration) and WP2 through WP9 in their entirety.
 None of them block the core demo path this round targeted.

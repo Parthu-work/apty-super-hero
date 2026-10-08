@@ -914,7 +914,7 @@ The v7 prompt's WP1 item 2 asks for a full `ExtensionPeerClient` rewrite of
 the cross-extension transport (v1 envelope, `ping` identity handshake,
 retry/timeout, cursor persistence, peer config migration). A prior
 session's attempt at exactly this (reviewed before this round started, see
-`docs/STATUS.md`'s "Audit of a WP1 draft") shipped that rewrite with 38
+`docs/development/STATUS_HISTORY.md`'s "Audit of a WP1 draft") shipped that rewrite with 38
 failing tests, zero tests on the new module, and the spec's own acceptance
 fixture never built — i.e., attempting the structural rewrite and the
 correctness fixes in the same pass produced neither reliably.
@@ -1510,3 +1510,26 @@ nothing beyond what the 6 unit tests already prove, while still leaving
 521 sites unmigrated and the item just as "not actually done" either way.
 Shipping the tested, ready-to-adopt module and saying so plainly was
 judged more honest than a token partial migration dressed up as progress.
+
+## Logger adopted; skills lose CDN imports; MCP token moves to the handshake
+
+**Logger.** The 309 `console.log/info/debug` calls in source now go through
+`createLogger`, converted by a syntax-aware script that skipped calls inside
+functions injected into pages (none turned up). `console.warn/error` stay
+as they are: tests assert on them, and they report real failures. The
+esbuild `pure` stripping of debug calls is gone, because it also stripped
+the logger's own output and made a support-time switch impossible. Each
+extension context calls `initLogging()`: `warn` in production, `debug` in
+development, and debug when Settings → Troubleshooting → Verbose logging is
+on. Content scripts can't read settings, so they keep the build default.
+
+**Skills.** The CDN loader was removed rather than pinned harder: no
+integrity check is possible against `esm.sh`, and the Chrome Web Store
+forbids remotely hosted code outright. Skills keep the built-in `fs`
+module; anything else must be bundled into the script.
+
+**MCP token.** The browser's `WebSocket` can't set headers, so the token
+rides in `Sec-WebSocket-Protocol` as `apty-token.<token>` next to
+`apty-mcp.v1`. The daemon answers with `apty-mcp.v1` only, so the token is
+never echoed, and it refuses `?token=` outright rather than accepting both:
+the extension and the daemon ship from this repository together.

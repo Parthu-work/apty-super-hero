@@ -38,7 +38,7 @@ jobs:
         working-directory: apps/mcp-bridge
 
       - name: Lint, type check and test
-        run: npm run lint && npm run typecheck && npm run test
+        run: npm run lint && npm run typecheck && npm run test && npm run test:coverage
 
       - name: Build
         run: npm run build
@@ -49,17 +49,26 @@ jobs:
       - name: Validate extension manifest
         run: npm run validate:extension
 
+      # Two packages: the unpacked/enterprise one keeps the manifest `key`
+      # that pins the extension ID; the Chrome Web Store rejects a `key`, so
+      # its package drops it (the store keeps the listing's own ID).
       - name: Package
         run: |
           name="apty-agent-${GITHUB_REF_NAME}.zip"
+          store="apty-agent-${GITHUB_REF_NAME}-webstore.zip"
           (cd apps/browser-extension/dist && zip -qr "../../../${name}" .)
-          sha256sum "${name}" > "${name}.sha256"
+          cp -r apps/browser-extension/dist store-dist
+          node -e 'const f="store-dist/manifest.json",fs=require("fs"),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))'
+          (cd store-dist && zip -qr "../${store}" .)
+          sha256sum "${name}" "${store}" > "apty-agent-${GITHUB_REF_NAME}.sha256"
           echo "ASSET=${name}" >> "${GITHUB_ENV}"
+          echo "STORE_ASSET=${store}" >> "${GITHUB_ENV}"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" "${ASSET}" "${ASSET}.sha256" \
+          gh release create "${GITHUB_REF_NAME}" "${ASSET}" "${STORE_ASSET}" \
+            "apty-agent-${GITHUB_REF_NAME}.sha256" \
             --title "Apty Agent ${GITHUB_REF_NAME}" \
-            --notes "See CHANGELOG.md for what changed. Verify the download with: sha256sum -c ${ASSET}.sha256"
+            --notes "See CHANGELOG.md for what changed. ${ASSET} is for loading unpacked or enterprise policy; ${STORE_ASSET} is for the Chrome Web Store. Verify the downloads with: sha256sum -c apty-agent-${GITHUB_REF_NAME}.sha256"

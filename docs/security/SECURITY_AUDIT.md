@@ -132,6 +132,57 @@ the authoritative source; the Confluence page is a navigable summary of it.
   outright rather than replaced with a scoped version.
 - **Status**: Fixed.
 
+### 14. MCP daemon token travelled in the connection URL
+
+- **Severity**: Low (was) → Fixed
+- **Affected component**: `apps/mcp-bridge/src/daemon-server.ts`, its
+  clients, and `packages/browser-runtime/src/ws-bridge/ws-mcp-server.ts`
+- **Risk**: every WebSocket connection sent the daemon's secret as
+  `?token=`, where any proxy, log line or URL history that records request
+  URLs would keep it.
+- **Current mitigation**: clients offer the subprotocols `apty-mcp.v1` and
+  `apty-token.<token>`; the daemon reads the token from
+  `Sec-WebSocket-Protocol`, answers with `apty-mcp.v1` only (never echoing
+  the token), and refuses a `?token=` URL. Tested in
+  `daemon-server.test.ts` and end to end in `tooling/e2e/mcp.e2e.test.mjs`.
+- **Status**: Fixed.
+
+### 15. Skills could load remote code from a CDN
+
+- **Severity**: Medium (was) → Fixed
+- **Affected component**: `packages/browser-runtime/src/vm/quickjs-manager.ts`
+- **Risk**: a skill's `import` was fetched from `esm.sh` at run time and
+  executed in the QuickJS sandbox: unreviewed remote code, and a Chrome Web
+  Store policy violation.
+- **Current mitigation**: the CDN loader is deleted. A skill may import only
+  the built-in `fs` module; any other import is refused before the script
+  runs, with the list of imports to bundle instead.
+- **Status**: Fixed.
+
+### 16. An approval answered after an MCP call timed out still ran the action
+
+- **Severity**: Medium (was) → Fixed
+- **Affected component**: `packages/browser-runtime/src/tools/approval.ts`
+- **Risk**: an MCP tool call times out after 60 s while its approval prompt
+  waited 5 minutes, so a late Allow ran an action the MCP client had
+  already been told had failed, and might retry.
+- **Current mitigation**: requests from outside a chat expire after 50 s,
+  before the bridge's timeout; the prompt shows the requester and the time
+  left.
+- **Status**: Fixed.
+
+### 17. No static analysis or secret scanning in CI
+
+- **Severity**: Medium (was) → Fixed
+- **Affected component**: `.github/workflows/`
+- **Current mitigation**: CodeQL (`security-extended`) runs on
+  JavaScript/TypeScript and the workflows for every push and pull request
+  to `main` and weekly; TruffleHog scans each push's and pull request's new
+  commits; `npm run test:coverage` gates coverage of the approval, sender,
+  cross-extension, network-capture and redaction modules. Turn on GitHub's
+  own secret scanning and push protection in the repository settings too.
+- **Status**: Fixed.
+
 ## Open — fixable within this repo, not yet done
 
 None currently — the one entry that was here (1b, multi-session/multi-tab

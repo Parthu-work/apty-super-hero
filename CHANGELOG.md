@@ -4,6 +4,54 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
+## Unreleased — remaining audit gaps and production readiness
+
+**Bugs**
+- `get_apty_page_logs` now captures console output written while a page is
+  still loading: the console bridge is bundled self-contained, so Chrome
+  injects it before the page's own scripts instead of loading it through an
+  async `import()`.
+- The "agent is working" border shows on the page again, and pages no
+  longer log "Access to storage is not allowed": the side panel messages
+  the tab instead of the content script reading extension storage.
+- An approval answered after an MCP call had timed out could still run the
+  action. MCP-originated requests now expire after 50 s, before the
+  bridge's 60 s timeout; the prompt shows who asked and the time left.
+- Settings → General switches (response bodies, deny-list, verbose
+  logging, skill execution) were never stored unless the user also saved
+  the AI tab; they now save when flipped.
+- A skill tag linked to a page that doesn't exist (`src/pages/options`).
+- The welcome screen cut off its top in a short side panel.
+
+**Security**
+- The MCP daemon token travels in the WebSocket handshake
+  (`apty-token.<token>` subprotocol) and a `?token=` URL is refused.
+- Skills can no longer import packages from a CDN (remote code); the
+  third-party model-list fetch and the unused host-access config are gone.
+- CI runs CodeQL, a TruffleHog secret scan and a coverage gate on the
+  security-critical modules; `npm run preflight` checks without rewriting
+  files (`npm run fix` does that).
+
+**UI**
+- A readiness check on the welcome screen shows the model, the Apty Client
+  connection and whether the page can be inspected, with links straight to
+  the setting that fixes each one.
+- Options tabs and sections have URLs (`?tab=connection#apty-client`):
+  reload, Back and links work.
+- Typing a provider's first API key turns it on; Save stays in view on the
+  AI tab; every switch has an accessible name.
+
+**Observability**
+- All debug output goes through the leveled logger instead of being
+  stripped at build time. Production builds log warnings and errors;
+  Settings → Troubleshooting → Verbose logging turns debug logs on.
+
+**Release and docs**
+- Releases include a Web Store package without the manifest `key`.
+- New: `PRIVACY.md`, `docs/TROUBLESHOOTING.md`,
+  `docs/store/WEB_STORE_LISTING.md`, and a short `docs/STATUS.md` (the old
+  round-by-round log is `docs/development/STATUS_HISTORY.md`).
+
 ## Unreleased — fixes from the 2026-10-08 repository audit
 
 **Security**
