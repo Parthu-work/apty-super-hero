@@ -97,6 +97,22 @@ describe("connectExtensionClient", () => {
     expect(result.errorCode).toBe("extension_not_found");
   });
 
+  it("connects through the handshake alone when it may not list extensions", async () => {
+    const management = (global as any).chrome.management;
+    (global as any).chrome.management = undefined;
+    mockResponsesByType({
+      "apty-debug-agent:get-service-worker-status": OK_STATUS,
+    });
+
+    try {
+      const result = await connectExtensionClient("conv-a", EXT_ID);
+      expect(result.connected).toBe(true);
+    } finally {
+      (global as any).chrome.management = management;
+      await disconnectExtensionClient("conv-a");
+    }
+  });
+
   it("reports extension_not_found when the extension is disabled", async () => {
     mockManagementGet.mockResolvedValue({ id: EXT_ID, enabled: false });
     const result = await connectExtensionClient("conv-a", EXT_ID);

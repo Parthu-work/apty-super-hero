@@ -93,7 +93,7 @@ const PEER_FAILURE_MESSAGES: Record<ExternalMessageFailure, string> = {
   no_response:
     "The Apty Client received the message but answered nothing, so it does not implement the apty-debug-agent:get-service-worker-status message. Install the Agent bridge module in the Client's service worker.",
   timeout:
-    "The Apty Client did not answer in time, even after a retry. Its service worker may be stuck or failing to start; check chrome://extensions for errors on the Client.",
+    "The Apty Client accepted the message but never answered, even after a retry. Usually its onMessageExternal handler does not implement the apty-debug-agent:get-service-worker-status message (install or update the Agent bridge module); otherwise its service worker is stuck, so check chrome://extensions for errors on the Client.",
   send_failed: "Chrome refused to send the message to the Apty Client.",
 };
 

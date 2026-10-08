@@ -86,15 +86,20 @@ function chromeApi(): typeof chrome | undefined {
   return (globalThis as any).chrome as typeof chrome | undefined;
 }
 
-async function getManagedExtension(
+/**
+ * Whether `extensionId` is installed and enabled, or `"unknown"` when the
+ * optional `management` permission isn't granted, so it can't be checked.
+ */
+async function isExtensionInstalled(
   extensionId: string,
-): Promise<chrome.management.ExtensionInfo | undefined> {
+): Promise<boolean | "unknown"> {
   const c = chromeApi();
-  if (!c?.management?.get) return undefined;
+  if (!c?.management?.get) return "unknown";
   try {
-    return await c.management.get(extensionId);
+    const ext = await c.management.get(extensionId);
+    return Boolean(ext) && ext.enabled !== false;
   } catch {
-    return undefined;
+    return false;
   }
 }
 
@@ -191,8 +196,7 @@ export async function connectExtensionClient(
     };
   }
 
-  const ext = await getManagedExtension(extensionId);
-  if (!ext || ext.enabled === false) {
+  if ((await isExtensionInstalled(extensionId)) === false) {
     return {
       connected: false,
       errorCode: "extension_not_found",
