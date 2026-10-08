@@ -15,6 +15,7 @@ import {
   computeFrameStateSignature,
   isSafeNavigationCandidate,
   replayElementPathSamples,
+  shadowRootOf,
 } from "@apty/dom-snapshot";
 
 type SendResponse = (response: unknown) => void;
@@ -51,15 +52,6 @@ function patchHistory(): void {
   window.addEventListener("hashchange", () => {
     historyApiCallCount++;
   });
-}
-
-function shadowRootOf(element: Element): ShadowRoot | null {
-  if (element.shadowRoot) return element.shadowRoot;
-  try {
-    return chrome.dom?.openOrClosedShadowRoot?.(element as HTMLElement) ?? null;
-  } catch {
-    return null;
-  }
 }
 
 /** Every shadow root (open or closed) under `root`, including nested ones. */

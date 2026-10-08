@@ -219,8 +219,8 @@ function classifyMinimalSelector(minimal: MinimalSelectorResult): {
  * and adapt it to the legacy `ElementResolution` shape
  * `health-collector.ts` aggregates. `root` is the correct scope to query
  * against — the owner `Document` for ordinary elements, the `ShadowRoot`
- * for elements inside an open shadow tree (never a closed one, and never a
- * different frame's document).
+ * for elements inside a shadow tree (open, or closed when reached through
+ * `shadowRootOf`), and never a different frame's document.
  *
  * Two real algorithms are combined here, each answering a different
  * question: `findElement` (real `find()`) answers "does this resolve to

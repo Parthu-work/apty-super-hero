@@ -41,8 +41,9 @@
  *   This collector only ever reports how many child frame-hosting elements
  *   (`<iframe>` AND legacy `<frame>`, see `iframes.byTag`) this ONE document
  *   owns — never their contents, and never a same-origin/cross-origin guess.
- * - Closed Shadow DOM roots (`{mode: "closed"}`) are invisible to any
- *   content script by design — only open roots are counted/traversed.
+ * - Closed Shadow DOM roots (`{mode: "closed"}`) are traversed through
+ *   `chrome.dom.openOrClosedShadowRoot` when running in an extension
+ *   content script (see `shadow-roots.ts`); elsewhere only open roots are.
  * - Style-based checks (hidden/overlay classification, z-index) are bounded
  *   to `maxStyleChecks` elements (default 2000) to avoid forcing a full-page
  *   style recalculation on very large pages; elements beyond that bound are
@@ -69,6 +70,7 @@ import type {
   ElementSelectorReport,
   StabilityVerdict,
 } from "./health-types.js";
+import { shadowRootOf } from "./shadow-roots.js";
 
 /**
  * Runaway-safety ceiling on how many interactive elements get the full
@@ -209,7 +211,7 @@ function classifyElement(
   isInteractive: boolean,
 ): ElementClassification {
   if (tag === "iframe" || tag === "frame") return "iframe";
-  if ((el as HTMLElement).shadowRoot) return "shadow-host";
+  if (shadowRootOf(el)) return "shadow-host";
   if (style?.hidden) return "hidden";
   if (isInteractive) return "interactive";
   if (
@@ -662,8 +664,8 @@ function analyzeInteractiveElement(
 }
 
 /**
- * Walks one root (a Document or an open ShadowRoot) — recurses into open
- * shadow roots ONLY. Never reaches into a child `<iframe>`/`<frame>`'s
+ * Walks one root (a Document or a ShadowRoot) — recurses into every shadow
+ * root `shadowRootOf` can reach. Never reaches into a child `<iframe>`/`<frame>`'s
  * `contentDocument` — see the module doc comment for why; a child frame's
  * own document is a separate browsing context with its own content-script
  * instance, addressed directly by `@apty/browser-runtime`'s
@@ -729,7 +731,7 @@ function collectFromRoot(
       state.interactiveCandidates.push({ el, root });
     }
 
-    const shadowRoot = (el as HTMLElement).shadowRoot;
+    const shadowRoot = shadowRootOf(el);
     if (shadowRoot) {
       state.shadowRoots++;
       collectFromRoot(shadowRoot, state, options, true);

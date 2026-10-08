@@ -377,7 +377,7 @@ describe("collectDomHealthSnapshot — Shadow DOM", () => {
     expect(snapshot.counts.buttons).toBe(1);
   });
 
-  it("does not (and cannot) traverse a closed shadow root", async () => {
+  it("does not traverse a closed shadow root outside an extension content script", async () => {
     setHtml(`<div id="host"></div>`);
     const host = document.getElementById("host")!;
     host.attachShadow({ mode: "closed" });
@@ -385,6 +385,29 @@ describe("collectDomHealthSnapshot — Shadow DOM", () => {
     const snapshot = await collectDomHealthSnapshot(document);
 
     expect(snapshot.shadowDom.roots).toBe(0);
+  });
+
+  it("traverses closed shadow roots through chrome.dom.openOrClosedShadowRoot", async () => {
+    setHtml(`<div id="host"></div>`);
+    const host = document.getElementById("host")!;
+    const closed = host.attachShadow({ mode: "closed" });
+    closed.innerHTML = `<button>Closed button</button>`;
+    const closedRoots = new Map<Element, ShadowRoot>([[host, closed]]);
+    (globalThis as any).chrome = {
+      dom: {
+        openOrClosedShadowRoot: (el: Element) =>
+          el.shadowRoot ?? closedRoots.get(el) ?? null,
+      },
+    };
+
+    try {
+      const snapshot = await collectDomHealthSnapshot(document);
+
+      expect(snapshot.shadowDom.roots).toBe(1);
+      expect(snapshot.counts.buttons).toBe(1);
+    } finally {
+      delete (globalThis as any).chrome;
+    }
   });
 });
 
