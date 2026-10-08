@@ -14,6 +14,7 @@ import {
   createAIProvider,
   describeConnectionTestError,
 } from "../../services/ai-provider";
+import { ApprovalGrantsPanel } from "./approval-grants-panel";
 import { AptyClientPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
 import { PermissionsPanel } from "./permissions-panel";
@@ -88,7 +89,12 @@ function OptionsPageContent() {
       storageAdapter={chromeStorageAdapter}
       onTestConnection={handleTestConnection}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}
-      permissionsContent={<PermissionsPanel />}
+      permissionsContent={
+        <div className="space-y-6">
+          <PermissionsPanel />
+          <ApprovalGrantsPanel />
+        </div>
+      }
       connectionContent={
         <div className="space-y-6">
           <AptyClientPanel />
