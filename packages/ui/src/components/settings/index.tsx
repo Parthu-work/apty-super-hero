@@ -1249,7 +1249,7 @@ export function SettingsPage({
               is no gate toggle to enable them first. */}
           <TabsContent value="ai" className="space-y-6">
             <div className="grid gap-6">
-              <Card id="ai-provider" className="scroll-mt-4">
+              <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Bot className="h-5 w-5" />
@@ -1292,7 +1292,9 @@ export function SettingsPage({
               </Card>
             </div>
 
-            <Card className="overflow-hidden">
+            {/* overflow-clip, not overflow-hidden: it rounds the corners
+                without breaking the sticky footer below. */}
+            <Card id="ai-provider" className="scroll-mt-4 overflow-clip">
               <div className="flex" style={{ minHeight: "500px" }}>
                 {/* Left Sidebar - Custom Model List */}
                 <div className="w-72 border-r flex flex-col">
@@ -1673,8 +1675,9 @@ export function SettingsPage({
                     )}
                   </div>
 
-                  {/* Action Buttons - Footer */}
-                  <div className="p-6 border-t bg-muted/50">
+                  {/* Action Buttons - Footer, kept in view while the
+                      provider list scrolls the page */}
+                  <div className="sticky bottom-0 z-10 border-t bg-muted p-6">
                     <div className="flex gap-3">
                       <Button
                         variant="outline"
