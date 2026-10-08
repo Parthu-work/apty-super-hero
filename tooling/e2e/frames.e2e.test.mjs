@@ -1,50 +1,14 @@
 /**
- * Real-browser tests for the built extension: loads apps/browser-extension/dist
- * into Chromium as an unpacked MV3 extension and drives real pages served
- * from two origins. Run `npm run build` first, then `npm run test:e2e`.
- *
- * Chromium path: E2E_CHROMIUM_PATH, else the preinstalled Playwright build,
- * else Puppeteer's Chrome for Testing (what CI installs). Branded Chrome
- * ignores --load-extension, so it cannot be used here.
+ * DOM Health frame handling in a real browser: frames from two origins, a
+ * data: frame, a legacy frameset, open and closed shadow roots.
  */
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { createServer } from "node:http";
-import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
-import { chromium } from "playwright-core";
-
-const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const EXTENSION_DIR = join(ROOT, "apps/browser-extension/dist");
-
-function chromiumPath() {
-  if (process.env.E2E_CHROMIUM_PATH) return process.env.E2E_CHROMIUM_PATH;
-  if (existsSync("/opt/pw-browsers/chromium"))
-    return "/opt/pw-browsers/chromium";
-  const require = createRequire(
-    join(ROOT, "packages/browser-runtime/package.json"),
-  );
-  return require("puppeteer").executablePath();
-}
-
-/** Serves `pages` (path -> html) on a random loopback port; `{other}` is replaced with the other server's origin. */
-function startServer(pages) {
-  const server = createServer((req, res) => {
-    const html = pages[req.url ?? "/"];
-    if (!html) {
-      res.writeHead(404).end();
-      return;
-    }
-    res.writeHead(200, { "content-type": "text/html" });
-    res.end(html.replaceAll("{other}", server.otherOrigin ?? ""));
-  });
-  return new Promise((resolve) =>
-    server.listen(0, "127.0.0.1", () => resolve(server)),
-  );
-}
+import {
+  launchBrowser,
+  extensionPage as openExtensionPage,
+  startPageServer,
+} from "./harness.mjs";
 
 const SHADOW_PAGE = `<!doctype html><body>
   <h1>Top</h1>
@@ -62,63 +26,39 @@ const FRAMESET_PAGE = `<!doctype html><html><frameset cols="50%,50%">
   <frame src="/child.html"><frame src="{other}/child.html">
 </frameset></html>`;
 
-let context;
-let extensionId;
+let browser;
 let serverA;
 let serverB;
-let userDataDir;
 
 before(async () => {
-  assert.ok(
-    existsSync(join(EXTENSION_DIR, "manifest.json")),
-    "Build the extension first (npm run build).",
-  );
-  const pages = {
-    "/top.html": SHADOW_PAGE,
+  // Each server's pages point their cross-origin frames at the other one.
+  const pagesFor = (other) => ({
+    "/top.html": () => SHADOW_PAGE.replaceAll("{other}", other()),
     "/child.html": CHILD_PAGE,
-    "/frameset.html": FRAMESET_PAGE,
-  };
-  serverA = await startServer(pages);
-  serverB = await startServer(pages);
-  serverA.otherOrigin = `http://localhost:${serverB.address().port}`;
-  serverB.otherOrigin = `http://127.0.0.1:${serverA.address().port}`;
-
-  userDataDir = mkdtempSync(join(tmpdir(), "apty-e2e-"));
-  context = await chromium.launchPersistentContext(userDataDir, {
-    executablePath: chromiumPath(),
-    headless: true,
-    args: [
-      `--disable-extensions-except=${EXTENSION_DIR}`,
-      `--load-extension=${EXTENSION_DIR}`,
-    ],
+    "/frameset.html": () => FRAMESET_PAGE.replaceAll("{other}", other()),
   });
-  const worker =
-    context.serviceWorkers()[0] ??
-    (await context.waitForEvent("serviceworker", { timeout: 20_000 }));
-  extensionId = new URL(worker.url()).host;
+  serverA = await startPageServer(
+    pagesFor(() => `http://localhost:${serverB.address().port}`),
+  );
+  serverB = await startPageServer(pagesFor(() => serverA.origin));
+  browser = await launchBrowser();
 });
 
 after(async () => {
-  await context?.close();
+  await browser?.close();
   serverA?.close();
   serverB?.close();
-  if (userDataDir) rmSync(userDataDir, { recursive: true, force: true });
 });
 
 async function openPage(path) {
-  const page = await context.newPage();
-  await page.goto(`http://127.0.0.1:${serverA.address().port}${path}`);
+  const page = await browser.context.newPage();
+  await page.goto(`${serverA.origin}${path}`);
   await page.waitForLoadState("load");
   return page;
 }
 
-/** An extension page to call chrome.* APIs from, like the side panel does. */
-async function extensionPage() {
-  const page = await context.newPage();
-  await page.goto(
-    `chrome-extension://${extensionId}/src/entrypoints/options/index.html`,
-  );
-  return page;
+function extensionPage() {
+  return openExtensionPage(browser);
 }
 
 /** Ask every frame of the tab showing `urlPattern` for `message`, by frameId. */
