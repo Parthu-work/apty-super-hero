@@ -470,9 +470,21 @@ export function SettingsPage({
     ) => {
       if (!selectedModelId) return;
       setCustomModels((prev) => {
-        const next = prev.map((model) =>
-          model.id === selectedModelId ? { ...model, [key]: value } : model,
-        );
+        const next = prev.map((model) => {
+          if (model.id !== selectedModelId) return model;
+          // The first key typed into a provider turns it on: forgetting
+          // the Enable switch was the most common first-run mistake.
+          const firstKey =
+            key === "aiToken" &&
+            typeof value === "string" &&
+            value.trim() !== "" &&
+            !model.aiToken?.trim();
+          return {
+            ...model,
+            [key]: value,
+            ...(firstKey ? { enabled: true } : {}),
+          };
+        });
         const updated = next.find((model) => model.id === selectedModelId);
         if (updated) {
           updateSettingsFromModel(updated);

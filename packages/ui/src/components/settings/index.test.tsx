@@ -152,6 +152,22 @@ describe("SettingsPage", () => {
     );
   });
 
+  it("turns a provider on when its first API key is typed in", async () => {
+    renderSettings("ai");
+
+    const enable = await screen.findByRole("switch", { name: "Enable" });
+    expect(enable.getAttribute("aria-checked")).toBe("false");
+    fireEvent.change(screen.getByPlaceholderText("Your API Key"), {
+      target: { value: "sk-test" },
+    });
+
+    expect(
+      screen
+        .getByRole("switch", { name: "Enable" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
   it("never renders a Data Sharing control (there is nothing for it to control)", async () => {
     renderSettings("general");
 
