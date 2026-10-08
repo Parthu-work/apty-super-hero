@@ -12,6 +12,8 @@ configure yourself.
 | The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings | Only while you chat. Nothing is sent before you configure a provider. |
 | The Apty Client extension you connect | Requests for its own service-worker logs, status and observed resources | Only when the agent investigates the Client. |
 | A local MCP daemon you connect (`localhost` only) | Tool results for the MCP client you run, such as Claude Code | Only while you keep the bridge connected. |
+| Websites a skill script requests | Whatever the script sends, without your cookies | Only with skill execution turned on, and only after you allow that script to run. |
+| A diagnostic HTTP endpoint built into your build (`VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT`) | Requests for service-worker diagnostics | Only if your build sets it; empty by default. |
 
 There is no analytics, telemetry, crash reporting or advertising. Apty does
 not receive your conversations, keys or page data.
@@ -34,10 +36,10 @@ Hosts or URL fragments you add to the deny-list there are never captured.
 | Data | Where | How long |
 |---|---|---|
 | Settings and API keys | `chrome.storage.local`, readable only by the extension's own pages | Until you remove them or the extension |
-| Conversations | `chrome.storage.local` | Deleted after 7 days without use; at most 5 are kept |
+| Conversations | The extension's IndexedDB | Deleted after 7 days without use; at most 5 are kept |
 | Screenshots | The extension's IndexedDB | Deleted after 7 days without use; at most 50 are kept |
 | Evidence and investigations from the current session | `chrome.storage.session` | Cleared when the browser closes |
-| Remembered approvals ("Allow on this site") | `chrome.storage.local` | 15 minutes, or until revoked |
+| Remembered approvals ("Allow on this site for 15 min") | `chrome.storage.local` | 15 minutes, or until revoked |
 
 **Settings → General → Stored conversations and screenshots → Delete stored
 data now** removes conversations and screenshots at once. Web pages and
@@ -47,9 +49,10 @@ extension's own pages and service worker.
 ## Actions on your behalf
 
 The agent asks before it runs JavaScript in a page, fills fields, types,
-uploads or downloads files. You approve each action in the side panel, or
-allow one tool on one site for 15 minutes. The AI model can't approve its
-own actions.
+uploads or downloads files, or runs a skill script. You approve each action
+in the side panel, or allow one tool on one site for 15 minutes. If the tab
+moves to another site while the prompt is open, the action is not run. The
+AI model can't approve its own actions.
 
 ## Permissions
 

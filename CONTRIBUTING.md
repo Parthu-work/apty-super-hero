@@ -84,7 +84,8 @@ This checks formatting and lint without rewriting anything (`pnpm fix`
 applies the fixes), typechecks, runs the full test suite across every
 package, and enforces coverage on the security-critical modules. CI
 (`.github/workflows/ci.yml`) runs the same checks plus the build, the
-real-browser tests (`pnpm test:e2e`) and a secret scan; CodeQL runs in
+real-browser tests (`pnpm test:e2e`); a secret scan runs in
+`.github/workflows/secret-scan.yml` and CodeQL in
 `.github/workflows/codeql.yml`.
 
 ## Documentation

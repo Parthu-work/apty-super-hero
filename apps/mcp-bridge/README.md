@@ -159,8 +159,8 @@ node dist/daemon.js [--port <port>] [--host <host>] [--extension-id <id>]
 | `--print-extension-id` | | Daemon only. Prints the currently pinned extension id (if any) and exits |
 | `--set-extension-id <id>` | | Daemon only. Persists the pinned extension id and exits (no server started) |
 | `--allow-dangerous-tools` | off | Daemon only. Permits bridge/CLI clients to call state-changing/high-risk tools (`run_console_command`, `upload_file_to_input`, `computer`, `fill_*`, `download_*`) — blocked by default. Only enable this if you trust every client that can reach the daemon; `run_console_command`/`upload_file_to_input` still require in-conversation user approval on the extension side regardless of this flag |
-| `--help`, `-h` | | Show help |
-| `--version`, `-v` | | Show version |
+| `--help`, `-h` | | Bridge and `browser-cli` only. Show help |
+| `--version`, `-v` | | Bridge and `browser-cli` only. Show version |
 
 ## Environment Variables
 

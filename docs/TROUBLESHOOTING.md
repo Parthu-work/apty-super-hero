@@ -72,8 +72,8 @@ requests for these actions are refused: open the side panel and retry.
 
 | Symptom | Fix |
 |---|---|
-| Options shows "Unauthorized" or the daemon logs "invalid or missing token" | Paste the token from the file `apty-cli --token-path` prints. Clients must send it as the `apty-token.<token>` WebSocket subprotocol; a `?token=` URL is refused. |
-| Daemon logs "origin … does not match configured extension id" | Pin this Agent's ID once: `node dist/daemon.js --set-extension-id <id>`. |
+| Options shows "Connection Error" with "WebSocket error", and the daemon logs "invalid or missing token" | Paste the token from the file `node apps/mcp-bridge/dist/daemon.js --print-token-path` prints. Other clients must send it as the `apty-token.<token>` WebSocket subprotocol; a `?token=` URL is refused. |
+| Daemon logs "origin … does not match configured extension id" or "no extension id configured" | Pin this Agent's ID once: `node apps/mcp-bridge/dist/daemon.js --set-extension-id <id>`. A running daemon picks it up on the next connection. |
 | "The token has characters a WebSocket handshake can't carry" | The pasted token has spaces or line breaks; copy it again. |
 
 See [`apps/mcp-bridge/README.md`](../apps/mcp-bridge/README.md) for setup.
@@ -81,5 +81,7 @@ See [`apps/mcp-bridge/README.md`](../apps/mcp-bridge/README.md) for setup.
 ## Skills won't run
 
 Skill execution is off by default (**Settings → General → Skill
-execution**). A skill may import only the built-in `fs` module: packages
-from a CDN are refused, so bundle them into the script.
+execution**). Each script run asks for approval in the side panel. A
+skill may import `fs` and the modules bundled with the extension (such as
+`fflate`); packages from a CDN are refused, so bundle them into the
+script.

@@ -414,7 +414,7 @@ debugging scenarios are tested against it.
 ## Security boundary: the webpage is untrusted
 
 Enforced at two layers:
-1. **Data layer**: `packages/browser-runtime/src/apty/redact.ts` strips
+1. **Data layer**: `packages/apty-debug-contract/src/redact.ts` (with `json-redact.ts`) strips
    sensitive headers/tokens/passwords from any log or header data before it
    is returned to the model — the model literally cannot see a raw
    `Authorization` header value.

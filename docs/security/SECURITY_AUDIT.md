@@ -154,9 +154,12 @@ the authoritative source; the Confluence page is a navigable summary of it.
 - **Risk**: a skill's `import` was fetched from `esm.sh` at run time and
   executed in the QuickJS sandbox: unreviewed remote code, and a Chrome Web
   Store policy violation.
-- **Current mitigation**: the CDN loader is deleted. A skill may import only
-  the built-in `fs` module; any other import is refused before the script
-  runs, with the list of imports to bundle instead.
+- **Current mitigation**: the CDN loader is deleted; a skill may import
+  `fs` and the modules bundled with the extension, and any other import is
+  refused before the script runs. Because a script can be written by the
+  model itself (the skill-creator skill) and runs with QuickJS's own
+  `eval`, every run needs a click in the side panel, and its fetch bridge
+  never sends cookies or follows redirects.
 - **Status**: Fixed.
 
 ### 16. An approval answered after an MCP call timed out still ran the action
@@ -179,8 +182,9 @@ the authoritative source; the Confluence page is a navigable summary of it.
 - **Affected component**: `.github/workflows/`
 - **Current mitigation**: CodeQL (`security-extended`) runs on
   JavaScript/TypeScript and the workflows for every push and pull request
-  to `main` and weekly; TruffleHog scans each push's and pull request's new
-  commits; `npm run test:coverage` gates coverage of the approval, sender,
+  to `main` and weekly; TruffleHog scans the new commits of every push and
+  pull request, docs-only ones included (`secret-scan.yml`), skipping test
+  files whose fake credentials it would flag; `npm run test:coverage` gates coverage of the approval, sender,
   cross-extension, network-capture and redaction modules. Turn on GitHub's
   own secret scanning and push protection in the repository settings too.
 - **Status**: Fixed.
@@ -223,7 +227,7 @@ diagnostic isolation) is now Fixed above.
   buffered (though it is not sent anywhere automatically — only returned
   when `get_apty_page_logs` is explicitly called by the agent against the
   *currently active* tab).
-- **Current mitigation**: Sensitive-value redaction (`apty/redact.ts`)
+- **Current mitigation**: Sensitive-value redaction (`packages/apty-debug-contract/src/redact.ts`, `json-redact.ts`)
   strips tokens/passwords/headers from anything returned via
   `get_apty_page_logs`, and the tool only reads the active tab's buffer,
   not every tab's. The buffer is in-page memory only — nothing is persisted
@@ -372,7 +376,7 @@ diagnostic isolation) is now Fixed above.
   timeline) and Apty component-status payloads directly, but only ever
   reads them from `evidence-store.ts`/`investigation-session.ts` — the
   same stores every diagnostic tool already writes to *after* redaction
-  (`apty/redact.ts`). No new code path reads raw page/network/log content
+  (`packages/apty-debug-contract/src/redact.ts`, `json-redact.ts`). No new code path reads raw page/network/log content
   before redaction, and no new data leaves the extension (the UI's
   "Verify diagnosis" button sends a chat message through the existing
   agent loop; "Stop Investigation" calls the same in-process
@@ -509,14 +513,14 @@ diagnostic isolation) is now Fixed above.
 |---|---|
 | Are permissions excessive? | Broad (`debugger`, `<all_urls>`) but consistent with what a browser-debugging tool needs; see findings #2/#3/#5 for the concrete scoping gap. |
 | Can arbitrary extensions communicate with this one? | No — `externally_connectable: {"ids": []}` (finding #1, fixed). |
-| Is the local WebSocket server (MCP bridge daemon) properly protected? | Yes — binds to `127.0.0.1` only, validates the `Origin` header and rejects all http/https page origins (`apps/mcp-bridge/src/daemon.ts`), inherited from AIPex and reviewed this session; no change needed. |
+| Is the local WebSocket server (MCP bridge daemon) properly protected? | Yes — binds to `127.0.0.1` by default, rejects every web-page `Origin`, pins `/extension` to one extension id, and requires a per-install token sent in the WebSocket handshake (`apps/mcp-bridge/src/daemon-server.ts`, finding #14). |
 | Can arbitrary tools be invoked via MCP? | Only tools in `allBrowserTools`/`toolSchemas` are invocable; there's no dynamic eval-based tool execution path. |
 | Are incoming messages validated? | Internal `chrome.runtime.onMessage` handlers switch on a known `request` string and validate payload shape per-branch (see `background.ts`); the (now unreachable) external handler validated `prompt` as a string before use. |
 | Are origins validated? | Yes for the WebSocket daemon (see above); N/A for `chrome.runtime.onMessage` (same-extension only) now that `externally_connectable` is locked down. |
-| Could logs expose passwords/tokens/cookies/PII? | Mitigated via `apty/redact.ts`, applied to `get_apty_page_logs` and Widget/Client diagnostics logs; unit-tested (`redact.test.ts`). Not yet applied to hypothetical future Studio/Service-Worker log responses (finding #4). |
-| Can arbitrary JavaScript be injected/executed? | Yes, by design, through `run_console_command` (`Runtime.evaluate` with a model-supplied expression), and only after a person clicks Allow on a prompt that shows the exact expression (finding #0). No code path uses `eval`/`Function`. `chrome.scripting.executeScript` runs statically-defined `func` closures, or the extension's own packaged frame-responder file. |
+| Could logs expose passwords/tokens/cookies/PII? | Mitigated via `packages/apty-debug-contract/src/redact.ts` and `json-redact.ts`, applied to `get_apty_page_logs` and Widget/Client diagnostics logs; unit-tested (`redact.test.ts`). Not yet applied to hypothetical future Studio/Service-Worker log responses (finding #4). |
+| Can arbitrary JavaScript be injected/executed? | Yes, by design, through `run_console_command` (`Runtime.evaluate` with a model-supplied expression), and only after a person clicks Allow on a prompt that shows the exact expression (finding #0). The extension itself never calls `eval`/`Function`; skill scripts (off by default) run inside the QuickJS sandbox, which has its own `eval`, and each run needs a click. `chrome.scripting.executeScript` runs statically-defined `func` closures, or the extension's own packaged frame-responder file. |
 | Can webpage content manipulate the AI agent (prompt injection)? | It can steer what the model asks for; it cannot approve anything. Every page-writing or code-running tool needs a human click the model has no way to produce (finding #0). The system prompt also tells the model to treat page content as data. |
-| Can another local process connect to the debugging bridge? | Only if it doesn't send an `Origin` header (true of non-browser clients like the intended MCP CLI) — the daemon can't distinguish "a legitimate local Node MCP client" from "some other unrelated local process" by that signal alone. This is an accepted limitation of the loopback+no-origin allowance, inherited from AIPex; not changed this session. |
+| Can another local process connect to the debugging bridge? | Only with the daemon's token, which is stored `0600` in the user's home directory; a process running as the same user can read it, which is the accepted boundary for a local developer tool. |
 | Are extension IDs trusted/validated? | Cross-extension messaging (Studio/Service-Worker) is currently unreachable in practice (`not_configured` by default); when configured, `chrome.runtime.sendMessage(extensionId, ...)` only talks to the specific configured ID — no wildcard matching. |
 | Are diagnostic APIs protected? | They only run in the context of the extension's own privileged code (background/tool execution), not exposed to web pages. |
 | Could browser data unintentionally be sent to the LLM? | Redaction covers known-sensitive patterns; anything not matching those patterns (e.g. business data visible in the DOM/console that isn't a credential) is sent as-is, since that's the intended purpose of a debugging agent — the mitigation targets *secrets*, not all page data. Page response bodies are off unless the user enables them, with a host/URL deny-list. Stored conversations and screenshots are deleted after 7 days without use and can be purged from the options page. |

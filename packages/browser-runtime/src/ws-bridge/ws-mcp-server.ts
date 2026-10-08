@@ -147,7 +147,7 @@ export class WsMcpServer {
     this.validateUrl(url);
     if (!HANDSHAKE_SAFE_TOKEN.test(token)) {
       throw new Error(
-        "The token has characters a WebSocket handshake can't carry. Copy it exactly from the token file (`apty-cli --token-path` shows where it is).",
+        "The token has characters a WebSocket handshake can't carry. Copy it exactly from the token file (`node apps/mcp-bridge/dist/daemon.js --print-token-path` shows where it is).",
       );
     }
     this.cancelReconnect();

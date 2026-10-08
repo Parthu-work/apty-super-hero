@@ -135,8 +135,10 @@ After the MCP server is registered and running:
 
 1. Open Chrome and click the **Apty Agent** extension icon
 2. Go to **Options** (or right-click the icon → "Extension options")
-3. Find the **WebSocket Connection** section
-4. Enter: `ws://localhost:9223`
+3. Open the **Apty Integration** tab and find **MCP WebSocket Bridge**
+4. Enter `ws://localhost:9223/extension` and paste the daemon's auth token
+   (`node apps/mcp-bridge/dist/daemon.js --print-token-path` prints where
+   it is)
 5. Click **Connect**
 
 The bridge and extension will handshake, and all browser tools will become available to the agent.

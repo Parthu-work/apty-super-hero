@@ -11,8 +11,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 
 - Chat with your own AI provider; a readiness check shows the model, the
   Apty Client connection and whether the page can be inspected.
-- Risky actions wait for a click in the side panel; "Allow on this site"
-  is per tool and origin, lasts 15 minutes and can be revoked.
+- Risky actions wait for a click in the side panel and are refused if the
+  tab moved to another site meanwhile; "Allow on this site for 15 min" is
+  per tool and origin and can be revoked.
 - DOM Health in same-origin, cross-origin, `data:` and frameset frames,
   open and closed shadow roots, and tabs opened before an extension update.
 - Page console output (including during page load), network capture with

@@ -40,7 +40,7 @@ const PERMISSION_COPY: Record<
   management: {
     label: "Manage extensions",
     description:
-      'Needed only for the "Connection" tab\'s Apty Client detection — confirming a given extension ID is installed and enabled. Nothing else in the product uses this.',
+      "Needed only by the Apty Integration tab: Detect lists your extensions to find the Apty Client, and Connect checks that its ID is installed and enabled. Nothing else in the product uses this.",
   },
 };
 

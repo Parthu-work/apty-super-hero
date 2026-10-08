@@ -54,10 +54,8 @@ const ALLOWED_SUBSTRINGS = [
   "aipex-screenshots-db",
   "aipex-sessions",
   "aipex-input-mode",
-  "aipex-pending-prompt",
   "aipex-skills-fs",
   "aipex_zenfs_migration",
-  "aipex-conversation-active",
   "AIPexSkills",
   // DOM attribute/class contracts + cross-context message strings
   "data-aipex-",
@@ -65,7 +63,6 @@ const ALLOWED_SUBSTRINGS = [
   "aipex-content-root",
   "aipex-border-overlay",
   "aipex-text-highlight",
-  "__aipexCaptureCleanup",
   "__aipexHighlightOriginal",
   "__aipexHighlightTimeoutId",
   "_aipexOriginalStyles",

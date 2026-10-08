@@ -15,23 +15,6 @@ on:
       - "*.md"
 
 jobs:
-  secrets:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      # Scans the commits this push or pull request adds and fails on any
-      # credential it can verify or cannot rule out. Test files are skipped:
-      # the redaction tests are full of deliberately fake credentials.
-      - name: Secret scan
-        uses: trufflesecurity/trufflehog@e76dff8a7e57d6df0c60ad8cbf5d5cba505a8fc9 # v3.99.2
-        with:
-          extra_args: --results=verified,unknown --exclude-paths=.github/secret-scan-exclude.txt
-
   ci:
     runs-on: ubuntu-latest
     permissions:

@@ -209,10 +209,11 @@ export function McpBridgePanel() {
             disabled={isBusy}
           />
           <p className="text-xs text-muted-foreground">
-            Every connection requires this per-install secret. Find it by
-            running <code>apty-cli --token-path</code> (or{" "}
-            <code>browser-cli daemon token-path</code>) and reading that file —
-            never shown in logs or exported from here.
+            Every connection requires this per-install secret. From the
+            repository, run{" "}
+            <code>node apps/mcp-bridge/dist/daemon.js --print-token-path</code>{" "}
+            and copy the token from that file. It is never shown in logs or
+            exported from here.
           </p>
         </div>
 

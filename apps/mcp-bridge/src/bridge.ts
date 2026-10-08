@@ -55,8 +55,8 @@ The bridge auto-starts a background daemon if one isn't already running.
 Multiple IDE instances (Cursor, Claude Code) can run simultaneously.
 
 After starting, connect Apty Agent extension → Options → ws://localhost:<port>/extension
-(with the daemon's auth token — run 'apty-cli --token-path' to find it, or
-'node dist/daemon.js --print-token-path').
+(with the daemon's auth token — run 'node dist/daemon.js --print-token-path'
+to find it).
 `);
   process.exit(0);
 }

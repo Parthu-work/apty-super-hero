@@ -44,7 +44,7 @@ full commit-level history.
 **Observability**
 - All debug output goes through the leveled logger instead of being
   stripped at build time. Production builds log warnings and errors;
-  Settings → Troubleshooting → Verbose logging turns debug logs on.
+  Settings → General → Troubleshooting → Verbose logging turns debug logs on.
 
 **Release and docs**
 - Releases include a Web Store package without the manifest `key`.
@@ -66,7 +66,8 @@ full commit-level history.
   Data handling, with a host/URL deny-list.
 - Stored conversations and screenshots are deleted after 7 days without
   use; the options page can delete them immediately.
-- Debug console output is stripped from production builds.
+- Debug console output is stripped from production builds (since replaced
+  by the leveled logger; see the section above).
 
 **DOM Health**
 - Frames are answered by a React-free responder in every frame; a frame

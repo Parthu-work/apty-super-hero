@@ -1520,7 +1520,7 @@ as they are: tests assert on them, and they report real failures. The
 esbuild `pure` stripping of debug calls is gone, because it also stripped
 the logger's own output and made a support-time switch impossible. Each
 extension context calls `initLogging()`: `warn` in production, `debug` in
-development, and debug when Settings → Troubleshooting → Verbose logging is
+development, and debug when Settings → General → Troubleshooting → Verbose logging is
 on. Content scripts can't read settings, so they keep the build default.
 
 **Skills.** The CDN loader was removed rather than pinned harder: no
