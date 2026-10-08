@@ -4,7 +4,45 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
-## Unreleased (this session) — Apty Client resource inspection: fixed the transport, verified against real Chrome
+## Unreleased — fixes from the 2026-10-08 repository audit
+
+**Security**
+- Risky actions (running JavaScript, filling fields, typing, uploads,
+  downloads) now wait for a click on Allow or Deny in the side panel. The
+  model can no longer approve its own action: `confirm_risky_action` is
+  gone. "Allow on this site" grants are per tool and origin, expire after
+  15 minutes, and can be revoked on the options page.
+
+**Privacy**
+- Page response bodies are only captured when enabled under Settings →
+  Data handling, with a host/URL deny-list.
+- Stored conversations and screenshots are deleted after 7 days without
+  use; the options page can delete them immediately.
+- Debug console output is stripped from production builds.
+
+**DOM Health**
+- Frames are answered by a React-free responder in every frame; a frame
+  with no live responder (for example after an extension reload) gets it
+  injected and is asked again. The UI mounts in the top frame only.
+- Closed shadow roots are inspected through
+  `chrome.dom.openOrClosedShadowRoot`; the stability wait covers every
+  frame and shadow tree; the Agent's own UI is no longer counted.
+
+**Apty Client**
+- Connection failures name the cause (not allow-listed, bridge missing,
+  timeout, malformed answer) and this Agent's ID; the options page runs
+  the real handshake and offers Test connection.
+- Full response bodies can be viewed, copied and downloaded from the tool
+  result; evidence and investigations survive a side-panel reload or a
+  service-worker restart.
+
+**Engineering**
+- Real-browser tests (`npm run test:e2e`) run the built extension in
+  Chromium in CI; a tag-triggered release workflow builds, tests, zips and
+  checksums the extension.
+- `AIPex` defaults to 30 turns instead of 2000.
+
+## Earlier — Apty Client resource inspection: fixed the transport, verified against real Chrome
 
 **Fixed — critical, verified against a real Chrome build, not just mocks**
 - The Apty Client Service Worker network inspection feature below (V1) was
