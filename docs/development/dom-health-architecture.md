@@ -121,6 +121,19 @@ container, and structural container tag/role counts — so a real menu click
 that changes which screen is showing is detected, while a background
 mutation is not mistaken for a new state.
 
+Every signal is read in the composed tree (`composed-tree.ts`): through
+open and closed shadow roots, with `<slot>`s replaced by what is assigned to
+them, and only from rendered elements. Infor LN's heading and tab label sit
+inside IDS shadow roots, with their text in the host's light DOM, and
+athenaOne's Patient Registration form sits in one shadow root. LN keeps its
+theme and locale menus in the DOM while closed, each with a selected item,
+so "rendered only" stops those from reading as navigation state.
+
+The same composed reading applies to accessible names: `aria-labelledby`
+and `label[for]` are resolved in the element's own root, and text is read
+through slots. Hit testing follows each point down through
+`shadowRoot.elementFromPoint` and checks containment in the composed tree.
+
 ## Privacy boundary
 
 Every result leaves through `redactDomHealthOutput`

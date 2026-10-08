@@ -15,6 +15,8 @@
  * top of the real algorithm, and is documented as such below; it is never
  * presented as part of Apty's own runtime decision.
  */
+
+import { composedText } from "./composed-tree.js";
 import {
   buildElementPath,
   buildElementPattern,
@@ -660,27 +662,49 @@ export function extractElementAttributes(
   };
 }
 
-/** Supporting accessibility signal — not a selector-reliability judgment on its own. */
+function rootOf(el: Element): Document | ShadowRoot {
+  return el.getRootNode() as Document | ShadowRoot;
+}
+
+/** Whether any id in `ids` names an element with visible text in `el`'s own root (ids do not cross shadow boundaries). */
+function labelledByHasText(el: Element, ids: string): boolean {
+  const root = rootOf(el);
+  return ids
+    .split(/\s+/)
+    .filter(Boolean)
+    .some((id) => {
+      const target = root.getElementById(id);
+      return Boolean(target && composedText(target));
+    });
+}
+
+/**
+ * Supporting accessibility signal — not a selector-reliability judgment on
+ * its own. Follows the parts of the accessible-name computation that
+ * matter here across shadow DOM: `aria-labelledby` and `label[for]` are
+ * resolved in the element's own root, and text is read in the composed
+ * tree, through `<slot>`s. An Infor IDS control renders its `<button>` or
+ * `<a>` inside a shadow root while the label stays in the host's light DOM
+ * (358 slots in the LN export); its plain `textContent` is empty. `title`
+ * is the accessible-name computation's last resort.
+ */
 export function hasAccessibleName(el: Element): boolean {
   if (el.getAttribute("aria-label")?.trim()) return true;
-  if (el.getAttribute("aria-labelledby")?.trim()) return true;
+  const labelledBy = el.getAttribute("aria-labelledby")?.trim();
+  if (labelledBy && labelledByHasText(el, labelledBy)) return true;
   const tag = el.tagName.toLowerCase();
-  if (tag === "button" || tag === "a") {
-    return Boolean(el.textContent?.trim());
-  }
   if (tag === "input" || tag === "textarea" || tag === "select") {
     if (el.getAttribute("placeholder")?.trim()) return true;
     const id = el.getAttribute("id");
-    if (id) {
-      if (
-        el.ownerDocument.querySelector(
-          `label[for="${escapeAttributeValue(id)}"]`,
-        )
-      ) {
-        return true;
-      }
+    if (
+      id &&
+      rootOf(el).querySelector(`label[for="${escapeAttributeValue(id)}"]`)
+    ) {
+      return true;
     }
-    return Boolean(el.closest("label"));
+    if (el.closest("label")) return true;
+    return Boolean(el.getAttribute("title")?.trim());
   }
-  return Boolean(el.textContent?.trim());
+  if (composedText(el)) return true;
+  return Boolean(el.getAttribute("title")?.trim());
 }

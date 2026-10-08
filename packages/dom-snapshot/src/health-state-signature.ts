@@ -17,14 +17,21 @@
  * a later run, while a phantom state wastes the audit's page budget.
  */
 
+import {
+  closestComposed,
+  composedText,
+  isRenderedInComposedTree,
+  walkComposedTree,
+} from "./composed-tree.js";
+
 export interface FrameStateSignature {
   url: string;
   title: string;
-  /** Trimmed text of the first few heading-like elements (h1-h3, [role=heading]), in document order. */
+  /** Text of the first few rendered heading-like elements (h1-h3, [role=heading]), in composed order, shadow roots included. */
   headingSample: string[];
-  /** Text of the element marking the current/selected navigation item inside a nav-like container, or null if none is found. */
+  /** Text of the first rendered element marking the current/selected navigation item inside a nav-like container, shadow roots included, or null if none is found. */
   activeNavItem: string | null;
-  /** Count of major semantic container elements, by tag/role — a coarse structural signature that changes when the page's overall layout changes, not on every mutation. */
+  /** Count of major semantic container elements, by tag/role, shadow roots included — a coarse structural signature that changes when the page's overall layout changes, not on every mutation. */
   containerCounts: Record<string, number>;
 }
 
@@ -34,6 +41,15 @@ const MAX_HEADING_TEXT_LENGTH = 120;
 
 export const NAV_CONTAINER_SELECTOR =
   'nav, [role="navigation"], [role="tablist"], [role="menu"], [role="menubar"], [role="tree"]';
+
+/**
+ * What marks the current item. The ARIA states and `.active` / `.selected`
+ * forms cover Infor LN's active tab (`portal-tab-item` with
+ * `aria-selected="true"` and class `selected`). The `_is-` / `--is-` forms
+ * follow athenaOne Forge's state-class convention: `fe_is-disabled` and
+ * `fe_is-required` were measured, but `fe_is-selected` / `fe_is-active`
+ * were not seen in the exports, so those are unverified.
+ */
 export const ACTIVE_ITEM_SELECTOR = [
   '[aria-current]:not([aria-current="false"])',
   '[aria-selected="true"]',
@@ -42,6 +58,10 @@ export const ACTIVE_ITEM_SELECTOR = [
   ".selected",
   ".is-active",
   ".is-selected",
+  '[class*="_is-active"]',
+  '[class*="_is-selected"]',
+  '[class*="--is-active"]',
+  '[class*="--is-selected"]',
 ].join(", ");
 const MAX_ACTIVE_ITEM_TEXT_LENGTH = 120;
 
@@ -57,45 +77,69 @@ const CONTAINER_SELECTORS: Record<string, string> = {
   tabpanel: '[role="tabpanel"]',
 };
 
-function sampleHeadings(doc: Document): string[] {
-  const headings = Array.from(doc.querySelectorAll(HEADING_SELECTOR));
+/** Rendered headings in composed order, read through slots (Infor LN's `<h1>` is inside an `ids-text` shadow root, its text in the host's light DOM). */
+export function sampleHeadingsDeep(
+  root: Document | ShadowRoot,
+  max = MAX_HEADING_SAMPLE,
+): string[] {
   const out: string[] = [];
-  for (const heading of headings) {
-    const text = (heading.textContent ?? "").trim();
-    if (!text) continue;
-    out.push(text.slice(0, MAX_HEADING_TEXT_LENGTH));
-    if (out.length >= MAX_HEADING_SAMPLE) break;
-  }
+  walkComposedTree(root, (el) => {
+    if (!el.matches(HEADING_SELECTOR) || !isRenderedInComposedTree(el)) {
+      return true;
+    }
+    const text = composedText(el, MAX_HEADING_TEXT_LENGTH);
+    if (text) out.push(text);
+    return out.length < max;
+  });
   return out;
 }
 
-function findActiveNavItem(doc: Document): string | null {
-  const navContainers = Array.from(
-    doc.querySelectorAll(NAV_CONTAINER_SELECTOR),
-  );
-  for (const container of navContainers) {
-    const active = container.querySelector(ACTIVE_ITEM_SELECTOR);
-    const text = active?.textContent?.trim();
-    if (text) return text.slice(0, MAX_ACTIVE_ITEM_TEXT_LENGTH);
-  }
-  return null;
+/**
+ * First rendered current/selected item that sits inside a navigation
+ * container in the composed tree. Not rendered means skipped: Infor LN
+ * keeps its theme and locale menus in the DOM, closed, each with a selected
+ * item ("Light", "English"), and those must never read as the screen's
+ * navigation state.
+ */
+export function findActiveNavItemDeep(
+  root: Document | ShadowRoot,
+): string | null {
+  let found: string | null = null;
+  walkComposedTree(root, (el) => {
+    if (
+      !el.matches(ACTIVE_ITEM_SELECTOR) ||
+      !closestComposed(el, NAV_CONTAINER_SELECTOR) ||
+      !isRenderedInComposedTree(el)
+    ) {
+      return true;
+    }
+    const text = composedText(el, MAX_ACTIVE_ITEM_TEXT_LENGTH);
+    if (text) found = text;
+    return found === null;
+  });
+  return found;
 }
 
-function countContainers(doc: Document): Record<string, number> {
+function countContainersDeep(
+  root: Document | ShadowRoot,
+): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const [key, selector] of Object.entries(CONTAINER_SELECTORS)) {
-    counts[key] = doc.querySelectorAll(selector).length;
-  }
+  for (const key of Object.keys(CONTAINER_SELECTORS)) counts[key] = 0;
+  walkComposedTree(root, (el) => {
+    for (const [key, selector] of Object.entries(CONTAINER_SELECTORS)) {
+      if (el.matches(selector)) counts[key]!++;
+    }
+  });
   return counts;
 }
 
-/** Compute one frame's state-signature from its own live document. Pure/cheap — never runs the full interactive-element pipeline. */
+/** Compute one frame's state-signature from its own live document, shadow roots included. Pure/cheap — never runs the full interactive-element pipeline. */
 export function computeFrameStateSignature(doc: Document): FrameStateSignature {
   return {
     url: doc.location?.href ?? "",
     title: doc.title ?? "",
-    headingSample: sampleHeadings(doc),
-    activeNavItem: findActiveNavItem(doc),
-    containerCounts: countContainers(doc),
+    headingSample: sampleHeadingsDeep(doc),
+    activeNavItem: findActiveNavItemDeep(doc),
+    containerCounts: countContainersDeep(doc),
   };
 }

@@ -12,18 +12,13 @@
  * `@apty/browser-runtime`'s `route-probe.ts` redacts and compares steps.
  */
 import {
-  closestComposed,
-  composedText,
   isRenderedInComposedTree,
   querySelectorAllDeep,
 } from "./composed-tree.js";
 import {
-  ACTIVE_ITEM_SELECTOR,
-  HEADING_SELECTOR,
-  NAV_CONTAINER_SELECTOR,
+  findActiveNavItemDeep,
+  sampleHeadingsDeep,
 } from "./health-state-signature.js";
-
-const MAX_SIGNAL_TEXT_LENGTH = 120;
 
 /** Attributes of an `<iframe>` / `<frame>` element, read in the document that owns it (the child's own document cannot see them). */
 export interface RouteProbeFrameOwner {
@@ -47,36 +42,14 @@ export interface RouteProbeFrameSignals {
   owners: RouteProbeFrameOwner[];
 }
 
-/** First rendered heading in composed order, read with slot projection (LN's `<h1>` lives in an `ids-text` shadow root, its text in the host's light DOM). */
+/** First rendered heading in composed order, read with slot projection (the same reading the state signature uses). */
 export function findFirstHeadingDeep(
   root: Document | ShadowRoot,
 ): string | null {
-  for (const heading of querySelectorAllDeep(root, HEADING_SELECTOR)) {
-    if (!isRenderedInComposedTree(heading)) continue;
-    const text = composedText(heading, MAX_SIGNAL_TEXT_LENGTH);
-    if (text) return text;
-  }
-  return null;
+  return sampleHeadingsDeep(root, 1)[0] ?? null;
 }
 
-/**
- * First rendered element marked current / selected / active that sits
- * inside a navigation container in the composed tree. Not rendered means
- * skipped: LN keeps its theme and locale menus in the DOM, closed, each with
- * a selected item ("Light", "English"), and those must never read as the
- * screen's navigation state.
- */
-export function findActiveNavItemDeep(
-  root: Document | ShadowRoot,
-): string | null {
-  for (const item of querySelectorAllDeep(root, ACTIVE_ITEM_SELECTOR)) {
-    if (!closestComposed(item, NAV_CONTAINER_SELECTOR)) continue;
-    if (!isRenderedInComposedTree(item)) continue;
-    const text = composedText(item, MAX_SIGNAL_TEXT_LENGTH);
-    if (text) return text;
-  }
-  return null;
-}
+export { findActiveNavItemDeep };
 
 /** Every `<iframe>` / `<frame>` this document owns, light DOM and shadow roots alike. */
 export function collectFrameOwners(
