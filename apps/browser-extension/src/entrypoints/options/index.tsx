@@ -50,8 +50,8 @@ function useUrlTab(): [OptionsTab, (tab: OptionsTab) => void] {
   return [tab, select];
 }
 
-/** Scroll to and briefly highlight the section named in the URL hash. */
-function useScrollToHashSection(tab: OptionsTab) {
+/** On load, scroll to and briefly highlight the section named in the URL hash. */
+function useScrollToHashSection() {
   useEffect(() => {
     const id = window.location.hash.slice(1);
     if (!id) return;
@@ -66,7 +66,7 @@ function useScrollToHashSection(tab: OptionsTab) {
       );
     });
     return () => cancelAnimationFrame(frame);
-  }, [tab]);
+  }, []);
 }
 
 /** Parse and validate URL params for deep-linking. */
@@ -88,7 +88,7 @@ const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 function OptionsPageContent() {
   const { skill: initialSkill } = useMemo(parseUrlParams, []);
   const [tab, setTab] = useUrlTab();
-  useScrollToHashSection(tab);
+  useScrollToHashSection();
 
   const TEST_CONNECTION_TIMEOUT_MS = 20_000;
 
