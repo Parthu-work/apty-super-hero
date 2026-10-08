@@ -69,6 +69,40 @@ describe("AptyClientPanel", () => {
     expect(mockUpdateConfig).toHaveBeenCalled();
   });
 
+  it("still runs the handshake when it may not list extensions", async () => {
+    (global as any).chrome.management = undefined;
+    clientAnswers({ running: true });
+
+    connect();
+
+    expect(await screen.findByText("Answering")).toBeInTheDocument();
+  });
+
+  it("detects installed Apty extensions after asking for permission", async () => {
+    (global as any).chrome.permissions = {
+      request: vi.fn().mockResolvedValue(true),
+    };
+    (global as any).chrome.management.getAll = vi.fn().mockResolvedValue([
+      { id: CLIENT_ID, name: "Apty Client", type: "extension", enabled: true },
+      {
+        id: "agent-own-id",
+        name: "Apty Agent",
+        type: "extension",
+        enabled: true,
+      },
+      { id: "b".repeat(32), name: "Other", type: "extension", enabled: true },
+    ]);
+    render(<AptyClientPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Detect" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Use Apty Client/ }),
+    );
+
+    expect(screen.getByLabelText("Extension ID")).toHaveValue(CLIENT_ID);
+    expect(screen.queryByRole("button", { name: /Use Apty Agent/ })).toBeNull();
+  });
+
   it("does not save an ID that is not installed", async () => {
     mockManagementGet.mockRejectedValue(new Error("not found"));
 

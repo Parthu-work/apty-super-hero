@@ -37,6 +37,7 @@ import { Label } from "@apty/ui/components/ui/label";
 import { cn } from "@apty/ui/lib/utils";
 import { CheckCircle2, Info, Loader2, Plug, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { requestOptionalPermission } from "../../services/optional-permissions";
 
 type CheckState =
   | { status: "idle" }
@@ -48,7 +49,9 @@ type CheckState =
 const NOT_FOUND_MESSAGE =
   "The specified Apty Client extension could not be found or is not currently available.";
 
-async function isInstalledAndEnabled(id: string): Promise<boolean> {
+/** `undefined` when the optional `management` permission isn't granted, so installation can't be checked. */
+async function isInstalledAndEnabled(id: string): Promise<boolean | undefined> {
+  if (!chrome.management?.get) return undefined;
   try {
     const info = await chrome.management.get(id);
     return info.enabled;
@@ -57,9 +60,9 @@ async function isInstalledAndEnabled(id: string): Promise<boolean> {
   }
 }
 
-/** Installed check, then the real message handshake with the Client. */
+/** Installed check (when permitted), then the real message handshake with the Client. */
 async function checkClient(id: string): Promise<CheckState> {
-  if (!(await isInstalledAndEnabled(id))) {
+  if ((await isInstalledAndEnabled(id)) === false) {
     return { status: "error", message: NOT_FOUND_MESSAGE };
   }
   const status = await new ConfiguredServiceWorkerDiagnosticsProvider({
@@ -72,10 +75,36 @@ async function checkClient(id: string): Promise<CheckState> {
   };
 }
 
+interface DetectedExtension {
+  id: string;
+  name: string;
+}
+
+/** Enabled extensions whose name mentions Apty, other than this Agent. */
+async function findAptyExtensions(
+  ownId: string | undefined,
+): Promise<DetectedExtension[]> {
+  try {
+    const all = await chrome.management.getAll();
+    return all
+      .filter(
+        (ext) =>
+          ext.type === "extension" &&
+          ext.enabled &&
+          ext.id !== ownId &&
+          /apty/i.test(ext.name),
+      )
+      .map(({ id, name }) => ({ id, name }));
+  } catch {
+    return [];
+  }
+}
+
 export function AptyClientPanel() {
   const [extensionId, setExtensionId] = useState("");
   const [saved, setSaved] = useState<string | undefined>(undefined);
   const [check, setCheck] = useState<CheckState>({ status: "idle" });
+  const [detected, setDetected] = useState<DetectedExtension[] | undefined>();
   const ownId = chrome.runtime?.id;
 
   useEffect(() => {
@@ -108,6 +137,15 @@ export function AptyClientPanel() {
     if (result.status === "error") return;
     await updateAptyIntegrationConfig({ clientExtensionId: id });
     setSaved(id);
+  };
+
+  const handleDetect = async () => {
+    setDetected(undefined);
+    if (!(await requestOptionalPermission("management"))) {
+      setDetected([]);
+      return;
+    }
+    setDetected(await findAptyExtensions(ownId));
   };
 
   const handleDisconnect = async () => {
@@ -219,16 +257,46 @@ export function AptyClientPanel() {
                 </Button>
               </>
             ) : (
-              <Button
-                type="button"
-                onClick={handleConnect}
-                disabled={isChecking || !extensionId.trim()}
-              >
-                {isChecking && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isChecking ? "Connecting..." : "Connect"}
-              </Button>
+              <>
+                <Button type="button" variant="outline" onClick={handleDetect}>
+                  Detect
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConnect}
+                  disabled={isChecking || !extensionId.trim()}
+                >
+                  {isChecking && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isChecking ? "Connecting..." : "Connect"}
+                </Button>
+              </>
             )}
           </div>
+          {detected && detected.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No installed extension named like the Apty Client was found (or
+              permission to list extensions was declined). Paste its ID instead.
+            </p>
+          )}
+          {detected && detected.length > 0 && (
+            <ul className="space-y-1">
+              {detected.map((ext) => (
+                <li key={ext.id}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setExtensionId(ext.id)}
+                  >
+                    Use {ext.name}{" "}
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {ext.id}
+                    </span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {(check.status === "error" || check.status === "not_answering") && (
