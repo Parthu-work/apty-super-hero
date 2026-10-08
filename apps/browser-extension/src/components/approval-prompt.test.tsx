@@ -119,7 +119,10 @@ describe("ApprovalPrompt", () => {
   });
 
   it("says when a request comes from an MCP client and how long is left", () => {
+    const realNow = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(realNow - 60_000);
     render(<ApprovalPrompt />);
+    vi.spyOn(Date, "now").mockReturnValue(realNow);
     deliver(
       { type: APPROVAL_REQUEST_MESSAGE, request: remoteRequest },
       { id: "agent-id", url: "chrome-extension://agent-id/sw.js" },

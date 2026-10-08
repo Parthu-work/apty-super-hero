@@ -60,7 +60,9 @@ describe("readiness check and settings links", () => {
     const readiness = panel.getByRole("region", { name: "Readiness check" });
     await readiness.getByText("Add your own API key").waitFor();
     const opened = browser.context.waitForEvent("page");
-    await readiness.getByRole("button", { name: "Set up", exact: true }).click();
+    await readiness
+      .getByRole("button", { name: "Set up", exact: true })
+      .click();
     const options = await opened;
     await options.waitForLoadState();
 
@@ -72,6 +74,30 @@ describe("readiness check and settings links", () => {
     await options.close();
     await panel.close();
     await app.close();
+  });
+
+  it("stores a General-tab switch as soon as it is flipped", async () => {
+    const options = await extensionPage(
+      browser,
+      "src/entrypoints/options/index.html?tab=general#data-handling",
+    );
+    const bodies = options.getByRole("switch", {
+      name: "Capture response bodies",
+    });
+    await bodies.click();
+    await options.waitForFunction(async () => {
+      const { aipex_settings } =
+        await chrome.storage.local.get("aipex_settings");
+      return aipex_settings?.networkBodyCaptureEnabled === true;
+    });
+
+    await options.reload();
+    await options
+      .locator('[role="switch"][aria-checked="true"]')
+      .and(bodies)
+      .waitFor();
+    await bodies.click();
+    await options.close();
   });
 
   it("keeps the Options tab in the URL, so Back and reload work", async () => {

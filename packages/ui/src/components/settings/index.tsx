@@ -604,6 +604,25 @@ export function SettingsPage({
     }));
   }, []);
 
+  // General-tab switches take effect at once: that tab has no Save button.
+  // Each patch is merged into what's stored, not into unsaved AI-tab edits.
+  const generalSaveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const saveGeneralSetting = useCallback(
+    (patch: Partial<AppSettings>) => {
+      setSettings((prev: AppSettings) => ({ ...prev, ...patch }));
+      generalSaveQueue.current = generalSaveQueue.current.then(async () => {
+        try {
+          const stored = ((await storageAdapter.load(storageKey)) ??
+            {}) as AppSettings;
+          await storageAdapter.save(storageKey, { ...stored, ...patch });
+        } catch (error) {
+          console.error("Failed to save setting:", error);
+        }
+      });
+    },
+    [storageAdapter, storageKey],
+  );
+
   const handleSaveSettings = useCallback(async () => {
     setIsSaving(true);
     setSaveStatus({ type: "", message: "" });
@@ -1028,17 +1047,13 @@ export function SettingsPage({
             <DataHandlingCard
               settings={settings}
               language={language}
-              onChange={(patch) =>
-                setSettings((prev: AppSettings) => ({ ...prev, ...patch }))
-              }
+              onChange={saveGeneralSetting}
             />
 
             <TroubleshootingCard
               settings={settings}
               language={language}
-              onChange={(patch) =>
-                setSettings((prev: AppSettings) => ({ ...prev, ...patch }))
-              }
+              onChange={saveGeneralSetting}
             />
 
             {/* Skill execution toggle — off by default. Running a skill
@@ -1074,10 +1089,7 @@ export function SettingsPage({
                     }
                     checked={settings.skillExecutionEnabled === true}
                     onCheckedChange={(checked) =>
-                      setSettings((prev: AppSettings) => ({
-                        ...prev,
-                        skillExecutionEnabled: checked,
-                      }))
+                      saveGeneralSetting({ skillExecutionEnabled: checked })
                     }
                   />
                 </div>
