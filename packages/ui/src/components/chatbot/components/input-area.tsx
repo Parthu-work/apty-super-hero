@@ -267,14 +267,34 @@ export function DefaultInputArea({
                   <PromptInputModelSelectValue />
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
-                  <>
-                    {/* Server-side/proxy models */}
-                    {serverModels.length > 0 && (
+                  {/* Server-side/proxy models */}
+                  {serverModels.length > 0 && (
+                    <PromptInputModelSelectGroup>
+                      <PromptInputModelSelectLabel>
+                        Hosted Models
+                      </PromptInputModelSelectLabel>
+                      {serverModels.map((model) => (
+                        <PromptInputModelSelectItem
+                          key={model.value}
+                          value={model.value}
+                        >
+                          {model.name}
+                        </PromptInputModelSelectItem>
+                      ))}
+                    </PromptInputModelSelectGroup>
+                  )}
+
+                  {/* BYOK Models — user's own API key */}
+                  {byokModelEntries.length > 0 && (
+                    <>
+                      {serverModels.length > 0 && (
+                        <PromptInputModelSelectSeparator />
+                      )}
                       <PromptInputModelSelectGroup>
                         <PromptInputModelSelectLabel>
-                          Hosted Models
+                          BYOK Models
                         </PromptInputModelSelectLabel>
-                        {serverModels.map((model) => (
+                        {byokModelEntries.map((model) => (
                           <PromptInputModelSelectItem
                             key={model.value}
                             value={model.value}
@@ -283,37 +303,15 @@ export function DefaultInputArea({
                           </PromptInputModelSelectItem>
                         ))}
                       </PromptInputModelSelectGroup>
-                    )}
+                    </>
+                  )}
 
-                    {/* BYOK Models — user's own API key */}
-                    {byokModelEntries.length > 0 && (
-                      <>
-                        {serverModels.length > 0 && (
-                          <PromptInputModelSelectSeparator />
-                        )}
-                        <PromptInputModelSelectGroup>
-                          <PromptInputModelSelectLabel>
-                            BYOK Models
-                          </PromptInputModelSelectLabel>
-                          {byokModelEntries.map((model) => (
-                            <PromptInputModelSelectItem
-                              key={model.value}
-                              value={model.value}
-                            >
-                              {model.name}
-                            </PromptInputModelSelectItem>
-                          ))}
-                        </PromptInputModelSelectGroup>
-                      </>
+                  {serverModels.length === 0 &&
+                    byokModelEntries.length === 0 && (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No models available
+                      </div>
                     )}
-
-                    {serverModels.length === 0 &&
-                      byokModelEntries.length === 0 && (
-                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                          No models available
-                        </div>
-                      )}
-                  </>
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>
             )}

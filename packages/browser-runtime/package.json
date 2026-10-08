@@ -29,6 +29,7 @@
     "build": "tsc -b",
     "typecheck": "tsc --project tsconfig.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },

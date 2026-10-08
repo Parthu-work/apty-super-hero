@@ -118,7 +118,7 @@ export function ApprovalPrompt() {
                 {request.origin ?? "No page origin"}
                 {request.conversationId ? "" : " · requested by an MCP client"}
               </span>
-              <span aria-label="Time left to answer">
+              <span role="timer" aria-label="Time left to answer">
                 Expires in {formatRemaining(request.expiresAt - now)}
               </span>
             </p>

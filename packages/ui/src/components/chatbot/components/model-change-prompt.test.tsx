@@ -33,9 +33,11 @@ describe("ModelChangePrompt", () => {
   });
 
   it("loads models through onFetchModels when given", async () => {
-    const onFetchModels = vi.fn().mockResolvedValue([
-      { id: "gpt-4o", name: "GPT-4o", description: "", priceLevel: "normal" },
-    ]);
+    const onFetchModels = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "gpt-4o", name: "GPT-4o", description: "", priceLevel: "normal" },
+      ]);
 
     render(
       <ModelChangePrompt

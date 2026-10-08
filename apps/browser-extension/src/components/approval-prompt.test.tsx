@@ -126,7 +126,7 @@ describe("ApprovalPrompt", () => {
     );
 
     expect(screen.getByText(/requested by an MCP client/)).toBeTruthy();
-    expect(screen.getByLabelText("Time left to answer").textContent).toMatch(
+    expect(screen.getByRole("timer").textContent).toMatch(
       /Expires in 0:(49|50)/,
     );
   });
