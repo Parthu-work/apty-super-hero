@@ -1,7 +1,10 @@
+import { createLogger } from "@apty/agent-core";
 import { ArrowUpCircleIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "../../../lib/utils";
 import { Button } from "../../ui/button";
+
+const log = createLogger("UpdateBanner");
 
 export interface VersionCheckResult {
   hasUpdate: boolean;
@@ -132,13 +135,10 @@ export function UpdateBanner({
       if (result.status === "update_available") {
         // Update is available and will be installed
         setUpdateStatus("ready");
-        console.log(
-          "[UpdateBanner] Update available, version:",
-          result.version,
-        );
+        log.debug("Update available, version:", result.version);
       } else {
         // Failed or throttled, fallback to opening store
-        console.log("[UpdateBanner] Update check result:", result.status);
+        log.debug("Update check result:", result.status);
         setUpdateStatus("failed");
         // Open store page as fallback
         setTimeout(() => {

@@ -4,6 +4,7 @@
  * 基于文档指南实现优化的快照机制，提供清晰的UID管理和元素定位
  */
 
+import { createLogger } from "@apty/agent-core";
 import { nanoid } from "nanoid";
 import pLimit from "p-limit";
 import { CdpCommander } from "./cdp-commander";
@@ -20,6 +21,8 @@ import type {
   TextSnapshot,
   TextSnapshotNode,
 } from "./types";
+
+const log = createLogger("SnapshotManager");
 
 type DomSnapshotNode = {
   id: string;
@@ -71,9 +74,7 @@ export class SnapshotManager {
     tabId: number,
     nodeMap: Map<string, AXNode>,
   ): Promise<Map<number, { existingId: string; tagName: string }>> {
-    console.log(
-      "🔍 [DEBUG] Fetching existing aipex-nodeids and tagNames from page",
-    );
+    log.debug("🔍 Fetching existing aipex-nodeids and tagNames from page");
     const existingData = new Map<
       number,
       { existingId: string; tagName: string }
@@ -158,8 +159,8 @@ export class SnapshotManager {
       // Wait for all fetch tasks to complete
       await Promise.all(fetchTasks);
 
-      console.log(
-        `✅ [DEBUG] Found ${existingData.size} existing aipex-nodeids with tagNames`,
+      log.debug(
+        `✅ Found ${existingData.size} existing aipex-nodeids with tagNames`,
       );
 
       // Disable DOM domain
@@ -183,10 +184,7 @@ export class SnapshotManager {
     includeIframes: boolean = true,
   ): Promise<AccessibilityTree | null> {
     try {
-      console.log(
-        "🔍 [DEBUG] Connecting to tab via Chrome DevTools Protocol:",
-        tabId,
-      );
+      log.debug("🔍 Connecting to tab via Chrome DevTools Protocol:", tabId);
 
       // Safely attach debugger to the tab
       const attached = await debuggerManager.safeAttachDebugger(tabId);
@@ -199,7 +197,7 @@ export class SnapshotManager {
       // STEP 1: Enable accessibility domain - REQUIRED for consistent AXNodeIds
       await cdpCommander.sendCommand("Accessibility.enable", {});
 
-      console.log("✅ [DEBUG] Accessibility domain enabled");
+      log.debug("✅ Accessibility domain enabled");
 
       // STEP 2: Get the full accessibility tree
       // This is the same as Puppeteer's page.accessibility.snapshot()
@@ -210,21 +208,21 @@ export class SnapshotManager {
           // frameId: undefined - get main frame
         },
       );
-      console.log(
-        "✅ [DEBUG] Got accessibility tree with",
+      log.debug(
+        "✅ Got accessibility tree with",
         result.nodes?.length || 0,
         "nodes",
       );
 
       // STEP 3: Populate iframes if requested
       if (includeIframes) {
-        console.log("🔍 [DEBUG] Populating iframe snapshots...");
+        log.debug("🔍 Populating iframe snapshots...");
         const treeWithIframes = await iframeManager.populateIframes(
           cdpCommander,
           result,
         );
-        console.log(
-          "✅ [DEBUG] Tree with iframes has",
+        log.debug(
+          "✅ Tree with iframes has",
           treeWithIframes.nodes?.length || 0,
           "nodes",
         );
@@ -809,12 +807,12 @@ export class SnapshotManager {
         if (firstHalf === secondHalf && firstHalf.length > 0) {
           // Deduplicated text + URL
           name = `${firstHalf} ${url}`;
-          console.log(
-            `🔧 [DEBUG] Normalized duplicated link name: "${axNode.name?.value}" → "${name}"`,
+          log.debug(
+            `🔧 Normalized duplicated link name: "${axNode.name?.value}" → "${name}"`,
           );
         } else if (mainText.length > 0) {
           // Keep original format but log it
-          console.log(`🔧 [DEBUG] Link name with URL: "${name}"`);
+          log.debug(`🔧 Link name with URL: "${name}"`);
         }
       }
     }
@@ -912,7 +910,7 @@ export class SnapshotManager {
       return null;
     }
 
-    console.log("🔍 [DEBUG] Processing", nodes.length, "raw CDP nodes");
+    log.debug("🔍 Processing", nodes.length, "raw CDP nodes");
 
     // Debug: show role distribution
     const roleCounts = new Map<string, number>();
@@ -920,8 +918,8 @@ export class SnapshotManager {
       const role = node.role?.value || "unknown";
       roleCounts.set(role, (roleCounts.get(role) || 0) + 1);
     }
-    console.log(
-      "📊 [DEBUG] Role distribution:",
+    log.debug(
+      "📊 Role distribution:",
       Array.from(roleCounts.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
@@ -944,14 +942,14 @@ export class SnapshotManager {
     // PASS 1: Collect interesting nodes (Puppeteer's approach)
     const interestingNodes = new Set<string>(); // Store nodeIds
 
-    console.log("🔍 [DEBUG] Pass 1: Collecting interesting nodes...");
+    log.debug("🔍 Pass 1: Collecting interesting nodes...");
     this.collectInterestingNodes({
       axNode: rootNode,
       insideControl: false,
       interestingNodes,
       nodeMap,
     });
-    console.log(`✅ [DEBUG] Found ${interestingNodes.size} interesting nodes`);
+    log.debug(`✅ Found ${interestingNodes.size} interesting nodes`);
 
     if (interestingNodes.size === 0) {
       console.warn("⚠️ [DEBUG] No interesting nodes found!");
@@ -978,7 +976,7 @@ export class SnapshotManager {
             nodeMap,
           );
           if (!hasInterestingDescendants) {
-            console.log(
+            log.debug(
               `  ✗ Filtered out pure layout container: ${role} "${name}"`,
             );
             continue;
@@ -990,7 +988,7 @@ export class SnapshotManager {
           const trimmedName = name.trim();
           // Skip nodes with very short names (likely just layout)
           if (trimmedName.length < 2) {
-            console.log(`  ✗ Filtered out short content: ${role} "${name}"`);
+            log.debug(`  ✗ Filtered out short content: ${role} "${name}"`);
             continue;
           }
 
@@ -1007,7 +1005,7 @@ export class SnapshotManager {
             "aside",
           ];
           if (layoutTexts.includes(trimmedName.toLowerCase())) {
-            console.log(`  ✗ Filtered out layout text: ${role} "${name}"`);
+            log.debug(`  ✗ Filtered out layout text: ${role} "${name}"`);
             continue;
           }
         }
@@ -1016,8 +1014,8 @@ export class SnapshotManager {
       }
     }
 
-    console.log(
-      `✅ [DEBUG] After filtering: ${finalInterestingNodes.size} truly interesting nodes`,
+    log.debug(
+      `✅ After filtering: ${finalInterestingNodes.size} truly interesting nodes`,
     );
     interestingNodes.clear();
     for (const id of finalInterestingNodes) {
@@ -1027,7 +1025,7 @@ export class SnapshotManager {
     // PASS 2: Serialize tree, only including interesting nodes
     const idToNode = new Map<string, TextSnapshotNode>();
 
-    console.log("🔍 [DEBUG] Pass 2: Serializing tree...");
+    log.debug("🔍 Pass 2: Serializing tree...");
     const root = this.serializeTree({
       axNode: rootNode,
       interestingNodes,
@@ -1040,8 +1038,8 @@ export class SnapshotManager {
       return null;
     }
 
-    console.log(
-      `✅ [DEBUG] Built accessibility tree with ${idToNode.size} interesting nodes`,
+    log.debug(
+      `✅ Built accessibility tree with ${idToNode.size} interesting nodes`,
     );
     return {
       root,
@@ -1152,12 +1150,12 @@ export class SnapshotManager {
         nodeMap.set(node.nodeId, node);
       }
 
-      console.log("🔍 [DEBUG] Node map:", nodeMap);
+      log.debug("🔍 Node map:", nodeMap);
 
       // Fetch existing node IDs and tagNames from the page
       const existingNodeData = await this.fetchExistingNodeIds(tabId, nodeMap);
 
-      console.log("🔍 [DEBUG] Existing node data:", existingNodeData);
+      log.debug("🔍 Existing node data:", existingNodeData);
 
       const snapshotResult = this.convertAccessibilityTreeToSnapshot(
         axTree,
@@ -1199,7 +1197,7 @@ export class SnapshotManager {
     idToNode: Map<string, TextSnapshotNode>,
     existingNodeData: Map<number, { existingId: string; tagName: string }>,
   ): Promise<void> {
-    console.log("🔍 [DEBUG] Injecting aipex-nodeId to page elements using CDP");
+    log.debug("🔍 Injecting aipex-nodeId to page elements using CDP");
     const cdpCommander = new CdpCommander(tabId);
 
     try {
@@ -1290,8 +1288,8 @@ export class SnapshotManager {
       // wait for all inject tasks to complete
       await Promise.all(injectTasks);
 
-      console.log(
-        `✅ [DEBUG] Node injection complete: ${successCount} injected, ${skippedCount} skipped (already set), ${failedCount} failed`,
+      log.debug(
+        `✅ Node injection complete: ${successCount} injected, ${skippedCount} skipped (already set), ${failedCount} failed`,
       );
 
       // disable DOM domains

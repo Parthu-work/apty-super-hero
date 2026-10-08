@@ -56,6 +56,7 @@ import {
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { DataHandlingCard } from "./data-handling-card";
+import { TroubleshootingCard } from "./troubleshooting-card";
 import type { SaveStatus, SettingsPageProps, SettingsTab } from "./types";
 
 const PROVIDER_TYPE_TO_KEY: Record<ProviderType, AIProviderKey> = {
@@ -1017,6 +1018,14 @@ export function SettingsPage({
             </Card>
 
             <DataHandlingCard
+              settings={settings}
+              language={language}
+              onChange={(patch) =>
+                setSettings((prev: AppSettings) => ({ ...prev, ...patch }))
+              }
+            />
+
+            <TroubleshootingCard
               settings={settings}
               language={language}
               onChange={(patch) =>

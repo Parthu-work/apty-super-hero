@@ -10,6 +10,7 @@ import { generateText } from "ai";
 import React, { useCallback, useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import { chromeStorageAdapter } from "../../hooks";
+import { initLogging } from "../../lib/logging";
 import {
   createAIProvider,
   describeConnectionTestError,
@@ -37,6 +38,8 @@ function parseUrlParams() {
 }
 
 import "../../styles/tailwind.css";
+
+initLogging();
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();

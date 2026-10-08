@@ -1,7 +1,10 @@
+import { createLogger } from "@apty/agent-core";
 import { autoMigrate } from "../../../vm/migration";
 import { quickjs } from "../../../vm/quickjs-manager";
 import { createSkillAPIBridge } from "../../../vm/skill-api";
 import { zenfs } from "../../../vm/zenfs-manager";
+
+const log = createLogger("SkillExecutor");
 
 type ToolDefinition = {
   name: string;
@@ -18,24 +21,22 @@ export class SkillExecutor {
     if (this.initialized) return;
 
     try {
-      console.log(
-        "🚀 [SkillExecutor] Initializing skill executor with QuickJS + ZenFS...",
-      );
+      log.debug("🚀 Initializing skill executor with QuickJS + ZenFS...");
 
       // Initialize ZenFS
       await zenfs.initialize();
-      console.log("✅ [SkillExecutor] ZenFS initialized");
+      log.debug("✅ ZenFS initialized");
 
       // Initialize QuickJS
       await quickjs.initialize();
-      console.log("✅ [SkillExecutor] QuickJS initialized");
+      log.debug("✅ QuickJS initialized");
 
       // Auto-migrate from old SimpleFileSystem if needed
       await autoMigrate();
-      console.log("✅ [SkillExecutor] Migration check completed");
+      log.debug("✅ Migration check completed");
 
       this.initialized = true;
-      console.log("✅ [SkillExecutor] Skill executor initialized successfully");
+      log.debug("✅ Skill executor initialized successfully");
     } catch (error) {
       console.error("❌ Failed to initialize skill executor:", error);
       throw new Error(
@@ -55,9 +56,7 @@ export class SkillExecutor {
         await this.initialize();
       }
 
-      console.log(
-        `🚀 [SkillExecutor] Executing script: ${skillName}/${scriptPath}`,
-      );
+      log.debug(`🚀 Executing script: ${skillName}/${scriptPath}`);
 
       // Get skill metadata to find skill ID
       const { skillStorage } = await import("../storage/skill-storage");
@@ -159,7 +158,7 @@ export class SkillExecutor {
     this.registeredTools.clear();
     this.initialized = false;
 
-    console.log("🔒 [SkillExecutor] Skill executor destroyed");
+    log.debug("🔒 Skill executor destroyed");
   }
 
   /**
@@ -171,9 +170,7 @@ export class SkillExecutor {
     code: string,
     args: any = {},
   ): Promise<any> {
-    console.log(
-      `[SkillExecutor] Executing code in QuickJS VM for skill: ${skillId}`,
-    );
+    log.debug(`Executing code in QuickJS VM for skill: ${skillId}`);
 
     // Create API bridge for this skill
     const apiBridge = createSkillAPIBridge({

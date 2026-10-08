@@ -6,7 +6,10 @@
  * the actual LLM call implementation.
  */
 
+import { createLogger } from "@apty/agent-core";
 import { z } from "zod";
+
+const log = createLogger("OrganizeTabs");
 
 // ============================================================================
 // Types
@@ -382,9 +385,7 @@ export async function groupTabsByAI(): Promise<OrganizeTabsResult> {
       }
     } else {
       // No AI available, use domain-based fallback
-      console.log(
-        "[organize_tabs] No AI callback set, using domain-based grouping",
-      );
+      log.debug("No AI callback set, using domain-based grouping");
       groupingResult = groupTabsByDomain(tabData);
     }
 

@@ -51,10 +51,11 @@ export function DataHandlingCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-sm font-medium">
+          <Label htmlFor="network-body-capture" className="text-sm font-medium">
             {zh ? "捕获响应正文" : "Capture response bodies"}
-          </span>
+          </Label>
           <Switch
+            id="network-body-capture"
             checked={enabled}
             onCheckedChange={(checked) =>
               onChange({ networkBodyCaptureEnabled: checked })

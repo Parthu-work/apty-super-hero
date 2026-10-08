@@ -1,8 +1,13 @@
 import type { AppSettings } from "@apty/agent-core";
-import { STORAGE_KEYS } from "@apty/agent-core";
+import { createLogger, STORAGE_KEYS } from "@apty/agent-core";
 import { ChromeStorageAdapter, zenfs } from "@apty/browser-runtime";
 import { quickjs } from "@apty/browser-runtime/vm/quickjs-manager";
 import { renderChatApp } from "../../components/app-root";
+import { initLogging } from "../../lib/logging";
+
+const log = createLogger("Sidepanel");
+
+initLogging();
 
 // Pre-initialize QuickJS and ZenFS on sidepanel startup so that the first
 // skill execution doesn't incur a cold-start WASM load — but only when the
@@ -16,11 +21,11 @@ const initializeVM = async () => {
       STORAGE_KEYS.SETTINGS,
     );
     if (settings?.skillExecutionEnabled !== true) {
-      console.log("[Sidepanel] Skill execution disabled, skipping VM init");
+      log.debug("Skill execution disabled, skipping VM init");
       return;
     }
     await Promise.all([zenfs.initialize(), quickjs.initialize()]);
-    console.log("[Sidepanel] QuickJS and ZenFS initialized");
+    log.debug("QuickJS and ZenFS initialized");
   } catch (error) {
     console.error("[Sidepanel] Failed to initialize VM:", error);
   }

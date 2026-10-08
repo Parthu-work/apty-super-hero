@@ -38,11 +38,10 @@ export interface AppSettings {
   customModels?: CustomModelConfig[];
   /**
    * Opt-in toggle for the skills/QuickJS sandbox feature. Defaults to (and
-   * treats `undefined` the same as) disabled: a skill script can import
-   * CDN packages, which are fetched and executed with no integrity pinning,
-   * and the fetch bridge's SSRF guard has a documented residual
-   * DNS-rebinding risk (see packages/browser-runtime/src/vm/url-guard.ts).
-   * Off by default until that's hardened further.
+   * treats `undefined` the same as) disabled: a skill script is
+   * author-supplied code, and the fetch bridge's SSRF guard has a
+   * documented residual DNS-rebinding risk (see
+   * packages/browser-runtime/src/vm/url-guard.ts).
    */
   skillExecutionEnabled?: boolean;
   /**
@@ -53,6 +52,8 @@ export interface AppSettings {
   networkBodyCaptureEnabled?: boolean;
   /** Hosts (matching subdomains too) or URL substrings whose bodies are never captured. */
   networkBodyCaptureDenyList?: string[];
+  /** Write debug-level logs to the extension's consoles in a production build, for troubleshooting. */
+  verboseLogging?: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -66,4 +67,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   skillExecutionEnabled: false,
   networkBodyCaptureEnabled: false,
   networkBodyCaptureDenyList: [],
+  verboseLogging: false,
 };

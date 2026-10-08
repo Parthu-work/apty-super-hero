@@ -1,4 +1,4 @@
-import { tool } from "@apty/agent-core";
+import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { cacheScreenshotMetadata } from "../automation/computer";
 import { getAutomationMode } from "../runtime/automation-mode";
@@ -8,6 +8,8 @@ import {
   MAX_PADDING,
 } from "./screenshot-helpers.js";
 import { getActiveTab } from "./tab-utils";
+
+const log = createLogger("Screenshot");
 
 // Re-export the shared helper types/function so existing consumers aren't broken
 export type {
@@ -74,7 +76,7 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost, may capture sensit
   }),
   execute: async ({ sendToLLM = false }) => {
     const mode = await getAutomationMode();
-    console.log("🔧 [captureScreenshot] Automation mode:", mode);
+    log.debug("🔧 Automation mode:", mode);
 
     // Background mode: reject screenshot with visual feedback
     if (mode === "background") {
@@ -233,7 +235,7 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
   }),
   execute: async ({ tabId, sendToLLM = false }) => {
     const mode = await getAutomationMode();
-    console.log("🔧 [captureTabScreenshot] Automation mode:", mode);
+    log.debug("🔧 [captureTabScreenshot] Automation mode:", mode);
 
     // Background mode: reject screenshot with visual feedback
     if (mode === "background") {
@@ -396,7 +398,7 @@ PREFER search_elements for finding/interacting with elements. Use this only when
     sendToLLM = true,
   }) => {
     const mode = await getAutomationMode();
-    console.log("🔧 [captureScreenshotWithHighlight] Automation mode:", mode);
+    log.debug("🔧 [captureScreenshotWithHighlight] Automation mode:", mode);
 
     if (mode === "background") {
       throw new Error(
@@ -515,7 +517,7 @@ export const captureScreenshotToClipboardTool = tool({
   parameters: z.object({}),
   execute: async () => {
     const mode = await getAutomationMode();
-    console.log("🔧 [captureScreenshotToClipboard] Automation mode:", mode);
+    log.debug("🔧 [captureScreenshotToClipboard] Automation mode:", mode);
 
     // Background mode: reject screenshot
     if (mode === "background") {

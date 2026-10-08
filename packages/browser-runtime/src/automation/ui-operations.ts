@@ -10,10 +10,13 @@
  * The key insight: Puppeteer already filters heavily, we should match that exactly.
  */
 
+import { createLogger } from "@apty/agent-core";
 import { DomElementHandle } from "./dom-element-handle";
 import { SmartElementHandle } from "./smart-locator";
 import * as snapshotProvider from "./snapshot-provider";
 import type { ElementHandle } from "./types";
+
+const log = createLogger("UIOperations");
 
 /**
  * Helper function to get current tab
@@ -61,8 +64,8 @@ export async function takeSnapshot(_includeIframes: boolean = true): Promise<{
 
   try {
     const mode = await snapshotProvider.getSnapshotMode();
-    console.log(
-      `🔍 [DEBUG] Taking ${mode === "dom" ? "DOM" : "CDP"} snapshot for tab:`,
+    log.debug(
+      `🔍 Taking ${mode === "dom" ? "DOM" : "CDP"} snapshot for tab:`,
       tab.id,
     );
 
@@ -81,8 +84,8 @@ export async function takeSnapshot(_includeIframes: boolean = true): Promise<{
     // Format as text (like DevTools MCP)
     const snapshotText = snapshotProvider.formatSnapshot(result);
 
-    console.log(
-      `✅ [DEBUG] Snapshot preview:\n${snapshotText.split("\n").slice(0, 20).join("\n")}`,
+    log.debug(
+      `✅ Snapshot preview:\n${snapshotText.split("\n").slice(0, 20).join("\n")}`,
     );
 
     return {
@@ -138,7 +141,7 @@ export async function getElementByUid(
     );
   }
 
-  console.log("🔍 [DEBUG] Found node in snapshot for uid:", uid, {
+  log.debug("🔍 Found node in snapshot for uid:", uid, {
     role: node.role,
     name: node.name,
     description: node.description,
@@ -148,7 +151,7 @@ export async function getElementByUid(
 
   // Select handle based on snapshot mode
   const mode = await snapshotProvider.getSnapshotMode();
-  console.log(`🔧 [ui-operations] Using ${mode} mode handle for uid ${uid}`);
+  log.debug(`🔧 [ui-operations] Using ${mode} mode handle for uid ${uid}`);
 
   if (mode === "dom") {
     // DOM mode: use DomElementHandle (no CDP required)
@@ -156,8 +159,8 @@ export async function getElementByUid(
   }
   // CDP mode: use SmartElementHandle (requires backendDOMNodeId)
   if (node.backendDOMNodeId) {
-    console.log(
-      "✅ [DEBUG] Creating SmartElementHandle with backendDOMNodeId:",
+    log.debug(
+      "✅ Creating SmartElementHandle with backendDOMNodeId:",
       node.backendDOMNodeId,
     );
     return new SmartElementHandle(tabId, node, node.backendDOMNodeId);
@@ -327,8 +330,8 @@ export async function fillElementByUid(params: {
   let handle: ElementHandle | null = null;
 
   try {
-    console.log(
-      "🔍 [DEBUG] Starting fillElementByUid using new Locator system for uid:",
+    log.debug(
+      "🔍 Starting fillElementByUid using new Locator system for uid:",
       uid,
     );
 
@@ -342,7 +345,7 @@ export async function fillElementByUid(params: {
       };
     }
 
-    console.log("✅ [DEBUG] Found element handle via snapshot UID mapping");
+    log.debug("✅ Found element handle via snapshot UID mapping");
 
     // Step 2: Scroll to element and move fake mouse (same as click)
     try {
@@ -391,7 +394,7 @@ export async function fillElementByUid(params: {
             const targetX = elementCenterX + cursorTipOffsetX;
             const targetY = elementCenterY + cursorTipOffsetY;
 
-            console.log("[UI Operations] Moving fake mouse to fill target:", {
+            log.debug("[UI Operations] Moving fake mouse to fill target:", {
               element: {
                 x: finalRect.x,
                 y: finalRect.y,
@@ -486,8 +489,8 @@ export async function fillForm(params: {
   }
 
   try {
-    console.log(
-      "🔍 [DEBUG] Starting fillForm using new Locator system for",
+    log.debug(
+      "🔍 Starting fillForm using new Locator system for",
       elements.length,
       "elements",
     );
@@ -498,8 +501,8 @@ export async function fillForm(params: {
     for (const element of elements) {
       let handle: ElementHandle | null = null;
       try {
-        console.log(
-          `🔍 [DEBUG] Processing element UID: ${element.uid} with value: "${element.value}"`,
+        log.debug(
+          `🔍 Processing element UID: ${element.uid} with value: "${element.value}"`,
         );
 
         handle = await getElementByUid(tabId, element.uid);
@@ -510,7 +513,7 @@ export async function fillForm(params: {
           continue;
         }
 
-        console.log(`✅ [DEBUG] Found element handle for UID: ${element.uid}`);
+        log.debug(`✅ Found element handle for UID: ${element.uid}`);
 
         // Scroll to element and move fake mouse (same as fillElementByUid)
         try {
@@ -550,7 +553,7 @@ export async function fillForm(params: {
                 const targetX = elementCenterX + cursorTipOffsetX;
                 const targetY = elementCenterY + cursorTipOffsetY;
 
-                console.log(
+                log.debug(
                   `[UI Operations] Moving fake mouse to form field ${element.uid}:`,
                   {
                     center: { x: elementCenterX, y: elementCenterY },
@@ -598,9 +601,7 @@ export async function fillForm(params: {
           // Ignore animation errors
         }
 
-        console.log(
-          `✅ [DEBUG] Successfully filled element UID: ${element.uid}`,
-        );
+        log.debug(`✅ Successfully filled element UID: ${element.uid}`);
         successCount++;
       } catch (error) {
         const errorMsg = `UID ${element.uid}: ${error instanceof Error ? error.message : "Unknown error"}`;
@@ -652,8 +653,8 @@ export async function hoverElementByUid(params: {
   let handle: ElementHandle | null = null;
 
   try {
-    console.log(
-      "🔍 [DEBUG] Starting hoverElementByUid using new Locator system for uid:",
+    log.debug(
+      "🔍 Starting hoverElementByUid using new Locator system for uid:",
       uid,
     );
 
@@ -667,7 +668,7 @@ export async function hoverElementByUid(params: {
       };
     }
 
-    console.log("✅ [DEBUG] Found element handle via snapshot UID mapping");
+    log.debug("✅ Found element handle via snapshot UID mapping");
 
     // Step 2: Use Locator system to hover over the element
     await waitForEventsAfterAction(async () => {
@@ -750,7 +751,7 @@ export async function getEditorValueByUid(params: {
   let handle: ElementHandle | null = null;
 
   try {
-    console.log("🔍 [DEBUG] Starting getEditorValueByUid for uid:", uid);
+    log.debug("🔍 Starting getEditorValueByUid for uid:", uid);
 
     // Step 1: Get element handle using snapshot UID mapping
     handle = await getElementByUid(tabId, uid);
@@ -762,7 +763,7 @@ export async function getEditorValueByUid(params: {
       };
     }
 
-    console.log("✅ [DEBUG] Found element handle via snapshot UID mapping");
+    log.debug("✅ Found element handle via snapshot UID mapping");
 
     // Step 2: Use Locator system to get editor value
     const value = await handle.asLocator().getEditorValue();
@@ -775,8 +776,8 @@ export async function getEditorValueByUid(params: {
       };
     }
 
-    console.log(
-      `✅ [DEBUG] Successfully retrieved editor value (${value.length} characters)`,
+    log.debug(
+      `✅ Successfully retrieved editor value (${value.length} characters)`,
     );
 
     return {

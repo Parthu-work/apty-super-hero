@@ -1,9 +1,11 @@
-import { tool } from "@apty/agent-core";
+import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { executeComputerAction } from "../automation/computer";
 import { getAutomationMode } from "../runtime/automation-mode";
 import { gateRiskyAction } from "./approval.js";
 import { getActiveTab, type ToolRunContext } from "./tab-utils";
+
+const log = createLogger("ComputerTool");
 
 /** Actions that inject arbitrary text/keystrokes into the page — gated, same risk category as fill_element_by_uid/fill_form. Pointer-only actions (click/hover/scroll/drag) stay ungated, same distinction as click/hover_element_by_uid staying ungated while fill_* is gated. */
 const TEXT_INJECTION_ACTIONS = new Set(["type", "key"]);
@@ -106,7 +108,7 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
   }),
   execute: async (params, context) => {
     const mode = await getAutomationMode();
-    console.log("🔧 [computer] Automation mode:", mode);
+    log.debug("🔧 Automation mode:", mode);
 
     // Background mode: reject computer tool (visual coordinate-based interactions)
     if (mode === "background") {

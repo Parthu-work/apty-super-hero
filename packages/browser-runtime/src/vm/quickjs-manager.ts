@@ -6,6 +6,7 @@
  * Chrome extensions don't allow 'wasm-eval' which is required by asyncify variants.
  */
 
+import { createLogger } from "@apty/agent-core";
 import { default as RELEASE_SYNC } from "@jitl/quickjs-ng-wasmfile-release-sync";
 // Import the WASM file as a URL so Vite/bundler handles it correctly
 // This ensures the wasm is properly bundled and the URL is correct at runtime
@@ -19,6 +20,8 @@ import type {
 } from "quickjs-emscripten";
 import { newQuickJSWASMModuleFromVariant, Scope } from "quickjs-emscripten";
 import type { SkillAPIBridge } from "./skill-api";
+
+const log = createLogger("QuickJS");
 
 /**
  * QuickJS sync variant interface - matches the structure expected by newQuickJSWASMModuleFromVariant
@@ -92,9 +95,7 @@ class QuickJSManager {
 
   private async _initialize(): Promise<void> {
     try {
-      console.log(
-        "[QuickJS] Initializing runtime with RELEASE_SYNC variant...",
-      );
+      log.debug("Initializing runtime with RELEASE_SYNC variant...");
 
       // Sanity check: ensure the WASM URL was properly resolved by Vite
       if (!quickjsWasmUrl) {
@@ -102,7 +103,7 @@ class QuickJSManager {
           "[QuickJS] WASM URL is not defined. Vite may not have bundled the wasm file correctly.",
         );
       }
-      console.log(`[QuickJS] WASM URL resolved to: ${quickjsWasmUrl}`);
+      log.debug(`WASM URL resolved to: ${quickjsWasmUrl}`);
 
       // Use RELEASE_SYNC variant (required for Chrome extensions due to CSP restrictions)
       // Chrome extensions don't allow 'wasm-eval' which asyncify variants need
@@ -119,8 +120,8 @@ class QuickJSManager {
               // Override locateFile to return the correct URL for the wasm file
               locateFile: (path: string, prefix: string) => {
                 if (path.endsWith(".wasm")) {
-                  console.log(
-                    `[QuickJS] locateFile intercepted for ${path}, returning: ${quickjsWasmUrl}`,
+                  log.debug(
+                    `locateFile intercepted for ${path}, returning: ${quickjsWasmUrl}`,
                   );
                   return quickjsWasmUrl;
                 }
@@ -149,7 +150,7 @@ class QuickJSManager {
       });
 
       this.initialized = true;
-      console.log("[QuickJS] Runtime initialized successfully");
+      log.debug("Runtime initialized successfully");
     } catch (error) {
       console.error("[QuickJS] Failed to initialize:", error);
       this.initPromise = null;
@@ -198,7 +199,7 @@ class QuickJSManager {
       // Create a new context for this execution and add it to the scope
       const vm = scope.manage(this.runtime!.newContext());
 
-      console.log(`[QuickJS] Executing code for skill: ${context.skillId}`);
+      log.debug(`Executing code for skill: ${context.skillId}`);
 
       // Inject SKILL_API into the VM
       this._injectGlobalAPI(vm, apiBridge, scope);
@@ -321,8 +322,8 @@ class QuickJSManager {
         // Log progress every 5 seconds
         const elapsed = Date.now() - startTime;
         if (elapsed > 0 && elapsed % 5000 < checkInterval) {
-          console.log(
-            `[QuickJS] Waiting for promise resolution... (${(elapsed / 1000).toFixed(1)}s elapsed)`,
+          log.debug(
+            `Waiting for promise resolution... (${(elapsed / 1000).toFixed(1)}s elapsed)`,
           );
         }
       }
@@ -334,8 +335,8 @@ class QuickJSManager {
         );
       }
 
-      console.log(
-        `[QuickJS] Execution completed successfully in ${(totalElapsed / 1000).toFixed(2)}s`,
+      log.debug(
+        `Execution completed successfully in ${(totalElapsed / 1000).toFixed(2)}s`,
       );
       return finalResult as any;
     });
@@ -491,7 +492,7 @@ class QuickJSManager {
     );
     vm.setProp(vm.global, "downloadFile", downloadFileHandle);
 
-    console.log("[QuickJS] Global API injected successfully");
+    log.debug("Global API injected successfully");
   }
 
   /**
@@ -505,7 +506,7 @@ class QuickJSManager {
     this.quickjs = null;
     this.initialized = false;
     this.initPromise = null;
-    console.log("[QuickJS] Runtime disposed");
+    log.debug("Runtime disposed");
   }
 }
 

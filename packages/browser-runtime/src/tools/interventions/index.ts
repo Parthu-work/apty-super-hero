@@ -8,11 +8,13 @@
  * - cancel_intervention: Cancel current intervention
  */
 
-import { tool } from "@apty/agent-core";
+import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { interventionManager } from "../../interventions/intervention-manager.js";
 import { interventionRegistry } from "../../interventions/intervention-registry.js";
 import type { InterventionType } from "../../interventions/types.js";
+
+const log = createLogger("InterventionTools");
 
 /**
  * List all available interventions
@@ -165,7 +167,7 @@ export const requestInterventionTool = tool({
         await interventionManager.initialize();
       }
 
-      console.log(`[MCP] Requesting intervention: ${type}`);
+      log.debug(`Requesting intervention: ${type}`);
 
       // Check current conversation intervention mode
       const currentMode = interventionManager.getConversationMode();

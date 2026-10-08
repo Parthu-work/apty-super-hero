@@ -3,6 +3,8 @@
  * Handles extension lifecycle events and keyboard commands
  */
 
+import { createLogger } from "@apty/agent-core";
+import { initLogging } from "../../lib/logging";
 import { registerCommandHandlers } from "./commands";
 import { registerGlobalDownloadHelper } from "./downloads";
 import { registerInstallHandler, seedAptyIntegrationConfig } from "./lifecycle";
@@ -14,6 +16,9 @@ import {
 } from "./sidepanel";
 import { lockdownStorageAccess } from "./storage-lockdown";
 
+const log = createLogger("Background");
+
+initLogging();
 lockdownStorageAccess();
 seedAptyIntegrationConfig();
 registerSidepanelActionClick();
@@ -24,4 +29,4 @@ registerMessageRouter();
 registerGlobalDownloadHelper();
 registerMcpBridge();
 
-console.log("Apty Agent background service worker started");
+log.debug("Apty Agent background service worker started");

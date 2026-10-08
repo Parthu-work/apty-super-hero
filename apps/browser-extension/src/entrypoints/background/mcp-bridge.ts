@@ -1,7 +1,10 @@
 /** WebSocket MCP Bridge: connect/disconnect messaging, badge, keepalive alarms, auto-connect. */
 
+import { createLogger } from "@apty/agent-core";
 import { wsMcpServer } from "@apty/browser-runtime";
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
+
+const log = createLogger("McpBridge");
 
 function updateMcpBadge(connected: boolean) {
   if (connected) {
@@ -79,7 +82,7 @@ export function registerMcpBridge(): void {
   Promise.all([wsMcpServer.getSavedUrl(), wsMcpServer.getSavedToken()])
     .then(([url, token]) => {
       if (url && token) {
-        console.log("[WsMcpServer] Auto-connecting to saved URL:", url);
+        log.debug("Auto-connecting to saved URL:", url);
         wsMcpServer.connect(url, token).catch(() => {
           // connect() handles its own retry logic
         });

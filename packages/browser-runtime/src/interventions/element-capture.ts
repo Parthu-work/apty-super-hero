@@ -9,8 +9,11 @@
  * - Screenshot functionality
  */
 
+import { createLogger } from "@apty/agent-core";
 import { captureVisibleTabWithElementCrop } from "../tools/screenshot-helpers.js";
 import type { ElementCaptureEvent, ElementCaptureOptions } from "./types.js";
+
+const log = createLogger("ElementCaptureService");
 
 type CaptureCallback = (event: ElementCaptureEvent) => void;
 
@@ -44,10 +47,7 @@ export class ElementCaptureService {
       throw new Error("Capture already in progress");
     }
 
-    console.log(
-      "[ElementCaptureService] Starting capture for tab:",
-      options.tabId,
-    );
+    log.debug("Starting capture for tab:", options.tabId);
 
     // Check if tab is valid
     try {
@@ -88,7 +88,7 @@ export class ElementCaptureService {
       await chrome.tabs.sendMessage(options.tabId, {
         request: "start-capture",
       });
-      console.log("✅ [ElementCaptureService] Capture started successfully");
+      log.debug("✅ Capture started successfully");
     } catch (error) {
       console.error(
         "❌ [ElementCaptureService] Failed to start capture:",
@@ -119,7 +119,7 @@ export class ElementCaptureService {
       return;
     }
 
-    console.log("[ElementCaptureService] Stopping capture");
+    log.debug("Stopping capture");
 
     this.isCapturing = false;
 
@@ -129,7 +129,7 @@ export class ElementCaptureService {
         await chrome.tabs.sendMessage(this.currentTabId, {
           request: "stop-capture",
         });
-        console.log("✅ [ElementCaptureService] Capture stopped successfully");
+        log.debug("✅ Capture stopped successfully");
       } catch (error) {
         console.warn(
           "⚠️ [ElementCaptureService] Failed to stop capture:",
@@ -201,18 +201,14 @@ export class ElementCaptureService {
       eventData.timestamp &&
       Math.abs(eventData.timestamp - this.lastCaptureTimestamp) < 50
     ) {
-      console.log("🚫 [ElementCaptureService] Duplicate event ignored");
+      log.debug("🚫 Duplicate event ignored");
       return;
     }
     if (eventData.timestamp) {
       this.lastCaptureTimestamp = eventData.timestamp;
     }
 
-    console.log(
-      "🎯 [ElementCaptureService] Captured:",
-      eventData.tagName,
-      eventData.selector,
-    );
+    log.debug("🎯 Captured:", eventData.tagName, eventData.selector);
 
     // Convert to standard format
     const event: ElementCaptureEvent = {

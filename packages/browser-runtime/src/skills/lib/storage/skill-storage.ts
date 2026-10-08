@@ -1,3 +1,4 @@
+import { createLogger } from "@apty/agent-core";
 import { zenfs } from "../../../vm/zenfs-manager";
 import type { ParsedSkill, SkillMetadata } from "../../skill/types.js";
 import {
@@ -9,6 +10,8 @@ import {
   parseSkillMetadataFromZip,
   SkillConflictError,
 } from "../utils/zip-utils";
+
+const log = createLogger("SkillStorage");
 
 export { SkillConflictError };
 export type { SkillMetadata, ParsedSkill };
@@ -229,7 +232,7 @@ export class SkillStorage {
     // Save metadata to IndexedDB
     await this.saveToIndexedDB(skillMetadata);
 
-    console.log(`✅ Skill saved: ${skillName} at ${targetPath}`);
+    log.debug(`✅ Skill saved: ${skillName} at ${targetPath}`);
     return skillMetadata;
   }
 
@@ -291,7 +294,7 @@ export class SkillStorage {
       const exists = await zenfs.exists(skillPath);
       if (exists) {
         await zenfs.rm(skillPath, { recursive: true });
-        console.log(`✅ Deleted skill files from ZenFS: ${skillPath}`);
+        log.debug(`✅ Deleted skill files from ZenFS: ${skillPath}`);
       }
     } catch (error) {
       console.error(`Failed to delete skill files from ZenFS: ${error}`);
@@ -401,7 +404,7 @@ export class SkillStorage {
       // Check if skills directory exists
       const skillsDirExists = await zenfs.exists(skillsPath);
       if (!skillsDirExists) {
-        console.debug("[SkillStorage] /skills directory does not exist yet");
+        log.debug("/skills directory does not exist yet");
         return skills;
       }
 
@@ -445,7 +448,7 @@ export class SkillStorage {
             enabled: true,
           });
 
-          console.debug(`[SkillStorage] Found skill in ZenFS: ${entry}`);
+          log.debug(`Found skill in ZenFS: ${entry}`);
         } catch (error) {
           console.warn(
             `[SkillStorage] Failed to process skill ${entry}:`,
@@ -494,7 +497,7 @@ export class SkillStorage {
     const stats = { added: 0, skipped: 0, failed: 0 };
 
     try {
-      console.debug("[SkillStorage] Starting sync from ZenFS...");
+      log.debug("Starting sync from ZenFS...");
 
       // Scan ZenFS for all skills
       const zenfsSkills = await this.scanZenFSForSkills();
@@ -528,7 +531,7 @@ export class SkillStorage {
         try {
           await this.saveToIndexedDB(skill);
           stats.added++;
-          console.debug(`[SkillStorage] Added skill from ZenFS: ${skill.name}`);
+          log.debug(`Added skill from ZenFS: ${skill.name}`);
         } catch (error) {
           console.error(
             `[SkillStorage] Failed to add skill ${skill.name}:`,
@@ -543,8 +546,8 @@ export class SkillStorage {
       // Update last sync time
       this.lastSyncTime = Date.now();
 
-      console.debug(
-        `[SkillStorage] Sync completed: ${stats.added} added, ${stats.skipped} skipped, ${stats.failed} failed`,
+      log.debug(
+        `Sync completed: ${stats.added} added, ${stats.skipped} skipped, ${stats.failed} failed`,
       );
     } catch (error) {
       console.error("[SkillStorage] Sync failed:", error);
@@ -612,7 +615,7 @@ export class SkillStorage {
     // Save to IndexedDB
     await this.saveToIndexedDB(skillMetadata);
 
-    console.log(`✅ Created skill '${name}' from ZenFS path: ${sourcePath}`);
+    log.debug(`✅ Created skill '${name}' from ZenFS path: ${sourcePath}`);
     return skillMetadata;
   }
 

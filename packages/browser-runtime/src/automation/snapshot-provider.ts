@@ -8,10 +8,13 @@
  * The implementation is chosen based on the automation mode setting.
  */
 
+import { createLogger } from "@apty/agent-core";
 import { getAutomationMode } from "../runtime/automation-mode";
 import { type SearchOptions, SKIP_ROLES, searchSnapshotText } from "./query";
 import { snapshotManager } from "./snapshot-manager";
 import type { TextSnapshotNode } from "./types";
+
+const log = createLogger("SnapshotProvider");
 
 /**
  * DOM snapshot node structure from @apty/dom-snapshot
@@ -176,24 +179,20 @@ export async function createSnapshot(
   tabId: number,
 ): Promise<UnifiedSnapshot | null> {
   const mode = await getAutomationMode();
-  console.log(
-    `🔧 [SnapshotProvider] createSnapshot called for tabId=${tabId}, mode=${mode}`,
-  );
+  log.debug(`🔧 createSnapshot called for tabId=${tabId}, mode=${mode}`);
 
   if (mode === "background") {
-    console.log("🧪 [SnapshotProvider] Using DOM snapshot (background mode)");
+    log.debug("🧪 Using DOM snapshot (background mode)");
     try {
       const domSnapshot = await requestDomSnapshot(tabId);
-      console.log(
-        `🧪 [SnapshotProvider] DOM snapshot received, nodes: ${Object.keys(domSnapshot.idToNode).length}`,
+      log.debug(
+        `🧪 DOM snapshot received, nodes: ${Object.keys(domSnapshot.idToNode).length}`,
       );
       const unified = convertDomSnapshotToUnified(domSnapshot, tabId);
       domSnapshotCache.set(tabId, unified);
       // Clear CDP cache to avoid confusion
       snapshotManager.clearSnapshot(tabId);
-      console.log(
-        "🧪 [SnapshotProvider] DOM snapshot cached, CDP cache cleared",
-      );
+      log.debug("🧪 DOM snapshot cached, CDP cache cleared");
       return unified;
     } catch (error) {
       console.error("❌ [SnapshotProvider] DOM snapshot failed:", error);
@@ -204,7 +203,7 @@ export async function createSnapshot(
       );
     }
   } else {
-    console.log("🔍 [SnapshotProvider] Using CDP snapshot (focus mode)");
+    log.debug("🔍 Using CDP snapshot (focus mode)");
     // Clear DOM cache when using CDP mode
     domSnapshotCache.delete(tabId);
     return snapshotManager.createSnapshot(tabId);
@@ -218,18 +217,14 @@ export function getSnapshot(tabId: number): UnifiedSnapshot | null {
   // Check DOM cache first (if background mode was used)
   const domCached = domSnapshotCache.get(tabId);
   if (domCached) {
-    console.log(
-      `🔧 [SnapshotProvider] getSnapshot from DOM cache: tabId=${tabId}`,
-    );
+    log.debug(`🔧 getSnapshot from DOM cache: tabId=${tabId}`);
     return domCached;
   }
 
   // Fall back to CDP cache
   const cdpSnapshot = snapshotManager.getSnapshot(tabId);
   if (cdpSnapshot) {
-    console.log(
-      `🔧 [SnapshotProvider] getSnapshot from CDP cache: tabId=${tabId}`,
-    );
+    log.debug(`🔧 getSnapshot from CDP cache: tabId=${tabId}`);
   }
   return cdpSnapshot;
 }
@@ -245,18 +240,14 @@ export function getNodeByUid(
   const domCached = domSnapshotCache.get(tabId);
   if (domCached) {
     const node = domCached.idToNode.get(uid) || null;
-    console.log(
-      `🔧 [SnapshotProvider] getNodeByUid from DOM cache: uid=${uid}, found=${!!node}`,
-    );
+    log.debug(`🔧 getNodeByUid from DOM cache: uid=${uid}, found=${!!node}`);
     return node;
   }
 
   // Fall back to CDP
   const node = snapshotManager.getNodeByUid(tabId, uid);
   if (node) {
-    console.log(
-      `🔧 [SnapshotProvider] getNodeByUid from CDP cache: uid=${uid}`,
-    );
+    log.debug(`🔧 getNodeByUid from CDP cache: uid=${uid}`);
   }
   return node;
 }

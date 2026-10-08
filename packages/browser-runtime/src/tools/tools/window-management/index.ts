@@ -1,6 +1,8 @@
-import { tool } from "@apty/agent-core";
+import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { getAutomationMode } from "../../../runtime/automation-mode";
+
+const log = createLogger("WindowTools");
 
 export interface SimplifiedWindow {
   id: number;
@@ -61,7 +63,7 @@ export async function switchToWindow(windowId: number): Promise<{
 }> {
   try {
     const mode = await getAutomationMode();
-    console.log("🔧 [switchToWindow] Automation mode:", mode);
+    log.debug("🔧 [switchToWindow] Automation mode:", mode);
 
     // Background mode: reject window focus changes
     if (mode === "background") {
@@ -93,7 +95,7 @@ export async function createNewWindow(url?: string): Promise<{
 }> {
   try {
     const mode = await getAutomationMode();
-    console.log("🔧 [createNewWindow] Automation mode:", mode);
+    log.debug("🔧 Automation mode:", mode);
 
     // Background mode: create window without focus
     // Focus mode: create window normally (focused by default)
@@ -104,9 +106,7 @@ export async function createNewWindow(url?: string): Promise<{
       focused,
     });
 
-    console.log(
-      `✅ [createNewWindow] Window created in ${mode} mode (focused=${focused})`,
-    );
+    log.debug(`✅ Window created in ${mode} mode (focused=${focused})`);
 
     return { success: true, windowId: window?.id };
   } catch (error: unknown) {

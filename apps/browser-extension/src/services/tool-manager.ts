@@ -7,7 +7,10 @@
  */
 
 import type { FunctionTool } from "@apty/agent-core";
+import { createLogger } from "@apty/agent-core";
 import { allBrowserTools } from "@apty/browser-runtime";
+
+const log = createLogger("ToolManager");
 
 export interface ToolMetadata {
   name: string;
@@ -152,7 +155,7 @@ export class ToolManager {
    */
   public registerDynamicTool(tool: FunctionTool): void {
     this.dynamicTools.set(tool.name, tool);
-    console.log(`[ToolManager] Dynamic tool registered: ${tool.name}`);
+    log.debug(`Dynamic tool registered: ${tool.name}`);
     this._emit("tool_registered", { name: tool.name });
   }
 
@@ -162,7 +165,7 @@ export class ToolManager {
   public unregisterDynamicTool(name: string): boolean {
     const existed = this.dynamicTools.delete(name);
     if (existed) {
-      console.log(`[ToolManager] Dynamic tool unregistered: ${name}`);
+      log.debug(`Dynamic tool unregistered: ${name}`);
       this._emit("tool_unregistered", { name });
     }
     return existed;
@@ -177,7 +180,7 @@ export class ToolManager {
     for (const name of names) {
       this._emit("tool_unregistered", { name });
     }
-    console.log(`[ToolManager] Cleared ${names.length} dynamic tools`);
+    log.debug(`Cleared ${names.length} dynamic tools`);
   }
 
   // ===== Event Subscription Methods =====

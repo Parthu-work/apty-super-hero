@@ -1,3 +1,4 @@
+import { createLogger } from "@apty/agent-core";
 import { zenfs } from "../../../vm/zenfs-manager";
 import {
   type ParsedSkill,
@@ -9,6 +10,8 @@ import {
   getSkillReferences,
   getSkillScripts,
 } from "../utils/zip-utils";
+
+const log = createLogger("SkillRegistry");
 
 export interface SkillSummary {
   name: string;
@@ -25,7 +28,7 @@ export class SkillRegistry {
 
     // Load all skills (both enabled and disabled)
     for (const metadata of skillMetadataList) {
-      console.log(
+      log.debug(
         `Processing skill: ${metadata.name} (enabled: ${metadata.enabled})`,
       );
       try {
@@ -37,13 +40,13 @@ export class SkillRegistry {
 
         if (metadata.enabled) {
           // Load actual SKILL.md content from storage
-          console.log(`Loading SKILL.md for skill: ${metadata.id}`);
+          log.debug(`Loading SKILL.md for skill: ${metadata.id}`);
           skillMdContent =
             ((await skillStorage.getSkillFile(
               metadata.id,
               "SKILL.md",
             )) as string) || "";
-          console.log(`SKILL.md content length: ${skillMdContent.length}`);
+          log.debug(`SKILL.md content length: ${skillMdContent.length}`);
 
           // Get file lists from ZenFS
           const skillPath = zenfs.getSkillPath(metadata.id);
@@ -61,7 +64,7 @@ export class SkillRegistry {
         };
 
         this.skills.set(metadata.name, parsedSkill);
-        console.log(
+        log.debug(
           `✅ Successfully loaded skill: ${metadata.name} (enabled: ${metadata.enabled})`,
         );
       } catch (error) {

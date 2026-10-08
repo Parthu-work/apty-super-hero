@@ -5,9 +5,6 @@ import { build, defineConfig, type Plugin } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import manifest from "./manifest.json";
 
-// console.warn/error stay: they report real failures in the field.
-const DEBUG_CONSOLE_CALLS = ["console.log", "console.info", "console.debug"];
-
 const CONSOLE_BRIDGE = path.resolve(
   __dirname,
   "src/entrypoints/content/console-bridge.ts",
@@ -41,10 +38,7 @@ function selfContainedContentScript(entry: string): Plugin {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  esbuild: {
-    pure: mode === "production" ? DEBUG_CONSOLE_CALLS : [],
-  },
+export default defineConfig(() => ({
   plugins: [
     react(),
     selfContainedContentScript(CONSOLE_BRIDGE),

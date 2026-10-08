@@ -10,6 +10,7 @@
  * - Event notifications
  */
 
+import { createLogger } from "@apty/agent-core";
 import { interventionRegistry } from "./intervention-registry.js";
 import type {
   InterventionEvent,
@@ -20,6 +21,8 @@ import type {
   InterventionState,
   InterventionType,
 } from "./types.js";
+
+const log = createLogger("InterventionManager");
 
 type EventListener = (event: InterventionEvent) => void;
 
@@ -80,13 +83,13 @@ export class InterventionManager {
       return;
     }
 
-    console.log("🔧 [InterventionManager] Initializing...");
+    log.debug("🔧 Initializing...");
 
     // Initialize registry
     await interventionRegistry.initialize();
 
     this.initialized = true;
-    console.log("✅ [InterventionManager] Initialized successfully");
+    log.debug("✅ Initialized successfully");
   }
 
   /**
@@ -153,17 +156,11 @@ export class InterventionManager {
       timestamp: Date.now(),
     };
 
-    console.log(
-      `[InterventionManager] New intervention request:`,
-      request.id,
-      type,
-    );
+    log.debug(`New intervention request:`, request.id, type);
 
     // If there's an ongoing intervention, queue this one
     if (this.currentIntervention) {
-      console.log(
-        "[InterventionManager] Queue intervention request (another is active)",
-      );
+      log.debug("Queue intervention request (another is active)");
       this.requestQueue.push(request);
 
       // Trigger event
@@ -224,9 +221,7 @@ export class InterventionManager {
       state.status = "active";
 
       // Execute intervention
-      console.log(
-        `[InterventionManager] Executing intervention: ${request.type}`,
-      );
+      log.debug(`Executing intervention: ${request.type}`);
       const data = await interventionRegistry.execute(
         request.type,
         request.params,
@@ -269,9 +264,7 @@ export class InterventionManager {
       state.result = result;
       state.endTime = Date.now();
 
-      console.log(
-        `✅ [InterventionManager] Intervention completed: ${request.id}`,
-      );
+      log.debug(`✅ Intervention completed: ${request.id}`);
       this.emitEvent("complete", request.id, { result });
 
       this.processNextRequest();
@@ -324,9 +317,7 @@ export class InterventionManager {
     }
 
     const cancelMessage = getCancelMessage(reason);
-    console.log(
-      `[InterventionManager] Cancelling intervention: ${id} (reason: ${reason})`,
-    );
+    log.debug(`Cancelling intervention: ${id} (reason: ${reason})`);
 
     // Cancel operation
     if (this.abortController) {
@@ -400,9 +391,7 @@ export class InterventionManager {
     // Process next request in queue
     if (this.requestQueue.length > 0) {
       const nextRequest = this.requestQueue.shift()!;
-      console.log(
-        `[InterventionManager] Processing next request from queue: ${nextRequest.id}`,
-      );
+      log.debug(`Processing next request from queue: ${nextRequest.id}`);
       this.executeIntervention(nextRequest);
     }
   }
@@ -422,9 +411,7 @@ export class InterventionManager {
     chrome.tabs.onActivated?.addListener((activeInfo) => {
       if (this.currentIntervention?.tabId) {
         if (activeInfo.tabId !== this.currentIntervention.tabId) {
-          console.log(
-            "[InterventionManager] Tab switched, cancelling intervention",
-          );
+          log.debug("Tab switched, cancelling intervention");
           this.cancelIntervention(
             this.currentIntervention.request.id,
             "tab_switched",
@@ -441,9 +428,7 @@ export class InterventionManager {
       ) {
         // If URL changes, cancel intervention
         if (changeInfo.url) {
-          console.log(
-            "[InterventionManager] Page navigated, cancelling intervention",
-          );
+          log.debug("Page navigated, cancelling intervention");
           this.cancelIntervention(
             this.currentIntervention.request.id,
             "page_navigated",

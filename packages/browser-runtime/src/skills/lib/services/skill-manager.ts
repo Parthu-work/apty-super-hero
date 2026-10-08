@@ -1,3 +1,4 @@
+import { createLogger } from "@apty/agent-core";
 import { zenfs } from "../../../vm/zenfs-manager";
 import licenseText from "../../built-in/skill-creator-browser/LICENSE.txt?raw";
 // Import built-in skill content files
@@ -15,6 +16,8 @@ import type { ParsedSkill, SkillMetadata } from "../../skill/types.js";
 import { skillStorage } from "../storage/skill-storage";
 import { skillExecutor } from "./skill-executor";
 import { skillRegistry } from "./skill-registry";
+
+const log = createLogger("SkillManager");
 
 export interface SkillManagerConfig {
   autoLoadEnabledSkills?: boolean;
@@ -88,59 +91,59 @@ export class SkillManager {
     if (this.initialized) return;
 
     try {
-      console.log("🔄 Initializing SkillManager...");
+      log.debug("🔄 Initializing SkillManager...");
 
       // Initialize all components
-      console.log("📦 Initializing skillStorage...");
+      log.debug("📦 Initializing skillStorage...");
       await skillStorage.initialize();
 
-      console.log("⚙️ Initializing skillExecutor...");
+      log.debug("⚙️ Initializing skillExecutor...");
       await skillExecutor.initialize();
 
       // Load all skills from storage
-      console.log("📋 Loading skills from storage...");
+      log.debug("📋 Loading skills from storage...");
       const allSkills = await skillStorage.listSkills();
-      console.log(`Found ${allSkills.length} skills in storage`);
+      log.debug(`Found ${allSkills.length} skills in storage`);
 
       // Auto-load skill-creator-browser if not already loaded
-      console.log("🔧 Loading built-in skill-creator...");
+      log.debug("🔧 Loading built-in skill-creator...");
       await this.loadBuiltinSkillCreator();
 
       // Auto-load ux-audit-walkthrough (disabled by default)
-      console.log("🔧 Loading built-in ux-audit-walkthrough...");
+      log.debug("🔧 Loading built-in ux-audit-walkthrough...");
       await this.loadBuiltinUxAuditWalkthrough();
 
       // Auto-load wcag22-a11y-audit
-      console.log("🔧 Loading built-in wcag22-a11y-audit...");
+      log.debug("🔧 Loading built-in wcag22-a11y-audit...");
       await this.loadBuiltinWcag22A11yAudit();
 
       // Reload skills from storage after creating built-in skills
-      console.log("📋 Reloading skills from storage...");
+      log.debug("📋 Reloading skills from storage...");
       const updatedSkills = await skillStorage.listSkills();
-      console.log(
+      log.debug(
         `Found ${updatedSkills.length} skills in storage after built-in creation`,
       );
 
       // Initialize registry with skill metadata
-      console.log("📝 Initializing skillRegistry...");
+      log.debug("📝 Initializing skillRegistry...");
       await skillRegistry.initialize(updatedSkills);
 
       // Ensure built-in skill is in registry if it was just created
-      console.log("🔍 Verifying built-in skill in registry...");
+      log.debug("🔍 Verifying built-in skill in registry...");
       const registrySkills = skillRegistry.getAllSkills();
-      console.log(
+      log.debug(
         `Registry has ${registrySkills.length} skills:`,
         registrySkills.map((s) => s.name),
       );
 
       // Auto-load enabled skills if configured
       if (this.config.autoLoadEnabledSkills) {
-        console.log("🚀 Auto-loading enabled skills...");
+        log.debug("🚀 Auto-loading enabled skills...");
         await this.loadEnabledSkills(updatedSkills);
       }
 
       this.initialized = true;
-      console.log("✅ SkillManager initialized successfully");
+      log.debug("✅ SkillManager initialized successfully");
 
       // Emit initialization complete event
       this._emit("skill_loaded", {
@@ -172,7 +175,7 @@ export class SkillManager {
         this.loadedSkills.add(skillMetadata.name);
       }
 
-      console.log(`Skill uploaded successfully: ${skillMetadata.name}`);
+      log.debug(`Skill uploaded successfully: ${skillMetadata.name}`);
 
       // Emit skill uploaded event
       this._emit("skill_loaded", {
@@ -191,7 +194,7 @@ export class SkillManager {
 
   async loadSkill(skillId: string): Promise<void> {
     try {
-      console.log(`📥 Loading skill with ID: ${skillId}`);
+      log.debug(`📥 Loading skill with ID: ${skillId}`);
       const parsedSkill = await skillStorage.loadSkill(skillId);
 
       if (!parsedSkill || !parsedSkill.metadata) {
@@ -201,7 +204,7 @@ export class SkillManager {
       // Files are already in ZenFS, just add to loaded skills
       this.loadedSkills.add(parsedSkill.metadata.name);
 
-      console.log(`✅ Skill loaded: ${parsedSkill.metadata.name}`);
+      log.debug(`✅ Skill loaded: ${parsedSkill.metadata.name}`);
 
       // Emit skill loaded event
       this._emit("skill_loaded", {
@@ -218,7 +221,7 @@ export class SkillManager {
 
   async unloadSkill(skillId: string): Promise<void> {
     if (!this.initialized) {
-      console.log("⚠️ SkillManager not initialized, skipping unloadSkill");
+      log.debug("⚠️ SkillManager not initialized, skipping unloadSkill");
       return;
     }
 
@@ -234,7 +237,7 @@ export class SkillManager {
       // Remove from registry
       skillRegistry.removeSkill(skillMetadata.name);
 
-      console.log(`✅ Skill unloaded: ${skillMetadata.name}`);
+      log.debug(`✅ Skill unloaded: ${skillMetadata.name}`);
 
       // Emit skill unloaded event
       this._emit("skill_unloaded", {
@@ -268,9 +271,7 @@ export class SkillManager {
         scriptPath,
         args,
       );
-      console.log(
-        `✅ Script executed successfully: ${skillName}/${scriptPath}`,
-      );
+      log.debug(`✅ Script executed successfully: ${skillName}/${scriptPath}`);
       return result;
     } catch (error) {
       console.error(
@@ -361,7 +362,7 @@ export class SkillManager {
         await this.loadSkill(skillId);
       }
 
-      console.log(`✅ Skill enabled: ${skillMetadata.name}`);
+      log.debug(`✅ Skill enabled: ${skillMetadata.name}`);
 
       // Emit skill enabled event
       this._emit("skill_enabled", {
@@ -401,7 +402,7 @@ export class SkillManager {
       // Update registry status without unloading
       skillRegistry.updateSkillStatus(skillMetadata.name, false);
 
-      console.log(`✅ Skill disabled: ${skillMetadata.name}`);
+      log.debug(`✅ Skill disabled: ${skillMetadata.name}`);
 
       // Emit skill disabled event
       this._emit("skill_disabled", {
@@ -443,7 +444,7 @@ export class SkillManager {
       // Delete from storage
       await skillStorage.deleteSkill(skillId);
 
-      console.log(`✅ Skill deleted: ${skillMetadata.name}`);
+      log.debug(`✅ Skill deleted: ${skillMetadata.name}`);
     } catch (error) {
       console.error(`❌ Failed to delete skill ${skillId}:`, error);
       throw error;
@@ -532,7 +533,7 @@ export class SkillManager {
         });
       }
 
-      console.log(`✅ Skill metadata refreshed: ${skillId}`);
+      log.debug(`✅ Skill metadata refreshed: ${skillId}`);
 
       // Emit an event so UI components can react
       this._emit("skill_loaded", {
@@ -576,7 +577,7 @@ export class SkillManager {
 
   private async loadBuiltinSkillCreator(): Promise<void> {
     try {
-      console.log("📦 Creating built-in skill-creator...");
+      log.debug("📦 Creating built-in skill-creator...");
 
       const skillName = "skill-creator";
       const skillPath = zenfs.getSkillPath(skillName);
@@ -584,7 +585,7 @@ export class SkillManager {
       // Check if skill-creator already exists
       const exists = await zenfs.exists(skillPath);
       if (exists) {
-        console.log("✅ Built-in skill-creator already exists");
+        log.debug("✅ Built-in skill-creator already exists");
         return;
       }
 
@@ -611,7 +612,7 @@ export class SkillManager {
         await zenfs.writeFile(fullPath, file.content);
       }
 
-      console.log(`✅ Skill-creator files written to ZenFS: ${skillPath}`);
+      log.debug(`✅ Skill-creator files written to ZenFS: ${skillPath}`);
 
       // Create lightweight metadata
       const skillCreatorMetadata: SkillMetadata = {
@@ -625,10 +626,10 @@ export class SkillManager {
       };
 
       // Save metadata to IndexedDB
-      console.log("💾 Saving skill-creator metadata to IndexedDB...");
+      log.debug("💾 Saving skill-creator metadata to IndexedDB...");
       await skillStorage.saveSkillMetadata(skillCreatorMetadata);
-      console.log("✅ Skill-creator metadata saved to IndexedDB");
-      console.log("✅ Built-in skill-creator loaded successfully");
+      log.debug("✅ Skill-creator metadata saved to IndexedDB");
+      log.debug("✅ Built-in skill-creator loaded successfully");
     } catch (error) {
       console.error("❌ Failed to load built-in skill-creator:", error);
     }
@@ -636,13 +637,13 @@ export class SkillManager {
 
   private async loadEnabledSkills(skills: SkillMetadata[]): Promise<void> {
     const enabledSkills = skills.filter((skill) => skill.enabled);
-    console.log(`🔄 Auto-loading ${enabledSkills.length} enabled skills...`);
+    log.debug(`🔄 Auto-loading ${enabledSkills.length} enabled skills...`);
 
     for (const skill of enabledSkills) {
       try {
-        console.log(`📥 Loading skill: ${skill.name}`);
+        log.debug(`📥 Loading skill: ${skill.name}`);
         await this.loadSkill(skill.id);
-        console.log(`✅ Successfully loaded skill: ${skill.name}`);
+        log.debug(`✅ Successfully loaded skill: ${skill.name}`);
       } catch (error) {
         console.error(`❌ Failed to auto-load skill ${skill.name}:`, error);
       }
@@ -654,7 +655,7 @@ export class SkillManager {
    */
   private async loadBuiltinUxAuditWalkthrough(): Promise<void> {
     try {
-      console.log("📦 Creating built-in ux-audit-walkthrough...");
+      log.debug("📦 Creating built-in ux-audit-walkthrough...");
 
       const skillName = "ux-audit-walkthrough";
       const skillPath = zenfs.getSkillPath(skillName);
@@ -667,11 +668,11 @@ export class SkillManager {
         // Create skill directory and write SKILL.md
         await zenfs.mkdir(skillPath, { recursive: true });
         await zenfs.writeFile(skillMdPath, uxAuditWalkthroughMarkdown);
-        console.log(
+        log.debug(
           `✅ UX-audit-walkthrough files written to ZenFS: ${skillPath}`,
         );
       } else {
-        console.log(
+        log.debug(
           "✅ Built-in ux-audit-walkthrough SKILL.md already exists in ZenFS",
         );
       }
@@ -691,16 +692,16 @@ export class SkillManager {
         };
 
         // Save metadata to IndexedDB
-        console.log("💾 Saving ux-audit-walkthrough metadata to IndexedDB...");
+        log.debug("💾 Saving ux-audit-walkthrough metadata to IndexedDB...");
         await skillStorage.saveSkillMetadata(uxAuditMetadata);
-        console.log("✅ UX-audit-walkthrough metadata saved to IndexedDB");
+        log.debug("✅ UX-audit-walkthrough metadata saved to IndexedDB");
       } else {
-        console.log(
+        log.debug(
           "✅ Built-in ux-audit-walkthrough metadata already exists in IndexedDB",
         );
       }
 
-      console.log(
+      log.debug(
         "✅ Built-in ux-audit-walkthrough loaded successfully (disabled by default)",
       );
     } catch (error) {
@@ -713,7 +714,7 @@ export class SkillManager {
    */
   private async loadBuiltinWcag22A11yAudit(): Promise<void> {
     try {
-      console.log("📦 Creating built-in wcag22-a11y-audit...");
+      log.debug("📦 Creating built-in wcag22-a11y-audit...");
 
       const skillName = "wcag22-a11y-audit";
       const skillPath = zenfs.getSkillPath(skillName);
@@ -726,11 +727,9 @@ export class SkillManager {
         // Create skill directory and write SKILL.md
         await zenfs.mkdir(skillPath, { recursive: true });
         await zenfs.writeFile(skillMdPath, wcag22A11yAuditMarkdown);
-        console.log(
-          `✅ wcag22-a11y-audit files written to ZenFS: ${skillPath}`,
-        );
+        log.debug(`✅ wcag22-a11y-audit files written to ZenFS: ${skillPath}`);
       } else {
-        console.log(
+        log.debug(
           "✅ Built-in wcag22-a11y-audit SKILL.md already exists in ZenFS",
         );
       }
@@ -750,16 +749,16 @@ export class SkillManager {
         };
 
         // Save metadata to IndexedDB
-        console.log("💾 Saving wcag22-a11y-audit metadata to IndexedDB...");
+        log.debug("💾 Saving wcag22-a11y-audit metadata to IndexedDB...");
         await skillStorage.saveSkillMetadata(wcag22Metadata);
-        console.log("✅ wcag22-a11y-audit metadata saved to IndexedDB");
+        log.debug("✅ wcag22-a11y-audit metadata saved to IndexedDB");
       } else {
-        console.log(
+        log.debug(
           "✅ Built-in wcag22-a11y-audit metadata already exists in IndexedDB",
         );
       }
 
-      console.log("✅ Built-in wcag22-a11y-audit loaded successfully");
+      log.debug("✅ Built-in wcag22-a11y-audit loaded successfully");
     } catch (error) {
       console.error("❌ Failed to load built-in wcag22-a11y-audit:", error);
     }

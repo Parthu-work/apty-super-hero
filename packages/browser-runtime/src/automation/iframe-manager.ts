@@ -5,8 +5,11 @@
  * Recursively fetches and merges iframe AX trees into the main tree
  */
 
+import { createLogger } from "@apty/agent-core";
 import type { CdpCommander } from "./cdp-commander";
 import type { AccessibilityTree, AXNode } from "./types";
+
+const log = createLogger("IframeManager");
 
 interface FrameTreeNode {
   frame: {
@@ -150,13 +153,11 @@ export class IframeManager {
     const iframeMap = await this.buildIframeMap(cdpCommander);
 
     if (iframeMap.size === 0) {
-      console.log("✅ [DEBUG] No iframes found, returning main tree as-is");
+      log.debug("✅ No iframes found, returning main tree as-is");
       return mainTree;
     }
 
-    console.log(
-      `✅ [DEBUG] Found ${iframeMap.size} iframes, populating snapshots...`,
-    );
+    log.debug(`✅ Found ${iframeMap.size} iframes, populating snapshots...`);
 
     // Build nodeId -> AXNode map for main tree
     const nodeMap = new Map<string, AXNode>();
@@ -193,8 +194,8 @@ export class IframeManager {
         const frameId = iframeMap.get(axNode.backendDOMNodeId);
         if (frameId && !processedFrames.has(frameId)) {
           processedFrames.add(frameId);
-          console.log(
-            `🔍 [DEBUG] Processing iframe with frameId: ${frameId}, backendDOMNodeId: ${axNode.backendDOMNodeId}`,
+          log.debug(
+            `🔍 Processing iframe with frameId: ${frameId}, backendDOMNodeId: ${axNode.backendDOMNodeId}`,
           );
 
           // Get iframe's accessibility tree

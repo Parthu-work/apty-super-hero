@@ -4,12 +4,15 @@
  * Let users choose one or more answers from multiple options
  */
 
+import { createLogger } from "@apty/agent-core";
 import type {
   InterventionImplementation,
   InterventionMetadata,
   UserSelectionParams,
   UserSelectionResult,
 } from "../types.js";
+
+const log = createLogger("UserSelection");
 
 /**
  * Selection Manager
@@ -44,10 +47,7 @@ class SelectionManager {
    */
   completeSelection(result: UserSelectionResult): void {
     if (this.currentRequest) {
-      console.log(
-        "[SelectionManager] Completing selection with result:",
-        result,
-      );
+      log.debug("[SelectionManager] Completing selection with result:", result);
       this.currentRequest.resolve(result);
       this.currentRequest = null;
     } else {
@@ -60,7 +60,7 @@ class SelectionManager {
    */
   cancelSelection(error: Error): void {
     if (this.currentRequest) {
-      console.log("[SelectionManager] Cancelling selection:", error.message);
+      log.debug("[SelectionManager] Cancelling selection:", error.message);
       this.currentRequest.reject(error);
       this.currentRequest = null;
     }
@@ -200,7 +200,7 @@ async function execute(
   params: unknown,
   signal: AbortSignal,
 ): Promise<UserSelectionResult> {
-  console.log("[UserSelection] Starting execution with params:", params);
+  log.debug("Starting execution with params:", params);
 
   // Validate params
   if (typeof params !== "object" || params === null) {
@@ -273,7 +273,7 @@ async function execute(
         : undefined,
   };
 
-  console.log("[UserSelection] Normalized params:", normalizedParams);
+  log.debug("Normalized params:", normalizedParams);
 
   return new Promise((resolve, reject) => {
     let resolved = false;
@@ -281,7 +281,7 @@ async function execute(
     // Set up cancel listener
     signal.addEventListener("abort", () => {
       if (!resolved) {
-        console.log("[UserSelection] Aborted");
+        log.debug("Aborted");
         selectionManager.cleanup();
         resolved = true;
         reject(new Error("Selection cancelled"));
@@ -294,7 +294,7 @@ async function execute(
       .then((result) => {
         if (!resolved) {
           resolved = true;
-          console.log("[UserSelection] Selection completed:", result);
+          log.debug("Selection completed:", result);
           resolve(result);
         }
       })

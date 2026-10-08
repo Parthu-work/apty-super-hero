@@ -5,11 +5,14 @@
  * Similar to skill-registry design pattern
  */
 
+import { createLogger } from "@apty/agent-core";
 import type {
   InterventionImplementation,
   InterventionMetadata,
   InterventionType,
 } from "./types.js";
+
+const log = createLogger("InterventionRegistry");
 
 export class InterventionRegistry {
   private static instance: InterventionRegistry;
@@ -34,7 +37,7 @@ export class InterventionRegistry {
       return;
     }
 
-    console.log("🔧 [InterventionRegistry] Initializing...");
+    log.debug("🔧 Initializing...");
 
     // Dynamically import intervention implementations
     try {
@@ -42,16 +45,16 @@ export class InterventionRegistry {
         "./implementations/monitor-operation.js"
       );
       this.register(monitorOperationIntervention);
-      console.log("✅ [InterventionRegistry] Registered monitor-operation");
+      log.debug("✅ Registered monitor-operation");
 
       const { userSelectionIntervention } = await import(
         "./implementations/user-selection.js"
       );
       this.register(userSelectionIntervention);
-      console.log("✅ [InterventionRegistry] Registered user-selection");
+      log.debug("✅ Registered user-selection");
 
       this.initialized = true;
-      console.log("✅ [InterventionRegistry] Initialized successfully");
+      log.debug("✅ Initialized successfully");
     } catch (error) {
       console.error("❌ [InterventionRegistry] Failed to initialize:", error);
       throw error;
@@ -71,9 +74,7 @@ export class InterventionRegistry {
     }
 
     this.interventions.set(metadata.type, implementation);
-    console.log(
-      `[InterventionRegistry] Registered intervention: ${metadata.name}`,
-    );
+    log.debug(`Registered intervention: ${metadata.name}`);
   }
 
   /**
@@ -127,7 +128,7 @@ export class InterventionRegistry {
       throw new Error(`Intervention '${type}' is disabled`);
     }
 
-    console.log(`[InterventionRegistry] Executing intervention: ${type}`);
+    log.debug(`Executing intervention: ${type}`);
     return impl.execute(params, signal);
   }
 

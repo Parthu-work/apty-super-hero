@@ -14,6 +14,7 @@
  */
 
 import type { FunctionTool } from "@apty/agent-core";
+import { createLogger } from "@apty/agent-core";
 import { evidenceRestored } from "../apty/evidence-store.js";
 import { investigationsRestored } from "../apty/investigation-session.js";
 import { allBrowserTools } from "../tools/index.js";
@@ -22,6 +23,8 @@ import {
   type JSONRPCRequest,
   WebSocketClientTransport,
 } from "./ws-transport.js";
+
+const log = createLogger("WsMcpServer");
 
 export type ConnectionStatus =
   | "disconnected"
@@ -189,7 +192,7 @@ export class WsMcpServer {
       this.startKeepalive();
       this.persist(url, token);
       this.autoReconnectEnabled = true;
-      console.log(`[WsMcpServer] Connected to ${url}`);
+      log.debug(`Connected to ${url}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.updateState({ status: "error", error: message, connectedAt: null });
@@ -222,7 +225,7 @@ export class WsMcpServer {
       reconnectAttempt: 0,
     });
     this.clearPersisted();
-    console.log("[WsMcpServer] Disconnected");
+    log.debug("Disconnected");
   }
 
   isConnected(): boolean {
@@ -265,9 +268,7 @@ export class WsMcpServer {
 
     const attempt = this.state.reconnectAttempt;
     const delay = getReconnectDelayMs(attempt);
-    console.log(
-      `[WsMcpServer] Scheduling reconnect attempt ${attempt + 1} in ${delay}ms`,
-    );
+    log.debug(`Scheduling reconnect attempt ${attempt + 1} in ${delay}ms`);
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -437,7 +438,7 @@ export class WsMcpServer {
         error: null,
         connectedAt: null,
       });
-      console.log("[WsMcpServer] Connection closed by remote");
+      log.debug("Connection closed by remote");
       if (lastUrl && lastToken && this.autoReconnectEnabled) {
         this.scheduleReconnect(lastUrl, lastToken);
       }

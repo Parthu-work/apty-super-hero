@@ -1,6 +1,9 @@
+import { createLogger } from "@apty/agent-core";
 import { CdpCommander } from "./cdp-commander";
 import { debuggerManager } from "./debugger-manager";
 import type { ElementHandle, Locator, TextSnapshotNode } from "./types";
+
+const log = createLogger("SmartLocator");
 
 type FrameTreeNode = {
   frame: { id: string };
@@ -833,7 +836,7 @@ export class SmartLocator implements Locator {
    */
   private async fillUsingSelectAll(value: string): Promise<void> {
     // Step 1: Focus the element
-    console.log("📍 [SmartLocator] Focusing element...");
+    log.debug("📍 Focusing element...");
     await this.#cdpCommander.sendCommand("DOM.focus", {
       backendNodeId: this.backendDOMNodeId,
     });
@@ -850,9 +853,7 @@ export class SmartLocator implements Locator {
     const modifiers = isMac ? 8 : 2; // Meta = 8 (Cmd), Control = 2 (Ctrl)
 
     // Step 3: Send Ctrl+A / Cmd+A to select all
-    console.log(
-      `⌨️  [SmartLocator] Pressing ${isMac ? "Cmd" : "Ctrl"}+A to select all...`,
-    );
+    log.debug(`⌨️  Pressing ${isMac ? "Cmd" : "Ctrl"}+A to select all...`);
 
     // Press modifier key (Ctrl or Cmd)
     await this.#cdpCommander.sendCommand("Input.dispatchKeyEvent", {
@@ -894,16 +895,16 @@ export class SmartLocator implements Locator {
     });
 
     // Step 4: Wait for selection to complete
-    console.log("⏳ [SmartLocator] Waiting for selection...");
+    log.debug("⏳ Waiting for selection...");
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Step 5: Insert text (will replace selected content)
-    console.log("✍️  [SmartLocator] Inserting new text...");
+    log.debug("✍️  Inserting new text...");
     await this.#cdpCommander.sendCommand("Input.insertText", { text: value });
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     // Step 6: Trigger change and blur events
-    console.log("🔔 [SmartLocator] Triggering events...");
+    log.debug("🔔 Triggering events...");
     const remoteObject = await this.resolveNodeToRemoteObject(
       this.backendDOMNodeId,
     );
@@ -929,10 +930,8 @@ export class SmartLocator implements Locator {
     let objectId: string | null = null;
 
     try {
-      console.log("🔍 [SmartLocator] Starting fill operation...");
-      console.log(
-        `📝 [SmartLocator] Target value length: ${value.length} characters`,
-      );
+      log.debug("🔍 Starting fill operation...");
+      log.debug(`📝 Target value length: ${value.length} characters`);
 
       // Step 1: Get element remote object
       const remoteObject = await this.resolveNodeToRemoteObject(
@@ -945,32 +944,30 @@ export class SmartLocator implements Locator {
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Step 2: Add visual highlight
-      console.log("✨ [SmartLocator] Adding highlight effect...");
+      log.debug("✨ Adding highlight effect...");
       await this.addHighlightToElement(objectId!);
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Step 3: Try Monaco Editor native API first
-      console.log("🎯 [SmartLocator] Attempting Monaco native fill...");
+      log.debug("🎯 Attempting Monaco native fill...");
       const monacoSuccess = await this.tryFillMonaco(objectId!, value);
 
       if (monacoSuccess) {
-        console.log("✅ [SmartLocator] Monaco fill successful!");
+        log.debug("✅ Monaco fill successful!");
         await new Promise((resolve) => setTimeout(resolve, 500));
-        console.log("🧹 [SmartLocator] Removing highlight...");
+        log.debug("🧹 Removing highlight...");
         await this.removeHighlightFromElement(objectId!);
         return { success: true };
       }
 
       // Step 4: Fallback to universal select-all + replace strategy
-      console.log(
-        "🔄 [SmartLocator] Monaco not detected, using universal fill...",
-      );
+      log.debug("🔄 Monaco not detected, using universal fill...");
       await new Promise((resolve) => setTimeout(resolve, 300));
       await this.fillUsingSelectAll(value);
 
-      console.log("✅ [SmartLocator] Universal fill successful!");
+      log.debug("✅ Universal fill successful!");
       await new Promise((resolve) => setTimeout(resolve, 500));
-      console.log("🧹 [SmartLocator] Removing highlight...");
+      log.debug("🧹 Removing highlight...");
       await this.removeHighlightFromElement(objectId!);
 
       return { success: true };

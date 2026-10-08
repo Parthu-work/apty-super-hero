@@ -1,4 +1,4 @@
-import { tool } from "@apty/agent-core";
+import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { type ElementHandle, SmartElementHandle } from "../automation";
 import { DomElementHandle } from "../automation/dom-element-handle";
@@ -10,6 +10,8 @@ import {
   scrollAndMoveFakeMouseToElement,
   waitForEventsAfterAction,
 } from "./ui-operations";
+
+const log = createLogger("ElementTools");
 
 /** Best-effort tab URL lookup for the approval gate's per-origin grant — these tools still take a model-supplied tabId (unchanged in this round), so this is just "whatever page that tab happens to show," same trust level as before. */
 async function getTabUrl(tabId: number): Promise<string | undefined> {
@@ -28,7 +30,7 @@ async function getElementByUid(
   // Ensure snapshot exists (auto-create if needed)
   let snapshot = snapshotProvider.getSnapshot(tabId);
   if (!snapshot) {
-    console.log(`📸 [element.ts] Auto-creating snapshot for tab ${tabId}`);
+    log.debug(`📸 Auto-creating snapshot for tab ${tabId}`);
     snapshot = await snapshotProvider.createSnapshot(tabId);
     if (!snapshot) {
       throw new Error(
@@ -46,7 +48,7 @@ async function getElementByUid(
 
   // Select handle based on snapshot mode
   const mode = await snapshotProvider.getSnapshotMode();
-  console.log(`🔧 [element.ts] Using ${mode} mode handle for uid ${uid}`);
+  log.debug(`🔧 Using ${mode} mode handle for uid ${uid}`);
 
   if (mode === "dom") {
     // DOM mode: use DomElementHandle (no CDP required)
