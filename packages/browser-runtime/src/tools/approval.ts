@@ -10,13 +10,14 @@
  * Contexts: tools run either in the side panel (agent) or the service worker
  * (MCP bridge). The side panel renders the request; when the tool runs in the
  * service worker the request and decision are relayed with runtime messages,
- * which are only accepted from this extension's own non-tab pages. With no UI
+ * which are only accepted from this extension's own pages. With no UI
  * able to show the request the call fails closed.
  *
  * Grants are optional ("allow on this site for a while") and scoped to one
  * tool on one origin with an expiry, listable and revocable.
  */
 import { generateId, STORAGE_KEYS } from "@apty/agent-core";
+import { isOwnExtensionPage } from "../runtime/trusted-sender.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 
 export const APPROVAL_TTL_MS = 5 * 60_000;
@@ -185,17 +186,13 @@ export function resolveApproval(
   );
 }
 
-function isTrustedExtensionPage(sender: chrome.runtime.MessageSender): boolean {
-  return sender.id === chrome.runtime.id && sender.tab === undefined;
-}
-
 function installDecisionListener(): void {
   if (decisionListenerInstalled) return;
   if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
   decisionListenerInstalled = true;
   chrome.runtime.onMessage.addListener((message, sender) => {
     if (message?.type !== APPROVAL_DECISION_MESSAGE) return false;
-    if (!isTrustedExtensionPage(sender)) return false;
+    if (!isOwnExtensionPage(sender)) return false;
     if (typeof message.approvalId !== "string") return false;
     resolveApproval(message.approvalId, {
       approved: message.approved === true,

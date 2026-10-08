@@ -1,3 +1,4 @@
+import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import {
   APPROVAL_CLOSED_MESSAGE,
   APPROVAL_DECISION_MESSAGE,
@@ -44,7 +45,7 @@ function usePendingApprovals() {
       },
       sender: chrome.runtime.MessageSender,
     ) => {
-      if (sender.id !== chrome.runtime.id || sender.tab) return false;
+      if (!isOwnExtensionPage(sender)) return false;
       if (message?.type === APPROVAL_REQUEST_MESSAGE && message.request) {
         const request = message.request;
         setRemote((current) =>

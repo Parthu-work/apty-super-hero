@@ -96,7 +96,10 @@ describe("ApprovalPrompt", () => {
     render(<ApprovalPrompt />);
     deliver(
       { type: APPROVAL_REQUEST_MESSAGE, request: remoteRequest },
-      { id: "agent-id" },
+      {
+        id: "agent-id",
+        url: "chrome-extension://agent-id/service-worker-loader.js",
+      },
     );
 
     fireEvent.click(
@@ -119,7 +122,11 @@ describe("ApprovalPrompt", () => {
 
     deliver(
       { type: APPROVAL_REQUEST_MESSAGE, request: remoteRequest },
-      { id: "agent-id", tab: { id: 3 } as chrome.tabs.Tab },
+      {
+        id: "agent-id",
+        tab: { id: 3 } as chrome.tabs.Tab,
+        url: "https://app.example.com/",
+      },
     );
 
     expect(screen.queryByText(/Allow run_console_command/)).toBeNull();

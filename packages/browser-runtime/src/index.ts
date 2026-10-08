@@ -20,6 +20,7 @@ export * from "./runtime/default-hosts.js";
 export * from "./runtime/intervention-host.js";
 export * from "./runtime/omni-action-registry.js";
 export * from "./runtime/runtime-addon.js";
+export * from "./runtime/trusted-sender.js";
 export * from "./runtime/types.js";
 // Skill System
 export * from "./skills/index.js";

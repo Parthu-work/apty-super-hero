@@ -43,8 +43,15 @@ let registeredListener:
 
 import { registerMcpBridge } from "./mcp-bridge";
 
-const TRUSTED_SENDER = { id: EXTENSION_ID };
-const UNTRUSTED_SENDER = { id: EXTENSION_ID, tab: { id: 1 } };
+const TRUSTED_SENDER = {
+  id: EXTENSION_ID,
+  url: `chrome-extension://${EXTENSION_ID}/src/entrypoints/sidepanel/index.html`,
+};
+const UNTRUSTED_SENDER = {
+  id: EXTENSION_ID,
+  tab: { id: 1 },
+  url: "https://example.com/page",
+};
 
 function invoke(message: unknown, sender: unknown): Promise<unknown> {
   return new Promise((resolve) => {
@@ -70,6 +77,18 @@ describe("mcp-bridge — ws-bridge-connect sender check", () => {
     )) as any;
     expect(result.success).toBe(true);
     expect(mockConnect).toHaveBeenCalledWith("ws://localhost:1234", "t");
+  });
+
+  it("accepts a connect request from the options page, which opens in a tab", async () => {
+    const result = (await invoke(
+      { request: "ws-bridge-connect", url: "ws://localhost:1234", token: "t" },
+      {
+        id: EXTENSION_ID,
+        tab: { id: 9 },
+        url: `chrome-extension://${EXTENSION_ID}/src/entrypoints/options/index.html`,
+      },
+    )) as any;
+    expect(result.success).toBe(true);
   });
 
   it("rejects a connect request from a content script, never reaching wsMcpServer.connect", async () => {

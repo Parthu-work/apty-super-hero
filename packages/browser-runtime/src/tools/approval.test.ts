@@ -109,7 +109,10 @@ describe("gateRiskyAction", () => {
         approvalId: relayedRequest().approvalId,
         approved: true,
       },
-      { id: "agent-extension-id" },
+      {
+        id: "agent-extension-id",
+        url: "chrome-extension://agent-extension-id/src/entrypoints/sidepanel/index.html",
+      },
     );
 
     await expect(pending).resolves.toBe("ran");
@@ -118,7 +121,11 @@ describe("gateRiskyAction", () => {
   it.each([
     [
       "a content script in a web page",
-      { id: "agent-extension-id", tab: { id: 1 } as chrome.tabs.Tab },
+      {
+        id: "agent-extension-id",
+        tab: { id: 1 } as chrome.tabs.Tab,
+        url: "https://app.example.com/dashboard",
+      },
     ],
     ["another extension", { id: "other-extension" }],
   ])("ignores a decision sent by %s", async (_label, sender) => {
