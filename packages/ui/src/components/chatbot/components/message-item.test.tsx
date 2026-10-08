@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import * as downloadLib from "../../../lib/download";
 import type { UIMessage } from "../../../types";
-import { DefaultMessageItem } from "./message-item";
+import { ComponentsContext } from "../context";
+import { CollapsedMessageItem, DefaultMessageItem } from "./message-item";
 
 function assistantMessage(text: string): UIMessage {
   return {
@@ -101,5 +102,43 @@ describe("DefaultMessageItem — copy/download actions", () => {
       "some content",
       "text/markdown",
     );
+  });
+});
+
+describe("toolFooter slot", () => {
+  const toolMessage: UIMessage = {
+    id: "msg-tool",
+    role: "assistant",
+    parts: [
+      {
+        type: "tool",
+        toolName: "inspect_extension_network",
+        toolCallId: "call-1",
+        input: {},
+        output: { ok: true },
+        state: "completed",
+      },
+    ],
+    timestamp: Date.now(),
+  };
+  const slots = {
+    toolFooter: ({ tool }: { tool: { toolName: string } }) => (
+      <span>footer for {tool.toolName}</span>
+    ),
+  };
+
+  it.each([
+    ["full", <DefaultMessageItem key="full" message={toolMessage} isLast />],
+    ["collapsed", <CollapsedMessageItem key="c" message={toolMessage} />],
+  ])("renders under a tool call in the %s view", (_view, element) => {
+    render(
+      <ComponentsContext.Provider value={{ components: {}, slots }}>
+        {element}
+      </ComponentsContext.Provider>,
+    );
+
+    expect(
+      screen.getByText("footer for inspect_extension_network"),
+    ).toBeInTheDocument();
   });
 });

@@ -241,15 +241,16 @@ export function DefaultMessageItem({
 
           case "tool":
             // Check for custom tool display slot
-            if (slots.toolDisplay) {
-              return (
-                <Fragment key={key}>
-                  {slots.toolDisplay({ tool: part })}
-                </Fragment>
-              );
-            }
-
-            return <DefaultToolDisplay key={key} tool={part} />;
+            return (
+              <Fragment key={key}>
+                {slots.toolDisplay ? (
+                  slots.toolDisplay({ tool: part })
+                ) : (
+                  <DefaultToolDisplay tool={part} />
+                )}
+                {slots.toolFooter?.({ tool: part })}
+              </Fragment>
+            );
 
           case "reasoning":
             return (
@@ -347,6 +348,7 @@ function CollapsedToolDisplay({ tool }: { tool: UIToolPart }) {
  * Shows text as bullet points and tools as compact single-line displays.
  */
 export function CollapsedMessageItem({ message }: { message: UIMessage }) {
+  const { slots } = useComponentsContext();
   return (
     <div>
       {message.parts.map((part, i) => {
@@ -359,7 +361,12 @@ export function CollapsedMessageItem({ message }: { message: UIMessage }) {
               </div>
             );
           case "tool":
-            return <CollapsedToolDisplay key={key} tool={part} />;
+            return (
+              <Fragment key={key}>
+                <CollapsedToolDisplay tool={part} />
+                {slots.toolFooter?.({ tool: part })}
+              </Fragment>
+            );
           case "reasoning":
             return (
               <div

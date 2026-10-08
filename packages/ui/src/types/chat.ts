@@ -140,6 +140,8 @@ export interface ChatbotSlots {
   contextTags?: (props: ContextTagsSlotProps) => ReactNode;
   /** Custom tool display */
   toolDisplay?: (props: ToolDisplaySlotProps) => ReactNode;
+  /** Extra content under a tool call, in both the full and the collapsed ("thinking details") views */
+  toolFooter?: (props: ToolDisplaySlotProps) => ReactNode;
   /** Custom header content */
   headerContent?: () => ReactNode;
   /** Custom footer content */
