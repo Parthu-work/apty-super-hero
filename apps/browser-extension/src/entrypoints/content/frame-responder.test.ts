@@ -12,6 +12,7 @@ import {
   handleFrameMessage,
   installFrameResponder,
   waitForDomToStabilize,
+  waitForFrameToSettle,
 } from "./frame-responder";
 
 function ask(message: unknown): Promise<any> {
@@ -116,5 +117,39 @@ describe("waitForDomToStabilize", () => {
     const { settled, elapsedMs } = await result;
     expect(settled).toBe(true);
     expect(elapsedMs).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe("waitForFrameToSettle for child frames", () => {
+  it("returns at once for a loaded frame, however busy", async () => {
+    vi.useFakeTimers();
+    const busy = setInterval(() => {
+      document.body.append(document.createElement("i"));
+    }, 20);
+
+    const result = await waitForFrameToSettle(400, 8000, true);
+
+    clearInterval(busy);
+    expect(result).toEqual({ settled: true, elapsedMs: 0 });
+  });
+
+  it("waits for a frame that is still loading", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, "readyState", "get").mockReturnValue("loading");
+
+    let done = false;
+    const result = waitForFrameToSettle(100, 8000, true).then((r) => {
+      done = true;
+      return r;
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(done).toBe(false);
+
+    vi.spyOn(document, "readyState", "get").mockReturnValue("complete");
+    window.dispatchEvent(new Event("load"));
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(await result).toMatchObject({ settled: true });
+    expect((await result).elapsedMs).toBeGreaterThanOrEqual(1000);
   });
 });

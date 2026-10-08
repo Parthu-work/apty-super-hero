@@ -306,9 +306,12 @@ yet.
   container-counts) would be treated as the same node — a real, accepted
   tradeoff of the same signature design documented above, not new to the
   state graph.
-- **`waitForDomStable` watches every loaded frame and its shadow trees**,
-  but only shadow roots that exist when the wait starts; a shadow root
-  attached mid-wait is noticed only through its host's own mutations.
+- **`waitForDomStable` watches the top frame and its shadow trees, and
+  child frames only while they are still loading** (e.g. a frameset content
+  frame after a menu click), then for at most three quiet windows. A loaded
+  embed that never goes quiet (ads, chat widgets) does not delay the audit;
+  an SPA re-render inside an already-loaded child frame is not waited on.
+  Only shadow roots that exist when the wait starts are observed.
 - **Closed Shadow DOM is reached through `chrome.dom.openOrClosedShadowRoot`**
   (Chrome 88+, content scripts only). Outside an extension content script,
   for example in the jsdom unit tests, only open roots are traversed.

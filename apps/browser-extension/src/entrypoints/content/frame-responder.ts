@@ -17,6 +17,7 @@ import {
   replayElementPathSamples,
   shadowRootOf,
 } from "@apty/dom-snapshot";
+import { startCapture, stopCapture } from "./element-capture";
 
 type SendResponse = (response: unknown) => void;
 
@@ -114,6 +115,50 @@ export function waitForDomToStabilize(
   });
 }
 
+function isLoaded(): boolean {
+  return document.readyState === "complete";
+}
+
+/**
+ * `waitForDomToStabilize`, or — with `onlyWhileLoading` — return at once
+ * when this document has already loaded, and otherwise wait for it to load
+ * and then go quiet (for a few quiet windows at most). Used for child
+ * frames, so a loaded embed that never goes quiet does not hold up the
+ * audit.
+ */
+export async function waitForFrameToSettle(
+  quietMs: number,
+  timeoutMs: number,
+  onlyWhileLoading: boolean,
+): Promise<{ settled: boolean; elapsedMs: number }> {
+  if (!onlyWhileLoading) return waitForDomToStabilize(quietMs, timeoutMs);
+  if (isLoaded()) {
+    return { settled: true, elapsedMs: 0 };
+  }
+  const start = Date.now();
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    window.addEventListener(
+      "load",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+  const loadedAfter = Date.now() - start;
+  // Once loaded, a frame that keeps changing gets a few quiet windows only.
+  const quiet = await waitForDomToStabilize(
+    quietMs,
+    Math.max(0, Math.min(timeoutMs - loadedAfter, quietMs * 3)),
+  );
+  return {
+    settled: quiet.settled && isLoaded(),
+    elapsedMs: loadedAfter + quiet.elapsedMs,
+  };
+}
+
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
@@ -174,6 +219,19 @@ export function handleFrameMessage(
   }
 
   switch (message?.request) {
+    case "start-capture":
+    case "stop-capture":
+      try {
+        if (message.request === "start-capture") startCapture();
+        else stopCapture();
+        sendResponse({ success: true });
+      } catch (error) {
+        sendResponse({
+          success: false,
+          error: errorMessage(error, String(error)),
+        });
+      }
+      return true;
     case "dom-health-ping":
       sendResponse({ success: true, data: { pong: true } });
       return true;
@@ -216,9 +274,10 @@ export function handleFrameMessage(
       );
     case "wait-for-dom-stable":
       return respondAsync(sendResponse, "Failed to wait for the DOM", () =>
-        waitForDomToStabilize(
+        waitForFrameToSettle(
           typeof message.quietMs === "number" ? message.quietMs : 400,
           typeof message.timeoutMs === "number" ? message.timeoutMs : 8000,
+          message.onlyWhileLoading === true,
         ),
       );
     case "get-dom-health-navigation-model":

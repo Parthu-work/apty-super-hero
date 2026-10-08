@@ -20,6 +20,10 @@ import {
   writeRestartHelper,
 } from "./harness.mjs";
 
+/** A page linking to the next one, embedding a frame that never goes quiet. */
+const shopPage = (n) =>
+  `<!doctype html><title>Shop ${n}</title><h1>Shop ${n}</h1><a href="/shop/p${(n % 3) + 1}.html">next</a><button>Buy ${n}</button><iframe src="/busy.html"></iframe>`;
+
 const RISKY_EXPRESSION = "document.title = 'CHANGED-BY-AGENT'; 'done'";
 
 let browser;
@@ -35,6 +39,11 @@ before(async () => {
       <iframe src="/frame.html"></iframe>
       <script>setInterval(() => fetch("/api/segments.json").catch(() => {}), 150);</script>`,
     "/frame.html": "<!doctype html><button>inside frame</button>",
+    "/shop/p1.html": shopPage(1),
+    "/shop/p2.html": shopPage(2),
+    "/shop/p3.html": shopPage(3),
+    "/busy.html":
+      "<!doctype html><div id=t></div><script>setInterval(() => { document.getElementById('t').textContent = Date.now(); }, 50);</script>",
     "/api/segments.json": () => {
       segmentsFetches += 1;
       return JSON.stringify({ segments: [{ id: 1, name: "sales" }] });
@@ -260,6 +269,29 @@ describe("chat agent in a real browser", () => {
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await app.close();
+  });
+
+  it("does not let an iframe that never goes quiet stall an application audit", async () => {
+    const shop = await browser.context.newPage();
+    await shop.goto(`${site.origin}/shop/p1.html`);
+    const panel = await openSidePanel(browser, model, shop);
+    model.script(
+      callToolThenReport("run_application_dom_health_audit", {
+        maxPages: 3,
+        discoveryMode: "application-safe",
+      }),
+    );
+
+    const started = Date.now();
+    await chatAndWait(panel, "check dom health across the whole application", {
+      timeout: 120_000,
+    });
+
+    // About 7s; waiting out every stability timeout on the busy frame took 30s.
+    assert.ok(Date.now() - started < 15_000, `took ${Date.now() - started}ms`);
+    assert.match(JSON.stringify(lastToolResult()), /"pagesAudited":3/);
+    await panel.close();
+    await shop.close();
   });
 
   it("audits DOM Health on a tab opened before the extension restarted", async () => {

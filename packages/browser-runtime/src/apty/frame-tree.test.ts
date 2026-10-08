@@ -125,15 +125,19 @@ describe("waitForDomStable", () => {
     ]);
     replies(
       { success: true, data: { settled: true, elapsedMs: 400 } },
-      { success: true, data: { settled: false, elapsedMs: 8000 } },
+      { success: true, data: { settled: false, elapsedMs: 1000 } },
     );
 
     const result = await waitForDomStable(1, 400, 8000);
 
-    const frameIds = mockSendMessage.mock.calls.map(
-      ([, , opts]) => opts.frameId,
+    const onlyWhileLoading = Object.fromEntries(
+      mockSendMessage.mock.calls.map(([, message, opts]) => [
+        opts.frameId,
+        message.onlyWhileLoading,
+      ]),
     );
-    expect(frameIds.sort()).toEqual([0, 3]);
-    expect(result).toEqual({ settled: false, elapsedMs: 8000 });
+    // A loaded child frame that never goes quiet must not stall the wait.
+    expect(onlyWhileLoading).toEqual({ 0: false, 3: true });
+    expect(result).toEqual({ settled: false, elapsedMs: 1000 });
   });
 });

@@ -72,6 +72,7 @@ function waitForFrameStable(
   frameId: number,
   quietMs: number,
   timeoutMs: number,
+  onlyWhileLoading: boolean,
 ): Promise<StabilizeResult> {
   return new Promise((resolve) => {
     const localFallback = setTimeout(
@@ -81,7 +82,7 @@ function waitForFrameStable(
     sendFrameMessage<StabilizeResult>(
       tabId,
       frameId,
-      { request: "wait-for-dom-stable", quietMs, timeoutMs },
+      { request: "wait-for-dom-stable", quietMs, timeoutMs, onlyWhileLoading },
       timeoutMs + 1000,
     ).then((response) => {
       clearTimeout(localFallback);
@@ -95,10 +96,12 @@ function waitForFrameStable(
 }
 
 /**
- * Report once every loaded frame's DOM has been quiet for `quietMs`, or
- * `timeoutMs` has elapsed — never a fixed sleep. Each frame is asked by
- * `frameId` (never a broadcast), so a frameset or an app inside an iframe
- * is waited on too, not only the top document.
+ * Report once the DOM has been quiet for `quietMs`, or `timeoutMs` has
+ * elapsed — never a fixed sleep. The top frame is always waited on. Every
+ * other frame, asked by `frameId` (never a broadcast), is waited on only
+ * while its document is still loading (e.g. a frameset content frame
+ * navigated by a menu click): a loaded frame that never goes quiet (ads,
+ * chat widgets, clocks) must not stall every wait of an audit.
  */
 export async function waitForDomStable(
   tabId: number,
@@ -111,7 +114,7 @@ export async function waitForDomStable(
     .map((f) => f.frameId) ?? [0];
   const results = await Promise.all(
     (frameIds.length > 0 ? frameIds : [0]).map((frameId) =>
-      waitForFrameStable(tabId, frameId, quietMs, timeoutMs),
+      waitForFrameStable(tabId, frameId, quietMs, timeoutMs, frameId !== 0),
     ),
   );
   return {

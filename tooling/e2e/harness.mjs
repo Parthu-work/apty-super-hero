@@ -21,7 +21,9 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 export const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-export const EXTENSION_DIR = join(ROOT, "apps/browser-extension/dist");
+/** The built extension under test; E2E_EXTENSION_DIR points at another build (e.g. main's) for comparison. */
+export const EXTENSION_DIR =
+  process.env.E2E_EXTENSION_DIR ?? join(ROOT, "apps/browser-extension/dist");
 
 export function chromiumPath() {
   if (process.env.E2E_CHROMIUM_PATH) return process.env.E2E_CHROMIUM_PATH;

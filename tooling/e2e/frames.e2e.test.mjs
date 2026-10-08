@@ -199,4 +199,59 @@ describe("built extension in Chromium", () => {
     await ext.close();
     await page.close();
   });
+
+  /**
+   * Element capture as the intervention service drives it: one un-addressed
+   * start-capture to the tab, then the user clicks an element.
+   */
+  async function captureClick(clickIn) {
+    const page = await openPage("/top.html");
+    await page.waitForTimeout(500);
+    const ext = await extensionPage();
+    await ext.evaluate(async () => {
+      await chrome.storage.local.remove("aipex_last_capture_event");
+      const [tab] = await chrome.tabs.query({
+        url: "http://127.0.0.1/*top.html",
+      });
+      await chrome.tabs.sendMessage(tab.id, { request: "start-capture" });
+    });
+
+    await clickIn(page);
+
+    let event;
+    for (let i = 0; i < 30 && !event; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      event = await ext.evaluate(
+        async () =>
+          (await chrome.storage.local.get("aipex_last_capture_event"))
+            .aipex_last_capture_event,
+      );
+    }
+    await ext.evaluate(async () => {
+      const [tab] = await chrome.tabs.query({
+        url: "http://127.0.0.1/*top.html",
+      });
+      await chrome.tabs.sendMessage(tab.id, { request: "stop-capture" });
+    });
+    await ext.close();
+    await page.close();
+    return event?.data;
+  }
+
+  it("captures a clicked element in the top frame", async () => {
+    const captured = await captureClick((page) =>
+      page.getByRole("heading", { name: "Top" }).click(),
+    );
+
+    assert.equal(captured?.tagName, "h1", JSON.stringify(captured));
+  });
+
+  it("captures a clicked element inside an iframe", async () => {
+    const captured = await captureClick((page) =>
+      page.frameLocator("#same").getByRole("button", { name: "child" }).click(),
+    );
+
+    assert.equal(captured?.tagName, "button", JSON.stringify(captured));
+    assert.match(captured.url, /child\.html$/);
+  });
 });
