@@ -121,6 +121,49 @@ container, and structural container tag/role counts — so a real menu click
 that changes which screen is showing is detected, while a background
 mutation is not mistaken for a new state.
 
+## Privacy boundary
+
+Every result leaves through `redactDomHealthOutput`
+(`dom-health-redaction.ts`), at the exit of `runDomHealthAudit` and
+`runApplicationDomHealthAudit`. That covers the agent tool, the side panel
+and the stored conversation. Page titles are replaced. URLs lose
+credentials, secret- and tenant-named parameters, and identifier-shaped
+path segments. Sensitive-named attribute values are blanked. Other text goes
+through `redactSensitiveText`. The application audit itself navigates and
+replays with the unredacted result (`collectDomHealthAudit`), which never
+leaves the service worker.
+
+## History API evidence
+
+`pushState` and `replaceState` are counted in the page's own world.
+`page-hooks.ts` is installed by the MAIN-world console bridge and wraps
+`History.prototype` at document_start; it also counts `popstate` and
+`hashchange`. The frame responder runs in the isolated world, which cannot
+see the page's calls. It receives running totals as DOM events and asks
+for them once on install, so calls made while it was still loading are
+not lost. `tooling/e2e/dom-health-routing.e2e.test.mjs` fails against the
+previous isolated-world patch.
+
+## Route probe (developer tool)
+
+**Settings → Troubleshooting → Developer tools** adds a route probe to the
+DOM Health card (`route-probe.ts`, `health-route-probe.ts`). The developer
+clicks through the application. After each trusted click, once the page
+settles, the probe records for every frame:
+
+- the frame URL;
+- `document.title`;
+- the owning frame element's `name`, `id`, `title` and `data-osp-id`, mapped
+  to the frame with `chrome.runtime.getFrameId`;
+- the first API call or frame load after the click (path only, from
+  resource timing);
+- the first heading and active navigation item, read through shadow roots;
+- the `pushState` total.
+
+`analyzeRouteProbe` reports how many clicks changed each signal and hints
+URL-first, click-first or undetermined. The probe never clicks. It shows
+redacted text, and the saved report keeps page text only as hashes.
+
 ## Discovery (anchor-only was the old limit)
 
 `health-links.ts`'s `collectDiscoverableLinks`/`isSafeToDiscover` (unchanged)

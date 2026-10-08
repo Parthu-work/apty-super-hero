@@ -269,7 +269,9 @@ function ChatApp() {
               <>
                 <ApprovalPrompt />
                 <InvestigationSummaryBar />
-                <DomHealthCard />
+                <DomHealthCard
+                  developerTools={settings.developerTools === true}
+                />
                 <BrowserContextLoader />
               </>
             ),

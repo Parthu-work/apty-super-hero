@@ -47,6 +47,23 @@ export function TroubleshootingCard({
             onCheckedChange={(checked) => onChange({ verboseLogging: checked })}
           />
         </div>
+        <div className="mt-4 flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="developer-tools" className="text-sm font-medium">
+              {zh ? "开发者工具" : "Developer tools"}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {zh
+                ? "在 DOM 健康卡片中显示路由探针，用于接入新应用。"
+                : "Shows the route probe in the DOM Health card, for onboarding a new application."}
+            </p>
+          </div>
+          <Switch
+            id="developer-tools"
+            checked={settings.developerTools === true}
+            onCheckedChange={(checked) => onChange({ developerTools: checked })}
+          />
+        </div>
       </CardContent>
     </Card>
   );

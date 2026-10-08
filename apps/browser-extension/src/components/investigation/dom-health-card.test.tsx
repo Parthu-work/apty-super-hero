@@ -17,6 +17,8 @@ vi.mock("./use-current-target", () => ({
 vi.mock("@apty/browser-runtime", () => ({
   runDomHealthAudit: mockRunDomHealthAudit,
   runApplicationDomHealthAudit: mockRunApplicationDomHealthAudit,
+  startRouteProbe: vi.fn(),
+  toShareableRouteProbeReport: vi.fn(),
 }));
 
 import { DomHealthCard } from "./dom-health-card";
@@ -40,6 +42,16 @@ beforeEach(() => {
 });
 
 describe("DomHealthCard", () => {
+  it("shows the route probe only with developer tools turned on", () => {
+    const { rerender } = render(<DomHealthCard />);
+    expect(screen.queryByRole("region", { name: "Route probe" })).toBeNull();
+
+    rerender(<DomHealthCard developerTools />);
+    expect(
+      screen.getByRole("region", { name: "Route probe" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows 'Not checked yet' and never runs an audit automatically", () => {
     render(<DomHealthCard />);
 

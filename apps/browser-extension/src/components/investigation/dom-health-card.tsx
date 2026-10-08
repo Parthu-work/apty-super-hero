@@ -37,6 +37,7 @@ import { Button } from "@apty/ui/components/ui/button";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, Loader2Icon, ScanSearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RouteProbePanel } from "./route-probe-panel";
 import type { StatusMeta } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useCurrentTarget } from "./use-current-target";
@@ -449,7 +450,12 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
   );
 }
 
-export function DomHealthCard() {
+export function DomHealthCard({
+  developerTools = false,
+}: {
+  /** Settings → Troubleshooting → Developer tools: shows the route probe. */
+  developerTools?: boolean;
+}) {
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
   const [isLoading, setIsLoading] = useState(false);
@@ -1041,6 +1047,9 @@ export function DomHealthCard() {
             </div>
           )}
         </div>
+      )}
+      {developerTools && target.tabId && (
+        <RouteProbePanel tabId={target.tabId} />
       )}
     </div>
   );

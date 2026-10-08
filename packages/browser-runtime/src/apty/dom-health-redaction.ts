@@ -38,12 +38,14 @@ export const REDACTED_TITLE = "<REDACTED-TITLE>";
 
 /**
  * Identifier-shaped values: a GUID, 16+ hex characters, or 5+ digits. The
- * same shape `@apty/debug-contract` masks in page paths. Covers athenaOne's
+ * same shapes `@apty/debug-contract` masks in page paths. Covers athenaOne's
  * 7-digit practice id and the GUID in LN's frame name; leaves short
- * counters such as athenaOne's department segment `/2/` alone.
+ * counters such as athenaOne's department segment `/2/` alone. Bounded by
+ * "not a letter or digit" rather than `\b`, because `_` is a word character
+ * and LN joins the GUID to its frame name with one (`LN_44_<GUID>`).
  */
 const ID_LIKE_PATTERN =
-  /\b(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{5,})\b/gi;
+  /(?<![0-9a-z])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{5,})(?![0-9a-z])/gi;
 
 const ID_PLACEHOLDER = ":id";
 
@@ -101,12 +103,17 @@ export function redactAuditUrl(url: string): string {
   return parsed.toString();
 }
 
+/** Free text read from the DOM (a title, heading or label), with secrets and identifier-shaped runs removed. Names without an identifying shape survive. */
+export function redactDomText(value: string): string {
+  return maskIdLike(redactSensitiveText(value));
+}
+
 function redactString(key: string | null, value: string): string {
   if (key === "pageTitle") return value ? REDACTED_TITLE : value;
   if (key && ENGINE_ID_KEY_PATTERN.test(key)) return value;
   if (key && URL_KEY_PATTERN.test(key)) return redactAuditUrl(value);
   if (ABSOLUTE_URL_PATTERN.test(value)) return redactAuditUrl(value);
-  return maskIdLike(redactSensitiveText(value));
+  return redactDomText(value);
 }
 
 function isNameValuePair(

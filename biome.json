@@ -57,6 +57,7 @@
       "!**/build",
       "!**/assets",
       "!**/bundled-modules",
+      "!**/__tests__/fixtures/**/*.html",
       "!**/.vscode",
       "!.history"
     ]

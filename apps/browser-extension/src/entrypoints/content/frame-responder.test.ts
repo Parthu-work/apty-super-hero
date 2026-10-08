@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const addListener = vi.hoisted(() => vi.fn());
+const sendMessage = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.hoisted(() => {
   (globalThis as any).chrome = {
-    runtime: { id: "agent-id", onMessage: { addListener } },
+    runtime: { id: "agent-id", onMessage: { addListener }, sendMessage },
   };
 });
 
@@ -11,9 +12,12 @@ import {
   collectShadowRoots,
   handleFrameMessage,
   installFrameResponder,
+  noteProbeClick,
+  recordFirstRequest,
   waitForDomToStabilize,
   waitForFrameToSettle,
 } from "./frame-responder";
+import { HISTORY_API_EVENT } from "./page-events";
 
 function ask(message: unknown): Promise<any> {
   return new Promise((resolve) => {
@@ -63,15 +67,6 @@ describe("frame responder", () => {
     expect(handleFrameMessage({ request: "open-apty-agent" }, vi.fn())).toBe(
       false,
     );
-  });
-
-  it("counts history API navigation for the SPA navigation model", async () => {
-    history.pushState({}, "", "#/next");
-
-    const response = await ask({ request: "get-dom-health-navigation-model" });
-
-    expect(response.data.usesHistoryApiRouting).toBe(true);
-    expect(response.data.historyApiCallCount).toBeGreaterThan(0);
   });
 
   it("refuses to click a control that is not a verified navigation candidate", async () => {
@@ -151,5 +146,105 @@ describe("waitForFrameToSettle for child frames", () => {
 
     expect(await result).toMatchObject({ settled: true });
     expect((await result).elapsedMs).toBeGreaterThanOrEqual(1000);
+  });
+});
+
+describe("routing evidence and the route probe", () => {
+  it("reports the page's history API totals announced by the MAIN-world hooks", async () => {
+    const announce = (totals: object) =>
+      window.dispatchEvent(
+        new CustomEvent(HISTORY_API_EVENT, { detail: JSON.stringify(totals) }),
+      );
+
+    announce({ pushState: 3, replaceState: 1, popstate: 0, hashchange: 1 });
+    announce({ pushState: 2, replaceState: 1, popstate: 0, hashchange: 1 });
+    window.dispatchEvent(
+      new CustomEvent(HISTORY_API_EVENT, { detail: "forged" }),
+    );
+    const model = (await ask({ request: "get-dom-health-navigation-model" }))
+      .data;
+
+    expect(model).toEqual({
+      usesHistoryApiRouting: true,
+      historyApiCallCount: 5,
+      pushStateCount: 3,
+    });
+  });
+
+  describe("route probe", () => {
+    afterEach(async () => {
+      await ask({ request: "dom-health-probe-disarm" });
+      delete (globalThis as any).chrome.runtime.getFrameId;
+    });
+
+    it("reports each child frame's owner attributes against its frameId", async () => {
+      document.title = "LN";
+      document.body.innerHTML =
+        '<iframe title="LN" name="LN_44_11111111-2222-4333-8444-555555555555" data-osp-id="LN"></iframe><iframe id="searchmenuiframe" class="shimiframe" style="display: none;"></iframe>';
+      const [app, shim] = Array.from(document.querySelectorAll("iframe"));
+      (globalThis as any).chrome.runtime.getFrameId = (el: Element) =>
+        el === app ? 7 : el === shim ? 9 : -1;
+
+      const response = await ask({ request: "dom-health-probe-capture" });
+
+      expect(response.success).toBe(true);
+      expect(response.data.title).toBe("LN");
+      expect(response.data.owners).toEqual([
+        expect.objectContaining({ frameId: 7, ospId: "LN", title: "LN" }),
+        expect.objectContaining({
+          frameId: 9,
+          id: "searchmenuiframe",
+          rendered: false,
+        }),
+      ]);
+      expect(response.data.armed).toBe(false);
+    });
+
+    it("keeps the first API call that starts after a click, path only", async () => {
+      await ask({ request: "dom-health-probe-arm" });
+      document.body.innerHTML = '<button id="go">Patients</button>';
+
+      noteProbeClick(document.getElementById("go"), 100);
+      recordFirstRequest([
+        {
+          name: "https://ehr.example.test/early.png",
+          startTime: 50,
+          initiatorType: "img",
+        },
+        {
+          name: "https://ehr.example.test/font.woff2",
+          startTime: 120,
+          initiatorType: "css",
+        },
+        {
+          name: "https://ehr.example.test/4242424/2/api/patients?q=123456",
+          startTime: 140,
+          initiatorType: "fetch",
+        },
+        {
+          name: "https://ehr.example.test/later",
+          startTime: 160,
+          initiatorType: "xmlhttprequest",
+        },
+      ] as unknown as PerformanceEntryList);
+      const response = await ask({ request: "dom-health-probe-capture" });
+
+      expect(sendMessage).toHaveBeenCalledWith({
+        request: "dom-health-probe-click",
+        label: "Patients",
+      });
+      expect(response.data.firstRequest).toEqual({
+        origin: "https://ehr.example.test",
+        path: "/4242424/2/api/patients",
+        initiatorType: "fetch",
+        msAfterClick: 40,
+      });
+    });
+
+    it("ignores clicks while it is not armed", () => {
+      sendMessage.mockClear();
+      noteProbeClick(document.body, 10);
+      expect(sendMessage).not.toHaveBeenCalled();
+    });
   });
 });

@@ -54,6 +54,8 @@ export interface AppSettings {
   networkBodyCaptureDenyList?: string[];
   /** Write debug-level logs to the extension's consoles in a production build, for troubleshooting. */
   verboseLogging?: boolean;
+  /** Show developer-only tools in the side panel, such as the DOM Health route probe. */
+  developerTools?: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -68,4 +70,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   networkBodyCaptureEnabled: false,
   networkBodyCaptureDenyList: [],
   verboseLogging: false,
+  developerTools: false,
 };

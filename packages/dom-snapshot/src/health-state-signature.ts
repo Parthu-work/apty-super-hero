@@ -28,13 +28,13 @@ export interface FrameStateSignature {
   containerCounts: Record<string, number>;
 }
 
-const HEADING_SELECTOR = 'h1, h2, h3, [role="heading"]';
+export const HEADING_SELECTOR = 'h1, h2, h3, [role="heading"]';
 const MAX_HEADING_SAMPLE = 5;
 const MAX_HEADING_TEXT_LENGTH = 120;
 
-const NAV_CONTAINER_SELECTOR =
+export const NAV_CONTAINER_SELECTOR =
   'nav, [role="navigation"], [role="tablist"], [role="menu"], [role="menubar"], [role="tree"]';
-const ACTIVE_ITEM_SELECTOR = [
+export const ACTIVE_ITEM_SELECTOR = [
   '[aria-current]:not([aria-current="false"])',
   '[aria-selected="true"]',
   '[aria-expanded="true"]',

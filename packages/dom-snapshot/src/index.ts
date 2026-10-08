@@ -1,4 +1,13 @@
 export { collectDomSnapshot, collectDomSnapshotInPage } from "./collector.js";
+export {
+  closestComposed,
+  composedParentElement,
+  composedText,
+  isRenderedInComposedTree,
+  querySelectorAllDeep,
+  querySelectorDeep,
+  walkComposedTree,
+} from "./composed-tree.js";
 export type { ElementPath } from "./des-engine.js";
 export {
   __resetDomHealthRegistryForTests,
@@ -15,6 +24,14 @@ export {
   isSafeToDiscover,
   type SafeNavigationCandidate,
 } from "./health-links.js";
+export {
+  collectFrameOwners,
+  collectRouteProbeFrameSignals,
+  findActiveNavItemDeep,
+  findFirstHeadingDeep,
+  type RouteProbeFrameOwner,
+  type RouteProbeFrameSignals,
+} from "./health-route-probe.js";
 export {
   type CrossStateVerdict,
   type CrossStateVerification,
