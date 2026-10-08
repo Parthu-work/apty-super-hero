@@ -37,6 +37,10 @@ export interface SettingsPageProps {
   sttConfig?: STTConfigAdapter;
   /** Pre-select a tab on mount (e.g. from URL params). */
   initialTab?: SettingsTab;
+  /** Controlled tab, e.g. from the page URL; overrides `initialTab`. */
+  activeTab?: SettingsTab;
+  /** Called when the user switches tabs, e.g. to update the page URL. */
+  onTabChange?: (tab: SettingsTab) => void;
   /** Pre-select a skill to open details for (used with initialTab="skills"). */
   initialSkill?: string;
 }

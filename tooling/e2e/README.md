@@ -9,6 +9,7 @@ first (`npm run build`, which also builds the MCP bridge daemon).
 | `apty-client.e2e.test.mjs` | Fake Apty Client extensions (working, not allow-listed, bridge missing): the Options handshake and its messages, and the agent reading a 206-item body and a 403 body, with the full-response viewer. |
 | `core-tools.e2e.test.mjs` | Everyday tools through the real agent: find and click an element, page metadata, scroll, highlight, screenshot, page console output, network and runtime diagnostics. |
 | `frames.e2e.test.mjs` | DOM Health in same-origin, cross-origin, `data:` and frameset frames, open and closed shadow roots, top-frame-only UI, responder injection, element capture in the top frame and in an iframe. |
+| `ui.e2e.test.mjs` | The side panel's readiness chips (model, Apty Client, page), the "Set up" link landing on the AI provider settings, and Options tabs kept in the URL across Back and reload. |
 | `mcp.e2e.test.mjs` | The real MCP daemon: the Options page Connect button, the daemon's dangerous-tool block, and the approval prompt relayed from the service worker to the side panel. |
 
 `E2E_EXTENSION_DIR` runs the suite against another build, e.g. `main`'s, to

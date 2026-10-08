@@ -34,7 +34,7 @@ export function StoredDataPanel() {
   };
 
   return (
-    <Card>
+    <Card id="stored-data" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Trash2 className="h-5 w-5" />

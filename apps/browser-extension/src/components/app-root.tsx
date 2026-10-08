@@ -25,6 +25,7 @@ import {
   useBrowserTools,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
+import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
 import { InputModeProvider } from "../state/input-mode-context";
@@ -45,6 +46,7 @@ import {
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
 import { DomHealthCard } from "./investigation/dom-health-card";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
+import { ReadinessCheck } from "./readiness-check";
 import { SetupNeededCard } from "./setup-needed-card";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
@@ -156,7 +158,7 @@ function ChatApp() {
     setAuthDraft(draftText);
   }, []);
   const handleOpenSettingsFromSetupCard = useCallback(() => {
-    chrome.runtime?.openOptionsPage?.();
+    void openOptions({ section: "ai-provider" });
   }, []);
   useEffect(() => {
     if (authDraft !== null && isProviderConfigured(settings)) {
@@ -270,7 +272,12 @@ function ChatApp() {
                 <BrowserContextLoader />
               </>
             ),
-            emptyState: (props) => <DebuggingWelcomeScreen {...props} />,
+            emptyState: (props) => (
+              <DebuggingWelcomeScreen
+                {...props}
+                readiness={<ReadinessCheck settings={settings} />}
+              />
+            ),
             toolDisplay: (props) => <AptyToolDisplay {...props} />,
             toolFooter: (props) => <AptyToolFooter {...props} />,
           }}

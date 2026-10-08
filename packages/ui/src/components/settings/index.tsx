@@ -307,6 +307,8 @@ export function SettingsPage({
   permissionsContent,
   sttConfig,
   initialTab,
+  activeTab: controlledTab,
+  onTabChange,
   initialSkill: _initialSkill,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
@@ -337,8 +339,11 @@ export function SettingsPage({
   });
   const [showToken, setShowToken] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(
-    initialTab ?? "general",
+    controlledTab ?? initialTab ?? "general",
   );
+  useEffect(() => {
+    if (controlledTab) setActiveTab(controlledTab);
+  }, [controlledTab]);
   const [searchTerm, setSearchTerm] = useState("");
   const [includeKeysOnExport, setIncludeKeysOnExport] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -880,7 +885,10 @@ export function SettingsPage({
         {/* Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={(value: string) => setActiveTab(value as SettingsTab)}
+          onValueChange={(value: string) => {
+            setActiveTab(value as SettingsTab);
+            onTabChange?.(value as SettingsTab);
+          }}
           className="w-full"
         >
           <TabsList
@@ -1059,6 +1067,11 @@ export function SettingsPage({
                       : "Enable skill execution"}
                   </span>
                   <Switch
+                    aria-label={
+                      language === "zh"
+                        ? "启用技能执行"
+                        : "Enable skill execution"
+                    }
                     checked={settings.skillExecutionEnabled === true}
                     onCheckedChange={(checked) =>
                       setSettings((prev: AppSettings) => ({
@@ -1071,8 +1084,8 @@ export function SettingsPage({
                 <Alert variant="destructive">
                   <AlertDescription className="text-sm leading-relaxed">
                     {language === "zh"
-                      ? "启用后，技能脚本可以从 CDN 导入第三方代码包并在沙盒中执行，这些包未经完整性校验。仅在信任所安装的技能时启用。"
-                      : "When enabled, skill scripts can import third-party packages from a CDN and execute them in the sandbox, with no integrity verification on those packages. Only enable this if you trust the skills you've installed."}
+                      ? "启用后，已安装技能附带的脚本会在沙盒中运行，并可通过受限的网络接口发起请求。仅在信任所安装的技能时启用。"
+                      : "When enabled, scripts that come with your installed skills run in a sandbox and can make network requests through a restricted bridge. Only enable this if you trust the skills you've installed."}
                   </AlertDescription>
                 </Alert>
               </CardContent>
@@ -1224,7 +1237,7 @@ export function SettingsPage({
               is no gate toggle to enable them first. */}
           <TabsContent value="ai" className="space-y-6">
             <div className="grid gap-6">
-              <Card>
+              <Card id="ai-provider" className="scroll-mt-4">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Bot className="h-5 w-5" />
@@ -1326,6 +1339,11 @@ export function SettingsPage({
                           : "Include API keys when exporting"}
                       </span>
                       <Switch
+                        aria-label={
+                          language === "zh"
+                            ? "导出时包含 API 密钥"
+                            : "Include API keys when exporting"
+                        }
                         checked={includeKeysOnExport}
                         onCheckedChange={setIncludeKeysOnExport}
                       />
@@ -1465,6 +1483,7 @@ export function SettingsPage({
                               {language === "zh" ? "启用" : "Enable"}
                             </span>
                             <Switch
+                              aria-label={language === "zh" ? "启用" : "Enable"}
                               checked={selectedModel.enabled}
                               onCheckedChange={(checked) =>
                                 handleModelFieldChange("enabled", checked)

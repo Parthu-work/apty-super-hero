@@ -32,7 +32,7 @@ export function ApprovalGrantsPanel() {
   }, [refresh]);
 
   return (
-    <Card>
+    <Card id="approvals" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <KeyRound className="h-5 w-5" />

@@ -24,7 +24,7 @@ export function TroubleshootingCard({
   const zh = language === "zh";
 
   return (
-    <Card>
+    <Card id="troubleshooting" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Bug className="h-5 w-5" />

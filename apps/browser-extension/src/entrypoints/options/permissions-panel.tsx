@@ -77,7 +77,7 @@ export function PermissionsPanel() {
   };
 
   return (
-    <Card>
+    <Card id="permissions" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
@@ -99,6 +99,7 @@ export function PermissionsPanel() {
               </p>
             </div>
             <Switch
+              aria-label={PERMISSION_COPY[name].label}
               checked={granted[name]}
               disabled={!loaded}
               onCheckedChange={(checked) => handleToggle(name, checked)}

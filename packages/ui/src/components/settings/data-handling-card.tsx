@@ -37,7 +37,7 @@ export function DataHandlingCard({
   const enabled = settings.networkBodyCaptureEnabled === true;
 
   return (
-    <Card>
+    <Card id="data-handling" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />

@@ -474,7 +474,7 @@ export function PromptInputSkillTag({
       const skillParam = encodeURIComponent(data.name.slice(0, 200));
       chrome.tabs.create({
         url: chrome.runtime.getURL(
-          `src/pages/options/index.html?tab=skills&skill=${skillParam}`,
+          `src/entrypoints/options/index.html?tab=skills&skill=${skillParam}`,
         ),
       });
     }

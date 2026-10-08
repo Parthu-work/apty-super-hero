@@ -118,7 +118,7 @@ export function McpBridgePanel() {
   const isBusy = status === "connected" || status === "connecting";
 
   return (
-    <Card>
+    <Card id="mcp-bridge" className="scroll-mt-4">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
