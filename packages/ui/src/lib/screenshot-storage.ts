@@ -1,8 +1,14 @@
 /**
  * Screenshot storage using IndexedDB.
  * Stores screenshots with a uid for efficient reference and retrieval.
- * Applies an LRU eviction policy (max 50 screenshots).
+ * Keeps at most 50 screenshots, none older than DEFAULT_RETENTION_MS.
  */
+
+import {
+  DEFAULT_RETENTION_MS,
+  isExpired,
+  selectForEviction,
+} from "@apty/agent-core";
 
 export interface ScreenshotData {
   uid: string;
@@ -42,6 +48,7 @@ function initialize(): Promise<void> {
       db = request.result;
       initPromise = null;
       resolve();
+      applyLRU().catch(() => {});
     };
 
     request.onupgradeneeded = (event) => {
@@ -72,10 +79,12 @@ async function applyLRU(): Promise<void> {
     req.onerror = () => rej(req.error);
   });
 
-  if (all.length <= MAX_SCREENSHOTS) return;
-
-  all.sort((a, b) => b.timestamp - a.timestamp);
-  const toDelete = all.slice(MAX_SCREENSHOTS);
+  const toDelete = selectForEviction(all, {
+    timeOf: (s) => s.timestamp,
+    maxItems: MAX_SCREENSHOTS,
+    maxAgeMs: DEFAULT_RETENTION_MS,
+  });
+  if (toDelete.length === 0) return;
 
   const delTx = db.transaction([STORE_NAME], "readwrite");
   const delStore = delTx.objectStore(STORE_NAME);
@@ -153,7 +162,11 @@ export const ScreenshotStorage = {
       const req = store.get(uid);
       req.onsuccess = () => {
         const data = req.result as ScreenshotData | undefined;
-        resolve(data?.base64Data ?? null);
+        if (!data || isExpired(data.timestamp, DEFAULT_RETENTION_MS)) {
+          resolve(null);
+          return;
+        }
+        resolve(data.base64Data);
       };
       req.onerror = () => reject(req.error);
     });
