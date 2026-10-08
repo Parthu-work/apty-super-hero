@@ -74,7 +74,8 @@ import {
   type RestorationEvidence,
   type StateGraphSummary,
 } from "./application-scoring.js";
-import { isUnsupportedPage, runDomHealthAudit } from "./dom-health.js";
+import { collectDomHealthAudit, isUnsupportedPage } from "./dom-health.js";
+import { redactDomHealthOutput } from "./dom-health-redaction.js";
 import {
   captureApplicationState,
   toFrameSignatureEntries,
@@ -332,7 +333,10 @@ function buildStateGraphSummary(graph: StateGraph): StateGraphSummary {
  * tab's current page/state. Safe by construction: literal `<a href>`
  * discovery never executes anything, and non-anchor discovery is
  * click-free unless `allowClickDiscovery` is explicitly set; hard limits
- * bound total states, queue size, and wall-clock time.
+ * bound total states, queue size, and wall-clock time. Page titles are
+ * never recorded in the result (they can name the practice or a patient,
+ * see `REDACTED_TITLE`), and the result leaves through
+ * `redactDomHealthOutput`.
  */
 export async function runApplicationDomHealthAudit(
   tabId: number,
@@ -594,7 +598,7 @@ export async function runApplicationDomHealthAudit(
 
       await waitForDomStable(tabId);
 
-      const auditOutcome = await runDomHealthAudit(tabId);
+      const auditOutcome = await collectDomHealthAudit(tabId);
       if (!auditOutcome.available) {
         pages.push({
           url: next.url,
@@ -619,7 +623,7 @@ export async function runApplicationDomHealthAudit(
             graph.getNode(next.sourceStateId)?.fingerprint ?? seedFingerprint,
           afterFingerprint: fingerprint,
           url: auditOutcome.url,
-          title: auditOutcome.pageTitle,
+          title: null,
           historyEventDelta: 0,
         });
         stateId = transition.stateId;
@@ -627,7 +631,7 @@ export async function runApplicationDomHealthAudit(
 
       pages.push({
         url: auditOutcome.url,
-        title: auditOutcome.pageTitle,
+        title: null,
         discoverySource: next.source,
         status: "completed",
         result: auditOutcome,
@@ -778,7 +782,7 @@ export async function runApplicationDomHealthAudit(
       pagesQueued: queue.length,
     });
 
-    const auditOutcome = await runDomHealthAudit(tabId);
+    const auditOutcome = await collectDomHealthAudit(tabId);
     if (!auditOutcome.available) {
       pages.push({
         url: `${next.fromUrl}#control:${next.domPath}`,
@@ -800,7 +804,7 @@ export async function runApplicationDomHealthAudit(
     // transitionReason) is what actually distinguishes this state.
     pages.push({
       url: auditOutcome.url,
-      title: auditOutcome.pageTitle,
+      title: null,
       discoverySource: "safe-navigation-control",
       status: "completed",
       result: auditOutcome,
@@ -829,5 +833,5 @@ export async function runApplicationDomHealthAudit(
     restorations,
     crossStateEvidence,
   });
-  return { available: true, ...result };
+  return redactDomHealthOutput({ available: true, ...result });
 }

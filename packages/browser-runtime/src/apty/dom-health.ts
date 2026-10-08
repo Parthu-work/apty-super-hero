@@ -26,6 +26,7 @@
  * integrations are unavailable or unconfigured.
  */
 import type { DomHealthSnapshot } from "@apty/dom-snapshot";
+import { redactDomHealthOutput } from "./dom-health-redaction.js";
 import {
   buildDomHealthAuditResult,
   type DomHealthAuditResult,
@@ -85,13 +86,26 @@ function mergeFrameAccessibility(
 }
 
 /**
- * Run a full Apty DOM Health audit against the given tab. Each round
- * captures every reachable frame (never a single un-addressed message) and
- * aggregates them into one snapshot; the aggregated sequence is scored
- * deterministically — the same sequence of captures always produces the
- * same score.
+ * Run a full Apty DOM Health audit against the given tab and return it
+ * redacted (`dom-health-redaction.ts`): this is what the agent tool and the
+ * side panel see.
  */
 export async function runDomHealthAudit(
+  tabId: number,
+): Promise<DomHealthAuditOutcome> {
+  return redactDomHealthOutput(await collectDomHealthAudit(tabId));
+}
+
+/**
+ * The unredacted audit. Each round captures every reachable frame (never a
+ * single un-addressed message) and aggregates them into one snapshot; the
+ * aggregated sequence is scored deterministically — the same sequence of
+ * captures always produces the same score. Only `application-audit.ts`
+ * calls this directly, because it navigates with the page URL and replays
+ * the seed's element paths; anything leaving the service worker goes
+ * through `runDomHealthAudit`.
+ */
+export async function collectDomHealthAudit(
   tabId: number,
 ): Promise<DomHealthAuditOutcome> {
   let tab: chrome.tabs.Tab;

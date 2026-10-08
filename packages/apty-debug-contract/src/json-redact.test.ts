@@ -38,10 +38,10 @@ describe("redactJsonAware — v4 WP1 regression table", () => {
 
   it("redacts page_title, drops page_search entirely, and masks ID-like page_path segments while keeping the route shape", () => {
     const input =
-      '{"page_title":"PREVIEW: Patient Chart [1928501] | Athena","page_search":"?MAIN=https%3A%2F%2Fexample.com","page_path":"/1928501/2/summary"}';
+      '{"page_title":"PREVIEW: Patient Chart [4242424] | Athena","page_search":"?MAIN=https%3A%2F%2Fexample.com","page_path":"/4242424/2/summary"}';
     const output = redactJsonAware(input);
     expect(output).not.toContain("Patient Chart");
-    expect(output).not.toContain("1928501");
+    expect(output).not.toContain("4242424");
     expect(output).not.toContain("MAIN=https");
     expect(output).toContain('"page_search":""');
     expect(output).toContain("/<ID>/2/summary");

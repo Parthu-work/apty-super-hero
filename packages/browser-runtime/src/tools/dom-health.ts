@@ -10,6 +10,7 @@
  */
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { REDACTED_TITLE } from "../apty/dom-health-redaction.js";
 import {
   recordToolCall,
   runApplicationDomHealthAudit,
@@ -21,6 +22,14 @@ import {
   resolveDiagnosticTab,
   type ToolRunContext,
 } from "./tab-utils";
+
+/** The tab as the model may see it: the audit result is already redacted, and the tab title carries the same page context as `pageTitle`. */
+function describeTabForReport(tab: chrome.tabs.Tab) {
+  return {
+    ...describeTabForMeta(tab),
+    title: tab.title ? REDACTED_TITLE : null,
+  };
+}
 
 export const runDomHealthAuditTool = tool({
   name: "run_dom_health_audit",
@@ -46,7 +55,7 @@ export const runDomHealthAuditTool = tool({
     }
     const tab = resolution.tab;
     const result = await runDomHealthAudit(tab.id as number);
-    return { ...result, meta: { tab: describeTabForMeta(tab) } };
+    return { ...result, meta: { tab: describeTabForReport(tab) } };
   },
 });
 
@@ -96,7 +105,7 @@ export const runApplicationDomHealthAuditTool = tool({
       maxPages: input.maxPages,
       discoveryMode: input.discoveryMode,
     });
-    return { ...result, meta: { tab: describeTabForMeta(tab) } };
+    return { ...result, meta: { tab: describeTabForReport(tab) } };
   },
 });
 

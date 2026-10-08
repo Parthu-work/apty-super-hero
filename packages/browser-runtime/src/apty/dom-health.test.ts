@@ -352,4 +352,64 @@ describe("runDomHealthAudit", () => {
       expect(result.evidenceState).toBe("FAILED");
     }
   });
+
+  it("never returns a page title, practice id, tenant, session or token-valued attribute unredacted", async () => {
+    const leaky = snapshotFixture({
+      url: "https://ehr.example.test/4242424/2/globalframeset.esp?inforTenantId=FAKETENANT00000_TRN&inforSessionId=FAKETENANT00000_TRN~00000000-0000-4000-8000-000000000000",
+      title:
+        "PREVIEW: exampleCollector v1.0 TX - Example Practice - Texas [4242424] | EXAMPLE CLINIC [1]",
+      elementPathSamples: [
+        {
+          fingerprint: "button|data-auth-token",
+          path: [
+            {
+              tag: "button",
+              attributes: [
+                { name: "data-auth-token", value: "fake-secret-0001" },
+              ],
+              classes: [],
+              pseudo: [],
+            },
+          ],
+          tagName: "button",
+          selector: '[data-auth-token="fake-secret-0001"]',
+          outcome: "DIRECT_SUCCESS",
+        },
+      ],
+    });
+    leaky.elementReports[0]!.attributes.dataAttributes = {
+      "osp-id": "LN",
+      token: "pubFAKE0000000000000000000000000000",
+    };
+    leaky.elementReports[0]!.bestSelector = '[data-session-id="sess-123456"]';
+    mockTabsGet.mockResolvedValue({ id: TAB_ID, url: leaky.url });
+    mockSendMessage.mockImplementation(
+      (_tabId: number, _msg: unknown, _options: unknown, callback: any) => {
+        callback(frameBundle(leaky));
+      },
+    );
+
+    const promise = runDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    const serialized = JSON.stringify(result);
+    for (const leak of [
+      "4242424",
+      "FAKETENANT00000_TRN",
+      "Example Practice",
+      "fake-secret-0001",
+      "pubFAKE",
+      "sess-123456",
+    ]) {
+      expect(serialized).not.toContain(leak);
+    }
+    expect(result.pageTitle).toBe("<REDACTED-TITLE>");
+    expect(result.elementSamples[0]?.attributes.dataAttributes["osp-id"]).toBe(
+      "LN",
+    );
+    expect(typeof result.score).toBe("number");
+  });
 });
