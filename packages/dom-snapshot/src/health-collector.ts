@@ -70,7 +70,7 @@ import type {
   ElementSelectorReport,
   StabilityVerdict,
 } from "./health-types.js";
-import { shadowRootOf } from "./shadow-roots.js";
+import { AGENT_UI_ROOT_IDS, shadowRootOf } from "./shadow-roots.js";
 
 /**
  * Runaway-safety ceiling on how many interactive elements get the full
@@ -673,17 +673,27 @@ function analyzeInteractiveElement(
  * elements and queues interactive candidates; the expensive per-element
  * pipeline runs afterward, in batches.
  */
+/** Every element under `root` except the Agent's own injected UI and its contents. */
+function withoutAgentUi(root: ParentNode): Element[] {
+  const all = Array.from(root.querySelectorAll("*"));
+  const agentRoots = all.filter((el) => AGENT_UI_ROOT_IDS.includes(el.id));
+  if (agentRoots.length === 0) return all;
+  return all.filter(
+    (el) => !agentRoots.some((agentRoot) => agentRoot.contains(el)),
+  );
+}
+
 function collectFromRoot(
   root: ParentNode,
   state: CollectorState,
   options: { maxStyleChecks: number },
   insideShadowDom: boolean,
 ): void {
-  const all = root.querySelectorAll("*");
+  const all = withoutAgentUi(root);
   state.totalElements += all.length;
   if (insideShadowDom) state.shadowElements += all.length;
 
-  for (const el of Array.from(all)) {
+  for (const el of all) {
     const tag = el.tagName.toLowerCase();
 
     if (tag === "button") state.buttons++;

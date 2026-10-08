@@ -63,6 +63,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Real-browser extension tests
+        run: npm run test:e2e
+
       - name: Validate extension manifest
         run: npm run validate:extension
 

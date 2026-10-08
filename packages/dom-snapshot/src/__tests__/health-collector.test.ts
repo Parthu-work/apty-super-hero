@@ -377,6 +377,20 @@ describe("collectDomHealthSnapshot — Shadow DOM", () => {
     expect(snapshot.counts.buttons).toBe(1);
   });
 
+  it("leaves the Agent's own injected UI out of the audit", async () => {
+    setHtml(
+      `<button>page</button><div id="aipex-border-overlay"><div><button>x</button></div></div><div id="aipex-content-root"></div>`,
+    );
+    document
+      .getElementById("aipex-content-root")!
+      .attachShadow({ mode: "open" }).innerHTML = "<button>agent</button>";
+
+    const snapshot = await collectDomHealthSnapshot(document);
+
+    expect(snapshot.counts.buttons).toBe(1);
+    expect(snapshot.shadowDom.roots).toBe(0);
+  });
+
   it("does not traverse a closed shadow root outside an extension content script", async () => {
     setHtml(`<div id="host"></div>`);
     const host = document.getElementById("host")!;
