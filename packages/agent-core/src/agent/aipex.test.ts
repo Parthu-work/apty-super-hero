@@ -3,7 +3,7 @@ import { ConversationManager } from "../conversation/manager.js";
 import { SessionStorage } from "../conversation/storage.js";
 import { InMemoryStorage } from "../storage/memory.js";
 import type { AgentEvent, AiSdkModel, SerializedSession } from "../types.js";
-import { AIPex } from "./aipex.js";
+import { AIPex, DEFAULT_MAX_TURNS } from "./aipex.js";
 
 vi.mock("@openai/agents", () => ({
   Agent: vi.fn(),
@@ -846,6 +846,21 @@ describe("AIPex", () => {
         expect(metricsEvent.metrics.startTime).toBeGreaterThan(0);
         expect(metricsEvent.metrics.duration).toBeGreaterThanOrEqual(0);
       }
+    });
+
+    it("bounds the run at DEFAULT_MAX_TURNS when the caller sets no limit", async () => {
+      vi.mocked(run).mockResolvedValue(
+        createMockRunResult({ finalOutput: "Response" }) as any,
+      );
+      const agent = AIPex.create({ instructions: "Test", model: mockModel });
+
+      for await (const _event of agent.chat("Test input")) {
+        // drain
+      }
+
+      expect(vi.mocked(run).mock.calls[0]?.[2]).toMatchObject({
+        maxTurns: DEFAULT_MAX_TURNS,
+      });
     });
 
     it("should handle missing usage data gracefully", async () => {
