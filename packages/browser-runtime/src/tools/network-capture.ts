@@ -11,7 +11,7 @@
  * `../apty/network-capture-session.ts` for the session mechanics, including
  * its request-count cap and forced-cleanup-on-tab-close/detach handling.
  */
-import { tool } from "@apty/agent-core";
+import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { recordToolCall } from "../apty/index.js";
 import {
@@ -19,12 +19,15 @@ import {
   startNetworkCapture,
   stopNetworkCapture,
 } from "../apty/network-capture-session.js";
+import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import {
   describeTabForMeta,
   describeTabResolutionFailure,
   resolveDiagnosticTab,
   type ToolRunContext,
 } from "./tab-utils";
+
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 export const startNetworkCaptureTool = tool({
   name: "start_network_capture",
@@ -44,8 +47,12 @@ export const startNetworkCaptureTool = tool({
       };
     }
     const tab = resolution.tab;
+    const settings = await settingsStorage.load(STORAGE_KEYS.SETTINGS);
     return {
-      ...(await startNetworkCapture(conversationId, tab.id as number)),
+      ...(await startNetworkCapture(conversationId, tab.id as number, {
+        captureBodies: settings?.networkBodyCaptureEnabled === true,
+        bodyDenyList: settings?.networkBodyCaptureDenyList ?? [],
+      })),
       meta: { tab: describeTabForMeta(tab) },
     };
   },
@@ -54,7 +61,7 @@ export const startNetworkCaptureTool = tool({
 export const stopNetworkCaptureTool = tool({
   name: "stop_network_capture",
   description:
-    "Stop the network capture started by start_network_capture and return every request seen while it was running — correlated request/response pairs, status codes, resource types, and failures. For XHR/Fetch requests with a textual (JSON/text) response under ~1MB, the actual response body is included too (redacted, truncated at 8000 chars — see bodyTruncated/bodyTooLarge/bodyUnavailable on each request) — e.g. if the user asks 'what did segments.json return', find the matching request by URL in this result and read its bodyPreview. Failed/4xx/5xx requests are also recorded as investigation evidence (see get_investigation_timeline). Check session.truncated — if true, the oldest requests were dropped past the 2000-request cap and the returned set is incomplete. " +
+    "Stop the network capture started by start_network_capture and return every request seen while it was running — correlated request/response pairs, status codes, resource types, and failures. Response bodies are included only when the user turned on response-body capture in Settings (session.bodiesCaptured); then XHR/Fetch requests with a textual (JSON/text) response under ~1MB carry a redacted bodyPreview truncated at 8000 chars (see bodyTruncated/bodyTooLarge/bodyUnavailable), except for hosts on the user's deny-list. If bodiesCaptured is false and the user wants a body, tell them to enable it in Settings; you cannot enable it. Failed/4xx/5xx requests are also recorded as investigation evidence (see get_investigation_timeline). Check session.truncated — if true, the oldest requests were dropped past the 2000-request cap and the returned set is incomplete. " +
     "Returns an error if no capture is currently running for this conversation.",
   parameters: z.object({
     onlyErrors: z

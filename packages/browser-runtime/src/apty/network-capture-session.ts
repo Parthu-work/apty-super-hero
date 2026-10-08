@@ -57,8 +57,16 @@ import { getInvestigation } from "./investigation-session.js";
 import {
   decodeBase64Utf8,
   isTextualMime,
+  isUrlDenied,
   MAX_INLINE_BODY_CHARS,
 } from "./resource-body-utils.js";
+
+export interface NetworkCaptureOptions {
+  /** Fetch response bodies. Off unless the user enabled it in Settings. */
+  captureBodies?: boolean;
+  /** Hosts or URL substrings whose bodies are never fetched. */
+  bodyDenyList?: readonly string[];
+}
 
 export interface CapturedNetworkRequest {
   requestId: string;
@@ -97,6 +105,8 @@ export interface NetworkCaptureSession {
   startedAt: number;
   stoppedAt?: number;
   status: NetworkCaptureStatus;
+  /** Whether response bodies are being fetched (the user's Settings opt-in). */
+  bodiesCaptured: boolean;
   requestCount: number;
   /** True once eviction has dropped at least one request for exceeding MAX_CAPTURED_REQUESTS — a hint that the returned set is incomplete. */
   truncated: boolean;
@@ -324,7 +334,10 @@ export interface StartCaptureResult {
 export async function startNetworkCapture(
   conversationId: string | undefined,
   tabId: number,
+  options: NetworkCaptureOptions = {},
 ): Promise<StartCaptureResult> {
+  const captureBodies = options.captureBodies === true;
+  const bodyDenyList = options.bodyDenyList ?? [];
   ensureCleanupListenersRegistered();
 
   const key = keyFor(conversationId);
@@ -385,6 +398,9 @@ export async function startNetworkCapture(
         req.errorText = p.errorText;
       }
     } else if (method === "Network.loadingFinished") {
+      if (!captureBodies) return;
+      const url = requests.get(p.requestId)?.url;
+      if (url && isUrlDenied(url, bodyDenyList)) return;
       void maybeFetchResponseBody(
         tabId,
         requests,
@@ -417,6 +433,7 @@ export async function startNetworkCapture(
     investigationId: getInvestigation(conversationId)?.id,
     startedAt: Date.now(),
     status: "capturing",
+    bodiesCaptured: captureBodies,
   };
 
   const active: ActiveCapture = {

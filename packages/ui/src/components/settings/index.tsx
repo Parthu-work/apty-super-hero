@@ -55,6 +55,7 @@ import {
 } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { DataHandlingCard } from "./data-handling-card";
 import type { SaveStatus, SettingsPageProps, SettingsTab } from "./types";
 
 const PROVIDER_TYPE_TO_KEY: Record<ProviderType, AIProviderKey> = {
@@ -1014,6 +1015,14 @@ export function SettingsPage({
                 </div>
               </CardContent>
             </Card>
+
+            <DataHandlingCard
+              settings={settings}
+              language={language}
+              onChange={(patch) =>
+                setSettings((prev: AppSettings) => ({ ...prev, ...patch }))
+              }
+            />
 
             {/* Skill execution toggle — off by default. Running a skill
                 script executes untrusted, author-supplied code in a QuickJS

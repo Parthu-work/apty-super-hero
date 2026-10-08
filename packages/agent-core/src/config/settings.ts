@@ -45,6 +45,14 @@ export interface AppSettings {
    * Off by default until that's hardened further.
    */
   skillExecutionEnabled?: boolean;
+  /**
+   * Opt-in: fetch (redacted) response bodies of XHR/Fetch requests during a
+   * page network capture. Off by default because bodies of any tab are
+   * otherwise sent to the model. Only the user can change it, in Settings.
+   */
+  networkBodyCaptureEnabled?: boolean;
+  /** Hosts (matching subdomains too) or URL substrings whose bodies are never captured. */
+  networkBodyCaptureDenyList?: string[];
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -56,4 +64,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultModel: undefined,
   customModels: [],
   skillExecutionEnabled: false,
+  networkBodyCaptureEnabled: false,
+  networkBodyCaptureDenyList: [],
 };
