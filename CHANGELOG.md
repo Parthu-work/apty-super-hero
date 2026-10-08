@@ -36,10 +36,25 @@ full commit-level history.
   result; evidence and investigations survive a side-panel reload or a
   service-worker restart.
 
+**Found and fixed by the real-browser tests**
+- The Options page's MCP bridge Connect button was always rejected as an
+  "Unauthorized sender": privileged messages are now trusted by the
+  sender's chrome-extension:// URL, not by the absence of a tab.
+- The agent could not connect to the Apty Client unless the optional
+  "Manage extensions" permission was granted.
+- Custom tool views (the full-response viewer) never showed for tool calls
+  folded into "thinking details".
+- Bookmarks and history context logged errors when their optional
+  permissions were not granted.
+
 **Engineering**
-- Real-browser tests (`npm run test:e2e`) run the built extension in
-  Chromium in CI; a tag-triggered release workflow builds, tests, zips and
-  checksums the extension.
+- CI had stopped running any checks: `pnpm/action-setup` failed because
+  the workflow and `packageManager` both named a pnpm version. The
+  workflow now takes it from `packageManager`.
+- Real-browser tests (`npm run test:e2e`, 23 tests) drive the real side
+  panel and agent loop against a scripted model, fake Apty Client
+  extensions and the real MCP daemon in Chromium, in CI; a tag-triggered
+  release workflow builds, tests, zips and checksums the extension.
 - `AIPex` defaults to 30 turns instead of 2000.
 
 ## Earlier — Apty Client resource inspection: fixed the transport, verified against real Chrome
