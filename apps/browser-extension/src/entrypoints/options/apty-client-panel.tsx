@@ -21,7 +21,6 @@ import {
   isValidExtensionId,
   updateAptyIntegrationConfig,
 } from "@apty/browser-runtime";
-import { ConfiguredServiceWorkerDiagnosticsProvider } from "@apty/browser-runtime/apty/service-worker-diagnostics";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
@@ -37,43 +36,13 @@ import { Label } from "@apty/ui/components/ui/label";
 import { cn } from "@apty/ui/lib/utils";
 import { CheckCircle2, Info, Loader2, Plug, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  type ClientCheck,
+  checkClient,
+} from "../../services/apty-client-check";
 import { requestOptionalPermission } from "../../services/optional-permissions";
 
-type CheckState =
-  | { status: "idle" }
-  | { status: "checking" }
-  | { status: "ok" }
-  | { status: "not_answering"; message: string }
-  | { status: "error"; message: string };
-
-const NOT_FOUND_MESSAGE =
-  "The specified Apty Client extension could not be found or is not currently available.";
-
-/** `undefined` when the optional `management` permission isn't granted, so installation can't be checked. */
-async function isInstalledAndEnabled(id: string): Promise<boolean | undefined> {
-  if (!chrome.management?.get) return undefined;
-  try {
-    const info = await chrome.management.get(id);
-    return info.enabled;
-  } catch {
-    return false;
-  }
-}
-
-/** Installed check (when permitted), then the real message handshake with the Client. */
-async function checkClient(id: string): Promise<CheckState> {
-  if ((await isInstalledAndEnabled(id)) === false) {
-    return { status: "error", message: NOT_FOUND_MESSAGE };
-  }
-  const status = await new ConfiguredServiceWorkerDiagnosticsProvider({
-    extensionId: id,
-  }).getStatus();
-  if (status.status === "ok") return { status: "ok" };
-  return {
-    status: "not_answering",
-    message: status.error ?? "The Apty Client did not answer.",
-  };
-}
+type CheckState = { status: "idle" } | { status: "checking" } | ClientCheck;
 
 interface DetectedExtension {
   id: string;
@@ -158,7 +127,7 @@ export function AptyClientPanel() {
   const isChecking = check.status === "checking";
 
   return (
-    <Card>
+    <Card id="apty-client" className="scroll-mt-4">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">

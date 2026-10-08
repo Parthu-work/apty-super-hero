@@ -4,6 +4,8 @@ import { z } from "zod";
 import { skillManager } from "../skills/lib/services/skill-manager";
 import { getSkillInfo as getSkillInfoImpl } from "../skills/mcp-servers/skills";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
+import { gateRiskyAction } from "./approval.js";
+import type { ToolRunContext } from "./tab-utils";
 
 const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
@@ -58,7 +60,7 @@ export const executeSkillScriptTool = tool({
       .optional()
       .describe("Arguments to pass to the script"),
   }),
-  execute: async ({ skillName, scriptPath, args }) => {
+  execute: async ({ skillName, scriptPath, args }, context) => {
     try {
       if (!(await isSkillExecutionEnabled())) {
         return {
@@ -71,12 +73,22 @@ export const executeSkillScriptTool = tool({
       const normalizedPath = scriptPath.startsWith("scripts/")
         ? scriptPath
         : `scripts/${scriptPath}`;
-      const result = await skillManager.executeSkillScript(
-        skillName,
-        normalizedPath,
-        args,
+      // A script can be written by the model itself (skill-creator), read
+      // files and make network requests, so each run needs a click.
+      return gateRiskyAction(
+        (context as ToolRunContext)?.context?.conversationId,
+        "execute_skill_script",
+        `Run the script ${normalizedPath} from the skill "${skillName}"`,
+        undefined,
+        async () => ({
+          success: true,
+          result: await skillManager.executeSkillScript(
+            skillName,
+            normalizedPath,
+            args,
+          ),
+        }),
       );
-      return { success: true, result };
     } catch (error: unknown) {
       return {
         success: false,

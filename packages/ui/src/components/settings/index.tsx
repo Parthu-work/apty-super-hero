@@ -56,6 +56,7 @@ import {
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { DataHandlingCard } from "./data-handling-card";
+import { TroubleshootingCard } from "./troubleshooting-card";
 import type { SaveStatus, SettingsPageProps, SettingsTab } from "./types";
 
 const PROVIDER_TYPE_TO_KEY: Record<ProviderType, AIProviderKey> = {
@@ -306,6 +307,8 @@ export function SettingsPage({
   permissionsContent,
   sttConfig,
   initialTab,
+  activeTab: controlledTab,
+  onTabChange,
   initialSkill: _initialSkill,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
@@ -336,8 +339,11 @@ export function SettingsPage({
   });
   const [showToken, setShowToken] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(
-    initialTab ?? "general",
+    controlledTab ?? initialTab ?? "general",
   );
+  useEffect(() => {
+    if (controlledTab) setActiveTab(controlledTab);
+  }, [controlledTab]);
   const [searchTerm, setSearchTerm] = useState("");
   const [includeKeysOnExport, setIncludeKeysOnExport] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -464,9 +470,21 @@ export function SettingsPage({
     ) => {
       if (!selectedModelId) return;
       setCustomModels((prev) => {
-        const next = prev.map((model) =>
-          model.id === selectedModelId ? { ...model, [key]: value } : model,
-        );
+        const next = prev.map((model) => {
+          if (model.id !== selectedModelId) return model;
+          // The first key typed into a provider turns it on: forgetting
+          // the Enable switch was the most common first-run mistake.
+          const firstKey =
+            key === "aiToken" &&
+            typeof value === "string" &&
+            value.trim() !== "" &&
+            !model.aiToken?.trim();
+          return {
+            ...model,
+            [key]: value,
+            ...(firstKey ? { enabled: true } : {}),
+          };
+        });
         const updated = next.find((model) => model.id === selectedModelId);
         if (updated) {
           updateSettingsFromModel(updated);
@@ -597,6 +615,25 @@ export function SettingsPage({
       defaultModel: value === DEFAULT_MODEL_AUTO_VALUE ? undefined : value,
     }));
   }, []);
+
+  // General-tab switches take effect at once: that tab has no Save button.
+  // Each patch is merged into what's stored, not into unsaved AI-tab edits.
+  const generalSaveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const saveGeneralSetting = useCallback(
+    (patch: Partial<AppSettings>) => {
+      setSettings((prev: AppSettings) => ({ ...prev, ...patch }));
+      generalSaveQueue.current = generalSaveQueue.current.then(async () => {
+        try {
+          const stored = ((await storageAdapter.load(storageKey)) ??
+            {}) as AppSettings;
+          await storageAdapter.save(storageKey, { ...stored, ...patch });
+        } catch (error) {
+          console.error("Failed to save setting:", error);
+        }
+      });
+    },
+    [storageAdapter, storageKey],
+  );
 
   const handleSaveSettings = useCallback(async () => {
     setIsSaving(true);
@@ -879,7 +916,10 @@ export function SettingsPage({
         {/* Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={(value: string) => setActiveTab(value as SettingsTab)}
+          onValueChange={(value: string) => {
+            setActiveTab(value as SettingsTab);
+            onTabChange?.(value as SettingsTab);
+          }}
           className="w-full"
         >
           <TabsList
@@ -1019,16 +1059,19 @@ export function SettingsPage({
             <DataHandlingCard
               settings={settings}
               language={language}
-              onChange={(patch) =>
-                setSettings((prev: AppSettings) => ({ ...prev, ...patch }))
-              }
+              onChange={saveGeneralSetting}
+            />
+
+            <TroubleshootingCard
+              settings={settings}
+              language={language}
+              onChange={saveGeneralSetting}
             />
 
             {/* Skill execution toggle — off by default. Running a skill
                 script executes untrusted, author-supplied code in a QuickJS
-                sandbox that can import packages from a CDN (esm.sh) at
-                runtime with no integrity pinning, through a fetch bridge
-                with a documented residual DNS-rebinding risk. */}
+                sandbox, through a fetch bridge with a documented residual
+                DNS-rebinding risk. */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1051,20 +1094,22 @@ export function SettingsPage({
                       : "Enable skill execution"}
                   </span>
                   <Switch
+                    aria-label={
+                      language === "zh"
+                        ? "启用技能执行"
+                        : "Enable skill execution"
+                    }
                     checked={settings.skillExecutionEnabled === true}
                     onCheckedChange={(checked) =>
-                      setSettings((prev: AppSettings) => ({
-                        ...prev,
-                        skillExecutionEnabled: checked,
-                      }))
+                      saveGeneralSetting({ skillExecutionEnabled: checked })
                     }
                   />
                 </div>
                 <Alert variant="destructive">
                   <AlertDescription className="text-sm leading-relaxed">
                     {language === "zh"
-                      ? "启用后，技能脚本可以从 CDN 导入第三方代码包并在沙盒中执行，这些包未经完整性校验。仅在信任所安装的技能时启用。"
-                      : "When enabled, skill scripts can import third-party packages from a CDN and execute them in the sandbox, with no integrity verification on those packages. Only enable this if you trust the skills you've installed."}
+                      ? "启用后，已安装技能附带的脚本会在沙盒中运行，并可通过受限的网络接口发起请求。仅在信任所安装的技能时启用。"
+                      : "When enabled, scripts that come with your installed skills run in a sandbox and can make network requests through a restricted bridge. Only enable this if you trust the skills you've installed."}
                   </AlertDescription>
                 </Alert>
               </CardContent>
@@ -1259,7 +1304,9 @@ export function SettingsPage({
               </Card>
             </div>
 
-            <Card className="overflow-hidden">
+            {/* overflow-clip, not overflow-hidden: it rounds the corners
+                without breaking the sticky footer below. */}
+            <Card id="ai-provider" className="scroll-mt-4 overflow-clip">
               <div className="flex" style={{ minHeight: "500px" }}>
                 {/* Left Sidebar - Custom Model List */}
                 <div className="w-72 border-r flex flex-col">
@@ -1318,6 +1365,11 @@ export function SettingsPage({
                           : "Include API keys when exporting"}
                       </span>
                       <Switch
+                        aria-label={
+                          language === "zh"
+                            ? "导出时包含 API 密钥"
+                            : "Include API keys when exporting"
+                        }
                         checked={includeKeysOnExport}
                         onCheckedChange={setIncludeKeysOnExport}
                       />
@@ -1457,6 +1509,7 @@ export function SettingsPage({
                               {language === "zh" ? "启用" : "Enable"}
                             </span>
                             <Switch
+                              aria-label={language === "zh" ? "启用" : "Enable"}
                               checked={selectedModel.enabled}
                               onCheckedChange={(checked) =>
                                 handleModelFieldChange("enabled", checked)
@@ -1634,8 +1687,9 @@ export function SettingsPage({
                     )}
                   </div>
 
-                  {/* Action Buttons - Footer */}
-                  <div className="p-6 border-t bg-muted/50">
+                  {/* Action Buttons - Footer, kept in view while the
+                      provider list scrolls the page */}
+                  <div className="sticky bottom-0 z-10 border-t bg-muted p-6">
                     <div className="flex gap-3">
                       <Button
                         variant="outline"

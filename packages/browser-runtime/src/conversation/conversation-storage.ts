@@ -1,4 +1,5 @@
 import {
+  createLogger,
   DEFAULT_RETENTION_MS,
   isExpired,
   selectForEviction,
@@ -11,6 +12,8 @@ import type {
   ConversationStorageConfig,
   UIMessage,
 } from "./types";
+
+const log = createLogger("ConversationStorage");
 
 /**
  * Conversation Storage Manager
@@ -110,9 +113,7 @@ export class ConversationStorage {
       });
 
       if (toDelete.length > 0) {
-        console.log(
-          `🗑️ [ConversationStorage] LRU: Removing ${toDelete.length} old conversation(s)`,
-        );
+        log.debug(`🗑️ LRU: Removing ${toDelete.length} old conversation(s)`);
         await Promise.all(toDelete.map((conv) => this.storage.delete(conv.id)));
       }
     } catch (error) {
@@ -155,11 +156,7 @@ export class ConversationStorage {
     try {
       await this.storage.save(conversationId, conversation);
       await this.applyLRU();
-      console.log(
-        "💾 [ConversationStorage] Conversation saved:",
-        conversationId,
-        title,
-      );
+      log.debug("💾 Conversation saved:", conversationId, title);
       return conversationId;
     } catch (error) {
       console.error(
@@ -212,10 +209,7 @@ export class ConversationStorage {
       conversation.updatedAt = Date.now();
       await this.storage.save(conversationId, conversation);
 
-      console.log(
-        "🔄 [ConversationStorage] Conversation access time updated:",
-        conversationId,
-      );
+      log.debug("🔄 Conversation access time updated:", conversationId);
       return conversation;
     } catch (error) {
       console.error(
@@ -254,10 +248,7 @@ export class ConversationStorage {
       }
 
       await this.storage.save(conversationId, conversation);
-      console.log(
-        "📝 [ConversationStorage] Conversation updated:",
-        conversationId,
-      );
+      log.debug("📝 Conversation updated:", conversationId);
     } catch (error) {
       console.error(
         "❌ [ConversationStorage] Failed to update conversation:",
@@ -274,10 +265,7 @@ export class ConversationStorage {
 
     try {
       await this.storage.delete(conversationId);
-      console.log(
-        "🗑️ [ConversationStorage] Conversation deleted:",
-        conversationId,
-      );
+      log.debug("🗑️ Conversation deleted:", conversationId);
     } catch (error) {
       console.error(
         "❌ [ConversationStorage] Failed to delete conversation:",
@@ -294,7 +282,7 @@ export class ConversationStorage {
 
     try {
       await this.storage.clear();
-      console.log("🧹 [ConversationStorage] All conversations cleared");
+      log.debug("🧹 All conversations cleared");
     } catch (error) {
       console.error(
         "❌ [ConversationStorage] Failed to clear conversations:",

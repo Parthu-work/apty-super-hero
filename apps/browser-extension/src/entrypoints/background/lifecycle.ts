@@ -3,7 +3,10 @@
  * service-worker startup, and handling install/update.
  */
 
+import { createLogger } from "@apty/agent-core";
 import { seedAptyIntegrationConfigDefaults } from "@apty/browser-runtime";
+
+const log = createLogger("Lifecycle");
 
 export function seedAptyIntegrationConfig(): void {
   // Seed Apty integration config (Studio/Client/Service-Worker extension IDs
@@ -31,10 +34,10 @@ export function registerInstallHandler(): void {
   // Handle extension installation or update
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === "install") {
-      console.log("Apty Agent extension installed");
+      log.debug("Apty Agent extension installed");
       chrome.runtime.openOptionsPage();
     } else if (details.reason === "update") {
-      console.log(
+      log.debug(
         "Apty Agent extension updated to version",
         chrome.runtime.getManifest().version,
       );

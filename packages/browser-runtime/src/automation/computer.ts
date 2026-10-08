@@ -9,8 +9,11 @@
  * - yCss = (y / imageHeight) * viewportHeight
  */
 
+import { createLogger } from "@apty/agent-core";
 import { CdpCommander } from "./cdp-commander";
 import { debuggerManager } from "./debugger-manager";
+
+const log = createLogger("Computer");
 
 /**
  * Log CDP command details to console for debugging
@@ -46,7 +49,7 @@ function logCdp(
     logData.cssCoords = extra.cssCoords;
   }
 
-  console.log(
+  log.debug(
     `🔧 [CDP] chrome.debugger.sendCommand:`,
     JSON.stringify(logData, null, 2),
   );
@@ -86,8 +89,8 @@ export function cacheScreenshotMetadata(
     tabId,
   };
   screenshotCache.set(tabId, metadata);
-  console.log(
-    `📸 [Computer] Screenshot metadata cached for tab ${tabId}: ${imageWidth}x${imageHeight} image, ${viewportWidth}x${viewportHeight} viewport`,
+  log.debug(
+    `📸 Screenshot metadata cached for tab ${tabId}: ${imageWidth}x${imageHeight} image, ${viewportWidth}x${viewportHeight} viewport`,
   );
 }
 
@@ -200,8 +203,8 @@ async function performClick(
 
   const { xCss, yCss } = screenshotToCssPixels(x, y, metadata);
 
-  console.log(
-    `🖱️ [Computer] ${button}_click at screenshot (${x},${y}) -> CSS (${xCss},${yCss})`,
+  log.debug(
+    `🖱️ ${button}_click at screenshot (${x},${y}) -> CSS (${xCss},${yCss})`,
   );
 
   try {
@@ -318,9 +321,7 @@ async function performHover(
 
   const { xCss, yCss } = screenshotToCssPixels(x, y, metadata);
 
-  console.log(
-    `🖱️ [Computer] Hover at screenshot (${x},${y}) -> CSS (${xCss},${yCss})`,
-  );
+  log.debug(`🖱️ Hover at screenshot (${x},${y}) -> CSS (${xCss},${yCss})`);
 
   try {
     const attached = await debuggerManager.safeAttachDebugger(tabId);
@@ -379,8 +380,8 @@ async function performDrag(
   const start = screenshotToCssPixels(startX, startY, metadata);
   const end = screenshotToCssPixels(endX, endY, metadata);
 
-  console.log(
-    `🖱️ [Computer] Drag from (${start.xCss},${start.yCss}) to (${end.xCss},${end.yCss})`,
+  log.debug(
+    `🖱️ Drag from (${start.xCss},${start.yCss}) to (${end.xCss},${end.yCss})`,
   );
 
   try {
@@ -508,9 +509,7 @@ async function performScroll(
       break;
   }
 
-  console.log(
-    `📜 [Computer] Scroll ${direction} by ${scrollAmount} at (${xCss},${yCss})`,
-  );
+  log.debug(`📜 Scroll ${direction} by ${scrollAmount} at (${xCss},${yCss})`);
 
   try {
     const attached = await debuggerManager.safeAttachDebugger(tabId);
@@ -556,7 +555,7 @@ async function performType(
   tabId: number,
   text: string,
 ): Promise<ComputerResult> {
-  console.log(`⌨️ [Computer] Typing: [REDACTED: ${text.length} chars]`);
+  log.debug(`⌨️ Typing: [REDACTED: ${text.length} chars]`);
 
   try {
     const attached = await debuggerManager.safeAttachDebugger(tabId);
@@ -593,7 +592,7 @@ async function performKey(
   tabId: number,
   keySequence: string,
 ): Promise<ComputerResult> {
-  console.log(`⌨️ [Computer] Key press: "${keySequence}"`);
+  log.debug(`⌨️ Key press (${keySequence.length} characters)`);
 
   try {
     const attached = await debuggerManager.safeAttachDebugger(tabId);
@@ -736,7 +735,7 @@ async function performKey(
 async function performWait(duration: number): Promise<ComputerResult> {
   const waitMs = Math.min(Math.max(duration * 1000, 0), 60000); // Clamp to 0-60 seconds
 
-  console.log(`⏳ [Computer] Waiting for ${waitMs}ms`);
+  log.debug(`⏳ Waiting for ${waitMs}ms`);
 
   await new Promise((resolve) => setTimeout(resolve, waitMs));
 
@@ -753,7 +752,7 @@ async function performScrollTo(
   tabId: number,
   uid: string,
 ): Promise<ComputerResult> {
-  console.log(`📜 [Computer] Scrolling to element with UID: ${uid}`);
+  log.debug(`📜 Scrolling to element with UID: ${uid}`);
 
   try {
     const result = await chrome.scripting.executeScript({

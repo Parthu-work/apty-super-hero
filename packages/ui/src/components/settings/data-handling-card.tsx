@@ -1,6 +1,9 @@
 import type { AppSettings } from "@apty/agent-core";
 import { ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const DENY_LIST_SAVE_DELAY_MS = 500;
+
 import {
   Card,
   CardContent,
@@ -36,8 +39,27 @@ export function DataHandlingCard({
   );
   const enabled = settings.networkBodyCaptureEnabled === true;
 
+  // Each change is a full settings write; wait for a pause in typing, and
+  // save what's pending if the card goes away first.
+  const pendingDenyList = useRef<string | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const flushDenyList = () => {
+    clearTimeout(saveTimer.current);
+    if (pendingDenyList.current === null) return;
+    onChangeRef.current({
+      networkBodyCaptureDenyList: parseDenyList(pendingDenyList.current),
+    });
+    pendingDenyList.current = null;
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: flush on unmount only
+  useEffect(() => flushDenyList, []);
+
   return (
-    <Card>
+    <Card id="data-handling" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
@@ -51,10 +73,11 @@ export function DataHandlingCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-sm font-medium">
+          <Label htmlFor="network-body-capture" className="text-sm font-medium">
             {zh ? "捕获响应正文" : "Capture response bodies"}
-          </span>
+          </Label>
           <Switch
+            id="network-body-capture"
             checked={enabled}
             onCheckedChange={(checked) =>
               onChange({ networkBodyCaptureEnabled: checked })
@@ -74,10 +97,14 @@ export function DataHandlingCard({
             placeholder={"bank.example.com\n/api/patients"}
             onChange={(event) => {
               setDenyListText(event.target.value);
-              onChange({
-                networkBodyCaptureDenyList: parseDenyList(event.target.value),
-              });
+              pendingDenyList.current = event.target.value;
+              clearTimeout(saveTimer.current);
+              saveTimer.current = setTimeout(
+                flushDenyList,
+                DENY_LIST_SAVE_DELAY_MS,
+              );
             }}
+            onBlur={flushDenyList}
           />
         </div>
       </CardContent>

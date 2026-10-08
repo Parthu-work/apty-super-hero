@@ -4,7 +4,10 @@
  * Manages Chrome DevTools debugger connections with auto-detach and locking
  */
 
+import { createLogger } from "@apty/agent-core";
 import { rejectPendingCommands } from "./cdp-commander";
+
+const log = createLogger("DebuggerManager");
 
 const AUTO_DETACH_TIMEOUT = 30 * 1000;
 
@@ -107,7 +110,7 @@ export class DebuggerManager {
           resolve(false);
         } else {
           this.debuggerAttachedTabs.add(tabId);
-          console.log("✅ [DEBUG] Debugger attached successfully");
+          log.debug("✅ Debugger attached successfully");
           resolve(true);
         }
       });

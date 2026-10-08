@@ -161,6 +161,32 @@ describe("chat agent in a real browser", () => {
     await app.close();
   });
 
+  it("refuses an approved action when the tab moved to another site meanwhile", async () => {
+    const app = await openApp();
+    const panel = await openSidePanel(browser, model, app);
+    model.script(
+      callToolThenReport("run_console_command", {
+        expression: RISKY_EXPRESSION,
+      }),
+    );
+
+    await chatAndWait(panel, "run a console command to change the title", {
+      whileWaiting: async () => {
+        const prompt = panel.getByRole("alertdialog");
+        await prompt.waitFor({ timeout: 30_000 });
+        await app.goto(
+          site.origin.replace("127.0.0.1", "localhost") + "/app.html",
+        );
+        await prompt.getByRole("button", { name: "Allow once" }).click();
+      },
+    });
+
+    assert.equal(await app.title(), "Original");
+    assert.equal(lastToolResult().reason, "page_changed");
+    await panel.close();
+    await app.close();
+  });
+
   it("remembers 'Allow on this site' for that tool only, until revoked in options", async () => {
     const app = await openApp();
     const panel = await openSidePanel(browser, model, app);
@@ -267,6 +293,40 @@ describe("chat agent in a real browser", () => {
     await chatAndWait(panel, "what is on this page");
 
     assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+
+  it("shows the working border on the page only while the agent replies", async () => {
+    const app = await openApp();
+    const pageErrors = [];
+    app.on("console", (m) => {
+      if (m.type() === "error") pageErrors.push(m.text());
+    });
+    const panel = await openSidePanel(browser, model, app);
+    let release;
+    const replied = new Promise((r) => {
+      release = r;
+    });
+    model.script(async () => {
+      await replied;
+      return { text: "RESULT: done thinking" };
+    });
+
+    const border = app.locator("#aipex-border-overlay > div");
+    await chatAndWait(panel, "what is on this page", {
+      whileWaiting: async () => {
+        await border.first().waitFor({ timeout: 15_000 });
+        release();
+      },
+    });
+    await border.first().waitFor({ state: "detached", timeout: 15_000 });
+
+    assert.deepEqual(
+      pageErrors.filter((e) => /storage/i.test(e)),
+      [],
+      "the page's content script must not touch extension storage",
+    );
     await panel.close();
     await app.close();
   });

@@ -60,6 +60,9 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Coverage of security-critical modules
+        run: npm run test:coverage
+
       - name: Build
         run: npm run build
 

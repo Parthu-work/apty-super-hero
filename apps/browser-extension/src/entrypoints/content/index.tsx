@@ -7,6 +7,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 // Import CSS as a string to inject into Shadow DOM
 import tailwindCss from "../../styles/tailwind.css?inline";
+import { isAgentActivityMessage } from "./agent-activity";
 
 const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
   {
@@ -135,55 +136,35 @@ const ContentApp = () => {
 
 // ============================================================================
 // Breathing Border Overlay — mounted OUTSIDE shadow DOM so z-index works
-// against page elements.  Driven by the "aipex-conversation-active" storage key
-// which the sidepanel writes as a heartbeat.
+// against page elements. The side panel sends AGENT_ACTIVITY_REQUEST every
+// 2 s while the AI is generating.
 // ============================================================================
-const HEARTBEAT_KEY = "aipex-conversation-active";
-const HEARTBEAT_TTL_MS = 6_000; // Hide overlay if heartbeat is stale (>6 s)
+const ACTIVITY_TTL_MS = 6_000;
 
 function BorderOverlayApp() {
   const [visible, setVisible] = React.useState(false);
 
-  const handleConversationState = React.useCallback((timestamp: unknown) => {
-    if (
-      typeof timestamp === "number" &&
-      Date.now() - timestamp < HEARTBEAT_TTL_MS
-    ) {
-      setVisible(true);
-    } else {
-      setVisible(false);
-    }
-  }, []);
-
   React.useEffect(() => {
-    // Check on mount
-    chrome.storage.local.get(HEARTBEAT_KEY, (result) => {
-      handleConversationState(result[HEARTBEAT_KEY]);
-    });
-
-    // Listen for changes
-    const onChange = (
-      changes: Record<string, chrome.storage.StorageChange>,
-      area: string,
-    ) => {
-      if (area === "local" && changes[HEARTBEAT_KEY]) {
-        handleConversationState(changes[HEARTBEAT_KEY].newValue);
-      }
+    let lastSeen = 0;
+    const onMessage = (message: unknown) => {
+      if (!isAgentActivityMessage(message)) return;
+      lastSeen = message.active ? Date.now() : 0;
+      setVisible(message.active);
     };
-    chrome.storage.onChanged.addListener(onChange);
+    chrome.runtime.onMessage.addListener(onMessage);
 
-    // Poll heartbeat staleness every 3 s
     const interval = setInterval(() => {
-      chrome.storage.local.get(HEARTBEAT_KEY, (result) => {
-        handleConversationState(result[HEARTBEAT_KEY]);
-      });
+      if (lastSeen && Date.now() - lastSeen > ACTIVITY_TTL_MS) {
+        lastSeen = 0;
+        setVisible(false);
+      }
     }, 3000);
 
     return () => {
-      chrome.storage.onChanged.removeListener(onChange);
+      chrome.runtime.onMessage.removeListener(onMessage);
       clearInterval(interval);
     };
-  }, [handleConversationState]);
+  }, []);
 
   if (!visible) return null;
 

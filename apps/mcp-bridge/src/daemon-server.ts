@@ -7,9 +7,11 @@
  * spawned and nothing written outside a temp dir.
  *
  * Auth model (WP2): every WebSocket path (`/extension`, `/bridge`, `/cli`)
- * requires `?token=<the configured secret>` in the connection URL — the
- * only mechanism available uniformly to both the browser's native
- * `WebSocket` (no custom headers on a WS handshake) and Node `ws` clients.
+ * requires the configured secret as an `apty-token.<token>` subprotocol
+ * alongside `apty-mcp.v1` (see `authProtocols`). A subprotocol is the only
+ * handshake header the browser's native `WebSocket` can set, and unlike a
+ * `?token=` query string it never appears in a URL. The daemon answers with
+ * `apty-mcp.v1` only, so the token is never echoed back.
  * `/extension` additionally requires an extension-shaped Origin
  * (`chrome-extension://`/`moz-extension://`) that exactly matches the
  * configured `allowedExtensionId` — and if no extension id has been
@@ -22,15 +24,24 @@ import { createServer, type Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 
-import { tokensMatch } from "./lib/auth-token.js";
+import {
+  tokenFromProtocols,
+  tokensMatch,
+  WS_PROTOCOL,
+} from "./lib/auth-token.js";
 import { toolSchemas } from "./tool-schemas.js";
+
+function current<T>(value: T | (() => T)): T {
+  return typeof value === "function" ? (value as () => T)() : value;
+}
 
 export interface DaemonServerOptions {
   port: number;
   host: string;
-  requiredToken: string;
+  /** A getter is re-read on every connection, so a rotated token or newly pinned id takes effect without a restart. */
+  requiredToken: string | (() => string);
   /** The one extension id `/extension` connections are pinned to, or `undefined` to fail closed (reject every extension origin). */
-  allowedExtensionId: string | undefined;
+  allowedExtensionId: string | undefined | (() => string | undefined);
   /** Tool names a bridge/CLI client may call even though they're state-changing/high-risk by default (see DANGEROUS_TOOL_NAMES) — opt-in, defaults to none allowed. */
   allowDangerousTools?: boolean;
   idleTimeoutMs?: number;
@@ -171,7 +182,7 @@ export function startDaemonServer(
     try {
       msg = JSON.parse(raw);
     } catch {
-      log(`Failed to parse extension message: ${raw.slice(0, 200)}`);
+      log(`Failed to parse a ${raw.length}-character extension message`);
       return;
     }
 
@@ -258,7 +269,7 @@ export function startDaemonServer(
           message:
             "Apty Agent extension is not connected. To connect:\n" +
             "1. Open Chrome → Apty Agent extension → Options page\n" +
-            `2. Set WebSocket URL to ws://localhost:${handle.port}/extension (with your configured token)\n` +
+            `2. Set WebSocket URL to ws://localhost:${handle.port}/extension and paste your token\n` +
             "3. Click Connect",
         },
       };
@@ -406,24 +417,30 @@ export function startDaemonServer(
   // bulk tool results) passing through, not a target.
   const MAX_WS_PAYLOAD_BYTES = 16 * 1024 * 1024;
 
+  const selectProtocol = (protocols: Set<string>) =>
+    protocols.has(WS_PROTOCOL) ? WS_PROTOCOL : false;
+
   const extensionWss = new WebSocketServer({
     noServer: true,
     maxPayload: MAX_WS_PAYLOAD_BYTES,
+    handleProtocols: selectProtocol,
   });
   const bridgeWss = new WebSocketServer({
     noServer: true,
     maxPayload: MAX_WS_PAYLOAD_BYTES,
+    handleProtocols: selectProtocol,
   });
   const cliWss = new WebSocketServer({
     noServer: true,
     maxPayload: MAX_WS_PAYLOAD_BYTES,
+    handleProtocols: selectProtocol,
   });
 
   httpServer.on("upgrade", (req, socket, head) => {
     const origin = req.headers.origin;
     const parsedUrl = new URL(req.url ?? "/", "http://localhost");
     const pathname = parsedUrl.pathname;
-    const token = parsedUrl.searchParams.get("token") ?? undefined;
+    const token = tokenFromProtocols(req.headers["sec-websocket-protocol"]);
 
     // CSWSH guard: never allow a web-page origin on ANY path, regardless
     // of what else is wrong/right about the request.
@@ -434,6 +451,7 @@ export function startDaemonServer(
     }
 
     if (pathname === "/extension" || pathname === "/") {
+      const allowedExtensionId = current(options.allowedExtensionId);
       if (!origin || !isExtensionOrigin(origin)) {
         log(
           `Rejected /extension upgrade: missing or non-extension origin (${origin ?? "none"})`,
@@ -441,7 +459,7 @@ export function startDaemonServer(
         rejectUpgrade(socket, 403, "Forbidden");
         return;
       }
-      if (!options.allowedExtensionId) {
+      if (!allowedExtensionId) {
         log(
           "Rejected /extension upgrade: no extension id configured — failing closed",
         );
@@ -449,8 +467,8 @@ export function startDaemonServer(
         return;
       }
       const expected = [
-        `chrome-extension://${options.allowedExtensionId}`,
-        `moz-extension://${options.allowedExtensionId}`,
+        `chrome-extension://${allowedExtensionId}`,
+        `moz-extension://${allowedExtensionId}`,
       ];
       if (!expected.includes(origin)) {
         log(
@@ -481,7 +499,15 @@ export function startDaemonServer(
     // Every path above this point requires a valid token — /health is the
     // only unauthenticated route, and it's a plain HTTP GET, never a WS
     // upgrade, so it never reaches this handler at all.
-    if (!tokensMatch(token, options.requiredToken)) {
+    // A token in the URL has already leaked into whatever logs URLs; refuse
+    // it even when the handshake carries a valid one, so clients fix it.
+    if (parsedUrl.searchParams.has("token")) {
+      log(`Rejected WebSocket upgrade on ${pathname}: token sent in the URL`);
+      rejectUpgrade(socket, 401, "Unauthorized");
+      return;
+    }
+
+    if (!tokensMatch(token, current(options.requiredToken))) {
       log(
         `Rejected WebSocket upgrade on ${pathname}: invalid or missing token`,
       );

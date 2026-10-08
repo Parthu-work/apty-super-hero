@@ -74,16 +74,17 @@ Load the built extension by selecting the build output directory in `chrome://ex
 ## Project structure
 
 - `manifest.json`: MV3 manifest
-- `src/background.ts`: background/service worker entry
-- `src/content.tsx`: content script entry
-- `src/pages/sidepanel/`: side panel UI
-- `src/pages/options/`: options page UI
-- `src/pages/content/`: content UI entry
+- `src/entrypoints/background/`: service worker
+- `src/entrypoints/content/`: content scripts (`frame-responder.ts` in every
+  frame, `index.tsx` UI in the top frame, `console-bridge.ts` in the page's
+  own world)
+- `src/entrypoints/sidepanel/`: side panel UI
+- `src/entrypoints/options/`: Options page
 
 ## Permissions
 
 The extension requests powerful permissions for automation and context gathering.
-See `manifest.json` for the full list (e.g. `tabs`, `scripting`, `storage`, `debugger`, `history`, `downloads`, ...).
+See `manifest.json` for the full list (e.g. `tabs`, `scripting`, `storage`, `debugger`, `downloads`, ...); `bookmarks`, `history` and `management` are optional and requested only when turned on. Each one is justified in `docs/security/PERMISSIONS.md`.
 
 ## Testing
 

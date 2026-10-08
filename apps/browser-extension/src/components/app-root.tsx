@@ -15,6 +15,7 @@ import type { Theme } from "@apty/ui/theme/types";
 import type { AuthCheckResult } from "@apty/ui/types";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { AGENT_ACTIVITY_REQUEST } from "../entrypoints/content/agent-activity";
 import { chromeStorageAdapter } from "../hooks";
 import {
   BROWSER_AGENT_CONFIG,
@@ -24,6 +25,7 @@ import {
   useBrowserTools,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
+import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
 import { InputModeProvider } from "../state/input-mode-context";
@@ -44,41 +46,61 @@ import {
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
 import { DomHealthCard } from "./investigation/dom-health-card";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
+import { ReadinessCheck } from "./readiness-check";
 import { SetupNeededCard } from "./setup-needed-card";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 
 /**
- * Manages the "aipex-conversation-active" heartbeat in chrome.storage.local
- * so content scripts can show the breathing border overlay while the AI is
- * actively generating a response.
+ * While the AI is generating, tells the active tab every few seconds so its
+ * content script shows the breathing border. Content scripts can't read
+ * extension storage, so the panel messages the tab directly.
  */
 function useConversationHeartbeat() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTabRef = useRef<number | null>(null);
+
+  const notify = useCallback((tabId: number, active: boolean) => {
+    chrome.tabs
+      .sendMessage(
+        tabId,
+        { request: AGENT_ACTIVITY_REQUEST, active },
+        { frameId: 0 },
+      )
+      .catch(() => {});
+  }, []);
 
   const start = useCallback(() => {
-    // Avoid duplicate intervals
     if (intervalRef.current) return;
 
-    const tick = () => {
-      chrome.storage.local
-        .set({ "aipex-conversation-active": Date.now() })
-        .catch(() => {});
+    const tick = async () => {
+      const [tab] = await chrome.tabs
+        .query({ active: true, currentWindow: true })
+        .catch(() => []);
+      // stop() may have run while the query was in flight.
+      if (tab?.id === undefined || !intervalRef.current) return;
+      if (lastTabRef.current !== null && lastTabRef.current !== tab.id) {
+        notify(lastTabRef.current, false);
+      }
+      lastTabRef.current = tab.id;
+      notify(tab.id, true);
     };
-    tick(); // Immediate first tick
+    void tick();
     intervalRef.current = setInterval(tick, 2000);
-  }, []);
+  }, [notify]);
 
   const stop = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    chrome.storage.local.remove("aipex-conversation-active").catch(() => {});
-  }, []);
+    if (lastTabRef.current !== null) {
+      notify(lastTabRef.current, false);
+      lastTabRef.current = null;
+    }
+  }, [notify]);
 
-  // Cleanup on unmount
   useEffect(() => stop, [stop]);
 
   return { start, stop };
@@ -137,7 +159,7 @@ function ChatApp() {
     setAuthDraft(draftText);
   }, []);
   const handleOpenSettingsFromSetupCard = useCallback(() => {
-    chrome.runtime?.openOptionsPage?.();
+    void openOptions({ section: "ai-provider" });
   }, []);
   useEffect(() => {
     if (authDraft !== null && isProviderConfigured(settings)) {
@@ -251,7 +273,12 @@ function ChatApp() {
                 <BrowserContextLoader />
               </>
             ),
-            emptyState: (props) => <DebuggingWelcomeScreen {...props} />,
+            emptyState: (props) => (
+              <DebuggingWelcomeScreen
+                {...props}
+                readiness={<ReadinessCheck settings={settings} />}
+              />
+            ),
             toolDisplay: (props) => <AptyToolDisplay {...props} />,
             toolFooter: (props) => <AptyToolFooter {...props} />,
           }}

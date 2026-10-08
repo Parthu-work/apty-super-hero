@@ -21,6 +21,14 @@ import { isOwnExtensionPage } from "../runtime/trusted-sender.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 
 export const APPROVAL_TTL_MS = 5 * 60_000;
+/**
+ * A request from outside a chat (an MCP client) expires well before the MCP
+ * bridge's 60 s tool timeout, leaving the approved action about 20 s to
+ * finish so the caller normally hears the real outcome. The timeout doesn't
+ * cancel an action already running, so a slower one can still finish after
+ * the caller was told it timed out.
+ */
+export const MCP_APPROVAL_TTL_MS = 40_000;
 export const GRANT_TTL_MS = 15 * 60_000;
 
 export const APPROVAL_REQUEST_MESSAGE = "apty-approval-request";
@@ -34,6 +42,7 @@ export interface ApprovalRequest {
   summary: string;
   origin?: string;
   createdAt: number;
+  expiresAt: number;
 }
 
 export interface ApprovalDecision {
@@ -42,7 +51,11 @@ export interface ApprovalDecision {
   remember?: boolean;
 }
 
-export type ApprovalDeniedReason = "user_denied" | "expired" | "no_approval_ui";
+export type ApprovalDeniedReason =
+  | "user_denied"
+  | "expired"
+  | "no_approval_ui"
+  | "page_changed";
 
 export interface ApprovalDeniedResult {
   status: "denied";
@@ -145,17 +158,20 @@ export function subscribeApprovalRequests(
   };
 }
 
-function broadcast(message: Record<string, unknown>): Promise<boolean> {
+/**
+ * Resolves with the first listener's reply, or undefined when no listener
+ * replied. The approval prompt replies `true` to a request it shows: any
+ * other extension page with a message listener also makes sendMessage
+ * succeed, so success alone doesn't mean a prompt is on screen.
+ */
+function broadcast(message: Record<string, unknown>): Promise<unknown> {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
-    return Promise.resolve(false);
+    return Promise.resolve(undefined);
   }
   try {
-    return chrome.runtime.sendMessage(message).then(
-      () => true,
-      () => false,
-    );
+    return chrome.runtime.sendMessage(message).catch(() => undefined);
   } catch {
-    return Promise.resolve(false);
+    return Promise.resolve(undefined);
   }
 }
 
@@ -210,17 +226,17 @@ async function requestHumanApproval(
   const outcome = new Promise<ApprovalOutcome>((resolve) => {
     const timer = setTimeout(
       () => settle(request.approvalId, { status: "denied", reason: "expired" }),
-      APPROVAL_TTL_MS,
+      request.expiresAt - request.createdAt,
     );
     pending.set(request.approvalId, { request, resolve, timer });
   });
   emitChange();
 
-  const relayed = await broadcast({
+  const shown = await broadcast({
     type: APPROVAL_REQUEST_MESSAGE,
     request,
   });
-  if (!relayed && listeners.size === 0) {
+  if (shown !== true && listeners.size === 0) {
     settle(request.approvalId, { status: "denied", reason: "no_approval_ui" });
   }
   return outcome;
@@ -232,7 +248,29 @@ const DENIAL_MESSAGES: Record<ApprovalDeniedReason, string> = {
     "The approval request expired without an answer. Do not retry unless the user asks again.",
   no_approval_ui:
     "No approval prompt could be shown. Ask the user to open the extension side panel and try again.",
+  page_changed:
+    "The tab moved to a different site while waiting for approval, so the action was not run. Ask the user before trying again.",
 };
+
+function denied(
+  toolName: string,
+  reason: ApprovalDeniedReason,
+): ApprovalDeniedResult {
+  return {
+    status: "denied",
+    toolName,
+    reason,
+    message: DENIAL_MESSAGES[reason],
+  };
+}
+
+async function currentOrigin(tabId: number): Promise<string | null> {
+  try {
+    return originOf((await chrome.tabs.get(tabId)).url);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Gate a risky action behind a human click. Resolves with `run`'s result once
@@ -245,6 +283,8 @@ export async function gateRiskyAction<T>(
   summary: string,
   pageUrl: string | undefined,
   run: () => Promise<T>,
+  /** The tab the action runs in; checked again after the wait for a click. */
+  options: { tabId?: number } = {},
 ): Promise<T | ApprovalDeniedResult> {
   const origin = originOf(pageUrl);
   if (origin) {
@@ -254,22 +294,28 @@ export async function gateRiskyAction<T>(
     }
   }
 
+  const createdAt = Date.now();
   const outcome = await requestHumanApproval({
     approvalId: generateId(),
     conversationId,
     toolName,
     summary,
     origin: origin ?? undefined,
-    createdAt: Date.now(),
+    createdAt,
+    expiresAt:
+      createdAt + (conversationId ? APPROVAL_TTL_MS : MCP_APPROVAL_TTL_MS),
   });
 
   if (outcome.status === "denied") {
-    return {
-      status: "denied",
-      toolName,
-      reason: outcome.reason,
-      message: DENIAL_MESSAGES[outcome.reason],
-    };
+    return denied(toolName, outcome.reason);
+  }
+
+  if (
+    origin &&
+    options.tabId !== undefined &&
+    (await currentOrigin(options.tabId)) !== origin
+  ) {
+    return denied(toolName, "page_changed");
   }
 
   if (outcome.remember && origin) {

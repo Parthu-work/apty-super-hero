@@ -6,11 +6,11 @@
  * Chrome extensions don't allow 'wasm-eval' which is required by asyncify variants.
  */
 
+import { createLogger } from "@apty/agent-core";
 import { default as RELEASE_SYNC } from "@jitl/quickjs-ng-wasmfile-release-sync";
 // Import the WASM file as a URL so Vite/bundler handles it correctly
 // This ensures the wasm is properly bundled and the URL is correct at runtime
 import quickjsWasmUrl from "@jitl/quickjs-ng-wasmfile-release-sync/wasm?url";
-import fs from "@zenfs/core";
 import type {
   QuickJSContext,
   QuickJSHandle,
@@ -18,7 +18,10 @@ import type {
   QuickJSScope,
 } from "quickjs-emscripten";
 import { newQuickJSWASMModuleFromVariant, Scope } from "quickjs-emscripten";
+import { bundledModules } from "./bundled-modules";
 import type { SkillAPIBridge } from "./skill-api";
+
+const log = createLogger("QuickJS");
 
 /**
  * QuickJS sync variant interface - matches the structure expected by newQuickJSWASMModuleFromVariant
@@ -32,32 +35,32 @@ interface QuickJSVariantLike {
 // Type assertion for the variant - the default export type is not fully recognized
 const variant = RELEASE_SYNC as unknown as QuickJSVariantLike;
 
+const BUILT_IN_MODULES = new Set(["fs", ...Object.keys(bundledModules)]);
+
 /**
- * Requires an explicit, pinned version in a CDN package specifier (e.g.
- * "lodash@4.17.21" or "@scope/pkg@1.2.3"). A bare package name (e.g.
- * "lodash") would let esm.sh silently resolve to whatever its "latest" tag
- * currently points to — unpinned supply-chain risk, since that's remote
- * code a skill author doesn't control and this host then executes. Does
- * not validate that the version is well-formed semver, only that one was
- * given.
+ * Skills run only code that ships inside the skill: Chrome Web Store
+ * policy forbids executing remotely hosted code, so third-party packages
+ * must be bundled into the script rather than imported from a CDN.
  */
-export function requirePinnedVersion(packageName: string): void {
-  const slashIndex = packageName.startsWith("@")
-    ? packageName.indexOf("/")
-    : -1;
-  const nameAndVersion =
-    slashIndex === -1 ? packageName : packageName.slice(slashIndex + 1);
-
-  const atIndex = nameAndVersion.indexOf("@");
-  const version = atIndex === -1 ? "" : nameAndVersion.slice(atIndex + 1);
-  const isPinned =
-    atIndex > 0 && version.length > 0 && !version.startsWith("/");
-
-  if (!isPinned) {
+export function assertSupportedImports(code: string): void {
+  const unsupported = extractImports(code).filter(
+    (name) => !BUILT_IN_MODULES.has(name),
+  );
+  if (unsupported.length > 0) {
     throw new Error(
-      `CDN import "${packageName}" must pin an exact version (e.g. "${packageName}@1.2.3") — unpinned imports can silently resolve to different code over time.`,
+      `Skills can only import ${[...BUILT_IN_MODULES].join(", ")}. Bundle these into the script instead: ${unsupported.join(", ")}`,
     );
   }
+}
+
+function extractImports(code: string): string[] {
+  const patterns = [
+    /import\s+(?:[\w\s{},*]*\s+from\s+)?['"]([^'"]+)['"]/g,
+    /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ];
+  return patterns.flatMap((pattern) =>
+    [...code.matchAll(pattern)].map((match) => match[1] ?? ""),
+  );
 }
 
 interface ExecutionContext {
@@ -73,7 +76,6 @@ class QuickJSManager {
   > | null = null;
   private initPromise: Promise<void> | null = null;
   private initialized = false;
-  private moduleCache: Map<string, string> = new Map(); // Cache for CDN modules
 
   /**
    * Initialize QuickJS runtime
@@ -93,9 +95,7 @@ class QuickJSManager {
 
   private async _initialize(): Promise<void> {
     try {
-      console.log(
-        "[QuickJS] Initializing runtime with RELEASE_SYNC variant...",
-      );
+      log.debug("Initializing runtime with RELEASE_SYNC variant...");
 
       // Sanity check: ensure the WASM URL was properly resolved by Vite
       if (!quickjsWasmUrl) {
@@ -103,7 +103,7 @@ class QuickJSManager {
           "[QuickJS] WASM URL is not defined. Vite may not have bundled the wasm file correctly.",
         );
       }
-      console.log(`[QuickJS] WASM URL resolved to: ${quickjsWasmUrl}`);
+      log.debug(`WASM URL resolved to: ${quickjsWasmUrl}`);
 
       // Use RELEASE_SYNC variant (required for Chrome extensions due to CSP restrictions)
       // Chrome extensions don't allow 'wasm-eval' which asyncify variants need
@@ -120,8 +120,8 @@ class QuickJSManager {
               // Override locateFile to return the correct URL for the wasm file
               locateFile: (path: string, prefix: string) => {
                 if (path.endsWith(".wasm")) {
-                  console.log(
-                    `[QuickJS] locateFile intercepted for ${path}, returning: ${quickjsWasmUrl}`,
+                  log.debug(
+                    `locateFile intercepted for ${path}, returning: ${quickjsWasmUrl}`,
                   );
                   return quickjsWasmUrl;
                 }
@@ -142,45 +142,16 @@ class QuickJSManager {
       this.runtime.setMemoryLimit(100 * 1024 * 1024); // 100MB
       this.runtime.setMaxStackSize(1024 * 1024); // 1MB
 
-      // Set synchronous module loader
-      // Note: Module loader must return synchronously, so modules are loaded from cache
-      // IMPORTANT: Must return ES6 module code with export statements
       this.runtime.setModuleLoader((moduleName: string) => {
-        console.log(`[QuickJS] Module loader called for: ${moduleName}`);
-
-        // 1. Built-in modules (fs, etc.)
-        if (moduleName === "fs") {
-          console.log(`[QuickJS] Loading built-in module: ${moduleName}`);
-          // Return as ES6 module with default export
-          return `export default ${JSON.stringify(fs)}`;
-        }
-
-        // 2. Check cache for preloaded modules (by package name or URL)
-        const cachedModule = this.moduleCache.get(moduleName);
-        if (cachedModule) {
-          console.log(`[QuickJS] Loading cached module: ${moduleName}`);
-          // Cache should already contain module code with exports
-          return cachedModule;
-        }
-
-        // 3. If moduleName is a URL path (e.g., /v135/lodash@4.17.21/es/lodash.js)
-        //    try to resolve it with esm.sh origin
-        if (moduleName.startsWith("/")) {
-          const fullUrl = `https://esm.sh${moduleName}`;
-          const cachedByUrl = this.moduleCache.get(fullUrl);
-          if (cachedByUrl) {
-            console.log(`[QuickJS] Loading cached module by URL: ${fullUrl}`);
-            return cachedByUrl;
-          }
-        }
-
-        // 4. Module not found - this shouldn't happen if preload worked correctly
-        console.error(`[QuickJS] Module not found in cache: ${moduleName}`);
-        return `throw new Error('Module not found: ${moduleName}. Module must be preloaded before execution.');`;
+        // The host's fs bridge, installed as a global before the script runs.
+        if (moduleName === "fs") return "export default globalThis.fs;";
+        const bundled = bundledModules[moduleName];
+        if (bundled) return bundled;
+        return `throw new Error(${JSON.stringify(`Module not available to skills: ${moduleName}`)});`;
       });
 
       this.initialized = true;
-      console.log("[QuickJS] Runtime initialized successfully");
+      log.debug("Runtime initialized successfully");
     } catch (error) {
       console.error("[QuickJS] Failed to initialize:", error);
       this.initPromise = null;
@@ -192,197 +163,6 @@ class QuickJSManager {
     if (!this.initialized) {
       await this.initialize();
     }
-  }
-
-  /**
-   * Recursively fetch ESM module and its dependencies
-   */
-  private async fetchESM(
-    url: string,
-    visited = new Set<string>(),
-  ): Promise<{ url: string; code: string; deps: string[] } | null> {
-    if (visited.has(url)) return null;
-    visited.add(url);
-
-    const base = new URL(url);
-    const origin = base.origin;
-
-    console.log(`[QuickJS] Fetching ESM: ${url}`);
-
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-
-      const code = await res.text();
-
-      // Match import/export from statements
-      const importRegex =
-        /(?:import|export)\s+(?:[^'"]+from\s+)?["']([^"']+)["']/g;
-
-      const deps: string[] = [];
-      let match: RegExpExecArray | null = importRegex.exec(code);
-
-      while (match) {
-        const rawPath = match[1];
-        if (!rawPath) continue;
-        let resolved: string;
-
-        if (rawPath.startsWith("http://") || rawPath.startsWith("https://")) {
-          // Absolute URL
-          resolved = rawPath;
-        } else if (rawPath.startsWith("/")) {
-          // Root path reference (from esm.sh)
-          resolved = origin + rawPath;
-        } else {
-          // Relative path
-          resolved = new URL(rawPath, base).href;
-        }
-
-        deps.push(resolved);
-        match = importRegex.exec(code);
-      }
-
-      // Recursively fetch child dependencies
-      await Promise.all(
-        deps.map(async (dep) => {
-          const child = await this.fetchESM(dep, visited);
-          if (child) {
-            // Cache child dependencies by URL
-            this.moduleCache.set(child.url, child.code);
-            console.log(`[QuickJS] Cached dependency: ${child.url}`);
-          }
-        }),
-      );
-
-      return { url, code, deps };
-    } catch (error) {
-      console.error(`[QuickJS] Failed to fetch ${url}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Load module from CDN (esm.sh) with recursive dependency resolution
-   */
-  private async loadFromCDN(packageName: string): Promise<string> {
-    requirePinnedVersion(packageName);
-
-    // Check cache first
-    if (this.moduleCache.has(packageName)) {
-      console.log(`[QuickJS] Loading from cache: ${packageName}`);
-      return this.moduleCache.get(packageName)!;
-    }
-
-    console.log(`[QuickJS] Loading from CDN: ${packageName}`);
-
-    try {
-      // Use esm.sh as CDN
-      const url = `https://esm.sh/${packageName}`;
-
-      // Recursively fetch module and all dependencies
-      const result = await this.fetchESM(url);
-
-      if (!result) {
-        throw new Error("Failed to fetch module");
-      }
-
-      // Cache the main module
-      this.moduleCache.set(packageName, result.code);
-      this.moduleCache.set(url, result.code); // Also cache by URL for dependency resolution
-
-      console.log(
-        `[QuickJS] Successfully loaded from CDN: ${packageName} (with ${result.deps.length} dependencies)`,
-      );
-      return result.code;
-    } catch (error) {
-      throw new Error(
-        `Failed to load module ${packageName} from CDN: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  /**
-   * Extract import statements from code (for CDN packages only)
-   * Note: Local imports should be inlined, only third-party packages should use import
-   */
-  private extractImports(code: string): string[] {
-    const imports: string[] = [];
-
-    // Match ES6 import statements
-    const importRegex = /import\s+(?:[\w\s{},*]*\s+from\s+)?['"]([^'"]+)['"]/g;
-    let match: RegExpExecArray | null = importRegex.exec(code);
-
-    while (match !== null) {
-      if (match[1]) {
-        imports.push(match[1]);
-      }
-      match = importRegex.exec(code);
-    }
-
-    // Match dynamic imports
-    const dynamicImportRegex = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-    match = dynamicImportRegex.exec(code);
-    while (match !== null) {
-      if (match[1]) {
-        imports.push(match[1]);
-      }
-      match = dynamicImportRegex.exec(code);
-    }
-
-    return imports;
-  }
-
-  /**
-   * Preload CDN modules before execution
-   * Required because sync variant can't load modules asynchronously during execution
-   * Note: Local modules should be inlined in the script, not imported
-   */
-  private async preloadModules(code: string): Promise<void> {
-    const imports = this.extractImports(code);
-
-    if (imports.length === 0) {
-      console.log("[QuickJS] No imports detected");
-      return;
-    }
-
-    console.log(
-      `[QuickJS] Found ${imports.length} imports, preloading CDN packages:`,
-      imports,
-    );
-
-    for (const moduleName of imports) {
-      // Skip built-in modules
-      if (moduleName === "fs") {
-        continue;
-      }
-
-      // Skip if already cached
-      if (this.moduleCache.has(moduleName)) {
-        console.log(`[QuickJS] Module already cached: ${moduleName}`);
-        continue;
-      }
-
-      try {
-        // Only support CDN packages (no relative paths)
-        if (moduleName.startsWith("./") || moduleName.startsWith("../")) {
-          throw new Error(
-            `Relative imports are not supported. Please inline local modules in your script. Found: ${moduleName}`,
-          );
-        }
-
-        // Load third-party package from CDN
-        await this.loadFromCDN(moduleName);
-        console.log(`[QuickJS] Preloaded CDN module: ${moduleName}`);
-      } catch (error) {
-        console.error(
-          `[QuickJS] Failed to preload module ${moduleName}:`,
-          error,
-        );
-        throw error;
-      }
-    }
-
-    console.log(`[QuickJS] Finished preloading ${imports.length} CDN modules`);
   }
 
   /**
@@ -413,16 +193,14 @@ class QuickJSManager {
       throw new Error("QuickJS runtime not initialized");
     }
 
-    // Preload all CDN modules before execution (required for sync variant)
-    // Note: Local modules should be inlined in the script, not imported
-    await this.preloadModules(code);
+    assertSupportedImports(code);
 
     // Use Scope to automatically manage all disposable resources
     return await Scope.withScopeAsync(async (scope: QuickJSScope) => {
       // Create a new context for this execution and add it to the scope
       const vm = scope.manage(this.runtime!.newContext());
 
-      console.log(`[QuickJS] Executing code for skill: ${context.skillId}`);
+      log.debug(`Executing code for skill: ${context.skillId}`);
 
       // Inject SKILL_API into the VM
       this._injectGlobalAPI(vm, apiBridge, scope);
@@ -545,8 +323,8 @@ class QuickJSManager {
         // Log progress every 5 seconds
         const elapsed = Date.now() - startTime;
         if (elapsed > 0 && elapsed % 5000 < checkInterval) {
-          console.log(
-            `[QuickJS] Waiting for promise resolution... (${(elapsed / 1000).toFixed(1)}s elapsed)`,
+          log.debug(
+            `Waiting for promise resolution... (${(elapsed / 1000).toFixed(1)}s elapsed)`,
           );
         }
       }
@@ -558,8 +336,8 @@ class QuickJSManager {
         );
       }
 
-      console.log(
-        `[QuickJS] Execution completed successfully in ${(totalElapsed / 1000).toFixed(2)}s`,
+      log.debug(
+        `Execution completed successfully in ${(totalElapsed / 1000).toFixed(2)}s`,
       );
       return finalResult as any;
     });
@@ -715,7 +493,7 @@ class QuickJSManager {
     );
     vm.setProp(vm.global, "downloadFile", downloadFileHandle);
 
-    console.log("[QuickJS] Global API injected successfully");
+    log.debug("Global API injected successfully");
   }
 
   /**
@@ -729,7 +507,7 @@ class QuickJSManager {
     this.quickjs = null;
     this.initialized = false;
     this.initPromise = null;
-    console.log("[QuickJS] Runtime disposed");
+    log.debug("Runtime disposed");
   }
 }
 

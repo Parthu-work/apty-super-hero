@@ -9,7 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let storageStore: Record<string, unknown> = {};
 let runtimeListeners: Array<
-  (message: unknown, sender: chrome.runtime.MessageSender) => unknown
+  (
+    message: unknown,
+    sender: chrome.runtime.MessageSender,
+    sendResponse: (response: unknown) => void,
+  ) => unknown
 > = [];
 const mockSendMessage = vi.fn();
 
@@ -49,12 +53,19 @@ const remoteRequest = {
   toolName: "run_console_command",
   summary: "Run this JavaScript: 1 + 1",
   origin: "https://app.example.com",
-  createdAt: 0,
+  createdAt: Date.now(),
+  expiresAt: Date.now() + 40_000,
 };
 
-function deliver(message: unknown, sender: chrome.runtime.MessageSender) {
+function deliver(
+  message: unknown,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: unknown) => void = () => {},
+) {
   act(() => {
-    for (const listener of runtimeListeners) listener(message, sender);
+    for (const listener of runtimeListeners) {
+      listener(message, sender, sendResponse);
+    }
   });
 }
 
@@ -115,6 +126,34 @@ describe("ApprovalPrompt", () => {
       remember: true,
     });
     expect(screen.queryByText(/Allow run_console_command/)).toBeNull();
+  });
+
+  it("acknowledges a request it shows, so the gate knows a person can answer", () => {
+    render(<ApprovalPrompt />);
+    const sendResponse = vi.fn();
+    deliver(
+      { type: APPROVAL_REQUEST_MESSAGE, request: remoteRequest },
+      { id: "agent-id", url: "chrome-extension://agent-id/sw.js" },
+      sendResponse,
+    );
+
+    expect(sendResponse).toHaveBeenCalledWith(true);
+  });
+
+  it("says when a request comes from an MCP client and how long is left", () => {
+    const realNow = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(realNow - 60_000);
+    render(<ApprovalPrompt />);
+    vi.spyOn(Date, "now").mockReturnValue(realNow);
+    deliver(
+      { type: APPROVAL_REQUEST_MESSAGE, request: remoteRequest },
+      { id: "agent-id", url: "chrome-extension://agent-id/sw.js" },
+    );
+
+    expect(screen.getByText(/requested by an MCP client/)).toBeTruthy();
+    expect(screen.getByRole("timer").textContent).toMatch(
+      /Expires in 0:(39|40)/,
+    );
   });
 
   it("ignores requests injected by a content script", () => {

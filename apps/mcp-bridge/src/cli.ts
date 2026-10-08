@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
 
 import {
-  appendToken,
+  authProtocols,
   getOrCreateToken,
   getTokenPath,
   rotateToken,
@@ -242,12 +242,13 @@ function sleep(ms: number): Promise<void> {
 
 function attemptWsToolCall(
   wsUrl: string,
+  token: string,
   name: string,
   args: Record<string, unknown>,
 ): Promise<{ retry: boolean; code: number }> {
   return new Promise((resolve) => {
     let settled = false;
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, authProtocols(token));
 
     const connectTimer = setTimeout(() => {
       if (!settled) {
@@ -370,7 +371,7 @@ async function runTool(
   args: Record<string, unknown>,
 ): Promise<void> {
   const token = getOrCreateToken();
-  const wsUrl = appendToken(process.env.AIPEX_WS_URL ?? DEFAULT_WS_URL, token);
+  const wsUrl = process.env.AIPEX_WS_URL ?? DEFAULT_WS_URL;
   const deadline = Date.now() + MAX_RETRY_TIMEOUT_MS;
   let backoff = INITIAL_BACKOFF_MS;
   let attempt = 0;
@@ -379,7 +380,7 @@ async function runTool(
   while (true) {
     attempt++;
 
-    const result = await attemptWsToolCall(wsUrl, name, args);
+    const result = await attemptWsToolCall(wsUrl, token, name, args);
 
     if (!result.retry) {
       process.exit(result.code);

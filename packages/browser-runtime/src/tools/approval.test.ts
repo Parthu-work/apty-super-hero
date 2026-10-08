@@ -36,6 +36,7 @@ import {
   gateRiskyAction,
   getPendingApprovals,
   listApprovalGrants,
+  MCP_APPROVAL_TTL_MS,
   resetApprovalStateForTests,
   revokeAllApprovalGrants,
   revokeApprovalGrant,
@@ -61,7 +62,8 @@ function deliverDecision(
 beforeEach(async () => {
   vi.clearAllMocks();
   storageStore = {};
-  mockSendMessage.mockResolvedValue(undefined);
+  // The side panel's approval prompt acknowledges a request it shows.
+  mockSendMessage.mockResolvedValue(true);
   await resetApprovalStateForTests();
 });
 
@@ -87,6 +89,16 @@ describe("gateRiskyAction", () => {
     expect(getPendingApprovals()).toEqual([]);
   });
 
+  it("fails closed when extension pages answer but none shows the prompt", async () => {
+    mockSendMessage.mockResolvedValue(undefined);
+    const run = vi.fn();
+
+    const result = await gateRiskyAction("c", "tool_a", "do it", PAGE, run);
+
+    expect(result).toMatchObject({ reason: "no_approval_ui" });
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("expires an unanswered request without running it", async () => {
     vi.useFakeTimers();
     const run = vi.fn();
@@ -96,6 +108,50 @@ describe("gateRiskyAction", () => {
 
     await expect(pending).resolves.toMatchObject({ reason: "expired" });
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it("expires a request from outside a chat before the MCP tool timeout", async () => {
+    vi.useFakeTimers();
+    const run = vi.fn();
+
+    const pending = gateRiskyAction(undefined, "tool_a", "do it", PAGE, run);
+    await vi.advanceTimersByTimeAsync(0);
+    const request = getPendingApprovals()[0];
+    expect(request.expiresAt - request.createdAt).toBe(MCP_APPROVAL_TTL_MS);
+    expect(MCP_APPROVAL_TTL_MS).toBeLessThan(60_000);
+
+    await vi.advanceTimersByTimeAsync(MCP_APPROVAL_TTL_MS + 1);
+    await expect(pending).resolves.toMatchObject({ reason: "expired" });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("refuses to run when the tab moved to another site during the wait", async () => {
+    let tabUrl = PAGE;
+    (chrome as any).tabs = { get: vi.fn(async () => ({ url: tabUrl })) };
+    const run = vi.fn();
+    const { stop } = answerApprovals({ approved: true });
+
+    const pending = gateRiskyAction("c", "tool_a", "do it", PAGE, run, {
+      tabId: 7,
+    });
+    tabUrl = "https://mail.example.org/inbox";
+
+    await expect(pending).resolves.toMatchObject({ reason: "page_changed" });
+    expect(run).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("runs when the tab is still on the approved site", async () => {
+    (chrome as any).tabs = {
+      get: vi.fn(async () => ({ url: `${PAGE}?step=2` })),
+    };
+    const run = vi.fn().mockResolvedValue("ran");
+    const { stop } = answerApprovals({ approved: true });
+
+    await expect(
+      gateRiskyAction("c", "tool_a", "do it", PAGE, run, { tabId: 7 }),
+    ).resolves.toBe("ran");
+    stop();
   });
 
   it("accepts a decision relayed from the extension's own side panel", async () => {

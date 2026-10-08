@@ -1,20 +1,22 @@
-import { tool } from "@apty/agent-core";
+import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { executeComputerAction } from "../automation/computer";
 import { getAutomationMode } from "../runtime/automation-mode";
 import { gateRiskyAction } from "./approval.js";
 import { getActiveTab, type ToolRunContext } from "./tab-utils";
 
+const log = createLogger("ComputerTool");
+
 /** Actions that inject arbitrary text/keystrokes into the page — gated, same risk category as fill_element_by_uid/fill_form. Pointer-only actions (click/hover/scroll/drag) stay ungated, same distinction as click/hover_element_by_uid staying ungated while fill_* is gated. */
 const TEXT_INJECTION_ACTIONS = new Set(["type", "key"]);
 
-async function getTabUrlForGate(
+async function getTabForGate(
   tabId: number | undefined,
-): Promise<string | undefined> {
+): Promise<chrome.tabs.Tab | undefined> {
   try {
-    const tab =
-      tabId !== undefined ? await chrome.tabs.get(tabId) : await getActiveTab();
-    return tab.url;
+    return tabId !== undefined
+      ? await chrome.tabs.get(tabId)
+      : await getActiveTab();
   } catch {
     return undefined;
   }
@@ -106,7 +108,7 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
   }),
   execute: async (params, context) => {
     const mode = await getAutomationMode();
-    console.log("🔧 [computer] Automation mode:", mode);
+    log.debug("🔧 Automation mode:", mode);
 
     // Background mode: reject computer tool (visual coordinate-based interactions)
     if (mode === "background") {
@@ -115,7 +117,7 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
       );
     }
 
-    const runAction = () =>
+    const runAction = (tabId = params.tabId) =>
       executeComputerAction({
         action: params.action,
         coordinate: params.coordinate
@@ -130,7 +132,7 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
           : undefined,
         scroll_direction: params.scroll_direction ?? undefined,
         scroll_amount: params.scroll_amount ?? undefined,
-        tabId: params.tabId ?? undefined,
+        tabId: tabId ?? undefined,
         uid: params.uid ?? undefined,
       });
 
@@ -139,7 +141,10 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
     }
 
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
-    const pageUrl = await getTabUrlForGate(params.tabId);
+    // Pin the tab shown in the prompt: without a tabId the action would
+    // otherwise type into whichever tab is active when Allow is clicked.
+    const tab = await getTabForGate(params.tabId);
+    const pageUrl = tab?.url;
     return gateRiskyAction(
       conversationId,
       "computer",
@@ -147,7 +152,8 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
         ? `Type "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`
         : `Press key(s) "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`,
       pageUrl,
-      runAction,
+      () => runAction(params.tabId ?? tab?.id),
+      { tabId: tab?.id },
     );
   },
 });

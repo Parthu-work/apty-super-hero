@@ -3,8 +3,11 @@
  * Handles ZIP extraction and parsing for skill uploads
  */
 
+import { createLogger } from "@apty/agent-core";
 import { strFromU8, type Unzipped, unzipSync } from "fflate";
 import { zenfs } from "../../../vm/zenfs-manager";
+
+const log = createLogger("ZipUtils");
 
 export interface ParsedSkillMetadata {
   name: string;
@@ -205,9 +208,7 @@ function detectTopLevelDirectory(paths: string[]): string {
 
     // Check if all paths start with this directory
     if (paths.every((p) => p?.startsWith(potentialTopDir))) {
-      console.log(
-        `[ZIP Utils] Detected top-level directory in zip: ${potentialTopDir}`,
-      );
+      log.debug(`Detected top-level directory in zip: ${potentialTopDir}`);
       return potentialTopDir;
     }
   }
@@ -303,7 +304,7 @@ export async function extractZipToFS(
     fileCount++;
   }
 
-  console.log(`[ZIP Utils] Extracted ${fileCount} files to ${targetPath}`);
+  log.debug(`Extracted ${fileCount} files to ${targetPath}`);
 }
 
 /**

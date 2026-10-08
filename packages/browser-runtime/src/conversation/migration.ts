@@ -1,4 +1,7 @@
+import { createLogger } from "@apty/agent-core";
 import type { ConversationData } from "./types";
+
+const log = createLogger("ConversationMigration");
 
 const OLD_STORAGE_KEY = "aipex-conversations";
 const MIGRATION_FLAG_KEY = "aipex-conversations-migrated";
@@ -21,7 +24,7 @@ export async function checkMigrationStatus(): Promise<boolean> {
 export async function markMigrationComplete(): Promise<void> {
   try {
     localStorage.setItem(MIGRATION_FLAG_KEY, "true");
-    console.log("✅ [Migration] Migration marked as complete");
+    log.debug("✅ Migration marked as complete");
   } catch (error) {
     console.error("❌ [Migration] Failed to mark migration complete:", error);
   }
@@ -56,7 +59,7 @@ export async function getOldConversations(): Promise<ConversationData[]> {
 export async function cleanupOldStorage(): Promise<void> {
   try {
     localStorage.removeItem(OLD_STORAGE_KEY);
-    console.log("🧹 [Migration] Old localStorage data removed");
+    log.debug("🧹 Old localStorage data removed");
   } catch (error) {
     console.error("❌ [Migration] Failed to cleanup old storage:", error);
   }
@@ -71,20 +74,18 @@ export async function migrate(
   try {
     const alreadyMigrated = await checkMigrationStatus();
     if (alreadyMigrated) {
-      console.log("✅ [Migration] Already migrated, skipping");
+      log.debug("✅ Already migrated, skipping");
       return { success: true, migratedCount: 0 };
     }
 
     const oldConversations = await getOldConversations();
     if (oldConversations.length === 0) {
-      console.log("✅ [Migration] No conversations to migrate");
+      log.debug("✅ No conversations to migrate");
       await markMigrationComplete();
       return { success: true, migratedCount: 0 };
     }
 
-    console.log(
-      `🔄 [Migration] Migrating ${oldConversations.length} conversation(s)...`,
-    );
+    log.debug(`🔄 Migrating ${oldConversations.length} conversation(s)...`);
 
     let migratedCount = 0;
     for (const conversation of oldConversations) {
@@ -102,8 +103,8 @@ export async function migrate(
     await markMigrationComplete();
     await cleanupOldStorage();
 
-    console.log(
-      `✅ [Migration] Successfully migrated ${migratedCount}/${oldConversations.length} conversation(s)`,
+    log.debug(
+      `✅ Successfully migrated ${migratedCount}/${oldConversations.length} conversation(s)`,
     );
     return { success: true, migratedCount };
   } catch (error) {

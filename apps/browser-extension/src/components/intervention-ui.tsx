@@ -5,6 +5,7 @@
  * with the UI components from @apty/ui, respecting package architecture.
  */
 
+import { createLogger } from "@apty/agent-core";
 import {
   type InterventionEvent,
   type InterventionState,
@@ -21,6 +22,8 @@ import {
 } from "@apty/ui/components/intervention";
 import { useEffect, useState } from "react";
 
+const log = createLogger("InterventionUI");
+
 interface InterventionUIProps {
   mode: InterventionMode;
   onModeChange: (mode: InterventionMode) => void;
@@ -35,7 +38,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
       try {
         await interventionManager.initialize();
         interventionManager.setConversationMode(mode);
-        console.log("✅ Intervention manager initialized with mode:", mode);
+        log.debug("✅ Intervention manager initialized with mode:", mode);
       } catch (error) {
         console.error("❌ Failed to initialize intervention manager:", error);
       }
@@ -78,9 +81,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
         // log the cancel reason for debugging
         const result = (event.data as { result?: { error?: string } }).result;
         if (result?.error) {
-          console.log(
-            `[InterventionUI] Intervention cancelled: ${result.error}`,
-          );
+          log.debug(`Intervention cancelled: ${result.error}`);
         }
       }
       // Keep visible briefly so user can see the cancellation, then hide
@@ -132,7 +133,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
   useEffect(() => {
     if (mode) {
       interventionManager.setConversationMode(mode);
-      console.log("🔄 Intervention mode updated:", mode);
+      log.debug("🔄 Intervention mode updated:", mode);
     }
   }, [mode]);
 
@@ -181,7 +182,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
             currentIntervention.result?.data as UserSelectionResult | undefined
           }
           onConfirm={(result) => {
-            console.log("[InterventionUI] Selection confirmed:", result);
+            log.debug("Selection confirmed");
             selectionManager.completeSelection(result);
           }}
           onCancel={() =>

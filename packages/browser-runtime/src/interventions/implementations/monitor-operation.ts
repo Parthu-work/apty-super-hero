@@ -4,12 +4,15 @@
  * Listens for user operations, waits for user to click page elements
  */
 
+import { createLogger } from "@apty/agent-core";
 import { elementCaptureService } from "../element-capture.js";
 import type {
   InterventionImplementation,
   InterventionMetadata,
   MonitorOperationResult,
 } from "../types.js";
+
+const log = createLogger("MonitorOperation");
 
 const metadata: InterventionMetadata = {
   name: "Monitor User Operation",
@@ -89,7 +92,7 @@ async function execute(
   params: unknown,
   signal: AbortSignal,
 ): Promise<MonitorOperationResult> {
-  console.log("[MonitorOperation] Starting execution with params:", params);
+  log.debug("Starting execution with params:", params);
 
   // Get current active tab
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -101,7 +104,7 @@ async function execute(
   const tabUrl = tabs[0].url || "";
   const tabTitle = tabs[0].title || "";
 
-  console.log("[MonitorOperation] Monitoring tab:", tabId, tabUrl);
+  log.debug("Monitoring tab:", tabId, tabUrl);
 
   return new Promise((resolve, reject) => {
     let resolved = false;
@@ -109,7 +112,7 @@ async function execute(
     // Set up cancel listener
     signal.addEventListener("abort", () => {
       if (!resolved) {
-        console.log("[MonitorOperation] Aborted");
+        log.debug("Aborted");
         elementCaptureService.stopCapture().catch(console.error);
         resolved = true;
         reject(new Error("Monitoring cancelled"));
@@ -132,7 +135,7 @@ async function execute(
         async (event) => {
           if (resolved) return;
 
-          console.log("[MonitorOperation] Element captured:", event);
+          log.debug("Element captured:", event);
 
           // Stop capture
           await elementCaptureService.stopCapture();

@@ -22,8 +22,7 @@ const APP = `<!doctype html><title>Orders</title>
 <div style="height: 3000px"></div>
 <p id="footer">Footer</p>
 <script>
-  // After load: output written while the page is still loading is not
-  // captured yet (the console bridge loads asynchronously, on main too).
+  console.log("core-load-marker");
   setTimeout(() => console.log("core-log-marker"), 300);
   setInterval(() => fetch("/api/orders.json").catch(() => {}), 200);
 </script>`;
@@ -188,6 +187,11 @@ describe("everyday tools in a real browser", () => {
       JSON.stringify(logs),
       /core-log-marker/,
       JSON.stringify(logs).slice(0, 400),
+    );
+    assert.match(
+      JSON.stringify(logs),
+      /core-load-marker/,
+      "output written while the page loads is captured",
     );
     assert.match(
       JSON.stringify(network),

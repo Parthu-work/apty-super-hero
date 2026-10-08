@@ -1,3 +1,4 @@
+import { createLogger } from "@apty/agent-core";
 import type { FileTreeNode } from "@apty/browser-runtime";
 import { Button } from "@apty/ui/components/ui/button";
 import {
@@ -10,8 +11,9 @@ import {
 import { Eye, Info, MoreVertical, Trash2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
+
+const log = createLogger("FileActions");
 
 interface FileActionsProps {
   node: FileTreeNode;
@@ -45,7 +47,7 @@ export const FileActions: React.FC<FileActionsProps> = ({
 
   const handleInfo = () => {
     // Show file info in console for now
-    console.log("File Info:", {
+    log.debug("File Info:", {
       path: node.path,
       name: node.name,
       type: node.type,

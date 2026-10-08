@@ -29,8 +29,11 @@ import type {
 } from "../types.js";
 import { AgentError, classifyLlmError, ErrorCode } from "../utils/errors.js";
 import { safeJsonParse } from "../utils/json.js";
+import { createLogger } from "../utils/logger.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
+
+const log = createLogger("AIPex");
 
 /** Call-establishment retry for the LLM request only (before any stream
  * event has been yielded to the caller) — never mid-stream, where partial
@@ -286,8 +289,8 @@ export class AIPex {
                 (item: any) => item?.type === "function_call",
               );
               if (functionCalls.length > 0) {
-                console.log(
-                  `[AIPex] response_done contains ${functionCalls.length} function_call(s):`,
+                log.debug(
+                  `response_done contains ${functionCalls.length} function_call(s):`,
                   functionCalls.map((fc: any) => fc.name),
                 );
               }
@@ -374,7 +377,7 @@ export class AIPex {
       }
 
       if (toolCallsDetectedInRaw > 0 || toolCallsEmittedByRunner > 0) {
-        console.log(
+        log.debug(
           `[AIPex] Stream complete: ${toolCallsDetectedInRaw} raw tool_call chunks, ` +
             `${toolCallsEmittedByRunner} runner tool_called events`,
         );

@@ -5,6 +5,7 @@
  * Uses local skill UI components with sub-tabs for Skills Management and File System.
  */
 
+import { createLogger } from "@apty/agent-core";
 import {
   Tabs,
   TabsContent,
@@ -21,6 +22,8 @@ import {
 import { skillClientAdapter } from "../../services/skill-client-adapter";
 import { FileExplorerWrapper } from "./file-explorer-wrapper";
 
+const log = createLogger("SkillsTab");
+
 interface SkillsOptionsTabProps {
   /** Pre-open a specific skill's detail dialog by name. */
   initialSkill?: string;
@@ -34,7 +37,7 @@ export function SkillsOptionsTab({ initialSkill }: SkillsOptionsTabProps) {
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
 
   const handleUploadSuccess = useCallback((skill: SkillMetadata) => {
-    console.log("Skill uploaded successfully:", skill.name);
+    log.debug("Skill uploaded successfully:", skill.name);
     // Trigger refresh of skill list
     setRefreshKey((prev) => prev + 1);
   }, []);

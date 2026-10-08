@@ -1,7 +1,9 @@
-import { tool } from "@apty/agent-core";
+import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { getAutomationMode } from "../runtime/automation-mode";
 import { getActiveTab } from "./tab-utils";
+
+const log = createLogger("TabTools");
 
 /**
  * Get all open tabs across all windows
@@ -63,7 +65,7 @@ export const switchToTabTool = tool({
   }),
   execute: async ({ tabId, urlPattern }) => {
     const mode = await getAutomationMode();
-    console.log("🔧 [switchToTab] Automation mode:", mode);
+    log.debug("🔧 Automation mode:", mode);
 
     if (tabId != null) {
       const tab = await chrome.tabs.get(tabId);
@@ -77,9 +79,7 @@ export const switchToTabTool = tool({
           tabs: tab.index ?? 0,
           windowId: tab.windowId,
         });
-        console.log(
-          "ℹ️ [switchToTab] Background mode: tab highlighted without window focus",
-        );
+        log.debug("ℹ️ Background mode: tab highlighted without window focus");
       } else {
         // Focus mode: activate tab normally (may focus window)
         await chrome.tabs.update(tabId, { active: true });
@@ -105,9 +105,7 @@ export const switchToTabTool = tool({
           tabs: matchingTab.index ?? 0,
           windowId: matchingTab.windowId,
         });
-        console.log(
-          "ℹ️ [switchToTab] Background mode: tab highlighted without window focus",
-        );
+        log.debug("ℹ️ Background mode: tab highlighted without window focus");
       } else {
         // Focus mode: activate tab normally (may focus window)
         await chrome.tabs.update(matchingTab.id, { active: true });
@@ -175,7 +173,7 @@ export const createNewTabTool = tool({
     }
 
     const mode = await getAutomationMode();
-    console.log("🔧 [createNewTab] Automation mode:", mode);
+    log.debug("🔧 [createNewTab] Automation mode:", mode);
 
     // Background mode: create tab without switching to it
     // Focus mode: create tab and switch to it
@@ -186,7 +184,7 @@ export const createNewTabTool = tool({
       throw new Error("Failed to create tab");
     }
 
-    console.log(
+    log.debug(
       `✅ [createNewTab] Tab created in ${mode} mode (active=${active})`,
     );
 

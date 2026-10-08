@@ -18,6 +18,7 @@ import {
   WifiOffIcon,
   WorkflowIcon,
 } from "lucide-react";
+import type { ReactNode } from "react";
 
 type PromptTone = "danger" | "active" | "warning" | "success";
 
@@ -69,25 +70,29 @@ const DEBUG_PROMPTS: Array<{
 export function DebuggingWelcomeScreen({
   onSuggestionClick,
   className,
+  readiness,
   ...props
-}: WelcomeScreenProps) {
+}: WelcomeScreenProps & { readiness?: ReactNode }) {
   return (
     <div
       className={cn(
-        "flex h-full flex-col items-center justify-center p-4",
+        "flex min-h-full flex-col items-center justify-center-safe p-4",
         className,
       )}
       {...props}
     >
-      <div className="mb-6 text-center">
+      <div className="mb-3 text-center">
         <h3 className="mb-1.5 text-lg font-semibold tracking-tight text-foreground">
           Apty Live Debugging
         </h3>
         <p className="text-sm text-muted-foreground">
-          Investigate a live Apty Widget, Client, Studio, or Service Worker
-          issue with evidence from the actual page.
+          Investigate Apty issues with evidence from this page.
         </p>
       </div>
+
+      {readiness && (
+        <div className="mb-3 flex w-full justify-center">{readiness}</div>
+      )}
 
       <div className="w-full max-w-2xl">
         <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -102,13 +107,13 @@ export function DebuggingWelcomeScreen({
               variant="outline"
               size="lg"
               className={cn(
-                "h-auto w-full items-center justify-start gap-3 rounded-lg border-border p-3 text-left transition-colors",
+                "h-auto w-full items-center justify-start gap-2.5 rounded-lg border-border px-2.5 py-2 text-left transition-colors",
                 "hover:border-foreground/20 hover:bg-accent",
               )}
             >
               <div
                 className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-md",
+                  "flex size-7 shrink-0 items-center justify-center rounded-md",
                   TONE_ICON_CLASSES[tone],
                 )}
               >

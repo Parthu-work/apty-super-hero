@@ -6,12 +6,16 @@ on:
       - "v*"
 
 jobs:
-  release:
+  # Builds, tests and packages with a read-only token, so a compromised
+  # dependency's install script can't push or publish.
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # The pnpm version comes from package.json's packageManager field;
       # also passing `version` here makes the action fail.
@@ -37,8 +41,8 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-workspace
         working-directory: apps/mcp-bridge
 
-      - name: Lint, type check and test
-        run: npm run lint && npm run typecheck && npm run test
+      - name: Format, lint, type check and test
+        run: npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:coverage
 
       - name: Build
         run: npm run build
@@ -46,20 +50,49 @@ jobs:
       - name: Real-browser extension tests
         run: npm run test:e2e
 
-      - name: Validate extension manifest
-        run: npm run validate:extension
+      - name: Manifest, architecture, branding and tool audits
+        run: npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs
 
+      # Two packages: the unpacked/enterprise one keeps the manifest `key`
+      # that pins the extension ID; the Chrome Web Store rejects a `key`, so
+      # its package drops it (the store keeps the listing's own ID).
       - name: Package
         run: |
           name="apty-agent-${GITHUB_REF_NAME}.zip"
+          store="apty-agent-${GITHUB_REF_NAME}-webstore.zip"
           (cd apps/browser-extension/dist && zip -qr "../../../${name}" .)
-          sha256sum "${name}" > "${name}.sha256"
-          echo "ASSET=${name}" >> "${GITHUB_ENV}"
+          cp -r apps/browser-extension/dist store-dist
+          node -e 'const f="store-dist/manifest.json",fs=require("fs"),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))'
+          (cd store-dist && zip -qr "../${store}" .)
+          sha256sum "${name}" "${store}" > "apty-agent-${GITHUB_REF_NAME}.sha256"
+          mkdir release
+          mv "${name}" "${store}" "apty-agent-${GITHUB_REF_NAME}.sha256" release/
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" "${ASSET}" "${ASSET}.sha256" \
+          name="apty-agent-${GITHUB_REF_NAME}.zip"
+          store="apty-agent-${GITHUB_REF_NAME}-webstore.zip"
+          sha256sum -c "apty-agent-${GITHUB_REF_NAME}.sha256"
+          gh release create "${GITHUB_REF_NAME}" "${name}" "${store}" \
+            "apty-agent-${GITHUB_REF_NAME}.sha256" \
             --title "Apty Agent ${GITHUB_REF_NAME}" \
-            --notes "See CHANGELOG.md for what changed. Verify the download with: sha256sum -c ${ASSET}.sha256"
+            --notes "See CHANGELOG.md for what changed. ${name} is for loading unpacked or enterprise policy; ${store} is for the Chrome Web Store. Verify the downloads with: sha256sum -c apty-agent-${GITHUB_REF_NAME}.sha256"

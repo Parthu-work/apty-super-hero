@@ -1,3 +1,4 @@
+import { createLogger } from "@apty/agent-core";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
@@ -15,6 +16,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SkillCard } from "./SkillCard";
 import { SkillDetails } from "./SkillDetails";
 import type { SkillClient, SkillMetadata } from "./types";
+
+const log = createLogger("SkillList");
 
 interface SkillListProps {
   skillClient: SkillClient;
@@ -146,7 +149,7 @@ export const SkillList: React.FC<SkillListProps> = ({
 
   const handleExport = (skill: SkillMetadata) => {
     // TODO: Implement skill export functionality
-    console.log("Export skill:", skill.name);
+    log.debug("Export skill:", skill.name);
   };
 
   const getStats = () => {

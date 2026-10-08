@@ -45,14 +45,16 @@ const WS_CLOSE_NORMAL = 1000;
 export class WebSocketClientTransport {
   private socket: WebSocket | null = null;
   private url: string;
+  private protocols: string[] | undefined;
   private closeFired = false;
 
   onmessage?: (message: JSONRPCMessage) => void;
   onerror?: (error: Error) => void;
   onclose?: () => void;
 
-  constructor(url: string) {
+  constructor(url: string, protocols?: string[]) {
     this.url = url;
+    this.protocols = protocols;
   }
 
   start(): Promise<void> {
@@ -63,7 +65,7 @@ export class WebSocketClientTransport {
     this.closeFired = false;
 
     return new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(this.url);
+      const ws = new WebSocket(this.url, this.protocols);
       this.socket = ws;
 
       ws.onopen = () => {

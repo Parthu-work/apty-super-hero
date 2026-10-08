@@ -1,5 +1,5 @@
 import type { CustomModelConfig } from "@apty/agent-core";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n/context";
 import { ThemeProvider } from "../../theme/context";
@@ -118,6 +118,54 @@ describe("SettingsPage", () => {
       (await screen.findAllByText("gpt-legacy-test")).length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText(/no providers found/i)).not.toBeInTheDocument();
+  });
+
+  it("saves General-tab switches at once, keeping the stored AI settings", async () => {
+    const storageAdapter = createMemoryStorage<unknown>();
+    await storageAdapter.save("aipex_settings", {
+      aiToken: "stored-key",
+      aiModel: "gpt-4o",
+    });
+    storageAdapter.save.mockClear();
+    render(
+      <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+        <ThemeProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <SettingsPage storageAdapter={storageAdapter} initialTab="general" />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Capture response bodies" }),
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "Verbose logging" }));
+
+    await waitFor(() =>
+      expect(storageAdapter.save).toHaveBeenLastCalledWith(
+        "aipex_settings",
+        expect.objectContaining({
+          aiToken: "stored-key",
+          networkBodyCaptureEnabled: true,
+          verboseLogging: true,
+        }),
+      ),
+    );
+  });
+
+  it("turns a provider on when its first API key is typed in", async () => {
+    renderSettings("ai");
+
+    const enable = await screen.findByRole("switch", { name: "Enable" });
+    expect(enable.getAttribute("aria-checked")).toBe("false");
+    fireEvent.change(screen.getByPlaceholderText("Your API Key"), {
+      target: { value: "sk-test" },
+    });
+
+    expect(
+      screen
+        .getByRole("switch", { name: "Enable" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
   });
 
   it("never renders a Data Sharing control (there is nothing for it to control)", async () => {

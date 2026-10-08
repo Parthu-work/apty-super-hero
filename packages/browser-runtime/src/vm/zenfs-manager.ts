@@ -3,9 +3,12 @@
  * Manages the virtual file system backed by IndexedDB
  */
 
+import { createLogger } from "@apty/agent-core";
 import { configure, fs } from "@zenfs/core";
 import { IndexedDB } from "@zenfs/dom";
 import type { FileStats } from "./types";
+
+const log = createLogger("ZenFS");
 
 type FsPromises = {
   mkdir: (...args: any[]) => Promise<any>;
@@ -41,7 +44,7 @@ class ZenFSManager {
 
   private async _initialize(): Promise<void> {
     try {
-      console.log("[ZenFS] Initializing file system...");
+      log.debug("Initializing file system...");
 
       await configure({
         mounts: {
@@ -64,7 +67,7 @@ class ZenFSManager {
 
       this.initialized = true;
       this.fsPromises = this.getFsPromises();
-      console.log("[ZenFS] File system initialized successfully");
+      log.debug("File system initialized successfully");
     } catch (error) {
       console.error("[ZenFS] Failed to initialize:", error);
       this.initPromise = null;
@@ -133,7 +136,7 @@ class ZenFSManager {
       }
 
       await this.getFsPromises().writeFile(path, data);
-      console.log(`[ZenFS] File written: ${path}`);
+      log.debug(`File written: ${path}`);
     } catch (error: any) {
       console.error(`[ZenFS] Failed to write file: ${path}`, error);
       throw new Error(`Failed to write file: ${path} - ${error.message}`);
@@ -176,7 +179,7 @@ class ZenFSManager {
 
     try {
       await this.getFsPromises().mkdir(path, options);
-      console.log(`[ZenFS] Directory created: ${path}`);
+      log.debug(`Directory created: ${path}`);
     } catch (error: any) {
       if (error.code !== "EEXIST") {
         console.error(`[ZenFS] Failed to create directory: ${path}`, error);
@@ -211,7 +214,7 @@ class ZenFSManager {
         await this.getFsPromises().unlink(path);
       }
 
-      console.log(`[ZenFS] Removed: ${path}`);
+      log.debug(`Removed: ${path}`);
     } catch (error: any) {
       console.error(`[ZenFS] Failed to remove: ${path}`, error);
       throw new Error(`Failed to remove: ${path} - ${error.message}`);
@@ -310,7 +313,7 @@ class ZenFSManager {
       const exists = await this.exists(skillPath);
       if (exists) {
         await this.rm(skillPath, { recursive: true });
-        console.log(`[ZenFS] Cleared skill directory: ${skillPath}`);
+        log.debug(`Cleared skill directory: ${skillPath}`);
       }
     } catch (error: any) {
       console.error(`[ZenFS] Failed to clear skill: ${skillId}`, error);
@@ -531,7 +534,7 @@ class ZenFSManager {
         await this.getFsPromises().unlink(oldPath);
       }
 
-      console.log(`[ZenFS] Renamed: ${oldPath} -> ${newPath}`);
+      log.debug(`Renamed: ${oldPath} -> ${newPath}`);
     } catch (error: any) {
       console.error(
         `[ZenFS] Failed to rename: ${oldPath} -> ${newPath}`,
@@ -589,7 +592,7 @@ class ZenFSManager {
         await this.getFsPromises().writeFile(destPath, content);
       }
 
-      console.log(`[ZenFS] Copied: ${sourcePath} -> ${destPath}`);
+      log.debug(`Copied: ${sourcePath} -> ${destPath}`);
     } catch (error: any) {
       console.error(
         `[ZenFS] Failed to copy: ${sourcePath} -> ${destPath}`,

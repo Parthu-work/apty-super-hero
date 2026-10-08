@@ -3,8 +3,11 @@
  * Integration helpers for fake mouse visual feedback
  */
 
+import { createLogger } from "@apty/agent-core";
 import type { ElementHandle } from "../../automation";
 import { getAutomationMode } from "../../runtime/automation-mode";
+
+const log = createLogger("FakeMouse");
 
 export interface FakeMouseScrollOptions {
   tabId: number;
@@ -29,7 +32,7 @@ export async function scrollAndMoveFakeMouseToElement(
 
   try {
     const mode = await getAutomationMode();
-    console.log("🔧 [FakeMouse] Automation mode:", mode);
+    log.debug("🔧 Automation mode:", mode);
 
     // Get element position before scroll
     const rectBeforeScroll = await handle.asLocator().boundingBox();
@@ -64,7 +67,7 @@ export async function scrollAndMoveFakeMouseToElement(
 
     // Background mode: skip fake mouse visual effects
     if (mode === "background") {
-      console.log("ℹ️ [FakeMouse] Background mode: skipping visual effects");
+      log.debug("ℹ️ Background mode: skipping visual effects");
       return finalRect;
     }
 
@@ -113,7 +116,7 @@ export async function playClickAnimationAndReturn(
 
     // Background mode: skip visual animation
     if (mode === "background") {
-      console.log("ℹ️ [FakeMouse] Background mode: skipping click animation");
+      log.debug("ℹ️ Background mode: skipping click animation");
       return;
     }
 

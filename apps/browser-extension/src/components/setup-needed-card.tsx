@@ -45,8 +45,8 @@ export function SetupNeededCard({
       <AlertTitle>Connect an AI provider</AlertTitle>
       <AlertDescription>
         <p className="mb-2">
-          This product is BYOK-only: there is no login, so add your own API key
-          in Settings before sending a message.
+          Add your own API key and choose a model in Settings, then send your
+          message again.
         </p>
         {preview && (
           <p className="mb-3 rounded border bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
@@ -55,7 +55,7 @@ export function SetupNeededCard({
         )}
         <Button type="button" size="sm" onClick={onOpenSettings}>
           <SettingsIcon aria-hidden="true" />
-          Open Settings
+          Set up AI provider
         </Button>
       </AlertDescription>
     </Alert>

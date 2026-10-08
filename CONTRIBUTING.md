@@ -80,10 +80,13 @@ code (`ChromeStorageAdapter`, browser tools, DOM APIs) stays in
 pnpm preflight
 ```
 
-This formats, lints (with fixes), typechecks, and runs the full test suite
-across every package. CI (`.github/workflows/ci.yml`) runs the same checks
-plus a Puppeteer Chrome install for `packages/browser-runtime`'s browser
-tests.
+This checks formatting and lint without rewriting anything (`pnpm fix`
+applies the fixes), typechecks, runs the full test suite across every
+package, and enforces coverage on the security-critical modules. CI
+(`.github/workflows/ci.yml`) runs the same checks plus the build, the
+real-browser tests (`pnpm test:e2e`); a secret scan runs in
+`.github/workflows/secret-scan.yml` and CodeQL in
+`.github/workflows/codeql.yml`.
 
 ## Documentation
 

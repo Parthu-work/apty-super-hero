@@ -4,10 +4,7 @@
  *
  * Apty Agent is BYOK-only — there is no Apty-hosted proxy backend (see
  * DECISIONS.md's "BYOK only, no proxy fallback"). showServerModels={false}
- * stops the shared component from fetching a remote model list (an
- * undisclosed request to a third-party host with no legitimate purpose
- * here) and from ever showing non-functional server-side model entries in
- * the model selector.
+ * keeps non-functional hosted-model entries out of the model selector.
  *
  * The placeholder copy is overridden here (rather than relying on the
  * shared component's generic "Search or Ask anything" default) so the

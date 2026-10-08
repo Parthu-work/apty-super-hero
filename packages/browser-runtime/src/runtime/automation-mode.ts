@@ -8,10 +8,13 @@
 
 import {
   type AutomationMode,
+  createLogger,
   STORAGE_KEYS,
   validateAutomationMode,
 } from "@apty/agent-core";
 import { ChromeStorageAdapter } from "../storage/storage-adapter";
+
+const log = createLogger("AutomationMode");
 
 const storage = new ChromeStorageAdapter<string>();
 
@@ -23,7 +26,7 @@ export async function getAutomationMode(): Promise<AutomationMode> {
   try {
     const value = await storage.load(STORAGE_KEYS.AUTOMATION_MODE);
     const mode = validateAutomationMode(value);
-    console.log("🔧 [AutomationMode] Current mode:", mode);
+    log.debug("🔧 Current mode:", mode);
     return mode;
   } catch (error) {
     console.warn("⚠️ [AutomationMode] Failed to read mode from storage:", error);

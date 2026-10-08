@@ -135,11 +135,28 @@ export function setAllowedExtensionId(id: string): void {
   writeConfig({ ...readConfig(), allowedExtensionId: id });
 }
 
-/** Appends `?token=<token>` to a WS/HTTP URL, preserving any existing query string — the only mechanism available uniformly to both Node `ws` clients (which could otherwise use a custom header) and the browser's native `WebSocket` (which cannot). */
-export function appendToken(url: string, token: string): string {
-  const parsed = new URL(url);
-  parsed.searchParams.set("token", token);
-  return parsed.toString();
+/**
+ * The token travels in the WebSocket handshake's `Sec-WebSocket-Protocol`
+ * header, never in the URL, so it can't leak through logs or URL history.
+ * A subprotocol is the one handshake header the browser's native
+ * `WebSocket` can set. Keep in step with
+ * packages/browser-runtime/src/ws-bridge/ws-mcp-server.ts.
+ */
+export const WS_PROTOCOL = "apty-mcp.v1";
+const TOKEN_PROTOCOL_PREFIX = "apty-token.";
+
+export function authProtocols(token: string): string[] {
+  return [WS_PROTOCOL, `${TOKEN_PROTOCOL_PREFIX}${token}`];
+}
+
+export function tokenFromProtocols(
+  header: string | string[] | undefined,
+): string | undefined {
+  const values = (Array.isArray(header) ? header.join(",") : (header ?? ""))
+    .split(",")
+    .map((value) => value.trim());
+  const entry = values.find((value) => value.startsWith(TOKEN_PROTOCOL_PREFIX));
+  return entry?.slice(TOKEN_PROTOCOL_PREFIX.length);
 }
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);

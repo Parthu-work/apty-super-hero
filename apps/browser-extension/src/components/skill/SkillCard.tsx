@@ -108,6 +108,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             {skill.enabled ? "Enabled" : "Disabled"}
           </Badge>
           <Switch
+            aria-label={`Enable ${skill.name}`}
             checked={skill.enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={isBuiltin}

@@ -163,17 +163,8 @@ export function searchSnapshotText(
     }
   }
 
-  console.log(
-    `🔍 [SEARCH] Found ${matchedLines.length} matched lines for terms:`,
-    searchTerms,
-  );
-
   // Step 2: Expand context around matched lines
   const contextLines = expandLineContext(matchedLines, lines, contextLevels);
-
-  console.log(
-    `📦 [SEARCH] Expanded to ${contextLines.length} total lines (context level: ${contextLevels})`,
-  );
 
   return {
     matchedLines,

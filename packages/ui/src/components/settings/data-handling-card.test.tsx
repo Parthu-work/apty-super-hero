@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DataHandlingCard } from "./data-handling-card";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("DataHandlingCard", () => {
   it("shows body capture off, with the deny-list disabled, by default", () => {
@@ -19,7 +23,8 @@ describe("DataHandlingCard", () => {
     expect(onChange).toHaveBeenCalledWith({ networkBodyCaptureEnabled: true });
   });
 
-  it("saves the deny-list as trimmed, non-empty lines", () => {
+  it("saves the deny-list as trimmed, non-empty lines once typing pauses", () => {
+    vi.useFakeTimers();
     const onChange = vi.fn();
     render(
       <DataHandlingCard
@@ -29,11 +34,35 @@ describe("DataHandlingCard", () => {
     );
 
     fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: " bank.example \n" },
+    });
+    fireEvent.change(screen.getByRole("textbox"), {
       target: { value: " bank.example \n\n/api/patients\n" },
     });
+    expect(onChange).not.toHaveBeenCalled();
 
+    vi.advanceTimersByTime(500);
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenLastCalledWith({
       networkBodyCaptureDenyList: ["bank.example", "/api/patients"],
+    });
+  });
+
+  it("saves a pending deny-list edit when the field loses focus", () => {
+    const onChange = vi.fn();
+    render(
+      <DataHandlingCard
+        settings={{ networkBodyCaptureEnabled: true }}
+        onChange={onChange}
+      />,
+    );
+
+    const box = screen.getByRole("textbox");
+    fireEvent.change(box, { target: { value: "bank.example" } });
+    fireEvent.blur(box);
+
+    expect(onChange).toHaveBeenCalledWith({
+      networkBodyCaptureDenyList: ["bank.example"],
     });
   });
 });

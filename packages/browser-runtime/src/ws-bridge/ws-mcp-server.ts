@@ -14,6 +14,7 @@
  */
 
 import type { FunctionTool } from "@apty/agent-core";
+import { createLogger } from "@apty/agent-core";
 import { evidenceRestored } from "../apty/evidence-store.js";
 import { investigationsRestored } from "../apty/investigation-session.js";
 import { allBrowserTools } from "../tools/index.js";
@@ -22,6 +23,8 @@ import {
   type JSONRPCRequest,
   WebSocketClientTransport,
 } from "./ws-transport.js";
+
+const log = createLogger("WsMcpServer");
 
 export type ConnectionStatus =
   | "disconnected"
@@ -46,11 +49,15 @@ const TOOL_CALL_TIMEOUT_MS = 60_000;
 const STORAGE_KEY_WS_URL = "ws-mcp-url";
 const STORAGE_KEY_WS_TOKEN = "ws-mcp-token";
 
-/** Appends `?token=<token>` to the bridge URL — the daemon requires it on every WS path (see WP2). Query string, not a header, since the browser's native `WebSocket` can't set custom headers on a handshake. */
-function appendToken(url: string, token: string): string {
-  const parsed = new URL(url);
-  parsed.searchParams.set("token", token);
-  return parsed.toString();
+/**
+ * The daemon reads the token from the handshake's subprotocol list, never
+ * the URL, so it can't leak through logs. Keep in step with
+ * apps/mcp-bridge/src/lib/auth-token.ts.
+ */
+const HANDSHAKE_SAFE_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+export function authProtocols(token: string): string[] {
+  return ["apty-mcp.v1", `apty-token.${token}`];
 }
 
 function getReconnectDelayMs(attempt: number): number {
@@ -138,6 +145,11 @@ export class WsMcpServer {
 
   async connect(url: string, token: string): Promise<void> {
     this.validateUrl(url);
+    if (!HANDSHAKE_SAFE_TOKEN.test(token)) {
+      throw new Error(
+        "The token has characters a WebSocket handshake can't carry. Copy it exactly from the token file (`node apps/mcp-bridge/dist/daemon.js --print-token-path` shows where it is).",
+      );
+    }
     this.cancelReconnect();
 
     if (
@@ -156,7 +168,7 @@ export class WsMcpServer {
     });
 
     try {
-      const transport = new WebSocketClientTransport(appendToken(url, token));
+      const transport = new WebSocketClientTransport(url, authProtocols(token));
       this.transport = transport;
 
       transport.onclose = () => {
@@ -180,7 +192,7 @@ export class WsMcpServer {
       this.startKeepalive();
       this.persist(url, token);
       this.autoReconnectEnabled = true;
-      console.log(`[WsMcpServer] Connected to ${url}`);
+      log.debug(`Connected to ${url}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.updateState({ status: "error", error: message, connectedAt: null });
@@ -213,7 +225,7 @@ export class WsMcpServer {
       reconnectAttempt: 0,
     });
     this.clearPersisted();
-    console.log("[WsMcpServer] Disconnected");
+    log.debug("Disconnected");
   }
 
   isConnected(): boolean {
@@ -256,9 +268,7 @@ export class WsMcpServer {
 
     const attempt = this.state.reconnectAttempt;
     const delay = getReconnectDelayMs(attempt);
-    console.log(
-      `[WsMcpServer] Scheduling reconnect attempt ${attempt + 1} in ${delay}ms`,
-    );
+    log.debug(`Scheduling reconnect attempt ${attempt + 1} in ${delay}ms`);
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -339,8 +349,9 @@ export class WsMcpServer {
     try {
       const toolExecution = this.executeTool(name, args);
 
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
+        timer = setTimeout(
           () =>
             reject(
               new Error(
@@ -351,7 +362,10 @@ export class WsMcpServer {
         );
       });
 
-      const result = await Promise.race([toolExecution, timeoutPromise]);
+      const result = await Promise.race([
+        toolExecution,
+        timeoutPromise,
+      ]).finally(() => clearTimeout(timer));
 
       await this.sendResult(request.id, {
         content: buildMcpContent(result),
@@ -424,7 +438,7 @@ export class WsMcpServer {
         error: null,
         connectedAt: null,
       });
-      console.log("[WsMcpServer] Connection closed by remote");
+      log.debug("Connection closed by remote");
       if (lastUrl && lastToken && this.autoReconnectEnabled) {
         this.scheduleReconnect(lastUrl, lastToken);
       }

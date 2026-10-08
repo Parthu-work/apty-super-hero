@@ -44,6 +44,7 @@ function usePendingApprovals() {
         approvalId?: string;
       },
       sender: chrome.runtime.MessageSender,
+      sendResponse: (shown: boolean) => void,
     ) => {
       if (!isOwnExtensionPage(sender)) return false;
       if (message?.type === APPROVAL_REQUEST_MESSAGE && message.request) {
@@ -53,6 +54,7 @@ function usePendingApprovals() {
             ? current
             : [...current, request],
         );
+        sendResponse(true);
         return false;
       }
       if (message?.type === APPROVAL_CLOSED_MESSAGE) {
@@ -86,8 +88,25 @@ function usePendingApprovals() {
   return { requests: mergeById(local, remote), decide };
 }
 
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [active]);
+  return now;
+}
+
+function formatRemaining(ms: number): string {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export function ApprovalPrompt() {
   const { requests, decide } = usePendingApprovals();
+  const now = useNow(requests.length > 0);
   if (requests.length === 0) return null;
 
   return (
@@ -97,8 +116,14 @@ export function ApprovalPrompt() {
           <ShieldAlertIcon aria-hidden="true" />
           <AlertTitle>Allow {request.toolName}?</AlertTitle>
           <AlertDescription>
-            <p className="mb-1 text-xs text-muted-foreground">
-              {request.origin ?? "No page origin"}
+            <p className="mb-1 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+              <span>
+                {request.origin ?? "No page origin"}
+                {request.conversationId ? "" : " · requested by an MCP client"}
+              </span>
+              <span role="timer" aria-label="Time left to answer">
+                Expires in {formatRemaining(request.expiresAt - now)}
+              </span>
             </p>
             <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded border bg-muted/40 px-2 py-1.5 text-xs">
               {request.summary}

@@ -3,6 +3,7 @@
  * Custom header with conversation persistence and history dropdown
  */
 
+import { createLogger } from "@apty/agent-core";
 import { conversationStorage } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
@@ -19,6 +20,8 @@ import {
 } from "../services/message-adapter";
 import { ConversationHistory } from "./conversation-history";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
+
+const log = createLogger("BrowserChatHeader");
 
 export function BrowserChatHeader({
   title = "Apty Live Debugging",
@@ -65,10 +68,7 @@ export function BrowserChatHeader({
           );
           if (conversationId) {
             setCurrentConversationId(conversationId);
-            console.log(
-              "💾 New conversation created and saved:",
-              conversationId,
-            );
+            log.debug("💾 New conversation created and saved:", conversationId);
           }
         }
       } catch (error) {
@@ -136,7 +136,7 @@ export function BrowserChatHeader({
       // before this field existed; those fall back to a fresh session.
       bindSession(conversation.agentSessionId ?? null);
 
-      console.log(
+      log.debug(
         "✅ Conversation restored:",
         conversationId,
         conversation.title,

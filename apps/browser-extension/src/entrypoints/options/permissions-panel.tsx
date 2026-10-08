@@ -40,7 +40,7 @@ const PERMISSION_COPY: Record<
   management: {
     label: "Manage extensions",
     description:
-      'Needed only for the "Connection" tab\'s Apty Client detection — confirming a given extension ID is installed and enabled. Nothing else in the product uses this.',
+      "Needed only by the Apty Integration tab: Detect lists your extensions to find the Apty Client, and Connect checks that its ID is installed and enabled. Nothing else in the product uses this.",
   },
 };
 
@@ -77,7 +77,7 @@ export function PermissionsPanel() {
   };
 
   return (
-    <Card>
+    <Card id="permissions" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
@@ -99,6 +99,7 @@ export function PermissionsPanel() {
               </p>
             </div>
             <Switch
+              aria-label={PERMISSION_COPY[name].label}
               checked={granted[name]}
               disabled={!loaded}
               onCheckedChange={(checked) => handleToggle(name, checked)}

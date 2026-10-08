@@ -4,9 +4,12 @@
  * between QuickJS VM and the host environment
  */
 
+import { createLogger } from "@apty/agent-core";
 import type { FileStats } from "./types";
 import { assertSkillFetchUrlAllowed } from "./url-guard";
 import { zenfs } from "./zenfs-manager";
+
+const log = createLogger("SkillAPI");
 
 export type { FileStats };
 
@@ -82,7 +85,7 @@ export function createSkillAPIBridge(options: {
   return {
     // Tool Registration
     async registerTool(definition: ToolDefinition): Promise<void> {
-      console.log(`[SKILL_API] Registering tool: ${definition.name}`);
+      log.debug(`Registering tool: ${definition.name}`);
 
       if (onToolRegister) {
         await onToolRegister(definition);
@@ -97,7 +100,7 @@ export function createSkillAPIBridge(options: {
         path: string,
         encoding?: string,
       ): Promise<string | Uint8Array> {
-        console.log(`[SKILL_API] fs.readFile: ${path}`);
+        log.debug(`fs.readFile: ${path}`);
 
         const result = await zenfs.readFile(path, encoding as BufferEncoding);
 
@@ -117,17 +120,17 @@ export function createSkillAPIBridge(options: {
       },
 
       async writeFile(path: string, data: string | Uint8Array): Promise<void> {
-        console.log(`[SKILL_API] fs.writeFile: ${path}`);
+        log.debug(`fs.writeFile: ${path}`);
         await zenfs.writeFile(path, data);
       },
 
       async readdir(path: string): Promise<string[]> {
-        console.log(`[SKILL_API] fs.readdir: ${path}`);
+        log.debug(`fs.readdir: ${path}`);
         return await zenfs.readdir(path);
       },
 
       async exists(path: string): Promise<boolean> {
-        console.log(`[SKILL_API] fs.exists: ${path}`);
+        log.debug(`fs.exists: ${path}`);
         return await zenfs.exists(path);
       },
 
@@ -135,27 +138,27 @@ export function createSkillAPIBridge(options: {
         path: string,
         options?: { recursive?: boolean },
       ): Promise<void> {
-        console.log(`[SKILL_API] fs.mkdir: ${path}`);
+        log.debug(`fs.mkdir: ${path}`);
         await zenfs.mkdir(path, options);
       },
 
       async rm(path: string, options?: { recursive?: boolean }): Promise<void> {
-        console.log(`[SKILL_API] fs.rm: ${path}`);
+        log.debug(`fs.rm: ${path}`);
         await zenfs.rm(path, options);
       },
 
       async stat(path: string): Promise<FileStats> {
-        console.log(`[SKILL_API] fs.stat: ${path}`);
+        log.debug(`fs.stat: ${path}`);
         return await zenfs.stat(path);
       },
 
       existsSync(path: string): boolean {
-        console.log(`[SKILL_API] fs.existsSync: ${path}`);
+        log.debug(`fs.existsSync: ${path}`);
         return zenfs.existsSync(path);
       },
 
       readFileSync(path: string, encoding?: string): string | Uint8Array {
-        console.log(`[SKILL_API] fs.readFileSync: ${path}`);
+        log.debug(`fs.readFileSync: ${path}`);
         const result = zenfs.readFileSync(path, encoding as BufferEncoding);
 
         // Convert Buffer to Uint8Array before passing to VM
@@ -174,27 +177,27 @@ export function createSkillAPIBridge(options: {
       },
 
       writeFileSync(path: string, data: string | Uint8Array): void {
-        console.log(`[SKILL_API] fs.writeFileSync: ${path}`);
+        log.debug(`fs.writeFileSync: ${path}`);
         zenfs.writeFileSync(path, data);
       },
 
       readdirSync(path: string): string[] {
-        console.log(`[SKILL_API] fs.readdirSync: ${path}`);
+        log.debug(`fs.readdirSync: ${path}`);
         return zenfs.readdirSync(path);
       },
 
       mkdirSync(path: string, options?: { recursive?: boolean }): void {
-        console.log(`[SKILL_API] fs.mkdirSync: ${path}`);
+        log.debug(`fs.mkdirSync: ${path}`);
         zenfs.mkdirSync(path, options);
       },
 
       rmSync(path: string, options?: { recursive?: boolean }): void {
-        console.log(`[SKILL_API] fs.rmSync: ${path}`);
+        log.debug(`fs.rmSync: ${path}`);
         zenfs.rmSync(path, options);
       },
 
       statSync(path: string): FileStats {
-        console.log(`[SKILL_API] fs.statSync: ${path}`);
+        log.debug(`fs.statSync: ${path}`);
         return zenfs.statSync(path);
       },
     },
@@ -202,7 +205,7 @@ export function createSkillAPIBridge(options: {
     // Console API - forwards to host console with skill prefix
     console: {
       log(...args: any[]): void {
-        console.log(`[Skill:${skillId}]`, ...args);
+        log.debug(`[Skill:${skillId}]`, ...args);
       },
 
       error(...args: any[]): void {
@@ -216,8 +219,6 @@ export function createSkillAPIBridge(options: {
 
     // Fetch API - uses host fetch
     async fetch(url: string, options?: RequestInit): Promise<any> {
-      console.log(`[SKILL_API] fetch: ${url}`);
-
       // SSRF guard: skills are untrusted code. Reject requests targeting
       // private/internal network ranges or non-http(s) schemes before they
       // reach the host fetch in the extension service worker context.
@@ -229,11 +230,19 @@ export function createSkillAPIBridge(options: {
         throw new Error(`Fetch failed: ${error?.message || String(error)}`);
       }
 
-      // Disallow following redirects so the SSRF guard cannot be bypassed
-      // by a public host that 3xx-redirects to an internal address.
+      log.debug(`fetch: ${validatedUrl.host}`);
+
+      // Only these options pass through. Never follow redirects, so the
+      // SSRF guard can't be bypassed by a public host that redirects to an
+      // internal address, and never send the user's cookies: under
+      // <all_urls> that would let a skill read any site the user is
+      // signed in to.
       const safeOptions: RequestInit = {
-        ...(options || {}),
-        redirect: options?.redirect || "error",
+        method: options?.method,
+        headers: options?.headers,
+        body: options?.body,
+        redirect: "error",
+        credentials: "omit",
       };
 
       try {
@@ -274,7 +283,7 @@ export function createSkillAPIBridge(options: {
       },
     ): Promise<{ success: boolean; downloadId?: number; error?: string }> {
       const filename = options?.filename || "download";
-      console.log(`[SKILL_API] downloadFile: ${filename}`);
+      log.debug(`downloadFile: ${filename}`);
 
       try {
         // Check if downloads permission is available
@@ -330,8 +339,8 @@ export function createSkillAPIBridge(options: {
           saveAs: options?.saveAs ?? true, // Default to showing save dialog
         });
 
-        console.log(
-          `[SKILL_API] Download triggered successfully: ${filename} (ID: ${downloadId})`,
+        log.debug(
+          `Download triggered successfully: ${filename} (ID: ${downloadId})`,
         );
         return {
           success: true,

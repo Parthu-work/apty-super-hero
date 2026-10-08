@@ -24,11 +24,14 @@ From the repository root, these run across every workspace package
 pnpm build       # tsc for each package, then `vite build` for the extension
 pnpm dev         # vite dev server with HMR for the extension
 pnpm test        # vitest run, per package
+pnpm test:coverage # coverage gate on the security-critical modules
+pnpm test:e2e    # real-browser tests against the built extension (build first)
 pnpm typecheck   # tsc --project tsconfig.json, per package (dependency order)
 pnpm lint        # biome check .
 pnpm lint:fix     # biome check . --fix --unsafe
 pnpm format      # biome format . --write
-pnpm preflight   # format + lint:fix + typecheck + test — run this before submitting changes
+pnpm fix         # format + lint:fix: rewrites files
+pnpm preflight   # format check + lint + typecheck + test + coverage, no rewrites — run this before submitting changes
 ```
 
 Run a single package's script with `pnpm --filter <package-name> <script>`,
