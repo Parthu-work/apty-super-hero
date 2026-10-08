@@ -1026,9 +1026,8 @@ export function SettingsPage({
 
             {/* Skill execution toggle — off by default. Running a skill
                 script executes untrusted, author-supplied code in a QuickJS
-                sandbox that can import packages from a CDN (esm.sh) at
-                runtime with no integrity pinning, through a fetch bridge
-                with a documented residual DNS-rebinding risk. */}
+                sandbox, through a fetch bridge with a documented residual
+                DNS-rebinding risk. */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

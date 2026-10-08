@@ -139,24 +139,22 @@ diagnostic isolation) is now Fixed above.
 
 ## Open — flagged, not fixed (needs Apty-side input to resolve)
 
-### 2. `host-access-config.json` defaults to all sites
+### 2. The agent can act on every site
 
 - **Severity**: Medium
-- **Affected component**: `apps/browser-extension/host-access-config.json`
-- **Risk**: `{"mode": "include-all", "whitelist": ["*.google.com"],
-  "blocklist": ["youtube.com"]}` — the agent is permitted to act on every
-  site the user visits except youtube.com. Combined with `<all_urls>` host
-  permissions and `debugger`, the agent's tools can read/act on banking
-  sites, personal email, or any other sensitive site open in the same
-  browser, not just Apty-related applications.
-- **Current mitigation**: None applied. This is inherited, unmodified
-  AIPex default config.
-- **Recommended fix**: Scope to Apty's actual target application domains
-  (Salesforce, ServiceNow, Workday, Apty's own admin/studio domains, etc.)
-  once that list is known. This was not done because inventing a domain
-  list without Apty's input would be guessing, and guessing wrong here
-  either breaks legitimate use (too narrow) or leaves the exposure open
-  (too broad, e.g. accidentally matching an internal domain pattern).
+- **Affected component**: `apps/browser-extension/manifest.json`
+  (`<all_urls>` host permission, `debugger`)
+- **Risk**: the agent's tools can read any site open in the browser,
+  including banking or personal email, not just Apty-related applications.
+- **Current mitigation**: every state-changing tool waits for the user's
+  click in the side panel, and "Allow on this site" grants are per tool and
+  origin, expire after 15 minutes and can be revoked in Options. The old
+  `host-access-config.json` (`include-all`) was never read by any code and
+  has been deleted along with its unused `HostAccessManager`.
+- **Recommended fix**: narrow host permissions to Apty's target
+  application domains (Salesforce, ServiceNow, Workday, Apty's own
+  domains, etc.) once that list is known, moving `<all_urls>` to
+  `optional_host_permissions`.
 - **Status**: Open. Needs Apty's list of target application domains.
 
 ### 3. Console-capture bridge runs on `<all_urls>`

@@ -21,8 +21,7 @@
   "files": [
     "build/",
     "README.md",
-    "package.json",
-    "host-access-config.json"
+    "package.json"
   ],
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.66",
