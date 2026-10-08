@@ -1,12 +1,44 @@
 import path from "node:path";
 import { crx, type ManifestV3Export } from "@crxjs/vite-plugin";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { build, defineConfig, type Plugin } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import manifest from "./manifest.json";
 
 // console.warn/error stay: they report real failures in the field.
 const DEBUG_CONSOLE_CALLS = ["console.log", "console.info", "console.debug"];
+
+const CONSOLE_BRIDGE = path.resolve(
+  __dirname,
+  "src/entrypoints/content/console-bridge.ts",
+);
+
+/**
+ * Bundle a content script with its imports inlined. crxjs only skips its
+ * async `import()` loader for a chunk with no imports, and the console
+ * bridge must hook `console` before the page's own scripts run.
+ */
+function selfContainedContentScript(entry: string): Plugin {
+  return {
+    name: "apty:self-contained-content-script",
+    apply: "build",
+    async load(id) {
+      if (id !== entry) return null;
+      const result = await build({
+        configFile: false,
+        logLevel: "warn",
+        build: {
+          write: false,
+          minify: false,
+          lib: { entry, formats: ["iife"], name: "aptyConsoleBridge" },
+        },
+      });
+      const [output] = Array.isArray(result) ? result : [result];
+      if (!("output" in output)) throw new Error("Unexpected watcher output");
+      return output.output[0].code;
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -15,6 +47,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    selfContainedContentScript(CONSOLE_BRIDGE),
     crx({ manifest: manifest as unknown as ManifestV3Export }),
     viteStaticCopy({
       targets: [

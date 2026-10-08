@@ -4,6 +4,7 @@
   "description": "Wire contract (schemas, redaction, safe serialization) shared between the Apty Agent extension and any Apty product extension (Client/Studio) that wants to expose service-worker logs to it",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Parthu-work/apty-super-hero.git"

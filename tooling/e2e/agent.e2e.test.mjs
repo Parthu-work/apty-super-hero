@@ -271,6 +271,40 @@ describe("chat agent in a real browser", () => {
     await app.close();
   });
 
+  it("shows the working border on the page only while the agent replies", async () => {
+    const app = await openApp();
+    const pageErrors = [];
+    app.on("console", (m) => {
+      if (m.type() === "error") pageErrors.push(m.text());
+    });
+    const panel = await openSidePanel(browser, model, app);
+    let release;
+    const replied = new Promise((r) => {
+      release = r;
+    });
+    model.script(async () => {
+      await replied;
+      return { text: "RESULT: done thinking" };
+    });
+
+    const border = app.locator("#aipex-border-overlay > div");
+    await chatAndWait(panel, "what is on this page", {
+      whileWaiting: async () => {
+        await border.first().waitFor({ timeout: 15_000 });
+        release();
+      },
+    });
+    await border.first().waitFor({ state: "detached", timeout: 15_000 });
+
+    assert.deepEqual(
+      pageErrors.filter((e) => /storage/i.test(e)),
+      [],
+      "the page's content script must not touch extension storage",
+    );
+    await panel.close();
+    await app.close();
+  });
+
   it("does not let an iframe that never goes quiet stall an application audit", async () => {
     const shop = await browser.context.newPage();
     await shop.goto(`${site.origin}/shop/p1.html`);
