@@ -5,8 +5,14 @@ import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import manifest from "./manifest.json";
 
+// console.warn/error stay: they report real failures in the field.
+const DEBUG_CONSOLE_CALLS = ["console.log", "console.info", "console.debug"];
+
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  esbuild: {
+    pure: mode === "production" ? DEBUG_CONSOLE_CALLS : [],
+  },
   plugins: [
     react(),
     crx({ manifest: manifest as unknown as ManifestV3Export }),
@@ -108,4 +114,4 @@ export default defineConfig({
       ignored: ["!**/node_modules/@tailwindcss/**"],
     },
   },
-});
+}));
