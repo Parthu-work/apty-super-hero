@@ -21,6 +21,7 @@ import {
   isValidExtensionId,
   updateAptyIntegrationConfig,
 } from "@apty/browser-runtime";
+import { ConfiguredServiceWorkerDiagnosticsProvider } from "@apty/browser-runtime/apty/service-worker-diagnostics";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
@@ -40,13 +41,42 @@ import { useEffect, useState } from "react";
 type CheckState =
   | { status: "idle" }
   | { status: "checking" }
-  | { status: "ok"; name: string }
+  | { status: "ok" }
+  | { status: "not_answering"; message: string }
   | { status: "error"; message: string };
+
+const NOT_FOUND_MESSAGE =
+  "The specified Apty Client extension could not be found or is not currently available.";
+
+async function isInstalledAndEnabled(id: string): Promise<boolean> {
+  try {
+    const info = await chrome.management.get(id);
+    return info.enabled;
+  } catch {
+    return false;
+  }
+}
+
+/** Installed check, then the real message handshake with the Client. */
+async function checkClient(id: string): Promise<CheckState> {
+  if (!(await isInstalledAndEnabled(id))) {
+    return { status: "error", message: NOT_FOUND_MESSAGE };
+  }
+  const status = await new ConfiguredServiceWorkerDiagnosticsProvider({
+    extensionId: id,
+  }).getStatus();
+  if (status.status === "ok") return { status: "ok" };
+  return {
+    status: "not_answering",
+    message: status.error ?? "The Apty Client did not answer.",
+  };
+}
 
 export function AptyClientPanel() {
   const [extensionId, setExtensionId] = useState("");
   const [saved, setSaved] = useState<string | undefined>(undefined);
   const [check, setCheck] = useState<CheckState>({ status: "idle" });
+  const ownId = chrome.runtime?.id;
 
   useEffect(() => {
     getAptyIntegrationConfig().then((config: AptyIntegrationConfig) => {
@@ -56,6 +86,13 @@ export function AptyClientPanel() {
       }
     });
   }, []);
+
+  const runCheck = async (id: string) => {
+    setCheck({ status: "checking" });
+    const result = await checkClient(id);
+    setCheck(result);
+    return result;
+  };
 
   const handleConnect = async () => {
     const id = extensionId.trim();
@@ -67,28 +104,10 @@ export function AptyClientPanel() {
       });
       return;
     }
-
-    setCheck({ status: "checking" });
-    try {
-      const info = await chrome.management.get(id);
-      if (!info.enabled) {
-        setCheck({
-          status: "error",
-          message:
-            "The specified Apty Client extension could not be found or is not currently available.",
-        });
-        return;
-      }
-      await updateAptyIntegrationConfig({ clientExtensionId: id });
-      setSaved(id);
-      setCheck({ status: "ok", name: info.name });
-    } catch {
-      setCheck({
-        status: "error",
-        message:
-          "The specified Apty Client extension could not be found or is not currently available.",
-      });
-    }
+    const result = await runCheck(id);
+    if (result.status === "error") return;
+    await updateAptyIntegrationConfig({ clientExtensionId: id });
+    setSaved(id);
   };
 
   const handleDisconnect = async () => {
@@ -97,7 +116,7 @@ export function AptyClientPanel() {
     setCheck({ status: "idle" });
   };
 
-  const isConnected = Boolean(saved);
+  const isConnected = Boolean(saved) && check.status !== "not_answering";
   const isChecking = check.status === "checking";
 
   return (
@@ -129,7 +148,11 @@ export function AptyClientPanel() {
             ) : (
               <XCircle className="h-3.5 w-3.5" />
             )}
-            {isConnected ? "Connected" : "Not Connected"}
+            {check.status === "ok"
+              ? "Answering"
+              : isConnected
+                ? "Configured"
+                : "Not Connected"}
           </Badge>
         </div>
       </CardHeader>
@@ -145,12 +168,9 @@ export function AptyClientPanel() {
                 </span>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                This extension ID is valid and installed. The agent verifies the
-                Apty Client actually responds to its resource-inspection message
-                contract the first time you ask about it in chat (e.g. "Get
-                segments.json") — that check is a separate, per-conversation
-                step, and requires the Apty Client to allowlist this extension
-                under externally_connectable.
+                {check.status === "ok"
+                  ? "The Apty Client answered the Agent's handshake."
+                  : "Saved. Use Test connection to confirm the Apty Client answers."}
               </p>
             </AlertDescription>
           </Alert>
@@ -180,13 +200,24 @@ export function AptyClientPanel() {
               className="flex-1 font-mono"
             />
             {saved ? (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDisconnect}
-              >
-                Disconnect
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => runCheck(saved)}
+                  disabled={isChecking}
+                >
+                  {isChecking && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Test connection
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDisconnect}
+                >
+                  Disconnect
+                </Button>
+              </>
             ) : (
               <Button
                 type="button"
@@ -200,11 +231,27 @@ export function AptyClientPanel() {
           </div>
         </div>
 
-        {check.status === "error" && (
+        {(check.status === "error" || check.status === "not_answering") && (
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />
-            <AlertDescription>{check.message}</AlertDescription>
+            <AlertDescription>
+              {check.status === "not_answering" && (
+                <p className="font-medium">
+                  Installed, but not answering the Agent.
+                </p>
+              )}
+              <p>{check.message}</p>
+            </AlertDescription>
           </Alert>
+        )}
+
+        {ownId && (
+          <p className="text-xs text-muted-foreground">
+            This Agent's extension ID (the Apty Client must allow-list it):{" "}
+            <code className="select-all rounded bg-muted px-1 py-0.5 font-mono">
+              {ownId}
+            </code>
+          </p>
         )}
 
         <p className="text-xs text-muted-foreground">

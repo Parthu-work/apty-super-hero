@@ -115,6 +115,13 @@ export interface AptyServiceWorkerStatus {
   running?: boolean;
   lastActivity?: number;
   error?: string;
+  /** Why the Client could not be read over cross-extension messaging, when it couldn't. */
+  peerFailure?:
+    | "no_receiver"
+    | "no_response"
+    | "timeout"
+    | "send_failed"
+    | "malformed_response";
 }
 
 /**

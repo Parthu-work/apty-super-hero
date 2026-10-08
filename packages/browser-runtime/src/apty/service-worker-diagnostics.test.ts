@@ -100,18 +100,35 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
     );
   });
 
-  it("returns unavailable when chrome.runtime.lastError is set", async () => {
+  it("reports a missing receiver as not allow-listed, with the fix", async () => {
     respondWithLastError();
     const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
       extensionId: "widget-ext-id",
     });
 
-    await expect(provider.getStatus()).resolves.toEqual({
+    const result = await provider.getStatus();
+
+    expect(result).toMatchObject({
       status: "unavailable",
+      peerFailure: "no_receiver",
     });
+    expect(result.error).toMatch(/externally_connectable/);
+    expect(result.error).toMatch(/Could not establish connection/);
   });
 
-  it("returns unavailable when the target extension never responds (timeout)", async () => {
+  it("reports a handler that answers nothing as a missing bridge, without retrying", async () => {
+    respondWith(undefined);
+    const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+      extensionId: "widget-ext-id",
+    });
+
+    const result = await provider.getStatus();
+
+    expect(result).toMatchObject({ peerFailure: "no_response" });
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a timeout after one retry when the target never responds", async () => {
     neverRespond();
     const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
       extensionId: "widget-ext-id",
@@ -119,7 +136,11 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
 
     const statusPromise = provider.getStatus();
     await vi.advanceTimersByTimeAsync(13100);
-    await expect(statusPromise).resolves.toEqual({ status: "unavailable" });
+    await expect(statusPromise).resolves.toMatchObject({
+      status: "unavailable",
+      peerFailure: "timeout",
+    });
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
   });
 
   it("returns an error status for a malformed status response, without throwing", async () => {
