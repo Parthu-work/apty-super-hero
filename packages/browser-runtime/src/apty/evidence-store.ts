@@ -184,6 +184,17 @@ export function getEvidenceById(
     ?.list.find((e) => e.evidenceId === evidenceId);
 }
 
+/** One evidence record by its (random, unguessable) id in any conversation of this context — used by the UI, which shows the user their own data. */
+export function findEvidenceById(
+  evidenceId: string,
+): DiagnosticEvidence | undefined {
+  for (const entry of evidenceByConversation.values()) {
+    const found = entry.list.find((e) => e.evidenceId === evidenceId);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 /** Drop all evidence for one conversation — call when a conversation/session ends. */
 export function clearEvidence(conversationId: string | undefined): void {
   evidenceByConversation.delete(keyFor(conversationId));
