@@ -142,7 +142,10 @@ describe("built extension in Chromium", () => {
     }).then((rs) => rs.filter((r) => r.frameId === 0));
 
     assert.equal(top.response?.success, true, JSON.stringify(top));
+    // One open and one closed root, a button in each; the Agent's own UI
+    // root is not counted.
     assert.equal(top.response.data.snapshot.shadowDom.roots, 2);
+    assert.equal(top.response.data.snapshot.counts.buttons, 2);
     await page.close();
   });
 
@@ -205,16 +208,23 @@ describe("built extension in Chromium", () => {
    * start-capture to the tab, then the user clicks an element.
    */
   async function captureClick(clickIn) {
-    const page = await openPage("/top.html");
+    // A unique URL, so the capture reaches this tab and never one left over.
+    const page = await openPage(`/top.html?capture=${Date.now()}`);
     await page.waitForTimeout(500);
     const ext = await extensionPage();
-    await ext.evaluate(async () => {
-      await chrome.storage.local.remove("aipex_last_capture_event");
-      const [tab] = await chrome.tabs.query({
-        url: "http://127.0.0.1/*top.html",
-      });
-      await chrome.tabs.sendMessage(tab.id, { request: "start-capture" });
-    });
+    const sendToTab = (request) =>
+      ext.evaluate(
+        async ({ url, request }) => {
+          const tabs = await chrome.tabs.query({});
+          const tab = tabs.find((t) => t.url === url);
+          await chrome.tabs.sendMessage(tab.id, { request });
+        },
+        { url: page.url(), request },
+      );
+    await ext.evaluate(() =>
+      chrome.storage.local.remove("aipex_last_capture_event"),
+    );
+    await sendToTab("start-capture");
 
     await clickIn(page);
 
@@ -227,12 +237,7 @@ describe("built extension in Chromium", () => {
             .aipex_last_capture_event,
       );
     }
-    await ext.evaluate(async () => {
-      const [tab] = await chrome.tabs.query({
-        url: "http://127.0.0.1/*top.html",
-      });
-      await chrome.tabs.sendMessage(tab.id, { request: "stop-capture" });
-    });
+    await sendToTab("stop-capture");
     await ext.close();
     await page.close();
     return event?.data;
