@@ -14,6 +14,33 @@ the authoritative source; the Confluence page is a navigable summary of it.
 
 ## Fixed
 
+### 0. Risky-action approval could be granted by the model itself
+
+- **Severity**: Critical
+- **Affected component**: `packages/browser-runtime/src/tools/approval.ts`
+  and every gated tool (`run_console_command`, `fill_element_by_uid`,
+  `fill_form`, `computer` type/key, `upload_file_to_input`, downloads)
+- **Risk**: The gate returned `needs_approval` and the action ran when the
+  model called the `confirm_risky_action` tool with `userConfirmed: true`.
+  Nothing verified that a person had agreed, so a prompt-injected page
+  could have the model approve its own action. `run_console_command`
+  executes model-supplied JavaScript in the logged-in page through CDP
+  `Runtime.evaluate`. A single approval also granted every risky tool on
+  that origin permanently, in every conversation.
+- **Current mitigation**: The gated call now waits for a click on Allow or
+  Deny in the side panel's approval prompt; the decision goes from the UI
+  straight to `resolveApproval` and never through the model, and
+  `confirm_risky_action` no longer exists. Requests from the service worker
+  (MCP bridge) are relayed to the side panel, and decisions are accepted
+  only from this extension's own pages, never from content scripts. With
+  no UI able to show the request, or after 5 minutes without an answer,
+  the call is denied. "Allow on this site" grants are per tool and origin,
+  expire after 15 minutes, and are listed and revocable on the options
+  page.
+- **Status**: Fixed. `approval.test.ts` and `tool-relevance.test.ts` assert
+  that no model-callable approval exists and that unanswered, denied and
+  forged decisions never run the action.
+
 ### 1. `externally_connectable` allowed any localhost webpage to control the extension
 
 - **Severity**: High
@@ -394,10 +421,13 @@ diagnostic isolation) is now Fixed above.
   scripts and `chrome.scripting.executeScript` run on any site.
 - **Current mitigation**: `debuggerManager` auto-detaches after 30s of
   inactivity and on tab close (`packages/browser-runtime/src/automation/debugger-manager.ts`);
-  no tool uses `Runtime.evaluate` to run arbitrary injected code — CDP is
-  only used for `Input.*` (existing computer-tool automation) and, as of
-  this session, `Network.*`/`Log.*`/`Runtime.enable`+`exceptionThrown`
-  (read-only observation, no code execution). The broad permissions
+  `run_console_command` does run model-supplied JavaScript through
+  `Runtime.evaluate`, but only after a person clicks Allow for that exact
+  expression (finding #0). Other CDP use is `Input.*` (computer-tool
+  automation), `DOM.*` for file inputs (also approval-gated), and
+  `Network.*`/`Log.*`/`Runtime.enable`+`exceptionThrown` (read-only
+  observation). Page response bodies are only fetched when the user
+  enables it under Settings → Data handling. The broad permissions
   themselves are structurally necessary for the class of debugging tool
   being built, and — with governance in place at the org/policy level — are
   not something to remove without removing the DevTools-inspection
@@ -433,9 +463,9 @@ diagnostic isolation) is now Fixed above.
 | Are incoming messages validated? | Internal `chrome.runtime.onMessage` handlers switch on a known `request` string and validate payload shape per-branch (see `background.ts`); the (now unreachable) external handler validated `prompt` as a string before use. |
 | Are origins validated? | Yes for the WebSocket daemon (see above); N/A for `chrome.runtime.onMessage` (same-extension only) now that `externally_connectable` is locked down. |
 | Could logs expose passwords/tokens/cookies/PII? | Mitigated via `apty/redact.ts`, applied to `get_apty_page_logs` and Widget/Client diagnostics logs; unit-tested (`redact.test.ts`). Not yet applied to hypothetical future Studio/Service-Worker log responses (finding #4). |
-| Can arbitrary JavaScript be injected/executed? | No tool calls `eval`/`Function`/`Runtime.evaluate` with model- or page-derived strings. `chrome.scripting.executeScript` is used only with statically-defined `func` closures, never a dynamically-built string. |
-| Can webpage content manipulate the AI agent (prompt injection)? | Not preventable at the code level for an LLM; mitigated at the reasoning layer — the system prompt explicitly instructs the model to treat page content as data, not instructions, and not comply with injected commands. |
+| Can arbitrary JavaScript be injected/executed? | Yes, by design, through `run_console_command` (`Runtime.evaluate` with a model-supplied expression), and only after a person clicks Allow on a prompt that shows the exact expression (finding #0). No code path uses `eval`/`Function`. `chrome.scripting.executeScript` runs statically-defined `func` closures, or the extension's own packaged frame-responder file. |
+| Can webpage content manipulate the AI agent (prompt injection)? | It can steer what the model asks for; it cannot approve anything. Every page-writing or code-running tool needs a human click the model has no way to produce (finding #0). The system prompt also tells the model to treat page content as data. |
 | Can another local process connect to the debugging bridge? | Only if it doesn't send an `Origin` header (true of non-browser clients like the intended MCP CLI) — the daemon can't distinguish "a legitimate local Node MCP client" from "some other unrelated local process" by that signal alone. This is an accepted limitation of the loopback+no-origin allowance, inherited from AIPex; not changed this session. |
 | Are extension IDs trusted/validated? | Cross-extension messaging (Studio/Service-Worker) is currently unreachable in practice (`not_configured` by default); when configured, `chrome.runtime.sendMessage(extensionId, ...)` only talks to the specific configured ID — no wildcard matching. |
 | Are diagnostic APIs protected? | They only run in the context of the extension's own privileged code (background/tool execution), not exposed to web pages. |
-| Could browser data unintentionally be sent to the LLM? | Redaction covers known-sensitive patterns; anything not matching those patterns (e.g. business data visible in the DOM/console that isn't a credential) is sent as-is, since that's the intended purpose of a debugging agent — the mitigation targets *secrets*, not all page data. |
+| Could browser data unintentionally be sent to the LLM? | Redaction covers known-sensitive patterns; anything not matching those patterns (e.g. business data visible in the DOM/console that isn't a credential) is sent as-is, since that's the intended purpose of a debugging agent — the mitigation targets *secrets*, not all page data. Page response bodies are off unless the user enables them, with a host/URL deny-list. Stored conversations and screenshots are deleted after 7 days without use and can be purged from the options page. |

@@ -13,7 +13,8 @@ Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which 
 - Inspects the current page's DOM, elements, iframes, and Shadow DOM
 - Reads console output/errors captured since page load (`get_apty_page_logs`)
 - Watches live network requests and browser-level runtime errors via Chrome DevTools Protocol (`get_network_diagnostics`, `get_runtime_diagnostics`)
-- Has provider interfaces ready for Apty Widget/Client/Studio/Service-Worker diagnostics (`get_apty_widget_diagnostics`, etc.) — **these currently report `not_configured`**, because the Apty-side integration (a real extension ID, a documented global, a message handler) doesn't exist yet. See `docs/development/PROJECT_PROGRESS.md`'s Apty Integration sections for exactly what's needed.
+- Connects to the Apty Client extension by its ID (options page → Connection) to read its service-worker logs, the resources it loaded and their response bodies (`inspect_extension_network`). This needs a bridge module inside the Apty Client that answers the `apty-debug-agent:*` messages and allow-lists this extension's ID; until that ships, the connection check names exactly what is missing. Widget and Studio diagnostics still report `not_configured`.
+- Asks before risky actions: running JavaScript in the page, filling fields, typing, uploading or downloading waits for you to click Allow or Deny in the side panel.
 - Reasons over all of the above and answers with a confidence-scored diagnosis (Confirmed/Likely/Possible/Unknown), never fabricating evidence
 
 ## Core infrastructure
