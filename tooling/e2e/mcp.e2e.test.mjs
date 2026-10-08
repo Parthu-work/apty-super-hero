@@ -146,7 +146,7 @@ describe("MCP bridge in a real browser", () => {
     const daemon = await startDaemon();
     const options = await extensionPage(browser);
     try {
-      await options.getByText("Apty Integration").click();
+      await options.getByRole("tab", { name: "Apty Integration" }).click();
       await options
         .getByLabel("Bridge URL")
         .fill(`ws://127.0.0.1:${daemon.port}/extension`);

@@ -158,17 +158,20 @@ export function subscribeApprovalRequests(
   };
 }
 
-function broadcast(message: Record<string, unknown>): Promise<boolean> {
+/**
+ * Resolves with the first listener's reply, or undefined when no listener
+ * replied. The approval prompt replies `true` to a request it shows: any
+ * other extension page with a message listener also makes sendMessage
+ * succeed, so success alone doesn't mean a prompt is on screen.
+ */
+function broadcast(message: Record<string, unknown>): Promise<unknown> {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
-    return Promise.resolve(false);
+    return Promise.resolve(undefined);
   }
   try {
-    return chrome.runtime.sendMessage(message).then(
-      () => true,
-      () => false,
-    );
+    return chrome.runtime.sendMessage(message).catch(() => undefined);
   } catch {
-    return Promise.resolve(false);
+    return Promise.resolve(undefined);
   }
 }
 
@@ -229,11 +232,11 @@ async function requestHumanApproval(
   });
   emitChange();
 
-  const relayed = await broadcast({
+  const shown = await broadcast({
     type: APPROVAL_REQUEST_MESSAGE,
     request,
   });
-  if (!relayed && listeners.size === 0) {
+  if (shown !== true && listeners.size === 0) {
     settle(request.approvalId, { status: "denied", reason: "no_approval_ui" });
   }
   return outcome;

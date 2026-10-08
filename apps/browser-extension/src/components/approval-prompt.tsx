@@ -44,6 +44,7 @@ function usePendingApprovals() {
         approvalId?: string;
       },
       sender: chrome.runtime.MessageSender,
+      sendResponse: (shown: boolean) => void,
     ) => {
       if (!isOwnExtensionPage(sender)) return false;
       if (message?.type === APPROVAL_REQUEST_MESSAGE && message.request) {
@@ -53,6 +54,7 @@ function usePendingApprovals() {
             ? current
             : [...current, request],
         );
+        sendResponse(true);
         return false;
       }
       if (message?.type === APPROVAL_CLOSED_MESSAGE) {

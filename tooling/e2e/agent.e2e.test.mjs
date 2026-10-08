@@ -161,6 +161,32 @@ describe("chat agent in a real browser", () => {
     await app.close();
   });
 
+  it("refuses an approved action when the tab moved to another site meanwhile", async () => {
+    const app = await openApp();
+    const panel = await openSidePanel(browser, model, app);
+    model.script(
+      callToolThenReport("run_console_command", {
+        expression: RISKY_EXPRESSION,
+      }),
+    );
+
+    await chatAndWait(panel, "run a console command to change the title", {
+      whileWaiting: async () => {
+        const prompt = panel.getByRole("alertdialog");
+        await prompt.waitFor({ timeout: 30_000 });
+        await app.goto(
+          site.origin.replace("127.0.0.1", "localhost") + "/app.html",
+        );
+        await prompt.getByRole("button", { name: "Allow once" }).click();
+      },
+    });
+
+    assert.equal(await app.title(), "Original");
+    assert.equal(lastToolResult().reason, "page_changed");
+    await panel.close();
+    await app.close();
+  });
+
   it("remembers 'Allow on this site' for that tool only, until revoked in options", async () => {
     const app = await openApp();
     const panel = await openSidePanel(browser, model, app);

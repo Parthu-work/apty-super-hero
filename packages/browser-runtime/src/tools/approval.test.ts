@@ -62,7 +62,8 @@ function deliverDecision(
 beforeEach(async () => {
   vi.clearAllMocks();
   storageStore = {};
-  mockSendMessage.mockResolvedValue(undefined);
+  // The side panel's approval prompt acknowledges a request it shows.
+  mockSendMessage.mockResolvedValue(true);
   await resetApprovalStateForTests();
 });
 
@@ -86,6 +87,16 @@ describe("gateRiskyAction", () => {
     });
     expect(run).not.toHaveBeenCalled();
     expect(getPendingApprovals()).toEqual([]);
+  });
+
+  it("fails closed when extension pages answer but none shows the prompt", async () => {
+    mockSendMessage.mockResolvedValue(undefined);
+    const run = vi.fn();
+
+    const result = await gateRiskyAction("c", "tool_a", "do it", PAGE, run);
+
+    expect(result).toMatchObject({ reason: "no_approval_ui" });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("expires an unanswered request without running it", async () => {

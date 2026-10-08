@@ -76,6 +76,37 @@ describe("readiness check and settings links", () => {
     await app.close();
   });
 
+  it("switches an open Options page to another section without reloading it", async () => {
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    for (const page of optionsTabs()) await page.close();
+    const options = await extensionPage(
+      browser,
+      "src/entrypoints/options/index.html?tab=ai",
+    );
+    await options.locator("#ai-provider").waitFor();
+    await options.evaluate(() => {
+      window.__notReloaded = true;
+    });
+
+    await panel
+      .getByRole("region", { name: "Readiness check" })
+      .getByRole("button", { name: /Apty Client not connected/ })
+      .click();
+
+    await options
+      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .waitFor();
+    await options.locator("#apty-client").waitFor();
+    assert.match(options.url(), /\?tab=connection#apty-client$/);
+    assert.equal(await options.evaluate(() => window.__notReloaded), true);
+    assert.equal(optionsTabs().length, 1);
+    await options.close();
+    await panel.close();
+    await app.close();
+  });
+
   it("stores a General-tab switch as soon as it is flipped", async () => {
     const options = await extensionPage(
       browser,
