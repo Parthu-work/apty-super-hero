@@ -18,6 +18,8 @@ export class BookmarksProvider implements ContextProvider {
   };
 
   async getContexts(query?: ContextQuery): Promise<Context[]> {
+    // Optional permission: the API only exists once the user grants it.
+    if (!chrome.bookmarks) return [];
     try {
       const tree = await chrome.bookmarks.getTree();
       const bookmarks: Context[] = [];
@@ -49,6 +51,7 @@ export class BookmarksProvider implements ContextProvider {
   }
 
   async getContext(id: string): Promise<Context | null> {
+    if (!chrome.bookmarks) return null;
     if (!id.startsWith("bookmark-")) return null;
 
     const bookmarkId = id.replace("bookmark-", "");
