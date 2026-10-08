@@ -108,7 +108,14 @@ describe("Apty Client integration in a real browser", () => {
     await options
       .getByText("Installed, but not answering the Agent.")
       .waitFor({ timeout: 40_000 });
-    assert.match(await options.locator("body").innerText(), /never answered/);
+    // Chrome either fails the call ("message port closed") or leaves it
+    // hanging until the Agent's timeout; both must point at the bridge.
+    const text = await options.locator("body").innerText();
+    assert.match(
+      text,
+      /does not implement the apty-debug-agent:get-service-worker-status message/,
+    );
+    assert.doesNotMatch(text, /Chrome refused to send/);
     await disconnectInOptions(options);
   });
 

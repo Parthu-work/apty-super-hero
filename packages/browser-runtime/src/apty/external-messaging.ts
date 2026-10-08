@@ -29,7 +29,9 @@ const DEFAULT_TIMEOUT_MS = 3000;
  *   list this extension under `externally_connectable.ids`, or registers
  *   no `chrome.runtime.onMessageExternal` handler.
  * - `no_response`: a handler ran but answered nothing, so it does not
- *   implement this message type.
+ *   implement this message type. Chrome reports this as "The message port
+ *   closed before a response was received." (some builds instead leave the
+ *   call hanging, which ends as `timeout`).
  * - `timeout`: nothing came back in time (a stuck handler, or a service
  *   worker that did not wake).
  * - `send_failed`: Chrome rejected the send itself.
@@ -46,6 +48,13 @@ export type ExternalMessageOutcome =
 
 const NO_RECEIVER_PATTERN =
   /receiving end does not exist|could not establish connection/i;
+const PORT_CLOSED_PATTERN = /message port closed before a response/i;
+
+function classifyLastError(message: string): ExternalMessageFailure {
+  if (NO_RECEIVER_PATTERN.test(message)) return "no_receiver";
+  if (PORT_CLOSED_PATTERN.test(message)) return "no_response";
+  return "send_failed";
+}
 
 /**
  * Send a message to a specific, already-configured extension ID and report
@@ -69,9 +78,7 @@ export function sendExternalMessageDetailed(
         if (lastError) {
           resolve({
             ok: false,
-            failure: NO_RECEIVER_PATTERN.test(lastError)
-              ? "no_receiver"
-              : "send_failed",
+            failure: classifyLastError(lastError),
             detail: lastError,
           });
           return;

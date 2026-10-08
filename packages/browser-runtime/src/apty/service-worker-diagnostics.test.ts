@@ -25,16 +25,14 @@ function respondWith(response: unknown) {
   );
 }
 
-function respondWithLastError() {
+function respondWithLastError(message = "Could not establish connection") {
   mockSendMessage.mockImplementation(
     (
       _extensionId: string,
       _message: unknown,
       callback: (response: unknown) => void,
     ) => {
-      (global as any).chrome.runtime.lastError = {
-        message: "Could not establish connection",
-      };
+      (global as any).chrome.runtime.lastError = { message };
       callback(undefined);
       (global as any).chrome.runtime.lastError = undefined;
     },
@@ -114,6 +112,21 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
     });
     expect(result.error).toMatch(/externally_connectable/);
     expect(result.error).toMatch(/Could not establish connection/);
+  });
+
+  it("reports Chrome's 'message port closed' as a missing bridge, without retrying", async () => {
+    respondWithLastError(
+      "The message port closed before a response was received.",
+    );
+    const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+      extensionId: "widget-ext-id",
+    });
+
+    const result = await provider.getStatus();
+
+    expect(result).toMatchObject({ peerFailure: "no_response" });
+    expect(result.error).toMatch(/does not implement/);
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
   });
 
   it("reports a handler that answers nothing as a missing bridge, without retrying", async () => {
