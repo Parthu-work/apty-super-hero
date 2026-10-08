@@ -36,6 +36,7 @@ import {
   gateRiskyAction,
   getPendingApprovals,
   listApprovalGrants,
+  MCP_APPROVAL_TTL_MS,
   resetApprovalStateForTests,
   revokeAllApprovalGrants,
   revokeApprovalGrant,
@@ -94,6 +95,21 @@ describe("gateRiskyAction", () => {
     const pending = gateRiskyAction("c", "tool_a", "do it", PAGE, run);
     await vi.advanceTimersByTimeAsync(APPROVAL_TTL_MS + 1);
 
+    await expect(pending).resolves.toMatchObject({ reason: "expired" });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("expires a request from outside a chat before the MCP tool timeout", async () => {
+    vi.useFakeTimers();
+    const run = vi.fn();
+
+    const pending = gateRiskyAction(undefined, "tool_a", "do it", PAGE, run);
+    await vi.advanceTimersByTimeAsync(0);
+    const request = getPendingApprovals()[0];
+    expect(request.expiresAt - request.createdAt).toBe(MCP_APPROVAL_TTL_MS);
+    expect(MCP_APPROVAL_TTL_MS).toBeLessThan(60_000);
+
+    await vi.advanceTimersByTimeAsync(MCP_APPROVAL_TTL_MS + 1);
     await expect(pending).resolves.toMatchObject({ reason: "expired" });
     expect(run).not.toHaveBeenCalled();
   });

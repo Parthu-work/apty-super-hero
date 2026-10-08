@@ -348,8 +348,9 @@ export class WsMcpServer {
     try {
       const toolExecution = this.executeTool(name, args);
 
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
+        timer = setTimeout(
           () =>
             reject(
               new Error(
@@ -360,7 +361,10 @@ export class WsMcpServer {
         );
       });
 
-      const result = await Promise.race([toolExecution, timeoutPromise]);
+      const result = await Promise.race([
+        toolExecution,
+        timeoutPromise,
+      ]).finally(() => clearTimeout(timer));
 
       await this.sendResult(request.id, {
         content: buildMcpContent(result),

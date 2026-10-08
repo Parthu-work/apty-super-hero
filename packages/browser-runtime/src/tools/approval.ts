@@ -21,6 +21,12 @@ import { isOwnExtensionPage } from "../runtime/trusted-sender.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 
 export const APPROVAL_TTL_MS = 5 * 60_000;
+/**
+ * A request from outside a chat (an MCP client) expires before the MCP
+ * bridge's 60 s tool timeout, so the caller hears the real outcome and an
+ * Allow can never run an action the caller was already told had failed.
+ */
+export const MCP_APPROVAL_TTL_MS = 50_000;
 export const GRANT_TTL_MS = 15 * 60_000;
 
 export const APPROVAL_REQUEST_MESSAGE = "apty-approval-request";
@@ -34,6 +40,7 @@ export interface ApprovalRequest {
   summary: string;
   origin?: string;
   createdAt: number;
+  expiresAt: number;
 }
 
 export interface ApprovalDecision {
@@ -210,7 +217,7 @@ async function requestHumanApproval(
   const outcome = new Promise<ApprovalOutcome>((resolve) => {
     const timer = setTimeout(
       () => settle(request.approvalId, { status: "denied", reason: "expired" }),
-      APPROVAL_TTL_MS,
+      request.expiresAt - request.createdAt,
     );
     pending.set(request.approvalId, { request, resolve, timer });
   });
@@ -254,13 +261,16 @@ export async function gateRiskyAction<T>(
     }
   }
 
+  const createdAt = Date.now();
   const outcome = await requestHumanApproval({
     approvalId: generateId(),
     conversationId,
     toolName,
     summary,
     origin: origin ?? undefined,
-    createdAt: Date.now(),
+    createdAt,
+    expiresAt:
+      createdAt + (conversationId ? APPROVAL_TTL_MS : MCP_APPROVAL_TTL_MS),
   });
 
   if (outcome.status === "denied") {

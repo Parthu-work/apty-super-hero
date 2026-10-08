@@ -49,7 +49,8 @@ const remoteRequest = {
   toolName: "run_console_command",
   summary: "Run this JavaScript: 1 + 1",
   origin: "https://app.example.com",
-  createdAt: 0,
+  createdAt: Date.now(),
+  expiresAt: Date.now() + 50_000,
 };
 
 function deliver(message: unknown, sender: chrome.runtime.MessageSender) {
@@ -115,6 +116,19 @@ describe("ApprovalPrompt", () => {
       remember: true,
     });
     expect(screen.queryByText(/Allow run_console_command/)).toBeNull();
+  });
+
+  it("says when a request comes from an MCP client and how long is left", () => {
+    render(<ApprovalPrompt />);
+    deliver(
+      { type: APPROVAL_REQUEST_MESSAGE, request: remoteRequest },
+      { id: "agent-id", url: "chrome-extension://agent-id/sw.js" },
+    );
+
+    expect(screen.getByText(/requested by an MCP client/)).toBeTruthy();
+    expect(screen.getByLabelText("Time left to answer").textContent).toMatch(
+      /Expires in 0:(49|50)/,
+    );
   });
 
   it("ignores requests injected by a content script", () => {
