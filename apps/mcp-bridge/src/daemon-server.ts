@@ -7,9 +7,11 @@
  * spawned and nothing written outside a temp dir.
  *
  * Auth model (WP2): every WebSocket path (`/extension`, `/bridge`, `/cli`)
- * requires `?token=<the configured secret>` in the connection URL — the
- * only mechanism available uniformly to both the browser's native
- * `WebSocket` (no custom headers on a WS handshake) and Node `ws` clients.
+ * requires the configured secret as an `apty-token.<token>` subprotocol
+ * alongside `apty-mcp.v1` (see `authProtocols`). A subprotocol is the only
+ * handshake header the browser's native `WebSocket` can set, and unlike a
+ * `?token=` query string it never appears in a URL. The daemon answers with
+ * `apty-mcp.v1` only, so the token is never echoed back.
  * `/extension` additionally requires an extension-shaped Origin
  * (`chrome-extension://`/`moz-extension://`) that exactly matches the
  * configured `allowedExtensionId` — and if no extension id has been
@@ -22,7 +24,11 @@ import { createServer, type Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 
-import { tokensMatch } from "./lib/auth-token.js";
+import {
+  tokenFromProtocols,
+  tokensMatch,
+  WS_PROTOCOL,
+} from "./lib/auth-token.js";
 import { toolSchemas } from "./tool-schemas.js";
 
 export interface DaemonServerOptions {
@@ -258,7 +264,7 @@ export function startDaemonServer(
           message:
             "Apty Agent extension is not connected. To connect:\n" +
             "1. Open Chrome → Apty Agent extension → Options page\n" +
-            `2. Set WebSocket URL to ws://localhost:${handle.port}/extension (with your configured token)\n` +
+            `2. Set WebSocket URL to ws://localhost:${handle.port}/extension and paste your token\n` +
             "3. Click Connect",
         },
       };
@@ -406,24 +412,30 @@ export function startDaemonServer(
   // bulk tool results) passing through, not a target.
   const MAX_WS_PAYLOAD_BYTES = 16 * 1024 * 1024;
 
+  const selectProtocol = (protocols: Set<string>) =>
+    protocols.has(WS_PROTOCOL) ? WS_PROTOCOL : false;
+
   const extensionWss = new WebSocketServer({
     noServer: true,
     maxPayload: MAX_WS_PAYLOAD_BYTES,
+    handleProtocols: selectProtocol,
   });
   const bridgeWss = new WebSocketServer({
     noServer: true,
     maxPayload: MAX_WS_PAYLOAD_BYTES,
+    handleProtocols: selectProtocol,
   });
   const cliWss = new WebSocketServer({
     noServer: true,
     maxPayload: MAX_WS_PAYLOAD_BYTES,
+    handleProtocols: selectProtocol,
   });
 
   httpServer.on("upgrade", (req, socket, head) => {
     const origin = req.headers.origin;
     const parsedUrl = new URL(req.url ?? "/", "http://localhost");
     const pathname = parsedUrl.pathname;
-    const token = parsedUrl.searchParams.get("token") ?? undefined;
+    const token = tokenFromProtocols(req.headers["sec-websocket-protocol"]);
 
     // CSWSH guard: never allow a web-page origin on ANY path, regardless
     // of what else is wrong/right about the request.

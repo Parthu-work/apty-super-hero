@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 
 import { type DaemonServerHandle, startDaemonServer } from "./daemon-server.js";
+import { authProtocols } from "./lib/auth-token.js";
 
 const TOKEN = "correct-token-0123456789abcdef";
 const EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
@@ -23,10 +24,12 @@ interface AttemptResult {
 /** Connects a raw `ws` client against the test daemon and resolves once the outcome (open, or some form of rejection) is known — never throws on rejection, since rejection is exactly what several of these tests assert. */
 function attemptConnect(
   url: string,
-  opts: { origin?: string } = {},
+  opts: { origin?: string; token?: string } = {},
 ): Promise<{ ws: WebSocket; result: Promise<AttemptResult> }> {
   const headers = opts.origin ? { Origin: opts.origin } : undefined;
-  const ws = new WebSocket(url, { headers });
+  const protocols =
+    opts.token === undefined ? undefined : authProtocols(opts.token);
+  const ws = new WebSocket(url, protocols, { headers });
 
   const result = new Promise<AttemptResult>((resolve) => {
     let settled = false;
@@ -83,8 +86,8 @@ describe("daemon-server — /extension auth", () => {
   it("correct flow: matching origin + correct token connects", async () => {
     const h = await startTestDaemon();
     const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
+      `ws://127.0.0.1:${h.port}/extension`,
+      { token: TOKEN, origin: EXTENSION_ORIGIN },
     );
     expect(await result).toEqual({ opened: true });
     expect(h.isExtensionConnected()).toBe(true);
@@ -93,8 +96,8 @@ describe("daemon-server — /extension auth", () => {
   it("wrong token: correct origin, bad token is rejected", async () => {
     const h = await startTestDaemon();
     const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=wrong-token`,
-      { origin: EXTENSION_ORIGIN },
+      `ws://127.0.0.1:${h.port}/extension`,
+      { token: "wrong-token", origin: EXTENSION_ORIGIN },
     );
     const outcome = await result;
     expect(outcome.opened).toBe(false);
@@ -118,8 +121,11 @@ describe("daemon-server — /extension auth", () => {
   it("wrong origin: correct token, origin not matching the configured extension id is rejected", async () => {
     const h = await startTestDaemon();
     const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: "chrome-extension://some-other-extension-id-0000000" },
+      `ws://127.0.0.1:${h.port}/extension`,
+      {
+        token: TOKEN,
+        origin: "chrome-extension://some-other-extension-id-0000000",
+      },
     );
     const outcome = await result;
     expect(outcome.opened).toBe(false);
@@ -130,7 +136,8 @@ describe("daemon-server — /extension auth", () => {
   it("origin-less client is rejected on /extension even with the correct token", async () => {
     const h = await startTestDaemon();
     const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
+      `ws://127.0.0.1:${h.port}/extension`,
+      { token: TOKEN },
     );
     const outcome = await result;
     expect(outcome.opened).toBe(false);
@@ -140,8 +147,8 @@ describe("daemon-server — /extension auth", () => {
   it("fails closed: no extension id configured rejects every extension origin, even with the correct token", async () => {
     const h = await startTestDaemon({ allowedExtensionId: undefined });
     const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
+      `ws://127.0.0.1:${h.port}/extension`,
+      { token: TOKEN, origin: EXTENSION_ORIGIN },
     );
     const outcome = await result;
     expect(outcome.opened).toBe(false);
@@ -151,8 +158,8 @@ describe("daemon-server — /extension auth", () => {
   it("rejects a web-page (http/https) origin outright, even with the correct token", async () => {
     const h = await startTestDaemon();
     const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: "https://evil.example.com" },
+      `ws://127.0.0.1:${h.port}/extension`,
+      { token: TOKEN, origin: "https://evil.example.com" },
     );
     const outcome = await result;
     expect(outcome.opened).toBe(false);
@@ -164,17 +171,17 @@ describe("daemon-server — second /extension connection", () => {
   it("rejects a second connection while the first is still open, with a clear close code", async () => {
     const h = await startTestDaemon();
 
-    const first = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
-    );
+    const first = await attemptConnect(`ws://127.0.0.1:${h.port}/extension`, {
+      token: TOKEN,
+      origin: EXTENSION_ORIGIN,
+    });
     expect(await first.result).toEqual({ opened: true });
     expect(h.isExtensionConnected()).toBe(true);
 
-    const second = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
-    );
+    const second = await attemptConnect(`ws://127.0.0.1:${h.port}/extension`, {
+      token: TOKEN,
+      origin: EXTENSION_ORIGIN,
+    });
     const secondOutcome = await second.result;
 
     // The second connection completes the WS handshake (auth/origin both
@@ -193,20 +200,20 @@ describe("daemon-server — second /extension connection", () => {
   it("allows a clean reconnect once the first connection actually closes", async () => {
     const h = await startTestDaemon();
 
-    const first = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
-    );
+    const first = await attemptConnect(`ws://127.0.0.1:${h.port}/extension`, {
+      token: TOKEN,
+      origin: EXTENSION_ORIGIN,
+    });
     expect(await first.result).toEqual({ opened: true });
 
     first.ws.close();
     await new Promise((r) => setTimeout(r, 100));
     expect(h.isExtensionConnected()).toBe(false);
 
-    const second = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
-    );
+    const second = await attemptConnect(`ws://127.0.0.1:${h.port}/extension`, {
+      token: TOKEN,
+      origin: EXTENSION_ORIGIN,
+    });
     expect(await second.result).toEqual({ opened: true });
     expect(h.isExtensionConnected()).toBe(true);
     second.ws.close();
@@ -221,10 +228,10 @@ describe("daemon-server — second /extension connection", () => {
       pingTimeoutMs: 250,
     });
 
-    const first = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
-    );
+    const first = await attemptConnect(`ws://127.0.0.1:${h.port}/extension`, {
+      token: TOKEN,
+      origin: EXTENSION_ORIGIN,
+    });
     expect(await first.result).toEqual({ opened: true });
 
     // The fake extension client never answers the daemon's app-level ping
@@ -234,8 +241,8 @@ describe("daemon-server — second /extension connection", () => {
     // While still "open" from the daemon's point of view, a second
     // connection is rejected...
     const duringStale = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
+      `ws://127.0.0.1:${h.port}/extension`,
+      { token: TOKEN, origin: EXTENSION_ORIGIN },
     );
     const duringStaleOutcome = await duringStale.result;
     expect(duringStaleOutcome.closeCode).toBe(4001);
@@ -246,10 +253,10 @@ describe("daemon-server — second /extension connection", () => {
     expect(h.isExtensionConnected()).toBe(false);
 
     // Now a new connection succeeds normally.
-    const after = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/extension?token=${TOKEN}`,
-      { origin: EXTENSION_ORIGIN },
-    );
+    const after = await attemptConnect(`ws://127.0.0.1:${h.port}/extension`, {
+      token: TOKEN,
+      origin: EXTENSION_ORIGIN,
+    });
     expect(await after.result).toEqual({ opened: true });
     after.ws.close();
   });
@@ -258,25 +265,46 @@ describe("daemon-server — second /extension connection", () => {
 describe("daemon-server — /bridge and /cli auth", () => {
   it("correct flow: a Node client with no Origin header and the correct token connects on /bridge", async () => {
     const h = await startTestDaemon();
-    const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
-    );
+    const { result } = await attemptConnect(`ws://127.0.0.1:${h.port}/bridge`, {
+      token: TOKEN,
+    });
     expect(await result).toEqual({ opened: true });
   });
 
   it("correct flow: a Node client with no Origin header and the correct token connects on /cli", async () => {
     const h = await startTestDaemon();
+    const { result } = await attemptConnect(`ws://127.0.0.1:${h.port}/cli`, {
+      token: TOKEN,
+    });
+    expect(await result).toEqual({ opened: true });
+  });
+
+  it("rejects a token sent in the URL instead of the handshake", async () => {
+    const h = await startTestDaemon();
     const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/cli?token=${TOKEN}`,
+      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
+    );
+    const outcome = await result;
+    expect(outcome.opened).toBe(false);
+    expect(outcome.statusCode).toBe(401);
+  });
+
+  it("answers with the protocol name only, never echoing the token", async () => {
+    const h = await startTestDaemon();
+    const { ws, result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/bridge`,
+      { token: TOKEN },
     );
     expect(await result).toEqual({ opened: true });
+    expect(ws.protocol).toBe("apty-mcp.v1");
+    ws.close();
   });
 
   it("wrong token is rejected on /bridge", async () => {
     const h = await startTestDaemon();
-    const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/bridge?token=nope`,
-    );
+    const { result } = await attemptConnect(`ws://127.0.0.1:${h.port}/bridge`, {
+      token: "nope",
+    });
     const outcome = await result;
     expect(outcome.opened).toBe(false);
     expect(outcome.statusCode).toBe(401);
@@ -292,10 +320,10 @@ describe("daemon-server — /bridge and /cli auth", () => {
 
   it("rejects a web-page origin on /bridge even with the correct token", async () => {
     const h = await startTestDaemon();
-    const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
-      { origin: "https://evil.example.com" },
-    );
+    const { result } = await attemptConnect(`ws://127.0.0.1:${h.port}/bridge`, {
+      token: TOKEN,
+      origin: "https://evil.example.com",
+    });
     const outcome = await result;
     expect(outcome.opened).toBe(false);
     expect(outcome.statusCode).toBe(403);
@@ -306,10 +334,10 @@ describe("daemon-server — /bridge and /cli auth", () => {
     // all — one being present at all (even a literal "null", which a
     // sandboxed/opaque-origin context can send) is itself suspicious here.
     const h = await startTestDaemon();
-    const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
-      { origin: "null" },
-    );
+    const { result } = await attemptConnect(`ws://127.0.0.1:${h.port}/bridge`, {
+      token: TOKEN,
+      origin: "null",
+    });
     const outcome = await result;
     expect(outcome.opened).toBe(false);
     expect(outcome.statusCode).toBe(403);
@@ -317,10 +345,10 @@ describe("daemon-server — /bridge and /cli auth", () => {
 
   it("rejects a present Origin header on /cli too", async () => {
     const h = await startTestDaemon();
-    const { result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/cli?token=${TOKEN}`,
-      { origin: "null" },
-    );
+    const { result } = await attemptConnect(`ws://127.0.0.1:${h.port}/cli`, {
+      token: TOKEN,
+      origin: "null",
+    });
     const outcome = await result;
     expect(outcome.opened).toBe(false);
     expect(outcome.statusCode).toBe(403);
@@ -331,7 +359,8 @@ describe("daemon-server — dangerous tool allowlist", () => {
   /** Open a /bridge connection, send one tools/call JSON-RPC message, and resolve with the parsed response. */
   async function callTool(h: DaemonServerHandle, name: string): Promise<any> {
     const { ws, result } = await attemptConnect(
-      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
+      `ws://127.0.0.1:${h.port}/bridge`,
+      { token: TOKEN },
     );
     await result;
     return new Promise((resolve) => {

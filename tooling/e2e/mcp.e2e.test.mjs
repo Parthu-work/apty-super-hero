@@ -83,9 +83,10 @@ async function disconnectExtension() {
 /** Call a tool the way apty-cli does. Resolves with the JSON-RPC response. */
 function callTool(daemon, name, args) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(
-      `ws://127.0.0.1:${daemon.port}/cli?token=${daemon.token}`,
-    );
+    const ws = new WebSocket(`ws://127.0.0.1:${daemon.port}/cli`, [
+      "apty-mcp.v1",
+      `apty-token.${daemon.token}`,
+    ]);
     const timer = setTimeout(
       () => reject(new Error(`${name} timed out`)),
       60_000,

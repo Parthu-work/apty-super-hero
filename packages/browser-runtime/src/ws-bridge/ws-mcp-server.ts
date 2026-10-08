@@ -46,11 +46,15 @@ const TOOL_CALL_TIMEOUT_MS = 60_000;
 const STORAGE_KEY_WS_URL = "ws-mcp-url";
 const STORAGE_KEY_WS_TOKEN = "ws-mcp-token";
 
-/** Appends `?token=<token>` to the bridge URL — the daemon requires it on every WS path (see WP2). Query string, not a header, since the browser's native `WebSocket` can't set custom headers on a handshake. */
-function appendToken(url: string, token: string): string {
-  const parsed = new URL(url);
-  parsed.searchParams.set("token", token);
-  return parsed.toString();
+/**
+ * The daemon reads the token from the handshake's subprotocol list, never
+ * the URL, so it can't leak through logs. Keep in step with
+ * apps/mcp-bridge/src/lib/auth-token.ts.
+ */
+const HANDSHAKE_SAFE_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+export function authProtocols(token: string): string[] {
+  return ["apty-mcp.v1", `apty-token.${token}`];
 }
 
 function getReconnectDelayMs(attempt: number): number {
@@ -138,6 +142,11 @@ export class WsMcpServer {
 
   async connect(url: string, token: string): Promise<void> {
     this.validateUrl(url);
+    if (!HANDSHAKE_SAFE_TOKEN.test(token)) {
+      throw new Error(
+        "The token has characters a WebSocket handshake can't carry. Copy it exactly from the token file (`apty-cli --token-path` shows where it is).",
+      );
+    }
     this.cancelReconnect();
 
     if (
@@ -156,7 +165,7 @@ export class WsMcpServer {
     });
 
     try {
-      const transport = new WebSocketClientTransport(appendToken(url, token));
+      const transport = new WebSocketClientTransport(url, authProtocols(token));
       this.transport = transport;
 
       transport.onclose = () => {

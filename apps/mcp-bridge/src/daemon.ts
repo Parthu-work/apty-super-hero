@@ -144,11 +144,9 @@ startDaemonServer({
     shutdownFn = handle.shutdown;
     writePidFile();
     log(`Apty MCP Daemon started (v3.1.0) pid=${process.pid}`);
-    log(
-      `Extension WS:  ws://${HOST}:${handle.port}/extension?token=<your token>`,
-    );
-    log(`Bridge WS:     ws://${HOST}:${handle.port}/bridge?token=<your token>`);
-    log(`CLI WS:        ws://${HOST}:${handle.port}/cli?token=<your token>`);
+    log(`Extension WS:  ws://${HOST}:${handle.port}/extension`);
+    log(`Bridge WS:     ws://${HOST}:${handle.port}/bridge`);
+    log(`CLI WS:        ws://${HOST}:${handle.port}/cli`);
     log(`Health:        http://${HOST}:${handle.port}/health`);
     log(
       `Token path:    ${getTokenPath()} (cat it, or run with --print-token-path)`,

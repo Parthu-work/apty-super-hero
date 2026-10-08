@@ -34,6 +34,8 @@ Requirements:
 
 Every WebSocket connection to the daemon — the extension, this package's own CLIs, any other MCP client — requires a per-install secret token. There is no unauthenticated path except `GET /health`, and the daemon won't let a second `/extension` connection silently replace an already-connected one.
 
+The token travels in the handshake, never in the URL: a client offers two WebSocket subprotocols, `apty-mcp.v1` and `apty-token.<token>`, and the daemon answers with `apty-mcp.v1` only. A `?token=` query string is refused. Any other client you point at the daemon must send the token the same way.
+
 1. **Generate/find the token.** It's created automatically the first time anything needs it, stored `0600` under `~/.apty/mcp-daemon/token`. To see the path without starting anything:
 
    ```bash

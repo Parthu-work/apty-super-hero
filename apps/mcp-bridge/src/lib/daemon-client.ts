@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
 
-import { appendToken, getOrCreateToken } from "./auth-token.js";
+import { authProtocols, getOrCreateToken } from "./auth-token.js";
 
 const ENTRYPOINT_PATH = "/entrypoint.sh";
 const CALL_TIMEOUT_MS = 60_000;
@@ -61,12 +61,13 @@ interface ToolCallResult {
 
 function attemptWsToolCall(
   wsUrl: string,
+  token: string,
   name: string,
   args: Record<string, unknown>,
 ): Promise<{ retry: boolean; result?: ToolCallResult }> {
   return new Promise((resolve) => {
     let settled = false;
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, authProtocols(token));
 
     const connectTimer = setTimeout(() => {
       if (!settled) {
@@ -198,10 +199,7 @@ export async function callTool(
   const port = opts.port ?? 9223;
   const host = opts.host ?? "127.0.0.1";
   const token = getOrCreateToken();
-  const wsUrl = appendToken(
-    process.env.BROWSER_CLI_WS_URL ?? `ws://${host}:${port}/cli`,
-    token,
-  );
+  const wsUrl = process.env.BROWSER_CLI_WS_URL ?? `ws://${host}:${port}/cli`;
 
   const deadline = Date.now() + MAX_RETRY_TIMEOUT_MS;
   let backoff = INITIAL_BACKOFF_MS;
@@ -211,7 +209,7 @@ export async function callTool(
   while (true) {
     attempt++;
 
-    const outcome = await attemptWsToolCall(wsUrl, toolName, args);
+    const outcome = await attemptWsToolCall(wsUrl, token, toolName, args);
 
     if (!outcome.retry) {
       return outcome.result!;
