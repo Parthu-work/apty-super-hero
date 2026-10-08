@@ -47,7 +47,7 @@ class SelectionManager {
    */
   completeSelection(result: UserSelectionResult): void {
     if (this.currentRequest) {
-      log.debug("[SelectionManager] Completing selection with result:", result);
+      log.debug("[SelectionManager] Completing selection");
       this.currentRequest.resolve(result);
       this.currentRequest = null;
     } else {
@@ -294,7 +294,7 @@ async function execute(
       .then((result) => {
         if (!resolved) {
           resolved = true;
-          log.debug("Selection completed:", result);
+          log.debug("Selection completed");
           resolve(result);
         }
       })

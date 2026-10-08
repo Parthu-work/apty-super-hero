@@ -11,7 +11,6 @@ import { default as RELEASE_SYNC } from "@jitl/quickjs-ng-wasmfile-release-sync"
 // Import the WASM file as a URL so Vite/bundler handles it correctly
 // This ensures the wasm is properly bundled and the URL is correct at runtime
 import quickjsWasmUrl from "@jitl/quickjs-ng-wasmfile-release-sync/wasm?url";
-import fs from "@zenfs/core";
 import type {
   QuickJSContext,
   QuickJSHandle,
@@ -19,6 +18,7 @@ import type {
   QuickJSScope,
 } from "quickjs-emscripten";
 import { newQuickJSWASMModuleFromVariant, Scope } from "quickjs-emscripten";
+import { bundledModules } from "./bundled-modules";
 import type { SkillAPIBridge } from "./skill-api";
 
 const log = createLogger("QuickJS");
@@ -35,7 +35,7 @@ interface QuickJSVariantLike {
 // Type assertion for the variant - the default export type is not fully recognized
 const variant = RELEASE_SYNC as unknown as QuickJSVariantLike;
 
-const BUILT_IN_MODULES = new Set(["fs"]);
+const BUILT_IN_MODULES = new Set(["fs", ...Object.keys(bundledModules)]);
 
 /**
  * Skills run only code that ships inside the skill: Chrome Web Store
@@ -143,9 +143,10 @@ class QuickJSManager {
       this.runtime.setMaxStackSize(1024 * 1024); // 1MB
 
       this.runtime.setModuleLoader((moduleName: string) => {
-        if (moduleName === "fs") {
-          return `export default ${JSON.stringify(fs)}`;
-        }
+        // The host's fs bridge, installed as a global before the script runs.
+        if (moduleName === "fs") return "export default globalThis.fs;";
+        const bundled = bundledModules[moduleName];
+        if (bundled) return bundled;
         return `throw new Error(${JSON.stringify(`Module not available to skills: ${moduleName}`)});`;
       });
 

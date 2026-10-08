@@ -592,7 +592,7 @@ async function performKey(
   tabId: number,
   keySequence: string,
 ): Promise<ComputerResult> {
-  log.debug(`⌨️ Key press: "${keySequence}"`);
+  log.debug(`⌨️ Key press (${keySequence.length} characters)`);
 
   try {
     const attached = await debuggerManager.safeAttachDebugger(tabId);

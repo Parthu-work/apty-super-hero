@@ -114,6 +114,35 @@ describe("gateRiskyAction", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("refuses to run when the tab moved to another site during the wait", async () => {
+    let tabUrl = PAGE;
+    (chrome as any).tabs = { get: vi.fn(async () => ({ url: tabUrl })) };
+    const run = vi.fn();
+    const { stop } = answerApprovals({ approved: true });
+
+    const pending = gateRiskyAction("c", "tool_a", "do it", PAGE, run, {
+      tabId: 7,
+    });
+    tabUrl = "https://mail.example.org/inbox";
+
+    await expect(pending).resolves.toMatchObject({ reason: "page_changed" });
+    expect(run).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("runs when the tab is still on the approved site", async () => {
+    (chrome as any).tabs = {
+      get: vi.fn(async () => ({ url: `${PAGE}?step=2` })),
+    };
+    const run = vi.fn().mockResolvedValue("ran");
+    const { stop } = answerApprovals({ approved: true });
+
+    await expect(
+      gateRiskyAction("c", "tool_a", "do it", PAGE, run, { tabId: 7 }),
+    ).resolves.toBe("ran");
+    stop();
+  });
+
   it("accepts a decision relayed from the extension's own side panel", async () => {
     const run = vi.fn().mockResolvedValue("ran");
 

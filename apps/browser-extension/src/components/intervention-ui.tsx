@@ -182,7 +182,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
             currentIntervention.result?.data as UserSelectionResult | undefined
           }
           onConfirm={(result) => {
-            log.debug("Selection confirmed:", result);
+            log.debug("Selection confirmed");
             selectionManager.completeSelection(result);
           }}
           onCancel={() =>

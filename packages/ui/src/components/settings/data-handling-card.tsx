@@ -1,6 +1,9 @@
 import type { AppSettings } from "@apty/agent-core";
 import { ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const DENY_LIST_SAVE_DELAY_MS = 500;
+
 import {
   Card,
   CardContent,
@@ -35,6 +38,25 @@ export function DataHandlingCard({
     (settings.networkBodyCaptureDenyList ?? []).join("\n"),
   );
   const enabled = settings.networkBodyCaptureEnabled === true;
+
+  // Each change is a full settings write; wait for a pause in typing, and
+  // save what's pending if the card goes away first.
+  const pendingDenyList = useRef<string | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const flushDenyList = () => {
+    clearTimeout(saveTimer.current);
+    if (pendingDenyList.current === null) return;
+    onChangeRef.current({
+      networkBodyCaptureDenyList: parseDenyList(pendingDenyList.current),
+    });
+    pendingDenyList.current = null;
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: flush on unmount only
+  useEffect(() => flushDenyList, []);
 
   return (
     <Card id="data-handling" className="scroll-mt-4">
@@ -75,10 +97,14 @@ export function DataHandlingCard({
             placeholder={"bank.example.com\n/api/patients"}
             onChange={(event) => {
               setDenyListText(event.target.value);
-              onChange({
-                networkBodyCaptureDenyList: parseDenyList(event.target.value),
-              });
+              pendingDenyList.current = event.target.value;
+              clearTimeout(saveTimer.current);
+              saveTimer.current = setTimeout(
+                flushDenyList,
+                DENY_LIST_SAVE_DELAY_MS,
+              );
             }}
+            onBlur={flushDenyList}
           />
         </div>
       </CardContent>

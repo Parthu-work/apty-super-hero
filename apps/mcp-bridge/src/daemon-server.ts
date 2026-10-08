@@ -31,12 +31,17 @@ import {
 } from "./lib/auth-token.js";
 import { toolSchemas } from "./tool-schemas.js";
 
+function current<T>(value: T | (() => T)): T {
+  return typeof value === "function" ? (value as () => T)() : value;
+}
+
 export interface DaemonServerOptions {
   port: number;
   host: string;
-  requiredToken: string;
+  /** A getter is re-read on every connection, so a rotated token or newly pinned id takes effect without a restart. */
+  requiredToken: string | (() => string);
   /** The one extension id `/extension` connections are pinned to, or `undefined` to fail closed (reject every extension origin). */
-  allowedExtensionId: string | undefined;
+  allowedExtensionId: string | undefined | (() => string | undefined);
   /** Tool names a bridge/CLI client may call even though they're state-changing/high-risk by default (see DANGEROUS_TOOL_NAMES) — opt-in, defaults to none allowed. */
   allowDangerousTools?: boolean;
   idleTimeoutMs?: number;
@@ -177,7 +182,7 @@ export function startDaemonServer(
     try {
       msg = JSON.parse(raw);
     } catch {
-      log(`Failed to parse extension message: ${raw.slice(0, 200)}`);
+      log(`Failed to parse a ${raw.length}-character extension message`);
       return;
     }
 
@@ -446,6 +451,7 @@ export function startDaemonServer(
     }
 
     if (pathname === "/extension" || pathname === "/") {
+      const allowedExtensionId = current(options.allowedExtensionId);
       if (!origin || !isExtensionOrigin(origin)) {
         log(
           `Rejected /extension upgrade: missing or non-extension origin (${origin ?? "none"})`,
@@ -453,7 +459,7 @@ export function startDaemonServer(
         rejectUpgrade(socket, 403, "Forbidden");
         return;
       }
-      if (!options.allowedExtensionId) {
+      if (!allowedExtensionId) {
         log(
           "Rejected /extension upgrade: no extension id configured — failing closed",
         );
@@ -461,8 +467,8 @@ export function startDaemonServer(
         return;
       }
       const expected = [
-        `chrome-extension://${options.allowedExtensionId}`,
-        `moz-extension://${options.allowedExtensionId}`,
+        `chrome-extension://${allowedExtensionId}`,
+        `moz-extension://${allowedExtensionId}`,
       ];
       if (!expected.includes(origin)) {
         log(
@@ -493,7 +499,15 @@ export function startDaemonServer(
     // Every path above this point requires a valid token — /health is the
     // only unauthenticated route, and it's a plain HTTP GET, never a WS
     // upgrade, so it never reaches this handler at all.
-    if (!tokensMatch(token, options.requiredToken)) {
+    // A token in the URL has already leaked into whatever logs URLs; refuse
+    // it even when the handshake carries a valid one, so clients fix it.
+    if (parsedUrl.searchParams.has("token")) {
+      log(`Rejected WebSocket upgrade on ${pathname}: token sent in the URL`);
+      rejectUpgrade(socket, 401, "Unauthorized");
+      return;
+    }
+
+    if (!tokensMatch(token, current(options.requiredToken))) {
       log(
         `Rejected WebSocket upgrade on ${pathname}: invalid or missing token`,
       );

@@ -161,15 +161,17 @@ the authoritative source; the Confluence page is a navigable summary of it.
 
 ### 16. An approval answered after an MCP call timed out still ran the action
 
-- **Severity**: Medium (was) → Fixed
+- **Severity**: Medium (was) → Mitigated
 - **Affected component**: `packages/browser-runtime/src/tools/approval.ts`
 - **Risk**: an MCP tool call times out after 60 s while its approval prompt
   waited 5 minutes, so a late Allow ran an action the MCP client had
   already been told had failed, and might retry.
-- **Current mitigation**: requests from outside a chat expire after 50 s,
-  before the bridge's timeout; the prompt shows the requester and the time
-  left.
-- **Status**: Fixed.
+- **Current mitigation**: requests from outside a chat expire after 40 s,
+  leaving the approved action about 20 s to finish inside the bridge's
+  timeout; the prompt shows the requester and the time left. The timeout
+  still doesn't cancel an action that is already running, so a slow one
+  (a large upload) can finish after the caller hears "timed out".
+- **Status**: Mitigated.
 
 ### 17. No static analysis or secret scanning in CI
 

@@ -30,10 +30,13 @@ let storageStore: Record<string, unknown> = {};
   },
 };
 
+import { resetApprovalStateForTests } from "./approval";
+import { answerApprovals } from "./approval-test-utils";
 import { executeSkillScriptTool, loadSkillTool } from "./skill";
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  await resetApprovalStateForTests();
   storageStore = {};
   mockInitialize.mockResolvedValue(undefined);
   mockExecuteSkillScript.mockResolvedValue({ output: "ok" });
@@ -79,8 +82,9 @@ describe("execute_skill_script gate", () => {
     expect(mockExecuteSkillScript).not.toHaveBeenCalled();
   });
 
-  it("runs the script when skillExecutionEnabled is true", async () => {
+  it("does not run the script when the user denies it", async () => {
     storageStore.aipex_settings = { skillExecutionEnabled: true };
+    const { requests, stop } = answerApprovals({ approved: false });
 
     const result = (await executeSkillScriptTool.invoke(
       EMPTY_CONTEXT,
@@ -90,6 +94,26 @@ describe("execute_skill_script gate", () => {
         args: null,
       }),
     )) as any;
+    stop();
+
+    expect(requests[0]?.summary).toMatch(/scripts\/run\.js.*"demo"/);
+    expect(result).toMatchObject({ status: "denied", reason: "user_denied" });
+    expect(mockExecuteSkillScript).not.toHaveBeenCalled();
+  });
+
+  it("runs the script once the user allows it", async () => {
+    storageStore.aipex_settings = { skillExecutionEnabled: true };
+    const { stop } = answerApprovals({ approved: true });
+
+    const result = (await executeSkillScriptTool.invoke(
+      EMPTY_CONTEXT,
+      JSON.stringify({
+        skillName: "demo",
+        scriptPath: "scripts/run.js",
+        args: null,
+      }),
+    )) as any;
+    stop();
 
     expect(result).toMatchObject({ success: true, result: { output: "ok" } });
     expect(mockInitialize).toHaveBeenCalledTimes(1);

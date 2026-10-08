@@ -33,7 +33,10 @@ const INSPECTABLE_PROTOCOLS = new Set(["http:", "https:", "file:"]);
 const STORE_HOSTS = new Set(["chromewebstore.google.com", "chrome.google.com"]);
 
 /** Whether Chrome lets an extension read and act on the page at `url`. */
-export function describePage(url: string | undefined): {
+export function describePage(
+  url: string | undefined,
+  fileAccessAllowed = true,
+): {
   inspectable: boolean;
   detail: string;
 } {
@@ -58,13 +61,16 @@ export function describePage(url: string | undefined): {
       detail: `Chrome doesn't let extensions inspect ${parsed.protocol === "https:" ? parsed.hostname : `${parsed.protocol.replace(":", "")}:`} pages. Open the page you want to investigate.`,
     };
   }
-  return {
-    inspectable: true,
-    detail:
-      parsed.protocol === "file:"
-        ? "Ready to inspect this local file."
-        : `Ready to inspect ${parsed.hostname}.`,
-  };
+  if (parsed.protocol === "file:") {
+    return fileAccessAllowed
+      ? { inspectable: true, detail: "Ready to inspect this local file." }
+      : {
+          inspectable: false,
+          detail:
+            'Turn on "Allow access to file URLs" for Apty Agent in chrome://extensions to inspect local files.',
+        };
+  }
+  return { inspectable: true, detail: `Ready to inspect ${parsed.hostname}.` };
 }
 
 function useActiveTabUrl(): string | undefined | null {
@@ -184,10 +190,22 @@ function hostOf(url: string | undefined): string {
   }
 }
 
+function useFileAccessAllowed(): boolean {
+  const [allowed, setAllowed] = useState(true);
+  useEffect(() => {
+    chrome.extension
+      ?.isAllowedFileSchemeAccess?.()
+      .then(setAllowed)
+      .catch(() => {});
+  }, []);
+  return allowed;
+}
+
 export function ReadinessCheck({ settings }: { settings: AppSettings }) {
   const url = useActiveTabUrl();
   const client = useClientRow();
-  const page = url === null ? null : describePage(url);
+  const fileAccessAllowed = useFileAccessAllowed();
+  const page = url === null ? null : describePage(url, fileAccessAllowed);
 
   const rows: Row[] = [
     isProviderConfigured(settings)

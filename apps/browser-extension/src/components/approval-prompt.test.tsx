@@ -50,7 +50,7 @@ const remoteRequest = {
   summary: "Run this JavaScript: 1 + 1",
   origin: "https://app.example.com",
   createdAt: Date.now(),
-  expiresAt: Date.now() + 50_000,
+  expiresAt: Date.now() + 40_000,
 };
 
 function deliver(message: unknown, sender: chrome.runtime.MessageSender) {
@@ -130,7 +130,7 @@ describe("ApprovalPrompt", () => {
 
     expect(screen.getByText(/requested by an MCP client/)).toBeTruthy();
     expect(screen.getByRole("timer").textContent).toMatch(
-      /Expires in 0:(49|50)/,
+      /Expires in 0:(39|40)/,
     );
   });
 

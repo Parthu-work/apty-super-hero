@@ -143,10 +143,7 @@ export async function getElementByUid(
 
   log.debug("🔍 Found node in snapshot for uid:", uid, {
     role: node.role,
-    name: node.name,
-    description: node.description,
     backendDOMNodeId: node.backendDOMNodeId,
-    value: node.value,
   });
 
   // Select handle based on snapshot mode

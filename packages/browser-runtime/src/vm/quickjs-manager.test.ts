@@ -18,6 +18,12 @@ describe("assertSupportedImports", () => {
     ).toThrow(/https:\/\/esm\.sh\/x/);
   });
 
+  it("allows the third-party modules that ship bundled with the extension", () => {
+    expect(() =>
+      assertSupportedImports('import { zipSync } from "fflate";'),
+    ).not.toThrow();
+  });
+
   it("lists every unsupported import at once", () => {
     expect(() =>
       assertSupportedImports(

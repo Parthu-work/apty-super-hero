@@ -16,6 +16,24 @@ export type OptionsSection = keyof typeof OPTIONS_SECTIONS;
 
 const OPTIONS_PATH = "src/entrypoints/options/index.html";
 
+export const OPTIONS_NAVIGATE_MESSAGE = "apty-options-navigate";
+
+export interface OptionsNavigateMessage {
+  type: typeof OPTIONS_NAVIGATE_MESSAGE;
+  tab?: OptionsTab;
+  section?: OptionsSection;
+}
+
+export function isOptionsNavigateMessage(
+  message: unknown,
+): message is OptionsNavigateMessage {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as { type?: unknown }).type === OPTIONS_NAVIGATE_MESSAGE
+  );
+}
+
 export function optionsUrl(
   target: { tab?: OptionsTab; section?: OptionsSection } = {},
 ): string {
@@ -28,8 +46,9 @@ export function optionsUrl(
 }
 
 /**
- * Open the Options page at a tab and section, reusing an Options tab that
- * is already open instead of stacking new ones.
+ * Open the Options page at a tab and section. An Options tab that is
+ * already open is focused and navigated in place, without a reload, so
+ * unsaved edits on it survive.
  */
 export async function openOptions(
   target: { tab?: OptionsTab; section?: OptionsSection } = {},
@@ -42,8 +61,19 @@ export async function openOptions(
     await chrome.tabs.create({ url });
     return;
   }
-  await chrome.tabs.update(existing.id, { url, active: true });
+  await chrome.tabs.update(existing.id, { active: true });
   if (existing.windowId !== undefined) {
     await chrome.windows.update(existing.windowId, { focused: true });
   }
+  const tab =
+    target.tab ??
+    (target.section ? OPTIONS_SECTIONS[target.section] : undefined);
+  const handled = await chrome.runtime
+    .sendMessage({
+      type: OPTIONS_NAVIGATE_MESSAGE,
+      tab,
+      section: target.section,
+    } satisfies OptionsNavigateMessage)
+    .catch(() => false);
+  if (handled !== true) await chrome.tabs.update(existing.id, { url });
 }

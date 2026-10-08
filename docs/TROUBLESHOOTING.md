@@ -9,7 +9,9 @@ When reporting a problem, turn on **Settings → General → Troubleshooting →
 Verbose logging**, reproduce it, and copy the logs from the side panel's
 DevTools (right-click the panel → Inspect) and the service worker's
 DevTools (`chrome://extensions` → Apty Agent → "service worker"). Logs stay
-on your machine.
+on your machine. They can include page content such as URLs, element names
+and skill output, so read them before sharing, and turn the switch off
+afterwards.
 
 ## The agent won't answer
 
@@ -62,8 +64,8 @@ wait for **Allow** or **Deny** in the side panel. "Allow on this site for
 15 min" covers that one tool on that one site; review or revoke these under
 **Settings → General → Remembered approvals**.
 
-A request from an MCP client expires after 50 seconds so the client never
-times out while the prompt is still open. With no side panel open, MCP
+A request from an MCP client expires after 40 seconds, so the client hears
+the answer before its 60-second timeout. With no side panel open, MCP
 requests for these actions are refused: open the side panel and retry.
 
 ## MCP bridge

@@ -78,7 +78,8 @@ function useConversationHeartbeat() {
       const [tab] = await chrome.tabs
         .query({ active: true, currentWindow: true })
         .catch(() => []);
-      if (tab?.id === undefined) return;
+      // stop() may have run while the query was in flight.
+      if (tab?.id === undefined || !intervalRef.current) return;
       if (lastTabRef.current !== null && lastTabRef.current !== tab.id) {
         notify(lastTabRef.current, false);
       }

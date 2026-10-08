@@ -45,6 +45,10 @@ export function registerMcpBridge(): void {
     }
 
     if (message.request === "ws-bridge-disconnect") {
+      if (!isOwnExtensionPage(sender)) {
+        sendResponse({ success: false, error: "Unauthorized sender" });
+        return true;
+      }
       wsMcpServer
         .disconnect()
         .then(() => {

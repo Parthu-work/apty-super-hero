@@ -102,6 +102,11 @@ export function registerMessageRouter(): void {
 
     // Collect screenshots from sidepanel and trigger downloads
     if (message.request === "get-current-chat-images-for-download") {
+      // Triggers downloads, so only the extension's own pages may ask.
+      if (!isTrustedExtensionPage) {
+        sendResponse({ success: false, error: "Unauthorized sender" });
+        return true;
+      }
       (async () => {
         try {
           const {

@@ -46,6 +46,14 @@ describe("describePage", () => {
     expect(describePage("file:///tmp/a.html").inspectable).toBe(true);
   });
 
+  it("asks for file access when Chrome withholds it", () => {
+    expect(describePage("file:///tmp/a.html", false)).toEqual({
+      inspectable: false,
+      detail:
+        'Turn on "Allow access to file URLs" for Apty Agent in chrome://extensions to inspect local files.',
+    });
+  });
+
   it("explains pages Chrome keeps extensions out of", () => {
     expect(describePage("chrome://extensions")).toEqual({
       inspectable: false,

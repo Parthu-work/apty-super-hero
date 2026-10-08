@@ -32,8 +32,8 @@ export function TroubleshootingCard({
         </CardTitle>
         <CardDescription>
           {zh
-            ? "报告问题时打开。详细日志写入扩展的开发者工具控制台，不会发送到任何地方。"
-            : "Turn this on when reporting a problem. Detailed logs go to the extension's DevTools consoles and are never sent anywhere."}
+            ? "报告问题时打开。详细日志写入扩展的开发者工具控制台，不会发送到任何地方。日志可能包含页面内容，分享前请检查。"
+            : "Turn this on when reporting a problem. Detailed logs go to the extension's DevTools consoles and are never sent anywhere. They can include page content, so read them before sharing."}
         </CardDescription>
       </CardHeader>
       <CardContent>

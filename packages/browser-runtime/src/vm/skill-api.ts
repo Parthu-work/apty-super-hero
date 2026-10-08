@@ -219,8 +219,6 @@ export function createSkillAPIBridge(options: {
 
     // Fetch API - uses host fetch
     async fetch(url: string, options?: RequestInit): Promise<any> {
-      log.debug(`fetch: ${url}`);
-
       // SSRF guard: skills are untrusted code. Reject requests targeting
       // private/internal network ranges or non-http(s) schemes before they
       // reach the host fetch in the extension service worker context.
@@ -232,11 +230,19 @@ export function createSkillAPIBridge(options: {
         throw new Error(`Fetch failed: ${error?.message || String(error)}`);
       }
 
-      // Disallow following redirects so the SSRF guard cannot be bypassed
-      // by a public host that 3xx-redirects to an internal address.
+      log.debug(`fetch: ${validatedUrl.host}`);
+
+      // Only these options pass through. Never follow redirects, so the
+      // SSRF guard can't be bypassed by a public host that redirects to an
+      // internal address, and never send the user's cookies: under
+      // <all_urls> that would let a skill read any site the user is
+      // signed in to.
       const safeOptions: RequestInit = {
-        ...(options || {}),
-        redirect: options?.redirect || "error",
+        method: options?.method,
+        headers: options?.headers,
+        body: options?.body,
+        redirect: "error",
+        credentials: "omit",
       };
 
       try {

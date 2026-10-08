@@ -22,11 +22,13 @@ import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 
 export const APPROVAL_TTL_MS = 5 * 60_000;
 /**
- * A request from outside a chat (an MCP client) expires before the MCP
- * bridge's 60 s tool timeout, so the caller hears the real outcome and an
- * Allow can never run an action the caller was already told had failed.
+ * A request from outside a chat (an MCP client) expires well before the MCP
+ * bridge's 60 s tool timeout, leaving the approved action about 20 s to
+ * finish so the caller normally hears the real outcome. The timeout doesn't
+ * cancel an action already running, so a slower one can still finish after
+ * the caller was told it timed out.
  */
-export const MCP_APPROVAL_TTL_MS = 50_000;
+export const MCP_APPROVAL_TTL_MS = 40_000;
 export const GRANT_TTL_MS = 15 * 60_000;
 
 export const APPROVAL_REQUEST_MESSAGE = "apty-approval-request";
@@ -49,7 +51,11 @@ export interface ApprovalDecision {
   remember?: boolean;
 }
 
-export type ApprovalDeniedReason = "user_denied" | "expired" | "no_approval_ui";
+export type ApprovalDeniedReason =
+  | "user_denied"
+  | "expired"
+  | "no_approval_ui"
+  | "page_changed";
 
 export interface ApprovalDeniedResult {
   status: "denied";
@@ -239,7 +245,29 @@ const DENIAL_MESSAGES: Record<ApprovalDeniedReason, string> = {
     "The approval request expired without an answer. Do not retry unless the user asks again.",
   no_approval_ui:
     "No approval prompt could be shown. Ask the user to open the extension side panel and try again.",
+  page_changed:
+    "The tab moved to a different site while waiting for approval, so the action was not run. Ask the user before trying again.",
 };
+
+function denied(
+  toolName: string,
+  reason: ApprovalDeniedReason,
+): ApprovalDeniedResult {
+  return {
+    status: "denied",
+    toolName,
+    reason,
+    message: DENIAL_MESSAGES[reason],
+  };
+}
+
+async function currentOrigin(tabId: number): Promise<string | null> {
+  try {
+    return originOf((await chrome.tabs.get(tabId)).url);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Gate a risky action behind a human click. Resolves with `run`'s result once
@@ -252,6 +280,8 @@ export async function gateRiskyAction<T>(
   summary: string,
   pageUrl: string | undefined,
   run: () => Promise<T>,
+  /** The tab the action runs in; checked again after the wait for a click. */
+  options: { tabId?: number } = {},
 ): Promise<T | ApprovalDeniedResult> {
   const origin = originOf(pageUrl);
   if (origin) {
@@ -274,12 +304,15 @@ export async function gateRiskyAction<T>(
   });
 
   if (outcome.status === "denied") {
-    return {
-      status: "denied",
-      toolName,
-      reason: outcome.reason,
-      message: DENIAL_MESSAGES[outcome.reason],
-    };
+    return denied(toolName, outcome.reason);
+  }
+
+  if (
+    origin &&
+    options.tabId !== undefined &&
+    (await currentOrigin(options.tabId)) !== origin
+  ) {
+    return denied(toolName, "page_changed");
   }
 
   if (outcome.remember && origin) {

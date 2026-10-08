@@ -1,13 +1,12 @@
 import path from "node:path";
 import { crx, type ManifestV3Export } from "@crxjs/vite-plugin";
 import react from "@vitejs/plugin-react";
-import { build, defineConfig, type Plugin } from "vite";
+import { build, defineConfig, normalizePath, type Plugin } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import manifest from "./manifest.json";
 
-const CONSOLE_BRIDGE = path.resolve(
-  __dirname,
-  "src/entrypoints/content/console-bridge.ts",
+const CONSOLE_BRIDGE = normalizePath(
+  path.resolve(__dirname, "src/entrypoints/content/console-bridge.ts"),
 );
 
 /**

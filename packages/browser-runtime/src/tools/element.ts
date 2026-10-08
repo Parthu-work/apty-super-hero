@@ -147,6 +147,7 @@ export const fillElementByUidTool = tool({
       `Fill a form field with "${value}" on the current page (${pageUrl ?? "unknown URL"})`,
       pageUrl,
       runFill,
+      { tabId },
     );
   },
 });
@@ -328,6 +329,7 @@ export const fillFormTool = tool({
       `Fill ${elements.length} form field(s) on the current page (${pageUrl ?? "unknown URL"})`,
       pageUrl,
       runFillForm,
+      { tabId },
     );
   },
 });

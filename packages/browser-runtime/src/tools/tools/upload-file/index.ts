@@ -187,6 +187,7 @@ AFTER UPLOAD: take a screenshot to verify the file was accepted, then proceed to
       `Upload the local file "${file_path}" to a file input on the current page (${tab.url ?? "unknown URL"})`,
       tab.url,
       runUpload,
+      { tabId: tab.id },
     );
   },
 });

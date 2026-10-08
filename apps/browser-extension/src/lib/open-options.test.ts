@@ -5,7 +5,10 @@ const BASE = "chrome-extension://agent/src/entrypoints/options/index.html";
 
 beforeEach(() => {
   (globalThis as any).chrome = {
-    runtime: { getURL: (path: string) => `chrome-extension://agent/${path}` },
+    runtime: {
+      getURL: (path: string) => `chrome-extension://agent/${path}`,
+      sendMessage: vi.fn().mockResolvedValue(true),
+    },
     tabs: {
       query: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({}),
@@ -29,7 +32,7 @@ describe("optionsUrl", () => {
 });
 
 describe("openOptions", () => {
-  it("reuses an Options tab that is already open", async () => {
+  it("navigates an open Options tab in place, without reloading it", async () => {
     (chrome.tabs.query as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: 1, windowId: 9, url: "https://example.com" },
       { id: 7, windowId: 3, url: `${BASE}?tab=general` },
@@ -37,12 +40,30 @@ describe("openOptions", () => {
 
     await openOptions({ section: "ai-provider" });
 
-    expect(chrome.tabs.update).toHaveBeenCalledWith(7, {
-      url: `${BASE}?tab=ai#ai-provider`,
-      active: true,
-    });
+    expect(chrome.tabs.update).toHaveBeenCalledTimes(1);
+    expect(chrome.tabs.update).toHaveBeenCalledWith(7, { active: true });
     expect(chrome.windows.update).toHaveBeenCalledWith(3, { focused: true });
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: "apty-options-navigate",
+      tab: "ai",
+      section: "ai-provider",
+    });
     expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it("loads the URL when the open tab can't take the message", async () => {
+    (chrome.tabs.query as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 7, windowId: 3, url: `${BASE}?tab=general` },
+    ]);
+    (chrome.runtime.sendMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("Receiving end does not exist."),
+    );
+
+    await openOptions({ section: "apty-client" });
+
+    expect(chrome.tabs.update).toHaveBeenLastCalledWith(7, {
+      url: `${BASE}?tab=connection#apty-client`,
+    });
   });
 
   it("opens a new tab otherwise", async () => {

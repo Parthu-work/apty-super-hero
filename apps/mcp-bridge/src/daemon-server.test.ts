@@ -289,6 +289,46 @@ describe("daemon-server — /bridge and /cli auth", () => {
     expect(outcome.statusCode).toBe(401);
   });
 
+  it("refuses a URL token even next to a valid handshake token", async () => {
+    const h = await startTestDaemon();
+    const { result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/bridge?token=${TOKEN}`,
+      { token: TOKEN },
+    );
+    const outcome = await result;
+    expect(outcome.opened).toBe(false);
+    expect(outcome.statusCode).toBe(401);
+  });
+
+  it("accepts a rotated token without a restart", async () => {
+    let token = TOKEN;
+    const h = await startTestDaemon({ requiredToken: () => token });
+    token = "rotated-token-abcdef0123456789";
+
+    const stale = await attemptConnect(`ws://127.0.0.1:${h.port}/cli`, {
+      token: TOKEN,
+    });
+    expect((await stale.result).statusCode).toBe(401);
+    const fresh = await attemptConnect(`ws://127.0.0.1:${h.port}/cli`, {
+      token,
+    });
+    expect(await fresh.result).toEqual({ opened: true });
+    fresh.ws.close();
+  });
+
+  it("accepts an extension id pinned after the daemon started", async () => {
+    let pinned: string | undefined;
+    const h = await startTestDaemon({ allowedExtensionId: () => pinned });
+    pinned = EXTENSION_ID;
+
+    const { ws, result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/extension`,
+      { token: TOKEN, origin: EXTENSION_ORIGIN },
+    );
+    expect(await result).toEqual({ opened: true });
+    ws.close();
+  });
+
   it("answers with the protocol name only, never echoing the token", async () => {
     const h = await startTestDaemon();
     const { ws, result } = await attemptConnect(

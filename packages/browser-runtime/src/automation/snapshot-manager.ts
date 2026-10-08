@@ -1150,12 +1150,12 @@ export class SnapshotManager {
         nodeMap.set(node.nodeId, node);
       }
 
-      log.debug("🔍 Node map:", nodeMap);
+      log.debug(`🔍 Node map: ${nodeMap.size} nodes`);
 
       // Fetch existing node IDs and tagNames from the page
       const existingNodeData = await this.fetchExistingNodeIds(tabId, nodeMap);
 
-      log.debug("🔍 Existing node data:", existingNodeData);
+      log.debug(`🔍 Existing node data for ${existingNodeData.size} nodes`);
 
       const snapshotResult = this.convertAccessibilityTreeToSnapshot(
         axTree,

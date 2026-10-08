@@ -9,8 +9,8 @@ import {
  * Production builds log warnings and errors only; development builds log
  * everything. Settings → Troubleshooting → Verbose logging turns debug
  * output on in a production build, for extension pages and the service
- * worker. Content scripts can't read extension storage, so they keep the
- * build default.
+ * worker. Content scripts can't read extension storage; one that adopts the
+ * logger must call `initLogging({ followSettings: false })`.
  */
 export function initLogging({ followSettings = true } = {}): void {
   const base: LogLevel = import.meta.env.DEV ? "debug" : "warn";

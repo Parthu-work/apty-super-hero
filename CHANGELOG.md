@@ -15,8 +15,8 @@ full commit-level history.
   longer log "Access to storage is not allowed": the side panel messages
   the tab instead of the content script reading extension storage.
 - An approval answered after an MCP call had timed out could still run the
-  action. MCP-originated requests now expire after 50 s, before the
-  bridge's 60 s timeout; the prompt shows who asked and the time left.
+  action. MCP-originated requests now expire after 40 s, leaving the action
+  about 20 s before the bridge's 60 s timeout; the prompt shows who asked and the time left.
 - Settings → General switches (response bodies, deny-list, verbose
   logging, skill execution) were never stored unless the user also saved
   the AI tab; they now save when flipped.

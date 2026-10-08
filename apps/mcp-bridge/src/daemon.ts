@@ -97,7 +97,7 @@ if (extensionIdArg) {
 }
 const allowedExtensionId = extensionIdArg || getAllowedExtensionId();
 
-const requiredToken = getOrCreateToken();
+getOrCreateToken();
 const allowDangerousTools = cliArgs.includes("--allow-dangerous-tools");
 if (allowDangerousTools) {
   log(
@@ -135,8 +135,8 @@ function shutdown(): void {
 startDaemonServer({
   port: PORT,
   host: HOST,
-  requiredToken,
-  allowedExtensionId,
+  requiredToken: getOrCreateToken,
+  allowedExtensionId: () => extensionIdArg || getAllowedExtensionId(),
   allowDangerousTools,
   onIdleShutdown: shutdown,
 })
