@@ -224,6 +224,48 @@ describe("ConversationStorage", () => {
     });
   });
 
+  describe("retention", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    function stored(id: string, ageDays: number): ConversationData {
+      const updatedAt = Date.now() - ageDays * DAY;
+      mockDb[id] = {
+        id,
+        title: id,
+        messages: createMockMessages(2),
+        createdAt: updatedAt,
+        updatedAt,
+      } as ConversationData;
+      return mockDb[id];
+    }
+
+    it("deletes conversations unused for longer than the retention period when listing", async () => {
+      stored("fresh", 1);
+      stored("stale", 8);
+      const storage = new ConversationStorage();
+
+      const ids = (await storage.getAllConversations()).map((c) => c.id);
+
+      expect(ids).toEqual(["fresh"]);
+      expect(mockDb.stale).toBeUndefined();
+    });
+
+    it("does not reopen an expired conversation", async () => {
+      stored("stale", 30);
+      const storage = new ConversationStorage();
+
+      expect(await storage.getConversation("stale")).toBeNull();
+      expect(mockDb.stale).toBeUndefined();
+    });
+
+    it("honours a custom retention period", async () => {
+      stored("two-days", 2);
+      const storage = new ConversationStorage({ maxAgeMs: DAY });
+
+      expect(await storage.getAllConversations()).toEqual([]);
+    });
+  });
+
   describe("saveConversation", () => {
     it("should return empty string for empty messages", async () => {
       const storage = new ConversationStorage();

@@ -24,33 +24,92 @@
 const DEFAULT_TIMEOUT_MS = 3000;
 
 /**
- * Send a message to a specific, already-configured extension ID and wait
- * for a response with a timeout. Never broadcasts and never targets an ID
- * the caller didn't explicitly configure — there is no wildcard path.
+ * Why a cross-extension message got no usable answer:
+ * - `no_receiver`: Chrome found no listener for us — the target does not
+ *   list this extension under `externally_connectable.ids`, or registers
+ *   no `chrome.runtime.onMessageExternal` handler.
+ * - `no_response`: a handler ran but answered nothing, so it does not
+ *   implement this message type. Chrome reports this as "The message port
+ *   closed before a response was received." (some builds instead leave the
+ *   call hanging, which ends as `timeout`).
+ * - `timeout`: nothing came back in time (a stuck handler, or a service
+ *   worker that did not wake).
+ * - `send_failed`: Chrome rejected the send itself.
  */
-export function sendExternalMessage(
+export type ExternalMessageFailure =
+  | "no_receiver"
+  | "no_response"
+  | "timeout"
+  | "send_failed";
+
+export type ExternalMessageOutcome =
+  | { ok: true; response: unknown }
+  | { ok: false; failure: ExternalMessageFailure; detail?: string };
+
+const NO_RECEIVER_PATTERN =
+  /receiving end does not exist|could not establish connection/i;
+const PORT_CLOSED_PATTERN = /message port closed before a response/i;
+
+function classifyLastError(message: string): ExternalMessageFailure {
+  if (NO_RECEIVER_PATTERN.test(message)) return "no_receiver";
+  if (PORT_CLOSED_PATTERN.test(message)) return "no_response";
+  return "send_failed";
+}
+
+/**
+ * Send a message to a specific, already-configured extension ID and report
+ * either its answer or why there was none. Never broadcasts and never
+ * targets an ID the caller didn't explicitly configure.
+ */
+export function sendExternalMessageDetailed(
+  extensionId: string,
+  message: unknown,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<ExternalMessageOutcome> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(
+      () => resolve({ ok: false, failure: "timeout" }),
+      timeoutMs,
+    );
+    try {
+      chrome.runtime.sendMessage(extensionId, message, (response) => {
+        clearTimeout(timer);
+        const lastError = chrome.runtime.lastError?.message;
+        if (lastError) {
+          resolve({
+            ok: false,
+            failure: classifyLastError(lastError),
+            detail: lastError,
+          });
+          return;
+        }
+        if (response === undefined) {
+          resolve({ ok: false, failure: "no_response" });
+          return;
+        }
+        resolve({ ok: true, response });
+      });
+    } catch (error) {
+      clearTimeout(timer);
+      resolve({
+        ok: false,
+        failure: "send_failed",
+        detail: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+}
+
+/** `sendExternalMessageDetailed` for callers that only need the answer. */
+export async function sendExternalMessage(
   extensionId: string,
   message: unknown,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<unknown | undefined> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), timeoutMs);
-    try {
-      chrome.runtime.sendMessage(extensionId, message, (response) => {
-        clearTimeout(timer);
-        if (chrome.runtime.lastError) {
-          // Expected when the target extension isn't installed, doesn't
-          // allowlist us, or its service worker isn't currently running
-          // and failed to wake — all of these are "unavailable", not
-          // exceptional errors worth surfacing as a crash.
-          resolve(undefined);
-          return;
-        }
-        resolve(response);
-      });
-    } catch {
-      clearTimeout(timer);
-      resolve(undefined);
-    }
-  });
+  const outcome = await sendExternalMessageDetailed(
+    extensionId,
+    message,
+    timeoutMs,
+  );
+  return outcome.ok ? outcome.response : undefined;
 }

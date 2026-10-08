@@ -47,7 +47,8 @@ let storageStore: Record<string, unknown> = {};
   },
 };
 
-import { confirmRiskyAction, resetApprovalStateForTests } from "./approval";
+import { resetApprovalStateForTests } from "./approval";
+import { answerApprovals } from "./approval-test-utils";
 import {
   getNetworkDiagnosticsTool,
   getRuntimeDiagnosticsTool,
@@ -200,99 +201,69 @@ describe("getRuntimeDiagnosticsTool — classification", () => {
 });
 
 describe("runConsoleCommandTool", () => {
-  /** Invoke the tool, confirm the resulting pending approval, and return the EXECUTED result. */
-  async function invokeAndApprove(
+  function invoke(conversationId: string, expression: string): Promise<any> {
+    const runContext = { context: { conversationId, tabId: TAB_ID } };
+    return runConsoleCommandTool.invoke(
+      runContext as any,
+      JSON.stringify({ expression }),
+    );
+  }
+
+  function invokeAndApprove(
     conversationId: string,
     expression: string,
   ): Promise<any> {
-    const runContext = { context: { conversationId, tabId: TAB_ID } };
-    const pending = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression }),
-    )) as any;
-    expect(pending.status).toBe("needs_approval");
-    expect(pending.approvalId).toBeTruthy();
-    const confirmed = await confirmRiskyAction(
-      conversationId,
-      pending.approvalId,
-      true,
-    );
-    expect(confirmed.found).toBe(true);
-    expect(confirmed.executed).toBe(true);
-    return confirmed.result;
+    answerApprovals({ approved: true });
+    return invoke(conversationId, expression);
   }
 
-  it("never executes on the first call — always returns a pending approval", async () => {
-    const runContext = {
-      context: { conversationId: "conv-console-gate", tabId: TAB_ID },
-    };
-    const result = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "1 + 41" }),
-    )) as any;
+  it("never executes without a human decision", async () => {
+    const result = await invoke("conv-console-gate", "1 + 41");
 
-    expect(result.status).toBe("needs_approval");
-    expect(result.approvalId).toBeTruthy();
+    expect(result).toMatchObject({
+      status: "denied",
+      reason: "no_approval_ui",
+    });
     expect(mockSendCommand).not.toHaveBeenCalled();
     expect(mockSafeAttachDebugger).not.toHaveBeenCalled();
   });
 
+  it("shows the user the exact expression it will run", async () => {
+    const { requests } = answerApprovals({ approved: false });
+
+    await invoke("conv-console-summary", "document.cookie");
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].toolName).toBe("run_console_command");
+    expect(requests[0].summary).toContain("document.cookie");
+  });
+
   it("denying the approval never executes the expression", async () => {
-    const runContext = {
-      context: { conversationId: "conv-console-deny", tabId: TAB_ID },
-    };
-    const pending = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "1 + 1" }),
-    )) as any;
+    answerApprovals({ approved: false });
 
-    const confirmed = await confirmRiskyAction(
-      "conv-console-deny",
-      pending.approvalId,
-      false,
-    );
-    expect(confirmed.found).toBe(true);
-    expect(confirmed.denied).toBe(true);
-    expect(confirmed.executed).toBeFalsy();
+    const result = await invoke("conv-console-deny", "1 + 1");
+
+    expect(result).toMatchObject({ status: "denied", reason: "user_denied" });
     expect(mockSendCommand).not.toHaveBeenCalled();
   });
 
-  it("a different conversation cannot confirm another conversation's pending approval", async () => {
-    const runContext = {
-      context: { conversationId: "conv-console-owner", tabId: TAB_ID },
-    };
-    const pending = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "1 + 1" }),
-    )) as any;
-
-    const confirmed = await confirmRiskyAction(
-      "conv-console-attacker",
-      pending.approvalId,
-      true,
-    );
-    expect(confirmed.found).toBe(false);
-    expect(mockSendCommand).not.toHaveBeenCalled();
-  });
-
-  it("a second risky call on the SAME origin after one approval runs immediately, no re-approval", async () => {
+  it("a remembered approval lets the next call on the same origin run without a prompt", async () => {
     mockSendCommand.mockImplementation(async (command: string) => {
       if (command === "Runtime.evaluate") {
         return { result: { type: "number", value: 1 } };
       }
       return undefined;
     });
-    const conv = "conv-console-regrant";
-    await invokeAndApprove(conv, "1");
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
+    await invoke("conv-console-regrant", "1");
+    stop();
 
-    const runContext = { context: { conversationId: conv, tabId: TAB_ID } };
-    const second = (await runConsoleCommandTool.invoke(
-      runContext as any,
-      JSON.stringify({ expression: "2" }),
-    )) as any;
+    const second = await invoke("conv-console-other", "2");
 
-    // No "needs_approval" this time — the origin was already granted.
-    expect(second.status).toBeUndefined();
+    expect(requests).toHaveLength(1);
     expect(second.available).toBe(true);
     expect(second.success).toBe(true);
   });

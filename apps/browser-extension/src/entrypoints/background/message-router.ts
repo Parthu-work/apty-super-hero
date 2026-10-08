@@ -1,5 +1,6 @@
 /** Internal extension messaging: capture events, tab relays, recording state, sidepanel and chat-image download requests. */
 
+import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import { downloadChatImagesInBackground } from "./downloads";
 import { setIsRecording } from "./recording";
 import { openSidePanelOnDemand } from "./sidepanel";
@@ -7,8 +8,7 @@ import { openSidePanelOnDemand } from "./sidepanel";
 export function registerMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     /** Restrict a privileged request to this extension's own pages (sidepanel/options), never a content script running inside an arbitrary, possibly-hostile page. */
-    const isTrustedExtensionPage =
-      sender.id === chrome.runtime.id && !sender.tab;
+    const isTrustedExtensionPage = isOwnExtensionPage(sender);
 
     // Echo capture events to all extension contexts
     if (message.request === "capture-click-event") {

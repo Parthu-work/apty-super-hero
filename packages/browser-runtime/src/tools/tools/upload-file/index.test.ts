@@ -42,7 +42,8 @@ const TAB_ID = 11;
   },
 };
 
-import { confirmRiskyAction, resetApprovalStateForTests } from "../../approval";
+import { resetApprovalStateForTests } from "../../approval";
+import { answerApprovals } from "../../approval-test-utils";
 import { uploadFileToInputTool } from "./index";
 
 beforeEach(async () => {
@@ -57,58 +58,41 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Invoke the tool, confirm the resulting pending approval, and return the EXECUTED result. */
-async function invokeAndApprove(
+function invoke(conversationId: string, args: Record<string, unknown>) {
+  const runContext = { context: { conversationId, tabId: TAB_ID } };
+  return uploadFileToInputTool.invoke(
+    runContext as any,
+    JSON.stringify(args),
+  ) as Promise<any>;
+}
+
+function invokeAndApprove(
   conversationId: string,
   args: Record<string, unknown>,
 ): Promise<any> {
-  const runContext = { context: { conversationId, tabId: TAB_ID } };
-  const pending = (await uploadFileToInputTool.invoke(
-    runContext as any,
-    JSON.stringify(args),
-  )) as any;
-  expect(pending.status).toBe("needs_approval");
-  expect(pending.approvalId).toBeTruthy();
-  const confirmed = await confirmRiskyAction(
-    conversationId,
-    pending.approvalId,
-    true,
-  );
-  expect(confirmed.found).toBe(true);
-  expect(confirmed.executed).toBe(true);
-  return confirmed.result;
+  answerApprovals({ approved: true });
+  return invoke(conversationId, args);
 }
 
 describe("uploadFileToInputTool", () => {
-  it("never writes the file on the first call — returns a pending approval", async () => {
-    const runContext = {
-      context: { conversationId: "conv-upload-gate", tabId: TAB_ID },
-    };
-    const result = (await uploadFileToInputTool.invoke(
-      runContext as any,
-      JSON.stringify({ file_path: "/tmp/resume.pdf" }),
-    )) as any;
+  it("never writes the file without a human decision", async () => {
+    const result = await invoke("conv-upload-gate", {
+      file_path: "/tmp/resume.pdf",
+    });
 
-    expect(result.status).toBe("needs_approval");
+    expect(result.status).toBe("denied");
     expect(mockSendCommand).not.toHaveBeenCalled();
     expect(mockSafeAttachDebugger).not.toHaveBeenCalled();
   });
 
   it("denying the approval never touches the page", async () => {
-    const runContext = {
-      context: { conversationId: "conv-upload-deny", tabId: TAB_ID },
-    };
-    const pending = (await uploadFileToInputTool.invoke(
-      runContext as any,
-      JSON.stringify({ file_path: "/tmp/resume.pdf" }),
-    )) as any;
+    answerApprovals({ approved: false });
 
-    const confirmed = await confirmRiskyAction(
-      "conv-upload-deny",
-      pending.approvalId,
-      false,
-    );
-    expect(confirmed.denied).toBe(true);
+    const result = await invoke("conv-upload-deny", {
+      file_path: "/tmp/resume.pdf",
+    });
+
+    expect(result).toMatchObject({ status: "denied", reason: "user_denied" });
     expect(mockSendCommand).not.toHaveBeenCalled();
   });
 
@@ -155,24 +139,25 @@ describe("uploadFileToInputTool", () => {
     expect(result.message).toContain("No <input");
   });
 
-  it("a second upload on the SAME origin after one approval runs immediately", async () => {
+  it("a remembered approval lets the next upload on the same origin run without a prompt", async () => {
     mockSendCommand.mockImplementation(async (command: string) => {
       if (command === "DOM.getDocument") return { root: { nodeId: 1 } };
       if (command === "DOM.querySelectorAll") return { nodeIds: [42] };
       if (command === "DOM.setFileInputFiles") return {};
       return undefined;
     });
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
+    await invoke("conv-upload-regrant", { file_path: "/tmp/a.pdf" });
+    stop();
 
-    const conv = "conv-upload-regrant";
-    await invokeAndApprove(conv, { file_path: "/tmp/a.pdf" });
+    const second = await invoke("conv-upload-regrant", {
+      file_path: "/tmp/b.pdf",
+    });
 
-    const runContext = { context: { conversationId: conv, tabId: TAB_ID } };
-    const second = (await uploadFileToInputTool.invoke(
-      runContext as any,
-      JSON.stringify({ file_path: "/tmp/b.pdf" }),
-    )) as any;
-
-    expect(second.status).toBeUndefined();
+    expect(requests).toHaveLength(1);
     expect(second.success).toBe(true);
     expect(second.filename).toBe("b.pdf");
   });

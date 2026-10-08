@@ -8,6 +8,7 @@
  */
 import { DefaultToolDisplay } from "@apty/ui/components/chatbot";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
+import { evidenceIdOf, ResponseBodyViewer } from "./response-body-viewer";
 import { SelectorAnalysisDisplay } from "./selector-analysis-display";
 
 export function AptyToolDisplay(props: ToolDisplaySlotProps) {
@@ -18,4 +19,16 @@ export function AptyToolDisplay(props: ToolDisplaySlotProps) {
     return <SelectorAnalysisDisplay {...props} />;
   }
   return <DefaultToolDisplay {...props} />;
+}
+
+/** Under a completed inspect_extension_network call: the full response viewer. */
+export function AptyToolFooter({ tool }: ToolDisplaySlotProps) {
+  if (
+    tool.toolName !== "inspect_extension_network" ||
+    tool.state !== "completed"
+  ) {
+    return null;
+  }
+  const evidenceId = evidenceIdOf(tool.output);
+  return evidenceId ? <ResponseBodyViewer evidenceId={evidenceId} /> : null;
 }

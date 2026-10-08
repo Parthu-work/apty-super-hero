@@ -9,6 +9,7 @@ const mockManagementGet = vi.hoisted(() => vi.fn());
 
 (global as any).chrome = {
   runtime: {
+    id: "agent-ext-id",
     sendMessage: mockSendMessage,
     lastError: undefined as { message: string } | undefined,
   },
@@ -96,18 +97,36 @@ describe("connectExtensionClient", () => {
     expect(result.errorCode).toBe("extension_not_found");
   });
 
+  it("connects through the handshake alone when it may not list extensions", async () => {
+    const management = (global as any).chrome.management;
+    (global as any).chrome.management = undefined;
+    mockResponsesByType({
+      "apty-debug-agent:get-service-worker-status": OK_STATUS,
+    });
+
+    try {
+      const result = await connectExtensionClient("conv-a", EXT_ID);
+      expect(result.connected).toBe(true);
+    } finally {
+      (global as any).chrome.management = management;
+      await disconnectExtensionClient("conv-a");
+    }
+  });
+
   it("reports extension_not_found when the extension is disabled", async () => {
     mockManagementGet.mockResolvedValue({ id: EXT_ID, enabled: false });
     const result = await connectExtensionClient("conv-a", EXT_ID);
     expect(result.errorCode).toBe("extension_not_found");
   });
 
-  it("reports unavailable when the extension is installed but does not respond to the message contract", async () => {
-    mockResponsesByType({}); // no handler for get-service-worker-status -> undefined -> unavailable
+  it("reports a missing bridge, naming this Agent's ID, when the Client answers nothing", async () => {
+    mockResponsesByType({});
     const result = await connectExtensionClient("conv-a", EXT_ID);
     expect(result.connected).toBe(false);
-    expect(result.errorCode).toBe("unavailable");
-    expect(result.error).toBeTruthy();
+    expect(result.errorCode).toBe("bridge_missing");
+    expect(result.error).toMatch(/does not implement/);
+    expect(result.agentExtensionId).toBe("agent-ext-id");
+    expect(result.error).toContain("agent-ext-id");
   });
 
   it("connects when the extension is installed and responds ok", async () => {

@@ -37,7 +37,11 @@
 
 import { redactLogs, redactSensitiveText } from "@apty/debug-contract";
 import { z } from "zod";
-import { sendExternalMessage } from "./external-messaging.js";
+import {
+  type ExternalMessageFailure,
+  type ExternalMessageOutcome,
+  sendExternalMessageDetailed,
+} from "./external-messaging.js";
 import type {
   AptyLog,
   AptyObservedResource,
@@ -61,19 +65,37 @@ const RETRY_TIMEOUT_MS = 5000;
 /** Timeout for the separate HTTP-diagnostic-endpoint fallback path (not cross-extension messaging, so the cold-SW-wake reasoning above doesn't apply here). */
 const REQUEST_TIMEOUT_MS = 3000;
 
-/** Send a cross-extension message with one retry on timeout/no-response — see the comment above for why a single short timeout isn't enough for a cold service-worker wake. */
-async function sendExternalMessageWithRetry(
+/** Send a cross-extension message with one retry when nothing answered — see the comment above for why a single short timeout isn't enough for a cold service-worker wake. A handler that answered with nothing is not retried. */
+async function sendWithRetryDetailed(
   extensionId: string,
   message: unknown,
-): Promise<unknown | undefined> {
-  const first = await sendExternalMessage(
+): Promise<ExternalMessageOutcome> {
+  const first = await sendExternalMessageDetailed(
     extensionId,
     message,
     FIRST_ATTEMPT_TIMEOUT_MS,
   );
-  if (first !== undefined) return first;
-  return sendExternalMessage(extensionId, message, RETRY_TIMEOUT_MS);
+  if (first.ok || first.failure === "no_response") return first;
+  return sendExternalMessageDetailed(extensionId, message, RETRY_TIMEOUT_MS);
 }
+
+async function sendExternalMessageWithRetry(
+  extensionId: string,
+  message: unknown,
+): Promise<unknown | undefined> {
+  const outcome = await sendWithRetryDetailed(extensionId, message);
+  return outcome.ok ? outcome.response : undefined;
+}
+
+const PEER_FAILURE_MESSAGES: Record<ExternalMessageFailure, string> = {
+  no_receiver:
+    "Chrome found nothing listening in the Apty Client for this extension. The Client must list this extension's ID under externally_connectable.ids in its manifest and register a chrome.runtime.onMessageExternal handler at the top level of its service worker.",
+  no_response:
+    "The Apty Client received the message but answered nothing, so it does not implement the apty-debug-agent:get-service-worker-status message. Install the Agent bridge module in the Client's service worker.",
+  timeout:
+    "The Apty Client accepted the message but never answered, even after a retry. Usually its onMessageExternal handler does not implement the apty-debug-agent:get-service-worker-status message (install or update the Agent bridge module); otherwise its service worker is stuck, so check chrome://extensions for errors on the Client.",
+  send_failed: "Chrome refused to send the message to the Apty Client.",
+};
 
 // Bounded so a hostile/misbehaving Widget extension can't hand us an
 // unbounded array and balloon memory/token usage — this is a defensive
@@ -165,16 +187,25 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
   async getStatus(): Promise<AptyServiceWorkerStatus> {
     if (this.config.extensionId) {
-      const raw = await sendExternalMessageWithRetry(this.config.extensionId, {
+      const outcome = await sendWithRetryDetailed(this.config.extensionId, {
         type: "apty-debug-agent:get-service-worker-status",
       });
-      if (raw === undefined) return { status: "unavailable" };
+      if (!outcome.ok) {
+        return {
+          status: "unavailable",
+          peerFailure: outcome.failure,
+          error: outcome.detail
+            ? `${PEER_FAILURE_MESSAGES[outcome.failure]} (Chrome: ${outcome.detail})`
+            : PEER_FAILURE_MESSAGES[outcome.failure],
+        };
+      }
 
-      const result = validate(statusResponseSchema, raw);
+      const result = validate(statusResponseSchema, outcome.response);
       if (!result.ok) {
         return {
           status: "error",
-          error: `malformed status response: ${result.reason}`,
+          peerFailure: "malformed_response",
+          error: `The Apty Client answered with an unexpected shape (${result.reason}). Its bridge module is likely out of date.`,
         };
       }
       return {

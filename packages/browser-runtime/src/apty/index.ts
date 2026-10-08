@@ -61,6 +61,7 @@ export {
 } from "./evidence-correlation.js";
 export {
   clearEvidence,
+  evidenceRestored,
   getEvidence,
   getTrackedConversationCount,
   recordEvidence,
@@ -135,6 +136,7 @@ export {
   clearInvestigation,
   getInvestigation,
   getTrackedInvestigationCount,
+  investigationsRestored,
   recordVerificationAttempt,
   startInvestigation,
   stopInvestigation,

@@ -14,10 +14,9 @@ import { readFile } from "node:fs/promises";
  * `chrome-extension://` origin, no service worker, no side-panel chrome
  * around it) — it renders the same HTML/JS/CSS a real load would, which is
  * enough to judge layout, spacing, and the tab-highlight/CSS regressions
- * WP16-WP21 are about. Real extension-boundary behaviour (side panel host
- * chrome, `chrome.sidePanel`, cross-extension messaging) still needs the
- * real-Chrome e2e harness described as WP8 in the master prompt, which is
- * not implemented here.
+ * WP16-WP21 are about. Real extension-boundary behaviour (frames, shadow
+ * DOM, injection) is covered by `extension.e2e.test.mjs`, which loads the
+ * built extension for real.
  */
 import { createServer } from "node:http";
 import { extname, join } from "node:path";

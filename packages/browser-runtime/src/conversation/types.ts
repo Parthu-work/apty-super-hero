@@ -53,6 +53,7 @@ export interface ConversationData {
  */
 export interface ConversationStorageConfig {
   maxConversations?: number; // Max conversations to keep (default: 5)
+  maxAgeMs?: number; // Delete conversations unused for longer (default: 7 days)
   dbName?: string; // IndexedDB database name
   storeName?: string; // IndexedDB store name
 }

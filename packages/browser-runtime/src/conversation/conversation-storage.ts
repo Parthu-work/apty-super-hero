@@ -1,3 +1,8 @@
+import {
+  DEFAULT_RETENTION_MS,
+  isExpired,
+  selectForEviction,
+} from "@apty/agent-core";
 import { IndexedDBStorage } from "../storage/indexeddb-storage";
 import { LRUPolicy } from "./lru-policy";
 import { migrate } from "./migration";
@@ -20,6 +25,7 @@ export class ConversationStorage {
   constructor(config: ConversationStorageConfig = {}) {
     this.config = {
       maxConversations: config.maxConversations ?? 5,
+      maxAgeMs: config.maxAgeMs ?? DEFAULT_RETENTION_MS,
       dbName: config.dbName ?? "aipex-conversations-db",
       storeName: config.storeName ?? "conversations",
     };
@@ -97,7 +103,11 @@ export class ConversationStorage {
   private async applyLRU(): Promise<void> {
     try {
       const allConversations = await this.storage.listAll();
-      const { toDelete } = this.lruPolicy.apply(allConversations);
+      const toDelete = selectForEviction(allConversations, {
+        timeOf: (c) => c.updatedAt,
+        maxItems: this.config.maxConversations,
+        maxAgeMs: this.config.maxAgeMs,
+      });
 
       if (toDelete.length > 0) {
         console.log(
@@ -167,6 +177,7 @@ export class ConversationStorage {
     await this.ensureMigrated();
 
     try {
+      await this.applyLRU();
       const conversations = await this.storage.listAll();
       return this.lruPolicy.sortByTimestamp(conversations);
     } catch (error) {
@@ -190,6 +201,10 @@ export class ConversationStorage {
     try {
       const conversation = await this.storage.load(conversationId);
       if (!conversation) {
+        return null;
+      }
+      if (isExpired(conversation.updatedAt, this.config.maxAgeMs)) {
+        await this.storage.delete(conversationId);
         return null;
       }
 

@@ -22,6 +22,7 @@
     "test": "pnpm -r --if-present test && npm run test:mcp-bridge",
     "typecheck": "pnpm -r --if-present typecheck && npm run typecheck:mcp-bridge",
     "test:mcp-bridge": "npm --prefix apps/mcp-bridge test",
+    "test:e2e": "node --test --test-timeout=180000 --test-concurrency=1 \"tooling/e2e/*.e2e.test.mjs\"",
     "typecheck:mcp-bridge": "npm --prefix apps/mcp-bridge run typecheck",
     "build:mcp-bridge": "npm --prefix apps/mcp-bridge run build",
     "audit:branding": "node tooling/scripts/check-branding.mjs",

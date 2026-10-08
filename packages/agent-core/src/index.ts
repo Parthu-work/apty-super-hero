@@ -117,3 +117,9 @@ export {
   type LogLevel,
   setLogLevel,
 } from "./utils/logger.js";
+export {
+  DEFAULT_RETENTION_MS,
+  isExpired,
+  type RetentionPolicy,
+  selectForEviction,
+} from "./utils/retention.js";

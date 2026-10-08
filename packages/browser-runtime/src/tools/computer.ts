@@ -35,7 +35,7 @@ PREREQUISITE: If you choose coordinate actions, you MUST first call capture_scre
 
 * Click element centers, not edges. Adjust if clicks miss.
 
-APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so they require explicit user approval before they run (once per page origin — see confirm_risky_action). Click/scroll/hover/drag actions are not gated.`,
+APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so the call waits for the user to click Allow or Deny in the extension UI before it runs. Click/scroll/hover/drag actions are not gated.`,
   parameters: z.object({
     action: z
       .enum([

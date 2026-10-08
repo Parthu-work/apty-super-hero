@@ -28,6 +28,7 @@ import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
 import { InputModeProvider } from "../state/input-mode-context";
 import { InterventionModeProvider } from "../state/intervention-mode-context";
+import { ApprovalPrompt } from "./approval-prompt";
 import { AutomationModeInputToolbar } from "./automation-mode-toolbar";
 import { BrowserChatHeader } from "./browser-chat-header";
 import { BrowserChatInputArea } from "./browser-chat-input-area";
@@ -36,7 +37,10 @@ import { BrowserMessageActions } from "./browser-message-actions";
 import { BrowserMessageList } from "./browser-message-list";
 import { ChatImagesListener } from "./chat-images-listener";
 import { InterventionUI } from "./intervention-ui";
-import { AptyToolDisplay } from "./investigation/apty-tool-display";
+import {
+  AptyToolDisplay,
+  AptyToolFooter,
+} from "./investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
 import { DomHealthCard } from "./investigation/dom-health-card";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
@@ -241,6 +245,7 @@ function ChatApp() {
             inputToolbar: (props) => <AutomationModeInputToolbar {...props} />,
             promptExtras: () => (
               <>
+                <ApprovalPrompt />
                 <InvestigationSummaryBar />
                 <DomHealthCard />
                 <BrowserContextLoader />
@@ -248,6 +253,7 @@ function ChatApp() {
             ),
             emptyState: (props) => <DebuggingWelcomeScreen {...props} />,
             toolDisplay: (props) => <AptyToolDisplay {...props} />,
+            toolFooter: (props) => <AptyToolFooter {...props} />,
           }}
         />
       </InterventionModeProvider>

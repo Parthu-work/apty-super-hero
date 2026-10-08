@@ -18,6 +18,8 @@ export class HistoryProvider implements ContextProvider {
   };
 
   async getContexts(query?: ContextQuery): Promise<Context[]> {
+    // Optional permission: the API only exists once the user grants it.
+    if (!chrome.history) return [];
     try {
       const limit = query?.limit ?? 20;
 
@@ -49,6 +51,7 @@ export class HistoryProvider implements ContextProvider {
   }
 
   async getContext(id: string): Promise<Context | null> {
+    if (!chrome.history) return null;
     if (!id.startsWith("history-")) return null;
 
     const historyId = id.replace("history-", "");

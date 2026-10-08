@@ -27,6 +27,28 @@ export function decodeBase64Utf8(base64: string): string {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
+/**
+ * True when `url` matches a deny-list entry: a bare host matches that host
+ * and its subdomains, anything else matches as a URL substring.
+ */
+export function isUrlDenied(url: string, denyList: readonly string[]): boolean {
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    // Not a parseable URL: only substring entries can match.
+  }
+  const lowerUrl = url.toLowerCase();
+  return denyList.some((raw) => {
+    const entry = raw.trim().toLowerCase();
+    if (!entry) return false;
+    if (/^[a-z0-9.-]+$/.test(entry) && host) {
+      return host === entry || host.endsWith(`.${entry}`);
+    }
+    return lowerUrl.includes(entry);
+  });
+}
+
 /** The last path segment of a URL, query string stripped — e.g. `https://x.com/api/segments.json?v=2` -> `segments.json`. Falls back to the whole (query-stripped) URL if there's no `/`. */
 export function resourceNameFor(url: string): string {
   const withoutQuery = url.split("?")[0] ?? url;

@@ -36,4 +36,5 @@ export {
 export * from "./health-types.js";
 export { buildTextSnapshot, formatSnapshot } from "./manager.js";
 export { searchAndFormat, searchSnapshotText } from "./query.js";
+export { AGENT_UI_ROOT_IDS, shadowRootOf } from "./shadow-roots.js";
 export * from "./types.js";

@@ -373,7 +373,7 @@ describe("network-capture-session — response body capture", () => {
       base64Encoded: false,
     });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-segments",
       request: { url: "https://example.com/segments.json", method: "GET" },
@@ -410,7 +410,7 @@ describe("network-capture-session — response body capture", () => {
       base64Encoded: false,
     });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-segments",
       request: { url: "https://example.com/segments.json", method: "GET" },
@@ -439,7 +439,7 @@ describe("network-capture-session — response body capture", () => {
       base64Encoded: false,
     });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-patient",
       request: { url: "https://example.com/patients.json", method: "GET" },
@@ -469,7 +469,7 @@ describe("network-capture-session — response body capture", () => {
       base64Encoded: true,
     });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/data.json", method: "GET" },
@@ -495,7 +495,7 @@ describe("network-capture-session — response body capture", () => {
       base64Encoded: false,
     });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/config.json", method: "GET" },
@@ -522,7 +522,7 @@ describe("network-capture-session — response body capture", () => {
     const longBody = "x".repeat(MAX_INLINE_BODY_CHARS + 500);
     mockResponseBody({ body: longBody, base64Encoded: false });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/big.json", method: "GET" },
@@ -548,7 +548,7 @@ describe("network-capture-session — response body capture", () => {
   it("skips the fetch entirely and sets bodyTooLarge above MAX_BODY_FETCH_BYTES", async () => {
     mockResponseBody({ body: "should never be used", base64Encoded: false });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/huge.json", method: "GET" },
@@ -576,7 +576,7 @@ describe("network-capture-session — response body capture", () => {
   it("does not attempt a body fetch for a non-XHR/Fetch resource (e.g. a script)", async () => {
     mockResponseBody({ body: "console.log(1)", base64Encoded: false });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/app.js", method: "GET" },
@@ -600,7 +600,7 @@ describe("network-capture-session — response body capture", () => {
   it("does not attempt a body fetch for a non-textual mimeType (e.g. an image)", async () => {
     mockResponseBody({ body: "binarydata", base64Encoded: true });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/photo.png", method: "GET" },
@@ -623,7 +623,7 @@ describe("network-capture-session — response body capture", () => {
   it("marks bodyUnavailable when CDP returns no body", async () => {
     mockResponseBody(undefined);
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/data.json", method: "GET" },
@@ -651,7 +651,7 @@ describe("network-capture-session — response body capture", () => {
       return Promise.resolve(undefined);
     });
 
-    await startNetworkCapture("conv-a", TAB_ID);
+    await startNetworkCapture("conv-a", TAB_ID, { captureBodies: true });
     fireDebuggerEvent("Network.requestWillBeSent", {
       requestId: "req-1",
       request: { url: "https://example.com/data.json", method: "GET" },
@@ -669,6 +669,55 @@ describe("network-capture-session — response body capture", () => {
 
     const stopped = await stopNetworkCapture("conv-a");
     expect(stopped.requests?.[0].bodyUnavailable).toBe(true);
+  });
+
+  function finishJsonRequest(requestId: string, url: string) {
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId,
+      request: { url, method: "GET" },
+      type: "Fetch",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId,
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId,
+      encodedDataLength: 10,
+    });
+  }
+
+  it("never fetches bodies unless the capture opted in", async () => {
+    mockResponseBody({ body: '{"ssn":"x"}', base64Encoded: false });
+
+    const started = await startNetworkCapture("conv-a", TAB_ID);
+    finishJsonRequest("req-1", "https://example.com/api/me");
+    await flushMicrotasks();
+
+    expect(started.session?.bodiesCaptured).toBe(false);
+    expect(mockSendCommand).not.toHaveBeenCalledWith(
+      "Network.getResponseBody",
+      expect.anything(),
+    );
+    const stopped = await stopNetworkCapture("conv-a");
+    expect(stopped.requests?.[0].bodyPreview).toBeUndefined();
+  });
+
+  it("skips bodies for denied hosts and their subdomains", async () => {
+    mockResponseBody({ body: "{}", base64Encoded: false });
+
+    await startNetworkCapture("conv-a", TAB_ID, {
+      captureBodies: true,
+      bodyDenyList: ["bank.example"],
+    });
+    finishJsonRequest("denied", "https://api.bank.example/accounts");
+    finishJsonRequest("allowed", "https://cdn.apty.io/segments.json");
+    await flushMicrotasks();
+
+    const stopped = await stopNetworkCapture("conv-a");
+    const byId = new Map(stopped.requests?.map((r) => [r.requestId, r]));
+    expect(byId.get("denied")?.bodyPreview).toBeUndefined();
+    expect(byId.get("allowed")?.bodyPreview).toBe("{}");
   });
 });
 

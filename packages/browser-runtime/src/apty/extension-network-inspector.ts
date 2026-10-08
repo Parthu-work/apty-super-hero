@@ -54,7 +54,7 @@ import {
   resourceNameFor,
 } from "./resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
-import type { AptyObservedResource } from "./types.js";
+import type { AptyObservedResource, AptyServiceWorkerStatus } from "./types.js";
 
 // Re-exported for existing consumers (apty/index.ts) — the canonical
 // definition now lives in resource-body-utils.ts, shared with
@@ -86,15 +86,20 @@ function chromeApi(): typeof chrome | undefined {
   return (globalThis as any).chrome as typeof chrome | undefined;
 }
 
-async function getManagedExtension(
+/**
+ * Whether `extensionId` is installed and enabled, or `"unknown"` when the
+ * optional `management` permission isn't granted, so it can't be checked.
+ */
+async function isExtensionInstalled(
   extensionId: string,
-): Promise<chrome.management.ExtensionInfo | undefined> {
+): Promise<boolean | "unknown"> {
   const c = chromeApi();
-  if (!c?.management?.get) return undefined;
+  if (!c?.management?.get) return "unknown";
   try {
-    return await c.management.get(extensionId);
+    const ext = await c.management.get(extensionId);
+    return Boolean(ext) && ext.enabled !== false;
   } catch {
-    return undefined;
+    return false;
   }
 }
 
@@ -127,18 +132,43 @@ const activeExtensionByConversation = new Map<string, ActiveExtension>();
 export type ConnectErrorCode =
   | "invalid_extension_id"
   | "extension_not_found"
+  | "not_allowlisted"
+  | "bridge_missing"
+  | "timeout"
+  | "malformed_response"
   | "unavailable";
 
 export interface ConnectResult {
   connected: boolean;
   alreadyConnected?: boolean;
   extensionId?: string;
+  /** This extension's own ID, which the Client must allow-list. */
+  agentExtensionId?: string;
   error?: string;
   errorCode?: ConnectErrorCode;
 }
 
+const PEER_FAILURE_CODES: Record<
+  NonNullable<AptyServiceWorkerStatus["peerFailure"]>,
+  ConnectErrorCode
+> = {
+  no_receiver: "not_allowlisted",
+  no_response: "bridge_missing",
+  timeout: "timeout",
+  malformed_response: "malformed_response",
+  send_failed: "unavailable",
+};
+
 const NOT_COOPERATING_MESSAGE =
   "The Apty Client extension is installed, but did not respond to the resource-inspection message contract. It needs to allowlist this extension's id under externally_connectable in its manifest and implement the apty-debug-agent:* message handlers (see service-worker-diagnostics.ts) before its resources/logs can be inspected.";
+
+function agentExtensionId(): string | undefined {
+  try {
+    return chrome.runtime?.id;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Verify `extensionId` is installed/enabled AND actually cooperates with
@@ -166,8 +196,7 @@ export async function connectExtensionClient(
     };
   }
 
-  const ext = await getManagedExtension(extensionId);
-  if (!ext || ext.enabled === false) {
+  if ((await isExtensionInstalled(extensionId)) === false) {
     return {
       connected: false,
       errorCode: "extension_not_found",
@@ -181,10 +210,19 @@ export async function connectExtensionClient(
   });
   const status = await provider.getStatus();
   if (status.status !== "ok") {
+    const ownId = agentExtensionId();
     return {
       connected: false,
-      errorCode: "unavailable",
-      error: status.error ?? NOT_COOPERATING_MESSAGE,
+      agentExtensionId: ownId,
+      errorCode: status.peerFailure
+        ? PEER_FAILURE_CODES[status.peerFailure]
+        : "unavailable",
+      error: [
+        status.error ?? "The Apty Client did not answer.",
+        ownId ? `This Agent's extension ID is ${ownId}.` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     };
   }
 

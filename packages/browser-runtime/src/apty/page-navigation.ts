@@ -67,19 +67,12 @@ interface StabilizeResult {
   elapsedMs: number;
 }
 
-/**
- * Ask the tab's top frame to report once the DOM has been quiet for
- * `quietMs`, or `timeoutMs` has elapsed — never a fixed sleep. Addressed at
- * `frameId: 0` explicitly (never a broadcast): stabilization is watched
- * from the top frame's own document, which is what a real top-level
- * navigation reloads; a same-origin content frame nested inside it keeps
- * its own content-script instance and is audited independently by
- * `frame-audit.ts`, which does not depend on this signal.
- */
-export function waitForDomStable(
+function waitForFrameStable(
   tabId: number,
-  quietMs = DEFAULT_STABILIZE_QUIET_MS,
-  timeoutMs = DEFAULT_STABILIZE_TIMEOUT_MS,
+  frameId: number,
+  quietMs: number,
+  timeoutMs: number,
+  onlyWhileLoading: boolean,
 ): Promise<StabilizeResult> {
   return new Promise((resolve) => {
     const localFallback = setTimeout(
@@ -88,8 +81,8 @@ export function waitForDomStable(
     );
     sendFrameMessage<StabilizeResult>(
       tabId,
-      0,
-      { request: "wait-for-dom-stable", quietMs, timeoutMs },
+      frameId,
+      { request: "wait-for-dom-stable", quietMs, timeoutMs, onlyWhileLoading },
       timeoutMs + 1000,
     ).then((response) => {
       clearTimeout(localFallback);
@@ -100,6 +93,34 @@ export function waitForDomStable(
       resolve(response.data);
     });
   });
+}
+
+/**
+ * Report once the DOM has been quiet for `quietMs`, or `timeoutMs` has
+ * elapsed — never a fixed sleep. The top frame is always waited on. Every
+ * other frame, asked by `frameId` (never a broadcast), is waited on only
+ * while its document is still loading (e.g. a frameset content frame
+ * navigated by a menu click): a loaded frame that never goes quiet (ads,
+ * chat widgets, clocks) must not stall every wait of an audit.
+ */
+export async function waitForDomStable(
+  tabId: number,
+  quietMs = DEFAULT_STABILIZE_QUIET_MS,
+  timeoutMs = DEFAULT_STABILIZE_TIMEOUT_MS,
+): Promise<StabilizeResult> {
+  const frames = await getFrameTree(tabId);
+  const frameIds = frames
+    ?.filter((f) => !f.isAboutBlank && !f.errorOccurred)
+    .map((f) => f.frameId) ?? [0];
+  const results = await Promise.all(
+    (frameIds.length > 0 ? frameIds : [0]).map((frameId) =>
+      waitForFrameStable(tabId, frameId, quietMs, timeoutMs, frameId !== 0),
+    ),
+  );
+  return {
+    settled: results.every((r) => r.settled),
+    elapsedMs: Math.max(...results.map((r) => r.elapsedMs)),
+  };
 }
 
 export interface FrameTaggedLink extends DiscoverableLink {

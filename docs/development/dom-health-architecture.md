@@ -306,13 +306,22 @@ yet.
   container-counts) would be treated as the same node — a real, accepted
   tradeoff of the same signature design documented above, not new to the
   state graph.
-- **`waitForDomStable` only watches the top frame.** A debounced re-render
-  inside a non-top content frame is not directly waited on by this signal;
-  each frame's own snapshot collection still measures real, live evidence
-  regardless, but the "is the page done mutating" heuristic is top-frame
-  only.
-- **Closed Shadow DOM remains genuinely invisible** — a real browser
-  security boundary, not a gap in this design.
+- **`waitForDomStable` watches the top frame and its shadow trees, and
+  child frames only while they are still loading** (e.g. a frameset content
+  frame after a menu click), then for at most three quiet windows. A loaded
+  embed that never goes quiet (ads, chat widgets) does not delay the audit;
+  an SPA re-render inside an already-loaded child frame is not waited on.
+  Only shadow roots that exist when the wait starts are observed.
+- **Closed Shadow DOM is reached through `chrome.dom.openOrClosedShadowRoot`**
+  (Chrome 88+, content scripts only). Outside an extension content script,
+  for example in the jsdom unit tests, only open roots are traversed.
+- **Frame responders** live in a React-free content script
+  (`frame-responder.ts`) in every frame. A frame with no live responder
+  (the declared script never ran, or it belongs to an extension instance
+  from before a reload) gets the responder injected with
+  `chrome.scripting.executeScript` and the message retried once. Frames
+  Chrome never lets extensions script (`chrome-error://`, the PDF viewer,
+  the Web Store) still report a per-frame failure.
 - **No real Infor LN, Athena, or Autodesk validation has been performed** —
   see the delivery report for this phase. The frame-addressed-messaging,
   same-URL-state, and state-graph/backtracking fixes are validated by

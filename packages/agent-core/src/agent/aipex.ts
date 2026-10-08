@@ -83,6 +83,9 @@ function isRetryableLlmError(classified: {
   );
 }
 
+/** Same bound the UI's useAgent applies, so a caller that omits it can't run away. */
+export const DEFAULT_MAX_TURNS = 30;
+
 export class AIPex {
   private agent: OpenAIAgent;
   private conversationManager?: ConversationManager;
@@ -105,7 +108,7 @@ export class AIPex {
     this.agent = agent;
     this.conversationManager = conversationManager;
     this.contextManager = contextManager;
-    this.maxTurns = maxTurns ?? 2000;
+    this.maxTurns = maxTurns ?? DEFAULT_MAX_TURNS;
     this.plugins = plugins;
     this.pluginContext = { agent: this };
     this.modelId = modelId;

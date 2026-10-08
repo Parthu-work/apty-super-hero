@@ -14,10 +14,12 @@ import {
   createAIProvider,
   describeConnectionTestError,
 } from "../../services/ai-provider";
+import { ApprovalGrantsPanel } from "./approval-grants-panel";
 import { AptyClientPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
 import { PermissionsPanel } from "./permissions-panel";
 import { SkillsOptionsTab } from "./skills-tab";
+import { StoredDataPanel } from "./stored-data-panel";
 
 /** Parse and validate URL params for deep-linking. */
 function parseUrlParams() {
@@ -88,7 +90,13 @@ function OptionsPageContent() {
       storageAdapter={chromeStorageAdapter}
       onTestConnection={handleTestConnection}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}
-      permissionsContent={<PermissionsPanel />}
+      permissionsContent={
+        <div className="space-y-6">
+          <PermissionsPanel />
+          <ApprovalGrantsPanel />
+          <StoredDataPanel />
+        </div>
+      }
       connectionContent={
         <div className="space-y-6">
           <AptyClientPanel />

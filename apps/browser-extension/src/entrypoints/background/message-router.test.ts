@@ -36,8 +36,15 @@ let registeredListener:
 import { registerMessageRouter } from "./message-router";
 import { setIsRecording } from "./recording";
 
-const TRUSTED_SENDER = { id: EXTENSION_ID }; // extension's own page, no sender.tab
-const UNTRUSTED_SENDER = { id: EXTENSION_ID, tab: { id: 1 } }; // a content script in some page
+const TRUSTED_SENDER = {
+  id: EXTENSION_ID,
+  url: `chrome-extension://${EXTENSION_ID}/src/entrypoints/sidepanel/index.html`,
+};
+const UNTRUSTED_SENDER = {
+  id: EXTENSION_ID,
+  tab: { id: 1 },
+  url: "https://example.com/page",
+};
 
 function invoke(message: unknown, sender: unknown): Promise<unknown> {
   return new Promise((resolve) => {

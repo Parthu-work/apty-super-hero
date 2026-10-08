@@ -14,6 +14,8 @@
  */
 
 import type { FunctionTool } from "@apty/agent-core";
+import { evidenceRestored } from "../apty/evidence-store.js";
+import { investigationsRestored } from "../apty/investigation-session.js";
 import { allBrowserTools } from "../tools/index.js";
 import {
   type JSONRPCMessage,
@@ -375,6 +377,9 @@ export class WsMcpServer {
     if (!browserTool) {
       throw new Error(`Tool not found: ${name}`);
     }
+
+    // A call can arrive right after the service worker woke up.
+    await Promise.all([evidenceRestored, investigationsRestored]);
 
     // FunctionTool.invoke(runContext, inputJsonString, details?)
     // We pass an empty object as RunContext since we're outside the agent loop.

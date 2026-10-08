@@ -105,7 +105,7 @@ export const fillElementByUidTool = tool({
   name: "fill_element_by_uid",
   description:
     "Fill an input element using its unique UID from a snapshot. " +
-    "APPROVAL: writes to the page, so it requires explicit user approval before it runs (once per page origin — see confirm_risky_action).",
+    "APPROVAL: writes to the page, so the call waits for the user to click Allow or Deny in the extension UI before it runs.",
   parameters: z.object({
     tabId: z.number().describe("The ID of the tab to fill the element in"),
     uid: z.string().describe("The unique identifier of the element to fill"),
@@ -231,7 +231,7 @@ export const fillFormTool = tool({
   name: "fill_form",
   description:
     "Fill multiple form elements at once using their UIDs from a snapshot. " +
-    "APPROVAL: writes to the page, so it requires explicit user approval before it runs (once per page origin — see confirm_risky_action).",
+    "APPROVAL: writes to the page, so the call waits for the user to click Allow or Deny in the extension UI before it runs.",
   parameters: z.object({
     tabId: z.number().describe("The ID of the tab to fill the elements in"),
     elements: z

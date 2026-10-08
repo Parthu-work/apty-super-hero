@@ -1,6 +1,7 @@
 /** WebSocket MCP Bridge: connect/disconnect messaging, badge, keepalive alarms, auto-connect. */
 
 import { wsMcpServer } from "@apty/browser-runtime";
+import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 
 function updateMcpBadge(connected: boolean) {
   if (connected) {
@@ -19,7 +20,7 @@ export function registerMcpBridge(): void {
       // arbitrary localhost WebSocket with a stored auth token) — restrict
       // to this extension's own pages (sidepanel/options), never a content
       // script running inside an arbitrary, possibly-hostile page.
-      if (sender.id !== chrome.runtime.id || sender.tab) {
+      if (!isOwnExtensionPage(sender)) {
         sendResponse({ success: false, error: "Unauthorized sender" });
         return true;
       }

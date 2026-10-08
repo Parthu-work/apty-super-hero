@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from "@apty/agent-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockSendCommand = vi.hoisted(() => vi.fn());
@@ -17,7 +18,18 @@ vi.mock("../automation/debugger-manager.js", () => ({
   },
 }));
 
+let storageStore: Record<string, unknown> = {};
+
 (global as any).chrome = {
+  storage: {
+    local: {
+      get: (key: string) => Promise.resolve({ [key]: storageStore[key] }),
+      set: (items: Record<string, unknown>) => {
+        storageStore = { ...storageStore, ...items };
+        return Promise.resolve();
+      },
+    },
+  },
   debugger: {
     onEvent: { addListener: vi.fn(), removeListener: vi.fn() },
     onDetach: { addListener: vi.fn() },
@@ -43,6 +55,7 @@ function runContextFor(conversationId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  storageStore = {};
   mockSafeAttachDebugger.mockResolvedValue(true);
   mockSafeDetachDebugger.mockResolvedValue(undefined);
   mockSendCommand.mockResolvedValue(undefined);
@@ -50,6 +63,32 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("start_network_capture body opt-in", () => {
+  it("captures bodies only when the user enabled it in Settings", async () => {
+    const off = (await startNetworkCaptureTool.invoke(
+      runContextFor("conv-bodies-off"),
+      "{}",
+    )) as any;
+    await stopNetworkCaptureTool.invoke(runContextFor("conv-bodies-off"), "{}");
+
+    storageStore[STORAGE_KEYS.SETTINGS] = { networkBodyCaptureEnabled: true };
+    const on = (await startNetworkCaptureTool.invoke(
+      runContextFor("conv-bodies-on"),
+      "{}",
+    )) as any;
+    await stopNetworkCaptureTool.invoke(runContextFor("conv-bodies-on"), "{}");
+
+    expect(off.session.bodiesCaptured).toBe(false);
+    expect(on.session.bodiesCaptured).toBe(true);
+  });
+
+  it("gives the model no parameter to turn body capture on", () => {
+    expect(
+      Object.keys(startNetworkCaptureTool.parameters?.properties ?? {}),
+    ).toEqual([]);
+  });
 });
 
 describe("start_network_capture / get_network_capture_status / stop_network_capture", () => {

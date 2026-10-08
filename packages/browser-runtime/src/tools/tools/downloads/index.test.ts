@@ -18,7 +18,8 @@ const mockDownload = vi.fn();
   },
 };
 
-import { confirmRiskyAction, resetApprovalStateForTests } from "../../approval";
+import { resetApprovalStateForTests } from "../../approval";
+import { answerApprovals } from "../../approval-test-utils";
 import { downloadChatImagesTool, downloadImageTool } from "./index";
 
 const SAMPLE_IMAGE = "data:image/png;base64,aGVsbG8=";
@@ -35,66 +36,52 @@ afterEach(() => {
 });
 
 describe("downloadImageTool", () => {
-  it("never downloads on the first call — always returns a pending approval", async () => {
+  it("never downloads without a human decision", async () => {
     const result = (await downloadImageTool.invoke(
       { context: { conversationId: "conv-dl-gate" } } as any,
       JSON.stringify({ imageData: SAMPLE_IMAGE }),
     )) as any;
 
-    expect(result.status).toBe("needs_approval");
+    expect(result.status).toBe("denied");
     expect(mockDownload).not.toHaveBeenCalled();
   });
 
-  it("downloads once approved", async () => {
-    const conversationId = "conv-dl-1";
-    const pending = (await downloadImageTool.invoke(
-      { context: { conversationId } } as any,
+  it("downloads once the user clicks Allow", async () => {
+    answerApprovals({ approved: true });
+
+    const result = (await downloadImageTool.invoke(
+      { context: { conversationId: "conv-dl-1" } } as any,
       JSON.stringify({ imageData: SAMPLE_IMAGE, filename: "my-image" }),
     )) as any;
 
-    const confirmed = await confirmRiskyAction(
-      conversationId,
-      pending.approvalId,
-      true,
-    );
-
-    expect(confirmed.executed).toBe(true);
-    expect((confirmed.result as any).success).toBe(true);
+    expect(result.success).toBe(true);
     expect(mockDownload).toHaveBeenCalledTimes(1);
   });
 
   it("denying never downloads", async () => {
-    const conversationId = "conv-dl-deny";
-    const pending = (await downloadImageTool.invoke(
-      { context: { conversationId } } as any,
+    answerApprovals({ approved: false });
+
+    const result = (await downloadImageTool.invoke(
+      { context: { conversationId: "conv-dl-deny" } } as any,
       JSON.stringify({ imageData: SAMPLE_IMAGE }),
     )) as any;
 
-    const confirmed = await confirmRiskyAction(
-      conversationId,
-      pending.approvalId,
-      false,
-    );
-
-    expect(confirmed.denied).toBe(true);
+    expect(result).toMatchObject({ status: "denied", reason: "user_denied" });
     expect(mockDownload).not.toHaveBeenCalled();
   });
 
-  it("re-prompts on every call — no page origin to remember a grant against", async () => {
-    const conversationId = "conv-dl-repeat";
-    const first = (await downloadImageTool.invoke(
-      { context: { conversationId } } as any,
-      JSON.stringify({ imageData: SAMPLE_IMAGE }),
-    )) as any;
-    await confirmRiskyAction(conversationId, first.approvalId, true);
+  it("re-prompts on every call even when asked to remember — no page origin to scope a grant to", async () => {
+    const { requests } = answerApprovals({ approved: true, remember: true });
 
-    const second = (await downloadImageTool.invoke(
-      { context: { conversationId } } as any,
-      JSON.stringify({ imageData: SAMPLE_IMAGE }),
-    )) as any;
+    for (let i = 0; i < 2; i++) {
+      await downloadImageTool.invoke(
+        { context: { conversationId: "conv-dl-repeat" } } as any,
+        JSON.stringify({ imageData: SAMPLE_IMAGE }),
+      );
+    }
 
-    expect(second.status).toBe("needs_approval");
-    expect(mockDownload).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(2);
+    expect(mockDownload).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -109,31 +96,25 @@ describe("downloadChatImagesTool", () => {
     },
   ];
 
-  it("never downloads on the first call — always returns a pending approval", async () => {
+  it("never downloads without a human decision", async () => {
     const result = (await downloadChatImagesTool.invoke(
       { context: { conversationId: "conv-batch-gate" } } as any,
       JSON.stringify({ messages }),
     )) as any;
 
-    expect(result.status).toBe("needs_approval");
+    expect(result.status).toBe("denied");
     expect(mockDownload).not.toHaveBeenCalled();
   });
 
   it("downloads every image in the batch once approved", async () => {
-    const conversationId = "conv-batch-1";
-    const pending = (await downloadChatImagesTool.invoke(
-      { context: { conversationId } } as any,
+    answerApprovals({ approved: true });
+
+    const result = (await downloadChatImagesTool.invoke(
+      { context: { conversationId: "conv-batch-1" } } as any,
       JSON.stringify({ messages }),
     )) as any;
 
-    const confirmed = await confirmRiskyAction(
-      conversationId,
-      pending.approvalId,
-      true,
-    );
-
-    expect(confirmed.executed).toBe(true);
-    expect((confirmed.result as any).downloadedCount).toBe(2);
+    expect(result.downloadedCount).toBe(2);
     expect(mockDownload).toHaveBeenCalledTimes(2);
   });
 });
