@@ -14,6 +14,7 @@
  * never appear when a different conversation asks for its timeline.
  */
 import { generateId } from "@apty/agent-core";
+import { createSessionSnapshot } from "./session-snapshot.js";
 import type {
   DiagnosticEvidence,
   EvidenceSource,
@@ -45,6 +46,73 @@ interface ConversationEvidence {
 }
 
 const evidenceByConversation = new Map<string, ConversationEvidence>();
+
+/** Budget for the persisted copy; `chrome.storage.session` allows 10 MB in total. */
+export const MAX_PERSISTED_EVIDENCE_CHARS = 4_000_000;
+
+type PersistedEvidence = Array<
+  [string, { list: DiagnosticEvidence[]; dedupeKeys: string[] }]
+>;
+
+function withoutBody(evidence: DiagnosticEvidence): DiagnosticEvidence {
+  const data = evidence.data as Record<string, unknown> | null;
+  if (!data || typeof data !== "object" || !("body" in data)) return evidence;
+  const { body: _body, ...rest } = data;
+  return { ...evidence, data: { ...rest, bodyDropped: true } };
+}
+
+/**
+ * Snapshot of every conversation's evidence. When it would exceed
+ * `MAX_PERSISTED_EVIDENCE_CHARS`, response bodies are left out of the
+ * oldest records first (flagged `bodyDropped`); the in-memory copy keeps
+ * them.
+ */
+export function serializeEvidence(
+  maxChars = MAX_PERSISTED_EVIDENCE_CHARS,
+): PersistedEvidence {
+  const entries: PersistedEvidence = [...evidenceByConversation].map(
+    ([key, entry]) => [
+      key,
+      { list: [...entry.list], dedupeKeys: [...entry.dedupeKeys] },
+    ],
+  );
+  const records = entries
+    .flatMap(([, entry]) => entry.list.map((_, index) => ({ entry, index })))
+    .sort(
+      (a, b) =>
+        (a.entry.list[a.index]?.timestamp ?? 0) -
+        (b.entry.list[b.index]?.timestamp ?? 0),
+    );
+  let size = JSON.stringify(entries).length;
+  for (const { entry, index } of records) {
+    if (size <= maxChars) break;
+    const original = entry.list[index];
+    if (!original) continue;
+    const stripped = withoutBody(original);
+    if (stripped === original) continue;
+    size -= JSON.stringify(original).length - JSON.stringify(stripped).length;
+    entry.list[index] = stripped;
+  }
+  return entries;
+}
+
+const snapshot = createSessionSnapshot<PersistedEvidence>(
+  "apty_evidence_store",
+  () => serializeEvidence(),
+  (stored) => {
+    for (const [key, entry] of stored) {
+      if (evidenceByConversation.has(key)) continue;
+      evidenceByConversation.set(key, {
+        list: entry.list,
+        dedupeKeys: entry.dedupeKeys,
+        seenKeys: new Set(entry.dedupeKeys),
+      });
+    }
+  },
+);
+
+/** Resolves once evidence from before a reload or worker restart has been restored. */
+export const evidenceRestored = snapshot.ready;
 
 function keyFor(conversationId: string | undefined): string {
   return conversationId && conversationId !== "pending"
@@ -163,6 +231,7 @@ export function recordEvidence(
   }
 
   evidenceByConversation.set(key, entry);
+  snapshot.scheduleSave();
 
   return full;
 }
@@ -198,6 +267,7 @@ export function findEvidenceById(
 /** Drop all evidence for one conversation — call when a conversation/session ends. */
 export function clearEvidence(conversationId: string | undefined): void {
   evidenceByConversation.delete(keyFor(conversationId));
+  snapshot.scheduleSave();
 }
 
 /** Test/debug helper: how many conversations currently have stored evidence. */

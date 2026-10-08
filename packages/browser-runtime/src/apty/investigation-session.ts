@@ -15,6 +15,7 @@
  */
 import { generateId } from "@apty/agent-core";
 import type { InvestigationPlan } from "./investigation-planner.js";
+import { createSessionSnapshot } from "./session-snapshot.js";
 import type { DiagnosisConfidence } from "./types.js";
 
 /**
@@ -136,6 +137,23 @@ function keyFor(conversationId: string | undefined): string {
 
 const investigationsByConversation = new Map<string, InvestigationSession>();
 
+const investigationSnapshot = createSessionSnapshot<
+  Array<[string, InvestigationSession]>
+>(
+  "apty_investigations",
+  () => [...investigationsByConversation],
+  (stored) => {
+    for (const [key, session] of stored) {
+      if (!investigationsByConversation.has(key)) {
+        investigationsByConversation.set(key, session);
+      }
+    }
+  },
+);
+
+/** Resolves once investigations from before a reload or worker restart have been restored. */
+export const investigationsRestored = investigationSnapshot.ready;
+
 /**
  * Start a new investigation for a conversation, replacing any previous one
  * for the same conversation (starting a fresh investigation supersedes the
@@ -161,6 +179,7 @@ export function startInvestigation(
     plan: input.plan,
   };
   investigationsByConversation.set(keyFor(input.conversationId), session);
+  investigationSnapshot.scheduleSave();
   return session;
 }
 
@@ -286,6 +305,8 @@ export function updateInvestigation(
   }
 
   investigationsByConversation.set(key, updated);
+
+  investigationSnapshot.scheduleSave();
   return { ...updated };
 }
 
@@ -334,6 +355,7 @@ export function recordVerificationAttempt(
     ],
   };
   investigationsByConversation.set(key, updated);
+  investigationSnapshot.scheduleSave();
   return { ...updated };
 }
 
@@ -348,6 +370,7 @@ export function stopInvestigation(
 /** Discard the investigation lifecycle state for a conversation (not its evidence — see `clearEvidence`). */
 export function clearInvestigation(conversationId: string | undefined): void {
   investigationsByConversation.delete(keyFor(conversationId));
+  investigationSnapshot.scheduleSave();
 }
 
 /** Test/debug helper: how many conversations currently have an active investigation record. */
