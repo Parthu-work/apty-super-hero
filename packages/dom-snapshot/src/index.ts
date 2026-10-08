@@ -10,10 +10,23 @@ export {
 } from "./composed-tree.js";
 export type { ElementPath } from "./des-engine.js";
 export {
+  AUDIT_DES_CONFIG,
+  AUDIT_PROFILE_NAME,
+  isUnstableAttributeName,
+  normalizeAttributeName,
+  stableClassTokens,
+} from "./health-audit-profile.js";
+export {
   __resetDomHealthRegistryForTests,
   collectDomHealthSnapshot,
 } from "./health-collector.js";
-export { extractStablePrefix, looksDynamic } from "./health-dynamic.js";
+export {
+  classifyUnstableClass,
+  extractStablePrefix,
+  extractStableSuffix,
+  looksDynamic,
+  type UnstableClassKind,
+} from "./health-dynamic.js";
 export { hitTestElement } from "./health-hit-test.js";
 export {
   type CollectDiscoverableLinksOptions,

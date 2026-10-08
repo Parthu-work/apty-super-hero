@@ -115,7 +115,9 @@ describe("synthetic enterprise fixture: Autodesk-style dynamic SPA wrapper", () 
     const button = document.querySelector(
       '[data-testid="publish-model-button"]',
     )!;
-    const resolution = resolveElement(document, button);
+    const resolution = resolveElement(document, button, {
+      desConfig: DEFAULT_DES_CONFIG,
+    });
     // This is a genuine, reportable finding, not an approximation: unless
     // Studio configuration explicitly adds data-testid to a custom
     // priority/partialSelectorAttributes list, real Apty's default

@@ -156,6 +156,42 @@ has a test demonstrating exactly this on a synthetic Autodesk-style
 fixture, plus the paired test showing the correct selector once
 `partialSelectorAttributes: ["data-testid"]` is configured.
 
+## The Agent's audit profile (`health-audit-profile.ts`)
+
+DOM Health audits with `AUDIT_DES_CONFIG`, not with the bare Studio
+defaults above. Those defaults stay exactly as reconstructed. The profile
+adds rules for values that real enterprise DOMs regenerate per build, render,
+interaction, browser, OS or theme (DOM Health brief, section 2.3). It goes
+through Studio's own hooks: the ignore functions call the `defaultFn` they
+are handed and only add to it.
+
+- **Attribute names.** `_ngcontent-ng-c<n>` / `_nghost-ng-c<n>` (Angular
+  view encapsulation; 508 occurrences in the Infor LN export) and
+  version-carrying names (`ng-version`, `data-sohoxi-version`,
+  `data-app-version-info`) are ignored. For identity,
+  `normalizeAttributeName` collapses the Angular names to `_ngcontent-*`.
+- **Generated ids.** An `id` that `looksDynamic` flags is ignored. That
+  covers react-aria (`react-aria<n>-:r0:`), Pendo, SVG `clip`/`paint` ids
+  and Emotion `fe-c-*`, as well as the earlier UUID, numeric and suffix
+  rules.
+- **Class tokens.** Tokens that `classifyUnstableClass` rejects are dropped:
+  - state: `fe_is-disabled`, `selected`, `--is-*`;
+  - environment: `is-chrome`, `theme-*`, `standards`, `safari`;
+  - build: `forge--17_1_0`;
+  - generated: `fe-c-*`, `ng-tns-c*`, a styled-components partner next to
+    its `sc-` id.
+
+  Dropping goes through the class partial hook, because the engine passes
+  the class ignore hook the whole `class` value. So the remaining tokens
+  count as partial matches, as with a Studio-configured partial selector. A
+  class value made only of rejected tokens is ignored.
+
+The profile never invents a substring anchor. `extractStablePrefix` and
+`extractStableSuffix` find the stable parts of react-select ids
+(`react-select-` … `-input`) and Emotion labels (`-indicatorContainer`), but
+matching on part of a value is left to explicit Studio configuration.
+Reports name the profile (`selectorConfiguration.profile`).
+
 ## The runtime recovery heuristic (`isValueDynamic`) is separate from Ignore
 
 Used only during recovery (`findElement`'s first relaxation strategy),

@@ -17,6 +17,7 @@
  * that same evidence (spec sections 26-29): no invented measurements, no
  * "unique but wrong" or "ambiguous" candidate ever counted as a success.
  */
+
 import type {
   AnalysisCoverage,
   DomHealthIframeInfo,
@@ -26,6 +27,7 @@ import type {
   ElementPathSample,
   ElementSelectorReport,
 } from "@apty/dom-snapshot";
+import { AUDIT_PROFILE_NAME } from "@apty/dom-snapshot";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
 export type DomHealthMetricKey =
@@ -115,13 +117,16 @@ export const DEFAULT_FRAME_ACCESSIBILITY: FrameAccessibilitySummary = {
  */
 export interface SelectorConfigurationEvidence {
   source: "default" | "customer";
+  /** The Agent's audit profile layered over the configuration (`health-audit-profile.ts` in `@apty/dom-snapshot`). */
+  profile: string;
   detail: string;
 }
 
 export const DEFAULT_SELECTOR_CONFIGURATION: SelectorConfigurationEvidence = {
   source: "default",
+  profile: AUDIT_PROFILE_NAME,
   detail:
-    "Customer-specific Apty selector configuration is unavailable in this session; analysis uses Apty's real default DES behavior (Ignore Selector / Partial Selector / Attribute Priority defaults), never an invented substitute.",
+    "Customer-specific Apty selector configuration is unavailable in this session. Analysis uses Apty's real default DES behavior (Ignore Selector / Partial Selector / Attribute Priority defaults) with the Agent's audit profile layered on through the same hooks: Angular build-numbered and version attributes ignored, generated ids ignored or matched on their stable part, and state, browser, theme and build classes left out of class matching.",
 };
 
 /**

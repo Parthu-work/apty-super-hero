@@ -197,7 +197,11 @@ interface SharedEvidence {
   manualSelectorDependency: number;
   metrics: DomHealthMetrics;
   metricDetails: DomHealthMetricDetails;
-  selectorConfiguration: { source: "default" | "customer"; detail: string };
+  selectorConfiguration: {
+    source: "default" | "customer";
+    profile?: string;
+    detail: string;
+  };
   summary: string;
   strengths: string[];
   risks: DomHealthRisk[];
@@ -346,6 +350,8 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
         {result.selectorConfiguration?.source === "customer"
           ? "Customer Apty DES configuration"
           : "Default/reconstructed DES configuration"}
+        {result.selectorConfiguration?.profile &&
+          ` + audit profile ${result.selectorConfiguration.profile}`}
       </p>
 
       <div>
