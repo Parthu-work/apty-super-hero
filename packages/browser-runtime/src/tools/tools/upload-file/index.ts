@@ -73,7 +73,7 @@ WORKFLOW:
 
 NOTE: Most websites hide the actual <input type="file"> behind a styled button. This tool handles both visible and hidden file inputs automatically.
 
-APPROVAL: this writes to the page and reads an arbitrary local file path, so it requires explicit user approval before it runs (once per page origin — see confirm_risky_action).
+APPROVAL: this writes to the page and reads an arbitrary local file path, so the call waits for the user to click Allow or Deny in the extension UI before it runs.
 
 AFTER UPLOAD: take a screenshot to verify the file was accepted, then proceed to submit the form.`,
   parameters: z.object({

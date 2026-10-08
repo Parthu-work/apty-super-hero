@@ -32,7 +32,8 @@ let storageStore: Record<string, unknown> = {};
   },
 };
 
-import { confirmRiskyAction, resetApprovalStateForTests } from "./approval";
+import { resetApprovalStateForTests } from "./approval";
+import { answerApprovals } from "./approval-test-utils";
 import { computerTool } from "./computer";
 
 beforeEach(async () => {
@@ -70,58 +71,39 @@ describe("computerTool — pointer actions are not gated", () => {
 });
 
 describe("computerTool — type/key actions are gated", () => {
-  it("never types on the first call — always returns a pending approval", async () => {
+  it("never types without a human decision", async () => {
     const result = (await computerTool.invoke(
       { context: { conversationId: "conv-type-gate" } } as any,
       JSON.stringify({ action: "type", text: "hello" }),
     )) as any;
 
-    expect(result.status).toBe("needs_approval");
+    expect(result.status).toBe("denied");
     expect(mockExecuteComputerAction).not.toHaveBeenCalled();
   });
 
-  it("types once approved", async () => {
-    const conversationId = "conv-type-1";
-    const pending = (await computerTool.invoke(
-      { context: { conversationId } } as any,
+  it("types once the user clicks Allow", async () => {
+    const { requests } = answerApprovals({ approved: true });
+
+    const result = (await computerTool.invoke(
+      { context: { conversationId: "conv-type-1" } } as any,
       JSON.stringify({ action: "type", text: "hello" }),
     )) as any;
 
-    const confirmed = await confirmRiskyAction(
-      conversationId,
-      pending.approvalId,
-      true,
-    );
-
-    expect(confirmed.executed).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(result).toEqual({ success: true });
     expect(mockExecuteComputerAction).toHaveBeenCalledTimes(1);
   });
 
-  it("never presses a key on the first call — always returns a pending approval", async () => {
+  it("never presses a key when the user clicks Deny", async () => {
+    answerApprovals({ approved: false });
+
     const result = (await computerTool.invoke(
       { context: { conversationId: "conv-key-gate" } } as any,
       JSON.stringify({ action: "key", text: "Enter" }),
     )) as any;
 
-    expect(result.status).toBe("needs_approval");
+    expect(result).toMatchObject({ status: "denied", reason: "user_denied" });
     expect(mockExecuteComputerAction).not.toHaveBeenCalled();
-  });
-
-  it("second type call on the same origin runs immediately — no re-approval", async () => {
-    const conversationId = "conv-type-2";
-    const pending = (await computerTool.invoke(
-      { context: { conversationId } } as any,
-      JSON.stringify({ action: "type", text: "first" }),
-    )) as any;
-    await confirmRiskyAction(conversationId, pending.approvalId, true);
-
-    const result = (await computerTool.invoke(
-      { context: { conversationId } } as any,
-      JSON.stringify({ action: "type", text: "second" }),
-    )) as any;
-
-    expect(result).toEqual({ success: true });
-    expect(mockExecuteComputerAction).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -28,6 +28,7 @@ import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
 import { InputModeProvider } from "../state/input-mode-context";
 import { InterventionModeProvider } from "../state/intervention-mode-context";
+import { ApprovalPrompt } from "./approval-prompt";
 import { AutomationModeInputToolbar } from "./automation-mode-toolbar";
 import { BrowserChatHeader } from "./browser-chat-header";
 import { BrowserChatInputArea } from "./browser-chat-input-area";
@@ -241,6 +242,7 @@ function ChatApp() {
             inputToolbar: (props) => <AutomationModeInputToolbar {...props} />,
             promptExtras: () => (
               <>
+                <ApprovalPrompt />
                 <InvestigationSummaryBar />
                 <DomHealthCard />
                 <BrowserContextLoader />

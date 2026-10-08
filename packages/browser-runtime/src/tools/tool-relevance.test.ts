@@ -21,14 +21,16 @@ function names(tools: { name: string }[]): string[] {
 }
 
 describe("selectRelevantTools", () => {
-  it("returns only the always-on approval tool for casual chat — never a completely empty set", () => {
-    // A short reply like "ok" is exactly how a user answers a pending
-    // risky-action approval from a prior turn, so confirm_risky_action must
-    // stay callable even here — see tool-relevance.ts's approval handling.
+  it("never offers the model a tool that can approve a risky action", () => {
+    for (const tool of allBrowserTools) {
+      expect(tool.name).not.toBe("confirm_risky_action");
+      expect(JSON.stringify(tool)).not.toMatch(/userConfirmed|approvalId/);
+    }
+  });
+
+  it("returns no tools for casual chat", () => {
     for (const message of ["hi", "thanks!", "hello", "ok"]) {
-      expect(names(selectRelevantTools(message))).toEqual([
-        "confirm_risky_action",
-      ]);
+      expect(selectRelevantTools(message)).toEqual([]);
     }
   });
 

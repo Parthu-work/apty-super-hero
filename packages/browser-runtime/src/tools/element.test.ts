@@ -48,7 +48,8 @@ let storageStore: Record<string, unknown> = {};
   },
 };
 
-import { confirmRiskyAction, resetApprovalStateForTests } from "./approval";
+import { resetApprovalStateForTests } from "./approval";
+import { answerApprovals } from "./approval-test-utils";
 import { fillElementByUidTool, fillFormTool } from "./element";
 
 const TAB_ID = 7;
@@ -67,108 +68,112 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Invoke a gated tool, confirm the resulting pending approval, and return the EXECUTED result. */
-async function invokeAndApprove(
+function invoke(
   tool: { invoke: (ctx: unknown, args: string) => Promise<unknown> },
-  conversationId: string,
   args: unknown,
 ): Promise<any> {
-  const runContext = { context: { conversationId, tabId: TAB_ID } };
-  const pending = (await tool.invoke(runContext, JSON.stringify(args))) as any;
-  expect(pending.status).toBe("needs_approval");
-  expect(pending.approvalId).toBeTruthy();
-  const confirmed = await confirmRiskyAction(
-    conversationId,
-    pending.approvalId,
-    true,
-  );
-  expect(confirmed.found).toBe(true);
-  expect(confirmed.executed).toBe(true);
-  return confirmed.result;
+  const runContext = { context: { conversationId: "conv-1", tabId: TAB_ID } };
+  return tool.invoke(runContext, JSON.stringify(args));
 }
 
 describe("fillElementByUidTool", () => {
-  it("never fills on the first call — always returns a pending approval", async () => {
-    const runContext = {
-      context: { conversationId: "conv-fill-gate", tabId: TAB_ID },
-    };
-    const result = (await fillElementByUidTool.invoke(
-      runContext as any,
-      JSON.stringify({ tabId: TAB_ID, uid: "n1", value: "hello" }),
-    )) as any;
-
-    expect(result.status).toBe("needs_approval");
-    expect(mockFill).not.toHaveBeenCalled();
-  });
-
-  it("fills the element once approved", async () => {
-    const result = await invokeAndApprove(fillElementByUidTool, "conv-fill-1", {
+  it("is denied without filling when no approval UI can show the request", async () => {
+    const result = await invoke(fillElementByUidTool, {
       tabId: TAB_ID,
       uid: "n1",
       value: "hello",
     });
 
+    expect(result).toMatchObject({
+      status: "denied",
+      reason: "no_approval_ui",
+    });
+    expect(mockFill).not.toHaveBeenCalled();
+  });
+
+  it("fills only after the user clicks Allow", async () => {
+    const { requests } = answerApprovals({ approved: true });
+
+    const result = await invoke(fillElementByUidTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      value: "hello",
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      toolName: "fill_element_by_uid",
+      origin: "https://example.com",
+    });
     expect(result).toMatchObject({ success: true });
     expect(mockFill).toHaveBeenCalledWith("hello");
   });
 
-  it("denying never fills", async () => {
-    const runContext = {
-      context: { conversationId: "conv-fill-deny", tabId: TAB_ID },
-    };
-    const pending = (await fillElementByUidTool.invoke(
-      runContext as any,
-      JSON.stringify({ tabId: TAB_ID, uid: "n1", value: "hello" }),
-    )) as any;
+  it("never fills when the user clicks Deny", async () => {
+    answerApprovals({ approved: false });
 
-    const confirmed = await confirmRiskyAction(
-      "conv-fill-deny",
-      pending.approvalId,
-      false,
-    );
-    expect(confirmed.denied).toBe(true);
+    const result = await invoke(fillElementByUidTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      value: "hello",
+    });
+
+    expect(result).toMatchObject({ status: "denied", reason: "user_denied" });
     expect(mockFill).not.toHaveBeenCalled();
   });
 
-  it("second call on the same origin runs immediately — no re-approval", async () => {
-    await invokeAndApprove(fillElementByUidTool, "conv-fill-2", {
+  it("asks again on the next call unless the user chose to remember", async () => {
+    const { requests } = answerApprovals({ approved: true });
+
+    await invoke(fillElementByUidTool, {
       tabId: TAB_ID,
       uid: "n1",
-      value: "first",
+      value: "a",
+    });
+    await invoke(fillElementByUidTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      value: "b",
     });
 
-    const runContext = {
-      context: { conversationId: "conv-fill-2", tabId: TAB_ID },
-    };
-    const result = (await fillElementByUidTool.invoke(
-      runContext as any,
-      JSON.stringify({ tabId: TAB_ID, uid: "n1", value: "second" }),
-    )) as any;
+    expect(requests).toHaveLength(2);
+  });
 
+  it("skips the prompt on the same origin after a remembered approval", async () => {
+    const { requests } = answerApprovals({ approved: true, remember: true });
+
+    await invoke(fillElementByUidTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      value: "a",
+    });
+    const result = await invoke(fillElementByUidTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      value: "b",
+    });
+
+    expect(requests).toHaveLength(1);
     expect(result).toMatchObject({ success: true });
-    expect(mockFill).toHaveBeenLastCalledWith("second");
+    expect(mockFill).toHaveBeenLastCalledWith("b");
   });
 });
 
 describe("fillFormTool", () => {
-  it("never fills on the first call — always returns a pending approval", async () => {
-    const runContext = {
-      context: { conversationId: "conv-form-gate", tabId: TAB_ID },
-    };
-    const result = (await fillFormTool.invoke(
-      runContext as any,
-      JSON.stringify({
-        tabId: TAB_ID,
-        elements: [{ uid: "n1", value: "a" }],
-      }),
-    )) as any;
+  it("never fills without a decision", async () => {
+    const result = await invoke(fillFormTool, {
+      tabId: TAB_ID,
+      elements: [{ uid: "n1", value: "a" }],
+    });
 
-    expect(result.status).toBe("needs_approval");
+    expect(result.status).toBe("denied");
     expect(mockFill).not.toHaveBeenCalled();
   });
 
   it("fills all elements once approved", async () => {
-    const result = await invokeAndApprove(fillFormTool, "conv-form-1", {
+    answerApprovals({ approved: true });
+
+    const result = await invoke(fillFormTool, {
       tabId: TAB_ID,
       elements: [
         { uid: "n1", value: "a" },
@@ -178,5 +183,24 @@ describe("fillFormTool", () => {
 
     expect(result).toMatchObject({ success: true, successCount: 2 });
     expect(mockFill).toHaveBeenCalledTimes(2);
+  });
+
+  it("a remembered fill_element_by_uid grant does not cover fill_form", async () => {
+    const { requests } = answerApprovals({ approved: true, remember: true });
+
+    await invoke(fillElementByUidTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      value: "a",
+    });
+    await invoke(fillFormTool, {
+      tabId: TAB_ID,
+      elements: [{ uid: "n1", value: "b" }],
+    });
+
+    expect(requests.map((r) => r.toolName)).toEqual([
+      "fill_element_by_uid",
+      "fill_form",
+    ]);
   });
 });
