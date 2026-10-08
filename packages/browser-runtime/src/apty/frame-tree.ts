@@ -146,13 +146,78 @@ export interface FrameMessageResult<T> {
   error?: string;
 }
 
+/** Substring identifying the frame responder content script in the built manifest. */
+export const FRAME_RESPONDER_SCRIPT_MARKER = "frame-responder";
+
+const NO_RECEIVER_PATTERN =
+  /receiving end does not exist|could not establish connection/i;
+
+function frameResponderFiles(): string[] {
+  const scripts = chrome.runtime.getManifest?.().content_scripts ?? [];
+  for (const script of scripts) {
+    const file = script.js?.find((js) =>
+      js.includes(FRAME_RESPONDER_SCRIPT_MARKER),
+    );
+    if (file) return [file];
+  }
+  return [];
+}
+
+/**
+ * Inject the frame responder into one frame. Covers frames whose declared
+ * content script never ran or belongs to a previous extension instance
+ * (tabs opened before an extension reload or update).
+ */
+export async function injectFrameResponder(
+  tabId: number,
+  frameId: number,
+): Promise<boolean> {
+  const files = frameResponderFiles();
+  if (files.length === 0 || !chrome.scripting?.executeScript) return false;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frameId] },
+      files,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Send a message to exactly one frame, by `frameId` — never a broadcast.
  * Resolves rather than rejects on any failure (timeout, unreachable frame,
  * `chrome.runtime.lastError`) so callers can build an explicit
- * accessibility picture instead of an unhandled rejection.
+ * accessibility picture instead of an unhandled rejection. When the frame
+ * has no live receiver, the responder is injected and the message retried
+ * once.
  */
-export function sendFrameMessage<T>(
+export async function sendFrameMessage<T>(
+  tabId: number,
+  frameId: number,
+  message: Record<string, unknown>,
+  timeoutMs = 8000,
+): Promise<FrameMessageResult<T>> {
+  const first = await sendFrameMessageOnce<T>(
+    tabId,
+    frameId,
+    message,
+    timeoutMs,
+  );
+  if (first.success || !NO_RECEIVER_PATTERN.test(first.error ?? "")) {
+    return first;
+  }
+  if (!(await injectFrameResponder(tabId, frameId))) {
+    return {
+      ...first,
+      error: `${first.error} The frame responder could not be injected into this frame.`,
+    };
+  }
+  return sendFrameMessageOnce<T>(tabId, frameId, message, timeoutMs);
+}
+
+function sendFrameMessageOnce<T>(
   tabId: number,
   frameId: number,
   message: Record<string, unknown>,

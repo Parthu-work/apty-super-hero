@@ -1,12 +1,3 @@
-import {
-  collectDiscoverableLinks,
-  collectDomHealthSnapshot,
-  collectDomSnapshot,
-  collectSafeNavigationCandidates,
-  computeFrameStateSignature,
-  isSafeNavigationCandidate,
-  replayElementPathSamples,
-} from "@apty/dom-snapshot";
 import { FakeMouse } from "@apty/ui/components/fake-mouse";
 import type { FakeMouseController } from "@apty/ui/components/fake-mouse/types";
 import type { OmniCommandGroup } from "@apty/ui/components/omni";
@@ -20,85 +11,6 @@ import tailwindCss from "../../styles/tailwind.css?inline";
 interface CaptureState {
   isCapturing: boolean;
   highlightedElement: Element | null;
-}
-
-/**
- * SPA navigation-model detection (spec section 24) — installed once, at
- * module scope, when this content script loads (which happens fresh on
- * every real page navigation, per the manifest). `history` is a shared
- * platform object between the isolated content-script world and the
- * page's own main-world script, so patching it here also observes the
- * page's own `pushState`/`replaceState`/`popstate`/`hashchange` calls.
- * This count is real discovery evidence, not diagnostic-only telemetry:
- * `application-audit.ts` uses a nonzero delta across a click as
- * confirmation that a client-side route change happened even when the
- * structural state fingerprint alone didn't change — it is still never
- * used to decide safety, and never affects the DOM Health score itself.
- */
-let historyApiCallCount = 0;
-if (
-  typeof history !== "undefined" &&
-  !(history as any).__aptyDomHealthPatched
-) {
-  (history as any).__aptyDomHealthPatched = true;
-  const originalPushState = history.pushState.bind(history);
-  const originalReplaceState = history.replaceState.bind(history);
-  history.pushState = function patchedPushState(...args) {
-    historyApiCallCount++;
-    return originalPushState(...args);
-  };
-  history.replaceState = function patchedReplaceState(...args) {
-    historyApiCallCount++;
-    return originalReplaceState(...args);
-  };
-  window.addEventListener("popstate", () => {
-    historyApiCallCount++;
-  });
-  window.addEventListener("hashchange", () => {
-    historyApiCallCount++;
-  });
-}
-
-/**
- * DOM-stabilization signal for the application-wide audit (spec section 5)
- * — reports once the DOM has been quiet for `quietMs`, or `timeoutMs` has
- * elapsed, whichever comes first. A MutationObserver-based quiet period,
- * never a fixed sleep, so a debounced re-render gets real time to settle.
- */
-function waitForDomToStabilize(
-  quietMs: number,
-  timeoutMs: number,
-): Promise<{ settled: boolean; elapsedMs: number }> {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    let resolved = false;
-    let quietTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const finish = (settled: boolean) => {
-      if (resolved) return;
-      resolved = true;
-      observer.disconnect();
-      if (quietTimer) clearTimeout(quietTimer);
-      resolve({ settled, elapsedMs: Date.now() - start });
-    };
-
-    const observer = new MutationObserver(() => {
-      if (quietTimer) clearTimeout(quietTimer);
-      quietTimer = setTimeout(() => finish(true), quietMs);
-    });
-
-    const target = document.body ?? document.documentElement;
-    if (target) {
-      observer.observe(target, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-      });
-    }
-    // Starts the quiet-period clock immediately in case nothing mutates again.
-    quietTimer = setTimeout(() => finish(true), quietMs);
-    setTimeout(() => finish(false), timeoutMs);
-  });
 }
 
 const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
@@ -397,188 +309,6 @@ const ContentApp = () => {
           });
         }
         return true;
-      } else if (
-        message.type === "aipex:collect-dom-snapshot" ||
-        message.request === "collect-dom-snapshot"
-      ) {
-        // DOM snapshot collection for background mode
-        (async () => {
-          try {
-            console.log("📸 Content script collecting DOM snapshot");
-            const snapshot = collectDomSnapshot(document, message.options);
-            sendResponse({ success: true, data: snapshot });
-          } catch (error) {
-            console.error("❌ Failed to collect DOM snapshot:", error);
-            sendResponse({
-              success: false,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Failed to collect DOM snapshot",
-            });
-          }
-        })();
-        return true; // Keep channel open for async response
-      } else if (message.request === "dom-health-ping") {
-        // Cheap reachability probe (see @apty/browser-runtime's
-        // frame-tree.ts) — lets the orchestrator build honest frame
-        // accessibility evidence without paying for a full snapshot.
-        sendResponse({ success: true, data: { pong: true } });
-        return true;
-      } else if (message.request === "collect-dom-health-frame-bundle") {
-        // Apty DOM Health audit, ONE frame's worth — separate from the
-        // accessibility-tree snapshot above; see @apty/dom-snapshot's
-        // health-collector. This handler never reaches into a child
-        // iframe/frame's document; @apty/browser-runtime's frame-audit.ts
-        // messages every real frame in the tab directly, by frameId, and
-        // combines the results — see that module for why.
-        // `sequenceIndex === 0` starts a fresh audit (resets the collector's
-        // cross-snapshot element registry); later snapshots in the same
-        // audit continue it so selector stability is tracked correctly.
-        // The collector is async (it yields between batches on large
-        // pages), so this responds asynchronously like the branch above.
-        (async () => {
-          try {
-            const snapshot = await collectDomHealthSnapshot(document, {
-              freshAudit: (message.sequenceIndex ?? 0) === 0,
-              maxInteractiveElements:
-                typeof message.maxInteractiveElements === "number"
-                  ? message.maxInteractiveElements
-                  : undefined,
-              // The content script cannot determine its own frameId/depth
-              // (chrome.webNavigation isn't available here) — the caller
-              // already knows it from the real frame tree and hands it
-              // down rather than asking this script to guess.
-              frameContext: message.frameContext ?? null,
-            });
-            const stateSignature = computeFrameStateSignature(document);
-            sendResponse({ success: true, data: { snapshot, stateSignature } });
-          } catch (error) {
-            sendResponse({
-              success: false,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Failed to collect a DOM Health frame bundle",
-            });
-          }
-        })();
-        return true;
-      } else if (message.request === "collect-dom-health-links") {
-        // Safe same-origin page discovery for the application-wide audit —
-        // see @apty/dom-snapshot's health-links. Only ever reads
-        // existing <a href> elements; never simulates a click.
-        try {
-          const links = collectDiscoverableLinks(document);
-          sendResponse({ success: true, data: links });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to collect discoverable links",
-          });
-        }
-        return true;
-      } else if (
-        message.request === "collect-dom-health-safe-navigation-candidates"
-      ) {
-        // Read-only detection of non-anchor navigation controls (menu
-        // items, tabs, tree nodes) — see @apty/dom-snapshot's
-        // health-links. Finding a candidate never clicks it; only
-        // "click-safe-navigation-candidate" below can do that, and only
-        // when the application-audit orchestrator was explicitly told to
-        // allow it.
-        try {
-          const candidates = collectSafeNavigationCandidates(document);
-          sendResponse({ success: true, data: candidates });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to collect safe navigation candidates",
-          });
-        }
-        return true;
-      } else if (message.request === "click-safe-navigation-candidate") {
-        // The ONLY handler anywhere in DOM Health that can cause a real
-        // click. Re-verifies the candidate is still safe (same allowlisted
-        // container, non-destructive, outside any <form>) immediately
-        // before clicking — defense in depth, never trusting the
-        // orchestrator's earlier read-only detection pass alone.
-        try {
-          const domPath =
-            typeof message.domPath === "string" ? message.domPath : "";
-          const target = domPath ? document.querySelector(domPath) : null;
-          const stillSafe =
-            target &&
-            collectSafeNavigationCandidates(document).some(
-              (c) => c.domPath === domPath && isSafeNavigationCandidate(c),
-            );
-          if (!target || !stillSafe) {
-            sendResponse({
-              success: true,
-              data: {
-                clicked: false,
-                reason:
-                  "This control could no longer be found, or no longer verifies as a safe navigation candidate.",
-              },
-            });
-            return;
-          }
-          (target as HTMLElement).click();
-          sendResponse({ success: true, data: { clicked: true } });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to click this navigation candidate",
-          });
-        }
-        return true;
-      } else if (message.request === "wait-for-dom-stable") {
-        const quietMs =
-          typeof message.quietMs === "number" ? message.quietMs : 400;
-        const timeoutMs =
-          typeof message.timeoutMs === "number" ? message.timeoutMs : 8000;
-        waitForDomToStabilize(quietMs, timeoutMs).then((data) => {
-          sendResponse({ success: true, data });
-        });
-        return true;
-      } else if (message.request === "get-dom-health-navigation-model") {
-        sendResponse({
-          success: true,
-          data: {
-            usesHistoryApiRouting: historyApiCallCount > 0,
-            historyApiCallCount,
-          },
-        });
-        return true;
-      } else if (message.request === "replay-dom-health-element-paths") {
-        // Cross-APPLICATION-STATE selector validation (spec section 7):
-        // replay paths CAPTURED at some OTHER discovered state against
-        // THIS frame's current live DOM via the real, unmodified DES
-        // recovery pipeline — never regenerate a fresh path here and
-        // compare it to the old one.
-        try {
-          const samples = Array.isArray(message.samples) ? message.samples : [];
-          const results = replayElementPathSamples(document, samples);
-          sendResponse({ success: true, data: results });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to replay stored element paths",
-          });
-        }
-        return true;
       }
 
       return false;
@@ -707,11 +437,13 @@ function BorderOverlayApp() {
   );
 }
 
-// Wait for DOM to be ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initContentScript);
-} else {
-  initContentScript();
+// The UI belongs to the top frame only; frame-responder.ts serves every frame.
+if (window === window.top) {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initContentScript);
+  } else {
+    initContentScript();
+  }
 }
 
 function initContentScript() {
