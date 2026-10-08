@@ -1412,7 +1412,7 @@ Added `optional-permissions.test.ts` (6 tests) and
 `@testing-library/user-event` — the latter isn't a dependency anywhere
 in this repo, and wasn't worth adding for one test file).
 
-## v7 WP4 dead-code cleanup: a live undisclosed third-party fetch, an unreachable external-message handler, and a mis-scoped "aipex-* identifiers" item
+## v7 WP4 dead-code cleanup: a live undisclosed third-party fetch, an unreachable external-message handler, and an incorrectly-scoped "aipex-* identifiers" item
 
 Three small items, one of which turned out to matter more than its
 "cleanup" framing suggested:

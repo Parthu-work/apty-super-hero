@@ -8,3 +8,13 @@ extend-exclude = ["README*.md", "**/bundled-modules/**", "apps/mcp-bridge/**"]
 # "Infor" is the ERP vendor name (Infor LN) referenced in the DOM Health
 # forensic audit — not a typo of "Info"/"Inform".
 Infor = "Infor"
+# `singularize()`'s own doc comment (extension-network-inspector.ts)
+# deliberately shows the WRONG, mangled output a naive trailing-"s" strip
+# would produce from "status"/"address" — these are intentionally not real
+# words, not typos to correct.
+statu = "statu"
+addres = "addres"
+# wp1-acceptance.test.ts deliberately queries this exact misspelling to
+# test the "suggest the closest observed name" fuzzy-match path — the
+# comment right next to it already says "// typo".
+segmetn = "segmetn"
