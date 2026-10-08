@@ -336,6 +336,39 @@ some element, but not the right one — always a failure, never folded into
 the pre-existing `NEW`/`UNKNOWN` for elements with no prior-state evidence
 yet.
 
+### Shadow DOM: `ElementRef` (`element-ref.ts`)
+
+An `ElementPath` records no root, and `buildElementPath` stops at a shadow
+boundary. A shadow element's path is therefore only valid inside its own
+shadow root. The frame responder used to replay every sample against
+`document` (defect D-1), which cannot find any of them. In the Infor LN
+export, 68 of the 74 interactive elements sit inside shadow roots.
+
+Samples now carry an `ElementRef`:
+
+- `hostChain`: one full `ElementPath` per shadow host, document first, each
+  resolved in its parent root through the normal `findElement` recovery;
+- `path`: the element itself, inside the innermost root;
+- `frameKey`;
+- a version marker.
+
+`replayElementRefs` walks the host chain, entering each root through
+`shadowRootOf` (closed roots included), and verifies the element in the
+innermost root. A chain that breaks reports `HOST_NOT_RESOLVED` with the hop
+index and that host's selector. The application report counts these
+(`crossStateEvidence.hostChainBroken`) and lists a few examples. A sample in
+the pre-`ElementRef` shape (a bare `path`) is migrated to a document-rooted
+ref and counted as `legacySamples`.
+
+Each element is also graded across its hosts (`resolveInComposedTree`).
+The outcome is the weakest of the element's own hop and each host's. So a
+control that is unique only inside a one-element shadow root, behind a host
+that can be found only by position, is reported `POSITIONAL_ONLY`, not
+`DIRECT_SUCCESS`. Its `bestSelector` is the hops joined with ` >>> `, which
+is diagnostic text, not one CSS selector. The cross-snapshot fingerprint
+(`computeComposedFingerprint`) includes the hosts too, so identical
+controls in sibling shadow roots no longer collide as `AMBIGUOUS`.
+
 ## Known limitations (honest, not hidden)
 
 - **Restoration always resets to the seed URL for any click-involving

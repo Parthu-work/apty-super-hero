@@ -17,7 +17,7 @@ import {
   composedText,
   computeFrameStateSignature,
   isSafeNavigationCandidate,
-  replayElementPathSamples,
+  replayElementRefs,
   shadowRootOf,
 } from "@apty/dom-snapshot";
 import { startCapture, stopCapture } from "./element-capture";
@@ -453,7 +453,7 @@ export function handleFrameMessage(
         sendResponse,
         "Failed to replay stored element paths",
         () =>
-          replayElementPathSamples(
+          replayElementRefs(
             document,
             Array.isArray(message.samples) ? message.samples : [],
           ),

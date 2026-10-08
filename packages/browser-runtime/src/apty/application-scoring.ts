@@ -171,7 +171,18 @@ export interface CrossStateSelectorEvidence {
   recoveredStable: number;
   positionalStable: number;
   wrongTarget: number;
+  /** Includes `hostChainBroken`. */
   notResolved: number;
+  /** Replays that failed at a shadow host before reaching the element. */
+  hostChainBroken: number;
+  /** A few of those, with the frame, the hop index and that host's own selector. */
+  hostChainBreaks: Array<{
+    frameId: number;
+    hop: number;
+    hostSelector: string;
+  }>;
+  /** Samples in the pre-`ElementRef` shape, replayed against the document only. Always 0 for samples this version captured. */
+  legacySamples: number;
   /** How many OTHER states (beyond the seed itself) had at least one replay attempted against them. */
   statesTested: number;
 }
@@ -183,6 +194,9 @@ export const EMPTY_CROSS_STATE_SELECTOR_EVIDENCE: CrossStateSelectorEvidence = {
   positionalStable: 0,
   wrongTarget: 0,
   notResolved: 0,
+  hostChainBroken: 0,
+  hostChainBreaks: [],
+  legacySamples: 0,
   statesTested: 0,
 };
 

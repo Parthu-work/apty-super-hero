@@ -56,10 +56,11 @@
 import { type ElementPath, resetDesPerformanceCaches } from "./des-engine.js";
 import { hitTestElement } from "./health-hit-test.js";
 import {
-  computeElementFingerprint,
+  computeComposedFingerprint,
+  type ElementResolution,
   extractElementAttributes,
   hasAccessibleName,
-  resolveElement,
+  resolveInComposedTree,
   verifyStoredElementPath,
 } from "./health-selector-engine.js";
 import type {
@@ -451,12 +452,14 @@ function analyzeInteractiveElement(
   previousRegistry: Map<string, RegistryEntry>,
   currentRegistry: Map<string, RegistryEntry>,
   duplicateFingerprintsThisSnapshot: Set<string>,
+  hostCache: Map<Element, ElementResolution>,
+  frameKey: string,
 ): void {
   const attributes = extractElementAttributes(el);
-  const resolution = resolveElement(root, el);
+  const resolution = resolveInComposedTree(el, {}, hostCache, frameKey);
   const hitTest = hitTestElement(el);
   const accessibleName = hasAccessibleName(el);
-  const fingerprint = computeElementFingerprint(el);
+  const fingerprint = computeComposedFingerprint(el);
   const fingerprintIsAmbiguous =
     duplicateFingerprintsThisSnapshot.has(fingerprint);
 
@@ -514,6 +517,7 @@ function analyzeInteractiveElement(
           state.stability.wrongTarget++;
           break;
         case "NOT_RESOLVED":
+        case "HOST_NOT_RESOLVED":
           stability = "NOT_RESOLVED";
           state.stability.notResolved++;
           break;
@@ -628,6 +632,7 @@ function analyzeInteractiveElement(
     outcome: resolution.outcome,
     strategy: resolution.strategy,
     bestSelector: resolution.bestSelector,
+    shadowDepth: resolution.shadowDepth,
     matchCount: resolution.matchCount,
     ancestorDepthUsed: resolution.ancestorDepthUsed,
     usesPositionalSelector: resolution.usesPositionalSelector,
@@ -646,7 +651,7 @@ function analyzeInteractiveElement(
   // colliding or nonexistent anchor is useless as a later identity check.
   if (
     !fingerprintIsAmbiguous &&
-    resolution.elementPath &&
+    resolution.elementRef &&
     resolution.outcome !== "AMBIGUOUS" &&
     resolution.outcome !== "WRONG_TARGET" &&
     resolution.outcome !== "NOT_RESOLVED" &&
@@ -655,7 +660,7 @@ function analyzeInteractiveElement(
   ) {
     state.elementPathSamples.push({
       fingerprint,
-      path: resolution.elementPath,
+      ref: resolution.elementRef,
       tagName: el.tagName.toLowerCase(),
       selector: resolution.bestSelector,
       outcome: resolution.outcome,
@@ -808,7 +813,7 @@ export async function collectDomHealthSnapshot(
   // by whichever one happens to be analyzed first.
   const fingerprintCounts = new Map<string, number>();
   for (const { el } of candidatesToAnalyze) {
-    const fingerprint = computeElementFingerprint(el);
+    const fingerprint = computeComposedFingerprint(el);
     fingerprintCounts.set(
       fingerprint,
       (fingerprintCounts.get(fingerprint) ?? 0) + 1,
@@ -820,6 +825,8 @@ export async function collectDomHealthSnapshot(
       .map(([fingerprint]) => fingerprint),
   );
 
+  const hostCache = new Map<Element, ElementResolution>();
+  const frameKey = options.frameContext?.frameKey ?? "";
   for (let i = 0; i < candidatesToAnalyze.length; i += BATCH_SIZE) {
     const batch = candidatesToAnalyze.slice(i, i + BATCH_SIZE);
     for (const { el, root } of batch) {
@@ -831,6 +838,8 @@ export async function collectDomHealthSnapshot(
         previousRegistry,
         currentRegistry,
         duplicateFingerprintsThisSnapshot,
+        hostCache,
+        frameKey,
       );
     }
     if (i + BATCH_SIZE < candidatesToAnalyze.length) {

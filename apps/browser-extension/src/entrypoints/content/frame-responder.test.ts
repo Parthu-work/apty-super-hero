@@ -8,6 +8,7 @@ vi.hoisted(() => {
   };
 });
 
+import { collectDomHealthSnapshot } from "@apty/dom-snapshot";
 import {
   collectShadowRoots,
   handleFrameMessage,
@@ -245,6 +246,39 @@ describe("routing evidence and the route probe", () => {
       sendMessage.mockClear();
       noteProbeClick(document.body, 10);
       expect(sendMessage).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("cross-state replay", () => {
+  function renderTwoRootsDeep() {
+    document.body.innerHTML = '<x-shell id="shell"></x-shell>';
+    const outer = document
+      .getElementById("shell")!
+      .attachShadow({ mode: "open" });
+    outer.innerHTML = '<x-panel data-panel="orders"></x-panel>';
+    outer.querySelector("x-panel")!.attachShadow({ mode: "open" }).innerHTML =
+      '<button data-action="approve">Approve</button>';
+  }
+
+  it("replays a sample captured two shadow roots deep through its own hosts, not against the document (D-1)", async () => {
+    renderTwoRootsDeep();
+    const snapshot = await collectDomHealthSnapshot(document, {
+      freshAudit: true,
+    });
+    const sample = snapshot.elementPathSamples.find(
+      (s) => s.tagName === "button",
+    )!;
+
+    renderTwoRootsDeep();
+    const response = await ask({
+      request: "replay-dom-health-element-paths",
+      samples: [sample],
+    });
+
+    expect(response).toEqual({
+      success: true,
+      data: [{ fingerprint: sample.fingerprint, verdict: "DIRECT_STABLE" }],
     });
   });
 });

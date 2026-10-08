@@ -23,7 +23,7 @@
 import type {
   CrossStateVerdict,
   DiscoverableLink,
-  ElementPath,
+  ElementRef,
   SafeNavigationCandidate,
 } from "@apty/dom-snapshot";
 import { getFrameTree, sendFrameMessage } from "./frame-tree.js";
@@ -255,12 +255,15 @@ export async function getNavigationModel(
 
 export interface ElementPathReplaySample {
   fingerprint: string;
-  path: ElementPath;
+  ref: ElementRef;
 }
 
 export interface ElementPathReplayResponseItem {
   fingerprint: string;
   verdict: CrossStateVerdict;
+  brokenAtHop?: number;
+  hostSelector?: string;
+  legacy?: boolean;
 }
 
 /**
@@ -269,8 +272,9 @@ export interface ElementPathReplayResponseItem {
  * validation primitive (spec section 7: "can the selector/config captured
  * in one application state still resolve correctly when the application
  * changes state"). Delegates entirely to `@apty/dom-snapshot`'s
- * `replayElementPathSamples`/`verifyStoredElementPath` inside the content
- * script — never regenerates a fresh path from the current DOM and
+ * `replayElementRefs` inside the content script, which resolves each
+ * sample from the top of the frame's document through its shadow hosts
+ * — never regenerates a fresh path from the current DOM and
  * compares it to the old one. A frame that doesn't respond (or has none of
  * the requested samples reachable) contributes nothing rather than a
  * fabricated verdict.

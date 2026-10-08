@@ -10,6 +10,19 @@ export {
 } from "./composed-tree.js";
 export type { ElementPath } from "./des-engine.js";
 export {
+  buildElementRef,
+  describeElementRef,
+  ELEMENT_REF_VERSION,
+  type ElementRef,
+  type ElementRefHop,
+  type ElementRefResolution,
+  resolveElementRef,
+  resolveHostChain,
+  SHADOW_BOUNDARY,
+  shadowHostChain,
+  toElementRef,
+} from "./element-ref.js";
+export {
   AUDIT_DES_CONFIG,
   AUDIT_PROFILE_NAME,
   isUnstableAttributeName,
@@ -46,16 +59,19 @@ export {
   type RouteProbeFrameSignals,
 } from "./health-route-probe.js";
 export {
+  type ComposedElementResolution,
   type CrossStateVerdict,
   type CrossStateVerification,
+  computeComposedFingerprint,
   computeElementFingerprint,
   type ElementPathReplayResult,
   type ElementResolution,
   extractElementAttributes,
   hasAccessibleName,
   type ResolveElementOptions,
-  replayElementPathSamples,
+  replayElementRefs,
   resolveElement,
+  resolveInComposedTree,
   testSelector,
   verifyStoredElementPath,
 } from "./health-selector-engine.js";

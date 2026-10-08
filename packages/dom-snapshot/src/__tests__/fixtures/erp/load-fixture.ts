@@ -16,9 +16,13 @@ export function readErpFixture(name: ErpFixtureName): string {
  * Attach every `<template shadowrootmode>` under `root` the way a browser's
  * parser would: the template's content becomes the parent's shadow root,
  * then nested declarative roots inside it are attached in turn. Returns the
- * number of roots attached.
+ * number of roots attached; closed ones are also recorded in `closedRoots`,
+ * standing in for `chrome.dom.openOrClosedShadowRoot` in tests.
  */
-export function attachDeclarativeShadowRoots(root: ParentNode): number {
+export function attachDeclarativeShadowRoots(
+  root: ParentNode,
+  closedRoots?: Map<Element, ShadowRoot>,
+): number {
   let attached = 0;
   const templates = Array.from(
     root.querySelectorAll("template[shadowrootmode]"),
@@ -29,9 +33,10 @@ export function attachDeclarativeShadowRoots(root: ParentNode): number {
     const mode =
       template.getAttribute("shadowrootmode") === "closed" ? "closed" : "open";
     const shadow = host.attachShadow({ mode });
+    if (mode === "closed") closedRoots?.set(host, shadow);
     shadow.append(template.content);
     template.remove();
-    attached += 1 + attachDeclarativeShadowRoots(shadow);
+    attached += 1 + attachDeclarativeShadowRoots(shadow, closedRoots);
   }
   return attached;
 }
@@ -45,7 +50,7 @@ export function attachDeclarativeShadowRoots(root: ParentNode): number {
 export function loadErpFixture(
   name: ErpFixtureName,
   options: { doc?: Document; transform?: (html: string) => string } = {},
-): { shadowRootsAttached: number } {
+): { shadowRootsAttached: number; closedRoots: Map<Element, ShadowRoot> } {
   const doc = options.doc ?? document;
   const html = readErpFixture(name);
   const parsed = new DOMParser().parseFromString(
@@ -56,5 +61,9 @@ export function loadErpFixture(
     doc.importNode(parsed.documentElement, true),
     doc.documentElement,
   );
-  return { shadowRootsAttached: attachDeclarativeShadowRoots(doc) };
+  const closedRoots = new Map<Element, ShadowRoot>();
+  return {
+    shadowRootsAttached: attachDeclarativeShadowRoots(doc, closedRoots),
+    closedRoots,
+  };
 }

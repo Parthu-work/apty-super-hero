@@ -9,7 +9,7 @@
  * already exist here; it must never re-derive them from raw attribute
  * presence.
  */
-import type { ElementPath } from "./des-engine.js";
+import type { ElementRef } from "./element-ref.js";
 
 /** Attributes on an analyzed element — never includes input values. */
 export interface DomHealthElementAttributes {
@@ -139,8 +139,10 @@ export type SelectorStrategy =
  * later identity verification).
  */
 export interface ElementPathSample {
+  /** `computeComposedFingerprint`: the element and every shadow host above it. */
   fingerprint: string;
-  path: ElementPath;
+  /** Root-aware reference, replayed from the top of the document by `replayElementRefs`. */
+  ref: ElementRef;
   tagName: string;
   selector: string | null;
   outcome: SelectorResolutionOutcome;
@@ -222,8 +224,10 @@ export interface ElementSelectorReport {
   attributes: DomHealthElementAttributes;
   outcome: SelectorResolutionOutcome;
   strategy: SelectorStrategy;
-  /** The selector the engine would actually use, or null when nothing resolved. */
+  /** The selector the engine would actually use, or null when nothing resolved. For an element inside shadow roots, each hop's selector joined with ` >>> `: diagnostic text, not one CSS selector. */
   bestSelector: string | null;
+  /** How many shadow roots the element sits inside; its outcome is the weakest of its own and its hosts'. */
+  shadowDepth: number;
   /** Live match count for `bestSelector` (0 when nothing resolved, -1 when the selector itself was invalid). */
   matchCount: number;
   /** How many ancestor levels the contextual-recovery strategy had to climb (0 when not used). */
@@ -253,6 +257,8 @@ export interface DomHealthFrameIdentity {
   url: string;
   parentFrameId: number;
   depth: number;
+  /** Stable frame identity from the frame layer, stamped into every `ElementRef` captured in this frame. */
+  frameKey?: string;
 }
 
 export interface SelectorAnalysisAggregate {

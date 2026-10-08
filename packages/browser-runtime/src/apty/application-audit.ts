@@ -110,6 +110,9 @@ export interface ApplicationAuditLimits {
   maxSkipRows?: number;
 }
 
+/** How many host-chain breaks are kept, with their hop and host selector, as examples in the report. */
+const MAX_HOST_CHAIN_BREAK_SAMPLES = 5;
+
 const DEFAULT_LIMITS: Required<ApplicationAuditLimits> = {
   maxPages: 15,
   maxTotalAuditMs: 180_000,
@@ -390,6 +393,9 @@ export async function runApplicationDomHealthAudit(
     positionalStable: 0,
     wrongTarget: 0,
     notResolved: 0,
+    hostChainBroken: 0,
+    hostChainBreaks: [],
+    legacySamples: 0,
     statesTested: 0,
   };
 
@@ -399,7 +405,7 @@ export async function runApplicationDomHealthAudit(
     for (const sample of seedElementPathSamples) {
       const frameId = sample.frameId ?? 0;
       const list = byFrame.get(frameId) ?? [];
-      list.push({ fingerprint: sample.fingerprint, path: sample.path });
+      list.push({ fingerprint: sample.fingerprint, ref: sample.ref });
       byFrame.set(frameId, list);
     }
     let attemptedAny = false;
@@ -412,6 +418,7 @@ export async function runApplicationDomHealthAudit(
       for (const r of results) {
         attemptedAny = true;
         crossStateEvidence.attempted++;
+        if (r.legacy) crossStateEvidence.legacySamples++;
         switch (r.verdict) {
           case "DIRECT_STABLE":
             crossStateEvidence.directStable++;
@@ -427,6 +434,23 @@ export async function runApplicationDomHealthAudit(
             break;
           case "NOT_RESOLVED":
             crossStateEvidence.notResolved++;
+            break;
+          case "HOST_NOT_RESOLVED":
+            // A shadow host on the way down broke: as unresolved as a miss
+            // for the score, and kept separately so the report names the hop.
+            crossStateEvidence.notResolved++;
+            crossStateEvidence.hostChainBroken++;
+            if (
+              crossStateEvidence.hostChainBreaks.length <
+                MAX_HOST_CHAIN_BREAK_SAMPLES &&
+              r.hostSelector !== undefined
+            ) {
+              crossStateEvidence.hostChainBreaks.push({
+                frameId,
+                hop: r.brokenAtHop ?? 0,
+                hostSelector: r.hostSelector,
+              });
+            }
             break;
           case "AMBIGUOUS":
             // Consumes the denominator (a genuine, if inconclusive,

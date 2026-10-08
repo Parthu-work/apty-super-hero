@@ -930,7 +930,23 @@ export function DomHealthCard({
                       </span>
                       , and {appOutcome.crossStateEvidence.notResolved} resolved
                       to nothing.
+                      {(appOutcome.crossStateEvidence.hostChainBroken ?? 0) >
+                        0 &&
+                        ` ${appOutcome.crossStateEvidence.hostChainBroken} of those stopped at a shadow host before reaching the element.`}
                     </p>
+                    {(appOutcome.crossStateEvidence.hostChainBreaks ?? [])
+                      .length > 0 && (
+                      <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                        {appOutcome.crossStateEvidence.hostChainBreaks.map(
+                          (b) => (
+                            <li key={`${b.frameId}-${b.hop}-${b.hostSelector}`}>
+                              Frame {b.frameId}, host {b.hop + 1}:{" "}
+                              <code>{b.hostSelector}</code>
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    )}
                   </div>
                 )}
 

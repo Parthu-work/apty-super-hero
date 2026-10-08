@@ -27,6 +27,14 @@ import {
   pathToSelector,
 } from "./des-engine.js";
 import {
+  ELEMENT_REF_VERSION,
+  type ElementRef,
+  resolveHostChain,
+  SHADOW_BOUNDARY,
+  shadowHostChain,
+  toElementRef,
+} from "./element-ref.js";
+import {
   type DesConfig,
   isValueDynamic,
 } from "./health-attribute-classification.js";
@@ -60,6 +68,14 @@ export interface ElementResolution {
    * search).
    */
   elementPath: ElementPath | null;
+}
+
+/** An element resolved across its shadow hosts (`resolveInComposedTree`). */
+export interface ComposedElementResolution extends ElementResolution {
+  /** Root-aware reference for replay at another state; null when any hop was INACCESSIBLE. */
+  elementRef: ElementRef | null;
+  /** How many shadow roots the element sits inside (0 for the document's own tree). */
+  shadowDepth: number;
 }
 
 export interface ResolveElementOptions {
@@ -395,13 +411,115 @@ export function computeElementFingerprint(el: Element): string {
   ].join("||");
 }
 
+/**
+ * `computeElementFingerprint` for the element and every shadow host above
+ * it, outermost first. Identical controls in sibling shadow roots (each
+ * Infor IDS menu item renders its own `a[role="menuitemradio"]`) only
+ * differ in their hosts, so without them every such control collides and is
+ * reported AMBIGUOUS.
+ */
+export function computeComposedFingerprint(el: Element): string {
+  return [...shadowHostChain(el), el]
+    .map(computeElementFingerprint)
+    .join(SHADOW_BOUNDARY);
+}
+
+/** Worst first: a combined verdict is never better than its weakest hop. */
+const OUTCOME_SEVERITY: Record<SelectorResolutionOutcome, number> = {
+  DIRECT_SUCCESS: 0,
+  RECOVERED_BY_IGNORE: 1,
+  RECOVERED_BY_PARTIAL: 2,
+  RECOVERED_BY_CONTEXT: 3,
+  POSITIONAL_ONLY: 4,
+  AMBIGUOUS: 5,
+  WRONG_TARGET: 6,
+  NOT_RESOLVED: 7,
+  INACCESSIBLE: 8,
+};
+
+/**
+ * Resolve `el` the way it would have to be found from the top of its
+ * document: each shadow host in its own root, then the element in the
+ * innermost root. The outcome is the weakest hop's, so a control that is
+ * unique only inside a one-element shadow root (68 of 74 interactive
+ * elements in the Infor LN export sit in shadow roots) is not reported as a
+ * direct hit when its host can only be found by position. `bestSelector`
+ * joins the hops with ` >>> ` and is diagnostic text for shadow elements.
+ * `hostCache` memoizes host resolutions across the elements of one
+ * collection, since many controls share their hosts.
+ */
+export function resolveInComposedTree(
+  el: Element,
+  options: ResolveElementOptions = {},
+  hostCache: Map<Element, ElementResolution> = new Map(),
+  frameKey = "",
+): ComposedElementResolution {
+  const hosts = shadowHostChain(el);
+  const hostResolutions = hosts.map((host) => {
+    const cached = hostCache.get(host);
+    if (cached) return cached;
+    const resolution = resolveElement(
+      host.getRootNode() as ParentNode,
+      host,
+      options,
+    );
+    hostCache.set(host, resolution);
+    return resolution;
+  });
+  const own = resolveElement(el.getRootNode() as ParentNode, el, options);
+  if (hosts.length === 0) {
+    return {
+      ...own,
+      elementRef: own.elementPath
+        ? {
+            version: ELEMENT_REF_VERSION,
+            hostChain: [],
+            path: own.elementPath,
+            frameKey,
+          }
+        : null,
+      shadowDepth: 0,
+    };
+  }
+
+  const all = [...hostResolutions, own];
+  const weakest = all.reduce((worst, next) =>
+    OUTCOME_SEVERITY[next.outcome] > OUTCOME_SEVERITY[worst.outcome]
+      ? next
+      : worst,
+  );
+  const selectors = all.map((r) => r.bestSelector);
+  const paths = all.map((r) => r.elementPath);
+  return {
+    ...own,
+    outcome: weakest.outcome,
+    strategy: weakest.strategy,
+    winningAttribute: weakest === own ? own.winningAttribute : null,
+    usesPositionalSelector: all.some((r) => r.usesPositionalSelector),
+    bestSelector: selectors.every((sel) => sel !== null)
+      ? selectors.join(SHADOW_BOUNDARY)
+      : null,
+    elementRef: paths.every((path) => path !== null)
+      ? {
+          version: ELEMENT_REF_VERSION,
+          hostChain: paths.slice(0, -1) as ElementPath[],
+          path: paths[paths.length - 1] as ElementPath,
+          frameKey,
+        }
+      : null,
+    shadowDepth: hosts.length,
+  };
+}
+
 export type CrossStateVerdict =
   | "DIRECT_STABLE"
   | "RECOVERED_STABLE"
   | "POSITIONAL_STABLE"
   | "WRONG_TARGET"
   | "NOT_RESOLVED"
-  | "AMBIGUOUS";
+  | "AMBIGUOUS"
+  /** A shadow host on the way to the element could not be found (or no longer has a shadow root): reported with the hop and its selector. */
+  | "HOST_NOT_RESOLVED";
 
 export interface CrossStateVerification {
   verdict: CrossStateVerdict;
@@ -450,7 +568,7 @@ export function verifyStoredElementPath(
   const minimal = generateMinimalSelector(result.element, root, config);
   const selector = minimal?.selector ?? pathToSelector(storedPath);
 
-  if (computeElementFingerprint(result.element) !== expectedFingerprint) {
+  if (computeComposedFingerprint(result.element) !== expectedFingerprint) {
     return { verdict: "WRONG_TARGET", element: result.element, selector };
   }
 
@@ -470,29 +588,54 @@ export function verifyStoredElementPath(
 export interface ElementPathReplayResult {
   fingerprint: string;
   verdict: CrossStateVerdict;
+  /** For HOST_NOT_RESOLVED: which host hop broke, and that host's own selector. */
+  brokenAtHop?: number;
+  hostSelector?: string;
+  /** The sample predates `ElementRef` (a bare path) and was replayed against the document, which is all it recorded. */
+  legacy?: boolean;
 }
 
 /**
- * Batch form of `verifyStoredElementPath` — replays every sample (each
- * captured at some OTHER application state) against `root`'s current live
- * DOM. This is the primitive the content script's cross-application-state
- * replay message handler calls; see `application-audit.ts` for how the
- * results get aggregated into application-level evidence.
+ * Replay stored samples (each captured at some OTHER application state)
+ * against `doc`'s current live DOM, each from the top of the document
+ * through its own shadow hosts (`resolveHostChain`), never against
+ * `document` alone (defect D-1). A sample in the pre-`ElementRef` shape is
+ * migrated by `toElementRef` and flagged `legacy`; one whose ref cannot be
+ * read is reported NOT_RESOLVED rather than guessed at.
  */
-export function replayElementPathSamples(
-  root: ParentNode,
-  samples: Array<{ fingerprint: string; path: ElementPath }>,
+export function replayElementRefs(
+  doc: Document,
+  samples: Array<{ fingerprint: string; ref?: unknown; path?: unknown }>,
   config: DesConfig = AUDIT_DES_CONFIG,
 ): ElementPathReplayResult[] {
-  return samples.map((sample) => ({
-    fingerprint: sample.fingerprint,
-    verdict: verifyStoredElementPath(
-      root,
-      sample.path,
-      sample.fingerprint,
-      config,
-    ).verdict,
-  }));
+  return samples.map((sample) => {
+    const migrated = toElementRef(sample);
+    if (!migrated) {
+      return { fingerprint: sample.fingerprint, verdict: "NOT_RESOLVED" };
+    }
+    const legacy = migrated.legacy ? { legacy: true } : {};
+    const chain = resolveHostChain(migrated.ref, doc, config);
+    if (!chain.root) {
+      const broken = chain.hops[chain.hops.length - 1]!;
+      return {
+        fingerprint: sample.fingerprint,
+        verdict: "HOST_NOT_RESOLVED",
+        brokenAtHop: broken.hop,
+        hostSelector: broken.selector,
+        ...legacy,
+      };
+    }
+    return {
+      fingerprint: sample.fingerprint,
+      verdict: verifyStoredElementPath(
+        chain.root,
+        migrated.ref.path,
+        sample.fingerprint,
+        config,
+      ).verdict,
+      ...legacy,
+    };
+  });
 }
 
 export function extractElementAttributes(

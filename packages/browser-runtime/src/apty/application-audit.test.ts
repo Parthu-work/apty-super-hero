@@ -36,6 +36,13 @@ const candidatesByUrl = new Map<string, unknown[]>();
 
 import { runApplicationDomHealthAudit } from "./application-audit";
 
+const SEED_REF = {
+  version: 1,
+  hostChain: [],
+  path: [],
+  frameKey: "",
+};
+
 const TAB_ID = 7;
 
 function snapshotFixture(url: string): DomHealthSnapshot {
@@ -302,12 +309,41 @@ describe("runApplicationDomHealthAudit", () => {
     }
   });
 
-  it("replays the seed state's captured ElementPath samples against every other discovered state (spec section 7) and aggregates the verdicts as crossStateEvidence", async () => {
+  it.each([
+    {
+      name: "a recovered element",
+      answer: { verdict: "RECOVERED_STABLE" },
+      evidence: { recoveredStable: 1 },
+    },
+    {
+      name: "a shadow host that broke on the way down",
+      answer: {
+        verdict: "HOST_NOT_RESOLVED",
+        brokenAtHop: 1,
+        hostSelector: 'ids-menu-button[id="ids-theme-switcher"]',
+      },
+      evidence: {
+        notResolved: 1,
+        hostChainBroken: 1,
+        hostChainBreaks: [
+          {
+            frameId: 0,
+            hop: 1,
+            hostSelector: 'ids-menu-button[id="ids-theme-switcher"]',
+          },
+        ],
+      },
+    },
+  ])("replays the seed state's ElementRef samples against every other discovered state (spec section 7) and aggregates $name as crossStateEvidence", async ({
+    answer,
+    evidence,
+  }) => {
     linksByUrl.set("https://app.example.com/home", [
       link({ absoluteUrl: "https://app.example.com/orders" }),
     ]);
 
     let replayCallCount = 0;
+    const replayedSamples: unknown[] = [];
     const originalImpl = mockSendMessage.getMockImplementation()!;
     mockSendMessage.mockImplementation((tabId, msg: any, options, callback) => {
       if (msg.request === "collect-dom-health-frame-bundle") {
@@ -320,7 +356,7 @@ describe("runApplicationDomHealthAudit", () => {
               ? [
                   {
                     fingerprint: "fp-save-button",
-                    path: [],
+                    ref: SEED_REF,
                     tagName: "button",
                     selector: "#save",
                     outcome: "DIRECT_SUCCESS",
@@ -339,11 +375,12 @@ describe("runApplicationDomHealthAudit", () => {
       }
       if (msg.request === "replay-dom-health-element-paths") {
         replayCallCount++;
+        replayedSamples.push(...msg.samples);
         callback({
           success: true,
           data: msg.samples.map((s: { fingerprint: string }) => ({
             fingerprint: s.fingerprint,
-            verdict: "RECOVERED_STABLE",
+            ...answer,
           })),
         });
         return;
@@ -362,14 +399,21 @@ describe("runApplicationDomHealthAudit", () => {
     // Replayed once against the second (non-seed) state, never against the
     // seed state itself.
     expect(replayCallCount).toBe(1);
+    expect(replayedSamples).toEqual([
+      { fingerprint: "fp-save-button", ref: SEED_REF },
+    ]);
     expect(result.crossStateEvidence).toEqual({
       attempted: 1,
       directStable: 0,
-      recoveredStable: 1,
+      recoveredStable: 0,
       positionalStable: 0,
       wrongTarget: 0,
       notResolved: 0,
+      hostChainBroken: 0,
+      hostChainBreaks: [],
+      legacySamples: 0,
       statesTested: 1,
+      ...evidence,
     });
   });
 
