@@ -8,7 +8,7 @@
  * e.g. "check DOM health" or "why is the readiness score low" — it must
  * never invent a different score, only report what this tool returns.
  */
-import { tool } from "@apty/agent-core";
+import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { REDACTED_TITLE } from "../apty/dom-health-redaction.js";
 import {
@@ -16,6 +16,7 @@ import {
   runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "../apty/index.js";
+import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import {
   describeTabForMeta,
   describeTabResolutionFailure,
@@ -29,6 +30,16 @@ function describeTabForReport(tab: chrome.tabs.Tab) {
     ...describeTabForMeta(tab),
     title: tab.title ? REDACTED_TITLE : null,
   };
+}
+
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
+
+/** Settings → Troubleshooting: overlays the user added to DOM Health's built-in exclusion list. */
+async function userIgnoredRoots(): Promise<string[]> {
+  const settings = await settingsStorage
+    .load(STORAGE_KEYS.SETTINGS)
+    .catch(() => null);
+  return settings?.domHealthIgnoredRoots ?? [];
 }
 
 export const runDomHealthAuditTool = tool({
@@ -54,7 +65,9 @@ export const runDomHealthAuditTool = tool({
       };
     }
     const tab = resolution.tab;
-    const result = await runDomHealthAudit(tab.id as number);
+    const result = await runDomHealthAudit(tab.id as number, {
+      ignoredRoots: await userIgnoredRoots(),
+    });
     return { ...result, meta: { tab: describeTabForReport(tab) } };
   },
 });
@@ -104,6 +117,7 @@ export const runApplicationDomHealthAuditTool = tool({
     const result = await runApplicationDomHealthAudit(tab.id as number, {
       maxPages: input.maxPages,
       discoveryMode: input.discoveryMode,
+      ignoredRoots: await userIgnoredRoots(),
     });
     return { ...result, meta: { tab: describeTabForReport(tab) } };
   },

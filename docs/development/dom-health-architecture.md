@@ -401,6 +401,55 @@ comparison is `uncertain` (a frame readable on one side only). A click
 whose RouteKey did not change is never a new state, whatever else changed,
 because it could never be told apart from its source again.
 
+## Overlays, frame roles in scoring, duplicate ids (WP-7)
+
+**Ignored roots (`ignored-roots.ts`, D-6).** One policy decides what page
+content is not the application. It is applied in the collector (counts,
+analysis, id counting), the state signature, hit testing and frame
+classification. A matcher is an id prefix, a class-token prefix or a tag
+name. The defaults carry their evidence:
+
+- `measured`: Pendo, from `<button id="_pendo-badge_…">` in the athenaOne
+  export.
+- `repository`: the Agent's own `aipex-` roots, and `apty-` /
+  `apty-widget`, the detection `widget-diagnostics.ts` already uses.
+- `unverified`: WalkMe, Whatfix, Appcues, UserGuiding, consent banners and
+  chat launchers, from general knowledge.
+
+Datadog adds no page UI, only an inline loader script. Settings →
+Troubleshooting adds matchers (`id:`, `class:`, `tag:`), which reach the
+content scripts with every request. Each snapshot reports
+`excludedRoots: [{ matcher, owner, evidence, roots, elementCount }]`, and
+the card lists them. Hit testing looks past an ignored overlay (through
+`elementsFromPoint`) instead of calling the control occluded. A frame
+element inside an ignored root gets the `overlay` role.
+
+**Scoring by frame role (D-7).** Only captured `application` frames feed
+the page score; shell, chrome, shim, placeholder and overlay frames are
+listed in `frames` and marked "not scored". Each application frame also
+gets its own score. When every application frame failed and only the
+frames around it were read, the result has no score, leads with
+`application-frame-not-inspected`, and confidence is capped at LOW.
+
+**Duplicate ids (D-8).** Ids are counted per root (a document or a shadow
+root). `duplicateIds` reports values duplicated within a root and across
+the page. On the real LN export this gives 9 and 15, the measured values,
+and the committed LN fixture keeps them. For a value duplicated in its own
+root, `id` is ignored when building that root's paths
+(`withDuplicateIdsIgnored`, applied through the audit profile's ignore
+hook, so the Studio reconstruction is untouched). An id repeated only
+across roots keeps working. A `duplicate-ids` finding states the counts.
+
+**Confidence caps (section 4.10).** `confidenceCaps` lists every reason the
+confidence was lowered:
+
+- more than half the frames unreadable: LOW;
+- no application frame readable: LOW;
+- for the application audit, any state identified by structure alone:
+  MEDIUM, or LOW when that is most states.
+
+The thresholds read "any" and "most" literally and are unverified.
+
 ## Coverage is "observed", never "total"
 
 `ApplicationCoverage.coverageLabel` is always `"OBSERVED_COVERAGE"` — this

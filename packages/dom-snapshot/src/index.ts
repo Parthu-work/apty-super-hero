@@ -86,7 +86,18 @@ export {
   fnv1a,
 } from "./health-state-signature.js";
 export * from "./health-types.js";
+export {
+  DEFAULT_IGNORED_ROOTS,
+  describeMatcher,
+  type ExcludedRootSummary,
+  findIgnoredRoots,
+  type IgnoredRootMatcher,
+  ignoredRootPolicy,
+  matchIgnoredRoot,
+  mergeExcludedRoots,
+  parseIgnoredRootMatcher,
+} from "./ignored-roots.js";
 export { buildTextSnapshot, formatSnapshot } from "./manager.js";
 export { searchAndFormat, searchSnapshotText } from "./query.js";
-export { AGENT_UI_ROOT_IDS, shadowRootOf } from "./shadow-roots.js";
+export { shadowRootOf } from "./shadow-roots.js";
 export * from "./types.js";

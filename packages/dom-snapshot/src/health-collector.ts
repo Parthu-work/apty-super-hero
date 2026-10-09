@@ -66,12 +66,18 @@ import {
 import type {
   DomHealthCollectorOptions,
   DomHealthSnapshot,
+  DuplicateIdStats,
   ElementClassification,
   ElementPathSample,
   ElementSelectorReport,
   StabilityVerdict,
 } from "./health-types.js";
-import { AGENT_UI_ROOT_IDS, shadowRootOf } from "./shadow-roots.js";
+import {
+  findIgnoredRoots,
+  type IgnoredRootMatcher,
+  ignoredRootPolicy,
+} from "./ignored-roots.js";
+import { shadowRootOf } from "./shadow-roots.js";
 
 /**
  * Runaway-safety ceiling on how many interactive elements get the full
@@ -234,6 +240,13 @@ function classifyElement(
 }
 
 interface CollectorState {
+  /** Elements inside ignored roots (`ignored-roots.ts`): never counted or analyzed. */
+  excluded: ReadonlySet<Element>;
+  policy: readonly IgnoredRootMatcher[];
+  /** Id value counts per root (a document or a shadow root). */
+  idCounts: Map<Node, Map<string, number>>;
+  /** Per root, the id values more than one element there uses. */
+  duplicateIdsByRoot: Map<Node, Set<string>>;
   totalElements: number;
   buttons: number;
   inputs: number;
@@ -320,8 +333,15 @@ interface CollectorState {
   };
 }
 
-function createState(): CollectorState {
+function createState(
+  excluded: ReadonlySet<Element>,
+  policy: readonly IgnoredRootMatcher[],
+): CollectorState {
   return {
+    excluded,
+    policy,
+    idCounts: new Map(),
+    duplicateIdsByRoot: new Map(),
     totalElements: 0,
     buttons: 0,
     inputs: 0,
@@ -456,8 +476,13 @@ function analyzeInteractiveElement(
   frameKey: string,
 ): void {
   const attributes = extractElementAttributes(el);
-  const resolution = resolveInComposedTree(el, {}, hostCache, frameKey);
-  const hitTest = hitTestElement(el);
+  const resolution = resolveInComposedTree(
+    el,
+    { duplicateIdsFor: (owner) => state.duplicateIdsByRoot.get(owner) },
+    hostCache,
+    frameKey,
+  );
+  const hitTest = hitTestElement(el, state.policy);
   const accessibleName = hasAccessibleName(el);
   const fingerprint = computeComposedFingerprint(el);
   const fingerprintIsAmbiguous =
@@ -678,14 +703,36 @@ function analyzeInteractiveElement(
  * elements and queues interactive candidates; the expensive per-element
  * pipeline runs afterward, in batches.
  */
-/** Every element under `root` except the Agent's own injected UI and its contents. */
-function withoutAgentUi(root: ParentNode): Element[] {
-  const all = Array.from(root.querySelectorAll("*"));
-  const agentRoots = all.filter((el) => AGENT_UI_ROOT_IDS.includes(el.id));
-  if (agentRoots.length === 0) return all;
-  return all.filter(
-    (el) => !agentRoots.some((agentRoot) => agentRoot.contains(el)),
-  );
+function countId(state: CollectorState, el: Element): void {
+  const owner = el.getRootNode();
+  const counts = state.idCounts.get(owner) ?? new Map<string, number>();
+  counts.set(el.id, (counts.get(el.id) ?? 0) + 1);
+  state.idCounts.set(owner, counts);
+}
+
+/** Fills `state.duplicateIdsByRoot` (read by element analysis) and summarizes it. */
+function findDuplicateIds(state: CollectorState): DuplicateIdStats {
+  const pageWide = new Map<string, number>();
+  const withinRoot = new Set<string>();
+  let elementsWithDuplicatedId = 0;
+  for (const [owner, counts] of state.idCounts) {
+    const duplicated = new Set<string>();
+    for (const [id, count] of counts) {
+      pageWide.set(id, (pageWide.get(id) ?? 0) + count);
+      if (count < 2) continue;
+      duplicated.add(id);
+      withinRoot.add(id);
+      elementsWithDuplicatedId += count;
+    }
+    if (duplicated.size > 0) state.duplicateIdsByRoot.set(owner, duplicated);
+  }
+  return {
+    valuesDuplicatedWithinARoot: withinRoot.size,
+    valuesDuplicatedPageWide: [...pageWide.values()].filter((n) => n > 1)
+      .length,
+    elementsWithDuplicatedId,
+    sampleValues: [...withinRoot].slice(0, 5),
+  };
 }
 
 function collectFromRoot(
@@ -694,12 +741,15 @@ function collectFromRoot(
   options: { maxStyleChecks: number },
   insideShadowDom: boolean,
 ): void {
-  const all = withoutAgentUi(root);
+  const all = Array.from(root.querySelectorAll("*")).filter(
+    (el) => !state.excluded.has(el),
+  );
   state.totalElements += all.length;
   if (insideShadowDom) state.shadowElements += all.length;
 
   for (const el of all) {
     const tag = el.tagName.toLowerCase();
+    if (el.id) countId(state, el);
 
     if (tag === "button") state.buttons++;
     else if (tag === "input") state.inputs++;
@@ -757,8 +807,12 @@ function collectFromRoot(
   // attempt to read their content (see module/function doc comments). A
   // legacy `<frame>` counts exactly like an `<iframe>`: both are separate
   // browsing contexts, addressed independently by the frame-tree layer.
-  const iframeCount = root.querySelectorAll("iframe").length;
-  const frameCount = root.querySelectorAll("frame").length;
+  const frameHosts = (selector: string) =>
+    Array.from(root.querySelectorAll(selector)).filter(
+      (el) => !state.excluded.has(el),
+    ).length;
+  const iframeCount = frameHosts("iframe");
+  const frameCount = frameHosts("frame");
   state.iframeByTag.iframe += iframeCount;
   state.iframeByTag.frame += frameCount;
   state.iframeTotal += iframeCount + frameCount;
@@ -794,13 +848,16 @@ export async function collectDomHealthSnapshot(
   const currentRegistry = new Map<string, RegistryEntry>();
   const hasMultiSnapshotEvidence = previousRegistry.size > 0;
 
-  const state = createState();
+  const policy = ignoredRootPolicy(options.ignoredRoots);
+  const ignored = findIgnoredRoots(rootDocument, policy);
+  const state = createState(ignored.excluded, policy);
   collectFromRoot(
     rootDocument.body ?? rootDocument,
     state,
     { maxStyleChecks },
     false,
   );
+  const duplicateIds = findDuplicateIds(state);
 
   const capped = state.interactiveCandidates.length > elementCeiling;
   const candidatesToAnalyze = capped
@@ -921,6 +978,8 @@ export async function collectDomHealthSnapshot(
     },
     frame: options.frameContext ?? null,
     elementPathSamples: state.elementPathSamples,
+    excludedRoots: ignored.summary,
+    duplicateIds,
   };
 }
 

@@ -24,8 +24,10 @@ import type {
   DomHealthShadowDomInfo,
   DomHealthSnapshot,
   DomHealthZIndexInfo,
+  DuplicateIdStats,
   ElementPathSample,
   ElementSelectorReport,
+  ExcludedRootSummary,
 } from "@apty/dom-snapshot";
 import { AUDIT_PROFILE_NAME } from "@apty/dom-snapshot";
 import type { FrameInventoryEntry } from "./frame-audit.js";
@@ -53,6 +55,73 @@ export type DomHealthGrade =
   | "NOT_ASSESSED";
 
 export type DomHealthConfidence = "HIGH" | "MEDIUM" | "LOW";
+
+/** A ceiling on the confidence an audit may report, and why. */
+export interface ConfidenceCap {
+  cap: DomHealthConfidence;
+  reason: string;
+}
+
+const CONFIDENCE_ORDER: DomHealthConfidence[] = ["LOW", "MEDIUM", "HIGH"];
+
+export function applyConfidenceCaps(
+  confidence: DomHealthConfidence,
+  caps: readonly ConfidenceCap[],
+): DomHealthConfidence {
+  return caps.reduce<DomHealthConfidence>(
+    (current, { cap }) =>
+      CONFIDENCE_ORDER.indexOf(cap) < CONFIDENCE_ORDER.indexOf(current)
+        ? cap
+        : current,
+    confidence,
+  );
+}
+
+/** Above this share of unreadable frames, the audit did not see most of the page. Unverified threshold: "most" read literally. */
+export const MAX_UNREADABLE_FRAME_SHARE = 0.5;
+
+const NO_DUPLICATE_IDS: DuplicateIdStats = {
+  valuesDuplicatedWithinARoot: 0,
+  valuesDuplicatedPageWide: 0,
+  elementsWithDuplicatedId: 0,
+  sampleValues: [],
+};
+
+/**
+ * Caps for an audit that could not see the application (brief section
+ * 4.10): most frames unreadable, or every application frame unreadable
+ * while the shell around it was read (LN's portal with the LN frame
+ * blocked, athenaOne's frameset with `GlobalWrapper` blocked).
+ */
+export function frameConfidenceCaps(
+  frameAccessibility: FrameAccessibilitySummary,
+  frames: readonly FrameInventoryEntry[],
+): ConfidenceCap[] {
+  const caps: ConfidenceCap[] = [];
+  const unreadable =
+    frameAccessibility.framesFailed + frameAccessibility.framesInaccessible;
+  if (
+    frameAccessibility.framesTotal > 0 &&
+    unreadable / frameAccessibility.framesTotal > MAX_UNREADABLE_FRAME_SHARE
+  ) {
+    caps.push({
+      cap: "LOW",
+      reason: `${unreadable} of ${frameAccessibility.framesTotal} frames could not be inspected.`,
+    });
+  }
+  const applicationFrames = frames.filter((f) => f.role === "application");
+  if (
+    applicationFrames.length > 0 &&
+    applicationFrames.every((f) => f.status !== "captured") &&
+    frames.some((f) => f.status === "captured")
+  ) {
+    caps.push({
+      cap: "LOW",
+      reason: `No application frame could be inspected (${applicationFrames.map((f) => f.key).join(", ")}); only the frames around it were.`,
+    });
+  }
+  return caps;
+}
 
 /**
  * Evidence completeness/quality — deliberately separate from the score
@@ -239,6 +308,11 @@ export interface DomHealthAuditResult {
   frameAccessibility: FrameAccessibilitySummary;
   /** Every frame of the last capture: stable key, role and status (`frame-identity.ts`). */
   frames: FrameInventoryEntry[];
+  /** Why `confidence` was capped below what the evidence volume alone would give; empty when it was not. */
+  confidenceCaps: string[];
+  /** Overlays and injected UI left out of the audit, per matcher. */
+  excludedRoots: ExcludedRootSummary[];
+  duplicateIds: DuplicateIdStats;
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
   scope: "page";
   /** Human-readable companion to `scope`, so a caller never has to invent its own scope wording — always "CURRENT_PAGE" here, paired with "APPLICATION" on `ApplicationAuditResult` (spec sections 1/18). A result with this scope is never described as "application health". */
@@ -936,12 +1010,15 @@ export function buildDomHealthAuditResult(
     ? Math.round(Math.min(100, Math.max(0, rawScore)))
     : null;
   const grade = score === null ? "NOT_ASSESSED" : gradeForScore(score);
-  const confidence =
+  const caps = frameConfidenceCaps(frameAccessibility, frames);
+  const confidence = applyConfidenceCaps(
     evidenceState === "FAILED" ||
-    evidenceState === "NO_EVIDENCE" ||
-    evidenceState === "INACCESSIBLE"
+      evidenceState === "NO_EVIDENCE" ||
+      evidenceState === "INACCESSIBLE"
       ? "LOW"
-      : computeConfidence(current, snapshots.length);
+      : computeConfidence(current, snapshots.length),
+    caps,
+  );
   const manualSelectorDependency = computeManualSelectorDependency(current);
 
   const metricDetails: DomHealthMetricDetails = {
@@ -971,6 +1048,15 @@ export function buildDomHealthAuditResult(
     manualSelectorDependency,
     current.analysisCoverage,
   );
+  const duplicateIds = current.duplicateIds ?? NO_DUPLICATE_IDS;
+  if (duplicateIds.valuesDuplicatedWithinARoot > 0) {
+    risks.push({
+      id: "duplicate-ids",
+      severity: "medium",
+      title: "Ids shared by more than one element",
+      evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
+    });
+  }
   const failureReasonSuffix = frameAccessibility.sampleFailureReasons?.length
     ? ` Reason(s) reported: ${frameAccessibility.sampleFailureReasons.join("; ")}.`
     : "";
@@ -998,6 +1084,21 @@ export function buildDomHealthAuditResult(
     });
   }
 
+  const blockedApplication = frames.filter(
+    (f) => f.role === "application" && f.status !== "captured",
+  );
+  if (
+    blockedApplication.length > 0 &&
+    !frames.some((f) => f.role === "application" && f.status === "captured") &&
+    frames.some((f) => f.status === "captured")
+  ) {
+    risks.unshift({
+      id: "application-frame-not-inspected",
+      severity: "high",
+      title: "The application itself could not be inspected",
+      evidence: `The application frame(s) ${blockedApplication.map((f) => `"${f.key}"`).join(", ")} did not respond; only the shell, navigation or shim frames around them were read. Nothing in this result describes the application.`,
+    });
+  }
   return {
     auditId,
     timestamp: current.collectedAt,
@@ -1009,6 +1110,9 @@ export function buildDomHealthAuditResult(
     evidenceState,
     frameAccessibility,
     frames,
+    confidenceCaps: caps.map((c) => c.reason),
+    excludedRoots: current.excludedRoots ?? [],
+    duplicateIds,
     scope: "page",
     scopeLabel: "CURRENT_PAGE",
     selectorConfiguration: DEFAULT_SELECTOR_CONFIGURATION,

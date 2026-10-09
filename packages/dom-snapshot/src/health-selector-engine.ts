@@ -43,6 +43,7 @@ import {
 import {
   AUDIT_DES_CONFIG,
   normalizeAttributeName,
+  withDuplicateIdsIgnored,
 } from "./health-audit-profile.js";
 import type {
   DomHealthElementAttributes,
@@ -100,6 +101,8 @@ export interface ResolveElementOptions {
   inaccessibleReason?: string;
   /** Real Apty Studio Ignore Selector / Partial Selector / Attribute Priority configuration, when a caller has it — merged over `AUDIT_DES_CONFIG`. Absent this, DOM Health uses the Agent's audit profile: Apty's real defaults (`health-attribute-classification.ts`) extended through their own hooks (`health-audit-profile.ts`). */
   desConfig?: Partial<DesConfig>;
+  /** Id values shared by more than one element in `root`; `id` is not used for them (`withDuplicateIdsIgnored`). */
+  duplicateIdsFor?: (root: ParentNode) => ReadonlySet<string> | undefined;
 }
 
 function escapeAttributeValue(value: string): string {
@@ -278,7 +281,11 @@ export function resolveElement(
     };
   }
 
-  const config: DesConfig = { ...AUDIT_DES_CONFIG, ...options.desConfig };
+  const baseConfig: DesConfig = { ...AUDIT_DES_CONFIG, ...options.desConfig };
+  const duplicateIds = options.duplicateIdsFor?.(root);
+  const config = duplicateIds?.size
+    ? withDuplicateIdsIgnored(baseConfig, duplicateIds)
+    : baseConfig;
   const fullPath = buildElementPath(el, config);
   // Faithful to real Apty: no depth cap unless the caller explicitly asks
   // for one (see `ResolveElementOptions.maxAncestorDepth`'s doc comment).

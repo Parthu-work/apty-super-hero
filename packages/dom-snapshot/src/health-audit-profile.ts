@@ -105,3 +105,25 @@ export const AUDIT_DES_CONFIG: DesConfig = {
     class: auditPartialClass,
   },
 };
+
+/**
+ * `config` with `id` ignored for every value in `duplicated`. An id is
+ * unique per root (a document or a shadow root), and one shared by two
+ * elements in the same root cannot single either out, so the engine falls
+ * back to the next attribute instead of producing a confident selector
+ * that matches both (defect D-8). Measured: 9 id values are duplicated
+ * within one root in the Infor LN export, 15 across the whole page.
+ */
+export function withDuplicateIdsIgnored(
+  config: DesConfig,
+  duplicated: ReadonlySet<string>,
+): DesConfig {
+  const base = config.ignore.attribute;
+  const ignoreAttribute: IgnoreFn = (name, value, defaultFn) =>
+    (base ? base(name, value, defaultFn) : Boolean(defaultFn?.(name, value))) ||
+    (name === "id" && value !== undefined && duplicated.has(value));
+  return {
+    ...config,
+    ignore: { ...config.ignore, attribute: ignoreAttribute },
+  };
+}

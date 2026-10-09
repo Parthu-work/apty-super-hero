@@ -12,6 +12,8 @@
 import type { ElementRef } from "./element-ref.js";
 
 /** Attributes on an analyzed element — never includes input values. */
+import type { ExcludedRootSummary } from "./ignored-roots.js";
+
 export interface DomHealthElementAttributes {
   id?: string;
   /** Space-joined class list, as found on the element. */
@@ -385,6 +387,26 @@ export interface DomHealthSnapshot {
   frame?: DomHealthFrameIdentity | null;
   /** Bounded sample of real Apty-style paths captured this snapshot, for cross-APPLICATION-STATE replay (see `ElementPathSample`'s doc comment) — never used for same-state stability, which `stability` above already covers. */
   elementPathSamples: ElementPathSample[];
+  /** Overlays and injected UI left out of every count above (`ignored-roots.ts`), per matcher. */
+  excludedRoots: ExcludedRootSummary[];
+  duplicateIds: DuplicateIdStats;
+}
+
+/**
+ * Ids used by more than one element. `id` is unique per root (a document or
+ * a shadow root), so only a duplicate within one root breaks `#id`; the
+ * page-wide count is reported for comparison. Elements in ignored roots
+ * are not counted.
+ */
+export interface DuplicateIdStats {
+  /** Distinct values shared by 2+ elements in the same root. */
+  valuesDuplicatedWithinARoot: number;
+  /** Distinct values used by 2+ elements anywhere in the document, shadow roots included. */
+  valuesDuplicatedPageWide: number;
+  /** Elements carrying a value duplicated within their own root; `id` is not used to select them. */
+  elementsWithDuplicatedId: number;
+  /** Up to 5 of the within-root duplicated values. */
+  sampleValues: string[];
 }
 
 export interface DomHealthCollectorOptions {
@@ -406,6 +428,8 @@ export interface DomHealthCollectorOptions {
    * snapshot after the first in the same audit run.
    */
   freshAudit?: boolean;
+  /** Settings entries (`id:prefix`, `class:prefix`, `tag:name`) excluded on top of `DEFAULT_IGNORED_ROOTS`. */
+  ignoredRoots?: readonly string[];
   /** Frame identity to stamp onto the resulting snapshot's `frame` field — supplied by the caller (the content script knows its own `sender.frameId` from `chrome.runtime.onMessage`), never computed by this collector. */
   frameContext?: DomHealthFrameIdentity | null;
 }

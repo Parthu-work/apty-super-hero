@@ -260,8 +260,10 @@ describe("frameRole", () => {
 
   it("classifies a digital-adoption overlay frame as an overlay", () => {
     expect(
-      frameRole({ ...base, owner: owner({ id: "_pendo-guide-container" }) })
-        .role,
+      frameRole({
+        ...base,
+        owner: owner({ id: "_pendo-guide-container", ignoredBy: "id:_pendo-" }),
+      }).role,
     ).toBe("overlay");
   });
 

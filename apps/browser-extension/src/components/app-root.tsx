@@ -271,6 +271,7 @@ function ChatApp() {
                 <InvestigationSummaryBar />
                 <DomHealthCard
                   developerTools={settings.developerTools === true}
+                  ignoredRoots={settings.domHealthIgnoredRoots}
                 />
                 <BrowserContextLoader />
               </>

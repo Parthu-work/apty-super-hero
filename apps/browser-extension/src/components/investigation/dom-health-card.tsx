@@ -21,6 +21,7 @@ import {
   type ApplicationAuditProgress,
   type ApplicationDiscoveryMode,
   type DomHealthAuditOutcome,
+  type DomHealthAuditResult,
   type DomHealthConfidence,
   type DomHealthGrade,
   type DomHealthMetricDetails,
@@ -456,11 +457,63 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
   );
 }
 
+/** Why confidence was capped, which frames were scored, and what overlay content was left out. */
+function FramesAndExclusions({
+  result,
+}: {
+  result: Pick<
+    DomHealthAuditResult,
+    "confidenceCaps" | "frames" | "excludedRoots"
+  >;
+}) {
+  const caps = result.confidenceCaps ?? [];
+  const frames = result.frames ?? [];
+  const excluded = result.excludedRoots ?? [];
+  return (
+    <>
+      {caps.length > 0 && (
+        <ul className={cn("space-y-0.5 text-[11px]", toneTextClass("warning"))}>
+          {caps.map((reason) => (
+            <li key={reason}>Confidence capped: {reason}</li>
+          ))}
+        </ul>
+      )}
+      {(frames.length > 1 || excluded.length > 0) && (
+        <details className="text-xs">
+          <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+            Frames ({frames.length}) and excluded content ({excluded.length})
+          </summary>
+          <ul className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+            {frames.map((frame) => (
+              <li key={frame.frameId}>
+                <span className="font-mono">{frame.key}</span> — {frame.role},{" "}
+                {frame.status}
+                {typeof frame.score === "number" && ` · ${frame.score}/100`}
+                {frame.role !== "application" && " · not scored"}
+              </li>
+            ))}
+            {excluded.map((entry) => (
+              <li key={entry.matcher}>
+                Left out {entry.owner} (
+                <span className="font-mono">{entry.matcher}</span>):{" "}
+                {entry.roots} root(s), {entry.elementCount} element(s)
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
+  );
+}
+
 export function DomHealthCard({
   developerTools = false,
+  ignoredRoots = [],
 }: {
   /** Settings → Troubleshooting → Developer tools: shows the route probe. */
   developerTools?: boolean;
+  /** Settings → Troubleshooting: overlays to leave out, on top of the built-in list. */
+  ignoredRoots?: readonly string[];
 }) {
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
@@ -496,7 +549,7 @@ export function DomHealthCard({
       setStageIndex((i) => (i + 1) % LOADING_STAGES.length);
     }, 700);
 
-    const result = await runDomHealthAudit(target.tabId);
+    const result = await runDomHealthAudit(target.tabId, { ignoredRoots });
 
     if (stageTimerRef.current) {
       clearInterval(stageTimerRef.current);
@@ -504,7 +557,7 @@ export function DomHealthCard({
     }
     setOutcome(result);
     setIsLoading(false);
-  }, [target.tabId]);
+  }, [target.tabId, ignoredRoots]);
 
   const runApplicationCheck = useCallback(async () => {
     if (!target.tabId) return;
@@ -515,13 +568,14 @@ export function DomHealthCard({
 
     const result = await runApplicationDomHealthAudit(target.tabId, {
       discoveryMode,
+      ignoredRoots,
       onProgress: (progress) => setAppProgress(progress),
     });
 
     setAppOutcome(result);
     setIsAppLoading(false);
     setAppProgress(null);
-  }, [target.tabId, discoveryMode]);
+  }, [target.tabId, discoveryMode, ignoredRoots]);
 
   const hasResult = outcome !== null || appOutcome !== null;
   const active = view === "application" ? appOutcome : outcome;
@@ -823,6 +877,8 @@ export function DomHealthCard({
                   </div>
                 </details>
               )}
+
+              <FramesAndExclusions result={outcome} />
 
               <details className="text-xs">
                 <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">

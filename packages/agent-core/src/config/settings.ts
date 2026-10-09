@@ -56,6 +56,8 @@ export interface AppSettings {
   verboseLogging?: boolean;
   /** Show developer-only tools in the side panel, such as the DOM Health route probe. */
   developerTools?: boolean;
+  /** Extra page content DOM Health leaves out of an audit, one matcher per entry: `id:prefix`, `class:prefix` or `tag:name`. Added to the built-in overlay list. */
+  domHealthIgnoredRoots?: string[];
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -71,4 +73,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   networkBodyCaptureDenyList: [],
   verboseLogging: false,
   developerTools: false,
+  domHealthIgnoredRoots: [],
 };

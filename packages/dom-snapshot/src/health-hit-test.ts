@@ -22,6 +22,7 @@
  */
 import { composedParentElement } from "./composed-tree.js";
 import type { HitTestClassification, HitTestResult } from "./health-types.js";
+import { type IgnoredRootMatcher, ignoredRootOf } from "./ignored-roots.js";
 import { shadowRootOf } from "./shadow-roots.js";
 
 const SAMPLE_FRACTIONS = [0.25, 0.5, 0.75];
@@ -55,13 +56,13 @@ function isOutsideViewport(rect: DOMRect, view: Window): boolean {
 /** Bound on how many nested shadow roots one point is followed into (LN nests 3 deep). */
 const MAX_SHADOW_DESCENT = 32;
 
-/** The innermost element at (x, y): the document's hit, then each shadow root's own hit below it. */
-function deepElementFromPoint(
-  doc: Document,
+/** From a document-level hit, each shadow root's own hit below it, down to the innermost element. */
+function descendIntoShadowRoots(
+  start: Element | null,
   x: number,
   y: number,
 ): Element | null {
-  let hit: Element | null = doc.elementFromPoint(x, y);
+  let hit = start;
   for (let depth = 0; hit && depth < MAX_SHADOW_DESCENT; depth++) {
     const shadow = shadowRootOf(hit) as
       | (ShadowRoot & {
@@ -86,15 +87,36 @@ function composedContains(ancestor: Element, node: Element): boolean {
   return false;
 }
 
+/**
+ * The innermost element at (x, y), looking past content the ignored-root
+ * policy excludes: a Pendo badge or a chat launcher over a control is not
+ * the application occluding itself, so the first element below it in the
+ * document's hit stack is taken instead.
+ */
+function deepElementFromPoint(
+  doc: Document,
+  x: number,
+  y: number,
+  policy: readonly IgnoredRootMatcher[],
+): Element | null {
+  const hit = descendIntoShadowRoots(doc.elementFromPoint(x, y), x, y);
+  if (!hit || policy.length === 0 || !ignoredRootOf(hit, policy)) return hit;
+  const below = (doc.elementsFromPoint?.(x, y) ?? []).find(
+    (candidate) => !ignoredRootOf(candidate, policy),
+  );
+  return below ? descendIntoShadowRoots(below, x, y) : null;
+}
+
 function pointResolvesToElement(
   doc: Document,
   el: Element,
   x: number,
   y: number,
+  policy: readonly IgnoredRootMatcher[],
 ): boolean {
   let hit: Element | null = null;
   try {
-    hit = deepElementFromPoint(doc, x, y);
+    hit = deepElementFromPoint(doc, x, y, policy);
   } catch {
     hit = null;
   }
@@ -114,7 +136,10 @@ function classifyByPointsPassed(pointsPassed: number): HitTestClassification {
  * has no owner document/window (detached, or a test double) — callers treat
  * null as UNKNOWN, never as a pass.
  */
-export function hitTestElement(el: Element): HitTestResult | null {
+export function hitTestElement(
+  el: Element,
+  policy: readonly IgnoredRootMatcher[] = [],
+): HitTestResult | null {
   const doc = el.ownerDocument;
   const view = doc?.defaultView;
   if (!doc || !view) return null;
@@ -143,7 +168,7 @@ export function hitTestElement(el: Element): HitTestResult | null {
     for (const fy of SAMPLE_FRACTIONS) {
       const x = rect.left + rect.width * fx;
       const y = rect.top + rect.height * fy;
-      if (pointResolvesToElement(doc, el, x, y)) pointsPassed++;
+      if (pointResolvesToElement(doc, el, x, y, policy)) pointsPassed++;
     }
   }
 

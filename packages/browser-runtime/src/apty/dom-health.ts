@@ -94,8 +94,9 @@ function mergeFrameAccessibility(
  */
 export async function runDomHealthAudit(
   tabId: number,
+  options: DomHealthAuditOptions = {},
 ): Promise<DomHealthAuditOutcome> {
-  return redactDomHealthOutput(await collectDomHealthAudit(tabId));
+  return redactDomHealthOutput(await collectDomHealthAudit(tabId, options));
 }
 
 /**
@@ -107,8 +108,14 @@ export async function runDomHealthAudit(
  * the seed's element paths; anything leaving the service worker goes
  * through `runDomHealthAudit`.
  */
+export interface DomHealthAuditOptions {
+  /** Settings entries excluded on top of the default ignored roots. */
+  ignoredRoots?: readonly string[];
+}
+
 export async function collectDomHealthAudit(
   tabId: number,
+  options: DomHealthAuditOptions = {},
 ): Promise<DomHealthAuditOutcome> {
   let tab: chrome.tabs.Tab;
   try {
@@ -131,6 +138,7 @@ export async function collectDomHealthAudit(
   const snapshots: DomHealthSnapshot[] = [];
   const frameAccessibilityByRound: FrameAccessibilitySummary[] = [];
   let frameInventory: FrameInventoryEntry[] = [];
+  const applicationFrameSnapshots = new Map<number, DomHealthSnapshot[]>();
 
   for (let i = 0; i < SNAPSHOT_DELAYS_MS.length; i++) {
     if (i > 0) {
@@ -141,6 +149,7 @@ export async function collectDomHealthAudit(
     const outcome = await captureApplicationState(tabId, {
       sequenceIndex: i,
       timeoutMs: FRAME_MESSAGE_TIMEOUT_MS,
+      ignoredRoots: options.ignoredRoots,
     });
 
     if (!outcome.available) {
@@ -151,13 +160,29 @@ export async function collectDomHealthAudit(
     snapshots.push(aggregateFrameSnapshots(captured));
     frameAccessibilityByRound.push(outcome.result.frameAccessibility);
     frameInventory = toFrameInventory(captured);
+    for (const frame of captured) {
+      if (frame.identity.role.role !== "application" || !frame.snapshot) {
+        continue;
+      }
+      const rounds = applicationFrameSnapshots.get(frame.frame.frameId) ?? [];
+      rounds.push(frame.snapshot);
+      applicationFrameSnapshots.set(frame.frame.frameId, rounds);
+    }
   }
 
   const result = buildDomHealthAuditResult(
     snapshots,
     generateAuditId(),
     mergeFrameAccessibility(frameAccessibilityByRound),
-    frameInventory,
+    frameInventory.map((entry) => {
+      const rounds = applicationFrameSnapshots.get(entry.frameId);
+      return rounds
+        ? {
+            ...entry,
+            score: buildDomHealthAuditResult(rounds, `${entry.key}`).score,
+          }
+        : entry;
+    }),
   );
   return { available: true, ...result };
 }

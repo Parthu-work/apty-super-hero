@@ -1,5 +1,6 @@
 import type { AppSettings } from "@apty/agent-core";
 import { Bug } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Card,
   CardContent,
@@ -9,6 +10,7 @@ import {
 } from "../ui/card";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
+import { Textarea } from "../ui/textarea";
 
 export interface TroubleshootingCardProps {
   settings: AppSettings;
@@ -47,6 +49,7 @@ export function TroubleshootingCard({
             onCheckedChange={(checked) => onChange({ verboseLogging: checked })}
           />
         </div>
+        <IgnoredRootsField settings={settings} onChange={onChange} zh={zh} />
         <div className="mt-4 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <Label htmlFor="developer-tools" className="text-sm font-medium">
@@ -66,5 +69,70 @@ export function TroubleshootingCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+const IGNORED_ROOTS_SAVE_DELAY_MS = 500;
+
+function parseLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** Overlay vendors differ per customer, so DOM Health's built-in exclusion list can be extended here. */
+function IgnoredRootsField({
+  settings,
+  onChange,
+  zh,
+}: {
+  settings: AppSettings;
+  onChange: (patch: Partial<AppSettings>) => void;
+  zh: boolean;
+}) {
+  const [text, setText] = useState(
+    (settings.domHealthIgnoredRoots ?? []).join("\n"),
+  );
+  const pending = useRef<string | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const flush = () => {
+    clearTimeout(saveTimer.current);
+    if (pending.current === null) return;
+    onChangeRef.current({ domHealthIgnoredRoots: parseLines(pending.current) });
+    pending.current = null;
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: flush on unmount only
+  useEffect(() => flush, []);
+
+  return (
+    <div className="mt-4 space-y-2">
+      <Label htmlFor="dom-health-ignored-roots" className="text-sm font-medium">
+        {zh ? "DOM 健康：忽略的页面内容" : "DOM Health: content to leave out"}
+      </Label>
+      <p className="text-xs text-muted-foreground">
+        {zh
+          ? "第三方浮层（如引导工具、聊天窗口）不属于应用本身。每行一个：id:前缀、class:前缀 或 tag:名称。"
+          : "Third-party overlays (guidance tools, chat widgets) are not the application. One per line: id:prefix, class:prefix or tag:name."}
+      </p>
+      <Textarea
+        id="dom-health-ignored-roots"
+        value={text}
+        placeholder={
+          "id:acme-assist-\nclass:helpdesk-launcher\ntag:support-widget"
+        }
+        onChange={(event) => {
+          setText(event.target.value);
+          pending.current = event.target.value;
+          clearTimeout(saveTimer.current);
+          saveTimer.current = setTimeout(flush, IGNORED_ROOTS_SAVE_DELAY_MS);
+        }}
+        onBlur={flush}
+      />
+    </div>
   );
 }

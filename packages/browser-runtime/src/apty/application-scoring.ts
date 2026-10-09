@@ -17,9 +17,11 @@
 
 import type { AnalysisCoverage } from "@apty/dom-snapshot";
 import {
+  applyConfidenceCaps,
   buildRecommendations,
   buildRisks,
   buildStrengths,
+  type ConfidenceCap,
   DEFAULT_FRAME_ACCESSIBILITY,
   DEFAULT_SELECTOR_CONFIGURATION,
   type DomHealthAuditResult,
@@ -32,6 +34,7 @@ import {
   type DomHealthRisk,
   determineEvidenceState,
   type EvidenceState,
+  frameConfidenceCaps,
   gradeForScore,
   isScoreMeaningful,
   METHODOLOGY,
@@ -238,6 +241,8 @@ export interface ApplicationAuditResult {
   pages: PageAuditRecord[];
   methodology: string[];
   /** The real state-discovery tree this run built — never a flat page list — see `state-graph.ts`. Absent only if the caller didn't pass one (e.g. an older/degenerate call path). */
+  /** Why `confidence` was capped below what coverage and volume alone would give; empty when it was not. */
+  confidenceCaps: string[];
   stateGraph?: StateGraphSummary;
   /** URL-first or click-first, and why (`traversal-strategy.ts`); absent for a single-page result. */
   traversal?: TraversalReport;
@@ -319,6 +324,28 @@ function sumField<K extends DomHealthMetricKey>(
       | undefined;
     return sum + (detail?.[field] ?? 0);
   }, 0);
+}
+
+/**
+ * Caps from how the states were told apart (brief section 4.3): a state
+ * identified by page structure alone may be a phantom or a merge of two
+ * screens, so any such state caps the audit at MEDIUM, and a majority of
+ * them at LOW. The thresholds are unverified: "any" and "most" read
+ * literally.
+ */
+export function routeConfidenceCaps(
+  stateGraph: StateGraphSummary | undefined,
+): ConfidenceCap[] {
+  if (!stateGraph) return [];
+  const { high, medium, low } = stateGraph.routeConfidence;
+  const total = high + medium + low;
+  if (low === 0) return [];
+  return [
+    {
+      cap: low * 2 > total ? "LOW" : "MEDIUM",
+      reason: `${low} of ${total} states were told apart by page structure alone, with no navigation trail or heading to confirm them.`,
+    },
+  ];
 }
 
 const APPLICATION_METHODOLOGY_PREFIX: string[] = [
@@ -634,13 +661,20 @@ export function buildApplicationAuditResult(
   // for a single audited page, whatever scope the caller requested.
   const scope: "application" | "page" = audited >= 2 ? "application" : "page";
 
-  const confidence: DomHealthConfidence = !scoreIsMeaningful
-    ? "LOW"
-    : audited >= 3 && coverage.coveragePercent >= 70 && totalAnalyzed >= 50
-      ? "HIGH"
-      : audited >= 2 && totalAnalyzed >= 10
-        ? "MEDIUM"
-        : "LOW";
+  const caps = [
+    ...frameConfidenceCaps(applicationFrameAccessibility, []),
+    ...routeConfidenceCaps(options.stateGraph),
+  ];
+  const confidence = applyConfidenceCaps(
+    !scoreIsMeaningful
+      ? "LOW"
+      : audited >= 3 && coverage.coveragePercent >= 70 && totalAnalyzed >= 50
+        ? "HIGH"
+        : audited >= 2 && totalAnalyzed >= 10
+          ? "MEDIUM"
+          : "LOW",
+    caps,
+  );
 
   const risks = buildRisks(
     metrics,
@@ -730,6 +764,7 @@ export function buildApplicationAuditResult(
     recommendations: buildRecommendations(metrics, metricDetails),
     pages,
     methodology: [...APPLICATION_METHODOLOGY_PREFIX, ...METHODOLOGY],
+    confidenceCaps: caps.map((c) => c.reason),
     stateGraph: options.stateGraph,
     traversal: options.traversal,
     restorations: options.restorations ?? [],

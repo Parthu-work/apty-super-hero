@@ -1,9 +1,3 @@
-/** Ids of the elements the Agent's content script adds to a page; audits skip them. */
-export const AGENT_UI_ROOT_IDS: readonly string[] = [
-  "aipex-content-root",
-  "aipex-border-overlay",
-];
-
 interface ChromeDomApi {
   openOrClosedShadowRoot?: (element: HTMLElement) => ShadowRoot | null;
 }

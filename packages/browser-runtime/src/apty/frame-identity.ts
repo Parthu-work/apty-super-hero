@@ -31,6 +31,8 @@ export interface FrameOwnerAttributes {
   srcAttribute: string | null;
   className: string | null;
   rendered: boolean;
+  /** The ignored-root matcher covering the frame element (`@apty/dom-snapshot`'s `ignored-roots.ts`), or null. Absent from owners reported before overlays were identified. */
+  ignoredBy?: string | null;
 }
 
 export const PLACEHOLDER_ID = ":id";
@@ -273,9 +275,6 @@ const SHIM_PATTERN = /shim/i;
 /** Frames that hold navigation or status, not the application: athenaOne's `GlobalNav` and `Status`. */
 const CHROME_FRAME_NAMES = new Set(["globalnav", "status"]);
 
-/** Third-party digital-adoption overlays, as frame names, ids or classes. Pendo is measured in athenaOne (as badges, not frames); a Pendo frame is assumed from that, not observed. */
-const OVERLAY_PATTERN = /^_?pendo|walkme|whatfix|appcues|userguiding/i;
-
 export interface FrameRoleInput {
   frameId: number;
   url: string;
@@ -296,10 +295,10 @@ export function frameRole(input: FrameRoleInput): FrameRoleDecision {
   const labels = [owner?.id, owner?.name, owner?.className]
     .filter((v): v is string => Boolean(v))
     .join(" ");
-  if (labels.split(/\s+/).some((label) => OVERLAY_PATTERN.test(label))) {
+  if (owner?.ignoredBy) {
     return {
       role: "overlay",
-      reason: "The frame element belongs to a digital-adoption overlay.",
+      reason: `The frame element is excluded overlay content (${owner.ignoredBy}).`,
     };
   }
   if (input.url.startsWith("javascript:")) {

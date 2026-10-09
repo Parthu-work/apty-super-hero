@@ -176,6 +176,8 @@ export interface RunApplicationAuditOptions extends ApplicationAuditLimits {
   onProgress?: (progress: ApplicationAuditProgress) => void;
   /** Defaults to "application-safe" — never silently "application-deep". See `ApplicationDiscoveryMode`. */
   discoveryMode?: ApplicationDiscoveryMode;
+  /** Settings entries excluded on top of the default ignored roots. */
+  ignoredRoots?: readonly string[];
 }
 
 export type ApplicationAuditOutcome =
@@ -219,9 +221,11 @@ type QueueItem = UrlQueueItem | ClickQueueItem;
 /** One lightweight, read-only capture used only to compute a state fingerprint — never the full 3-round audit. */
 async function captureFingerprint(
   tabId: number,
+  ignoredRoots: readonly string[] = [],
 ): Promise<AuditStateFingerprint | null> {
   const outcome = await captureApplicationState(tabId, {
     sequenceIndex: 0,
+    ignoredRoots,
   }).catch(() => null);
   if (!outcome || !outcome.available) return null;
   return computeStateFingerprint(
@@ -236,6 +240,7 @@ const NETWORK_LOOKBACK_MS = 10_000;
 interface RestorationStrategy {
   mode: () => TraversalMode;
   onDirectUrlLoad: (reproduced: boolean) => void;
+  capture: () => Promise<AuditStateFingerprint | null>;
 }
 
 /**
@@ -273,7 +278,7 @@ async function restoreToState(
   if (isPureUrlPath && strategy.mode() === "url-first") {
     await navigateTab(tabId, targetNode.url);
     await waitForDomStable(tabId);
-    const observed = await captureFingerprint(tabId);
+    const observed = await strategy.capture();
     const reproduced =
       observed?.fingerprint === targetNode.fingerprint.fingerprint;
     strategy.onDirectUrlLoad(reproduced);
@@ -286,7 +291,15 @@ async function restoreToState(
         method: "direct-url",
       };
     }
-    return replayFromSeed(tabId, seedUrl, graph, targetStateId, path, true);
+    return replayFromSeed(
+      tabId,
+      seedUrl,
+      graph,
+      targetStateId,
+      path,
+      strategy.capture,
+      true,
+    );
   }
   return replayFromSeed(
     tabId,
@@ -294,6 +307,7 @@ async function restoreToState(
     graph,
     targetStateId,
     path,
+    strategy.capture,
     false,
     strategy.mode() === "click-first",
   );
@@ -305,6 +319,7 @@ async function replayFromSeed(
   graph: StateGraph,
   targetStateId: string,
   path: StateTransitionEdge[],
+  capture: () => Promise<AuditStateFingerprint | null>,
   fellBackFromDirectUrl: boolean,
   clickLinks = fellBackFromDirectUrl,
 ): Promise<RestorationEvidence> {
@@ -336,7 +351,7 @@ async function replayFromSeed(
   const seedStateId = graph.getSeedStateId();
   const seedNode = seedStateId ? graph.getNode(seedStateId) : undefined;
   if (seedNode && seedStateId !== targetStateId) {
-    const atSeed = await captureFingerprint(tabId);
+    const atSeed = await capture();
     if (atSeed?.fingerprint !== seedNode.fingerprint.fingerprint) {
       return outcome(
         false,
@@ -378,7 +393,7 @@ async function replayFromSeed(
       );
     }
     await waitForDomStable(tabId);
-    const observed = await captureFingerprint(tabId);
+    const observed = await capture();
     if (observed?.fingerprint !== edge.afterFingerprint) {
       return outcome(
         false,
@@ -563,10 +578,11 @@ export async function runApplicationDomHealthAudit(
     if (attemptedAny) crossStateEvidence.statesTested++;
   }
 
+  const ignoredRoots = options.ignoredRoots ?? [];
+  const capture = () => captureFingerprint(tabId, ignoredRoots);
   const graph = new StateGraph();
   await waitForDomStable(tabId);
-  const seedFingerprint =
-    (await captureFingerprint(tabId)) ?? unknownStateFingerprint();
+  const seedFingerprint = (await capture()) ?? unknownStateFingerprint();
   const seedStateId = graph.addSeedState(seedFingerprint, seedUrl!, null);
 
   const traversalEvidence: TraversalEvidence = { ...EMPTY_TRAVERSAL_EVIDENCE };
@@ -597,6 +613,7 @@ export async function runApplicationDomHealthAudit(
     decideTraversal();
   }
   const restorationStrategy: RestorationStrategy = {
+    capture,
     mode: () => traversal.mode,
     onDirectUrlLoad: (reproduced) => {
       traversalEvidence.urlRestorations++;
@@ -786,7 +803,7 @@ export async function runApplicationDomHealthAudit(
       // audited again under a new name.
       let stateId = graph.getCurrentStateId()!;
       if (next.source !== "seed") {
-        const fingerprint = await captureFingerprint(tabId);
+        const fingerprint = await capture();
         if (!fingerprint) {
           pages.push({
             url: next.url,
@@ -829,7 +846,7 @@ export async function runApplicationDomHealthAudit(
         stateId = transition.stateId;
       }
 
-      const auditOutcome = await collectDomHealthAudit(tabId);
+      const auditOutcome = await collectDomHealthAudit(tabId, { ignoredRoots });
       if (!auditOutcome.available) {
         pages.push({
           url: next.url,
@@ -897,7 +914,7 @@ export async function runApplicationDomHealthAudit(
     }
 
     const beforeNavModel = await getNavigationModel(tabId).catch(() => null);
-    const beforeFingerprint = await captureFingerprint(tabId);
+    const beforeFingerprint = await capture();
     const clickedAt = Date.now();
     const requestsBefore = peekTabRequests(
       tabId,
@@ -920,7 +937,7 @@ export async function runApplicationDomHealthAudit(
     }
 
     await waitForDomStable(tabId);
-    const afterFingerprint = await captureFingerprint(tabId);
+    const afterFingerprint = await capture();
     const afterNavModel = await getNavigationModel(tabId).catch(() => null);
     const historyEventDelta =
       beforeNavModel && afterNavModel
@@ -1020,7 +1037,7 @@ export async function runApplicationDomHealthAudit(
       pagesQueued: queue.length,
     });
 
-    const auditOutcome = await collectDomHealthAudit(tabId);
+    const auditOutcome = await collectDomHealthAudit(tabId, { ignoredRoots });
     if (!auditOutcome.available) {
       pages.push({
         url: `${next.fromUrl}#control:${next.domPath}`,

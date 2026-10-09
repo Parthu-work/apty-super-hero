@@ -11,6 +11,7 @@
  * `chrome.*` (frame ids, click events, network timing) and
  * `@apty/browser-runtime`'s `route-probe.ts` redacts and compares steps.
  */
+
 import {
   isRenderedInComposedTree,
   querySelectorAllDeep,
@@ -19,6 +20,13 @@ import {
   findActiveNavItemDeep,
   sampleHeadingsDeep,
 } from "./health-state-signature.js";
+import {
+  DEFAULT_IGNORED_ROOTS,
+  describeMatcher,
+  type IgnoredRootMatcher,
+  ignoredRootOf,
+  matchIgnoredRoot,
+} from "./ignored-roots.js";
 
 /** Attributes of an `<iframe>` / `<frame>` element, read in the document that owns it (the child's own document cannot see them). */
 export interface RouteProbeFrameOwner {
@@ -34,6 +42,8 @@ export interface RouteProbeFrameOwner {
   /** athenaOne marks its hidden menu shims `class="shimiframe"`. */
   className: string | null;
   rendered: boolean;
+  /** The ignored-root matcher (`ignored-roots.ts`) the frame element is inside or matches, e.g. `id:_pendo-`; null when it is application content. */
+  ignoredBy: string | null;
 }
 
 export interface RouteProbeFrameSignals {
@@ -56,6 +66,7 @@ export { findActiveNavItemDeep };
 /** Every `<iframe>` / `<frame>` this document owns, light DOM and shadow roots alike. */
 export function collectFrameOwners(
   root: Document | ShadowRoot,
+  policy: readonly IgnoredRootMatcher[] = DEFAULT_IGNORED_ROOTS,
 ): RouteProbeFrameOwner[] {
   return (
     querySelectorAllDeep(root, "iframe, frame") as Array<
@@ -71,7 +82,17 @@ export function collectFrameOwners(
     srcAttribute: element.getAttribute("src"),
     className: element.getAttribute("class"),
     rendered: isRenderedInComposedTree(element),
+    ignoredBy: ignoringMatcher(element, policy),
   }));
+}
+
+function ignoringMatcher(
+  element: Element,
+  policy: readonly IgnoredRootMatcher[],
+): string | null {
+  const root = ignoredRootOf(element, policy);
+  const matched = root ? matchIgnoredRoot(root, policy) : null;
+  return matched ? describeMatcher(matched) : null;
 }
 
 export function collectRouteProbeFrameSignals(

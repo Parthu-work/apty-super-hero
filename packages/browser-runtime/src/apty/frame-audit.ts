@@ -17,11 +17,13 @@
  * there is no step anywhere in this file that compares one frame's
  * elements against a different frame's registry.
  */
-import type {
-  DomHealthSnapshot,
-  ElementPathSample,
-  ElementSelectorReport,
-  FrameStateSignature,
+import {
+  type DomHealthSnapshot,
+  type DuplicateIdStats,
+  type ElementPathSample,
+  type ElementSelectorReport,
+  type FrameStateSignature,
+  mergeExcludedRoots,
 } from "@apty/dom-snapshot";
 import {
   type FrameKey,
@@ -69,6 +71,8 @@ export interface CaptureStateOptions {
   timeoutMs?: number;
   /** Runaway-safety ceiling forwarded to each frame's collector. */
   maxInteractiveElements?: number;
+  /** Settings entries excluded on top of the default ignored roots (`@apty/dom-snapshot`'s `ignored-roots.ts`). */
+  ignoredRoots?: readonly string[];
 }
 
 export interface CaptureStateResult {
@@ -126,6 +130,7 @@ function framePositions(frameTree: AuditFrame[]): Map<number, string> {
 async function collectFrameOwnersByFrameId(
   tabId: number,
   frameTree: AuditFrame[],
+  ignoredRoots: readonly string[] = [],
 ): Promise<Map<number, FrameOwnerAttributes>> {
   const owners = new Map<number, FrameOwnerAttributes>();
   const responses = await Promise.all(
@@ -135,7 +140,7 @@ async function collectFrameOwnersByFrameId(
         sendFrameMessage<OwnerWithFrameId[]>(
           tabId,
           frame.frameId,
-          { request: "collect-dom-health-frame-owners" },
+          { request: "collect-dom-health-frame-owners", ignoredRoots },
           OWNER_TIMEOUT_MS,
         ),
       ),
@@ -201,6 +206,7 @@ async function captureFrame(
       request: "collect-dom-health-frame-bundle",
       sequenceIndex: options.sequenceIndex,
       maxInteractiveElements: options.maxInteractiveElements,
+      ignoredRoots: options.ignoredRoots ?? [],
       frameContext: {
         frameId: frame.frameId,
         url: frame.url,
@@ -244,9 +250,10 @@ async function captureFrame(
  * A document with no form controls that holds an application frame is the
  * application's shell, not the application: the Infor OS Portal top
  * document has 0 form controls and loads LN in an iframe; athenaOne's top
- * document holds the `GlobalWrapper` frame. Scoring such a frame as the
- * application produced "no form controls" findings on a page full of them
- * (defect D-7).
+ * document holds the `GlobalWrapper` frame. Scored as the application, such
+ * a shell put the portal's own masthead and tabs in place of the
+ * application, and when the application frame could not be read the
+ * shell alone was scored (defect D-7).
  */
 export function classifyShellFrames(
   frames: FrameCaptureResult[],
@@ -305,7 +312,11 @@ export async function captureApplicationState(
     };
   }
 
-  let owners = await collectFrameOwnersByFrameId(tabId, frameTree);
+  let owners = await collectFrameOwnersByFrameId(
+    tabId,
+    frameTree,
+    options.ignoredRoots,
+  );
   let positions = framePositions(frameTree);
   let frames: FrameCaptureResult[] = await Promise.all(
     frameTree.map((frame) =>
@@ -329,7 +340,11 @@ export async function captureApplicationState(
     const refreshed = await getFrameTree(tabId);
     if (refreshed) {
       frameTree = refreshed;
-      owners = await collectFrameOwnersByFrameId(tabId, frameTree);
+      owners = await collectFrameOwnersByFrameId(
+        tabId,
+        frameTree,
+        options.ignoredRoots,
+      );
       positions = framePositions(frameTree);
       const byId = new Map(refreshed.map((frame) => [frame.frameId, frame]));
       frames = await Promise.all(
@@ -409,13 +424,16 @@ const MAX_AGGREGATED_ELEMENT_PATH_SAMPLES = 50;
 export function aggregateFrameSnapshots(
   frames: FrameCaptureResult[],
 ): DomHealthSnapshot {
-  const captured = frames.filter(
+  const read = frames.filter(
     (f): f is FrameCaptureResult & { snapshot: DomHealthSnapshot } =>
       f.status === "captured" && f.snapshot !== undefined,
   );
+  // Only application frames are scored (brief section 4.4, defect D-7):
+  // a portal shell, a navigation or status frame, a shim or an overlay is
+  // reported in the frame inventory, never counted as the application.
+  const captured = read.filter((f) => f.identity.role.role === "application");
 
-  const topFrame =
-    captured.find((f) => f.frame.frameType === "top") ?? captured[0];
+  const topFrame = read.find((f) => f.frame.frameType === "top") ?? read[0];
 
   const elementReports: ElementSelectorReport[] = [];
   const elementPathSamples: ElementPathSample[] = [];
@@ -488,6 +506,12 @@ export function aggregateFrameSnapshots(
   let shadowElements = 0;
   let maxZIndex = 0;
   let highZIndexElementCount = 0;
+  const duplicateIds: DuplicateIdStats = {
+    valuesDuplicatedWithinARoot: 0,
+    valuesDuplicatedPageWide: 0,
+    elementsWithDuplicatedId: 0,
+    sampleValues: [],
+  };
 
   for (const entry of captured) {
     const s = entry.snapshot;
@@ -605,11 +629,19 @@ export function aggregateFrameSnapshots(
     shadowElements += s.shadowDom.elements;
     maxZIndex = Math.max(maxZIndex, s.zIndex.maxZIndex);
     highZIndexElementCount += s.zIndex.highZIndexElementCount;
+    duplicateIds.valuesDuplicatedWithinARoot +=
+      s.duplicateIds?.valuesDuplicatedWithinARoot ?? 0;
+    duplicateIds.valuesDuplicatedPageWide +=
+      s.duplicateIds?.valuesDuplicatedPageWide ?? 0;
+    duplicateIds.elementsWithDuplicatedId +=
+      s.duplicateIds?.elementsWithDuplicatedId ?? 0;
+    duplicateIds.sampleValues.push(...(s.duplicateIds?.sampleValues ?? []));
   }
+  duplicateIds.sampleValues = duplicateIds.sampleValues.slice(0, 5);
 
   return {
     collectedAt:
-      captured.reduce((max, f) => Math.max(max, f.snapshot.collectedAt), 0) ||
+      read.reduce((max, f) => Math.max(max, f.snapshot.collectedAt), 0) ||
       Date.now(),
     url: topFrame?.snapshot.url ?? "",
     title: topFrame?.snapshot.title ?? "",
@@ -657,6 +689,10 @@ export function aggregateFrameSnapshots(
     shadowDom: { roots: shadowRoots, elements: shadowElements },
     zIndex: { maxZIndex, highZIndexElementCount },
     frame: null,
+    excludedRoots: mergeExcludedRoots(
+      read.map((f) => f.snapshot.excludedRoots ?? []),
+    ),
+    duplicateIds,
   };
 }
 
@@ -672,6 +708,8 @@ export interface FrameInventoryEntry {
   urlTemplate: string;
   status: FrameCaptureStatus;
   error?: string;
+  /** This frame's own score, for an application frame that was captured (`dom-health.ts`); absent otherwise. */
+  score?: number | null;
 }
 
 export function toFrameInventory(

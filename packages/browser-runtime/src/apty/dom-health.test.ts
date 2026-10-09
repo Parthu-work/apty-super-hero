@@ -422,3 +422,169 @@ describe("runDomHealthAudit", () => {
     expect(typeof result.score).toBe("number");
   });
 });
+
+describe("scoring by frame role (WP-7)", () => {
+  const PORTAL_URL = "https://portal.example.test/";
+  const LN_URL =
+    "https://eln.example.test/webui/servlet/fslogin?LogicalId=lid://infor.ln.ln01&inforTenantId=FAKETENANT000000_TRN";
+
+  function frame(frameId: number, parentFrameId: number, url: string) {
+    return {
+      frameId,
+      parentFrameId,
+      url,
+      errorOccurred: false,
+      processId: 1,
+      documentId: `doc-${frameId}`,
+      documentLifecycle: "active",
+      frameType: frameId === 0 ? "outermost_frame" : "sub_frame",
+    };
+  }
+
+  /** The Infor OS Portal shape: a top document with only the portal's own controls (no form controls), holding the LN frame. */
+  function portalSnapshot() {
+    const masthead = snapshotFixture().elementReports[0]!;
+    return snapshotFixture({
+      url: PORTAL_URL,
+      counts: {
+        ...snapshotFixture().counts,
+        inputs: 0,
+        interactiveElements: 3,
+      },
+      elementReports: [masthead, masthead, masthead],
+      selectorAnalysis: {
+        ...snapshotFixture().selectorAnalysis,
+        totalAnalyzed: 3,
+        directSuccess: 3,
+      },
+    });
+  }
+
+  function serveFrames(
+    frames: Array<ReturnType<typeof frame>>,
+    bundles: Record<number, DomHealthSnapshot | null>,
+  ) {
+    mockTabsGet.mockResolvedValue({ id: TAB_ID, url: PORTAL_URL });
+    mockGetAllFrames.mockResolvedValue(frames);
+    mockSendMessage.mockImplementation(
+      (
+        _tabId: number,
+        msg: { request: string },
+        options: { frameId: number },
+        callback: any,
+      ) => {
+        if (msg.request === "collect-dom-health-frame-owners") {
+          callback({
+            success: true,
+            data:
+              options.frameId === 0
+                ? [
+                    {
+                      frameId: 5,
+                      tagName: "iframe",
+                      name: "LN_44_11111111-2222-4333-8444-555555555555",
+                      id: null,
+                      title: "LN",
+                      ospId: "LN",
+                      srcAttribute: LN_URL,
+                      className: null,
+                      rendered: true,
+                      ignoredBy: null,
+                    },
+                  ]
+                : [],
+          });
+          return;
+        }
+        const snapshot = bundles[options.frameId];
+        if (!snapshot) {
+          callback({ success: false, error: "frame did not respond" });
+          return;
+        }
+        callback(frameBundle(snapshot));
+      },
+    );
+  }
+
+  async function audit() {
+    const promise = runDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    if (!result.available) throw new Error(result.error);
+    return result;
+  }
+
+  it("scores the LN application frame, not the portal shell around it", async () => {
+    serveFrames([frame(0, -1, PORTAL_URL), frame(5, 0, LN_URL)], {
+      0: portalSnapshot(),
+      5: snapshotFixture({ url: LN_URL }),
+    });
+
+    const result = await audit();
+
+    expect(result.coverage.elementsAnalyzed).toBe(1);
+    expect(result.frames).toEqual([
+      expect.objectContaining({ key: "top", role: "chrome" }),
+      expect.objectContaining({
+        key: "LN",
+        role: "application",
+        score: expect.any(Number),
+      }),
+    ]);
+    expect(result.frames[0]).not.toHaveProperty("score");
+  });
+
+  it("says so loudly, with no score, when the application frame could not be read and only the shell was", async () => {
+    serveFrames([frame(0, -1, PORTAL_URL), frame(5, 0, LN_URL)], {
+      0: portalSnapshot(),
+      5: null,
+    });
+
+    const result = await audit();
+
+    expect(result.score).toBeNull();
+    expect(result.confidence).toBe("LOW");
+    expect(result.risks[0]?.id).toBe("application-frame-not-inspected");
+    expect(result.confidenceCaps).toContain(
+      "No application frame could be inspected (LN); only the frames around it were.",
+    );
+  });
+
+  it("caps confidence when most frames could not be inspected", async () => {
+    serveFrames(
+      [
+        frame(0, -1, "https://example.com/app"),
+        frame(1, 0, "https://widgets.example.test/a"),
+        frame(2, 0, "https://widgets.example.test/b"),
+      ],
+      { 0: snapshotFixture(), 1: null, 2: null },
+    );
+
+    const result = await audit();
+
+    expect(result.confidence).toBe("LOW");
+    expect(result.confidenceCaps).toContain(
+      "2 of 3 frames could not be inspected.",
+    );
+  });
+
+  it("reports duplicated ids as a finding, with the counts", async () => {
+    serveFrames([frame(0, -1, "https://example.com/app")], {
+      0: snapshotFixture({
+        duplicateIds: {
+          valuesDuplicatedWithinARoot: 9,
+          valuesDuplicatedPageWide: 15,
+          elementsWithDuplicatedId: 19,
+          sampleValues: ["icon-logo"],
+        },
+      }),
+    });
+
+    const result = await audit();
+
+    const finding = result.risks.find((r) => r.id === "duplicate-ids");
+    expect(finding?.evidence).toContain("9 id value(s)");
+    expect(finding?.evidence).toContain("15 across the page");
+    expect(result.duplicateIds.elementsWithDuplicatedId).toBe(19);
+  });
+});

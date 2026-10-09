@@ -28,7 +28,14 @@ import {
   querySelectorDeep,
   walkComposedTree,
 } from "./composed-tree.js";
-import { AGENT_UI_ROOT_IDS, shadowRootOf } from "./shadow-roots.js";
+import {
+  DEFAULT_IGNORED_ROOTS,
+  type IgnoredRootMatcher,
+  ignoredRootOf,
+  ignoredRootPolicy,
+  matchIgnoredRoot,
+} from "./ignored-roots.js";
+import { shadowRootOf } from "./shadow-roots.js";
 
 export interface FrameStateSignature {
   url: string;
@@ -100,10 +107,6 @@ const LIVE_REGION_SELECTOR =
  */
 const SCREEN_CONTENT_SELECTOR = `${MAIN_REGION_SELECTOR}, ${NAV_CONTAINER_SELECTOR}, form`;
 
-const AGENT_UI_SELECTOR = AGENT_UI_ROOT_IDS.map((id) => `[id="${id}"]`).join(
-  ", ",
-);
-
 /** A live region holding no form and no landmark: a toast, a status line, a loading message. */
 function isTransientRegion(element: Element): boolean {
   return (
@@ -112,16 +115,18 @@ function isTransientRegion(element: Element): boolean {
   );
 }
 
-/** True for content that is never screen identity: the Agent's own UI, and anything inside a transient live region. */
-function isTransientOrAgentContent(element: Element): boolean {
+/** True for content that is never screen identity: overlays and injected UI (`ignored-roots.ts`), and anything inside a transient live region. */
+function isTransientOrIgnored(
+  element: Element,
+  policy: readonly IgnoredRootMatcher[],
+): boolean {
+  if (ignoredRootOf(element, policy)) return true;
   for (
     let current: Element | null = element;
     current;
     current = composedParentElement(current)
   ) {
-    if (current.matches(AGENT_UI_SELECTOR) || isTransientRegion(current)) {
-      return true;
-    }
+    if (isTransientRegion(current)) return true;
   }
   return false;
 }
@@ -130,13 +135,14 @@ function isTransientOrAgentContent(element: Element): boolean {
 export function sampleHeadingsDeep(
   root: Document | ShadowRoot | Element,
   max = MAX_HEADING_SAMPLE,
+  policy: readonly IgnoredRootMatcher[] = DEFAULT_IGNORED_ROOTS,
 ): string[] {
   const out: string[] = [];
   walkComposedTree(root, (el) => {
     if (
       !el.matches(HEADING_SELECTOR) ||
       !isRenderedInComposedTree(el) ||
-      isTransientOrAgentContent(el)
+      isTransientOrIgnored(el, policy)
     ) {
       return true;
     }
@@ -202,7 +208,10 @@ function textsOf(elements: Element[]): string[] {
  * another selected item is left out, because its text would repeat the
  * inner one's. Consecutive repeats are collapsed and the trail is capped.
  */
-export function collectNavTrailDeep(root: Document | ShadowRoot): string[] {
+export function collectNavTrailDeep(
+  root: Document | ShadowRoot,
+  policy: readonly IgnoredRootMatcher[] = DEFAULT_IGNORED_ROOTS,
+): string[] {
   const breadcrumbItems: Element[] = [];
   const activeItems: Element[] = [];
   walkComposedTree(root, (el) => {
@@ -213,7 +222,7 @@ export function collectNavTrailDeep(root: Document | ShadowRoot): string[] {
       el.matches(ACTIVE_ITEM_SELECTOR) &&
       closestComposed(el, NAV_CONTAINER_SELECTOR) !== null;
     if (!inBreadcrumb && !isActiveItem) return true;
-    if (!isRenderedInComposedTree(el) || isTransientOrAgentContent(el)) {
+    if (!isRenderedInComposedTree(el) || isTransientOrIgnored(el, policy)) {
       return true;
     }
     if (inBreadcrumb) breadcrumbItems.push(el);
@@ -233,13 +242,16 @@ export function collectNavTrailDeep(root: Document | ShadowRoot): string[] {
 }
 
 /** The first rendered `main` landmark outside transient content, or null when the page has none. */
-function findMainRegion(root: Document | ShadowRoot): Element | null {
+function findMainRegion(
+  root: Document | ShadowRoot,
+  policy: readonly IgnoredRootMatcher[],
+): Element | null {
   let found: Element | null = null;
   walkComposedTree(root, (el) => {
     if (
       el.matches(MAIN_REGION_SELECTOR) &&
       isRenderedInComposedTree(el) &&
-      !isTransientOrAgentContent(el)
+      !isTransientOrIgnored(el, policy)
     ) {
       found = el;
     }
@@ -251,13 +263,14 @@ function findMainRegion(root: Document | ShadowRoot): Element | null {
 /** The first heading of the main region, or of the whole document when the main region has none (or there is no main region). */
 export function findPrimaryHeadingDeep(
   root: Document | ShadowRoot,
+  policy: readonly IgnoredRootMatcher[] = DEFAULT_IGNORED_ROOTS,
 ): string | null {
-  const main = findMainRegion(root);
+  const main = findMainRegion(root, policy);
   if (main) {
-    const [inMain] = sampleHeadingsDeep(main, 1);
+    const [inMain] = sampleHeadingsDeep(main, 1, policy);
     if (inMain) return inMain;
   }
-  return sampleHeadingsDeep(root, 1)[0] ?? null;
+  return sampleHeadingsDeep(root, 1, policy)[0] ?? null;
 }
 
 /**
@@ -306,10 +319,14 @@ function composedChildren(element: Element): Element[] {
  * float over the page that way (general knowledge, unverified against the
  * two real applications).
  */
-function inStructure(element: Element, view: Window | null): boolean {
+function inStructure(
+  element: Element,
+  view: Window | null,
+  policy: readonly IgnoredRootMatcher[],
+): boolean {
   if (STRUCTURE_SKIPPED_TAGS.has(element.localName)) return false;
   if (element.hasAttribute("hidden")) return false;
-  if (element.matches(AGENT_UI_SELECTOR)) return false;
+  if (matchIgnoredRoot(element, policy)) return false;
   if (isTransientRegion(element)) return false;
   if (!view) return true;
   const style = view.getComputedStyle(element);
@@ -327,7 +344,10 @@ function structureLabel(element: Element): string {
  * one with 300 have the same skeleton, and the node budget is spent on
  * shape rather than on repetition.
  */
-function structureSkeleton(region: Element): string {
+function structureSkeleton(
+  region: Element,
+  policy: readonly IgnoredRootMatcher[],
+): string {
   const view = region.ownerDocument.defaultView;
   let budget = MAX_STRUCTURE_NODES;
   const visit = (element: Element, depth: number): string => {
@@ -343,7 +363,7 @@ function structureSkeleton(region: Element): string {
     let previousLabel: string | null = null;
     for (const child of composedChildren(element)) {
       if (budget <= 0) break;
-      if (!inStructure(child, view)) continue;
+      if (!inStructure(child, view, policy)) continue;
       const childLabel = structureLabel(child);
       if (childLabel === previousLabel) continue;
       previousLabel = childLabel;
@@ -365,17 +385,29 @@ export function fnv1a(input: string): string {
 }
 
 /** Hash of the main region's skeleton, or of `<body>` when there is no main region. */
-export function computeStructureHash(doc: Document): string {
-  const region = findMainRegion(doc) ?? doc.body ?? doc.documentElement;
-  return region ? fnv1a(structureSkeleton(region)) : "";
+export function computeStructureHash(
+  doc: Document,
+  policy: readonly IgnoredRootMatcher[] = DEFAULT_IGNORED_ROOTS,
+): string {
+  const region = findMainRegion(doc, policy) ?? doc.body ?? doc.documentElement;
+  return region ? fnv1a(structureSkeleton(region, policy)) : "";
 }
 
-/** Compute one frame's state signature from its own live document, shadow roots included. Pure/cheap — never runs the full interactive-element pipeline. */
-export function computeFrameStateSignature(doc: Document): FrameStateSignature {
+/**
+ * Compute one frame's state signature from its own live document, shadow
+ * roots included, leaving out the same overlays the collector does
+ * (`ignoredRoots`: Settings entries on top of the defaults). Pure/cheap —
+ * never runs the full interactive-element pipeline.
+ */
+export function computeFrameStateSignature(
+  doc: Document,
+  options: { ignoredRoots?: readonly string[] } = {},
+): FrameStateSignature {
+  const policy = ignoredRootPolicy(options.ignoredRoots);
   return {
     url: doc.location?.href ?? "",
-    navTrail: collectNavTrailDeep(doc),
-    primaryHeading: findPrimaryHeadingDeep(doc),
-    structureHash: computeStructureHash(doc),
+    navTrail: collectNavTrailDeep(doc, policy),
+    primaryHeading: findPrimaryHeadingDeep(doc, policy),
+    structureHash: computeStructureHash(doc, policy),
   };
 }

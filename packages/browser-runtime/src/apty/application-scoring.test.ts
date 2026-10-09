@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildApplicationAuditResult,
   type PageAuditRecord,
+  routeConfidenceCaps,
 } from "./application-scoring";
 import { buildDomHealthAuditResult } from "./dom-health-scoring";
 
@@ -501,5 +502,26 @@ describe("buildApplicationAuditResult — cross-application-state selector repla
 
     expect(result.scopeLabel).toBe("APPLICATION");
     expect(result.selectorConfiguration.source).toBe("default");
+  });
+});
+
+describe("routeConfidenceCaps (WP-7)", () => {
+  const graph = (high: number, medium: number, low: number) => ({
+    seedStateId: "state-0",
+    nodes: [],
+    edges: [],
+    routeConfidence: { high, medium, low },
+  });
+
+  it("caps at MEDIUM when any state was told apart by structure alone, and at LOW when most were", () => {
+    expect(routeConfidenceCaps(graph(3, 0, 0))).toEqual([]);
+    expect(routeConfidenceCaps(graph(3, 0, 1))[0]?.cap).toBe("MEDIUM");
+    expect(routeConfidenceCaps(graph(1, 0, 2))).toEqual([
+      {
+        cap: "LOW",
+        reason:
+          "2 of 3 states were told apart by page structure alone, with no navigation trail or heading to confirm them.",
+      },
+    ]);
   });
 });

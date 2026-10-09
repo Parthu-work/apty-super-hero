@@ -17,6 +17,7 @@ import {
   collectSafeNavigationCandidates,
   composedText,
   computeFrameStateSignature,
+  ignoredRootPolicy,
   isSafeNavigationCandidate,
   isSafeToDiscover,
   replayElementRefs,
@@ -347,6 +348,13 @@ function respondAsync(
   return true;
 }
 
+/** The user's extra ignored-root entries from a request; anything that is not a list of strings counts as none. */
+function settingsEntries(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
 /** Paths may cross shadow boundaries (`buildComposedDomPath`), so they are resolved hop by hop, never with one `querySelector`. */
 export function clickSafeNavigationCandidate(domPath: unknown) {
   const path = typeof domPath === "string" ? domPath : "";
@@ -432,6 +440,7 @@ export function handleFrameMessage(
         sendResponse,
         "Failed to collect a DOM Health frame bundle",
         async () => {
+          const ignoredRoots = settingsEntries(message.ignoredRoots);
           const snapshot = await collectDomHealthSnapshot(document, {
             freshAudit: (message.sequenceIndex ?? 0) === 0,
             maxInteractiveElements:
@@ -439,10 +448,13 @@ export function handleFrameMessage(
                 ? message.maxInteractiveElements
                 : undefined,
             frameContext: message.frameContext ?? null,
+            ignoredRoots,
           });
           return {
             snapshot,
-            stateSignature: computeFrameStateSignature(document),
+            stateSignature: computeFrameStateSignature(document, {
+              ignoredRoots,
+            }),
           };
         },
       );
@@ -500,7 +512,13 @@ export function handleFrameMessage(
       return respondAsync(
         sendResponse,
         "Failed to read this document's frame elements",
-        () => frameOwnersWithIds(),
+        () =>
+          frameOwnersWithIds(
+            collectFrameOwners(
+              document,
+              ignoredRootPolicy(settingsEntries(message.ignoredRoots)),
+            ),
+          ),
       );
     case "dom-health-probe-arm":
       sendResponse({ success: true, data: armRouteProbe() });
