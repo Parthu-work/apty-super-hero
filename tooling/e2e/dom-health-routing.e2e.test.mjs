@@ -25,11 +25,34 @@ const SPA_PAGE = `<!doctype html><title>Orders</title><body>
   </script>
 </body>`;
 
+/** A host whose shadow root is attached later, then filled over ~700 ms, ending with a control (Infor IDS and athenaOne mount this way). */
+const LATE_SHADOW_PAGE = `<!doctype html><title>Late</title><body>
+  <div id="late-host"></div>
+  <script>
+    window.lateMount = () => {
+      const root = document.getElementById("late-host").attachShadow({ mode: "open" });
+      let ticks = 0;
+      const timer = setInterval(() => {
+        root.append(document.createElement("span"));
+        if (++ticks === 7) {
+          clearInterval(timer);
+          const save = document.createElement("button");
+          save.textContent = "Save";
+          root.append(save);
+        }
+      }, 100);
+    };
+  </script>
+</body>`;
+
 let browser;
 let site;
 
 before(async () => {
-  site = await startPageServer({ "/spa.html": SPA_PAGE });
+  site = await startPageServer({
+    "/spa.html": SPA_PAGE,
+    "/late.html": LATE_SHADOW_PAGE,
+  });
   browser = await launchBrowser();
 });
 
@@ -38,14 +61,17 @@ after(async () => {
   site?.close();
 });
 
-/** Send `message` to frame 0 of the tab showing spa.html, from an extension page. */
-async function askTopFrame(ext, message) {
-  return ext.evaluate(async (message) => {
-    const [tab] = await chrome.tabs.query({
-      url: "http://127.0.0.1/*spa.html*",
-    });
-    return chrome.tabs.sendMessage(tab.id, message, { frameId: 0 });
-  }, message);
+/** Send `message` to frame 0 of the tab showing `page`, from an extension page. */
+async function askTopFrame(ext, message, page = "spa.html") {
+  return ext.evaluate(
+    async ({ message, page }) => {
+      const [tab] = await chrome.tabs.query({
+        url: `http://127.0.0.1/*${page}*`,
+      });
+      return chrome.tabs.sendMessage(tab.id, message, { frameId: 0 });
+    },
+    { message, page },
+  );
 }
 
 describe("DOM Health routing evidence", () => {
@@ -104,6 +130,40 @@ describe("DOM Health routing evidence", () => {
     assert.equal(afterClick.data.firstRequest?.path, "/api/4242424/customers");
     assert.equal(afterClick.data.firstRequest?.initiatorType, "fetch");
     assert.deepEqual(clicks, ["Customers"]);
+    await ext.close();
+    await page.close();
+  });
+  it("waits for a shadow root attached after the wait began, and captures its control", async () => {
+    const page = await browser.context.newPage();
+    await page.goto(`${site.origin}/late.html`);
+    await page.waitForLoadState("load");
+    const ext = await extensionPage(browser);
+
+    const waiting = askTopFrame(
+      ext,
+      { request: "wait-for-dom-stable", quietMs: 300, timeoutMs: 5000 },
+      "late.html",
+    );
+    await page.evaluate(() => setTimeout(() => window.lateMount(), 200));
+    const wait = await waiting;
+    const bundle = await askTopFrame(
+      ext,
+      { request: "collect-dom-health-frame-bundle", sequenceIndex: 0 },
+      "late.html",
+    );
+
+    assert.equal(wait.success, true, JSON.stringify(wait));
+    assert.ok(
+      wait.data.elapsedMs >= 900,
+      `settled after ${wait.data.elapsedMs} ms`,
+    );
+    assert.deepEqual(
+      bundle.data.snapshot.elementReports.map((r) => [
+        r.tagName,
+        r.shadowDepth,
+      ]),
+      [["button", 1]],
+    );
     await ext.close();
     await page.close();
   });

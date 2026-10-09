@@ -9,6 +9,14 @@ export const HISTORY_API_EVENT = "apty:dom-health:history-api";
 /** Dispatched by the responder when it installs; the hooks answer with a `HISTORY_API_EVENT` carrying the totals so far. */
 export const HISTORY_SYNC_REQUEST_EVENT = "apty:dom-health:history-sync";
 
+/**
+ * Dispatched by the MAIN-world hooks after `Element.prototype.attachShadow`
+ * returns, so a stability wait already running can start observing the new
+ * root (re-audit finding N-5: Infor IDS components and athenaOne's
+ * micro-frontend attach their roots after load).
+ */
+export const SHADOW_ATTACHED_EVENT = "apty:dom-health:shadow-attached";
+
 /** Counts since the document started, kept by the MAIN-world hooks. */
 export interface HistoryApiTotals {
   pushState: number;

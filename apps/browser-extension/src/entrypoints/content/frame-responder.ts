@@ -30,6 +30,7 @@ import {
   HISTORY_SYNC_REQUEST_EVENT,
   type HistoryApiTotals,
   parseHistoryTotals,
+  SHADOW_ATTACHED_EVENT,
   ZERO_HISTORY_TOTALS,
 } from "./page-events";
 
@@ -255,6 +256,7 @@ export function waitForDomToStabilize(
       if (resolved) return;
       resolved = true;
       observer.disconnect();
+      window.removeEventListener(SHADOW_ATTACHED_EVENT, onShadowAttached);
       if (quietTimer) clearTimeout(quietTimer);
       clearTimeout(timeoutTimer);
       resolve({ settled, elapsedMs: Date.now() - start });
@@ -265,17 +267,44 @@ export function waitForDomToStabilize(
       subtree: true,
       attributes: true,
     };
-    const observer = new MutationObserver(() => {
-      if (quietTimer) clearTimeout(quietTimer);
-      quietTimer = setTimeout(() => finish(true), quietMs);
-    });
-
     const target = document.body ?? document.documentElement;
-    if (target) {
-      observer.observe(target, options);
+    const observed = new WeakSet<Node>();
+    const observeNewRoots = () => {
+      if (!target) return;
       for (const shadow of collectShadowRoots(target)) {
+        if (observed.has(shadow)) continue;
+        observed.add(shadow);
         observer.observe(shadow, options);
       }
+    };
+    const activity = () => {
+      if (quietTimer) clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => finish(true), quietMs);
+    };
+    // Roots attached after the wait began are observed too (re-audit
+    // finding N-5): an added subtree may bring hosts with roots, and the
+    // MAIN-world hooks announce every later `attachShadow`.
+    const observer = new MutationObserver((records) => {
+      if (
+        records.some((record) =>
+          Array.from(record.addedNodes).some(
+            (node) => node.nodeType === Node.ELEMENT_NODE,
+          ),
+        )
+      ) {
+        observeNewRoots();
+      }
+      activity();
+    });
+    const onShadowAttached = () => {
+      observeNewRoots();
+      activity();
+    };
+    window.addEventListener(SHADOW_ATTACHED_EVENT, onShadowAttached);
+
+    if (target) {
+      observer.observe(target, options);
+      observeNewRoots();
     }
     quietTimer = setTimeout(() => finish(true), quietMs);
     const timeoutTimer = setTimeout(() => finish(false), timeoutMs);

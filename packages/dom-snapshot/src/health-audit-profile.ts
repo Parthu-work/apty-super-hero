@@ -29,6 +29,7 @@ import {
   type PartialFn,
 } from "./health-attribute-classification.js";
 import { classifyUnstableClass, looksDynamic } from "./health-dynamic.js";
+import { isPrivateAttribute } from "./health-privacy.js";
 
 /**
  * Angular view-encapsulation attributes: the name itself carries a
@@ -75,8 +76,18 @@ export function stableClassTokens(value: string): string[] {
   );
 }
 
+/**
+ * Never part of a path: an input's `value` attribute is what the user
+ * typed or what the server pre-filled (a patient name on a registration
+ * form), and a path is stored and replayed (brief section 4.12).
+ */
+const PRIVATE_ATTRIBUTES = new Set(["value"]);
+
 const auditIgnoreAttribute: IgnoreFn = (name, value, defaultFn) => {
   if (defaultFn?.(name, value)) return true;
+  if (PRIVATE_ATTRIBUTES.has(name) || isPrivateAttribute(name, value ?? "")) {
+    return true;
+  }
   if (isUnstableAttributeName(name)) return true;
   return name === "id" && Boolean(value) && looksDynamic(value ?? "");
 };

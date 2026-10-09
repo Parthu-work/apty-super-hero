@@ -223,6 +223,51 @@ through `redactSensitiveText`. The application audit itself navigates and
 replays with the unredacted result (`collectDomHealthAudit`), which never
 leaves the service worker.
 
+## Capture-time privacy (`health-privacy.ts`, WP-8)
+
+The service worker redacts every result on exit (see "Privacy boundary").
+WP-8 adds a first line in the page, so values never leave the frame:
+
+- **Input values.** `value` is never read: the audit profile ignores the
+  `value` attribute, so it is never part of a stored path, and nothing
+  reads the property.
+- **Script and style bodies.** Captured text (headings, nav trail, link
+  and control labels) goes through `composedText`, which skips `script`,
+  `style`, `template` and `noscript`.
+- **`data-*` values.** In element reports, a token-shaped value (Datadog
+  `pub` + 32 hex as in the athenaOne exports, JWT, GUID, long hex, opaque
+  base64 key) or a secret-named attribute becomes `<redacted>`. Free text
+  (4+ words, or several words over 40 characters) becomes
+  `<redacted-text>`. Digit runs of 5 or more become `:id`.
+- **Selectors.** `bestSelector` values go through the same rules. `href`,
+  `src` and `action` lose secret-named and token-like query parameters,
+  and ids in the path are masked.
+- **Stored paths.** The audit profile ignores secret-shaped attributes
+  (including URLs carrying a secret parameter), which also change per
+  session. Samples carry a hash of the element fingerprint, never the
+  attribute text, and elements in private containers are not sampled.
+- **Private containers.** Elements under a session-replay masking marker
+  (Datadog `data-dd-privacy="mask"` / `.dd-privacy-mask`, FullStory
+  `.fs-mask` / `.fs-exclude`, Hotjar `data-hj-suppress`, Sentry
+  `.sentry-mask`) or an explicit `data-pii` / `data-phi` / `data-private` /
+  `data-sensitive` report every value and label as redacted. This is
+  general knowledge; neither export contains one.
+
+Discovered link URLs are the one exception. The service worker has to load
+them as they are, since a session-scoped link needs its token, and
+`redactAuditUrl` redacts them before any report.
+
+## Shadow roots attached during a stability wait (N-5)
+
+`waitForDomToStabilize` observes shadow roots that appear after the wait
+begins. A mutation that adds elements triggers a re-scan for new roots.
+The MAIN-world page hooks wrap `Element.prototype.attachShadow` and
+announce each new root (`SHADOW_ATTACHED_EVENT`), which counts as activity
+and triggers the same re-scan, because attaching a root to an element
+already in the document is not a DOM mutation. The e2e test attaches a
+root 200 ms into a wait and fills it over 700 ms. The previous build
+settled after 301 ms, and this one waits for the control and captures it.
+
 ## History API evidence
 
 `pushState` and `replaceState` are counted in the page's own world.

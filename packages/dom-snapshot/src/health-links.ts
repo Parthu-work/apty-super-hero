@@ -18,12 +18,12 @@
 
 import {
   closestComposed,
-  composedText,
   isRenderedInComposedTree,
   querySelectorAllDeep,
   walkComposedTree,
 } from "./composed-tree.js";
 import { SHADOW_BOUNDARY, shadowHostChain } from "./element-ref.js";
+import { capturedText } from "./health-privacy.js";
 import { shadowRootOf } from "./shadow-roots.js";
 
 export interface DiscoverableLink {
@@ -128,7 +128,7 @@ export function collectDiscoverableLinks(
       sameOrigin = false;
     }
 
-    const text = (a.textContent ?? "").trim().slice(0, 120);
+    const text = capturedText(a);
     const destructiveReason = matchesDestructiveKeyword(
       trimmed,
       text,
@@ -299,7 +299,7 @@ export function collectSafeNavigationCandidates(
       return true;
     }
     if (!isRenderedInComposedTree(item)) return true;
-    const text = composedText(item, 120);
+    const text = capturedText(item);
     if (!text) return true;
     const domPath = buildComposedDomPath(item);
     if (seenPaths.has(domPath)) return true;

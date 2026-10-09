@@ -56,10 +56,16 @@
 import { type ElementPath, resetDesPerformanceCaches } from "./des-engine.js";
 import { hitTestElement } from "./health-hit-test.js";
 import {
+  isInPrivateContainer,
+  sanitizeReportAttributes,
+  sanitizeSelector,
+} from "./health-privacy.js";
+import {
   computeComposedFingerprint,
   type ElementResolution,
   extractElementAttributes,
   hasAccessibleName,
+  hashFingerprint,
   resolveInComposedTree,
   verifyStoredElementPath,
 } from "./health-selector-engine.js";
@@ -653,10 +659,10 @@ function analyzeInteractiveElement(
   state.elementReports.push({
     tagName: el.tagName.toLowerCase(),
     classification: "interactive",
-    attributes,
+    attributes: sanitizeReportAttributes(attributes, el),
     outcome: resolution.outcome,
     strategy: resolution.strategy,
-    bestSelector: resolution.bestSelector,
+    bestSelector: sanitizeSelector(resolution.bestSelector, el),
     shadowDepth: resolution.shadowDepth,
     matchCount: resolution.matchCount,
     ancestorDepthUsed: resolution.ancestorDepthUsed,
@@ -681,13 +687,14 @@ function analyzeInteractiveElement(
     resolution.outcome !== "WRONG_TARGET" &&
     resolution.outcome !== "NOT_RESOLVED" &&
     resolution.outcome !== "INACCESSIBLE" &&
-    state.elementPathSamples.length < MAX_ELEMENT_PATH_SAMPLES
+    state.elementPathSamples.length < MAX_ELEMENT_PATH_SAMPLES &&
+    !isInPrivateContainer(el)
   ) {
     state.elementPathSamples.push({
-      fingerprint,
+      fingerprint: hashFingerprint(fingerprint),
       ref: resolution.elementRef,
       tagName: el.tagName.toLowerCase(),
-      selector: resolution.bestSelector,
+      selector: sanitizeSelector(resolution.bestSelector, el),
       outcome: resolution.outcome,
     });
   }

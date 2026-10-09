@@ -24,6 +24,7 @@ import {
   HISTORY_SYNC_REQUEST_EVENT,
   type HistoryApiMethod,
   type HistoryApiTotals,
+  SHADOW_ATTACHED_EVENT,
   ZERO_HISTORY_TOTALS,
 } from "./page-events";
 
@@ -61,6 +62,26 @@ function wrapHistoryMethod(
   };
 }
 
+/** Announce every `attachShadow` once it has returned; the page gets exactly the root (or exception) it would have got. */
+function wrapAttachShadow(win: Window): void {
+  const proto = (win as Window & { Element?: typeof Element }).Element
+    ?.prototype;
+  const original = proto?.attachShadow;
+  if (!proto || typeof original !== "function") return;
+  proto.attachShadow = function wrappedAttachShadow(
+    this: Element,
+    init: ShadowRootInit,
+  ) {
+    const root = original.call(this, init);
+    try {
+      win.dispatchEvent(new CustomEvent(SHADOW_ATTACHED_EVENT));
+    } catch {
+      // Best effort: the root is attached either way.
+    }
+    return root;
+  };
+}
+
 /** Install the page-world hooks once in `win`. Returns false when they were already installed. */
 export function installPageHooks(win: Window = window): boolean {
   try {
@@ -74,6 +95,7 @@ export function installPageHooks(win: Window = window): boolean {
     const totals: HistoryApiTotals = { ...ZERO_HISTORY_TOTALS };
     wrapHistoryMethod(win, "pushState", totals);
     wrapHistoryMethod(win, "replaceState", totals);
+    wrapAttachShadow(win);
     for (const event of [
       "popstate",
       "hashchange",

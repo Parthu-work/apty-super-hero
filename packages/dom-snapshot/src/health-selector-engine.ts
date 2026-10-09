@@ -45,6 +45,7 @@ import {
   normalizeAttributeName,
   withDuplicateIdsIgnored,
 } from "./health-audit-profile.js";
+import { fnv1a } from "./health-state-signature.js";
 import type {
   DomHealthElementAttributes,
   SelectorResolutionOutcome,
@@ -577,7 +578,7 @@ export function verifyStoredElementPath(
   const minimal = generateMinimalSelector(result.element, root, config);
   const selector = minimal?.selector ?? pathToSelector(storedPath);
 
-  if (computeComposedFingerprint(result.element) !== expectedFingerprint) {
+  if (!fingerprintMatches(result.element, expectedFingerprint)) {
     return { verdict: "WRONG_TARGET", element: result.element, selector };
   }
 
@@ -592,6 +593,27 @@ export function verifyStoredElementPath(
     return { verdict: "DIRECT_STABLE", element: result.element, selector };
   }
   return { verdict: "RECOVERED_STABLE", element: result.element, selector };
+}
+
+const HASHED_FINGERPRINT_PREFIX = "h:";
+
+/**
+ * The fingerprint a stored sample carries: a hash of
+ * `computeComposedFingerprint`, which spells out attribute values and
+ * could carry a name or a token out of the frame. Replay hashes the
+ * element it finds the same way (`fingerprintMatches`). A 32-bit hash can
+ * collide; a collision would let a wrong element pass as the right one,
+ * at odds of one in four billion per comparison.
+ */
+export function hashFingerprint(fingerprint: string): string {
+  return `${HASHED_FINGERPRINT_PREFIX}${fnv1a(fingerprint)}`;
+}
+
+function fingerprintMatches(element: Element, expected: string): boolean {
+  const actual = computeComposedFingerprint(element);
+  return expected.startsWith(HASHED_FINGERPRINT_PREFIX)
+    ? hashFingerprint(actual) === expected
+    : actual === expected;
 }
 
 export interface ElementPathReplayResult {

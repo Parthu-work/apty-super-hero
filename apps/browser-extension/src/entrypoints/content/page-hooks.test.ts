@@ -3,6 +3,7 @@ import {
   HISTORY_API_EVENT,
   HISTORY_SYNC_REQUEST_EVENT,
   parseHistoryTotals,
+  SHADOW_ATTACHED_EVENT,
 } from "./page-events";
 import { installPageHooks } from "./page-hooks";
 
@@ -123,5 +124,45 @@ describe("parseHistoryTotals", () => {
         }),
       ),
     ).toEqual({ pushState: 2, replaceState: 0, popstate: 0, hashchange: 1 });
+  });
+});
+
+describe("attachShadow hook (re-audit N-5)", () => {
+  function windowWithElement(attach: (init: ShadowRootInit) => unknown) {
+    class FakeElement {
+      attachShadow(init: ShadowRootInit) {
+        return attach(init);
+      }
+    }
+    const events = new EventTarget();
+    let announcements = 0;
+    events.addEventListener(SHADOW_ATTACHED_EVENT, () => announcements++);
+    const win = {
+      Element: FakeElement,
+      addEventListener: events.addEventListener.bind(events),
+      dispatchEvent: (event: Event) => events.dispatchEvent(event),
+    } as unknown as Window;
+    return { win, FakeElement, announcements: () => announcements };
+  }
+
+  it("announces each attached root and hands the page its own root back", () => {
+    const root = { kind: "root" };
+    const { win, FakeElement, announcements } = windowWithElement(() => root);
+    installPageHooks(win);
+
+    expect(new FakeElement().attachShadow({ mode: "closed" })).toBe(root);
+    expect(announcements()).toBe(1);
+  });
+
+  it("lets the page's own error through without announcing anything", () => {
+    const { win, FakeElement, announcements } = windowWithElement(() => {
+      throw new DOMException("not supported", "NotSupportedError");
+    });
+    installPageHooks(win);
+
+    expect(() => new FakeElement().attachShadow({ mode: "open" })).toThrow(
+      "not supported",
+    );
+    expect(announcements()).toBe(0);
   });
 });

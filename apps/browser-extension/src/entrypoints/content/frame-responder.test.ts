@@ -18,7 +18,7 @@ import {
   waitForDomToStabilize,
   waitForFrameToSettle,
 } from "./frame-responder";
-import { HISTORY_API_EVENT } from "./page-events";
+import { HISTORY_API_EVENT, SHADOW_ATTACHED_EVENT } from "./page-events";
 
 function ask(message: unknown): Promise<any> {
   return new Promise((resolve) => {
@@ -157,6 +157,44 @@ describe("waitForDomToStabilize", () => {
     const { settled, elapsedMs } = await result;
     expect(settled).toBe(true);
     expect(elapsedMs).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe("waitForDomToStabilize with shadow roots attached late (N-5)", () => {
+  it("keeps waiting while a shadow root attached after the wait began keeps changing", async () => {
+    vi.useFakeTimers();
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const result = waitForDomToStabilize(100, 2000);
+    await vi.advanceTimersByTimeAsync(50);
+    const late = host.attachShadow({ mode: "open" });
+    window.dispatchEvent(new CustomEvent(SHADOW_ATTACHED_EVENT));
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(60);
+      late.append(document.createElement("p"));
+    }
+    await vi.advanceTimersByTimeAsync(200);
+
+    const { settled, elapsedMs } = await result;
+    expect(settled).toBe(true);
+    expect(elapsedMs).toBeGreaterThanOrEqual(400);
+  });
+
+  it("observes a host that arrives with its root already attached", async () => {
+    vi.useFakeTimers();
+    const result = waitForDomToStabilize(100, 2000);
+    const host = document.createElement("div");
+    const shadow = host.attachShadow({ mode: "open" });
+    await vi.advanceTimersByTimeAsync(20);
+    document.body.append(host);
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(60);
+      shadow.append(document.createElement("p"));
+    }
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect((await result).elapsedMs).toBeGreaterThanOrEqual(400);
   });
 });
 
