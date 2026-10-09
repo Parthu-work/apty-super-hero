@@ -904,6 +904,17 @@ export function DomHealthCard({
                   appOutcome.coverage.discoveryMethod}
                 .
               </p>
+              {appOutcome.traversal && (
+                <p className="text-[11px] text-muted-foreground">
+                  Traversal:{" "}
+                  <span className="font-medium text-foreground">
+                    {appOutcome.traversal.mode === "click-first"
+                      ? "click-first"
+                      : "URL-first"}
+                  </span>{" "}
+                  — {appOutcome.traversal.reason}
+                </p>
+              )}
 
               {appOutcome.crossStateEvidence &&
                 appOutcome.crossStateEvidence.attempted > 0 && (

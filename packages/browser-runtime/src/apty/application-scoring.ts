@@ -51,6 +51,7 @@ import {
   sampleFailureReasons,
 } from "./frame-tree.js";
 import type { RouteKeyConfidence, RouteKeySummary } from "./route-key.js";
+import type { TraversalReport } from "./traversal-strategy.js";
 
 export type PageAuditStatus =
   | "completed"
@@ -135,6 +136,10 @@ export interface StateGraphEdgeSummary {
   sameUrl: boolean;
   historyEventDelta: number;
   confidence: "confirmed" | "restored";
+  /** For a click: which signals besides the DOM corroborated it. Empty for an uncorroborated click; absent for a URL load. */
+  corroboratedBy?: Array<"history" | "frame-src" | "network">;
+  /** For a click: whether a network capture was running, so `network` could have corroborated it. */
+  networkObserved?: boolean;
 }
 
 export interface StateGraphSummary {
@@ -153,6 +158,10 @@ export interface RestorationEvidence {
   /** Set only on failure — the 0-based step where replay diverged from the originally-recorded transition. */
   failedAtStep?: number;
   reason?: string;
+  /** "direct-url": loaded the state's URL. "replay": reloaded the seed and replayed the recorded path, clicking links and controls. */
+  method?: "direct-url" | "replay";
+  /** True when a direct URL load was tried first and did not reproduce the state. */
+  fellBackFromDirectUrl?: boolean;
 }
 
 /**
@@ -230,6 +239,8 @@ export interface ApplicationAuditResult {
   methodology: string[];
   /** The real state-discovery tree this run built — never a flat page list — see `state-graph.ts`. Absent only if the caller didn't pass one (e.g. an older/degenerate call path). */
   stateGraph?: StateGraphSummary;
+  /** URL-first or click-first, and why (`traversal-strategy.ts`); absent for a single-page result. */
+  traversal?: TraversalReport;
   /** Every backtracking attempt made during this run (restoring the live tab to a previously-discovered state before exploring one of its other children), success or failure — never silently retried and hidden. */
   restorations: RestorationEvidence[];
   /** Real Apty ElementPaths captured at the seed state, replayed against every other audited state (spec section 7) — see `CrossStateSelectorEvidence`'s doc comment. Its counts are already folded into `metricDetails.selectorStability`, and reported here again on their own so this specific evidence is never buried. */
@@ -312,6 +323,7 @@ function sumField<K extends DomHealthMetricKey>(
 
 const APPLICATION_METHODOLOGY_PREFIX: string[] = [
   "Discover same-origin pages via real <a href> elements already present in the DOM — never by simulating a click, so no destructive action (delete/logout/submit/...) is ever triggered during discovery.",
+  "Choose URL-first or click-first traversal from what the run observes (links at the seed, same-URL transitions, whether loading a recorded URL reproduces its screen) and report the choice and the reason; clicking still requires the explicit application-deep discovery mode.",
   "Navigate the tab to each discovered, filtered-safe page in turn, wait for the browser's own load-complete signal, then wait for the DOM to stop mutating (a quiet-period observer, not a fixed delay) before analyzing it.",
   "Run the full single-page DOM Health pipeline on every visited page (see below), maintaining an explicit page inventory — audited, failed, and skipped pages are all reported, never silently dropped.",
 ];
@@ -328,6 +340,7 @@ export function buildApplicationAuditResult(
     stateGraph?: StateGraphSummary;
     restorations?: RestorationEvidence[];
     crossStateEvidence?: CrossStateSelectorEvidence;
+    traversal?: TraversalReport;
   } = {},
 ): ApplicationAuditResult {
   const crossStateEvidence =
@@ -718,6 +731,7 @@ export function buildApplicationAuditResult(
     pages,
     methodology: [...APPLICATION_METHODOLOGY_PREFIX, ...METHODOLOGY],
     stateGraph: options.stateGraph,
+    traversal: options.traversal,
     restorations: options.restorations ?? [],
     crossStateEvidence,
     scopeLabel: scope === "application" ? "APPLICATION" : "CURRENT_PAGE",

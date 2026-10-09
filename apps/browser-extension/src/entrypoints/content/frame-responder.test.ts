@@ -83,6 +83,50 @@ describe("frame responder", () => {
     expect(response.data.clicked).toBe(false);
     expect(click).not.toHaveBeenCalled();
   });
+
+  it("clicks a navigation candidate that lives inside a shadow root, by its composed path", async () => {
+    document.body.innerHTML = "<x-shell></x-shell>";
+    const shadow = document
+      .querySelector("x-shell")!
+      .attachShadow({ mode: "open" });
+    shadow.innerHTML = '<nav><div role="menuitem">Orders</div></nav>';
+    const item = shadow.querySelector<HTMLElement>('[role="menuitem"]')!;
+    const click = vi.spyOn(item, "click");
+    const [candidate] = (
+      await ask({ request: "collect-dom-health-safe-navigation-candidates" })
+    ).data;
+
+    const response = await ask({
+      request: "click-safe-navigation-candidate",
+      domPath: candidate.domPath,
+    });
+
+    expect(response.data.clicked).toBe(true);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it("clicks a discovered link only while it still verifies as a safe same-origin link", async () => {
+    document.body.innerHTML =
+      '<a href="/orders">Orders</a><a href="/logout">Sign out</a>';
+    const [orders, logout] = Array.from(document.querySelectorAll("a"));
+    const ordersClick = vi.spyOn(orders!, "click").mockImplementation(() => {});
+    const logoutClick = vi.spyOn(logout!, "click").mockImplementation(() => {});
+    const links = (await ask({ request: "collect-dom-health-links" })).data;
+
+    const safe = await ask({
+      request: "click-dom-health-link",
+      domPath: links[0].domPath,
+    });
+    const unsafe = await ask({
+      request: "click-dom-health-link",
+      domPath: links[1].domPath,
+    });
+
+    expect(safe.data.clicked).toBe(true);
+    expect(ordersClick).toHaveBeenCalledTimes(1);
+    expect(unsafe.data.clicked).toBe(false);
+    expect(logoutClick).not.toHaveBeenCalled();
+  });
 });
 
 describe("waitForDomToStabilize", () => {

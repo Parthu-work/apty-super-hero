@@ -429,6 +429,14 @@ describe("DomHealthCard", () => {
         },
       ],
       methodology: ["Discover same-origin pages via real <a href> elements."],
+      traversal: {
+        mode: "click-first",
+        reason:
+          "The seed state has 0 distinct link target(s) and 2 navigation control(s): navigation is by click.",
+        clicksAllowed: true,
+        evidence: {},
+        history: [],
+      },
     });
 
     render(<DomHealthCard />);
@@ -438,6 +446,10 @@ describe("DomHealthCard", () => {
       5,
       expect.objectContaining({ onProgress: expect.any(Function) }),
     );
+    expect(await screen.findByText("click-first")).toBeInTheDocument();
+    expect(
+      screen.getByText(/0 distinct link target\(s\) and 2 navigation control/),
+    ).toBeInTheDocument();
     expect(await screen.findByText("65/100 · FAIR")).toBeInTheDocument();
     expect(
       screen.getByText("Application discovery/audit coverage is incomplete"),

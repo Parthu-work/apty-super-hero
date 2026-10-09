@@ -204,8 +204,29 @@ export interface ClickCandidateResult {
   reason?: string;
 }
 
+async function requestClick(
+  tabId: number,
+  frameId: number,
+  request: string,
+  domPath: string,
+): Promise<ClickCandidateResult> {
+  const response = await sendFrameMessage<ClickCandidateResult>(
+    tabId,
+    frameId,
+    { request, domPath },
+    DISCOVERY_FRAME_TIMEOUT_MS,
+  );
+  if (!response.success || !response.data) {
+    return {
+      clicked: false,
+      reason: response.error ?? "Frame did not respond.",
+    };
+  }
+  return response.data;
+}
+
 /**
- * The ONLY function anywhere in DOM Health that can cause a real click.
+ * One of the two functions in DOM Health that can cause a real click.
  * Never called unless the caller has explicitly enabled
  * `allowClickDiscovery` (default off — see `application-audit.ts`), and
  * the content script itself re-verifies the candidate is still safe
@@ -217,19 +238,26 @@ export async function clickSafeNavigationCandidate(
   frameId: number,
   domPath: string,
 ): Promise<ClickCandidateResult> {
-  const response = await sendFrameMessage<ClickCandidateResult>(
+  return requestClick(
     tabId,
     frameId,
-    { request: "click-safe-navigation-candidate", domPath },
-    DISCOVERY_FRAME_TIMEOUT_MS,
+    "click-safe-navigation-candidate",
+    domPath,
   );
-  if (!response.success || !response.data) {
-    return {
-      clicked: false,
-      reason: response.error ?? "Frame did not respond.",
-    };
-  }
-  return response.data;
+}
+
+/**
+ * The other: clicks a link the audit already discovered and navigated to,
+ * to reach its page by in-app navigation when loading the URL directly did
+ * not reproduce it. Same gate as `clickSafeNavigationCandidate`, and the
+ * content script re-verifies the link as a safe same-origin link first.
+ */
+export async function clickDiscoveredLink(
+  tabId: number,
+  frameId: number,
+  domPath: string,
+): Promise<ClickCandidateResult> {
+  return requestClick(tabId, frameId, "click-dom-health-link", domPath);
 }
 
 export interface NavigationModel {

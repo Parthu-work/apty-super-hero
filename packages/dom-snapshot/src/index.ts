@@ -42,12 +42,14 @@ export {
 } from "./health-dynamic.js";
 export { hitTestElement } from "./health-hit-test.js";
 export {
+  buildComposedDomPath,
   type CollectDiscoverableLinksOptions,
   collectDiscoverableLinks,
   collectSafeNavigationCandidates,
   type DiscoverableLink,
   isSafeNavigationCandidate,
   isSafeToDiscover,
+  resolveDomPath,
   type SafeNavigationCandidate,
 } from "./health-links.js";
 export {

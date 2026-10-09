@@ -26,6 +26,7 @@
  */
 import { urlTemplate } from "./frame-identity.js";
 import type { AuditStateFingerprint } from "./state-fingerprint.js";
+import type { TransitionCorroboration } from "./traversal-strategy.js";
 
 export type TransitionTriggerKind = "seed" | "url-navigation" | "click";
 
@@ -33,9 +34,9 @@ export interface TransitionTrigger {
   kind: TransitionTriggerKind;
   /** For "url-navigation": the URL navigated to. */
   url?: string;
-  /** For "click": which frame the candidate was found/clicked in. */
+  /** For "click": which frame the candidate was found/clicked in. For "url-navigation": which frame the link was found in, when known. */
   frameId?: number;
-  /** For "click": the candidate's DOM path, re-used verbatim to replay the click during restoration. */
+  /** For "click": the candidate's DOM path, re-used verbatim to replay the click during restoration. For "url-navigation": the link's path, so restoration can click it when loading `url` directly does not reproduce the state. */
   domPath?: string;
   /** For "click": human-readable label, for evidence/reporting only — never used to re-identify the element. */
   candidateText?: string;
@@ -64,6 +65,8 @@ export interface StateTransitionEdge {
   historyEventDelta: number;
   /** "confirmed": a live before/after fingerprint comparison actually differed. "restored": this edge was replayed during backtracking and its target fingerprint matched what was originally recorded (see `RestorationResult`). */
   confidence: "confirmed" | "restored";
+  /** For a click: what besides the DOM showed that it navigated (`traversal-strategy.ts`). */
+  corroboration?: TransitionCorroboration;
   createdAt: number;
 }
 
@@ -180,6 +183,7 @@ export class StateGraph {
     title: string | null;
     historyEventDelta: number;
     confidence?: StateTransitionEdge["confidence"];
+    corroboration?: TransitionCorroboration;
   }): { stateId: string; isNew: boolean; edge: StateTransitionEdge } {
     const source = this.nodes.get(params.sourceStateId);
     const edgeId = `edge-${this.nextEdgeSeq++}`;
@@ -199,6 +203,7 @@ export class StateGraph {
       afterFingerprint: params.afterFingerprint.fingerprint,
       historyEventDelta: params.historyEventDelta,
       confidence: params.confidence ?? "confirmed",
+      ...(params.corroboration ? { corroboration: params.corroboration } : {}),
       createdAt: Date.now(),
     };
     this.edges.push(edge);

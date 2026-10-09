@@ -18,7 +18,9 @@ import {
   composedText,
   computeFrameStateSignature,
   isSafeNavigationCandidate,
+  isSafeToDiscover,
   replayElementRefs,
+  resolveDomPath,
   shadowRootOf,
 } from "@apty/dom-snapshot";
 import { startCapture, stopCapture } from "./element-capture";
@@ -345,9 +347,10 @@ function respondAsync(
   return true;
 }
 
-function clickSafeNavigationCandidate(domPath: unknown) {
+/** Paths may cross shadow boundaries (`buildComposedDomPath`), so they are resolved hop by hop, never with one `querySelector`. */
+export function clickSafeNavigationCandidate(domPath: unknown) {
   const path = typeof domPath === "string" ? domPath : "";
-  const target = path ? document.querySelector(path) : null;
+  const target = path ? resolveDomPath(document, path) : null;
   const stillSafe =
     target &&
     collectSafeNavigationCandidates(document).some(
@@ -358,6 +361,31 @@ function clickSafeNavigationCandidate(domPath: unknown) {
       clicked: false,
       reason:
         "This control could no longer be found, or no longer verifies as a safe navigation candidate.",
+    };
+  }
+  (target as HTMLElement).click();
+  return { clicked: true };
+}
+
+/**
+ * Click a link the audit discovered, to reach its page by in-app
+ * navigation when loading its URL directly does not reproduce the page.
+ * Re-verified first, exactly like `collectDiscoverableLinks` filtered it:
+ * still present at the same path, same-origin, and not destructive-looking.
+ */
+export function clickDiscoveredLink(domPath: unknown) {
+  const path = typeof domPath === "string" ? domPath : "";
+  const target = path ? resolveDomPath(document, path) : null;
+  const stillSafe =
+    target &&
+    collectDiscoverableLinks(document).some(
+      (link) => link.domPath === path && isSafeToDiscover(link),
+    );
+  if (!target || !stillSafe) {
+    return {
+      clicked: false,
+      reason:
+        "This link could no longer be found, or no longer verifies as a safe same-origin link.",
     };
   }
   (target as HTMLElement).click();
@@ -435,6 +463,10 @@ export function handleFrameMessage(
         sendResponse,
         "Failed to click this navigation candidate",
         () => clickSafeNavigationCandidate(message.domPath),
+      );
+    case "click-dom-health-link":
+      return respondAsync(sendResponse, "Failed to click this link", () =>
+        clickDiscoveredLink(message.domPath),
       );
     case "wait-for-dom-stable":
       return respondAsync(sendResponse, "Failed to wait for the DOM", () =>

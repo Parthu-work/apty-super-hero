@@ -349,6 +349,58 @@ observed across it (a client-side route genuinely changed even though this
 audit's narrow structural signature didn't capture it) — never used to
 affect the DOM Health score itself, only the discovery decision.
 
+## Traversal strategy: URL-first or click-first (`traversal-strategy.ts`)
+
+Brief sections 4.5 and 4.6. The audit decides from what it observes, never
+from which application it is, and reports the decision as
+`result.traversal` (`mode`, `reason`, `clicksAllowed`, the `evidence` counts
+and the `history` of every change). The DOM Health card shows the mode and
+the reason.
+
+| Rule (strongest first) | Mode | Measured basis |
+| --- | --- | --- |
+| Loading a recorded URL did not reproduce its RouteKey | click-first | proof: the URL is not the screen |
+| ≥ 3 transitions and at least half kept the URL template | click-first | unverified threshold |
+| Fewer than 2 distinct link targets at the seed, and more navigation controls than links | click-first | LN top document: 0 links, 2 controls; athenaOne frameset tops: 0 links |
+| otherwise | URL-first | |
+
+What the mode changes:
+
+- **Queue order.** Click-first explores navigation controls before links.
+- **Restoration.** URL-first restores a URL-only path by loading the
+  target's URL once. If that does not reproduce the RouteKey, the failure
+  is counted (switching the run to click-first) and the restoration falls
+  back to replay: reload the seed, check that the seed state is
+  reproduced, then replay the recorded path hop by hop, clicking controls
+  and the recorded links (`click-dom-health-link`, re-verified as a safe
+  same-origin link by the content script). Click-first always replays.
+  Each restoration reports `method` and `fellBackFromDirectUrl`.
+- **URL loads that land on a known state** (a redirect, an expired deep
+  link) are recorded as `skipped-duplicate` and not audited again.
+
+Clicking still needs `discoveryMode: "application-deep"`. When the evidence
+calls for click-first and clicks are off, the reason says so and the
+controls stay `not-discovered`.
+
+Navigation discovery reads the composed tree: links and controls inside
+shadow roots are found, and their `domPath` joins one path per shadow hop
+with ` >>> ` (`buildComposedDomPath` / `resolveDomPath`). Items with a
+settings role (`menuitemradio`, `menuitemcheckbox`, `switch`, `checkbox`,
+`radio`, `option`) are never proposed: LN's theme and locale menus are
+`menuitemradio` items, and clicking one changes the user's settings.
+Controls that are not rendered are skipped.
+
+**Corroboration (section 4.6).** Each click transition records what besides
+the DOM showed a navigation: history API calls, application or chrome
+frames that appeared or changed URL template (shims excluded: athenaOne
+opens one per menu), and XHR/fetch URL templates first seen after the
+click. Network activity comes only from a capture the user already started
+(`peekTabRequests`); capture stays off by default, and the edge then says
+`networkObserved: false`. These signals break a tie only when the DOM
+comparison is `uncertain` (a frame readable on one side only). A click
+whose RouteKey did not change is never a new state, whatever else changed,
+because it could never be told apart from its source again.
+
 ## Coverage is "observed", never "total"
 
 `ApplicationCoverage.coverageLabel` is always `"OBSERVED_COVERAGE"` — this

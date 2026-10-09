@@ -116,7 +116,8 @@ export function selectAppFrames(
   return [...chosen].sort(byPosition);
 }
 
-function frameUrlTemplate(entry: FrameSignatureEntry): string {
+/** The frame's URL template, from the document's own URL when it reported one. */
+export function frameUrlTemplate(entry: FrameSignatureEntry): string {
   return entry.signature?.url
     ? urlTemplate(entry.signature.url).template
     : entry.urlTemplate;
