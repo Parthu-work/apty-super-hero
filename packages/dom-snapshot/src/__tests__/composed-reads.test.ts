@@ -108,14 +108,14 @@ describe("state signature in the composed tree", () => {
     loadErpFixture("athena-forge-panel");
 
     expect(document.querySelector("h1, h2, h3")).toBeNull();
-    expect(computeFrameStateSignature(document).headingSample).toEqual([
+    expect(computeFrameStateSignature(document).primaryHeading).toBe(
       "Contact Details",
-    ]);
+    );
   });
 
   it("finds an active navigation item that exists only inside shadow roots, and only while it is rendered", () => {
     loadErpFixture("infor-ids-shadow");
-    expect(computeFrameStateSignature(document).activeNavItem).toBeNull();
+    expect(computeFrameStateSignature(document).navTrail).toEqual([]);
 
     loadErpFixture("infor-ids-shadow", {
       transform: (html) =>
@@ -124,19 +124,45 @@ describe("state signature in the composed tree", () => {
           'trigger-type="click" align="bottom, right"',
         ),
     });
-    expect(computeFrameStateSignature(document).activeNavItem).toBe("Light");
+    expect(computeFrameStateSignature(document).navTrail).toEqual(["Light"]);
   });
 
   it("reads LN's active tab label through its slot", () => {
     loadErpFixture("infor-portal-workspace");
 
-    expect(computeFrameStateSignature(document).activeNavItem).toBe("LN");
+    expect(computeFrameStateSignature(document).navTrail).toEqual(["LN"]);
   });
 
-  it("counts containers inside shadow roots", () => {
-    loadErpFixture("athena-forge-panel");
+  it("sees the structure inside shadow roots", () => {
+    document.body.innerHTML = "<main><x-panel></x-panel></main>";
+    const shadow = document
+      .querySelector("x-panel")!
+      .attachShadow({ mode: "open" });
+    shadow.innerHTML = "<table><tr><td>1</td></tr></table>";
+    const table = computeFrameStateSignature(document).structureHash;
 
-    expect(computeFrameStateSignature(document).containerCounts.form).toBe(1);
+    shadow.innerHTML = "<form><input></form>";
+
+    expect(computeFrameStateSignature(document).structureHash).not.toBe(table);
+  });
+
+  it("reads slotted content into the structure as rendered", () => {
+    document.body.innerHTML =
+      '<main><x-card><form slot="body"></form></x-card></main>';
+    const shadow = document
+      .querySelector("x-card")!
+      .attachShadow({ mode: "open" });
+    shadow.innerHTML = '<section><slot name="body"></slot></section>';
+    const slotted = computeFrameStateSignature(document).structureHash;
+
+    document
+      .querySelector("x-card form")!
+      .replaceWith(document.createElement("table"));
+    document.querySelector("x-card table")!.setAttribute("slot", "body");
+
+    expect(computeFrameStateSignature(document).structureHash).not.toBe(
+      slotted,
+    );
   });
 
   it("does not change when a clock inside a shadow root ticks", () => {

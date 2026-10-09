@@ -165,10 +165,9 @@ function snapshotFixture(url: string): DomHealthSnapshot {
 function stateSignatureFixture(url: string) {
   return {
     url,
-    title: `Title for ${url}`,
-    headingSample: [],
-    activeNavItem: null,
-    containerCounts: {},
+    navTrail: [] as string[],
+    primaryHeading: null as string | null,
+    structureHash: "s0",
   };
 }
 
@@ -287,6 +286,67 @@ describe("runApplicationDomHealthAudit", () => {
       expect(result.pages[0]?.status).toBe("completed");
       expect(result.coverage.coverageLabel).toBe("OBSERVED_COVERAGE");
     }
+  });
+
+  it("audits one record of a screen once, whatever its id (D-2)", async () => {
+    linksByUrl.set("https://app.example.com/home", [
+      link({ absoluteUrl: "https://app.example.com/patients/4242424/chart" }),
+      link({ absoluteUrl: "https://app.example.com/patients/1234567/chart" }),
+    ]);
+
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.coverage.pagesAudited).toBe(2);
+    expect(
+      result.pages.filter((p) => p.url.includes("/patients/")),
+    ).toHaveLength(1);
+  });
+
+  it("audits each hash route of a hash-routed application (D-2)", async () => {
+    currentUrl = "https://app.example.com/#/home";
+    linksByUrl.set("https://app.example.com/#/home", [
+      link({ absoluteUrl: "https://app.example.com/#/orders" }),
+      link({ absoluteUrl: "https://app.example.com/#/customers" }),
+    ]);
+
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.coverage.pagesAudited).toBe(3);
+    expect(
+      result.pages.filter((p) => p.status === "completed").map((p) => p.url),
+    ).toEqual([
+      "https://app.example.com/#/home",
+      "https://app.example.com/#/orders",
+      "https://app.example.com/#/customers",
+    ]);
+  });
+
+  it("reports how each state was identified, and how confidently", async () => {
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.stateGraph?.nodes[0]?.route).toEqual({
+      appFrameKey: "top",
+      urlTemplate: "https://app.example.com/home",
+      contributingSignals: ["frame", "urlTemplate", "structure"],
+      confidence: "low",
+    });
+    expect(result.stateGraph?.routeConfidence).toEqual({
+      high: 0,
+      medium: 0,
+      low: 1,
+    });
   });
 
   it("discovers and navigates to a same-origin link, reporting scope 'application'", async () => {
@@ -721,8 +781,8 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
           const signature = clicked
             ? {
                 ...stateSignatureFixture(currentUrl),
-                activeNavItem: "Customers",
-                headingSample: ["Customer Overview"],
+                navTrail: ["Customers"],
+                primaryHeading: "Customer Overview",
               }
             : stateSignatureFixture(currentUrl);
           callback({
@@ -984,8 +1044,8 @@ describe("runApplicationDomHealthAudit — state graph + backtracking (RC-6, the
               snapshot: snapshotFixture(currentUrl),
               stateSignature: {
                 ...stateSignatureFixture(currentUrl),
-                activeNavItem: appState,
-                headingSample: [`Screen ${appState}`],
+                navTrail: [appState],
+                primaryHeading: `Screen ${appState}`,
               },
             },
           });

@@ -70,7 +70,8 @@ const URL_KEY_PATTERN = /^(?:url|href|src|\w+Url|\w+URL)$/;
 const URL_LIST_KEY_PATTERN = /^(?:urls|\w+Urls)$/;
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 
-function maskIdLike(value: string): string {
+/** `value` with every identifier-shaped run (see `ID_LIKE_PATTERN`) replaced by `:id`. */
+export function maskIdLike(value: string): string {
   return value.replace(ID_LIKE_PATTERN, ID_PLACEHOLDER);
 }
 

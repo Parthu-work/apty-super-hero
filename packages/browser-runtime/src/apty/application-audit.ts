@@ -80,6 +80,7 @@ import {
   captureApplicationState,
   toFrameSignatureEntries,
 } from "./frame-audit.js";
+import { urlTemplate } from "./frame-identity.js";
 import {
   clickSafeNavigationCandidate,
   collectPageLinks,
@@ -92,12 +93,18 @@ import {
   replayElementPathSamplesInFrame,
   waitForDomStable,
 } from "./page-navigation.js";
+import { summarizeRouteKey } from "./route-key.js";
 import {
   type AuditStateFingerprint,
   compareStateFingerprints,
   computeStateFingerprint,
+  unknownStateFingerprint,
 } from "./state-fingerprint.js";
-import { StateGraph, type StateTransitionEdge } from "./state-graph.js";
+import {
+  isSameUrl,
+  StateGraph,
+  type StateTransitionEdge,
+} from "./state-graph.js";
 
 export interface ApplicationAuditLimits {
   /** Maximum number of states actually audited in one run. Defaults to 15. */
@@ -166,14 +173,9 @@ function generateAuditId(): string {
   return `app-dom-health-${Date.now()}-${auditSequence}`;
 }
 
-function normalizeUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    u.hash = "";
-    return u.toString();
-  } catch {
-    return url;
-  }
+/** What makes two queued URLs the same page: their template (`urlTemplate`), so `/patients/111` and `/patients/222` are audited once and `#/orders` and `#/customers` are not merged (defect D-2). */
+function urlIdentity(url: string): string {
+  return urlTemplate(url).template;
 }
 
 interface UrlQueueItem {
@@ -304,16 +306,20 @@ async function restoreToState(
 function buildStateGraphSummary(graph: StateGraph): StateGraphSummary {
   const seedStateId = graph.getSeedStateId();
   const seedNode = seedStateId ? graph.getNode(seedStateId) : undefined;
+  const routeConfidence = { high: 0, medium: 0, low: 0 };
+  for (const node of graph.getAllNodes()) {
+    routeConfidence[node.fingerprint.routeKey.confidence]++;
+  }
   return {
     seedStateId,
+    routeConfidence,
     nodes: graph.getAllNodes().map((node) => ({
       stateId: node.stateId,
       url: node.url,
       title: node.title,
-      sameUrlAsSeed: seedNode
-        ? normalizeUrl(node.url) === normalizeUrl(seedNode.url)
-        : false,
+      sameUrlAsSeed: seedNode ? isSameUrl(node.url, seedNode.url) : false,
       discoveredAt: node.discoveredAt,
+      route: summarizeRouteKey(node.fingerprint.routeKey),
     })),
     edges: graph.getAllEdges().map((edge) => ({
       id: edge.id,
@@ -463,17 +469,14 @@ export async function runApplicationDomHealthAudit(
   }
 
   const graph = new StateGraph();
-  const seedFingerprint = (await captureFingerprint(tabId)) ?? {
-    fingerprint: "unknown-seed",
-    frameUrls: [],
-    frames: [],
-  };
+  const seedFingerprint =
+    (await captureFingerprint(tabId)) ?? unknownStateFingerprint();
   const seedStateId = graph.addSeedState(seedFingerprint, seedUrl!, null);
 
   const queue: QueueItem[] = [
     { kind: "url", url: seedUrl!, source: "seed", sourceStateId: seedStateId },
   ];
-  queuedUrls.add(normalizeUrl(seedUrl!));
+  queuedUrls.add(urlIdentity(seedUrl!));
   const pages: PageAuditRecord[] = [];
   let isFirstItem = true;
   let auditedCount = 0;
@@ -498,7 +501,7 @@ export async function runApplicationDomHealthAudit(
     );
     for (const link of links) {
       if (queue.length >= limits.maxQueueSize) break;
-      const normalizedLink = normalizeUrl(link.absoluteUrl);
+      const normalizedLink = urlIdentity(link.absoluteUrl);
       if (visitedUrls.has(normalizedLink) || queuedUrls.has(normalizedLink)) {
         continue;
       }
@@ -583,7 +586,7 @@ export async function runApplicationDomHealthAudit(
     const next = queue.shift()!;
 
     if (next.kind === "url") {
-      const normalized = normalizeUrl(next.url);
+      const normalized = urlIdentity(next.url);
       queuedUrls.delete(normalized);
       if (visitedUrls.has(normalized)) {
         pages.push({
@@ -821,7 +824,7 @@ export async function runApplicationDomHealthAudit(
     auditedCount++;
     const reasonSuffix =
       comparison.result === "different"
-        ? comparison.reasons.join("; ")
+        ? `${comparison.reasons.join("; ")} [route confidence: ${comparison.confidence}]`
         : `no structural signal changed, but ${historyEventDelta} client-side history API call(s) (pushState/replaceState/popstate/hashchange) fired`;
     // No new top-level URL exists for a same-URL state transition — the
     // audited page's own URL is reused, and the fingerprint (recorded in

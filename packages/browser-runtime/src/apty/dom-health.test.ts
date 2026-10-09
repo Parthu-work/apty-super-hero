@@ -153,10 +153,9 @@ function frameBundle(snapshot: DomHealthSnapshot = snapshotFixture()) {
       snapshot,
       stateSignature: {
         url: snapshot.url,
-        title: snapshot.title,
-        headingSample: [],
-        activeNavItem: null,
-        containerCounts: {},
+        navTrail: [],
+        primaryHeading: null,
+        structureHash: "",
       },
     },
   };

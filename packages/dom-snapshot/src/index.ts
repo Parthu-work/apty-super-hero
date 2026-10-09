@@ -76,8 +76,12 @@ export {
   verifyStoredElementPath,
 } from "./health-selector-engine.js";
 export {
+  collectNavTrailDeep,
   computeFrameStateSignature,
+  computeStructureHash,
   type FrameStateSignature,
+  findPrimaryHeadingDeep,
+  fnv1a,
 } from "./health-state-signature.js";
 export * from "./health-types.js";
 export { buildTextSnapshot, formatSnapshot } from "./manager.js";

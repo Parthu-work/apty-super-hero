@@ -42,10 +42,9 @@ function bundle(snapshotCounts: ReturnType<typeof counts>) {
     snapshot: { counts: snapshotCounts } as unknown as DomHealthSnapshot,
     stateSignature: {
       url: "",
-      title: "",
-      headingSample: [],
-      activeNavItem: null,
-      containerCounts: {},
+      navTrail: [],
+      primaryHeading: null,
+      structureHash: "",
     },
   };
 }

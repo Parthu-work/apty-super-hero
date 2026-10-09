@@ -148,21 +148,55 @@ as a passing grade. The gate lives in `determineEvidenceState` +
 
 ## State model (same-URL transitions)
 
-A "state" is not defined by URL alone. `state-fingerprint.ts` combines every
-frame's `FrameStateSignature` (from `@apty/dom-snapshot`'s
-`health-state-signature.ts` — URL, title, a bounded heading sample, the
-active/selected navigation item, and coarse semantic-container counts) into
-one whole-tab fingerprint. `compareStateFingerprints` reports `same`,
-`different`, or `uncertain` (when a frame couldn't be inspected at one of
-the two points compared) and — critically — WHY, so a state-transition
-decision is itself evidence, not a black box.
+A "state" is not defined by URL alone. Each frame reports a
+`FrameStateSignature` (`@apty/dom-snapshot`'s `health-state-signature.ts`):
+its URL, a navigation trail (breadcrumb items, then the innermost selected
+item of each navigation container), the primary heading (first heading of
+the `main` region, else of the document) and a hash of the primary
+region's tag/role skeleton. The page title is not read: athenaOne's names
+the practice and its id.
 
-This signature deliberately ignores live-updating content (a clock, a
-counter, a toast) by only sampling headings/`role=heading`, the
-`aria-current`/`aria-selected`/`.active`-class item inside a nav-like
-container, and structural container tag/role counts — so a real menu click
-that changes which screen is showing is detected, while a background
-mutation is not mistaken for a new state.
+`route-key.ts` combines the signatures of one capture into a `RouteKey`
+(brief section 4.3):
+
+| Field | From | Notes |
+| --- | --- | --- |
+| `appFrameKey` | stable keys of the `application` frames | never a `frameId` |
+| `urlTemplate` | those frames' URLs through `urlTemplate` | tenant, session, ids and per-user parameters removed; hash routes kept |
+| `navTrail` | application and chrome frames, outermost first | LN's selected portal tab is in the top document, a shell |
+| `primaryHeading` | first application frame with a heading | identifier runs masked (`Order 47110` → `Order :id`) |
+| `structureHash` | application frames' skeletons | no text, attributes or classes |
+| `contributingSignals`, `confidence` | which of the above carried signal | see below |
+
+Identity rule: two observations are the same state when `appFrameKey`,
+`urlTemplate`, `navTrail` and `primaryHeading` match. The structure joins
+the comparison only when neither side has a trail or a heading, and such a
+key is `low` confidence (`high` needs a trail or heading in stably keyed
+frames; `medium` is a trail or heading in a positionally keyed frame, or a
+hash route without either). `state-fingerprint.ts` hashes the identity plus
+the frames that could not be read; `compareStateFingerprints` reports
+`same`, `different` or `uncertain` (a frame readable at one point and not
+the other), the lower confidence of the two, and which field changed —
+never the heading or trail text, which can name a person. Each state-graph
+node reports its route summary, and `stateGraph.routeConfidence` counts
+states per confidence.
+
+The under-trigger bias is kept: a phantom state is worse than a missed one.
+Text appears only in the trail and heading, so a clock or counter never
+changes a key. Toasts are excluded by ARIA live-region role, but only when
+the live region holds no form or landmark, because athenaOne Forge wraps
+the whole Patient Registration form in `<div aria-live="polite"
+class="fe_c_loader">`. The skeleton skips hidden, `position: fixed` and
+live-region content and the Agent's own UI, and represents a run of
+same-tag siblings by its first member, so a table's row count does not
+change it. Known gap: two records of one screen whose headings are
+personal names compare as different screens, because a name has no
+identifying shape to mask.
+
+URLs are compared through `urlTemplate` everywhere (defect D-2):
+`state-graph.ts`'s `isSameUrl` and `application-audit.ts`'s link dedupe.
+`/patients/<id>/chart` is audited once, and `#/orders` and `#/customers`
+are two pages, where stripping the hash used to merge them.
 
 Every signal is read in the composed tree (`composed-tree.ts`): through
 open and closed shadow roots, with `<slot>`s replaced by what is assigned to

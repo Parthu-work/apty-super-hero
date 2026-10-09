@@ -24,6 +24,7 @@
  * live tab back to an arbitrary previously-discovered state before
  * exploring one of its other children.
  */
+import { urlTemplate } from "./frame-identity.js";
 import type { AuditStateFingerprint } from "./state-fingerprint.js";
 
 export type TransitionTriggerKind = "seed" | "url-navigation" | "click";
@@ -55,7 +56,7 @@ export interface StateTransitionEdge {
   sourceStateId: string;
   targetStateId: string;
   trigger: TransitionTrigger;
-  /** Whether the target's URL (ignoring hash) equals the source's — the Infor LN-shaped case this whole model exists for. */
+  /** Whether the target's URL template equals the source's (`isSameUrl`) — the Infor LN-shaped case this whole model exists for. */
   sameUrl: boolean;
   beforeFingerprint: string;
   afterFingerprint: string;
@@ -82,14 +83,14 @@ export interface RestorationResult {
   failedAtStep?: number;
 }
 
-function normalizeUrlForCompare(url: string): string {
-  try {
-    const u = new URL(url);
-    u.hash = "";
-    return u.toString();
-  } catch {
-    return url;
-  }
+/**
+ * Two URLs are the same when their templates are (`urlTemplate`): ids,
+ * tenants and sessions do not make a different URL, and a hash route does
+ * (defect D-2: stripping only the hash made a hash-routed application one
+ * URL, and a tenant or record id made one screen many).
+ */
+export function isSameUrl(a: string, b: string): boolean {
+  return urlTemplate(a).template === urlTemplate(b).template;
 }
 
 /**
@@ -193,10 +194,7 @@ export class StateGraph {
       sourceStateId: params.sourceStateId,
       targetStateId: stateId,
       trigger: params.trigger,
-      sameUrl: source
-        ? normalizeUrlForCompare(params.url) ===
-          normalizeUrlForCompare(source.url)
-        : false,
+      sameUrl: source ? isSameUrl(params.url, source.url) : false,
       beforeFingerprint: params.beforeFingerprint.fingerprint,
       afterFingerprint: params.afterFingerprint.fingerprint,
       historyEventDelta: params.historyEventDelta,

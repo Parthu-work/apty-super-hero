@@ -1,10 +1,39 @@
 import { describe, expect, it } from "vitest";
-import type { AuditStateFingerprint } from "./state-fingerprint.js";
-import { StateGraph } from "./state-graph.js";
+import {
+  type AuditStateFingerprint,
+  unknownStateFingerprint,
+} from "./state-fingerprint.js";
+import { isSameUrl, StateGraph } from "./state-graph.js";
 
 function fp(fingerprint: string): AuditStateFingerprint {
-  return { fingerprint, frameUrls: [], frames: [] };
+  return { ...unknownStateFingerprint(), fingerprint };
 }
+
+describe("isSameUrl (D-2)", () => {
+  it("treats a tenant, session or record id as the same URL", () => {
+    expect(
+      isSameUrl(
+        "https://ft.example.test/WSWebClient/session/open?tenant=FAKETENANT000000_TRN&view=list",
+        "https://ft.example.test/WSWebClient/session/open?view=list&tenant=FAKETENANT111111_TRN",
+      ),
+    ).toBe(true);
+    expect(
+      isSameUrl(
+        "https://ehr.example.test/4242424/2/ax/registration",
+        "https://ehr.example.test/1234567/2/ax/registration",
+      ),
+    ).toBe(true);
+  });
+
+  it("treats two hash routes as two URLs", () => {
+    expect(
+      isSameUrl(
+        "https://app.example.test/#/orders",
+        "https://app.example.test/#/customers",
+      ),
+    ).toBe(false);
+  });
+});
 
 describe("StateGraph", () => {
   it("registers the seed state as current with no discovering edge", () => {

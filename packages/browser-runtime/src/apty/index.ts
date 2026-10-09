@@ -173,6 +173,14 @@ export {
   waitForTabLoad,
 } from "./page-navigation.js";
 export {
+  buildRouteKey,
+  type FrameSignatureEntry,
+  type RouteKey,
+  type RouteKeyConfidence,
+  type RouteKeySummary,
+  type RouteSignal,
+} from "./route-key.js";
+export {
   analyzeRouteProbe,
   captureRouteProbeStep,
   type ProbeText,

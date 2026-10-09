@@ -14,6 +14,7 @@
  * if application-wide discovery was requested (spec section 54: never call
  * a single-page score an application score).
  */
+
 import type { AnalysisCoverage } from "@apty/dom-snapshot";
 import {
   buildRecommendations,
@@ -49,6 +50,7 @@ import {
   type FrameAccessibilitySummary,
   sampleFailureReasons,
 } from "./frame-tree.js";
+import type { RouteKeyConfidence, RouteKeySummary } from "./route-key.js";
 
 export type PageAuditStatus =
   | "completed"
@@ -115,9 +117,11 @@ export interface StateGraphNodeSummary {
   stateId: string;
   url: string;
   title: string | null;
-  /** True when this state's URL (ignoring hash) equals the seed state's — the Infor LN-shaped case same-URL discovery exists for. */
+  /** True when this state's URL template equals the seed state's — the Infor LN-shaped case same-URL discovery exists for. */
   sameUrlAsSeed: boolean;
   discoveredAt: number;
+  /** How this state was identified, and how confidently (`route-key.ts`). */
+  route: RouteKeySummary;
 }
 
 /** One state-graph edge, presentation-shaped. */
@@ -137,6 +141,8 @@ export interface StateGraphSummary {
   seedStateId: string | null;
   nodes: StateGraphNodeSummary[];
   edges: StateGraphEdgeSummary[];
+  /** States per route-key confidence. A `low` state was told apart by its structure alone. */
+  routeConfidence: Record<RouteKeyConfidence, number>;
 }
 
 /** Evidence for one backtracking attempt — restoring the live tab to a previously-discovered state before exploring one of its other children. */

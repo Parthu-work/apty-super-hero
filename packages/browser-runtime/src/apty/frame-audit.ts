@@ -38,7 +38,7 @@ import {
   sampleFailureReasons,
   sendFrameMessage,
 } from "./frame-tree.js";
-import type { FrameSignatureEntry } from "./state-fingerprint.js";
+import type { FrameSignatureEntry } from "./route-key.js";
 
 export type FrameCaptureStatus =
   | "captured"
@@ -698,6 +698,10 @@ export function toFrameSignatureEntries(
   return frames.map((f) => ({
     frameId: f.frame.frameId,
     frameKey: f.identity.key.key,
+    frameKeyStable: f.identity.key.stable,
+    frameRole: f.identity.role.role,
+    depth: f.frame.depth,
+    urlTemplate: f.identity.urlTemplate,
     signature: f.stateSignature ?? null,
   }));
 }
