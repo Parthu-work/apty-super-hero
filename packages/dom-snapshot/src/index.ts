@@ -32,6 +32,7 @@ export {
 export {
   __resetDomHealthRegistryForTests,
   collectDomHealthSnapshot,
+  DEFAULT_COLLECTOR_BUDGET,
 } from "./health-collector.js";
 export {
   classifyUnstableClass,
@@ -57,6 +58,7 @@ export {
   collectRouteProbeFrameSignals,
   findActiveNavItemDeep,
   findFirstHeadingDeep,
+  frameOwnerOf,
   type RouteProbeFrameOwner,
   type RouteProbeFrameSignals,
 } from "./health-route-probe.js";

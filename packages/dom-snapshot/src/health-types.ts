@@ -390,6 +390,30 @@ export interface DomHealthSnapshot {
   /** Overlays and injected UI left out of every count above (`ignored-roots.ts`), per matcher. */
   excludedRoots: ExcludedRootSummary[];
   duplicateIds: DuplicateIdStats;
+  performance: CollectorPerformance;
+}
+
+/** How long a collection took, how it shared the page's main thread, and whether a budget cut it short (brief section 4.11). */
+export interface CollectorPerformance {
+  timings: {
+    ignoredRootsMs: number;
+    classifyMs: number;
+    analyzeMs: number;
+    totalMs: number;
+  };
+  /** Longest stretch the collector ran without yielding to the page. */
+  longestSliceMs: number;
+  /** Longest single step between two clock checks (one element's analysis, or the overlay scan). A slice can run past `limits.sliceMs` by at most this. */
+  longestStepMs: number;
+  yields: number;
+  limits: {
+    maxTotalElements: number;
+    maxShadowRoots: number;
+    timeBudgetMs: number;
+    sliceMs: number;
+  };
+  /** Why the result is partial (a ceiling or the time budget), empty when it is complete. Also folded into `analysisCoverage.capReason`. */
+  partialReasons: string[];
 }
 
 /**
@@ -428,6 +452,14 @@ export interface DomHealthCollectorOptions {
    * snapshot after the first in the same audit run.
    */
   freshAudit?: boolean;
+  /** Stop counting after this many elements in the frame. Defaults to `DEFAULT_COLLECTOR_BUDGET.maxTotalElements`. */
+  maxTotalElements?: number;
+  /** Do not enter more than this many shadow roots. */
+  maxShadowRoots?: number;
+  /** Hard per-frame budget; past it the collection stops and returns what it has, labelled partial. */
+  timeBudgetMs?: number;
+  /** Yield to the page at least this often. */
+  sliceMs?: number;
   /** Settings entries (`id:prefix`, `class:prefix`, `tag:name`) excluded on top of `DEFAULT_IGNORED_ROOTS`. */
   ignoredRoots?: readonly string[];
   /** Frame identity to stamp onto the resulting snapshot's `frame` field — supplied by the caller (the content script knows its own `sender.frameId` from `chrome.runtime.onMessage`), never computed by this collector. */

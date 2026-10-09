@@ -113,23 +113,25 @@ afterEach(() => {
 describe("captureRouteProbeStep", () => {
   it("joins each frame to the owner attributes its parent reported, redacted", async () => {
     answerWith((msg, frameId) => {
-      if (msg.request !== "dom-health-probe-capture") return {};
-      if (frameId === 0) {
-        return captured({
-          owners: [
-            {
-              frameId: 7,
-              tagName: "iframe",
-              name: "LN_44_11111111-2222-4333-8444-555555555555",
-              id: null,
-              title: "LN",
-              ospId: "LN",
-              srcAttribute: LN_SRC,
-              rendered: true,
-            },
-          ],
-        });
+      if (msg.request === "collect-dom-health-frame-owners") {
+        return frameId === 0
+          ? [
+              {
+                frameId: 7,
+                tagName: "iframe",
+                name: "LN_44_11111111-2222-4333-8444-555555555555",
+                id: null,
+                title: "LN",
+                ospId: "LN",
+                srcAttribute: LN_SRC,
+                className: null,
+                rendered: true,
+              },
+            ]
+          : [];
       }
+      if (msg.request !== "dom-health-probe-capture") return {};
+      if (frameId === 0) return captured({});
       return captured({
         url: LN_SRC,
         title: "Sales Orders [4242424]",

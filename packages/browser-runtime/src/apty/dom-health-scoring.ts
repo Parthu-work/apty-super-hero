@@ -20,6 +20,7 @@
 
 import type {
   AnalysisCoverage,
+  CollectorPerformance,
   DomHealthIframeInfo,
   DomHealthShadowDomInfo,
   DomHealthSnapshot,
@@ -29,7 +30,10 @@ import type {
   ElementSelectorReport,
   ExcludedRootSummary,
 } from "@apty/dom-snapshot";
-import { AUDIT_PROFILE_NAME } from "@apty/dom-snapshot";
+import {
+  AUDIT_PROFILE_NAME,
+  DEFAULT_COLLECTOR_BUDGET,
+} from "@apty/dom-snapshot";
 import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
@@ -79,6 +83,15 @@ export function applyConfidenceCaps(
 
 /** Above this share of unreadable frames, the audit did not see most of the page. Unverified threshold: "most" read literally. */
 export const MAX_UNREADABLE_FRAME_SHARE = 0.5;
+
+const NO_PERFORMANCE: CollectorPerformance = {
+  timings: { ignoredRootsMs: 0, classifyMs: 0, analyzeMs: 0, totalMs: 0 },
+  longestSliceMs: 0,
+  longestStepMs: 0,
+  yields: 0,
+  limits: { ...DEFAULT_COLLECTOR_BUDGET },
+  partialReasons: [],
+};
 
 const NO_DUPLICATE_IDS: DuplicateIdStats = {
   valuesDuplicatedWithinARoot: 0,
@@ -313,6 +326,8 @@ export interface DomHealthAuditResult {
   /** Overlays and injected UI left out of the audit, per matcher. */
   excludedRoots: ExcludedRootSummary[];
   duplicateIds: DuplicateIdStats;
+  /** Timings and budget of the last collection round (slowest frame); `auditMs` is the whole audit's wall time, set by `dom-health.ts`. */
+  performance: CollectorPerformance & { auditMs?: number };
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
   scope: "page";
   /** Human-readable companion to `scope`, so a caller never has to invent its own scope wording — always "CURRENT_PAGE" here, paired with "APPLICATION" on `ApplicationAuditResult` (spec sections 1/18). A result with this scope is never described as "application health". */
@@ -1113,6 +1128,7 @@ export function buildDomHealthAuditResult(
     confidenceCaps: caps.map((c) => c.reason),
     excludedRoots: current.excludedRoots ?? [],
     duplicateIds,
+    performance: current.performance ?? NO_PERFORMANCE,
     scope: "page",
     scopeLabel: "CURRENT_PAGE",
     selectorConfiguration: DEFAULT_SELECTOR_CONFIGURATION,

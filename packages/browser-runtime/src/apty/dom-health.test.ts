@@ -517,7 +517,10 @@ describe("scoring by frame role (WP-7)", () => {
   it("scores the LN application frame, not the portal shell around it", async () => {
     serveFrames([frame(0, -1, PORTAL_URL), frame(5, 0, LN_URL)], {
       0: portalSnapshot(),
-      5: snapshotFixture({ url: LN_URL }),
+      5: snapshotFixture({
+        url: LN_URL,
+        counts: { ...snapshotFixture().counts, interactiveElements: 40 },
+      }),
     });
 
     const result = await audit();
@@ -586,5 +589,45 @@ describe("scoring by frame role (WP-7)", () => {
     expect(finding?.evidence).toContain("9 id value(s)");
     expect(finding?.evidence).toContain("15 across the page");
     expect(result.duplicateIds.elementsWithDuplicatedId).toBe(19);
+  });
+});
+
+describe("timings in the report (WP-9)", () => {
+  it("reports the slowest frame's collection timings, the frames' own timings and the audit's wall time", async () => {
+    const performance = {
+      timings: {
+        ignoredRootsMs: 2,
+        classifyMs: 40,
+        analyzeMs: 60,
+        totalMs: 102,
+      },
+      longestSliceMs: 17.5,
+      longestStepMs: 4,
+      yields: 9,
+      limits: {
+        maxTotalElements: 50_000,
+        maxShadowRoots: 2_500,
+        timeBudgetMs: 6_000,
+        sliceMs: 16,
+      },
+      partialReasons: [],
+    };
+    mockSendMessage.mockImplementation(
+      (_tabId: number, _msg: unknown, _options: unknown, callback: any) => {
+        callback(frameBundle(snapshotFixture({ performance })));
+      },
+    );
+
+    const promise = runDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    if (!result.available) throw new Error(result.error);
+    expect(result.performance).toMatchObject({
+      timings: { totalMs: 102 },
+      longestSliceMs: 17.5,
+      auditMs: expect.any(Number),
+    });
+    expect(result.frames[0]?.performance?.timings.totalMs).toBe(102);
   });
 });

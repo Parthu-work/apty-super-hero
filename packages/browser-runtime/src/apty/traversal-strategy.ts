@@ -27,7 +27,7 @@ export type TraversalMode = "url-first" | "click-first";
 export interface TraversalEvidence {
   /** Distinct URL templates among the safe same-origin links found at the seed state, the seed's own excluded. */
   seedLinkTemplates: number;
-  /** Safe navigation controls found at the seed state. */
+  /** Safe navigation controls found at the seed state that are not links (menu items, tabs, tree items without an `<a href>`). */
   seedNavigationCandidates: number;
   /** Transitions recorded so far. */
   edges: number;

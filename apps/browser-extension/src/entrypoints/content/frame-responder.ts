@@ -17,6 +17,7 @@ import {
   collectSafeNavigationCandidates,
   composedText,
   computeFrameStateSignature,
+  frameOwnerOf,
   ignoredRootPolicy,
   isSafeNavigationCandidate,
   isSafeToDiscover,
@@ -188,26 +189,67 @@ function disarmRouteProbe(): { armed: false } {
   return { armed: false };
 }
 
+/**
+ * Called on `chrome.runtime` itself: taken off the object, Chrome's binding
+ * throws "Illegal invocation", and every frame element came back without a
+ * frame id, so no owner attribute ever reached the frame key.
+ */
 function frameIdOf(element: Element): number | null {
+  const runtime = chrome.runtime as unknown as {
+    getFrameId?: (target: Element) => number;
+  };
   try {
-    const getFrameId = (
-      chrome.runtime as unknown as {
-        getFrameId?: (target: Element) => number;
-      }
-    ).getFrameId;
-    const id = getFrameId?.(element);
+    const id = runtime.getFrameId?.(element);
     return typeof id === "number" && id >= 0 ? id : null;
   } catch {
     return null;
   }
 }
 
-/** Attributes of every `<iframe>` / `<frame>` this document owns, each joined to the `frameId` of the frame it hosts. */
+/**
+ * Attributes of every `<iframe>` / `<frame>` this document owns, in
+ * document order, each with the `frameId` it hosts when the browser can
+ * say (`frameId` null otherwise) and its `src` resolved against this
+ * document, so the service worker can join the rest (`frame-audit.ts`).
+ */
 export function frameOwnersWithIds(owners = collectFrameOwners(document)) {
   return owners.map(({ element, ...attributes }) => ({
     ...attributes,
     frameId: frameIdOf(element),
+    resolvedSrc: resolveAgainstDocument(attributes.srcAttribute),
   }));
+}
+
+function resolveAgainstDocument(src: string | null): string | null {
+  if (!src) return null;
+  try {
+    return new URL(src, document.baseURI).href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How this frame sees itself: its `window.name` (which a parent's frame
+ * `name` sets, cross-origin included), and, when the parent is
+ * same-origin, its own frame element's attributes. Lets the service worker
+ * join a frame to its owner where `chrome.runtime.getFrameId` is missing.
+ */
+export function describeFrameSelf(ignoredRoots: string[] = []) {
+  let owner: Omit<ReturnType<typeof frameOwnerOf>, "element"> | null = null;
+  try {
+    const element = window.frameElement;
+    if (element?.tagName === "IFRAME" || element?.tagName === "FRAME") {
+      const { element: _element, ...attributes } = frameOwnerOf(
+        element as HTMLIFrameElement,
+        ignoredRootPolicy(ignoredRoots),
+      );
+      owner = attributes;
+    }
+  } catch {
+    owner = null;
+  }
+  return { windowName: window.name || null, owner };
 }
 
 /** One probe step for this frame: what identifies the screen, plus each child frame's owner attributes mapped to its `frameId`. */
@@ -536,6 +578,10 @@ export function handleFrameMessage(
             document,
             Array.isArray(message.samples) ? message.samples : [],
           ),
+      );
+    case "describe-dom-health-frame-self":
+      return respondAsync(sendResponse, "Failed to describe this frame", () =>
+        describeFrameSelf(settingsEntries(message.ignoredRoots)),
       );
     case "collect-dom-health-frame-owners":
       return respondAsync(

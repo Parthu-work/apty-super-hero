@@ -265,8 +265,12 @@ describe("routing evidence and the route probe", () => {
       document.body.innerHTML =
         '<iframe title="LN" name="LN_44_11111111-2222-4333-8444-555555555555" data-osp-id="LN"></iframe><iframe id="searchmenuiframe" class="shimiframe" style="display: none;"></iframe>';
       const [app, shim] = Array.from(document.querySelectorAll("iframe"));
-      (globalThis as any).chrome.runtime.getFrameId = (el: Element) =>
-        el === app ? 7 : el === shim ? 9 : -1;
+      const runtime = (globalThis as any).chrome.runtime;
+      // Like Chrome's binding: only callable on chrome.runtime itself.
+      runtime.getFrameId = function (this: unknown, el: Element) {
+        if (this !== runtime) throw new TypeError("Illegal invocation");
+        return el === app ? 7 : el === shim ? 9 : -1;
+      };
 
       const response = await ask({ request: "dom-health-probe-capture" });
 

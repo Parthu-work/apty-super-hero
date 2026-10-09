@@ -93,9 +93,23 @@ import { shadowRootOf } from "./shadow-roots.js";
  * into the score.
  */
 const DEFAULT_ELEMENT_CEILING = 4000;
-/** How many elements are analyzed per batch before yielding to the event loop, so a large page's audit never blocks the tab. */
-const BATCH_SIZE = 150;
 const DEFAULT_MAX_STYLE_CHECKS = 2000;
+/**
+ * Per-frame budget (DOM Health brief, section 4.11). The Infor LN top
+ * document, the largest measured, has 3,788 elements and 251 shadow
+ * roots; the element and root ceilings sit an order of magnitude above it
+ * so they only stop a runaway page. The time budget stays below the
+ * service worker's 8 s per-frame message timeout, so a slow frame returns
+ * a partial, labelled result instead of nothing. The 16 ms slice is one
+ * frame at 60 Hz: the collector yields to the page at least that often.
+ * None of these was tuned on a live tenant.
+ */
+export const DEFAULT_COLLECTOR_BUDGET = {
+  maxTotalElements: 50_000,
+  maxShadowRoots: 2_500,
+  timeBudgetMs: 6_000,
+  sliceMs: 16,
+} as const;
 /** Caps `elementPathSamples` (cross-application-state replay candidates) so the message payload never grows unbounded on a huge page — first-N-in-document-order, not a "most important" ranking. */
 const MAX_ELEMENT_PATH_SAMPLES = 50;
 /** A positioned element at or above this z-index is counted as "high" for overlay-risk scoring. */
@@ -246,6 +260,7 @@ function classifyElement(
 }
 
 interface CollectorState {
+  budget: CollectorBudget;
   /** Elements inside ignored roots (`ignored-roots.ts`): never counted or analyzed. */
   excluded: ReadonlySet<Element>;
   policy: readonly IgnoredRootMatcher[];
@@ -340,10 +355,12 @@ interface CollectorState {
 }
 
 function createState(
+  budget: CollectorBudget,
   excluded: ReadonlySet<Element>,
   policy: readonly IgnoredRootMatcher[],
 ): CollectorState {
   return {
+    budget,
     excluded,
     policy,
     idCounts: new Map(),
@@ -468,6 +485,84 @@ function recordSelectorOutcome(
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function now(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+/** Ceilings, the time budget and the slice clock for one collection. */
+interface CollectorBudget {
+  maxTotalElements: number;
+  maxShadowRoots: number;
+  timeBudgetMs: number;
+  startedAt: number;
+  /** True once the time budget is spent: nothing further is traversed or analyzed. */
+  expired: boolean;
+  /** Why the result is partial, for the report. */
+  reasons: string[];
+  longestSliceMs: number;
+  /** Longest single unit of work between two clock checks: the floor on how long a slice can be. */
+  longestStepMs: number;
+  yields: number;
+  note(reason: string): void;
+  /** Yield to the page once the current slice is used up; true once the time budget is spent. */
+  tick(): Promise<boolean>;
+  /** Close the last slice, so `longestSliceMs` covers the whole run. */
+  finish(): void;
+}
+
+function createBudget(options: DomHealthCollectorOptions): CollectorBudget {
+  const sliceMs = options.sliceMs ?? DEFAULT_COLLECTOR_BUDGET.sliceMs;
+  const startedAt = now();
+  let sliceStart = startedAt;
+  let lastCheck = startedAt;
+  const closeSlice = (at: number) => {
+    budget.longestSliceMs = Math.max(budget.longestSliceMs, at - sliceStart);
+  };
+  const budget: CollectorBudget = {
+    maxTotalElements:
+      options.maxTotalElements ?? DEFAULT_COLLECTOR_BUDGET.maxTotalElements,
+    maxShadowRoots:
+      options.maxShadowRoots ?? DEFAULT_COLLECTOR_BUDGET.maxShadowRoots,
+    timeBudgetMs: options.timeBudgetMs ?? DEFAULT_COLLECTOR_BUDGET.timeBudgetMs,
+    startedAt,
+    expired: false,
+    reasons: [],
+    longestSliceMs: 0,
+    longestStepMs: 0,
+    yields: 0,
+    note(reason) {
+      if (!budget.reasons.includes(reason)) budget.reasons.push(reason);
+    },
+    async tick() {
+      if (budget.expired) return true;
+      const t = now();
+      budget.longestStepMs = Math.max(budget.longestStepMs, t - lastCheck);
+      lastCheck = t;
+      if (t - startedAt > budget.timeBudgetMs) {
+        budget.expired = true;
+        budget.note(
+          `Time budget of ${budget.timeBudgetMs} ms reached; the rest of this frame was not analyzed.`,
+        );
+        return true;
+      }
+      if (t - sliceStart >= sliceMs) {
+        closeSlice(t);
+        budget.yields++;
+        await yieldToEventLoop();
+        sliceStart = now();
+        lastCheck = sliceStart;
+      }
+      return false;
+    },
+    finish() {
+      const t = now();
+      budget.longestStepMs = Math.max(budget.longestStepMs, t - lastCheck);
+      closeSlice(t);
+    },
+  };
+  return budget;
 }
 
 function analyzeInteractiveElement(
@@ -742,17 +837,26 @@ function findDuplicateIds(state: CollectorState): DuplicateIdStats {
   };
 }
 
-function collectFromRoot(
+async function collectFromRoot(
   root: ParentNode,
   state: CollectorState,
   options: { maxStyleChecks: number },
   insideShadowDom: boolean,
-): void {
-  const all = Array.from(root.querySelectorAll("*")).filter(
+): Promise<void> {
+  if (state.budget.expired) return;
+  let all = Array.from(root.querySelectorAll("*")).filter(
     (el) => !state.excluded.has(el),
   );
+  const room = state.budget.maxTotalElements - state.totalElements;
+  if (all.length > room) {
+    all = all.slice(0, Math.max(0, room));
+    state.budget.note(
+      `Element ceiling of ${state.budget.maxTotalElements} reached; elements after it were not counted or analyzed.`,
+    );
+  }
   state.totalElements += all.length;
   if (insideShadowDom) state.shadowElements += all.length;
+  if (await state.budget.tick()) return;
 
   for (const el of all) {
     const tag = el.tagName.toLowerCase();
@@ -805,9 +909,16 @@ function collectFromRoot(
 
     const shadowRoot = shadowRootOf(el);
     if (shadowRoot) {
-      state.shadowRoots++;
-      collectFromRoot(shadowRoot, state, options, true);
+      if (state.shadowRoots >= state.budget.maxShadowRoots) {
+        state.budget.note(
+          `Shadow-root ceiling of ${state.budget.maxShadowRoots} reached; roots after it were not entered.`,
+        );
+      } else {
+        state.shadowRoots++;
+        await collectFromRoot(shadowRoot, state, options, true);
+      }
     }
+    if (await state.budget.tick()) return;
   }
 
   // Tally child frame-hosting elements this document owns, by tag — never
@@ -855,16 +966,20 @@ export async function collectDomHealthSnapshot(
   const currentRegistry = new Map<string, RegistryEntry>();
   const hasMultiSnapshotEvidence = previousRegistry.size > 0;
 
+  const budget = createBudget(options);
   const policy = ignoredRootPolicy(options.ignoredRoots);
   const ignored = findIgnoredRoots(rootDocument, policy);
-  const state = createState(ignored.excluded, policy);
-  collectFromRoot(
+  const ignoredRootsMs = now() - budget.startedAt;
+  await budget.tick();
+  const state = createState(budget, ignored.excluded, policy);
+  await collectFromRoot(
     rootDocument.body ?? rootDocument,
     state,
     { maxStyleChecks },
     false,
   );
   const duplicateIds = findDuplicateIds(state);
+  const classifiedAt = now();
 
   const capped = state.interactiveCandidates.length > elementCeiling;
   const candidatesToAnalyze = capped
@@ -877,6 +992,7 @@ export async function collectDomHealthSnapshot(
   // by whichever one happens to be analyzed first.
   const fingerprintCounts = new Map<string, number>();
   for (const { el } of candidatesToAnalyze) {
+    await budget.tick();
     const fingerprint = computeComposedFingerprint(el);
     fingerprintCounts.set(
       fingerprint,
@@ -891,27 +1007,28 @@ export async function collectDomHealthSnapshot(
 
   const hostCache = new Map<Element, ElementResolution>();
   const frameKey = options.frameContext?.frameKey ?? "";
-  for (let i = 0; i < candidatesToAnalyze.length; i += BATCH_SIZE) {
-    const batch = candidatesToAnalyze.slice(i, i + BATCH_SIZE);
-    for (const { el, root } of batch) {
-      analyzeInteractiveElement(
-        el,
-        root,
-        state,
-        hasMultiSnapshotEvidence,
-        previousRegistry,
-        currentRegistry,
-        duplicateFingerprintsThisSnapshot,
-        hostCache,
-        frameKey,
-      );
-    }
-    if (i + BATCH_SIZE < candidatesToAnalyze.length) {
-      await yieldToEventLoop();
-    }
+  let analyzed = 0;
+  for (const { el, root } of candidatesToAnalyze) {
+    if (await budget.tick()) break;
+    analyzeInteractiveElement(
+      el,
+      root,
+      state,
+      hasMultiSnapshotEvidence,
+      previousRegistry,
+      currentRegistry,
+      duplicateFingerprintsThisSnapshot,
+      hostCache,
+      frameKey,
+    );
+    analyzed++;
   }
+  budget.finish();
+  const finishedAt = now();
 
-  if (hasMultiSnapshotEvidence) {
+  // An element the budget never reached is not "detached": only a run that
+  // looked at everything may say an element is gone.
+  if (hasMultiSnapshotEvidence && !budget.expired) {
     for (const [fingerprint] of previousRegistry) {
       if (!currentRegistry.has(fingerprint)) state.stability.detached++;
     }
@@ -946,11 +1063,17 @@ export async function collectDomHealthSnapshot(
     elementReports: state.elementReports,
     analysisCoverage: {
       candidatesFound: state.interactiveCandidates.length,
-      candidatesAnalyzed: candidatesToAnalyze.length,
-      capped,
-      capReason: capped
-        ? `Runaway-safety ceiling of ${elementCeiling} interactive elements reached — this page has more than that many; analysis covers the first ${elementCeiling} found in document order.`
-        : null,
+      candidatesAnalyzed: analyzed,
+      capped: capped || budget.reasons.length > 0,
+      capReason:
+        [
+          ...(capped
+            ? [
+                `Runaway-safety ceiling of ${elementCeiling} interactive elements reached — this page has more than that many; analysis covers the first ${elementCeiling} found in document order.`,
+              ]
+            : []),
+          ...budget.reasons,
+        ].join(" ") || null,
     },
     selectorAnalysis: {
       totalAnalyzed: state.elementReports.length,
@@ -987,7 +1110,29 @@ export async function collectDomHealthSnapshot(
     elementPathSamples: state.elementPathSamples,
     excludedRoots: ignored.summary,
     duplicateIds,
+    performance: {
+      timings: {
+        ignoredRootsMs: round(ignoredRootsMs),
+        classifyMs: round(classifiedAt - budget.startedAt - ignoredRootsMs),
+        analyzeMs: round(finishedAt - classifiedAt),
+        totalMs: round(finishedAt - budget.startedAt),
+      },
+      longestSliceMs: round(budget.longestSliceMs),
+      longestStepMs: round(budget.longestStepMs),
+      yields: budget.yields,
+      limits: {
+        maxTotalElements: budget.maxTotalElements,
+        maxShadowRoots: budget.maxShadowRoots,
+        timeBudgetMs: budget.timeBudgetMs,
+        sliceMs: options.sliceMs ?? DEFAULT_COLLECTOR_BUDGET.sliceMs,
+      },
+      partialReasons: budget.reasons,
+    },
   };
+}
+
+function round(ms: number): number {
+  return Math.round(ms * 10) / 10;
 }
 
 /** Test-only: clears the cross-snapshot element registry so tests don't leak state between cases. */

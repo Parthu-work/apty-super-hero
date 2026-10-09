@@ -18,6 +18,8 @@
  * elements against a different frame's registry.
  */
 import {
+  type CollectorPerformance,
+  DEFAULT_COLLECTOR_BUDGET,
   type DomHealthSnapshot,
   type DuplicateIdStats,
   type ElementPathSample,
@@ -98,8 +100,6 @@ export const PLACEHOLDER_RECHECK_MS = 500;
 const ABOUT_BLANK_TIMEOUT_MS = 2000;
 const OWNER_TIMEOUT_MS = 2000;
 
-type OwnerWithFrameId = FrameOwnerAttributes & { frameId: number | null };
-
 /** Each frame's position among its siblings, from the top (`"0/2/1"`), for the positional last-resort key. */
 function framePositions(frameTree: AuditFrame[]): Map<number, string> {
   const positions = new Map<number, string>([[0, "0"]]);
@@ -122,33 +122,146 @@ function framePositions(frameTree: AuditFrame[]): Map<number, string> {
   return positions;
 }
 
+type ReportedOwner = FrameOwnerAttributes & {
+  frameId: number | null;
+  /** The `src` attribute resolved against the parent document. */
+  resolvedSrc?: string | null;
+};
+
+interface FrameSelfDescription {
+  windowName: string | null;
+  owner: FrameOwnerAttributes | null;
+}
+
 /**
- * Ask every frame which frame elements it owns. Only a parent can see a
- * frame element's `name`, `title` and `data-osp-id`; the responder joins
- * each element to the `frameId` it hosts.
+ * Join every frame to the element that hosts it. Only a parent can see a
+ * cross-origin frame element's `name`, `title` and `data-osp-id`, and only
+ * the browser knows which `frameId` an element hosts. Where the content
+ * script can ask (`chrome.runtime.getFrameId`), the parent reports it. Where
+ * it cannot (it is absent in the Chromium 141 the end-to-end tests run,
+ * which left every frame keyed by URL), each child is joined in turn by:
+ *
+ * 1. its own frame element, read through `window.frameElement` when the
+ *    parent is same-origin;
+ * 2. its `window.name` against the parent's frame `name`s (Infor OS Portal
+ *    names the cross-origin LN frame `LN_44_<GUID>`);
+ * 3. its URL against the parent's resolved `src`s;
+ * 4. document order, only when exactly the unmatched owners and unmatched
+ *    children of one parent are left and their counts agree.
+ *
+ * Every step accepts only a single match; a frame with none keeps no owner
+ * and falls back to a URL or positional key, which the inventory shows.
  */
-async function collectFrameOwnersByFrameId(
+export async function collectFrameOwnersByFrameId(
   tabId: number,
   frameTree: AuditFrame[],
   ignoredRoots: readonly string[] = [],
 ): Promise<Map<number, FrameOwnerAttributes>> {
   const owners = new Map<number, FrameOwnerAttributes>();
-  const responses = await Promise.all(
-    frameTree
-      .filter((frame) => !frame.errorOccurred)
-      .map((frame) =>
-        sendFrameMessage<OwnerWithFrameId[]>(
-          tabId,
-          frame.frameId,
-          { request: "collect-dom-health-frame-owners", ignoredRoots },
-          OWNER_TIMEOUT_MS,
-        ),
-      ),
+  const reachable = frameTree.filter((frame) => !frame.errorOccurred);
+  const reported = new Map<number, ReportedOwner[]>();
+  await Promise.all(
+    reachable.map(async (frame) => {
+      const response = await sendFrameMessage<ReportedOwner[]>(
+        tabId,
+        frame.frameId,
+        { request: "collect-dom-health-frame-owners", ignoredRoots },
+        OWNER_TIMEOUT_MS,
+      );
+      if (Array.isArray(response.data)) {
+        reported.set(frame.frameId, response.data);
+      }
+    }),
   );
-  for (const response of responses) {
-    if (!Array.isArray(response.data)) continue;
-    for (const { frameId, ...owner } of response.data) {
-      if (typeof frameId === "number") owners.set(frameId, owner);
+  const strip = ({
+    frameId: _frameId,
+    resolvedSrc: _resolvedSrc,
+    ...owner
+  }: ReportedOwner): FrameOwnerAttributes => owner;
+
+  const claimed = new Set<ReportedOwner>();
+  for (const list of reported.values()) {
+    for (const entry of list) {
+      if (typeof entry.frameId === "number") {
+        owners.set(entry.frameId, strip(entry));
+        claimed.add(entry);
+      }
+    }
+  }
+
+  const children = reachable.filter(
+    (frame) => frame.frameId !== 0 && !owners.has(frame.frameId),
+  );
+  const selves = new Map<number, FrameSelfDescription>();
+  await Promise.all(
+    children.map(async (frame) => {
+      const response = await sendFrameMessage<FrameSelfDescription>(
+        tabId,
+        frame.frameId,
+        { request: "describe-dom-health-frame-self", ignoredRoots },
+        OWNER_TIMEOUT_MS,
+      );
+      if (response.success && response.data) {
+        selves.set(frame.frameId, response.data);
+      }
+    }),
+  );
+
+  const unclaimed = (parentFrameId: number) =>
+    (reported.get(parentFrameId) ?? []).filter((o) => !claimed.has(o));
+  const claim = (frame: AuditFrame, entry: ReportedOwner) => {
+    owners.set(frame.frameId, strip(entry));
+    claimed.add(entry);
+  };
+  const single = <T>(items: T[]): T | null =>
+    items.length === 1 ? items[0]! : null;
+
+  for (const frame of children) {
+    const self = selves.get(frame.frameId);
+    if (self?.owner) {
+      owners.set(frame.frameId, self.owner);
+      const same = single(
+        unclaimed(frame.parentFrameId).filter(
+          (o) =>
+            o.name === self.owner!.name &&
+            o.id === self.owner!.id &&
+            o.srcAttribute === self.owner!.srcAttribute,
+        ),
+      );
+      if (same) claimed.add(same);
+      continue;
+    }
+    const byName = self?.windowName
+      ? single(
+          unclaimed(frame.parentFrameId).filter(
+            (o) => o.name === self.windowName,
+          ),
+        )
+      : null;
+    if (byName) {
+      claim(frame, byName);
+      continue;
+    }
+    const bySrc = single(
+      unclaimed(frame.parentFrameId).filter(
+        (o) => o.resolvedSrc && o.resolvedSrc === frame.url,
+      ),
+    );
+    if (bySrc) claim(frame, bySrc);
+  }
+
+  for (const [parentFrameId] of reported) {
+    const leftOwners = unclaimed(parentFrameId);
+    const leftChildren = children
+      .filter(
+        (frame) =>
+          frame.parentFrameId === parentFrameId && !owners.has(frame.frameId),
+      )
+      .sort((a, b) => a.frameId - b.frameId);
+    if (leftOwners.length > 0 && leftOwners.length === leftChildren.length) {
+      for (const [index, frame] of leftChildren.entries()) {
+        claim(frame, leftOwners[index]!);
+      }
     }
   }
   return owners;
@@ -255,6 +368,25 @@ async function captureFrame(
  * application, and when the application frame could not be read the
  * shell alone was scored (defect D-7).
  */
+/**
+ * A child frame carries the application when it has at least one
+ * interactive element and at least as many as the document around it. An
+ * ordinary page with its own buttons and a small embed (a ticker, a chat
+ * widget) is not a shell. Measured: the LN portal's top document has 74
+ * interactive elements; the LN frame's own count was not in the export,
+ * so that it exceeds the portal's is assumed, not observed. A frame that
+ * did not answer counts as carrying it: the shell is still not the
+ * application, and the inventory shows the frame unreadable.
+ */
+function carriesTheApplication(
+  child: FrameCaptureResult,
+  parentControls: number,
+): boolean {
+  if (child.status !== "captured") return true;
+  const childControls = child.snapshot?.counts.interactiveElements ?? 0;
+  return childControls > 0 && childControls >= parentControls;
+}
+
 export function classifyShellFrames(
   frames: FrameCaptureResult[],
 ): FrameCaptureResult[] {
@@ -270,11 +402,13 @@ export function classifyShellFrames(
       ? counts.inputs + counts.selects + counts.textareas
       : 0;
     if (formControls > 0) return entry;
+    const ownControls = counts?.interactiveElements ?? 0;
     const appChild = frames.find(
       (child) =>
         child.frame.parentFrameId === entry.frame.frameId &&
         child.identity.role.role === "application" &&
-        child.identity.owner?.rendered !== false,
+        child.identity.owner?.rendered !== false &&
+        carriesTheApplication(child, ownControls),
     );
     if (!appChild) return entry;
     return {
@@ -693,6 +827,37 @@ export function aggregateFrameSnapshots(
       read.map((f) => f.snapshot.excludedRoots ?? []),
     ),
     duplicateIds,
+    performance: mergePerformance(read),
+  };
+}
+
+/**
+ * Frames are collected in parallel, so the slowest frame, not the sum, is
+ * how long a round took; slices and steps are the worst seen in any frame.
+ * A frame's partial reasons are prefixed with its key.
+ */
+function mergePerformance(
+  frames: Array<FrameCaptureResult & { snapshot: DomHealthSnapshot }>,
+): CollectorPerformance {
+  const all = frames
+    .map((f) => ({ key: f.identity.key.key, p: f.snapshot.performance }))
+    .filter((f): f is { key: string; p: CollectorPerformance } => Boolean(f.p));
+  const max = (pick: (p: CollectorPerformance) => number) =>
+    all.reduce((m, f) => Math.max(m, pick(f.p)), 0);
+  return {
+    timings: {
+      ignoredRootsMs: max((p) => p.timings.ignoredRootsMs),
+      classifyMs: max((p) => p.timings.classifyMs),
+      analyzeMs: max((p) => p.timings.analyzeMs),
+      totalMs: max((p) => p.timings.totalMs),
+    },
+    longestSliceMs: max((p) => p.longestSliceMs),
+    longestStepMs: max((p) => p.longestStepMs),
+    yields: all.reduce((sum, f) => sum + f.p.yields, 0),
+    limits: all[0]?.p.limits ?? { ...DEFAULT_COLLECTOR_BUDGET },
+    partialReasons: all.flatMap((f) =>
+      f.p.partialReasons.map((reason) => `Frame "${f.key}": ${reason}`),
+    ),
   };
 }
 
@@ -710,6 +875,8 @@ export interface FrameInventoryEntry {
   error?: string;
   /** This frame's own score, for an application frame that was captured (`dom-health.ts`); absent otherwise. */
   score?: number | null;
+  /** How long this frame's last collection took and whether a budget cut it short. */
+  performance?: CollectorPerformance;
 }
 
 export function toFrameInventory(
@@ -726,6 +893,7 @@ export function toFrameInventory(
     urlTemplate: f.identity.urlTemplate,
     status: f.status,
     ...(f.error ? { error: f.error } : {}),
+    ...(f.snapshot?.performance ? { performance: f.snapshot.performance } : {}),
   }));
 }
 

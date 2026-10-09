@@ -135,6 +135,7 @@ export async function collectDomHealthAudit(
     };
   }
 
+  const startedAt = Date.now();
   const snapshots: DomHealthSnapshot[] = [];
   const frameAccessibilityByRound: FrameAccessibilitySummary[] = [];
   let frameInventory: FrameInventoryEntry[] = [];
@@ -184,5 +185,9 @@ export async function collectDomHealthAudit(
         : entry;
     }),
   );
-  return { available: true, ...result };
+  return {
+    available: true,
+    ...result,
+    performance: { ...result.performance, auditMs: Date.now() - startedAt },
+  };
 }

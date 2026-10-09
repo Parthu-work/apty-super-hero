@@ -186,6 +186,17 @@ are handed and only add to it.
   count as partial matches, as with a Studio-configured partial selector. A
   class value made only of rejected tokens is ignored.
 
+- **Private attributes.** `value` is never part of a path: it is what
+  the user typed or the server pre-filled. Neither is an attribute with a
+  secret-like name or a token-shaped value, nor an `href`/`src` carrying a
+  secret parameter (`isPrivateAttribute`, `health-privacy.ts`). Such values
+  also change per session.
+- **Duplicate ids.** `withDuplicateIdsIgnored` ignores `id` for every value
+  shared by two elements in the same root. An id is unique per root, and
+  the LN export has 9 values duplicated within a root (15 page-wide). The
+  collector passes each root's duplicates through
+  `ResolveElementOptions.duplicateIdsFor`.
+
 The profile never invents a substring anchor. `extractStablePrefix` and
 `extractStableSuffix` find the stable parts of react-select ids
 (`react-select-` … `-input`) and Emotion labels (`-indicatorContainer`), but
@@ -316,13 +327,23 @@ disambiguation), never invented independently of it.
 
 ## Frame and Shadow DOM boundaries
 
-Unchanged from the previous design and still correct: `root.querySelectorAll`
-naturally cannot see into a different `Document`, so passing the correct
-frame's document/open-shadow-root as `root` is sufficient. An open shadow
-root is just another `ParentNode`. A closed shadow root is a real browser
-security boundary this engine cannot see through — callers that already
-know a target lives behind one pass `ResolveElementOptions.inaccessibleReason`,
-and the result is `INACCESSIBLE`, never silently converted into a failure.
+`root.querySelectorAll` cannot see into another `Document` or into a shadow
+root, so every resolution is given the root the element lives in. A
+shadow root is just another `ParentNode`. Closed roots are reached from the
+extension's content script through `chrome.dom.openOrClosedShadowRoot`
+(`shadowRootOf`). Where even that cannot reach (a page outside the content
+script), callers pass `ResolveElementOptions.inaccessibleReason` and the
+result is `INACCESSIBLE`, never a silent failure.
+
+The engine itself never crosses a boundary. `ElementRef` (`element-ref.ts`)
+does it around the engine. A stored reference is the `ElementPath` of each
+shadow host from the document down (`hostChain`), plus the element's own
+path in the innermost root. `resolveElementRef` runs the unmodified
+`findElement` once per hop, in that hop's root. `resolveInComposedTree`
+grades a shadow element by its weakest hop, and a replay that breaks at a
+host reports `HOST_NOT_RESOLVED` with the hop and the host's selector. A
+stored sample from before `ElementRef` (a bare path) is migrated as a
+document-rooted ref and flagged `legacy`.
 
 ## Known limitations and explicit scoping decisions
 
@@ -338,13 +359,12 @@ and the result is `INACCESSIBLE`, never silently converted into a failure.
   Wiring that in is a real, valuable extension (closer to how Apty
   actually re-checks a target at runtime) that was not in scope for this
   pass.
-- **Real Autodesk/Infor LN/Athena validation has not been performed**
-  against a live instance of any of these applications — this sandboxed
-  session has no browser, credentials, or network path to one. The golden
-  fixtures in `des-engine.golden-fixtures.test.ts` are synthetic DOM shapes
-  inspired by publicly-observable patterns in that class of application,
-  never claimed to be captured from, or to represent, any real customer
-  DOM.
+- **No live tenant has been audited.** The Infor LN and athenaOne evidence
+  is from exported DOMs (redacted fixtures in
+  `src/__tests__/fixtures/erp/`), measured in jsdom with their declarative
+  shadow roots attached. The end-to-end tests run in Chromium on small
+  stand-ins of those shapes, not on the applications. The golden fixtures in
+  `des-engine.golden-fixtures.test.ts` remain synthetic.
 - **The real Apty Studio/Client extensions expose no cross-extension API**
   for a third-party tool to pull live selector configuration from — see
   `docs/integrations/apty/README.md` and `DECISIONS.md` for the confirmed,

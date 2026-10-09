@@ -28,7 +28,10 @@
  * and compared by hash; `toShareableRouteProbeReport` drops that text
  * before anything is saved.
  */
+
 import { redactAuditUrl, redactDomText } from "./dom-health-redaction.js";
+import { collectFrameOwnersByFrameId } from "./frame-audit.js";
+import type { FrameOwnerAttributes } from "./frame-identity.js";
 import { getFrameTree, sendFrameMessage } from "./frame-tree.js";
 import { waitForDomStable } from "./page-navigation.js";
 import { fnv1a } from "./state-fingerprint.js";
@@ -159,7 +162,7 @@ function redactRequest(request: RouteProbeRequest): RouteProbeRequest {
   }
 }
 
-function toOwner(owner: CapturedOwner): RouteProbeFrameOwner {
+function toOwner(owner: FrameOwnerAttributes): RouteProbeFrameOwner {
   return {
     tagName: owner.tagName,
     name: optionalProbeText(owner.name),
@@ -207,12 +210,10 @@ export async function captureRouteProbeStep(
     })),
   );
 
-  const ownersByFrameId = new Map<number, CapturedOwner>();
-  for (const { result } of results) {
-    for (const owner of result.data?.owners ?? []) {
-      if (owner.frameId !== null) ownersByFrameId.set(owner.frameId, owner);
-    }
-  }
+  // The same join the audit uses: `chrome.runtime.getFrameId` where the
+  // content script has it, then the frame's own description, its name, its
+  // URL and document order (`collectFrameOwnersByFrameId`).
+  const ownersByFrameId = await collectFrameOwnersByFrameId(tabId, frames);
 
   step.frames = results.map(({ frame, result }) => {
     const owner = ownersByFrameId.get(frame.frameId);

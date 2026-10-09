@@ -69,8 +69,23 @@ content script to guess.
 
 A `frameId` is per page load, and frame names and URLs carry counters,
 GUIDs, tenants and sessions. Before each capture, every frame reports the
-frame elements it owns (`collect-dom-health-frame-owners`), joined to frame
-ids with `chrome.runtime.getFrameId`.
+frame elements it owns (`collect-dom-health-frame-owners`), and
+`collectFrameOwnersByFrameId` joins each frame to its element:
+
+1. `chrome.runtime.getFrameId`, where the content script has it. It is
+   absent in the Chromium 141 the end-to-end tests run, which left every
+   frame keyed by URL until the steps below were added.
+2. The frame's own `window.frameElement`, when its parent is same-origin
+   (`describe-dom-health-frame-self`).
+3. Its `window.name` against the parent's frame `name`s. A cross-origin
+   frame knows its name, and Infor OS Portal names the LN frame
+   `LN_44_<GUID>`.
+4. Its URL against the parent's resolved `src`s.
+5. Document order, only when exactly the unmatched elements and frames of
+   one parent are left and their counts agree.
+
+Each step accepts only a single match. A frame with no match keeps a URL
+or positional key, and the inventory shows which.
 
 `frameKey` is the first available of:
 
@@ -288,8 +303,9 @@ settles, the probe records for every frame:
 
 - the frame URL;
 - `document.title`;
-- the owning frame element's `name`, `id`, `title` and `data-osp-id`, mapped
-  to the frame with `chrome.runtime.getFrameId`;
+- the owning frame element's `name`, `id`, `title` and `data-osp-id`,
+  joined to the frame the same way the audit does
+  (`collectFrameOwnersByFrameId`);
 - the first API call or frame load after the click (path only, from
   resource timing);
 - the first heading and active navigation item, read through shadow roots;
@@ -605,56 +621,115 @@ is diagnostic text, not one CSS selector. The cross-snapshot fingerprint
 (`computeComposedFingerprint`) includes the hosts too, so identical
 controls in sibling shadow roots no longer collide as `AMBIGUOUS`.
 
+## Performance budget (brief section 4.11)
+
+Every frame's collection runs under `DEFAULT_COLLECTOR_BUDGET` (the
+collector options override each limit):
+
+| Limit | Default | What happens past it |
+| --- | --- | --- |
+| `maxTotalElements` | 50,000 | elements after it are not counted or analyzed |
+| `maxShadowRoots` | 2,500 | further roots are not entered |
+| `timeBudgetMs` | 6,000 | traversal and analysis stop; the result is returned partial |
+| `sliceMs` | 16 | the collector yields to the page |
+
+The LN top document, the largest measured page, has 3,788 elements and 251
+roots, so the ceilings only stop a runaway page. The time budget sits below
+the service worker's 8 s per-frame message timeout, so a slow frame returns
+a labelled partial result instead of nothing. A partial result's reasons
+are in `performance.partialReasons` and in `analysisCoverage.capReason`,
+which already produces a finding. An element the budget never reached is
+not counted as detached.
+
+The clock is read between steps (one element's analysis, one root's query,
+the overlay scan), so a slice can overrun `sliceMs` by at most one step.
+`performance` reports per collection:
+
+- `timings`: `ignoredRootsMs`, `classifyMs`, `analyzeMs`, `totalMs`;
+- `longestSliceMs` and `longestStepMs`;
+- `yields`, `limits` and `partialReasons`.
+
+The audit result carries the slowest frame's figures plus `auditMs`, and
+each frame inventory entry carries its own.
+
+Measured on a 251-root LN-shaped page (nested 3 deep, a slot and a control
+in each root):
+
+- In Chromium 141 (end-to-end test), between runs: 60–99 ms per collection,
+  longest slice 16.1–16.4 ms, longest step 3.4–5.8 ms, 3–6 yields. The
+  three-round audit took about 2.3 s, most of it the fixed delays between
+  rounds.
+- In jsdom: a first `getComputedStyle` call costs about 120 ms in one
+  step, so the unit test asserts the invariant (slice ≤ `sliceMs` +
+  longest step) rather than a fixed number.
+
+## End-to-end coverage
+
+`tooling/e2e/dom-health-apps.e2e.test.mjs` runs the real audit through the
+side panel and agent loop, with a scripted model, on stand-ins of six
+application shapes built from the measured values:
+
+- deep shadow DOM: controls three roots down, resolved with
+  `shadowDepth: 3`;
+- the 251-root page, inside the budget;
+- a legacy frameset with `GlobalNav` / `GlobalWrapper` / `Status` frames:
+  navigation and status are chrome, the application frame is scored;
+- a cross-origin portal: the app frame is keyed `LN` by `data-osp-id`
+  across origins, the shell is chrome, and no tenant id reaches the result;
+- a pushState SPA traversed URL-first;
+- a click-only application traversed click-first, with every restoration
+  by click replay succeeding;
+- a page with a Pendo badge and a chat launcher: both are left out and
+  counted, along with the Agent's own UI.
+
+`dom-health-routing.e2e.test.mjs` covers:
+
+- page-script `pushState` counting;
+- the route probe;
+- a shadow root attached 200 ms into a stability wait.
+
 ## Known limitations (honest, not hidden)
 
-- **Restoration always resets to the seed URL for any click-involving
-  path**, even when only the last hop actually needs replaying — correct,
-  but not the cheapest possible strategy (a real browser-history `back()`
-  is never used, since an enterprise SPA's same-URL clicks are not
-  guaranteed to push a history entry at all).
-- **A state is deduplicated purely by structural fingerprint equality.**
-  Two genuinely different application states that happen to produce an
-  identical fingerprint (same title/active-nav-item/heading-sample/
-  container-counts) would be treated as the same node — a real, accepted
-  tradeoff of the same signature design documented above, not new to the
-  state graph.
-- **`waitForDomStable` watches the top frame and its shadow trees, and
-  child frames only while they are still loading** (e.g. a frameset content
-  frame after a menu click), then for at most three quiet windows. A loaded
-  embed that never goes quiet (ads, chat widgets) does not delay the audit;
-  an SPA re-render inside an already-loaded child frame is not waited on.
-  Only shadow roots that exist when the wait starts are observed.
-- **Closed Shadow DOM is reached through `chrome.dom.openOrClosedShadowRoot`**
-  (Chrome 88+, content scripts only). Outside an extension content script,
-  for example in the jsdom unit tests, only open roots are traversed.
-- **Frame responders** live in a React-free content script
-  (`frame-responder.ts`) in every frame. A frame with no live responder
-  (the declared script never ran, or it belongs to an extension instance
-  from before a reload) gets the responder injected with
-  `chrome.scripting.executeScript` and the message retried once. Frames
-  Chrome never lets extensions script (`chrome-error://`, the PDF viewer,
-  the Web Store) still report a per-frame failure.
-- **No real Infor LN, Athena, or Autodesk validation has been performed** —
-  see the delivery report for this phase. The frame-addressed-messaging,
-  same-URL-state, and state-graph/backtracking fixes are validated by
-  unit/integration-style tests that construct the exact shapes described (a
-  menu frame separate from a content frame; a same-URL branching menu tree
-  requiring backtracking to avoid losing a sibling state), not by a live
-  run against any of these applications.
-- **Canonical evidence-model unification across every DOM Health entry
-  point (side panel, agent tool, application/page/frame audit), a UI
-  redesign of the report, and reformalizing the Apty Studio/Client
-  integration adapter were not attempted in this pass** — this pass's
-  scope was the confirmed state-discovery/backtracking root cause only; see
-  the delivery report's "remaining limitations" for the full list.
-- **This later pass (cross-state selector-stability replay, explicit
-  `discoveryMode`, application-level `INCOMPLETE_EVIDENCE` gating, and the
-  resolution/stability-dominant scoring weights above) still has not been
-  validated against any real Infor LN/Athena/Autodesk application** — the
-  same honesty caveat above still applies; only the described unit/
-  integration-style fixture tests exercise these paths.
-- **The full `AptyExtensionAdapter` interface (runtime metadata / imported
-  Studio configuration / live selector verification against a real Apty
-  Client), a 9-point hit-test breakdown surfaced in the report, and
-  frame/shadow-DOM evidence enrichment beyond what's described above were
-  not attempted in this pass either** — out of scope; not claimed as done.
+- **No live tenant has been audited.** The Infor LN and athenaOne evidence
+  comes from exported DOMs, redacted into fixtures and measured in jsdom.
+  The end-to-end tests run in Chromium on stand-ins of those application
+  shapes. Not verified on a real tenant:
+  - how Chrome reports a `javascript:` frame's URL;
+  - whether athenaOne's selected items use `fe_is-selected` /
+    `fe_is-active`;
+  - whether Pendo ever renders in a frame;
+  - how the route probe reads on LN and athenaOne.
+
+  The developer route probe (Settings → Troubleshooting → Developer tools)
+  exists to gather that evidence on the next tenant.
+- **Thresholds marked "unverified" in the code** were not tuned against a
+  live application:
+  - the seed link count for click-first;
+  - the same-URL share;
+  - the unreadable-frame and structure-only confidence caps;
+  - the free-text cut-off for `data-*` values;
+  - the collector budget.
+- **Restoration resets to the seed URL for any click path**, even when only
+  the last hop needs replaying. `history.back()` is not used, because a
+  same-URL click need not push a history entry.
+- **State identity can merge or split screens.** Two screens with the same
+  frame, URL template, navigation trail and heading are one state. Two
+  records of one screen whose headings are personal names are two states,
+  because a name has no identifying shape to mask.
+- **`waitForDomStable` watches the top frame and its shadow trees,
+  including roots attached during the wait, and child frames only while
+  they are still loading**, then for at most three quiet windows. An SPA
+  re-render inside an already-loaded child frame is not waited on.
+- **Closed shadow DOM is reached through `chrome.dom.openOrClosedShadowRoot`**
+  (content scripts only). In the jsdom unit tests only open roots are
+  traversed.
+- **Frames Chrome never lets extensions script** (`chrome-error://`, the PDF
+  viewer, the Web Store) report a per-frame failure, counted in
+  `frameAccessibility` and in the confidence caps.
+- **Personal data is masked only by shape, and by page-marked private
+  containers.** A name in an `aria-label` outside such a container is kept
+  in element reports. Exit redaction masks identifier-shaped runs and
+  secrets but cannot recognise a name.
+- **Not attempted:** Studio configuration import (`desConfig` is the
+  adapter boundary), and `checkContainersScore` wiring into per-round
+  resolution (see `des-engine.md`).

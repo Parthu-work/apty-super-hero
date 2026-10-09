@@ -744,8 +744,11 @@ export async function runApplicationDomHealthAudit(
           .map((link) => urlIdentity(link.absoluteUrl))
           .filter((template) => template !== seedTemplate),
       ).size;
+      // A nav anchor is also a discovered link; only controls without one
+      // speak for click navigation.
       traversalEvidence.seedNavigationCandidates = candidates.filter(
-        (candidate) => isSafeNavigationCandidate(candidate),
+        (candidate) =>
+          isSafeNavigationCandidate(candidate) && candidate.tagName !== "a",
       ).length;
       decideTraversal();
     }

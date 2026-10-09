@@ -63,16 +63,12 @@ export function findFirstHeadingDeep(
 
 export { findActiveNavItemDeep };
 
-/** Every `<iframe>` / `<frame>` this document owns, light DOM and shadow roots alike. */
-export function collectFrameOwners(
-  root: Document | ShadowRoot,
+/** What a parent document can say about one frame element. */
+export function frameOwnerOf(
+  element: HTMLIFrameElement | HTMLFrameElement,
   policy: readonly IgnoredRootMatcher[] = DEFAULT_IGNORED_ROOTS,
-): RouteProbeFrameOwner[] {
-  return (
-    querySelectorAllDeep(root, "iframe, frame") as Array<
-      HTMLIFrameElement | HTMLFrameElement
-    >
-  ).map((element) => ({
+): RouteProbeFrameOwner {
+  return {
     element,
     tagName: element.tagName === "FRAME" ? "frame" : "iframe",
     name: element.getAttribute("name"),
@@ -83,7 +79,19 @@ export function collectFrameOwners(
     className: element.getAttribute("class"),
     rendered: isRenderedInComposedTree(element),
     ignoredBy: ignoringMatcher(element, policy),
-  }));
+  };
+}
+
+/** Every `<iframe>` / `<frame>` this document owns, light DOM and shadow roots alike, in composed document order. */
+export function collectFrameOwners(
+  root: Document | ShadowRoot,
+  policy: readonly IgnoredRootMatcher[] = DEFAULT_IGNORED_ROOTS,
+): RouteProbeFrameOwner[] {
+  return (
+    querySelectorAllDeep(root, "iframe, frame") as Array<
+      HTMLIFrameElement | HTMLFrameElement
+    >
+  ).map((element) => frameOwnerOf(element, policy));
 }
 
 function ignoringMatcher(

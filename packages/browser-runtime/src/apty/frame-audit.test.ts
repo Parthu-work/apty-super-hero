@@ -52,7 +52,11 @@ function bundle(snapshotCounts: ReturnType<typeof counts>) {
 type Frames = Array<{ frameId: number; parentFrameId: number; url: string }>;
 type Answers = Record<
   number,
-  { owners?: unknown[]; counts?: ReturnType<typeof counts> }
+  {
+    owners?: unknown[];
+    counts?: ReturnType<typeof counts>;
+    self?: { windowName: string | null; owner: unknown };
+  }
 >;
 
 function serve(frames: () => Frames, answers: () => Answers) {
@@ -69,6 +73,13 @@ function serve(frames: () => Frames, answers: () => Answers) {
       const answer = answers()[options.frameId] ?? {};
       if (msg.request === "collect-dom-health-frame-owners") {
         callback({ success: true, data: answer.owners ?? [] });
+        return;
+      }
+      if (msg.request === "describe-dom-health-frame-self") {
+        callback({
+          success: true,
+          data: answer.self ?? { windowName: null, owner: null },
+        });
         return;
       }
       callback({ success: true, data: bundle(answer.counts ?? counts(0)) });
@@ -281,5 +292,106 @@ describe("frame identity during capture", () => {
       status: "skipped-about-blank",
       key: "later",
     });
+  });
+});
+
+describe("joining frames to their elements without chrome.runtime.getFrameId", () => {
+  const PORTAL = "https://portal.example.test/";
+
+  it("joins a cross-origin frame by its window.name (Infor's LN_44_<GUID>)", async () => {
+    const name = `LN_44_${GUID_A}`;
+    const src = lnSrc("FAKETENANT000000_TRN", GUID_A);
+    serve(
+      () => [
+        { frameId: 0, parentFrameId: -1, url: PORTAL },
+        { frameId: 3, parentFrameId: 0, url: "https://other.example.test/x" },
+        { frameId: 4, parentFrameId: 0, url: src },
+      ],
+      () => ({
+        0: {
+          owners: [
+            owner({
+              name: "helper",
+              resolvedSrc: "https://other.example.test/x",
+            }),
+            owner({ title: "LN", ospId: "LN", name, resolvedSrc: src }),
+          ],
+        },
+        4: { counts: counts(4), self: { windowName: name, owner: null } },
+      }),
+    );
+
+    const inventory = toFrameInventory((await capture()).frames);
+
+    expect(inventory.find((f) => f.frameId === 4)).toMatchObject({
+      key: "LN",
+      keySource: "osp-id",
+    });
+    expect(inventory.find((f) => f.frameId === 3)).toMatchObject({
+      key: "helper",
+      keySource: "name",
+    });
+  });
+
+  it("takes a same-origin frame's owner from its own frameElement", async () => {
+    serve(
+      () => [
+        { frameId: 0, parentFrameId: -1, url: PORTAL },
+        { frameId: 5, parentFrameId: 0, url: `${PORTAL}nav.html` },
+      ],
+      () => ({
+        0: { owners: [owner({ id: "GlobalNav" })] },
+        5: {
+          self: {
+            windowName: null,
+            owner: owner({ id: "GlobalNav", frameId: undefined }),
+          },
+        },
+      }),
+    );
+
+    const [, nav] = toFrameInventory((await capture()).frames);
+
+    expect(nav).toMatchObject({ key: "GlobalNav", role: "chrome" });
+  });
+
+  it("pairs the remaining frames with the remaining elements in document order only when the counts agree", async () => {
+    serve(
+      () => [
+        { frameId: 0, parentFrameId: -1, url: PORTAL },
+        { frameId: 7, parentFrameId: 0, url: `${PORTAL}a` },
+        { frameId: 8, parentFrameId: 0, url: `${PORTAL}b` },
+      ],
+      () => ({
+        0: { owners: [owner({ id: "first" }), owner({ id: "second" })] },
+      }),
+    );
+
+    const inventory = toFrameInventory((await capture()).frames);
+
+    expect(inventory.map((f) => f.key)).toEqual(["top", "first", "second"]);
+  });
+});
+
+describe("shell documents", () => {
+  it("keeps an ordinary page with its own controls and a small embed as the application", async () => {
+    serve(
+      () => [
+        { frameId: 0, parentFrameId: -1, url: "https://shop.example.test/p1" },
+        {
+          frameId: 2,
+          parentFrameId: 0,
+          url: "https://shop.example.test/ticker",
+        },
+      ],
+      () => ({
+        0: { counts: counts(0, 20, 3) },
+        2: { counts: counts(0, 2, 0) },
+      }),
+    );
+
+    const [top] = toFrameInventory((await capture()).frames);
+
+    expect(top).toMatchObject({ key: "top", role: "application" });
   });
 });
