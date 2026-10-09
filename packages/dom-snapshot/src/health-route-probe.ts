@@ -31,6 +31,8 @@ export interface RouteProbeFrameOwner {
   ospId: string | null;
   /** The `src` attribute as written, or null when the frame was navigated from script (athenaOne's `GlobalNav` / `Status` have none). */
   srcAttribute: string | null;
+  /** athenaOne marks its hidden menu shims `class="shimiframe"`. */
+  className: string | null;
   rendered: boolean;
 }
 
@@ -67,6 +69,7 @@ export function collectFrameOwners(
     title: element.getAttribute("title"),
     ospId: element.getAttribute("data-osp-id"),
     srcAttribute: element.getAttribute("src"),
+    className: element.getAttribute("class"),
     rendered: isRenderedInComposedTree(element),
   }));
 }

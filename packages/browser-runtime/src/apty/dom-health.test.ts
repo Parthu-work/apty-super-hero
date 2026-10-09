@@ -20,6 +20,12 @@ import { runDomHealthAudit } from "./dom-health";
 
 const TAB_ID = 42;
 
+function bundleRequests() {
+  return mockSendMessage.mock.calls.filter(
+    ([, msg]) => msg?.request === "collect-dom-health-frame-bundle",
+  );
+}
+
 function snapshotFixture(
   overrides: Partial<DomHealthSnapshot> = {},
 ): DomHealthSnapshot {
@@ -203,7 +209,7 @@ describe("runDomHealthAudit", () => {
       expect(result.metadata.snapshotsCompared).toBe(3);
       expect(result.evidenceState).toBe("HEALTHY_EVIDENCE");
     }
-    expect(mockSendMessage).toHaveBeenCalledTimes(3);
+    expect(bundleRequests()).toHaveLength(3);
   });
 
   it("addresses every message at the frame's explicit frameId — never an un-addressed broadcast", async () => {
@@ -225,11 +231,13 @@ describe("runDomHealthAudit", () => {
     mockSendMessage.mockImplementation(
       (
         _tabId: number,
-        _msg: unknown,
+        msg: { request: string },
         options: { frameId: number },
         callback: any,
       ) => {
-        seenFrameIds.push(options.frameId);
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          seenFrameIds.push(options.frameId);
+        }
         callback(frameBundle());
       },
     );
@@ -250,11 +258,13 @@ describe("runDomHealthAudit", () => {
     mockSendMessage.mockImplementation(
       (
         _tabId: number,
-        msg: { sequenceIndex: number },
+        msg: { request: string; sequenceIndex: number },
         _options: unknown,
         callback: any,
       ) => {
-        seenSequenceIndexes.push(msg.sequenceIndex);
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          seenSequenceIndexes.push(msg.sequenceIndex);
+        }
         callback(frameBundle());
       },
     );
@@ -344,7 +354,7 @@ describe("runDomHealthAudit", () => {
     });
 
     const promise = runDomHealthAudit(TAB_ID);
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(40000);
     const result = await promise;
 
     expect(result.available).toBe(true);
@@ -355,7 +365,7 @@ describe("runDomHealthAudit", () => {
 
   it("never returns a page title, practice id, tenant, session or token-valued attribute unredacted", async () => {
     const leaky = snapshotFixture({
-      url: "https://ehr.example.test/4242424/2/globalframeset.esp?inforTenantId=FAKETENANT00000_TRN&inforSessionId=FAKETENANT00000_TRN~00000000-0000-4000-8000-000000000000",
+      url: "https://ehr.example.test/4242424/2/globalframeset.esp?inforTenantId=FAKETENANT000000_TRN&inforSessionId=FAKETENANT000000_TRN~00000000-0000-4000-8000-000000000000",
       title:
         "PREVIEW: exampleCollector v1.0 TX - Example Practice - Texas [4242424] | EXAMPLE CLINIC [1]",
       elementPathSamples: [
@@ -398,7 +408,7 @@ describe("runDomHealthAudit", () => {
     const serialized = JSON.stringify(result);
     for (const leak of [
       "4242424",
-      "FAKETENANT00000_TRN",
+      "FAKETENANT000000_TRN",
       "Example Practice",
       "fake-secret-0001",
       "pubFAKE",

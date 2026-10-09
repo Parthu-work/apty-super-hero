@@ -249,6 +249,9 @@ export interface ElementSelectorReport {
    */
   frameId?: number;
   frameUrl?: string;
+  /** Stable identity and role of that frame (`frame-identity.ts` in `@apty/browser-runtime`), stamped alongside `frameId`. */
+  frameKey?: string;
+  frameRole?: "application" | "chrome" | "shim" | "placeholder" | "overlay";
 }
 
 /** Identity of the frame a `DomHealthSnapshot` was collected from — set by the caller, never guessed by the collector itself (it only knows its own document, not its place in the tab's frame tree). */

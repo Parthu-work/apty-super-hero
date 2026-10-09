@@ -28,6 +28,7 @@ import type {
   ElementSelectorReport,
 } from "@apty/dom-snapshot";
 import { AUDIT_PROFILE_NAME } from "@apty/dom-snapshot";
+import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
 export type DomHealthMetricKey =
@@ -236,6 +237,8 @@ export interface DomHealthAuditResult {
   /** Evidence completeness this score (or lack of one) is actually built on — always present, always checked before `score` is treated as a health signal. */
   evidenceState: EvidenceState;
   frameAccessibility: FrameAccessibilitySummary;
+  /** Every frame of the last capture: stable key, role and status (`frame-identity.ts`). */
+  frames: FrameInventoryEntry[];
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
   scope: "page";
   /** Human-readable companion to `scope`, so a caller never has to invent its own scope wording — always "CURRENT_PAGE" here, paired with "APPLICATION" on `ApplicationAuditResult` (spec sections 1/18). A result with this scope is never described as "application health". */
@@ -888,6 +891,7 @@ export function buildDomHealthAuditResult(
   snapshots: DomHealthSnapshot[],
   auditId: string,
   frameAccessibility: FrameAccessibilitySummary = DEFAULT_FRAME_ACCESSIBILITY,
+  frames: FrameInventoryEntry[] = [],
 ): DomHealthAuditResult {
   if (snapshots.length === 0) {
     throw new Error("buildDomHealthAuditResult requires at least one snapshot");
@@ -1004,6 +1008,7 @@ export function buildDomHealthAuditResult(
     confidence,
     evidenceState,
     frameAccessibility,
+    frames,
     scope: "page",
     scopeLabel: "CURRENT_PAGE",
     selectorConfiguration: DEFAULT_SELECTOR_CONFIGURATION,

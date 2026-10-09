@@ -8,11 +8,11 @@ import {
 describe("redactAuditUrl", () => {
   it("removes the tenant and session from an Infor OS Portal application frame src", () => {
     const url =
-      "https://eln.example.test/webui/servlet/fslogin?LogicalId=lid://infor.ln.ln01&inforTenantId=FAKETENANT00000_TRN&inforSessionId=FAKETENANT00000_TRN~00000000-0000-4000-8000-000000000000&inforThemeName=Light";
+      "https://eln.example.test/webui/servlet/fslogin?LogicalId=lid://infor.ln.ln01&inforTenantId=FAKETENANT000000_TRN&inforSessionId=FAKETENANT000000_TRN~00000000-0000-4000-8000-000000000000&inforThemeName=Light";
 
     const redacted = redactAuditUrl(url);
 
-    expect(redacted).not.toContain("FAKETENANT00000_TRN");
+    expect(redacted).not.toContain("FAKETENANT000000_TRN");
     expect(redacted).not.toContain("00000000-0000-4000-8000-000000000000");
     expect(new URL(redacted).searchParams.get("LogicalId")).toBe(
       "lid://infor.ln.ln01",

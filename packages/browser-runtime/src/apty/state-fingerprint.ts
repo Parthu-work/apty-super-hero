@@ -21,6 +21,8 @@ import type { FrameStateSignature } from "@apty/dom-snapshot";
 
 export interface FrameSignatureEntry {
   frameId: number;
+  /** Stable frame identity (`frame-identity.ts`); absent only for entries built before frames were identified. */
+  frameKey?: string;
   signature: FrameStateSignature | null;
 }
 

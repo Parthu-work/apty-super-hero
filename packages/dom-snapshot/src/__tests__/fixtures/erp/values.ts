@@ -49,7 +49,7 @@ export const INFOR = {
     title: "Factory Track",
     name: "ft_45_22222222-3333-4444-8555-666666666666",
     ospId: "ft",
-    src: "https://ft.example.test/WSWebClient/session/open?tenant=FAKETENANT00000_TRN",
+    src: "https://ft.example.test/WSWebClient/session/open?tenant=FAKETENANT000000_TRN",
   },
   /** Attribute names that are not valid CSS identifiers, emitted by Angular template refs and an IDS template. */
   invalidCssAttributeNames: ["#frameview", '"'],

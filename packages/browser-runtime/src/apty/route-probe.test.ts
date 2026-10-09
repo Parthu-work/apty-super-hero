@@ -28,14 +28,14 @@ import {
 
 const TAB_ID = 5;
 const LN_SRC =
-  "https://eln.example.test/webui/servlet/fslogin?LogicalId=lid://infor.ln.ln01&inforTenantId=FAKETENANT00000_TRN&inforSessionId=FAKETENANT00000_TRN~00000000-0000-4000-8000-000000000000";
+  "https://eln.example.test/webui/servlet/fslogin?LogicalId=lid://infor.ln.ln01&inforTenantId=FAKETENANT000000_TRN&inforSessionId=FAKETENANT000000_TRN~00000000-0000-4000-8000-000000000000";
 
 function lnFrames() {
   return [
     {
       frameId: 0,
       parentFrameId: -1,
-      url: "https://portal.example.test/FAKETENANT00000_TRN/",
+      url: "https://portal.example.test/FAKETENANT000000_TRN/",
       errorOccurred: false,
     },
     { frameId: 7, parentFrameId: 0, url: LN_SRC, errorOccurred: false },
@@ -152,7 +152,7 @@ describe("captureRouteProbeStep", () => {
       title: { text: "LN" },
       hasSrcAttribute: true,
     });
-    expect(app.url).not.toContain("FAKETENANT00000_TRN");
+    expect(app.url).not.toContain("FAKETENANT000000_TRN");
     expect(app.title?.text).toBe("Sales Orders [:id]");
     expect(app.title?.hash).toMatch(/^[0-9a-f]+$/);
     expect(app.firstRequest?.path).toBe("/webui/servlet/:id/orders");

@@ -35,6 +35,8 @@ import {
   aggregateFrameSnapshots,
   captureApplicationState,
   type FrameCaptureResult,
+  type FrameInventoryEntry,
+  toFrameInventory,
 } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
@@ -128,6 +130,7 @@ export async function collectDomHealthAudit(
 
   const snapshots: DomHealthSnapshot[] = [];
   const frameAccessibilityByRound: FrameAccessibilitySummary[] = [];
+  let frameInventory: FrameInventoryEntry[] = [];
 
   for (let i = 0; i < SNAPSHOT_DELAYS_MS.length; i++) {
     if (i > 0) {
@@ -147,12 +150,14 @@ export async function collectDomHealthAudit(
     const captured: FrameCaptureResult[] = outcome.result.frames;
     snapshots.push(aggregateFrameSnapshots(captured));
     frameAccessibilityByRound.push(outcome.result.frameAccessibility);
+    frameInventory = toFrameInventory(captured);
   }
 
   const result = buildDomHealthAuditResult(
     snapshots,
     generateAuditId(),
     mergeFrameAccessibility(frameAccessibilityByRound),
+    frameInventory,
   );
   return { available: true, ...result };
 }

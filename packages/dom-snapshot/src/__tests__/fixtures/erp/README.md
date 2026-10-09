@@ -32,7 +32,7 @@ Replaced with obviously fake values of the same shape:
 | Datadog client token (`pub` + 32 hex) and application id (GUID) | `pub` + 32 zeros, a zero GUID |
 | Pendo API key and guide-media paths | zero GUIDs on `example.test` hosts |
 | Patient-search text in the search menu | `123456` |
-| Infor tenant id (16 characters + `_TRN`) in `inforTenantId` / `inforSessionId` | `FAKETENANT00000_TRN` |
+| Infor tenant id (16 characters + `_TRN`) in `inforTenantId` / `inforSessionId` | `FAKETENANT000000_TRN` |
 | Infor session GUID, workspace GUID in the frame `name` and `data-osp-did` | zero / sequential GUIDs |
 | Customer hostnames (tenant region hosts, CDN tenant paths) | `*.example.test` |
 | Two 16-character masthead button ids, possibly tenant-specific | `QWERT0YUIOP1ASDF`, `ZXCVB2NMLKJ3HGFD` |

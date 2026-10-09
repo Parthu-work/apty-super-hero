@@ -65,6 +65,49 @@ isolated world). The orchestrator, which already knows all of it from
 `getFrameTree`, hands it down in the request payload instead of asking the
 content script to guess.
 
+### Stable frame identity, URL templates and roles (`frame-identity.ts`)
+
+A `frameId` is per page load, and frame names and URLs carry counters,
+GUIDs, tenants and sessions. Before each capture, every frame reports the
+frame elements it owns (`collect-dom-health-frame-owners`), joined to frame
+ids with `chrome.runtime.getFrameId`.
+
+`frameKey` is the first available of:
+
+1. `data-osp-id` (Infor OS Portal: `LN`);
+2. the element's `title`;
+3. its `name` without counters and GUIDs (`LN_44_<GUID>` becomes `LN`);
+4. its `id` (athenaOne: `GlobalNav`, `GlobalWrapper`, `Status`);
+5. origin + `urlTemplate`;
+6. position, which is reported as unstable.
+
+The key is stamped into every `ElementRef` captured in that frame.
+
+`urlTemplate` makes the URL identity rather than a navigation target:
+
+- id-shaped path segments become `:id` (digits, GUIDs, hex tokens), and
+  Infor tenant ids become `:tenant`;
+- tenant, session and auth parameters are dropped, as are LN's theme,
+  locale, time-zone and version parameters, and the remaining parameters
+  are sorted;
+- a fragment is kept only for hash routes, and is templated like the path.
+
+`frameRole` sorts frames into five roles:
+
+- `shim`: not rendered, a `javascript:` URL or stub, or a `shim` name or
+  class (athenaOne's `shimiframe`);
+- `placeholder`: an empty about:blank frame;
+- `chrome`: `GlobalNav` and `Status`, or a shell document with no form
+  controls that holds an application frame (the LN portal's top document,
+  athenaOne's top frameset);
+- `overlay`: a digital-adoption overlay frame;
+- `application`: everything else.
+
+About:blank frames are read rather than skipped, because a page can write
+into one. A rendered empty one is looked at again once, after 500 ms, in
+case the page navigates it from script. The result lists every frame with
+its key, role and reason, URL template and status (`frames`).
+
 ## Capture and aggregation
 
 `frame-audit.ts`'s `captureApplicationState` messages every reachable frame

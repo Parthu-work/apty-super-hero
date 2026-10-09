@@ -24,6 +24,14 @@ import type {
   FrameStateSignature,
 } from "@apty/dom-snapshot";
 import {
+  type FrameKey,
+  type FrameOwnerAttributes,
+  type FrameRoleDecision,
+  frameKey,
+  frameRole,
+  urlTemplate,
+} from "./frame-identity.js";
+import {
   type AuditFrame,
   type FrameAccessibilitySummary,
   getFrameTree,
@@ -38,9 +46,18 @@ export type FrameCaptureStatus =
   | "skipped-about-blank"
   | "skipped-navigation-error";
 
+/** Who a frame is, independent of this page load (`frame-identity.ts`). */
+export interface FrameIdentity {
+  key: FrameKey;
+  role: FrameRoleDecision;
+  urlTemplate: string;
+  owner: FrameOwnerAttributes | null;
+}
+
 export interface FrameCaptureResult {
   frame: AuditFrame;
   status: FrameCaptureStatus;
+  identity: FrameIdentity;
   snapshot?: DomHealthSnapshot;
   stateSignature?: FrameStateSignature;
   error?: string;
@@ -58,6 +75,8 @@ export interface CaptureStateResult {
   frameTree: AuditFrame[];
   frames: FrameCaptureResult[];
   frameAccessibility: FrameAccessibilitySummary;
+  /** Rendered about:blank frames looked at again after `PLACEHOLDER_RECHECK_MS`, in case the page was about to navigate them. */
+  placeholdersRechecked: number;
 }
 
 export type CaptureApplicationStateOutcome =
@@ -69,17 +88,216 @@ interface FrameBundleResponse {
   stateSignature: FrameStateSignature;
 }
 
+/** How long a capture waits, once, for a rendered about:blank frame the page may be about to navigate (athenaOne navigates `GlobalNav` and `Status` from script after load). */
+export const PLACEHOLDER_RECHECK_MS = 500;
+/** About:blank frames usually answer at once, or are not worth the full timeout. */
+const ABOUT_BLANK_TIMEOUT_MS = 2000;
+const OWNER_TIMEOUT_MS = 2000;
+
+type OwnerWithFrameId = FrameOwnerAttributes & { frameId: number | null };
+
+/** Each frame's position among its siblings, from the top (`"0/2/1"`), for the positional last-resort key. */
+function framePositions(frameTree: AuditFrame[]): Map<number, string> {
+  const positions = new Map<number, string>([[0, "0"]]);
+  const byParent = new Map<number, AuditFrame[]>();
+  for (const frame of frameTree) {
+    const siblings = byParent.get(frame.parentFrameId) ?? [];
+    siblings.push(frame);
+    byParent.set(frame.parentFrameId, siblings);
+  }
+  const visit = (frameId: number) => {
+    const children = (byParent.get(frameId) ?? []).sort(
+      (a, b) => a.frameId - b.frameId,
+    );
+    children.forEach((child, index) => {
+      positions.set(child.frameId, `${positions.get(frameId)}/${index}`);
+      visit(child.frameId);
+    });
+  };
+  visit(0);
+  return positions;
+}
+
+/**
+ * Ask every frame which frame elements it owns. Only a parent can see a
+ * frame element's `name`, `title` and `data-osp-id`; the responder joins
+ * each element to the `frameId` it hosts.
+ */
+async function collectFrameOwnersByFrameId(
+  tabId: number,
+  frameTree: AuditFrame[],
+): Promise<Map<number, FrameOwnerAttributes>> {
+  const owners = new Map<number, FrameOwnerAttributes>();
+  const responses = await Promise.all(
+    frameTree
+      .filter((frame) => !frame.errorOccurred)
+      .map((frame) =>
+        sendFrameMessage<OwnerWithFrameId[]>(
+          tabId,
+          frame.frameId,
+          { request: "collect-dom-health-frame-owners" },
+          OWNER_TIMEOUT_MS,
+        ),
+      ),
+  );
+  for (const response of responses) {
+    if (!Array.isArray(response.data)) continue;
+    for (const { frameId, ...owner } of response.data) {
+      if (typeof frameId === "number") owners.set(frameId, owner);
+    }
+  }
+  return owners;
+}
+
+function identify(
+  frame: AuditFrame,
+  owner: FrameOwnerAttributes | null,
+  position: string,
+  snapshot: DomHealthSnapshot | null,
+): FrameIdentity {
+  return {
+    key: frameKey({ frameId: frame.frameId, url: frame.url, owner, position }),
+    role: frameRole({
+      frameId: frame.frameId,
+      url: frame.url,
+      owner,
+      elementCount: snapshot ? snapshot.counts.totalElements : null,
+      interactiveCount: snapshot ? snapshot.counts.interactiveElements : null,
+    }),
+    urlTemplate: urlTemplate(frame.url).template,
+    owner,
+  };
+}
+
+async function captureFrame(
+  tabId: number,
+  frame: AuditFrame,
+  owner: FrameOwnerAttributes | null,
+  position: string,
+  options: CaptureStateOptions,
+): Promise<FrameCaptureResult> {
+  if (frame.errorOccurred) {
+    return {
+      frame,
+      status: "skipped-navigation-error",
+      identity: identify(frame, owner, position, null),
+    };
+  }
+  const key = frameKey({
+    frameId: frame.frameId,
+    url: frame.url,
+    owner,
+    position,
+  });
+
+  // The content script cannot reliably determine its own frameId,
+  // parentFrameId, depth or frame key (`chrome.webNavigation` is not
+  // available inside a content script's isolated world, and only the parent
+  // sees the frame element) — so THIS layer hands them down in the request.
+  const response = await sendFrameMessage<FrameBundleResponse>(
+    tabId,
+    frame.frameId,
+    {
+      request: "collect-dom-health-frame-bundle",
+      sequenceIndex: options.sequenceIndex,
+      maxInteractiveElements: options.maxInteractiveElements,
+      frameContext: {
+        frameId: frame.frameId,
+        url: frame.url,
+        parentFrameId: frame.parentFrameId,
+        depth: frame.depth,
+        frameKey: key.key,
+      },
+    },
+    frame.isAboutBlank
+      ? Math.min(
+          options.timeoutMs ?? ABOUT_BLANK_TIMEOUT_MS,
+          ABOUT_BLANK_TIMEOUT_MS,
+        )
+      : options.timeoutMs,
+  );
+
+  const snapshot = response.success ? response.data?.snapshot : undefined;
+  const identity = identify(frame, owner, position, snapshot ?? null);
+
+  if (identity.role.role === "placeholder") {
+    return { frame, status: "skipped-about-blank", identity };
+  }
+  if (!response.success || !response.data) {
+    return {
+      frame,
+      status: "failed",
+      identity,
+      error: response.error ?? "This frame did not respond.",
+    };
+  }
+  return {
+    frame,
+    status: "captured",
+    identity,
+    snapshot: response.data.snapshot,
+    stateSignature: response.data.stateSignature,
+  };
+}
+
+/**
+ * A document with no form controls that holds an application frame is the
+ * application's shell, not the application: the Infor OS Portal top
+ * document has 0 form controls and loads LN in an iframe; athenaOne's top
+ * document holds the `GlobalWrapper` frame. Scoring such a frame as the
+ * application produced "no form controls" findings on a page full of them
+ * (defect D-7).
+ */
+export function classifyShellFrames(
+  frames: FrameCaptureResult[],
+): FrameCaptureResult[] {
+  return frames.map((entry) => {
+    if (
+      entry.status !== "captured" ||
+      entry.identity.role.role !== "application"
+    ) {
+      return entry;
+    }
+    const counts = entry.snapshot?.counts;
+    const formControls = counts
+      ? counts.inputs + counts.selects + counts.textareas
+      : 0;
+    if (formControls > 0) return entry;
+    const appChild = frames.find(
+      (child) =>
+        child.frame.parentFrameId === entry.frame.frameId &&
+        child.identity.role.role === "application" &&
+        child.identity.owner?.rendered !== false,
+    );
+    if (!appChild) return entry;
+    return {
+      ...entry,
+      identity: {
+        ...entry.identity,
+        role: {
+          role: "chrome",
+          reason: `Shell document: no form controls, and the application is in child frame "${appChild.identity.key.key}".`,
+        },
+      },
+    };
+  });
+}
+
 /**
  * Capture one point-in-time snapshot of every reachable frame in the tab.
  * Never throws — a frame the browser reports as errored, a frame that
- * never answers, or a bare `about:blank` placeholder is recorded with an
- * explicit status rather than silently dropped or treated as empty.
+ * never answers, or an empty about:blank placeholder is recorded with an
+ * explicit status and role rather than silently dropped or treated as an
+ * empty application. An about:blank frame is still read (a page can write
+ * into one from script); only when it is empty is it a placeholder, and a
+ * rendered placeholder is looked at again once, after
+ * `PLACEHOLDER_RECHECK_MS`, in case the page was about to navigate it.
  */
 export async function captureApplicationState(
   tabId: number,
   options: CaptureStateOptions,
 ): Promise<CaptureApplicationStateOutcome> {
-  const frameTree = await getFrameTree(tabId);
+  let frameTree = await getFrameTree(tabId);
   if (!frameTree) {
     return {
       available: false,
@@ -87,53 +305,50 @@ export async function captureApplicationState(
     };
   }
 
-  const frames: FrameCaptureResult[] = await Promise.all(
-    frameTree.map(async (frame): Promise<FrameCaptureResult> => {
-      if (frame.errorOccurred) {
-        return { frame, status: "skipped-navigation-error" };
-      }
-      if (frame.isAboutBlank) {
-        return { frame, status: "skipped-about-blank" };
-      }
-
-      // The content script cannot reliably determine its own frameId,
-      // parentFrameId, or depth (`chrome.webNavigation` is not available
-      // inside a content script's isolated world) — so THIS layer, which
-      // already knows all of it from `getFrameTree`, hands it down in the
-      // request rather than asking the content script to guess.
-      const response = await sendFrameMessage<FrameBundleResponse>(
+  let owners = await collectFrameOwnersByFrameId(tabId, frameTree);
+  let positions = framePositions(frameTree);
+  let frames: FrameCaptureResult[] = await Promise.all(
+    frameTree.map((frame) =>
+      captureFrame(
         tabId,
-        frame.frameId,
-        {
-          request: "collect-dom-health-frame-bundle",
-          sequenceIndex: options.sequenceIndex,
-          maxInteractiveElements: options.maxInteractiveElements,
-          frameContext: {
-            frameId: frame.frameId,
-            url: frame.url,
-            parentFrameId: frame.parentFrameId,
-            depth: frame.depth,
-          },
-        },
-        options.timeoutMs,
-      );
-
-      if (!response.success || !response.data) {
-        return {
-          frame,
-          status: "failed",
-          error: response.error ?? "This frame did not respond.",
-        };
-      }
-
-      return {
         frame,
-        status: "captured",
-        snapshot: response.data.snapshot,
-        stateSignature: response.data.stateSignature,
-      };
-    }),
+        owners.get(frame.frameId) ?? null,
+        positions.get(frame.frameId) ?? String(frame.frameId),
+        options,
+      ),
+    ),
   );
+
+  const waiting = frames.filter(
+    (f) =>
+      f.identity.role.role === "placeholder" &&
+      f.identity.owner?.rendered !== false,
+  );
+  if (waiting.length > 0) {
+    await new Promise((resolve) => setTimeout(resolve, PLACEHOLDER_RECHECK_MS));
+    const refreshed = await getFrameTree(tabId);
+    if (refreshed) {
+      frameTree = refreshed;
+      owners = await collectFrameOwnersByFrameId(tabId, frameTree);
+      positions = framePositions(frameTree);
+      const byId = new Map(refreshed.map((frame) => [frame.frameId, frame]));
+      frames = await Promise.all(
+        frames.map(async (entry) => {
+          const now = byId.get(entry.frame.frameId);
+          if (!waiting.includes(entry) || !now || now.isAboutBlank)
+            return entry;
+          return captureFrame(
+            tabId,
+            now,
+            owners.get(now.frameId) ?? null,
+            positions.get(now.frameId) ?? String(now.frameId),
+            options,
+          );
+        }),
+      );
+    }
+  }
+  frames = classifyShellFrames(frames);
 
   const framesAccessible = frames.filter((f) => f.status === "captured").length;
   const failedFrames = frames.filter(
@@ -154,7 +369,15 @@ export async function captureApplicationState(
     ),
   };
 
-  return { available: true, result: { frameTree, frames, frameAccessibility } };
+  return {
+    available: true,
+    result: {
+      frameTree,
+      frames,
+      frameAccessibility,
+      placeholdersRechecked: waiting.length,
+    },
+  };
 }
 
 function emptySelectorAnalysis() {
@@ -273,6 +496,8 @@ export function aggregateFrameSnapshots(
         ...report,
         frameId: entry.frame.frameId,
         frameUrl: s.url,
+        frameKey: entry.identity.key.key,
+        frameRole: entry.identity.role.role,
       });
     }
     for (const sample of s.elementPathSamples ?? []) {
@@ -435,12 +660,44 @@ export function aggregateFrameSnapshots(
   };
 }
 
+/** One frame as the report lists it: identity, role and capture status, never silently dropped. */
+export interface FrameInventoryEntry {
+  frameId: number;
+  parentFrameId: number;
+  key: string;
+  keySource: FrameKey["source"];
+  keyStable: boolean;
+  role: FrameRoleDecision["role"];
+  roleReason: string;
+  urlTemplate: string;
+  status: FrameCaptureStatus;
+  error?: string;
+}
+
+export function toFrameInventory(
+  frames: FrameCaptureResult[],
+): FrameInventoryEntry[] {
+  return frames.map((f) => ({
+    frameId: f.frame.frameId,
+    parentFrameId: f.frame.parentFrameId,
+    key: f.identity.key.key,
+    keySource: f.identity.key.source,
+    keyStable: f.identity.key.stable,
+    role: f.identity.role.role,
+    roleReason: f.identity.role.reason,
+    urlTemplate: f.identity.urlTemplate,
+    status: f.status,
+    ...(f.error ? { error: f.error } : {}),
+  }));
+}
+
 /** Build the per-frame signature list a state-fingerprint comparison needs, straight from a capture result. */
 export function toFrameSignatureEntries(
   frames: FrameCaptureResult[],
 ): FrameSignatureEntry[] {
   return frames.map((f) => ({
     frameId: f.frame.frameId,
+    frameKey: f.identity.key.key,
     signature: f.stateSignature ?? null,
   }));
 }

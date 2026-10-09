@@ -12,6 +12,7 @@ import {
   collectDiscoverableLinks,
   collectDomHealthSnapshot,
   collectDomSnapshot,
+  collectFrameOwners,
   collectRouteProbeFrameSignals,
   collectSafeNavigationCandidates,
   composedText,
@@ -197,15 +198,20 @@ function frameIdOf(element: Element): number | null {
   }
 }
 
+/** Attributes of every `<iframe>` / `<frame>` this document owns, each joined to the `frameId` of the frame it hosts. */
+export function frameOwnersWithIds(owners = collectFrameOwners(document)) {
+  return owners.map(({ element, ...attributes }) => ({
+    ...attributes,
+    frameId: frameIdOf(element),
+  }));
+}
+
 /** One probe step for this frame: what identifies the screen, plus each child frame's owner attributes mapped to its `frameId`. */
 export function captureRouteProbeFrame() {
   const { owners, ...signals } = collectRouteProbeFrameSignals(document);
   return {
     ...signals,
-    owners: owners.map(({ element, ...attributes }) => ({
-      ...attributes,
-      frameId: frameIdOf(element),
-    })),
+    owners: frameOwnersWithIds(owners),
     historyApiCallCount: historyApiCallCount(),
     pushStateCount: historyTotals.pushState,
     firstRequest: routeProbe?.firstRequest ?? null,
@@ -457,6 +463,12 @@ export function handleFrameMessage(
             document,
             Array.isArray(message.samples) ? message.samples : [],
           ),
+      );
+    case "collect-dom-health-frame-owners":
+      return respondAsync(
+        sendResponse,
+        "Failed to read this document's frame elements",
+        () => frameOwnersWithIds(),
       );
     case "dom-health-probe-arm":
       sendResponse({ success: true, data: armRouteProbe() });
