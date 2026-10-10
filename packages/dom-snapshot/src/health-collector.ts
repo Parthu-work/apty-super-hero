@@ -57,6 +57,7 @@ import { type ElementPath, resetDesPerformanceCaches } from "./des-engine.js";
 import { hitTestElement } from "./health-hit-test.js";
 import {
   isInPrivateContainer,
+  maskIdReference,
   sanitizeReportAttributes,
   sanitizeSelector,
 } from "./health-privacy.js";
@@ -833,7 +834,10 @@ function findDuplicateIds(state: CollectorState): DuplicateIdStats {
     valuesDuplicatedPageWide: [...pageWide.values()].filter((n) => n > 1)
       .length,
     elementsWithDuplicatedId,
-    sampleValues: [...withinRoot].slice(0, 5),
+    sampleValues: [...new Set([...withinRoot].map(maskIdReference))].slice(
+      0,
+      5,
+    ),
   };
 }
 

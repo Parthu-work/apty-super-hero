@@ -53,6 +53,7 @@ export {
   resolveDomPath,
   type SafeNavigationCandidate,
 } from "./health-links.js";
+export { isIdReferenceAttribute, maskIdReference } from "./health-privacy.js";
 export {
   collectFrameOwners,
   collectRouteProbeFrameSignals,

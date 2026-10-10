@@ -254,6 +254,12 @@ WP-8 adds a first line in the page, so values never leave the frame:
   base64 key) or a secret-named attribute becomes `<redacted>`. Free text
   (4+ words, or several words over 40 characters) becomes
   `<redacted-text>`. Digit runs of 5 or more become `:id`.
+- **Element ids.** `id`, `for` and the `aria-*` id references
+  (`labelledby`, `describedby`, `controls`, `owns`) carry record numbers at
+  any length (`patient-1234`), so every digit run standing alone becomes
+  `:id`, while digits that are part of a word stay (`ctl00_Main`). The
+  same rule applies to `duplicateIds.sampleValues`, and the exit redaction
+  applies it again to element attributes and element-path ids.
 - **Selectors.** `bestSelector` values go through the same rules. `href`,
   `src` and `action` lose secret-named and token-like query parameters,
   and ids in the path are masked.

@@ -25,6 +25,7 @@
  * that reason rather than scrubbed (see `REDACTED_TITLE`).
  */
 import { redactSensitiveText, redactUrl } from "@apty/debug-contract";
+import { isIdReferenceAttribute, maskIdReference } from "@apty/dom-snapshot";
 
 /**
  * What a captured `document.title` becomes. Titles are page context the
@@ -65,6 +66,15 @@ const REDACTED = "<REDACTED>";
 /** Keys whose string values are the engine's own identifiers, which legitimately carry long digit runs (`dom-health-<timestamp>-1`). */
 const ENGINE_ID_KEY_PATTERN =
   /^(?:auditId|id|stateId|\w+StateId|fingerprint|\w+Fingerprint)$/;
+
+/**
+ * Keys that hold the page's own element ids. In a record of element
+ * attributes (`DomHealthElementAttributes`, recognised by its
+ * `dataAttributes`) `id` is the element's id, not one of the engine's;
+ * `sampleValues` lists duplicated ids.
+ */
+const ELEMENT_ATTRIBUTE_ID_KEYS = new Set(["id", "ariaLabelledby"]);
+const ID_LIST_KEY = "sampleValues";
 
 const URL_KEY_PATTERN = /^(?:url|href|src|\w+Url|\w+URL)$/;
 const URL_LIST_KEY_PATTERN = /^(?:urls|\w+Urls)$/;
@@ -126,20 +136,37 @@ function isNameValuePair(
 function redactValue(key: string | null, value: unknown): unknown {
   if (typeof value === "string") return redactString(key, value);
   if (Array.isArray(value)) {
+    if (key === ID_LIST_KEY) {
+      return value.map((item) =>
+        typeof item === "string" ? maskIdReference(item) : item,
+      );
+    }
     const itemKey = key && URL_LIST_KEY_PATTERN.test(key) ? "url" : key;
     return value.map((item) => redactValue(itemKey, item));
   }
   if (value === null || typeof value !== "object") return value;
   const record = value as Record<string, unknown>;
+  const holdsElementAttributes = "dataAttributes" in record;
   const out: Record<string, unknown> = {};
   for (const [childKey, child] of Object.entries(record)) {
-    out[childKey] =
-      typeof child === "string" && SENSITIVE_KEY_PATTERN.test(childKey)
-        ? REDACTED
-        : redactValue(childKey, child);
+    if (typeof child === "string" && SENSITIVE_KEY_PATTERN.test(childKey)) {
+      out[childKey] = REDACTED;
+    } else if (
+      holdsElementAttributes &&
+      typeof child === "string" &&
+      ELEMENT_ATTRIBUTE_ID_KEYS.has(childKey)
+    ) {
+      out[childKey] = maskIdReference(redactDomText(child));
+    } else {
+      out[childKey] = redactValue(childKey, child);
+    }
   }
-  if (isNameValuePair(record) && SENSITIVE_KEY_PATTERN.test(record.name)) {
-    out.value = REDACTED;
+  if (isNameValuePair(record)) {
+    if (SENSITIVE_KEY_PATTERN.test(record.name)) {
+      out.value = REDACTED;
+    } else if (isIdReferenceAttribute(record.name)) {
+      out.value = maskIdReference(redactDomText(record.value));
+    }
   }
   return out;
 }

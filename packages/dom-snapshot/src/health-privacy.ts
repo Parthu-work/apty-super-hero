@@ -46,6 +46,19 @@ const OPAQUE_KEY = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[A-Za-z0-9+/=]{24,}$/;
 const ID_RUN =
   /(?<![0-9a-z])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{5,})(?![0-9a-z])/gi;
 
+/** A digit run standing alone inside an id (`patient-1234`, `row_7`), not one that is part of a word (`ctl00`, `h1`). */
+const ID_DIGIT_RUN = /(?<![0-9a-z])\d+(?![0-9a-z])/gi;
+
+/** Attributes whose value is an element id or a space-separated list of them. */
+const ID_REFERENCE_ATTRIBUTES = new Set([
+  "id",
+  "for",
+  "aria-labelledby",
+  "aria-describedby",
+  "aria-controls",
+  "aria-owns",
+]);
+
 /**
  * Data attributes hold identifiers and short keywords; text with several
  * words or over 40 characters is content (a name, a note, a search) and
@@ -138,6 +151,25 @@ export function isPrivateAttribute(name: string, value: string): boolean {
   );
 }
 
+export function isIdReferenceAttribute(name: string): boolean {
+  return ID_REFERENCE_ATTRIBUTES.has(name);
+}
+
+/**
+ * An element id, or a space-separated list of ids, as DOM Health may
+ * report it. Applications put record numbers in ids at any length
+ * (`patient-1234`, `order_7`), so every digit run standing alone is
+ * masked, not only the 5+ digit runs other values lose. A token-shaped
+ * id is replaced whole.
+ */
+export function maskIdReference(value: string): string {
+  return value.replace(/\S+/g, (token) =>
+    looksLikeSecret(token)
+      ? REDACTED_VALUE
+      : token.replace(ID_RUN, ":id").replace(ID_DIGIT_RUN, ":id"),
+  );
+}
+
 /** One attribute value as DOM Health may report it. */
 export function sanitizeAttributeValue(name: string, value: string): string {
   if (SENSITIVE_NAME.test(name) || looksLikeSecret(value)) {
@@ -146,6 +178,7 @@ export function sanitizeAttributeValue(name: string, value: string): string {
   if (name === "href" || name === "src" || name === "action") {
     return sanitizeUrl(value);
   }
+  if (isIdReferenceAttribute(name)) return maskIdReference(value);
   if (name.startsWith("data-") && looksLikeFreeText(value)) {
     return REDACTED_TEXT;
   }
@@ -174,7 +207,7 @@ export function sanitizeReportAttributes(
     name: clean("name", attributes.name),
     role: attributes.role,
     ariaLabel: clean("aria-label", attributes.ariaLabel),
-    ariaLabelledby: attributes.ariaLabelledby,
+    ariaLabelledby: clean("aria-labelledby", attributes.ariaLabelledby),
     dataAttributes,
   };
 }

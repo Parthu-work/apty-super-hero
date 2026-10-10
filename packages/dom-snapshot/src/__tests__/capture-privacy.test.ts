@@ -101,6 +101,30 @@ describe("what a captured DOM Health bundle may contain (D-9)", () => {
     ).toEqual([REDACTED_TEXT]);
   });
 
+  it("masks record numbers of any length in element ids and id references", async () => {
+    document.body.innerHTML = `
+      <label id="lbl-1234" for="patient-1234">MRN</label>
+      <input id="patient-1234" aria-labelledby="lbl-1234 hint_7">
+      <button id="ctl00_Main_btnSave">Save</button>
+      <button id="row-1">A</button><button id="row-1">B</button>
+      <button id="row-2">C</button><button id="row-2">D</button>`;
+
+    const snapshot = await collectDomHealthSnapshot(document);
+    const reported = snapshot.elementReports.map((r) => r.attributes);
+
+    expect(reported).toContainEqual(
+      expect.objectContaining({
+        id: "patient-:id",
+        ariaLabelledby: "lbl-:id hint_:id",
+      }),
+    );
+    expect(reported).toContainEqual(
+      expect.objectContaining({ id: "ctl00_Main_btnSave" }),
+    );
+    expect(snapshot.duplicateIds?.sampleValues).toEqual(["row-:id"]);
+    expect(JSON.stringify(snapshot.elementReports)).not.toContain("1234");
+  });
+
   it("sanitizes URL values: secret-named and token-like parameters, and ids in the path", () => {
     expect(
       sanitizeAttributeValue(

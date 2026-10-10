@@ -61,6 +61,32 @@ describe("redactDomHealthOutput", () => {
     expect(out.path[0]?.attributes[0]?.value).toBe("<REDACTED>");
   });
 
+  it("masks the page's element ids wherever they appear, but not the engine's", () => {
+    const out = redactDomHealthOutput({
+      risks: [{ id: "duplicate-ids" }],
+      elementReports: [
+        {
+          attributes: {
+            id: "patient-1234",
+            ariaLabelledby: "lbl-1234",
+            dataAttributes: {},
+          },
+        },
+      ],
+      path: [{ tag: "input", attributes: [{ name: "id", value: "order_7" }] }],
+      duplicateIds: { sampleValues: ["row-3"] },
+    });
+
+    expect(out.risks[0]?.id).toBe("duplicate-ids");
+    expect(out.elementReports[0]?.attributes).toEqual({
+      id: "patient-:id",
+      ariaLabelledby: "lbl-:id",
+      dataAttributes: {},
+    });
+    expect(out.path[0]?.attributes[0]?.value).toBe("order_:id");
+    expect(out.duplicateIds.sampleValues).toEqual(["row-:id"]);
+  });
+
   it("leaves scores, counts and the engine's own identifiers exactly as computed", () => {
     const input = {
       auditId: "dom-health-1791480287000-1",
