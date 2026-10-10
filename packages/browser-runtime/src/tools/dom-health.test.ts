@@ -40,7 +40,7 @@ describe("runDomHealthAuditTool", () => {
       JSON.stringify({}),
     );
 
-    expect(mockRunDomHealthAudit).toHaveBeenCalledWith(9);
+    expect(mockRunDomHealthAudit).toHaveBeenCalledWith(9, { ignoredRoots: [] });
     expect(result).toEqual({
       available: true,
       score: 88,
@@ -133,6 +133,7 @@ describe("runApplicationDomHealthAuditTool", () => {
 
     expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(9, {
       maxPages: 5,
+      ignoredRoots: [],
     });
     expect(result).toEqual({
       available: true,
@@ -163,7 +164,33 @@ describe("runApplicationDomHealthAuditTool", () => {
     expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(11, {
       maxPages: undefined,
       discoveryMode: "page",
+      ignoredRoots: [],
     });
+  });
+
+  it("leaves out the overlays the user added in Settings", async () => {
+    mockRunApplicationDomHealthAudit.mockResolvedValue({ available: true });
+    (global as any).chrome.storage = {
+      local: {
+        get: vi.fn(async (key: string) => ({
+          [key]: { domHealthIgnoredRoots: ["tag:support-widget"] },
+        })),
+      },
+    };
+
+    try {
+      await runApplicationDomHealthAuditTool.invoke(
+        { context: { conversationId: "conv-4", tabId: 11 } } as any,
+        JSON.stringify({}),
+      );
+    } finally {
+      delete (global as any).chrome.storage;
+    }
+
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(
+      11,
+      expect.objectContaining({ ignoredRoots: ["tag:support-widget"] }),
+    );
   });
 
   it("never silently uses the active tab when no tab is bound to the conversation", async () => {

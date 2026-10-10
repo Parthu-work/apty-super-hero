@@ -24,7 +24,9 @@
  * live tab back to an arbitrary previously-discovered state before
  * exploring one of its other children.
  */
+import { urlTemplate } from "./frame-identity.js";
 import type { AuditStateFingerprint } from "./state-fingerprint.js";
+import type { TransitionCorroboration } from "./traversal-strategy.js";
 
 export type TransitionTriggerKind = "seed" | "url-navigation" | "click";
 
@@ -32,9 +34,9 @@ export interface TransitionTrigger {
   kind: TransitionTriggerKind;
   /** For "url-navigation": the URL navigated to. */
   url?: string;
-  /** For "click": which frame the candidate was found/clicked in. */
+  /** For "click": which frame the candidate was found/clicked in. For "url-navigation": which frame the link was found in, when known. */
   frameId?: number;
-  /** For "click": the candidate's DOM path, re-used verbatim to replay the click during restoration. */
+  /** For "click": the candidate's DOM path, re-used verbatim to replay the click during restoration. For "url-navigation": the link's path, so restoration can click it when loading `url` directly does not reproduce the state. */
   domPath?: string;
   /** For "click": human-readable label, for evidence/reporting only — never used to re-identify the element. */
   candidateText?: string;
@@ -55,7 +57,7 @@ export interface StateTransitionEdge {
   sourceStateId: string;
   targetStateId: string;
   trigger: TransitionTrigger;
-  /** Whether the target's URL (ignoring hash) equals the source's — the Infor LN-shaped case this whole model exists for. */
+  /** Whether the target's URL template equals the source's (`isSameUrl`) — the Infor LN-shaped case this whole model exists for. */
   sameUrl: boolean;
   beforeFingerprint: string;
   afterFingerprint: string;
@@ -63,6 +65,8 @@ export interface StateTransitionEdge {
   historyEventDelta: number;
   /** "confirmed": a live before/after fingerprint comparison actually differed. "restored": this edge was replayed during backtracking and its target fingerprint matched what was originally recorded (see `RestorationResult`). */
   confidence: "confirmed" | "restored";
+  /** For a click: what besides the DOM showed that it navigated (`traversal-strategy.ts`). */
+  corroboration?: TransitionCorroboration;
   createdAt: number;
 }
 
@@ -82,14 +86,14 @@ export interface RestorationResult {
   failedAtStep?: number;
 }
 
-function normalizeUrlForCompare(url: string): string {
-  try {
-    const u = new URL(url);
-    u.hash = "";
-    return u.toString();
-  } catch {
-    return url;
-  }
+/**
+ * Two URLs are the same when their templates are (`urlTemplate`): ids,
+ * tenants and sessions do not make a different URL, and a hash route does
+ * (defect D-2: stripping only the hash made a hash-routed application one
+ * URL, and a tenant or record id made one screen many).
+ */
+export function isSameUrl(a: string, b: string): boolean {
+  return urlTemplate(a).template === urlTemplate(b).template;
 }
 
 /**
@@ -179,6 +183,7 @@ export class StateGraph {
     title: string | null;
     historyEventDelta: number;
     confidence?: StateTransitionEdge["confidence"];
+    corroboration?: TransitionCorroboration;
   }): { stateId: string; isNew: boolean; edge: StateTransitionEdge } {
     const source = this.nodes.get(params.sourceStateId);
     const edgeId = `edge-${this.nextEdgeSeq++}`;
@@ -193,14 +198,12 @@ export class StateGraph {
       sourceStateId: params.sourceStateId,
       targetStateId: stateId,
       trigger: params.trigger,
-      sameUrl: source
-        ? normalizeUrlForCompare(params.url) ===
-          normalizeUrlForCompare(source.url)
-        : false,
+      sameUrl: source ? isSameUrl(params.url, source.url) : false,
       beforeFingerprint: params.beforeFingerprint.fingerprint,
       afterFingerprint: params.afterFingerprint.fingerprint,
       historyEventDelta: params.historyEventDelta,
       confidence: params.confidence ?? "confirmed",
+      ...(params.corroboration ? { corroboration: params.corroboration } : {}),
       createdAt: Date.now(),
     };
     this.edges.push(edge);

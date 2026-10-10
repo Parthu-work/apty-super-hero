@@ -21,6 +21,7 @@ import {
   type ApplicationAuditProgress,
   type ApplicationDiscoveryMode,
   type DomHealthAuditOutcome,
+  type DomHealthAuditResult,
   type DomHealthConfidence,
   type DomHealthGrade,
   type DomHealthMetricDetails,
@@ -37,6 +38,7 @@ import { Button } from "@apty/ui/components/ui/button";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, Loader2Icon, ScanSearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RouteProbePanel } from "./route-probe-panel";
 import type { StatusMeta } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useCurrentTarget } from "./use-current-target";
@@ -196,7 +198,11 @@ interface SharedEvidence {
   manualSelectorDependency: number;
   metrics: DomHealthMetrics;
   metricDetails: DomHealthMetricDetails;
-  selectorConfiguration: { source: "default" | "customer"; detail: string };
+  selectorConfiguration: {
+    source: "default" | "customer";
+    profile?: string;
+    detail: string;
+  };
   summary: string;
   strengths: string[];
   risks: DomHealthRisk[];
@@ -345,6 +351,8 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
         {result.selectorConfiguration?.source === "customer"
           ? "Customer Apty DES configuration"
           : "Default/reconstructed DES configuration"}
+        {result.selectorConfiguration?.profile &&
+          ` + audit profile ${result.selectorConfiguration.profile}`}
       </p>
 
       <div>
@@ -449,7 +457,64 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
   );
 }
 
-export function DomHealthCard() {
+/** Why confidence was capped, which frames were scored, and what overlay content was left out. */
+function FramesAndExclusions({
+  result,
+}: {
+  result: Pick<
+    DomHealthAuditResult,
+    "confidenceCaps" | "frames" | "excludedRoots"
+  >;
+}) {
+  const caps = result.confidenceCaps ?? [];
+  const frames = result.frames ?? [];
+  const excluded = result.excludedRoots ?? [];
+  return (
+    <>
+      {caps.length > 0 && (
+        <ul className={cn("space-y-0.5 text-[11px]", toneTextClass("warning"))}>
+          {caps.map((reason) => (
+            <li key={reason}>Confidence capped: {reason}</li>
+          ))}
+        </ul>
+      )}
+      {(frames.length > 1 || excluded.length > 0) && (
+        <details className="text-xs">
+          <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+            Frames ({frames.length}) and excluded content ({excluded.length})
+          </summary>
+          <ul className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+            {frames.map((frame) => (
+              <li key={frame.frameId}>
+                <span className="font-mono">{frame.key}</span> — {frame.role},{" "}
+                {frame.status}
+                {typeof frame.score === "number" && ` · ${frame.score}/100`}
+                {frame.role !== "application" && " · not scored"}
+              </li>
+            ))}
+            {excluded.map((entry) => (
+              <li key={entry.matcher}>
+                Left out {entry.owner} (
+                <span className="font-mono">{entry.matcher}</span>):{" "}
+                {entry.roots} root(s), {entry.elementCount} element(s)
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
+  );
+}
+
+export function DomHealthCard({
+  developerTools = false,
+  ignoredRoots = [],
+}: {
+  /** Settings → Troubleshooting → Developer tools: shows the route probe. */
+  developerTools?: boolean;
+  /** Settings → Troubleshooting: overlays to leave out, on top of the built-in list. */
+  ignoredRoots?: readonly string[];
+}) {
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
   const [isLoading, setIsLoading] = useState(false);
@@ -484,7 +549,7 @@ export function DomHealthCard() {
       setStageIndex((i) => (i + 1) % LOADING_STAGES.length);
     }, 700);
 
-    const result = await runDomHealthAudit(target.tabId);
+    const result = await runDomHealthAudit(target.tabId, { ignoredRoots });
 
     if (stageTimerRef.current) {
       clearInterval(stageTimerRef.current);
@@ -492,7 +557,7 @@ export function DomHealthCard() {
     }
     setOutcome(result);
     setIsLoading(false);
-  }, [target.tabId]);
+  }, [target.tabId, ignoredRoots]);
 
   const runApplicationCheck = useCallback(async () => {
     if (!target.tabId) return;
@@ -503,13 +568,14 @@ export function DomHealthCard() {
 
     const result = await runApplicationDomHealthAudit(target.tabId, {
       discoveryMode,
+      ignoredRoots,
       onProgress: (progress) => setAppProgress(progress),
     });
 
     setAppOutcome(result);
     setIsAppLoading(false);
     setAppProgress(null);
-  }, [target.tabId, discoveryMode]);
+  }, [target.tabId, discoveryMode, ignoredRoots]);
 
   const hasResult = outcome !== null || appOutcome !== null;
   const active = view === "application" ? appOutcome : outcome;
@@ -812,6 +878,8 @@ export function DomHealthCard() {
                 </details>
               )}
 
+              <FramesAndExclusions result={outcome} />
+
               <details className="text-xs">
                 <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
                   View technical details
@@ -892,6 +960,17 @@ export function DomHealthCard() {
                   appOutcome.coverage.discoveryMethod}
                 .
               </p>
+              {appOutcome.traversal && (
+                <p className="text-[11px] text-muted-foreground">
+                  Traversal:{" "}
+                  <span className="font-medium text-foreground">
+                    {appOutcome.traversal.mode === "click-first"
+                      ? "click-first"
+                      : "URL-first"}
+                  </span>{" "}
+                  — {appOutcome.traversal.reason}
+                </p>
+              )}
 
               {appOutcome.crossStateEvidence &&
                 appOutcome.crossStateEvidence.attempted > 0 && (
@@ -918,7 +997,23 @@ export function DomHealthCard() {
                       </span>
                       , and {appOutcome.crossStateEvidence.notResolved} resolved
                       to nothing.
+                      {(appOutcome.crossStateEvidence.hostChainBroken ?? 0) >
+                        0 &&
+                        ` ${appOutcome.crossStateEvidence.hostChainBroken} of those stopped at a shadow host before reaching the element.`}
                     </p>
+                    {(appOutcome.crossStateEvidence.hostChainBreaks ?? [])
+                      .length > 0 && (
+                      <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                        {appOutcome.crossStateEvidence.hostChainBreaks.map(
+                          (b) => (
+                            <li key={`${b.frameId}-${b.hop}-${b.hostSelector}`}>
+                              Frame {b.frameId}, host {b.hop + 1}:{" "}
+                              <code>{b.hostSelector}</code>
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    )}
                   </div>
                 )}
 
@@ -1041,6 +1136,9 @@ export function DomHealthCard() {
             </div>
           )}
         </div>
+      )}
+      {developerTools && target.tabId && (
+        <RouteProbePanel tabId={target.tabId} />
       )}
     </div>
   );

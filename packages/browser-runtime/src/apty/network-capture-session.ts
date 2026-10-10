@@ -523,6 +523,40 @@ export function getNetworkCaptureStatus(
   return active ? toPublicSession(active) : undefined;
 }
 
+/** A request a running capture saw, reduced to what corroborating a navigation needs. */
+export interface ObservedTabRequest {
+  url: string;
+  resourceType?: string;
+  timestamp: number;
+}
+
+/**
+ * XHR/Fetch requests that a capture already running on `tabId` (in any
+ * conversation) saw at or after `since`, or null when no capture is
+ * running. Read-only: never starts a capture, so DOM Health can use network
+ * activity as corroboration only when the user has turned capture on.
+ */
+export function peekTabRequests(
+  tabId: number,
+  since: number,
+): ObservedTabRequest[] | null {
+  const active = [...activeByConversation.values()].find(
+    (capture) => capture.session.tabId === tabId,
+  );
+  if (!active) return null;
+  return [...active.requests.values()]
+    .filter(
+      (request) =>
+        request.timestamp >= since &&
+        (request.resourceType === "XHR" || request.resourceType === "Fetch"),
+    )
+    .map(({ url, resourceType, timestamp }) => ({
+      url,
+      resourceType,
+      timestamp,
+    }));
+}
+
 /** Test/debug helper: how many conversations currently have a capture running. */
 export function getActiveCaptureCount(): number {
   return activeByConversation.size;

@@ -14,11 +14,14 @@
  * if application-wide discovery was requested (spec section 54: never call
  * a single-page score an application score).
  */
+
 import type { AnalysisCoverage } from "@apty/dom-snapshot";
 import {
+  applyConfidenceCaps,
   buildRecommendations,
   buildRisks,
   buildStrengths,
+  type ConfidenceCap,
   DEFAULT_FRAME_ACCESSIBILITY,
   DEFAULT_SELECTOR_CONFIGURATION,
   type DomHealthAuditResult,
@@ -31,6 +34,7 @@ import {
   type DomHealthRisk,
   determineEvidenceState,
   type EvidenceState,
+  frameConfidenceCaps,
   gradeForScore,
   isScoreMeaningful,
   METHODOLOGY,
@@ -49,6 +53,8 @@ import {
   type FrameAccessibilitySummary,
   sampleFailureReasons,
 } from "./frame-tree.js";
+import type { RouteKeyConfidence, RouteKeySummary } from "./route-key.js";
+import type { TraversalReport } from "./traversal-strategy.js";
 
 export type PageAuditStatus =
   | "completed"
@@ -115,9 +121,11 @@ export interface StateGraphNodeSummary {
   stateId: string;
   url: string;
   title: string | null;
-  /** True when this state's URL (ignoring hash) equals the seed state's — the Infor LN-shaped case same-URL discovery exists for. */
+  /** True when this state's URL template equals the seed state's — the Infor LN-shaped case same-URL discovery exists for. */
   sameUrlAsSeed: boolean;
   discoveredAt: number;
+  /** How this state was identified, and how confidently (`route-key.ts`). */
+  route: RouteKeySummary;
 }
 
 /** One state-graph edge, presentation-shaped. */
@@ -131,12 +139,18 @@ export interface StateGraphEdgeSummary {
   sameUrl: boolean;
   historyEventDelta: number;
   confidence: "confirmed" | "restored";
+  /** For a click: which signals besides the DOM corroborated it. Empty for an uncorroborated click; absent for a URL load. */
+  corroboratedBy?: Array<"history" | "frame-src" | "network">;
+  /** For a click: whether a network capture was running, so `network` could have corroborated it. */
+  networkObserved?: boolean;
 }
 
 export interface StateGraphSummary {
   seedStateId: string | null;
   nodes: StateGraphNodeSummary[];
   edges: StateGraphEdgeSummary[];
+  /** States per route-key confidence. A `low` state was told apart by its structure alone. */
+  routeConfidence: Record<RouteKeyConfidence, number>;
 }
 
 /** Evidence for one backtracking attempt — restoring the live tab to a previously-discovered state before exploring one of its other children. */
@@ -147,6 +161,10 @@ export interface RestorationEvidence {
   /** Set only on failure — the 0-based step where replay diverged from the originally-recorded transition. */
   failedAtStep?: number;
   reason?: string;
+  /** "direct-url": loaded the state's URL. "replay": reloaded the seed and replayed the recorded path, clicking links and controls. */
+  method?: "direct-url" | "replay";
+  /** True when a direct URL load was tried first and did not reproduce the state. */
+  fellBackFromDirectUrl?: boolean;
 }
 
 /**
@@ -171,7 +189,18 @@ export interface CrossStateSelectorEvidence {
   recoveredStable: number;
   positionalStable: number;
   wrongTarget: number;
+  /** Includes `hostChainBroken`. */
   notResolved: number;
+  /** Replays that failed at a shadow host before reaching the element. */
+  hostChainBroken: number;
+  /** A few of those, with the frame, the hop index and that host's own selector. */
+  hostChainBreaks: Array<{
+    frameId: number;
+    hop: number;
+    hostSelector: string;
+  }>;
+  /** Samples in the pre-`ElementRef` shape, replayed against the document only. Always 0 for samples this version captured. */
+  legacySamples: number;
   /** How many OTHER states (beyond the seed itself) had at least one replay attempted against them. */
   statesTested: number;
 }
@@ -183,6 +212,9 @@ export const EMPTY_CROSS_STATE_SELECTOR_EVIDENCE: CrossStateSelectorEvidence = {
   positionalStable: 0,
   wrongTarget: 0,
   notResolved: 0,
+  hostChainBroken: 0,
+  hostChainBreaks: [],
+  legacySamples: 0,
   statesTested: 0,
 };
 
@@ -209,7 +241,11 @@ export interface ApplicationAuditResult {
   pages: PageAuditRecord[];
   methodology: string[];
   /** The real state-discovery tree this run built — never a flat page list — see `state-graph.ts`. Absent only if the caller didn't pass one (e.g. an older/degenerate call path). */
+  /** Why `confidence` was capped below what coverage and volume alone would give; empty when it was not. */
+  confidenceCaps: string[];
   stateGraph?: StateGraphSummary;
+  /** URL-first or click-first, and why (`traversal-strategy.ts`); absent for a single-page result. */
+  traversal?: TraversalReport;
   /** Every backtracking attempt made during this run (restoring the live tab to a previously-discovered state before exploring one of its other children), success or failure — never silently retried and hidden. */
   restorations: RestorationEvidence[];
   /** Real Apty ElementPaths captured at the seed state, replayed against every other audited state (spec section 7) — see `CrossStateSelectorEvidence`'s doc comment. Its counts are already folded into `metricDetails.selectorStability`, and reported here again on their own so this specific evidence is never buried. */
@@ -290,8 +326,31 @@ function sumField<K extends DomHealthMetricKey>(
   }, 0);
 }
 
+/**
+ * Caps from how the states were told apart (brief section 4.3): a state
+ * identified by page structure alone may be a phantom or a merge of two
+ * screens, so any such state caps the audit at MEDIUM, and a majority of
+ * them at LOW. The thresholds are unverified: "any" and "most" read
+ * literally.
+ */
+export function routeConfidenceCaps(
+  stateGraph: StateGraphSummary | undefined,
+): ConfidenceCap[] {
+  if (!stateGraph) return [];
+  const { high, medium, low } = stateGraph.routeConfidence;
+  const total = high + medium + low;
+  if (low === 0) return [];
+  return [
+    {
+      cap: low * 2 > total ? "LOW" : "MEDIUM",
+      reason: `${low} of ${total} states were told apart by page structure alone, with no navigation trail or heading to confirm them.`,
+    },
+  ];
+}
+
 const APPLICATION_METHODOLOGY_PREFIX: string[] = [
   "Discover same-origin pages via real <a href> elements already present in the DOM — never by simulating a click, so no destructive action (delete/logout/submit/...) is ever triggered during discovery.",
+  "Choose URL-first or click-first traversal from what the run observes (links at the seed, same-URL transitions, whether loading a recorded URL reproduces its screen) and report the choice and the reason; clicking still requires the explicit application-deep discovery mode.",
   "Navigate the tab to each discovered, filtered-safe page in turn, wait for the browser's own load-complete signal, then wait for the DOM to stop mutating (a quiet-period observer, not a fixed delay) before analyzing it.",
   "Run the full single-page DOM Health pipeline on every visited page (see below), maintaining an explicit page inventory — audited, failed, and skipped pages are all reported, never silently dropped.",
 ];
@@ -308,6 +367,7 @@ export function buildApplicationAuditResult(
     stateGraph?: StateGraphSummary;
     restorations?: RestorationEvidence[];
     crossStateEvidence?: CrossStateSelectorEvidence;
+    traversal?: TraversalReport;
   } = {},
 ): ApplicationAuditResult {
   const crossStateEvidence =
@@ -601,13 +661,20 @@ export function buildApplicationAuditResult(
   // for a single audited page, whatever scope the caller requested.
   const scope: "application" | "page" = audited >= 2 ? "application" : "page";
 
-  const confidence: DomHealthConfidence = !scoreIsMeaningful
-    ? "LOW"
-    : audited >= 3 && coverage.coveragePercent >= 70 && totalAnalyzed >= 50
-      ? "HIGH"
-      : audited >= 2 && totalAnalyzed >= 10
-        ? "MEDIUM"
-        : "LOW";
+  const caps = [
+    ...frameConfidenceCaps(applicationFrameAccessibility, []),
+    ...routeConfidenceCaps(options.stateGraph),
+  ];
+  const confidence = applyConfidenceCaps(
+    !scoreIsMeaningful
+      ? "LOW"
+      : audited >= 3 && coverage.coveragePercent >= 70 && totalAnalyzed >= 50
+        ? "HIGH"
+        : audited >= 2 && totalAnalyzed >= 10
+          ? "MEDIUM"
+          : "LOW",
+    caps,
+  );
 
   const risks = buildRisks(
     metrics,
@@ -697,7 +764,9 @@ export function buildApplicationAuditResult(
     recommendations: buildRecommendations(metrics, metricDetails),
     pages,
     methodology: [...APPLICATION_METHODOLOGY_PREFIX, ...METHODOLOGY],
+    confidenceCaps: caps.map((c) => c.reason),
     stateGraph: options.stateGraph,
+    traversal: options.traversal,
     restorations: options.restorations ?? [],
     crossStateEvidence,
     scopeLabel: scope === "application" ? "APPLICATION" : "CURRENT_PAGE",

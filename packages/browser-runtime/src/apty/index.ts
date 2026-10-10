@@ -173,6 +173,29 @@ export {
   waitForTabLoad,
 } from "./page-navigation.js";
 export {
+  buildRouteKey,
+  type FrameSignatureEntry,
+  type RouteKey,
+  type RouteKeyConfidence,
+  type RouteKeySummary,
+  type RouteSignal,
+} from "./route-key.js";
+export {
+  analyzeRouteProbe,
+  captureRouteProbeStep,
+  type ProbeText,
+  type RouteProbeAnalysis,
+  type RouteProbeFrameOwner,
+  type RouteProbeFrameRecord,
+  type RouteProbeReport,
+  type RouteProbeSession,
+  type RouteProbeSignal,
+  type RouteProbeStep,
+  startRouteProbe,
+  type TraversalModeHint,
+  toShareableRouteProbeReport,
+} from "./route-probe.js";
+export {
   ConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredServiceWorkerDiagnosticsProvider,
   type ServiceWorkerDiagnosticsConfig,

@@ -269,7 +269,10 @@ function ChatApp() {
               <>
                 <ApprovalPrompt />
                 <InvestigationSummaryBar />
-                <DomHealthCard />
+                <DomHealthCard
+                  developerTools={settings.developerTools === true}
+                  ignoredRoots={settings.domHealthIgnoredRoots}
+                />
                 <BrowserContextLoader />
               </>
             ),

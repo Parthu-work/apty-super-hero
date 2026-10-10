@@ -8,6 +8,10 @@ extend-exclude = ["README*.md", "**/bundled-modules/**", "apps/mcp-bridge/**"]
 # "Infor" is the ERP vendor name (Infor LN) referenced in the DOM Health
 # forensic audit — not a typo of "Info"/"Inform".
 Infor = "Infor"
+# Electronic health record: athenaOne is one, and the DOM Health tests use
+# `ehr.example.test` as its stand-in host.
+ehr = "ehr"
+EHR = "EHR"
 # `singularize()`'s own doc comment (extension-network-inspector.ts)
 # deliberately shows the WRONG, mangled output a naive trailing-"s" strip
 # would produce from "status"/"address" — these are intentionally not real

@@ -65,6 +65,64 @@ isolated world). The orchestrator, which already knows all of it from
 `getFrameTree`, hands it down in the request payload instead of asking the
 content script to guess.
 
+### Stable frame identity, URL templates and roles (`frame-identity.ts`)
+
+A `frameId` is per page load, and frame names and URLs carry counters,
+GUIDs, tenants and sessions. Before each capture, every frame reports the
+frame elements it owns (`collect-dom-health-frame-owners`), and
+`collectFrameOwnersByFrameId` joins each frame to its element:
+
+1. `chrome.runtime.getFrameId`, where the content script has it. It is
+   absent in the Chromium 141 the end-to-end tests run, which left every
+   frame keyed by URL until the steps below were added.
+2. The frame's own `window.frameElement`, when its parent is same-origin
+   (`describe-dom-health-frame-self`).
+3. Its `window.name` against the parent's frame `name`s. A cross-origin
+   frame knows its name, and Infor OS Portal names the LN frame
+   `LN_44_<GUID>`.
+4. Its URL against the parent's resolved `src`s.
+5. Document order, only when exactly the unmatched elements and frames of
+   one parent are left and their counts agree.
+
+Each step accepts only a single match. A frame with no match keeps a URL
+or positional key, and the inventory shows which.
+
+`frameKey` is the first available of:
+
+1. `data-osp-id` (Infor OS Portal: `LN`);
+2. the element's `title`;
+3. its `name` without counters and GUIDs (`LN_44_<GUID>` becomes `LN`);
+4. its `id` (athenaOne: `GlobalNav`, `GlobalWrapper`, `Status`);
+5. origin + `urlTemplate`;
+6. position, which is reported as unstable.
+
+The key is stamped into every `ElementRef` captured in that frame.
+
+`urlTemplate` makes the URL identity rather than a navigation target:
+
+- id-shaped path segments become `:id` (digits, GUIDs, hex tokens), and
+  Infor tenant ids become `:tenant`;
+- tenant, session and auth parameters are dropped, as are LN's theme,
+  locale, time-zone and version parameters, and the remaining parameters
+  are sorted;
+- a fragment is kept only for hash routes, and is templated like the path.
+
+`frameRole` sorts frames into five roles:
+
+- `shim`: not rendered, a `javascript:` URL or stub, or a `shim` name or
+  class (athenaOne's `shimiframe`);
+- `placeholder`: an empty about:blank frame;
+- `chrome`: `GlobalNav` and `Status`, or a shell document with no form
+  controls that holds an application frame (the LN portal's top document,
+  athenaOne's top frameset);
+- `overlay`: a digital-adoption overlay frame;
+- `application`: everything else.
+
+About:blank frames are read rather than skipped, because a page can write
+into one. A rendered empty one is looked at again once, after 500 ms, in
+case the page navigates it from script. The result lists every frame with
+its key, role and reason, URL template and status (`frames`).
+
 ## Capture and aggregation
 
 `frame-audit.ts`'s `captureApplicationState` messages every reachable frame
@@ -105,21 +163,163 @@ as a passing grade. The gate lives in `determineEvidenceState` +
 
 ## State model (same-URL transitions)
 
-A "state" is not defined by URL alone. `state-fingerprint.ts` combines every
-frame's `FrameStateSignature` (from `@apty/dom-snapshot`'s
-`health-state-signature.ts` — URL, title, a bounded heading sample, the
-active/selected navigation item, and coarse semantic-container counts) into
-one whole-tab fingerprint. `compareStateFingerprints` reports `same`,
-`different`, or `uncertain` (when a frame couldn't be inspected at one of
-the two points compared) and — critically — WHY, so a state-transition
-decision is itself evidence, not a black box.
+A "state" is not defined by URL alone. Each frame reports a
+`FrameStateSignature` (`@apty/dom-snapshot`'s `health-state-signature.ts`):
+its URL, a navigation trail (breadcrumb items, then the innermost selected
+item of each navigation container), the primary heading (first heading of
+the `main` region, else of the document) and a hash of the primary
+region's tag/role skeleton. The page title is not read: athenaOne's names
+the practice and its id.
 
-This signature deliberately ignores live-updating content (a clock, a
-counter, a toast) by only sampling headings/`role=heading`, the
-`aria-current`/`aria-selected`/`.active`-class item inside a nav-like
-container, and structural container tag/role counts — so a real menu click
-that changes which screen is showing is detected, while a background
-mutation is not mistaken for a new state.
+`route-key.ts` combines the signatures of one capture into a `RouteKey`
+(brief section 4.3):
+
+| Field | From | Notes |
+| --- | --- | --- |
+| `appFrameKey` | stable keys of the `application` frames | never a `frameId` |
+| `urlTemplate` | those frames' URLs through `urlTemplate` | tenant, session, ids and per-user parameters removed; hash routes kept |
+| `navTrail` | application and chrome frames, outermost first | LN's selected portal tab is in the top document, a shell |
+| `primaryHeading` | first application frame with a heading | identifier runs masked (`Order 47110` → `Order :id`) |
+| `structureHash` | application frames' skeletons | no text, attributes or classes |
+| `contributingSignals`, `confidence` | which of the above carried signal | see below |
+
+Identity rule: two observations are the same state when `appFrameKey`,
+`urlTemplate`, `navTrail` and `primaryHeading` match. The structure joins
+the comparison only when neither side has a trail or a heading, and such a
+key is `low` confidence (`high` needs a trail or heading in stably keyed
+frames; `medium` is a trail or heading in a positionally keyed frame, or a
+hash route without either). `state-fingerprint.ts` hashes the identity plus
+the frames that could not be read; `compareStateFingerprints` reports
+`same`, `different` or `uncertain` (a frame readable at one point and not
+the other), the lower confidence of the two, and which field changed —
+never the heading or trail text, which can name a person. Each state-graph
+node reports its route summary, and `stateGraph.routeConfidence` counts
+states per confidence.
+
+The under-trigger bias is kept: a phantom state is worse than a missed one.
+Text appears only in the trail and heading, so a clock or counter never
+changes a key. Toasts are excluded by ARIA live-region role, but only when
+the live region holds no form or landmark, because athenaOne Forge wraps
+the whole Patient Registration form in `<div aria-live="polite"
+class="fe_c_loader">`. The skeleton skips hidden, `position: fixed` and
+live-region content and the Agent's own UI, and represents a run of
+same-tag siblings by its first member, so a table's row count does not
+change it. Known gap: two records of one screen whose headings are
+personal names compare as different screens, because a name has no
+identifying shape to mask.
+
+URLs are compared through `urlTemplate` everywhere (defect D-2):
+`state-graph.ts`'s `isSameUrl` and `application-audit.ts`'s link dedupe.
+`/patients/<id>/chart` is audited once, and `#/orders` and `#/customers`
+are two pages, where stripping the hash used to merge them.
+
+Every signal is read in the composed tree (`composed-tree.ts`): through
+open and closed shadow roots, with `<slot>`s replaced by what is assigned to
+them, and only from rendered elements. Infor LN's heading and tab label sit
+inside IDS shadow roots, with their text in the host's light DOM, and
+athenaOne's Patient Registration form sits in one shadow root. LN keeps its
+theme and locale menus in the DOM while closed, each with a selected item,
+so "rendered only" stops those from reading as navigation state.
+
+The same composed reading applies to accessible names: `aria-labelledby`
+and `label[for]` are resolved in the element's own root, and text is read
+through slots. Hit testing follows each point down through
+`shadowRoot.elementFromPoint` and checks containment in the composed tree.
+
+## Privacy boundary
+
+Every result leaves through `redactDomHealthOutput`
+(`dom-health-redaction.ts`), at the exit of `runDomHealthAudit` and
+`runApplicationDomHealthAudit`. That covers the agent tool, the side panel
+and the stored conversation. Page titles are replaced. URLs lose
+credentials, secret- and tenant-named parameters, and identifier-shaped
+path segments. Sensitive-named attribute values are blanked. Other text goes
+through `redactSensitiveText`. The application audit itself navigates and
+replays with the unredacted result (`collectDomHealthAudit`), which never
+leaves the service worker.
+
+## Capture-time privacy (`health-privacy.ts`, WP-8)
+
+The service worker redacts every result on exit (see "Privacy boundary").
+WP-8 adds a first line in the page, so values never leave the frame:
+
+- **Input values.** `value` is never read: the audit profile ignores the
+  `value` attribute, so it is never part of a stored path, and nothing
+  reads the property.
+- **Script and style bodies.** Captured text (headings, nav trail, link
+  and control labels) goes through `composedText`, which skips `script`,
+  `style`, `template` and `noscript`.
+- **`data-*` values.** In element reports, a token-shaped value (Datadog
+  `pub` + 32 hex as in the athenaOne exports, JWT, GUID, long hex, opaque
+  base64 key) or a secret-named attribute becomes `<redacted>`. Free text
+  (4+ words, or several words over 40 characters) becomes
+  `<redacted-text>`. Digit runs of 5 or more become `:id`.
+- **Element ids.** `id`, `for` and the `aria-*` id references
+  (`labelledby`, `describedby`, `controls`, `owns`) carry record numbers at
+  any length (`patient-1234`), so every digit run standing alone becomes
+  `:id`, while digits that are part of a word stay (`ctl00_Main`). The
+  same rule applies to `duplicateIds.sampleValues`, and the exit redaction
+  applies it again to element attributes and element-path ids.
+- **Selectors.** `bestSelector` values go through the same rules. `href`,
+  `src` and `action` lose secret-named and token-like query parameters,
+  and ids in the path are masked.
+- **Stored paths.** The audit profile ignores secret-shaped attributes
+  (including URLs carrying a secret parameter), which also change per
+  session. Samples carry a hash of the element fingerprint, never the
+  attribute text, and elements in private containers are not sampled.
+- **Private containers.** Elements under a session-replay masking marker
+  (Datadog `data-dd-privacy="mask"` / `.dd-privacy-mask`, FullStory
+  `.fs-mask` / `.fs-exclude`, Hotjar `data-hj-suppress`, Sentry
+  `.sentry-mask`) or an explicit `data-pii` / `data-phi` / `data-private` /
+  `data-sensitive` report every value and label as redacted. This is
+  general knowledge; neither export contains one.
+
+Discovered link URLs are the one exception. The service worker has to load
+them as they are, since a session-scoped link needs its token, and
+`redactAuditUrl` redacts them before any report.
+
+## Shadow roots attached during a stability wait (N-5)
+
+`waitForDomToStabilize` observes shadow roots that appear after the wait
+begins. A mutation that adds elements triggers a re-scan for new roots.
+The MAIN-world page hooks wrap `Element.prototype.attachShadow` and
+announce each new root (`SHADOW_ATTACHED_EVENT`), which counts as activity
+and triggers the same re-scan, because attaching a root to an element
+already in the document is not a DOM mutation. The e2e test attaches a
+root 200 ms into a wait and fills it over 700 ms. The previous build
+settled after 301 ms, and this one waits for the control and captures it.
+
+## History API evidence
+
+`pushState` and `replaceState` are counted in the page's own world.
+`page-hooks.ts` is installed by the MAIN-world console bridge and wraps
+`History.prototype` at document_start; it also counts `popstate` and
+`hashchange`. The frame responder runs in the isolated world, which cannot
+see the page's calls. It receives running totals as DOM events and asks
+for them once on install, so calls made while it was still loading are
+not lost. `tooling/e2e/dom-health-routing.e2e.test.mjs` fails against the
+previous isolated-world patch.
+
+## Route probe (developer tool)
+
+**Settings → Troubleshooting → Developer tools** adds a route probe to the
+DOM Health card (`route-probe.ts`, `health-route-probe.ts`). The developer
+clicks through the application. After each trusted click, once the page
+settles, the probe records for every frame:
+
+- the frame URL;
+- `document.title`;
+- the owning frame element's `name`, `id`, `title` and `data-osp-id`,
+  joined to the frame the same way the audit does
+  (`collectFrameOwnersByFrameId`);
+- the first API call or frame load after the click (path only, from
+  resource timing);
+- the first heading and active navigation item, read through shadow roots;
+- the `pushState` total.
+
+`analyzeRouteProbe` reports how many clicks changed each signal and hints
+URL-first, click-first or undetermined. The probe never clicks. It shows
+redacted text, and the saved report keeps page text only as hashes.
 
 ## Discovery (anchor-only was the old limit)
 
@@ -216,6 +416,107 @@ observed across it (a client-side route genuinely changed even though this
 audit's narrow structural signature didn't capture it) — never used to
 affect the DOM Health score itself, only the discovery decision.
 
+## Traversal strategy: URL-first or click-first (`traversal-strategy.ts`)
+
+Brief sections 4.5 and 4.6. The audit decides from what it observes, never
+from which application it is, and reports the decision as
+`result.traversal` (`mode`, `reason`, `clicksAllowed`, the `evidence` counts
+and the `history` of every change). The DOM Health card shows the mode and
+the reason.
+
+| Rule (strongest first) | Mode | Measured basis |
+| --- | --- | --- |
+| Loading a recorded URL did not reproduce its RouteKey | click-first | proof: the URL is not the screen |
+| ≥ 3 transitions and at least half kept the URL template | click-first | unverified threshold |
+| Fewer than 2 distinct link targets at the seed, and more navigation controls than links | click-first | LN top document: 0 links, 2 controls; athenaOne frameset tops: 0 links |
+| otherwise | URL-first | |
+
+What the mode changes:
+
+- **Queue order.** Click-first explores navigation controls before links.
+- **Restoration.** URL-first restores a URL-only path by loading the
+  target's URL once. If that does not reproduce the RouteKey, the failure
+  is counted (switching the run to click-first) and the restoration falls
+  back to replay: reload the seed, check that the seed state is
+  reproduced, then replay the recorded path hop by hop, clicking controls
+  and the recorded links (`click-dom-health-link`, re-verified as a safe
+  same-origin link by the content script). Click-first always replays.
+  Each restoration reports `method` and `fellBackFromDirectUrl`.
+- **URL loads that land on a known state** (a redirect, an expired deep
+  link) are recorded as `skipped-duplicate` and not audited again.
+
+Clicking still needs `discoveryMode: "application-deep"`. When the evidence
+calls for click-first and clicks are off, the reason says so and the
+controls stay `not-discovered`.
+
+Navigation discovery reads the composed tree: links and controls inside
+shadow roots are found, and their `domPath` joins one path per shadow hop
+with ` >>> ` (`buildComposedDomPath` / `resolveDomPath`). Items with a
+settings role (`menuitemradio`, `menuitemcheckbox`, `switch`, `checkbox`,
+`radio`, `option`) are never proposed: LN's theme and locale menus are
+`menuitemradio` items, and clicking one changes the user's settings.
+Controls that are not rendered are skipped.
+
+**Corroboration (section 4.6).** Each click transition records what besides
+the DOM showed a navigation: history API calls, application or chrome
+frames that appeared or changed URL template (shims excluded: athenaOne
+opens one per menu), and XHR/fetch URL templates first seen after the
+click. Network activity comes only from a capture the user already started
+(`peekTabRequests`); capture stays off by default, and the edge then says
+`networkObserved: false`. These signals break a tie only when the DOM
+comparison is `uncertain` (a frame readable on one side only). A click
+whose RouteKey did not change is never a new state, whatever else changed,
+because it could never be told apart from its source again.
+
+## Overlays, frame roles in scoring, duplicate ids (WP-7)
+
+**Ignored roots (`ignored-roots.ts`, D-6).** One policy decides what page
+content is not the application. It is applied in the collector (counts,
+analysis, id counting), the state signature, hit testing and frame
+classification. A matcher is an id prefix, a class-token prefix or a tag
+name. The defaults carry their evidence:
+
+- `measured`: Pendo, from `<button id="_pendo-badge_…">` in the athenaOne
+  export.
+- `repository`: the Agent's own `aipex-` roots, and `apty-` /
+  `apty-widget`, the detection `widget-diagnostics.ts` already uses.
+- `unverified`: WalkMe, Whatfix, Appcues, UserGuiding, consent banners and
+  chat launchers, from general knowledge.
+
+Datadog adds no page UI, only an inline loader script. Settings →
+Troubleshooting adds matchers (`id:`, `class:`, `tag:`), which reach the
+content scripts with every request. Each snapshot reports
+`excludedRoots: [{ matcher, owner, evidence, roots, elementCount }]`, and
+the card lists them. Hit testing looks past an ignored overlay (through
+`elementsFromPoint`) instead of calling the control occluded. A frame
+element inside an ignored root gets the `overlay` role.
+
+**Scoring by frame role (D-7).** Only captured `application` frames feed
+the page score; shell, chrome, shim, placeholder and overlay frames are
+listed in `frames` and marked "not scored". Each application frame also
+gets its own score. When every application frame failed and only the
+frames around it were read, the result has no score, leads with
+`application-frame-not-inspected`, and confidence is capped at LOW.
+
+**Duplicate ids (D-8).** Ids are counted per root (a document or a shadow
+root). `duplicateIds` reports values duplicated within a root and across
+the page. On the real LN export this gives 9 and 15, the measured values,
+and the committed LN fixture keeps them. For a value duplicated in its own
+root, `id` is ignored when building that root's paths
+(`withDuplicateIdsIgnored`, applied through the audit profile's ignore
+hook, so the Studio reconstruction is untouched). An id repeated only
+across roots keeps working. A `duplicate-ids` finding states the counts.
+
+**Confidence caps (section 4.10).** `confidenceCaps` lists every reason the
+confidence was lowered:
+
+- more than half the frames unreadable: LOW;
+- no application frame readable: LOW;
+- for the application audit, any state identified by structure alone:
+  MEDIUM, or LOW when that is most states.
+
+The thresholds read "any" and "most" literally and are unverified.
+
 ## Coverage is "observed", never "total"
 
 `ApplicationCoverage.coverageLabel` is always `"OBSERVED_COVERAGE"` — this
@@ -293,56 +594,148 @@ some element, but not the right one — always a failure, never folded into
 the pre-existing `NEW`/`UNKNOWN` for elements with no prior-state evidence
 yet.
 
+### Shadow DOM: `ElementRef` (`element-ref.ts`)
+
+An `ElementPath` records no root, and `buildElementPath` stops at a shadow
+boundary. A shadow element's path is therefore only valid inside its own
+shadow root. The frame responder used to replay every sample against
+`document` (defect D-1), which cannot find any of them. In the Infor LN
+export, 68 of the 74 interactive elements sit inside shadow roots.
+
+Samples now carry an `ElementRef`:
+
+- `hostChain`: one full `ElementPath` per shadow host, document first, each
+  resolved in its parent root through the normal `findElement` recovery;
+- `path`: the element itself, inside the innermost root;
+- `frameKey`;
+- a version marker.
+
+`replayElementRefs` walks the host chain, entering each root through
+`shadowRootOf` (closed roots included), and verifies the element in the
+innermost root. A chain that breaks reports `HOST_NOT_RESOLVED` with the hop
+index and that host's selector. The application report counts these
+(`crossStateEvidence.hostChainBroken`) and lists a few examples. A sample in
+the pre-`ElementRef` shape (a bare `path`) is migrated to a document-rooted
+ref and counted as `legacySamples`.
+
+Each element is also graded across its hosts (`resolveInComposedTree`).
+The outcome is the weakest of the element's own hop and each host's. So a
+control that is unique only inside a one-element shadow root, behind a host
+that can be found only by position, is reported `POSITIONAL_ONLY`, not
+`DIRECT_SUCCESS`. Its `bestSelector` is the hops joined with ` >>> `, which
+is diagnostic text, not one CSS selector. The cross-snapshot fingerprint
+(`computeComposedFingerprint`) includes the hosts too, so identical
+controls in sibling shadow roots no longer collide as `AMBIGUOUS`.
+
+## Performance budget (brief section 4.11)
+
+Every frame's collection runs under `DEFAULT_COLLECTOR_BUDGET` (the
+collector options override each limit):
+
+| Limit | Default | What happens past it |
+| --- | --- | --- |
+| `maxTotalElements` | 50,000 | elements after it are not counted or analyzed |
+| `maxShadowRoots` | 2,500 | further roots are not entered |
+| `timeBudgetMs` | 6,000 | traversal and analysis stop; the result is returned partial |
+| `sliceMs` | 16 | the collector yields to the page |
+
+The LN top document, the largest measured page, has 3,788 elements and 251
+roots, so the ceilings only stop a runaway page. The time budget sits below
+the service worker's 8 s per-frame message timeout, so a slow frame returns
+a labelled partial result instead of nothing. A partial result's reasons
+are in `performance.partialReasons` and in `analysisCoverage.capReason`,
+which already produces a finding. An element the budget never reached is
+not counted as detached.
+
+The clock is read between steps (one element's analysis, one root's query,
+the overlay scan), so a slice can overrun `sliceMs` by at most one step.
+`performance` reports per collection:
+
+- `timings`: `ignoredRootsMs`, `classifyMs`, `analyzeMs`, `totalMs`;
+- `longestSliceMs` and `longestStepMs`;
+- `yields`, `limits` and `partialReasons`.
+
+The audit result carries the slowest frame's figures plus `auditMs`, and
+each frame inventory entry carries its own.
+
+Measured on a 251-root LN-shaped page (nested 3 deep, a slot and a control
+in each root):
+
+- In Chromium 141 (end-to-end test), between runs: 60–99 ms per collection,
+  longest slice 16.1–16.4 ms, longest step 3.4–5.8 ms, 3–6 yields. The
+  three-round audit took about 2.3 s, most of it the fixed delays between
+  rounds.
+- In jsdom: a first `getComputedStyle` call costs about 120 ms in one
+  step, so the unit test asserts the invariant (slice ≤ `sliceMs` +
+  longest step) rather than a fixed number.
+
+## End-to-end coverage
+
+`tooling/e2e/dom-health-apps.e2e.test.mjs` runs the real audit through the
+side panel and agent loop, with a scripted model, on stand-ins of six
+application shapes built from the measured values:
+
+- deep shadow DOM: controls three roots down, resolved with
+  `shadowDepth: 3`;
+- the 251-root page, inside the budget;
+- a legacy frameset with `GlobalNav` / `GlobalWrapper` / `Status` frames:
+  navigation and status are chrome, the application frame is scored;
+- a cross-origin portal: the app frame is keyed `LN` by `data-osp-id`
+  across origins, the shell is chrome, and no tenant id reaches the result;
+- a pushState SPA traversed URL-first;
+- a click-only application traversed click-first, with every restoration
+  by click replay succeeding;
+- a page with a Pendo badge and a chat launcher: both are left out and
+  counted, along with the Agent's own UI.
+
+`dom-health-routing.e2e.test.mjs` covers:
+
+- page-script `pushState` counting;
+- the route probe;
+- a shadow root attached 200 ms into a stability wait.
+
 ## Known limitations (honest, not hidden)
 
-- **Restoration always resets to the seed URL for any click-involving
-  path**, even when only the last hop actually needs replaying — correct,
-  but not the cheapest possible strategy (a real browser-history `back()`
-  is never used, since an enterprise SPA's same-URL clicks are not
-  guaranteed to push a history entry at all).
-- **A state is deduplicated purely by structural fingerprint equality.**
-  Two genuinely different application states that happen to produce an
-  identical fingerprint (same title/active-nav-item/heading-sample/
-  container-counts) would be treated as the same node — a real, accepted
-  tradeoff of the same signature design documented above, not new to the
-  state graph.
-- **`waitForDomStable` watches the top frame and its shadow trees, and
-  child frames only while they are still loading** (e.g. a frameset content
-  frame after a menu click), then for at most three quiet windows. A loaded
-  embed that never goes quiet (ads, chat widgets) does not delay the audit;
-  an SPA re-render inside an already-loaded child frame is not waited on.
-  Only shadow roots that exist when the wait starts are observed.
-- **Closed Shadow DOM is reached through `chrome.dom.openOrClosedShadowRoot`**
-  (Chrome 88+, content scripts only). Outside an extension content script,
-  for example in the jsdom unit tests, only open roots are traversed.
-- **Frame responders** live in a React-free content script
-  (`frame-responder.ts`) in every frame. A frame with no live responder
-  (the declared script never ran, or it belongs to an extension instance
-  from before a reload) gets the responder injected with
-  `chrome.scripting.executeScript` and the message retried once. Frames
-  Chrome never lets extensions script (`chrome-error://`, the PDF viewer,
-  the Web Store) still report a per-frame failure.
-- **No real Infor LN, Athena, or Autodesk validation has been performed** —
-  see the delivery report for this phase. The frame-addressed-messaging,
-  same-URL-state, and state-graph/backtracking fixes are validated by
-  unit/integration-style tests that construct the exact shapes described (a
-  menu frame separate from a content frame; a same-URL branching menu tree
-  requiring backtracking to avoid losing a sibling state), not by a live
-  run against any of these applications.
-- **Canonical evidence-model unification across every DOM Health entry
-  point (side panel, agent tool, application/page/frame audit), a UI
-  redesign of the report, and reformalizing the Apty Studio/Client
-  integration adapter were not attempted in this pass** — this pass's
-  scope was the confirmed state-discovery/backtracking root cause only; see
-  the delivery report's "remaining limitations" for the full list.
-- **This later pass (cross-state selector-stability replay, explicit
-  `discoveryMode`, application-level `INCOMPLETE_EVIDENCE` gating, and the
-  resolution/stability-dominant scoring weights above) still has not been
-  validated against any real Infor LN/Athena/Autodesk application** — the
-  same honesty caveat above still applies; only the described unit/
-  integration-style fixture tests exercise these paths.
-- **The full `AptyExtensionAdapter` interface (runtime metadata / imported
-  Studio configuration / live selector verification against a real Apty
-  Client), a 9-point hit-test breakdown surfaced in the report, and
-  frame/shadow-DOM evidence enrichment beyond what's described above were
-  not attempted in this pass either** — out of scope; not claimed as done.
+- **No live tenant has been audited.** The Infor LN and athenaOne evidence
+  comes from exported DOMs, redacted into fixtures and measured in jsdom.
+  The end-to-end tests run in Chromium on stand-ins of those application
+  shapes. Not verified on a real tenant:
+  - how Chrome reports a `javascript:` frame's URL;
+  - whether athenaOne's selected items use `fe_is-selected` /
+    `fe_is-active`;
+  - whether Pendo ever renders in a frame;
+  - how the route probe reads on LN and athenaOne.
+
+  The developer route probe (Settings → Troubleshooting → Developer tools)
+  exists to gather that evidence on the next tenant.
+- **Thresholds marked "unverified" in the code** were not tuned against a
+  live application:
+  - the seed link count for click-first;
+  - the same-URL share;
+  - the unreadable-frame and structure-only confidence caps;
+  - the free-text cut-off for `data-*` values;
+  - the collector budget.
+- **Restoration resets to the seed URL for any click path**, even when only
+  the last hop needs replaying. `history.back()` is not used, because a
+  same-URL click need not push a history entry.
+- **State identity can merge or split screens.** Two screens with the same
+  frame, URL template, navigation trail and heading are one state. Two
+  records of one screen whose headings are personal names are two states,
+  because a name has no identifying shape to mask.
+- **`waitForDomStable` watches the top frame and its shadow trees,
+  including roots attached during the wait, and child frames only while
+  they are still loading**, then for at most three quiet windows. An SPA
+  re-render inside an already-loaded child frame is not waited on.
+- **Closed shadow DOM is reached through `chrome.dom.openOrClosedShadowRoot`**
+  (content scripts only). In the jsdom unit tests only open roots are
+  traversed.
+- **Frames Chrome never lets extensions script** (`chrome-error://`, the PDF
+  viewer, the Web Store) report a per-frame failure, counted in
+  `frameAccessibility` and in the confidence caps.
+- **Personal data is masked only by shape, and by page-marked private
+  containers.** A name in an `aria-label` outside such a container is kept
+  in element reports. Exit redaction masks identifier-shaped runs and
+  secrets but cannot recognise a name.
+- **Not attempted:** Studio configuration import (`desConfig` is the
+  adapter boundary), and `checkContainersScore` wiring into per-round
+  resolution (see `des-engine.md`).

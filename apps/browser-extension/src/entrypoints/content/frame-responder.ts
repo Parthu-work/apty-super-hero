@@ -8,16 +8,32 @@
  * to a previous extension instance (see frame-tree.ts in browser-runtime).
  */
 import {
+  closestComposed,
   collectDiscoverableLinks,
   collectDomHealthSnapshot,
   collectDomSnapshot,
+  collectFrameOwners,
+  collectRouteProbeFrameSignals,
   collectSafeNavigationCandidates,
+  composedText,
   computeFrameStateSignature,
+  frameOwnerOf,
+  ignoredRootPolicy,
   isSafeNavigationCandidate,
-  replayElementPathSamples,
+  isSafeToDiscover,
+  replayElementRefs,
+  resolveDomPath,
   shadowRootOf,
 } from "@apty/dom-snapshot";
 import { startCapture, stopCapture } from "./element-capture";
+import {
+  HISTORY_API_EVENT,
+  HISTORY_SYNC_REQUEST_EVENT,
+  type HistoryApiTotals,
+  parseHistoryTotals,
+  SHADOW_ATTACHED_EVENT,
+  ZERO_HISTORY_TOTALS,
+} from "./page-events";
 
 type SendResponse = (response: unknown) => void;
 
@@ -27,32 +43,226 @@ interface FrameResponderMarker {
 
 const MARKER_KEY = "__aptyFrameResponder";
 
-let historyApiCallCount = 0;
+let historyTotals: HistoryApiTotals = { ...ZERO_HISTORY_TOTALS };
+let listeningForHistoryApi = false;
+
+function historyApiCallCount(): number {
+  return (
+    historyTotals.pushState +
+    historyTotals.replaceState +
+    historyTotals.popstate +
+    historyTotals.hashchange
+  );
+}
 
 /**
- * SPA navigation evidence: `history` is shared between the isolated and
- * main worlds, so patching it here also observes the page's own calls.
+ * Client-side routing evidence, counted in the page's world by the
+ * MAIN-world hooks (`page-hooks.ts`): this isolated world has its own
+ * `history` wrappers and cannot see the page's `pushState` calls itself
+ * (re-audit finding N-3). The hooks announce running totals since the
+ * document started; asking once on install picks up navigation that
+ * happened while this script was still loading. Totals only ever grow, so
+ * an out-of-order announcement never lowers them.
  */
-function patchHistory(): void {
-  if (typeof history === "undefined") return;
-  if ((history as any).__aptyDomHealthPatched) return;
-  (history as any).__aptyDomHealthPatched = true;
-  const originalPushState = history.pushState.bind(history);
-  const originalReplaceState = history.replaceState.bind(history);
-  history.pushState = function patchedPushState(...args) {
-    historyApiCallCount++;
-    return originalPushState(...args);
-  };
-  history.replaceState = function patchedReplaceState(...args) {
-    historyApiCallCount++;
-    return originalReplaceState(...args);
-  };
-  window.addEventListener("popstate", () => {
-    historyApiCallCount++;
+function listenForHistoryApi(): void {
+  if (listeningForHistoryApi) return;
+  listeningForHistoryApi = true;
+  window.addEventListener(HISTORY_API_EVENT, (event) => {
+    const totals = parseHistoryTotals((event as CustomEvent).detail);
+    if (!totals) return;
+    historyTotals = {
+      pushState: Math.max(historyTotals.pushState, totals.pushState),
+      replaceState: Math.max(historyTotals.replaceState, totals.replaceState),
+      popstate: Math.max(historyTotals.popstate, totals.popstate),
+      hashchange: Math.max(historyTotals.hashchange, totals.hashchange),
+    };
   });
-  window.addEventListener("hashchange", () => {
-    historyApiCallCount++;
-  });
+  window.dispatchEvent(new CustomEvent(HISTORY_SYNC_REQUEST_EVENT));
+}
+
+export interface RouteProbeRequest {
+  origin: string;
+  path: string;
+  initiatorType: string;
+  msAfterClick: number;
+}
+
+interface RouteProbeState {
+  lastClickAt: number | null;
+  firstRequest: RouteProbeRequest | null;
+  observer: PerformanceObserver | null;
+}
+
+let routeProbe: RouteProbeState | null = null;
+
+/** Resource timings that can mean "the screen changed": API calls and frame loads, not images or fonts. */
+const PROBE_REQUEST_INITIATORS = new Set([
+  "fetch",
+  "xmlhttprequest",
+  "iframe",
+  "frame",
+  "beacon",
+]);
+
+const PROBE_CLICK_TARGET =
+  'a, button, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="treeitem"], [role="option"], input, select, label, summary';
+
+/** Keep the first API call or frame load that started after the last probe click. */
+export function recordFirstRequest(entries: PerformanceEntryList): void {
+  const probe = routeProbe;
+  if (!probe || probe.lastClickAt === null || probe.firstRequest) return;
+  for (const entry of entries as PerformanceResourceTiming[]) {
+    if (entry.startTime < probe.lastClickAt) continue;
+    if (!PROBE_REQUEST_INITIATORS.has(entry.initiatorType)) continue;
+    try {
+      const url = new URL(entry.name);
+      probe.firstRequest = {
+        origin: url.origin,
+        path: url.pathname,
+        initiatorType: entry.initiatorType,
+        msAfterClick: Math.round(entry.startTime - probe.lastClickAt),
+      };
+      return;
+    } catch {
+      // A resource name that is not a URL carries no path to report.
+    }
+  }
+}
+
+/** Record a user click on `target` (the innermost element, inside any shadow root) and tell the probe which control it was. */
+export function noteProbeClick(target: EventTarget | null, at: number): void {
+  if (!routeProbe) return;
+  routeProbe.lastClickAt = at;
+  routeProbe.firstRequest = null;
+  const control =
+    target instanceof Element
+      ? (closestComposed(target, PROBE_CLICK_TARGET) ?? target)
+      : null;
+  try {
+    void chrome.runtime
+      .sendMessage({
+        request: "dom-health-probe-click",
+        label: control ? composedText(control, 80) : "",
+      })
+      .catch(() => {});
+  } catch {
+    // The probe's listener may be gone (side panel closed); the click itself is unaffected.
+  }
+}
+
+function onProbeClick(event: MouseEvent): void {
+  if (!event.isTrusted) return;
+  noteProbeClick(event.composedPath()[0] ?? null, performance.now());
+}
+
+/**
+ * Start recording for the route probe: user clicks (trusted only, so the
+ * audit's own `click()` calls never count) and the first API call or frame
+ * load after each one, from the page's own resource timing. Reads timings
+ * only; no request is intercepted and network capture stays off.
+ */
+function armRouteProbe(): { armed: true } {
+  if (!routeProbe) {
+    routeProbe = { lastClickAt: null, firstRequest: null, observer: null };
+    document.addEventListener("click", onProbeClick, true);
+    if (typeof PerformanceObserver === "function") {
+      try {
+        const observer = new PerformanceObserver((list) =>
+          recordFirstRequest(list.getEntries()),
+        );
+        observer.observe({ type: "resource", buffered: false });
+        routeProbe.observer = observer;
+      } catch {
+        routeProbe.observer = null;
+      }
+    }
+  }
+  return { armed: true };
+}
+
+function disarmRouteProbe(): { armed: false } {
+  if (routeProbe) {
+    document.removeEventListener("click", onProbeClick, true);
+    routeProbe.observer?.disconnect();
+    routeProbe = null;
+  }
+  return { armed: false };
+}
+
+/**
+ * Called on `chrome.runtime` itself: taken off the object, Chrome's binding
+ * throws "Illegal invocation", and every frame element came back without a
+ * frame id, so no owner attribute ever reached the frame key.
+ */
+function frameIdOf(element: Element): number | null {
+  const runtime = chrome.runtime as unknown as {
+    getFrameId?: (target: Element) => number;
+  };
+  try {
+    const id = runtime.getFrameId?.(element);
+    return typeof id === "number" && id >= 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Attributes of every `<iframe>` / `<frame>` this document owns, in
+ * document order, each with the `frameId` it hosts when the browser can
+ * say (`frameId` null otherwise) and its `src` resolved against this
+ * document, so the service worker can join the rest (`frame-audit.ts`).
+ */
+export function frameOwnersWithIds(owners = collectFrameOwners(document)) {
+  return owners.map(({ element, ...attributes }) => ({
+    ...attributes,
+    frameId: frameIdOf(element),
+    resolvedSrc: resolveAgainstDocument(attributes.srcAttribute),
+  }));
+}
+
+function resolveAgainstDocument(src: string | null): string | null {
+  if (!src) return null;
+  try {
+    return new URL(src, document.baseURI).href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How this frame sees itself: its `window.name` (which a parent's frame
+ * `name` sets, cross-origin included), and, when the parent is
+ * same-origin, its own frame element's attributes. Lets the service worker
+ * join a frame to its owner where `chrome.runtime.getFrameId` is missing.
+ */
+export function describeFrameSelf(ignoredRoots: string[] = []) {
+  let owner: Omit<ReturnType<typeof frameOwnerOf>, "element"> | null = null;
+  try {
+    const element = window.frameElement;
+    if (element?.tagName === "IFRAME" || element?.tagName === "FRAME") {
+      const { element: _element, ...attributes } = frameOwnerOf(
+        element as HTMLIFrameElement,
+        ignoredRootPolicy(ignoredRoots),
+      );
+      owner = attributes;
+    }
+  } catch {
+    owner = null;
+  }
+  return { windowName: window.name || null, owner };
+}
+
+/** One probe step for this frame: what identifies the screen, plus each child frame's owner attributes mapped to its `frameId`. */
+export function captureRouteProbeFrame() {
+  const { owners, ...signals } = collectRouteProbeFrameSignals(document);
+  return {
+    ...signals,
+    owners: frameOwnersWithIds(owners),
+    historyApiCallCount: historyApiCallCount(),
+    pushStateCount: historyTotals.pushState,
+    firstRequest: routeProbe?.firstRequest ?? null,
+    armed: routeProbe !== null,
+  };
 }
 
 /** Every shadow root (open or closed) under `root`, including nested ones. */
@@ -88,6 +298,7 @@ export function waitForDomToStabilize(
       if (resolved) return;
       resolved = true;
       observer.disconnect();
+      window.removeEventListener(SHADOW_ATTACHED_EVENT, onShadowAttached);
       if (quietTimer) clearTimeout(quietTimer);
       clearTimeout(timeoutTimer);
       resolve({ settled, elapsedMs: Date.now() - start });
@@ -98,17 +309,44 @@ export function waitForDomToStabilize(
       subtree: true,
       attributes: true,
     };
-    const observer = new MutationObserver(() => {
-      if (quietTimer) clearTimeout(quietTimer);
-      quietTimer = setTimeout(() => finish(true), quietMs);
-    });
-
     const target = document.body ?? document.documentElement;
-    if (target) {
-      observer.observe(target, options);
+    const observed = new WeakSet<Node>();
+    const observeNewRoots = () => {
+      if (!target) return;
       for (const shadow of collectShadowRoots(target)) {
+        if (observed.has(shadow)) continue;
+        observed.add(shadow);
         observer.observe(shadow, options);
       }
+    };
+    const activity = () => {
+      if (quietTimer) clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => finish(true), quietMs);
+    };
+    // Roots attached after the wait began are observed too (re-audit
+    // finding N-5): an added subtree may bring hosts with roots, and the
+    // MAIN-world hooks announce every later `attachShadow`.
+    const observer = new MutationObserver((records) => {
+      if (
+        records.some((record) =>
+          Array.from(record.addedNodes).some(
+            (node) => node.nodeType === Node.ELEMENT_NODE,
+          ),
+        )
+      ) {
+        observeNewRoots();
+      }
+      activity();
+    });
+    const onShadowAttached = () => {
+      observeNewRoots();
+      activity();
+    };
+    window.addEventListener(SHADOW_ATTACHED_EVENT, onShadowAttached);
+
+    if (target) {
+      observer.observe(target, options);
+      observeNewRoots();
     }
     quietTimer = setTimeout(() => finish(true), quietMs);
     const timeoutTimer = setTimeout(() => finish(false), timeoutMs);
@@ -181,9 +419,17 @@ function respondAsync(
   return true;
 }
 
-function clickSafeNavigationCandidate(domPath: unknown) {
+/** The user's extra ignored-root entries from a request; anything that is not a list of strings counts as none. */
+function settingsEntries(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
+/** Paths may cross shadow boundaries (`buildComposedDomPath`), so they are resolved hop by hop, never with one `querySelector`. */
+export function clickSafeNavigationCandidate(domPath: unknown) {
   const path = typeof domPath === "string" ? domPath : "";
-  const target = path ? document.querySelector(path) : null;
+  const target = path ? resolveDomPath(document, path) : null;
   const stillSafe =
     target &&
     collectSafeNavigationCandidates(document).some(
@@ -194,6 +440,31 @@ function clickSafeNavigationCandidate(domPath: unknown) {
       clicked: false,
       reason:
         "This control could no longer be found, or no longer verifies as a safe navigation candidate.",
+    };
+  }
+  (target as HTMLElement).click();
+  return { clicked: true };
+}
+
+/**
+ * Click a link the audit discovered, to reach its page by in-app
+ * navigation when loading its URL directly does not reproduce the page.
+ * Re-verified first, exactly like `collectDiscoverableLinks` filtered it:
+ * still present at the same path, same-origin, and not destructive-looking.
+ */
+export function clickDiscoveredLink(domPath: unknown) {
+  const path = typeof domPath === "string" ? domPath : "";
+  const target = path ? resolveDomPath(document, path) : null;
+  const stillSafe =
+    target &&
+    collectDiscoverableLinks(document).some(
+      (link) => link.domPath === path && isSafeToDiscover(link),
+    );
+  if (!target || !stillSafe) {
+    return {
+      clicked: false,
+      reason:
+        "This link could no longer be found, or no longer verifies as a safe same-origin link.",
     };
   }
   (target as HTMLElement).click();
@@ -240,6 +511,7 @@ export function handleFrameMessage(
         sendResponse,
         "Failed to collect a DOM Health frame bundle",
         async () => {
+          const ignoredRoots = settingsEntries(message.ignoredRoots);
           const snapshot = await collectDomHealthSnapshot(document, {
             freshAudit: (message.sequenceIndex ?? 0) === 0,
             maxInteractiveElements:
@@ -247,10 +519,13 @@ export function handleFrameMessage(
                 ? message.maxInteractiveElements
                 : undefined,
             frameContext: message.frameContext ?? null,
+            ignoredRoots,
           });
           return {
             snapshot,
-            stateSignature: computeFrameStateSignature(document),
+            stateSignature: computeFrameStateSignature(document, {
+              ignoredRoots,
+            }),
           };
         },
       );
@@ -272,6 +547,10 @@ export function handleFrameMessage(
         "Failed to click this navigation candidate",
         () => clickSafeNavigationCandidate(message.domPath),
       );
+    case "click-dom-health-link":
+      return respondAsync(sendResponse, "Failed to click this link", () =>
+        clickDiscoveredLink(message.domPath),
+      );
     case "wait-for-dom-stable":
       return respondAsync(sendResponse, "Failed to wait for the DOM", () =>
         waitForFrameToSettle(
@@ -284,8 +563,9 @@ export function handleFrameMessage(
       sendResponse({
         success: true,
         data: {
-          usesHistoryApiRouting: historyApiCallCount > 0,
-          historyApiCallCount,
+          usesHistoryApiRouting: historyApiCallCount() > 0,
+          historyApiCallCount: historyApiCallCount(),
+          pushStateCount: historyTotals.pushState,
         },
       });
       return true;
@@ -294,10 +574,38 @@ export function handleFrameMessage(
         sendResponse,
         "Failed to replay stored element paths",
         () =>
-          replayElementPathSamples(
+          replayElementRefs(
             document,
             Array.isArray(message.samples) ? message.samples : [],
           ),
+      );
+    case "describe-dom-health-frame-self":
+      return respondAsync(sendResponse, "Failed to describe this frame", () =>
+        describeFrameSelf(settingsEntries(message.ignoredRoots)),
+      );
+    case "collect-dom-health-frame-owners":
+      return respondAsync(
+        sendResponse,
+        "Failed to read this document's frame elements",
+        () =>
+          frameOwnersWithIds(
+            collectFrameOwners(
+              document,
+              ignoredRootPolicy(settingsEntries(message.ignoredRoots)),
+            ),
+          ),
+      );
+    case "dom-health-probe-arm":
+      sendResponse({ success: true, data: armRouteProbe() });
+      return true;
+    case "dom-health-probe-disarm":
+      sendResponse({ success: true, data: disarmRouteProbe() });
+      return true;
+    case "dom-health-probe-capture":
+      return respondAsync(
+        sendResponse,
+        "Failed to capture route probe signals",
+        captureRouteProbeFrame,
       );
     default:
       return false;
@@ -324,7 +632,7 @@ export function installFrameResponder(): boolean {
   if (scope[MARKER_KEY]?.isAlive()) return false;
   if (!chrome.runtime?.onMessage) return false;
 
-  patchHistory();
+  listenForHistoryApi();
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) =>
     handleFrameMessage(message, sendResponse),
   );

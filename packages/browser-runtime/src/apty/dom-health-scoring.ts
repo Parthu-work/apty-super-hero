@@ -17,15 +17,24 @@
  * that same evidence (spec sections 26-29): no invented measurements, no
  * "unique but wrong" or "ambiguous" candidate ever counted as a success.
  */
+
 import type {
   AnalysisCoverage,
+  CollectorPerformance,
   DomHealthIframeInfo,
   DomHealthShadowDomInfo,
   DomHealthSnapshot,
   DomHealthZIndexInfo,
+  DuplicateIdStats,
   ElementPathSample,
   ElementSelectorReport,
+  ExcludedRootSummary,
 } from "@apty/dom-snapshot";
+import {
+  AUDIT_PROFILE_NAME,
+  DEFAULT_COLLECTOR_BUDGET,
+} from "@apty/dom-snapshot";
+import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
 export type DomHealthMetricKey =
@@ -50,6 +59,82 @@ export type DomHealthGrade =
   | "NOT_ASSESSED";
 
 export type DomHealthConfidence = "HIGH" | "MEDIUM" | "LOW";
+
+/** A ceiling on the confidence an audit may report, and why. */
+export interface ConfidenceCap {
+  cap: DomHealthConfidence;
+  reason: string;
+}
+
+const CONFIDENCE_ORDER: DomHealthConfidence[] = ["LOW", "MEDIUM", "HIGH"];
+
+export function applyConfidenceCaps(
+  confidence: DomHealthConfidence,
+  caps: readonly ConfidenceCap[],
+): DomHealthConfidence {
+  return caps.reduce<DomHealthConfidence>(
+    (current, { cap }) =>
+      CONFIDENCE_ORDER.indexOf(cap) < CONFIDENCE_ORDER.indexOf(current)
+        ? cap
+        : current,
+    confidence,
+  );
+}
+
+/** Above this share of unreadable frames, the audit did not see most of the page. Unverified threshold: "most" read literally. */
+export const MAX_UNREADABLE_FRAME_SHARE = 0.5;
+
+const NO_PERFORMANCE: CollectorPerformance = {
+  timings: { ignoredRootsMs: 0, classifyMs: 0, analyzeMs: 0, totalMs: 0 },
+  longestSliceMs: 0,
+  longestStepMs: 0,
+  yields: 0,
+  limits: { ...DEFAULT_COLLECTOR_BUDGET },
+  partialReasons: [],
+};
+
+const NO_DUPLICATE_IDS: DuplicateIdStats = {
+  valuesDuplicatedWithinARoot: 0,
+  valuesDuplicatedPageWide: 0,
+  elementsWithDuplicatedId: 0,
+  sampleValues: [],
+};
+
+/**
+ * Caps for an audit that could not see the application (brief section
+ * 4.10): most frames unreadable, or every application frame unreadable
+ * while the shell around it was read (LN's portal with the LN frame
+ * blocked, athenaOne's frameset with `GlobalWrapper` blocked).
+ */
+export function frameConfidenceCaps(
+  frameAccessibility: FrameAccessibilitySummary,
+  frames: readonly FrameInventoryEntry[],
+): ConfidenceCap[] {
+  const caps: ConfidenceCap[] = [];
+  const unreadable =
+    frameAccessibility.framesFailed + frameAccessibility.framesInaccessible;
+  if (
+    frameAccessibility.framesTotal > 0 &&
+    unreadable / frameAccessibility.framesTotal > MAX_UNREADABLE_FRAME_SHARE
+  ) {
+    caps.push({
+      cap: "LOW",
+      reason: `${unreadable} of ${frameAccessibility.framesTotal} frames could not be inspected.`,
+    });
+  }
+  const applicationFrames = frames.filter((f) => f.role === "application");
+  if (
+    applicationFrames.length > 0 &&
+    applicationFrames.every((f) => f.status !== "captured") &&
+    frames.some((f) => f.status === "captured")
+  ) {
+    caps.push({
+      cap: "LOW",
+      reason: `No application frame could be inspected (${applicationFrames.map((f) => f.key).join(", ")}); only the frames around it were.`,
+    });
+  }
+  return caps;
+}
 
 /**
  * Evidence completeness/quality — deliberately separate from the score
@@ -115,13 +200,16 @@ export const DEFAULT_FRAME_ACCESSIBILITY: FrameAccessibilitySummary = {
  */
 export interface SelectorConfigurationEvidence {
   source: "default" | "customer";
+  /** The Agent's audit profile layered over the configuration (`health-audit-profile.ts` in `@apty/dom-snapshot`). */
+  profile: string;
   detail: string;
 }
 
 export const DEFAULT_SELECTOR_CONFIGURATION: SelectorConfigurationEvidence = {
   source: "default",
+  profile: AUDIT_PROFILE_NAME,
   detail:
-    "Customer-specific Apty selector configuration is unavailable in this session; analysis uses Apty's real default DES behavior (Ignore Selector / Partial Selector / Attribute Priority defaults), never an invented substitute.",
+    "Customer-specific Apty selector configuration is unavailable in this session. Analysis uses Apty's real default DES behavior (Ignore Selector / Partial Selector / Attribute Priority defaults) with the Agent's audit profile layered on through the same hooks: Angular build-numbered and version attributes ignored, generated ids ignored or matched on their stable part, and state, browser, theme and build classes left out of class matching.",
 };
 
 /**
@@ -231,6 +319,15 @@ export interface DomHealthAuditResult {
   /** Evidence completeness this score (or lack of one) is actually built on — always present, always checked before `score` is treated as a health signal. */
   evidenceState: EvidenceState;
   frameAccessibility: FrameAccessibilitySummary;
+  /** Every frame of the last capture: stable key, role and status (`frame-identity.ts`). */
+  frames: FrameInventoryEntry[];
+  /** Why `confidence` was capped below what the evidence volume alone would give; empty when it was not. */
+  confidenceCaps: string[];
+  /** Overlays and injected UI left out of the audit, per matcher. */
+  excludedRoots: ExcludedRootSummary[];
+  duplicateIds: DuplicateIdStats;
+  /** Timings and budget of the last collection round (slowest frame); `auditMs` is the whole audit's wall time, set by `dom-health.ts`. */
+  performance: CollectorPerformance & { auditMs?: number };
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
   scope: "page";
   /** Human-readable companion to `scope`, so a caller never has to invent its own scope wording — always "CURRENT_PAGE" here, paired with "APPLICATION" on `ApplicationAuditResult` (spec sections 1/18). A result with this scope is never described as "application health". */
@@ -883,6 +980,7 @@ export function buildDomHealthAuditResult(
   snapshots: DomHealthSnapshot[],
   auditId: string,
   frameAccessibility: FrameAccessibilitySummary = DEFAULT_FRAME_ACCESSIBILITY,
+  frames: FrameInventoryEntry[] = [],
 ): DomHealthAuditResult {
   if (snapshots.length === 0) {
     throw new Error("buildDomHealthAuditResult requires at least one snapshot");
@@ -927,12 +1025,15 @@ export function buildDomHealthAuditResult(
     ? Math.round(Math.min(100, Math.max(0, rawScore)))
     : null;
   const grade = score === null ? "NOT_ASSESSED" : gradeForScore(score);
-  const confidence =
+  const caps = frameConfidenceCaps(frameAccessibility, frames);
+  const confidence = applyConfidenceCaps(
     evidenceState === "FAILED" ||
-    evidenceState === "NO_EVIDENCE" ||
-    evidenceState === "INACCESSIBLE"
+      evidenceState === "NO_EVIDENCE" ||
+      evidenceState === "INACCESSIBLE"
       ? "LOW"
-      : computeConfidence(current, snapshots.length);
+      : computeConfidence(current, snapshots.length),
+    caps,
+  );
   const manualSelectorDependency = computeManualSelectorDependency(current);
 
   const metricDetails: DomHealthMetricDetails = {
@@ -962,6 +1063,15 @@ export function buildDomHealthAuditResult(
     manualSelectorDependency,
     current.analysisCoverage,
   );
+  const duplicateIds = current.duplicateIds ?? NO_DUPLICATE_IDS;
+  if (duplicateIds.valuesDuplicatedWithinARoot > 0) {
+    risks.push({
+      id: "duplicate-ids",
+      severity: "medium",
+      title: "Ids shared by more than one element",
+      evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
+    });
+  }
   const failureReasonSuffix = frameAccessibility.sampleFailureReasons?.length
     ? ` Reason(s) reported: ${frameAccessibility.sampleFailureReasons.join("; ")}.`
     : "";
@@ -989,6 +1099,21 @@ export function buildDomHealthAuditResult(
     });
   }
 
+  const blockedApplication = frames.filter(
+    (f) => f.role === "application" && f.status !== "captured",
+  );
+  if (
+    blockedApplication.length > 0 &&
+    !frames.some((f) => f.role === "application" && f.status === "captured") &&
+    frames.some((f) => f.status === "captured")
+  ) {
+    risks.unshift({
+      id: "application-frame-not-inspected",
+      severity: "high",
+      title: "The application itself could not be inspected",
+      evidence: `The application frame(s) ${blockedApplication.map((f) => `"${f.key}"`).join(", ")} did not respond; only the shell, navigation or shim frames around them were read. Nothing in this result describes the application.`,
+    });
+  }
   return {
     auditId,
     timestamp: current.collectedAt,
@@ -999,6 +1124,11 @@ export function buildDomHealthAuditResult(
     confidence,
     evidenceState,
     frameAccessibility,
+    frames,
+    confidenceCaps: caps.map((c) => c.reason),
+    excludedRoots: current.excludedRoots ?? [],
+    duplicateIds,
+    performance: current.performance ?? NO_PERFORMANCE,
     scope: "page",
     scopeLabel: "CURRENT_PAGE",
     selectorConfiguration: DEFAULT_SELECTOR_CONFIGURATION,

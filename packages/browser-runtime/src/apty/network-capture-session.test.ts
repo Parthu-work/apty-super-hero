@@ -62,6 +62,7 @@ import {
   getNetworkCaptureStatus,
   MAX_BODY_FETCH_BYTES,
   MAX_CAPTURED_REQUESTS,
+  peekTabRequests,
   startNetworkCapture,
   stopNetworkCapture,
 } from "./network-capture-session";
@@ -218,6 +219,28 @@ describe("network-capture-session — lifecycle", () => {
     expect(evidence).toHaveLength(1);
     expect(evidence[0].correlationId).toBe(investigation.id);
     expect(evidence[0].type).toBe("network-http-error");
+  });
+
+  it("lets DOM Health peek at a running capture's XHR/fetch requests, and reports null when none is running", async () => {
+    expect(peekTabRequests(TAB_ID, 0)).toBeNull();
+    await startNetworkCapture("conv-a", TAB_ID);
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-1",
+      type: "Fetch",
+      request: { url: "https://example.com/api/orders", method: "GET" },
+    });
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId: "req-2",
+      type: "Image",
+      request: { url: "https://example.com/logo.png", method: "GET" },
+    });
+
+    expect(peekTabRequests(TAB_ID, 0)?.map((r) => r.url)).toEqual([
+      "https://example.com/api/orders",
+    ]);
+    expect(peekTabRequests(TAB_ID, Date.now() + 1)).toEqual([]);
+    expect(peekTabRequests(TAB_ID + 1, 0)).toBeNull();
+    await stopNetworkCapture("conv-a");
   });
 
   it("reports no active capture, and errors on stop, once none is running", async () => {

@@ -20,6 +20,12 @@ import { runDomHealthAudit } from "./dom-health";
 
 const TAB_ID = 42;
 
+function bundleRequests() {
+  return mockSendMessage.mock.calls.filter(
+    ([, msg]) => msg?.request === "collect-dom-health-frame-bundle",
+  );
+}
+
 function snapshotFixture(
   overrides: Partial<DomHealthSnapshot> = {},
 ): DomHealthSnapshot {
@@ -147,10 +153,9 @@ function frameBundle(snapshot: DomHealthSnapshot = snapshotFixture()) {
       snapshot,
       stateSignature: {
         url: snapshot.url,
-        title: snapshot.title,
-        headingSample: [],
-        activeNavItem: null,
-        containerCounts: {},
+        navTrail: [],
+        primaryHeading: null,
+        structureHash: "",
       },
     },
   };
@@ -203,7 +208,7 @@ describe("runDomHealthAudit", () => {
       expect(result.metadata.snapshotsCompared).toBe(3);
       expect(result.evidenceState).toBe("HEALTHY_EVIDENCE");
     }
-    expect(mockSendMessage).toHaveBeenCalledTimes(3);
+    expect(bundleRequests()).toHaveLength(3);
   });
 
   it("addresses every message at the frame's explicit frameId — never an un-addressed broadcast", async () => {
@@ -225,11 +230,13 @@ describe("runDomHealthAudit", () => {
     mockSendMessage.mockImplementation(
       (
         _tabId: number,
-        _msg: unknown,
+        msg: { request: string },
         options: { frameId: number },
         callback: any,
       ) => {
-        seenFrameIds.push(options.frameId);
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          seenFrameIds.push(options.frameId);
+        }
         callback(frameBundle());
       },
     );
@@ -250,11 +257,13 @@ describe("runDomHealthAudit", () => {
     mockSendMessage.mockImplementation(
       (
         _tabId: number,
-        msg: { sequenceIndex: number },
+        msg: { request: string; sequenceIndex: number },
         _options: unknown,
         callback: any,
       ) => {
-        seenSequenceIndexes.push(msg.sequenceIndex);
+        if (msg.request === "collect-dom-health-frame-bundle") {
+          seenSequenceIndexes.push(msg.sequenceIndex);
+        }
         callback(frameBundle());
       },
     );
@@ -344,12 +353,281 @@ describe("runDomHealthAudit", () => {
     });
 
     const promise = runDomHealthAudit(TAB_ID);
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(40000);
     const result = await promise;
 
     expect(result.available).toBe(true);
     if (result.available) {
       expect(result.evidenceState).toBe("FAILED");
     }
+  });
+
+  it("never returns a page title, practice id, tenant, session or token-valued attribute unredacted", async () => {
+    const leaky = snapshotFixture({
+      url: "https://ehr.example.test/4242424/2/globalframeset.esp?inforTenantId=FAKETENANT000000_TRN&inforSessionId=FAKETENANT000000_TRN~00000000-0000-4000-8000-000000000000",
+      title:
+        "PREVIEW: exampleCollector v1.0 TX - Example Practice - Texas [4242424] | EXAMPLE CLINIC [1]",
+      elementPathSamples: [
+        {
+          fingerprint: "button|data-auth-token",
+          path: [
+            {
+              tag: "button",
+              attributes: [
+                { name: "data-auth-token", value: "fake-secret-0001" },
+              ],
+              classes: [],
+              pseudo: [],
+            },
+          ],
+          tagName: "button",
+          selector: '[data-auth-token="fake-secret-0001"]',
+          outcome: "DIRECT_SUCCESS",
+        },
+      ],
+    });
+    leaky.elementReports[0]!.attributes.dataAttributes = {
+      "osp-id": "LN",
+      token: "pubFAKE0000000000000000000000000000",
+    };
+    leaky.elementReports[0]!.bestSelector = '[data-session-id="sess-123456"]';
+    mockTabsGet.mockResolvedValue({ id: TAB_ID, url: leaky.url });
+    mockSendMessage.mockImplementation(
+      (_tabId: number, _msg: unknown, _options: unknown, callback: any) => {
+        callback(frameBundle(leaky));
+      },
+    );
+
+    const promise = runDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    const serialized = JSON.stringify(result);
+    for (const leak of [
+      "4242424",
+      "FAKETENANT000000_TRN",
+      "Example Practice",
+      "fake-secret-0001",
+      "pubFAKE",
+      "sess-123456",
+    ]) {
+      expect(serialized).not.toContain(leak);
+    }
+    expect(result.pageTitle).toBe("<REDACTED-TITLE>");
+    expect(result.elementSamples[0]?.attributes.dataAttributes["osp-id"]).toBe(
+      "LN",
+    );
+    expect(typeof result.score).toBe("number");
+  });
+});
+
+describe("scoring by frame role (WP-7)", () => {
+  const PORTAL_URL = "https://portal.example.test/";
+  const LN_URL =
+    "https://eln.example.test/webui/servlet/fslogin?LogicalId=lid://infor.ln.ln01&inforTenantId=FAKETENANT000000_TRN";
+
+  function frame(frameId: number, parentFrameId: number, url: string) {
+    return {
+      frameId,
+      parentFrameId,
+      url,
+      errorOccurred: false,
+      processId: 1,
+      documentId: `doc-${frameId}`,
+      documentLifecycle: "active",
+      frameType: frameId === 0 ? "outermost_frame" : "sub_frame",
+    };
+  }
+
+  /** The Infor OS Portal shape: a top document with only the portal's own controls (no form controls), holding the LN frame. */
+  function portalSnapshot() {
+    const masthead = snapshotFixture().elementReports[0]!;
+    return snapshotFixture({
+      url: PORTAL_URL,
+      counts: {
+        ...snapshotFixture().counts,
+        inputs: 0,
+        interactiveElements: 3,
+      },
+      elementReports: [masthead, masthead, masthead],
+      selectorAnalysis: {
+        ...snapshotFixture().selectorAnalysis,
+        totalAnalyzed: 3,
+        directSuccess: 3,
+      },
+    });
+  }
+
+  function serveFrames(
+    frames: Array<ReturnType<typeof frame>>,
+    bundles: Record<number, DomHealthSnapshot | null>,
+  ) {
+    mockTabsGet.mockResolvedValue({ id: TAB_ID, url: PORTAL_URL });
+    mockGetAllFrames.mockResolvedValue(frames);
+    mockSendMessage.mockImplementation(
+      (
+        _tabId: number,
+        msg: { request: string },
+        options: { frameId: number },
+        callback: any,
+      ) => {
+        if (msg.request === "collect-dom-health-frame-owners") {
+          callback({
+            success: true,
+            data:
+              options.frameId === 0
+                ? [
+                    {
+                      frameId: 5,
+                      tagName: "iframe",
+                      name: "LN_44_11111111-2222-4333-8444-555555555555",
+                      id: null,
+                      title: "LN",
+                      ospId: "LN",
+                      srcAttribute: LN_URL,
+                      className: null,
+                      rendered: true,
+                      ignoredBy: null,
+                    },
+                  ]
+                : [],
+          });
+          return;
+        }
+        const snapshot = bundles[options.frameId];
+        if (!snapshot) {
+          callback({ success: false, error: "frame did not respond" });
+          return;
+        }
+        callback(frameBundle(snapshot));
+      },
+    );
+  }
+
+  async function audit() {
+    const promise = runDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    if (!result.available) throw new Error(result.error);
+    return result;
+  }
+
+  it("scores the LN application frame, not the portal shell around it", async () => {
+    serveFrames([frame(0, -1, PORTAL_URL), frame(5, 0, LN_URL)], {
+      0: portalSnapshot(),
+      5: snapshotFixture({
+        url: LN_URL,
+        counts: { ...snapshotFixture().counts, interactiveElements: 40 },
+      }),
+    });
+
+    const result = await audit();
+
+    expect(result.coverage.elementsAnalyzed).toBe(1);
+    expect(result.frames).toEqual([
+      expect.objectContaining({ key: "top", role: "chrome" }),
+      expect.objectContaining({
+        key: "LN",
+        role: "application",
+        score: expect.any(Number),
+      }),
+    ]);
+    expect(result.frames[0]).not.toHaveProperty("score");
+  });
+
+  it("says so loudly, with no score, when the application frame could not be read and only the shell was", async () => {
+    serveFrames([frame(0, -1, PORTAL_URL), frame(5, 0, LN_URL)], {
+      0: portalSnapshot(),
+      5: null,
+    });
+
+    const result = await audit();
+
+    expect(result.score).toBeNull();
+    expect(result.confidence).toBe("LOW");
+    expect(result.risks[0]?.id).toBe("application-frame-not-inspected");
+    expect(result.confidenceCaps).toContain(
+      "No application frame could be inspected (LN); only the frames around it were.",
+    );
+  });
+
+  it("caps confidence when most frames could not be inspected", async () => {
+    serveFrames(
+      [
+        frame(0, -1, "https://example.com/app"),
+        frame(1, 0, "https://widgets.example.test/a"),
+        frame(2, 0, "https://widgets.example.test/b"),
+      ],
+      { 0: snapshotFixture(), 1: null, 2: null },
+    );
+
+    const result = await audit();
+
+    expect(result.confidence).toBe("LOW");
+    expect(result.confidenceCaps).toContain(
+      "2 of 3 frames could not be inspected.",
+    );
+  });
+
+  it("reports duplicated ids as a finding, with the counts", async () => {
+    serveFrames([frame(0, -1, "https://example.com/app")], {
+      0: snapshotFixture({
+        duplicateIds: {
+          valuesDuplicatedWithinARoot: 9,
+          valuesDuplicatedPageWide: 15,
+          elementsWithDuplicatedId: 19,
+          sampleValues: ["icon-logo"],
+        },
+      }),
+    });
+
+    const result = await audit();
+
+    const finding = result.risks.find((r) => r.id === "duplicate-ids");
+    expect(finding?.evidence).toContain("9 id value(s)");
+    expect(finding?.evidence).toContain("15 across the page");
+    expect(result.duplicateIds.elementsWithDuplicatedId).toBe(19);
+  });
+});
+
+describe("timings in the report (WP-9)", () => {
+  it("reports the slowest frame's collection timings, the frames' own timings and the audit's wall time", async () => {
+    const performance = {
+      timings: {
+        ignoredRootsMs: 2,
+        classifyMs: 40,
+        analyzeMs: 60,
+        totalMs: 102,
+      },
+      longestSliceMs: 17.5,
+      longestStepMs: 4,
+      yields: 9,
+      limits: {
+        maxTotalElements: 50_000,
+        maxShadowRoots: 2_500,
+        timeBudgetMs: 6_000,
+        sliceMs: 16,
+      },
+      partialReasons: [],
+    };
+    mockSendMessage.mockImplementation(
+      (_tabId: number, _msg: unknown, _options: unknown, callback: any) => {
+        callback(frameBundle(snapshotFixture({ performance })));
+      },
+    );
+
+    const promise = runDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    if (!result.available) throw new Error(result.error);
+    expect(result.performance).toMatchObject({
+      timings: { totalMs: 102 },
+      longestSliceMs: 17.5,
+      auditMs: expect.any(Number),
+    });
+    expect(result.frames[0]?.performance?.timings.totalMs).toBe(102);
   });
 });

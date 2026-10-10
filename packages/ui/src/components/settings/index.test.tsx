@@ -139,6 +139,7 @@ describe("SettingsPage", () => {
       await screen.findByRole("switch", { name: "Capture response bodies" }),
     );
     fireEvent.click(screen.getByRole("switch", { name: "Verbose logging" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Developer tools" }));
 
     await waitFor(() =>
       expect(storageAdapter.save).toHaveBeenLastCalledWith(
@@ -147,6 +148,7 @@ describe("SettingsPage", () => {
           aiToken: "stored-key",
           networkBodyCaptureEnabled: true,
           verboseLogging: true,
+          developerTools: true,
         }),
       ),
     );

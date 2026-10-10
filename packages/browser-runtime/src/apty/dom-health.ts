@@ -26,6 +26,7 @@
  * integrations are unavailable or unconfigured.
  */
 import type { DomHealthSnapshot } from "@apty/dom-snapshot";
+import { redactDomHealthOutput } from "./dom-health-redaction.js";
 import {
   buildDomHealthAuditResult,
   type DomHealthAuditResult,
@@ -34,6 +35,8 @@ import {
   aggregateFrameSnapshots,
   captureApplicationState,
   type FrameCaptureResult,
+  type FrameInventoryEntry,
+  toFrameInventory,
 } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
@@ -85,14 +88,34 @@ function mergeFrameAccessibility(
 }
 
 /**
- * Run a full Apty DOM Health audit against the given tab. Each round
- * captures every reachable frame (never a single un-addressed message) and
- * aggregates them into one snapshot; the aggregated sequence is scored
- * deterministically — the same sequence of captures always produces the
- * same score.
+ * Run a full Apty DOM Health audit against the given tab and return it
+ * redacted (`dom-health-redaction.ts`): this is what the agent tool and the
+ * side panel see.
  */
 export async function runDomHealthAudit(
   tabId: number,
+  options: DomHealthAuditOptions = {},
+): Promise<DomHealthAuditOutcome> {
+  return redactDomHealthOutput(await collectDomHealthAudit(tabId, options));
+}
+
+/**
+ * The unredacted audit. Each round captures every reachable frame (never a
+ * single un-addressed message) and aggregates them into one snapshot; the
+ * aggregated sequence is scored deterministically — the same sequence of
+ * captures always produces the same score. Only `application-audit.ts`
+ * calls this directly, because it navigates with the page URL and replays
+ * the seed's element paths; anything leaving the service worker goes
+ * through `runDomHealthAudit`.
+ */
+export interface DomHealthAuditOptions {
+  /** Settings entries excluded on top of the default ignored roots. */
+  ignoredRoots?: readonly string[];
+}
+
+export async function collectDomHealthAudit(
+  tabId: number,
+  options: DomHealthAuditOptions = {},
 ): Promise<DomHealthAuditOutcome> {
   let tab: chrome.tabs.Tab;
   try {
@@ -112,8 +135,11 @@ export async function runDomHealthAudit(
     };
   }
 
+  const startedAt = Date.now();
   const snapshots: DomHealthSnapshot[] = [];
   const frameAccessibilityByRound: FrameAccessibilitySummary[] = [];
+  let frameInventory: FrameInventoryEntry[] = [];
+  const applicationFrameSnapshots = new Map<number, DomHealthSnapshot[]>();
 
   for (let i = 0; i < SNAPSHOT_DELAYS_MS.length; i++) {
     if (i > 0) {
@@ -124,6 +150,7 @@ export async function runDomHealthAudit(
     const outcome = await captureApplicationState(tabId, {
       sequenceIndex: i,
       timeoutMs: FRAME_MESSAGE_TIMEOUT_MS,
+      ignoredRoots: options.ignoredRoots,
     });
 
     if (!outcome.available) {
@@ -133,12 +160,34 @@ export async function runDomHealthAudit(
     const captured: FrameCaptureResult[] = outcome.result.frames;
     snapshots.push(aggregateFrameSnapshots(captured));
     frameAccessibilityByRound.push(outcome.result.frameAccessibility);
+    frameInventory = toFrameInventory(captured);
+    for (const frame of captured) {
+      if (frame.identity.role.role !== "application" || !frame.snapshot) {
+        continue;
+      }
+      const rounds = applicationFrameSnapshots.get(frame.frame.frameId) ?? [];
+      rounds.push(frame.snapshot);
+      applicationFrameSnapshots.set(frame.frame.frameId, rounds);
+    }
   }
 
   const result = buildDomHealthAuditResult(
     snapshots,
     generateAuditId(),
     mergeFrameAccessibility(frameAccessibilityByRound),
+    frameInventory.map((entry) => {
+      const rounds = applicationFrameSnapshots.get(entry.frameId);
+      return rounds
+        ? {
+            ...entry,
+            score: buildDomHealthAuditResult(rounds, `${entry.key}`).score,
+          }
+        : entry;
+    }),
   );
-  return { available: true, ...result };
+  return {
+    available: true,
+    ...result,
+    performance: { ...result.performance, auditMs: Date.now() - startedAt },
+  };
 }

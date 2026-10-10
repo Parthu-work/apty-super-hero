@@ -4,7 +4,8 @@
  * Runs in the page's own JS context (not the isolated content-script world),
  * once per frame (`all_frames: true` in manifest.json), so it can see
  * console output and errors from the Apty widget, any iframe, and the host
- * application itself. The `get_apty_page_logs` tool
+ * application itself. It also installs DOM Health's page-world hooks
+ * (`page-hooks.ts`), which need the same world for the same reason. The `get_apty_page_logs` tool
  * (packages/browser-runtime/src/tools/apty.ts) reads the buffer back via
  * `chrome.scripting.executeScript({ allFrames: true })`.
  *
@@ -32,6 +33,7 @@ import {
   formatConsoleArgs,
   safeSerialize,
 } from "@apty/debug-contract";
+import { installPageHooks } from "./page-hooks";
 
 const READ_FN_KEY = "__aptyReadConsoleBuffer";
 
@@ -79,6 +81,7 @@ declare global {
 if (typeof window[READ_FN_KEY] !== "function") {
   installConsoleBridge();
 }
+installPageHooks();
 
 function installConsoleBridge(): void {
   try {

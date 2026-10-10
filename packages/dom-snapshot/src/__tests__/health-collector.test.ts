@@ -153,13 +153,14 @@ describe("collectDomHealthSnapshot — selector resolution", () => {
 });
 
 describe("collectDomHealthSnapshot — element-path samples for cross-application-state replay", () => {
-  it("captures a real ElementPath sample for a resolvable interactive element", async () => {
+  it("captures a real document-rooted ElementRef sample for a resolvable interactive element", async () => {
     setHtml(`<button id="save-button">Save</button>`);
     const snapshot = await collectDomHealthSnapshot(document);
 
     expect(snapshot.elementPathSamples).toHaveLength(1);
     expect(snapshot.elementPathSamples[0]!.outcome).toBe("DIRECT_SUCCESS");
-    expect(snapshot.elementPathSamples[0]!.path.length).toBeGreaterThan(0);
+    expect(snapshot.elementPathSamples[0]!.ref.path.length).toBeGreaterThan(0);
+    expect(snapshot.elementPathSamples[0]!.ref.hostChain).toEqual([]);
     expect(snapshot.elementPathSamples[0]!.selector).toBe(
       'button[id="save-button"]',
     );
@@ -455,5 +456,38 @@ describe("collectDomHealthSnapshot — z-index", () => {
     // Only the first 2 elements in document order get checked, so the
     // z-index of later (higher-value) elements must not be observed.
     expect(snapshot.zIndex.maxZIndex).toBe(200);
+  });
+});
+
+describe("collectDomHealthSnapshot — elements inside shadow roots", () => {
+  function identicalShadowItems() {
+    setHtml("<x-item></x-item><x-item></x-item>");
+    for (const host of Array.from(document.querySelectorAll("x-item"))) {
+      host.attachShadow({ mode: "open" }).innerHTML = "<button>Go</button>";
+    }
+  }
+
+  it("grades a control unique only inside its own shadow root by its weakest host hop", async () => {
+    identicalShadowItems();
+
+    const snapshot = await collectDomHealthSnapshot(document);
+
+    expect(snapshot.elementReports).toHaveLength(2);
+    for (const report of snapshot.elementReports) {
+      expect(report.shadowDepth).toBe(1);
+      expect(report.outcome).toBe("POSITIONAL_ONLY");
+      expect(report.bestSelector).toMatch(/^x-item.* >>> button/);
+    }
+  });
+
+  it("samples each control with its host chain and tells sibling roots apart", async () => {
+    identicalShadowItems();
+
+    const snapshot = await collectDomHealthSnapshot(document);
+    const [first, second] = snapshot.elementPathSamples;
+
+    expect(snapshot.elementPathSamples).toHaveLength(2);
+    expect(first!.ref.hostChain).toHaveLength(1);
+    expect(first!.fingerprint).not.toBe(second!.fingerprint);
   });
 });

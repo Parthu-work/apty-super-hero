@@ -17,6 +17,8 @@ vi.mock("./use-current-target", () => ({
 vi.mock("@apty/browser-runtime", () => ({
   runDomHealthAudit: mockRunDomHealthAudit,
   runApplicationDomHealthAudit: mockRunApplicationDomHealthAudit,
+  startRouteProbe: vi.fn(),
+  toShareableRouteProbeReport: vi.fn(),
 }));
 
 import { DomHealthCard } from "./dom-health-card";
@@ -40,6 +42,16 @@ beforeEach(() => {
 });
 
 describe("DomHealthCard", () => {
+  it("shows the route probe only with developer tools turned on", () => {
+    const { rerender } = render(<DomHealthCard />);
+    expect(screen.queryByRole("region", { name: "Route probe" })).toBeNull();
+
+    rerender(<DomHealthCard developerTools />);
+    expect(
+      screen.getByRole("region", { name: "Route probe" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows 'Not checked yet' and never runs an audit automatically", () => {
     render(<DomHealthCard />);
 
@@ -54,7 +66,7 @@ describe("DomHealthCard", () => {
     render(<DomHealthCard />);
     fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
 
-    expect(mockRunDomHealthAudit).toHaveBeenCalledWith(5);
+    expect(mockRunDomHealthAudit).toHaveBeenCalledWith(5, { ignoredRoots: [] });
     expect(
       await screen.findByText(
         /Scanning DOM|Generating selector candidates|Testing selector uniqueness|Testing selector stability|Running hit tests|Building report/,
@@ -260,6 +272,127 @@ describe("DomHealthCard", () => {
     expect(screen.getByText("Manual likely (positional)")).toBeInTheDocument();
   });
 
+  it("passes the Settings ignore list to the audit and shows capped confidence, frames and excluded content", async () => {
+    mockRunDomHealthAudit.mockResolvedValue({
+      available: true,
+      auditId: "a2",
+      timestamp: Date.now(),
+      url: "https://example.com",
+      pageTitle: "Test App",
+      score: 52,
+      grade: "NEEDS_ATTENTION",
+      confidence: "MEDIUM",
+      evidenceState: "HEALTHY_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 1,
+        framesAccessible: 1,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
+      scope: "page",
+      coverage: {
+        snapshotsCompared: 3,
+        elementsAnalyzed: 10,
+        interactiveElementsInPage: 10,
+        analysis: {
+          candidatesFound: 10,
+          candidatesAnalyzed: 10,
+          capped: false,
+          capReason: null,
+        },
+      },
+      manualSelectorDependency: 40,
+      metrics: {
+        automaticSelection: 60,
+        selectorStability: 60,
+        recoveryEfficacy: 50,
+        selectorComplexity: 50,
+        ambiguityRisk: 60,
+        hitTestTargetability: 90,
+        domVolatility: 90,
+        accessibilitySignal: 80,
+      },
+      metricDetails: {} as any,
+      summary: "The score is 52/100 because many elements needed recovery.",
+      strengths: ["90% of visible controls passed hit testing."],
+      risks: [
+        {
+          id: "manual-selector-dependency",
+          severity: "high",
+          title: "Meaningful manual selector dependency",
+          evidence: "40% of analyzed elements were not reliably resolved.",
+        },
+      ],
+      recommendations: [],
+      elementSamples: [
+        {
+          tagName: "button",
+          classification: "interactive",
+          attributes: { dataAttributes: {} },
+          outcome: "POSITIONAL_ONLY",
+          strategy: "positional",
+          bestSelector: "body > button:nth-of-type(3)",
+          matchCount: 1,
+          ancestorDepthUsed: 1,
+          usesPositionalSelector: true,
+          dynamicAttributeNames: [],
+          stableAttributeNames: [],
+          hasAccessibleName: false,
+          hitTest: { pointsPassed: 9, classification: "fully-targetable" },
+          stability: "WRONG_TARGET",
+        },
+      ],
+      methodology: ["Collect a DOM snapshot in-page."],
+      iframes: {
+        total: 0,
+        accessible: 0,
+        crossOrigin: 0,
+        byTag: { iframe: 0, frame: 0 },
+      },
+      shadowDom: { roots: 0, elements: 0 },
+      zIndex: { maxZIndex: 0, highZIndexElementCount: 0 },
+      metadata: {
+        elementsAnalyzed: 200,
+        interactiveElementsAnalyzed: 10,
+        iframeCount: 0,
+        shadowRootCount: 0,
+        snapshotsCompared: 3,
+      },
+      confidenceCaps: [
+        "No application frame could be inspected (LN); only the frames around it were.",
+      ],
+      frames: [
+        { frameId: 0, key: "top", role: "chrome", status: "captured" },
+        { frameId: 5, key: "LN", role: "application", status: "failed" },
+      ],
+      excludedRoots: [
+        {
+          matcher: "id:_pendo-",
+          owner: "Pendo",
+          evidence: "measured",
+          roots: 2,
+          elementCount: 4,
+        },
+      ],
+    });
+
+    render(<DomHealthCard ignoredRoots={["tag:support-widget"]} />);
+    fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
+
+    expect(mockRunDomHealthAudit).toHaveBeenCalledWith(5, {
+      ignoredRoots: ["tag:support-widget"],
+    });
+    expect(
+      await screen.findByText(
+        "Confidence capped: No application frame could be inspected (LN); only the frames around it were.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Frames (2) and excluded content (1)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Left out Pendo/)).toBeInTheDocument();
+  });
+
   it("never shows a healthy-looking score badge when evidence is NO_EVIDENCE — shows NOT ASSESSED instead", async () => {
     mockRunDomHealthAudit.mockResolvedValue({
       available: true,
@@ -417,6 +550,14 @@ describe("DomHealthCard", () => {
         },
       ],
       methodology: ["Discover same-origin pages via real <a href> elements."],
+      traversal: {
+        mode: "click-first",
+        reason:
+          "The seed state has 0 distinct link target(s) and 2 navigation control(s): navigation is by click.",
+        clicksAllowed: true,
+        evidence: {},
+        history: [],
+      },
     });
 
     render(<DomHealthCard />);
@@ -426,6 +567,10 @@ describe("DomHealthCard", () => {
       5,
       expect.objectContaining({ onProgress: expect.any(Function) }),
     );
+    expect(await screen.findByText("click-first")).toBeInTheDocument();
+    expect(
+      screen.getByText(/0 distinct link target\(s\) and 2 navigation control/),
+    ).toBeInTheDocument();
     expect(await screen.findByText("65/100 · FAIR")).toBeInTheDocument();
     expect(
       screen.getByText("Application discovery/audit coverage is incomplete"),

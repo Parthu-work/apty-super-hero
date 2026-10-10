@@ -36,6 +36,13 @@ const candidatesByUrl = new Map<string, unknown[]>();
 
 import { runApplicationDomHealthAudit } from "./application-audit";
 
+const SEED_REF = {
+  version: 1,
+  hostChain: [],
+  path: [],
+  frameKey: "",
+};
+
 const TAB_ID = 7;
 
 function snapshotFixture(url: string): DomHealthSnapshot {
@@ -158,10 +165,9 @@ function snapshotFixture(url: string): DomHealthSnapshot {
 function stateSignatureFixture(url: string) {
   return {
     url,
-    title: `Title for ${url}`,
-    headingSample: [],
-    activeNavItem: null,
-    containerCounts: {},
+    navTrail: [] as string[],
+    primaryHeading: null as string | null,
+    structureHash: "s0",
   };
 }
 
@@ -282,6 +288,67 @@ describe("runApplicationDomHealthAudit", () => {
     }
   });
 
+  it("audits one record of a screen once, whatever its id (D-2)", async () => {
+    linksByUrl.set("https://app.example.com/home", [
+      link({ absoluteUrl: "https://app.example.com/patients/4242424/chart" }),
+      link({ absoluteUrl: "https://app.example.com/patients/1234567/chart" }),
+    ]);
+
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.coverage.pagesAudited).toBe(2);
+    expect(
+      result.pages.filter((p) => p.url.includes("/patients/")),
+    ).toHaveLength(1);
+  });
+
+  it("audits each hash route of a hash-routed application (D-2)", async () => {
+    currentUrl = "https://app.example.com/#/home";
+    linksByUrl.set("https://app.example.com/#/home", [
+      link({ absoluteUrl: "https://app.example.com/#/orders" }),
+      link({ absoluteUrl: "https://app.example.com/#/customers" }),
+    ]);
+
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.coverage.pagesAudited).toBe(3);
+    expect(
+      result.pages.filter((p) => p.status === "completed").map((p) => p.url),
+    ).toEqual([
+      "https://app.example.com/#/home",
+      "https://app.example.com/#/orders",
+      "https://app.example.com/#/customers",
+    ]);
+  });
+
+  it("reports how each state was identified, and how confidently", async () => {
+    const promise = runApplicationDomHealthAudit(TAB_ID);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.stateGraph?.nodes[0]?.route).toEqual({
+      appFrameKey: "top",
+      urlTemplate: "https://app.example.com/home",
+      contributingSignals: ["frame", "urlTemplate", "structure"],
+      confidence: "low",
+    });
+    expect(result.stateGraph?.routeConfidence).toEqual({
+      high: 0,
+      medium: 0,
+      low: 1,
+    });
+  });
+
   it("discovers and navigates to a same-origin link, reporting scope 'application'", async () => {
     linksByUrl.set("https://app.example.com/home", [
       link({ absoluteUrl: "https://app.example.com/orders" }),
@@ -302,12 +369,41 @@ describe("runApplicationDomHealthAudit", () => {
     }
   });
 
-  it("replays the seed state's captured ElementPath samples against every other discovered state (spec section 7) and aggregates the verdicts as crossStateEvidence", async () => {
+  it.each([
+    {
+      name: "a recovered element",
+      answer: { verdict: "RECOVERED_STABLE" },
+      evidence: { recoveredStable: 1 },
+    },
+    {
+      name: "a shadow host that broke on the way down",
+      answer: {
+        verdict: "HOST_NOT_RESOLVED",
+        brokenAtHop: 1,
+        hostSelector: 'ids-menu-button[id="ids-theme-switcher"]',
+      },
+      evidence: {
+        notResolved: 1,
+        hostChainBroken: 1,
+        hostChainBreaks: [
+          {
+            frameId: 0,
+            hop: 1,
+            hostSelector: 'ids-menu-button[id="ids-theme-switcher"]',
+          },
+        ],
+      },
+    },
+  ])("replays the seed state's ElementRef samples against every other discovered state (spec section 7) and aggregates $name as crossStateEvidence", async ({
+    answer,
+    evidence,
+  }) => {
     linksByUrl.set("https://app.example.com/home", [
       link({ absoluteUrl: "https://app.example.com/orders" }),
     ]);
 
     let replayCallCount = 0;
+    const replayedSamples: unknown[] = [];
     const originalImpl = mockSendMessage.getMockImplementation()!;
     mockSendMessage.mockImplementation((tabId, msg: any, options, callback) => {
       if (msg.request === "collect-dom-health-frame-bundle") {
@@ -320,7 +416,7 @@ describe("runApplicationDomHealthAudit", () => {
               ? [
                   {
                     fingerprint: "fp-save-button",
-                    path: [],
+                    ref: SEED_REF,
                     tagName: "button",
                     selector: "#save",
                     outcome: "DIRECT_SUCCESS",
@@ -339,11 +435,12 @@ describe("runApplicationDomHealthAudit", () => {
       }
       if (msg.request === "replay-dom-health-element-paths") {
         replayCallCount++;
+        replayedSamples.push(...msg.samples);
         callback({
           success: true,
           data: msg.samples.map((s: { fingerprint: string }) => ({
             fingerprint: s.fingerprint,
-            verdict: "RECOVERED_STABLE",
+            ...answer,
           })),
         });
         return;
@@ -362,14 +459,21 @@ describe("runApplicationDomHealthAudit", () => {
     // Replayed once against the second (non-seed) state, never against the
     // seed state itself.
     expect(replayCallCount).toBe(1);
+    expect(replayedSamples).toEqual([
+      { fingerprint: "fp-save-button", ref: SEED_REF },
+    ]);
     expect(result.crossStateEvidence).toEqual({
       attempted: 1,
       directStable: 0,
-      recoveredStable: 1,
+      recoveredStable: 0,
       positionalStable: 0,
       wrongTarget: 0,
       notResolved: 0,
+      hostChainBroken: 0,
+      hostChainBreaks: [],
+      legacySamples: 0,
       statesTested: 1,
+      ...evidence,
     });
   });
 
@@ -677,8 +781,8 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
           const signature = clicked
             ? {
                 ...stateSignatureFixture(currentUrl),
-                activeNavItem: "Customers",
-                headingSample: ["Customer Overview"],
+                navTrail: ["Customers"],
+                primaryHeading: "Customer Overview",
               }
             : stateSignatureFixture(currentUrl);
           callback({
@@ -940,8 +1044,8 @@ describe("runApplicationDomHealthAudit — state graph + backtracking (RC-6, the
               snapshot: snapshotFixture(currentUrl),
               stateSignature: {
                 ...stateSignatureFixture(currentUrl),
-                activeNavItem: appState,
-                headingSample: [`Screen ${appState}`],
+                navTrail: [appState],
+                primaryHeading: `Screen ${appState}`,
               },
             },
           });
@@ -1062,5 +1166,332 @@ describe("runApplicationDomHealthAudit — state graph + backtracking (RC-6, the
     );
     expect(failedSubmenu).toBeDefined();
     expect(failedSubmenu?.failureReason).toMatch(/restor/i);
+  });
+});
+
+describe("runApplicationDomHealthAudit — traversal strategy (WP-6)", () => {
+  /**
+   * A small application as a state machine: each screen has a heading,
+   * links and navigation controls, and every click or URL load moves
+   * between screens. `deepLinkWorksOnce` makes a URL work the first time
+   * it is loaded and land on the home screen afterwards, the way a
+   * session-scoped deep link does.
+   */
+  interface Screen {
+    links?: Array<{ url: string; domPath: string }>;
+    controls?: Array<{ domPath: string; text: string; to: string }>;
+  }
+
+  function setupApp(params: {
+    screens: Record<string, Screen>;
+    start: string;
+    urlFor: Record<string, string>;
+    deepLinkWorksOnce?: string[];
+    historyCallsOnClick?: Record<string, number>;
+    unreadableAfter?: string[];
+  }) {
+    let screen = params.start;
+    let historyCalls = 0;
+    const loads = new Map<string, number>();
+    const linkClicks: string[] = [];
+    const screenForUrl = (url: string) =>
+      Object.entries(params.urlFor).find(([, u]) => u === url)?.[0];
+
+    mockTabsUpdate.mockImplementation(
+      async (_tabId: number, updateInfo: { url?: string }) => {
+        if (updateInfo.url) {
+          currentUrl = updateInfo.url;
+          const target = screenForUrl(updateInfo.url) ?? params.start;
+          const count = (loads.get(target) ?? 0) + 1;
+          loads.set(target, count);
+          screen =
+            params.deepLinkWorksOnce?.includes(target) && count > 1
+              ? params.start
+              : target;
+        }
+        queueMicrotask(() => {
+          for (const listener of [...onUpdatedListeners]) {
+            listener(TAB_ID, { status: "complete" });
+          }
+        });
+        return {};
+      },
+    );
+
+    mockSendMessage.mockImplementation(
+      (_tabId: number, msg: any, _options: unknown, callback: any) => {
+        const current = params.screens[screen]!;
+        switch (msg.request) {
+          case "collect-dom-health-frame-bundle":
+            if (params.unreadableAfter?.includes(screen)) {
+              callback({ success: false, error: "frame did not respond" });
+              return;
+            }
+            callback({
+              success: true,
+              data: {
+                snapshot: snapshotFixture(currentUrl),
+                stateSignature: {
+                  ...stateSignatureFixture(currentUrl),
+                  primaryHeading: params.unreadableAfter ? null : screen,
+                },
+              },
+            });
+            return;
+          case "collect-dom-health-links":
+            callback({
+              success: true,
+              data: (current.links ?? []).map((l) =>
+                link({ absoluteUrl: l.url, domPath: l.domPath }),
+              ),
+            });
+            return;
+          case "collect-dom-health-safe-navigation-candidates":
+            callback({
+              success: true,
+              data: (current.controls ?? []).map((c) => ({
+                domPath: c.domPath,
+                role: "menuitem",
+                tagName: "div",
+                text: c.text,
+                looksDestructive: false,
+                destructiveReason: null,
+              })),
+            });
+            return;
+          case "click-safe-navigation-candidate": {
+            const control = current.controls?.find(
+              (c) => c.domPath === msg.domPath,
+            );
+            if (!control) {
+              callback({ success: true, data: { clicked: false } });
+              return;
+            }
+            historyCalls += params.historyCallsOnClick?.[control.to] ?? 0;
+            screen = control.to;
+            callback({ success: true, data: { clicked: true } });
+            return;
+          }
+          case "click-dom-health-link": {
+            const target = current.links?.find(
+              (l) => l.domPath === msg.domPath,
+            );
+            if (!target) {
+              callback({ success: true, data: { clicked: false } });
+              return;
+            }
+            linkClicks.push(msg.domPath);
+            currentUrl = target.url;
+            screen = screenForUrl(target.url)!;
+            callback({ success: true, data: { clicked: true } });
+            return;
+          }
+          case "wait-for-dom-stable":
+            callback({ success: true, data: { settled: true, elapsedMs: 0 } });
+            return;
+          case "get-dom-health-navigation-model":
+            callback({
+              success: true,
+              data: {
+                usesHistoryApiRouting: historyCalls > 0,
+                historyApiCallCount: historyCalls,
+              },
+            });
+            return;
+          case "replay-dom-health-element-paths":
+            callback({ success: true, data: [] });
+            return;
+          default:
+            callback({ success: false, error: "unhandled message in test" });
+        }
+      },
+    );
+    return { linkClicks };
+  }
+
+  async function run(discoveryMode: "application-safe" | "application-deep") {
+    const promise = runApplicationDomHealthAudit(TAB_ID, { discoveryMode });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    if (!result.available) throw new Error(result.error);
+    return result;
+  }
+
+  const CLICK_ONLY = {
+    start: "Home",
+    urlFor: { Home: "https://app.example.com/home" },
+    screens: {
+      Home: {
+        controls: [
+          { domPath: "menu-orders", text: "Orders", to: "Orders" },
+          { domPath: "menu-customers", text: "Customers", to: "Customers" },
+        ],
+      },
+      Orders: {},
+      Customers: {},
+    },
+  };
+
+  it("traverses an application with no links by clicks, restores between branches, and reports click-first with its reason", async () => {
+    currentUrl = "https://app.example.com/home";
+    setupApp(CLICK_ONLY);
+
+    const result = await run("application-deep");
+
+    expect(result.coverage.pagesAudited).toBe(3);
+    expect(result.restorations).toEqual([
+      expect.objectContaining({ success: true, method: "replay" }),
+    ]);
+    expect(result.traversal).toMatchObject({
+      mode: "click-first",
+      clicksAllowed: true,
+      evidence: { seedLinkTemplates: 0, seedNavigationCandidates: 2 },
+    });
+    expect(result.traversal?.reason).toContain(
+      "0 distinct link target(s) and 2 navigation control(s)",
+    );
+  });
+
+  it("says when click-first is indicated but clicks are off", async () => {
+    currentUrl = "https://app.example.com/home";
+    setupApp(CLICK_ONLY);
+
+    const result = await run("application-safe");
+
+    expect(result.coverage.pagesAudited).toBe(1);
+    expect(result.traversal?.mode).toBe("click-first");
+    expect(result.traversal?.clicksAllowed).toBe(false);
+    expect(result.traversal?.reason).toContain(
+      'Click-based discovery is off (discoveryMode "application-safe")',
+    );
+  });
+
+  it("falls back to click replay when loading a recorded URL no longer reproduces its screen", async () => {
+    currentUrl = "https://app.example.com/home";
+    const { linkClicks } = setupApp({
+      start: "Home",
+      urlFor: {
+        Home: "https://app.example.com/home",
+        Orders: "https://app.example.com/orders",
+      },
+      deepLinkWorksOnce: ["Orders"],
+      screens: {
+        Home: {
+          links: [
+            { url: "https://app.example.com/orders", domPath: "a-orders" },
+          ],
+        },
+        Orders: {
+          controls: [
+            { domPath: "tab-lines", text: "Lines", to: "Lines" },
+            { domPath: "tab-history", text: "History", to: "History" },
+          ],
+        },
+        Lines: {},
+        History: {},
+      },
+    });
+
+    const result = await run("application-deep");
+
+    const restoration = result.restorations.find(
+      (r) => r.fellBackFromDirectUrl,
+    );
+    expect(restoration).toMatchObject({ success: true, method: "replay" });
+    expect(linkClicks).toEqual(["a-orders"]);
+    expect(
+      result.pages.some(
+        (p) =>
+          p.title === null &&
+          p.status === "completed" &&
+          p.transitionReason?.includes("History"),
+      ),
+    ).toBe(true);
+    expect(result.traversal?.history.map((h) => h.mode)).toEqual([
+      "url-first",
+      "click-first",
+    ]);
+    expect(result.traversal?.history[1]?.reason).toContain(
+      "Loading a recorded URL did not reproduce its screen (1 of 1 direct loads)",
+    );
+  });
+
+  it("does not audit a URL again when it lands on a state already recorded", async () => {
+    currentUrl = "https://app.example.com/home";
+    setupApp({
+      start: "Home",
+      urlFor: { Home: "https://app.example.com/home" },
+      screens: {
+        Home: {
+          links: [
+            { url: "https://app.example.com/old-home", domPath: "a-old" },
+          ],
+        },
+      },
+    });
+    mockTabsGet.mockImplementation(async () => ({
+      id: TAB_ID,
+      url: "https://app.example.com/home",
+    }));
+    const navigate = mockTabsUpdate.getMockImplementation()!;
+    mockTabsUpdate.mockImplementation(async (tabId, info: { url?: string }) =>
+      navigate(
+        tabId,
+        info.url === "https://app.example.com/old-home"
+          ? { url: "https://app.example.com/home" }
+          : info,
+      ),
+    );
+
+    const result = await run("application-safe");
+
+    expect(result.coverage.pagesAudited).toBe(1);
+    expect(
+      result.pages.find((p) => p.url === "https://app.example.com/old-home"),
+    ).toMatchObject({
+      status: "skipped-duplicate",
+      failureReason: expect.stringContaining("already recorded"),
+    });
+  });
+
+  it("uses history, frame URLs or network activity only to break a tie the DOM cannot", async () => {
+    currentUrl = "https://app.example.com/home";
+    const screens = {
+      Home: {
+        controls: [{ domPath: "menu-report", text: "Report", to: "Report" }],
+      },
+      Report: {},
+    };
+    setupApp({
+      start: "Home",
+      urlFor: { Home: "https://app.example.com/home" },
+      screens,
+      unreadableAfter: ["Report"],
+    });
+    const uncorroborated = await run("application-deep");
+
+    setupApp({
+      start: "Home",
+      urlFor: { Home: "https://app.example.com/home" },
+      screens,
+      unreadableAfter: ["Report"],
+      historyCallsOnClick: { Report: 1 },
+    });
+    const corroborated = await run("application-deep");
+
+    expect(
+      uncorroborated.pages.find((p) => p.title === "Report")?.failureReason,
+    ).toContain("nothing else (history, frame URLs, network) corroborated");
+    const reached = corroborated.pages.find(
+      (p) =>
+        p.discoverySource === "safe-navigation-control" &&
+        p.status !== "not-discovered",
+    );
+    expect(reached?.transitionReason).toContain("ambiguous");
+    expect(reached?.transitionReason).toContain("1 history API call(s)");
+    expect(corroborated.stateGraph?.edges[0]).toMatchObject({
+      corroboratedBy: ["history"],
+      networkObserved: false,
+    });
   });
 });

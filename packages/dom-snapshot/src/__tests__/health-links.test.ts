@@ -4,7 +4,9 @@ import {
   collectSafeNavigationCandidates,
   isSafeNavigationCandidate,
   isSafeToDiscover,
+  resolveDomPath,
 } from "../health-links";
+import { loadErpFixture } from "./fixtures/erp/load-fixture";
 
 function setHtml(html: string) {
   document.body.innerHTML = html;
@@ -155,5 +157,84 @@ describe("collectSafeNavigationCandidates", () => {
     const candidates = collectSafeNavigationCandidates(document);
 
     expect(candidates).toHaveLength(0);
+  });
+});
+
+describe("discovery in the composed tree", () => {
+  it("finds a navigation item inside a shadow root and gives it a path that resolves back to it", () => {
+    setHtml("<x-shell></x-shell>");
+    const shadow = document
+      .querySelector("x-shell")!
+      .attachShadow({ mode: "open" });
+    shadow.innerHTML =
+      '<nav><div role="menuitem">Orders</div><div role="menuitem">Customers</div></nav>';
+
+    const candidates = collectSafeNavigationCandidates(document);
+
+    expect(candidates.map((c) => c.text)).toEqual(["Orders", "Customers"]);
+    expect(candidates[1]!.domPath).toContain(" >>> ");
+    expect(resolveDomPath(document, candidates[1]!.domPath)).toBe(
+      shadow.querySelectorAll('[role="menuitem"]')[1],
+    );
+  });
+
+  it("finds an item slotted into a navigation container that lives in a shadow root", () => {
+    setHtml('<x-menu><div role="menuitem">Invoices</div></x-menu>');
+    document.querySelector("x-menu")!.attachShadow({ mode: "open" }).innerHTML =
+      "<nav><slot></slot></nav>";
+
+    expect(
+      collectSafeNavigationCandidates(document).map((c) => c.text),
+    ).toEqual(["Invoices"]);
+  });
+
+  it("finds anchors inside shadow roots, with a resolvable path", () => {
+    setHtml("<x-app></x-app>");
+    const shadow = document
+      .querySelector("x-app")!
+      .attachShadow({ mode: "open" });
+    shadow.innerHTML = '<a href="/orders">Orders</a>';
+
+    const [link] = collectDiscoverableLinks(document);
+
+    expect(link?.absoluteUrl).toBe("http://localhost:3000/orders");
+    expect(resolveDomPath(document, link!.domPath)).toBe(
+      shadow.querySelector("a"),
+    );
+  });
+
+  it("never proposes a setting toggle, even a rendered one (Infor LN's theme menu)", () => {
+    loadErpFixture("infor-ids-shadow", {
+      transform: (html) =>
+        html.replace(
+          'trigger-type="click" align="bottom, right" hidden=""',
+          'trigger-type="click" align="bottom, right"',
+        ),
+    });
+
+    const texts = collectSafeNavigationCandidates(document).map((c) => c.text);
+
+    expect(texts).not.toContain("Light");
+    expect(texts).not.toContain("Dark");
+  });
+
+  it("proposes LN's application tab from the portal workspace", () => {
+    loadErpFixture("infor-portal-workspace");
+
+    expect(
+      collectSafeNavigationCandidates(document).some(
+        (c) => c.role === "tab" && c.text === "LN",
+      ),
+    ).toBe(true);
+  });
+
+  it("skips items that are not rendered", () => {
+    setHtml(
+      '<nav><div role="menuitem">Shown</div><div role="menuitem" style="display:none">Closed</div></nav>',
+    );
+
+    expect(
+      collectSafeNavigationCandidates(document).map((c) => c.text),
+    ).toEqual(["Shown"]);
   });
 });

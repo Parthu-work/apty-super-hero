@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- Reduced extract of Infor IDS Enterprise web components from the Infor OS Portal top document. Provenance: README.md. -->
+<html class="is-chrome is-mac theme-new-light" lang="en-GB" dir="ltr">
+<head><title>LN</title></head>
+<body id="mainbody">
+<ids-container scrollable="false" locale="en-GB" language="en"><template shadowrootmode="open"><div class="ids-container" part="container" scrollable="false"><slot></slot></div></template>
+<ids-theme-switcher locale="en-GB" language="en"><template shadowrootmode="open"><ids-menu-button id="ids-theme-switcher" menu="ids-theme-menu" icon="more" align="bottom, right" aria-controls="ids-theme-menu" aria-haspopup="menu" locale="en-GB" language="en"><template shadowrootmode="open"><button part="button" type="button" class="field-height-md hide-focus ids-menu-button ids-icon-button" tabindex="0" aria-label="Theme Switcher">
+      <slot></slot>
+      <slot name="loading-indicator"></slot>
+    </button></template><ids-icon icon="more" class="ids-icon" id="ids-icon-more" locale="en-GB" language="en"><template shadowrootmode="open"><svg part="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 9h1"></path></svg></template></ids-icon>
+      <span class="audible">Theme Switcher</span>
+    </ids-menu-button>
+    <ids-popup-menu id="ids-theme-menu" target="#ids-theme-switcher" trigger-type="click" align="bottom, right" hidden="" locale="en-GB" language="en"><template shadowrootmode="open"><ids-popup class="ids-popup-menu" type="menu" align="bottom, right" animation-style="fade" position-style="absolute" y="4" arrow="bottom" locale="en-GB" language="en"><template shadowrootmode="open"><div class="ids-popup animation-fade position-absolute menu" part="popup">
+      <div class="arrow bottom" part="arrow-bottom"></div>
+      <div class="content-wrapper" part="content-wrapper" role="listbox">
+        <slot name="content"></slot>
+      </div>
+    </div></template><nav class="ids-menu" id="ids-theme-menu-menu" slot="content" part="menu" role="none"><slot></slot></nav></ids-popup></template>
+      <ids-menu-group select="single" role="group" aria-label="Menu group containing 3 item(s)" locale="en-GB" language="en"><template shadowrootmode="open"><div class="ids-menu-group" role="none"><slot></slot></div></template>
+        <ids-menu-item selected="" value="light" locale="en-GB" language="en"><template shadowrootmode="open"><div role="none" part="menu-item" class="ids-menu-item has-checkmark selected">
+      <a role="menuitemradio" tabindex="0" aria-checked="true">
+        <span class="check" part="check" role="presentation"></span><span class="ids-menu-item-icon" role="presentation"><slot name="icon"></slot></span><ids-text class="ids-menu-item-text" overflow="ellipsis" tooltip="Light" locale="en-GB" language="en"><template shadowrootmode="open"><span class="ids-text ellipsis" part="text" tooltip="Light"><slot></slot>
+    </span></template><slot></slot></ids-text><span class="ids-menu-item-shortcuts" part="shortcuts"><slot name="shortcuts"></slot></span>
+      </a>
+      <slot name="submenu"></slot>
+    </div></template>
+          <ids-text translate-text="true" translation-key="Light" locale="en-GB" language="en"><template shadowrootmode="open"><span class="ids-text" part="text"><slot></slot>
+    </span></template>Light</ids-text>
+        </ids-menu-item>
+        <ids-menu-item value="dark" locale="en-GB" language="en"><template shadowrootmode="open"><div role="none" part="menu-item" class="ids-menu-item has-checkmark">
+      <a role="menuitemradio" tabindex="-1" aria-checked="false">
+        <span class="check" part="check" role="presentation"></span><span class="ids-menu-item-icon" role="presentation"><slot name="icon"></slot></span><ids-text class="ids-menu-item-text" overflow="ellipsis" tooltip="Dark" locale="en-GB" language="en"><template shadowrootmode="open"><span class="ids-text ellipsis" part="text" tooltip="Dark"><slot></slot>
+    </span></template><slot></slot></ids-text><span class="ids-menu-item-shortcuts" part="shortcuts"><slot name="shortcuts"></slot></span>
+      </a>
+      <slot name="submenu"></slot>
+    </div></template>
+          <ids-text translate-text="true" translation-key="Dark" locale="en-GB" language="en"><template shadowrootmode="open"><span class="ids-text" part="text"><slot></slot>
+    </span></template>Dark</ids-text>
+        </ids-menu-item>
+      </ids-menu-group>
+    </ids-popup-menu></template></ids-theme-switcher>
+<portal-gen-ai-button _nghost-ng-c3756276490=""><ids-button _ngcontent-ng-c3756276490="" color-variant="alternate" ygtrackclick="GenAI Assistant" id="infor-genai-chat-panel" tooltip="GenAI Assistant" locale="en-GB" language="en"><template shadowrootmode="open"><button part="button" type="button" class="field-height-md hide-focus color-variant-alternate ids-masthead-button ids-icon-button" tabindex="0" tooltip="GenAI Assistant" aria-label="GenAI Assistant">
+      <slot></slot>
+      <slot name="loading-indicator"></slot>
+    </button></template><span _ngcontent-ng-c3756276490="" class="audible">GenAI Assistant</span><ids-icon _ngcontent-ng-c3756276490="" viewbox="0 0 22 22" stroke="none" icon="osp-icon-genai-gradient" id="ids-icon-osp-icon-genai-gradient" locale="en-GB" language="en"><template shadowrootmode="open"><svg part="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" aria-hidden="true"><g clip-path="url(#clip0_99_3829)"><path d="M9 2h1v1H9z"></path></g><defs><clipPath id="clip0_99_3829"><rect width="22" height="22" fill="white"></rect></clipPath></defs></svg></template></ids-icon></ids-button></portal-gen-ai-button>
+<ids-about id="osp-about" trigger-type="click" fullsize="sm" respond-down="sm" role="dialog" aria-label="  " locale="en-GB" show-close-button="" product-version="2026.09.00"><template shadowrootmode="open"><ids-popup class="ids-about" locale="en-GB" language="en"><slot name="icon"></slot><slot name="appName"></slot><slot name="product"></slot></ids-popup></template><ids-text slot="appName" type="h1" font-size="28" locale="en-GB"><template shadowrootmode="open"><h1 class="ids-text ids-text-28" part="text"><slot></slot>
+    </h1></template> Infor OS Portal </ids-text><ids-text slot="product" type="p" locale="en-GB"><template shadowrootmode="open"><p class="ids-text" part="text"><slot></slot>
+    </p></template>2026.09.00</ids-text></ids-about>
+</ids-container>
+</body>
+</html>

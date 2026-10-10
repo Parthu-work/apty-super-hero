@@ -9,9 +9,11 @@
  * already exist here; it must never re-derive them from raw attribute
  * presence.
  */
-import type { ElementPath } from "./des-engine.js";
+import type { ElementRef } from "./element-ref.js";
 
 /** Attributes on an analyzed element — never includes input values. */
+import type { ExcludedRootSummary } from "./ignored-roots.js";
+
 export interface DomHealthElementAttributes {
   id?: string;
   /** Space-joined class list, as found on the element. */
@@ -139,8 +141,10 @@ export type SelectorStrategy =
  * later identity verification).
  */
 export interface ElementPathSample {
+  /** `computeComposedFingerprint`: the element and every shadow host above it. */
   fingerprint: string;
-  path: ElementPath;
+  /** Root-aware reference, replayed from the top of the document by `replayElementRefs`. */
+  ref: ElementRef;
   tagName: string;
   selector: string | null;
   outcome: SelectorResolutionOutcome;
@@ -222,8 +226,10 @@ export interface ElementSelectorReport {
   attributes: DomHealthElementAttributes;
   outcome: SelectorResolutionOutcome;
   strategy: SelectorStrategy;
-  /** The selector the engine would actually use, or null when nothing resolved. */
+  /** The selector the engine would actually use, or null when nothing resolved. For an element inside shadow roots, each hop's selector joined with ` >>> `: diagnostic text, not one CSS selector. */
   bestSelector: string | null;
+  /** How many shadow roots the element sits inside; its outcome is the weakest of its own and its hosts'. */
+  shadowDepth: number;
   /** Live match count for `bestSelector` (0 when nothing resolved, -1 when the selector itself was invalid). */
   matchCount: number;
   /** How many ancestor levels the contextual-recovery strategy had to climb (0 when not used). */
@@ -245,6 +251,9 @@ export interface ElementSelectorReport {
    */
   frameId?: number;
   frameUrl?: string;
+  /** Stable identity and role of that frame (`frame-identity.ts` in `@apty/browser-runtime`), stamped alongside `frameId`. */
+  frameKey?: string;
+  frameRole?: "application" | "chrome" | "shim" | "placeholder" | "overlay";
 }
 
 /** Identity of the frame a `DomHealthSnapshot` was collected from — set by the caller, never guessed by the collector itself (it only knows its own document, not its place in the tab's frame tree). */
@@ -253,6 +262,8 @@ export interface DomHealthFrameIdentity {
   url: string;
   parentFrameId: number;
   depth: number;
+  /** Stable frame identity from the frame layer, stamped into every `ElementRef` captured in this frame. */
+  frameKey?: string;
 }
 
 export interface SelectorAnalysisAggregate {
@@ -376,6 +387,50 @@ export interface DomHealthSnapshot {
   frame?: DomHealthFrameIdentity | null;
   /** Bounded sample of real Apty-style paths captured this snapshot, for cross-APPLICATION-STATE replay (see `ElementPathSample`'s doc comment) — never used for same-state stability, which `stability` above already covers. */
   elementPathSamples: ElementPathSample[];
+  /** Overlays and injected UI left out of every count above (`ignored-roots.ts`), per matcher. */
+  excludedRoots: ExcludedRootSummary[];
+  duplicateIds: DuplicateIdStats;
+  performance: CollectorPerformance;
+}
+
+/** How long a collection took, how it shared the page's main thread, and whether a budget cut it short (brief section 4.11). */
+export interface CollectorPerformance {
+  timings: {
+    ignoredRootsMs: number;
+    classifyMs: number;
+    analyzeMs: number;
+    totalMs: number;
+  };
+  /** Longest stretch the collector ran without yielding to the page. */
+  longestSliceMs: number;
+  /** Longest single step between two clock checks (one element's analysis, or the overlay scan). A slice can run past `limits.sliceMs` by at most this. */
+  longestStepMs: number;
+  yields: number;
+  limits: {
+    maxTotalElements: number;
+    maxShadowRoots: number;
+    timeBudgetMs: number;
+    sliceMs: number;
+  };
+  /** Why the result is partial (a ceiling or the time budget), empty when it is complete. Also folded into `analysisCoverage.capReason`. */
+  partialReasons: string[];
+}
+
+/**
+ * Ids used by more than one element. `id` is unique per root (a document or
+ * a shadow root), so only a duplicate within one root breaks `#id`; the
+ * page-wide count is reported for comparison. Elements in ignored roots
+ * are not counted.
+ */
+export interface DuplicateIdStats {
+  /** Distinct values shared by 2+ elements in the same root. */
+  valuesDuplicatedWithinARoot: number;
+  /** Distinct values used by 2+ elements anywhere in the document, shadow roots included. */
+  valuesDuplicatedPageWide: number;
+  /** Elements carrying a value duplicated within their own root; `id` is not used to select them. */
+  elementsWithDuplicatedId: number;
+  /** Up to 5 of the within-root duplicated values. */
+  sampleValues: string[];
 }
 
 export interface DomHealthCollectorOptions {
@@ -397,6 +452,16 @@ export interface DomHealthCollectorOptions {
    * snapshot after the first in the same audit run.
    */
   freshAudit?: boolean;
+  /** Stop counting after this many elements in the frame. Defaults to `DEFAULT_COLLECTOR_BUDGET.maxTotalElements`. */
+  maxTotalElements?: number;
+  /** Do not enter more than this many shadow roots. */
+  maxShadowRoots?: number;
+  /** Hard per-frame budget; past it the collection stops and returns what it has, labelled partial. */
+  timeBudgetMs?: number;
+  /** Yield to the page at least this often. */
+  sliceMs?: number;
+  /** Settings entries (`id:prefix`, `class:prefix`, `tag:name`) excluded on top of `DEFAULT_IGNORED_ROOTS`. */
+  ignoredRoots?: readonly string[];
   /** Frame identity to stamp onto the resulting snapshot's `frame` field — supplied by the caller (the content script knows its own `sender.frameId` from `chrome.runtime.onMessage`), never computed by this collector. */
   frameContext?: DomHealthFrameIdentity | null;
 }

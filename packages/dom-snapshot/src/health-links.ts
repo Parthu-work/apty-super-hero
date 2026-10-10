@@ -16,6 +16,16 @@
  * pretending full application coverage was achieved.
  */
 
+import {
+  closestComposed,
+  isRenderedInComposedTree,
+  querySelectorAllDeep,
+  walkComposedTree,
+} from "./composed-tree.js";
+import { SHADOW_BOUNDARY, shadowHostChain } from "./element-ref.js";
+import { capturedText } from "./health-privacy.js";
+import { shadowRootOf } from "./shadow-roots.js";
+
 export interface DiscoverableLink {
   /** Raw `href` attribute value, as authored. */
   href: string;
@@ -27,6 +37,8 @@ export interface DiscoverableLink {
   looksDestructive: boolean;
   /** The matched keyword, when `looksDestructive` is true. */
   destructiveReason: string | null;
+  /** Where the anchor is, across shadow boundaries (`buildComposedDomPath`), so a click replay can find it again. */
+  domPath: string;
 }
 
 /**
@@ -92,8 +104,7 @@ export function collectDiscoverableLinks(
   const seen = new Set<string>();
   const out: DiscoverableLink[] = [];
 
-  const anchors = doc.querySelectorAll("a[href]");
-  for (const a of Array.from(anchors)) {
+  for (const a of querySelectorAllDeep(doc, "a[href]")) {
     if (out.length >= maxLinks) break;
     const href = a.getAttribute("href");
     if (!href) continue;
@@ -117,7 +128,7 @@ export function collectDiscoverableLinks(
       sameOrigin = false;
     }
 
-    const text = (a.textContent ?? "").trim().slice(0, 120);
+    const text = capturedText(a);
     const destructiveReason = matchesDestructiveKeyword(
       trimmed,
       text,
@@ -134,6 +145,7 @@ export function collectDiscoverableLinks(
       text,
       looksDestructive: destructiveReason !== null,
       destructiveReason,
+      domPath: buildComposedDomPath(a),
     });
   }
 
@@ -189,6 +201,17 @@ const SAFE_NAV_ITEM_SELECTOR = [
 const SUBMIT_LIKE_SELECTOR =
   'button[type="submit"], input[type="submit"], input[type="button"]';
 
+/**
+ * Items that change a setting rather than navigate. Measured: Infor LN's
+ * theme and locale menus are `<a role="menuitemradio">` items ("Light",
+ * "English") inside IDS shadow roots, and clicking one would change the
+ * user's theme or language. The other roles are the remaining ARIA
+ * toggle/selection roles, from the ARIA specification, not observed in the
+ * exports.
+ */
+const SETTING_ITEM_SELECTOR =
+  '[role="menuitemradio"], [role="menuitemcheckbox"], [role="switch"], [role="checkbox"], [role="radio"], [role="option"]';
+
 function buildDomPath(el: Element): string {
   const parts: string[] = [];
   let current: Element | null = el;
@@ -209,12 +232,47 @@ function buildDomPath(el: Element): string {
 }
 
 /**
+ * `buildDomPath` for the element and for each shadow host above it,
+ * outermost first, joined with `SHADOW_BOUNDARY`. Each hop is valid only in
+ * the root its host lives in; `resolveDomPath` walks them in order. A
+ * light-DOM element's path has a single hop, exactly as before.
+ */
+export function buildComposedDomPath(el: Element): string {
+  return [...shadowHostChain(el), el]
+    .map((hop) => buildDomPath(hop))
+    .join(SHADOW_BOUNDARY);
+}
+
+/** The element a `buildComposedDomPath` path points to, entering each host's shadow root (closed roots too, through `shadowRootOf`), or null. */
+export function resolveDomPath(doc: Document, domPath: string): Element | null {
+  const hops = domPath.split(SHADOW_BOUNDARY);
+  let scope: Document | ShadowRoot = doc;
+  for (let i = 0; i < hops.length; i++) {
+    let found: Element | null;
+    try {
+      found = scope.querySelector(hops[i]!);
+    } catch {
+      return null;
+    }
+    if (!found) return null;
+    if (i === hops.length - 1) return found;
+    const shadow = shadowRootOf(found);
+    if (!shadow) return null;
+    scope = shadow;
+  }
+  return null;
+}
+
+/**
  * Read-only detection of safe-looking, non-anchor navigation controls
  * (menu items, tabs, tree nodes) inside a conservative container allowlist
  * — see the module doc comment for why `<a href>` alone misses these on a
- * menu-driven enterprise application. Excludes anything inside a `<form>`
- * and anything that looks like a submit/destructive control, exactly like
- * `collectDiscoverableLinks` excludes destructive-looking hrefs.
+ * menu-driven enterprise application. Excludes anything inside a `<form>`,
+ * anything that looks like a submit/destructive control, settings toggles,
+ * and anything not rendered (LN keeps its closed menus in the DOM).
+ * Searches the composed tree: an item and its container may sit in
+ * different shadow roots, joined by slot assignment, as in Infor's IDS
+ * menus.
  */
 export function collectSafeNavigationCandidates(
   doc: Document,
@@ -224,47 +282,47 @@ export function collectSafeNavigationCandidates(
   const out: SafeNavigationCandidate[] = [];
   const seenPaths = new Set<string>();
 
-  const containers = Array.from(
-    doc.querySelectorAll(SAFE_NAV_CONTAINER_SELECTOR),
-  );
-  for (const container of containers) {
-    if (out.length >= maxCandidates) break;
-    const items = Array.from(
-      container.querySelectorAll(SAFE_NAV_ITEM_SELECTOR),
-    );
-    for (const item of items) {
-      if (out.length >= maxCandidates) break;
-      if (item.closest("form")) continue;
-      if (
-        item.matches(SUBMIT_LIKE_SELECTOR) ||
-        item.querySelector(SUBMIT_LIKE_SELECTOR)
-      ) {
-        continue;
-      }
-      const text = (item.textContent ?? "").trim().slice(0, 120);
-      if (!text) continue;
-      const domPath = buildDomPath(item);
-      if (seenPaths.has(domPath)) continue;
-      seenPaths.add(domPath);
-
-      const destructiveReason = matchesDestructiveKeyword(
-        text,
-        item.getAttribute("aria-label"),
-        item.getAttribute("class"),
-        item.getAttribute("id"),
-        item.getAttribute("title"),
-      );
-
-      out.push({
-        domPath,
-        role: item.getAttribute("role"),
-        tagName: item.tagName.toLowerCase(),
-        text,
-        looksDestructive: destructiveReason !== null,
-        destructiveReason,
-      });
+  walkComposedTree(doc, (item) => {
+    if (out.length >= maxCandidates) return false;
+    if (
+      !item.matches(SAFE_NAV_ITEM_SELECTOR) ||
+      item.matches(SETTING_ITEM_SELECTOR) ||
+      !closestComposed(item, SAFE_NAV_CONTAINER_SELECTOR) ||
+      closestComposed(item, "form")
+    ) {
+      return true;
     }
-  }
+    if (
+      item.matches(SUBMIT_LIKE_SELECTOR) ||
+      item.querySelector(SUBMIT_LIKE_SELECTOR)
+    ) {
+      return true;
+    }
+    if (!isRenderedInComposedTree(item)) return true;
+    const text = capturedText(item);
+    if (!text) return true;
+    const domPath = buildComposedDomPath(item);
+    if (seenPaths.has(domPath)) return true;
+    seenPaths.add(domPath);
+
+    const destructiveReason = matchesDestructiveKeyword(
+      text,
+      item.getAttribute("aria-label"),
+      item.getAttribute("class"),
+      item.getAttribute("id"),
+      item.getAttribute("title"),
+    );
+
+    out.push({
+      domPath,
+      role: item.getAttribute("role"),
+      tagName: item.tagName.toLowerCase(),
+      text,
+      looksDestructive: destructiveReason !== null,
+      destructiveReason,
+    });
+    return true;
+  });
 
   return out;
 }
