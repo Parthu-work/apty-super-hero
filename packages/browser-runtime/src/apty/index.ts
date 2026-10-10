@@ -181,6 +181,14 @@ export {
   waitForTabLoad,
 } from "./page-navigation.js";
 export {
+  type AptyPeer,
+  allowListFix,
+  PEER_NAMES,
+  peerExtensionId,
+  peerExtensionIdPatch,
+  peerFailureMessage,
+} from "./peers.js";
+export {
   buildRouteKey,
   type FrameSignatureEntry,
   type RouteKey,

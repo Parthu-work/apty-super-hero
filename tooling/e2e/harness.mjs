@@ -440,11 +440,11 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
  * "not-allowlisted" allow-lists a different extension only. (With no
  * `externally_connectable` key at all, Chrome lets every extension in.)
  */
-export function writeFakeClient(dir, mode, agentId) {
+export function writeFakeClient(dir, mode, agentId, product = "Client") {
   mkdirSync(dir, { recursive: true });
   const manifest = {
     manifest_version: 3,
-    name: `Apty Client E2E (${mode})`,
+    name: `Apty ${product} E2E (${mode})`,
     version: "1.0.0",
     background: { service_worker: "background.js" },
     externally_connectable: {

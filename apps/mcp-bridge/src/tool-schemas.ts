@@ -817,6 +817,12 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
       "Get Apty's service-worker status and recent logs via a configured extension message channel or diagnostic HTTP endpoint. Not available until Apty exposes one of those channels.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
+  {
+    name: "get_apty_studio_service_worker_diagnostics",
+    description:
+      "Get Apty Studio's service-worker status and recent logs over the same message contract as the Apty Client. Needs Studio to allow-list this Agent's ID and run the Agent bridge module; otherwise returns the exact fix.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
 
   // ===== Selector Diagnostics Tool =====
   {

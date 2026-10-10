@@ -19,7 +19,7 @@ import {
 import { testConnection } from "../../services/connection-test";
 import { fetchModelList } from "../../services/model-list";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
-import { AptyClientPanel } from "./apty-client-panel";
+import { AptyClientPanel, AptyStudioPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
 import { PermissionsPanel } from "./permissions-panel";
 import { PreflightPanel } from "./preflight-panel";
@@ -139,6 +139,7 @@ function OptionsPageContent() {
         <div className="space-y-6">
           <PreflightPanel />
           <AptyClientPanel />
+          <AptyStudioPanel />
           <McpBridgePanel />
         </div>
       }

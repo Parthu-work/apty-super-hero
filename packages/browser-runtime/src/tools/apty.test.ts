@@ -27,7 +27,10 @@ let storedSettings: Record<string, unknown> | undefined;
 // Import after the chrome mock is installed, and after the (unused in this
 // test) apty/index.js provider exports have something to resolve to.
 import { getEvidence } from "../apty/evidence-store";
-import { getAptyPageLogsTool } from "./apty";
+import {
+  getAptyPageLogsTool,
+  getAptyStudioServiceWorkerDiagnosticsTool,
+} from "./apty";
 
 function tab(id: number, url = `https://example.com/tab-${id}`) {
   return { id, active: true, url };
@@ -383,5 +386,85 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
 
     expect(result.available).toBe(false);
     expect(result.status.code).toBe("no_permission");
+  });
+});
+
+describe("getAptyStudioServiceWorkerDiagnosticsTool", () => {
+  const STUDIO_ID = "b".repeat(32);
+
+  async function run(conversationId = "conv-studio-other") {
+    return (await getAptyStudioServiceWorkerDiagnosticsTool.invoke(
+      { context: { conversationId } } as any,
+      "{}",
+    )) as any;
+  }
+
+  it("reports not_configured without a Studio ID, and sends nothing", async () => {
+    const sendMessage = vi.fn();
+    (global as any).chrome.runtime.sendMessage = sendMessage;
+    storedSettings = {};
+
+    expect((await run()).status).toEqual({ status: "not_configured" });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("reads Studio's status and logs over the Client's contract, redacted and recorded as Studio evidence", async () => {
+    storedSettings = { peers: { studio: { extensionId: STUDIO_ID } } };
+    (global as any).chrome.runtime.sendMessage = vi.fn(
+      (
+        _id: string,
+        message: { type: string },
+        callback: (r: unknown) => void,
+      ) =>
+        callback(
+          message.type === "apty-debug-agent:get-service-worker-status"
+            ? { running: true, lastActivity: 1 }
+            : {
+                logs: [
+                  {
+                    level: "error",
+                    message: "save failed for jane.doe@example.com",
+                    timestamp: 2,
+                  },
+                ],
+              },
+        ),
+    );
+
+    const result = await run("conv-studio");
+
+    expect((global as any).chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      STUDIO_ID,
+      { type: "apty-debug-agent:get-service-worker-status" },
+      expect.any(Function),
+    );
+    expect(result.status).toMatchObject({ status: "ok", running: true });
+    expect(JSON.stringify(result.logs)).not.toContain("jane.doe@example.com");
+    expect(getEvidence("conv-studio").map((e) => [e.source, e.type])).toEqual([
+      ["apty-studio", "service-worker-status"],
+      ["apty-studio", "service-worker-error"],
+    ]);
+  });
+
+  it("names Studio and the fix when Studio does not let the Agent in", async () => {
+    storedSettings = { peers: { studio: { extensionId: STUDIO_ID } } };
+    (global as any).chrome.runtime.sendMessage = vi.fn(
+      (_id: string, _message: unknown, callback: (r: unknown) => void) => {
+        (global as any).chrome.runtime.lastError = {
+          message:
+            "Could not establish connection. Receiving end does not exist.",
+        };
+        callback(undefined);
+        (global as any).chrome.runtime.lastError = undefined;
+      },
+    );
+
+    const { status } = await run();
+
+    expect(status).toMatchObject({
+      status: "unavailable",
+      peerFailure: "no_receiver",
+    });
+    expect(status.error).toMatch(/nothing listening in the Apty Studio/);
   });
 });

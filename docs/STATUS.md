@@ -72,7 +72,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 |---|---|
 | Narrow `<all_urls>` to Apty's target domains | Apty's list of customer application domains |
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
-| Studio integration | Studio's manifest allows no other extension to message it |
+| Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | The owner runs [`real-tenant-validation.md`](development/real-tenant-validation.md) and returns the bundles |
 | Turn on `noExplicitAny` | About 130 `any` to replace; the rule is off |
 | Rename the inherited `aipex_*` storage keys | A migration for existing installs |

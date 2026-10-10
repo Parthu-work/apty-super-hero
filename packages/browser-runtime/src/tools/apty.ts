@@ -24,6 +24,7 @@
 import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
+  type AptyServiceWorkerDiagnosticsProvider,
   ConfiguredServiceWorkerDiagnosticsProvider,
   classifyLogEntry,
   type EvidenceSource,
@@ -31,6 +32,7 @@ import {
   getAptyIntegrationConfig,
   NotConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredStudioDiagnosticsProvider,
+  peerExtensionId,
   recordEvidence,
   recordToolCall,
   ScriptingClientDiagnosticsProvider,
@@ -672,46 +674,86 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
             diagnosticEndpoint: config.serviceWorkerDiagnosticEndpoint,
           })
         : new NotConfiguredServiceWorkerDiagnosticsProvider();
-    const [status, logs] = await Promise.all([
-      provider.getStatus(),
-      provider.getLogs(),
-    ]);
+    return serviceWorkerDiagnostics(
+      provider,
+      "service-worker",
+      (context as ToolRunContext)?.context?.conversationId,
+    );
+  },
+});
 
-    const requestedByConversationId = (context as ToolRunContext)?.context
-      ?.conversationId;
+/**
+ * Status and recent logs from an Apty extension's service worker, recorded
+ * as evidence. Shared by the Client and Studio tools: same contract, same
+ * redaction (the provider redacts every log line) and the same scope note.
+ */
+async function serviceWorkerDiagnostics(
+  provider: AptyServiceWorkerDiagnosticsProvider,
+  source: "service-worker" | "apty-studio",
+  requestedByConversationId: string | undefined,
+) {
+  const [status, logs] = await Promise.all([
+    provider.getStatus(),
+    provider.getLogs(),
+  ]);
+  recordEvidence({
+    conversationId: requestedByConversationId,
+    source,
+    type: "service-worker-status",
+    timestamp: Date.now(),
+    tabId: null,
+    scope: "shared",
+    data: status,
+  });
+  for (const log of logs) {
+    if (log.level !== "warn" && log.level !== "error") continue;
     recordEvidence({
       conversationId: requestedByConversationId,
-      source: "service-worker",
-      type: "service-worker-status",
-      timestamp: Date.now(),
+      source,
+      type: `service-worker-${log.level}`,
+      timestamp: log.timestamp,
       tabId: null,
       scope: "shared",
-      data: status,
+      data: log,
     });
-    for (const log of logs) {
-      if (log.level !== "warn" && log.level !== "error") continue;
-      recordEvidence({
-        conversationId: requestedByConversationId,
-        source: "service-worker",
-        type: `service-worker-${log.level}`,
-        timestamp: log.timestamp,
-        tabId: null,
-        scope: "shared",
-        data: log,
-      });
-    }
+  }
+  return {
+    status,
+    logs,
+    scope: "shared-global" as const,
+    scopeNote:
+      "These logs come from Apty's service worker, which is shared across all tabs and browser windows — they are not specific to the current tab.",
+    // Which conversation retrieved this shared/unattributed evidence.
+    // Do NOT read this as "these logs are about this conversation's tab"
+    // — see scopeNote above.
+    requestedByConversationId,
+  };
+}
 
-    return {
-      status,
-      logs,
-      scope: "shared-global" as const,
-      scopeNote:
-        "These logs come from Apty's service worker, which is shared across all tabs and browser windows — they are not specific to the current tab.",
-      // Which conversation retrieved this shared/unattributed evidence.
-      // Do NOT read this as "these logs are about this conversation's tab"
-      // — see scopeNote above.
-      requestedByConversationId,
-    };
+export const getAptyStudioServiceWorkerDiagnosticsTool = tool({
+  name: "get_apty_studio_service_worker_diagnostics",
+  description:
+    "Get Apty Studio's service-worker status and recent logs over the same message contract as the Apty Client. " +
+    "Studio must list this Agent's extension ID in its manifest's externally_connectable.ids and run the Agent bridge module; until then this returns status 'unavailable' with the exact fix, or 'not_configured' when no Studio ID is set in Settings → Apty Integration. " +
+    "The service worker is shared by every tab: do not assume these logs are about the current page.",
+  parameters: z.object({}),
+  execute: async (_input, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    recordToolCall(
+      conversationId,
+      "get_apty_studio_service_worker_diagnostics",
+    );
+    const studioId = peerExtensionId(
+      await getAptyIntegrationConfig(),
+      "studio",
+    );
+    const provider = studioId
+      ? new ConfiguredServiceWorkerDiagnosticsProvider({
+          extensionId: studioId,
+          peer: "studio",
+        })
+      : new NotConfiguredServiceWorkerDiagnosticsProvider();
+    return serviceWorkerDiagnostics(provider, "apty-studio", conversationId);
   },
 });
 
@@ -721,4 +763,5 @@ export const aptyTools = [
   getAptyClientDiagnosticsTool,
   getAptyStudioDiagnosticsTool,
   getAptyServiceWorkerDiagnosticsTool,
+  getAptyStudioServiceWorkerDiagnosticsTool,
 ];

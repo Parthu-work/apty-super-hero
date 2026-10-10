@@ -6,6 +6,7 @@ export const OPTIONS_SECTIONS = {
   troubleshooting: "general",
   "ai-provider": "ai",
   "apty-client": "connection",
+  "apty-studio": "connection",
   "mcp-bridge": "connection",
   preflight: "connection",
   permissions: "general",
