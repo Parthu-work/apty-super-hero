@@ -29,6 +29,7 @@
  * before anything is saved.
  */
 
+import type { VirtualizedListSummary } from "@apty/dom-snapshot";
 import { redactAuditUrl, redactDomText } from "./dom-health-redaction.js";
 import { collectFrameOwnersByFrameId } from "./frame-audit.js";
 import type { FrameOwnerAttributes } from "./frame-identity.js";
@@ -78,6 +79,8 @@ export interface RouteProbeFrameRecord {
   historyApiCallCount: number | null;
   pushStateCount: number | null;
   firstRequest: RouteProbeRequest | null;
+  /** Virtualized lists in the frame (their unseen rows are invisible to an audit); null when the frame did not answer. */
+  virtualized: VirtualizedListSummary | null;
 }
 
 export interface RouteProbeStep {
@@ -143,6 +146,7 @@ interface CapturedFrame {
   historyApiCallCount: number;
   pushStateCount: number;
   firstRequest: RouteProbeRequest | null;
+  virtualized?: VirtualizedListSummary;
 }
 
 function probeText(raw: string): ProbeText {
@@ -234,6 +238,7 @@ export async function captureRouteProbeStep(
       firstRequest: data?.firstRequest
         ? redactRequest(data.firstRequest)
         : null,
+      virtualized: data?.virtualized ?? null,
     };
   });
   return step;

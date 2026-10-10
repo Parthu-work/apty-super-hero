@@ -29,10 +29,12 @@ import type {
   ElementPathSample,
   ElementSelectorReport,
   ExcludedRootSummary,
+  VirtualizedListSummary,
 } from "@apty/dom-snapshot";
 import {
   AUDIT_PROFILE_NAME,
   DEFAULT_COLLECTOR_BUDGET,
+  NO_VIRTUALIZED_LISTS,
 } from "@apty/dom-snapshot";
 import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
@@ -99,6 +101,34 @@ const NO_DUPLICATE_IDS: DuplicateIdStats = {
   elementsWithDuplicatedId: 0,
   sampleValues: [],
 };
+
+/** Above this share of a virtualized list's declared rows left unrendered, confidence is LOW. Unverified threshold: "large" read as "most". */
+export const MAX_UNSEEN_VIRTUALIZED_SHARE = 0.5;
+
+/**
+ * A cap for virtualized lists (WP B4): the audit only saw the rendered
+ * rows, so the result is partial coverage, never a clean pass. MEDIUM when
+ * most declared rows were seen, LOW when most were not, MEDIUM when the
+ * total is unknown.
+ */
+export function virtualizedListCap(
+  virtualized: VirtualizedListSummary | undefined,
+): ConfidenceCap | null {
+  if (!virtualized || virtualized.containers === 0) return null;
+  const { containers, observedItems, declaredTotal } = virtualized;
+  if (declaredTotal === null) {
+    return {
+      cap: "MEDIUM",
+      reason: `${containers} virtualized list(s) render only the rows in view (${observedItems} rendered); how many rows exist is unknown, so the rest were not audited.`,
+    };
+  }
+  const unseen = Math.max(0, declaredTotal - observedItems);
+  const share = declaredTotal > 0 ? unseen / declaredTotal : 0;
+  return {
+    cap: share > MAX_UNSEEN_VIRTUALIZED_SHARE ? "LOW" : "MEDIUM",
+    reason: `${containers} virtualized list(s) render ${observedItems} of ${declaredTotal} declared rows; the other ${unseen} were not audited.`,
+  };
+}
 
 /**
  * Caps for an audit that could not see the application (brief section
@@ -326,6 +356,8 @@ export interface DomHealthAuditResult {
   /** Overlays and injected UI left out of the audit, per matcher. */
   excludedRoots: ExcludedRootSummary[];
   duplicateIds: DuplicateIdStats;
+  /** Virtualized lists found (WP B4); their unrendered rows are not in any count. */
+  virtualized: VirtualizedListSummary;
   /** Timings and budget of the last collection round (slowest frame); `auditMs` is the whole audit's wall time, set by `dom-health.ts`. */
   performance: CollectorPerformance & { auditMs?: number };
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
@@ -1025,7 +1057,11 @@ export function buildDomHealthAuditResult(
     ? Math.round(Math.min(100, Math.max(0, rawScore)))
     : null;
   const grade = score === null ? "NOT_ASSESSED" : gradeForScore(score);
-  const caps = frameConfidenceCaps(frameAccessibility, frames);
+  const virtualizedCap = virtualizedListCap(current.virtualized);
+  const caps = [
+    ...frameConfidenceCaps(frameAccessibility, frames),
+    ...(virtualizedCap ? [virtualizedCap] : []),
+  ];
   const confidence = applyConfidenceCaps(
     evidenceState === "FAILED" ||
       evidenceState === "NO_EVIDENCE" ||
@@ -1070,6 +1106,14 @@ export function buildDomHealthAuditResult(
       severity: "medium",
       title: "Ids shared by more than one element",
       evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
+    });
+  }
+  if (virtualizedCap) {
+    risks.push({
+      id: "virtualized-list-partial-coverage",
+      severity: "medium",
+      title: "Virtualized lists: only the rendered rows were audited",
+      evidence: `${virtualizedCap.reason} Coverage is partial: scroll the list, or audit each screen of it, to see the rest.`,
     });
   }
   const failureReasonSuffix = frameAccessibility.sampleFailureReasons?.length
@@ -1128,6 +1172,7 @@ export function buildDomHealthAuditResult(
     confidenceCaps: caps.map((c) => c.reason),
     excludedRoots: current.excludedRoots ?? [],
     duplicateIds,
+    virtualized: current.virtualized ?? NO_VIRTUALIZED_LISTS,
     performance: current.performance ?? NO_PERFORMANCE,
     scope: "page",
     scopeLabel: "CURRENT_PAGE",

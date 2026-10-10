@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDomHealthAuditResult,
   determineEvidenceState,
+  virtualizedListCap,
 } from "./dom-health-scoring";
 import type { FrameAccessibilitySummary } from "./frame-tree";
 
@@ -520,5 +521,65 @@ describe("buildDomHealthAuditResult — evidence state gates the score end to en
     expect(result.score).not.toBeNull();
     expect(result.evidenceState).toBe("PARTIAL_EVIDENCE");
     expect(result.risks.some((r) => r.id === "evidence-partial")).toBe(true);
+  });
+});
+
+describe("virtualized lists (B4)", () => {
+  const goodReports = () =>
+    Array.from({ length: 30 }, (_, i) =>
+      makeReport({
+        bestSelector: `[data-testid="action-${i}"]`,
+        stableAttributeNames: ["data-testid"],
+      }),
+    );
+  const virtualized = (
+    observedItems: number,
+    declaredTotal: number | null,
+  ) => ({
+    containers: 1,
+    observedItems,
+    declaredTotal,
+    samples: [],
+  });
+
+  it.each([
+    ["most rows unseen", virtualized(20, 1000), "LOW"],
+    ["most rows seen", virtualized(80, 100), "MEDIUM"],
+    ["an unknown total", virtualized(20, null), "MEDIUM"],
+  ])("caps confidence for %s", (_label, summary, cap) => {
+    expect(virtualizedListCap(summary)?.cap).toBe(cap);
+  });
+
+  it("does not cap a page without virtualized lists", () => {
+    expect(virtualizedListCap(undefined)).toBeNull();
+    expect(
+      virtualizedListCap({ ...virtualized(0, 0), containers: 0 }),
+    ).toBeNull();
+  });
+
+  it("reports partial coverage with a reason instead of a clean pass", () => {
+    const snapshot = makeSnapshot(goodReports(), {
+      virtualized: virtualized(20, 1000),
+    });
+
+    const result = buildDomHealthAuditResult([snapshot, snapshot], "virt");
+
+    expect(result.confidence).toBe("LOW");
+    expect(result.confidenceCaps).toContain(
+      "1 virtualized list(s) render 20 of 1000 declared rows; the other 980 were not audited.",
+    );
+    expect(result.risks.map((r) => r.id)).toContain(
+      "virtualized-list-partial-coverage",
+    );
+    expect(result.virtualized.declaredTotal).toBe(1000);
+  });
+
+  it("leaves a page without them as it was", () => {
+    const snapshot = makeSnapshot(goodReports());
+    const result = buildDomHealthAuditResult([snapshot, snapshot], "plain");
+    expect(result.risks.map((r) => r.id)).not.toContain(
+      "virtualized-list-partial-coverage",
+    );
+    expect(result.virtualized.containers).toBe(0);
   });
 });

@@ -103,6 +103,19 @@ const OVERLAY_PAGE = `<!doctype html><title>Overlay</title><body>
   <div id="intercom-container" style="position:fixed;bottom:0;right:0"><button>Chat</button></div>
 </body>`;
 
+/** A react-window style grid: 1,000 rows declared, 15 rendered at their absolute positions, scrolled to row 100. */
+const VIRTUALIZED_PAGE = `<!doctype html><title>Orders grid</title><body>
+  <h1>Orders</h1>
+  <div id="grid" role="grid" aria-rowcount="1000" style="height:450px;overflow:auto">
+    <div style="position:relative;height:30000px">${Array.from(
+      { length: 15 },
+      (_, i) =>
+        `<div role="row" data-index="${100 + i}" style="position:absolute;top:${(100 + i) * 30}px;height:30px"><div role="gridcell"><button type="button" data-testid="open-${100 + i}">Open order ${100 + i}</button></div></div>`,
+    ).join("")}</div>
+  </div>
+  <script>document.getElementById("grid").scrollTop = 3000;</script>
+</body>`;
+
 let browser;
 let model;
 let site;
@@ -124,6 +137,7 @@ before(async () => {
     "/spa/customers": SPA_SHELL,
     "/click.html": CLICK_ONLY_PAGE,
     "/overlay.html": OVERLAY_PAGE,
+    "/virtualized.html": VIRTUALIZED_PAGE,
   });
   browser = await launchBrowser();
 });
@@ -247,5 +261,53 @@ describe("DOM Health on six application shapes", () => {
     // The Agent's own UI is in the page during a run, and is left out too.
     assert.deepEqual(matchers, ["id:_pendo-", "id:aipex-", "id:intercom-"]);
     assert.equal(result.coverage.elementsAnalyzed, 2);
+  });
+
+  it("virtualized grid: reports the rendered and declared rows as partial coverage, and leaves the scroll position alone (B4)", async () => {
+    const page = await browser.context.newPage();
+    await page.goto(`${site.origin}/virtualized.html`);
+    await page.waitForLoadState("load");
+    const scrollBefore = await page.evaluate(
+      () => document.getElementById("grid").scrollTop,
+    );
+    const panel = await openSidePanel(browser, model, page);
+    model.script(callToolThenReport("run_dom_health_audit", {}));
+    await chatAndWait(panel, "check dom health of this page", {
+      timeout: 150_000,
+    });
+    const result = toolResults(model.requests.at(-1)).at(-1);
+
+    assert.deepEqual(
+      {
+        containers: result.virtualized.containers,
+        observedItems: result.virtualized.observedItems,
+        declaredTotal: result.virtualized.declaredTotal,
+      },
+      { containers: 1, observedItems: 15, declaredTotal: 1000 },
+      JSON.stringify(result.virtualized),
+    );
+    // Real layout also shows the grid scrolling far beyond its rows.
+    assert.deepEqual(result.virtualized.samples[0].signals, [
+      "aria-count",
+      "index-gap",
+      "scroll-height",
+    ]);
+    assert.equal(result.confidence, "LOW");
+    assert.ok(
+      result.confidenceCaps.includes(
+        "1 virtualized list(s) render 15 of 1000 declared rows; the other 985 were not audited.",
+      ),
+      JSON.stringify(result.confidenceCaps),
+    );
+    assert.ok(
+      result.risks.some((r) => r.id === "virtualized-list-partial-coverage"),
+    );
+    assert.equal(
+      await page.evaluate(() => document.getElementById("grid").scrollTop),
+      scrollBefore,
+    );
+    assert.equal(scrollBefore, 3000);
+    await panel.close();
+    await page.close();
   });
 });

@@ -79,6 +79,7 @@ import type {
   ElementSelectorReport,
   StabilityVerdict,
 } from "./health-types.js";
+import { detectVirtualizedLists } from "./health-virtualized.js";
 import {
   findIgnoredRoots,
   type IgnoredRootMatcher,
@@ -1114,6 +1115,7 @@ export async function collectDomHealthSnapshot(
     elementPathSamples: state.elementPathSamples,
     excludedRoots: ignored.summary,
     duplicateIds,
+    virtualized: detectVirtualizedLists(rootDocument),
     performance: {
       timings: {
         ignoredRootsMs: round(ignoredRootsMs),

@@ -517,6 +517,31 @@ confidence was lowered:
 
 The thresholds read "any" and "most" literally and are unverified.
 
+## Virtualized lists (`health-virtualized.ts`, WP B4)
+
+A virtualized grid or list renders only the rows in view, so an audit sees
+a fraction of its controls. Each snapshot reports
+`virtualized: { containers, observedItems, declaredTotal, samples }`
+(merged across frames; `declaredTotal` is null when any list's total is
+unknown). Signals, read through shadow roots:
+
+- `aria-count`: `aria-rowcount`, `aria-colcount` or `aria-setsize` larger
+  than what is rendered, or -1;
+- `index-gap`: sibling `data-index` / `data-row-index` values that don't
+  start at 0 or skip numbers;
+- `spacer`: an empty child at least 500 px tall (inline style) next to two
+  or more items;
+- `scroll-height`: a list-like container whose scroll height is at least
+  twice, and 1,000 px more than, its rendered items' height.
+
+A grid and its row wrapper flagged separately count as one list. A page
+with virtualized lists gets the `virtualized-list-partial-coverage` risk
+and a confidence cap: MEDIUM, or LOW when more than half the declared rows
+were not rendered. All thresholds are general knowledge of react-window,
+AG Grid and TanStack Virtual, unverified on the two applications. The
+route probe shows the same summary per frame. The optional scroll sample
+(top, middle, bottom) was not built: the audit never scrolls.
+
 ## Coverage is "observed", never "total"
 
 `ApplicationCoverage.coverageLabel` is always `"OBSERVED_COVERAGE"` — this

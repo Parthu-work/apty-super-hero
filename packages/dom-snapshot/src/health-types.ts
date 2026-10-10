@@ -12,6 +12,7 @@
 import type { ElementRef } from "./element-ref.js";
 
 /** Attributes on an analyzed element — never includes input values. */
+import type { VirtualizedListSummary } from "./health-virtualized.js";
 import type { ExcludedRootSummary } from "./ignored-roots.js";
 
 export interface DomHealthElementAttributes {
@@ -391,6 +392,8 @@ export interface DomHealthSnapshot {
   excludedRoots: ExcludedRootSummary[];
   duplicateIds: DuplicateIdStats;
   performance: CollectorPerformance;
+  /** Lists that render only the rows in view (`health-virtualized.ts`): their unseen rows are not in any count above. Absent from snapshots taken before it was measured. */
+  virtualized?: VirtualizedListSummary;
 }
 
 /** How long a collection took, how it shared the page's main thread, and whether a budget cut it short (brief section 4.11). */

@@ -26,6 +26,7 @@ import {
   type ElementSelectorReport,
   type FrameStateSignature,
   mergeExcludedRoots,
+  mergeVirtualizedLists,
 } from "@apty/dom-snapshot";
 import {
   type FrameKey,
@@ -828,6 +829,7 @@ export function aggregateFrameSnapshots(
     ),
     duplicateIds,
     performance: mergePerformance(read),
+    virtualized: mergeVirtualizedLists(read.map((f) => f.snapshot.virtualized)),
   };
 }
 

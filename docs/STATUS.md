@@ -18,7 +18,8 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   (`click` and `computer`), and `create_new_tab` to another origin; a URL
   with a long query or a non-web scheme always asks.
 - DOM Health in same-origin, cross-origin, `data:` and frameset frames,
-  open and closed shadow roots, and tabs opened before an extension update.
+  open and closed shadow roots, and tabs opened before an extension update. Virtualized lists (B4) are reported
+  as partial coverage with the rendered and declared row counts.
 - Page console output (including during page load), network capture with
   opt-in response bodies, runtime diagnostics, screenshots, clicks and
   scrolling.

@@ -90,6 +90,17 @@ export {
 } from "./health-state-signature.js";
 export * from "./health-types.js";
 export {
+  detectVirtualizedLists,
+  mergeVirtualizedLists,
+  NO_VIRTUALIZED_LISTS,
+  SCROLL_HEIGHT_EXCESS_PX,
+  SCROLL_HEIGHT_RATIO,
+  SPACER_MIN_PX,
+  type VirtualizationSignal,
+  type VirtualizedContainer,
+  type VirtualizedListSummary,
+} from "./health-virtualized.js";
+export {
   DEFAULT_IGNORED_ROOTS,
   describeMatcher,
   type ExcludedRootSummary,

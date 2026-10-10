@@ -61,6 +61,7 @@ function StepView({ step }: { step: RouteProbeStep }) {
             <th>Heading</th>
             <th>Active nav</th>
             <th className="w-12">pushState</th>
+            <th className="w-16">Virtualized</th>
             <th>First request</th>
           </tr>
         </thead>
@@ -79,6 +80,9 @@ function StepView({ step }: { step: RouteProbeStep }) {
               <td className="truncate">{show(frame.heading)}</td>
               <td className="truncate">{show(frame.activeNav)}</td>
               <td>{frame.pushStateCount ?? "—"}</td>
+              <td title="Virtualized lists: rendered of declared rows">
+                {describeVirtualized(frame.virtualized)}
+              </td>
               <td className="truncate">
                 {frame.firstRequest
                   ? `${frame.firstRequest.initiatorType} ${frame.firstRequest.path}`
@@ -90,6 +94,14 @@ function StepView({ step }: { step: RouteProbeStep }) {
       </table>
     </li>
   );
+}
+
+/** "2 (40/1000)": lists, rendered rows / declared rows ("?" when unknown); "—" when none or not read. */
+export function describeVirtualized(
+  virtualized: RouteProbeFrameRecord["virtualized"] | undefined,
+): string {
+  if (!virtualized || virtualized.containers === 0) return "—";
+  return `${virtualized.containers} (${virtualized.observedItems}/${virtualized.declaredTotal ?? "?"})`;
 }
 
 function saveReport(report: RouteProbeReport) {
