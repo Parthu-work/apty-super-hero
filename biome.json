@@ -6,7 +6,13 @@
     "indentStyle": "space",
     "indentWidth": 2
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "css": {
     "parser": {
       "tailwindDirectives": true
@@ -20,7 +26,13 @@
         "useSemanticElements": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off"
+        "noExplicitAny": "warn",
+        "noConsole": {
+          "level": "error",
+          "options": {
+            "allow": ["warn", "error"]
+          }
+        }
       },
       "style": {
         "noNonNullAssertion": "off"
@@ -44,6 +56,27 @@
         "rules": {
           "complexity": {
             "noBannedTypes": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "tooling/**",
+        "packages/*/scripts/**",
+        "packages/agent-core/examples/**",
+        "packages/browser-runtime/src/skills/built-in/**/scripts/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/__tests__/**",
+        "apps/browser-extension/src/entrypoints/content/console-bridge.ts",
+        "packages/agent-core/src/utils/logger.ts",
+        "docs/integrations/apty/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
           }
         }
       }

@@ -87,6 +87,9 @@ jobs:
       - name: Skipped tests say why
         run: npm run audit:test-skips
 
+      - name: No new explicit any
+        run: npm run audit:any
+
       - name: Dependency vulnerability audit
         run: pnpm audit --prod
 

@@ -47,6 +47,7 @@
 import { generateId } from "@apty/agent-core";
 import { redactHeaders, redactUrl } from "@apty/debug-contract";
 import { CdpCommander } from "../automation/cdp-commander.js";
+import type { CdpEventParams } from "../automation/cdp-event-params.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
 import { redactText } from "../runtime/redaction-mode.js";
 import { recordEvidence } from "./evidence-store.js";
@@ -151,7 +152,7 @@ export const CAPTURE_KEEPALIVE_ALARM_NAME = "apty-network-capture-keepalive";
 const CAPTURE_KEEPALIVE_INTERVAL_MINUTES = 0.4;
 
 function getChromeApi(): typeof chrome | undefined {
-  return (globalThis as any).chrome as typeof chrome | undefined;
+  return (globalThis as { chrome?: typeof chrome }).chrome;
 }
 
 /** Creates the keepalive alarm exactly when the FIRST capture (across all conversations) starts — a reference-counted create, not one-per-capture, since chrome.alarms has no concept of "this alarm, but only while condition X" and recreating an already-existing alarm with the same name just resets its schedule (harmless but pointless). */
@@ -246,7 +247,7 @@ let cleanupListenersRegistered = false;
 /** Registers the forced-cleanup listeners exactly once, lazily — mirrors debugger-manager.ts's own lazy `initialize()` pattern so importing this module in a non-extension context (e.g. a test) never throws on a missing `chrome` global. */
 function ensureCleanupListenersRegistered(): void {
   if (cleanupListenersRegistered) return;
-  const chromeApi = (globalThis as any).chrome as typeof chrome | undefined;
+  const chromeApi = (globalThis as { chrome?: typeof chrome }).chrome;
   if (!chromeApi) return;
   cleanupListenersRegistered = true;
 
@@ -361,7 +362,7 @@ export async function startNetworkCapture(
     params?: object,
   ) => {
     if (source.tabId !== tabId) return;
-    const p = params as Record<string, any>;
+    const p = (params ?? {}) as CdpEventParams;
     if (method === "Network.requestWillBeSent") {
       if (
         !requests.has(p.requestId) &&

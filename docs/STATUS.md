@@ -80,7 +80,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
 | Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | The owner runs [`real-tenant-validation.md`](development/real-tenant-validation.md) and returns the bundles |
-| Turn on `noExplicitAny` | About 130 `any` to replace; the rule is off |
+| Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | Rename the inherited `aipex_*` storage keys | A migration for existing installs |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 

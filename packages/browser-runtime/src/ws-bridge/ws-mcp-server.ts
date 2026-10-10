@@ -395,9 +395,10 @@ export class WsMcpServer {
     // A call can arrive right after the service worker woke up.
     await Promise.all([evidenceRestored, investigationsRestored]);
 
-    // FunctionTool.invoke(runContext, inputJsonString, details?)
-    // We pass an empty object as RunContext since we're outside the agent loop.
-    return await (browserTool as any).invoke({} as any, JSON.stringify(args));
+    // FunctionTool.invoke(runContext, inputJsonString, details?). The bridge
+    // runs outside the agent loop, so the tool gets an empty run context.
+    const outsideAgentLoop = {} as Parameters<FunctionTool["invoke"]>[0];
+    return await browserTool.invoke(outsideAgentLoop, JSON.stringify(args));
   }
 
   private async sendResult(

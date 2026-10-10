@@ -63,6 +63,25 @@ code (`ChromeStorageAdapter`, browser tools, DOM APIs) stays in
   `<all_urls>`/`debugger` permissions for its debugging use case; don't widen
   that surface without a reason.
 
+## Logging and typing
+
+- Log through `createLogger("Area")` from `@apty/agent-core`. Production
+  builds print warnings and errors only; Settings → Troubleshooting →
+  Verbose logging turns debug output on. Biome's `noConsole` rejects
+  `console.log`, `console.info` and `console.debug` in source; `warn` and
+  `error` are allowed. Exceptions (in `biome.json`): tooling scripts and
+  e2e, build scripts, example programs, the skill scripts that run in the
+  sandbox, tests, the console bridge (it wraps console methods), the logger
+  itself and the hand-off reference under `docs/integrations/apty`.
+  `tooling/e2e/console-output.e2e.test.mjs` checks the built extension
+  prints nothing below a warning.
+- Never log keys, tokens, URLs with query strings or page content.
+- No new explicit `any`: `noExplicitAny` warns, and `npm run audit:any`
+  (CI) fails when a file's count rises above
+  `tooling/scripts/any-baseline.json`. After removing some, run
+  `node tooling/scripts/check-any-baseline.mjs --update`; counts only go
+  down.
+
 ## Tests
 
 - Co-locate unit tests next to the source file (`foo.ts` / `foo.test.ts`),

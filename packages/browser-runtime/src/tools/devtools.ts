@@ -32,6 +32,7 @@ import {
   summarizeLogCategories,
 } from "../apty/index.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
+import type { CdpEventParams } from "../automation/cdp-event-params.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
 import { redactText } from "../runtime/redaction-mode.js";
 import { gateRiskyAction } from "./approval.js";
@@ -151,7 +152,7 @@ export const getNetworkDiagnosticsTool = tool({
         const byId = new Map<string, CapturedRequest>();
 
         onEvent((method, params) => {
-          const p = params as Record<string, any>;
+          const p = (params ?? {}) as CdpEventParams;
           if (method === "Network.requestWillBeSent") {
             byId.set(p.requestId, {
               requestId: p.requestId,
@@ -282,7 +283,7 @@ export const getRuntimeDiagnosticsTool = tool({
           const collected: CapturedRuntimeEvent[] = [];
 
           onEvent((method, params) => {
-            const p = params as Record<string, any>;
+            const p = (params ?? {}) as CdpEventParams;
             if (method === "Log.entryAdded") {
               const level = p.entry?.level;
               const source = p.entry?.source;

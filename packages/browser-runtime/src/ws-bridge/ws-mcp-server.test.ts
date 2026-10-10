@@ -1,3 +1,4 @@
+import { setLogLevel } from "@apty/agent-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const tools = vi.hoisted(() => ({
@@ -321,5 +322,55 @@ describe("WsMcpServer keepalive", () => {
     expect(socket.sent).toEqual([
       expect.objectContaining({ jsonrpc: "2.0", method: "ping" }),
     ]);
+  });
+});
+
+describe("WsMcpServer logging", () => {
+  afterEach(() => {
+    setLogLevel("debug");
+  });
+
+  function captureConsole() {
+    const lines: string[] = [];
+    for (const level of ["debug", "info", "log", "warn", "error"] as const) {
+      vi.spyOn(console, level).mockImplementation((...args: unknown[]) => {
+        lines.push(`${level} ${args.map(String).join(" ")}`);
+      });
+    }
+    return lines;
+  }
+
+  it("never logs the token, through connect, a tool call, a reconnect and disconnect", async () => {
+    vi.useFakeTimers();
+    setLogLevel("debug");
+    const lines = captureConsole();
+    tools.invoke.mockRejectedValue(new Error("boom"));
+    const server = new WsMcpServer();
+    const socket = await connected(server);
+    socket.receive({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "get_current_tab" },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    socket.onclose?.();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await server.disconnect();
+
+    expect(
+      lines.some((line) => line.startsWith("debug [WsMcpServer] Connected to")),
+    ).toBe(true);
+    expect(lines.join("\n")).not.toContain(TOKEN);
+  });
+
+  it("prints no debug output at the production level", async () => {
+    setLogLevel("warn");
+    const lines = captureConsole();
+    const server = new WsMcpServer();
+    await connected(server);
+    await server.disconnect();
+
+    expect(lines).toEqual([]);
   });
 });
