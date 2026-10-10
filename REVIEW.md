@@ -1,130 +1,427 @@
-# Review build — v7 WP1 ("Apty Integration pulls logs and response data perfectly")
+# Checkpoint A review: security and privacy core (A1, A2, A3)
 
-Branch `review/production-ready`, cut from `origin/main` at `dbabc40` (the
-v7 prompt's own stated audited base — confirmed matching). Per the v7
-prompt's own rule 0.2, **nothing has been pushed, and this is
-not a push-ready build** — it's a review checkpoint. This file, the build
-zip, the git bundle and checksums are the deliverable; after you test it
-and send feedback, the next round fixes it on this same branch and issues
-a new build. Only once you write "approved" does a round produce the
-final push-to-main bundle and commands.
-
-## 1. Scope of this round (read this first)
-
-The v7 prompt is nine work packages, each with its own real-browser gate —
-genuinely weeks of work. This round scoped to **WP1 only**, and within
-WP1, to the concrete correctness bugs that are the actual substance of
-"pull logs/data perfectly," rather than also attempting WP1 item 2's full
-wire-protocol rewrite (`ExtensionPeerClient`) in the same pass. A prior
-session's attempt at doing both at once is exactly why that draft shipped
-broken: 38 failing tests, the acceptance fixture never built, zero tests
-on its new module. See `docs/development/STATUS_HISTORY.md`'s "Audit of a WP1 draft" section
-for the full findings from reviewing that attempt (not applied, not built
-on — this round re-implemented WP1 from scratch against the real repo).
-
-**What's in this build**, with a permanent regression test for all of it
-together (`packages/browser-runtime/src/apty/wp1-acceptance.test.ts`):
-
-| Fix | What changed |
+| | |
 |---|---|
-| Routing | System prompt and investigation planner both try the Apty Client/cross-extension path FIRST when a Client is configured; page-level capture is the fallback. (Reverts `c17c241`/`7c37064`'s capture-first order from a prior round.) |
-| Tolerant matching | "segments.json" now finds a resource actually named "segment.json" — case-insensitive, singular/plural, extension-optional, query-string-insensitive. "Did you mean" suggestions on no match; discloses when several resources matched. |
-| Bodies for every status | A 403/500 response's body (often the actual error message) is now returned, not just a bare failure — previously only 2xx bodies came back. |
-| Bounded payloads | A large JSON body (e.g. 206 segments) now gives the model a small structured summary (count, keys, a few sample items) instead of a blind 8000-character text slice that could cut off mid-item. A new `get_evidence_json` tool lets the model page through the FULL body afterward on request — the full body is always available, just not force-fed on the first call. |
-| Log output | Service-worker logs default to 50 entries, collapse repeated identical lines (`×N`), truncate long messages (expandable), and report counts per level. |
-| PII fix | A bare `name` key (a segment/flow/feature name) is no longer wholesale-redacted as if it were a person's name — it never should have been; real person-identifying keys (`fullName`, `firstName`, `username`, ...) still are. |
+| Branch | `hardening/open-work` (local only, never pushed) |
+| Base | `origin/main` at `dc27e2f` |
+| Code head | `d924303` (A3); the branch head is the next commit, which adds this file |
+| Build zip | `apty-agent-review-A-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
+| Git bundle | `apty-A-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f` |
+| Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
 
-**Explicitly NOT in this build** (see `docs/tasks/wp1-apty-integration.md`
-for the complete list and why): the full `ExtensionPeerClient` wire-protocol
-rewrite, cursor persistence across service-worker restarts, peer config
-migration, tool renaming, the polished JSON-tree-viewer UI component (its
-backend is built; the UI panel itself is WP7 scope), and any real-browser
-Puppeteer e2e run (this round's fixture is unit-level against mocked
-`chrome.*`, the same pattern every other test in this codebase already
-uses — thorough, but not a substitute for WP8's real-browser gate). WP2
-through WP9 are entirely untouched this round; their spec text is saved to
-`docs/tasks/wp2-*.md` through `wp9-*.md` for whenever they're picked up.
+This file replaces the previous round's `REVIEW.md` (the v7 WP1 review),
+following that file's own convention of one review per round. Its text is
+unchanged in git history: `git show dc27e2f:REVIEW.md`.
 
-## 2. Files in this delivery
+## Commits
 
-| File | What it is |
+| Commit | Work package |
 |---|---|
-| `apty-agent-review-wp1.zip` | Production build of `apps/browser-extension/dist`, built from a clean tree (`pnpm install --frozen-lockfile`, `pnpm build`). Unzip and "Load unpacked" in `chrome://extensions`. |
-| `apty-review-wp1.bundle` | Git bundle of every new commit (`origin/main..review/production-ready`), verified with `git bundle verify`. Requires `origin/main`'s current `dbabc40` as a prerequisite — confirmed present. Run `git log --oneline origin/main..review/production-ready` after fetching it to see the exact commit list. |
-| `SHA256SUMS.txt` | Checksums for both files above. |
-| `REVIEW.md` | This file (also committed at the repo root on the review branch). |
+| `79f7e66` | Spec saved as `docs/tasks/master/00-rules.md` plus one file per work package |
+| `aa35083` | A1: ask before risky clicks and before opening other origins |
+| `b2f58a0` | A2: apply the body deny list to Apty Client bodies |
+| `d924303` | A3: a redaction mode setting, honoured by every caller |
+| branch head | This `REVIEW.md` |
 
-## 3. Verification run this session
-
-`tooling/scripts/verify-quiet.sh typecheck lint test build audit` — all
-green. 522 tests passing in `packages/browser-runtime` (9 new acceptance
-tests, 2 pre-existing tests updated to match the corrected redaction
-behavior, the rest unaffected). Clean production build including
-`apps/mcp-bridge` and the tailwind-sources check (100% coverage). `dist/`
-checked for `.env` files, source maps, and test-only markers — none found.
-`manifest.json`'s `key` field present and unchanged — extension ID is
-unchanged from your currently-installed copy. Diff secret-scanned against
-AWS/GitHub/Slack/Google/Anthropic key shapes and PEM headers — 0 matches.
-
-## 4. Expected Agent extension ID
-
-Unchanged from your current install — this round didn't touch
-`manifest.json`.
-
-## 5. How to load this build
+## Gates (clean build of the branch head)
 
 ```
-unzip apty-agent-review-wp1.zip -d apty-agent-review-wp1
+$ rm -rf apps/browser-extension/dist
+$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
+✓ typecheck (10s)
+✓ lint (1s)
+✓ test (52s)
+✓ audit (1s)
+✓ build (20s)
 ```
-Then `chrome://extensions` → enable Developer mode → remove any previously
-loaded copy if you want a clean reload → "Load unpacked" → select the
-`apty-agent-review-wp1` folder (the one containing `manifest.json` at its
-top level).
 
-## 6. 15-minute test script
+Unit tests inside `test`:
 
-1. Configure an AI provider in Settings and confirm "Test connection" succeeds.
-2. Settings → Apty Integration → confirm your Apty Client extension ID is
-   configured (unchanged from before this round).
-3. Ask the agent: *"start a network capture, reload this page, then stop
-   the capture and show me segments.json's data"* — wait, actually test
-   the PRIMARY path this round restored: with the Apty Client connected,
-   just ask directly: *"get the data from segments.json"* (or whatever
-   resource your real Apty Client actually serves). Confirm:
-   - It tries `inspect_extension_network` FIRST (not page capture) — it
-     should state the Apty Client integration answered.
-   - If your real resource is named slightly differently (plural/singular,
-     with/without extension) than what you typed, it should still find it
-     — this is the tolerant-matching fix.
-   - If the resource ever returns a non-200 status in your environment,
-     confirm the error body comes back rather than a bare failure.
-4. Ask: *"get the Apty Client's service worker logs"* — confirm the
-   response is capped (not a wall of hundreds of lines), repeated
-   identical lines are shown once with a count, and nothing looks like raw
-   PII (emails, user ids) in the returned text.
-5. If you have a resource with a real `name`/configuration field, confirm
-   it's NOT shown as `<REDACTED>` anymore (the fixed bug).
-6. Reload the extension (`chrome://extensions` → refresh icon) and confirm
-   your Apty Client connection/approval still works afterward (this round
-   didn't touch persistence, but worth re-confirming nothing regressed).
+```
+packages/apty-debug-contract   Tests  72 passed (72)
+packages/agent-core            Tests 260 passed (260)
+packages/dom-snapshot          Tests 355 passed (355)
+packages/ui                    Tests 188 passed | 10 skipped (198)   (the 10 skips are pre-existing; C4)
+packages/browser-runtime       Tests 788 passed (788)
+apps/browser-extension         Tests 202 passed (202)
+apps/mcp-bridge                Tests  44 passed (44)
+```
 
-**What to report back:** anything in steps 3-5 that doesn't match, any
-console errors, and whether the real Apty Client's actual resource/log
-shapes differ from what this round's acceptance fixture assumed (206-item
-array, 403-with-XML-body, etc.) — real-world shape mismatches are exactly
-what a review round like this is for catching before WP8's real-browser
-e2e work.
+Audit step: manifest valid, no architecture-boundary violations, no
+unreviewed branding, no duplicate tool names, MCP bridge docs consistent.
 
-## 7. Known, not-yet-addressed items
+```
+$ npm run test:e2e        (Chromium from /opt/pw-browsers, against the clean build)
+# tests 56
+# suites 10
+# pass 56
+# fail 0
+# cancelled 0
+# skipped 0
 
-See `docs/tasks/wp1-apty-integration.md`'s "explicitly deferred" list and
-`docs/development/STATUS_HISTORY.md` for the full detail. In short: the deeper wire-protocol
-rewrite (cursor persistence, full identity/contract-mismatch error
-handling, peer config migration) and WP2 through WP9 in their entirety.
-None of them block the core demo path this round targeted.
+$ npm run test:coverage   (CI's gate; not part of verify-quiet)
+browser-runtime  Statements 90.52%  Branches 82.6%  Functions 93.15%  Lines 92.72%   (exit 0)
+apty-debug-contract  Statements 91.7%  Branches 84.67%  Functions 96.42%  Lines 94.83%   (exit 0)
+```
 
-## 8. Rollback
+The packaged manifest still has `"externally_connectable": {"ids": []}`.
 
-`git reset --hard origin/main` on the `review/production-ready` branch
-drops all 5 of this round's commits. Nothing has touched `main` or any
-other branch.
+## Secret scan of the diff
+
+TruffleHog 3.99.2 (the version CI pins; download checked against the
+release's published SHA-256), over every commit in `origin/main..HEAD`,
+with no exclude list and with verification turned off so no candidate is
+sent to a third party:
+
+```
+$ trufflehog git file://. --since-commit origin/main --branch hardening/open-work --no-verification --no-update --json
+"chunks":707  "bytes":681296  "verified_secrets":0  "unverified_secrets":0
+```
+
+## A1: Gate state-changing clicks and new tabs (done)
+
+What changed:
+
+- `packages/browser-runtime/src/tools/click-risk.ts` (new):
+  - `classifyClickRisk(target)` is pure. A click is risky when the target
+    is a submit control (`button[type=submit]`, `input[type=submit|image]`,
+    a typeless `button` inside a `<form>`), or its accessible name contains
+    a word from `RISKY_CLICK_WORDS`, or it links to another origin (or a
+    non-web URL), or it sits on a frame or canvas, or it cannot be found.
+  - `classifyNewTabUrl(url, currentPageUrl)` decides the new-tab policy.
+  - `inspectClickTargetInPage` finds the element by snapshot uid (in any
+    frame, through open and closed shadow roots) or at a viewport point,
+    and describes the control a click would activate.
+  - `describeClickForApproval` builds the prompt text: role, accessible
+    name, tag, form method and action, link and page origin.
+- `click`: safe clicks run at once; risky ones go through `gateRiskyAction`.
+- `computer`: the click actions and `left_click_drag` map the screenshot
+  point to the element under it (both ends of a drag) and apply the same
+  rules. With no screenshot to map the point, or a frame or canvas under
+  it, the click asks.
+- `create_new_tab`: the same origin as the current tab opens at once.
+  Another origin asks, and an "Allow on this site" grant is keyed on the
+  destination origin. A non-`http(s)` scheme, or a query plus fragment over
+  128 characters, always asks and never offers "Allow on this site". The
+  prompt shows the full URL.
+- `gateRiskyAction` takes `{ rememberable: false }`: it ignores and never
+  creates grants. The prompt hides "Allow on this site" for such requests.
+- Every affected tool description has an `APPROVAL:` sentence and tells the
+  model that a `denied` result must not be retried. MCP calls use the same
+  tools and the existing relay.
+- Docs: `docs/security/SECURITY_AUDIT.md` finding #18,
+  `docs/security/PERMISSIONS.md` "Tools that wait for a person's click",
+  `docs/STATUS.md`.
+
+Tests:
+
+- Unit:
+  - `click-risk.test.ts` (33): the classifier table, the new-tab policy for
+    same origin, cross origin, long query, long fragment, `data:`,
+    `javascript:`, `chrome:` and unparseable URLs, and the inspector
+    wrapper (fails closed).
+  - `element.test.ts` (+5: click).
+  - `computer.test.ts` (+4).
+  - `tab.test.ts` (5, new).
+  - `approval.test.ts` (+1: a non-rememberable request).
+  - `approval-prompt.test.tsx` (+1: no remember button).
+- e2e, "approval for clicks and new tabs (A1)" in `agent.e2e.test.mjs`
+  (6 tests):
+  - Deny on `create_new_tab` to `http://127.0.0.1:<evil port>/?d=<200-char
+    secret>` leaves the evil server with **zero requests**, and the prompt
+    offers no "Allow on this site".
+  - "Allow once" opens it.
+  - A benign click runs with no prompt.
+  - A "Delete" submit button prompts (showing `Form: POST …/orders/delete`)
+    and Deny leaves the page counter at 0.
+  - A `computer` click at that button's coordinates prompts.
+  - "Allow on this site" for `click` does not enable `create_new_tab`, and
+    "Revoke all" in Options makes the click ask again.
+
+  All existing agent tests still pass.
+
+## A2: Deny list for Apty Client bodies (done)
+
+What changed:
+
+- `inspectResource` loads Settings → Data handling's deny list itself and
+  checks the resource URL before `getResourceBody`. On a match:
+  - it returns `status: "body_denied"`, the request metadata, `deniedBy`
+    (the entry) and how to change it;
+  - it never calls the Client's `get-resource-body`;
+  - it records no evidence, so `get_evidence_json` cannot expose the body.
+- `matchingDenyEntry` reports which entry matched (`isUrlDenied` uses it).
+- Data-handling card:
+  - the list stays editable when page capture is off (Client bodies don't
+    depend on that switch);
+  - its copy says it covers the Apty Client;
+  - the placeholder shows `/users/`, `/api/me` and `/userinfo` as examples;
+  - the default stays `[]`.
+- `PRIVACY.md`, `docs/TROUBLESHOOTING.md`, `docs/STATUS.md` and the
+  inspect tool's description explain `body_denied`.
+
+Tests:
+
+- Unit: `extension-network-inspector.test.ts` (+5): denied (never asks the
+  Client, no evidence), a host entry, an allowed body in full, and an empty
+  list or no settings. `resource-body-utils.test.ts` (+2) and
+  `data-handling-card.test.tsx` (+1, 1 updated).
+- e2e, `apty-client.e2e.test.mjs` (1 new):
+  - the fake Client serves `/users/4815162342.json` and `segment.json`;
+  - with `/users/` on the list the agent gets `body_denied`, and the
+    Client's recorded `get-resource-body` calls are exactly `["r1"]` (the
+    segments body), so the denied body was never requested;
+  - `segment.json` returns in full;
+  - clearing the list returns the preference body.
+
+## A3: Redaction mode control (done)
+
+What changed:
+
+- `AppSettings.redactionMode` (default `"strict"`).
+- `packages/browser-runtime/src/runtime/redaction-mode.ts` is the one
+  accessor:
+  - `getRedactionMode()` reads the setting once and caches it;
+  - `chrome.storage.onChanged` updates the cache;
+  - `currentRedactionMode()` is strict until the first read completes;
+  - callers redact only through `redactText` and `redactLogEntries`.
+- All 17 call sites in 10 files were moved to those wrappers. The side
+  panel and the service worker read the mode at startup.
+- `redaction-mode.test.ts` scans every non-test source file in
+  browser-runtime, the extension app, ui, agent-core and dom-snapshot, and
+  fails on any direct call to the redaction library. I proved it fails by
+  adding a temporary direct call (not committed).
+- Settings → General → Data handling → Redaction:
+  - Strict (recommended), Standard, and Off (development only), each with a
+    plain description and its own Preview of a fake sample, before and
+    after;
+  - Off opens a confirmation dialog that says structural secret redaction
+    stays on;
+  - the preview function is passed in by the options page, so `@apty/ui`
+    still depends only on agent-core.
+- Side panel: a persistent "Redaction is OFF" banner with a Change button.
+- Exports: message Copy and Download begin with
+  `Apty Agent export · redaction mode: <mode> · <ISO time>`. The response
+  viewer adds that header to text bodies, and for JSON puts the mode in the
+  file name and next to the buttons (see Decisions).
+- `PRIVACY.md` (mode table) and `docs/STATUS.md`.
+
+Tests:
+
+- Unit:
+  - `redaction-mode.test.ts` (16): reads, defaults, caching (one storage
+    read), invalidation by change events, ignores other areas and keys,
+    Strict vs Standard vs Off output, a JWT masked in Off, and the bypass
+    scan.
+  - `redaction-mode-control.test.tsx` (6), `export-header.test.ts` (3),
+    `message-item.test.tsx` (+1), `redaction-off-banner.test.tsx` (4) and
+    `redact.test.ts` (+1).
+- e2e, `redaction.e2e.test.mjs` (3, new):
+  - a fresh profile is strict, and the model sees neither the page title
+    nor the username;
+  - Standard shows the page title and still masks the username;
+  - Off needs confirmation ("Keep current mode" leaves Standard), the mode
+    survives an Options reload, the side panel shows "Redaction is OFF" and
+    keeps it after a reload, the username is visible, and the JWT is still
+    masked.
+
+## Not done, or partial
+
+Nothing in Phase A is partial. Not verified:
+
+- A real model was not used; every e2e test drives the real side panel with
+  a scripted model. Whether a real model retries after a `denied` click is
+  up to the model; the tool tells it not to.
+- No real Apty Client and no real customer tenant were used (B1 and B2 are
+  the owner's runs).
+- The MCP path for the new click and tab gates is covered by the existing
+  relay tests and unit tests, not by a new MCP e2e test.
+
+## Conflicts between the prompt and the repo
+
+- The prompt says `origin/main` has 190 commits; `git rev-list --count
+  origin/main` gives 107 at `dc27e2f`.
+- Owner checklist:
+  - the boxes were not ticked;
+  - `docs/integrations/apty/reference-js/` is absent, so WP-B1 will be
+    skipped and reported in Phase B;
+  - `SKILLS_DECISION` was not edited, so the default KEEP applies (D1);
+  - Chromium is at `/opt/pw-browsers`.
+- The prompt's bundle command `git bundle create … origin/main..HEAD`
+  produces a bundle with only a `HEAD` ref, which the apply command `git
+  fetch <bundle> hardening/open-work:bundle-work` cannot fetch. I built the
+  bundle with both `HEAD` and `refs/heads/hardening/open-work` and tested
+  the apply flow in a scratch clone (fetch, "fast-forward OK", 4 commits).
+- A1:
+  - **"save" is not in the word list.** The spec's examples don't name it,
+    and the existing core-tools e2e clicks a "Save order" button expecting
+    no prompt. See Decisions.
+  - **Point lookup method.** The spec offers CDP `DOM.getNodeForLocation`
+    or `elementFromPoint` through the frame responder. I used
+    `chrome.scripting.executeScript` with `document.elementFromPoint` in the
+    top frame (no debugger attach, the same pattern the DOM locator uses).
+    A frame under the point counts as unresolvable, so the click asks.
+  - **A test updated to the new behaviour.** `computer.test.ts` had "left_click runs immediately with no
+    approval", asserting the ungated behaviour this package reverses. It is
+    kept, now with a known-safe target, alongside new risky and fail-closed
+    cases. No test was deleted.
+  - **Unit-test gap for the in-page inspector.** `inspectClickTargetInPage`
+    has no jsdom unit test: jsdom is not a browser-runtime dependency, and
+    adding it would be a new dependency. It is covered by the real-Chromium
+    e2e tests.
+- A2:
+  - **Privacy statement location.** The spec says "the privacy statement
+    under `docs/`", but the privacy statement is `PRIVACY.md` at the repo
+    root. I updated that file and `docs/TROUBLESHOOTING.md`.
+  - **A test updated to the new behaviour.** `data-handling-card.test.tsx`
+    asserted the list is disabled while page capture is off. That would
+    stop a user from protecting Client bodies, so the assertion now
+    requires it to be enabled.
+- A3:
+  - **Call-site count.** The spec says 16 non-test callers; I found 17 call
+    sites.
+  - **How Standard differs from Strict.** In this codebase Standard differs
+    from Strict only for page-context keys (`page_title`, `page_search`,
+    `page_path`, `referrer`); usernames and other personal-data keys are
+    masked in both. Off skips only the key-name pass; PEM, JWT, bearer,
+    known token shapes, generic secret key/value pairs and emails are
+    masked in every mode. The UI copy says exactly this.
+  - **DOM Health's own privacy is unchanged.** Page titles replaced,
+    identifier-shaped values and element ids masked: this is structural and
+    stays on in every mode. Only its inner text-redaction call follows the
+    mode.
+
+## Decisions needed from the owner
+
+1. **Add "save" to `RISKY_CLICK_WORDS`?** It would prompt on every Save
+   button, and the existing core-tools e2e would need its approval
+   answered.
+2. **A header line inside JSON exports?** The response viewer's JSON
+   Copy/Download currently stays valid JSON, with the mode in the file name
+   and on screen. A header line would make the file invalid JSON.
+3. **Right-click.** A `computer` `right_click` goes through the same
+   classifier as other clicks (the spec says "click and drag actions"). It
+   can't submit or follow a link, so it could be exempted if the prompts
+   are a nuisance.
+
+## Observed, not changed
+
+- The DOM Health application audit navigates the bound tab itself
+  (`apty/page-navigation.ts`, `chrome.tabs.update`) to same-origin links it
+  discovered. It is not a model tool call and is not gated (also noted in
+  SECURITY_AUDIT #18).
+- `tooling/e2e/harness.mjs`:
+  - `toolResults()` counts tool messages after the last user message. A
+    screenshot sent to the model arrives as a new user message, which
+    resets it, so the A1 e2e uses its own per-prompt counting.
+  - `openSidePanel()` overwrites the whole settings object, wiping other
+    settings.
+- `RISKY_CLICK_WORDS` is English only. A destructive control with no
+  telling label or form (a `div` with a click handler named "Go") still
+  runs at once.
+- `inspect_extension_network` returns the request URL in its metadata even
+  for `body_denied` (unchanged existing behaviour; the URL goes through the
+  inspector's usual handling, not the deny list).
+- The response viewer's JSON Copy, and the code-block and selector Copy
+  buttons, carry no export header (they copy snippets, not exports).
+- `packages/ui` still has 10 skipped tests (C4 in Phase C).
+
+## Owner test scripts (about 5 minutes each)
+
+Setup for all three:
+
+1. Unzip `apty-agent-review-A-<head>.zip` into a folder. In Chromium (or
+   Chrome for Testing; branded Chrome 137+ ignores `--load-extension` but
+   "Load unpacked" still works), open `chrome://extensions`, turn on
+   Developer mode, click **Load unpacked** and pick that folder. The ID
+   should be `bpiondflhhdplemamgggcdajclmoeple`.
+2. In Options → AI provider, configure your own model and key, and click
+   Test connection.
+
+### A1: clicks and new tabs
+
+1. Save this as `a1.html`, and in that folder run `python3 -m http.server
+   8000`:
+
+   ```html
+   <!doctype html><title>count 0</title><h1>Orders</h1>
+   <form action="/orders/delete" method="post" onsubmit="event.preventDefault(); window.n=(window.n||0)+1; document.title='count '+window.n">
+     <button type="submit">Delete</button></form>
+   <button onclick="document.title='details shown'">Show details</button>
+   ```
+
+2. Open `http://localhost:8000/a1.html` and open the side panel.
+3. Type: "On the current tab, click the Show details button."
+   **Expected:** no approval prompt; the tab title becomes "details shown".
+4. Type: "On the current tab, click the Delete button."
+   **Expected:** a prompt "Allow click?" showing `Click "Delete"
+   (<button type=submit>, role button)`, `Form: POST
+   http://localhost:8000/orders/delete`, "Why approval is needed: it
+   submits a form; its label contains "delete"". Click **Deny**.
+   **Expected:** the title stays "count 0".
+5. Type: "Open a new tab at https://example.org/?d=" followed by about 200
+   characters of text.
+   **Expected:** a prompt "Allow create_new_tab?" showing the full URL, with
+   only **Allow once** and **Deny** (no "Allow on this site"). Click
+   **Deny**. **Expected:** no new tab opens.
+6. Type: "Open a new tab at https://example.org/".
+   **Expected:** a prompt that offers "Allow on this site for 15 min".
+   Click it. **Expected:** the tab opens. Ask again.
+   **Expected:** it opens with no prompt.
+7. Options → General → Remembered approvals shows `create_new_tab` for
+   `https://example.org`. Click **Revoke all**; step 6 asks again.
+
+### A2: deny list for Apty Client bodies
+
+1. Create the test Client from the repo:
+
+   ```sh
+   node -e "import('./tooling/e2e/harness.mjs').then(h => h.writeFakeClient('/tmp/fake-client', 'working', 'bpiondflhhdplemamgggcdajclmoeple'))"
+   ```
+
+   Load `/tmp/fake-client` unpacked too.
+2. Options → Connection → Apty Integration: paste the fake Client's ID from
+   `chrome://extensions` and click **Connect**.
+   **Expected:** "Answering".
+3. Options → General → Data handling: leave "Capture response bodies" off.
+   **Expected:** the deny-list box is still editable, and its label
+   mentions the Apty Client. Type `/users/` and click elsewhere.
+4. In the side panel type: "Get 4815162342.json from the Apty Client."
+   **Expected:** the answer says the body was withheld because it matches
+   `/users/` in the deny list; no body content (`en-GB`) appears. In
+   `chrome://extensions`, open the fake Client's service worker console and
+   run `bodyRequests`. **Expected:** it does not contain `"r3"`.
+5. Type: "Get the data from segments.json in the Apty Client."
+   **Expected:** the segments come back; **View full response** shows 206
+   items.
+6. Clear the deny list and repeat step 4.
+   **Expected:** the preference body (`theme`, `language: en-GB`) is
+   returned.
+
+### A3: redaction mode
+
+1. Options → General → Data handling → Redaction.
+   **Expected:** **Strict (recommended)** is selected.
+2. Click **Preview** next to Standard.
+   **Expected:** "Before (sample data)" shows the fake chart title and
+   username. "After: Standard" keeps the title, masks the username, and
+   replaces the Bearer JWT with `<REDACTED>`. Preview Strict.
+   **Expected:** the title is masked too.
+3. Select **Standard**. **Expected:** it is saved at once (reload Options to
+   check).
+4. Select **Off (development only)**.
+   **Expected:** a dialog "Turn redaction off?" stating "Structural secret
+   redaction stays on: tokens, API keys, JWTs, bearer credentials and
+   emails are still masked." Click **Keep current mode**.
+   **Expected:** Standard is still selected.
+5. Select **Off** again and click **Turn redaction off**. Open the side
+   panel.
+   **Expected:** a banner "Redaction is OFF (development only) …" with a
+   **Change** button. Reload the side panel.
+   **Expected:** the banner is still there.
+6. Ask any question, then click **Copy** on the answer and paste it
+   somewhere.
+   **Expected:** the first line reads `Apty Agent export · redaction mode:
+   off · <time>`.
+7. Click **Change** in the banner, select **Strict**.
+   **Expected:** the banner disappears from the side panel.
