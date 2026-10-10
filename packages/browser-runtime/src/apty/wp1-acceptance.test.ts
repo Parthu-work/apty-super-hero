@@ -181,13 +181,26 @@ describe("WP1 acceptance: segments.json resolves to the real segment.json resour
     const result = await inspectResource(CONV, "segments.json");
     expect(result.response?.json?.kind).toBe("array");
     expect(result.response?.json?.itemCount).toBe(SEGMENT_COUNT);
-    expect(
-      (result.response?.json?.sample as unknown[]).length,
-    ).toBeLessThanOrEqual(5);
+    const previewItems = JSON.parse(result.response?.bodyPreview ?? "[]");
+    expect(previewItems.length).toBeLessThanOrEqual(5);
+    expect(result.response?.json?.inPreview).toBe(previewItems.length);
     // The raw inline preview is the (small) JSON-encoded sample, never a
     // blind character slice of the full ~100kB body.
     expect(result.response?.bodyPreview.length).toBeLessThan(2000);
     expect(result.response?.truncated).toBe(true);
+  });
+
+  it("the summary states the 206 items and the item keys, under 1,500 characters (B3)", async () => {
+    const result = await inspectResource(CONV, "segments.json");
+    const json = result.response?.json;
+
+    expect(json?.itemCount).toBe(SEGMENT_COUNT);
+    expect(Object.keys(json?.itemKeys ?? {}).sort()).toEqual(
+      Object.keys(segmentItems[0] ?? {}).sort(),
+    );
+    expect(json?.itemKeys?.name).toBe("string");
+    expect(json?.previewIsPartial).toBe(true);
+    expect(JSON.stringify(json).length).toBeLessThan(1_500);
   });
 
   it("get_evidence_json can page through all 206 items using the evidenceId", async () => {

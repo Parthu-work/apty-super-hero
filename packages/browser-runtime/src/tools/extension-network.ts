@@ -110,7 +110,7 @@ export const inspectExtensionNetworkTool = tool({
   description:
     "Retrieve the actual response body for a resource the Apty Client extension reports having requested itself — e.g. resourceQuery 'segments.json', 'app.json', a path, or a fragment. " +
     "Tolerant matching (case/plural/extension-insensitive); alsoMatched lists other candidates if several matched. Auto-connects using the configured extension ID (never accepts one as input). " +
-    "Body returns for ANY status, including 4xx/5xx. A large JSON body comes back as a bounded summary (response.json) plus evidenceId — use get_evidence_json for more. " +
+    "Body returns for ANY status, including 4xx/5xx. For a JSON body, read response.json first (root type, itemCount, the keys and their types, how many items bodyPreview holds), then page with get_evidence_json(evidenceId, path, limit, offset). " +
     "Status: not_observed (use returned suggestions), failed/http_error, pending, body_unavailable, body_denied (the URL is on the user's body deny list: report the metadata and the deniedBy entry, never try to get the body another way). Never fabricated.",
   parameters: z.object({
     resourceQuery: z
@@ -245,7 +245,7 @@ export const getExtensionServiceWorkerLogsTool = tool({
 export const getEvidenceJsonTool = tool({
   name: "get_evidence_json",
   description:
-    "Query a previously-recorded JSON body (from inspect_extension_network's evidenceId) by path, without re-fetching. Use for follow-ups needing more than the initial bounded sample ('how many segments', 'show segment 20'). " +
+    "Query a previously-recorded JSON body (from inspect_extension_network's evidenceId) by path, without re-fetching. Read the inspect result's response.json first: it already gives the item count and keys; use this tool for values beyond bodyPreview ('show segment 20', 'every segment name'). " +
     "path is dot/bracket ('items[3].name', or '' for root); limit/offset page an array (max 50). Returns found:false with a specific error if not resolvable — never fabricated.",
   parameters: z.object({
     evidenceId: z

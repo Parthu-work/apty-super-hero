@@ -25,7 +25,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 - Apty Client logs and resource bodies, with named connection failures and
   a full-response viewer. The Data-handling deny list covers Client bodies
   too (A2): a listed resource returns `body_denied` with its metadata and
-  the Client is never asked for the body.
+  the Client is never asked for the body. A JSON body comes with a structural summary
+  (B3): item count, the union of item keys with their types, and how many
+  whole items the preview holds, under 1,500 characters.
 - The MCP bridge, with the token in the WebSocket handshake.
 - Redaction mode (A3): Strict, Standard or Off (development only) in
   Settings → Data handling, with a Preview; Off needs a confirmation and
