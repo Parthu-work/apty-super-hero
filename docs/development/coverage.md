@@ -7,7 +7,7 @@ its `src/**/*.{ts,tsx}` except tests and type declarations.
 ## The rule: thresholds only go up
 
 Each package's thresholds were set one point below the value measured when
-the gate was widened (C5). They are a ratchet, not a target:
+the gate was widened (C5), and raised after C3, C1 and C2 added tests. They are a ratchet, not a target:
 
 - Never lower a threshold. If a change drops coverage below it, add tests.
 - When coverage rises, raise the threshold to one point below the new value
@@ -18,10 +18,10 @@ the gate was widened (C5). They are a ratchet, not a target:
 |---|---|---|---|---|
 | `packages/agent-core` | 75 | 69 | 82 | 77 |
 | `packages/dom-snapshot` | 89 | 81 | 96 | 91 |
-| `packages/ui` | 43 | 32 | 41 | 43 |
+| `packages/ui` | 43 | 34 | 42 | 44 |
 | `packages/browser-runtime` | 48 | 44 | 52 | 48 |
 | `packages/apty-debug-contract` | 83 | 77 | 92 | 86 |
-| `apps/browser-extension` | 40 | 39 | 38 | 40 |
+| `apps/browser-extension` | 42 | 43 | 40 | 42 |
 | `apps/mcp-bridge` | 20 | 17 | 23 | 20 |
 
 ## Stricter gates
