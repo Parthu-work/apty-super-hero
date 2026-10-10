@@ -236,6 +236,29 @@ describe("approval grants", () => {
     expect(otherToolSameOrigin).toMatchObject({ status: "denied" });
   });
 
+  it("are neither honoured nor created for a non-rememberable request", async () => {
+    const { requests } = answerApprovals({ approved: true, remember: true });
+    await gateRiskyAction("c", "tool_a", "x", PAGE, vi.fn());
+
+    const run = vi.fn().mockResolvedValue("ran");
+    await gateRiskyAction("c", "tool_a", "x", PAGE, run, {
+      rememberable: false,
+    });
+    await gateRiskyAction("c", "tool_b", "x", PAGE, run, {
+      rememberable: false,
+    });
+
+    expect(requests.map((r) => r.rememberable)).toEqual([
+      undefined,
+      false,
+      false,
+    ]);
+    expect(run).toHaveBeenCalledTimes(2);
+    expect((await listApprovalGrants()).map((g) => g.toolName)).toEqual([
+      "tool_a",
+    ]);
+  });
+
   it("expire after the grant TTL", async () => {
     const now = Date.now();
     const spy = vi.spyOn(Date, "now").mockReturnValue(now);

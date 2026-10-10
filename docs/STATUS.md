@@ -13,7 +13,10 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   Apty Client connection and whether the page can be inspected.
 - Risky actions wait for a click in the side panel and are refused if the
   tab moved to another site meanwhile; "Allow on this site for 15 min" is
-  per tool and origin and can be revoked.
+  per tool and origin and can be revoked. Since A1 this covers clicks on
+  submit controls, destructive or confirming labels and cross-origin links
+  (`click` and `computer`), and `create_new_tab` to another origin; a URL
+  with a long query or a non-web scheme always asks.
 - DOM Health in same-origin, cross-origin, `data:` and frameset frames,
   open and closed shadow roots, and tabs opened before an extension update.
 - Page console output (including during page load), network capture with

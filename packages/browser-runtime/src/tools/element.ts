@@ -4,6 +4,11 @@ import { type ElementHandle, SmartElementHandle } from "../automation";
 import { DomElementHandle } from "../automation/dom-element-handle";
 import * as snapshotProvider from "../automation/snapshot-provider";
 import { gateRiskyAction } from "./approval.js";
+import {
+  classifyClickRisk,
+  describeClickForApproval,
+  inspectClickTarget,
+} from "./click-risk.js";
 import type { ToolRunContext } from "./tab-utils";
 import {
   playClickAnimationAndReturn,
@@ -66,7 +71,9 @@ async function getElementByUid(
 
 export const clickTool = tool({
   name: "click",
-  description: "Click an element using its unique UID from a snapshot",
+  description:
+    "Click an element using its unique UID from a snapshot. " +
+    'APPROVAL: a click that submits a form, follows a link to another origin, or lands on a control labelled with a destructive or confirming word (delete, submit, send, pay, confirm, save, ...) waits for the user to click Allow or Deny in the extension UI; other clicks run at once. A denied click returns status "denied" with a message: do not retry it.',
   parameters: z.object({
     tabId: z.number().describe("The ID of the tab to click on"),
     uid: z
@@ -78,28 +85,44 @@ export const clickTool = tool({
       .default(false)
       .describe("Set to true for double clicks"),
   }),
-  execute: async ({ tabId, uid, dblClick = false }) => {
-    let handle: ElementHandle | null = null;
+  execute: async ({ tabId, uid, dblClick = false }, context) => {
+    const runClick = async () => {
+      let handle: ElementHandle | null = null;
 
-    try {
-      handle = await getElementByUid(tabId, uid);
-      if (!handle) {
-        throw new Error(
-          "Element not found in current snapshot. Call take_snapshot first.",
-        );
+      try {
+        handle = await getElementByUid(tabId, uid);
+        if (!handle) {
+          throw new Error(
+            "Element not found in current snapshot. Call take_snapshot first.",
+          );
+        }
+
+        await handle.asLocator().click({ count: dblClick ? 2 : 1 });
+
+        return {
+          success: true,
+          message: `Element ${dblClick ? "double " : ""}clicked successfully`,
+        };
+      } finally {
+        if (handle) {
+          handle.dispose();
+        }
       }
+    };
 
-      await handle.asLocator().click({ count: dblClick ? 2 : 1 });
+    const target = await inspectClickTarget(tabId, { uid });
+    const risk = classifyClickRisk(target);
+    if (!risk.risky) return runClick();
 
-      return {
-        success: true,
-        message: `Element ${dblClick ? "double " : ""}clicked successfully`,
-      };
-    } finally {
-      if (handle) {
-        handle.dispose();
-      }
-    }
+    const pageUrl = await getTabUrl(tabId);
+    return gateRiskyAction(
+      (context as ToolRunContext)?.context?.conversationId,
+      "click",
+      describeClickForApproval(target, risk, pageUrl),
+      pageUrl,
+      runClick,
+      { tabId },
+    );
   },
 });
 

@@ -136,7 +136,7 @@ export function ApprovalPrompt() {
               >
                 Allow once
               </Button>
-              {request.origin && (
+              {request.origin && request.rememberable !== false && (
                 <Button
                   type="button"
                   size="sm"

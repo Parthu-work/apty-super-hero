@@ -176,6 +176,16 @@ function screenshotToCssPixels(
   };
 }
 
+/** A screenshot-pixel point in viewport CSS pixels, or null without screenshot metadata for the tab. */
+export function screenshotPointToCss(
+  tabId: number,
+  x: number,
+  y: number,
+): { xCss: number; yCss: number } | null {
+  const metadata = screenshotCache.get(tabId);
+  return metadata ? screenshotToCssPixels(x, y, metadata) : null;
+}
+
 /**
  * Perform a click action
  */

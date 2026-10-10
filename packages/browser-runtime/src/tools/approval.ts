@@ -1,6 +1,7 @@
 /**
  * Human approval gate for high-risk tools (run_console_command, fill_*,
- * computer type/key, upload_file_to_input, downloads).
+ * risky clicks, computer clicks/drags/type/key, create_new_tab to another
+ * origin, upload_file_to_input, downloads).
  *
  * The gated tool call is suspended until a person clicks Allow or Deny in the
  * extension UI. The decision travels UI -> `resolveApproval` and never passes
@@ -41,6 +42,8 @@ export interface ApprovalRequest {
   toolName: string;
   summary: string;
   origin?: string;
+  /** False when the prompt must not offer "Allow on this site" (a grant would never be honoured). */
+  rememberable?: boolean;
   createdAt: number;
   expiresAt: number;
 }
@@ -283,11 +286,16 @@ export async function gateRiskyAction<T>(
   summary: string,
   pageUrl: string | undefined,
   run: () => Promise<T>,
-  /** The tab the action runs in; checked again after the wait for a click. */
-  options: { tabId?: number } = {},
+  options: {
+    /** The tab the action runs in; checked again after the wait for a click. */
+    tabId?: number;
+    /** False to ignore grants and always ask, without offering to remember. */
+    rememberable?: boolean;
+  } = {},
 ): Promise<T | ApprovalDeniedResult> {
   const origin = originOf(pageUrl);
-  if (origin) {
+  const rememberable = options.rememberable !== false;
+  if (origin && rememberable) {
     const grants = await loadActiveGrants();
     if (grants.some((g) => g.toolName === toolName && g.origin === origin)) {
       return run();
@@ -301,6 +309,7 @@ export async function gateRiskyAction<T>(
     toolName,
     summary,
     origin: origin ?? undefined,
+    ...(rememberable ? {} : { rememberable: false }),
     createdAt,
     expiresAt:
       createdAt + (conversationId ? APPROVAL_TTL_MS : MCP_APPROVAL_TTL_MS),
@@ -318,7 +327,7 @@ export async function gateRiskyAction<T>(
     return denied(toolName, "page_changed");
   }
 
-  if (outcome.remember && origin) {
+  if (outcome.remember && origin && rememberable) {
     await addGrant(toolName, origin);
   }
   return run();

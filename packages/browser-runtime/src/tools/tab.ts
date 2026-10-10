@@ -1,7 +1,9 @@
 import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { getAutomationMode } from "../runtime/automation-mode";
-import { getActiveTab } from "./tab-utils";
+import { gateRiskyAction } from "./approval.js";
+import { classifyNewTabUrl } from "./click-risk.js";
+import { getActiveTab, type ToolRunContext } from "./tab-utils";
 
 const log = createLogger("TabTools");
 
@@ -153,13 +155,23 @@ export const closeTabTool = tool({
 /**
  * Create a new tab
  */
+function originOrUnknown(url: string | undefined): string {
+  try {
+    return url ? new URL(url).origin : "unknown page";
+  } catch {
+    return "unknown page";
+  }
+}
+
 export const createNewTabTool = tool({
   name: "create_new_tab",
-  description: "Create a new tab with the specified URL",
+  description:
+    "Create a new tab with the specified URL. " +
+    'APPROVAL: opening a page on another origin than the current tab waits for the user to click Allow or Deny in the extension UI; a non-web scheme or a URL with a long query or fragment always asks. A denied call returns status "denied" with a message: do not retry it.',
   parameters: z.object({
     url: z.string().url().describe("The URL to open in the new tab"),
   }),
-  execute: async ({ url }) => {
+  execute: async ({ url }, context) => {
     // Prepend protocol if missing
     let finalUrl = url?.trim();
     if (!finalUrl) {
@@ -172,28 +184,43 @@ export const createNewTabTool = tool({
       finalUrl = `https://${finalUrl}`;
     }
 
-    const mode = await getAutomationMode();
-    log.debug("🔧 [createNewTab] Automation mode:", mode);
+    const openTab = async () => {
+      const mode = await getAutomationMode();
+      log.debug("🔧 [createNewTab] Automation mode:", mode);
 
-    // Background mode: create tab without switching to it
-    // Focus mode: create tab and switch to it
-    const active = mode === "focus";
+      // Background mode: create tab without switching to it
+      // Focus mode: create tab and switch to it
+      const active = mode === "focus";
 
-    const tab = await chrome.tabs.create({ url: finalUrl, active });
-    if (!tab.id) {
-      throw new Error("Failed to create tab");
-    }
+      const tab = await chrome.tabs.create({ url: finalUrl, active });
+      if (!tab.id) {
+        throw new Error("Failed to create tab");
+      }
 
-    log.debug(
-      `✅ [createNewTab] Tab created in ${mode} mode (active=${active})`,
-    );
+      log.debug(
+        `✅ [createNewTab] Tab created in ${mode} mode (active=${active})`,
+      );
 
-    return {
-      success: true,
-      tabId: tab.id,
-      url: tab.url,
-      title: tab.title,
+      return {
+        success: true,
+        tabId: tab.id,
+        url: tab.url,
+        title: tab.title,
+      };
     };
+
+    const currentTab = await getActiveTab().catch(() => undefined);
+    const decision = classifyNewTabUrl(finalUrl, currentTab?.url);
+    if (decision.approval === "none") return openTab();
+
+    return gateRiskyAction(
+      (context as ToolRunContext)?.context?.conversationId,
+      "create_new_tab",
+      `Open a new tab at:\n${finalUrl}\nFrom: ${originOrUnknown(currentTab?.url)}\nWhy approval is needed: ${decision.reason}`,
+      finalUrl,
+      openTab,
+      { rememberable: decision.rememberable },
+    );
   },
 });
 

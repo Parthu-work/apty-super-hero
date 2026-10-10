@@ -1,14 +1,55 @@
 import { createLogger, tool } from "@apty/agent-core";
 import { z } from "zod";
-import { executeComputerAction } from "../automation/computer";
+import {
+  executeComputerAction,
+  screenshotPointToCss,
+} from "../automation/computer";
 import { getAutomationMode } from "../runtime/automation-mode";
 import { gateRiskyAction } from "./approval.js";
+import {
+  type ClickRisk,
+  type ClickTarget,
+  classifyClickRisk,
+  describeClickForApproval,
+  inspectClickTarget,
+} from "./click-risk.js";
 import { getActiveTab, type ToolRunContext } from "./tab-utils";
 
 const log = createLogger("ComputerTool");
 
-/** Actions that inject arbitrary text/keystrokes into the page — gated, same risk category as fill_element_by_uid/fill_form. Pointer-only actions (click/hover/scroll/drag) stay ungated, same distinction as click/hover_element_by_uid staying ungated while fill_* is gated. */
+/** Actions that inject arbitrary text/keystrokes into the page — always gated, same risk category as fill_element_by_uid/fill_form. */
 const TEXT_INJECTION_ACTIONS = new Set(["type", "key"]);
+
+/** Pointer actions that can activate a control; gated when the element under the point is risky (same rules as the click tool). */
+const CLICK_ACTIONS = new Set([
+  "left_click",
+  "right_click",
+  "double_click",
+  "triple_click",
+  "left_click_drag",
+]);
+
+/** Classify what a click at a screenshot point would hit; a point that cannot be mapped or inspected is risky. */
+async function inspectPoint(
+  tabId: number | undefined,
+  point: number[] | undefined,
+): Promise<ClickTarget> {
+  if (tabId === undefined || !point) {
+    return { found: false, reason: "no tab or coordinate" };
+  }
+  const css = screenshotPointToCss(tabId, point[0] ?? 0, point[1] ?? 0);
+  if (!css) {
+    return { found: false, reason: "no screenshot to map the coordinate" };
+  }
+  return inspectClickTarget(tabId, { x: css.xCss, y: css.yCss });
+}
+
+function mergeRisks(risks: ClickRisk[]): ClickRisk {
+  return {
+    risky: risks.some((r) => r.risky),
+    reasons: risks.flatMap((r) => r.reasons),
+  };
+}
 
 async function getTabForGate(
   tabId: number | undefined,
@@ -37,7 +78,7 @@ PREREQUISITE: If you choose coordinate actions, you MUST first call capture_scre
 
 * Click element centers, not edges. Adjust if clicks miss.
 
-APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so the call waits for the user to click Allow or Deny in the extension UI before it runs. Click/scroll/hover/drag actions are not gated.`,
+APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so the call waits for the user to click Allow or Deny in the extension UI before it runs. Click and drag actions wait for approval when the element under the point submits a form, links to another origin, is labelled with a destructive or confirming word, or cannot be identified (a canvas or a frame). Scroll and hover actions are not gated. A denied call returns status "denied" with a message: do not retry it.`,
   parameters: z.object({
     action: z
       .enum([
@@ -136,11 +177,34 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
         uid: params.uid ?? undefined,
       });
 
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+
+    if (CLICK_ACTIONS.has(params.action)) {
+      const tab = await getTabForGate(params.tabId);
+      const points =
+        params.action === "left_click_drag"
+          ? [params.start_coordinate, params.coordinate]
+          : [params.coordinate];
+      const targets = await Promise.all(
+        points.map((point) => inspectPoint(tab?.id, point)),
+      );
+      const risk = mergeRisks(targets.map(classifyClickRisk));
+      if (!risk.risky) return runAction(params.tabId ?? tab?.id);
+      const pageUrl = tab?.url;
+      return gateRiskyAction(
+        conversationId,
+        "computer",
+        `${params.action} at (${points.map((p) => p?.join(", ") ?? "?").join(") -> (")})\n${describeClickForApproval(targets.find((t) => classifyClickRisk(t).risky) ?? targets[0]!, risk, pageUrl)}`,
+        pageUrl,
+        () => runAction(params.tabId ?? tab?.id),
+        { tabId: tab?.id },
+      );
+    }
+
     if (!TEXT_INJECTION_ACTIONS.has(params.action)) {
       return runAction();
     }
 
-    const conversationId = (context as ToolRunContext)?.context?.conversationId;
     // Pin the tab shown in the prompt: without a tabId the action would
     // otherwise type into whichever tab is active when Allow is clicked.
     const tab = await getTabForGate(params.tabId);

@@ -103,3 +103,26 @@ justified by genuinely-used calls elsewhere (screenshot focusing, side
 panel window lookup). Whether this dead tool group should be wired in,
 deleted, or left as-is is a product decision, not a permissions question
 — left for a future session.
+
+## Tools that wait for a person's click
+
+Broad host access is paired with an approval gate
+(`packages/browser-runtime/src/tools/approval.ts`): these calls are suspended
+until someone clicks Allow or Deny in the side panel. The model cannot
+answer the prompt.
+
+| Tool | When it asks |
+|---|---|
+| `run_console_command` | Always |
+| `fill_element_by_uid`, `fill_form` | Always |
+| `computer` `type`, `key` | Always |
+| `computer` clicks and `left_click_drag` | When the element under the point submits a form, links to another origin, has a destructive or confirming label, or cannot be identified (frame, canvas, no screenshot) |
+| `click` | Same rules as above, for the element with that snapshot uid |
+| `create_new_tab` | When the destination is another origin; always, with no "remember", for a non-`http(s)` scheme or a query plus fragment over 128 characters |
+| `upload_file_to_input` | Always |
+| `download_image`, `download_chat_images` | Always |
+| `execute_skill_script` (skills are off by default) | Always |
+
+"Allow on this site for 15 min" grants are per tool and origin (for
+`create_new_tab`, the destination origin) and can be revoked in Options →
+Remembered approvals.
