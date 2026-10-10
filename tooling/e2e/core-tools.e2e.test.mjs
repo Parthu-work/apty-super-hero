@@ -154,10 +154,10 @@ describe("everyday tools in a real browser", () => {
       false,
       JSON.stringify(highlighted).slice(0, 300),
     );
-    assert.ok(
-      await app.evaluate(() => window.scrollY > 1000),
-      "page did not scroll",
-    );
+    // scroll_to_element scrolls smoothly, so the page may still be moving.
+    await app
+      .waitForFunction(() => window.scrollY > 1000, null, { timeout: 5_000 })
+      .catch(() => assert.fail("page did not scroll"));
     assert.notEqual(
       screenshot.success,
       false,
