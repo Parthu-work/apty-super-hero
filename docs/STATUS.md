@@ -46,6 +46,10 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   audited: the Anthropic host now reaches the API, unverifiable model
   names were removed, Replicate and Perplexity are marked experimental.
   Tested against a mock provider, not real ones.
+- Preflight (C2): Options → Apty Integration → Preflight (`#preflight`)
+  runs every demo dependency check with its exact fix and a copy button,
+  exports redacted JSON and resets demo data; `pnpm demo:check` runs it
+  end to end. Demo script: [`docs/demo/DEMO.md`](demo/DEMO.md).
 - The MCP bridge, with the token in the WebSocket handshake.
 - Redaction mode (A3): Strict, Standard or Off (development only) in
   Settings → Data handling, with a Preview; Off needs a confirmation and

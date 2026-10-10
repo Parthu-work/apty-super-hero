@@ -7,6 +7,7 @@ export const OPTIONS_SECTIONS = {
   "ai-provider": "ai",
   "apty-client": "connection",
   "mcp-bridge": "connection",
+  preflight: "connection",
   permissions: "general",
   approvals: "general",
   "stored-data": "general",

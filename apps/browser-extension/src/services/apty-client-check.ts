@@ -9,7 +9,9 @@ const NOT_FOUND_MESSAGE =
   "The specified Apty Client extension could not be found or is not currently available.";
 
 /** `undefined` when the optional `management` permission isn't granted, so installation can't be checked. */
-async function isInstalledAndEnabled(id: string): Promise<boolean | undefined> {
+export async function isInstalledAndEnabled(
+  id: string,
+): Promise<boolean | undefined> {
   if (!chrome.management?.get) return undefined;
   try {
     const info = await chrome.management.get(id);
