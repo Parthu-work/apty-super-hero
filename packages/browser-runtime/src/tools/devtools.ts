@@ -22,11 +22,7 @@
  */
 
 import { tool } from "@apty/agent-core";
-import {
-  redactHeaders,
-  redactSensitiveText,
-  redactUrl,
-} from "@apty/debug-contract";
+import { redactHeaders, redactUrl } from "@apty/debug-contract";
 import { z } from "zod";
 import {
   classifyLogEntry,
@@ -37,6 +33,7 @@ import {
 } from "../apty/index.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
+import { redactText } from "../runtime/redaction-mode.js";
 import { gateRiskyAction } from "./approval.js";
 import {
   describeTabForMeta,
@@ -289,7 +286,7 @@ export const getRuntimeDiagnosticsTool = tool({
             if (method === "Log.entryAdded") {
               const level = p.entry?.level;
               const source = p.entry?.source;
-              const text = redactSensitiveText(String(p.entry?.text ?? ""));
+              const text = redactText(String(p.entry?.text ?? ""));
               collected.push({
                 type: "log",
                 level,
@@ -300,7 +297,7 @@ export const getRuntimeDiagnosticsTool = tool({
               });
             } else if (method === "Runtime.exceptionThrown") {
               const details = p.exceptionDetails;
-              const text = redactSensitiveText(
+              const text = redactText(
                 String(details?.exception?.description ?? details?.text ?? ""),
               );
               collected.push({
@@ -389,13 +386,10 @@ function serializeEvaluationResult(result?: EvaluationResult): string {
   if (Object.hasOwn(result, "value")) {
     const { value } = result;
     const text = typeof value === "string" ? value : JSON.stringify(value);
-    return truncateText(
-      redactSensitiveText(text ?? String(value)),
-      MAX_RESULT_LENGTH,
-    );
+    return truncateText(redactText(text ?? String(value)), MAX_RESULT_LENGTH);
   }
   return truncateText(
-    redactSensitiveText(result.description ?? `[${result.type ?? "unknown"}]`),
+    redactText(result.description ?? `[${result.type ?? "unknown"}]`),
     MAX_RESULT_LENGTH,
   );
 }
@@ -463,10 +457,7 @@ export const runConsoleCommandTool = tool({
             success: false,
             url: tab.url,
             expression,
-            error: truncateText(
-              redactSensitiveText(String(message)),
-              MAX_RESULT_LENGTH,
-            ),
+            error: truncateText(redactText(String(message)), MAX_RESULT_LENGTH),
             meta: { tab: describeTabForMeta(tab) },
           };
         }

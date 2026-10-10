@@ -27,6 +27,10 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   too (A2): a listed resource returns `body_denied` with its metadata and
   the Client is never asked for the body.
 - The MCP bridge, with the token in the WebSocket handshake.
+- Redaction mode (A3): Strict, Standard or Off (development only) in
+  Settings → Data handling, with a Preview; Off needs a confirmation and
+  shows a side-panel banner. Every caller goes through
+  `runtime/redaction-mode.ts`, and a unit test fails on a direct call.
 
 ## Open
 

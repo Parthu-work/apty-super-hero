@@ -58,6 +58,7 @@ export function DefaultMessageList({
   status,
   onRegenerate,
   onCopy,
+  formatExport,
   onSuggestionClick,
   onUxAuditClick,
   className,
@@ -112,6 +113,7 @@ export function DefaultMessageList({
                       isStreaming={status === "streaming"}
                       onRegenerate={onRegenerate}
                       onCopy={onCopy}
+                      formatExport={formatExport}
                     />
                   )}
 
@@ -155,6 +157,7 @@ export function DefaultMessageList({
                               isStreaming={status === "streaming"}
                               onRegenerate={onRegenerate}
                               onCopy={onCopy}
+                              formatExport={formatExport}
                             />
                           </>
                         );
@@ -168,6 +171,7 @@ export function DefaultMessageList({
                           isStreaming={status === "streaming"}
                           onRegenerate={onRegenerate}
                           onCopy={onCopy}
+                          formatExport={formatExport}
                         />
                       ))}
                 </div>

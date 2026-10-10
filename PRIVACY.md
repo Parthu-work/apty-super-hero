@@ -27,6 +27,20 @@ JSON bodies. Redaction is pattern-based, so it can miss secrets in an
 unusual shape; avoid investigating pages that hold data you must not share
 with your AI provider.
 
+**Settings → General → Data handling → Redaction** chooses how much is
+masked; every tool result, log line and body goes through the same setting:
+
+| Mode | Masks |
+|---|---|
+| Strict (default) | Secrets, personal data (names, usernames, emails, patient fields) and page context (titles, paths) |
+| Standard | Secrets and personal data; keeps page titles and paths |
+| Off (development only) | Only secrets recognised by their shape: tokens, API keys, JWTs, bearer credentials, emails |
+
+Off asks for confirmation and shows "Redaction is OFF" in the side panel for
+as long as it is on. Preview shows a built-in sample with fake data before
+and after each mode. Copied and downloaded messages start with a line naming
+the mode; a downloaded JSON body carries it in its file name.
+
 Response bodies of page network requests are **not** captured unless you
 turn on **Settings → General → Data handling → Capture response bodies**.
 Hosts or URL fragments you add to the deny-list there are never read, both

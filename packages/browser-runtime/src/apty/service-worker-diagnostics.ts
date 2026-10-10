@@ -35,8 +35,8 @@
  * broader multi-session work this feeds into.
  */
 
-import { redactLogs, redactSensitiveText } from "@apty/debug-contract";
 import { z } from "zod";
+import { redactLogEntries, redactText } from "../runtime/redaction-mode.js";
 import {
   type ExternalMessageFailure,
   type ExternalMessageOutcome,
@@ -258,7 +258,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
       const result = validate(logsResponseSchema, raw);
       if (!result.ok) return [];
-      return redactLogs(result.value.logs ?? []);
+      return redactLogEntries(result.value.logs ?? []);
     }
 
     if (this.config.diagnosticEndpoint) {
@@ -277,7 +277,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
       const result = validate(logsResponseSchema, body);
       if (!result.ok) return [];
-      return redactLogs(result.value.logs ?? []);
+      return redactLogEntries(result.value.logs ?? []);
     }
 
     return [];
@@ -338,7 +338,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
       found: result.value.found,
       body:
         result.value.body !== undefined
-          ? redactSensitiveText(result.value.body)
+          ? redactText(result.value.body)
           : undefined,
       base64Encoded: result.value.base64Encoded,
     };

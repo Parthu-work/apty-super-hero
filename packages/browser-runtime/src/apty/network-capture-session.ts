@@ -45,13 +45,10 @@
  * the conversation's capture slot into "busy" if the tab closes mid-capture.
  */
 import { generateId } from "@apty/agent-core";
-import {
-  redactHeaders,
-  redactSensitiveText,
-  redactUrl,
-} from "@apty/debug-contract";
+import { redactHeaders, redactUrl } from "@apty/debug-contract";
 import { CdpCommander } from "../automation/cdp-commander.js";
 import { debuggerManager } from "../automation/debugger-manager.js";
+import { redactText } from "../runtime/redaction-mode.js";
 import { recordEvidence } from "./evidence-store.js";
 import { getInvestigation } from "./investigation-session.js";
 import {
@@ -313,7 +310,7 @@ async function maybeFetchResponseBody(
     const decoded = result.base64Encoded
       ? decodeBase64Utf8(result.body)
       : result.body;
-    const redacted = redactSensitiveText(decoded);
+    const redacted = redactText(decoded);
     current.bodyTruncated = redacted.length > MAX_INLINE_BODY_CHARS;
     current.bodyPreview = current.bodyTruncated
       ? redacted.slice(0, MAX_INLINE_BODY_CHARS)

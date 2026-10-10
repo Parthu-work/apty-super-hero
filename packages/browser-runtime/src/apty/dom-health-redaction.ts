@@ -24,8 +24,9 @@
  * with no identifying shape is not detected. Page titles are dropped for
  * that reason rather than scrubbed (see `REDACTED_TITLE`).
  */
-import { redactSensitiveText, redactUrl } from "@apty/debug-contract";
+import { redactUrl } from "@apty/debug-contract";
 import { isIdReferenceAttribute, maskIdReference } from "@apty/dom-snapshot";
+import { redactText } from "../runtime/redaction-mode.js";
 
 /**
  * What a captured `document.title` becomes. Titles are page context the
@@ -96,7 +97,7 @@ export function redactAuditUrl(url: string): string {
   try {
     parsed = new URL(redactUrl(url));
   } catch {
-    return maskIdLike(redactSensitiveText(url));
+    return maskIdLike(redactText(url));
   }
   for (const key of [...parsed.searchParams.keys()]) {
     if (TENANT_PARAM_PATTERN.test(key)) parsed.searchParams.set(key, REDACTED);
@@ -109,14 +110,14 @@ export function redactAuditUrl(url: string): string {
     .map((segment) => maskIdLike(segment))
     .join("/");
   if (parsed.hash) {
-    parsed.hash = maskIdLike(redactSensitiveText(parsed.hash.slice(1)));
+    parsed.hash = maskIdLike(redactText(parsed.hash.slice(1)));
   }
   return parsed.toString();
 }
 
 /** Free text read from the DOM (a title, heading or label), with secrets and identifier-shaped runs removed. Names without an identifying shape survive. */
 export function redactDomText(value: string): string {
-  return maskIdLike(redactSensitiveText(value));
+  return maskIdLike(redactText(value));
 }
 
 function redactString(key: string | null, value: string): string {

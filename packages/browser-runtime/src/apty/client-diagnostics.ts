@@ -21,7 +21,7 @@
  * short of the documented global.
  */
 
-import { redactLogs } from "@apty/debug-contract";
+import { redactLogEntries } from "../runtime/redaction-mode.js";
 import type {
   AptyClientDiagnosticsProvider,
   AptyClientStatus,
@@ -84,7 +84,7 @@ export class ScriptingClientDiagnosticsProvider
       });
 
       const raw = (results[0]?.result as AptyLog[] | undefined) ?? [];
-      return redactLogs(
+      return redactLogEntries(
         raw.map((entry) => ({
           level: (entry.level as AptyLog["level"]) ?? "log",
           message: entry.message,

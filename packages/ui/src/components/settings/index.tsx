@@ -310,6 +310,7 @@ export function SettingsPage({
   activeTab: controlledTab,
   onTabChange,
   initialSkill: _initialSkill,
+  redactionPreview,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
   void _initialSkill;
@@ -1060,6 +1061,7 @@ export function SettingsPage({
               settings={settings}
               language={language}
               onChange={saveGeneralSetting}
+              redactionPreview={redactionPreview}
             />
 
             <TroubleshootingCard

@@ -1,4 +1,4 @@
-import type { AppSettings } from "@apty/agent-core";
+import type { AppSettings, RedactionModeSetting } from "@apty/agent-core";
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -14,11 +14,14 @@ import {
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
+import { RedactionModeControl } from "./redaction-mode-control";
 
 export interface DataHandlingCardProps {
   settings: AppSettings;
   onChange: (patch: Partial<AppSettings>) => void;
   language?: string;
+  /** Redacts the Preview sample in a given mode (supplied by the host app). */
+  redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
 }
 
 function parseDenyList(text: string): string[] {
@@ -32,6 +35,7 @@ export function DataHandlingCard({
   settings,
   onChange,
   language,
+  redactionPreview,
 }: DataHandlingCardProps) {
   const zh = language === "zh";
   const [denyListText, setDenyListText] = useState(
@@ -72,6 +76,12 @@ export function DataHandlingCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <RedactionModeControl
+          mode={settings.redactionMode ?? "strict"}
+          onChange={(redactionMode) => onChange({ redactionMode })}
+          preview={redactionPreview}
+          language={language}
+        />
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="network-body-capture" className="text-sm font-medium">
             {zh ? "捕获响应正文" : "Capture response bodies"}

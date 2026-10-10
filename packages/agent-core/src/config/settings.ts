@@ -13,6 +13,21 @@ export interface CustomModelConfig {
   enabled: boolean;
 }
 
+/**
+ * How much diagnostic data is masked before it reaches the model, the side
+ * panel or an export. The same values as `@apty/debug-contract`'s
+ * `RedactionMode`: "strict" also masks page context (titles, paths),
+ * "standard" masks secrets and personal data, "off" masks only secrets
+ * recognised by their shape (tokens, keys, emails). Development only.
+ */
+export type RedactionModeSetting = "strict" | "standard" | "off";
+
+export const REDACTION_MODES: readonly RedactionModeSetting[] = [
+  "strict",
+  "standard",
+  "off",
+];
+
 export interface AppSettings {
   aiProvider?: AIProviderKey;
   aiHost?: string;
@@ -58,6 +73,8 @@ export interface AppSettings {
   developerTools?: boolean;
   /** Extra page content DOM Health leaves out of an audit, one matcher per entry: `id:prefix`, `class:prefix` or `tag:name`. Added to the built-in overlay list. */
   domHealthIgnoredRoots?: string[];
+  /** Redaction applied to diagnostic data; missing or unknown means "strict". */
+  redactionMode?: RedactionModeSetting;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -74,4 +91,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   verboseLogging: false,
   developerTools: false,
   domHealthIgnoredRoots: [],
+  redactionMode: "strict",
 };

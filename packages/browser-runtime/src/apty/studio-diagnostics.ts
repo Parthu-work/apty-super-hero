@@ -22,7 +22,7 @@
  * the honest, expected result, not a bug in this code.
  */
 
-import { redactLogs } from "@apty/debug-contract";
+import { redactLogEntries } from "../runtime/redaction-mode.js";
 import type {
   AptyLog,
   AptyStudioDiagnosticsProvider,
@@ -98,7 +98,7 @@ export class ExternalMessageStudioDiagnosticsProvider
       { type: "apty-debug-agent:get-studio-logs" },
       REQUEST_TIMEOUT_MS,
     );
-    return redactLogs(response?.logs ?? []);
+    return redactLogEntries(response?.logs ?? []);
   }
 }
 

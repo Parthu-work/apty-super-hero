@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from "@apty/agent-core";
+import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { initLogging } from "../../lib/logging";
 import { registerCommandHandlers } from "./commands";
 import { registerGlobalDownloadHelper } from "./downloads";
@@ -20,6 +21,8 @@ const log = createLogger("Background");
 
 initLogging();
 lockdownStorageAccess();
+// Read the redaction mode now, so the first MCP tool result is redacted in it.
+void getRedactionMode();
 seedAptyIntegrationConfig();
 registerSidepanelActionClick();
 registerCommandHandlers();

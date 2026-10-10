@@ -18,6 +18,8 @@ export {
   isValidConversationStorage,
   normalizeConversationConfig,
   type ProviderType,
+  REDACTION_MODES,
+  type RedactionModeSetting,
   STORAGE_KEYS,
   type StorageKey,
   validateAutomationMode,

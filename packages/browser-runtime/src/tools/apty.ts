@@ -33,11 +33,11 @@ import {
   NotConfiguredStudioDiagnosticsProvider,
   recordEvidence,
   recordToolCall,
-  redactLogs,
   ScriptingClientDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,
   summarizeLogCategories,
 } from "../apty/index.js";
+import { redactLogEntries } from "../runtime/redaction-mode.js";
 import {
   type DiagnosticTabFailureCode,
   describeTabForMeta,
@@ -416,7 +416,7 @@ export const getAptyPageLogsTool = tool({
     merged.sort((a, b) => a.timestamp - b.timestamp || a.seq - b.seq);
 
     const minIndex = LEVEL_SEVERITY[minLevel];
-    const filtered = redactLogs(
+    const filtered = redactLogEntries(
       merged
         .filter((entry) => LEVEL_SEVERITY[entry.level] >= minIndex)
         .slice(-limit)

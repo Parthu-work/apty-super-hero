@@ -47,6 +47,7 @@ import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen
 import { DomHealthCard } from "./investigation/dom-health-card";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
 import { ReadinessCheck } from "./readiness-check";
+import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
@@ -267,6 +268,7 @@ function ChatApp() {
             inputToolbar: (props) => <AutomationModeInputToolbar {...props} />,
             promptExtras: () => (
               <>
+                <RedactionOffBanner mode={settings.redactionMode} />
                 <ApprovalPrompt />
                 <InvestigationSummaryBar />
                 <DomHealthCard

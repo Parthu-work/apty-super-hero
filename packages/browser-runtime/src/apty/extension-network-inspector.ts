@@ -45,7 +45,7 @@
  */
 
 import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
-import { redactSensitiveText } from "@apty/debug-contract";
+import { redactText } from "../runtime/redaction-mode.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
 import { classifyLogEntry, type LogCategory } from "./log-classification.js";
@@ -828,7 +828,7 @@ export async function inspectResource(
     }
   }
 
-  const redacted = isBinary ? "" : redactSensitiveText(text);
+  const redacted = isBinary ? "" : redactText(text);
   const fullLength = redacted.length;
   const json = isBinary ? undefined : summarizeJsonBody(redacted);
   // A JSON body is summarized structurally (item count + sample), which is

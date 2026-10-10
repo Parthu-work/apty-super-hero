@@ -2,6 +2,7 @@ import type {
   AIProviderKey,
   AppSettings,
   KeyValueStorage,
+  RedactionModeSetting,
 } from "@apty/agent-core";
 import type { ReactNode } from "react";
 
@@ -43,6 +44,8 @@ export interface SettingsPageProps {
   onTabChange?: (tab: SettingsTab) => void;
   /** Pre-select a skill to open details for (used with initialTab="skills"). */
   initialSkill?: string;
+  /** Redacts the Data-handling Preview sample in a given mode; the host app supplies its redaction library. */
+  redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
 }
 
 export interface ProviderConfig {

@@ -285,11 +285,17 @@ export function redactUrl(url: string): string {
 }
 
 /** Redact an AptyLog-shaped entry's message field. */
-export function redactLog<T extends { message: string }>(entry: T): T {
-  return { ...entry, message: redactSensitiveText(entry.message) };
+export function redactLog<T extends { message: string }>(
+  entry: T,
+  mode: RedactionMode = "strict",
+): T {
+  return { ...entry, message: redactSensitiveText(entry.message, mode) };
 }
 
 /** Redact every log entry's message field. */
-export function redactLogs<T extends { message: string }>(entries: T[]): T[] {
-  return entries.map(redactLog);
+export function redactLogs<T extends { message: string }>(
+  entries: T[],
+  mode: RedactionMode = "strict",
+): T[] {
+  return entries.map((entry) => redactLog(entry, mode));
 }

@@ -11,6 +11,8 @@ export {
   type CustomModelConfig,
   DEFAULT_APP_SETTINGS,
   type ProviderType,
+  REDACTION_MODES,
+  type RedactionModeSetting,
 } from "./settings.js";
 export {
   type AutomationMode,

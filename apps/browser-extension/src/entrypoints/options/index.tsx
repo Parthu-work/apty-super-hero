@@ -1,5 +1,6 @@
 import type { AppSettings } from "@apty/agent-core";
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
+import { previewRedaction } from "@apty/browser-runtime/runtime/redaction-mode";
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import { SettingsPage } from "@apty/ui";
 import { I18nProvider } from "@apty/ui/i18n/context";
@@ -168,6 +169,7 @@ function OptionsPageContent() {
       activeTab={tab}
       onTabChange={setTab}
       initialSkill={initialSkill}
+      redactionPreview={previewRedaction}
     />
   );
 }

@@ -23,7 +23,7 @@
  * signal that Apty-side work is still needed (see docs/integrations/apty/README.md).
  */
 
-import { redactLogs } from "@apty/debug-contract";
+import { redactLogEntries } from "../runtime/redaction-mode.js";
 import type {
   AptyLog,
   AptyWidgetDiagnosticsProvider,
@@ -104,7 +104,7 @@ export class ScriptingWidgetDiagnosticsProvider
       });
 
       const raw = (results[0]?.result as AptyLog[] | undefined) ?? [];
-      return redactLogs(
+      return redactLogEntries(
         raw.map((entry) => ({
           level: (entry.level as AptyLog["level"]) ?? "log",
           message: entry.message,
