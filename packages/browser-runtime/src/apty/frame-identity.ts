@@ -285,6 +285,11 @@ export interface FrameRoleInput {
   interactiveCount?: number | null;
 }
 
+/** The URL's scheme, lower-cased and without its colon; null when it has none. */
+function urlScheme(url: string): string | null {
+  return /^\s*([a-z][a-z0-9+.-]*):/i.exec(url)?.[1]?.toLowerCase() ?? null;
+}
+
 /**
  * Brief section 4.4. Decided from what the parent says about the frame
  * element and from the frame's URL; whether a document with frames of its
@@ -301,7 +306,7 @@ export function frameRole(input: FrameRoleInput): FrameRoleDecision {
       reason: `The frame element is excluded overlay content (${owner.ignoredBy}).`,
     };
   }
-  if (input.url.startsWith("javascript:")) {
+  if (urlScheme(input.url) === "javascript") {
     return {
       role: "shim",
       reason: "The frame was loaded from a javascript: URL.",
@@ -315,7 +320,7 @@ export function frameRole(input: FrameRoleInput): FrameRoleDecision {
   // javascript: frame's URL was not verified on a live tenant.
   if (
     input.url === "about:blank" &&
-    owner?.srcAttribute?.trim().toLowerCase().startsWith("javascript:") &&
+    urlScheme(owner?.srcAttribute ?? "") === "javascript" &&
     (input.interactiveCount ?? 0) === 0
   ) {
     return {

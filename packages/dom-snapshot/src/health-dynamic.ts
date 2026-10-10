@@ -123,7 +123,10 @@ const ENVIRONMENT_CLASS_PATTERN =
  * brief's list (section 4.8) plus `pinned`.
  */
 const STATE_CLASS_PATTERN =
-  /^(?:is-.+|.+--is-.+|.+_is-.+|.+[-_]display-none|selected|active|disabled|open|expanded|collapsed|focus|focused|hover|required|invalid|error|pinned)$/i;
+  /^(?:selected|active|disabled|open|expanded|collapsed|focus|focused|hover|required|invalid|error|pinned)$/i;
+
+/** `is-…`, `…--is-…`, `…_is-…` and `…-display-none`, written without nested `.+` so a long token cannot make it backtrack. */
+const STATE_CLASS_MARKER = /^is-.|.(?:--|_)is-.|.[-_]display-none$/i;
 
 /**
  * Package-version classes athenaOne's Nimbus loader puts on every app
@@ -146,7 +149,9 @@ export function classifyUnstableClass(
   siblings: readonly string[] = [],
 ): UnstableClassKind | null {
   if (ENVIRONMENT_CLASS_PATTERN.test(token)) return "environment";
-  if (STATE_CLASS_PATTERN.test(token)) return "state";
+  if (STATE_CLASS_PATTERN.test(token) || STATE_CLASS_MARKER.test(token)) {
+    return "state";
+  }
   if (PACKAGE_VERSION_CLASS_PATTERN.test(token)) return "build";
   if (looksDynamic(token)) return "generated";
   if (
