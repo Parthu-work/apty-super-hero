@@ -1,18 +1,18 @@
-# Review: `hardening/open-work` (checkpoints A and B)
+# Review: `hardening/open-work` (checkpoints A, B and C)
 
 | | |
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `d179913` (B2); the branch head is the next commit, which updates this file |
-| Build zip | `apty-agent-review-B-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
-| Git bundle | `apty-B-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; it carries Phase A too |
+| Code head | `371e566` (C5 ratchet); the branch head is the next commit, which updates this file |
+| Build zip | `apty-agent-review-C-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
+| Git bundle | `apty-C-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; it carries Phases A and B too |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
 
 This file replaces the previous round's `REVIEW.md` (the v7 WP1 review),
 following that file's own convention of one review per round; that text is
-in git history: `git show dc27e2f:REVIEW.md`. Checkpoint A's review is
-kept below Phase B, unchanged apart from headings.
+in git history: `git show dc27e2f:REVIEW.md`. The Phase B and Phase A
+reviews follow Phase C, unchanged apart from headings.
 
 ## Commits
 
@@ -27,9 +27,311 @@ kept below Phase B, unchanged apart from headings.
 | `0829dbf` | B4: virtualized lists reported as partial coverage |
 | `1784d54` | B5: a switch and site exclusions for the page-world script |
 | `d179913` | B2: real-tenant validation bundle and threshold overrides |
-| branch head | This `REVIEW.md` (checkpoint B) |
+| `15ab96e` | Checkpoint B `REVIEW.md` |
+| `1a9d225` | C4: re-enable the skipped chat tests, fix Stop while submitted |
+| `67ba3d0` | C5: a coverage gate in every package |
+| `1acf975` | C3: axe accessibility checks and fixes |
+| `c8d0d92` | C1: live model list, tool-calling probe, preset audit |
+| `ea932f5` | C2: preflight page, demo script, `demo:check` |
+| `371e566` | C5 ratchet raised after Phase C's tests |
+| branch head | This `REVIEW.md` (checkpoint C) |
 
 B1 was skipped: see below.
+
+## Checkpoint C gates (clean build of `371e566`)
+
+```
+$ rm -rf apps/browser-extension/dist
+$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
+✓ typecheck (11s)
+✓ lint (1s)
+✓ test (61s)
+✓ audit (1s)
+✓ build (20s)
+```
+
+Unit tests inside `test` (no skipped test anywhere):
+
+```
+packages/apty-debug-contract   Tests  72 passed (72)
+packages/agent-core            Tests 260 passed (260)
+packages/dom-snapshot          Tests 367 passed (367)
+packages/ui                    Tests 216 passed (216)
+packages/browser-runtime       Tests 861 passed (861)
+apps/browser-extension         Tests 288 passed (288)
+apps/mcp-bridge                Tests  44 passed (44)
+tooling/scripts (node:test)    pass 10, fail 0
+$ npm run audit:test-skips
+✓ every skipped test says why
+```
+
+```
+$ npm run test:e2e        (Chromium from /opt/pw-browsers, against the clean build)
+# tests 84
+# pass 84
+# fail 0
+# skipped 0
+```
+
+Coverage (`npm run test:coverage`, exit 0; every package now measures all
+of `src`, see C5):
+
+| Package | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| agent-core | 76.25 | 70.13 | 83.73 | 77.99 |
+| dom-snapshot | 90.99 | 82.58 | 97.75 | 92.76 |
+| ui | 44.71 | 35.04 | 43.09 | 45.52 |
+| browser-runtime | 49.77 | 45.76 | 53.67 | 49.71 |
+| apty-debug-contract | 84.91 | 78.46 | 93.18 | 87.66 |
+| browser-extension | 43.86 | 44.59 | 41.22 | 43.72 |
+| mcp-bridge | 21.27 | 18.15 | 24.74 | 21.51 |
+
+The packaged manifest still has `"externally_connectable": {"ids": []}`.
+TruffleHog 3.99.2 over `origin/main..HEAD`, no exclude list, verification
+off: `"chunks":1068 "bytes":1036641 "verified_secrets":0 "unverified_secrets":0`.
+
+## C4: The skipped tests (done)
+
+The ten skips were all in `packages/ui`:
+
+| Test | Outcome |
+|---|---|
+| use-chat: reset and delete the session; message handlers; tool handlers; context items; onError; tool call parts | Passed unchanged when re-enabled; re-enabled (a stale NOTE comment removed) |
+| use-chat: regenerate | Failed only because the mock agent lacked `rollbackLastAssistantTurn`, added to `useChat` after the test; mock added, assertions strengthened |
+| use-chat: interrupt an active stream | **Real bug.** Stop pressed while a turn was still "submitted" (before its generator existed) was lost and the turn started anyway. Fixed with a turn token in `use-chat.ts`; the test now waits for the stream, and a new test, "never starts a turn that was stopped while still submitted", fails on the old code (proved) |
+| chatbot: `onNewChat` / `onSettingsOpen` via `handlers` | Targeted props `Chatbot` never had (its own skip comment said so). Settings: deleted, covered by "should call chrome.runtime.openOptionsPage when settings button is clicked". New Chat: replaced by "New Chat clears the conversation and deletes its agent session" |
+
+A second Stop gap: the side panel's own toolbar only offered Stop while
+"streaming", so Stop was impossible while "submitted". Now Stop in both
+(`automation-mode-toolbar.test.tsx`).
+
+Covered by: Stop while streaming: use-chat "should interrupt an active
+stream" and the toolbar test; Stop while submitted: use-chat "never starts
+a turn…" and the toolbar test; reset / new chat: use-chat "should reset
+chat state…" and chatbot "New Chat clears…"; settings: chatbot "should call
+chrome.runtime.openOptionsPage…". No e2e added.
+
+`tooling/scripts/check-test-skips.mjs` (`npm run audit:test-skips`, a CI
+step, and 5 node tests) fails on a `.skip`/`.skipIf` without
+`// skip-reason:` on that line or the one above. It is not in
+`verify-quiet.sh` (not to be overwritten); run it separately.
+
+## C5: Coverage gate (done)
+
+Measured at the start of C5 (all of `src/**/*.{ts,tsx}`, tests excluded),
+S/B/F/L: agent-core 76.32/70.31/83.73/78.14; dom-snapshot
+90.99/82.58/97.75/92.76; ui 42.77/32.42/41.27/43.62; browser-runtime
+47.78/44.57/51.08/47.63; apty-debug-contract 84.91/78.46/93.18/87.66;
+browser-extension 38.84/37.79/38.84/38.86; mcp-bridge 21.27/18.15/24.74/21.51.
+
+- `test:coverage` in every package; `mcp-bridge` wired into the root
+  script, which CI already runs.
+- Thresholds one point below the measured value (re-measured after the
+  targeted tests, and raised again after Phase C), documented in
+  `docs/development/coverage.md` with the rule that they only go up.
+- The six trust-boundary files in browser-runtime and the three
+  redaction files in the contract keep their old numbers, as glob groups.
+- Targeted tests: chat image downloads (path-traversal guard, data URLs
+  only; 0% before), the background router's download request (sender gate
+  and fallbacks), the WebSocket MCP executor and transport (0% before:
+  localhost only, token only as a subprotocol and never in status, tool
+  dispatch, errors, timeout, reconnect vs. user disconnect), cross-extension
+  message failures (57% branches before), Settings' Save and Test
+  Connection.
+- Proved locally, not committed: a 99% statements threshold on the
+  critical group gives "ERROR: Coverage for statements (91.92%) does not
+  meet … threshold (99%)" and exit 1; a ui global threshold of 45 gives
+  "does not meet global threshold (45%)".
+
+## C3: Accessibility (done)
+
+- `axe-core` 4.13.0 is the only new dependency (pinned exactly; 4.14.0
+  was five days old). `runAxe(page)` in the harness waits for CSS
+  transitions to settle first (a button switching variants measured
+  3.32:1 mid-transition) and reports each node's markup and axe's reason.
+- `tooling/e2e/a11y.e2e.test.mjs`: the side panel empty, with an approval
+  prompt, after a tool result, with the investigation summary and the full
+  response viewer, and every Options tab, in light and dark; fails on
+  serious or critical. **No rule disabled.**
+- Fixes (table in `docs/development/accessibility.md`): `--muted-foreground`
+  and `--success` reach 4.5:1; dark destructive alert and built-in badge
+  colours; names for every icon-only button and select found; the approval
+  `alertdialog` is named by its title; the skill upload's file input is the
+  control instead of a `role="button"` wrapper around it.
+- Proved it can fail: removing the approval prompt's `aria-labelledby` and
+  rebuilding gives "serious aria-dialog-name"; restored.
+
+## C1: Live model list, tool-calling probe, preset audit (done; no real provider called)
+
+- **Fetch models** beside the model field: OpenAI-compatible
+  `GET {base}/models` with Bearer; Anthropic `GET {base}/models?limit=1000`
+  (+`after_id`) with `x-api-key` and `anthropic-version: 2023-06-01`; Gemini
+  `GET {base}/models?pageSize=1000` (+`pageToken`) with `x-goog-api-key`,
+  keeping models that support `generateContent`. Up to five pages, 10 s
+  timeout, 10-minute cache per provider and base URL (successes only),
+  hosts through `validateHostUrl`, named 401/403/404/429/network/timeout
+  errors, presets and manual entry kept on failure.
+- **Probe** after Test Connection's basic request: one tool
+  `report_probe` (never executed), 15 s, one retry when inconclusive.
+  "no" = answered without calling it, or a 400/404/422 saying tools are
+  unsupported. Saved on the model config for that model id; badge by the
+  model field, "No tools" in the list, and a confirmation before selecting
+  a model whose last probe said no.
+- **Preset audit** (sources below): the Anthropic host was
+  `https://api.anthropic.com`, and `@ai-sdk/anthropic` appends `/messages`,
+  so every chat went to a 404; the preset is now `…/v1` and
+  `createAIProvider` adds `/v1` to a bare origin so saved settings work.
+  Together `api.together.ai`; Cohere's OpenAI compatibility URL
+  `https://api.cohere.ai/compatibility/v1` (its `/v1` is the native API);
+  DeepSeek `https://api.deepseek.com`; Azure the v1 form
+  `https://YOUR-RESOURCE.openai.azure.com/openai/v1` (model = deployment
+  name). Suggestions: Anthropic `claude-opus-5-5`, `claude-sonnet-5-5`,
+  `claude-haiku-5-5`, `claude-fable-5-1` (docs: no floating aliases); Gemini
+  `gemini-flash-latest`, `gemini-flash-lite-latest`, `gemini-pro-latest`;
+  Mistral `-latest` kept; DeepSeek `deepseek-flash`, `deepseek-v4-pro`;
+  Perplexity `sonar`, `sonar-pro`; every other list emptied. Replicate (no
+  OpenAI-compatible chat API) and Perplexity (tool calling undocumented)
+  are kept and marked experimental in Settings. Built-in providers saved
+  on a superseded host move to the current one.
+- Tests: parsers and requests per provider, errors, cache, SSRF refusals,
+  probe classification and retry, Settings UI (fetch, failure, badge,
+  warning); e2e `model-settings.e2e.test.mjs` against the mock model:
+  fetch 401 with manual fallback, fetch success, probe yes / no (text) /
+  no (400 refusal) / unknown (503 twice, three requests).
+
+How the docs were checked: a research agent could read only
+platform.claude.com in full (this session's proxy blocked the other docs
+hosts); the other rows come from web-search extracts of each provider's
+own documentation domain. Anything those did not state was treated as
+unverified and not hardcoded.
+
+## C2: Preflight page and demo docs (done)
+
+- Options → Apty Integration → **Preflight** (`#preflight`; a bare hash
+  now opens the right tab): Run all checks → pass / warn / fail, each with
+  its fix and a Copy button: AI provider (live test with latency and the
+  probe), Apty Client (installed, handshake, request list; the fix names
+  the manifest change with this Agent's ID for `not_allowlisted`, the
+  bridge module for `bridge_missing`), this extension's ID, the page and
+  every frame answering, console-capture coverage per frame, clipboard
+  permission, whether a page script can read extension storage, data
+  handling. Export results as redacted JSON; Reset demo data (reuses the
+  purge, with confirmation).
+- `docs/demo/DEMO.md`; `pnpm demo:check` builds and runs
+  `tooling/e2e/preflight.e2e.test.mjs`: all green against the fixture
+  Client and a mock model that calls tools, then no API key, a Client that
+  does not allow-list the Agent, one without the bridge, and no open page,
+  each with its own fix.
+- Test Connection and the purge moved to shared services.
+
+## Phase C: not done, or partial
+
+- C1: no real provider was called (no keys); Anthropic's need for
+  `anthropic-dangerous-direct-browser-access` from an extension page is
+  unverified (extension pages with host permissions are not subject to
+  CORS, and chats already reach Anthropic without it).
+- C2: in DEMO.md only the segments.json prompt is exercised by e2e; "show
+  the apty client's service worker logs" and "why isn't my Apty widget
+  showing?" (needs a real Widget) are not.
+- C3 covers the screens listed; DOM Health results and the skill detail
+  dialog are not in the axe suite.
+
+## Phase C: conflicts between the prompt and the repo
+
+- C1: `ai-provider.test.ts` asserted Groq's first suggestion is
+  `openai/gpt-oss-20b`; C1 forbids unverifiable names, so the test now
+  asserts Groq has no suggestions (no stale default). Changed, not deleted.
+- C1: Replicate was flagged experimental rather than removed, so saved
+  settings that reference it still load.
+- C1: Anthropic docs now also accept `Authorization: Bearer`; the model
+  list uses `x-api-key`, as the chat SDK does.
+- C2: Options has no conversation, so "bound tab" is the most recently
+  used http(s) tab, named in the result.
+- C2: the clipboard check queries the permission rather than writing,
+  which would overwrite the user's clipboard. The storage check runs a
+  content script that tries to read a key that never exists (Chrome has no
+  getter for the access level).
+- C3: "the evidence viewer" was taken as the investigation summary and the
+  full response viewer.
+- C5: `mcp-bridge` has no coverage provider of its own and adding one is a
+  new dependency; it uses the root `@vitest/coverage-v8` 4.1.0 with its
+  Vitest 4.1.11, and Vitest prints "Running mixed versions is not
+  supported". It works today (decision 4 below).
+
+## Phase C: decisions needed from the owner
+
+4. Add `@vitest/coverage-v8` at a matching version to `apps/mcp-bridge`'s
+   devDependencies, to end the mixed-version warning?
+
+## Phase C: observed, not changed
+
+- **Evidence ids after de-duplication (a real bug, found by C3's test).**
+  `recordEvidence` drops a repeat of the same request but returns a new
+  `evidenceId` that is never stored. Inspecting `segments.json` a second
+  time in one browser session gives the model and the UI an id the viewer
+  cannot find ("The full response is no longer available in this
+  session."). Suggested fix: return the stored record's id on a duplicate.
+  The a11y test inspects a different resource per theme because of it.
+- `downloads.ts` does not advance the image index when a download throws,
+  so the next image takes the failed one's name; `data:image/svg+xml` gets
+  the extension `svg+xml`.
+- Settings' "Please fill in all required fields" save path is
+  unreachable from the UI (Save is disabled until key and model exist).
+- `--warning` (amber) as text on white is about 3.2:1 (DOM Health tone
+  classes); not in a screen the axe suite covers.
+- Test Connection logs the raw provider error with `console.error` (moved
+  unchanged into `connection-test.ts`); AI SDK errors can carry the request
+  body (the prompt "Hi"; never the key) and the response body.
+
+## Phase C: owner test scripts (about 5 minutes each)
+
+Setup as for Phase A (load the unzipped build, configure a model).
+
+### C1: models and tool calling
+
+1. Settings → AI Configuration → your provider. Paste a wrong key, click
+   **Fetch models**. **Expected:** "The provider rejected the API key
+   (401). Pick a suggestion or type the model id." and the model field
+   still accepts typing.
+2. Paste the right key, **Fetch models**. **Expected:** "N models from the
+   provider", and the model field's suggestions list them.
+3. Pick a model known to call tools, **Test Connection**. **Expected:**
+   "Connection test successful · Tool calling: yes" and a badge.
+4. Pick a model your provider documents as not supporting function
+   calling, **Test Connection**. **Expected:** "… Tool
+   calling: no — the agent needs it", "No tools" in the provider list;
+   selecting another provider and back asks for confirmation.
+5. Select **Anthropic** with a key and send a chat. **Expected:** an answer
+   (before C1 the preset host made every request 404).
+
+### C2: preflight
+
+1. Open `chrome-extension://<id>/src/entrypoints/options/index.html#preflight`.
+   **Expected:** Apty Integration opens with the Preflight card.
+2. With the provider, the Client (or the fixture Client from DEMO.md) and
+   an application tab ready: **Run all checks**. **Expected:** "All checks
+   passed."
+3. Remove the Client ID in Apty Integration (Disconnect), run again.
+   **Expected:** Apty Client fails with "Fix: Open Settings → Apty
+   Integration, click Detect …"; **Copy** copies that fix.
+4. **Export results (redacted JSON)**. **Expected:** a file
+   `apty-preflight-<time>.json` with `schema: apty-preflight/1`.
+5. **Reset demo data** → **Delete conversations and screenshots**.
+   **Expected:** "Demo data reset…"; the side panel's history is empty.
+
+### C3: accessibility (spot check)
+
+1. In Options turn on dark theme. **Expected:** muted text and the green
+   "Answering" badge stay readable.
+2. With a screen reader or the Accessibility pane of DevTools, inspect the
+   eye icon by the API key. **Expected:** named "Show API key".
+
+### C4: Stop
+
+1. Ask a long question and click the send button while it shows the
+   spinner. **Expected:** the turn stops and nothing streams afterwards.
+
+# Phase B
 
 ## Checkpoint B gates (clean build of `d179913`)
 
