@@ -543,34 +543,24 @@ describe("Chatbot Event Handlers", () => {
     );
   });
 
-  // Note: These tests are skipped because the handlers prop structure
-  // may differ from the current implementation. The handlers are passed
-  // to the useChat hook, not directly to UI event handlers.
-  it.skip("should call onNewChat when new chat button is clicked", async () => {
-    const onNewChat = vi.fn();
+  // The Settings button is covered by "should open options page when
+  // settings button is clicked" above; Chatbot has no onSettingsOpen prop.
+  it("New Chat clears the conversation and deletes its agent session", async () => {
+    await renderWithAct(<Chatbot agent={mockAgent} />);
 
-    await renderWithAct(
-      <Chatbot agent={mockAgent} handlers={{ onNewChat } as any} />,
+    fireEvent.click(
+      screen.getByText("Please organize my open tabs by topic and purpose"),
     );
-
-    const newChatButton = screen.getByText("New Chat");
-    fireEvent.click(newChatButton);
-
-    expect(onNewChat).toHaveBeenCalled();
-  });
-
-  it.skip("should call onSettingsOpen when settings button is clicked", async () => {
-    const onSettingsOpen = vi.fn();
-
-    await renderWithAct(
-      <Chatbot agent={mockAgent} handlers={{ onSettingsOpen } as any} />,
-    );
-
-    const settingsButton = screen.getByText("Settings");
-    fireEvent.click(settingsButton);
-
     await waitFor(() => {
-      expect(onSettingsOpen).toHaveBeenCalled();
+      expect(screen.queryByText("Apty AI Agent")).toBeNull();
     });
+    await act(async () => {});
+
+    fireEvent.click(screen.getByText("New Chat"));
+
+    expect(
+      mockAgent.getConversationManager()?.deleteSession,
+    ).toHaveBeenCalledWith("session-1");
+    expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
   });
 });

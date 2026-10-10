@@ -1,5 +1,5 @@
 import type { AgentEvent, AIPex } from "@apty/agent-core";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useChat } from "./use-chat";
 
@@ -307,7 +307,7 @@ describe("useChat", () => {
     });
   });
 
-  it.skip("should interrupt an active stream", async () => {
+  it("should interrupt an active stream", async () => {
     const { agent } = setupDefaultAgent();
     const streamingGenerator = createStreamingGenerator();
     (agent.chat as ReturnType<typeof vi.fn>).mockReturnValue(
@@ -316,17 +316,52 @@ describe("useChat", () => {
 
     const { result } = await renderUseChat(agent);
 
+    let turn: Promise<void> | undefined;
+    act(() => {
+      turn = result.current.sendMessage("Processing");
+    });
+    await waitFor(() => expect(result.current.sessionId).toBe("session-1"));
+
     await act(async () => {
-      const localPromise = result.current.sendMessage("Processing");
       await result.current.interrupt();
-      await localPromise;
+      await turn;
     });
 
     expect(streamingGenerator.return).toHaveBeenCalled();
     expect(result.current.status).toBe("idle");
   });
 
-  it.skip("should reset chat state and delete the session", async () => {
+  it("never starts a turn that was stopped while still submitted", async () => {
+    const { agent } = setupDefaultAgent();
+    let resolveRunContext: (value: undefined) => void = () => {};
+    const getRunContext = vi.fn(
+      () =>
+        new Promise<undefined>((resolve) => {
+          resolveRunContext = resolve;
+        }),
+    );
+    const { result } = await renderUseChat(agent, {
+      config: { getRunContext },
+    });
+
+    let turn: Promise<void> | undefined;
+    act(() => {
+      turn = result.current.sendMessage("Stop me");
+    });
+    expect(result.current.status).toBe("submitted");
+
+    await act(async () => {
+      await result.current.interrupt();
+      resolveRunContext(undefined);
+      await turn;
+    });
+
+    expect(agent.chat).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+    expect(result.current.messages.map((m) => m.role)).toEqual(["user"]);
+  });
+
+  it("should reset chat state and delete the session", async () => {
     const { agent, conversationManager } = setupDefaultAgent();
     const { result } = await renderUseChat(agent);
 
@@ -343,7 +378,7 @@ describe("useChat", () => {
     expect(conversationManager.deleteSession).toHaveBeenCalledWith("session-1");
   });
 
-  it.skip("should call message handlers", async () => {
+  it("should call message handlers", async () => {
     const onMessageSent = vi.fn();
     const onResponseReceived = vi.fn();
     const { agent } = setupDefaultAgent();
@@ -359,7 +394,7 @@ describe("useChat", () => {
     expect(onResponseReceived).toHaveBeenCalled();
   });
 
-  it.skip("should notify tool handlers for tool events", async () => {
+  it("should notify tool handlers for tool events", async () => {
     const { agent } = setupDefaultAgent();
     (agent.chat as ReturnType<typeof vi.fn>).mockReturnValue(
       createEventGenerator([
@@ -389,8 +424,10 @@ describe("useChat", () => {
     expect(onToolComplete).toHaveBeenCalledWith("search", { success: true });
   });
 
-  it.skip("should regenerate the last response", async () => {
+  it("should regenerate the last response", async () => {
     const { agent } = setupDefaultAgent();
+    const rollbackLastAssistantTurn = vi.fn().mockResolvedValue(undefined);
+    Object.assign(agent, { rollbackLastAssistantTurn });
     (agent.chat as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce(
         createEventGenerator([
@@ -417,12 +454,20 @@ describe("useChat", () => {
       await result.current.regenerate();
     });
 
+    expect(rollbackLastAssistantTurn).toHaveBeenCalledWith("session-1");
     expect(agent.chat).toHaveBeenNthCalledWith(2, "Hello", {
       sessionId: "session-1",
     });
+    const assistant = result.current.messages.filter(
+      (m) => m.role === "assistant",
+    );
+    expect(assistant).toHaveLength(1);
+    expect(JSON.stringify(assistant[0]?.parts)).toContain(
+      "Regenerated response",
+    );
   });
 
-  it.skip("should include context items in user message", async () => {
+  it("should include context items in user message", async () => {
     const { agent } = setupDefaultAgent();
     const { result } = await renderUseChat(agent);
     const contexts = [
@@ -436,10 +481,7 @@ describe("useChat", () => {
     expect(result.current.messages[0]?.parts[0]?.type).toBe("context");
   });
 
-  it.skip("should call onError when the generator throws", async () => {
-    // NOTE: onError now receives a normalized AgentError (see emitError/
-    // toAgentError in use-chat.ts), not the raw thrown Error by reference —
-    // update this assertion if/when this suite is unskipped.
+  it("should call onError when the generator throws", async () => {
     const testError = new Error("boom");
     const { agent } = setupDefaultAgent();
     (agent.chat as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
@@ -459,7 +501,7 @@ describe("useChat", () => {
     expect(result.current.status).toBe("error");
   });
 
-  it.skip("should add tool call parts to assistant messages", async () => {
+  it("should add tool call parts to assistant messages", async () => {
     const { agent } = setupDefaultAgent();
     (agent.chat as ReturnType<typeof vi.fn>).mockReturnValue(
       createEventGenerator([
