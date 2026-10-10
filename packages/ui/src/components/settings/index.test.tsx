@@ -1,4 +1,4 @@
-import type { CustomModelConfig } from "@apty/agent-core";
+import type { AppSettings, CustomModelConfig } from "@apty/agent-core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n/context";
@@ -168,6 +168,116 @@ describe("SettingsPage", () => {
         .getByRole("switch", { name: "Enable" })
         .getAttribute("aria-checked"),
     ).toBe("true");
+  });
+
+  describe("Save and Test Connection", () => {
+    function renderWith(props: {
+      onSave?: (settings: AppSettings) => void;
+      onTestConnection?: (settings: AppSettings) => Promise<boolean>;
+    }) {
+      const storageAdapter = createMemoryStorage<unknown>();
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={storageAdapter}
+              initialTab="ai"
+              onSave={props.onSave}
+              onTestConnection={props.onTestConnection}
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+      return storageAdapter;
+    }
+
+    async function typeKey(key: string) {
+      fireEvent.change(await screen.findByPlaceholderText("Your API Key"), {
+        target: { value: key },
+      });
+    }
+
+    function typeModel(model: string) {
+      const field = screen.getByPlaceholderText("deepseek-chat");
+      fireEvent.change(field, { target: { value: model } });
+    }
+
+    it("keeps Save and Test Connection disabled for an enabled provider until it has a model", async () => {
+      const onSave = vi.fn();
+      const storageAdapter = renderWith({ onSave });
+      await typeKey("sk-test");
+      typeModel("");
+
+      const save = screen.getByRole("button", { name: "Save Settings" });
+      expect(save).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Test Connection" }),
+      ).toBeDisabled();
+      fireEvent.click(save);
+      expect(onSave).not.toHaveBeenCalled();
+      expect(storageAdapter.save).not.toHaveBeenCalled();
+
+      typeModel("gpt-4o-mini");
+      expect(save).toBeEnabled();
+    });
+
+    it("saves the active provider's key and model as the settings the agent uses", async () => {
+      const onSave = vi.fn();
+      const storageAdapter = renderWith({ onSave });
+      await typeKey("sk-test");
+      typeModel("gpt-4o-mini");
+
+      fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+
+      expect(
+        await screen.findByText("Settings saved successfully!"),
+      ).toBeInTheDocument();
+      expect(storageAdapter.save).toHaveBeenCalledWith(
+        "aipex_settings",
+        expect.objectContaining({
+          aiToken: "sk-test",
+          aiModel: "gpt-4o-mini",
+          providerEnabled: true,
+        }),
+      );
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ aiToken: "sk-test" }),
+      );
+    });
+
+    it("tests the connection with the typed key and model and reports failure and errors", async () => {
+      const onTestConnection = vi
+        .fn()
+        .mockResolvedValueOnce(false)
+        .mockRejectedValueOnce(new Error("401 Unauthorized"))
+        .mockResolvedValueOnce(true);
+      renderWith({ onTestConnection });
+      await typeKey("sk-test");
+      typeModel("gpt-4o-mini");
+      const test = screen.getByRole("button", { name: "Test Connection" });
+
+      fireEvent.click(test);
+      expect(
+        await screen.findByText("Connection test failed"),
+      ).toBeInTheDocument();
+      expect(onTestConnection).toHaveBeenCalledWith(
+        expect.objectContaining({ aiToken: "sk-test", aiModel: "gpt-4o-mini" }),
+      );
+
+      await waitFor(() => expect(test).toBeEnabled());
+      fireEvent.click(test);
+      expect(
+        await screen.findByText("Connection test failed: 401 Unauthorized"),
+      ).toBeInTheDocument();
+
+      await waitFor(() => expect(test).toBeEnabled());
+      fireEvent.click(test);
+      expect(
+        await screen.findByText("Connection test successful"),
+      ).toBeInTheDocument();
+    });
   });
 
   it("never renders a Data Sharing control (there is nothing for it to control)", async () => {

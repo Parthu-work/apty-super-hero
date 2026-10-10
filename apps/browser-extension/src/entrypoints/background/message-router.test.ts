@@ -33,8 +33,10 @@ let registeredListener:
   },
 };
 
+import { downloadChatImagesInBackground } from "./downloads";
 import { registerMessageRouter } from "./message-router";
 import { setIsRecording } from "./recording";
+import { openSidePanelOnDemand } from "./sidepanel";
 
 const TRUSTED_SENDER = {
   id: EXTENSION_ID,
@@ -114,5 +116,161 @@ describe("message-router — privileged request sender checks", () => {
       UNTRUSTED_SENDER,
     )) as any;
     expect(result.success).toBe(true);
+  });
+});
+
+describe("message-router — chat image downloads", () => {
+  const IMAGES = [
+    {
+      id: "m1",
+      parts: [{ type: "image", imageData: "data:image/png;base64,x" }],
+    },
+  ];
+  const REQUEST = {
+    request: "get-current-chat-images-for-download",
+    folderPrefix: "shots",
+    imageNames: ["login"],
+  };
+  const sendMessage = () =>
+    (global as any).chrome.runtime.sendMessage as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.mocked(downloadChatImagesInBackground).mockResolvedValue({
+      success: true,
+      downloadedCount: 1,
+      downloadIds: [3],
+      filesList: ["shots/login.png"],
+    });
+  });
+
+  afterEach(() => {
+    sendMessage().mockResolvedValue(undefined);
+    delete (global as any).chrome.tabs.sendMessage;
+  });
+
+  it("refuses a content script before asking anyone for images or downloading", async () => {
+    const result = (await invoke(REQUEST, UNTRUSTED_SENDER)) as any;
+
+    expect(result).toEqual({ success: false, error: "Unauthorized sender" });
+    expect(sendMessage()).not.toHaveBeenCalled();
+    expect(downloadChatImagesInBackground).not.toHaveBeenCalled();
+  });
+
+  it("downloads the side panel's images under the requested folder and names", async () => {
+    sendMessage().mockResolvedValueOnce({ images: IMAGES });
+
+    const result = (await invoke(REQUEST, TRUSTED_SENDER)) as any;
+
+    expect(sendMessage()).toHaveBeenCalledWith(
+      expect.objectContaining({ request: "provide-current-chat-images" }),
+    );
+    expect(downloadChatImagesInBackground).toHaveBeenCalledWith(
+      IMAGES,
+      "shots",
+      ["login"],
+    );
+    expect(result).toMatchObject({
+      success: true,
+      downloadedCount: 1,
+      folderPath: "shots",
+      filesList: ["shots/login.png"],
+    });
+  });
+
+  it("says so when the chat has no images", async () => {
+    sendMessage().mockResolvedValueOnce({ images: [] });
+    expect(await invoke(REQUEST, TRUSTED_SENDER)).toEqual({
+      success: false,
+      error: "No images found in current chat",
+    });
+    expect(downloadChatImagesInBackground).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the active tab when the side panel does not answer", async () => {
+    sendMessage().mockRejectedValueOnce(new Error("no receiver"));
+    (global as any).chrome.tabs.query = vi.fn(async () => [{ id: 4 }]);
+    (global as any).chrome.tabs.sendMessage = vi.fn(async () => ({
+      images: IMAGES,
+    }));
+
+    const result = (await invoke(REQUEST, TRUSTED_SENDER)) as any;
+
+    expect((global as any).chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      4,
+      expect.objectContaining({ request: "provide-current-chat-images" }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("reports that the chat could not be reached when neither answers", async () => {
+    sendMessage().mockRejectedValueOnce(new Error("no receiver"));
+    (global as any).chrome.tabs.query = vi.fn(async () => []);
+
+    expect(await invoke(REQUEST, TRUSTED_SENDER)).toEqual({
+      success: false,
+      error: "Unable to access current chat",
+    });
+  });
+});
+
+describe("message-router — other requests", () => {
+  it("relays a trusted page's message to the active tab and reports a missing tab", async () => {
+    (global as any).chrome.tabs.query = vi.fn(
+      (_q: unknown, cb: (tabs: unknown[]) => void) => cb([{ id: 9 }]),
+    );
+    (global as any).chrome.tabs.sendMessage = vi.fn(async () => undefined);
+    expect(
+      await invoke(
+        { request: "relay-to-active-tab", message: { foo: "bar" } },
+        TRUSTED_SENDER,
+      ),
+    ).toEqual({ success: true });
+    expect((global as any).chrome.tabs.sendMessage).toHaveBeenCalledWith(9, {
+      foo: "bar",
+    });
+
+    (global as any).chrome.tabs.query = vi.fn(
+      (_q: unknown, cb: (tabs: unknown[]) => void) => cb([]),
+    );
+    expect(
+      await invoke(
+        { request: "relay-to-active-tab", message: { foo: "bar" } },
+        TRUSTED_SENDER,
+      ),
+    ).toEqual({ success: false, error: "No active tab" });
+    delete (global as any).chrome.tabs.sendMessage;
+  });
+
+  it("re-broadcasts and stores a captured click", async () => {
+    await invoke(
+      { request: "capture-click-event", data: { x: 1 } },
+      UNTRUSTED_SENDER,
+    );
+    expect((global as any).chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      request: "capture-click-event",
+      data: { x: 1 },
+    });
+    expect((global as any).chrome.storage.local.set).toHaveBeenCalledWith({
+      aipex_last_capture_event: { data: { x: 1 }, ts: expect.any(Number) },
+    });
+  });
+
+  it("reports a side panel that could not open", async () => {
+    vi.mocked(openSidePanelOnDemand).mockRejectedValueOnce(
+      new Error("user gesture required"),
+    );
+    expect(
+      await invoke({ request: "open-sidepanel" }, UNTRUSTED_SENDER),
+    ).toEqual({ success: false, error: "user gesture required" });
+  });
+
+  it("leaves unknown requests to other listeners", () => {
+    expect(
+      registeredListener?.(
+        { request: "something-else" },
+        TRUSTED_SENDER,
+        () => {},
+      ),
+    ).toBe(false);
   });
 });

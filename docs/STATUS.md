@@ -45,6 +45,12 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   shows a side-panel banner. Every caller goes through
   `runtime/redaction-mode.ts`, and a unit test fails on a direct call.
 
+- Every package has a coverage gate (C5): package-wide ratchets one point
+  below the measured value, plus the stricter groups for approvals, sender
+  checks, cross-extension messaging, capture and redaction; thresholds only
+  go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
+  CI fails on a skip without a `// skip-reason:` (C4).
+
 ## Open
 
 | Item | Needs |

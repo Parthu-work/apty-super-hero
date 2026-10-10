@@ -82,7 +82,9 @@ pnpm preflight
 
 This checks formatting and lint without rewriting anything (`pnpm fix`
 applies the fixes), typechecks, runs the full test suite across every
-package, and enforces coverage on the security-critical modules. CI
+package, and enforces coverage in every package, with stricter gates on
+the security-critical modules; thresholds only go up
+([`docs/development/coverage.md`](docs/development/coverage.md)). CI
 (`.github/workflows/ci.yml`) runs the same checks plus the build, the
 real-browser tests (`pnpm test:e2e`); a secret scan runs in
 `.github/workflows/secret-scan.yml` and CodeQL in

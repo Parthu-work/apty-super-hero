@@ -16,6 +16,7 @@
     "build:css": "npx tailwindcss -i ./src/tailwind.css -o ./src/style.css --minify",
     "typecheck": "tsc --project tsconfig.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "files": [
