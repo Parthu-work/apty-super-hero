@@ -66,6 +66,12 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
 
+- Release rehearsal (D3): the Release workflow has a `dry_run` dispatch
+  that builds, tests and packages without publishing, and checks the
+  packaged key yields the pinned ID; `npm run release:dry-run` does the
+  same locally. Branded Chrome and Edge are checked by hand
+  ([`SMOKE_TEST.md`](release/SMOKE_TEST.md)).
+
 ## Open
 
 | Item | Needs |

@@ -25,6 +25,7 @@
     "typecheck": "pnpm -r --if-present typecheck && npm run typecheck:mcp-bridge",
     "test:mcp-bridge": "npm --prefix apps/mcp-bridge test",
     "test:scripts": "node --test \"tooling/scripts/*.test.mjs\"",
+    "release:dry-run": "tooling/scripts/release-dry-run.sh",
     "demo:check": "npm run build && node --test --test-timeout=180000 tooling/e2e/preflight.e2e.test.mjs",
     "test:e2e": "node --test --test-timeout=180000 --test-concurrency=1 \"tooling/e2e/*.e2e.test.mjs\"",
     "typecheck:mcp-bridge": "npm --prefix apps/mcp-bridge run typecheck",
