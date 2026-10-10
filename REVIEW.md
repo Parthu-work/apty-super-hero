@@ -1,17 +1,18 @@
-# Checkpoint A review: security and privacy core (A1, A2, A3)
+# Review: `hardening/open-work` (checkpoints A and B)
 
 | | |
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `d924303` (A3); the branch head is the next commit, which adds this file |
-| Build zip | `apty-agent-review-A-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
-| Git bundle | `apty-A-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f` |
+| Code head | `d179913` (B2); the branch head is the next commit, which updates this file |
+| Build zip | `apty-agent-review-B-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
+| Git bundle | `apty-B-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; it carries Phase A too |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
 
 This file replaces the previous round's `REVIEW.md` (the v7 WP1 review),
-following that file's own convention of one review per round. Its text is
-unchanged in git history: `git show dc27e2f:REVIEW.md`.
+following that file's own convention of one review per round; that text is
+in git history: `git show dc27e2f:REVIEW.md`. Checkpoint A's review is
+kept below Phase B, unchanged apart from headings.
 
 ## Commits
 
@@ -21,9 +22,282 @@ unchanged in git history: `git show dc27e2f:REVIEW.md`.
 | `aa35083` | A1: ask before risky clicks and before opening other origins |
 | `b2f58a0` | A2: apply the body deny list to Apty Client bodies |
 | `d924303` | A3: a redaction mode setting, honoured by every caller |
-| branch head | This `REVIEW.md` |
+| `d50a906` | Checkpoint A `REVIEW.md` |
+| `d5fa21c` | B3: a structural summary for JSON bodies |
+| `0829dbf` | B4: virtualized lists reported as partial coverage |
+| `1784d54` | B5: a switch and site exclusions for the page-world script |
+| `d179913` | B2: real-tenant validation bundle and threshold overrides |
+| branch head | This `REVIEW.md` (checkpoint B) |
 
-## Gates (clean build of the branch head)
+B1 was skipped: see below.
+
+## Checkpoint B gates (clean build of `d179913`)
+
+```
+$ rm -rf apps/browser-extension/dist
+$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
+✓ typecheck (11s)
+✓ lint (1s)
+✓ test (56s)
+✓ audit (2s)
+✓ build (21s)
+```
+
+Unit tests inside `test`:
+
+```
+packages/apty-debug-contract   Tests  72 passed (72)
+packages/agent-core            Tests 260 passed (260)
+packages/dom-snapshot          Tests 367 passed (367)
+packages/ui                    Tests 200 passed | 10 skipped (210)   (the 10 skips are pre-existing; C4)
+packages/browser-runtime       Tests 839 passed (839)
+apps/browser-extension         Tests 214 passed (214)
+apps/mcp-bridge                Tests  44 passed (44)
+tooling/scripts (node:test)    pass 5, fail 0                         (new: npm run test:scripts)
+```
+
+```
+$ npm run test:e2e        (Chromium from /opt/pw-browsers)
+# tests 65
+# pass 65
+# fail 0
+# skipped 0
+
+$ npm run test:coverage   (CI's gate; not part of verify-quiet)
+browser-runtime      Statements 90.52%  Branches 82.6%   Functions 93.15%  Lines 92.72%   (exit 0)
+apty-debug-contract  Statements 91.7%   Branches 84.67%  Functions 96.42%  Lines 94.83%   (exit 0)
+```
+
+The coverage numbers equal checkpoint A's because the gate's include list
+covers only a few files; widening it is C5.
+
+The packaged manifest still has `"externally_connectable": {"ids": []}`.
+
+Secret scan, TruffleHog 3.99.2 over every commit in `origin/main..HEAD`,
+no exclude list, verification off:
+
+```
+$ trufflehog git file://. --since-commit origin/main --branch hardening/open-work --no-verification --no-update --json
+"chunks":886  "bytes":861160  "verified_secrets":0  "unverified_secrets":0
+```
+
+## B1: Production Widget module (skipped)
+
+The spec says to skip B1 when `docs/integrations/apty/reference-js/` is
+missing. It is missing at `dc27e2f` and on this branch, so there is no
+`producer.ts`, no paste bundle, no producer e2e and no
+`VERIFY_WITH_REAL_CLIENT.md`. Nothing was claimed about a real Client.
+
+## B2: Real-tenant validation tooling (done; the tenant run is the owner's)
+
+What changed:
+
+- `packages/browser-runtime/src/apty/dom-health-thresholds.ts` (new): one
+  registry of the tunable thresholds (seed link count, same-URL edges and
+  share, unreadable-frame share, unseen virtualized share, collector
+  budget, three virtualization detector values), each with default,
+  bounds, description and an `unverified` flag. Traversal, scoring, the
+  frame collector and the virtualization detector read from it; the old
+  exported constants are kept and equal the defaults.
+- `AppSettings.domHealthThresholdOverrides`: honoured only while Developer
+  tools is on (side panel card and the agent tools). Unknown names,
+  non-numbers and out-of-range values are rejected with a reason; every
+  active or rejected override is listed in the audit result
+  (`thresholdOverrides`) and the bundle. Defaults are unchanged.
+- Settings → Troubleshooting (Developer tools on): a JSON field for the
+  overrides; invalid JSON is not saved and says so.
+- `packages/browser-runtime/src/apty/validation-bundle.ts` (new):
+  `buildValidationBundle` copies fields from an allow-list (never copies a
+  result and strips it): hosts; URL templates (origin, path with ids
+  masked, hash route, never a query); the frame tree with keys only from
+  `top`, `data-osp-id`, `name` or `id` (a title key is kept as a hash);
+  roles, reasons and failures; counts, coverage, confidence caps, overlays
+  with evidence level, duplicate-id counts, virtualized lists, timings and
+  `withinBudget`; application coverage, state and transition counts and
+  traversal; the route probe's hashes and counts; every threshold; and
+  extension and Chrome versions. The result then goes through the DOM
+  Health exit redaction and strict contract redaction, whatever the
+  redaction mode.
+- DOM Health card: "Export validation bundle" (enabled once a page
+  result, application result or finished route probe exists) opens
+  "Review before sharing" with the exact JSON and Download, Copy, Cancel.
+  The route probe hands its finished report to the card.
+- `tooling/scripts/bundle-to-fixture.mjs` (new): a bundle becomes
+  `<name>.html` (frame-tree skeleton, overlay placeholders, hosts replaced
+  with `host-N.example.test`), `<name>.values.json` and a
+  `<name>.fixture.test.ts` stub with one `it.todo` per check. It refuses
+  other schemas, non-kebab names and overwriting.
+- Docs: `docs/development/real-tenant-validation.md` (new: tenant rules,
+  athenaOne and LN screens, the checks and the bundle field for each, what
+  to send back), `dom-health-architecture.md` (known limitations),
+  `PRIVACY.md` (exports), `docs/STATUS.md`.
+
+Tests:
+
+- Unit: `validation-bundle.test.ts` (5): a fixture with a name, record
+  number, email, page title, input value and cookie in fields the bundle
+  reads and in fields it must not read; none appears in the JSON, URL
+  templates have no query, and the structure is checked field by field.
+  `dom-health-thresholds.test.ts` (7, including an override changing a
+  traversal decision and resetting), `tools/dom-health.test.ts` (+2:
+  overrides only with Developer tools), `troubleshooting-card.test.tsx`
+  (+10), `validation-bundle-export.test.tsx` (4),
+  `dom-health-card.test.tsx` (+1), `bundle-to-fixture.test.mjs` (5).
+- e2e, `dom-health-apps.e2e.test.mjs` (6 new): on each of the six
+  application shapes, the real side panel runs Check DOM Health (Audit
+  Application on the SPA), exports, and the reviewed JSON has the schema,
+  the manifest's version, a Chrome version, the host, the active override,
+  no URL template with a query, and none of that page's text, titles,
+  tenant id or session parameter.
+
+## B3: Structural summary for JSON bodies (done)
+
+- `apty/json-body-summary.ts` (new): `summarizeJsonBody` returns kind, item
+  count, top-level keys, the union of item keys with their types, how many
+  whole items the preview holds and whether it is partial, in under 1,500
+  characters (30 keys, 5 preview items at most).
+- The Client resource inspector returns it as `json`; tool descriptions
+  and the system prompt tell the model to read it before paging.
+- Tests: `json-body-summary.test.ts`, inspector tests, `wp1-acceptance`
+  (see conflicts).
+
+## B4: Virtualized lists (done)
+
+- `packages/dom-snapshot/src/health-virtualized.ts` (new): a list is
+  virtualized on `aria-rowcount`/`aria-setsize` above the rendered rows, a
+  gap in `data-index`/`aria-rowindex`, a tall empty spacer, or a scroll
+  height far beyond its rendered rows; nested findings merge.
+- Scoring: a confidence cap when more than half of the declared rows were
+  never rendered, the risk `virtualized-list-partial-coverage`, and
+  `result.virtualized`; the route probe shows rendered/declared rows.
+- Tests: detector and scoring units; e2e on a 1,000-row grid with 15
+  rendered (counts, signals, LOW confidence, risk, scroll position left
+  alone).
+
+## B5: Page-hook kill switch (done)
+
+- The MAIN-world console bridge left the manifest. The service worker
+  registers it with `chrome.scripting.registerContentScripts`
+  (`runtime/page-hooks-registration.ts`), excludes the listed sites, and
+  unregisters it when Settings → Troubleshooting → "Track client-side
+  routing and capture console output from page load" is off. Settings
+  changes reconcile at once.
+- With the hooks off, DOM Health reports routing evidence as unavailable
+  (never as "no routing"), the route probe shows unknown counts, and the
+  console tool does not inject the bridge.
+- `validate-manifest.mjs` checks the emitted bridge path.
+- Tests: registration units; e2e on an excluded site (no bridge, routing
+  reported unavailable).
+
+## Phase B: not done, or partial
+
+- B1 skipped (above).
+- B2: the bundle has not been produced on a real athenaOne or Infor LN
+  tenant; that is the owner's run. No threshold was tuned.
+- B2: overrides for the collector budget and virtualization thresholds
+  reach the content script through the collect message; that path is
+  unit-tested, while the e2e exercises an override that the service-worker
+  side reads (`sameUrlRatioForClickFirst`).
+- B4: the optional scroll sample was not built; the audit never scrolls.
+
+## Phase B: conflicts between the prompt and the repo
+
+- B2: the spec lists the `data-*` free-text cut-off and the
+  structure-only cap among the unverified values. The cut-off is in the
+  collector's privacy code, not a threshold the audit reads, and the
+  structure-only cap is a rule, not a number; neither is in the registry.
+- B2: the spec asks for the button "in the DOM Health card and Developer
+  tools". Developer tools in Settings live in `@apty/ui`, which may not
+  depend on `@apty/browser-runtime`; the button is in the DOM Health card,
+  where the developer route probe is, and covers its report.
+- B2: the threshold overrides are a global in the service worker or side
+  panel for the duration of an audit; two audits running at once in the
+  same context would share the later one's overrides.
+- B3: at `dc27e2f` the inspector already returned a small `json` summary
+  with a 5-item `sample`. B3 replaced `sample` with the key union and
+  types; `wp1-acceptance` asserted `json.sample` length, so the same bound
+  is now asserted on the parsed preview and `json.inPreview`. A JSON
+  object body used to be put in the preview whole, with no size cap;
+  fixed.
+- B5: the spec says to resolve the hashed script path from the built
+  manifest. With the bridge gone from the manifest there is nothing to
+  resolve, so the build emits it at `content/console-bridge.js` and the
+  validator checks both sides. `match_about_blank` has no equivalent in a
+  registered script; `matchOriginAsFallback` is used.
+- B5: `page-hooks.test.ts` and `frame-responder.test.ts` were adapted to
+  the install-time announcement and the new `historyHooksSeen` field, with
+  a test added for each.
+- B5 (my error, fixed): a `git checkout` while proving the validator
+  reverted uncommitted `vite.config.ts` edits; they were re-applied and
+  the clean build and full e2e (59/59 then) re-run before committing.
+
+## Phase B: decisions needed from the owner
+
+The three Phase A decisions are still open (below). No new one.
+
+## Phase B: observed, not changed
+
+- The application audit does not aggregate `virtualized` across states;
+  each state's page result carries it.
+- The coverage gate's include list is narrow, so B's new modules do not
+  move its numbers (C5).
+- `tooling/e2e/agent.e2e.test.mjs` line 198 has a Biome `useTemplate`
+  info (string concatenation), from A1; info only, `lint` passes.
+
+## Phase B: owner test scripts (about 5 minutes each)
+
+Setup as for Phase A below (load the unzipped build, configure a model).
+
+### B2: validation bundle
+
+1. Settings → Troubleshooting: turn on **Developer tools**. **Expected:**
+   a "DOM Health: threshold overrides (JSON)" field appears. Type
+   `{"sameUrlRatioForClickFirst": 0.4}` and click elsewhere. Type
+   `{"x": "1"` and click elsewhere. **Expected:** "Needs a JSON object
+   whose values are all numbers. Not saved." Restore the first value.
+2. Open any page with a form (for example
+   `https://httpbin.org/forms/post`) and the side panel. Click **Check DOM
+   Health** and wait for "Last checked".
+3. Click **Export validation bundle**. **Expected:** "Review before
+   sharing" with JSON whose `schema` is `apty-dom-health-validation/1`,
+   `hosts` is `["httpbin.org"]`, `thresholdOverrides.active` lists
+   `sameUrlRatioForClickFirst` 0.4 (default 0.5), `thresholds` lists nine
+   entries, and no field contains the page's labels or title.
+4. Click **Copy**, paste somewhere: the same JSON. Click **Download**:
+   a file `apty-dom-health-validation-<time>.json`.
+5. Turn Developer tools off and run step 2–3 again. **Expected:**
+   `thresholdOverrides.active` is empty.
+6. For the real tenants: follow `docs/development/real-tenant-validation.md`.
+
+### B3: JSON summary
+
+1. With the fake Client from the A2 script connected, ask: "List the
+   items in segments.json from the Apty Client." **Expected:** the answer
+   says 206 items and names their keys; the tool result (expand it) has
+   `json.itemCount: 206`, `json.itemKeys` with types and `json.inPreview`.
+
+### B4: virtualized lists
+
+1. Save the `VIRTUALIZED_PAGE` markup from
+   `tooling/e2e/dom-health-apps.e2e.test.mjs` as `grid.html`, serve it
+   with `python3 -m http.server 8000`, open it, scroll the grid.
+2. Click **Check DOM Health**. **Expected:** confidence Low with "1
+   virtualized list(s) render 15 of 1000 declared rows; the other 985 were
+   not audited."; the grid's scroll position does not move.
+
+### B5: page-script switch
+
+1. Open any page, then ask "show the apty page logs from page load".
+   **Expected:** console output from load is returned.
+2. Settings → Troubleshooting: add that page's host to "Sites where that
+   script never runs", reload the page, ask again. **Expected:** only
+   output after the request; DOM Health's routing evidence reads
+   "unavailable" rather than zero.
+3. Turn the switch off: the site list disappears; turn it back on.
+
+# Phase A
+
+### Checkpoint A gates (at `d924303`)
 
 ```
 $ rm -rf apps/browser-extension/dist
@@ -225,7 +499,7 @@ Tests:
     keeps it after a reload, the username is visible, and the JWT is still
     masked.
 
-## Not done, or partial
+## Phase A: not done, or partial
 
 Nothing in Phase A is partial. Not verified:
 
@@ -237,7 +511,7 @@ Nothing in Phase A is partial. Not verified:
 - The MCP path for the new click and tab gates is covered by the existing
   relay tests and unit tests, not by a new MCP e2e test.
 
-## Conflicts between the prompt and the repo
+## Phase A: conflicts between the prompt and the repo
 
 - The prompt says `origin/main` has 190 commits; `git rev-list --count
   origin/main` gives 107 at `dc27e2f`.
@@ -291,7 +565,7 @@ Nothing in Phase A is partial. Not verified:
     stays on in every mode. Only its inner text-redaction call follows the
     mode.
 
-## Decisions needed from the owner
+## Phase A: decisions needed from the owner
 
 1. **Add "save" to `RISKY_CLICK_WORDS`?** It would prompt on every Save
    button, and the existing core-tools e2e would need its approval
@@ -304,7 +578,7 @@ Nothing in Phase A is partial. Not verified:
    can't submit or follow a link, so it could be exempted if the prompts
    are a nuisance.
 
-## Observed, not changed
+## Phase A: observed, not changed
 
 - The DOM Health application audit navigates the bound tab itself
   (`apty/page-navigation.ts`, `chrome.tabs.update`) to same-origin links it
@@ -326,11 +600,11 @@ Nothing in Phase A is partial. Not verified:
   buttons, carry no export header (they copy snippets, not exports).
 - `packages/ui` still has 10 skipped tests (C4 in Phase C).
 
-## Owner test scripts (about 5 minutes each)
+## Phase A: owner test scripts (about 5 minutes each)
 
 Setup for all three:
 
-1. Unzip `apty-agent-review-A-<head>.zip` into a folder. In Chromium (or
+1. Unzip `the latest `apty-agent-review-*.zip`` into a folder. In Chromium (or
    Chrome for Testing; branded Chrome 137+ ignores `--load-extension` but
    "Load unpacked" still works), open `chrome://extensions`, turn on
    Developer mode, click **Load unpacked** and pick that folder. The ID
