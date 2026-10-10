@@ -32,6 +32,14 @@ export function decodeBase64Utf8(base64: string): string {
  * and its subdomains, anything else matches as a URL substring.
  */
 export function isUrlDenied(url: string, denyList: readonly string[]): boolean {
+  return matchingDenyEntry(url, denyList) !== null;
+}
+
+/** The first deny-list entry `url` matches (as written in the list), or null. Same rules as `isUrlDenied`. */
+export function matchingDenyEntry(
+  url: string,
+  denyList: readonly string[],
+): string | null {
   let host = "";
   try {
     host = new URL(url).hostname.toLowerCase();
@@ -39,7 +47,7 @@ export function isUrlDenied(url: string, denyList: readonly string[]): boolean {
     // Not a parseable URL: only substring entries can match.
   }
   const lowerUrl = url.toLowerCase();
-  return denyList.some((raw) => {
+  const match = denyList.find((raw) => {
     const entry = raw.trim().toLowerCase();
     if (!entry) return false;
     if (/^[a-z0-9.-]+$/.test(entry) && host) {
@@ -47,6 +55,7 @@ export function isUrlDenied(url: string, denyList: readonly string[]): boolean {
     }
     return lowerUrl.includes(entry);
   });
+  return match === undefined ? null : match.trim();
 }
 
 /** The last path segment of a URL, query string stripped — e.g. `https://x.com/api/segments.json?v=2` -> `segments.json`. Falls back to the whole (query-stripped) URL if there's no `/`. */

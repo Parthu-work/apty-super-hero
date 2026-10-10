@@ -23,7 +23,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   opt-in response bodies, runtime diagnostics, screenshots, clicks and
   scrolling.
 - Apty Client logs and resource bodies, with named connection failures and
-  a full-response viewer.
+  a full-response viewer. The Data-handling deny list covers Client bodies
+  too (A2): a listed resource returns `body_denied` with its metadata and
+  the Client is never asked for the body.
 - The MCP bridge, with the token in the WebSocket handshake.
 
 ## Open

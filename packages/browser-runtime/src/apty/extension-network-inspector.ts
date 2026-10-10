@@ -44,13 +44,16 @@
  * inventing history either way.
  */
 
+import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
 import { redactSensitiveText } from "@apty/debug-contract";
+import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
 import { classifyLogEntry, type LogCategory } from "./log-classification.js";
 import {
   decodeBase64Utf8,
   isTextualMime,
   MAX_INLINE_BODY_CHARS,
+  matchingDenyEntry,
   resourceNameFor,
 } from "./resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
@@ -611,7 +614,8 @@ export type InspectResourceStatus =
   | "failed"
   | "http_error"
   | "pending"
-  | "body_unavailable";
+  | "body_unavailable"
+  | "body_denied";
 
 /** A bounded, model-safe summary of a JSON response body — item count, top-level keys, and a small sample — so the model never receives a blind character-truncated slice of a large array that might cut off mid-item. The full body is always available separately via evidence (`get_evidence_json`). */
 export interface JsonBodySummary {
@@ -642,10 +646,22 @@ export interface InspectResourceResult {
   suggestions?: ResourceSuggestion[];
   /** Populated when more than one resource matched — the other candidates that were NOT chosen, so the answer can disclose it picked the most-recent/highest-ranked of several. */
   alsoMatched?: string[];
+  /** For `body_denied`: the deny-list entry that matched the resource URL. */
+  deniedBy?: string;
   error?: string;
 }
 
 const MAX_JSON_SAMPLE_ITEMS = 5;
+
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
+
+/** Settings → Data handling's body deny list, which covers Apty Client bodies as well as page capture. */
+async function loadBodyDenyList(): Promise<readonly string[]> {
+  const settings = await settingsStorage
+    .load(STORAGE_KEYS.SETTINGS)
+    .catch(() => null);
+  return settings?.networkBodyCaptureDenyList ?? [];
+}
 
 /** Build a bounded, model-safe summary of a (already redacted) JSON-parseable body, or `undefined` if it doesn't parse as JSON. */
 function summarizeJsonBody(text: string): JsonBodySummary | undefined {
@@ -773,6 +789,20 @@ export async function inspectResource(
   // the body of a 403/500 response is frequently the one piece of evidence
   // that explains the failure (e.g. an error message or access-denied body).
   const isHttpError = best.status >= 400;
+  // The user's request is consent for this one resource; the deny list is
+  // the standing policy above it, so a matching body is never fetched.
+  const deniedBy = matchingDenyEntry(best.url ?? "", await loadBodyDenyList());
+  if (deniedBy !== null) {
+    return {
+      found: true,
+      status: "body_denied",
+      resourceQuery,
+      request: best,
+      alsoMatched,
+      deniedBy,
+      error: `The response body of ${best.resourceName} was not fetched: its URL matches "${deniedBy}" in the body deny list (Settings → Data handling). The request's metadata is included. Tell the user; to read this body they can remove that entry and ask again. Do not try to get the body another way.`,
+    };
+  }
   const body = await provider.getResourceBody(best.requestId);
   if (!body.found || body.body === undefined) {
     return {

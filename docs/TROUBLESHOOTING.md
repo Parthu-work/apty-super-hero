@@ -47,7 +47,9 @@ Agent's own ID, which the Client must allow-list.
 Response bodies are off by default. Turn on **Settings → General → Data
 handling → Capture response bodies**. Hosts or URL fragments in the
 deny-list there are never captured. The Apty Client route ("get
-segments.json from the Client") doesn't depend on this setting.
+segments.json from the Client") doesn't depend on the switch, but it does
+honour the deny-list: a listed resource comes back as `body_denied` with
+its metadata only. Remove the entry to read that body.
 
 ## DOM Health reports frames it couldn't read
 

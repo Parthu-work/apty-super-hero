@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isUrlDenied } from "./resource-body-utils";
+import { isUrlDenied, matchingDenyEntry } from "./resource-body-utils";
 
 describe("isUrlDenied", () => {
   it.each([
@@ -11,5 +11,21 @@ describe("isUrlDenied", () => {
     ["not a url /api/patients", ["/api/patients"], true],
   ])("%s with %j -> %s", (url, denyList, expected) => {
     expect(isUrlDenied(url, denyList)).toBe(expected);
+  });
+});
+
+describe("matchingDenyEntry", () => {
+  it("returns the first matching entry as written, trimmed", () => {
+    expect(
+      matchingDenyEntry("https://api.bank.example/users/7", [
+        "  /orders ",
+        " Bank.Example ",
+        "/users/",
+      ]),
+    ).toBe("Bank.Example");
+  });
+
+  it("returns null when nothing matches", () => {
+    expect(matchingDenyEntry("https://app.test/x", ["/users/", ""])).toBeNull();
   });
 });

@@ -29,7 +29,13 @@ with your AI provider.
 
 Response bodies of page network requests are **not** captured unless you
 turn on **Settings → General → Data handling → Capture response bodies**.
-Hosts or URL fragments you add to the deny-list there are never captured.
+Hosts or URL fragments you add to the deny-list there are never read, both
+in page capture and when you ask for a resource the Apty Client loaded
+("get segments.json"): for a listed URL the agent reports the request's
+metadata and that the body was withheld, and never asks the Client for the
+body. The list is empty by default; add user-preference and identity
+endpoints (for example `/users/`, `/api/me`, `/userinfo`) if those bodies
+must not reach your AI provider.
 
 ## What is stored on your device
 

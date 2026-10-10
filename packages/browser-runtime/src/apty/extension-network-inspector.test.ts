@@ -450,6 +450,119 @@ describe("inspectResource", () => {
     }
   });
 
+  describe("body deny list (Settings → Data handling)", () => {
+    const PREFERENCE_URL = "https://cdn.apty.io/users/4815162342.json";
+    let bodyRequests: string[];
+
+    function clientWith(resources: Array<{ requestId: string; url: string }>) {
+      bodyRequests = [];
+      mockResponsesByType({
+        "apty-debug-agent:get-service-worker-status": OK_STATUS,
+        "apty-debug-agent:list-observed-resources": {
+          resources: resources.map((r) => ({
+            ...r,
+            method: "GET",
+            status: 200,
+            mimeType: "application/json",
+            timestamp: 1,
+          })),
+        },
+        "apty-debug-agent:get-resource-body": (message: {
+          requestId: string;
+        }) => {
+          bodyRequests.push(message.requestId);
+          return {
+            found: true,
+            body: '{"theme":"dark"}',
+            base64Encoded: false,
+          };
+        },
+      });
+    }
+
+    function useDenyList(denyList: string[] | undefined) {
+      (chrome as any).storage = {
+        local: {
+          get: async (key: string) => ({
+            [key]:
+              denyList === undefined
+                ? undefined
+                : { networkBodyCaptureDenyList: denyList },
+          }),
+        },
+      };
+    }
+
+    afterEach(() => {
+      delete (chrome as any).storage;
+    });
+
+    it("never asks the Client for a denied body, and still returns the metadata", async () => {
+      useDenyList(["/users/"]);
+      clientWith([{ requestId: "req-pref", url: PREFERENCE_URL }]);
+      await connectExtensionClient("conv-a", EXT_ID);
+
+      const result = await inspectResource("conv-a", "4815162342.json");
+
+      expect(result).toMatchObject({
+        found: true,
+        status: "body_denied",
+        deniedBy: "/users/",
+        request: { requestId: "req-pref", url: PREFERENCE_URL },
+      });
+      expect(result.response).toBeUndefined();
+      expect(result.error).toMatch(/Settings → Data handling/);
+      expect(bodyRequests).toEqual([]);
+      expect(getEvidence("conv-a")).toEqual([]);
+      await disconnectExtensionClient("conv-a");
+    });
+
+    it("matches a host entry and its subdomains", async () => {
+      useDenyList(["apty.io"]);
+      clientWith([{ requestId: "req-pref", url: PREFERENCE_URL }]);
+      await connectExtensionClient("conv-a", EXT_ID);
+
+      const result = await inspectResource("conv-a", "4815162342.json");
+
+      expect(result.deniedBy).toBe("apty.io");
+      expect(bodyRequests).toEqual([]);
+      await disconnectExtensionClient("conv-a");
+    });
+
+    it("returns an allowed body in full", async () => {
+      useDenyList(["/users/"]);
+      clientWith([
+        {
+          requestId: "req-seg",
+          url: "https://cdn.apty.io/config/segment.json",
+        },
+      ]);
+      await connectExtensionClient("conv-a", EXT_ID);
+
+      const result = await inspectResource("conv-a", "segment.json");
+
+      expect(result.status).toBe("ok");
+      expect(result.response?.bodyPreview).toBe('{"theme":"dark"}');
+      expect(bodyRequests).toEqual(["req-seg"]);
+      await disconnectExtensionClient("conv-a");
+    });
+
+    it.each([
+      ["an empty list", []],
+      ["no settings saved", undefined],
+    ])("fetches every body with %s", async (_label, denyList) => {
+      useDenyList(denyList);
+      clientWith([{ requestId: "req-pref", url: PREFERENCE_URL }]);
+      await connectExtensionClient("conv-a", EXT_ID);
+
+      const result = await inspectResource("conv-a", "4815162342.json");
+
+      expect(result.status).toBe("ok");
+      expect(bodyRequests).toEqual(["req-pref"]);
+      await disconnectExtensionClient("conv-a");
+    });
+  });
+
   it("redacts secrets in the retrieved body", async () => {
     mockResponsesByType({
       "apty-debug-agent:get-service-worker-status": OK_STATUS,

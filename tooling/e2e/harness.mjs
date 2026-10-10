@@ -332,10 +332,14 @@ const SEGMENTS = Array.from({ length: 206 }, (_, i) => ({
 const RESOURCES = [
   { requestId: "r1", url: "https://cdn.apty.example/config/segment.json", method: "GET", status: 200, mimeType: "application/json", timestamp: Date.now() },
   { requestId: "r2", url: "https://cdn.apty.example/config/themes.json", method: "GET", status: 403, mimeType: "application/json", timestamp: Date.now() },
+  { requestId: "r3", url: "https://cdn.apty.example/users/4815162342.json", method: "GET", status: 200, mimeType: "application/json", timestamp: Date.now() },
 ];
+// Which bodies the Agent asked for, read by tests through the worker.
+globalThis.bodyRequests = [];
 const BODIES = {
   r1: JSON.stringify(SEGMENTS),
   r2: JSON.stringify({ error: "Forbidden", reason: "token expired" }),
+  r3: JSON.stringify({ userId: 4815162342, theme: "dark", language: "en-GB" }),
 };
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (sender.id !== AGENT_ID || MODE === "bridge-missing") return false;
@@ -353,6 +357,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       sendResponse({ resources: RESOURCES });
       return true;
     case "apty-debug-agent:get-resource-body":
+      globalThis.bodyRequests.push(message.requestId);
       sendResponse(BODIES[message.requestId]
         ? { found: true, body: BODIES[message.requestId], base64Encoded: false }
         : { found: false });

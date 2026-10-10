@@ -111,7 +111,7 @@ export const inspectExtensionNetworkTool = tool({
     "Retrieve the actual response body for a resource the Apty Client extension reports having requested itself — e.g. resourceQuery 'segments.json', 'app.json', a path, or a fragment. " +
     "Tolerant matching (case/plural/extension-insensitive); alsoMatched lists other candidates if several matched. Auto-connects using the configured extension ID (never accepts one as input). " +
     "Body returns for ANY status, including 4xx/5xx. A large JSON body comes back as a bounded summary (response.json) plus evidenceId — use get_evidence_json for more. " +
-    "Status: not_observed (use returned suggestions), failed/http_error, pending, body_unavailable. Never fabricated.",
+    "Status: not_observed (use returned suggestions), failed/http_error, pending, body_unavailable, body_denied (the URL is on the user's body deny list: report the metadata and the deniedBy entry, never try to get the body another way). Never fabricated.",
   parameters: z.object({
     resourceQuery: z
       .string()
