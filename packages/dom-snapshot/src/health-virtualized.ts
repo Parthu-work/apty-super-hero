@@ -51,6 +51,19 @@ export const SCROLL_HEIGHT_RATIO = 2;
 /** ... and at least this many pixels more. Unverified threshold. */
 export const SCROLL_HEIGHT_EXCESS_PX = 1_000;
 
+/** The detector's thresholds; Developer tools can override them (`domHealthThresholdOverrides`). */
+export interface VirtualizationThresholds {
+  spacerMinPx: number;
+  scrollHeightRatio: number;
+  scrollHeightExcessPx: number;
+}
+
+export const DEFAULT_VIRTUALIZATION_THRESHOLDS: VirtualizationThresholds = {
+  spacerMinPx: SPACER_MIN_PX,
+  scrollHeightRatio: SCROLL_HEIGHT_RATIO,
+  scrollHeightExcessPx: SCROLL_HEIGHT_EXCESS_PX,
+};
+
 const MAX_SAMPLES = 5;
 const MAX_ELEMENTS_SCANNED = 50_000;
 
@@ -96,7 +109,9 @@ function itemsUnder(container: Element): Element[] {
 
 export function detectVirtualizedLists(
   root: Document | ShadowRoot,
+  overrides: Partial<VirtualizationThresholds> = {},
 ): VirtualizedListSummary {
+  const limits = { ...DEFAULT_VIRTUALIZATION_THRESHOLDS, ...overrides };
   const findings = new Map<Element, Finding>();
   const finding = (container: Element): Finding => {
     let entry = findings.get(container);
@@ -193,7 +208,7 @@ export function detectVirtualizedLists(
             child.childElementCount === 0 &&
             !(child.textContent ?? "").trim() &&
             Math.max(inlinePx(child, "height"), inlinePx(child, "minHeight")) >=
-              SPACER_MIN_PX,
+              limits.spacerMinPx,
         );
         if (spacers.length > 0 && children.length - spacers.length >= 2) {
           record(parent, "spacer", children.length - spacers.length, null);
@@ -213,8 +228,8 @@ export function detectVirtualizedLists(
           const scrollHeight = element.scrollHeight;
           if (
             itemsHeight > 0 &&
-            scrollHeight >= itemsHeight * SCROLL_HEIGHT_RATIO &&
-            scrollHeight - itemsHeight >= SCROLL_HEIGHT_EXCESS_PX
+            scrollHeight >= itemsHeight * limits.scrollHeightRatio &&
+            scrollHeight - itemsHeight >= limits.scrollHeightExcessPx
           ) {
             record(element, "scroll-height", items.length, null);
           }

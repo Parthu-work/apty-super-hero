@@ -54,6 +54,14 @@ export {
   isScoreMeaningful,
 } from "./dom-health-scoring.js";
 export {
+  DOM_HEALTH_THRESHOLDS,
+  type ResolvedThresholds,
+  resolveThresholds,
+  type ThresholdName,
+  type ThresholdOverrides,
+  thresholdReport,
+} from "./dom-health-thresholds.js";
+export {
   type CorrelateOptions,
   type CorrelationCluster,
   correlateEvidence,
@@ -230,6 +238,13 @@ export type {
   EvidenceSource,
   NewDiagnosticEvidence,
 } from "./types.js";
+export {
+  buildValidationBundle,
+  chromeVersionFrom,
+  VALIDATION_BUNDLE_SCHEMA,
+  type ValidationBundle,
+  type ValidationBundleInput,
+} from "./validation-bundle.js";
 export {
   NotConfiguredWidgetDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,

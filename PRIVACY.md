@@ -18,6 +18,12 @@ configure yourself.
 There is no analytics, telemetry, crash reporting or advertising. Apty does
 not receive your conversations, keys or page data.
 
+Files you export yourself (a conversation, a response body, a route probe
+report, a DOM Health validation bundle) are saved or copied only when you
+click; nothing is uploaded. The validation bundle holds hostnames, URL
+templates without queries, counts, hashes and settings, never page text,
+input values, titles or record numbers, and you review it before saving.
+
 ## What the AI provider never sees in the clear
 
 Before any diagnostic data reaches the model, the agent redacts what looks

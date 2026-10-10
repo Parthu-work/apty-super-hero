@@ -74,8 +74,13 @@ import {
   type RestorationEvidence,
   type StateGraphSummary,
 } from "./application-scoring.js";
-import { collectDomHealthAudit, isUnsupportedPage } from "./dom-health.js";
+import {
+  collectDomHealthAudit,
+  isUnsupportedPage,
+  withThresholdOverrides,
+} from "./dom-health.js";
 import { redactDomHealthOutput } from "./dom-health-redaction.js";
+import { useThresholdOverrides } from "./dom-health-thresholds.js";
 import {
   captureApplicationState,
   toFrameSignatureEntries,
@@ -178,6 +183,8 @@ export interface RunApplicationAuditOptions extends ApplicationAuditLimits {
   discoveryMode?: ApplicationDiscoveryMode;
   /** Settings entries excluded on top of the default ignored roots. */
   ignoredRoots?: readonly string[];
+  /** Developer tools' `domHealthThresholdOverrides`; validated by `resolveThresholds`. */
+  thresholdOverrides?: unknown;
 }
 
 export type ApplicationAuditOutcome =
@@ -469,6 +476,7 @@ export async function runApplicationDomHealthAudit(
     options.discoveryMode ?? "application-safe";
   const allowClickDiscovery = discoveryMode === "application-deep";
   const startedAt = Date.now();
+  const thresholds = useThresholdOverrides(options.thresholdOverrides);
 
   let tab: chrome.tabs.Tab;
   try {
@@ -1097,5 +1105,7 @@ export async function runApplicationDomHealthAudit(
       history: traversalHistory,
     },
   });
-  return redactDomHealthOutput({ available: true, ...result });
+  return redactDomHealthOutput(
+    withThresholdOverrides({ available: true as const, ...result }, thresholds),
+  );
 }

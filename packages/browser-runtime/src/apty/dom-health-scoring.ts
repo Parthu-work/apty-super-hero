@@ -36,6 +36,7 @@ import {
   DEFAULT_COLLECTOR_BUDGET,
   NO_VIRTUALIZED_LISTS,
 } from "@apty/dom-snapshot";
+import { DOM_HEALTH_THRESHOLDS, threshold } from "./dom-health-thresholds.js";
 import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
@@ -84,7 +85,8 @@ export function applyConfidenceCaps(
 }
 
 /** Above this share of unreadable frames, the audit did not see most of the page. Unverified threshold: "most" read literally. */
-export const MAX_UNREADABLE_FRAME_SHARE = 0.5;
+export const MAX_UNREADABLE_FRAME_SHARE =
+  DOM_HEALTH_THRESHOLDS.maxUnreadableFrameShare.default;
 
 const NO_PERFORMANCE: CollectorPerformance = {
   timings: { ignoredRootsMs: 0, classifyMs: 0, analyzeMs: 0, totalMs: 0 },
@@ -103,7 +105,8 @@ const NO_DUPLICATE_IDS: DuplicateIdStats = {
 };
 
 /** Above this share of a virtualized list's declared rows left unrendered, confidence is LOW. Unverified threshold: "large" read as "most". */
-export const MAX_UNSEEN_VIRTUALIZED_SHARE = 0.5;
+export const MAX_UNSEEN_VIRTUALIZED_SHARE =
+  DOM_HEALTH_THRESHOLDS.maxUnseenVirtualizedShare.default;
 
 /**
  * A cap for virtualized lists (WP B4): the audit only saw the rendered
@@ -125,7 +128,7 @@ export function virtualizedListCap(
   const unseen = Math.max(0, declaredTotal - observedItems);
   const share = declaredTotal > 0 ? unseen / declaredTotal : 0;
   return {
-    cap: share > MAX_UNSEEN_VIRTUALIZED_SHARE ? "LOW" : "MEDIUM",
+    cap: share > threshold("maxUnseenVirtualizedShare") ? "LOW" : "MEDIUM",
     reason: `${containers} virtualized list(s) render ${observedItems} of ${declaredTotal} declared rows; the other ${unseen} were not audited.`,
   };
 }
@@ -145,7 +148,8 @@ export function frameConfidenceCaps(
     frameAccessibility.framesFailed + frameAccessibility.framesInaccessible;
   if (
     frameAccessibility.framesTotal > 0 &&
-    unreadable / frameAccessibility.framesTotal > MAX_UNREADABLE_FRAME_SHARE
+    unreadable / frameAccessibility.framesTotal >
+      threshold("maxUnreadableFrameShare")
   ) {
     caps.push({
       cap: "LOW",

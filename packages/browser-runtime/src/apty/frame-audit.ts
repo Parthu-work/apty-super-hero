@@ -28,6 +28,7 @@ import {
   mergeExcludedRoots,
   mergeVirtualizedLists,
 } from "@apty/dom-snapshot";
+import { collectorThresholdOptions } from "./dom-health-thresholds.js";
 import {
   type FrameKey,
   type FrameOwnerAttributes,
@@ -321,6 +322,7 @@ async function captureFrame(
       sequenceIndex: options.sequenceIndex,
       maxInteractiveElements: options.maxInteractiveElements,
       ignoredRoots: options.ignoredRoots ?? [],
+      ...collectorThresholdOptions(),
       frameContext: {
         frameId: frame.frameId,
         url: frame.url,

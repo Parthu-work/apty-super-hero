@@ -310,4 +310,94 @@ describe("DOM Health on six application shapes", () => {
     await panel.close();
     await page.close();
   });
+
+  describe("validation bundle export from the DOM Health card (B2)", () => {
+    const OVERRIDES = { sameUrlRatioForClickFirst: 0.4 };
+    const SHAPES = [
+      { path: "/deep.html", text: ["Sales Orders", ">Deep<"] },
+      {
+        path: "/frameset.html",
+        text: ["Contact Details", "Legal sex", "Frameset"],
+      },
+      {
+        path: "/portal.html",
+        text: [
+          "Sales Orders",
+          "FAKETENANT000000_TRN",
+          "inforSessionId",
+          "LN_44_",
+        ],
+      },
+      {
+        path: "/spa/orders",
+        text: ["Open orders", "Customers<"],
+        application: true,
+      },
+      { path: "/click.html", text: ["Edit Orders", "Home"] },
+      { path: "/overlay.html", text: ["Registration", "Chat"] },
+    ];
+
+    async function exportBundle({ path, application }) {
+      const page = await browser.context.newPage();
+      await page.goto(`${site.origin}${path}`);
+      await page.waitForLoadState("load");
+      const panel = await openSidePanel(browser, model, page, {
+        developerTools: true,
+        domHealthThresholdOverrides: OVERRIDES,
+      });
+      const run = application ? /audit application/i : /check dom health/i;
+      await panel.getByRole("button", { name: run }).click();
+      const exportButton = panel.getByRole("button", {
+        name: "Export validation bundle",
+      });
+      await exportButton.waitFor();
+      await panel
+        .locator("text=/Last checked/")
+        .first()
+        .waitFor({ timeout: 150_000 });
+      await exportButton.click();
+      await panel.getByText("Review before sharing").waitFor();
+      const json = await panel.getByLabel("Validation bundle").textContent();
+      const version = await panel.evaluate(
+        () => chrome.runtime.getManifest().version,
+      );
+      await panel.getByRole("button", { name: "Cancel" }).click();
+      await panel.close();
+      await page.close();
+      return { json, version };
+    }
+
+    for (const shape of SHAPES) {
+      it(`${shape.path}: exports the schema with no page text, titles, queries or tenant ids`, async () => {
+        const { json, version } = await exportBundle(shape);
+        const bundle = JSON.parse(json);
+
+        assert.equal(bundle.schema, "apty-dom-health-validation/1");
+        assert.equal(bundle.versions.extension, version);
+        assert.match(bundle.versions.chrome, /^\d+\.\d+\.\d+\.\d+$/);
+        assert.ok(bundle.hosts.includes(new URL(site.origin).hostname), json);
+        assert.deepEqual(bundle.thresholdOverrides.active, [
+          { name: "sameUrlRatioForClickFirst", value: 0.4, default: 0.5 },
+        ]);
+        const audit = shape.application ? bundle.application : bundle.page;
+        assert.ok(audit, json.slice(0, 400));
+        if (shape.application) {
+          assert.equal(bundle.application.coverage.pagesAudited, 2, json);
+        } else {
+          assert.ok(bundle.page.frames.length >= 1, json);
+        }
+        for (const text of shape.text) {
+          assert.ok(!json.includes(text), `${text} leaked: ${json}`);
+        }
+        const templates = [...json.matchAll(/"urlTemplate": "([^"]*)"/g)].map(
+          (m) => m[1],
+        );
+        assert.ok(templates.length > 0, json);
+        assert.ok(
+          templates.every((t) => !t.includes("?")),
+          templates.join(),
+        );
+      });
+    }
+  });
 });

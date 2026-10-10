@@ -90,6 +90,7 @@ export {
 } from "./health-state-signature.js";
 export * from "./health-types.js";
 export {
+  DEFAULT_VIRTUALIZATION_THRESHOLDS,
   detectVirtualizedLists,
   mergeVirtualizedLists,
   NO_VIRTUALIZED_LISTS,
@@ -97,6 +98,7 @@ export {
   SCROLL_HEIGHT_RATIO,
   SPACER_MIN_PX,
   type VirtualizationSignal,
+  type VirtualizationThresholds,
   type VirtualizedContainer,
   type VirtualizedListSummary,
 } from "./health-virtualized.js";

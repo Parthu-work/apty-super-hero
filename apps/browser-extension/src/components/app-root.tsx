@@ -274,6 +274,11 @@ function ChatApp() {
                 <DomHealthCard
                   developerTools={settings.developerTools === true}
                   ignoredRoots={settings.domHealthIgnoredRoots}
+                  thresholdOverrides={
+                    settings.developerTools === true
+                      ? settings.domHealthThresholdOverrides
+                      : undefined
+                  }
                 />
                 <BrowserContextLoader />
               </>

@@ -732,7 +732,9 @@ application shapes built from the measured values:
   - how the route probe reads on LN and athenaOne.
 
   The developer route probe (Settings → Troubleshooting → Developer tools)
-  exists to gather that evidence on the next tenant.
+  exists to gather that evidence on the next tenant, and "Export validation
+  bundle" packages it (B2); the protocol is
+  [`real-tenant-validation.md`](real-tenant-validation.md).
 - **Thresholds marked "unverified" in the code** were not tuned against a
   live application:
   - the seed link count for click-first;
@@ -740,6 +742,13 @@ application shapes built from the measured values:
   - the unreadable-frame and structure-only confidence caps;
   - the free-text cut-off for `data-*` values;
   - the collector budget.
+
+  They are listed in one registry,
+  `packages/browser-runtime/src/apty/dom-health-thresholds.ts`, each
+  flagged unverified or not. Developer tools can override them
+  (`domHealthThresholdOverrides`) while bundles are collected; defaults are
+  unchanged, out-of-range values are rejected, and every override in effect
+  is listed in the result and the bundle.
 - **Restoration resets to the seed URL for any click path**, even when only
   the last hop needs replaying. `history.back()` is not used, because a
   same-URL click need not push a history entry.

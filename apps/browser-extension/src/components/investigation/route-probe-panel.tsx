@@ -117,7 +117,14 @@ function saveReport(report: RouteProbeReport) {
   URL.revokeObjectURL(url);
 }
 
-export function RouteProbePanel({ tabId }: { tabId: number }) {
+export function RouteProbePanel({
+  tabId,
+  onReport,
+}: {
+  tabId: number;
+  /** The finished report, for the DOM Health card's validation bundle. */
+  onReport?: (report: RouteProbeReport) => void;
+}) {
   const [steps, setSteps] = useState<RouteProbeStep[]>([]);
   const [report, setReport] = useState<RouteProbeReport | null>(null);
   const [state, setState] = useState<"idle" | "starting" | "running">("idle");
@@ -144,7 +151,9 @@ export function RouteProbePanel({ tabId }: { tabId: number }) {
     const session = sessionRef.current;
     sessionRef.current = null;
     if (!session) return;
-    setReport(await session.stop());
+    const finished = await session.stop();
+    setReport(finished);
+    onReport?.(finished);
     setState("idle");
   };
 

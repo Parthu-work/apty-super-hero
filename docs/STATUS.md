@@ -20,6 +20,14 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 - DOM Health in same-origin, cross-origin, `data:` and frameset frames,
   open and closed shadow roots, and tabs opened before an extension update. Virtualized lists (B4) are reported
   as partial coverage with the rendered and declared row counts.
+- DOM Health validation bundle (B2): "Export validation bundle" in the DOM
+  Health card builds an allow-listed, strictly redacted JSON (frame tree,
+  counts, overlays, thresholds, timings, route probe hashes, versions) and
+  shows it for review before Download or Copy. Exported on all six
+  application shapes in Chromium. Developer tools can override the
+  unverified thresholds; every override is listed. Not yet run on a real
+  tenant: the protocol is
+  [`real-tenant-validation.md`](development/real-tenant-validation.md).
 - Page console output (including during page load), network capture with
   opt-in response bodies, runtime diagnostics, screenshots, clicks and
   scrolling. The page-world script behind console capture and routing
@@ -44,6 +52,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Narrow `<all_urls>` to Apty's target domains | Apty's list of customer application domains |
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
 | Studio integration | Studio's manifest allows no other extension to message it |
+| Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | The owner runs [`real-tenant-validation.md`](development/real-tenant-validation.md) and returns the bundles |
 | Turn on `noExplicitAny` | About 130 `any` to replace; the rule is off |
 | Rename the inherited `aipex_*` storage keys | A migration for existing installs |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |

@@ -30,6 +30,7 @@ import {
   type DomHealthRecommendation,
   type DomHealthRisk,
   type PageAuditRecord,
+  type RouteProbeReport,
   runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "@apty/browser-runtime";
@@ -42,6 +43,7 @@ import { RouteProbePanel } from "./route-probe-panel";
 import type { StatusMeta } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useCurrentTarget } from "./use-current-target";
+import { ValidationBundleExport } from "./validation-bundle-export";
 
 const LOADING_STAGES = [
   "Scanning DOM...",
@@ -509,11 +511,14 @@ function FramesAndExclusions({
 export function DomHealthCard({
   developerTools = false,
   ignoredRoots = [],
+  thresholdOverrides,
 }: {
   /** Settings → Troubleshooting → Developer tools: shows the route probe. */
   developerTools?: boolean;
   /** Settings → Troubleshooting: overlays to leave out, on top of the built-in list. */
   ignoredRoots?: readonly string[];
+  /** Developer tools: threshold overrides for real-tenant validation. */
+  thresholdOverrides?: Record<string, number>;
 }) {
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
@@ -530,6 +535,7 @@ export function DomHealthCard({
     useState<ApplicationDiscoveryMode>("application-safe");
   const [expanded, setExpanded] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
+  const [probeReport, setProbeReport] = useState<RouteProbeReport | null>(null);
   const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(
@@ -549,7 +555,10 @@ export function DomHealthCard({
       setStageIndex((i) => (i + 1) % LOADING_STAGES.length);
     }, 700);
 
-    const result = await runDomHealthAudit(target.tabId, { ignoredRoots });
+    const result = await runDomHealthAudit(target.tabId, {
+      ignoredRoots,
+      thresholdOverrides,
+    });
 
     if (stageTimerRef.current) {
       clearInterval(stageTimerRef.current);
@@ -557,7 +566,7 @@ export function DomHealthCard({
     }
     setOutcome(result);
     setIsLoading(false);
-  }, [target.tabId, ignoredRoots]);
+  }, [target.tabId, ignoredRoots, thresholdOverrides]);
 
   const runApplicationCheck = useCallback(async () => {
     if (!target.tabId) return;
@@ -569,13 +578,14 @@ export function DomHealthCard({
     const result = await runApplicationDomHealthAudit(target.tabId, {
       discoveryMode,
       ignoredRoots,
+      thresholdOverrides,
       onProgress: (progress) => setAppProgress(progress),
     });
 
     setAppOutcome(result);
     setIsAppLoading(false);
     setAppProgress(null);
-  }, [target.tabId, discoveryMode, ignoredRoots]);
+  }, [target.tabId, discoveryMode, ignoredRoots, thresholdOverrides]);
 
   const hasResult = outcome !== null || appOutcome !== null;
   const active = view === "application" ? appOutcome : outcome;
@@ -1137,8 +1147,18 @@ export function DomHealthCard({
           )}
         </div>
       )}
+      {(hasResult || probeReport) && (
+        <div className="border-t px-3 py-1.5">
+          <ValidationBundleExport
+            page={outcome}
+            application={appOutcome}
+            probe={probeReport}
+            thresholdOverrides={thresholdOverrides}
+          />
+        </div>
+      )}
       {developerTools && target.tabId && (
-        <RouteProbePanel tabId={target.tabId} />
+        <RouteProbePanel tabId={target.tabId} onReport={setProbeReport} />
       )}
     </div>
   );

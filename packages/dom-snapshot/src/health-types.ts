@@ -12,7 +12,10 @@
 import type { ElementRef } from "./element-ref.js";
 
 /** Attributes on an analyzed element — never includes input values. */
-import type { VirtualizedListSummary } from "./health-virtualized.js";
+import type {
+  VirtualizationThresholds,
+  VirtualizedListSummary,
+} from "./health-virtualized.js";
 import type { ExcludedRootSummary } from "./ignored-roots.js";
 
 export interface DomHealthElementAttributes {
@@ -461,6 +464,8 @@ export interface DomHealthCollectorOptions {
   maxShadowRoots?: number;
   /** Hard per-frame budget; past it the collection stops and returns what it has, labelled partial. */
   timeBudgetMs?: number;
+  /** Overrides for the virtualized-list detector's unverified thresholds (Developer tools). */
+  virtualizationThresholds?: Partial<VirtualizationThresholds>;
   /** Yield to the page at least this often. */
   sliceMs?: number;
   /** Settings entries (`id:prefix`, `class:prefix`, `tag:name`) excluded on top of `DEFAULT_IGNORED_ROOTS`. */

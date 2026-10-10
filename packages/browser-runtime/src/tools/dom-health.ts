@@ -34,12 +34,21 @@ function describeTabForReport(tab: chrome.tabs.Tab) {
 
 const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
-/** Settings → Troubleshooting: overlays the user added to DOM Health's built-in exclusion list. */
-async function userIgnoredRoots(): Promise<string[]> {
+/** Settings → Troubleshooting: overlays the user added to DOM Health's built-in exclusion list, and Developer tools' threshold overrides. */
+async function userAuditSettings(): Promise<{
+  ignoredRoots: string[];
+  thresholdOverrides: Record<string, number> | undefined;
+}> {
   const settings = await settingsStorage
     .load(STORAGE_KEYS.SETTINGS)
     .catch(() => null);
-  return settings?.domHealthIgnoredRoots ?? [];
+  return {
+    ignoredRoots: settings?.domHealthIgnoredRoots ?? [],
+    thresholdOverrides:
+      settings?.developerTools === true
+        ? settings.domHealthThresholdOverrides
+        : undefined,
+  };
 }
 
 export const runDomHealthAuditTool = tool({
@@ -65,9 +74,10 @@ export const runDomHealthAuditTool = tool({
       };
     }
     const tab = resolution.tab;
-    const result = await runDomHealthAudit(tab.id as number, {
-      ignoredRoots: await userIgnoredRoots(),
-    });
+    const result = await runDomHealthAudit(
+      tab.id as number,
+      await userAuditSettings(),
+    );
     return { ...result, meta: { tab: describeTabForReport(tab) } };
   },
 });
@@ -117,7 +127,7 @@ export const runApplicationDomHealthAuditTool = tool({
     const result = await runApplicationDomHealthAudit(tab.id as number, {
       maxPages: input.maxPages,
       discoveryMode: input.discoveryMode,
-      ignoredRoots: await userIgnoredRoots(),
+      ...(await userAuditSettings()),
     });
     return { ...result, meta: { tab: describeTabForReport(tab) } };
   },

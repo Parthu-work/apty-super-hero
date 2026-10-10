@@ -91,6 +91,11 @@ export function redactLogEntries<T extends { message: string }>(
   return redactLogs(entries, currentRedactionMode());
 }
 
+/** Text that leaves the device for someone else (a validation bundle): always strict, whatever the setting. */
+export function redactTextStrict(text: string): string {
+  return redactSensitiveText(text, "strict");
+}
+
 /** What `text` becomes in `mode`, for the Settings preview. Never used on real data. */
 export function previewRedaction(
   text: string,

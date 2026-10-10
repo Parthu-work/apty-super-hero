@@ -1115,7 +1115,10 @@ export async function collectDomHealthSnapshot(
     elementPathSamples: state.elementPathSamples,
     excludedRoots: ignored.summary,
     duplicateIds,
-    virtualized: detectVirtualizedLists(rootDocument),
+    virtualized: detectVirtualizedLists(
+      rootDocument,
+      options.virtualizationThresholds,
+    ),
     performance: {
       timings: {
         ignoredRootsMs: round(ignoredRootsMs),

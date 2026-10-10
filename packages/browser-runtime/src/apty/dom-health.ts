@@ -32,6 +32,10 @@ import {
   type DomHealthAuditResult,
 } from "./dom-health-scoring.js";
 import {
+  type ResolvedThresholds,
+  useThresholdOverrides,
+} from "./dom-health-thresholds.js";
+import {
   aggregateFrameSnapshots,
   captureApplicationState,
   type FrameCaptureResult,
@@ -96,7 +100,27 @@ export async function runDomHealthAudit(
   tabId: number,
   options: DomHealthAuditOptions = {},
 ): Promise<DomHealthAuditOutcome> {
-  return redactDomHealthOutput(await collectDomHealthAudit(tabId, options));
+  const thresholds = useThresholdOverrides(options.thresholdOverrides);
+  const outcome = await collectDomHealthAudit(tabId, options);
+  return redactDomHealthOutput(
+    outcome.available ? withThresholdOverrides(outcome, thresholds) : outcome,
+  );
+}
+
+/** List the threshold overrides an audit ran with, so none applies silently. */
+export function withThresholdOverrides<T extends object>(
+  result: T,
+  thresholds: ResolvedThresholds,
+): T & { thresholdOverrides?: ThresholdOverridesInEffect } {
+  return thresholds.active.length > 0 || thresholds.rejected.length > 0
+    ? {
+        ...result,
+        thresholdOverrides: {
+          active: thresholds.active,
+          rejected: thresholds.rejected,
+        },
+      }
+    : result;
 }
 
 /**
@@ -111,6 +135,13 @@ export async function runDomHealthAudit(
 export interface DomHealthAuditOptions {
   /** Settings entries excluded on top of the default ignored roots. */
   ignoredRoots?: readonly string[];
+  /** Developer tools' `domHealthThresholdOverrides`; validated by `resolveThresholds`. */
+  thresholdOverrides?: unknown;
+}
+
+export interface ThresholdOverridesInEffect {
+  active: ResolvedThresholds["active"];
+  rejected: ResolvedThresholds["rejected"];
 }
 
 export async function collectDomHealthAudit(

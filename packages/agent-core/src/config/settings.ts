@@ -81,6 +81,12 @@ export interface AppSettings {
   pageHooksEnabled?: boolean;
   /** Hosts (with their subdomains) or match patterns where that script never runs. */
   pageHooksExcludedSites?: string[];
+  /**
+   * Developer tools: overrides for DOM Health's unverified thresholds, by
+   * name (`dom-health-thresholds.ts` in browser-runtime lists them and their
+   * bounds). Every active override is listed in the audit result.
+   */
+  domHealthThresholdOverrides?: Record<string, number>;
   /** Redaction applied to diagnostic data; missing or unknown means "strict". */
   redactionMode?: RedactionModeSetting;
 }

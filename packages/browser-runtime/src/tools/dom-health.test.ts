@@ -193,6 +193,36 @@ describe("runApplicationDomHealthAuditTool", () => {
     );
   });
 
+  it.each([
+    [true, { sameUrlRatioForClickFirst: 0.4 }],
+    [false, undefined],
+  ])("applies the threshold overrides only with Developer tools on (%s)", async (developerTools, expected) => {
+    mockRunApplicationDomHealthAudit.mockResolvedValue({ available: true });
+    (global as any).chrome.storage = {
+      local: {
+        get: vi.fn(async (key: string) => ({
+          [key]: {
+            developerTools,
+            domHealthThresholdOverrides: { sameUrlRatioForClickFirst: 0.4 },
+          },
+        })),
+      },
+    };
+
+    try {
+      await runApplicationDomHealthAuditTool.invoke(
+        { context: { conversationId: "conv-6", tabId: 11 } } as any,
+        JSON.stringify({}),
+      );
+    } finally {
+      delete (global as any).chrome.storage;
+    }
+
+    expect(mockRunApplicationDomHealthAudit.mock.calls[0]?.[1]).toMatchObject({
+      thresholdOverrides: expected,
+    });
+  });
+
   it("never silently uses the active tab when no tab is bound to the conversation", async () => {
     const runContext = { context: { conversationId: "conv-5", tabId: null } };
 

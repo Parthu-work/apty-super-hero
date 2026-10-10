@@ -121,12 +121,101 @@ export function TroubleshootingCard({
             onCheckedChange={(checked) => onChange({ developerTools: checked })}
           />
         </div>
+        {settings.developerTools === true && (
+          <ThresholdOverridesField
+            settings={settings}
+            onChange={onChange}
+            zh={zh}
+          />
+        )}
       </CardContent>
     </Card>
   );
 }
 
 const LINES_SAVE_DELAY_MS = 500;
+
+/** `{"name": number, ...}`, or null when the text is anything else. Empty text is no overrides. */
+export function parseThresholdOverrides(
+  text: string,
+): Record<string, number> | null {
+  if (!text.trim()) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+  const entries = Object.entries(parsed);
+  return entries.every(
+    ([, value]) => typeof value === "number" && Number.isFinite(value),
+  )
+    ? Object.fromEntries(entries)
+    : null;
+}
+
+/** Developer-only: DOM Health thresholds to try while collecting real-tenant bundles. Names and ranges are checked when an audit runs, and every override is listed in its result. */
+function ThresholdOverridesField({
+  settings,
+  onChange,
+  zh,
+}: {
+  settings: AppSettings;
+  onChange: (patch: Partial<AppSettings>) => void;
+  zh: boolean;
+}) {
+  const saved = settings.domHealthThresholdOverrides;
+  const [text, setText] = useState(
+    saved && Object.keys(saved).length > 0
+      ? JSON.stringify(saved, null, 2)
+      : "",
+  );
+  const [invalid, setInvalid] = useState(false);
+
+  const save = () => {
+    const overrides = parseThresholdOverrides(text);
+    setInvalid(overrides === null);
+    if (overrides !== null)
+      onChange({ domHealthThresholdOverrides: overrides });
+  };
+
+  return (
+    <div className="mt-4 space-y-2">
+      <Label
+        htmlFor="dom-health-threshold-overrides"
+        className="text-sm font-medium"
+      >
+        {zh
+          ? "DOM 健康：阈值覆盖（JSON）"
+          : "DOM Health: threshold overrides (JSON)"}
+      </Label>
+      <p className="text-xs text-muted-foreground">
+        {zh
+          ? "仅用于在真实租户上验证。名称和范围在审计运行时检查；每个生效的覆盖都会列在结果和验证包中。留空使用默认值。"
+          : "For real-tenant validation only. Names and ranges are checked when an audit runs; every override in effect is listed in the result and the validation bundle. Leave empty for the defaults."}
+      </p>
+      <Textarea
+        id="dom-health-threshold-overrides"
+        value={text}
+        placeholder={'{ "sameUrlRatioForClickFirst": 0.4 }'}
+        aria-invalid={invalid}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={save}
+        className="font-mono text-xs"
+      />
+      {invalid && (
+        <p role="alert" className="text-xs text-destructive">
+          {zh
+            ? "需要一个 JSON 对象，值均为数字。未保存。"
+            : "Needs a JSON object whose values are all numbers. Not saved."}
+        </p>
+      )}
+    </div>
+  );
+}
 
 type LineListKey = "domHealthIgnoredRoots" | "pageHooksExcludedSites";
 

@@ -700,6 +700,38 @@ describe("DomHealthCard", () => {
     expect(screen.getByText("7/7")).toBeInTheDocument();
   });
 
+  it("runs both audits with the developer threshold overrides and offers the validation bundle only once there is evidence", async () => {
+    const overrides = { sameUrlRatioForClickFirst: 0.4 };
+    mockRunDomHealthAudit.mockResolvedValue({ available: false, error: "x" });
+    mockRunApplicationDomHealthAudit.mockResolvedValue({
+      available: false,
+      error: "y",
+    });
+
+    render(<DomHealthCard thresholdOverrides={overrides} />);
+    expect(
+      screen.queryByRole("button", { name: "Export validation bundle" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
+    await waitFor(() =>
+      expect(mockRunDomHealthAudit).toHaveBeenCalledWith(5, {
+        ignoredRoots: [],
+        thresholdOverrides: overrides,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /audit application/i }));
+    await waitFor(() =>
+      expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ thresholdOverrides: overrides }),
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Export validation bundle" }),
+    ).toBeDisabled();
+  });
+
   it("disables the check button when there is no target tab", () => {
     mockUseCurrentTarget.mockReturnValue({
       tabId: null,

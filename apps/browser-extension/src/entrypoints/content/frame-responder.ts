@@ -256,6 +256,27 @@ export function describeFrameSelf(ignoredRoots: string[] = []) {
 }
 
 /** One probe step for this frame: what identifies the screen, plus each child frame's owner attributes mapped to its `frameId`. */
+/** `value` when it is a finite positive number, else undefined (the collector's default applies). */
+function positiveNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
+/** The listed finite, non-negative numbers of `value`; anything else is dropped. */
+function numberFields<K extends string>(
+  value: unknown,
+  keys: readonly K[],
+): Partial<Record<K, number>> {
+  if (!value || typeof value !== "object") return {};
+  const out: Partial<Record<K, number>> = {};
+  for (const key of keys) {
+    const v = (value as Record<string, unknown>)[key];
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[key] = v;
+  }
+  return out;
+}
+
 export function captureRouteProbeFrame() {
   const { owners, ...signals } = collectRouteProbeFrameSignals(document);
   return {
@@ -524,6 +545,11 @@ export function handleFrameMessage(
                 : undefined,
             frameContext: message.frameContext ?? null,
             ignoredRoots,
+            timeBudgetMs: positiveNumber(message.timeBudgetMs),
+            virtualizationThresholds: numberFields(
+              message.virtualizationThresholds,
+              ["spacerMinPx", "scrollHeightRatio", "scrollHeightExcessPx"],
+            ),
           });
           return {
             snapshot,
