@@ -263,22 +263,50 @@ export async function clickDiscoveredLink(
 export interface NavigationModel {
   usesHistoryApiRouting: boolean;
   historyApiCallCount: number;
+  routingEvidence: "observed" | "unavailable";
+  routingEvidenceReason?: string;
 }
+
+/** Why routing evidence is missing when the page-world hooks never announced themselves in the top frame. */
+export const ROUTING_EVIDENCE_UNAVAILABLE =
+  "Client-side routing could not be measured: the page-world script that counts pushState/replaceState calls does not run on this page (it is turned off, or this site is excluded, in Settings → Troubleshooting), so no routing is not evidence of no routing.";
 
 /** Whether the tab's top frame appears to use client-side (pushState/replaceState/popstate) routing — diagnostic only, never affects the score. */
 export async function getNavigationModel(
   tabId: number,
 ): Promise<NavigationModel> {
-  const response = await sendFrameMessage<NavigationModel>(
+  const response = await sendFrameMessage<{
+    usesHistoryApiRouting: boolean;
+    historyApiCallCount: number;
+    historyHooksSeen?: boolean;
+  }>(
     tabId,
     0,
     { request: "get-dom-health-navigation-model" },
     DISCOVERY_FRAME_TIMEOUT_MS,
   );
   if (!response.success || !response.data) {
-    return { usesHistoryApiRouting: false, historyApiCallCount: 0 };
+    return {
+      usesHistoryApiRouting: false,
+      historyApiCallCount: 0,
+      routingEvidence: "unavailable",
+      routingEvidenceReason: "The page's top frame did not answer.",
+    };
   }
-  return response.data;
+  const { usesHistoryApiRouting, historyApiCallCount, historyHooksSeen } =
+    response.data;
+  return historyHooksSeen === false
+    ? {
+        usesHistoryApiRouting: false,
+        historyApiCallCount: 0,
+        routingEvidence: "unavailable",
+        routingEvidenceReason: ROUTING_EVIDENCE_UNAVAILABLE,
+      }
+    : {
+        usesHistoryApiRouting,
+        historyApiCallCount,
+        routingEvidence: "observed",
+      };
 }
 
 export interface ElementPathReplaySample {

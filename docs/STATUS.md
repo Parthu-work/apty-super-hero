@@ -22,7 +22,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   as partial coverage with the rendered and declared row counts.
 - Page console output (including during page load), network capture with
   opt-in response bodies, runtime diagnostics, screenshots, clicks and
-  scrolling.
+  scrolling. The page-world script behind console capture and routing
+  evidence can be turned off or excluded per site (B5), registered by the
+  service worker.
 - Apty Client logs and resource bodies, with named connection failures and
   a full-response viewer. The Data-handling deny list covers Client bodies
   too (A2): a listed resource returns `body_denied` with its metadata and

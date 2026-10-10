@@ -73,6 +73,9 @@ export type PageDiscoverySource =
 export interface PageNavigationModel {
   usesHistoryApiRouting: boolean;
   historyApiCallCount: number;
+  /** "unavailable" when the page-world hooks that count history calls don't run on this page, so `usesHistoryApiRouting: false` means "not measured", not "none". */
+  routingEvidence?: "observed" | "unavailable";
+  routingEvidenceReason?: string;
 }
 
 export interface PageAuditRecord {

@@ -8,18 +8,22 @@ import manifest from "./manifest.json";
 const CONSOLE_BRIDGE = normalizePath(
   path.resolve(__dirname, "src/entrypoints/content/console-bridge.ts"),
 );
+/** Must equal `CONSOLE_BRIDGE_FILE` in browser-runtime's `runtime/page-hooks-registration.ts` (checked by validate-manifest.mjs). */
+const CONSOLE_BRIDGE_FILE = "content/console-bridge.js";
 
 /**
- * Bundle a content script with its imports inlined. crxjs only skips its
- * async `import()` loader for a chunk with no imports, and the console
- * bridge must hook `console` before the page's own scripts run.
+ * Emit the MAIN-world console bridge as one self-contained file at a fixed
+ * path. It is not a manifest content script: the service worker registers
+ * it with `chrome.scripting.registerContentScripts`, so the user can turn
+ * it off or exclude sites (`runtime/page-hooks-registration.ts`, which
+ * holds the same path). Self-contained because it must hook `console`
+ * before the page's own scripts run, with no async loader.
  */
-function selfContainedContentScript(entry: string): Plugin {
+function emittedConsoleBridge(entry: string, fileName: string): Plugin {
   return {
-    name: "apty:self-contained-content-script",
+    name: "apty:console-bridge",
     apply: "build",
-    async load(id) {
-      if (id !== entry) return null;
+    async generateBundle() {
       const result = await build({
         configFile: false,
         logLevel: "warn",
@@ -31,7 +35,11 @@ function selfContainedContentScript(entry: string): Plugin {
       });
       const [output] = Array.isArray(result) ? result : [result];
       if (!("output" in output)) throw new Error("Unexpected watcher output");
-      return output.output[0].code;
+      this.emitFile({
+        type: "asset",
+        fileName,
+        source: output.output[0].code,
+      });
     },
   };
 }
@@ -40,7 +48,7 @@ function selfContainedContentScript(entry: string): Plugin {
 export default defineConfig(() => ({
   plugins: [
     react(),
-    selfContainedContentScript(CONSOLE_BRIDGE),
+    emittedConsoleBridge(CONSOLE_BRIDGE, CONSOLE_BRIDGE_FILE),
     crx({ manifest: manifest as unknown as ManifestV3Export }),
     viteStaticCopy({
       targets: [

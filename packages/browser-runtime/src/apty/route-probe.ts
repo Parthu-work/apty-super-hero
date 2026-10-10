@@ -145,6 +145,7 @@ interface CapturedFrame {
   owners: CapturedOwner[];
   historyApiCallCount: number;
   pushStateCount: number;
+  historyHooksSeen?: boolean;
   firstRequest: RouteProbeRequest | null;
   virtualized?: VirtualizedListSummary;
 }
@@ -233,8 +234,13 @@ export async function captureRouteProbeStep(
       heading: data ? optionalProbeText(data.firstHeading) : null,
       activeNav: data ? optionalProbeText(data.activeNavItem) : null,
       owner: owner ? toOwner(owner) : null,
-      historyApiCallCount: data?.historyApiCallCount ?? null,
-      pushStateCount: data?.pushStateCount ?? null,
+      // Null, not 0, where the page-world hooks don't run: not measured.
+      historyApiCallCount:
+        data && data.historyHooksSeen !== false
+          ? data.historyApiCallCount
+          : null,
+      pushStateCount:
+        data && data.historyHooksSeen !== false ? data.pushStateCount : null,
       firstRequest: data?.firstRequest
         ? redactRequest(data.firstRequest)
         : null,

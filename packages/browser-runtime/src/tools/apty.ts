@@ -21,7 +21,7 @@
  * output or Apty's own log messages.
  */
 
-import { tool } from "@apty/agent-core";
+import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
   ConfiguredServiceWorkerDiagnosticsProvider,
@@ -37,7 +37,12 @@ import {
   ScriptingWidgetDiagnosticsProvider,
   summarizeLogCategories,
 } from "../apty/index.js";
+import {
+  CONSOLE_BRIDGE_FILE,
+  pageHooksAllowedOn,
+} from "../runtime/page-hooks-registration.js";
 import { redactLogEntries } from "../runtime/redaction-mode.js";
+import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import {
   type DiagnosticTabFailureCode,
   describeTabForMeta,
@@ -45,6 +50,8 @@ import {
   resolveDiagnosticTab,
   type ToolRunContext,
 } from "./tab-utils";
+
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 type AptyConsoleLevel =
   | "log"
@@ -84,7 +91,7 @@ interface FrameReadResult {
   frameId: number;
   entries: AptyConsoleEntry[];
   url?: string;
-  coverage: "installed" | "from-injection" | "unavailable";
+  coverage: "installed" | "from-injection" | "unavailable" | "disabled";
 }
 
 type PageLogsErrorCode = "restricted_page" | "no_permission" | "tab_closed";
@@ -116,26 +123,12 @@ function isRestrictedUrl(url: string | undefined): boolean {
   return false;
 }
 
-/** The `content_scripts` entry (from the *resolved* runtime manifest, so it works whatever the build renamed the file to) that installs the console bridge in the page's MAIN world. */
-function findConsoleBridgeFiles(): string[] | undefined {
-  try {
-    const manifest = chrome.runtime.getManifest() as unknown as {
-      content_scripts?: Array<{
-        js?: string[];
-        world?: string;
-      }>;
-    };
-    const entry = manifest.content_scripts?.find(
-      (cs) => cs.world === "MAIN" && (cs.js?.length ?? 0) > 0,
-    );
-    return entry?.js;
-  } catch {
-    return undefined;
-  }
-}
-
 /** Reads `window.__aptyReadConsoleBuffer()` in every frame of a tab, in the page's MAIN world. Never throws — a failure to inject at all is reported via the returned `errorCode`. */
-async function readFrameConsoleLogs(tabId: number): Promise<{
+async function readFrameConsoleLogs(
+  tabId: number,
+  /** False where Settings → Troubleshooting turned the bridge off or excluded the site: frames without it are then not injected. */
+  mayInjectBridge: boolean,
+): Promise<{
   frames: FrameReadResult[];
   errorCode?: PageLogsErrorCode;
   errorMessage?: string;
@@ -188,7 +181,15 @@ async function readFrameConsoleLogs(tabId: number): Promise<{
   // content-script files on demand rather than guessing at a duplicate
   // implementation, then re-read.
   if (missingFrameIds.length > 0) {
-    frames.push(...(await injectBridgeIntoFrames(tabId, missingFrameIds)));
+    frames.push(
+      ...(mayInjectBridge
+        ? await injectBridgeIntoFrames(tabId, missingFrameIds)
+        : missingFrameIds.map((frameId) => ({
+            frameId,
+            entries: [],
+            coverage: "disabled" as const,
+          }))),
+    );
   }
 
   return { frames };
@@ -198,15 +199,7 @@ async function injectBridgeIntoFrames(
   tabId: number,
   frameIds: number[],
 ): Promise<FrameReadResult[]> {
-  const files = findConsoleBridgeFiles();
-  if (!files || files.length === 0) {
-    return frameIds.map((frameId) => ({
-      frameId,
-      entries: [],
-      coverage: "unavailable" as const,
-    }));
-  }
-
+  const files = [CONSOLE_BRIDGE_FILE];
   try {
     await chrome.scripting.executeScript({
       target: { tabId, frameIds },
@@ -382,7 +375,13 @@ export const getAptyPageLogsTool = tool({
       frames: frameResults,
       errorCode,
       errorMessage,
-    } = await readFrameConsoleLogs(tabId);
+    } = await readFrameConsoleLogs(
+      tabId,
+      pageHooksAllowedOn(
+        tab.url,
+        await settingsStorage.load(STORAGE_KEYS.SETTINGS).catch(() => null),
+      ),
+    );
     if (errorCode) {
       return pageLogsFailure({
         code: errorCode,
@@ -403,7 +402,9 @@ export const getAptyPageLogsTool = tool({
 
     const merged: MergedAptyConsoleEntry[] = [];
     for (const frame of relevantFrames) {
-      if (frame.coverage === "unavailable") continue;
+      if (frame.coverage === "unavailable" || frame.coverage === "disabled") {
+        continue;
+      }
       for (const entry of frame.entries) {
         merged.push({
           ...entry,
@@ -442,6 +443,14 @@ export const getAptyPageLogsTool = tool({
       injectedFrames: relevantFrames.filter(
         (f) => f.coverage === "from-injection",
       ).length,
+      framesDisabled: frameResults.filter((f) => f.coverage === "disabled")
+        .length,
+      ...(frameResults.some((f) => f.coverage === "disabled")
+        ? {
+            disabledReason:
+              "Console capture from page load is turned off for this site (Settings → Troubleshooting), so its console output was not recorded.",
+          }
+        : {}),
     };
 
     return {

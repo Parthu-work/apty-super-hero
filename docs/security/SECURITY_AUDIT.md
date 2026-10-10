@@ -252,9 +252,10 @@ diagnostic isolation) is now Fixed above.
 ### 3. Console-capture bridge runs on `<all_urls>`
 
 - **Severity**: Medium
-- **Affected component**: `apps/browser-extension/src/entrypoints/content/console-bridge.ts`,
-  registered in `manifest.json`'s `content_scripts` with `"matches":
-  ["<all_urls>"]`
+- **Affected component**: `apps/browser-extension/src/entrypoints/content/console-bridge.ts`
+  (which also installs DOM Health's `pushState`/`attachShadow` hooks),
+  registered on `<all_urls>` by the service worker since B5
+  (`packages/browser-runtime/src/runtime/page-hooks-registration.ts`)
 - **Risk**: This MAIN-world script wraps `console.log/info/warn/error/debug`
   and buffers every call, on every page the user visits — not just Apty
   pages. If the user is debugging on one tab while their banking site's tab
@@ -266,10 +267,15 @@ diagnostic isolation) is now Fixed above.
   strips tokens/passwords/headers from anything returned via
   `get_apty_page_logs`, and the tool only reads the active tab's buffer,
   not every tab's. The buffer is in-page memory only — nothing is persisted
-  to `chrome.storage` or sent anywhere until explicitly queried.
+  to `chrome.storage` or sent anywhere until explicitly queried. Since B5
+  the user can turn the script off, or exclude sites, in Settings →
+  Troubleshooting; it is registered with `chrome.scripting.registerContentScripts`
+  (`excludeMatches` from that list) instead of a static manifest entry, and
+  `get_apty_page_logs` no longer injects it into an excluded page.
 - **Recommended fix**: Scope the content script's `matches` to Apty's
-  target application domains, same as finding #2, once known.
-- **Status**: Open. Needs Apty's target domain list.
+  target application domains, same as finding #2, once known (the dynamic
+  registration takes such a list directly).
+- **Status**: Open, mitigated by the switch. Needs Apty's target domain list.
 
 ### 4. Apty Studio/Widget/Client integration mechanisms are unconfirmed designs
 

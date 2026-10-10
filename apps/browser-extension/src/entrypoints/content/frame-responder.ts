@@ -45,6 +45,8 @@ const MARKER_KEY = "__aptyFrameResponder";
 
 let historyTotals: HistoryApiTotals = { ...ZERO_HISTORY_TOTALS };
 let listeningForHistoryApi = false;
+/** Set once the page-world hooks announce themselves; false where they don't run (turned off, or the site excluded in Settings → Troubleshooting). */
+let historyHooksSeen = false;
 
 function historyApiCallCount(): number {
   return (
@@ -70,6 +72,7 @@ function listenForHistoryApi(): void {
   window.addEventListener(HISTORY_API_EVENT, (event) => {
     const totals = parseHistoryTotals((event as CustomEvent).detail);
     if (!totals) return;
+    historyHooksSeen = true;
     historyTotals = {
       pushState: Math.max(historyTotals.pushState, totals.pushState),
       replaceState: Math.max(historyTotals.replaceState, totals.replaceState),
@@ -260,6 +263,7 @@ export function captureRouteProbeFrame() {
     owners: frameOwnersWithIds(owners),
     historyApiCallCount: historyApiCallCount(),
     pushStateCount: historyTotals.pushState,
+    historyHooksSeen,
     firstRequest: routeProbe?.firstRequest ?? null,
     armed: routeProbe !== null,
   };
@@ -566,6 +570,7 @@ export function handleFrameMessage(
           usesHistoryApiRouting: historyApiCallCount() > 0,
           historyApiCallCount: historyApiCallCount(),
           pushStateCount: historyTotals.pushState,
+          historyHooksSeen,
         },
       });
       return true;

@@ -233,6 +233,17 @@ describe("waitForFrameToSettle for child frames", () => {
 });
 
 describe("routing evidence and the route probe", () => {
+  it("says the page-world hooks are missing until they announce themselves", async () => {
+    const model = (await ask({ request: "get-dom-health-navigation-model" }))
+      .data;
+    expect(model).toEqual({
+      usesHistoryApiRouting: false,
+      historyApiCallCount: 0,
+      pushStateCount: 0,
+      historyHooksSeen: false,
+    });
+  });
+
   it("reports the page's history API totals announced by the MAIN-world hooks", async () => {
     const announce = (totals: object) =>
       window.dispatchEvent(
@@ -251,6 +262,7 @@ describe("routing evidence and the route probe", () => {
       usesHistoryApiRouting: true,
       historyApiCallCount: 5,
       pushStateCount: 3,
+      historyHooksSeen: true,
     });
   });
 

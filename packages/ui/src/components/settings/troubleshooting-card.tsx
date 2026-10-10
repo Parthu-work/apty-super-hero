@@ -49,7 +49,61 @@ export function TroubleshootingCard({
             onCheckedChange={(checked) => onChange({ verboseLogging: checked })}
           />
         </div>
-        <IgnoredRootsField settings={settings} onChange={onChange} zh={zh} />
+        <LineListField
+          settingKey="domHealthIgnoredRoots"
+          id="dom-health-ignored-roots"
+          label={
+            zh ? "DOM 健康：忽略的页面内容" : "DOM Health: content to leave out"
+          }
+          description={
+            zh
+              ? "第三方浮层（如引导工具、聊天窗口）不属于应用本身。每行一个：id:前缀、class:前缀 或 tag:名称。"
+              : "Third-party overlays (guidance tools, chat widgets) are not the application. One per line: id:prefix, class:prefix or tag:name."
+          }
+          placeholder={
+            "id:acme-assist-\nclass:helpdesk-launcher\ntag:support-widget"
+          }
+          settings={settings}
+          onChange={onChange}
+        />
+        <div className="mt-4 flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="page-hooks" className="text-sm font-medium">
+              {zh
+                ? "跟踪客户端路由并从页面加载开始捕获控制台输出"
+                : "Track client-side routing and capture console output from page load"}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {zh
+                ? "在每个页面中运行一个小脚本，包装 history.pushState 并缓存控制台输出。页面可以察觉到它。关闭后，控制台日志只能从您询问时开始，DOM 健康无法测量路由。"
+                : "Runs a small script in each page that wraps history.pushState and buffers console output. Pages can notice it. Off: console logs start only when you ask, and DOM Health cannot measure routing."}
+            </p>
+          </div>
+          <Switch
+            id="page-hooks"
+            checked={settings.pageHooksEnabled !== false}
+            onCheckedChange={(checked) =>
+              onChange({ pageHooksEnabled: checked })
+            }
+          />
+        </div>
+        {settings.pageHooksEnabled !== false && (
+          <LineListField
+            settingKey="pageHooksExcludedSites"
+            id="page-hooks-excluded-sites"
+            label={
+              zh ? "不运行该脚本的网站" : "Sites where that script never runs"
+            }
+            description={
+              zh
+                ? "每行一个主机（包括其子域名）或匹配模式。新加载的页面生效；已打开的标签页需要重新加载。"
+                : "One host (its subdomains included) or match pattern per line. Applies to pages loaded after the change; reload tabs that are already open."
+            }
+            placeholder={"bank.example.com\nhttps://*.example.org/admin/*"}
+            settings={settings}
+            onChange={onChange}
+          />
+        )}
         <div className="mt-4 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <Label htmlFor="developer-tools" className="text-sm font-medium">
@@ -72,7 +126,9 @@ export function TroubleshootingCard({
   );
 }
 
-const IGNORED_ROOTS_SAVE_DELAY_MS = 500;
+const LINES_SAVE_DELAY_MS = 500;
+
+type LineListKey = "domHealthIgnoredRoots" | "pageHooksExcludedSites";
 
 function parseLines(text: string): string[] {
   return text
@@ -81,19 +137,25 @@ function parseLines(text: string): string[] {
     .filter(Boolean);
 }
 
-/** Overlay vendors differ per customer, so DOM Health's built-in exclusion list can be extended here. */
-function IgnoredRootsField({
+/** A one-entry-per-line setting, saved once typing pauses or the field loses focus. */
+function LineListField({
+  settingKey,
+  id,
+  label,
+  description,
+  placeholder,
   settings,
   onChange,
-  zh,
 }: {
+  settingKey: LineListKey;
+  id: string;
+  label: string;
+  description: string;
+  placeholder: string;
   settings: AppSettings;
   onChange: (patch: Partial<AppSettings>) => void;
-  zh: boolean;
 }) {
-  const [text, setText] = useState(
-    (settings.domHealthIgnoredRoots ?? []).join("\n"),
-  );
+  const [text, setText] = useState((settings[settingKey] ?? []).join("\n"));
   const pending = useRef<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -103,7 +165,7 @@ function IgnoredRootsField({
   const flush = () => {
     clearTimeout(saveTimer.current);
     if (pending.current === null) return;
-    onChangeRef.current({ domHealthIgnoredRoots: parseLines(pending.current) });
+    onChangeRef.current({ [settingKey]: parseLines(pending.current) });
     pending.current = null;
   };
   // biome-ignore lint/correctness/useExhaustiveDependencies: flush on unmount only
@@ -111,25 +173,19 @@ function IgnoredRootsField({
 
   return (
     <div className="mt-4 space-y-2">
-      <Label htmlFor="dom-health-ignored-roots" className="text-sm font-medium">
-        {zh ? "DOM 健康：忽略的页面内容" : "DOM Health: content to leave out"}
+      <Label htmlFor={id} className="text-sm font-medium">
+        {label}
       </Label>
-      <p className="text-xs text-muted-foreground">
-        {zh
-          ? "第三方浮层（如引导工具、聊天窗口）不属于应用本身。每行一个：id:前缀、class:前缀 或 tag:名称。"
-          : "Third-party overlays (guidance tools, chat widgets) are not the application. One per line: id:prefix, class:prefix or tag:name."}
-      </p>
+      <p className="text-xs text-muted-foreground">{description}</p>
       <Textarea
-        id="dom-health-ignored-roots"
+        id={id}
         value={text}
-        placeholder={
-          "id:acme-assist-\nclass:helpdesk-launcher\ntag:support-widget"
-        }
+        placeholder={placeholder}
         onChange={(event) => {
           setText(event.target.value);
           pending.current = event.target.value;
           clearTimeout(saveTimer.current);
-          saveTimer.current = setTimeout(flush, IGNORED_ROOTS_SAVE_DELAY_MS);
+          saveTimer.current = setTimeout(flush, LINES_SAVE_DELAY_MS);
         }}
         onBlur={flush}
       />

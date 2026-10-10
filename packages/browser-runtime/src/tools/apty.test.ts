@@ -4,8 +4,14 @@ const mockTabsQuery = vi.fn();
 const mockTabsGet = vi.fn();
 const mockExecuteScript = vi.fn();
 const mockGetManifest = vi.fn();
+let storedSettings: Record<string, unknown> | undefined;
 
 (global as any).chrome = {
+  storage: {
+    local: {
+      get: async (key: string) => ({ [key]: storedSettings }),
+    },
+  },
   tabs: {
     query: mockTabsQuery,
     get: mockTabsGet,
@@ -40,6 +46,7 @@ beforeEach(() => {
   mockTabsGet.mockReset();
   mockExecuteScript.mockReset();
   mockGetManifest.mockReset();
+  storedSettings = undefined;
   mockGetManifest.mockReturnValue({
     content_scripts: [
       { world: "MAIN", js: ["content-scripts/console-bridge.js"] },
@@ -327,7 +334,7 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
       expect.objectContaining({
         target: { tabId: 27, frameIds: [3] },
         world: "MAIN",
-        files: ["content-scripts/console-bridge.js"],
+        files: ["content/console-bridge.js"],
       }),
     );
     expect(result.entries).toEqual([
@@ -338,6 +345,30 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
       }),
     ]);
     expect(result.coverage.injectedFrames).toBe(1);
+  });
+
+  it.each([
+    ["the switch is off", { pageHooksEnabled: false }],
+    ["the site is excluded", { pageHooksExcludedSites: ["example.com"] }],
+  ])("never injects the bridge when %s, and says why", async (_label, settings) => {
+    storedSettings = settings;
+    mockTabsGet.mockResolvedValue(tab(27));
+    mockExecuteScript.mockResolvedValueOnce([
+      { frameId: 0, result: undefined },
+    ]);
+
+    const runContext = { context: { conversationId: "conv-1", tabId: 27 } };
+    const result = (await getAptyPageLogsTool.invoke(
+      runContext as any,
+      JSON.stringify({ limit: 100, minLevel: "log" }),
+    )) as any;
+
+    expect(mockExecuteScript).toHaveBeenCalledTimes(1);
+    expect(result.entries).toEqual([]);
+    expect(result.coverage.framesDisabled).toBe(1);
+    expect(result.coverage.disabledReason).toMatch(
+      /turned off for this site \(Settings → Troubleshooting\)/,
+    );
   });
 
   it("reports no_permission when script injection fails for a reason other than a restricted page", async () => {

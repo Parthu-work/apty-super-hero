@@ -59,6 +59,31 @@ fail when it is navigating during the audit, or when Chrome blocks
 extensions from it (a `chrome://` or Web Store frame). Reload the page and
 run the check again.
 
+## Console logs start late, or DOM Health says routing "could not be measured"
+
+The agent runs a small script in each page's own JavaScript world from
+the moment it starts loading: it buffers console output and counts
+`history.pushState`/`replaceState` calls for DOM Health. A page can notice
+it (`history.pushState.toString()` is not native code), so **Settings →
+General → Troubleshooting → Track client-side routing and capture console
+output from page load** turns it off, and the list under it excludes
+sites (a host covers its subdomains; a full match pattern such as
+`https://*.example.org/admin/*` works too).
+
+Where it is off or excluded:
+
+- `get_apty_page_logs` returns no console output for that page and says
+  why (`coverage.disabledReason`); it does not inject the script on demand.
+- DOM Health's application audit reports `routingEvidence: "unavailable"`
+  with the reason, instead of "no client-side routing".
+- A change applies to pages loaded afterwards; reload open tabs.
+
+Compatibility note: the script is registered by the service worker with
+`chrome.scripting.registerContentScripts` (it used to be a static manifest
+entry). If it never runs, open the service worker's console from
+`chrome://extensions` and look for "[PageHooks] Could not register the
+console bridge"; an invalid excluded-site entry is skipped, not fatal.
+
 ## An action asks for approval, or is refused
 
 Running page JavaScript, filling fields, typing, uploads and downloads

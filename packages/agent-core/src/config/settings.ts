@@ -73,6 +73,14 @@ export interface AppSettings {
   developerTools?: boolean;
   /** Extra page content DOM Health leaves out of an audit, one matcher per entry: `id:prefix`, `class:prefix` or `tag:name`. Added to the built-in overlay list. */
   domHealthIgnoredRoots?: string[];
+  /**
+   * Run the page-world script that captures console output from page load
+   * and counts client-side routing (`pushState`) for DOM Health. On unless
+   * turned off (Settings → Troubleshooting).
+   */
+  pageHooksEnabled?: boolean;
+  /** Hosts (with their subdomains) or match patterns where that script never runs. */
+  pageHooksExcludedSites?: string[];
   /** Redaction applied to diagnostic data; missing or unknown means "strict". */
   redactionMode?: RedactionModeSetting;
 }
@@ -92,4 +100,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   developerTools: false,
   domHealthIgnoredRoots: [],
   redactionMode: "strict",
+  pageHooksEnabled: true,
+  pageHooksExcludedSites: [],
 };
