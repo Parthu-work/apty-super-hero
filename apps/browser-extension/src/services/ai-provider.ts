@@ -45,7 +45,7 @@ const LOOPBACK_HOSTNAMES = new Set([
  * parser itself: `new URL(...).hostname` is already normalized to
  * dotted-decimal/canonical form before we read it below.
  */
-function validateHostUrl(url: string | undefined): string | undefined {
+export function validateHostUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
 
   let parsed: URL;
@@ -132,6 +132,19 @@ export function isProviderConfigured(settings: AppSettings): boolean {
 }
 
 /**
+ * The Anthropic SDK appends `/messages` to its base URL, which must end in
+ * `/v1`. Hosts saved by older presets were the bare origin
+ * (`https://api.anthropic.com`), which sent every request to a 404.
+ */
+export function anthropicBaseUrl(baseURL: string | undefined) {
+  if (!baseURL) return baseURL;
+  const url = new URL(baseURL);
+  return url.pathname === "/" || url.pathname === ""
+    ? `${url.origin}/v1`
+    : baseURL;
+}
+
+/**
  * Create an AI SDK provider for BYOK mode.
  */
 export function createAIProvider(settings: AppSettings) {
@@ -141,7 +154,7 @@ export function createAIProvider(settings: AppSettings) {
 
   switch (provider) {
     case "anthropic":
-      return createAnthropic({ apiKey, baseURL });
+      return createAnthropic({ apiKey, baseURL: anthropicBaseUrl(baseURL) });
     case "google":
       return createGoogleGenerativeAI({ apiKey, baseURL });
     case "openai":

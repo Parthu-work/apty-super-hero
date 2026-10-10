@@ -1,6 +1,7 @@
 import { AI_PROVIDERS } from "@apty/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import {
+  anthropicBaseUrl,
   createAIProvider,
   createEmptyToolArgsFinalizer,
   describeConnectionTestError,
@@ -225,11 +226,10 @@ describe("Groq provider configuration", () => {
     expect(AI_PROVIDERS.groq.models).not.toContain("mixtral-8x7b-32768");
   });
 
-  it("lists a currently-supported Groq model as the default (first) model", () => {
-    // This is what settings/index.tsx's provider.models[0] picks as the
-    // default aiModel when the user selects Groq — it must not be a
-    // deprecated/decommissioned model.
-    expect(AI_PROVIDERS.groq.models[0]).toBe("openai/gpt-oss-20b");
+  it("suggests no Groq model id it cannot verify, so no stale id becomes the default", () => {
+    // settings/index.tsx picks provider.models[0] as a new config's model.
+    // Groq's catalogue changes often; "Fetch models" reads the live list.
+    expect(AI_PROVIDERS.groq.models).toEqual([]);
   });
 
   it("points at Groq's OpenAI-compatible endpoint", () => {
@@ -629,5 +629,20 @@ describe("createEmptyToolArgsFinalizer", () => {
       }
     });
     expect(finishLines.length).toBe(1);
+  });
+});
+
+describe("anthropicBaseUrl", () => {
+  it("adds /v1 to a bare Anthropic origin and leaves a path alone", () => {
+    expect(anthropicBaseUrl("https://api.anthropic.com")).toBe(
+      "https://api.anthropic.com/v1",
+    );
+    expect(anthropicBaseUrl("https://api.anthropic.com/v1")).toBe(
+      "https://api.anthropic.com/v1",
+    );
+    expect(anthropicBaseUrl("https://proxy.example.com/anthropic")).toBe(
+      "https://proxy.example.com/anthropic",
+    );
+    expect(anthropicBaseUrl(undefined)).toBeUndefined();
   });
 });

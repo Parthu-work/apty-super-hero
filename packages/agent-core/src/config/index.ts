@@ -4,6 +4,7 @@ export {
   type AIProviderConfig,
   type AIProviderKey,
   detectProviderFromHost,
+  SUPERSEDED_PRESET_HOSTS,
 } from "./ai-providers.js";
 export { DEFAULT_CONVERSATION_CONFIG } from "./defaults.js";
 export {
@@ -13,6 +14,7 @@ export {
   type ProviderType,
   REDACTION_MODES,
   type RedactionModeSetting,
+  type ToolCallingSupport,
 } from "./settings.js";
 export {
   type AutomationMode,

@@ -3,6 +3,9 @@ import type { ProviderType } from "./types.js";
 
 export type { ProviderType };
 
+/** Whether a model called a tool in Settings' Test Connection probe. */
+export type ToolCallingSupport = "yes" | "no" | "unknown";
+
 export interface CustomModelConfig {
   id: string;
   name?: string;
@@ -11,6 +14,8 @@ export interface CustomModelConfig {
   aiToken: string;
   aiModel: string;
   enabled: boolean;
+  /** The last tool-calling probe, for the model id it tested. */
+  toolCalling?: { model: string; support: ToolCallingSupport };
 }
 
 /**

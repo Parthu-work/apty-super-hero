@@ -9,6 +9,7 @@ import {
   SettingsPage,
   serializeModelsForExport,
 } from "./index";
+import type { SettingsPageProps } from "./types";
 
 // jsdom does not implement matchMedia; the theme provider's "system" theme
 // resolution needs it.
@@ -173,7 +174,8 @@ describe("SettingsPage", () => {
   describe("Save and Test Connection", () => {
     function renderWith(props: {
       onSave?: (settings: AppSettings) => void;
-      onTestConnection?: (settings: AppSettings) => Promise<boolean>;
+      onTestConnection?: SettingsPageProps["onTestConnection"];
+      onFetchModels?: SettingsPageProps["onFetchModels"];
     }) {
       const storageAdapter = createMemoryStorage<unknown>();
       render(
@@ -186,6 +188,7 @@ describe("SettingsPage", () => {
               initialTab="ai"
               onSave={props.onSave}
               onTestConnection={props.onTestConnection}
+              onFetchModels={props.onFetchModels}
             />
           </ThemeProvider>
         </I18nProvider>,
@@ -277,6 +280,108 @@ describe("SettingsPage", () => {
       expect(
         await screen.findByText("Connection test successful"),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("Fetch models and the tool-calling probe (C1)", () => {
+    function renderWith(props: Partial<SettingsPageProps>) {
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={createMemoryStorage<unknown>()}
+              initialTab="ai"
+              {...props}
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+    }
+
+    function suggestions() {
+      const list = document.querySelector("datalist");
+      return [...(list?.querySelectorAll("option") ?? [])].map(
+        (option) => option.value,
+      );
+    }
+
+    it("adds the provider's live models to the suggestions, keeping the presets", async () => {
+      const onFetchModels = vi
+        .fn()
+        .mockResolvedValue({ ok: true, models: ["live-a", "live-b"] });
+      renderWith({ onFetchModels });
+      const fetch = await screen.findByRole("button", { name: "Fetch models" });
+      expect(fetch).toBeDisabled();
+
+      fireEvent.change(screen.getByPlaceholderText("Your API Key"), {
+        target: { value: "sk-test" },
+      });
+      fireEvent.click(fetch);
+
+      expect(
+        await screen.findByText("2 models from the provider"),
+      ).toBeInTheDocument();
+      expect(onFetchModels).toHaveBeenCalledWith(
+        expect.objectContaining({ aiToken: "sk-test" }),
+      );
+      expect(suggestions().slice(0, 2)).toEqual(["live-a", "live-b"]);
+    });
+
+    it("names a failure and leaves manual entry working", async () => {
+      renderWith({
+        onFetchModels: vi.fn().mockResolvedValue({
+          ok: false,
+          error: "The provider rejected the API key (401).",
+        }),
+      });
+      fireEvent.change(await screen.findByPlaceholderText("Your API Key"), {
+        target: { value: "sk-bad" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Fetch models" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "The provider rejected the API key (401). Pick a suggestion or type the model id.",
+      );
+      fireEvent.change(screen.getByPlaceholderText("deepseek-chat"), {
+        target: { value: "typed-model" },
+      });
+      expect(screen.getByPlaceholderText("deepseek-chat")).toHaveValue(
+        "typed-model",
+      );
+    });
+
+    it("shows the probe's verdict, and warns before selecting a model that did not call tools", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      renderWith({
+        onTestConnection: vi
+          .fn()
+          .mockResolvedValue({ ok: true, toolCalling: "no" }),
+      });
+      fireEvent.change(await screen.findByPlaceholderText("Your API Key"), {
+        target: { value: "sk-test" },
+      });
+      fireEvent.change(screen.getByPlaceholderText("deepseek-chat"), {
+        target: { value: "text-only-model" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+
+      expect(
+        await screen.findAllByText("Tool calling: no — the agent needs it"),
+      ).not.toHaveLength(0);
+      expect(screen.getByText("No tools")).toBeInTheDocument();
+
+      const tested = screen.getByText("No tools").closest("div.group");
+      const other = [...document.querySelectorAll("div.group")].find(
+        (row) => row !== tested,
+      );
+      fireEvent.click(other?.querySelector("button") as HTMLElement);
+      fireEvent.click(tested?.querySelector("button") as HTMLElement);
+
+      expect(confirm).toHaveBeenCalledWith(
+        "text-only-model did not call a tool in the last connection test. The agent needs function calling to work. Use it anyway?",
+      );
     });
   });
 

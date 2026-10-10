@@ -21,6 +21,8 @@ import {
   createAIProvider,
   describeConnectionTestError,
 } from "../../services/ai-provider";
+import { fetchModelList } from "../../services/model-list";
+import { probeToolCalling } from "../../services/tool-probe";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
 import { AptyClientPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
@@ -129,7 +131,6 @@ function OptionsPageContent() {
         timeout: TEST_CONNECTION_TIMEOUT_MS,
         maxRetries: 0,
       });
-      return true;
     } catch (error) {
       // Re-throw with a sanitized message (never the raw error, which some
       // providers' SDKs attach request/response bodies to) so the settings
@@ -146,12 +147,24 @@ function OptionsPageContent() {
       }
       throw new Error(describeConnectionTestError(error));
     }
+    const toolCalling = await probeToolCalling(
+      provider(modelId) as LanguageModel,
+    );
+    return { ok: true, toolCalling };
+  }, []);
+
+  const handleFetchModels = useCallback(async (settings: AppSettings) => {
+    const outcome = await fetchModelList(settings);
+    return outcome.ok
+      ? { ok: true as const, models: outcome.models }
+      : { ok: false as const, error: outcome.error };
   }, []);
 
   return (
     <SettingsPage
       storageAdapter={chromeStorageAdapter}
       onTestConnection={handleTestConnection}
+      onFetchModels={handleFetchModels}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}
       permissionsContent={
         <div className="space-y-6">

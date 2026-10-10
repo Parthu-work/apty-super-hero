@@ -39,6 +39,13 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   the Client is never asked for the body. A JSON body comes with a structural summary
   (B3): item count, the union of item keys with their types, and how many
   whole items the preview holds, under 1,500 characters.
+- Settings → AI Configuration (C1): "Fetch models" reads the provider's
+  live model list (OpenAI-compatible, Anthropic and Gemini endpoints),
+  with named errors and manual entry as the fallback; Test Connection also
+  probes tool calling and flags a model that does not call tools. Presets
+  audited: the Anthropic host now reaches the API, unverifiable model
+  names were removed, Replicate and Perplexity are marked experimental.
+  Tested against a mock provider, not real ones.
 - The MCP bridge, with the token in the WebSocket handshake.
 - Redaction mode (A3): Strict, Standard or Off (development only) in
   Settings → Data handling, with a Preview; Off needs a confirmation and

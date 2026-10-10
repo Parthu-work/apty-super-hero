@@ -163,14 +163,25 @@ function chunk(delta, finish = null) {
 
 /**
  * OpenAI-compatible chat-completions endpoint driven by `respond(request)`,
- * which returns `{ tool: name, args }` to make a tool call or `{ text }` to
- * answer. Every request body is kept in `requests`.
+ * which returns `{ tool: name, args }` to make a tool call, `{ text }` to
+ * answer, or `{ error: { status, message } }` to refuse. Streaming requests
+ * get SSE, others a JSON completion. Every request body is kept in
+ * `requests`. `GET /v1/models` answers `models` (set with `serveModels`);
+ * its requests' Authorization headers are kept in `modelListAuth`.
  */
 export async function startMockModel() {
   let respond = () => ({ text: "No script set." });
+  let models = { status: 200, body: { object: "list", data: [] } };
   let callCount = 0;
   const requests = [];
+  const modelListAuth = [];
   const server = await startServer(async (req, res, body) => {
+    if (req.method === "GET" && req.url.endsWith("/models")) {
+      modelListAuth.push(req.headers.authorization ?? null);
+      res.writeHead(models.status, { "content-type": "application/json" });
+      res.end(JSON.stringify(models.body));
+      return;
+    }
     if (!req.url.endsWith("/chat/completions")) {
       res.writeHead(404).end();
       return;
@@ -178,6 +189,55 @@ export async function startMockModel() {
     const request = JSON.parse(body);
     requests.push(request);
     const reply = await respond(request, requests.length);
+    if (reply.error) {
+      res.writeHead(reply.error.status, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: {
+            message: reply.error.message,
+            type: "invalid_request_error",
+          },
+        }),
+      );
+      return;
+    }
+    if (!request.stream) {
+      callCount += 1;
+      const message = reply.tool
+        ? {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: `call_${callCount}`,
+                type: "function",
+                function: {
+                  name: reply.tool,
+                  arguments: JSON.stringify(reply.args ?? {}),
+                },
+              },
+            ],
+          }
+        : { role: "assistant", content: reply.text };
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          id: "mock",
+          object: "chat.completion",
+          created: 1,
+          model: request.model,
+          choices: [
+            {
+              index: 0,
+              message,
+              finish_reason: reply.tool ? "tool_calls" : "stop",
+            },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+      );
+      return;
+    }
     if (reply.tool) {
       callCount += 1;
       sse(res, [
@@ -212,6 +272,11 @@ export async function startMockModel() {
       respond = fn;
       requests.length = 0;
     },
+    serveModels(status, body) {
+      models = { status, body };
+      modelListAuth.length = 0;
+    },
+    modelListAuth,
     close: () => server.close(),
   };
 }

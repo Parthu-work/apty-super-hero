@@ -4,7 +4,14 @@ export interface AIProviderConfig {
   name: string;
   icon: string;
   host?: string;
+  /**
+   * Suggested model ids only, from the provider's own documentation;
+   * empty where none could be verified. Settings' "Fetch models" reads the
+   * live list. Audited in C1 (REVIEW.md lists the sources).
+   */
   models: readonly string[];
+  /** Shown in Settings when the agent is not expected to work with this preset. */
+  experimental?: string;
   tokenPlaceholder: string;
   docs: string;
   providerType: ProviderType;
@@ -24,7 +31,9 @@ export const AI_PROVIDERS = {
     name: "OpenAI",
     icon: "🤖",
     host: "https://api.openai.com/v1",
-    models: ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"] as const,
+    // The documented current ids could not be confirmed (only the
+    // non-production "chat-latest" alias was); use "Fetch models".
+    models: [] as const,
     tokenPlaceholder: "sk-...",
     docs: "https://platform.openai.com/api-keys",
     providerType: "openai",
@@ -32,16 +41,15 @@ export const AI_PROVIDERS = {
   anthropic: {
     name: "Anthropic",
     icon: "🧠",
-    host: "https://api.anthropic.com",
-    // claude-sonnet-4-20250514/claude-3-5-sonnet-20241022/claude-3-opus-20240229
-    // are all superseded generations — kept pinned-snapshot ids (not
-    // floating aliases, unlike Google/Mistral above) since that's
-    // Anthropic's own naming convention; update this list again once
-    // these current ones are themselves superseded.
+    // The SDK appends "/messages" to this; without "/v1" every request 404s.
+    host: "https://api.anthropic.com/v1",
+    // Anthropic publishes no floating aliases; these are the current model
+    // ids from platform.claude.com/docs/en/about-claude/models/overview.
     models: [
       "claude-opus-5-5",
       "claude-sonnet-5-5",
-      "claude-haiku-4-5-20251001",
+      "claude-haiku-5-5",
+      "claude-fable-5-1",
     ] as const,
     tokenPlaceholder: "sk-ant-...",
     docs: "https://console.anthropic.com/settings/keys",
@@ -57,7 +65,11 @@ export const AI_PROVIDERS = {
     // here. "-latest" is remapped by Google itself to whatever the
     // current production model is, so this list doesn't need to be
     // manually re-pinned every time Google ships a new generation.
-    models: ["gemini-flash-latest", "gemini-pro-latest"] as const,
+    models: [
+      "gemini-flash-latest",
+      "gemini-flash-lite-latest",
+      "gemini-pro-latest",
+    ] as const,
     tokenPlaceholder: "AIza...",
     docs: "https://aistudio.google.com/app/apikey",
     providerType: "google",
@@ -66,13 +78,7 @@ export const AI_PROVIDERS = {
     name: "OpenRouter",
     icon: "🔀",
     host: "https://openrouter.ai/api/v1",
-    models: [
-      "anthropic/claude-3.5-sonnet",
-      "openai/gpt-4o",
-      "google/gemini-pro-1.5",
-      "meta-llama/llama-3.1-70b-instruct",
-      "deepseek/deepseek-chat",
-    ] as const,
+    models: [] as const,
     tokenPlaceholder: "sk-or-v1-...",
     docs: "https://openrouter.ai/keys",
     providerType: "openai",
@@ -81,12 +87,7 @@ export const AI_PROVIDERS = {
     name: "Requesty",
     icon: "🔀",
     host: "https://router.requesty.ai/v1",
-    models: [
-      "openai/gpt-4o-mini",
-      "anthropic/claude-sonnet-4-5",
-      "google/gemini-2.5-flash",
-      "deepseek/deepseek-chat",
-    ] as const,
+    models: [] as const,
     tokenPlaceholder: "sk-...",
     docs: "https://app.requesty.ai/api-keys",
     providerType: "openai",
@@ -94,8 +95,9 @@ export const AI_PROVIDERS = {
   deepseek: {
     name: "DeepSeek",
     icon: "🔍",
-    host: "https://api.deepseek.com/v1",
-    models: ["deepseek-chat", "deepseek-coder"] as const,
+    host: "https://api.deepseek.com",
+    // deepseek-chat and deepseek-reasoner were retired; api-docs.deepseek.com.
+    models: ["deepseek-flash", "deepseek-v4-pro"] as const,
     tokenPlaceholder: "sk-...",
     docs: "https://platform.deepseek.com/api_keys",
     providerType: "openai",
@@ -104,14 +106,7 @@ export const AI_PROVIDERS = {
     name: "Groq",
     icon: "⚡",
     host: "https://api.groq.com/openai/v1",
-    // mixtral-8x7b-32768 was decommissioned by Groq; openai/gpt-oss-* are
-    // Groq's current OpenAI-compatible open-weight models.
-    models: [
-      "openai/gpt-oss-20b",
-      "openai/gpt-oss-120b",
-      "llama-3.3-70b-versatile",
-      "llama-3.1-8b-instant",
-    ] as const,
+    models: [] as const,
     tokenPlaceholder: "gsk_...",
     docs: "https://console.groq.com/keys",
     providerType: "openai",
@@ -119,12 +114,8 @@ export const AI_PROVIDERS = {
   together: {
     name: "Together AI",
     icon: "🤝",
-    host: "https://api.together.xyz/v1",
-    models: [
-      "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-      "mistralai/Mixtral-8x7B-Instruct-v0.1",
-      "deepseek-ai/deepseek-coder-33b-instruct",
-    ] as const,
+    host: "https://api.together.ai/v1",
+    models: [] as const,
     tokenPlaceholder: "...",
     docs: "https://api.together.xyz/settings/api-keys",
     providerType: "openai",
@@ -145,8 +136,10 @@ export const AI_PROVIDERS = {
   cohere: {
     name: "Cohere",
     icon: "🔗",
-    host: "https://api.cohere.ai/v1",
-    models: ["command-r-plus", "command-r", "command"] as const,
+    // The OpenAI-compatible endpoint (docs.cohere.com/docs/compatibility-api);
+    // /v1 is Cohere's native API, which the agent cannot speak.
+    host: "https://api.cohere.ai/compatibility/v1",
+    models: [] as const,
     tokenPlaceholder: "...",
     docs: "https://dashboard.cohere.com/api-keys",
     providerType: "openai",
@@ -155,10 +148,9 @@ export const AI_PROVIDERS = {
     name: "Perplexity",
     icon: "🔎",
     host: "https://api.perplexity.ai",
-    models: [
-      "llama-3.1-sonar-large-128k-online",
-      "llama-3.1-sonar-small-128k-online",
-    ] as const,
+    models: ["sonar", "sonar-pro"] as const,
+    experimental:
+      "Perplexity does not document tool calling on this API, which the agent needs.",
     tokenPlaceholder: "pplx-...",
     docs: "https://www.perplexity.ai/settings/api",
     providerType: "openai",
@@ -167,10 +159,7 @@ export const AI_PROVIDERS = {
     name: "Fireworks AI",
     icon: "🎆",
     host: "https://api.fireworks.ai/inference/v1",
-    models: [
-      "accounts/fireworks/models/llama-v3p1-70b-instruct",
-      "accounts/fireworks/models/mixtral-8x7b-instruct",
-    ] as const,
+    models: [] as const,
     tokenPlaceholder: "fw_...",
     docs: "https://fireworks.ai/api-keys",
     providerType: "openai",
@@ -179,10 +168,9 @@ export const AI_PROVIDERS = {
     name: "Replicate",
     icon: "🔁",
     host: "https://api.replicate.com/v1",
-    models: [
-      "meta/llama-2-70b-chat",
-      "mistralai/mixtral-8x7b-instruct-v0.1",
-    ] as const,
+    models: [] as const,
+    experimental:
+      "Replicate has no OpenAI-compatible chat API, so chats with this preset fail. Kept so saved settings still load.",
     tokenPlaceholder: "r8_...",
     docs: "https://replicate.com/account/api-tokens",
     providerType: "openai",
@@ -190,13 +178,23 @@ export const AI_PROVIDERS = {
   azure: {
     name: "Azure OpenAI",
     icon: "☁️",
-    host: "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT",
-    models: ["gpt-4", "gpt-35-turbo"] as const,
+    // The v1 API (no api-version); the model is your deployment's name.
+    host: "https://YOUR-RESOURCE.openai.azure.com/openai/v1",
+    models: [] as const,
     tokenPlaceholder: "YOUR-API-KEY",
     docs: "https://portal.azure.com",
     providerType: "openai",
   },
 } as const satisfies Record<string, AIProviderConfig>;
+
+/** Hosts earlier presets saved that no longer work; Settings moves a built-in provider still on one to its current host. */
+export const SUPERSEDED_PRESET_HOSTS: Partial<Record<AIProviderKey, string>> = {
+  anthropic: "https://api.anthropic.com",
+  together: "https://api.together.xyz/v1",
+  cohere: "https://api.cohere.ai/v1",
+  azure:
+    "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT",
+};
 
 export type AIProviderKey = keyof typeof AI_PROVIDERS;
 
@@ -208,7 +206,9 @@ export function detectProviderFromHost(host: string): AIProviderKey {
   if (host.includes("requesty.ai")) return "requesty";
   if (host.includes("deepseek.com")) return "deepseek";
   if (host.includes("groq.com")) return "groq";
-  if (host.includes("together.xyz")) return "together";
+  if (host.includes("together.xyz") || host.includes("together.ai")) {
+    return "together";
+  }
   if (host.includes("mistral.ai")) return "mistral";
   if (host.includes("cohere.ai")) return "cohere";
   if (host.includes("perplexity.ai")) return "perplexity";

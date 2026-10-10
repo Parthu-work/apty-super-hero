@@ -22,6 +22,8 @@ export {
   type RedactionModeSetting,
   STORAGE_KEYS,
   type StorageKey,
+  SUPERSEDED_PRESET_HOSTS,
+  type ToolCallingSupport,
   validateAutomationMode,
 } from "./config/index.js";
 

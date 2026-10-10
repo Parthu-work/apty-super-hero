@@ -3,6 +3,7 @@ import type {
   AppSettings,
   KeyValueStorage,
   RedactionModeSetting,
+  ToolCallingSupport,
 } from "@apty/agent-core";
 import type { ReactNode } from "react";
 
@@ -21,7 +22,12 @@ export interface SettingsPageProps {
   storageKey?: string;
   className?: string;
   onSave?: (settings: AppSettings) => void;
-  onTestConnection?: (settings: AppSettings) => Promise<boolean>;
+  /** A boolean, or the outcome with the tool-calling probe's verdict. */
+  onTestConnection?: (
+    settings: AppSettings,
+  ) => Promise<boolean | ConnectionTestResult>;
+  /** "Fetch models": the provider's live model list, or why it could not be read. */
+  onFetchModels?: (settings: AppSettings) => Promise<ModelListOutcome>;
   skillsContent?: ReactNode;
   /** Optional content for a "Connection" tab (e.g. MCP bridge panel). */
   connectionContent?: ReactNode;
@@ -47,6 +53,15 @@ export interface SettingsPageProps {
   /** Redacts the Data-handling Preview sample in a given mode; the host app supplies its redaction library. */
   redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
 }
+
+export interface ConnectionTestResult {
+  ok: boolean;
+  toolCalling?: ToolCallingSupport;
+}
+
+export type ModelListOutcome =
+  | { ok: true; models: string[] }
+  | { ok: false; error: string };
 
 export interface ProviderConfig {
   host: string;
