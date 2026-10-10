@@ -141,7 +141,12 @@ export function ConversationHistory({
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className={className}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={className}
+              aria-label={t("conversationHistory.title")}
+            >
               <ClockIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>

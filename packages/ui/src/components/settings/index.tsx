@@ -1155,6 +1155,10 @@ export function SettingsPage({
                         variant="ghost"
                         size="icon"
                         onClick={() => setShowSttKey(!showSttKey)}
+                        aria-label={
+                          showSttKey ? "Hide API key" : "Show API key"
+                        }
+                        aria-pressed={showSttKey}
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                       >
                         {showSttKey ? (
@@ -1280,7 +1284,12 @@ export function SettingsPage({
                     value={settings.defaultModel || DEFAULT_MODEL_AUTO_VALUE}
                     onValueChange={handleDefaultModelChange}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label={
+                        language === "zh" ? "默认模型" : "Default model"
+                      }
+                    >
                       <SelectValue
                         placeholder={
                           language === "zh"
@@ -1454,7 +1463,8 @@ export function SettingsPage({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                              aria-label={`${language === "zh" ? "删除" : "Delete"} ${model.name || model.aiModel || ""}`.trim()}
                               onClick={() => handleDeleteModel(model.id)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -1554,7 +1564,7 @@ export function SettingsPage({
 
                         {/* Provider Type */}
                         <div className="space-y-2">
-                          <Label>
+                          <Label htmlFor="providerType">
                             {language === "zh"
                               ? "Provider 类型"
                               : "Provider Type"}
@@ -1566,7 +1576,7 @@ export function SettingsPage({
                               handleModelFieldChange("providerType", value)
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id="providerType">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1631,6 +1641,10 @@ export function SettingsPage({
                               variant="ghost"
                               size="icon"
                               onClick={() => setShowToken(!showToken)}
+                              aria-label={
+                                showToken ? "Hide API key" : "Show API key"
+                              }
+                              aria-pressed={showToken}
                               className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             >
                               {showToken ? (

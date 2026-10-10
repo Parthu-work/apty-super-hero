@@ -10,6 +10,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -442,3 +443,69 @@ export function unpackedExtensionId(dir) {
 
 /** The Agent's extension id is pinned by the manifest `key`. */
 export const AGENT_EXTENSION_ID = "bpiondflhhdplemamgggcdajclmoeple";
+
+// ---------------------------------------------------------------------------
+// Accessibility
+// ---------------------------------------------------------------------------
+
+let axeSource;
+
+/**
+ * Run axe-core on `page` (an extension page or a web page) and return the
+ * violations of impact `serious` or `critical`, each with its rule, help
+ * text and the selectors of the offending nodes. axe is evaluated through
+ * the DevTools protocol, so extension-page CSP does not block it.
+ */
+export async function runAxe(page, { disableRules = [] } = {}) {
+  axeSource ??= readFileSync(
+    createRequire(import.meta.url).resolve("axe-core"),
+    "utf8",
+  );
+  if (!(await page.evaluate(() => typeof window.axe === "object"))) {
+    await page.evaluate(axeSource);
+  }
+  // Contrast is only meaningful once CSS transitions have settled (a
+  // button switching variants animates through intermediate colours).
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => {})),
+    ),
+  );
+  const violations = await page.evaluate(async (disabled) => {
+    const result = await window.axe.run(document, {
+      resultTypes: ["violations"],
+      rules: Object.fromEntries(disabled.map((id) => [id, { enabled: false }])),
+    });
+    return result.violations.map((v) => ({
+      id: v.id,
+      impact: v.impact,
+      help: v.help,
+      nodes: v.nodes.map((n) => ({
+        target: n.target.join(" "),
+        html: n.html.slice(0, 300),
+        summary: n.failureSummary,
+      })),
+    }));
+  }, disableRules);
+  return violations.filter(
+    (v) => v.impact === "serious" || v.impact === "critical",
+  );
+}
+
+/** Each serious or critical violation with its nodes' markup and axe's reason, for assertion messages. */
+export function describeViolations(violations) {
+  return violations
+    .map(
+      (v) =>
+        `${v.impact} ${v.id} (${v.help}):\n${v.nodes
+          .map(
+            (n) =>
+              `  ${n.target}\n    ${n.html.replace(/\s+/g, " ")}\n    ${(n.summary ?? "").replace(/\s+/g, " ")}`,
+          )
+          .join("\n")}`,
+    )
+    .join("\n");
+}

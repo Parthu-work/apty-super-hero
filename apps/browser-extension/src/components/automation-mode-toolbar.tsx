@@ -90,6 +90,9 @@ export function AutomationModeInputToolbar({
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 disabled={isLoadingMode}
+                aria-label={`${t("mode.selectMode")}: ${t(
+                  automationMode === "focus" ? "mode.focus" : "mode.background",
+                )}`}
               >
                 {automationMode === "focus" ? (
                   <EyeIcon className="size-4" />

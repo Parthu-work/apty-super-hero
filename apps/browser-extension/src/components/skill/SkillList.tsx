@@ -232,7 +232,12 @@ export const SkillList: React.FC<SkillListProps> = ({
               </Button>
             </div>
 
-            <Button variant="outline" size="sm" onClick={loadSkills}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadSkills}
+              aria-label="Reload skills"
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>

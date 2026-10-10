@@ -86,6 +86,7 @@ export interface TranslationResources {
     zh: string;
   };
   input: {
+    model: string;
     newLine: string;
     placeholder1: string;
     placeholder2: string;
@@ -287,6 +288,7 @@ export type BaseTranslationKey =
   | "ai.enhancedPlanning"
   | "language.en"
   | "language.zh"
+  | "input.model"
   | "input.newLine"
   | "input.placeholder1"
   | "input.placeholder2"

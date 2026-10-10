@@ -45,6 +45,10 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   shows a side-panel banner. Every caller goes through
   `runtime/redaction-mode.ts`, and a unit test fails on a direct call.
 
+- Accessibility (C3): axe-core runs on the side panel (empty, approval
+  prompt, tool result, evidence viewers) and every Options tab in light and
+  dark themes and fails on serious or critical violations; none remain
+  ([`accessibility.md`](development/accessibility.md)).
 - Every package has a coverage gate (C5): package-wide ratchets one point
   below the measured value, plus the stricter groups for approvals, sender
   checks, cross-extension messaging, capture and redaction; thresholds only

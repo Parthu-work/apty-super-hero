@@ -168,29 +168,21 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
 
       <CardContent>
         <div className="space-y-4">
-          {/* Upload Area */}
+          {/* Upload Area: the transparent file input covering it is the control (keyboard and screen readers reach it directly); the area only takes drops. */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: drop target only; the file input inside is the keyboard-reachable control */}
           <div
-            className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+            className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors focus-within:ring-2 focus-within:ring-ring ${
               dragActive
                 ? "border-primary bg-primary/5"
                 : "border-muted-foreground/25 hover:border-primary/50"
             }`}
-            role="button"
-            tabIndex={0}
-            aria-label="Upload skill ZIP file"
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                fileInputRef.current?.click();
-              }
-            }}
           >
             <input
-              title="Upload skill ZIP file"
+              aria-label="Upload skill ZIP file"
               type="file"
               accept=".zip"
               onChange={handleFileInputChange}

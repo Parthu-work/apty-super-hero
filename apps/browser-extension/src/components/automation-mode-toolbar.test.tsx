@@ -54,4 +54,13 @@ describe("AutomationModeInputToolbar", () => {
     expect(onFormSubmit).toHaveBeenCalledTimes(1);
     expect(onStop).not.toHaveBeenCalled();
   });
+
+  it("names the icon-only automation mode button", () => {
+    render(<AutomationModeInputToolbar status="idle" onStop={onStop} />);
+    expect(
+      screen.getByRole("button", {
+        name: "Select automation mode: Focus Mode",
+      }),
+    ).toBeTruthy();
+  });
 });
