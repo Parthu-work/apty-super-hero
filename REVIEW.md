@@ -1,28 +1,301 @@
-# Review: `hardening/open-work` (final: Phases A–D)
+# Review: `hardening/open-work` (Phases A–D, then round 2)
 
 | | |
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `689698c` (D5); the branch head is the next commit, which updates this file |
+| Code head | `7cb7145` (round 2); the branch head is the next commit, which updates this file |
 | Build zip | `apty-agent-review-final-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
-| Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D |
+| Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D and round 2 |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
 
 This file replaces the previous round's `REVIEW.md` (the v7 WP1 review),
 following that file's own convention of one review per round; that text is
-in git history: `git show dc27e2f:REVIEW.md`. Phase D comes first; the
-Phase C, B and A reviews follow, unchanged apart from headings.
+in git history: `git show dc27e2f:REVIEW.md`. Round 2 (the owner's
+answers and real-tenant feedback) comes first; then Phase D, C, B and A,
+unchanged apart from headings and the answered decisions.
 
-## Decisions needed from the owner (all phases)
+## Decisions from Phases A–D (answered)
 
-1. Add "save" to the risky click words? (A1; it would prompt on every Save button)
-2. A header line inside JSON exports? (A3; it would make the file invalid JSON)
-3. Exempt right-click from the click gate? (A1)
-4. Add `@vitest/coverage-v8` at a matching version to `apps/mcp-bridge`, ending the mixed-version warning? (C5; a new dependency)
-5. Fix the evidence-id de-duplication bug now? (Observed in C3; a two-line fix with a test, outside every work package's scope)
+The five questions below were answered No, No, No, No, Yes; see "Owner
+decisions, as answered" in round 2. Round 2's own open questions are under
+"Round 2: decisions needed from the owner".
+
+1. Add "save" to the risky click words? (A1) — No
+2. A header line inside JSON exports? (A3) — No
+3. Exempt right-click from the click gate? (A1) — No
+4. Add `@vitest/coverage-v8` at a matching version to `apps/mcp-bridge`? (C5) — No
+5. Fix the evidence-id de-duplication bug now? (C3) — Yes, with the other open bugs
 
 The skills feature stays (D1: `SKILLS_DECISION` was not edited, so KEEP).
+
+## Round 2: the owner's answers and real-tenant feedback
+
+After the Phase A–D review the owner answered the five decisions, passed
+T11–T18 by hand, ran DOM Health on athenaOne (bundle returned, works) and
+Infor LN (card text returned, no bundle), reported the export dialog cut
+off in the side panel, and asked for DOM evidence described in Apty's DES
+terms (with the DES, Picker Service and DOM Analysis documentation).
+
+### Owner decisions, as answered
+
+| # | Question | Answer | Effect |
+|---|---|---|---|
+| 1 | Add "save" to the risky click words? | No | Unchanged |
+| 2 | A header line inside JSON exports? | No | Unchanged |
+| 3 | Exempt right-click from the click gate? | No | Right-click stays gated |
+| 4 | Add `@vitest/coverage-v8` to `apps/mcp-bridge`? | No | No new dependency; the mixed-version warning stays |
+| 5 | Fix the open bugs now? | Yes | Fixed: below |
+
+T11–T18: passed on the owner's machine (owner's report; not re-run by me
+on a real tenant).
+
+### Round 2 commits
+
+| Commit | Change |
+|---|---|
+| `8bf1667` | The four open bugs (evidence id, downloads, Test Connection log, contrast) |
+| `20cd625` | Export dialog fits the side panel and scrolls |
+| `4a47ef1` | Infor LN findings: tenant and screen-context redaction, Deep-mode risk text, cross-origin link label, reasons in the pages table; athenaOne `"null"` template |
+| `aa6f306` | Element evidence in Apty DES terms |
+| `7cb7145` | The SVG download test kept inside the explicit-`any` baseline |
+| branch head | This `REVIEW.md` and `docs/STATUS.md` |
+
+### Round 2 gates (build of the code head)
+
+```
+$ tooling/scripts/verify-quiet.sh
+✓ typecheck (19s)
+✓ lint (1s)
+✓ test (79s)
+✓ audit (1s)
+✓ build (27s)
+$ npm run test:e2e        (Chromium from /opt/pw-browsers)
+# tests 93
+# pass 93
+# fail 0
+# skipped 0
+$ npm run format:check                 → exit 0
+$ npm run audit:test-skips             ✓ every skipped test says why
+$ npm run audit:any                    ✓ 605 explicit any, none above the baseline
+$ npm run audit:docs-links             ✓ every relative link in the Markdown files resolves
+$ node tooling/scripts/check-extension-id.mjs
+✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
+```
+
+`npm run test:coverage` failed twice on this machine (4 cores), each time
+on a different heavy `dom-snapshot` test hitting Vitest's 5 s timeout
+while the packages ran in parallel under instrumentation ("analyzes the
+full interactive-element universe…", then "audits a 251-shadow-root
+page…"). `dom-snapshot` is unchanged since `689698c`, where the same
+command passed. Run alone, both tests pass, and the same gate run one
+package at a time passes with every threshold met:
+
+```
+$ pnpm -r --workspace-concurrency=1 --if-present test:coverage && npm --prefix apps/mcp-bridge run test:coverage
+→ exit 0
+```
+
+No timeout was raised and no test was changed. If this recurs in CI, the
+fix is to run coverage with less parallelism, not to loosen the tests.
+
+| Package | Unit tests | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|---|
+| agent-core | 260 | 76.25 | 70.13 | 83.73 | 77.99 |
+| apty-debug-contract | 72 | 84.91 | 78.46 | 93.18 | 87.66 |
+| dom-snapshot | 367 | 90.99 | 82.58 | 97.75 | 92.76 |
+| browser-runtime | 887 | 50.35 | 46.52 | 54.46 | 50.29 |
+| ui | 216 | 44.71 | 35.04 | 43.09 | 45.52 |
+| browser-extension | 295 | 44.42 | 45.31 | 41.89 | 44.31 |
+| mcp-bridge | 44 | 21.27 | 18.15 | 24.74 | 21.51 |
+
+Plus 17 script tests (`node:test`). New e2e tests this round: 5 (93,
+from 88).
+
+### The four open bugs (decision 5)
+
+Each new test was run against the old code or the old build first and
+failed; it passes now.
+
+- **Evidence id after de-duplication.** `recordEvidence` returned a fresh
+  id for a record it did not store, so the second inspection of the same
+  Client resource produced a "View full response" that found nothing. It
+  now returns the stored record. Unit tests (resolves; stored again once
+  evicted) and an e2e in `apty-client.e2e.test.mjs` ("inspecting the same
+  body again…", `not ok` on the old build). The a11y suite no longer needs
+  a different resource per theme.
+- **Chat image downloads.** A failed download did not advance the name
+  index, so the next image took the failed one's name; `image/svg+xml`
+  saved as `.svg+xml`. Fixed in the background download and in the
+  `download_chat_images` tool. Unit tests only: see "Not done".
+- **Test Connection log.** The raw provider error went to
+  `console.error`. In Chromium, against a mock provider that echoes the
+  key like OpenAI does, the old build printed
+  `Connection test failed: AI_APICallError: Incorrect API key provided: sk-e2e-…`
+  with its stack in the Options console. Now only the sanitized message is
+  logged: `Connection test failed: 401: Incorrect API key provided: [REDACTED]`.
+  Unit tests and an e2e in `model-settings.e2e.test.mjs`.
+- **Amber text contrast.** Light `--warning` was amber-600, 3.19:1 on
+  white (axe, old build, DOM Health card). It is amber-800 now. The same
+  new a11y test found the dark theme's danger text at 1.97:1 (`#82181a`
+  on `#0a0a0a`); `toneTextClass`/`toneBadgeClass` now use `red-400` in dark
+  mode, the pattern C3 used for alerts. This second fix is beyond the four
+  bugs, on the same card and of the same kind.
+
+### Export dialog cut off (owner report)
+
+The dialog was centred with no height limit; at side-panel height the
+header and the buttons fell outside the panel and nothing scrolled. It is
+now capped at the viewport, the JSON scrolls inside it (keyboard-reachable,
+which axe requires of a scroll region) and the buttons stay on one row.
+The a11y suite opens it at 400×600 in both themes and asserts the dialog is
+inside the panel, the JSON scrolls and Cancel, Copy and Download are
+visible.
+
+### Infor LN (from the owner's card text; no bundle)
+
+What the card showed, and what was done:
+
+1. **Tenant and screen context reached the model.** The portal URL carries
+   the tenant as its first path segment (`/<16 characters>_TRN/…`) and the
+   open screen as base64 JSON in `favoriteContext` (its description, the
+   session type and the LN program it launches). Neither matched the
+   redaction patterns, so both reached the model and the card. Now tenant
+   ids become `:tenant` wherever identifier shapes are masked, and any
+   24+ character base64-like query value becomes `<REDACTED>`. Unit tests
+   with a fake tenant; an e2e serves a page at an LN-shaped URL and asserts
+   neither the tenant, the base64 nor the decoded text is in the tool
+   result.
+2. **"click-based discovery is off by default" in Deep mode.** Wrong: Deep
+   mode did click. The two "LN Open tab menu" rows are controls that were
+   clicked and did not lead to a new audited state, or whose click or
+   restore failed; each row recorded why, but the card did not show it.
+   The risk now says the controls were clicked and lists each reason with
+   its count, and the pages table shows the reason under the status.
+3. **`https://www.infor.com/` labelled `same-origin-link`.** A skipped link
+   to another site is now `cross-origin-link`.
+4. **Page rows showed the full query string.** Rows are now labelled by
+   URL without the query.
+
+Not changed, pending the LN bundle:
+
+- **NOT ENOUGH EVIDENCE.** By design: detected controls that did not lead
+  anywhere new, with only the seed state audited, gate the score to
+  `INCOMPLETE_EVIDENCE` (`determineApplicationEvidenceState`, whose doc
+  counts "a click that produced nothing new" as unexplored). Whether a
+  verified no-new-state click should stop counting is decision 1 below.
+- **7/10 frames, the element ceiling on the seed, 245/323 hit-test
+  failures.** Thresholds are not tuned without real-tenant evidence. The
+  next run's card will split the hit-test failures by reason (hidden,
+  zero-size, outside the viewport, covered), which says whether they are
+  closed tabs and menus or real overlays.
+
+### athenaOne bundle (owner)
+
+The audit works (79/100 FAIR, MEDIUM confidence, 12/12 frames). One defect
+fixed: a frame with no http URL (`about:blank`, GlobalNav at capture time)
+was exported with `"urlTemplate": "null"` (the opaque origin's string); it
+is now `"about:"`. The rest is under "Observed, not changed".
+
+### Element evidence in DES terms (owner request)
+
+The card showed one outcome label per element and three percentages per
+page. Now, from the engine's own per-element evidence and in the
+vocabulary of the DES documentation the owner shared:
+
+- Each element sample carries an explanation: the step that finds it
+  (`checkInitialPath`, Partial Selector, `checkSimplifyDynamic`,
+  `checkContainers`, `checkSimplifyNth` then `checkDirectElement`) or why
+  none does (ambiguous within 0.03, wrong target, below the 0.90 score,
+  behind a closed shadow root or cross-origin frame); the attribute names
+  left out as dynamic; shadow depth; the hit-test reason; the cross-state
+  result; a missing accessible name; and a fix (a stable attribute, an
+  Attribute Priority or Partial Selector rule, the cross-origin iframe or
+  shadow root configuration). Shown under each row of "Element-level
+  details".
+- Each page and application result carries `desEvidence`: elements per
+  DES step with what the step means, the attributes most often left out
+  as dynamic (Ignore Selector), and hit-test failures by reason. Shown as
+  "How Apty's DES would find these elements" and under "Hit-Test
+  Failures".
+- The model receives the same text through the redacted result. Attribute
+  names only, never values. `docs/development/des-engine.md` maps the
+  documentation's step names to the port's (`dropDynamicValues`,
+  `dropPositionalPseudo`, `dropOneAncestor`, `leafFieldCombinations`).
+
+The mapping is DOM Health's own: the outcome comes from
+`generateMinimalSelector`, as the DES doc already explains, so "the step
+that finds it" means the step that matches how the element is
+identified, not a trace of Apty's player.
+
+Tests: unit (`element-explanation.test.ts`, scoring and audit
+integration, the card), and e2e: the deep shadow DOM audit's explanations
+name the three shadow roots and the step counts add up to the elements
+analyzed; the a11y suite checks the new section on a form page in both
+themes.
+
+### Round 2: not done, or partial
+
+- The downloads fix has unit tests only. The background download opens
+  Chrome's Save As dialog (`saveAs: true`), which the e2e harness cannot
+  answer; the changed code is the file name and index computation.
+- Infor LN: the evidence gate and thresholds are unchanged until the LN
+  bundle shows which reason the two clicks hit (decision 1).
+- `desEvidence` is not in the validation bundle (decision 2).
+- No real tenant was used by me; the LN fixes are tested on stand-in pages
+  built from the URL shape in the card text.
+
+### Round 2: decisions needed from the owner
+
+1. In Deep mode, should a control that was clicked and verifiably led to
+   no new state stop counting as "not explored"? Today it blocks the score
+   when only the seed state was audited (the LN result). Please send the LN
+   bundle first: it shows which reason the clicks hit.
+2. Add the `desEvidence` counts (steps, hit-test reasons, dynamic
+   attribute names) to the validation bundle's allow-list?
+
+### Round 2: observed, not changed
+
+- athenaOne: the `frHelp`, `frHidden` and `frScheduleNav` frames load
+  `static_<n>/blank.html` and are classified `application` ("Holds
+  application content"). They have no controls, so they are unscored and
+  do not affect the score; the role is misleading. Not changed without a
+  rule that would also hold on other tenants.
+- athenaOne: the top `globalframeset.esp` document is classified
+  `application` and scored 73, because it holds controls of its own;
+  `GlobalWrapper` is unscored (no controls).
+- `token-usage-indicator.tsx` uses `text-warning/70` at 60% of the context
+  window; at 70% opacity it may be below 4.5:1 even with amber-800. No
+  tested screen shows it.
+- The Settings component also logs `Connection test error:` with the
+  sanitized message and a stack; it carries no provider data.
+
+### Round 2: owner test script (about 5 minutes)
+
+1. Load the zip. Open Infor LN in the portal, DOM Health → Application →
+   Deep state discovery → Audit. Check: no page row shows `?` or
+   `favoriteContext`, the tenant segment reads `:tenant`; each "Detected,
+   not explored" row shows a reason under its status; the risk says the
+   controls "were clicked", not "off by default"; the infor.com row says
+   `cross-origin-link`.
+2. Same card: Export validation bundle. The dialog fits the panel, the
+   JSON scrolls, Download is visible. Please send that bundle.
+3. athenaOne: Check DOM Health. "How Apty's DES would find these elements"
+   lists counts per step; under Hit-Test Failures the reasons are listed;
+   in Element-level details each row has a `check…:` line and a Fix line.
+4. Inspect `segments.json` from the Apty Client twice in one chat; "View
+   full response" opens both times.
+5. Settings → AI Configuration: enter a wrong key, Test Connection. The
+   error shows `[REDACTED]` for any echoed key; the Options page console
+   (right-click → Inspect) shows `Connection test failed: 401: …` and no
+   key.
+6. Light theme: the amber "FAIR"/warning texts on the DOM Health card are
+   clearly readable.
+
+---
+
+
+# Phases A–D
 
 ## Commits
 

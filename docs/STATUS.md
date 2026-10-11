@@ -20,6 +20,11 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 - DOM Health in same-origin, cross-origin, `data:` and frameset frames,
   open and closed shadow roots, and tabs opened before an extension update. Virtualized lists (B4) are reported
   as partial coverage with the rendered and declared row counts.
+- DOM Health explains each element in Apty DES terms: which step finds it
+  (checkInitialPath, Partial Selector, checkSimplifyDynamic,
+  checkContainers, checkSimplifyNth/checkDirectElement) or why none does,
+  the attributes left out as dynamic, the hit-test reason and a fix; each
+  result counts elements per step and hit-test failures per reason.
 - DOM Health validation bundle (B2): "Export validation bundle" in the DOM
   Health card builds an allow-listed, strictly redacted JSON (frame tree,
   counts, overlays, thresholds, timings, route probe hashes, versions) and
@@ -79,7 +84,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Narrow `<all_urls>` to Apty's target domains | Apty's list of customer application domains |
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
 | Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
-| Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | The owner runs [`real-tenant-validation.md`](development/real-tenant-validation.md) and returns the bundles |
+| Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | athenaOne: bundle returned, audit works. Infor LN: the card text showed four defects (fixed); the LN validation bundle is still needed ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
 | Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | Rename the inherited `aipex_*` storage keys | A migration for existing installs |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
