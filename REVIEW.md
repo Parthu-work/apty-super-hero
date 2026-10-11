@@ -4,7 +4,7 @@
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `445e481` (round 2); the branch head is the next commit, which updates this file |
+| Code head | `02c0af1` (round 2); the branch head is the next commit, which updates this file |
 | Build zip | `apty-agent-review-final-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
 | Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D and round 2 |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
@@ -60,20 +60,22 @@ on a real tenant).
 | `aa6f306` | Element evidence in Apty DES terms |
 | `7cb7145` | The SVG download test kept inside the explicit-`any` baseline |
 | `445e481` | Workspace ID for Anthropic keys not scoped to a workspace (owner report after round 2) |
+| `02c0af1` | `anthropic-dangerous-direct-browser-access` on every Anthropic request (owner report) |
+| `9a77b6b` | This file, before the gate numbers |
 | branch head | This `REVIEW.md` and `docs/STATUS.md` |
 
 ### Round 2 gates (build of the code head)
 
 ```
-$ tooling/scripts/verify-quiet.sh
-✓ typecheck (19s)
-✓ lint (1s)
-✓ test (79s)
-✓ audit (1s)
-✓ build (27s)
+$ tooling/scripts/verify-quiet.sh       (after rm -rf apps/browser-extension/dist)
+✓ typecheck (15s)
+✓ lint (2s)
+✓ test (78s)
+✓ audit (2s)
+✓ build (26s)
 $ npm run test:e2e        (Chromium from /opt/pw-browsers)
-# tests 93
-# pass 93
+# tests 95
+# pass 95
 # fail 0
 # skipped 0
 $ npm run format:check                 → exit 0
@@ -82,23 +84,19 @@ $ npm run audit:any                    ✓ 605 explicit any, none above the base
 $ npm run audit:docs-links             ✓ every relative link in the Markdown files resolves
 $ node tooling/scripts/check-extension-id.mjs
 ✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
-```
-
-`npm run test:coverage` failed twice on this machine (4 cores), each time
-on a different heavy `dom-snapshot` test hitting Vitest's 5 s timeout
-while the packages ran in parallel under instrumentation ("analyzes the
-full interactive-element universe…", then "audits a 251-shadow-root
-page…"). `dom-snapshot` is unchanged since `689698c`, where the same
-command passed. Run alone, both tests pass, and the same gate run one
-package at a time passes with every threshold met:
-
-```
 $ pnpm -r --workspace-concurrency=1 --if-present test:coverage && npm --prefix apps/mcp-bridge run test:coverage
 → exit 0
 ```
 
-No timeout was raised and no test was changed. If this recurs in CI, the
-fix is to run coverage with less parallelism, not to loosen the tests.
+`npm run test:coverage` (all packages in parallel) failed twice on this
+machine (4 cores) earlier in round 2, each time on a different heavy
+`dom-snapshot` test hitting Vitest's 5 s timeout under instrumentation
+("analyzes the full interactive-element universe…", then "audits a
+251-shadow-root page…"). `dom-snapshot` is unchanged since `689698c`,
+where the same command passed. Run alone both pass, and the gate run one
+package at a time (above) passes with every threshold met. No timeout was
+raised and no test was changed; if this recurs in CI, run coverage with
+less parallelism rather than loosen the tests.
 
 | Package | Unit tests | Statements | Branches | Functions | Lines |
 |---|---|---|---|---|---|
@@ -106,11 +104,11 @@ fix is to run coverage with less parallelism, not to loosen the tests.
 | apty-debug-contract | 72 | 84.91 | 78.46 | 93.18 | 87.66 |
 | dom-snapshot | 367 | 90.99 | 82.58 | 97.75 | 92.76 |
 | browser-runtime | 887 | 50.35 | 46.52 | 54.46 | 50.29 |
-| ui | 216 | 44.71 | 35.04 | 43.09 | 45.52 |
-| browser-extension | 295 | 44.42 | 45.31 | 41.89 | 44.31 |
+| ui | 217 | 44.76 | 35.20 | 43.24 | 45.58 |
+| browser-extension | 298 | 44.50 | 45.54 | 41.90 | 44.39 |
 | mcp-bridge | 44 | 21.27 | 18.15 | 24.74 | 21.51 |
 
-Plus 17 script tests (`node:test`). New e2e tests this round: 5 (93,
+Plus 17 script tests (`node:test`). New e2e tests this round: 7 (95,
 from 88).
 
 ### Anthropic key "not scoped to a workspace", then the browser-access 401 (owner reports)
