@@ -69,8 +69,10 @@
      fill under white text, and both need 4.5:1. */
   --success: oklch(0.448 0.119 151.328);
   --success-foreground: oklch(0.985 0 0);
-  --warning: oklch(0.666 0.179 58.318);
-  --warning-foreground: oklch(0.145 0 0);
+  /* Amber-800, not 600: warning is text on its own 10–20% tint (600 was
+     about 3.2:1 on white). */
+  --warning: oklch(0.473 0.137 46.201);
+  --warning-foreground: oklch(0.985 0 0);
   --info: oklch(0.546 0.245 262.881);
   --info-foreground: oklch(0.985 0 0);
   --chart-1: oklch(0.646 0.222 41.116);

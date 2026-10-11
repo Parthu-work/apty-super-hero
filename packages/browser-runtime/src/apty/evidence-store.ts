@@ -200,11 +200,10 @@ function enforceQuotas(entry: ConversationEvidence, source: EvidenceSource) {
 }
 
 /**
- * Record a new piece of evidence. Returns the fully-constructed record
- * (with a generated `evidenceId`) so a caller can reference it further
- * (e.g. include the id in a tool's own return value) — including when an
- * identical record already existed (de-duplication only affects what is
- * stored, never what is returned to the caller that just recorded it).
+ * Record a new piece of evidence. Returns the stored record so a caller
+ * can reference it further (e.g. include the id in a tool's own return
+ * value). When an identical record already exists it is returned instead,
+ * so the returned `evidenceId` always resolves with `getEvidenceById`.
  */
 export function recordEvidence(
   evidence: NewDiagnosticEvidence,
@@ -223,12 +222,14 @@ export function recordEvidence(
   };
 
   const dedupe = dedupeKey(evidence);
-  if (!entry.seenKeys.has(dedupe)) {
-    entry.seenKeys.add(dedupe);
-    entry.list.push(full);
-    entry.dedupeKeys.push(dedupe);
-    enforceQuotas(entry, evidence.source);
+  if (entry.seenKeys.has(dedupe)) {
+    const stored = entry.list[entry.dedupeKeys.indexOf(dedupe)];
+    if (stored) return stored;
   }
+  entry.seenKeys.add(dedupe);
+  entry.list.push(full);
+  entry.dedupeKeys.push(dedupe);
+  enforceQuotas(entry, evidence.source);
 
   evidenceByConversation.set(key, entry);
   snapshot.scheduleSave();

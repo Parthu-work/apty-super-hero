@@ -12,8 +12,18 @@ let browser;
 let model;
 let options;
 
+const LEAKED_KEY = "sk-e2e-abcdefghijklmnop";
+
 /** The probe offers a single tool named report_probe; how each model id answers it. */
 function scriptModels(request) {
+  if (request.model === "mock-bad-key") {
+    return {
+      error: {
+        status: 401,
+        message: `Incorrect API key provided: ${LEAKED_KEY}`,
+      },
+    };
+  }
   const probing = request.tools?.some(
     (t) => (t.function?.name ?? t.name) === "report_probe",
   );
@@ -134,5 +144,29 @@ describe("tool-calling probe in Test Connection (C1)", () => {
     );
     // The basic check, then the probe and its one retry.
     assert.equal(model.requests.length - before, 3);
+  });
+});
+
+describe("a failing Test Connection (open bug 3)", () => {
+  it("shows and logs the sanitized error, never the key the provider echoed", async () => {
+    const logged = [];
+    const record = (m) => logged.push(m.text());
+    options.on("console", record);
+    await options.getByLabel("AI Model").fill("mock-bad-key");
+    await options.getByRole("button", { name: "Test Connection" }).click();
+    await options
+      .getByText("Incorrect API key provided: [REDACTED]")
+      .first()
+      .waitFor({ timeout: 60_000 });
+    options.off("console", record);
+
+    assert.ok(
+      logged.some((t) => t.startsWith("Connection test failed: 401")),
+      JSON.stringify(logged),
+    );
+    assert.doesNotMatch(
+      JSON.stringify(logged) + (await options.content()),
+      new RegExp(LEAKED_KEY),
+    );
   });
 });

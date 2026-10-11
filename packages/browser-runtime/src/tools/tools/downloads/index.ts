@@ -437,7 +437,10 @@ export const downloadChatImagesTool = tool({
                 }
 
                 const mimeMatch = part.imageData.match(/data:image\/([^;]+)/);
-                const imageFormat = mimeMatch ? mimeMatch[1] : "png";
+                const imageFormat =
+                  mimeMatch?.[1] === "svg+xml"
+                    ? "svg"
+                    : (mimeMatch?.[1] ?? "png");
                 const fullFilename = `${sanitizeSegment(baseFilename)}.${imageFormat}`;
                 const finalPath = sanitizedFolderPrefix
                   ? `${sanitizedFolderPrefix}/${fullFilename}`

@@ -40,20 +40,16 @@ export async function testConnection(
       maxRetries: 0,
     });
   } catch (error) {
-    // Re-throw with a sanitized message (never the raw error, which some
-    // providers' SDKs attach request/response bodies to) so the settings
-    // UI's existing catch block can show *why* the connection failed
-    // instead of a generic "Connection test failed".
-    console.error("Connection test failed:", error);
+    // Only a sanitized message leaves here, thrown or logged: some
+    // providers' SDKs attach request/response bodies to the raw error.
     const isAbort =
       error instanceof Error &&
       (error.name === "AbortError" || error.name === "TimeoutError");
-    if (isAbort) {
-      throw new Error(
-        `Connection test timed out after ${TEST_CONNECTION_TIMEOUT_MS / 1000}s — the host may be unreachable, or this provider's "AI Host" field may be set to the wrong URL (a website instead of an API endpoint).`,
-      );
-    }
-    throw new Error(describeConnectionTestError(error));
+    const message = isAbort
+      ? `Connection test timed out after ${TEST_CONNECTION_TIMEOUT_MS / 1000}s — the host may be unreachable, or this provider's "AI Host" field may be set to the wrong URL (a website instead of an API endpoint).`
+      : describeConnectionTestError(error);
+    console.error(`Connection test failed: ${message}`);
+    throw new Error(message);
   }
   const latencyMs = now() - started;
   const toolCalling = await probeToolCalling(

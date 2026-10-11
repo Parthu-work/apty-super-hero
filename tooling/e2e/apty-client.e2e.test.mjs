@@ -176,6 +176,28 @@ describe("Apty Client integration in a real browser", () => {
     await app.close();
   });
 
+  it("inspecting the same body again returns the stored evidence id, which the viewer opens", async () => {
+    await useWorkingClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    model.script(
+      callToolThenReport("inspect_extension_network", {
+        resourceQuery: "segments.json",
+      }),
+    );
+
+    await chatAndWait(panel, "get segments.json from the apty client again");
+
+    const result = toolResults(model.requests.at(-1)).at(-1);
+    assert.ok(result.response.evidenceId);
+    await panel.getByText("Show thinking details").click();
+    await panel.getByRole("button", { name: "View full response" }).click();
+    await panel.getByText("Array(206)").waitFor();
+    await panel.close();
+    await app.close();
+  });
+
   it("returns the body of a 403 response too", async () => {
     await useWorkingClient();
     const app = await browser.context.newPage();

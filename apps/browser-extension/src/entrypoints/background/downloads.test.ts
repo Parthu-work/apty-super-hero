@@ -99,6 +99,27 @@ describe("downloadChatImagesInBackground", () => {
     });
   });
 
+  it("keeps each given name on its own image after a failed download", async () => {
+    download
+      .mockRejectedValueOnce(new Error("Download canceled"))
+      .mockResolvedValueOnce(7);
+    const result = await downloadChatImagesInBackground(
+      chat({ imageData: PNG }, { imageData: PNG }),
+      undefined,
+      ["first", "second"],
+    );
+    expect(result.filesList).toEqual(["second.png"]);
+  });
+
+  it("saves an SVG image with the .svg extension", async () => {
+    const result = await downloadChatImagesInBackground(
+      chat({ imageData: "data:image/svg+xml;base64,PHN2Zz4=" }),
+      undefined,
+      ["diagram"],
+    );
+    expect(result.filesList).toEqual(["diagram.svg"]);
+  });
+
   it("says so when the downloads permission is missing", async () => {
     vi.stubGlobal("chrome", {});
     expect(
