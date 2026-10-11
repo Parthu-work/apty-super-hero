@@ -4,7 +4,7 @@
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `731e5bc` (round 2); the branch head is the next commit, which updates this file |
+| Code head | `c52b011` (round 2); the branch head is the next commit, which updates this file |
 | Build zip | `apty-agent-review-final-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
 | Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D and round 2 |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
@@ -64,6 +64,7 @@ on a real tenant).
 | `9a77b6b` | This file, before the gate numbers |
 | `4e7e64a` | Gate numbers after the Anthropic fixes |
 | `731e5bc` | Acting on the Infor LN validation bundle (owner decisions) |
+| `c52b011` | An element inside a hidden container is hidden, not zero-size (second LN run) |
 | branch head | This `REVIEW.md` and `docs/STATUS.md` |
 
 ### Round 2 gates (build of the code head, `731e5bc`)
@@ -112,6 +113,35 @@ less parallelism rather than loosen the tests.
 
 Plus 17 script tests (`node:test`). New e2e tests this round: 7 (95,
 from 88).
+
+### Second Infor LN run (owner)
+
+With the build above, LN scored **64/100** (needs attention, LOW
+confidence, scope "Current Page"): the "Open tab menu" clicks read
+"Clicked, no new state", "13/14 frames with content reached, 5 empty
+placeholder(s) skipped", and "Ids shared by more than one element" (269
+values on 646 elements) is under Risks.
+
+It showed one defect, now fixed: **103 of the 158 "visible" elements were
+zero-size**. An element inside a `display: none` container (a closed menu,
+a collapsed panel) keeps its own `display` but has no box, so the hit test
+read it as 0×0. `checkVisibility` (which sees hidden ancestors) now
+classifies it as hidden. The LN-shaped e2e page has such a button: on the
+previous build it was a visible failure (`notTargetable: 1`), now it is
+hidden. Expected effect on that run: most of the 103 move to hidden, and
+hit-test targetability (19) and the score rise. Not re-run on LN.
+
+Seen in that run, not changed (needs evidence first):
+
+- **DOM volatility 0**: "Total element count changed by up to 106% between
+  consecutive snapshots" of the seed page. Either LN was still rendering
+  during the audit, or one of the 14 frames answered in one snapshot and
+  not the next (13/14 reached). The bundle does not carry per-snapshot
+  counts; exporting it from the next run, and re-running once the screen
+  has fully loaded, would tell which.
+- **Element ceiling** on the seed ("not every interactive element was
+  analyzed", 198 analyzed). The ceiling is a runaway guard; not raised
+  without a bundle showing how many were found.
 
 ### Infor LN validation bundle (owner) and the decisions taken on it
 
