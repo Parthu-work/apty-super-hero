@@ -117,8 +117,15 @@ export function describeConnectionTestError(error: unknown): string {
     message = `${message.slice(0, 300)}...`;
   }
 
+  if (/anthropic-workspace-id/.test(message)) {
+    message += ` ${WORKSPACE_ID_FIX}`;
+  }
   return typeof statusCode === "number" ? `${statusCode}: ${message}` : message;
 }
+
+/** Where to fix Anthropic's "not scoped to a workspace" error in this extension. */
+export const WORKSPACE_ID_FIX =
+  "Fix: enter the workspace ID (wrkspc_…, from Claude Console → Settings → Workspaces) in Settings → AI Configuration → Workspace ID, or use an API key created for a single workspace.";
 
 /**
  * Check whether the current settings have a usable provider configured.
@@ -145,6 +152,18 @@ export function anthropicBaseUrl(baseURL: string | undefined) {
 }
 
 /**
+ * The `anthropic-workspace-id` header a multi-workspace Anthropic key needs
+ * on every request; none when no workspace is set (a key created for one
+ * workspace runs in it without the header).
+ */
+export function anthropicWorkspaceHeaders(
+  workspaceId: string | undefined,
+): Record<string, string> | undefined {
+  const id = workspaceId?.trim();
+  return id ? { "anthropic-workspace-id": id } : undefined;
+}
+
+/**
  * Create an AI SDK provider for BYOK mode.
  */
 export function createAIProvider(settings: AppSettings) {
@@ -154,7 +173,11 @@ export function createAIProvider(settings: AppSettings) {
 
   switch (provider) {
     case "anthropic":
-      return createAnthropic({ apiKey, baseURL: anthropicBaseUrl(baseURL) });
+      return createAnthropic({
+        apiKey,
+        baseURL: anthropicBaseUrl(baseURL),
+        headers: anthropicWorkspaceHeaders(settings.aiWorkspaceId),
+      });
     case "google":
       return createGoogleGenerativeAI({ apiKey, baseURL });
     case "openai":

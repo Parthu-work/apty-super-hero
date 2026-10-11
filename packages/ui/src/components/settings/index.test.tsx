@@ -283,6 +283,64 @@ describe("SettingsPage", () => {
     });
   });
 
+  describe("Anthropic workspace ID", () => {
+    it("is offered only for Anthropic, and goes with the key into Test Connection and the saved settings, behind a proxy host too", async () => {
+      const onTestConnection = vi.fn().mockResolvedValue(true);
+      const onSave = vi.fn();
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={createMemoryStorage<unknown>()}
+              initialTab="ai"
+              onSave={onSave}
+              onTestConnection={onTestConnection}
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+      await screen.findByPlaceholderText("Your API Key");
+      expect(screen.queryByLabelText("Workspace ID")).toBeNull();
+
+      const anthropic = screen
+        .getAllByText("Anthropic")
+        .map((node) => node.closest("button"))
+        .find(Boolean);
+      fireEvent.click(anthropic as HTMLElement);
+      fireEvent.change(await screen.findByPlaceholderText("sk-ant-..."), {
+        target: { value: "sk-ant-test" },
+      });
+      fireEvent.change(screen.getByLabelText("AI Host"), {
+        target: { value: "https://llm-proxy.example.com/v1" },
+      });
+      fireEvent.change(screen.getByLabelText("Workspace ID"), {
+        target: { value: "wrkspc_01Test" },
+      });
+      expect(screen.getByLabelText("Workspace ID")).toHaveAccessibleDescription(
+        /Claude Console → Settings → Workspaces/,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+      await waitFor(() =>
+        expect(onTestConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            aiProvider: "anthropic",
+            aiToken: "sk-ant-test",
+            aiWorkspaceId: "wrkspc_01Test",
+          }),
+        ),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+      await waitFor(() =>
+        expect(onSave).toHaveBeenCalledWith(
+          expect.objectContaining({ aiWorkspaceId: "wrkspc_01Test" }),
+        ),
+      );
+    });
+  });
+
   describe("Fetch models and the tool-calling probe (C1)", () => {
     function renderWith(props: Partial<SettingsPageProps>) {
       render(

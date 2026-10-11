@@ -7,7 +7,12 @@
  * On any failure the presets and manual entry stay available.
  */
 import type { AppSettings } from "@apty/agent-core";
-import { anthropicBaseUrl, validateHostUrl } from "./ai-provider";
+import {
+  anthropicBaseUrl,
+  anthropicWorkspaceHeaders,
+  validateHostUrl,
+  WORKSPACE_ID_FIX,
+} from "./ai-provider";
 
 export type ModelListKind = "openai-compatible" | "anthropic" | "google";
 
@@ -44,9 +49,17 @@ function baseUrlFor(kind: ModelListKind, aiHost: string | undefined) {
   return validated ?? DEFAULT_BASE[kind];
 }
 
-function headersFor(kind: ModelListKind, apiKey: string): HeadersInit {
+function headersFor(
+  kind: ModelListKind,
+  apiKey: string,
+  workspaceId: string | undefined,
+): HeadersInit {
   if (kind === "anthropic") {
-    return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+    return {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      ...anthropicWorkspaceHeaders(workspaceId),
+    };
   }
   if (kind === "google") return { "x-goog-api-key": apiKey };
   return { Authorization: `Bearer ${apiKey}` };
@@ -142,7 +155,7 @@ export async function fetchModelList(
     };
   }
 
-  const cacheKey = `${kind}|${base}`;
+  const cacheKey = `${kind}|${base}|${settings.aiWorkspaceId?.trim() ?? ""}`;
   const hit = cache.get(cacheKey);
   if (hit && now() - hit.at < MODEL_LIST_CACHE_MS) {
     return { ok: true, models: hit.models, cached: true };
@@ -154,7 +167,7 @@ export async function fetchModelList(
     let response: Response;
     try {
       response = await fetchImpl(pageUrl(kind, base, cursor), {
-        headers: headersFor(kind, apiKey),
+        headers: headersFor(kind, apiKey, settings.aiWorkspaceId),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
@@ -169,10 +182,18 @@ export async function fetchModelList(
       };
     }
     if (!response.ok) {
+      const needsWorkspace =
+        kind === "anthropic" &&
+        response.status === 400 &&
+        (await response.text().catch(() => "")).includes(
+          "anthropic-workspace-id",
+        );
       return {
         ok: false,
         status: response.status,
-        error: describeModelListError(response.status),
+        error: needsWorkspace
+          ? `This API key is not scoped to a workspace (400). ${WORKSPACE_ID_FIX}`
+          : describeModelListError(response.status),
       };
     }
     let body: unknown;

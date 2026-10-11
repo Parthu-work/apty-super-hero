@@ -131,6 +131,47 @@ describe("fetchModelList", () => {
     ]);
   });
 
+  it("sends the workspace ID with a multi-workspace Anthropic key, and names the fix when it is missing", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        json(
+          {
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message:
+                "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use.",
+            },
+          },
+          400,
+        ),
+      )
+      .mockResolvedValueOnce(json({ data: [{ id: "m1" }], has_more: false }));
+    const anthropic: AppSettings = {
+      aiProvider: "anthropic",
+      aiHost: "https://api.anthropic.com/v1",
+      aiToken: KEY,
+    };
+
+    const missing = await fetchModelList(anthropic, { fetchImpl });
+    const scoped = await fetchModelList(
+      { ...anthropic, aiWorkspaceId: " wrkspc_01Test " },
+      { fetchImpl },
+    );
+
+    expect(missing).toMatchObject({ ok: false, status: 400 });
+    expect(missing.ok === false && missing.error).toMatch(
+      /^This API key is not scoped to a workspace \(400\)\. Fix: enter the workspace ID/,
+    );
+    expect(scoped).toMatchObject({ ok: true, models: ["m1"] });
+    expect(requests(fetchImpl)[1]?.headers).toEqual({
+      "x-api-key": KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-workspace-id": "wrkspc_01Test",
+    });
+  });
+
   it("uses the x-goog-api-key header and Gemini's default host and page token", async () => {
     const fetchImpl = vi
       .fn()

@@ -2,6 +2,7 @@ import { AI_PROVIDERS } from "@apty/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   anthropicBaseUrl,
+  anthropicWorkspaceHeaders,
   createAIProvider,
   createEmptyToolArgsFinalizer,
   describeConnectionTestError,
@@ -238,7 +239,29 @@ describe("Groq provider configuration", () => {
   });
 });
 
+describe("anthropicWorkspaceHeaders", () => {
+  it("sends a trimmed workspace ID, and nothing when none is set", () => {
+    expect(anthropicWorkspaceHeaders(" wrkspc_01Test ")).toEqual({
+      "anthropic-workspace-id": "wrkspc_01Test",
+    });
+    expect(anthropicWorkspaceHeaders("  ")).toBeUndefined();
+    expect(anthropicWorkspaceHeaders(undefined)).toBeUndefined();
+  });
+});
+
 describe("describeConnectionTestError", () => {
+  it("says where to enter the workspace ID when Anthropic asks for one", () => {
+    const error = Object.assign(
+      new Error(
+        "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use.",
+      ),
+      { statusCode: 400 },
+    );
+    expect(describeConnectionTestError(error)).toMatch(
+      /^400: This API key is not scoped .* Fix: enter the workspace ID \(wrkspc_…, from Claude Console → Settings → Workspaces\) in Settings → AI Configuration → Workspace ID, or use an API key created for a single workspace\.$/,
+    );
+  });
+
   it("prefixes the message with the status code when present", () => {
     const error = Object.assign(new Error("Model not found"), {
       statusCode: 404,

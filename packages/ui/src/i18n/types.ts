@@ -24,6 +24,8 @@ export interface TranslationResources {
     theme: string;
     aiHost: string;
     aiToken: string;
+    aiWorkspaceId: string;
+    aiWorkspaceIdHint: string;
     aiModel: string;
     hostPlaceholder: string;
     tokenPlaceholder: string;
@@ -236,6 +238,8 @@ export type BaseTranslationKey =
   | "settings.theme"
   | "settings.aiHost"
   | "settings.aiToken"
+  | "settings.aiWorkspaceId"
+  | "settings.aiWorkspaceIdHint"
   | "settings.aiModel"
   | "settings.hostPlaceholder"
   | "settings.tokenPlaceholder"

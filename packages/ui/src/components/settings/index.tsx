@@ -237,6 +237,9 @@ export function parseImportedModels(jsonText: string): CustomModelConfig[] {
       aiHost: typeof raw.aiHost === "string" ? raw.aiHost : "",
       aiToken: typeof raw.aiToken === "string" ? raw.aiToken : "",
       aiModel: typeof raw.aiModel === "string" ? raw.aiModel : "",
+      ...(typeof raw.aiWorkspaceId === "string"
+        ? { aiWorkspaceId: raw.aiWorkspaceId }
+        : {}),
       enabled: false,
     };
   });
@@ -247,6 +250,7 @@ interface ResolvedModelConfig {
   aiHost: string;
   aiToken: string;
   aiModel: string;
+  aiWorkspaceId: string | undefined;
   providerType: ProviderType;
   providerKey: AIProviderKey;
 }
@@ -260,6 +264,7 @@ const settingsForModel = (
   aiHost: model.aiHost,
   aiToken: model.aiToken,
   aiModel: model.aiModel,
+  aiWorkspaceId: model.aiWorkspaceId,
   aiProvider: resolveProviderKey(model),
   providerType: model.providerType,
 });
@@ -307,6 +312,7 @@ const resolveActiveModel = (
   const providerKey: AIProviderKey =
     activeModel !== undefined
       ? resolveProviderKey({
+          id: activeModel.id,
           aiHost: activeModel.aiHost ?? "",
           providerType: providerType as ProviderType,
         })
@@ -320,12 +326,16 @@ const resolveActiveModel = (
     "";
   const aiToken = activeModel?.aiToken ?? settings.aiToken ?? "";
   const aiModel = activeModel?.aiModel ?? settings.aiModel ?? "";
+  const aiWorkspaceId = activeModel
+    ? activeModel.aiWorkspaceId
+    : settings.aiWorkspaceId;
 
   return {
     activeModel,
     aiHost,
     aiToken,
     aiModel,
+    aiWorkspaceId,
     providerType: providerType as ProviderType,
     providerKey,
   };
@@ -443,6 +453,7 @@ export function SettingsPage({
               aiHost: loadedSettings.aiHost ?? "",
               aiToken: loadedSettings.aiToken ?? "",
               aiModel: loadedSettings.aiModel ?? "",
+              aiWorkspaceId: loadedSettings.aiWorkspaceId,
               enabled: true,
             },
           ];
@@ -490,6 +501,7 @@ export function SettingsPage({
       aiHost: model.aiHost,
       aiToken: model.aiToken,
       aiModel: model.aiModel,
+      aiWorkspaceId: model.aiWorkspaceId,
       aiProvider: providerKey,
       providerType: model.providerType,
       providerEnabled: model.enabled,
@@ -765,6 +777,7 @@ export function SettingsPage({
         aiHost,
         aiToken,
         aiModel,
+        aiWorkspaceId,
         providerType,
         providerKey,
       } = resolveActiveModel(settings, customModels, selectedModelId);
@@ -774,6 +787,7 @@ export function SettingsPage({
         aiHost,
         aiToken,
         aiModel,
+        aiWorkspaceId,
         aiProvider: providerKey,
         providerType,
         providerEnabled:
@@ -813,8 +827,15 @@ export function SettingsPage({
     setIsTesting(true);
     setSaveStatus({ type: "", message: "" });
 
-    const { activeModel, aiHost, aiToken, aiModel, providerType, providerKey } =
-      resolveActiveModel(settings, customModels, selectedModelId);
+    const {
+      activeModel,
+      aiHost,
+      aiToken,
+      aiModel,
+      aiWorkspaceId,
+      providerType,
+      providerKey,
+    } = resolveActiveModel(settings, customModels, selectedModelId);
 
     if (!activeModel) {
       setSaveStatus({
@@ -849,6 +870,7 @@ export function SettingsPage({
         aiHost,
         aiToken,
         aiModel,
+        aiWorkspaceId,
         aiProvider: providerKey,
         providerType,
         customModels,
@@ -1787,6 +1809,34 @@ export function SettingsPage({
                             </Button>
                           </div>
                         </div>
+
+                        {selectedProviderKey === "anthropic" && (
+                          <div className="space-y-2">
+                            <Label htmlFor="aiWorkspaceId">
+                              {t("settings.aiWorkspaceId")}
+                            </Label>
+                            <Input
+                              id="aiWorkspaceId"
+                              value={selectedModel.aiWorkspaceId || ""}
+                              onChange={(e) =>
+                                handleModelFieldChange(
+                                  "aiWorkspaceId",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="wrkspc_…"
+                              aria-describedby="aiWorkspaceIdHint"
+                              autoComplete="off"
+                              spellCheck={false}
+                            />
+                            <p
+                              id="aiWorkspaceIdHint"
+                              className="text-xs text-muted-foreground"
+                            >
+                              {t("settings.aiWorkspaceIdHint")}
+                            </p>
+                          </div>
+                        )}
 
                         {/* Model Selection — a free-text combobox: presets
                             (when the provider has any) show as native

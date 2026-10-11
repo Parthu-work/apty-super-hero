@@ -13,6 +13,8 @@ export interface CustomModelConfig {
   aiHost?: string;
   aiToken: string;
   aiModel: string;
+  /** Anthropic only: the workspace (`wrkspc_…`) a multi-workspace API key runs in, sent as `anthropic-workspace-id`. */
+  aiWorkspaceId?: string;
   enabled: boolean;
   /** The last tool-calling probe, for the model id it tested. */
   toolCalling?: { model: string; support: ToolCallingSupport };
@@ -38,6 +40,8 @@ export interface AppSettings {
   aiHost?: string;
   aiToken?: string;
   aiModel?: string;
+  /** Anthropic only: the workspace (`wrkspc_…`) a multi-workspace API key runs in, sent as `anthropic-workspace-id`. */
+  aiWorkspaceId?: string;
   /**
    * Preferred default model for new sessions (does not affect runtime selection)
    */
