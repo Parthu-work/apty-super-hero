@@ -4,7 +4,7 @@
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `7cb7145` (round 2); the branch head is the next commit, which updates this file |
+| Code head | `445e481` (round 2); the branch head is the next commit, which updates this file |
 | Build zip | `apty-agent-review-final-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
 | Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D and round 2 |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
@@ -59,6 +59,7 @@ on a real tenant).
 | `4a47ef1` | Infor LN findings: tenant and screen-context redaction, Deep-mode risk text, cross-origin link label, reasons in the pages table; athenaOne `"null"` template |
 | `aa6f306` | Element evidence in Apty DES terms |
 | `7cb7145` | The SVG download test kept inside the explicit-`any` baseline |
+| `445e481` | Workspace ID for Anthropic keys not scoped to a workspace (owner report after round 2) |
 | branch head | This `REVIEW.md` and `docs/STATUS.md` |
 
 ### Round 2 gates (build of the code head)
@@ -111,6 +112,55 @@ fix is to run coverage with less parallelism, not to loosen the tests.
 
 Plus 17 script tests (`node:test`). New e2e tests this round: 5 (93,
 from 88).
+
+### Anthropic key "not scoped to a workspace", then the browser-access 401 (owner reports)
+
+Test Connection with the owner's Claude API key failed with
+`400: This API key is not scoped to a workspace, so this request must
+include the anthropic-workspace-id header…`. Such a key can run in several
+workspaces, and the Claude API then needs the workspace's ID
+(`wrkspc_…`) on every request; a key created for one workspace does not
+(platform.claude.com/docs/en/api/overview, "Authentication"). The
+extension had no way to send it.
+
+- Settings → AI Configuration has an optional **Workspace ID** field for
+  Anthropic, saved with the model config. Chat, Test Connection, the
+  tool-calling probe and Fetch models send it as `anthropic-workspace-id`.
+  No new request: the header rides the existing ones.
+- Without it, the 400 now says where to enter the ID (Test Connection and
+  Fetch models); `docs/TROUBLESHOOTING.md` has the row.
+- Found while testing it: the active model's provider was resolved from
+  its host alone, so the built-in Anthropic entry behind a
+  non-`anthropic.com` host (a proxy, or the e2e mock) was sent in the
+  OpenAI format to `/chat/completions`. It now resolves like the list and
+  the form do.
+
+Tests: unit (`anthropicWorkspaceHeaders`, the fix text, the model-list
+header and 400), the Settings component (field only for Anthropic; the ID
+reaches Test Connection and Save, behind a proxy host), and an e2e
+(`anthropic-workspace.e2e.test.mjs`) against a mock of Anthropic's
+Messages and Models endpoints that answers the real 400 without the
+header: the message names the fix; with the ID, Test Connection and Fetch
+models succeed and every request carried it. Before the provider fix the
+same e2e recorded `/v1/chat/completions`.
+
+With the Workspace ID set, the owner's next Test Connection failed with
+`401: CORS requests must set 'anthropic-dangerous-direct-browser-access'
+header`: the API treats an extension page as a browser origin. Every
+Anthropic request (chat, Test Connection, the probe, Fetch models) now
+sends `anthropic-dangerous-direct-browser-access: true`, which
+acknowledges that the user's own key is used from the browser (it is
+stored locally, as before). The e2e mock refuses a request with an
+`Origin` and without that header, with Anthropic's 401, after the
+workspace check (the order the owner saw); on a build without this fix the
+second e2e test fails, with it both pass, and the recorded requests carry
+`Origin: chrome-extension://…`.
+
+Not tested against the real Claude API (no key here). Observed, not
+changed: a user-created model of type "Claude" with an unknown host is
+still sent as OpenAI-compatible (`detectProviderFromHost` returns
+`custom`, which wins over the type); the built-in Anthropic entry is not
+affected.
 
 ### The four open bugs (decision 5)
 
@@ -291,6 +341,11 @@ themes.
    key.
 6. Light theme: the amber "FAIR"/warning texts on the DOM Health card are
    clearly readable.
+7. Settings → AI Configuration → Anthropic: with your multi-workspace key
+   and no Workspace ID, Test Connection says where to enter it; paste the
+   `wrkspc_…` ID from Claude Console → Settings → Workspaces, Test
+   Connection succeeds (no CORS 401), Fetch models lists the models, and
+   chat answers.
 
 ---
 
