@@ -66,15 +66,15 @@ on a real tenant).
 | `731e5bc` | Acting on the Infor LN validation bundle (owner decisions) |
 | branch head | This `REVIEW.md` and `docs/STATUS.md` |
 
-### Round 2 gates (build of the code head)
+### Round 2 gates (build of the code head, `731e5bc`)
 
 ```
 $ tooling/scripts/verify-quiet.sh       (after rm -rf apps/browser-extension/dist)
-✓ typecheck (15s)
-✓ lint (2s)
-✓ test (78s)
-✓ audit (2s)
-✓ build (26s)
+✓ typecheck (17s)
+✓ lint (1s)
+✓ test (74s)
+✓ audit (1s)
+✓ build (25s)
 $ npm run test:e2e        (Chromium from /opt/pw-browsers)
 # tests 95
 # pass 95
@@ -105,9 +105,9 @@ less parallelism rather than loosen the tests.
 | agent-core | 260 | 76.25 | 70.13 | 83.73 | 77.99 |
 | apty-debug-contract | 72 | 84.91 | 78.46 | 93.18 | 87.66 |
 | dom-snapshot | 367 | 90.99 | 82.58 | 97.75 | 92.76 |
-| browser-runtime | 887 | 50.35 | 46.52 | 54.46 | 50.29 |
+| browser-runtime | 892 | 50.46 | 46.65 | 54.70 | 50.39 |
 | ui | 217 | 44.76 | 35.20 | 43.24 | 45.58 |
-| browser-extension | 298 | 44.50 | 45.54 | 41.90 | 44.39 |
+| browser-extension | 298 | 44.60 | 45.82 | 42.03 | 44.50 |
 | mcp-bridge | 44 | 21.27 | 18.15 | 24.74 | 21.51 |
 
 Plus 17 script tests (`node:test`). New e2e tests this round: 7 (95,
