@@ -1,18 +1,28 @@
-# Review: `hardening/open-work` (checkpoints A, B and C)
+# Review: `hardening/open-work` (final: Phases A–D)
 
 | | |
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `371e566` (C5 ratchet); the branch head is the next commit, which updates this file |
-| Build zip | `apty-agent-review-C-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
-| Git bundle | `apty-C-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; it carries Phases A and B too |
+| Code head | `689698c` (D5); the branch head is the next commit, which updates this file |
+| Build zip | `apty-agent-review-final-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
+| Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
 
 This file replaces the previous round's `REVIEW.md` (the v7 WP1 review),
 following that file's own convention of one review per round; that text is
-in git history: `git show dc27e2f:REVIEW.md`. The Phase B and Phase A
-reviews follow Phase C, unchanged apart from headings.
+in git history: `git show dc27e2f:REVIEW.md`. Phase D comes first; the
+Phase C, B and A reviews follow, unchanged apart from headings.
+
+## Decisions needed from the owner (all phases)
+
+1. Add "save" to the risky click words? (A1; it would prompt on every Save button)
+2. A header line inside JSON exports? (A3; it would make the file invalid JSON)
+3. Exempt right-click from the click gate? (A1)
+4. Add `@vitest/coverage-v8` at a matching version to `apps/mcp-bridge`, ending the mixed-version warning? (C5; a new dependency)
+5. Fix the evidence-id de-duplication bug now? (Observed in C3; a two-line fix with a test, outside every work package's scope)
+
+The skills feature stays (D1: `SKILLS_DECISION` was not edited, so KEEP).
 
 ## Commits
 
@@ -34,9 +44,263 @@ reviews follow Phase C, unchanged apart from headings.
 | `c8d0d92` | C1: live model list, tool-calling probe, preset audit |
 | `ea932f5` | C2: preflight page, demo script, `demo:check` |
 | `371e566` | C5 ratchet raised after Phase C's tests |
-| branch head | This `REVIEW.md` (checkpoint C) |
+| `29d9622` | Checkpoint C `REVIEW.md` |
+| `f3c53a8` | D2: Apty Studio as a second peer, Agent side (D1 skipped: kept) |
+| `17e7ded` | D3: release dry run, local rehearsal, browser smoke test |
+| `0030894` | D4: any ratchet, noConsole, typed CDP params |
+| `e1835f5` | D5: DECISIONS.md and PROJECT_PROGRESS.md moved to docs/archive (pure rename) |
+| `689698c` | D5: decision index, project guide, link checker, docs vs code |
+| branch head | This `REVIEW.md` (final) |
 
 B1 was skipped: see below.
+
+## Final gates (clean build of `689698c`)
+
+```
+$ rm -rf apps/browser-extension/dist
+$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
+✓ typecheck (12s)
+✓ lint (1s)
+✓ test (63s)
+✓ audit (1s)
+✓ build (26s)
+$ npm run format:check                 → exit 0
+$ npm run test:coverage                → exit 0
+$ npm run audit:test-skips             ✓ every skipped test says why
+$ npm run audit:any                    ✓ 605 explicit any, none above the baseline
+$ npm run audit:docs-links             ✓ every relative link in the Markdown files resolves
+$ node tooling/scripts/check-extension-id.mjs
+✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
+```
+
+Unit tests (no skipped test anywhere):
+
+```
+packages/apty-debug-contract   Tests  72 passed (72)
+packages/agent-core            Tests 260 passed (260)
+packages/dom-snapshot          Tests 367 passed (367)
+packages/ui                    Tests 216 passed (216)
+packages/browser-runtime       Tests 870 passed (870)
+apps/browser-extension         Tests 291 passed (291)
+apps/mcp-bridge                Tests  44 passed (44)
+tooling/scripts (node:test)    pass 17, fail 0
+```
+
+```
+$ npm run test:e2e        (Chromium from /opt/pw-browsers, against the clean build)
+# tests 88
+# pass 88
+# fail 0
+# skipped 0
+```
+
+| Coverage | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| agent-core | 76.25 | 70.13 | 83.73 | 77.99 |
+| dom-snapshot | 90.99 | 82.58 | 97.75 | 92.76 |
+| ui | 44.71 | 35.04 | 43.09 | 45.52 |
+| browser-runtime | 49.93 | 45.95 | 53.85 | 49.87 |
+| apty-debug-contract | 84.91 | 78.46 | 93.18 | 87.66 |
+| browser-extension | 43.97 | 44.79 | 41.51 | 43.84 |
+| mcp-bridge | 21.27 | 18.15 | 24.74 | 21.51 |
+
+The packaged manifest still has `"externally_connectable": {"ids": []}`;
+the unpacked build is 14,669,025 bytes (`du -sb dist`). TruffleHog 3.99.2
+over `origin/main..HEAD` (22 commits before this file), no exclude list,
+verification off: `"chunks":1168 "bytes":1142864 "verified_secrets":0
+"unverified_secrets":0`.
+
+The local release rehearsal (D3), run at `17e7ded`:
+
+```
+$ tooling/scripts/release-dry-run.sh
+Release dry run for v0.1.0 (nothing is published)
+✓ version check (1s)
+✓ format lint typecheck test coverage (142s)
+✓ build (20s)
+✓ real-browser tests (374s)
+✓ audits (1s)
+✓ pinned extension ID (0s)
+✓ package (2s)
+✓ checksums (0s)
+✓ verify checksums (0s)
+Packages: /tmp/release-dry-run/release/
+```
+
+## D1: Remove the skills feature (skipped: kept by owner decision)
+
+`SKILLS_DECISION` was not edited, so the default KEEP applies. Nothing was
+removed; the `'wasm-unsafe-eval'` CSP allowance, QuickJS and the Skills tab
+stay.
+
+## D2: Apty Studio, Agent side (done; Studio itself unchanged)
+
+- `packages/browser-runtime/src/apty/peers.ts`: one peer abstraction for
+  the Client and Studio: names, where each ID is stored (the Client keeps
+  `clientExtensionId`; Studio uses `peers.studio.extensionId`, an older
+  `studioExtensionId` is still read), failure messages (the Client's
+  wording unchanged, asserted in a test) and the allow-list fix with the
+  Agent's ID filled in. The service-worker provider and the Options check
+  take a `peer`.
+- `get_apty_studio_service_worker_diagnostics`: Studio's status and logs
+  over the Client's contract, through the same helper as the Client's
+  tool, so the same redaction applies; recorded as `apty-studio` evidence;
+  added to the MCP bridge's static tool schemas.
+- Settings → Apty Integration → **Apty Studio Extension**: Detect, its ID
+  ("Apty Studio's Chrome ID"), Connect / Test connection / Disconnect, the
+  Agent's ID and the manifest snippet in read-only fields with Copy, and
+  on `not_allowlisted` the fix: `Apty Studio's manifest must list this
+  Agent ID in externally_connectable.ids: "<id>"`.
+- `docs/integrations/apty/STUDIO.md` for the Studio team.
+- Tests: `peers.test.ts` (both peers, storage, messages),
+  `apty-client-panel.test.tsx` (+3 Studio), `tools/apty.test.ts` (+3: not
+  configured, logs redacted and recorded, refusal named);
+  `studio.e2e.test.mjs` with fixture Studios (not allow-listed, no bridge,
+  working: handshake, storage shape, the agent reads Studio's logs).
+  `apty-client.e2e.test.mjs` passes unchanged.
+
+## D3: Release dry run and smoke matrix (done; GitHub Actions not run)
+
+- `.github/workflows/release.yml`: `workflow_dispatch` with `dry_run`
+  (default `true`); top-level `permissions: contents: read`; the release
+  name comes from the tag, or `v<manifest version>` on a branch; audits
+  include `audit:test-skips`; a step checks the packaged manifest `key`
+  yields `AGENT_EXTENSION_ID`; checksums are verified in the build job;
+  `publish` runs only for a `v*` tag ref and (push, or dispatch with
+  `dry_run` off). Actions stay SHA-pinned; no new action.
+- `tooling/scripts/check-extension-id.mjs` (+3 node tests),
+  `tooling/scripts/release-dry-run.sh` (`npm run release:dry-run`; output
+  above), `docs/release/SMOKE_TEST.md` (Chrome stable and Edge stable,
+  with a results table; says branded Chrome 137+ ignores
+  `--load-extension`, so the automated e2e cannot run there).
+- **I cannot run GitHub Actions.** The workflow was checked by parsing it
+  (Python `yaml`) and reading it against the publish job.
+
+## D4: Typing and logging ratchets (done)
+
+- Explicit `any` (Biome): 612 in 107 files before (452 in tests), 605 in
+  104 files after (153 outside tests, was 160). The spec's "126" does not
+  match today's tree.
+- Security-critical files, before → after: `tools/approval.ts` 0 → 0,
+  `runtime/trusted-sender.ts` 0 → 0, `apty/external-messaging.ts` 0 → 0,
+  `apty/network-capture-session.ts` 3 → 0, `tools/devtools.ts` 2 → 0,
+  `ws-bridge/*` 2 → 0, `apps/mcp-bridge/src/*` 0 → 0. CDP event payloads
+  are typed (`automation/cdp-event-params.ts`); no runtime change.
+- `noExplicitAny: "warn"`; `tooling/scripts/check-any-baseline.mjs` with
+  `any-baseline.json` (`npm run audit:any`, CI) fails when a file's count
+  rises or a new file adds one. Proved locally: a new file with one `any`
+  gives "packages/agent-core/src/any-probe.ts: 1 (allowed 0)", exit 1.
+- `console.log/info/debug`: none left in non-test source (the spec's 81
+  were already migrated before this branch). Biome `noConsole` (warn and
+  error allowed) with documented exceptions (CONTRIBUTING "Logging and
+  typing"). Proved: a probe `console.log` fails `npm run lint`.
+- Tests: the MCP executor never logs its token and prints nothing at the
+  production level; `console-output.e2e.test.mjs`: no log/debug/info from
+  the side panel, Options and the service worker through a chat with a
+  tool call and the preflight (proved it catches output by emitting one
+  line in each, then reverted). The approval path logs nothing.
+
+## D5: Documentation consolidation (done)
+
+| File | Before | After |
+|---|---|---|
+| `DECISIONS.md` | 1,535 lines | 57 (index) |
+| `docs/development/PROJECT_PROGRESS.md` | 1,647 lines | 60 (one page) |
+| `docs/archive/DECISIONS.md` | — | 1,535 (verbatim) |
+| `docs/archive/PROJECT_PROGRESS.md` | — | 1,647 (verbatim) |
+
+- The move is its own pure-rename commit (`e1835f5`), so
+  `git log --follow` keeps the history.
+- The index has one row per decision (41): title linked to its archive
+  section, the date it entered git (28 predate the repository's first
+  commit and read "≤ 2026-09-30"), and a status (Accepted; Record for
+  round summaries; Superseded: the "built, not adopted" logger; Amended by
+  B5: the all-sites console bridge).
+- `tooling/scripts/check-docs-links.mjs` (+3 node tests;
+  `npm run audit:docs-links`; CI) checks files and heading anchors. It
+  found no broken link before or after the move.
+- Docs vs code: every backticked path and tool name in README,
+  SECURITY_AUDIT, ARCHITECTURE and PERMISSIONS was checked against the
+  tree and the tool registry. Fixed: README's approval list and Studio
+  line, ARCHITECTURE's console-bridge paragraph and tool counts,
+  PERMISSIONS' `scripting` and `management` uses, two code comments.
+
+## Phase D: not done, or partial
+
+- D3: the workflow has not run on GitHub.
+- D4: content scripts' own log level is unchanged; the console e2e does not
+  read console output inside web pages.
+- D5: links inside `docs/archive/` are not checked (the files are
+  verbatim). A background agent meant to cross-check the four documents
+  stopped on a rate limit; the check above is my own.
+
+## Phase D: conflicts between the prompt and the repo
+
+- D2: to keep `apty-client.e2e` unchanged (it uses
+  `getByLabel("Extension ID")` and `getByText(<agent id>)` on the tab),
+  Studio's field is labelled "Apty Studio's Chrome ID" and the Agent ID is
+  visible text only in the Client card; elsewhere it is in read-only
+  fields.
+- D3: `dry_run: false` from a branch still cannot publish (there is no tag
+  to release); documented in the workflow.
+- D4: counts differ from the spec (612 `any`, not 126; 0 console calls, not
+  81).
+- D5: "move unchanged" and "fix every broken link" conflict for links
+  inside the archive; the checker skips the archive's own links.
+
+## Phase D: observed, not changed
+
+- README's "What it does today" does not list DOM Health, the redaction
+  mode, Fetch models, preflight or the validation bundle.
+- ARCHITECTURE's "registry grows from 51 to 54 tools" is a historical
+  sentence; `audit:tools` counts 126 registrations today (runtime and MCP
+  schemas together).
+
+## Phase D: owner test scripts (about 5 minutes each)
+
+### D2: Studio
+
+1. Settings → Apty Integration. **Expected:** an "Apty Studio Extension"
+   card below the Client card, with the Agent's ID and a manifest snippet,
+   each with Copy.
+2. Paste Apty Studio's real ID (from `chrome://extensions`) and Connect.
+   **Expected today:** "Installed, but not answering the Agent." with
+   "Apty Studio's manifest must list this Agent ID in
+   externally_connectable.ids: "bpiondflhhdplemamgggcdajclmoeple"".
+3. Dry run with a fixture: create one with
+   `node -e "import('./tooling/e2e/harness.mjs').then(h => h.writeFakeClient('/tmp/fake-studio', 'working', 'bpiondflhhdplemamgggcdajclmoeple', 'Studio'))"`,
+   Load unpacked, Connect it in the Studio card. **Expected:** "Answering";
+   in the side panel "show apty studio's service worker logs" returns two
+   log lines.
+
+### D3: release
+
+1. `tooling/scripts/release-dry-run.sh --skip-e2e`. **Expected:** one ✓
+   line per step and two zips plus a `.sha256` in
+   `/tmp/release-dry-run/release/`.
+2. In GitHub (after merging): Actions → Release → Run workflow (dry_run
+   on). **Expected:** the build job uploads the packages; publish is
+   skipped.
+3. Run `docs/release/SMOKE_TEST.md` on Chrome and Edge with the zip.
+
+### D4: ratchets
+
+1. Add `const x: any = 1;` to any source file, run `npm run audit:any`.
+   **Expected:** the file is named with "(allowed 0)" or its baseline
+   count, exit 1. Remove it.
+2. Add `console.log("x")` to a source file, run `npm run lint`.
+   **Expected:** `lint/suspicious/noConsole`, exit 1. Remove it.
+3. Load the build, open the side panel's DevTools console, chat once.
+   **Expected:** no log/info/debug lines (only warnings or errors, if any).
+
+### D5: docs
+
+1. Open `DECISIONS.md` on GitHub. **Expected:** a table; each title jumps to
+   its section in `docs/archive/DECISIONS.md`.
+2. Break a link in any `.md`, run `npm run audit:docs-links`.
+   **Expected:** the file, line and target, exit 1.
+
+# Phase C
 
 ## Checkpoint C gates (clean build of `371e566`)
 
