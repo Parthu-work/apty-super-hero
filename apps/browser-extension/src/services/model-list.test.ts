@@ -122,11 +122,19 @@ describe("fetchModelList", () => {
     expect(requests(fetchImpl)).toEqual([
       {
         url: "https://api.anthropic.com/v1/models?limit=1000",
-        headers: { "x-api-key": KEY, "anthropic-version": "2023-06-01" },
+        headers: {
+          "x-api-key": KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
       },
       {
         url: "https://api.anthropic.com/v1/models?limit=1000&after_id=m1",
-        headers: { "x-api-key": KEY, "anthropic-version": "2023-06-01" },
+        headers: {
+          "x-api-key": KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
       },
     ]);
   });
@@ -168,6 +176,7 @@ describe("fetchModelList", () => {
     expect(requests(fetchImpl)[1]?.headers).toEqual({
       "x-api-key": KEY,
       "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
       "anthropic-workspace-id": "wrkspc_01Test",
     });
   });

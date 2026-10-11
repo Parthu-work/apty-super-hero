@@ -9,7 +9,7 @@
 import type { AppSettings } from "@apty/agent-core";
 import {
   anthropicBaseUrl,
-  anthropicWorkspaceHeaders,
+  anthropicHeaders,
   validateHostUrl,
   WORKSPACE_ID_FIX,
 } from "./ai-provider";
@@ -58,7 +58,7 @@ function headersFor(
     return {
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
-      ...anthropicWorkspaceHeaders(workspaceId),
+      ...anthropicHeaders(workspaceId),
     };
   }
   if (kind === "google") return { "x-goog-api-key": apiKey };

@@ -152,15 +152,21 @@ export function anthropicBaseUrl(baseURL: string | undefined) {
 }
 
 /**
- * The `anthropic-workspace-id` header a multi-workspace Anthropic key needs
- * on every request; none when no workspace is set (a key created for one
- * workspace runs in it without the header).
+ * Headers every request to Anthropic from this extension needs. The API
+ * treats an extension page as a browser origin and refuses it (401) without
+ * `anthropic-dangerous-direct-browser-access`; the key is the user's own,
+ * stored locally, which is what the header acknowledges. A multi-workspace
+ * key also needs `anthropic-workspace-id` (a key created for one workspace
+ * runs in it without the header).
  */
-export function anthropicWorkspaceHeaders(
+export function anthropicHeaders(
   workspaceId: string | undefined,
-): Record<string, string> | undefined {
+): Record<string, string> {
   const id = workspaceId?.trim();
-  return id ? { "anthropic-workspace-id": id } : undefined;
+  return {
+    "anthropic-dangerous-direct-browser-access": "true",
+    ...(id ? { "anthropic-workspace-id": id } : {}),
+  };
 }
 
 /**
@@ -176,7 +182,7 @@ export function createAIProvider(settings: AppSettings) {
       return createAnthropic({
         apiKey,
         baseURL: anthropicBaseUrl(baseURL),
-        headers: anthropicWorkspaceHeaders(settings.aiWorkspaceId),
+        headers: anthropicHeaders(settings.aiWorkspaceId),
       });
     case "google":
       return createGoogleGenerativeAI({ apiKey, baseURL });

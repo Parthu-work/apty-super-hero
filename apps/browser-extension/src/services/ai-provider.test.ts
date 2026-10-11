@@ -2,7 +2,7 @@ import { AI_PROVIDERS } from "@apty/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   anthropicBaseUrl,
-  anthropicWorkspaceHeaders,
+  anthropicHeaders,
   createAIProvider,
   createEmptyToolArgsFinalizer,
   describeConnectionTestError,
@@ -239,13 +239,18 @@ describe("Groq provider configuration", () => {
   });
 });
 
-describe("anthropicWorkspaceHeaders", () => {
-  it("sends a trimmed workspace ID, and nothing when none is set", () => {
-    expect(anthropicWorkspaceHeaders(" wrkspc_01Test ")).toEqual({
+describe("anthropicHeaders", () => {
+  it("always allows direct browser access, and adds a trimmed workspace ID when set", () => {
+    expect(anthropicHeaders(" wrkspc_01Test ")).toEqual({
+      "anthropic-dangerous-direct-browser-access": "true",
       "anthropic-workspace-id": "wrkspc_01Test",
     });
-    expect(anthropicWorkspaceHeaders("  ")).toBeUndefined();
-    expect(anthropicWorkspaceHeaders(undefined)).toBeUndefined();
+    expect(anthropicHeaders("  ")).toEqual({
+      "anthropic-dangerous-direct-browser-access": "true",
+    });
+    expect(anthropicHeaders(undefined)).toEqual({
+      "anthropic-dangerous-direct-browser-access": "true",
+    });
   });
 });
 

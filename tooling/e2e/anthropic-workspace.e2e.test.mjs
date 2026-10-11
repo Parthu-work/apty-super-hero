@@ -4,13 +4,17 @@
  * Messages and Models endpoints answers 400 with Anthropic's own message
  * when the header is missing; Settings → AI Configuration names the fix,
  * and with the Workspace ID entered, Test Connection and Fetch models carry
- * the header.
+ * the header. The mock also refuses a request from a browser origin
+ * without `anthropic-dangerous-direct-browser-access`, with Anthropic's
+ * 401, as the real API did for the owner once the workspace was set.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { extensionPage, launchBrowser, startServer } from "./harness.mjs";
 
 const WORKSPACE = "wrkspc_01MockWorkspace0000000";
+const NO_BROWSER_ACCESS =
+  "CORS requests must set 'anthropic-dangerous-direct-browser-access' header";
 const NOT_SCOPED =
   "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use. Add the header, or use an API key that is scoped to a workspace.";
 
@@ -27,11 +31,26 @@ function reply(res, status, body) {
 before(async () => {
   api = await startServer((req, res, body) => {
     const workspace = req.headers["anthropic-workspace-id"] ?? null;
-    seen.push({ path: new URL(req.url, "http://x").pathname, workspace });
+    const browserAccess =
+      req.headers["anthropic-dangerous-direct-browser-access"] ?? null;
+    seen.push({
+      path: new URL(req.url, "http://x").pathname,
+      workspace,
+      origin: req.headers.origin ?? null,
+      browserAccess,
+    });
+    // The order the owner saw: the workspace first, then the browser check.
     if (!workspace) {
       reply(res, 400, {
         type: "error",
         error: { type: "invalid_request_error", message: NOT_SCOPED },
+      });
+      return;
+    }
+    if (req.headers.origin && browserAccess !== "true") {
+      reply(res, 401, {
+        type: "error",
+        error: { type: "authentication_error", message: NO_BROWSER_ACCESS },
       });
       return;
     }
@@ -120,7 +139,13 @@ describe("Anthropic key not scoped to a workspace", () => {
     const messages = seen.filter((r) => r.path === "/v1/messages");
     assert.ok(messages.length >= 1, JSON.stringify(seen));
     assert.ok(
-      seen.every((r) => r.workspace === WORKSPACE),
+      seen.every(
+        (r) => r.workspace === WORKSPACE && r.browserAccess === "true",
+      ),
+      JSON.stringify(seen),
+    );
+    assert.ok(
+      seen.some((r) => r.origin?.startsWith("chrome-extension://")),
       JSON.stringify(seen),
     );
     assert.ok(seen.some((r) => r.path === "/v1/models"));
