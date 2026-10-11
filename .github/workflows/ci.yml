@@ -90,6 +90,9 @@ jobs:
       - name: No new explicit any
         run: npm run audit:any
 
+      - name: Markdown links resolve
+        run: npm run audit:docs-links
+
       - name: Dependency vulnerability audit
         run: pnpm audit --prod
 

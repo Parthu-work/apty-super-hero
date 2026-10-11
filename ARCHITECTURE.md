@@ -112,8 +112,10 @@ required loop and output format (see
 ### Conversation/tab binding — evidence isolation
 
 Evidence is only useful if it's about the tab the conversation is actually
-debugging. Every evidence-gathering tool (`apty.ts`'s 5 tools,
-`devtools.ts`'s 2 tools) resolves its target tab via
+debugging. Every tab-scoped evidence tool (`apty.ts`'s page-log, Widget
+and Client tools; `devtools.ts`'s network and runtime capture and
+`run_console_command`) resolves its
+target tab via
 `resolveDiagnosticTab()` (`packages/browser-runtime/src/tools/tab-utils.ts`)
 instead of unconditionally querying "whichever tab is focused right now":
 
@@ -310,7 +312,10 @@ This is distinct from `get_apty_page_logs`
 continuously filled by `apps/browser-extension/src/entrypoints/content/console-bridge.ts` — a
 MAIN-world content script that has been capturing `console.*` calls and
 `window.onerror`/`unhandledrejection` since page load, with no debugger
-attach/detach cost. The two are complementary: the console bridge has
+attach/detach cost. The service worker registers it at runtime
+(`packages/browser-runtime/src/runtime/page-hooks-registration.ts`), not in
+the manifest; Settings → Troubleshooting can turn it off or exclude sites,
+and then page logs start only when the agent asks. The two are complementary: the console bridge has
 history but only sees `console.*`-routed output; CDP sees real network
 data and browser-internal events but only forward from attach time.
 

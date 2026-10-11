@@ -35,6 +35,7 @@
     "audit:tools": "node tooling/scripts/audit-tools.mjs",
     "audit:test-skips": "node tooling/scripts/check-test-skips.mjs",
     "audit:any": "node tooling/scripts/check-any-baseline.mjs",
+    "audit:docs-links": "node tooling/scripts/check-docs-links.mjs",
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
     "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",

@@ -2,7 +2,7 @@
 
 An AI agent, packaged as a Chrome extension, that helps an Apty engineer debug a live issue in their actual browser — "why isn't the Apty widget showing?", "why can't Studio select this element?" — by inspecting the current page's DOM, console, network activity, and Apty's own runtime state, then giving an evidence-first diagnosis.
 
-Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a RAG/knowledge-base system** — see `docs/development/PROJECT_PROGRESS.md` and `DECISIONS.md` for the reasoning behind that scope.
+Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a RAG/knowledge-base system** — see [`DECISIONS.md`](DECISIONS.md) for the reasoning behind that scope.
 
 **Start here for the real state of the project**: [`docs/STATUS.md`](docs/STATUS.md) (what works and what's open), `ARCHITECTURE.md` (what's actually implemented), `docs/security/SECURITY_AUDIT.md`, `DECISIONS.md`, `CHANGELOG.md`. Those files, not this README, are the source of truth across coding sessions. Something not working? See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md). What data goes where: [`PRIVACY.md`](PRIVACY.md).
 
@@ -13,8 +13,8 @@ Forked from [AIPex](https://github.com/AIPexStudio/AIPex) (MIT licensed), which 
 - Inspects the current page's DOM, elements, iframes, and Shadow DOM
 - Reads console output/errors captured since page load (`get_apty_page_logs`)
 - Watches live network requests and browser-level runtime errors via Chrome DevTools Protocol (`get_network_diagnostics`, `get_runtime_diagnostics`)
-- Connects to the Apty Client extension by its ID (Settings → Apty Integration) to read its service-worker logs, the resources it loaded and their response bodies (`inspect_extension_network`). This needs a bridge module inside the Apty Client that answers the `apty-debug-agent:*` messages and allow-lists this extension's ID; until that ships, the connection check names exactly what is missing. Widget and Studio diagnostics still report `not_configured`.
-- Asks before risky actions: running JavaScript in the page, filling fields, typing, uploading or downloading waits for you to click Allow or Deny in the side panel.
+- Connects to the Apty Client extension by its ID (Settings → Apty Integration) to read its service-worker logs, the resources it loaded and their response bodies (`inspect_extension_network`). This needs a bridge module inside the Apty Client that answers the `apty-debug-agent:*` messages and allow-lists this extension's ID; until that ships, the connection check names exactly what is missing. Apty Studio connects the same way (its own row in Settings; it must allow-list this extension first, see [`STUDIO.md`](docs/integrations/apty/STUDIO.md)). Widget diagnostics still report `not_configured`.
+- Asks before risky actions: running JavaScript in the page, filling fields, typing, uploading or downloading, clicking a submit, destructive or cross-origin control, and opening a tab on another site wait for you to click Allow or Deny in the side panel.
 - Reasons over all of the above and answers with a confidence-scored diagnosis (Confirmed/Likely/Possible/Unknown), never fabricating evidence
 
 ## Core infrastructure
@@ -48,7 +48,7 @@ On first use, open the side panel: its readiness check links to the AI provider 
 
 ## Configuring Apty Studio/Widget/Client/Service-Worker integration
 
-Copy `apps/browser-extension/.env.example` to `apps/browser-extension/.env` and fill in whatever Apty engineering has actually made available (a Studio extension ID, a service-worker diagnostic endpoint, etc.) — every value defaults to empty, which is honestly reported as `not_configured` rather than faked. See `docs/development/PROJECT_PROGRESS.md`'s per-component integration sections for exactly what each one needs on the Apty side before it can do anything.
+Copy `apps/browser-extension/.env.example` to `apps/browser-extension/.env` and fill in whatever Apty engineering has actually made available (a Studio extension ID, a service-worker diagnostic endpoint, etc.) — every value defaults to empty, which is honestly reported as `not_configured` rather than faked. See [`docs/integrations/apty/README.md`](docs/integrations/apty/README.md) and [`STUDIO.md`](docs/integrations/apty/STUDIO.md) for what each one needs on the Apty side before it can do anything (the earlier per-component notes are in [`docs/archive/PROJECT_PROGRESS.md`](docs/archive/PROJECT_PROGRESS.md)).
 
 ## Use with AI Coding Agents (MCP)
 
