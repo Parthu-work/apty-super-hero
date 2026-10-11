@@ -130,6 +130,7 @@ const LN_PORTAL_SEED = (
 ) => `<!doctype html><title>Portal</title><body>
   <div role="tablist"><div role="tab" aria-selected="true">LN</div><div role="tab" tabindex="0">Open tab menu</div></div>
   <div role="menu"><button type="button" role="menuitem" aria-hidden="true" aria-label="Close all tabs">Close all</button></div>
+  <div style="display:none"><button type="button" aria-label="Pin tab">Pin</button></div>
   <main><h1>Workbench</h1><form><input name="order" aria-label="Order"><button type="button" id="row-action">Find</button><button type="button" id="row-action">Clear</button></form></main>
   <iframe id="gwtui" title="placeholder"></iframe>
   <footer><a href="${otherOrigin}/ln.html">Infor</a></footer>
@@ -314,11 +315,12 @@ describe("DOM Health on six application shapes", () => {
     assert.doesNotMatch(json, /off by default/);
     // An empty about:blank frame is a placeholder, not a frame that failed.
     assert.ok(result.coverage.framesPlaceholder >= 1, json);
-    // A hidden menu item is not a hit-test failure.
-    assert.ok(
-      result.metricDetails.hitTestTargetability.hidden >= 1,
-      JSON.stringify(result.metricDetails.hitTestTargetability),
-    );
+    // Hidden menu items, one aria-hidden and one inside a display:none
+    // container, are not hit-test failures (the container's child used to
+    // read as zero-size).
+    const hitTest = result.metricDetails.hitTestTargetability;
+    assert.ok(hitTest.hidden >= 2, JSON.stringify(hitTest));
+    assert.equal(hitTest.notTargetable, 0, JSON.stringify(hitTest));
     assert.ok(
       result.risks.some((r) => r.id === "duplicate-ids"),
       json,

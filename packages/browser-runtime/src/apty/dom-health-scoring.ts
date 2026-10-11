@@ -320,7 +320,7 @@ export interface DomHealthMetricDetails {
     tested: number;
     fullyTargetable: number;
     partiallyTargetable: number;
-    /** Hidden by display or visibility when sampled (a closed menu, an inactive tab): left out of the metric, since nothing should click them until they are shown. */
+    /** Hidden when sampled, by its own style or a hidden container (a closed menu, an inactive tab): left out of the metric, since nothing should click them until they are shown. */
     hidden: number;
     /** Visible elements that failed: covered, zero-size, or outside the viewport. */
     notTargetable: number;

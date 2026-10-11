@@ -69,6 +69,36 @@ describe("hitTestElement", () => {
     expect(result?.classification).toBe("hidden");
   });
 
+  it("classifies an element inside a hidden container as hidden, not zero-size", () => {
+    setHtml(
+      `<div style="display: none;"><button id="btn">Close all</button></div>`,
+    );
+    const el = document.getElementById("btn")!;
+    mockRect(el, { width: 0, height: 0 });
+    // jsdom has no checkVisibility; Chrome's answers false for a hidden ancestor.
+    Object.defineProperty(el, "checkVisibility", {
+      configurable: true,
+      value: () => false,
+    });
+
+    expect(hitTestElement(el)).toEqual({
+      pointsPassed: 0,
+      classification: "hidden",
+    });
+  });
+
+  it("still classifies a rendered element with no width or height as zero-size", () => {
+    setHtml(`<button id="btn"></button>`);
+    const el = document.getElementById("btn")!;
+    mockRect(el, { width: 0, height: 0 });
+    Object.defineProperty(el, "checkVisibility", {
+      configurable: true,
+      value: () => true,
+    });
+
+    expect(hitTestElement(el)?.classification).toBe("zero-size");
+  });
+
   it("classifies an element entirely off-screen as outside-viewport", () => {
     setHtml(`<button id="btn">Go</button>`);
     const el = document.getElementById("btn")!;

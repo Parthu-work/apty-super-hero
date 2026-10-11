@@ -108,7 +108,7 @@ const STEPS: Record<
 
 const HIT_TEST_MEANING: Record<HitTestReasonCount["reason"], string> = {
   hidden:
-    "Hidden by display or visibility when sampled, e.g. a closed menu or an inactive tab.",
+    "Hidden when sampled, by its own style or a hidden container, e.g. a closed menu or an inactive tab.",
   "zero-size":
     "No width or height when sampled: collapsed or not laid out yet. The player can find it but not highlight or click it.",
   "outside-viewport":
