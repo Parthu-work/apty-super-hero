@@ -679,7 +679,9 @@ export async function runApplicationDomHealthAudit(
           pages.push({
             url: link.absoluteUrl,
             title: null,
-            discoverySource: "same-origin-link",
+            discoverySource: link.sameOrigin
+              ? "same-origin-link"
+              : "cross-origin-link",
             status: link.sameOrigin ? "skipped-unsafe" : "skipped-cross-origin",
           });
         }

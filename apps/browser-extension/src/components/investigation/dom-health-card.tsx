@@ -169,6 +169,18 @@ const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], string> = {
   "not-discovered": "Detected, not explored",
 };
 
+/** A page row's label: its title, else its URL without the query string, which can carry screen context. */
+function pageRowLabel(page: PageAuditRecord): string {
+  if (page.title) return page.title;
+  try {
+    const url = new URL(page.url);
+    url.search = "";
+    return url.toString();
+  } catch {
+    return page.url.split("?")[0] ?? page.url;
+  }
+}
+
 function metricTone(score: number): StatusMeta["tone"] {
   if (score >= 80) return "success";
   if (score >= 60) return "warning";
@@ -1067,7 +1079,7 @@ export function DomHealthCard({
                           // section 23).
                           const labelCounts = new Map<string, number>();
                           for (const page of appOutcome.pages) {
-                            const label = page.title ?? page.url;
+                            const label = pageRowLabel(page);
                             labelCounts.set(
                               label,
                               (labelCounts.get(label) ?? 0) + 1,
@@ -1075,7 +1087,7 @@ export function DomHealthCard({
                           }
                           const labelSeen = new Map<string, number>();
                           return appOutcome.pages.map((page, i) => {
-                            const label = page.title ?? page.url;
+                            const label = pageRowLabel(page);
                             const isDuplicateLabel =
                               (labelCounts.get(label) ?? 0) > 1;
                             const occurrence = (labelSeen.get(label) ?? 0) + 1;
@@ -1108,6 +1120,12 @@ export function DomHealthCard({
                                   )}
                                 >
                                   {PAGE_STATUS_LABELS[page.status]}
+                                  {page.status !== "completed" &&
+                                    page.failureReason && (
+                                      <span className="block font-normal text-muted-foreground">
+                                        {page.failureReason}
+                                      </span>
+                                    )}
                                 </td>
                                 <td className="px-1.5 py-1 text-muted-foreground">
                                   {auto ? auto.totalAnalyzed : "—"}

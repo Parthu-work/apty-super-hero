@@ -349,9 +349,46 @@ describe("buildApplicationAuditResult — evidence state, never a fabricated app
     const result = buildApplicationAuditResult(pages, "app-10");
 
     expect(result.coverage.pagesNotDiscovered).toBe(1);
+    const risk = result.risks.find(
+      (r) => r.id === "navigation-candidates-not-explored",
+    );
+    expect(risk?.evidence).toMatch(/click-based discovery is off by default/);
+  });
+
+  it("with Deep state discovery, says the controls were clicked and gives each reason, never that clicks are off", () => {
+    const control = (reason: string): PageAuditRecord => ({
+      url: "https://a.example/1#control:main>button",
+      title: "Open tab menu",
+      discoverySource: "safe-navigation-control",
+      status: "not-discovered",
+      failureReason: reason,
+    });
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/1", [makeReport()]),
+      control("Clicking this control did not produce a new application state."),
+      control("Clicking this control did not produce a new application state."),
+      control("Click did not succeed."),
+    ];
+
+    const result = buildApplicationAuditResult(pages, "app-11", {
+      discoveryMethod: "anchor-links+navigation-controls",
+    });
+
+    const risk = result.risks.find(
+      (r) => r.id === "navigation-candidates-not-explored",
+    );
+    expect(risk?.title).toBe(
+      "Some navigation controls were clicked but led to no new state",
+    );
+    expect(risk?.evidence).toBe(
+      "3 menu/tab/tree-style control(s) were clicked by Deep state discovery and did not lead to a new audited state. Clicking this control did not produce a new application state. (×2) Click did not succeed. (×1)",
+    );
+    expect(JSON.stringify(result.risks)).not.toMatch(/off by default/);
     expect(
-      result.risks.some((r) => r.id === "navigation-candidates-not-explored"),
-    ).toBe(true);
+      result.risks.find(
+        (r) => r.id === "evidence-incomplete-application-coverage",
+      )?.evidence,
+    ).toMatch(/were clicked but did not lead to a new audited state/);
   });
 });
 

@@ -49,6 +49,8 @@ function urlTemplateOnly(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(redactAuditUrl(url));
+    // about:blank, javascript: and data: frames have an opaque origin ("null").
+    if (!/^https?:$/.test(parsed.protocol)) return parsed.protocol;
     const hashRoute = parsed.hash.startsWith("#/")
       ? parsed.hash.split("?")[0]
       : "";

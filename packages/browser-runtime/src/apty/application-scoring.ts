@@ -68,6 +68,8 @@ export type PageAuditStatus =
 export type PageDiscoverySource =
   | "seed"
   | "same-origin-link"
+  /** A link to another origin: reported as skipped, never followed. */
+  | "cross-origin-link"
   | "safe-navigation-control";
 
 export interface PageNavigationModel {
@@ -362,6 +364,20 @@ const APPLICATION_METHODOLOGY_PREFIX: string[] = [
  * Build the application-level result from every page this audit run
  * attempted, in the order they were visited.
  */
+/** The reasons controls were not explored, most frequent first: "<reason> (×n)". */
+function describeNotExplored(pages: PageAuditRecord[]): string {
+  const counts = new Map<string, number>();
+  for (const page of pages) {
+    if (page.status !== "not-discovered") continue;
+    const reason = page.failureReason ?? "No reason recorded.";
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  return [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, n]) => `${reason} (×${n})`)
+    .join(" ");
+}
+
 export function buildApplicationAuditResult(
   pages: PageAuditRecord[],
   auditId: string,
@@ -388,6 +404,9 @@ export function buildApplicationAuditResult(
   ).length;
   const discovered = pages.length;
   const audited = completed.length;
+  const clicksAllowed =
+    options.traversal?.clicksAllowed ??
+    options.discoveryMethod === "anchor-links+navigation-controls";
 
   const framesDiscovered = completed.reduce(
     (sum, p) => sum + (p.frameAccessibility?.framesTotal ?? 0),
@@ -726,18 +745,30 @@ export function buildApplicationAuditResult(
           ? `${restorationFailures} backtracking restoration(s) failed, so whatever application state lay beyond that point was never reached or audited. `
           : "") +
         (notDiscovered > 0
-          ? `${notDiscovered} detected navigation candidate(s) were never explored (out of ${discovered} known). `
+          ? clicksAllowed
+            ? `${notDiscovered} detected navigation candidate(s) were clicked but did not lead to a new audited state (out of ${discovered} known). `
+            : `${notDiscovered} detected navigation candidate(s) were never explored (out of ${discovered} known). `
           : "") +
         `No score is reported — a numeric score here would misrepresent how much of this application was actually observed.`,
     });
   }
   if (notDiscovered > 0) {
-    risks.push({
-      id: "navigation-candidates-not-explored",
-      severity: "low",
-      title: "Some navigation controls were detected but never explored",
-      evidence: `${notDiscovered} menu/tab/tree-style control(s) with no real <a href> were detected but not clicked (click-based discovery is off by default — see coverage.discoveryMethod). Enable it explicitly to explore them.`,
-    });
+    risks.push(
+      clicksAllowed
+        ? {
+            id: "navigation-candidates-not-explored",
+            severity: "low",
+            title:
+              "Some navigation controls were clicked but led to no new state",
+            evidence: `${notDiscovered} menu/tab/tree-style control(s) were clicked by Deep state discovery and did not lead to a new audited state. ${describeNotExplored(pages)}`,
+          }
+        : {
+            id: "navigation-candidates-not-explored",
+            severity: "low",
+            title: "Some navigation controls were detected but never explored",
+            evidence: `${notDiscovered} menu/tab/tree-style control(s) with no real <a href> were detected but not clicked (click-based discovery is off by default — see coverage.discoveryMethod). Enable it explicitly to explore them.`,
+          },
+    );
   }
 
   const summary =

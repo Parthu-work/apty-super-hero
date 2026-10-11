@@ -527,6 +527,7 @@ describe("runApplicationDomHealthAudit", () => {
         (p) => p.url === "https://evil.example.com/phish",
       );
       expect(skipped?.status).toBe("skipped-cross-origin");
+      expect(skipped?.discoverySource).toBe("cross-origin-link");
     }
     expect(mockTabsUpdate).not.toHaveBeenCalledWith(
       TAB_ID,

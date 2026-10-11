@@ -20,6 +20,35 @@ describe("redactAuditUrl", () => {
     expect(new URL(redacted).searchParams.get("inforThemeName")).toBe("Light");
   });
 
+  it("removes the tenant in the portal's own path and its base64 screen context", () => {
+    const context = btoa(
+      JSON.stringify({
+        description: "Purchase Order Intake Workbench",
+        type: "session",
+        action: "tdpur4601m200",
+      }),
+    );
+    const url = `https://portal.example.test/FAKE7ENANT00ABCD_TRN/123456?favoriteContext=${context}&LogicalId=lid%3A%2F%2Finfor.ln.ln01`;
+
+    const redacted = redactAuditUrl(url);
+
+    expect(redacted).not.toContain("FAKE7ENANT00ABCD");
+    expect(redacted).not.toContain(context.slice(0, 20));
+    const parsed = new URL(redacted);
+    expect(parsed.pathname).toBe("/:tenant/:id");
+    expect(parsed.searchParams.get("favoriteContext")).toBe("<REDACTED>");
+    expect(parsed.searchParams.get("LogicalId")).toBe("lid://infor.ln.ln01");
+  });
+
+  it("leaves short values and snake_case names that only look like a tenant", () => {
+    const redacted = redactAuditUrl(
+      "https://app.example.test/orders_dev/list?view=compact&sort=created_at",
+    );
+    expect(redacted).toBe(
+      "https://app.example.test/orders_dev/list?view=compact&sort=created_at",
+    );
+  });
+
   it("masks an athenaOne practice id in the path but keeps the short department segment", () => {
     expect(
       redactAuditUrl("https://ehr.example.test/4242424/2/globalframeset.esp"),

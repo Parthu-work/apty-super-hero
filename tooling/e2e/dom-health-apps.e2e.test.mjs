@@ -116,6 +116,23 @@ const VIRTUALIZED_PAGE = `<!doctype html><title>Orders grid</title><body>
   <script>document.getElementById("grid").scrollTop = 3000;</script>
 </body>`;
 
+/** The LN portal's own URL shape: the tenant as the first path segment, the open screen as base64 JSON in `favoriteContext`. */
+const LN_TENANT = "FAKE7ENANT00ABCD_TRN";
+const LN_CONTEXT = Buffer.from(
+  JSON.stringify({
+    description: "Purchase Order Intake Workbench",
+    type: "session",
+    action: "tdpur4601m200",
+  }),
+).toString("base64");
+const LN_PORTAL_SEED = (
+  otherOrigin,
+) => `<!doctype html><title>Portal</title><body>
+  <div role="tablist"><div role="tab" aria-selected="true">LN</div><div role="tab" tabindex="0">Open tab menu</div></div>
+  <main><h1>Workbench</h1><form><input name="order" aria-label="Order"><button type="button">Find</button></form></main>
+  <footer><a href="${otherOrigin}/ln.html">Infor</a></footer>
+</body>`;
+
 let browser;
 let model;
 let site;
@@ -138,6 +155,8 @@ before(async () => {
     "/click.html": CLICK_ONLY_PAGE,
     "/overlay.html": OVERLAY_PAGE,
     "/virtualized.html": VIRTUALIZED_PAGE,
+    [`/${LN_TENANT}/123456`]: () =>
+      LN_PORTAL_SEED(`http://localhost:${other.address().port}`),
   });
   browser = await launchBrowser();
 });
@@ -252,6 +271,28 @@ describe("DOM Health on six application shapes", () => {
     assert.ok(result.restorations.length >= 1);
     assert.ok(result.restorations.every((r) => r.success));
     assert.match(result.traversal.history[0].reason, /0 distinct link target/);
+  });
+
+  it("LN portal URL: no tenant or screen context reaches the model; the other-site link and the clicked tab say what happened", async () => {
+    const result = await audit(
+      `/${LN_TENANT}/123456?favoriteContext=${LN_CONTEXT}&LogicalId=lid%3A%2F%2Finfor.ln.ln01`,
+      "run_application_dom_health_audit",
+      { maxPages: 5, discoveryMode: "application-deep" },
+    );
+    const json = JSON.stringify(result);
+
+    assert.ok(!json.includes(LN_TENANT), json.slice(0, 600));
+    assert.ok(!json.includes(LN_CONTEXT.slice(0, 24)), json.slice(0, 600));
+    assert.ok(!json.includes("Purchase Order"), json.slice(0, 600));
+    const offSite = result.pages.find((p) => p.url.includes("/ln.html"));
+    assert.equal(offSite?.discoverySource, "cross-origin-link", json);
+    assert.equal(offSite?.status, "skipped-cross-origin");
+    const tab = result.pages.find(
+      (p) => p.discoverySource === "safe-navigation-control",
+    );
+    assert.equal(tab?.status, "not-discovered", json);
+    assert.ok(tab.failureReason, json);
+    assert.doesNotMatch(json, /off by default/);
   });
 
   it("third-party overlay: leaves Pendo and the chat launcher out, and counts them", async () => {

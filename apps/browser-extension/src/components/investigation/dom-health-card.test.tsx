@@ -543,10 +543,11 @@ describe("DomHealthCard", () => {
           result: { score: 40 },
         },
         {
-          url: "https://example.com/broken",
+          url: "https://example.com/broken?favoriteContext=<REDACTED>&view=1",
           title: null,
           discoverySource: "same-origin-link",
           status: "failed",
+          failureReason: "Navigation failed",
         },
       ],
       methodology: ["Discover same-origin pages via real <a href> elements."],
@@ -577,6 +578,9 @@ describe("DomHealthCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("Orders")).toBeInTheDocument();
+    expect(screen.getByText("https://example.com/broken")).toBeInTheDocument();
+    expect(screen.queryByText(/favoriteContext/)).toBeNull();
+    expect(screen.getByText("Navigation failed")).toBeInTheDocument();
     expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
   });
 

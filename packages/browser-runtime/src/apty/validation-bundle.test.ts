@@ -280,6 +280,19 @@ describe("buildValidationBundle", () => {
     expect(bundle.routeProbe?.steps[0]?.clickLabelHash).toBe("c1");
   });
 
+  it('gives a frame with no http URL its scheme as the template, never the string "null"', () => {
+    const page = pageResult();
+    page.frames[0] = { ...page.frames[0]!, urlTemplate: "about:" };
+
+    const bundle = buildValidationBundle({
+      page,
+      thresholds: resolveThresholds({}),
+      versions: { extension: "1.2.3", chrome: null },
+    });
+
+    expect(bundle.page?.frames[0]?.urlTemplate).toBe("about:");
+  });
+
   it("lists every threshold, the active override and the rejected one", () => {
     const bundle = bundleFor();
     expect(
