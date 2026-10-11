@@ -67,15 +67,15 @@ on a real tenant).
 | `c52b011` | An element inside a hidden container is hidden, not zero-size (second LN run) |
 | branch head | This `REVIEW.md` and `docs/STATUS.md` |
 
-### Round 2 gates (build of the code head, `731e5bc`)
+### Round 2 gates (build of the code head, `c52b011`)
 
 ```
 $ tooling/scripts/verify-quiet.sh       (after rm -rf apps/browser-extension/dist)
 ✓ typecheck (17s)
 ✓ lint (1s)
-✓ test (74s)
+✓ test (77s)
 ✓ audit (1s)
-✓ build (25s)
+✓ build (28s)
 $ npm run test:e2e        (Chromium from /opt/pw-browsers)
 # tests 95
 # pass 95
@@ -105,7 +105,7 @@ less parallelism rather than loosen the tests.
 |---|---|---|---|---|---|
 | agent-core | 260 | 76.25 | 70.13 | 83.73 | 77.99 |
 | apty-debug-contract | 72 | 84.91 | 78.46 | 93.18 | 87.66 |
-| dom-snapshot | 367 | 90.99 | 82.58 | 97.75 | 92.76 |
+| dom-snapshot | 369 | 91.00 | 82.60 | 97.75 | 92.77 |
 | browser-runtime | 892 | 50.46 | 46.65 | 54.70 | 50.39 |
 | ui | 217 | 44.76 | 35.20 | 43.24 | 45.58 |
 | browser-extension | 298 | 44.60 | 45.82 | 42.03 | 44.50 |
