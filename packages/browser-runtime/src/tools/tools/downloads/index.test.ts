@@ -134,7 +134,7 @@ describe("downloadChatImagesTool", () => {
     ];
 
     await downloadChatImagesTool.invoke(
-      { context: { conversationId: "conv-batch-svg" } } as any,
+      { context: { conversationId: "conv-batch-svg" } } as never,
       JSON.stringify({ messages: svg }),
     );
 
