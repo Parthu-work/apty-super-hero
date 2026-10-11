@@ -61,6 +61,10 @@ export {
   type ThresholdOverrides,
   thresholdReport,
 } from "./dom-health-thresholds.js";
+export type {
+  DesEvidence,
+  ElementExplanation,
+} from "./element-explanation.js";
 export {
   type CorrelateOptions,
   type CorrelationCluster,

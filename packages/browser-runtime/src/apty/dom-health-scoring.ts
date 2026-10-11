@@ -37,6 +37,12 @@ import {
   NO_VIRTUALIZED_LISTS,
 } from "@apty/dom-snapshot";
 import { DOM_HEALTH_THRESHOLDS, threshold } from "./dom-health-thresholds.js";
+import {
+  type DesEvidence,
+  desEvidenceFor,
+  type ElementExplanation,
+  explainElement,
+} from "./element-explanation.js";
 import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
@@ -387,8 +393,12 @@ export interface DomHealthAuditResult {
   strengths: string[];
   risks: DomHealthRisk[];
   recommendations: DomHealthRecommendation[];
-  /** Bounded, most-interesting-first sample for the element-level drill-down table (spec section 42) — not every analyzed element. */
-  elementSamples: ElementSelectorReport[];
+  /** Bounded, most-interesting-first sample for the element-level drill-down table (spec section 42) — not every analyzed element. Each carries its evidence in DES terms. */
+  elementSamples: Array<
+    ElementSelectorReport & { explanation: ElementExplanation }
+  >;
+  /** Every analyzed element counted by DES step, dynamic value left out and hit-test failure reason. */
+  desEvidence: DesEvidence;
   methodology: string[];
   iframes: DomHealthIframeInfo;
   shadowDom: DomHealthShadowDomInfo;
@@ -1095,7 +1105,9 @@ export function buildDomHealthAuditResult(
   const direct = current.elementReports.filter(
     (r) => r.outcome === "DIRECT_SUCCESS",
   );
-  const elementSamples = [...nonDirect, ...direct].slice(0, 25);
+  const elementSamples = [...nonDirect, ...direct]
+    .slice(0, 25)
+    .map((report) => ({ ...report, explanation: explainElement(report) }));
 
   const risks = buildRisks(
     metrics,
@@ -1202,6 +1214,7 @@ export function buildDomHealthAuditResult(
     risks,
     recommendations: buildRecommendations(metrics, metricDetails),
     elementSamples,
+    desEvidence: desEvidenceFor(current),
     methodology: METHODOLOGY,
     iframes: current.iframes,
     shadowDom: current.shadowDom,

@@ -199,6 +199,20 @@ describe("DOM Health on six application shapes", () => {
     const depths = result.elementSamples.map((s) => s.shadowDepth);
     assert.deepEqual(depths, [3, 3], JSON.stringify(result.elementSamples));
     assert.equal(typeof result.score, "number");
+    for (const sample of result.elementSamples) {
+      assert.match(sample.explanation.howFound, /^check|^Partial Selector/);
+      assert.ok(
+        sample.explanation.notes.includes(
+          "Inside 3 shadow root(s): finding it needs shadow root support.",
+        ),
+        JSON.stringify(sample.explanation),
+      );
+    }
+    assert.equal(
+      result.desEvidence.steps.reduce((sum, s) => sum + s.elements, 0),
+      result.coverage.elementsAnalyzed,
+      JSON.stringify(result.desEvidence),
+    );
   });
 
   it("a 251-shadow-root page audits inside the budget, yielding to the page", async () => {

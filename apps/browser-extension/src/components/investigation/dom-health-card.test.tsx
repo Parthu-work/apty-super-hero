@@ -236,8 +236,27 @@ describe("DomHealthCard", () => {
           hasAccessibleName: false,
           hitTest: { pointsPassed: 9, classification: "fully-targetable" },
           stability: "WRONG_TARGET",
+          explanation: {
+            howFound: "checkSimplifyNth: Only its position tells it apart.",
+            notes: [
+              "Across states, the stored path landed on a different element.",
+            ],
+            fix: "Give each repeated control an attribute that tells it apart.",
+          },
         },
       ],
+      desEvidence: {
+        steps: [
+          {
+            outcome: "POSITIONAL_ONLY",
+            step: "checkSimplifyNth",
+            elements: 4,
+            meaning: "Only its position among siblings tells it apart.",
+          },
+        ],
+        dynamicValuesLeftOut: [{ attribute: "id", elements: 3 }],
+        hitTestReasons: [],
+      },
       methodology: ["Collect a DOM snapshot in-page."],
       iframes: {
         total: 0,
@@ -270,6 +289,28 @@ describe("DomHealthCard", () => {
       screen.getByText("body > button:nth-of-type(3)"),
     ).toBeInTheDocument();
     expect(screen.getByText("Manual likely (positional)")).toBeInTheDocument();
+    expect(
+      screen.getByText("checkSimplifyNth: Only its position tells it apart."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Across states, the stored path landed on a different element.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Give each repeated control an attribute that tells it apart.",
+      ),
+    ).toBeInTheDocument();
+    const steps = screen.getByRole("region", {
+      name: "How Apty's DES would find these elements",
+    });
+    expect(steps).toHaveTextContent(
+      "4 checkSimplifyNth — Only its position among siblings tells it apart.",
+    );
+    expect(steps).toHaveTextContent(
+      "Left out as dynamic (Ignore Selector): id on 3 element(s).",
+    );
   });
 
   it("passes the Settings ignore list to the audit and shows capped confidence, frames and excluded content", async () => {

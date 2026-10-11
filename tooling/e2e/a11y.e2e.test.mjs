@@ -40,6 +40,8 @@ before(async () => {
   model = await startMockModel();
   site = await startPageServer({
     "/app.html": "<title>App</title><main><h1>App</h1></main>",
+    "/form.html":
+      '<title>Form</title><main><h1>Orders</h1><form><input name="order" aria-label="Order"><button type="button">Find</button></form></main>',
   });
   browser = await launchBrowser({ extraExtensions: [clientDir] });
   const options = await extensionPage(browser);
@@ -193,7 +195,7 @@ for (const theme of ["light", "dark"]) {
 
     it("side panel, a DOM Health result and its export dialog at side-panel size", async () => {
       const app = await browser.context.newPage();
-      await app.goto(`${site.origin}/app.html`);
+      await app.goto(`${site.origin}/form.html`);
       const panel = await openSidePanel(browser, model, app, {
         developerTools: true,
       });
@@ -204,6 +206,12 @@ for (const theme of ["light", "dark"]) {
         .locator("text=/Last checked/")
         .first()
         .waitFor({ timeout: 150_000 });
+      await panel
+        .getByRole("region", {
+          name: "How Apty's DES would find these elements",
+        })
+        .getByText("checkInitialPath")
+        .waitFor();
       await assertNoSeriousViolations(panel, `${theme} DOM Health result`);
 
       await panel

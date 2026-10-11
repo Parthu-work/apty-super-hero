@@ -49,6 +49,7 @@ import {
   scoreSelectorStability,
   WEIGHTS,
 } from "./dom-health-scoring.js";
+import { type DesEvidence, mergeDesEvidence } from "./element-explanation.js";
 import {
   type FrameAccessibilitySummary,
   sampleFailureReasons,
@@ -244,6 +245,8 @@ export interface ApplicationAuditResult {
   risks: DomHealthRisk[];
   recommendations: DomHealthRecommendation[];
   pages: PageAuditRecord[];
+  /** Every audited page's DES evidence summed: steps, dynamic values left out, hit-test reasons. */
+  desEvidence: DesEvidence;
   methodology: string[];
   /** The real state-discovery tree this run built — never a flat page list — see `state-graph.ts`. Absent only if the caller didn't pass one (e.g. an older/degenerate call path). */
   /** Why `confidence` was capped below what coverage and volume alone would give; empty when it was not. */
@@ -797,6 +800,11 @@ export function buildApplicationAuditResult(
     risks,
     recommendations: buildRecommendations(metrics, metricDetails),
     pages,
+    desEvidence: mergeDesEvidence(
+      completed.flatMap((p) =>
+        p.result?.desEvidence ? [p.result.desEvidence] : [],
+      ),
+    ),
     methodology: [...APPLICATION_METHODOLOGY_PREFIX, ...METHODOLOGY],
     confidenceCaps: caps.map((c) => c.reason),
     stateGraph: options.stateGraph,

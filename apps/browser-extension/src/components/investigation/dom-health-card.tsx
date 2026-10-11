@@ -20,6 +20,7 @@ import {
   type ApplicationAuditOutcome,
   type ApplicationAuditProgress,
   type ApplicationDiscoveryMode,
+  type DesEvidence,
   type DomHealthAuditOutcome,
   type DomHealthAuditResult,
   type DomHealthConfidence,
@@ -222,6 +223,46 @@ interface SharedEvidence {
   risks: DomHealthRisk[];
   recommendations: DomHealthRecommendation[];
   methodology: string[];
+  desEvidence?: DesEvidence;
+}
+
+function DesStepsSection({ evidence }: { evidence: DesEvidence }) {
+  if (evidence.steps.length === 0) return null;
+  return (
+    <section
+      aria-label="How Apty's DES would find these elements"
+      className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]"
+    >
+      <div className="mb-1 font-medium uppercase tracking-wide text-muted-foreground">
+        How Apty's DES would find these elements
+      </div>
+      <ul className="space-y-1">
+        {evidence.steps.map((row) => (
+          <li key={row.outcome}>
+            <span className="font-mono font-semibold">{row.elements}</span>{" "}
+            <span
+              className={cn(
+                "font-medium",
+                toneTextClass(outcomeTone(row.outcome)),
+              )}
+            >
+              {row.step}
+            </span>
+            <span className="text-muted-foreground"> — {row.meaning}</span>
+          </li>
+        ))}
+      </ul>
+      {evidence.dynamicValuesLeftOut.length > 0 && (
+        <p className="mt-1.5 text-muted-foreground">
+          Left out as dynamic (Ignore Selector):{" "}
+          {evidence.dynamicValuesLeftOut
+            .map((row) => `${row.attribute} on ${row.elements} element(s)`)
+            .join(", ")}
+          .
+        </p>
+      )}
+    </section>
+  );
 }
 
 function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
@@ -315,6 +356,23 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
           </span>
         </div>
       )}
+      {hitTest &&
+        hitTest.tested > 0 &&
+        (result.desEvidence?.hitTestReasons.length ?? 0) > 0 && (
+          <ul
+            aria-label="Why hit tests failed"
+            className="-mt-1 space-y-0.5 px-2.5 text-[11px] text-muted-foreground"
+          >
+            {result.desEvidence?.hitTestReasons.map((row) => (
+              <li key={row.reason}>
+                <span className="font-mono font-semibold text-foreground">
+                  {row.elements}
+                </span>{" "}
+                {row.reason}: {row.meaning}
+              </li>
+            ))}
+          </ul>
+        )}
 
       {a11y && a11y.totalInteractive > 0 && (
         <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
@@ -359,6 +417,8 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
           </span>
         </div>
       </div>
+
+      {result.desEvidence && <DesStepsSection evidence={result.desEvidence} />}
 
       <p className="text-[11px] text-muted-foreground">
         Selector Configuration:{" "}
@@ -866,10 +926,10 @@ export function DomHealthCard({
                         </tr>
                       </thead>
                       <tbody>
-                        {outcome.elementSamples.map((el, i) => (
+                        {outcome.elementSamples.flatMap((el, i) => [
                           <tr
                             // biome-ignore lint/suspicious/noArrayIndexKey: reports have no stable id
-                            key={i}
+                            key={`${i}-row`}
                             className="border-t"
                           >
                             <td className="px-1.5 py-1 font-mono text-muted-foreground">
@@ -892,8 +952,34 @@ export function DomHealthCard({
                             <td className="px-1.5 py-1 text-muted-foreground">
                               {el.hitTest?.classification ?? "—"}
                             </td>
-                          </tr>
-                        ))}
+                          </tr>,
+                          el.explanation && (
+                            <tr
+                              // biome-ignore lint/suspicious/noArrayIndexKey: reports have no stable id
+                              key={`${i}-why`}
+                            >
+                              <td
+                                colSpan={5}
+                                className="px-1.5 pb-1.5 text-muted-foreground"
+                              >
+                                <p className="text-foreground">
+                                  {el.explanation.howFound}
+                                </p>
+                                {el.explanation.notes.map((note) => (
+                                  <p key={note}>{note}</p>
+                                ))}
+                                {el.explanation.fix && (
+                                  <p>
+                                    <span className="font-medium text-foreground">
+                                      Fix:{" "}
+                                    </span>
+                                    {el.explanation.fix}
+                                  </p>
+                                )}
+                              </td>
+                            </tr>
+                          ),
+                        ])}
                       </tbody>
                     </table>
                   </div>

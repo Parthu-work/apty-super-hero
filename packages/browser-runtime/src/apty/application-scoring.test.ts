@@ -355,6 +355,34 @@ describe("buildApplicationAuditResult — evidence state, never a fabricated app
     expect(risk?.evidence).toMatch(/click-based discovery is off by default/);
   });
 
+  it("sums every audited page's DES evidence, leaving out pages that were not audited", () => {
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/1", [makeReport(), makeReport()]),
+      completedPage("https://a.example/2", [
+        makeReport({
+          outcome: "POSITIONAL_ONLY",
+          dynamicAttributeNames: ["id"],
+        }),
+      ]),
+      {
+        url: "https://a.example/3",
+        title: null,
+        discoverySource: "same-origin-link",
+        status: "failed",
+      },
+    ];
+
+    const result = buildApplicationAuditResult(pages, "app-12");
+
+    expect(result.desEvidence.steps.map((s) => [s.step, s.elements])).toEqual([
+      ["checkInitialPath", 2],
+      ["checkSimplifyNth", 1],
+    ]);
+    expect(result.desEvidence.dynamicValuesLeftOut).toEqual([
+      { attribute: "id", elements: 1 },
+    ]);
+  });
+
   it("with Deep state discovery, says the controls were clicked and gives each reason, never that clicks are off", () => {
     const control = (reason: string): PageAuditRecord => ({
       url: "https://a.example/1#control:main>button",
