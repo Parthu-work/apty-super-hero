@@ -2,8 +2,9 @@
  * Accessibility (C3): axe-core on the real side panel and Options page, in
  * light and dark themes. Fails on any `serious` or `critical` violation.
  * Side panel states: empty, a chat with a tool result, an approval prompt,
- * and the evidence viewers (the investigation summary and the full
- * response viewer). Options: every tab. No axe rule is disabled.
+ * the evidence viewers (the investigation summary and the full response
+ * viewer), and a DOM Health result with its export dialog at side-panel
+ * size. Options: every tab. No axe rule is disabled.
  */
 import assert from "node:assert/strict";
 import { join } from "node:path";
@@ -75,6 +76,21 @@ async function assertThemeApplied(page, theme) {
   );
 }
 
+/** Chrome's side panel at its default width, on a short laptop screen. */
+const SIDE_PANEL = { width: 400, height: 600 };
+
+async function assertInViewport(locator) {
+  const box = await locator.boundingBox();
+  const { height, width } = SIDE_PANEL;
+  assert.ok(
+    box &&
+      box.y >= 0 &&
+      box.y + box.height <= height &&
+      box.x + box.width <= width,
+    `${await locator.innerText()} is outside the panel: ${JSON.stringify(box)}`,
+  );
+}
+
 async function assertNoSeriousViolations(page, where) {
   const violations = await runAxe(page);
   assert.deepEqual(
@@ -92,13 +108,9 @@ async function openPanel(theme) {
   return { app, panel };
 }
 
-// One resource per theme: inspecting the same request twice in one browser
-// session returns an evidence id the viewer cannot find (REVIEW.md,
-// "Observed, not changed").
-const VIEWED = {
-  light: { query: "segments.json", shown: "Array(206)" },
-  dark: { query: "themes.json", shown: "token expired" },
-};
+// The same resource in both themes: the second inspection returns the
+// evidence stored by the first, and the viewer must still open it.
+const VIEWED = { query: "segments.json", shown: "Array(206)" };
 
 for (const theme of ["light", "dark"]) {
   describe(`accessibility, ${theme} theme`, () => {
@@ -141,12 +153,12 @@ for (const theme of ["light", "dark"]) {
       const { app, panel } = await openPanel(theme);
       model.script(
         callToolThenReport("inspect_extension_network", {
-          resourceQuery: VIEWED[theme].query,
+          resourceQuery: VIEWED.query,
         }),
       );
       await chatAndWait(
         panel,
-        `get the data from ${VIEWED[theme].query} in the apty client`,
+        `get the data from ${VIEWED.query} in the apty client`,
       );
 
       await panel.getByText("Show thinking details").last().click();
@@ -170,11 +182,59 @@ for (const theme of ["light", "dark"]) {
         .getByRole("button", { name: "View full response" })
         .last()
         .click();
-      await panel.getByText(VIEWED[theme].shown).first().waitFor();
+      await panel.getByText(VIEWED.shown).first().waitFor();
       await assertNoSeriousViolations(
         panel,
         `${theme} side panel, full response viewer`,
       );
+      await panel.close();
+      await app.close();
+    });
+
+    it("side panel, a DOM Health result and its export dialog at side-panel size", async () => {
+      const app = await browser.context.newPage();
+      await app.goto(`${site.origin}/app.html`);
+      const panel = await openSidePanel(browser, model, app, {
+        developerTools: true,
+      });
+      await assertThemeApplied(panel, theme);
+      await panel.setViewportSize(SIDE_PANEL);
+      await panel.getByRole("button", { name: /check dom health/i }).click();
+      await panel
+        .locator("text=/Last checked/")
+        .first()
+        .waitFor({ timeout: 150_000 });
+      await assertNoSeriousViolations(panel, `${theme} DOM Health result`);
+
+      await panel
+        .getByRole("button", { name: "Export validation bundle" })
+        .click();
+      const dialog = panel.getByRole("dialog", {
+        name: "Review before sharing",
+      });
+      await dialog.waitFor();
+      await assertNoSeriousViolations(panel, `${theme} export dialog`);
+      const layout = await dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const pre = el.querySelector("pre");
+        return {
+          top: box.top,
+          bottom: box.bottom,
+          height: window.innerHeight,
+          scrollable: pre.scrollHeight > pre.clientHeight,
+          preStyle: getComputedStyle(pre).overflowY,
+        };
+      });
+      assert.ok(
+        layout.top >= 0 && layout.bottom <= layout.height,
+        JSON.stringify(layout),
+      );
+      assert.equal(layout.scrollable, true, JSON.stringify(layout));
+      assert.equal(layout.preStyle, "auto");
+      for (const name of ["Cancel", "Copy", "Download"]) {
+        await assertInViewport(dialog.getByRole("button", { name }));
+      }
+      await dialog.getByRole("button", { name: "Cancel" }).click();
       await panel.close();
       await app.close();
     });

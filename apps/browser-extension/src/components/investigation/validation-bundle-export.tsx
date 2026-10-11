@@ -94,7 +94,7 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
         open={json !== null}
         onOpenChange={(open) => !open && setJson(null)}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Review before sharing</DialogTitle>
             <DialogDescription>
@@ -103,12 +103,19 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
               record numbers or cookies. Check it before you send it.
             </DialogDescription>
           </DialogHeader>
-          <section aria-label="Validation bundle">
-            <pre className="max-h-80 overflow-auto rounded border bg-muted/40 p-2 text-[10px]">
+          <section
+            aria-label="Validation bundle"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <pre
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region must be reachable by keyboard (axe scrollable-region-focusable).
+              tabIndex={0}
+              className="min-h-24 flex-1 overflow-auto rounded border bg-muted/40 p-2 text-[10px]"
+            >
               {json}
             </pre>
           </section>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 flex-row flex-wrap justify-end">
             <Button
               type="button"
               variant="outline"
