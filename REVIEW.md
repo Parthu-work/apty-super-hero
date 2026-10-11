@@ -4,7 +4,7 @@
 |---|---|
 | Branch | `hardening/open-work` (local only, never pushed) |
 | Base | `origin/main` at `dc27e2f` |
-| Code head | `02c0af1` (round 2); the branch head is the next commit, which updates this file |
+| Code head | `731e5bc` (round 2); the branch head is the next commit, which updates this file |
 | Build zip | `apty-agent-review-final-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
 | Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D and round 2 |
 | Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
@@ -62,6 +62,8 @@ on a real tenant).
 | `445e481` | Workspace ID for Anthropic keys not scoped to a workspace (owner report after round 2) |
 | `02c0af1` | `anthropic-dangerous-direct-browser-access` on every Anthropic request (owner report) |
 | `9a77b6b` | This file, before the gate numbers |
+| `4e7e64a` | Gate numbers after the Anthropic fixes |
+| `731e5bc` | Acting on the Infor LN validation bundle (owner decisions) |
 | branch head | This `REVIEW.md` and `docs/STATUS.md` |
 
 ### Round 2 gates (build of the code head)
@@ -110,6 +112,41 @@ less parallelism rather than loosen the tests.
 
 Plus 17 script tests (`node:test`). New e2e tests this round: 7 (95,
 from 88).
+
+### Infor LN validation bundle (owner) and the decisions taken on it
+
+The owner ran Deep state discovery on LN and returned the bundle. What it
+showed, and what the owner chose (both "decisions needed" from round 2
+are now answered):
+
+| Finding in the bundle | Owner decision | Change |
+|---|---|---|
+| Both "LN Open tab menu" clicks: "did not produce a new application state", no history, frame or network change: a dropdown | Count such clicks as explored | New status `explored-no-new-state` ("Clicked, no new state"): not in `pagesDiscovered`, not unexplored, not gating the score. Failed, unrestorable and uncertain clicks still gate it. |
+| "2/4 frames reached": the two others are empty `about:blank` placeholders (`gwtui` and one more), skipped by design | Clearer frame count | `framesPlaceholder` counted; the card reads "2/2 frames with content reached, 2 empty placeholder(s) skipped". Display only. |
+| 88 id values shared within a root, on 209 elements; the page-level risk was missing from the Application view | Show it in the Application view | The duplicate-id risk is summed over the audited pages. It explains the 185 elements found only by position. |
+| 131 hit-test failures: 75 hidden, 48 outside the viewport, 4 + 2 covered, 2 zero-size | Discount hidden elements | Hit-test targetability is the share of VISIBLE tested elements a click reaches; hidden ones are shown ("N hidden when sampled, not counted") but not failures. LN: 103/159 (65), was 103/234 (44). |
+| DES steps, hit-test reasons and dynamic names were on the card only | All three summaries in the bundle | `desEvidence` (step and reason counts, attribute names left out as dynamic) in the page and application summaries; meanings are not exported. Also `framesPlaceholder` and `pagesExploredNoNewState`. |
+
+Expected effect on the same LN run: the evidence gate no longer fires (no
+unexplored controls), so the application view reports the seed page's
+score, about 59/100 (58 before, plus the hit-test metric's 6% weight
+moving from 44 to 65), scope "Current Page", LOW confidence, coverage
+1 of 2 (the infor.com link is skipped). Not re-run on LN by me; the
+stand-in e2e page checks each rule.
+
+Tests: unit (a no-change click neither discovered nor gating; an uncertain
+one still gating; the duplicate-id rollup and placeholders; hidden
+elements out of the metric with its evidence text; the bundle's DES
+summaries with an identifier masked inside an attribute name), the card
+(frame wording, hidden note, "Clicked, no new state", the summary count),
+and the e2e LN page, now with a dropdown tab, an `aria-hidden` menu item,
+an empty iframe and a shared id: the click is explored, the score is not
+gated, the placeholder, the hidden item and the duplicate-id risk are
+counted, and every exported bundle carries `desEvidence` without
+meanings. The existing test "reports not-discovered … when a click
+produces no real change" asserted the old rule; it now asserts the
+decided one (explored, never a fabricated state, not gating), with more
+assertions than before.
 
 ### Anthropic key "not scoped to a workspace", then the browser-access 401 (owner reports)
 
@@ -287,20 +324,16 @@ themes.
 - The downloads fix has unit tests only. The background download opens
   Chrome's Save As dialog (`saveAs: true`), which the e2e harness cannot
   answer; the changed code is the file name and index computation.
-- Infor LN: the evidence gate and thresholds are unchanged until the LN
-  bundle shows which reason the two clicks hit (decision 1).
-- `desEvidence` is not in the validation bundle (decision 2).
+- Infor LN: the changes above are tested on a stand-in page, not re-run
+  on the real tenant.
 - No real tenant was used by me; the LN fixes are tested on stand-in pages
   built from the URL shape in the card text.
 
 ### Round 2: decisions needed from the owner
 
-1. In Deep mode, should a control that was clicked and verifiably led to
-   no new state stop counting as "not explored"? Today it blocks the score
-   when only the seed state was audited (the LN result). Please send the LN
-   bundle first: it shows which reason the clicks hit.
-2. Add the `desEvidence` counts (steps, hit-test reasons, dynamic
-   attribute names) to the validation bundle's allow-list?
+None open. Both earlier questions were answered after the LN bundle:
+no-change clicks count as explored, and the bundle carries all three DES
+summaries (see "Infor LN validation bundle" above).
 
 ### Round 2: observed, not changed
 
@@ -344,6 +377,12 @@ themes.
    `wrkspc_…` ID from Claude Console → Settings → Workspaces, Test
    Connection succeeds (no CORS 401), Fetch models lists the models, and
    chat answers.
+8. Infor LN again (Application → Deep state discovery): the "Open tab
+   menu" rows read "Clicked, no new state" and a score is reported; the
+   frame line reads "2/2 frames with content reached, 2 empty
+   placeholder(s) skipped"; "Ids shared by more than one element" is under
+   Risks; Hit-Test Failures counts visible elements and notes the hidden
+   ones. Export the bundle: it has `desEvidence`.
 
 ---
 
