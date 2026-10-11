@@ -18,6 +18,12 @@ configure yourself.
 There is no analytics, telemetry, crash reporting or advertising. Apty does
 not receive your conversations, keys or page data.
 
+Files you export yourself (a conversation, a response body, a route probe
+report, a DOM Health validation bundle) are saved or copied only when you
+click; nothing is uploaded. The validation bundle holds hostnames, URL
+templates without queries, counts, hashes and settings, never page text,
+input values, titles or record numbers, and you review it before saving.
+
 ## What the AI provider never sees in the clear
 
 Before any diagnostic data reaches the model, the agent redacts what looks
@@ -27,9 +33,29 @@ JSON bodies. Redaction is pattern-based, so it can miss secrets in an
 unusual shape; avoid investigating pages that hold data you must not share
 with your AI provider.
 
+**Settings → General → Data handling → Redaction** chooses how much is
+masked; every tool result, log line and body goes through the same setting:
+
+| Mode | Masks |
+|---|---|
+| Strict (default) | Secrets, personal data (names, usernames, emails, patient fields) and page context (titles, paths) |
+| Standard | Secrets and personal data; keeps page titles and paths |
+| Off (development only) | Only secrets recognised by their shape: tokens, API keys, JWTs, bearer credentials, emails |
+
+Off asks for confirmation and shows "Redaction is OFF" in the side panel for
+as long as it is on. Preview shows a built-in sample with fake data before
+and after each mode. Copied and downloaded messages start with a line naming
+the mode; a downloaded JSON body carries it in its file name.
+
 Response bodies of page network requests are **not** captured unless you
 turn on **Settings → General → Data handling → Capture response bodies**.
-Hosts or URL fragments you add to the deny-list there are never captured.
+Hosts or URL fragments you add to the deny-list there are never read, both
+in page capture and when you ask for a resource the Apty Client loaded
+("get segments.json"): for a listed URL the agent reports the request's
+metadata and that the body was withheld, and never asks the Client for the
+body. The list is empty by default; add user-preference and identity
+endpoints (for example `/users/`, `/api/me`, `/userinfo`) if those bodies
+must not reach your AI provider.
 
 ## What is stored on your device
 

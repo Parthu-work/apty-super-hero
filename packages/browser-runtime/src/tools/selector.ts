@@ -23,7 +23,6 @@
  * stubs" precedent.
  */
 import { tool } from "@apty/agent-core";
-import { redactSensitiveText } from "@apty/debug-contract";
 import { z } from "zod";
 import { recordToolCall } from "../apty/index.js";
 import { CdpCommander } from "../automation/cdp-commander.js";
@@ -36,6 +35,7 @@ import {
   rankSelectorCandidates,
 } from "../automation/selector-analysis.js";
 import * as snapshotProvider from "../automation/snapshot-provider.js";
+import { redactText } from "../runtime/redaction-mode.js";
 import type { ToolRunContext } from "./tab-utils";
 
 interface RawElementDescription {
@@ -125,7 +125,7 @@ function toElementDescriptor(raw: RawElementDescription): ElementDescriptor {
     id: raw.attributes?.id,
     classes: raw.classes ?? [],
     attributes: redactAttributeValues(raw.attributes ?? {}),
-    textContent: redactSensitiveText(raw.textContent ?? ""),
+    textContent: redactText(raw.textContent ?? ""),
     ancestors: (raw.ancestors ?? []).map((a) => ({
       tagName: a.tagName,
       id: a.attributes?.id,
@@ -142,7 +142,7 @@ function redactAttributeValues(
 ): Record<string, string> {
   const redacted: Record<string, string> = {};
   for (const [key, value] of Object.entries(attributes)) {
-    redacted[key] = redactSensitiveText(value);
+    redacted[key] = redactText(value);
   }
   return redacted;
 }

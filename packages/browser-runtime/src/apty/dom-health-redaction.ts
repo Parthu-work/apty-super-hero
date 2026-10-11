@@ -24,8 +24,9 @@
  * with no identifying shape is not detected. Page titles are dropped for
  * that reason rather than scrubbed (see `REDACTED_TITLE`).
  */
-import { redactSensitiveText, redactUrl } from "@apty/debug-contract";
+import { redactUrl } from "@apty/debug-contract";
 import { isIdReferenceAttribute, maskIdReference } from "@apty/dom-snapshot";
+import { redactText } from "../runtime/redaction-mode.js";
 
 /**
  * What a captured `document.title` becomes. Titles are page context the
@@ -49,6 +50,28 @@ const ID_LIKE_PATTERN =
   /(?<![0-9a-z])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{5,})(?![0-9a-z])/gi;
 
 const ID_PLACEHOLDER = ":id";
+
+/**
+ * An Infor CloudSuite tenant id: upper-case letters and digits, then the
+ * environment suffix. Measured as `<16 characters>_TRN` in both the LN
+ * frame's `inforTenantId` and, in a later LN run, the first segment of the
+ * portal's own path (`/<tenant>_TRN/…`), where no parameter name flags it.
+ * The other suffixes follow Infor's tenant naming; they are not in the
+ * exports. Case-sensitive, so ordinary snake_case words never match.
+ */
+const TENANT_ID_PATTERN =
+  /(?<![A-Za-z0-9])[A-Z0-9]{6,}_(?:PRD|TST|TRN|DEV|DEM|AX\d)(?![A-Za-z0-9])/g;
+
+const TENANT_PLACEHOLDER = ":tenant";
+
+/**
+ * A query value that is an opaque token or an encoded payload: 24+
+ * base64/base64url characters. LN's portal carries the open screen as
+ * base64 JSON in `favoriteContext` (its description, the session type and
+ * the program it launches), which no parameter name or identifier shape
+ * gives away.
+ */
+const OPAQUE_VALUE_PATTERN = /^[A-Za-z0-9+/_-]{24,}={0,2}$/;
 
 /**
  * Query parameters naming a tenant: `tenant=` (the brief's Factory Track
@@ -80,14 +103,17 @@ const URL_KEY_PATTERN = /^(?:url|href|src|\w+Url|\w+URL)$/;
 const URL_LIST_KEY_PATTERN = /^(?:urls|\w+Urls)$/;
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 
-/** `value` with every identifier-shaped run (see `ID_LIKE_PATTERN`) replaced by `:id`. */
+/** `value` with every tenant id replaced by `:tenant` and every identifier-shaped run (see `ID_LIKE_PATTERN`) by `:id`. */
 export function maskIdLike(value: string): string {
-  return value.replace(ID_LIKE_PATTERN, ID_PLACEHOLDER);
+  return value
+    .replace(TENANT_ID_PATTERN, TENANT_PLACEHOLDER)
+    .replace(ID_LIKE_PATTERN, ID_PLACEHOLDER);
 }
 
 /**
  * A URL safe to report: credentials and secret-named parameters removed by
- * `redactUrl`, tenant parameters removed, identifier-shaped path and
+ * `redactUrl`, tenant parameters and opaque values removed, tenant ids and
+ * identifier-shaped path and
  * fragment segments replaced with `:id`. Not a URL template (that is the
  * job of `urlTemplate`); this only decides what may leave the device.
  */
@@ -96,10 +122,12 @@ export function redactAuditUrl(url: string): string {
   try {
     parsed = new URL(redactUrl(url));
   } catch {
-    return maskIdLike(redactSensitiveText(url));
+    return maskIdLike(redactText(url));
   }
-  for (const key of [...parsed.searchParams.keys()]) {
-    if (TENANT_PARAM_PATTERN.test(key)) parsed.searchParams.set(key, REDACTED);
+  for (const [key, value] of [...parsed.searchParams.entries()]) {
+    if (TENANT_PARAM_PATTERN.test(key) || OPAQUE_VALUE_PATTERN.test(value)) {
+      parsed.searchParams.set(key, REDACTED);
+    }
   }
   for (const [key, value] of [...parsed.searchParams.entries()]) {
     if (value !== REDACTED) parsed.searchParams.set(key, maskIdLike(value));
@@ -109,14 +137,14 @@ export function redactAuditUrl(url: string): string {
     .map((segment) => maskIdLike(segment))
     .join("/");
   if (parsed.hash) {
-    parsed.hash = maskIdLike(redactSensitiveText(parsed.hash.slice(1)));
+    parsed.hash = maskIdLike(redactText(parsed.hash.slice(1)));
   }
   return parsed.toString();
 }
 
 /** Free text read from the DOM (a title, heading or label), with secrets and identifier-shaped runs removed. Names without an identifying shape survive. */
 export function redactDomText(value: string): string {
-  return maskIdLike(redactSensitiveText(value));
+  return maskIdLike(redactText(value));
 }
 
 function redactString(key: string | null, value: string): string {

@@ -105,6 +105,29 @@ describe("DefaultMessageItem — copy/download actions", () => {
   });
 });
 
+describe("DefaultMessageItem — export header", () => {
+  it("downloads the text through formatExport", () => {
+    const downloadSpy = vi
+      .spyOn(downloadLib, "downloadText")
+      .mockReturnValue(true);
+
+    render(
+      <DefaultMessageItem
+        message={assistantMessage("some content")}
+        isLast
+        formatExport={(text) => `HEADER\n\n${text}`}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /download/i }));
+
+    expect(downloadSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/^message-.*\.md$/),
+      "HEADER\n\nsome content",
+      "text/markdown",
+    );
+  });
+});
+
 describe("toolFooter slot", () => {
   const toolMessage: UIMessage = {
     id: "msg-tool",

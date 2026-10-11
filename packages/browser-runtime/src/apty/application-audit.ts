@@ -74,8 +74,13 @@ import {
   type RestorationEvidence,
   type StateGraphSummary,
 } from "./application-scoring.js";
-import { collectDomHealthAudit, isUnsupportedPage } from "./dom-health.js";
+import {
+  collectDomHealthAudit,
+  isUnsupportedPage,
+  withThresholdOverrides,
+} from "./dom-health.js";
 import { redactDomHealthOutput } from "./dom-health-redaction.js";
+import { useThresholdOverrides } from "./dom-health-thresholds.js";
 import {
   captureApplicationState,
   toFrameSignatureEntries,
@@ -178,6 +183,8 @@ export interface RunApplicationAuditOptions extends ApplicationAuditLimits {
   discoveryMode?: ApplicationDiscoveryMode;
   /** Settings entries excluded on top of the default ignored roots. */
   ignoredRoots?: readonly string[];
+  /** Developer tools' `domHealthThresholdOverrides`; validated by `resolveThresholds`. */
+  thresholdOverrides?: unknown;
 }
 
 export type ApplicationAuditOutcome =
@@ -469,6 +476,7 @@ export async function runApplicationDomHealthAudit(
     options.discoveryMode ?? "application-safe";
   const allowClickDiscovery = discoveryMode === "application-deep";
   const startedAt = Date.now();
+  const thresholds = useThresholdOverrides(options.thresholdOverrides);
 
   let tab: chrome.tabs.Tab;
   try {
@@ -671,7 +679,9 @@ export async function runApplicationDomHealthAudit(
           pages.push({
             url: link.absoluteUrl,
             title: null,
-            discoverySource: "same-origin-link",
+            discoverySource: link.sameOrigin
+              ? "same-origin-link"
+              : "cross-origin-link",
             status: link.sameOrigin ? "skipped-unsafe" : "skipped-cross-origin",
           });
         }
@@ -995,7 +1005,11 @@ export async function runApplicationDomHealthAudit(
         url: `${next.fromUrl}#control:${next.domPath}`,
         title: next.candidateText,
         discoverySource: "safe-navigation-control",
-        status: "not-discovered",
+        // A screen verifiably unchanged was explored; an uncertain one was not.
+        status:
+          comparison.result === "same"
+            ? "explored-no-new-state"
+            : "not-discovered",
         failureReason:
           comparison.result === "uncertain"
             ? "State identity could not be confidently determined after clicking this control, and nothing else (history, frame URLs, network) corroborated a navigation."
@@ -1097,5 +1111,7 @@ export async function runApplicationDomHealthAudit(
       history: traversalHistory,
     },
   });
-  return redactDomHealthOutput({ available: true, ...result });
+  return redactDomHealthOutput(
+    withThresholdOverrides({ available: true as const, ...result }, thresholds),
+  );
 }

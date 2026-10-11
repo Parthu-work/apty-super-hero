@@ -6,6 +6,8 @@ import {
   detectProviderFromHost,
   type ProviderType,
   STORAGE_KEYS,
+  SUPERSEDED_PRESET_HOSTS,
+  type ToolCallingSupport,
 } from "@apty/agent-core";
 import {
   Bot,
@@ -91,7 +93,18 @@ const mergeWithDefaultProviders = (
   models: CustomModelConfig[],
 ): CustomModelConfig[] => {
   const existingIds = new Set(models.map((model) => model.id));
-  const merged = [...models];
+  const merged = models.map((model) => {
+    const key = model.id.startsWith("builtin-")
+      ? (model.id.slice("builtin-".length) as AIProviderKey)
+      : null;
+    const preset = key ? AI_PROVIDERS[key] : undefined;
+    return key &&
+      preset &&
+      "host" in preset &&
+      model.aiHost === SUPERSEDED_PRESET_HOSTS[key]
+      ? { ...model, aiHost: preset.host }
+      : model;
+  });
   for (const model of buildDefaultProviderModels()) {
     if (!existingIds.has(model.id)) {
       merged.push(model);
@@ -224,6 +237,9 @@ export function parseImportedModels(jsonText: string): CustomModelConfig[] {
       aiHost: typeof raw.aiHost === "string" ? raw.aiHost : "",
       aiToken: typeof raw.aiToken === "string" ? raw.aiToken : "",
       aiModel: typeof raw.aiModel === "string" ? raw.aiModel : "",
+      ...(typeof raw.aiWorkspaceId === "string"
+        ? { aiWorkspaceId: raw.aiWorkspaceId }
+        : {}),
       enabled: false,
     };
   });
@@ -234,9 +250,51 @@ interface ResolvedModelConfig {
   aiHost: string;
   aiToken: string;
   aiModel: string;
+  aiWorkspaceId: string | undefined;
   providerType: ProviderType;
   providerKey: AIProviderKey;
 }
+
+/** The settings a request for this model config is made with. */
+const settingsForModel = (
+  settings: AppSettings,
+  model: CustomModelConfig,
+): AppSettings => ({
+  ...settings,
+  aiHost: model.aiHost,
+  aiToken: model.aiToken,
+  aiModel: model.aiModel,
+  aiWorkspaceId: model.aiWorkspaceId,
+  aiProvider: resolveProviderKey(model),
+  providerType: model.providerType,
+});
+
+/** The last probe, for the model id currently set, found no tool calling. */
+const failedToolProbe = (model: CustomModelConfig): boolean =>
+  model.toolCalling?.support === "no" &&
+  model.toolCalling.model === model.aiModel;
+
+const toolProbeWarning = (modelId: string, language: string): string =>
+  language === "zh"
+    ? `模型 ${modelId} 在上次连接测试中没有调用工具。代理需要函数调用才能工作。仍然使用？`
+    : `${modelId} did not call a tool in the last connection test. The agent needs function calling to work. Use it anyway?`;
+
+const toolProbeLabel = (
+  support: ToolCallingSupport,
+  language: string,
+): string => {
+  const zh = {
+    yes: "支持工具调用",
+    no: "不支持工具调用",
+    unknown: "工具调用：未知",
+  };
+  const en = {
+    yes: "Tool calling: yes",
+    no: "Tool calling: no — the agent needs it",
+    unknown: "Tool calling: unknown",
+  };
+  return (language === "zh" ? zh : en)[support];
+};
 
 const resolveActiveModel = (
   settings: AppSettings,
@@ -254,6 +312,7 @@ const resolveActiveModel = (
   const providerKey: AIProviderKey =
     activeModel !== undefined
       ? resolveProviderKey({
+          id: activeModel.id,
           aiHost: activeModel.aiHost ?? "",
           providerType: providerType as ProviderType,
         })
@@ -267,12 +326,16 @@ const resolveActiveModel = (
     "";
   const aiToken = activeModel?.aiToken ?? settings.aiToken ?? "";
   const aiModel = activeModel?.aiModel ?? settings.aiModel ?? "";
+  const aiWorkspaceId = activeModel
+    ? activeModel.aiWorkspaceId
+    : settings.aiWorkspaceId;
 
   return {
     activeModel,
     aiHost,
     aiToken,
     aiModel,
+    aiWorkspaceId,
     providerType: providerType as ProviderType,
     providerKey,
   };
@@ -302,6 +365,7 @@ export function SettingsPage({
   className,
   onSave,
   onTestConnection,
+  onFetchModels,
   skillsContent,
   connectionContent,
   permissionsContent,
@@ -310,6 +374,7 @@ export function SettingsPage({
   activeTab: controlledTab,
   onTabChange,
   initialSkill: _initialSkill,
+  redactionPreview,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
   void _initialSkill;
@@ -333,6 +398,14 @@ export function SettingsPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  // "Fetch models": the live list per model config, and the last fetch's status.
+  const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>(
+    {},
+  );
+  const [modelFetch, setModelFetch] = useState<{
+    state: "idle" | "loading" | "done" | "error";
+    message: string;
+  }>({ state: "idle", message: "" });
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({
     type: "",
     message: "",
@@ -380,6 +453,7 @@ export function SettingsPage({
               aiHost: loadedSettings.aiHost ?? "",
               aiToken: loadedSettings.aiToken ?? "",
               aiModel: loadedSettings.aiModel ?? "",
+              aiWorkspaceId: loadedSettings.aiWorkspaceId,
               enabled: true,
             },
           ];
@@ -427,6 +501,7 @@ export function SettingsPage({
       aiHost: model.aiHost,
       aiToken: model.aiToken,
       aiModel: model.aiModel,
+      aiWorkspaceId: model.aiWorkspaceId,
       aiProvider: providerKey,
       providerType: model.providerType,
       providerEnabled: model.enabled,
@@ -454,14 +529,49 @@ export function SettingsPage({
 
   const handleSelectModel = useCallback(
     (id: string) => {
-      setSelectedModelId(id);
       const target = customModels.find((model) => model.id === id);
+      if (
+        target &&
+        id !== selectedModelId &&
+        failedToolProbe(target) &&
+        !window.confirm(toolProbeWarning(target.aiModel, language))
+      ) {
+        return;
+      }
+      setSelectedModelId(id);
+      setModelFetch({ state: "idle", message: "" });
       if (target) {
         updateSettingsFromModel(target);
       }
     },
-    [customModels, updateSettingsFromModel],
+    [customModels, selectedModelId, updateSettingsFromModel, language],
   );
+
+  const handleFetchModels = useCallback(async () => {
+    const model = customModels.find((m) => m.id === selectedModelId);
+    if (!model || !onFetchModels) return;
+    setModelFetch({ state: "loading", message: "" });
+    try {
+      const outcome = await onFetchModels(settingsForModel(settings, model));
+      if (outcome.ok) {
+        setFetchedModels((prev) => ({ ...prev, [model.id]: outcome.models }));
+        setModelFetch({
+          state: "done",
+          message:
+            language === "zh"
+              ? `已获取 ${outcome.models.length} 个模型`
+              : `${outcome.models.length} models from the provider`,
+        });
+      } else {
+        setModelFetch({ state: "error", message: outcome.error });
+      }
+    } catch (error) {
+      setModelFetch({
+        state: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [customModels, selectedModelId, onFetchModels, settings, language]);
 
   const handleModelFieldChange = useCallback(
     <K extends keyof CustomModelConfig>(
@@ -667,6 +777,7 @@ export function SettingsPage({
         aiHost,
         aiToken,
         aiModel,
+        aiWorkspaceId,
         providerType,
         providerKey,
       } = resolveActiveModel(settings, customModels, selectedModelId);
@@ -676,6 +787,7 @@ export function SettingsPage({
         aiHost,
         aiToken,
         aiModel,
+        aiWorkspaceId,
         aiProvider: providerKey,
         providerType,
         providerEnabled:
@@ -715,8 +827,15 @@ export function SettingsPage({
     setIsTesting(true);
     setSaveStatus({ type: "", message: "" });
 
-    const { activeModel, aiHost, aiToken, aiModel, providerType, providerKey } =
-      resolveActiveModel(settings, customModels, selectedModelId);
+    const {
+      activeModel,
+      aiHost,
+      aiToken,
+      aiModel,
+      aiWorkspaceId,
+      providerType,
+      providerKey,
+    } = resolveActiveModel(settings, customModels, selectedModelId);
 
     if (!activeModel) {
       setSaveStatus({
@@ -746,20 +865,37 @@ export function SettingsPage({
         return;
       }
 
-      const success = await onTestConnection({
+      const outcome = await onTestConnection({
         ...settings,
         aiHost,
         aiToken,
         aiModel,
+        aiWorkspaceId,
         aiProvider: providerKey,
         providerType,
         customModels,
       });
 
-      if (success) {
+      const { ok, toolCalling } =
+        typeof outcome === "boolean" ? { ok: outcome } : outcome;
+      if (ok && toolCalling && activeModel) {
+        setCustomModels((prev) =>
+          prev.map((model) =>
+            model.id === activeModel.id
+              ? {
+                  ...model,
+                  toolCalling: { model: aiModel, support: toolCalling },
+                }
+              : model,
+          ),
+        );
+      }
+      if (ok) {
         setSaveStatus({
-          type: "success",
-          message: t("settings.testSuccess"),
+          type: toolCalling === "no" ? "error" : "success",
+          message: toolCalling
+            ? `${t("settings.testSuccess")} · ${toolProbeLabel(toolCalling, language)}`
+            : t("settings.testSuccess"),
         });
       } else {
         setSaveStatus({
@@ -1060,6 +1196,7 @@ export function SettingsPage({
               settings={settings}
               language={language}
               onChange={saveGeneralSetting}
+              redactionPreview={redactionPreview}
             />
 
             <TroubleshootingCard
@@ -1153,6 +1290,10 @@ export function SettingsPage({
                         variant="ghost"
                         size="icon"
                         onClick={() => setShowSttKey(!showSttKey)}
+                        aria-label={
+                          showSttKey ? "Hide API key" : "Show API key"
+                        }
+                        aria-pressed={showSttKey}
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                       >
                         {showSttKey ? (
@@ -1278,7 +1419,12 @@ export function SettingsPage({
                     value={settings.defaultModel || DEFAULT_MODEL_AUTO_VALUE}
                     onValueChange={handleDefaultModelChange}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label={
+                        language === "zh" ? "默认模型" : "Default model"
+                      }
+                    >
                       <SelectValue
                         placeholder={
                           language === "zh"
@@ -1442,6 +1588,13 @@ export function SettingsPage({
                                     {provider.name}
                                   </div>
                                 </div>
+                                {failedToolProbe(model) && (
+                                  <Badge variant="destructive">
+                                    {language === "zh"
+                                      ? "无工具调用"
+                                      : "No tools"}
+                                  </Badge>
+                                )}
                                 {model.enabled && (
                                   <Badge variant="default">
                                     {t("settings.current")}
@@ -1452,7 +1605,8 @@ export function SettingsPage({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                              aria-label={`${language === "zh" ? "删除" : "Delete"} ${model.name || model.aiModel || ""}`.trim()}
                               onClick={() => handleDeleteModel(model.id)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -1484,6 +1638,18 @@ export function SettingsPage({
                               <p className="text-sm text-muted-foreground">
                                 {selectedProviderMeta.name}
                               </p>
+                              {"experimental" in selectedProviderMeta &&
+                                selectedProviderMeta.experimental && (
+                                  <p
+                                    role="note"
+                                    className="text-xs text-destructive dark:text-red-400"
+                                  >
+                                    {language === "zh"
+                                      ? "实验性："
+                                      : "Experimental: "}
+                                    {selectedProviderMeta.experimental}
+                                  </p>
+                                )}
                               {selectedProviderMeta.docs && (
                                 <Button
                                   variant="link"
@@ -1552,7 +1718,7 @@ export function SettingsPage({
 
                         {/* Provider Type */}
                         <div className="space-y-2">
-                          <Label>
+                          <Label htmlFor="providerType">
                             {language === "zh"
                               ? "Provider 类型"
                               : "Provider Type"}
@@ -1564,7 +1730,7 @@ export function SettingsPage({
                               handleModelFieldChange("providerType", value)
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id="providerType">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1629,6 +1795,10 @@ export function SettingsPage({
                               variant="ghost"
                               size="icon"
                               onClick={() => setShowToken(!showToken)}
+                              aria-label={
+                                showToken ? "Hide API key" : "Show API key"
+                              }
+                              aria-pressed={showToken}
                               className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             >
                               {showToken ? (
@@ -1640,6 +1810,34 @@ export function SettingsPage({
                           </div>
                         </div>
 
+                        {selectedProviderKey === "anthropic" && (
+                          <div className="space-y-2">
+                            <Label htmlFor="aiWorkspaceId">
+                              {t("settings.aiWorkspaceId")}
+                            </Label>
+                            <Input
+                              id="aiWorkspaceId"
+                              value={selectedModel.aiWorkspaceId || ""}
+                              onChange={(e) =>
+                                handleModelFieldChange(
+                                  "aiWorkspaceId",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="wrkspc_…"
+                              aria-describedby="aiWorkspaceIdHint"
+                              autoComplete="off"
+                              spellCheck={false}
+                            />
+                            <p
+                              id="aiWorkspaceIdHint"
+                              className="text-xs text-muted-foreground"
+                            >
+                              {t("settings.aiWorkspaceIdHint")}
+                            </p>
+                          </div>
+                        )}
+
                         {/* Model Selection — a free-text combobox: presets
                             (when the provider has any) show as native
                             suggestions, but typing an arbitrary model id
@@ -1650,27 +1848,96 @@ export function SettingsPage({
                             {t("settings.aiModel")}
                             <span className="text-destructive ml-1">*</span>
                           </Label>
-                          <Input
-                            id="aiModel"
-                            type="text"
-                            list={`aiModel-suggestions-${selectedModel.id}`}
-                            value={selectedModel.aiModel || ""}
-                            onChange={(e) =>
-                              handleModelFieldChange("aiModel", e.target.value)
-                            }
-                            placeholder={t("settings.modelPlaceholder")}
-                          />
-                          {selectedProviderMeta.models.length > 0 && (
+                          <div className="flex gap-2">
+                            <Input
+                              id="aiModel"
+                              type="text"
+                              list={`aiModel-suggestions-${selectedModel.id}`}
+                              value={selectedModel.aiModel || ""}
+                              onChange={(e) =>
+                                handleModelFieldChange(
+                                  "aiModel",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder={t("settings.modelPlaceholder")}
+                            />
+                            {onFetchModels && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleFetchModels}
+                                disabled={
+                                  !selectedModel.aiToken?.trim() ||
+                                  modelFetch.state === "loading"
+                                }
+                              >
+                                {modelFetch.state === "loading"
+                                  ? language === "zh"
+                                    ? "获取中…"
+                                    : "Fetching…"
+                                  : language === "zh"
+                                    ? "获取模型"
+                                    : "Fetch models"}
+                              </Button>
+                            )}
+                          </div>
+                          {modelFetch.message && (
+                            <p
+                              role={
+                                modelFetch.state === "error"
+                                  ? "alert"
+                                  : "status"
+                              }
+                              className={cn(
+                                "text-xs",
+                                modelFetch.state === "error"
+                                  ? "text-destructive"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {modelFetch.message}
+                              {modelFetch.state === "error" &&
+                                (language === "zh"
+                                  ? " 仍可从建议中选择或手动输入。"
+                                  : " Pick a suggestion or type the model id.")}
+                            </p>
+                          )}
+                          {(fetchedModels[selectedModel.id]?.length ?? 0) +
+                            selectedProviderMeta.models.length >
+                            0 && (
                             <datalist
                               id={`aiModel-suggestions-${selectedModel.id}`}
                             >
-                              {selectedProviderMeta.models.map(
-                                (model: string) => (
-                                  <option key={model} value={model} />
-                                ),
-                              )}
+                              {[
+                                ...new Set([
+                                  ...(fetchedModels[selectedModel.id] ?? []),
+                                  ...selectedProviderMeta.models,
+                                ]),
+                              ].map((model: string) => (
+                                <option key={model} value={model} />
+                              ))}
                             </datalist>
                           )}
+                          {selectedModel.toolCalling?.model ===
+                            selectedModel.aiModel &&
+                            selectedModel.toolCalling && (
+                              <Badge
+                                variant={
+                                  selectedModel.toolCalling.support === "no"
+                                    ? "destructive"
+                                    : selectedModel.toolCalling.support ===
+                                        "yes"
+                                      ? "default"
+                                      : "secondary"
+                                }
+                              >
+                                {toolProbeLabel(
+                                  selectedModel.toolCalling.support,
+                                  language,
+                                )}
+                              </Badge>
+                            )}
                           <p className="text-xs text-muted-foreground">
                             {language === "zh"
                               ? "提示: 从建议列表中选择，或输入任意模型 ID。"

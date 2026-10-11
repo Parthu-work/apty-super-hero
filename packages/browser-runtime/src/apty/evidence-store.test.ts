@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clearEvidence, getEvidence, recordEvidence } from "./evidence-store";
+import {
+  clearEvidence,
+  getEvidence,
+  getEvidenceById,
+  recordEvidence,
+} from "./evidence-store";
 
 describe("evidence-store — per-conversation isolation", () => {
   // Each test uses unique conversation ids: the store is module-level state
@@ -141,6 +146,45 @@ describe("evidence-store — per-conversation isolation", () => {
     recordEvidence({ ...record, timestamp: 2 });
 
     expect(getEvidence(conversationId)).toHaveLength(1);
+  });
+
+  it("returns the stored record's id for a de-duplicated record, so the id resolves", () => {
+    const conversationId = "conv-dedupe-id";
+    const record = {
+      conversationId,
+      source: "console" as const,
+      type: "console-error",
+      timestamp: 1,
+      tabId: 1,
+      data: { message: "boom" },
+    };
+
+    const first = recordEvidence(record);
+    const second = recordEvidence({ ...record, timestamp: 2 });
+
+    expect(second.evidenceId).toBe(first.evidenceId);
+    expect(getEvidenceById(conversationId, second.evidenceId)).toEqual(first);
+  });
+
+  it("stores a record again once its earlier copy was evicted", () => {
+    const conversationId = "conv-dedupe-evicted";
+    const record = (n: number) => ({
+      conversationId,
+      source: "console" as const,
+      type: "console-error",
+      timestamp: n,
+      tabId: 1,
+      data: { message: `error ${n}` },
+    });
+    const first = recordEvidence(record(0));
+    // 150 newer console records push the first out of its per-source quota.
+    for (let n = 1; n <= 150; n++) recordEvidence(record(n));
+    expect(getEvidenceById(conversationId, first.evidenceId)).toBeUndefined();
+
+    const again = recordEvidence(record(0));
+
+    expect(again.evidenceId).not.toBe(first.evidenceId);
+    expect(getEvidenceById(conversationId, again.evidenceId)).toEqual(again);
   });
 
   it("does not de-duplicate genuinely different evidence that only shares a timestamp", () => {

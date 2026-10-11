@@ -1,6 +1,4 @@
 import { DEFAULT_RETENTION_MS } from "@apty/agent-core";
-import { conversationStorage } from "@apty/browser-runtime/conversation/conversation-storage";
-import { RuntimeScreenshotStorage } from "@apty/browser-runtime/storage/screenshot-storage";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   Card,
@@ -11,6 +9,7 @@ import {
 } from "@apty/ui/components/ui/card";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
+import { purgeStoredData } from "../../services/stored-data";
 
 const RETENTION_DAYS = Math.round(DEFAULT_RETENTION_MS / (24 * 60 * 60 * 1000));
 
@@ -23,10 +22,7 @@ export function StoredDataPanel() {
   const purge = async () => {
     setState("deleting");
     try {
-      await Promise.all([
-        conversationStorage.clearAllConversations(),
-        RuntimeScreenshotStorage.clearAll(),
-      ]);
+      await purgeStoredData();
       setState("done");
     } catch {
       setState("failed");

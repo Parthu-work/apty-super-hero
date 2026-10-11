@@ -108,6 +108,8 @@ export function installPageHooks(win: Window = window): boolean {
     win.addEventListener(HISTORY_SYNC_REQUEST_EVENT, () =>
       announce(win, totals),
     );
+    // Say the hooks are here even if the responder asked before they were.
+    announce(win, totals);
     return true;
   } catch {
     return false;

@@ -1,4 +1,4 @@
-import type { CustomModelConfig } from "@apty/agent-core";
+import type { AppSettings, CustomModelConfig } from "@apty/agent-core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n/context";
@@ -9,6 +9,7 @@ import {
   SettingsPage,
   serializeModelsForExport,
 } from "./index";
+import type { SettingsPageProps } from "./types";
 
 // jsdom does not implement matchMedia; the theme provider's "system" theme
 // resolution needs it.
@@ -168,6 +169,278 @@ describe("SettingsPage", () => {
         .getByRole("switch", { name: "Enable" })
         .getAttribute("aria-checked"),
     ).toBe("true");
+  });
+
+  describe("Save and Test Connection", () => {
+    function renderWith(props: {
+      onSave?: (settings: AppSettings) => void;
+      onTestConnection?: SettingsPageProps["onTestConnection"];
+      onFetchModels?: SettingsPageProps["onFetchModels"];
+    }) {
+      const storageAdapter = createMemoryStorage<unknown>();
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={storageAdapter}
+              initialTab="ai"
+              onSave={props.onSave}
+              onTestConnection={props.onTestConnection}
+              onFetchModels={props.onFetchModels}
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+      return storageAdapter;
+    }
+
+    async function typeKey(key: string) {
+      fireEvent.change(await screen.findByPlaceholderText("Your API Key"), {
+        target: { value: key },
+      });
+    }
+
+    function typeModel(model: string) {
+      const field = screen.getByPlaceholderText("deepseek-chat");
+      fireEvent.change(field, { target: { value: model } });
+    }
+
+    it("keeps Save and Test Connection disabled for an enabled provider until it has a model", async () => {
+      const onSave = vi.fn();
+      const storageAdapter = renderWith({ onSave });
+      await typeKey("sk-test");
+      typeModel("");
+
+      const save = screen.getByRole("button", { name: "Save Settings" });
+      expect(save).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Test Connection" }),
+      ).toBeDisabled();
+      fireEvent.click(save);
+      expect(onSave).not.toHaveBeenCalled();
+      expect(storageAdapter.save).not.toHaveBeenCalled();
+
+      typeModel("gpt-4o-mini");
+      expect(save).toBeEnabled();
+    });
+
+    it("saves the active provider's key and model as the settings the agent uses", async () => {
+      const onSave = vi.fn();
+      const storageAdapter = renderWith({ onSave });
+      await typeKey("sk-test");
+      typeModel("gpt-4o-mini");
+
+      fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+
+      expect(
+        await screen.findByText("Settings saved successfully!"),
+      ).toBeInTheDocument();
+      expect(storageAdapter.save).toHaveBeenCalledWith(
+        "aipex_settings",
+        expect.objectContaining({
+          aiToken: "sk-test",
+          aiModel: "gpt-4o-mini",
+          providerEnabled: true,
+        }),
+      );
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ aiToken: "sk-test" }),
+      );
+    });
+
+    it("tests the connection with the typed key and model and reports failure and errors", async () => {
+      const onTestConnection = vi
+        .fn()
+        .mockResolvedValueOnce(false)
+        .mockRejectedValueOnce(new Error("401 Unauthorized"))
+        .mockResolvedValueOnce(true);
+      renderWith({ onTestConnection });
+      await typeKey("sk-test");
+      typeModel("gpt-4o-mini");
+      const test = screen.getByRole("button", { name: "Test Connection" });
+
+      fireEvent.click(test);
+      expect(
+        await screen.findByText("Connection test failed"),
+      ).toBeInTheDocument();
+      expect(onTestConnection).toHaveBeenCalledWith(
+        expect.objectContaining({ aiToken: "sk-test", aiModel: "gpt-4o-mini" }),
+      );
+
+      await waitFor(() => expect(test).toBeEnabled());
+      fireEvent.click(test);
+      expect(
+        await screen.findByText("Connection test failed: 401 Unauthorized"),
+      ).toBeInTheDocument();
+
+      await waitFor(() => expect(test).toBeEnabled());
+      fireEvent.click(test);
+      expect(
+        await screen.findByText("Connection test successful"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Anthropic workspace ID", () => {
+    it("is offered only for Anthropic, and goes with the key into Test Connection and the saved settings, behind a proxy host too", async () => {
+      const onTestConnection = vi.fn().mockResolvedValue(true);
+      const onSave = vi.fn();
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={createMemoryStorage<unknown>()}
+              initialTab="ai"
+              onSave={onSave}
+              onTestConnection={onTestConnection}
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+      await screen.findByPlaceholderText("Your API Key");
+      expect(screen.queryByLabelText("Workspace ID")).toBeNull();
+
+      const anthropic = screen
+        .getAllByText("Anthropic")
+        .map((node) => node.closest("button"))
+        .find(Boolean);
+      fireEvent.click(anthropic as HTMLElement);
+      fireEvent.change(await screen.findByPlaceholderText("sk-ant-..."), {
+        target: { value: "sk-ant-test" },
+      });
+      fireEvent.change(screen.getByLabelText("AI Host"), {
+        target: { value: "https://llm-proxy.example.com/v1" },
+      });
+      fireEvent.change(screen.getByLabelText("Workspace ID"), {
+        target: { value: "wrkspc_01Test" },
+      });
+      expect(screen.getByLabelText("Workspace ID")).toHaveAccessibleDescription(
+        /Claude Console → Settings → Workspaces/,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+      await waitFor(() =>
+        expect(onTestConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            aiProvider: "anthropic",
+            aiToken: "sk-ant-test",
+            aiWorkspaceId: "wrkspc_01Test",
+          }),
+        ),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+      await waitFor(() =>
+        expect(onSave).toHaveBeenCalledWith(
+          expect.objectContaining({ aiWorkspaceId: "wrkspc_01Test" }),
+        ),
+      );
+    });
+  });
+
+  describe("Fetch models and the tool-calling probe (C1)", () => {
+    function renderWith(props: Partial<SettingsPageProps>) {
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={createMemoryStorage<unknown>()}
+              initialTab="ai"
+              {...props}
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+    }
+
+    function suggestions() {
+      const list = document.querySelector("datalist");
+      return [...(list?.querySelectorAll("option") ?? [])].map(
+        (option) => option.value,
+      );
+    }
+
+    it("adds the provider's live models to the suggestions, keeping the presets", async () => {
+      const onFetchModels = vi
+        .fn()
+        .mockResolvedValue({ ok: true, models: ["live-a", "live-b"] });
+      renderWith({ onFetchModels });
+      const fetch = await screen.findByRole("button", { name: "Fetch models" });
+      expect(fetch).toBeDisabled();
+
+      fireEvent.change(screen.getByPlaceholderText("Your API Key"), {
+        target: { value: "sk-test" },
+      });
+      fireEvent.click(fetch);
+
+      expect(
+        await screen.findByText("2 models from the provider"),
+      ).toBeInTheDocument();
+      expect(onFetchModels).toHaveBeenCalledWith(
+        expect.objectContaining({ aiToken: "sk-test" }),
+      );
+      expect(suggestions().slice(0, 2)).toEqual(["live-a", "live-b"]);
+    });
+
+    it("names a failure and leaves manual entry working", async () => {
+      renderWith({
+        onFetchModels: vi.fn().mockResolvedValue({
+          ok: false,
+          error: "The provider rejected the API key (401).",
+        }),
+      });
+      fireEvent.change(await screen.findByPlaceholderText("Your API Key"), {
+        target: { value: "sk-bad" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Fetch models" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "The provider rejected the API key (401). Pick a suggestion or type the model id.",
+      );
+      fireEvent.change(screen.getByPlaceholderText("deepseek-chat"), {
+        target: { value: "typed-model" },
+      });
+      expect(screen.getByPlaceholderText("deepseek-chat")).toHaveValue(
+        "typed-model",
+      );
+    });
+
+    it("shows the probe's verdict, and warns before selecting a model that did not call tools", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      renderWith({
+        onTestConnection: vi
+          .fn()
+          .mockResolvedValue({ ok: true, toolCalling: "no" }),
+      });
+      fireEvent.change(await screen.findByPlaceholderText("Your API Key"), {
+        target: { value: "sk-test" },
+      });
+      fireEvent.change(screen.getByPlaceholderText("deepseek-chat"), {
+        target: { value: "text-only-model" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+
+      expect(
+        await screen.findAllByText("Tool calling: no — the agent needs it"),
+      ).not.toHaveLength(0);
+      expect(screen.getByText("No tools")).toBeInTheDocument();
+
+      const tested = screen.getByText("No tools").closest("div.group");
+      const other = [...document.querySelectorAll("div.group")].find(
+        (row) => row !== tested,
+      );
+      fireEvent.click(other?.querySelector("button") as HTMLElement);
+      fireEvent.click(tested?.querySelector("button") as HTMLElement);
+
+      expect(confirm).toHaveBeenCalledWith(
+        "text-only-model did not call a tool in the last connection test. The agent needs function calling to work. Use it anyway?",
+      );
+    });
   });
 
   it("never renders a Data Sharing control (there is nothing for it to control)", async () => {

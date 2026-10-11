@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFill = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockClick = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockInspectClickTarget = vi.hoisted(() => vi.fn());
 const mockGetSnapshot = vi.hoisted(() => vi.fn());
 const mockCreateSnapshot = vi.hoisted(() => vi.fn());
 const mockGetNodeByUid = vi.hoisted(() => vi.fn());
@@ -17,9 +19,14 @@ vi.mock("../automation/dom-element-handle", () => ({
   DomElementHandle: class {
     dispose = vi.fn();
     asLocator() {
-      return { fill: mockFill, click: vi.fn(), hover: vi.fn() };
+      return { fill: mockFill, click: mockClick, hover: vi.fn() };
     }
   },
+}));
+
+vi.mock("./click-risk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./click-risk")>()),
+  inspectClickTarget: mockInspectClickTarget,
 }));
 
 vi.mock("./ui-operations", () => ({
@@ -50,7 +57,25 @@ let storageStore: Record<string, unknown> = {};
 
 import { resetApprovalStateForTests } from "./approval";
 import { answerApprovals } from "./approval-test-utils";
-import { fillElementByUidTool, fillFormTool } from "./element";
+import type { ClickTargetInfo } from "./click-risk";
+import { clickTool, fillElementByUidTool, fillFormTool } from "./element";
+
+function target(overrides: Partial<ClickTargetInfo> = {}): ClickTargetInfo {
+  return {
+    found: true,
+    tagName: "button",
+    role: "button",
+    accessibleName: "Next page",
+    typeAttribute: "button",
+    insideForm: false,
+    formAction: null,
+    formMethod: null,
+    href: null,
+    documentUrl: "https://example.com/page",
+    opaque: null,
+    ...overrides,
+  };
+}
 
 const TAB_ID = 7;
 
@@ -62,6 +87,8 @@ beforeEach(async () => {
   mockGetSnapshotMode.mockResolvedValue("dom");
   mockGetNodeByUid.mockReturnValue({ uid: "n1" });
   mockFill.mockResolvedValue(undefined);
+  mockClick.mockResolvedValue(undefined);
+  mockInspectClickTarget.mockResolvedValue(target());
 });
 
 afterEach(() => {
@@ -201,6 +228,102 @@ describe("fillFormTool", () => {
     expect(requests.map((r) => r.toolName)).toEqual([
       "fill_element_by_uid",
       "fill_form",
+    ]);
+  });
+});
+
+describe("clickTool", () => {
+  it("clicks a safe control at once, with no prompt", async () => {
+    const { requests } = answerApprovals({ approved: false });
+
+    const result = await invoke(clickTool, { tabId: TAB_ID, uid: "n1" });
+
+    expect(requests).toHaveLength(0);
+    expect(result).toMatchObject({ success: true });
+    expect(mockClick).toHaveBeenCalledWith({ count: 1 });
+    expect(mockInspectClickTarget).toHaveBeenCalledWith(TAB_ID, { uid: "n1" });
+  });
+
+  it("asks before a Delete submit button, and Deny leaves it unclicked", async () => {
+    mockInspectClickTarget.mockResolvedValue(
+      target({
+        accessibleName: "Delete",
+        typeAttribute: "submit",
+        insideForm: true,
+        formAction: "https://example.com/orders/delete",
+        formMethod: "post",
+      }),
+    );
+    const { requests } = answerApprovals({ approved: false });
+
+    const result = await invoke(clickTool, { tabId: TAB_ID, uid: "n1" });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      toolName: "click",
+      origin: "https://example.com",
+    });
+    expect(requests[0]?.summary).toContain(
+      "Form: POST https://example.com/orders/delete",
+    );
+    expect(result).toMatchObject({ status: "denied", reason: "user_denied" });
+    expect(mockClick).not.toHaveBeenCalled();
+  });
+
+  it("asks before following a link to another origin", async () => {
+    mockInspectClickTarget.mockResolvedValue(
+      target({
+        tagName: "a",
+        role: "link",
+        typeAttribute: null,
+        accessibleName: "Read more",
+        href: "https://elsewhere.example/?d=secret",
+      }),
+    );
+    answerApprovals({ approved: true });
+
+    const result = await invoke(clickTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      dblClick: true,
+    });
+
+    expect(result).toMatchObject({ success: true });
+    expect(mockClick).toHaveBeenCalledWith({ count: 2 });
+  });
+
+  it("asks when the element cannot be found in any frame", async () => {
+    mockInspectClickTarget.mockResolvedValue({
+      found: false,
+      reason: "no element with that uid in any frame",
+    });
+
+    const result = await invoke(clickTool, { tabId: TAB_ID, uid: "n1" });
+
+    expect(result).toMatchObject({
+      status: "denied",
+      reason: "no_approval_ui",
+    });
+    expect(mockClick).not.toHaveBeenCalled();
+  });
+
+  it("a remembered click grant does not cover fill_element_by_uid", async () => {
+    mockInspectClickTarget.mockResolvedValue(
+      target({ accessibleName: "Save", typeAttribute: "submit" }),
+    );
+    const { requests } = answerApprovals({ approved: true, remember: true });
+
+    await invoke(clickTool, { tabId: TAB_ID, uid: "n1" });
+    await invoke(clickTool, { tabId: TAB_ID, uid: "n1" });
+    await invoke(fillElementByUidTool, {
+      tabId: TAB_ID,
+      uid: "n1",
+      value: "x",
+    });
+
+    expect(requests.map((r) => r.toolName)).toEqual([
+      "click",
+      "fill_element_by_uid",
     ]);
   });
 });

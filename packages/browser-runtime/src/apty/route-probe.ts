@@ -29,6 +29,7 @@
  * before anything is saved.
  */
 
+import type { VirtualizedListSummary } from "@apty/dom-snapshot";
 import { redactAuditUrl, redactDomText } from "./dom-health-redaction.js";
 import { collectFrameOwnersByFrameId } from "./frame-audit.js";
 import type { FrameOwnerAttributes } from "./frame-identity.js";
@@ -78,6 +79,8 @@ export interface RouteProbeFrameRecord {
   historyApiCallCount: number | null;
   pushStateCount: number | null;
   firstRequest: RouteProbeRequest | null;
+  /** Virtualized lists in the frame (their unseen rows are invisible to an audit); null when the frame did not answer. */
+  virtualized: VirtualizedListSummary | null;
 }
 
 export interface RouteProbeStep {
@@ -142,7 +145,9 @@ interface CapturedFrame {
   owners: CapturedOwner[];
   historyApiCallCount: number;
   pushStateCount: number;
+  historyHooksSeen?: boolean;
   firstRequest: RouteProbeRequest | null;
+  virtualized?: VirtualizedListSummary;
 }
 
 function probeText(raw: string): ProbeText {
@@ -229,11 +234,17 @@ export async function captureRouteProbeStep(
       heading: data ? optionalProbeText(data.firstHeading) : null,
       activeNav: data ? optionalProbeText(data.activeNavItem) : null,
       owner: owner ? toOwner(owner) : null,
-      historyApiCallCount: data?.historyApiCallCount ?? null,
-      pushStateCount: data?.pushStateCount ?? null,
+      // Null, not 0, where the page-world hooks don't run: not measured.
+      historyApiCallCount:
+        data && data.historyHooksSeen !== false
+          ? data.historyApiCallCount
+          : null,
+      pushStateCount:
+        data && data.historyHooksSeen !== false ? data.pushStateCount : null,
       firstRequest: data?.firstRequest
         ? redactRequest(data.firstRequest)
         : null,
+      virtualized: data?.virtualized ?? null,
     };
   });
   return step;

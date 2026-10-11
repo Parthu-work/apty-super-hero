@@ -20,6 +20,7 @@ import {
   type ApplicationAuditOutcome,
   type ApplicationAuditProgress,
   type ApplicationDiscoveryMode,
+  type DesEvidence,
   type DomHealthAuditOutcome,
   type DomHealthAuditResult,
   type DomHealthConfidence,
@@ -30,6 +31,7 @@ import {
   type DomHealthRecommendation,
   type DomHealthRisk,
   type PageAuditRecord,
+  type RouteProbeReport,
   runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "@apty/browser-runtime";
@@ -42,6 +44,7 @@ import { RouteProbePanel } from "./route-probe-panel";
 import type { StatusMeta } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useCurrentTarget } from "./use-current-target";
+import { ValidationBundleExport } from "./validation-bundle-export";
 
 const LOADING_STAGES = [
   "Scanning DOM...",
@@ -165,7 +168,20 @@ const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], string> = {
   "skipped-cross-origin": "Skipped (cross-origin)",
   "skipped-duplicate": "Skipped (duplicate)",
   "not-discovered": "Detected, not explored",
+  "explored-no-new-state": "Clicked, no new state",
 };
+
+/** A page row's label: its title, else its URL without the query string, which can carry screen context. */
+function pageRowLabel(page: PageAuditRecord): string {
+  if (page.title) return page.title;
+  try {
+    const url = new URL(page.url);
+    url.search = "";
+    return url.toString();
+  } catch {
+    return page.url.split("?")[0] ?? page.url;
+  }
+}
 
 function metricTone(score: number): StatusMeta["tone"] {
   if (score >= 80) return "success";
@@ -177,6 +193,23 @@ function riskTone(severity: DomHealthRisk["severity"]): StatusMeta["tone"] {
   if (severity === "high") return "danger";
   if (severity === "medium") return "warning";
   return "neutral";
+}
+
+/** Tested elements that were visible when sampled; hidden ones are not hit-test failures. */
+function visibleTested(hitTest: { tested: number; hidden: number }): number {
+  return Math.max(0, hitTest.tested - hitTest.hidden);
+}
+
+/** "2/2 frames with content reached, 2 empty placeholder(s) skipped": placeholders are part of the total but never readable. */
+function framesReached(
+  reached: number,
+  total: number,
+  placeholders: number,
+): string {
+  const withContent = Math.max(0, total - placeholders);
+  return placeholders > 0
+    ? `${reached}/${withContent} frames with content reached, ${placeholders} empty placeholder(s) skipped`
+    : `${reached}/${total} frames reached`;
 }
 
 function outcomeTone(outcome: string): StatusMeta["tone"] {
@@ -208,6 +241,46 @@ interface SharedEvidence {
   risks: DomHealthRisk[];
   recommendations: DomHealthRecommendation[];
   methodology: string[];
+  desEvidence?: DesEvidence;
+}
+
+function DesStepsSection({ evidence }: { evidence: DesEvidence }) {
+  if (evidence.steps.length === 0) return null;
+  return (
+    <section
+      aria-label="How Apty's DES would find these elements"
+      className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]"
+    >
+      <div className="mb-1 font-medium uppercase tracking-wide text-muted-foreground">
+        How Apty's DES would find these elements
+      </div>
+      <ul className="space-y-1">
+        {evidence.steps.map((row) => (
+          <li key={row.outcome}>
+            <span className="font-mono font-semibold">{row.elements}</span>{" "}
+            <span
+              className={cn(
+                "font-medium",
+                toneTextClass(outcomeTone(row.outcome)),
+              )}
+            >
+              {row.step}
+            </span>
+            <span className="text-muted-foreground"> — {row.meaning}</span>
+          </li>
+        ))}
+      </ul>
+      {evidence.dynamicValuesLeftOut.length > 0 && (
+        <p className="mt-1.5 text-muted-foreground">
+          Left out as dynamic (Ignore Selector):{" "}
+          {evidence.dynamicValuesLeftOut
+            .map((row) => `${row.attribute} on ${row.elements} element(s)`)
+            .join(", ")}
+          .
+        </p>
+      )}
+    </section>
+  );
 }
 
 function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
@@ -283,24 +356,51 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       )}
 
       {hitTest && hitTest.tested > 0 && (
-        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
-          <span className="text-muted-foreground">Hit-Test Failures</span>
-          <span
-            className={cn(
-              "font-mono font-semibold",
-              toneTextClass(
-                hitTest.occludedOrHidden / hitTest.tested > 0.3
-                  ? "danger"
-                  : hitTest.occludedOrHidden > 0
-                    ? "warning"
-                    : "success",
-              ),
-            )}
-          >
-            {hitTest.occludedOrHidden}/{hitTest.tested}
-          </span>
+        <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">
+              Hit-Test Failures (visible elements)
+            </span>
+            <span
+              className={cn(
+                "font-mono font-semibold",
+                toneTextClass(
+                  hitTest.notTargetable / visibleTested(hitTest) > 0.3
+                    ? "danger"
+                    : hitTest.notTargetable > 0
+                      ? "warning"
+                      : "success",
+                ),
+              )}
+            >
+              {hitTest.notTargetable}/{visibleTested(hitTest)}
+            </span>
+          </div>
+          {hitTest.hidden > 0 && (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {hitTest.hidden} hidden when sampled (closed menus, inactive
+              tabs), not counted.
+            </p>
+          )}
         </div>
       )}
+      {hitTest &&
+        hitTest.tested > 0 &&
+        (result.desEvidence?.hitTestReasons.length ?? 0) > 0 && (
+          <ul
+            aria-label="Why hit tests failed"
+            className="-mt-1 space-y-0.5 px-2.5 text-[11px] text-muted-foreground"
+          >
+            {result.desEvidence?.hitTestReasons.map((row) => (
+              <li key={row.reason}>
+                <span className="font-mono font-semibold text-foreground">
+                  {row.elements}
+                </span>{" "}
+                {row.reason}: {row.meaning}
+              </li>
+            ))}
+          </ul>
+        )}
 
       {a11y && a11y.totalInteractive > 0 && (
         <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
@@ -345,6 +445,8 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
           </span>
         </div>
       </div>
+
+      {result.desEvidence && <DesStepsSection evidence={result.desEvidence} />}
 
       <p className="text-[11px] text-muted-foreground">
         Selector Configuration:{" "}
@@ -509,11 +611,14 @@ function FramesAndExclusions({
 export function DomHealthCard({
   developerTools = false,
   ignoredRoots = [],
+  thresholdOverrides,
 }: {
   /** Settings → Troubleshooting → Developer tools: shows the route probe. */
   developerTools?: boolean;
   /** Settings → Troubleshooting: overlays to leave out, on top of the built-in list. */
   ignoredRoots?: readonly string[];
+  /** Developer tools: threshold overrides for real-tenant validation. */
+  thresholdOverrides?: Record<string, number>;
 }) {
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
@@ -530,6 +635,7 @@ export function DomHealthCard({
     useState<ApplicationDiscoveryMode>("application-safe");
   const [expanded, setExpanded] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
+  const [probeReport, setProbeReport] = useState<RouteProbeReport | null>(null);
   const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(
@@ -549,7 +655,10 @@ export function DomHealthCard({
       setStageIndex((i) => (i + 1) % LOADING_STAGES.length);
     }, 700);
 
-    const result = await runDomHealthAudit(target.tabId, { ignoredRoots });
+    const result = await runDomHealthAudit(target.tabId, {
+      ignoredRoots,
+      thresholdOverrides,
+    });
 
     if (stageTimerRef.current) {
       clearInterval(stageTimerRef.current);
@@ -557,7 +666,7 @@ export function DomHealthCard({
     }
     setOutcome(result);
     setIsLoading(false);
-  }, [target.tabId, ignoredRoots]);
+  }, [target.tabId, ignoredRoots, thresholdOverrides]);
 
   const runApplicationCheck = useCallback(async () => {
     if (!target.tabId) return;
@@ -569,13 +678,14 @@ export function DomHealthCard({
     const result = await runApplicationDomHealthAudit(target.tabId, {
       discoveryMode,
       ignoredRoots,
+      thresholdOverrides,
       onProgress: (progress) => setAppProgress(progress),
     });
 
     setAppOutcome(result);
     setIsAppLoading(false);
     setAppProgress(null);
-  }, [target.tabId, discoveryMode, ignoredRoots]);
+  }, [target.tabId, discoveryMode, ignoredRoots, thresholdOverrides]);
 
   const hasResult = outcome !== null || appOutcome !== null;
   const active = view === "application" ? appOutcome : outcome;
@@ -844,10 +954,10 @@ export function DomHealthCard({
                         </tr>
                       </thead>
                       <tbody>
-                        {outcome.elementSamples.map((el, i) => (
+                        {outcome.elementSamples.flatMap((el, i) => [
                           <tr
                             // biome-ignore lint/suspicious/noArrayIndexKey: reports have no stable id
-                            key={i}
+                            key={`${i}-row`}
                             className="border-t"
                           >
                             <td className="px-1.5 py-1 font-mono text-muted-foreground">
@@ -870,8 +980,34 @@ export function DomHealthCard({
                             <td className="px-1.5 py-1 text-muted-foreground">
                               {el.hitTest?.classification ?? "—"}
                             </td>
-                          </tr>
-                        ))}
+                          </tr>,
+                          el.explanation && (
+                            <tr
+                              // biome-ignore lint/suspicious/noArrayIndexKey: reports have no stable id
+                              key={`${i}-why`}
+                            >
+                              <td
+                                colSpan={5}
+                                className="px-1.5 pb-1.5 text-muted-foreground"
+                              >
+                                <p className="text-foreground">
+                                  {el.explanation.howFound}
+                                </p>
+                                {el.explanation.notes.map((note) => (
+                                  <p key={note}>{note}</p>
+                                ))}
+                                {el.explanation.fix && (
+                                  <p>
+                                    <span className="font-medium text-foreground">
+                                      Fix:{" "}
+                                    </span>
+                                    {el.explanation.fix}
+                                  </p>
+                                )}
+                              </td>
+                            </tr>
+                          ),
+                        ])}
                       </tbody>
                     </table>
                   </div>
@@ -904,8 +1040,11 @@ export function DomHealthCard({
                   </dd>
                   <dt>Frames reached</dt>
                   <dd className="text-right font-mono">
-                    {outcome.frameAccessibility.framesAccessible}/
-                    {outcome.frameAccessibility.framesTotal}
+                    {framesReached(
+                      outcome.frameAccessibility.framesAccessible,
+                      outcome.frameAccessibility.framesTotal,
+                      outcome.frameAccessibility.framesPlaceholder ?? 0,
+                    )}
                   </dd>
                 </dl>
               </details>
@@ -935,8 +1074,11 @@ export function DomHealthCard({
                 </span>
                 <span>·</span>
                 <span>
-                  {appOutcome.coverage.framesInspected}/
-                  {appOutcome.coverage.framesDiscovered} frames reached
+                  {framesReached(
+                    appOutcome.coverage.framesInspected,
+                    appOutcome.coverage.framesDiscovered,
+                    appOutcome.coverage.framesPlaceholder ?? 0,
+                  )}
                 </span>
                 {appOutcome.coverage.pagesNotDiscovered > 0 && (
                   <>
@@ -1029,6 +1171,8 @@ export function DomHealthCard({
                       appOutcome.coverage.pagesSkippedDuplicate}{" "}
                     skipped, {appOutcome.coverage.pagesNotDiscovered} not
                     explored
+                    {appOutcome.coverage.pagesExploredNoNewState > 0 &&
+                      `, ${appOutcome.coverage.pagesExploredNoNewState} clicked with no new state`}
                   </summary>
                   <div className="mt-1.5 max-h-96 overflow-y-auto rounded-md border">
                     <table className="w-full text-left text-[11px]">
@@ -1057,7 +1201,7 @@ export function DomHealthCard({
                           // section 23).
                           const labelCounts = new Map<string, number>();
                           for (const page of appOutcome.pages) {
-                            const label = page.title ?? page.url;
+                            const label = pageRowLabel(page);
                             labelCounts.set(
                               label,
                               (labelCounts.get(label) ?? 0) + 1,
@@ -1065,7 +1209,7 @@ export function DomHealthCard({
                           }
                           const labelSeen = new Map<string, number>();
                           return appOutcome.pages.map((page, i) => {
-                            const label = page.title ?? page.url;
+                            const label = pageRowLabel(page);
                             const isDuplicateLabel =
                               (labelCounts.get(label) ?? 0) > 1;
                             const occurrence = (labelSeen.get(label) ?? 0) + 1;
@@ -1098,6 +1242,12 @@ export function DomHealthCard({
                                   )}
                                 >
                                   {PAGE_STATUS_LABELS[page.status]}
+                                  {page.status !== "completed" &&
+                                    page.failureReason && (
+                                      <span className="block font-normal text-muted-foreground">
+                                        {page.failureReason}
+                                      </span>
+                                    )}
                                 </td>
                                 <td className="px-1.5 py-1 text-muted-foreground">
                                   {auto ? auto.totalAnalyzed : "—"}
@@ -1109,7 +1259,7 @@ export function DomHealthCard({
                                 </td>
                                 <td className="px-1.5 py-1 text-muted-foreground">
                                   {hitTest
-                                    ? `${hitTest.occludedOrHidden}/${hitTest.tested}`
+                                    ? `${hitTest.notTargetable}/${visibleTested(hitTest)}`
                                     : "—"}
                                 </td>
                                 <td className="px-1.5 py-1 text-muted-foreground">
@@ -1137,8 +1287,18 @@ export function DomHealthCard({
           )}
         </div>
       )}
+      {(hasResult || probeReport) && (
+        <div className="border-t px-3 py-1.5">
+          <ValidationBundleExport
+            page={outcome}
+            application={appOutcome}
+            probe={probeReport}
+            thresholdOverrides={thresholdOverrides}
+          />
+        </div>
+      )}
       {developerTools && target.tabId && (
-        <RouteProbePanel tabId={target.tabId} />
+        <RouteProbePanel tabId={target.tabId} onReport={setProbeReport} />
       )}
     </div>
   );

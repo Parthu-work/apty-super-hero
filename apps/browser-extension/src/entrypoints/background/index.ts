@@ -4,6 +4,8 @@
  */
 
 import { createLogger } from "@apty/agent-core";
+import { watchPageHookSettings } from "@apty/browser-runtime/runtime/page-hooks-registration";
+import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { initLogging } from "../../lib/logging";
 import { registerCommandHandlers } from "./commands";
 import { registerGlobalDownloadHelper } from "./downloads";
@@ -20,6 +22,11 @@ const log = createLogger("Background");
 
 initLogging();
 lockdownStorageAccess();
+// Read the redaction mode now, so the first MCP tool result is redacted in it.
+void getRedactionMode();
+// Register the MAIN-world console bridge per Settings → Troubleshooting, on
+// every service-worker start (install, update, browser start) and change.
+watchPageHookSettings();
 seedAptyIntegrationConfig();
 registerSidepanelActionClick();
 registerCommandHandlers();

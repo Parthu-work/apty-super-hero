@@ -44,7 +44,6 @@ import { useMemo } from "react";
 export function AutomationModeInputToolbar({
   status,
   onStop,
-  onSubmit,
 }: InputToolbarSlotProps) {
   const { t } = useTranslation();
   const [automationModeRaw, setAutomationMode, isLoadingMode] =
@@ -55,13 +54,14 @@ export function AutomationModeInputToolbar({
     [automationModeRaw],
   );
 
-  // Determine submit button state
+  // While a turn is in flight (submitted or streaming) the button is Stop.
+  const inFlight = status === "submitted" || status === "streaming";
   let submitIcon = <SendIcon className="size-4" />;
   let submitLabel = "Send";
 
   if (status === "submitted") {
     submitIcon = <Loader2Icon className="size-4 animate-spin" />;
-    submitLabel = "Sending...";
+    submitLabel = "Stop";
   } else if (status === "streaming") {
     submitIcon = <SquareIcon className="size-4" />;
     submitLabel = "Stop";
@@ -69,14 +69,6 @@ export function AutomationModeInputToolbar({
     submitIcon = <XIcon className="size-4" />;
     submitLabel = "Error";
   }
-
-  const handleSubmitClick = () => {
-    if (status === "streaming") {
-      onStop?.();
-    } else {
-      onSubmit?.();
-    }
-  };
 
   return (
     <div className="flex items-center gap-1">
@@ -98,6 +90,9 @@ export function AutomationModeInputToolbar({
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 disabled={isLoadingMode}
+                aria-label={`${t("mode.selectMode")}: ${t(
+                  automationMode === "focus" ? "mode.focus" : "mode.background",
+                )}`}
               >
                 {automationMode === "focus" ? (
                   <EyeIcon className="size-4" />
@@ -169,9 +164,9 @@ export function AutomationModeInputToolbar({
         aria-label={submitLabel}
         className="gap-1.5 rounded-lg"
         size="icon"
-        type={status === "streaming" ? "button" : "submit"}
+        type={inFlight ? "button" : "submit"}
         variant="default"
-        onClick={status === "streaming" ? handleSubmitClick : undefined}
+        onClick={inFlight ? () => onStop?.() : undefined}
       >
         {submitIcon}
       </Button>

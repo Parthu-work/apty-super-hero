@@ -353,7 +353,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
             {isBuiltin && (
               <Badge
                 variant="outline"
-                className="text-blue-600 border-blue-600"
+                className="text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400"
               >
                 Built-in
               </Badge>

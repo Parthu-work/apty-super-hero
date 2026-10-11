@@ -527,6 +527,7 @@ describe("runApplicationDomHealthAudit", () => {
         (p) => p.url === "https://evil.example.com/phish",
       );
       expect(skipped?.status).toBe("skipped-cross-origin");
+      expect(skipped?.discoverySource).toBe("cross-origin-link");
     }
     expect(mockTabsUpdate).not.toHaveBeenCalledWith(
       TAB_ID,
@@ -842,7 +843,7 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     }
   });
 
-  it("reports not-discovered (never a fabricated state) when a click produces no real change", async () => {
+  it("reports a click that changed nothing as explored with no new state, never a fabricated state, and does not let it block the score", async () => {
     candidatesByUrl.set("https://app.example.com/home", [
       {
         domPath: "nav:nth-of-type(1) > div:nth-of-type(1)",
@@ -910,16 +911,25 @@ describe("runApplicationDomHealthAudit — non-anchor navigation controls (RC-4/
     expect(result.available).toBe(true);
     if (result.available) {
       // Only the seed page audited — the click never produced a different
-      // fingerprint, so it must be reported not-discovered, never audited
-      // as if it were a real second state.
+      // fingerprint, so it is never audited as if it were a real second
+      // state. It was explored, though, so it neither counts as a
+      // discovered state nor as an unexplored one (owner decision, after
+      // the Infor LN bundle's "Open tab menu" clicks).
       expect(result.coverage.pagesAudited).toBe(1);
+      expect(result.coverage.pagesDiscovered).toBe(1);
+      expect(result.coverage.pagesNotDiscovered).toBe(0);
+      expect(result.coverage.pagesExploredNoNewState).toBe(1);
       expect(
-        result.pages.some(
-          (p) =>
-            p.status === "not-discovered" &&
-            p.discoverySource === "safe-navigation-control",
+        result.pages.find(
+          (p) => p.discoverySource === "safe-navigation-control",
         ),
-      ).toBe(true);
+      ).toMatchObject({
+        status: "explored-no-new-state",
+        title: "Dead End",
+        failureReason:
+          "Clicking this control did not produce a new application state.",
+      });
+      expect(result.evidenceState).not.toBe("INCOMPLETE_EVIDENCE");
     }
   });
 

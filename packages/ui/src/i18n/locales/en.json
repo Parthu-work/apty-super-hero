@@ -22,6 +22,8 @@
     "theme": "Theme",
     "aiHost": "AI Host",
     "aiToken": "API Key",
+    "aiWorkspaceId": "Workspace ID",
+    "aiWorkspaceIdHint": "Only for an API key not scoped to a workspace. Find it in Claude Console → Settings → Workspaces (wrkspc_…).",
     "aiModel": "AI Model",
     "hostPlaceholder": "https://api.deepseek.com/v1",
     "tokenPlaceholder": "Enter your API token",
@@ -92,6 +94,7 @@
     "genericImage": "Image"
   },
   "input": {
+    "model": "Model",
     "newLine": "Shift+Enter for new line",
     "placeholder1": "Search or Ask anything",
     "placeholder2": "Try mention a tab with @tab",

@@ -22,6 +22,8 @@
     "theme": "主题",
     "aiHost": "AI 服务地址",
     "aiToken": "API 密钥",
+    "aiWorkspaceId": "工作区 ID",
+    "aiWorkspaceIdHint": "仅用于未绑定工作区的 API 密钥。可在 Claude Console → Settings → Workspaces 中找到（wrkspc_…）。",
     "aiModel": "AI 模型",
     "hostPlaceholder": "https://api.deepseek.com/v1",
     "tokenPlaceholder": "请输入您的 API 令牌",
@@ -92,6 +94,7 @@
     "genericImage": "图片"
   },
   "input": {
+    "model": "模型",
     "newLine": "Shift+Enter 换行",
     "placeholder1": "搜索或询问任何内容",
     "placeholder2": "尝试使用 @标签 提及页面",

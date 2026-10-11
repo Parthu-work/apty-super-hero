@@ -100,7 +100,10 @@ export const SkillCard: React.FC<SkillCardProps> = ({
         </div>
         <div className="flex items-center justify-center gap-2 mt-3">
           {isBuiltin && (
-            <Badge variant="outline" className="text-blue-600 border-blue-600">
+            <Badge
+              variant="outline"
+              className="text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400"
+            >
               Built-in
             </Badge>
           )}
@@ -165,7 +168,12 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             View Details
           </Button>
 
-          <Button variant="outline" size="sm" onClick={() => onExport(skill)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onExport(skill)}
+            aria-label={`Export ${skill.name}`}
+          >
             <Download className="h-3 w-3" />
           </Button>
 
@@ -174,6 +182,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             size="sm"
             onClick={handleDelete}
             disabled={isBuiltin}
+            aria-label={`Delete ${skill.name}`}
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="h-3 w-3" />

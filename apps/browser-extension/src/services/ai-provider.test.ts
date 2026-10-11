@@ -1,6 +1,8 @@
 import { AI_PROVIDERS } from "@apty/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import {
+  anthropicBaseUrl,
+  anthropicHeaders,
   createAIProvider,
   createEmptyToolArgsFinalizer,
   describeConnectionTestError,
@@ -225,11 +227,10 @@ describe("Groq provider configuration", () => {
     expect(AI_PROVIDERS.groq.models).not.toContain("mixtral-8x7b-32768");
   });
 
-  it("lists a currently-supported Groq model as the default (first) model", () => {
-    // This is what settings/index.tsx's provider.models[0] picks as the
-    // default aiModel when the user selects Groq — it must not be a
-    // deprecated/decommissioned model.
-    expect(AI_PROVIDERS.groq.models[0]).toBe("openai/gpt-oss-20b");
+  it("suggests no Groq model id it cannot verify, so no stale id becomes the default", () => {
+    // settings/index.tsx picks provider.models[0] as a new config's model.
+    // Groq's catalogue changes often; "Fetch models" reads the live list.
+    expect(AI_PROVIDERS.groq.models).toEqual([]);
   });
 
   it("points at Groq's OpenAI-compatible endpoint", () => {
@@ -238,7 +239,34 @@ describe("Groq provider configuration", () => {
   });
 });
 
+describe("anthropicHeaders", () => {
+  it("always allows direct browser access, and adds a trimmed workspace ID when set", () => {
+    expect(anthropicHeaders(" wrkspc_01Test ")).toEqual({
+      "anthropic-dangerous-direct-browser-access": "true",
+      "anthropic-workspace-id": "wrkspc_01Test",
+    });
+    expect(anthropicHeaders("  ")).toEqual({
+      "anthropic-dangerous-direct-browser-access": "true",
+    });
+    expect(anthropicHeaders(undefined)).toEqual({
+      "anthropic-dangerous-direct-browser-access": "true",
+    });
+  });
+});
+
 describe("describeConnectionTestError", () => {
+  it("says where to enter the workspace ID when Anthropic asks for one", () => {
+    const error = Object.assign(
+      new Error(
+        "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use.",
+      ),
+      { statusCode: 400 },
+    );
+    expect(describeConnectionTestError(error)).toMatch(
+      /^400: This API key is not scoped .* Fix: enter the workspace ID \(wrkspc_…, from Claude Console → Settings → Workspaces\) in Settings → AI Configuration → Workspace ID, or use an API key created for a single workspace\.$/,
+    );
+  });
+
   it("prefixes the message with the status code when present", () => {
     const error = Object.assign(new Error("Model not found"), {
       statusCode: 404,
@@ -629,5 +657,20 @@ describe("createEmptyToolArgsFinalizer", () => {
       }
     });
     expect(finishLines.length).toBe(1);
+  });
+});
+
+describe("anthropicBaseUrl", () => {
+  it("adds /v1 to a bare Anthropic origin and leaves a path alone", () => {
+    expect(anthropicBaseUrl("https://api.anthropic.com")).toBe(
+      "https://api.anthropic.com/v1",
+    );
+    expect(anthropicBaseUrl("https://api.anthropic.com/v1")).toBe(
+      "https://api.anthropic.com/v1",
+    );
+    expect(anthropicBaseUrl("https://proxy.example.com/anthropic")).toBe(
+      "https://proxy.example.com/anthropic",
+    );
+    expect(anthropicBaseUrl(undefined)).toBeUndefined();
   });
 });

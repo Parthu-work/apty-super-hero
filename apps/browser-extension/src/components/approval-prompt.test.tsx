@@ -140,6 +140,36 @@ describe("ApprovalPrompt", () => {
     expect(sendResponse).toHaveBeenCalledWith(true);
   });
 
+  it("offers no 'Allow on this site' for a request that must be asked every time", () => {
+    render(<ApprovalPrompt />);
+    deliver(
+      {
+        type: APPROVAL_REQUEST_MESSAGE,
+        request: { ...remoteRequest, rememberable: false },
+      },
+      { id: "agent-id", url: "chrome-extension://agent-id/sw.js" },
+    );
+
+    expect(screen.getByRole("button", { name: "Allow once" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Allow on this site for 15 min" }),
+    ).toBeNull();
+  });
+
+  it("names the dialog after the tool it asks about, for screen readers", () => {
+    render(<ApprovalPrompt />);
+    deliver(
+      { type: APPROVAL_REQUEST_MESSAGE, request: remoteRequest },
+      { id: "agent-id", url: "chrome-extension://agent-id/sw.js" },
+    );
+
+    expect(
+      screen.getByRole("alertdialog", {
+        name: `Allow ${remoteRequest.toolName}?`,
+      }),
+    ).toBeTruthy();
+  });
+
   it("says when a request comes from an MCP client and how long is left", () => {
     const realNow = Date.now();
     vi.spyOn(Date, "now").mockReturnValue(realNow - 60_000);

@@ -263,7 +263,7 @@ export function DefaultInputArea({
                 onValueChange={handleModelChange}
                 value={selectedModel}
               >
-                <PromptInputModelSelectTrigger>
+                <PromptInputModelSelectTrigger aria-label={t("input.model")}>
                   <PromptInputModelSelectValue />
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>

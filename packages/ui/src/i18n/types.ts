@@ -24,6 +24,8 @@ export interface TranslationResources {
     theme: string;
     aiHost: string;
     aiToken: string;
+    aiWorkspaceId: string;
+    aiWorkspaceIdHint: string;
     aiModel: string;
     hostPlaceholder: string;
     tokenPlaceholder: string;
@@ -86,6 +88,7 @@ export interface TranslationResources {
     zh: string;
   };
   input: {
+    model: string;
     newLine: string;
     placeholder1: string;
     placeholder2: string;
@@ -235,6 +238,8 @@ export type BaseTranslationKey =
   | "settings.theme"
   | "settings.aiHost"
   | "settings.aiToken"
+  | "settings.aiWorkspaceId"
+  | "settings.aiWorkspaceIdHint"
   | "settings.aiModel"
   | "settings.hostPlaceholder"
   | "settings.tokenPlaceholder"
@@ -287,6 +292,7 @@ export type BaseTranslationKey =
   | "ai.enhancedPlanning"
   | "language.en"
   | "language.zh"
+  | "input.model"
   | "input.newLine"
   | "input.placeholder1"
   | "input.placeholder2"

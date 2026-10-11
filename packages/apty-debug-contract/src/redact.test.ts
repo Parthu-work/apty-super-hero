@@ -220,6 +220,13 @@ describe("redactLogs", () => {
       { level: "log", message: "hello world", timestamp: 2 },
     ]);
   });
+  it("applies the given mode to every message", () => {
+    const logs = [
+      { level: "log", message: '{"page_title":"Chart for Jane Doe"}' },
+    ];
+    expect(redactLogs(logs)[0]?.message).not.toContain("Jane Doe");
+    expect(redactLogs(logs, "standard")[0]?.message).toContain("Jane Doe");
+  });
 });
 
 describe("redactSensitiveText — ReDoS safety", () => {

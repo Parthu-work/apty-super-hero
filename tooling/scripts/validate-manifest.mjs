@@ -150,6 +150,39 @@ if (!existsSync(PERMISSIONS_DOC_PATH)) {
   }
 }
 
+// The MAIN-world console bridge is not a manifest content script: the
+// service worker registers it from a fixed path, which the build emits.
+// Both sides name that path; they must agree, and nothing may declare a
+// MAIN-world script statically (it could not be switched off).
+{
+  const constantIn = (file, name) =>
+    readFileSync(join(ROOT, file), "utf8").match(
+      new RegExp(`const ${name} = "([^"]+)"`),
+    )?.[1];
+  const registered = constantIn(
+    "packages/browser-runtime/src/runtime/page-hooks-registration.ts",
+    "CONSOLE_BRIDGE_FILE",
+  );
+  const emitted = constantIn(
+    "apps/browser-extension/vite.config.ts",
+    "CONSOLE_BRIDGE_FILE",
+  );
+  if (!registered || registered !== emitted) {
+    errors.push(
+      `the console bridge path differs between page-hooks-registration.ts (${registered}) and vite.config.ts (${emitted})`,
+    );
+  }
+  if ((manifest.content_scripts ?? []).some((cs) => cs.world === "MAIN")) {
+    errors.push(
+      "a MAIN-world content script is declared statically; register it in runtime/page-hooks-registration.ts so Settings can turn it off",
+    );
+  }
+  const built = join(EXT_DIR, "dist", registered ?? "");
+  if (existsSync(join(EXT_DIR, "dist/manifest.json")) && !existsSync(built)) {
+    errors.push(`the build has no console bridge at dist/${registered}`);
+  }
+}
+
 if (errors.length > 0) {
   console.error(
     `\n✗ manifest.json validation failed (${errors.length} issue(s)):\n`,

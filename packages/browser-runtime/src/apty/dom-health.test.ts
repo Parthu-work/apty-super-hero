@@ -419,6 +419,12 @@ describe("runDomHealthAudit", () => {
     expect(result.elementSamples[0]?.attributes.dataAttributes["osp-id"]).toBe(
       "LN",
     );
+    expect(result.elementSamples[0]?.explanation.howFound).toMatch(
+      /^checkInitialPath/,
+    );
+    expect(result.desEvidence.steps.map((s) => s.step)).toContain(
+      "checkInitialPath",
+    );
     expect(typeof result.score).toBe("number");
   });
 });

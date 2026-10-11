@@ -30,11 +30,22 @@ function fakeWindow(pushState: (...args: unknown[]) => void = () => {}) {
 }
 
 describe("installPageHooks", () => {
+  it("announces itself with zero totals as soon as it is installed", () => {
+    const { win, announced } = fakeWindow();
+
+    installPageHooks(win);
+
+    expect(announced).toEqual([
+      { pushState: 0, replaceState: 0, popstate: 0, hashchange: 0 },
+    ]);
+  });
+
   it("announces running totals after each of the page's own history calls", () => {
     const calls: unknown[][] = [];
     const { win, announced } = fakeWindow((...args) => calls.push(args));
 
     expect(installPageHooks(win)).toBe(true);
+    announced.length = 0;
     win.history.pushState({ a: 1 }, "", "/orders");
     win.history.replaceState({}, "", "/orders/1");
 
@@ -62,6 +73,7 @@ describe("installPageHooks", () => {
   it("wraps the prototype, so a call made through History.prototype is seen too", () => {
     const { win, announced } = fakeWindow();
     installPageHooks(win);
+    announced.length = 0;
 
     win.History.prototype.pushState.call(win.history, {}, "", "/direct");
 
@@ -73,6 +85,7 @@ describe("installPageHooks", () => {
 
     installPageHooks(win);
     expect(installPageHooks(win)).toBe(false);
+    announced.length = 0;
     win.history.pushState({}, "", "/once");
 
     expect(announced).toHaveLength(1);
@@ -84,6 +97,7 @@ describe("installPageHooks", () => {
       throw failure;
     });
     installPageHooks(win);
+    announced.length = 0;
 
     expect(() => win.history.pushState({}, "", "/x")).toThrow(failure);
     expect(announced).toEqual([]);

@@ -63,7 +63,7 @@ export const SYSTEM_PROMPT = [
 
   "\n=== RETRIEVING A SPECIFIC RESOURCE'S DATA (e.g. 'give me segments.json') ===",
   "Try in this order, never skip to #2:",
-  "1. If an Apty Client extension is configured: call inspect_extension_network with resourceQuery = the resource name (it auto-connects). Matching is tolerant of case/plural/extension, so don't assume exact spelling. If not_observed, use the returned suggestions to ask 'did you mean X?'. Bodies return for every status (including 4xx/5xx). A large JSON body comes back as a bounded summary (itemCount/topLevelKeys/sample) plus an evidenceId — use get_evidence_json(evidenceId, path, limit, offset) for more. State that the Apty Client answered. If not configured or connection fails, fall through to #2.",
+  "1. If an Apty Client extension is configured: call inspect_extension_network with resourceQuery = the resource name (it auto-connects). Matching is tolerant of case/plural/extension, so don't assume exact spelling. If not_observed, use the returned suggestions to ask 'did you mean X?'. Bodies return for every status (including 4xx/5xx). For a JSON body, read response.json first (itemCount, itemKeys/keyTypes, inPreview), then page with get_evidence_json(evidenceId, path, limit, offset) for values beyond bodyPreview. State that the Apty Client answered. If not configured or connection fails, fall through to #2.",
   "2. Fallback: start_network_capture, reproduce the action (or do it yourself), then stop_network_capture and check the matching request's bodyPreview. State that page-level capture answered.",
   "If both fail, say so plainly — never guess the contents.",
 

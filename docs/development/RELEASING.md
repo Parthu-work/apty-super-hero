@@ -1,5 +1,13 @@
 # Releasing the extension
 
+0. Rehearse first: `npm run release:dry-run` (or
+   `tooling/scripts/release-dry-run.sh --skip-e2e` for a quick pass) runs
+   the workflow's build job locally and leaves the packages in
+   `/tmp/release-dry-run/release/`; in GitHub, Actions → Release → Run
+   workflow with `dry_run` on does the same and uploads the packages
+   without publishing. Then run the manual browser checklist,
+   [`docs/release/SMOKE_TEST.md`](../release/SMOKE_TEST.md), on Chrome and
+   Edge with that package.
 1. Bump `version` in `apps/browser-extension/manifest.json` and
    `apps/browser-extension/package.json` to the same `X.Y.Z`.
 2. Move the `Unreleased` sections of `CHANGELOG.md` under one `X.Y.Z`
@@ -17,8 +25,9 @@ The `Release` workflow (`.github/workflows/release.yml`) then:
   (`tooling/scripts/check-release-version.mjs`);
 - runs, in a job with a read-only token: format check, lint, type check,
   unit tests, the coverage gate, the build, the real-browser tests
-  (`npm run test:e2e`) and the manifest, architecture, branding, tool and
-  docs checks;
+  (`npm run test:e2e`), the manifest, architecture, branding, tool, docs
+  and skipped-test checks, and that the packaged manifest `key` yields the
+  pinned Agent ID (`tooling/scripts/check-extension-id.mjs`);
 - packages `apps/browser-extension/dist` twice: `apty-agent-vX.Y.Z.zip`
   keeps the manifest `key` that pins the extension ID (for loading unpacked
   or enterprise policy), and `apty-agent-vX.Y.Z-webstore.zip` drops it,

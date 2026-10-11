@@ -112,9 +112,16 @@ export function ApprovalPrompt() {
   return (
     <div className="mb-3 flex flex-col gap-2">
       {requests.map((request) => (
-        <Alert key={request.approvalId} variant="warning" role="alertdialog">
+        <Alert
+          key={request.approvalId}
+          variant="warning"
+          role="alertdialog"
+          aria-labelledby={`approval-title-${request.approvalId}`}
+        >
           <ShieldAlertIcon aria-hidden="true" />
-          <AlertTitle>Allow {request.toolName}?</AlertTitle>
+          <AlertTitle id={`approval-title-${request.approvalId}`}>
+            Allow {request.toolName}?
+          </AlertTitle>
           <AlertDescription>
             <p className="mb-1 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
               <span>
@@ -136,7 +143,7 @@ export function ApprovalPrompt() {
               >
                 Allow once
               </Button>
-              {request.origin && (
+              {request.origin && request.rememberable !== false && (
                 <Button
                   type="button"
                   size="sm"

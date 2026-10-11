@@ -12,6 +12,10 @@
 import type { ElementRef } from "./element-ref.js";
 
 /** Attributes on an analyzed element — never includes input values. */
+import type {
+  VirtualizationThresholds,
+  VirtualizedListSummary,
+} from "./health-virtualized.js";
 import type { ExcludedRootSummary } from "./ignored-roots.js";
 
 export interface DomHealthElementAttributes {
@@ -391,6 +395,8 @@ export interface DomHealthSnapshot {
   excludedRoots: ExcludedRootSummary[];
   duplicateIds: DuplicateIdStats;
   performance: CollectorPerformance;
+  /** Lists that render only the rows in view (`health-virtualized.ts`): their unseen rows are not in any count above. Absent from snapshots taken before it was measured. */
+  virtualized?: VirtualizedListSummary;
 }
 
 /** How long a collection took, how it shared the page's main thread, and whether a budget cut it short (brief section 4.11). */
@@ -458,6 +464,8 @@ export interface DomHealthCollectorOptions {
   maxShadowRoots?: number;
   /** Hard per-frame budget; past it the collection stops and returns what it has, labelled partial. */
   timeBudgetMs?: number;
+  /** Overrides for the virtualized-list detector's unverified thresholds (Developer tools). */
+  virtualizationThresholds?: Partial<VirtualizationThresholds>;
   /** Yield to the page at least this often. */
   sliceMs?: number;
   /** Settings entries (`id:prefix`, `class:prefix`, `tag:name`) excluded on top of `DEFAULT_IGNORED_ROOTS`. */

@@ -19,6 +19,7 @@
     "dev": "tsx src/bridge.ts",
     "dev:daemon": "tsx src/daemon.ts",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -4,8 +4,14 @@ const mockTabsQuery = vi.fn();
 const mockTabsGet = vi.fn();
 const mockExecuteScript = vi.fn();
 const mockGetManifest = vi.fn();
+let storedSettings: Record<string, unknown> | undefined;
 
 (global as any).chrome = {
+  storage: {
+    local: {
+      get: async (key: string) => ({ [key]: storedSettings }),
+    },
+  },
   tabs: {
     query: mockTabsQuery,
     get: mockTabsGet,
@@ -21,7 +27,10 @@ const mockGetManifest = vi.fn();
 // Import after the chrome mock is installed, and after the (unused in this
 // test) apty/index.js provider exports have something to resolve to.
 import { getEvidence } from "../apty/evidence-store";
-import { getAptyPageLogsTool } from "./apty";
+import {
+  getAptyPageLogsTool,
+  getAptyStudioServiceWorkerDiagnosticsTool,
+} from "./apty";
 
 function tab(id: number, url = `https://example.com/tab-${id}`) {
   return { id, active: true, url };
@@ -40,6 +49,7 @@ beforeEach(() => {
   mockTabsGet.mockReset();
   mockExecuteScript.mockReset();
   mockGetManifest.mockReset();
+  storedSettings = undefined;
   mockGetManifest.mockReturnValue({
     content_scripts: [
       { world: "MAIN", js: ["content-scripts/console-bridge.js"] },
@@ -327,7 +337,7 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
       expect.objectContaining({
         target: { tabId: 27, frameIds: [3] },
         world: "MAIN",
-        files: ["content-scripts/console-bridge.js"],
+        files: ["content/console-bridge.js"],
       }),
     );
     expect(result.entries).toEqual([
@@ -338,6 +348,30 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
       }),
     ]);
     expect(result.coverage.injectedFrames).toBe(1);
+  });
+
+  it.each([
+    ["the switch is off", { pageHooksEnabled: false }],
+    ["the site is excluded", { pageHooksExcludedSites: ["example.com"] }],
+  ])("never injects the bridge when %s, and says why", async (_label, settings) => {
+    storedSettings = settings;
+    mockTabsGet.mockResolvedValue(tab(27));
+    mockExecuteScript.mockResolvedValueOnce([
+      { frameId: 0, result: undefined },
+    ]);
+
+    const runContext = { context: { conversationId: "conv-1", tabId: 27 } };
+    const result = (await getAptyPageLogsTool.invoke(
+      runContext as any,
+      JSON.stringify({ limit: 100, minLevel: "log" }),
+    )) as any;
+
+    expect(mockExecuteScript).toHaveBeenCalledTimes(1);
+    expect(result.entries).toEqual([]);
+    expect(result.coverage.framesDisabled).toBe(1);
+    expect(result.coverage.disabledReason).toMatch(
+      /turned off for this site \(Settings → Troubleshooting\)/,
+    );
   });
 
   it("reports no_permission when script injection fails for a reason other than a restricted page", async () => {
@@ -352,5 +386,85 @@ describe("getAptyPageLogsTool — conversation/tab isolation", () => {
 
     expect(result.available).toBe(false);
     expect(result.status.code).toBe("no_permission");
+  });
+});
+
+describe("getAptyStudioServiceWorkerDiagnosticsTool", () => {
+  const STUDIO_ID = "b".repeat(32);
+
+  async function run(conversationId = "conv-studio-other") {
+    return (await getAptyStudioServiceWorkerDiagnosticsTool.invoke(
+      { context: { conversationId } } as any,
+      "{}",
+    )) as any;
+  }
+
+  it("reports not_configured without a Studio ID, and sends nothing", async () => {
+    const sendMessage = vi.fn();
+    (global as any).chrome.runtime.sendMessage = sendMessage;
+    storedSettings = {};
+
+    expect((await run()).status).toEqual({ status: "not_configured" });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("reads Studio's status and logs over the Client's contract, redacted and recorded as Studio evidence", async () => {
+    storedSettings = { peers: { studio: { extensionId: STUDIO_ID } } };
+    (global as any).chrome.runtime.sendMessage = vi.fn(
+      (
+        _id: string,
+        message: { type: string },
+        callback: (r: unknown) => void,
+      ) =>
+        callback(
+          message.type === "apty-debug-agent:get-service-worker-status"
+            ? { running: true, lastActivity: 1 }
+            : {
+                logs: [
+                  {
+                    level: "error",
+                    message: "save failed for jane.doe@example.com",
+                    timestamp: 2,
+                  },
+                ],
+              },
+        ),
+    );
+
+    const result = await run("conv-studio");
+
+    expect((global as any).chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      STUDIO_ID,
+      { type: "apty-debug-agent:get-service-worker-status" },
+      expect.any(Function),
+    );
+    expect(result.status).toMatchObject({ status: "ok", running: true });
+    expect(JSON.stringify(result.logs)).not.toContain("jane.doe@example.com");
+    expect(getEvidence("conv-studio").map((e) => [e.source, e.type])).toEqual([
+      ["apty-studio", "service-worker-status"],
+      ["apty-studio", "service-worker-error"],
+    ]);
+  });
+
+  it("names Studio and the fix when Studio does not let the Agent in", async () => {
+    storedSettings = { peers: { studio: { extensionId: STUDIO_ID } } };
+    (global as any).chrome.runtime.sendMessage = vi.fn(
+      (_id: string, _message: unknown, callback: (r: unknown) => void) => {
+        (global as any).chrome.runtime.lastError = {
+          message:
+            "Could not establish connection. Receiving end does not exist.",
+        };
+        callback(undefined);
+        (global as any).chrome.runtime.lastError = undefined;
+      },
+    );
+
+    const { status } = await run();
+
+    expect(status).toMatchObject({
+      status: "unavailable",
+      peerFailure: "no_receiver",
+    });
+    expect(status.error).toMatch(/nothing listening in the Apty Studio/);
   });
 });

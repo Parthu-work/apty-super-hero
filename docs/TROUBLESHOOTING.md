@@ -20,6 +20,8 @@ afterwards.
 | "Connect an AI provider" when sending | No API key or model is saved | Click **Set up AI provider**, fill in the key and model, then **Save Settings**. Typing a key turns the provider on. |
 | "Connection test timed out" | The AI Host field points at a website, not an API endpoint, or the host is unreachable | Clear AI Host to use the provider's default, or enter its API base URL. |
 | Every reply fails with an authentication error | The key is wrong, expired or for another provider | Paste a fresh key and click **Test Connection**. |
+| Anthropic: "401: CORS requests must set 'anthropic-dangerous-direct-browser-access' header" | A build before this fix did not send the header Anthropic requires from a browser or extension page | Update the extension; every Anthropic request now sends it. |
+| Anthropic: "This API key is not scoped to a workspace … anthropic-workspace-id" | The key can run in several workspaces, so each request must name one | Copy the workspace ID (`wrkspc_…`) from Claude Console → Settings → Workspaces into Settings → AI Configuration → **Workspace ID**, or create a key for a single workspace. |
 
 ## The current page can't be inspected
 
@@ -47,7 +49,9 @@ Agent's own ID, which the Client must allow-list.
 Response bodies are off by default. Turn on **Settings → General → Data
 handling → Capture response bodies**. Hosts or URL fragments in the
 deny-list there are never captured. The Apty Client route ("get
-segments.json from the Client") doesn't depend on this setting.
+segments.json from the Client") doesn't depend on the switch, but it does
+honour the deny-list: a listed resource comes back as `body_denied` with
+its metadata only. Remove the entry to read that body.
 
 ## DOM Health reports frames it couldn't read
 
@@ -56,6 +60,31 @@ example tabs opened before the extension was updated. A frame can still
 fail when it is navigating during the audit, or when Chrome blocks
 extensions from it (a `chrome://` or Web Store frame). Reload the page and
 run the check again.
+
+## Console logs start late, or DOM Health says routing "could not be measured"
+
+The agent runs a small script in each page's own JavaScript world from
+the moment it starts loading: it buffers console output and counts
+`history.pushState`/`replaceState` calls for DOM Health. A page can notice
+it (`history.pushState.toString()` is not native code), so **Settings →
+General → Troubleshooting → Track client-side routing and capture console
+output from page load** turns it off, and the list under it excludes
+sites (a host covers its subdomains; a full match pattern such as
+`https://*.example.org/admin/*` works too).
+
+Where it is off or excluded:
+
+- `get_apty_page_logs` returns no console output for that page and says
+  why (`coverage.disabledReason`); it does not inject the script on demand.
+- DOM Health's application audit reports `routingEvidence: "unavailable"`
+  with the reason, instead of "no client-side routing".
+- A change applies to pages loaded afterwards; reload open tabs.
+
+Compatibility note: the script is registered by the service worker with
+`chrome.scripting.registerContentScripts` (it used to be a static manifest
+entry). If it never runs, open the service worker's console from
+`chrome://extensions` and look for "[PageHooks] Could not register the
+console bridge"; an invalid excluded-site entry is skipped, not fatal.
 
 ## An action asks for approval, or is refused
 

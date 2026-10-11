@@ -21,9 +21,10 @@
  * output or Apty's own log messages.
  */
 
-import { tool } from "@apty/agent-core";
+import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
+  type AptyServiceWorkerDiagnosticsProvider,
   ConfiguredServiceWorkerDiagnosticsProvider,
   classifyLogEntry,
   type EvidenceSource,
@@ -31,13 +32,19 @@ import {
   getAptyIntegrationConfig,
   NotConfiguredServiceWorkerDiagnosticsProvider,
   NotConfiguredStudioDiagnosticsProvider,
+  peerExtensionId,
   recordEvidence,
   recordToolCall,
-  redactLogs,
   ScriptingClientDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,
   summarizeLogCategories,
 } from "../apty/index.js";
+import {
+  CONSOLE_BRIDGE_FILE,
+  pageHooksAllowedOn,
+} from "../runtime/page-hooks-registration.js";
+import { redactLogEntries } from "../runtime/redaction-mode.js";
+import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import {
   type DiagnosticTabFailureCode,
   describeTabForMeta,
@@ -45,6 +52,8 @@ import {
   resolveDiagnosticTab,
   type ToolRunContext,
 } from "./tab-utils";
+
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 type AptyConsoleLevel =
   | "log"
@@ -84,7 +93,7 @@ interface FrameReadResult {
   frameId: number;
   entries: AptyConsoleEntry[];
   url?: string;
-  coverage: "installed" | "from-injection" | "unavailable";
+  coverage: "installed" | "from-injection" | "unavailable" | "disabled";
 }
 
 type PageLogsErrorCode = "restricted_page" | "no_permission" | "tab_closed";
@@ -116,26 +125,12 @@ function isRestrictedUrl(url: string | undefined): boolean {
   return false;
 }
 
-/** The `content_scripts` entry (from the *resolved* runtime manifest, so it works whatever the build renamed the file to) that installs the console bridge in the page's MAIN world. */
-function findConsoleBridgeFiles(): string[] | undefined {
-  try {
-    const manifest = chrome.runtime.getManifest() as unknown as {
-      content_scripts?: Array<{
-        js?: string[];
-        world?: string;
-      }>;
-    };
-    const entry = manifest.content_scripts?.find(
-      (cs) => cs.world === "MAIN" && (cs.js?.length ?? 0) > 0,
-    );
-    return entry?.js;
-  } catch {
-    return undefined;
-  }
-}
-
 /** Reads `window.__aptyReadConsoleBuffer()` in every frame of a tab, in the page's MAIN world. Never throws — a failure to inject at all is reported via the returned `errorCode`. */
-async function readFrameConsoleLogs(tabId: number): Promise<{
+async function readFrameConsoleLogs(
+  tabId: number,
+  /** False where Settings → Troubleshooting turned the bridge off or excluded the site: frames without it are then not injected. */
+  mayInjectBridge: boolean,
+): Promise<{
   frames: FrameReadResult[];
   errorCode?: PageLogsErrorCode;
   errorMessage?: string;
@@ -188,7 +183,15 @@ async function readFrameConsoleLogs(tabId: number): Promise<{
   // content-script files on demand rather than guessing at a duplicate
   // implementation, then re-read.
   if (missingFrameIds.length > 0) {
-    frames.push(...(await injectBridgeIntoFrames(tabId, missingFrameIds)));
+    frames.push(
+      ...(mayInjectBridge
+        ? await injectBridgeIntoFrames(tabId, missingFrameIds)
+        : missingFrameIds.map((frameId) => ({
+            frameId,
+            entries: [],
+            coverage: "disabled" as const,
+          }))),
+    );
   }
 
   return { frames };
@@ -198,15 +201,7 @@ async function injectBridgeIntoFrames(
   tabId: number,
   frameIds: number[],
 ): Promise<FrameReadResult[]> {
-  const files = findConsoleBridgeFiles();
-  if (!files || files.length === 0) {
-    return frameIds.map((frameId) => ({
-      frameId,
-      entries: [],
-      coverage: "unavailable" as const,
-    }));
-  }
-
+  const files = [CONSOLE_BRIDGE_FILE];
   try {
     await chrome.scripting.executeScript({
       target: { tabId, frameIds },
@@ -382,7 +377,13 @@ export const getAptyPageLogsTool = tool({
       frames: frameResults,
       errorCode,
       errorMessage,
-    } = await readFrameConsoleLogs(tabId);
+    } = await readFrameConsoleLogs(
+      tabId,
+      pageHooksAllowedOn(
+        tab.url,
+        await settingsStorage.load(STORAGE_KEYS.SETTINGS).catch(() => null),
+      ),
+    );
     if (errorCode) {
       return pageLogsFailure({
         code: errorCode,
@@ -403,7 +404,9 @@ export const getAptyPageLogsTool = tool({
 
     const merged: MergedAptyConsoleEntry[] = [];
     for (const frame of relevantFrames) {
-      if (frame.coverage === "unavailable") continue;
+      if (frame.coverage === "unavailable" || frame.coverage === "disabled") {
+        continue;
+      }
       for (const entry of frame.entries) {
         merged.push({
           ...entry,
@@ -416,7 +419,7 @@ export const getAptyPageLogsTool = tool({
     merged.sort((a, b) => a.timestamp - b.timestamp || a.seq - b.seq);
 
     const minIndex = LEVEL_SEVERITY[minLevel];
-    const filtered = redactLogs(
+    const filtered = redactLogEntries(
       merged
         .filter((entry) => LEVEL_SEVERITY[entry.level] >= minIndex)
         .slice(-limit)
@@ -442,6 +445,14 @@ export const getAptyPageLogsTool = tool({
       injectedFrames: relevantFrames.filter(
         (f) => f.coverage === "from-injection",
       ).length,
+      framesDisabled: frameResults.filter((f) => f.coverage === "disabled")
+        .length,
+      ...(frameResults.some((f) => f.coverage === "disabled")
+        ? {
+            disabledReason:
+              "Console capture from page load is turned off for this site (Settings → Troubleshooting), so its console output was not recorded.",
+          }
+        : {}),
     };
 
     return {
@@ -663,46 +674,86 @@ export const getAptyServiceWorkerDiagnosticsTool = tool({
             diagnosticEndpoint: config.serviceWorkerDiagnosticEndpoint,
           })
         : new NotConfiguredServiceWorkerDiagnosticsProvider();
-    const [status, logs] = await Promise.all([
-      provider.getStatus(),
-      provider.getLogs(),
-    ]);
+    return serviceWorkerDiagnostics(
+      provider,
+      "service-worker",
+      (context as ToolRunContext)?.context?.conversationId,
+    );
+  },
+});
 
-    const requestedByConversationId = (context as ToolRunContext)?.context
-      ?.conversationId;
+/**
+ * Status and recent logs from an Apty extension's service worker, recorded
+ * as evidence. Shared by the Client and Studio tools: same contract, same
+ * redaction (the provider redacts every log line) and the same scope note.
+ */
+async function serviceWorkerDiagnostics(
+  provider: AptyServiceWorkerDiagnosticsProvider,
+  source: "service-worker" | "apty-studio",
+  requestedByConversationId: string | undefined,
+) {
+  const [status, logs] = await Promise.all([
+    provider.getStatus(),
+    provider.getLogs(),
+  ]);
+  recordEvidence({
+    conversationId: requestedByConversationId,
+    source,
+    type: "service-worker-status",
+    timestamp: Date.now(),
+    tabId: null,
+    scope: "shared",
+    data: status,
+  });
+  for (const log of logs) {
+    if (log.level !== "warn" && log.level !== "error") continue;
     recordEvidence({
       conversationId: requestedByConversationId,
-      source: "service-worker",
-      type: "service-worker-status",
-      timestamp: Date.now(),
+      source,
+      type: `service-worker-${log.level}`,
+      timestamp: log.timestamp,
       tabId: null,
       scope: "shared",
-      data: status,
+      data: log,
     });
-    for (const log of logs) {
-      if (log.level !== "warn" && log.level !== "error") continue;
-      recordEvidence({
-        conversationId: requestedByConversationId,
-        source: "service-worker",
-        type: `service-worker-${log.level}`,
-        timestamp: log.timestamp,
-        tabId: null,
-        scope: "shared",
-        data: log,
-      });
-    }
+  }
+  return {
+    status,
+    logs,
+    scope: "shared-global" as const,
+    scopeNote:
+      "These logs come from Apty's service worker, which is shared across all tabs and browser windows — they are not specific to the current tab.",
+    // Which conversation retrieved this shared/unattributed evidence.
+    // Do NOT read this as "these logs are about this conversation's tab"
+    // — see scopeNote above.
+    requestedByConversationId,
+  };
+}
 
-    return {
-      status,
-      logs,
-      scope: "shared-global" as const,
-      scopeNote:
-        "These logs come from Apty's service worker, which is shared across all tabs and browser windows — they are not specific to the current tab.",
-      // Which conversation retrieved this shared/unattributed evidence.
-      // Do NOT read this as "these logs are about this conversation's tab"
-      // — see scopeNote above.
-      requestedByConversationId,
-    };
+export const getAptyStudioServiceWorkerDiagnosticsTool = tool({
+  name: "get_apty_studio_service_worker_diagnostics",
+  description:
+    "Get Apty Studio's service-worker status and recent logs over the same message contract as the Apty Client. " +
+    "Studio must list this Agent's extension ID in its manifest's externally_connectable.ids and run the Agent bridge module; until then this returns status 'unavailable' with the exact fix, or 'not_configured' when no Studio ID is set in Settings → Apty Integration. " +
+    "The service worker is shared by every tab: do not assume these logs are about the current page.",
+  parameters: z.object({}),
+  execute: async (_input, context) => {
+    const conversationId = (context as ToolRunContext)?.context?.conversationId;
+    recordToolCall(
+      conversationId,
+      "get_apty_studio_service_worker_diagnostics",
+    );
+    const studioId = peerExtensionId(
+      await getAptyIntegrationConfig(),
+      "studio",
+    );
+    const provider = studioId
+      ? new ConfiguredServiceWorkerDiagnosticsProvider({
+          extensionId: studioId,
+          peer: "studio",
+        })
+      : new NotConfiguredServiceWorkerDiagnosticsProvider();
+    return serviceWorkerDiagnostics(provider, "apty-studio", conversationId);
   },
 });
 
@@ -712,4 +763,5 @@ export const aptyTools = [
   getAptyClientDiagnosticsTool,
   getAptyStudioDiagnosticsTool,
   getAptyServiceWorkerDiagnosticsTool,
+  getAptyStudioServiceWorkerDiagnosticsTool,
 ];

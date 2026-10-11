@@ -54,6 +54,18 @@ export {
   isScoreMeaningful,
 } from "./dom-health-scoring.js";
 export {
+  DOM_HEALTH_THRESHOLDS,
+  type ResolvedThresholds,
+  resolveThresholds,
+  type ThresholdName,
+  type ThresholdOverrides,
+  thresholdReport,
+} from "./dom-health-thresholds.js";
+export type {
+  DesEvidence,
+  ElementExplanation,
+} from "./element-explanation.js";
+export {
   type CorrelateOptions,
   type CorrelationCluster,
   correlateEvidence,
@@ -173,6 +185,14 @@ export {
   waitForTabLoad,
 } from "./page-navigation.js";
 export {
+  type AptyPeer,
+  allowListFix,
+  PEER_NAMES,
+  peerExtensionId,
+  peerExtensionIdPatch,
+  peerFailureMessage,
+} from "./peers.js";
+export {
   buildRouteKey,
   type FrameSignatureEntry,
   type RouteKey,
@@ -230,6 +250,13 @@ export type {
   EvidenceSource,
   NewDiagnosticEvidence,
 } from "./types.js";
+export {
+  buildValidationBundle,
+  chromeVersionFrom,
+  VALIDATION_BUNDLE_SCHEMA,
+  type ValidationBundle,
+  type ValidationBundleInput,
+} from "./validation-bundle.js";
 export {
   NotConfiguredWidgetDiagnosticsProvider,
   ScriptingWidgetDiagnosticsProvider,

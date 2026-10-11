@@ -41,7 +41,27 @@ function isHiddenByStyle(el: Element): boolean {
     return false;
   }
   if (el.getAttribute("aria-hidden") === "true") return true;
-  return false;
+  return !isRendered(el);
+}
+
+/**
+ * An element inside a `display: none` container (a closed menu, a collapsed
+ * panel) keeps its own `display`, but has no box, so it used to read as
+ * zero-size: 103 of the 158 "visible" elements in the second Infor LN run.
+ * `checkVisibility` (Chrome 105+) also sees hidden ancestors. Where it is
+ * missing (jsdom), every element counts as rendered.
+ */
+function isRendered(el: Element): boolean {
+  const check = (
+    el as Element & {
+      checkVisibility?: (options?: {
+        opacityProperty?: boolean;
+        visibilityProperty?: boolean;
+      }) => boolean;
+    }
+  ).checkVisibility;
+  if (typeof check !== "function") return true;
+  return check.call(el, { opacityProperty: true, visibilityProperty: true });
 }
 
 function isOutsideViewport(rect: DOMRect, view: Window): boolean {

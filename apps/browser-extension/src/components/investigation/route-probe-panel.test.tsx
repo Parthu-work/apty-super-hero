@@ -8,7 +8,7 @@ vi.mock("@apty/browser-runtime", () => ({
   toShareableRouteProbeReport: vi.fn(),
 }));
 
-import { RouteProbePanel } from "./route-probe-panel";
+import { describeVirtualized, RouteProbePanel } from "./route-probe-panel";
 
 function step(index: number, heading: string) {
   return {
@@ -97,5 +97,23 @@ describe("RouteProbePanel", () => {
       await screen.findByText("Click-first traversal needed (1 clicks)"),
     ).toBeInTheDocument();
     expect(screen.getByText(/heading changed on 1/)).toBeInTheDocument();
+  });
+});
+
+describe("describeVirtualized", () => {
+  it.each([
+    [null, "—"],
+    [undefined, "—"],
+    [{ containers: 0, observedItems: 0, declaredTotal: 0, samples: [] }, "—"],
+    [
+      { containers: 2, observedItems: 40, declaredTotal: 1000, samples: [] },
+      "2 (40/1000)",
+    ],
+    [
+      { containers: 1, observedItems: 12, declaredTotal: null, samples: [] },
+      "1 (12/?)",
+    ],
+  ])("shows %j as %s", (virtualized, text) => {
+    expect(describeVirtualized(virtualized)).toBe(text);
   });
 });

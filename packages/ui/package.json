@@ -121,6 +121,7 @@
     "build": "tsc",
     "typecheck": "tsc --project tsconfig.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build"
   },
   "license": "MIT",

@@ -19,6 +19,7 @@ import {
   tempDir,
   toolResults,
   unpackedExtensionId,
+  waitForWorker,
   writeFakeClient,
 } from "./harness.mjs";
 
@@ -175,6 +176,28 @@ describe("Apty Client integration in a real browser", () => {
     await app.close();
   });
 
+  it("inspecting the same body again returns the stored evidence id, which the viewer opens", async () => {
+    await useWorkingClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    model.script(
+      callToolThenReport("inspect_extension_network", {
+        resourceQuery: "segments.json",
+      }),
+    );
+
+    await chatAndWait(panel, "get segments.json from the apty client again");
+
+    const result = toolResults(model.requests.at(-1)).at(-1);
+    assert.ok(result.response.evidenceId);
+    await panel.getByText("Show thinking details").click();
+    await panel.getByRole("button", { name: "View full response" }).click();
+    await panel.getByText("Array(206)").waitFor();
+    await panel.close();
+    await app.close();
+  });
+
   it("returns the body of a 403 response too", async () => {
     await useWorkingClient();
     const app = await browser.context.newPage();
@@ -196,6 +219,67 @@ describe("Apty Client integration in a real browser", () => {
     );
     assert.equal(result.request.status, 403);
     assert.match(result.response.bodyPreview, /token expired/);
+    await panel.close();
+    await app.close();
+  });
+
+  it("withholds a body on the deny list without asking the Client for it (A2)", async () => {
+    await useWorkingClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app, {
+      networkBodyCaptureDenyList: ["/users/"],
+    });
+    const client = await waitForWorker(browser.context, (url) =>
+      url.startsWith(`chrome-extension://${clients.working.id}/`),
+    );
+    await client.evaluate(() => {
+      globalThis.bodyRequests = [];
+    });
+    const ask = async (resourceQuery, prompt) => {
+      model.script(
+        callToolThenReport("inspect_extension_network", { resourceQuery }),
+      );
+      await chatAndWait(panel, prompt);
+      return toolResults(model.requests.at(-1)).at(-1);
+    };
+
+    const denied = await ask(
+      "4815162342.json",
+      "get 4815162342.json from the apty client",
+    );
+    assert.equal(denied.status, "body_denied", JSON.stringify(denied));
+    assert.equal(denied.deniedBy, "/users/");
+    assert.match(denied.request.url, /\/users\/4815162342\.json$/);
+    assert.equal(denied.response, undefined);
+    assert.ok(!JSON.stringify(denied).includes("en-GB"));
+
+    const allowed = await ask(
+      "segments.json",
+      "get the data from segments.json in the apty client",
+    );
+    assert.equal(allowed.found, true);
+    assert.ok(allowed.response.fullLength > 80_000);
+
+    assert.deepEqual(
+      await client.evaluate(() => globalThis.bodyRequests),
+      ["r1"],
+      "the Client was never asked for the denied body",
+    );
+
+    await panel.evaluate(async () => {
+      const { aipex_settings } =
+        await chrome.storage.local.get("aipex_settings");
+      await chrome.storage.local.set({
+        aipex_settings: { ...aipex_settings, networkBodyCaptureDenyList: [] },
+      });
+    });
+    const restored = await ask(
+      "4815162342.json",
+      "get 4815162342.json from the apty client again",
+    );
+    assert.equal(restored.status, "ok", JSON.stringify(restored));
+    assert.match(restored.response.bodyPreview, /en-GB/);
     await panel.close();
     await app.close();
   });

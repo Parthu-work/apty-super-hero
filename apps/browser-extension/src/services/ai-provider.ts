@@ -45,7 +45,7 @@ const LOOPBACK_HOSTNAMES = new Set([
  * parser itself: `new URL(...).hostname` is already normalized to
  * dotted-decimal/canonical form before we read it below.
  */
-function validateHostUrl(url: string | undefined): string | undefined {
+export function validateHostUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
 
   let parsed: URL;
@@ -117,8 +117,15 @@ export function describeConnectionTestError(error: unknown): string {
     message = `${message.slice(0, 300)}...`;
   }
 
+  if (/anthropic-workspace-id/.test(message)) {
+    message += ` ${WORKSPACE_ID_FIX}`;
+  }
   return typeof statusCode === "number" ? `${statusCode}: ${message}` : message;
 }
+
+/** Where to fix Anthropic's "not scoped to a workspace" error in this extension. */
+export const WORKSPACE_ID_FIX =
+  "Fix: enter the workspace ID (wrkspc_…, from Claude Console → Settings → Workspaces) in Settings → AI Configuration → Workspace ID, or use an API key created for a single workspace.";
 
 /**
  * Check whether the current settings have a usable provider configured.
@@ -132,6 +139,37 @@ export function isProviderConfigured(settings: AppSettings): boolean {
 }
 
 /**
+ * The Anthropic SDK appends `/messages` to its base URL, which must end in
+ * `/v1`. Hosts saved by older presets were the bare origin
+ * (`https://api.anthropic.com`), which sent every request to a 404.
+ */
+export function anthropicBaseUrl(baseURL: string | undefined) {
+  if (!baseURL) return baseURL;
+  const url = new URL(baseURL);
+  return url.pathname === "/" || url.pathname === ""
+    ? `${url.origin}/v1`
+    : baseURL;
+}
+
+/**
+ * Headers every request to Anthropic from this extension needs. The API
+ * treats an extension page as a browser origin and refuses it (401) without
+ * `anthropic-dangerous-direct-browser-access`; the key is the user's own,
+ * stored locally, which is what the header acknowledges. A multi-workspace
+ * key also needs `anthropic-workspace-id` (a key created for one workspace
+ * runs in it without the header).
+ */
+export function anthropicHeaders(
+  workspaceId: string | undefined,
+): Record<string, string> {
+  const id = workspaceId?.trim();
+  return {
+    "anthropic-dangerous-direct-browser-access": "true",
+    ...(id ? { "anthropic-workspace-id": id } : {}),
+  };
+}
+
+/**
  * Create an AI SDK provider for BYOK mode.
  */
 export function createAIProvider(settings: AppSettings) {
@@ -141,7 +179,11 @@ export function createAIProvider(settings: AppSettings) {
 
   switch (provider) {
     case "anthropic":
-      return createAnthropic({ apiKey, baseURL });
+      return createAnthropic({
+        apiKey,
+        baseURL: anthropicBaseUrl(baseURL),
+        headers: anthropicHeaders(settings.aiWorkspaceId),
+      });
     case "google":
       return createGoogleGenerativeAI({ apiKey, baseURL });
     case "openai":

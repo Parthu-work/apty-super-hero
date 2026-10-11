@@ -352,8 +352,10 @@ allows an actual click. When clicking is off (`"page"`/`"application-safe"`),
 every detected candidate is recorded with `status: "not-discovered"` and a
 reason — visible in the inventory, never silently dropped, never
 autonomously acted on. When `"application-deep"` is set, a click is followed by a
-before/after state-fingerprint comparison: `same` → `not-discovered`
-("this control didn't produce a new state"), `uncertain` →
+before/after state-fingerprint comparison: `same` → `explored-no-new-state`
+("this control didn't produce a new state": explored, not a state, so it is
+neither in `pagesDiscovered` nor gating the score; owner decision after the
+Infor LN bundle, whose "Open tab menu" clicks opened a dropdown), `uncertain` →
 `not-discovered` with that reason, `different` → audited as a real new
 state (its own URL is reused since the URL didn't change; the fingerprint
 comparison's reasons become the state's `transitionReason`). A `domPath`
@@ -517,6 +519,31 @@ confidence was lowered:
 
 The thresholds read "any" and "most" literally and are unverified.
 
+## Virtualized lists (`health-virtualized.ts`, WP B4)
+
+A virtualized grid or list renders only the rows in view, so an audit sees
+a fraction of its controls. Each snapshot reports
+`virtualized: { containers, observedItems, declaredTotal, samples }`
+(merged across frames; `declaredTotal` is null when any list's total is
+unknown). Signals, read through shadow roots:
+
+- `aria-count`: `aria-rowcount`, `aria-colcount` or `aria-setsize` larger
+  than what is rendered, or -1;
+- `index-gap`: sibling `data-index` / `data-row-index` values that don't
+  start at 0 or skip numbers;
+- `spacer`: an empty child at least 500 px tall (inline style) next to two
+  or more items;
+- `scroll-height`: a list-like container whose scroll height is at least
+  twice, and 1,000 px more than, its rendered items' height.
+
+A grid and its row wrapper flagged separately count as one list. A page
+with virtualized lists gets the `virtualized-list-partial-coverage` risk
+and a confidence cap: MEDIUM, or LOW when more than half the declared rows
+were not rendered. All thresholds are general knowledge of react-window,
+AG Grid and TanStack Virtual, unverified on the two applications. The
+route probe shows the same summary per frame. The optional scroll sample
+(top, middle, bottom) was not built: the audit never scrolls.
+
 ## Coverage is "observed", never "total"
 
 `ApplicationCoverage.coverageLabel` is always `"OBSERVED_COVERAGE"` — this
@@ -558,7 +585,9 @@ don't know enough" beats a clean-looking number.
 `dom-health-scoring.ts`'s `WEIGHTS` puts more than half the total weight on
 `automaticSelection` (0.30) + `selectorStability` (0.30) combined, with
 `ambiguityRisk` (0.12, folding in same-snapshot wrong-target candidates)
-above the presentation-layer signals (`hitTestTargetability` 0.06,
+above the presentation-layer signals (`hitTestTargetability` 0.06, the
+share of visible tested elements a click reaches; elements hidden when
+sampled, such as closed menus, are left out,
 `domVolatility` 0.04, `accessibilitySignal` 0.02). This is deliberate: a
 page that resolves every selector perfectly against today's DOM but whose
 captured paths mostly fail (or land on the wrong element) when replayed
@@ -707,7 +736,9 @@ application shapes built from the measured values:
   - how the route probe reads on LN and athenaOne.
 
   The developer route probe (Settings → Troubleshooting → Developer tools)
-  exists to gather that evidence on the next tenant.
+  exists to gather that evidence on the next tenant, and "Export validation
+  bundle" packages it (B2); the protocol is
+  [`real-tenant-validation.md`](real-tenant-validation.md).
 - **Thresholds marked "unverified" in the code** were not tuned against a
   live application:
   - the seed link count for click-first;
@@ -715,6 +746,13 @@ application shapes built from the measured values:
   - the unreadable-frame and structure-only confidence caps;
   - the free-text cut-off for `data-*` values;
   - the collector budget.
+
+  They are listed in one registry,
+  `packages/browser-runtime/src/apty/dom-health-thresholds.ts`, each
+  flagged unverified or not. Developer tools can override them
+  (`domHealthThresholdOverrides`) while bundles are collected; defaults are
+  unchanged, out-of-range values are rejected, and every override in effect
+  is listed in the result and the bundle.
 - **Restoration resets to the seed URL for any click path**, even when only
   the last hop needs replaying. `history.back()` is not used, because a
   same-URL click need not push a history entry.

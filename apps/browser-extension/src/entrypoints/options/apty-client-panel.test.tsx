@@ -9,7 +9,7 @@ vi.mock("@apty/browser-runtime", () => ({
   isValidExtensionId: (id: string) => /^[a-p]{32}$/.test(id),
 }));
 
-import { AptyClientPanel } from "./apty-client-panel";
+import { AptyClientPanel, AptyStudioPanel } from "./apty-client-panel";
 
 const CLIENT_ID = "a".repeat(32);
 const mockManagementGet = vi.fn();
@@ -111,5 +111,75 @@ describe("AptyClientPanel", () => {
     expect(await screen.findByText(/could not be found/)).toBeInTheDocument();
     expect(mockUpdateConfig).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("AptyStudioPanel", () => {
+  function connectStudio() {
+    render(<AptyStudioPanel />);
+    fireEvent.change(screen.getByLabelText("Apty Studio's Chrome ID"), {
+      target: { value: CLIENT_ID },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+  }
+
+  it("runs the same handshake and stores Studio's ID under peers.studio", async () => {
+    clientAnswers({ running: true });
+
+    connectStudio();
+
+    expect(await screen.findByText("Answering")).toBeInTheDocument();
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      CLIENT_ID,
+      { type: "apty-debug-agent:get-service-worker-status" },
+      expect.any(Function),
+    );
+    expect(mockUpdateConfig).toHaveBeenCalledWith({
+      studioExtensionId: undefined,
+      peers: { studio: { extensionId: CLIENT_ID } },
+    });
+  });
+
+  it("gives the manifest fix with this Agent's ID when Studio refuses delivery", async () => {
+    mockSendMessage.mockImplementation(
+      (_id: string, _message: unknown, callback: (r: unknown) => void) => {
+        (global as any).chrome.runtime.lastError = {
+          message:
+            "Could not establish connection. Receiving end does not exist.",
+        };
+        callback(undefined);
+        (global as any).chrome.runtime.lastError = undefined;
+      },
+    );
+
+    connectStudio();
+
+    expect(
+      await screen.findByText(
+        'Apty Studio\'s manifest must list this Agent ID in externally_connectable.ids: "agent-own-id"',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/nothing listening in the Apty Studio/),
+    ).toBeInTheDocument();
+  });
+
+  it("offers the manifest snippet with this Agent's ID to copy", () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    render(<AptyStudioPanel />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Copy the Apty Studio manifest snippet",
+      }),
+    );
+
+    expect(writeText).toHaveBeenCalledWith(
+      '"externally_connectable": { "ids": ["agent-own-id"] }',
+    );
   });
 });

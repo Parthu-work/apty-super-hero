@@ -117,4 +117,27 @@ describe("downloadChatImagesTool", () => {
     expect(result.downloadedCount).toBe(2);
     expect(mockDownload).toHaveBeenCalledTimes(2);
   });
+
+  it("saves an SVG image with the .svg extension", async () => {
+    answerApprovals({ approved: true });
+    const svg = [
+      {
+        id: "m1",
+        parts: [
+          {
+            type: "image",
+            imageData: "data:image/svg+xml;base64,PHN2Zz4=",
+            imageTitle: "Diagram",
+          },
+        ],
+      },
+    ];
+
+    await downloadChatImagesTool.invoke(
+      { context: { conversationId: "conv-batch-svg" } } as never,
+      JSON.stringify({ messages: svg }),
+    );
+
+    expect(mockDownload.mock.calls[0]?.[0].filename).toBe("diagram.svg");
+  });
 });

@@ -4,6 +4,19 @@ on:
   push:
     tags:
       - "v*"
+  # A dry run builds, tests and packages exactly as a release does and
+  # uploads the packages, but never publishes (D3). With dry_run off, a
+  # run started from a v* tag publishes like a tag push; from a branch it
+  # still cannot publish (there is no tag to release).
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build, test and package only; do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
 
 jobs:
   # Builds, tests and packages with a read-only token, so a compromised
@@ -27,8 +40,19 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
+      # A tag releases the tag; a run from a branch checks and names the
+      # packages after the manifest's own version.
+      - name: Choose the release name
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "RELEASE_NAME=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
+          else
+            version=$(node -p 'require("./apps/browser-extension/manifest.json").version')
+            echo "RELEASE_NAME=v${version}" >> "${GITHUB_ENV}"
+          fi
+
       - name: Check the tag matches the extension version
-        run: node tooling/scripts/check-release-version.mjs "${GITHUB_REF_NAME}"
+        run: node tooling/scripts/check-release-version.mjs "${RELEASE_NAME}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -51,22 +75,26 @@ jobs:
         run: npm run test:e2e
 
       - name: Manifest, architecture, branding and tool audits
-        run: npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs
+        run: npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips
+
+      - name: The packaged manifest key yields the pinned Agent ID
+        run: node tooling/scripts/check-extension-id.mjs apps/browser-extension/dist/manifest.json
 
       # Two packages: the unpacked/enterprise one keeps the manifest `key`
       # that pins the extension ID; the Chrome Web Store rejects a `key`, so
       # its package drops it (the store keeps the listing's own ID).
       - name: Package
         run: |
-          name="apty-agent-${GITHUB_REF_NAME}.zip"
-          store="apty-agent-${GITHUB_REF_NAME}-webstore.zip"
+          name="apty-agent-${RELEASE_NAME}.zip"
+          store="apty-agent-${RELEASE_NAME}-webstore.zip"
           (cd apps/browser-extension/dist && zip -qr "../../../${name}" .)
           cp -r apps/browser-extension/dist store-dist
           node -e 'const f="store-dist/manifest.json",fs=require("fs"),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))'
           (cd store-dist && zip -qr "../${store}" .)
-          sha256sum "${name}" "${store}" > "apty-agent-${GITHUB_REF_NAME}.sha256"
+          sha256sum "${name}" "${store}" > "apty-agent-${RELEASE_NAME}.sha256"
+          sha256sum -c "apty-agent-${RELEASE_NAME}.sha256"
           mkdir release
-          mv "${name}" "${store}" "apty-agent-${GITHUB_REF_NAME}.sha256" release/
+          mv "${name}" "${store}" "apty-agent-${RELEASE_NAME}.sha256" release/
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -74,8 +102,13 @@ jobs:
           path: release/
           if-no-files-found: error
 
+  # Publishes a pushed v* tag, or a run started from a v* tag with dry_run
+  # off. A dry run stops after the build job's artifacts.
   publish:
     needs: build
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name == 'push' || inputs.dry_run == false)
     runs-on: ubuntu-latest
     permissions:
       contents: write

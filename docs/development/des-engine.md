@@ -325,6 +325,26 @@ internal state — it is derived honestly from the real algorithm's actual,
 observable decisions (which attribute/level actually carried the
 disambiguation), never invented independently of it.
 
+### Explaining each element in DES terms (`element-explanation.ts`)
+
+Reports name the steps the way Apty's own DES documentation does. The
+port's names map one to one:
+
+| Report name | Port (`des-engine.ts`) | Outcome it explains |
+| --- | --- | --- |
+| checkInitialPath | checkInitialPath | `DIRECT_SUCCESS` |
+| Partial Selector | partial hook at capture | `RECOVERED_BY_PARTIAL` |
+| checkSimplifyDynamic | dropDynamicValues | `RECOVERED_BY_IGNORE` |
+| checkContainers | dropOneAncestor | `RECOVERED_BY_CONTEXT` |
+| checkSimplifyNth, then checkDirectElement | dropPositionalPseudo, leafFieldCombinations | `POSITIONAL_ONLY` |
+
+`AMBIGUOUS`, `WRONG_TARGET`, `NOT_RESOLVED` and `INACCESSIBLE` keep plain
+names. Each element sample carries an `explanation` (how DES finds it, the
+attribute names left out as dynamic, shadow depth, the hit-test reason,
+the cross-state result and a fix), and each result carries `desEvidence`:
+counts per step, the attribute names most often left out as dynamic, and
+hit-test failures by reason. Attribute names only, never values.
+
 ## Frame and Shadow DOM boundaries
 
 `root.querySelectorAll` cannot see into another `Document` or into a shadow

@@ -57,6 +57,8 @@ export interface MessageListProps
   onRegenerate?: () => void;
   // biome-ignore lint/suspicious/noConfusingVoidType: void must stay to accept existing (text: string) => void consumer implementations
   onCopy?: (text: string) => void | Promise<boolean>;
+  /** Prepares a message's text for Download (adds the export header). */
+  formatExport?: (text: string) => string;
 }
 
 export interface MessageItemProps
@@ -67,6 +69,8 @@ export interface MessageItemProps
   onRegenerate?: () => void;
   // biome-ignore lint/suspicious/noConfusingVoidType: void must stay to accept existing (text: string) => void consumer implementations
   onCopy?: (text: string) => void | Promise<boolean>;
+  /** Prepares a message's text for Download (adds the export header). */
+  formatExport?: (text: string) => string;
 }
 
 export interface InputAreaProps

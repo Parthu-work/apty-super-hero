@@ -15,21 +15,24 @@ export default defineConfig({
       // Puppeteer tests require Chrome browser installation - run separately with: vitest run --config vitest.puppeteer.config.ts
       "**/*.puppeteer.test.ts",
     ],
-    // `npm run test:coverage` gates the modules that enforce trust
-    // boundaries: approvals, sender checks, cross-extension messages and
-    // what network capture may record.
+    // `npm run test:coverage`: package-wide thresholds are a ratchet, set
+    // one point below the measured value; they may only go up
+    // (docs/development/coverage.md). The modules that enforce trust
+    // boundaries (approvals, sender checks, cross-extension messages and
+    // what network capture may record) keep their own stricter gate.
     coverage: {
       provider: "v8",
       reporter: ["text-summary"],
-      include: [
-        "src/tools/approval.ts",
-        "src/runtime/trusted-sender.ts",
-        "src/apty/external-messaging.ts",
-        "src/apty/network-capture-session.ts",
-        "src/apty/session-snapshot.ts",
-        "src/tools/network-capture.ts",
-      ],
-      thresholds: { statements: 88, branches: 78, functions: 85, lines: 90 },
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}", "**/__tests__/**", "**/*.d.ts"],
+      thresholds: {
+        statements: 48,
+        branches: 44,
+        functions: 52,
+        lines: 48,
+        "src/{tools/approval,runtime/trusted-sender,apty/external-messaging,apty/network-capture-session,apty/session-snapshot,tools/network-capture}.ts":
+          { statements: 88, branches: 78, functions: 85, lines: 90 },
+      },
     },
   },
 });

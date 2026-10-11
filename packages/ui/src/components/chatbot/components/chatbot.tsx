@@ -2,6 +2,7 @@ import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useChat, useChatConfig } from "../../../hooks";
 import { useTranslation } from "../../../i18n/context";
 import { copyText } from "../../../lib/clipboard";
+import { withExportHeader } from "../../../lib/export-header";
 import { cn } from "../../../lib/utils";
 import type { ChatbotThemeVariables, ContextItem } from "../../../types";
 import { DEFAULT_MODELS } from "../constants";
@@ -312,9 +313,15 @@ function ChatbotContent({
     [t, sendMessage],
   );
 
-  const handleCopy = useCallback(async (text: string): Promise<boolean> => {
-    return copyText(text);
-  }, []);
+  const redactionMode = useContext(ConfigContext)?.settings.redactionMode;
+  const formatExport = useCallback(
+    (text: string) => withExportHeader(text, redactionMode),
+    [redactionMode],
+  );
+  const handleCopy = useCallback(
+    async (text: string): Promise<boolean> => copyText(formatExport(text)),
+    [formatExport],
+  );
 
   const handleNewChat = useCallback(() => {
     reset?.();
@@ -339,6 +346,7 @@ function ChatbotContent({
         status={status || "idle"}
         onRegenerate={regenerate}
         onCopy={handleCopy}
+        formatExport={formatExport}
         onSuggestionClick={handleSuggestion}
         onUxAuditClick={handleUxAuditClick}
       />

@@ -33,6 +33,7 @@ import {
   type DomHealthRecommendation,
   type DomHealthRisk,
   determineEvidenceState,
+  duplicateIdsRisk,
   type EvidenceState,
   frameConfidenceCaps,
   gradeForScore,
@@ -49,6 +50,7 @@ import {
   scoreSelectorStability,
   WEIGHTS,
 } from "./dom-health-scoring.js";
+import { type DesEvidence, mergeDesEvidence } from "./element-explanation.js";
 import {
   type FrameAccessibilitySummary,
   sampleFailureReasons,
@@ -62,17 +64,24 @@ export type PageAuditStatus =
   | "skipped-unsafe"
   | "skipped-cross-origin"
   | "skipped-duplicate"
-  /** A candidate application state was detected (e.g. a menu/tab/tree item with no real href) but never acted on — see `application-audit.ts`'s `allowClickDiscovery` gate. Reported explicitly, never folded into "discovered". */
-  | "not-discovered";
+  /** A candidate application state was detected (e.g. a menu/tab/tree item with no real href) but never acted on, or acted on without a usable result (the click failed, the state could not be restored or told apart) — see `application-audit.ts`. Reported explicitly, never folded into "discovered". */
+  | "not-discovered"
+  /** A navigation control that was clicked and verifiably left the screen as it was (e.g. a menu that opens a dropdown): explored, and not a state. */
+  | "explored-no-new-state";
 
 export type PageDiscoverySource =
   | "seed"
   | "same-origin-link"
+  /** A link to another origin: reported as skipped, never followed. */
+  | "cross-origin-link"
   | "safe-navigation-control";
 
 export interface PageNavigationModel {
   usesHistoryApiRouting: boolean;
   historyApiCallCount: number;
+  /** "unavailable" when the page-world hooks that count history calls don't run on this page, so `usesHistoryApiRouting: false` means "not measured", not "none". */
+  routingEvidence?: "observed" | "unavailable";
+  routingEvidenceReason?: string;
 }
 
 export interface PageAuditRecord {
@@ -104,8 +113,10 @@ export interface ApplicationCoverage {
   pagesFailed: number;
   pagesSkippedUnsafe: number;
   pagesSkippedDuplicate: number;
-  /** States a candidate was detected for but never acted on (click-discovery gate off, or a click that didn't produce a new state) — visibility into what discovery COULD explore further, never hidden. */
+  /** States a candidate was detected for but not explored: the click-discovery gate was off, or the click failed, could not be restored, or left the state uncertain — visibility into what discovery COULD explore further, never hidden. */
   pagesNotDiscovered: number;
+  /** Controls clicked that verifiably changed nothing on screen. Explored, not states: not in `pagesDiscovered`. */
+  pagesExploredNoNewState: number;
   coveragePercent: number;
   /** Always "OBSERVED_COVERAGE" — never "TOTAL_APPLICATION_COVERAGE", because this audit cannot know the true size of the application. */
   coverageLabel: "OBSERVED_COVERAGE";
@@ -114,6 +125,8 @@ export interface ApplicationCoverage {
   framesDiscovered: number;
   framesInspected: number;
   framesInaccessible: number;
+  /** Empty about:blank frames, skipped by design; part of `framesDiscovered`. */
+  framesPlaceholder: number;
 }
 
 /** One state-graph node, presentation-shaped (see `state-graph.ts`'s `ApplicationStateNode` for the full internal model this is derived from). */
@@ -239,6 +252,8 @@ export interface ApplicationAuditResult {
   risks: DomHealthRisk[];
   recommendations: DomHealthRecommendation[];
   pages: PageAuditRecord[];
+  /** Every audited page's DES evidence summed: steps, dynamic values left out, hit-test reasons. */
+  desEvidence: DesEvidence;
   methodology: string[];
   /** The real state-discovery tree this run built — never a flat page list — see `state-graph.ts`. Absent only if the caller didn't pass one (e.g. an older/degenerate call path). */
   /** Why `confidence` was capped below what coverage and volume alone would give; empty when it was not. */
@@ -271,7 +286,7 @@ export interface ApplicationAuditResult {
 export function determineApplicationEvidenceState(inputs: {
   pageLevelEvidenceState: EvidenceState;
   audited: number;
-  /** Total known page/state inventory rows (`pages.length`) — completed, failed, and skipped alike. */
+  /** Total known page/state inventory rows — completed, failed, and skipped alike; a click that verifiably changed nothing is not a state and is not counted. */
   discovered: number;
   /** Detected navigation candidates that were never explored (click discovery off, or a click that produced nothing new). */
   notDiscovered: number;
@@ -359,6 +374,20 @@ const APPLICATION_METHODOLOGY_PREFIX: string[] = [
  * Build the application-level result from every page this audit run
  * attempted, in the order they were visited.
  */
+/** The reasons controls were not explored, most frequent first: "<reason> (×n)". */
+function describeNotExplored(pages: PageAuditRecord[]): string {
+  const counts = new Map<string, number>();
+  for (const page of pages) {
+    if (page.status !== "not-discovered") continue;
+    const reason = page.failureReason ?? "No reason recorded.";
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  return [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, n]) => `${reason} (×${n})`)
+    .join(" ");
+}
+
 export function buildApplicationAuditResult(
   pages: PageAuditRecord[],
   auditId: string,
@@ -383,8 +412,14 @@ export function buildApplicationAuditResult(
   const notDiscovered = pages.filter(
     (p) => p.status === "not-discovered",
   ).length;
-  const discovered = pages.length;
+  const exploredNoNewState = pages.filter(
+    (p) => p.status === "explored-no-new-state",
+  ).length;
+  const discovered = pages.length - exploredNoNewState;
   const audited = completed.length;
+  const clicksAllowed =
+    options.traversal?.clicksAllowed ??
+    options.discoveryMethod === "anchor-links+navigation-controls";
 
   const framesDiscovered = completed.reduce(
     (sum, p) => sum + (p.frameAccessibility?.framesTotal ?? 0),
@@ -392,6 +427,10 @@ export function buildApplicationAuditResult(
   );
   const framesInspected = completed.reduce(
     (sum, p) => sum + (p.frameAccessibility?.framesAccessible ?? 0),
+    0,
+  );
+  const framesPlaceholder = completed.reduce(
+    (sum, p) => sum + (p.frameAccessibility?.framesPlaceholder ?? 0),
     0,
   );
   const framesFailedAcrossPages = completed.reduce(
@@ -410,12 +449,14 @@ export function buildApplicationAuditResult(
     pagesSkippedUnsafe: skippedUnsafe,
     pagesSkippedDuplicate: skippedDuplicate,
     pagesNotDiscovered: notDiscovered,
+    pagesExploredNoNewState: exploredNoNewState,
     coveragePercent: discovered === 0 ? 0 : pct(audited, discovered),
     coverageLabel: "OBSERVED_COVERAGE",
     discoveryMethod: options.discoveryMethod ?? "anchor-links",
     framesDiscovered,
     framesInspected,
     framesInaccessible: framesFailedAcrossPages + framesInaccessibleAcrossPages,
+    framesPlaceholder,
   };
 
   const automaticSelection = scoreAutomaticSelection({
@@ -519,6 +560,7 @@ export function buildApplicationAuditResult(
       "hitTestTargetability",
       "partiallyTargetable",
     ),
+    hidden: sumField(completed, "hitTestTargetability", "hidden"),
   });
 
   const accessibilitySignal = scoreAccessibilitySignal({
@@ -682,6 +724,30 @@ export function buildApplicationAuditResult(
     manualSelectorDependency,
     analysisCoverage,
   );
+  const duplicateIdRisk = duplicateIdsRisk(
+    completed.reduce(
+      (sum, p) => {
+        const ids = p.result?.duplicateIds;
+        return ids
+          ? {
+              valuesDuplicatedWithinARoot:
+                sum.valuesDuplicatedWithinARoot +
+                ids.valuesDuplicatedWithinARoot,
+              valuesDuplicatedPageWide:
+                sum.valuesDuplicatedPageWide + ids.valuesDuplicatedPageWide,
+              elementsWithDuplicatedId:
+                sum.elementsWithDuplicatedId + ids.elementsWithDuplicatedId,
+            }
+          : sum;
+      },
+      {
+        valuesDuplicatedWithinARoot: 0,
+        valuesDuplicatedPageWide: 0,
+        elementsWithDuplicatedId: 0,
+      },
+    ),
+  );
+  if (duplicateIdRisk) risks.push(duplicateIdRisk);
   if (failed > 0 || skippedUnsafe > 0) {
     risks.unshift({
       id: "incomplete-application-coverage",
@@ -723,18 +789,30 @@ export function buildApplicationAuditResult(
           ? `${restorationFailures} backtracking restoration(s) failed, so whatever application state lay beyond that point was never reached or audited. `
           : "") +
         (notDiscovered > 0
-          ? `${notDiscovered} detected navigation candidate(s) were never explored (out of ${discovered} known). `
+          ? clicksAllowed
+            ? `${notDiscovered} detected navigation candidate(s) were clicked but did not lead to a new audited state (out of ${discovered} known). `
+            : `${notDiscovered} detected navigation candidate(s) were never explored (out of ${discovered} known). `
           : "") +
         `No score is reported — a numeric score here would misrepresent how much of this application was actually observed.`,
     });
   }
   if (notDiscovered > 0) {
-    risks.push({
-      id: "navigation-candidates-not-explored",
-      severity: "low",
-      title: "Some navigation controls were detected but never explored",
-      evidence: `${notDiscovered} menu/tab/tree-style control(s) with no real <a href> were detected but not clicked (click-based discovery is off by default — see coverage.discoveryMethod). Enable it explicitly to explore them.`,
-    });
+    risks.push(
+      clicksAllowed
+        ? {
+            id: "navigation-candidates-not-explored",
+            severity: "low",
+            title:
+              "Some navigation controls were clicked but led to no new state",
+            evidence: `${notDiscovered} menu/tab/tree-style control(s) were clicked by Deep state discovery and did not lead to a new audited state. ${describeNotExplored(pages)}`,
+          }
+        : {
+            id: "navigation-candidates-not-explored",
+            severity: "low",
+            title: "Some navigation controls were detected but never explored",
+            evidence: `${notDiscovered} menu/tab/tree-style control(s) with no real <a href> were detected but not clicked (click-based discovery is off by default — see coverage.discoveryMethod). Enable it explicitly to explore them.`,
+          },
+    );
   }
 
   const summary =
@@ -763,6 +841,11 @@ export function buildApplicationAuditResult(
     risks,
     recommendations: buildRecommendations(metrics, metricDetails),
     pages,
+    desEvidence: mergeDesEvidence(
+      completed.flatMap((p) =>
+        p.result?.desEvidence ? [p.result.desEvidence] : [],
+      ),
+    ),
     methodology: [...APPLICATION_METHODOLOGY_PREFIX, ...METHODOLOGY],
     confidenceCaps: caps.map((c) => c.reason),
     stateGraph: options.stateGraph,

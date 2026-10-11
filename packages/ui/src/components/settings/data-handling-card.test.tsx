@@ -7,11 +7,23 @@ afterEach(() => {
 });
 
 describe("DataHandlingCard", () => {
-  it("shows body capture off, with the deny-list disabled, by default", () => {
+  it("shows body capture off by default, with the deny-list still editable for Apty Client bodies", () => {
     render(<DataHandlingCard settings={{}} onChange={vi.fn()} />);
 
     expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByRole("textbox")).toBeEnabled();
+    expect(screen.getByLabelText(/from the Apty Client/)).toBe(
+      screen.getByRole("textbox"),
+    );
+  });
+
+  it("keeps the default deny list empty and shows identity endpoints only as placeholders", () => {
+    render(<DataHandlingCard settings={{}} onChange={vi.fn()} />);
+
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(box.value).toBe("");
+    expect(box.placeholder).toContain("/users/");
+    expect(box.placeholder).toContain("/userinfo");
   });
 
   it("turns body capture on from the switch", () => {

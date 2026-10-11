@@ -3,6 +3,11 @@
  * or the QuickJS skill runtime (via a global function binding).
  */
 
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  jpeg: "jpg",
+  "svg+xml": "svg",
+};
+
 /**
  * Validate a path segment to prevent directory traversal and unsafe characters.
  */
@@ -86,16 +91,16 @@ export async function downloadChatImagesInBackground(
       if (!message.parts) continue;
       for (const part of message.parts) {
         if (part.type === "image" && part.imageData) {
+          const imageName = imageNames?.[imageIndex];
+          imageIndex++;
           try {
             // Validate image data format
             if (!part.imageData.startsWith("data:image/")) {
               errors.push("Invalid image data format");
-              imageIndex++;
               continue;
             }
 
             let filename: string;
-            const imageName = imageNames?.[imageIndex];
             if (imageName) {
               filename = imageName.replace(/[^a-zA-Z0-9一-龥\s-]/g, "").trim();
             } else {
@@ -117,8 +122,8 @@ export async function downloadChatImagesInBackground(
               : filename;
 
             const mimeMatch = part.imageData.match(/data:image\/([^;]+)/);
-            const extension =
-              mimeMatch?.[1] === "jpeg" ? "jpg" : (mimeMatch?.[1] ?? "png");
+            const subtype = mimeMatch?.[1] ?? "png";
+            const extension = IMAGE_EXTENSIONS[subtype] ?? subtype;
             const imageFilename = fullFilename.includes(".")
               ? fullFilename
               : `${fullFilename}.${extension}`;
@@ -132,7 +137,6 @@ export async function downloadChatImagesInBackground(
             downloadIds.push(downloadId);
             filesList.push(imageFilename);
             downloadedCount++;
-            imageIndex++;
           } catch (error) {
             errors.push(
               `Error downloading image: ${error instanceof Error ? error.message : String(error)}`,

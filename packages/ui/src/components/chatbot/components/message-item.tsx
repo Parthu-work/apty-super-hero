@@ -65,6 +65,7 @@ export function DefaultMessageItem({
   isStreaming = false,
   onRegenerate,
   onCopy,
+  formatExport,
   className,
   ...props
 }: MessageItemProps) {
@@ -188,7 +189,7 @@ export function DefaultMessageItem({
                         onClick={() =>
                           downloadText(
                             timestampedFilename("message", "md"),
-                            part.text,
+                            formatExport ? formatExport(part.text) : part.text,
                             "text/markdown",
                           )
                         }

@@ -18,6 +18,9 @@ instead of `status: "not_configured"`.
   extension's consumer already implements
   (`packages/browser-runtime/src/apty/service-worker-diagnostics.ts`).
 
+- **`STUDIO.md`**: what Apty Studio must add (allow-list the Agent's ID,
+  answer two messages) so the Agent can read Studio's service worker.
+
 ## Why a reference file instead of just prose
 
 The message contract, response shape, and persistence design all need to

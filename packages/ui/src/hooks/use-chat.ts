@@ -123,6 +123,10 @@ export function useChat(
   configRef.current = config;
 
   const activeGeneratorRef = useRef<AsyncGenerator<AgentEvent> | null>(null);
+  // Bumped by every turn and by Stop/reset. A turn whose token is stale by
+  // the time its pre-steps (getRunContext, selectTools, rollback) resolve
+  // was stopped while "submitted" and must not start.
+  const turnRef = useRef(0);
   const prevAgentRef = useRef<AIPex | undefined>(agent);
 
   // A message sent while a turn is already in flight is queued (FIFO)
@@ -255,6 +259,7 @@ export function useChat(
         return;
       }
 
+      const turn = ++turnRef.current;
       // Add user message to adapter
       const userMessage = adapter.addUserMessage(text, files, contexts);
       handlersRef.current?.onMessageSent?.(userMessage);
@@ -274,6 +279,7 @@ export function useChat(
 
         const runContext = await configRef.current?.getRunContext?.(sessionId);
         const tools = await configRef.current?.selectTools?.(text, sessionId);
+        if (turnRef.current !== turn) return;
         const events = agent.chat(text, {
           sessionId: sessionId ?? undefined,
           contexts: coreContexts,
@@ -350,6 +356,7 @@ export function useChat(
         return;
       }
 
+      const turn = ++turnRef.current;
       // Add user message
       const userMessage = adapter.addUserMessage(text);
       handlersRef.current?.onMessageSent?.(userMessage);
@@ -360,6 +367,7 @@ export function useChat(
         // Continue conversation
         const runContext = await configRef.current?.getRunContext?.(sessionId);
         const tools = await configRef.current?.selectTools?.(text, sessionId);
+        if (turnRef.current !== turn) return;
         const events = agent.chat(text, { sessionId, runContext, tools });
         await processAgentEvents(events);
       } catch (error) {
@@ -375,6 +383,7 @@ export function useChat(
 
   // Interrupt current operation
   const interrupt = useCallback(async (): Promise<void> => {
+    turnRef.current++;
     const generator = activeGeneratorRef.current;
     if (generator && typeof generator.return === "function") {
       await generator.return(undefined);
@@ -392,6 +401,7 @@ export function useChat(
     if (sessionId && agent) {
       void agent.getConversationManager()?.deleteSession(sessionId);
     }
+    turnRef.current++;
     activeGeneratorRef.current = null;
     messageQueueRef.current = [];
     setQueueCount(0);
@@ -424,6 +434,7 @@ export function useChat(
     const text = textPart?.type === "text" ? textPart.text : "";
 
     if (sessionId && text) {
+      const turn = ++turnRef.current;
       try {
         // Roll back the session so the agent doesn't see the old assistant turn
         await agent.rollbackLastAssistantTurn(sessionId);
@@ -431,6 +442,7 @@ export function useChat(
         adapter.setStatus("submitted");
         const runContext = await configRef.current?.getRunContext?.(sessionId);
         const tools = await configRef.current?.selectTools?.(text, sessionId);
+        if (turnRef.current !== turn) return;
         const events = agent.chat(text, { sessionId, runContext, tools });
         await processAgentEvents(events);
       } catch (error) {

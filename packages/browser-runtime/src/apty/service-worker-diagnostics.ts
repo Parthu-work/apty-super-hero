@@ -31,17 +31,17 @@
  * asked for it. Every result here is tagged `scope: "shared-global"` so
  * the agent (and any session-isolation logic built on top of this) never
  * falsely attributes a service-worker log to one specific tab or
- * conversation — see docs/development/PROJECT_PROGRESS.md's Known Limitations for the
+ * conversation — see docs/archive/PROJECT_PROGRESS.md's Known Limitations for the
  * broader multi-session work this feeds into.
  */
 
-import { redactLogs, redactSensitiveText } from "@apty/debug-contract";
 import { z } from "zod";
+import { redactLogEntries, redactText } from "../runtime/redaction-mode.js";
 import {
-  type ExternalMessageFailure,
   type ExternalMessageOutcome,
   sendExternalMessageDetailed,
 } from "./external-messaging.js";
+import { type AptyPeer, PEER_NAMES, peerFailureMessage } from "./peers.js";
 import type {
   AptyLog,
   AptyObservedResource,
@@ -86,16 +86,6 @@ async function sendExternalMessageWithRetry(
   const outcome = await sendWithRetryDetailed(extensionId, message);
   return outcome.ok ? outcome.response : undefined;
 }
-
-const PEER_FAILURE_MESSAGES: Record<ExternalMessageFailure, string> = {
-  no_receiver:
-    "Chrome found nothing listening in the Apty Client for this extension. The Client must list this extension's ID under externally_connectable.ids in its manifest and register a chrome.runtime.onMessageExternal handler at the top level of its service worker.",
-  no_response:
-    "The Apty Client received the message but answered nothing, so it does not implement the apty-debug-agent:get-service-worker-status message. Install the Agent bridge module in the Client's service worker.",
-  timeout:
-    "The Apty Client accepted the message but never answered, even after a retry. Usually its onMessageExternal handler does not implement the apty-debug-agent:get-service-worker-status message (install or update the Agent bridge module); otherwise its service worker is stuck, so check chrome://extensions for errors on the Client.",
-  send_failed: "Chrome refused to send the message to the Apty Client.",
-};
 
 // Bounded so a hostile/misbehaving Widget extension can't hand us an
 // unbounded array and balloon memory/token usage — this is a defensive
@@ -178,12 +168,18 @@ async function fetchWithTimeout(
 export interface ServiceWorkerDiagnosticsConfig {
   extensionId?: string;
   diagnosticEndpoint?: string;
+  /** Which Apty extension `extensionId` is; names it in errors. Default "client". */
+  peer?: AptyPeer;
 }
 
 export class ConfiguredServiceWorkerDiagnosticsProvider
   implements AptyServiceWorkerDiagnosticsProvider
 {
   constructor(private readonly config: ServiceWorkerDiagnosticsConfig) {}
+
+  private get peer(): AptyPeer {
+    return this.config.peer ?? "client";
+  }
 
   async getStatus(): Promise<AptyServiceWorkerStatus> {
     if (this.config.extensionId) {
@@ -195,8 +191,8 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
           status: "unavailable",
           peerFailure: outcome.failure,
           error: outcome.detail
-            ? `${PEER_FAILURE_MESSAGES[outcome.failure]} (Chrome: ${outcome.detail})`
-            : PEER_FAILURE_MESSAGES[outcome.failure],
+            ? `${peerFailureMessage(this.peer, outcome.failure)} (Chrome: ${outcome.detail})`
+            : peerFailureMessage(this.peer, outcome.failure),
         };
       }
 
@@ -205,7 +201,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
         return {
           status: "error",
           peerFailure: "malformed_response",
-          error: `The Apty Client answered with an unexpected shape (${result.reason}). Its bridge module is likely out of date.`,
+          error: `The ${PEER_NAMES[this.peer].full} answered with an unexpected shape (${result.reason}). Its bridge module is likely out of date.`,
         };
       }
       return {
@@ -258,7 +254,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
       const result = validate(logsResponseSchema, raw);
       if (!result.ok) return [];
-      return redactLogs(result.value.logs ?? []);
+      return redactLogEntries(result.value.logs ?? []);
     }
 
     if (this.config.diagnosticEndpoint) {
@@ -277,7 +273,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
 
       const result = validate(logsResponseSchema, body);
       if (!result.ok) return [];
-      return redactLogs(result.value.logs ?? []);
+      return redactLogEntries(result.value.logs ?? []);
     }
 
     return [];
@@ -338,7 +334,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
       found: result.value.found,
       body:
         result.value.body !== undefined
-          ? redactSensitiveText(result.value.body)
+          ? redactText(result.value.body)
           : undefined,
       base64Encoded: result.value.base64Encoded,
     };

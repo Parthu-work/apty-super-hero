@@ -27,13 +27,13 @@ Audited by cross-referencing each permission against:
 | `windows` | `chrome.windows.update(..., {focused: true})` before a screenshot (`tools/screenshot.ts`, `tools/screenshot-helpers.ts`) so the captured window is actually focused/visible; `chrome.windows.getCurrent()` in `background/sidepanel.ts` for side-panel-per-window behavior. (A registered `window-management` tool group exists in source but is **not** wired into `allBrowserTools` — dead code, not what justifies this permission; see "Confirmed unused" below for the distinction between an unregistered tool and a permission with no real caller at all.) |
 | `tabGroups` | `ungroup_tabs` (`tools/tab.ts`, registered) checks `chrome.tabGroups.TAB_GROUP_ID_NONE`. |
 | `activeTab` | Kept alongside the broader `host_permissions: ["<all_urls>"]` as defense-in-depth for APIs that specifically check for an activeTab grant (e.g. `chrome.tabs.captureVisibleTab`) even when a host permission is also present. Meaningfully redundant with `<all_urls>` for most purposes — flagged here rather than silently assumed necessary; removing it was not attempted in this audit since it is low-risk to keep and the host permission is the much larger attack-surface item a reviewer would actually care about. |
-| `scripting` | `chrome.scripting.executeScript` — content-script injection for DOM snapshotting, console-log reading, selector analysis, DOM health audits, and more, across `tools/tab-utils.ts`, `tools/snapshot.ts`, `tools/apty.ts`, `tools/dom-health.ts`, and others (13 files). |
+| `scripting` | `chrome.scripting.executeScript` — content-script injection for DOM snapshotting, console-log reading, selector analysis, DOM health audits, and more, across `tools/tab-utils.ts`, `tools/snapshot.ts`, `tools/apty.ts`, `tools/dom-health.ts`, and others (13 files); `chrome.scripting.registerContentScripts` registers the page-world console bridge at runtime (`runtime/page-hooks-registration.ts`, switchable in Settings → Troubleshooting); the preflight page runs one content script to check that page scripts cannot read extension storage. |
 | `commands` | `chrome.commands.onCommand` in `background/commands.ts` — the `open-apty-agent` keyboard shortcut declared in `manifest.json`'s own `commands` block. |
 | `storage` | `chrome.storage.local`/`.session` — settings, peer config, evidence/log buffers, everywhere (15 files). Locked to `TRUSTED_CONTEXTS` at background startup (`entrypoints/background/storage-lockdown.ts`) so an isolated-world content script on `<all_urls>` cannot read it. |
 | `sidePanel` | `side_panel.default_path` in this manifest, plus `chrome.sidePanel.*` calls opening/configuring the panel. |
 | `bookmarks` | **Optional permission** (requested on demand, see "Optional permissions" below) — `BookmarksProvider` (`context/bookmarks-provider.ts`, registered in `allBrowserProviders`) calls `chrome.bookmarks.getTree()`/`.get()`. The dedicated `bookmark` *tool* (`tools/bookmark.ts`) is **not** registered in `allBrowserTools` — this permission is justified by the context provider, not that tool. |
 | `history` | **Optional permission** (requested on demand, see "Optional permissions" below) — `HistoryProvider` (`context/history-provider.ts`, registered) calls `chrome.history.search()`. Same caveat as `bookmarks`: the dedicated `history` *tool* (`tools/history.ts`) is unregistered dead code. |
-| `management` | **Optional permission** (requested on demand, see "Optional permissions" below) — `chrome.management.get()` in the Apty Client "Detect"/manual-connect flow (`entrypoints/options/apty-client-panel.tsx`) and `extension-network-inspector.ts`'s feature-detected `getManagedExtension()`. |
+| `management` | **Optional permission** (requested on demand, see "Optional permissions" below) — `chrome.management.get()`/`getAll()` in the Apty Client and Apty Studio "Detect"/manual-connect flows (`entrypoints/options/apty-client-panel.tsx`) and the preflight page's Client check and `extension-network-inspector.ts`'s feature-detected `getManagedExtension()`. |
 | `downloads` | `chrome.downloads.download` — the `downloadText`/message/evidence Download actions' `chrome.downloads` fallback path when the Blob+`<a download>` approach isn't available, and the dedicated image-download tools. |
 | `debugger` | Chrome DevTools Protocol access — every DevTools diagnostic (`tools/devtools.ts`: network/runtime capture, `run_console_command`), the investigation-aware network capture session, and DOM Health's audit pipeline. This is the single highest-privilege permission here (it can read/modify any page's live state) and is justified purely by CDP being the *only* way to get this class of diagnostic data — no DOM/JS API exposes network timing, uncaught-exception stack traces, or CSP violations retroactively. `debugger-manager.ts` is responsible for attaching/detaching safely; see `DECISIONS.md` for the fix that stopped it from mutating the live page on every attach. |
 | `webNavigation` | Frame-addressing for cross-frame console-log reading and DOM Health's frame-aware audit (`chrome.webNavigation.getAllFrames`/frame-tree APIs) — deliberately *not* `chrome.debugger`/CDP for this, since webNavigation is lower-privilege and sufficient for frame enumeration; see `DECISIONS.md`'s entry on this exact choice. |
@@ -103,3 +103,26 @@ justified by genuinely-used calls elsewhere (screenshot focusing, side
 panel window lookup). Whether this dead tool group should be wired in,
 deleted, or left as-is is a product decision, not a permissions question
 — left for a future session.
+
+## Tools that wait for a person's click
+
+Broad host access is paired with an approval gate
+(`packages/browser-runtime/src/tools/approval.ts`): these calls are suspended
+until someone clicks Allow or Deny in the side panel. The model cannot
+answer the prompt.
+
+| Tool | When it asks |
+|---|---|
+| `run_console_command` | Always |
+| `fill_element_by_uid`, `fill_form` | Always |
+| `computer` `type`, `key` | Always |
+| `computer` clicks and `left_click_drag` | When the element under the point submits a form, links to another origin, has a destructive or confirming label, or cannot be identified (frame, canvas, no screenshot) |
+| `click` | Same rules as above, for the element with that snapshot uid |
+| `create_new_tab` | When the destination is another origin; always, with no "remember", for a non-`http(s)` scheme or a query plus fragment over 128 characters |
+| `upload_file_to_input` | Always |
+| `download_image`, `download_chat_images` | Always |
+| `execute_skill_script` (skills are off by default) | Always |
+
+"Allow on this site for 15 min" grants are per tool and origin (for
+`create_new_tab`, the destination origin) and can be revoked in Options →
+Remembered approvals.

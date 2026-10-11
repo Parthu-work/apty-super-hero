@@ -1,6 +1,8 @@
 import { findEvidenceById } from "@apty/browser-runtime/apty/evidence-store";
+import { currentRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { Button } from "@apty/ui/components/ui/button";
 import { downloadText } from "@apty/ui/lib/download";
+import { withExportHeader } from "@apty/ui/lib/export-header";
 import { CopyIcon, DownloadIcon, FileJsonIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { JsonTree } from "./json-tree";
@@ -61,7 +63,13 @@ export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
 
   const parsed = parseJson(body.text);
   const isJson = parsed.ok;
-  const filename = isJson ? `${body.name}.json` : `${body.name}.txt`;
+  const mode = currentRedactionMode();
+  // A JSON export stays valid JSON, so its mode goes in the file name; a text
+  // export carries the usual header line.
+  const filename = isJson
+    ? `${body.name}.redaction-${mode}.json`
+    : `${body.name}.txt`;
+  const exported = isJson ? body.text : withExportHeader(body.text, mode);
 
   return (
     <div className="mt-2 rounded-md border">
@@ -77,7 +85,7 @@ export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
           {open ? "Hide full response" : "View full response"}
         </Button>
         <span className="text-xs text-muted-foreground">
-          {body.text.length.toLocaleString()} characters
+          {body.text.length.toLocaleString()} characters · redaction {mode}
         </span>
         <div className="ml-auto flex gap-1">
           <Button
@@ -85,7 +93,7 @@ export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
             size="sm"
             variant="ghost"
             aria-label="Copy full response"
-            onClick={() => navigator.clipboard?.writeText(body.text)}
+            onClick={() => navigator.clipboard?.writeText(exported)}
           >
             <CopyIcon className="h-4 w-4" />
           </Button>
@@ -97,7 +105,7 @@ export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
             onClick={() =>
               downloadText(
                 filename,
-                body.text,
+                exported,
                 isJson ? "application/json" : "text/plain",
               )
             }

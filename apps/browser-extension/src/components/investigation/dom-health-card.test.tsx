@@ -236,8 +236,27 @@ describe("DomHealthCard", () => {
           hasAccessibleName: false,
           hitTest: { pointsPassed: 9, classification: "fully-targetable" },
           stability: "WRONG_TARGET",
+          explanation: {
+            howFound: "checkSimplifyNth: Only its position tells it apart.",
+            notes: [
+              "Across states, the stored path landed on a different element.",
+            ],
+            fix: "Give each repeated control an attribute that tells it apart.",
+          },
         },
       ],
+      desEvidence: {
+        steps: [
+          {
+            outcome: "POSITIONAL_ONLY",
+            step: "checkSimplifyNth",
+            elements: 4,
+            meaning: "Only its position among siblings tells it apart.",
+          },
+        ],
+        dynamicValuesLeftOut: [{ attribute: "id", elements: 3 }],
+        hitTestReasons: [],
+      },
       methodology: ["Collect a DOM snapshot in-page."],
       iframes: {
         total: 0,
@@ -270,6 +289,28 @@ describe("DomHealthCard", () => {
       screen.getByText("body > button:nth-of-type(3)"),
     ).toBeInTheDocument();
     expect(screen.getByText("Manual likely (positional)")).toBeInTheDocument();
+    expect(
+      screen.getByText("checkSimplifyNth: Only its position tells it apart."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Across states, the stored path landed on a different element.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Give each repeated control an attribute that tells it apart.",
+      ),
+    ).toBeInTheDocument();
+    const steps = screen.getByRole("region", {
+      name: "How Apty's DES would find these elements",
+    });
+    expect(steps).toHaveTextContent(
+      "4 checkSimplifyNth — Only its position among siblings tells it apart.",
+    );
+    expect(steps).toHaveTextContent(
+      "Left out as dynamic (Ignore Selector): id on 3 element(s).",
+    );
   });
 
   it("passes the Settings ignore list to the audit and shows capped confidence, frames and excluded content", async () => {
@@ -543,10 +584,11 @@ describe("DomHealthCard", () => {
           result: { score: 40 },
         },
         {
-          url: "https://example.com/broken",
+          url: "https://example.com/broken?favoriteContext=<REDACTED>&view=1",
           title: null,
           discoverySource: "same-origin-link",
           status: "failed",
+          failureReason: "Navigation failed",
         },
       ],
       methodology: ["Discover same-origin pages via real <a href> elements."],
@@ -577,6 +619,9 @@ describe("DomHealthCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("Orders")).toBeInTheDocument();
+    expect(screen.getByText("https://example.com/broken")).toBeInTheDocument();
+    expect(screen.queryByText(/favoriteContext/)).toBeNull();
+    expect(screen.getByText("Navigation failed")).toBeInTheDocument();
     expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
   });
 
@@ -604,12 +649,14 @@ describe("DomHealthCard", () => {
         pagesSkippedUnsafe: 0,
         pagesSkippedDuplicate: 0,
         pagesNotDiscovered: 0,
+        pagesExploredNoNewState: 2,
         coveragePercent: 100,
         coverageLabel: "OBSERVED_COVERAGE",
         discoveryMethod: "anchor-links",
-        framesDiscovered: 1,
+        framesDiscovered: 3,
         framesInspected: 1,
         framesInaccessible: 0,
+        framesPlaceholder: 2,
       },
       analysisCoverage: {
         candidatesFound: 7,
@@ -640,10 +687,11 @@ describe("DomHealthCard", () => {
           manualDependencyRate: 0,
         },
         hitTestTargetability: {
-          tested: 7,
+          tested: 10,
           fullyTargetable: 1,
           partiallyTargetable: 0,
-          occludedOrHidden: 6,
+          hidden: 3,
+          notTargetable: 6,
         },
         accessibilitySignal: { totalInteractive: 7, missingAccessibleName: 7 },
       } as any,
@@ -672,6 +720,14 @@ describe("DomHealthCard", () => {
           status: "completed",
           result: { score: 91, grade: "EXCELLENT", metricDetails: {} as any },
         },
+        {
+          url: "https://example.com/#control:header>button",
+          title: "Open tab menu",
+          discoverySource: "safe-navigation-control",
+          status: "explored-no-new-state",
+          failureReason:
+            "Clicking this control did not produce a new application state.",
+        },
       ],
       methodology: [],
     });
@@ -697,7 +753,51 @@ describe("DomHealthCard", () => {
     // Hit-test and accessibility failures stay visible even though the
     // headline score is high (spec sections 10-11).
     expect(screen.getByText("6/7")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "3 hidden when sampled (closed menus, inactive tabs), not counted.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("7/7")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "1/1 frames with content reached, 2 empty placeholder(s) skipped",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Clicked, no new state")).toBeInTheDocument();
+    expect(screen.getByText(/2 clicked with no new state/)).toBeInTheDocument();
+  });
+
+  it("runs both audits with the developer threshold overrides and offers the validation bundle only once there is evidence", async () => {
+    const overrides = { sameUrlRatioForClickFirst: 0.4 };
+    mockRunDomHealthAudit.mockResolvedValue({ available: false, error: "x" });
+    mockRunApplicationDomHealthAudit.mockResolvedValue({
+      available: false,
+      error: "y",
+    });
+
+    render(<DomHealthCard thresholdOverrides={overrides} />);
+    expect(
+      screen.queryByRole("button", { name: "Export validation bundle" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
+    await waitFor(() =>
+      expect(mockRunDomHealthAudit).toHaveBeenCalledWith(5, {
+        ignoredRoots: [],
+        thresholdOverrides: overrides,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /audit application/i }));
+    await waitFor(() =>
+      expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ thresholdOverrides: overrides }),
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Export validation bundle" }),
+    ).toBeDisabled();
   });
 
   it("disables the check button when there is no target tab", () => {

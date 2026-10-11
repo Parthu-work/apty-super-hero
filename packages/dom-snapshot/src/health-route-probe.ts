@@ -21,6 +21,10 @@ import {
   sampleHeadingsDeep,
 } from "./health-state-signature.js";
 import {
+  detectVirtualizedLists,
+  type VirtualizedListSummary,
+} from "./health-virtualized.js";
+import {
   DEFAULT_IGNORED_ROOTS,
   describeMatcher,
   type IgnoredRootMatcher,
@@ -52,6 +56,8 @@ export interface RouteProbeFrameSignals {
   firstHeading: string | null;
   activeNavItem: string | null;
   owners: RouteProbeFrameOwner[];
+  /** Virtualized lists in the frame: their unseen rows are invisible to an audit. */
+  virtualized: VirtualizedListSummary;
 }
 
 /** First rendered heading in composed order, read with slot projection (the same reading the state signature uses). */
@@ -112,5 +118,6 @@ export function collectRouteProbeFrameSignals(
     firstHeading: findFirstHeadingDeep(doc),
     activeNavItem: findActiveNavItemDeep(doc),
     owners: collectFrameOwners(doc),
+    virtualized: detectVirtualizedLists(doc),
   };
 }

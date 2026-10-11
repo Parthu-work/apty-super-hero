@@ -103,6 +103,39 @@ const OVERLAY_PAGE = `<!doctype html><title>Overlay</title><body>
   <div id="intercom-container" style="position:fixed;bottom:0;right:0"><button>Chat</button></div>
 </body>`;
 
+/** A react-window style grid: 1,000 rows declared, 15 rendered at their absolute positions, scrolled to row 100. */
+const VIRTUALIZED_PAGE = `<!doctype html><title>Orders grid</title><body>
+  <h1>Orders</h1>
+  <div id="grid" role="grid" aria-rowcount="1000" style="height:450px;overflow:auto">
+    <div style="position:relative;height:30000px">${Array.from(
+      { length: 15 },
+      (_, i) =>
+        `<div role="row" data-index="${100 + i}" style="position:absolute;top:${(100 + i) * 30}px;height:30px"><div role="gridcell"><button type="button" data-testid="open-${100 + i}">Open order ${100 + i}</button></div></div>`,
+    ).join("")}</div>
+  </div>
+  <script>document.getElementById("grid").scrollTop = 3000;</script>
+</body>`;
+
+/** The LN portal's own URL shape: the tenant as the first path segment, the open screen as base64 JSON in `favoriteContext`. */
+const LN_TENANT = "FAKE7ENANT00ABCD_TRN";
+const LN_CONTEXT = Buffer.from(
+  JSON.stringify({
+    description: "Purchase Order Intake Workbench",
+    type: "session",
+    action: "tdpur4601m200",
+  }),
+).toString("base64");
+const LN_PORTAL_SEED = (
+  otherOrigin,
+) => `<!doctype html><title>Portal</title><body>
+  <div role="tablist"><div role="tab" aria-selected="true">LN</div><div role="tab" tabindex="0">Open tab menu</div></div>
+  <div role="menu"><button type="button" role="menuitem" aria-hidden="true" aria-label="Close all tabs">Close all</button></div>
+  <div style="display:none"><button type="button" aria-label="Pin tab">Pin</button></div>
+  <main><h1>Workbench</h1><form><input name="order" aria-label="Order"><button type="button" id="row-action">Find</button><button type="button" id="row-action">Clear</button></form></main>
+  <iframe id="gwtui" title="placeholder"></iframe>
+  <footer><a href="${otherOrigin}/ln.html">Infor</a></footer>
+</body>`;
+
 let browser;
 let model;
 let site;
@@ -124,6 +157,9 @@ before(async () => {
     "/spa/customers": SPA_SHELL,
     "/click.html": CLICK_ONLY_PAGE,
     "/overlay.html": OVERLAY_PAGE,
+    "/virtualized.html": VIRTUALIZED_PAGE,
+    [`/${LN_TENANT}/123456`]: () =>
+      LN_PORTAL_SEED(`http://localhost:${other.address().port}`),
   });
   browser = await launchBrowser();
 });
@@ -166,6 +202,20 @@ describe("DOM Health on six application shapes", () => {
     const depths = result.elementSamples.map((s) => s.shadowDepth);
     assert.deepEqual(depths, [3, 3], JSON.stringify(result.elementSamples));
     assert.equal(typeof result.score, "number");
+    for (const sample of result.elementSamples) {
+      assert.match(sample.explanation.howFound, /^check|^Partial Selector/);
+      assert.ok(
+        sample.explanation.notes.includes(
+          "Inside 3 shadow root(s): finding it needs shadow root support.",
+        ),
+        JSON.stringify(sample.explanation),
+      );
+    }
+    assert.equal(
+      result.desEvidence.steps.reduce((sum, s) => sum + s.elements, 0),
+      result.coverage.elementsAnalyzed,
+      JSON.stringify(result.desEvidence),
+    );
   });
 
   it("a 251-shadow-root page audits inside the budget, yielding to the page", async () => {
@@ -240,6 +290,44 @@ describe("DOM Health on six application shapes", () => {
     assert.match(result.traversal.history[0].reason, /0 distinct link target/);
   });
 
+  it("LN portal URL: no tenant or screen context reaches the model; the other-site link and the clicked tab say what happened", async () => {
+    const result = await audit(
+      `/${LN_TENANT}/123456?favoriteContext=${LN_CONTEXT}&LogicalId=lid%3A%2F%2Finfor.ln.ln01`,
+      "run_application_dom_health_audit",
+      { maxPages: 5, discoveryMode: "application-deep" },
+    );
+    const json = JSON.stringify(result);
+
+    assert.ok(!json.includes(LN_TENANT), json.slice(0, 600));
+    assert.ok(!json.includes(LN_CONTEXT.slice(0, 24)), json.slice(0, 600));
+    assert.ok(!json.includes("Purchase Order"), json.slice(0, 600));
+    const offSite = result.pages.find((p) => p.url.includes("/ln.html"));
+    assert.equal(offSite?.discoverySource, "cross-origin-link", json);
+    assert.equal(offSite?.status, "skipped-cross-origin");
+    const tab = result.pages.find(
+      (p) => p.discoverySource === "safe-navigation-control",
+    );
+    // The tab opens nothing: explored, not a state, and not blocking the score.
+    assert.equal(tab?.status, "explored-no-new-state", json);
+    assert.ok(tab.failureReason, json);
+    assert.equal(result.coverage.pagesNotDiscovered, 0, json);
+    assert.notEqual(result.evidenceState, "INCOMPLETE_EVIDENCE", json);
+    assert.doesNotMatch(json, /off by default/);
+    // An empty about:blank frame is a placeholder, not a frame that failed.
+    assert.ok(result.coverage.framesPlaceholder >= 1, json);
+    // Hidden menu items, one aria-hidden and one inside a display:none
+    // container, are not hit-test failures (the container's child used to
+    // read as zero-size).
+    const hitTest = result.metricDetails.hitTestTargetability;
+    assert.ok(hitTest.hidden >= 2, JSON.stringify(hitTest));
+    assert.equal(hitTest.notTargetable, 0, JSON.stringify(hitTest));
+    assert.ok(
+      result.risks.some((r) => r.id === "duplicate-ids"),
+      json,
+    );
+    assert.ok(result.desEvidence.steps.length > 0, json);
+  });
+
   it("third-party overlay: leaves Pendo and the chat launcher out, and counts them", async () => {
     const result = await audit("/overlay.html", "run_dom_health_audit");
 
@@ -247,5 +335,150 @@ describe("DOM Health on six application shapes", () => {
     // The Agent's own UI is in the page during a run, and is left out too.
     assert.deepEqual(matchers, ["id:_pendo-", "id:aipex-", "id:intercom-"]);
     assert.equal(result.coverage.elementsAnalyzed, 2);
+  });
+
+  it("virtualized grid: reports the rendered and declared rows as partial coverage, and leaves the scroll position alone (B4)", async () => {
+    const page = await browser.context.newPage();
+    await page.goto(`${site.origin}/virtualized.html`);
+    await page.waitForLoadState("load");
+    const scrollBefore = await page.evaluate(
+      () => document.getElementById("grid").scrollTop,
+    );
+    const panel = await openSidePanel(browser, model, page);
+    model.script(callToolThenReport("run_dom_health_audit", {}));
+    await chatAndWait(panel, "check dom health of this page", {
+      timeout: 150_000,
+    });
+    const result = toolResults(model.requests.at(-1)).at(-1);
+
+    assert.deepEqual(
+      {
+        containers: result.virtualized.containers,
+        observedItems: result.virtualized.observedItems,
+        declaredTotal: result.virtualized.declaredTotal,
+      },
+      { containers: 1, observedItems: 15, declaredTotal: 1000 },
+      JSON.stringify(result.virtualized),
+    );
+    // Real layout also shows the grid scrolling far beyond its rows.
+    assert.deepEqual(result.virtualized.samples[0].signals, [
+      "aria-count",
+      "index-gap",
+      "scroll-height",
+    ]);
+    assert.equal(result.confidence, "LOW");
+    assert.ok(
+      result.confidenceCaps.includes(
+        "1 virtualized list(s) render 15 of 1000 declared rows; the other 985 were not audited.",
+      ),
+      JSON.stringify(result.confidenceCaps),
+    );
+    assert.ok(
+      result.risks.some((r) => r.id === "virtualized-list-partial-coverage"),
+    );
+    assert.equal(
+      await page.evaluate(() => document.getElementById("grid").scrollTop),
+      scrollBefore,
+    );
+    assert.equal(scrollBefore, 3000);
+    await panel.close();
+    await page.close();
+  });
+
+  describe("validation bundle export from the DOM Health card (B2)", () => {
+    const OVERRIDES = { sameUrlRatioForClickFirst: 0.4 };
+    const SHAPES = [
+      { path: "/deep.html", text: ["Sales Orders", ">Deep<"] },
+      {
+        path: "/frameset.html",
+        text: ["Contact Details", "Legal sex", "Frameset"],
+      },
+      {
+        path: "/portal.html",
+        text: [
+          "Sales Orders",
+          "FAKETENANT000000_TRN",
+          "inforSessionId",
+          "LN_44_",
+        ],
+      },
+      {
+        path: "/spa/orders",
+        text: ["Open orders", "Customers<"],
+        application: true,
+      },
+      { path: "/click.html", text: ["Edit Orders", "Home"] },
+      { path: "/overlay.html", text: ["Registration", "Chat"] },
+    ];
+
+    async function exportBundle({ path, application }) {
+      const page = await browser.context.newPage();
+      await page.goto(`${site.origin}${path}`);
+      await page.waitForLoadState("load");
+      const panel = await openSidePanel(browser, model, page, {
+        developerTools: true,
+        domHealthThresholdOverrides: OVERRIDES,
+      });
+      const run = application ? /audit application/i : /check dom health/i;
+      await panel.getByRole("button", { name: run }).click();
+      const exportButton = panel.getByRole("button", {
+        name: "Export validation bundle",
+      });
+      await exportButton.waitFor();
+      await panel
+        .locator("text=/Last checked/")
+        .first()
+        .waitFor({ timeout: 150_000 });
+      await exportButton.click();
+      await panel.getByText("Review before sharing").waitFor();
+      const json = await panel.getByLabel("Validation bundle").textContent();
+      const version = await panel.evaluate(
+        () => chrome.runtime.getManifest().version,
+      );
+      await panel.getByRole("button", { name: "Cancel" }).click();
+      await panel.close();
+      await page.close();
+      return { json, version };
+    }
+
+    for (const shape of SHAPES) {
+      it(`${shape.path}: exports the schema with no page text, titles, queries or tenant ids`, async () => {
+        const { json, version } = await exportBundle(shape);
+        const bundle = JSON.parse(json);
+
+        assert.equal(bundle.schema, "apty-dom-health-validation/1");
+        assert.equal(bundle.versions.extension, version);
+        assert.match(bundle.versions.chrome, /^\d+\.\d+\.\d+\.\d+$/);
+        assert.ok(bundle.hosts.includes(new URL(site.origin).hostname), json);
+        assert.deepEqual(bundle.thresholdOverrides.active, [
+          { name: "sameUrlRatioForClickFirst", value: 0.4, default: 0.5 },
+        ]);
+        const audit = shape.application ? bundle.application : bundle.page;
+        assert.ok(audit, json.slice(0, 400));
+        assert.ok(Array.isArray(audit.desEvidence?.steps), json.slice(0, 400));
+        assert.ok(
+          audit.desEvidence.steps.every(
+            (s) => typeof s.step === "string" && s.elements > 0 && !s.meaning,
+          ),
+          JSON.stringify(audit.desEvidence),
+        );
+        if (shape.application) {
+          assert.equal(bundle.application.coverage.pagesAudited, 2, json);
+        } else {
+          assert.ok(bundle.page.frames.length >= 1, json);
+        }
+        for (const text of shape.text) {
+          assert.ok(!json.includes(text), `${text} leaked: ${json}`);
+        }
+        const templates = [...json.matchAll(/"urlTemplate": "([^"]*)"/g)].map(
+          (m) => m[1],
+        );
+        assert.ok(templates.length > 0, json);
+        assert.ok(
+          templates.every((t) => !t.includes("?")),
+          templates.join(),
+        );
+      });
+    }
   });
 });

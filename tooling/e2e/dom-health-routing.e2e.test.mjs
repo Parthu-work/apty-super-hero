@@ -7,7 +7,16 @@
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import { extensionPage, launchBrowser, startPageServer } from "./harness.mjs";
+import {
+  callToolThenReport,
+  chatAndWait,
+  extensionPage,
+  launchBrowser,
+  openSidePanel,
+  startMockModel,
+  startPageServer,
+  toolResults,
+} from "./harness.mjs";
 
 const SPA_PAGE = `<!doctype html><title>Orders</title><body>
   <nav><a href="#" id="orders" aria-current="page">Orders</a><button id="customers">Customers</button></nav>
@@ -47,8 +56,10 @@ const LATE_SHADOW_PAGE = `<!doctype html><title>Late</title><body>
 
 let browser;
 let site;
+let model;
 
 before(async () => {
+  model = await startMockModel();
   site = await startPageServer({
     "/spa.html": SPA_PAGE,
     "/late.html": LATE_SHADOW_PAGE,
@@ -59,6 +70,7 @@ before(async () => {
 after(async () => {
   await browser?.close();
   site?.close();
+  model?.close();
 });
 
 /** Send `message` to frame 0 of the tab showing `page`, from an extension page. */
@@ -166,5 +178,118 @@ describe("DOM Health routing evidence", () => {
     );
     await ext.close();
     await page.close();
+  });
+});
+
+/** Merge `patch` into the stored settings from an extension page, then wait for the bridge registration to match `excluded`. */
+async function setPageHookSettings(ext, patch, expectExcluded) {
+  await ext.evaluate(async (patch) => {
+    const { aipex_settings } = await chrome.storage.local.get("aipex_settings");
+    await chrome.storage.local.set({
+      aipex_settings: { ...aipex_settings, ...patch },
+    });
+  }, patch);
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const excludes = await ext.evaluate(async () => {
+      const [script] = await chrome.scripting.getRegisteredContentScripts({
+        ids: ["apty-console-bridge"],
+      });
+      return script?.excludeMatches ?? [];
+    });
+    if (excludes.includes("*://127.0.0.1/*") === expectExcluded) return;
+    if (Date.now() > deadline)
+      throw new Error(`registration still ${excludes}`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+/** Open spa.html, counting the hooks' history events from before any page script runs. */
+async function openSpaCountingHookEvents() {
+  const page = await browser.context.newPage();
+  await page.addInitScript(() => {
+    window.__hookEvents = 0;
+    addEventListener("apty:dom-health:history-api", () => {
+      window.__hookEvents++;
+    });
+  });
+  await page.goto(`${site.origin}/spa.html`);
+  return page;
+}
+
+describe("page-world script switch (B5)", () => {
+  it("registers the console bridge dynamically, in the page world, for every frame", async () => {
+    const ext = await extensionPage(browser);
+    const [script] = await ext.evaluate(() =>
+      chrome.scripting.getRegisteredContentScripts({
+        ids: ["apty-console-bridge"],
+      }),
+    );
+    assert.equal(script.world, "MAIN");
+    assert.equal(script.runAt, "document_start");
+    assert.equal(script.allFrames, true);
+    assert.deepEqual(script.js, ["content/console-bridge.js"]);
+    await ext.close();
+  });
+
+  it("on an excluded site: native pushState, no hook events, and routing evidence unavailable with a reason", async () => {
+    const ext = await extensionPage(browser);
+    await setPageHookSettings(
+      ext,
+      { pageHooksExcludedSites: ["127.0.0.1"] },
+      true,
+    );
+
+    const page = await openSpaCountingHookEvents();
+    assert.match(
+      await page.evaluate(() => history.pushState.toString()),
+      /\[native code\]/,
+    );
+    assert.equal(await page.evaluate(() => window.__hookEvents), 0);
+    assert.equal(
+      await page.evaluate(() => typeof window.__aptyReadConsoleBuffer),
+      "undefined",
+    );
+    const frameModel = await askTopFrame(ext, {
+      request: "get-dom-health-navigation-model",
+    });
+    assert.equal(frameModel.data.historyHooksSeen, false);
+
+    const panel = await openSidePanel(browser, model, page);
+    model.script(
+      callToolThenReport("run_application_dom_health_audit", { maxPages: 2 }),
+    );
+    await chatAndWait(panel, "check dom health across the whole application", {
+      timeout: 150_000,
+    });
+    const result = toolResults(model.requests.at(-1)).at(-1);
+    const navigation = result.pages[0].navigationModel;
+    assert.equal(
+      navigation.routingEvidence,
+      "unavailable",
+      JSON.stringify(navigation),
+    );
+    assert.match(
+      navigation.routingEvidenceReason,
+      /Settings → Troubleshooting/,
+    );
+    await panel.close();
+    await page.close();
+
+    // openSidePanel rewrote the settings; exclude again, then lift it.
+    await setPageHookSettings(
+      ext,
+      { pageHooksExcludedSites: ["127.0.0.1"] },
+      true,
+    );
+    await setPageHookSettings(ext, { pageHooksExcludedSites: [] }, false);
+    const hooked = await openSpaCountingHookEvents();
+    assert.doesNotMatch(
+      await hooked.evaluate(() => history.pushState.toString()),
+      /\[native code\]/,
+    );
+    assert.ok((await hooked.evaluate(() => window.__hookEvents)) > 0);
+    await hooked.close();
+    await ext.close();
   });
 });

@@ -114,6 +114,8 @@ export interface FrameAccessibilitySummary {
   framesFailed: number;
   /** Reached, but a boundary inside it blocked meaningful inspection (e.g. entirely closed-shadow-DOM content) — a best-effort signal, not exhaustive. */
   framesInaccessible: number;
+  /** Empty about:blank frames with no src yet, skipped by design: part of `framesTotal`, not a failure. */
+  framesPlaceholder?: number;
   /**
    * A handful (never the whole list — this is for a human reading one
    * evidence sentence, not a log dump) of distinct, actual per-frame

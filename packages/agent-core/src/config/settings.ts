@@ -3,6 +3,9 @@ import type { ProviderType } from "./types.js";
 
 export type { ProviderType };
 
+/** Whether a model called a tool in Settings' Test Connection probe. */
+export type ToolCallingSupport = "yes" | "no" | "unknown";
+
 export interface CustomModelConfig {
   id: string;
   name?: string;
@@ -10,14 +13,35 @@ export interface CustomModelConfig {
   aiHost?: string;
   aiToken: string;
   aiModel: string;
+  /** Anthropic only: the workspace (`wrkspc_…`) a multi-workspace API key runs in, sent as `anthropic-workspace-id`. */
+  aiWorkspaceId?: string;
   enabled: boolean;
+  /** The last tool-calling probe, for the model id it tested. */
+  toolCalling?: { model: string; support: ToolCallingSupport };
 }
+
+/**
+ * How much diagnostic data is masked before it reaches the model, the side
+ * panel or an export. The same values as `@apty/debug-contract`'s
+ * `RedactionMode`: "strict" also masks page context (titles, paths),
+ * "standard" masks secrets and personal data, "off" masks only secrets
+ * recognised by their shape (tokens, keys, emails). Development only.
+ */
+export type RedactionModeSetting = "strict" | "standard" | "off";
+
+export const REDACTION_MODES: readonly RedactionModeSetting[] = [
+  "strict",
+  "standard",
+  "off",
+];
 
 export interface AppSettings {
   aiProvider?: AIProviderKey;
   aiHost?: string;
   aiToken?: string;
   aiModel?: string;
+  /** Anthropic only: the workspace (`wrkspc_…`) a multi-workspace API key runs in, sent as `anthropic-workspace-id`. */
+  aiWorkspaceId?: string;
   /**
    * Preferred default model for new sessions (does not affect runtime selection)
    */
@@ -58,6 +82,22 @@ export interface AppSettings {
   developerTools?: boolean;
   /** Extra page content DOM Health leaves out of an audit, one matcher per entry: `id:prefix`, `class:prefix` or `tag:name`. Added to the built-in overlay list. */
   domHealthIgnoredRoots?: string[];
+  /**
+   * Run the page-world script that captures console output from page load
+   * and counts client-side routing (`pushState`) for DOM Health. On unless
+   * turned off (Settings → Troubleshooting).
+   */
+  pageHooksEnabled?: boolean;
+  /** Hosts (with their subdomains) or match patterns where that script never runs. */
+  pageHooksExcludedSites?: string[];
+  /**
+   * Developer tools: overrides for DOM Health's unverified thresholds, by
+   * name (`dom-health-thresholds.ts` in browser-runtime lists them and their
+   * bounds). Every active override is listed in the audit result.
+   */
+  domHealthThresholdOverrides?: Record<string, number>;
+  /** Redaction applied to diagnostic data; missing or unknown means "strict". */
+  redactionMode?: RedactionModeSetting;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -74,4 +114,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   verboseLogging: false,
   developerTools: false,
   domHealthIgnoredRoots: [],
+  redactionMode: "strict",
+  pageHooksEnabled: true,
+  pageHooksExcludedSites: [],
 };

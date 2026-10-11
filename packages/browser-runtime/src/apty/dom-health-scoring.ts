@@ -29,11 +29,20 @@ import type {
   ElementPathSample,
   ElementSelectorReport,
   ExcludedRootSummary,
+  VirtualizedListSummary,
 } from "@apty/dom-snapshot";
 import {
   AUDIT_PROFILE_NAME,
   DEFAULT_COLLECTOR_BUDGET,
+  NO_VIRTUALIZED_LISTS,
 } from "@apty/dom-snapshot";
+import { DOM_HEALTH_THRESHOLDS, threshold } from "./dom-health-thresholds.js";
+import {
+  type DesEvidence,
+  desEvidenceFor,
+  type ElementExplanation,
+  explainElement,
+} from "./element-explanation.js";
 import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { FrameAccessibilitySummary } from "./frame-tree.js";
 
@@ -82,7 +91,8 @@ export function applyConfidenceCaps(
 }
 
 /** Above this share of unreadable frames, the audit did not see most of the page. Unverified threshold: "most" read literally. */
-export const MAX_UNREADABLE_FRAME_SHARE = 0.5;
+export const MAX_UNREADABLE_FRAME_SHARE =
+  DOM_HEALTH_THRESHOLDS.maxUnreadableFrameShare.default;
 
 const NO_PERFORMANCE: CollectorPerformance = {
   timings: { ignoredRootsMs: 0, classifyMs: 0, analyzeMs: 0, totalMs: 0 },
@@ -100,6 +110,35 @@ const NO_DUPLICATE_IDS: DuplicateIdStats = {
   sampleValues: [],
 };
 
+/** Above this share of a virtualized list's declared rows left unrendered, confidence is LOW. Unverified threshold: "large" read as "most". */
+export const MAX_UNSEEN_VIRTUALIZED_SHARE =
+  DOM_HEALTH_THRESHOLDS.maxUnseenVirtualizedShare.default;
+
+/**
+ * A cap for virtualized lists (WP B4): the audit only saw the rendered
+ * rows, so the result is partial coverage, never a clean pass. MEDIUM when
+ * most declared rows were seen, LOW when most were not, MEDIUM when the
+ * total is unknown.
+ */
+export function virtualizedListCap(
+  virtualized: VirtualizedListSummary | undefined,
+): ConfidenceCap | null {
+  if (!virtualized || virtualized.containers === 0) return null;
+  const { containers, observedItems, declaredTotal } = virtualized;
+  if (declaredTotal === null) {
+    return {
+      cap: "MEDIUM",
+      reason: `${containers} virtualized list(s) render only the rows in view (${observedItems} rendered); how many rows exist is unknown, so the rest were not audited.`,
+    };
+  }
+  const unseen = Math.max(0, declaredTotal - observedItems);
+  const share = declaredTotal > 0 ? unseen / declaredTotal : 0;
+  return {
+    cap: share > threshold("maxUnseenVirtualizedShare") ? "LOW" : "MEDIUM",
+    reason: `${containers} virtualized list(s) render ${observedItems} of ${declaredTotal} declared rows; the other ${unseen} were not audited.`,
+  };
+}
+
 /**
  * Caps for an audit that could not see the application (brief section
  * 4.10): most frames unreadable, or every application frame unreadable
@@ -115,7 +154,8 @@ export function frameConfidenceCaps(
     frameAccessibility.framesFailed + frameAccessibility.framesInaccessible;
   if (
     frameAccessibility.framesTotal > 0 &&
-    unreadable / frameAccessibility.framesTotal > MAX_UNREADABLE_FRAME_SHARE
+    unreadable / frameAccessibility.framesTotal >
+      threshold("maxUnreadableFrameShare")
   ) {
     caps.push({
       cap: "LOW",
@@ -280,7 +320,10 @@ export interface DomHealthMetricDetails {
     tested: number;
     fullyTargetable: number;
     partiallyTargetable: number;
-    occludedOrHidden: number;
+    /** Hidden when sampled, by its own style or a hidden container (a closed menu, an inactive tab): left out of the metric, since nothing should click them until they are shown. */
+    hidden: number;
+    /** Visible elements that failed: covered, zero-size, or outside the viewport. */
+    notTargetable: number;
   };
   domVolatility: {
     maxRelativeElementCountDelta: number;
@@ -326,6 +369,8 @@ export interface DomHealthAuditResult {
   /** Overlays and injected UI left out of the audit, per matcher. */
   excludedRoots: ExcludedRootSummary[];
   duplicateIds: DuplicateIdStats;
+  /** Virtualized lists found (WP B4); their unrendered rows are not in any count. */
+  virtualized: VirtualizedListSummary;
   /** Timings and budget of the last collection round (slowest frame); `auditMs` is the whole audit's wall time, set by `dom-health.ts`. */
   performance: CollectorPerformance & { auditMs?: number };
   /** Always "page" today — this orchestrator audits one page per run. Never labeled "application" without real multi-page coverage (spec section 54). */
@@ -351,8 +396,12 @@ export interface DomHealthAuditResult {
   strengths: string[];
   risks: DomHealthRisk[];
   recommendations: DomHealthRecommendation[];
-  /** Bounded, most-interesting-first sample for the element-level drill-down table (spec section 42) — not every analyzed element. */
-  elementSamples: ElementSelectorReport[];
+  /** Bounded, most-interesting-first sample for the element-level drill-down table (spec section 42) — not every analyzed element. Each carries its evidence in DES terms. */
+  elementSamples: Array<
+    ElementSelectorReport & { explanation: ElementExplanation }
+  >;
+  /** Every analyzed element counted by DES step, dynamic value left out and hit-test failure reason. */
+  desEvidence: DesEvidence;
   methodology: string[];
   iframes: DomHealthIframeInfo;
   shadowDom: DomHealthShadowDomInfo;
@@ -600,25 +649,59 @@ function computeAmbiguityRisk(current: DomHealthSnapshot) {
   return scoreAmbiguityRisk({ totalAnalyzed, ambiguous, wrongTarget });
 }
 
+function hiddenNote(hidden: number): string {
+  return hidden > 0
+    ? ` ${hidden} element(s) hidden when sampled (closed menus, inactive tabs) are not counted.`
+    : "";
+}
+
+/** The risk for ids shared by more than one element, or null when every id is unique in its root. */
+export function duplicateIdsRisk(
+  duplicateIds: Omit<DuplicateIdStats, "sampleValues">,
+): DomHealthRisk | null {
+  if (duplicateIds.valuesDuplicatedWithinARoot === 0) return null;
+  return {
+    id: "duplicate-ids",
+    severity: "medium",
+    title: "Ids shared by more than one element",
+    evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
+  };
+}
+
+/**
+ * Share of VISIBLE tested elements that a click can reach. An element
+ * hidden when sampled (a closed menu, an inactive tab) is left out: in the
+ * Infor LN bundle 75 of 131 failures were hidden and only 6 were covered.
+ */
 export function scoreHitTestTargetability(agg: {
   tested: number;
   fullyTargetable: number;
   partiallyTargetable: number;
+  hidden?: number;
 }) {
-  const occludedOrHidden =
-    agg.tested - agg.fullyTargetable - agg.partiallyTargetable;
+  const hidden = agg.hidden ?? 0;
+  const visible = Math.max(0, agg.tested - hidden);
+  const reachable = agg.fullyTargetable + agg.partiallyTargetable;
   return {
-    score: pct(agg.fullyTargetable + agg.partiallyTargetable, agg.tested),
-    detail: { ...agg, occludedOrHidden: Math.max(0, occludedOrHidden) },
+    score: pct(reachable, visible),
+    detail: {
+      tested: agg.tested,
+      fullyTargetable: agg.fullyTargetable,
+      partiallyTargetable: agg.partiallyTargetable,
+      hidden,
+      notTargetable: Math.max(0, visible - reachable),
+    },
   };
 }
 
 function computeHitTestTargetability(current: DomHealthSnapshot) {
-  const { tested, fullyTargetable, partiallyTargetable } = current.hitTesting;
+  const { tested, fullyTargetable, partiallyTargetable, hidden } =
+    current.hitTesting;
   return scoreHitTestTargetability({
     tested,
     fullyTargetable,
     partiallyTargetable,
+    hidden,
   });
 }
 
@@ -734,7 +817,7 @@ export function buildStrengths(
   }
   if (metrics.hitTestTargetability >= 85 && hitTestTargetability.tested > 0) {
     strengths.push(
-      `${metrics.hitTestTargetability}% of visible interactive elements (${hitTestTargetability.fullyTargetable + hitTestTargetability.partiallyTargetable}/${hitTestTargetability.tested}) passed hit testing.`,
+      `${metrics.hitTestTargetability}% of visible interactive elements (${hitTestTargetability.fullyTargetable + hitTestTargetability.partiallyTargetable}/${hitTestTargetability.tested - hitTestTargetability.hidden}) passed hit testing.`,
     );
   }
   if (metrics.ambiguityRisk >= 90 && details.ambiguityRisk.totalAnalyzed > 0) {
@@ -818,7 +901,7 @@ export function buildRisks(
       id: "hit-test-failures",
       severity: metrics.hitTestTargetability < 60 ? "high" : "medium",
       title: "Some interactive elements fail hit testing",
-      evidence: `${details.hitTestTargetability.occludedOrHidden} of ${details.hitTestTargetability.tested} tested elements were occluded, hidden, zero-size, or outside the viewport at the sampled points.`,
+      evidence: `${details.hitTestTargetability.notTargetable} of ${details.hitTestTargetability.tested - details.hitTestTargetability.hidden} visible tested elements were covered, zero-size, or outside the viewport at the sampled points.${hiddenNote(details.hitTestTargetability.hidden)}`,
     });
   }
 
@@ -880,11 +963,11 @@ export function buildRecommendations(
     });
   }
 
-  if (details.hitTestTargetability.occludedOrHidden > 0) {
+  if (details.hitTestTargetability.notTargetable > 0) {
     recommendations.push({
       id: "investigate-hit-test-failures",
       title: "Investigate elements failing hit testing",
-      detail: `${details.hitTestTargetability.occludedOrHidden} interactive element(s) were occluded, hidden, or outside the viewport during testing. Even a uniquely-resolvable element is not usable if nothing can click it.`,
+      detail: `${details.hitTestTargetability.notTargetable} visible interactive element(s) were covered, zero-size, or outside the viewport during testing. Even a uniquely-resolvable element is not usable if nothing can click it.`,
     });
   }
 
@@ -1025,7 +1108,11 @@ export function buildDomHealthAuditResult(
     ? Math.round(Math.min(100, Math.max(0, rawScore)))
     : null;
   const grade = score === null ? "NOT_ASSESSED" : gradeForScore(score);
-  const caps = frameConfidenceCaps(frameAccessibility, frames);
+  const virtualizedCap = virtualizedListCap(current.virtualized);
+  const caps = [
+    ...frameConfidenceCaps(frameAccessibility, frames),
+    ...(virtualizedCap ? [virtualizedCap] : []),
+  ];
   const confidence = applyConfidenceCaps(
     evidenceState === "FAILED" ||
       evidenceState === "NO_EVIDENCE" ||
@@ -1055,7 +1142,9 @@ export function buildDomHealthAuditResult(
   const direct = current.elementReports.filter(
     (r) => r.outcome === "DIRECT_SUCCESS",
   );
-  const elementSamples = [...nonDirect, ...direct].slice(0, 25);
+  const elementSamples = [...nonDirect, ...direct]
+    .slice(0, 25)
+    .map((report) => ({ ...report, explanation: explainElement(report) }));
 
   const risks = buildRisks(
     metrics,
@@ -1064,12 +1153,14 @@ export function buildDomHealthAuditResult(
     current.analysisCoverage,
   );
   const duplicateIds = current.duplicateIds ?? NO_DUPLICATE_IDS;
-  if (duplicateIds.valuesDuplicatedWithinARoot > 0) {
+  const duplicateIdRisk = duplicateIdsRisk(duplicateIds);
+  if (duplicateIdRisk) risks.push(duplicateIdRisk);
+  if (virtualizedCap) {
     risks.push({
-      id: "duplicate-ids",
+      id: "virtualized-list-partial-coverage",
       severity: "medium",
-      title: "Ids shared by more than one element",
-      evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
+      title: "Virtualized lists: only the rendered rows were audited",
+      evidence: `${virtualizedCap.reason} Coverage is partial: scroll the list, or audit each screen of it, to see the rest.`,
     });
   }
   const failureReasonSuffix = frameAccessibility.sampleFailureReasons?.length
@@ -1128,6 +1219,7 @@ export function buildDomHealthAuditResult(
     confidenceCaps: caps.map((c) => c.reason),
     excludedRoots: current.excludedRoots ?? [],
     duplicateIds,
+    virtualized: current.virtualized ?? NO_VIRTUALIZED_LISTS,
     performance: current.performance ?? NO_PERFORMANCE,
     scope: "page",
     scopeLabel: "CURRENT_PAGE",
@@ -1153,6 +1245,7 @@ export function buildDomHealthAuditResult(
     risks,
     recommendations: buildRecommendations(metrics, metricDetails),
     elementSamples,
+    desEvidence: desEvidenceFor(current),
     methodology: METHODOLOGY,
     iframes: current.iframes,
     shadowDom: current.shadowDom,

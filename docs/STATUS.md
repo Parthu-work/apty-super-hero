@@ -13,15 +13,69 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   Apty Client connection and whether the page can be inspected.
 - Risky actions wait for a click in the side panel and are refused if the
   tab moved to another site meanwhile; "Allow on this site for 15 min" is
-  per tool and origin and can be revoked.
+  per tool and origin and can be revoked. Since A1 this covers clicks on
+  submit controls, destructive or confirming labels and cross-origin links
+  (`click` and `computer`), and `create_new_tab` to another origin; a URL
+  with a long query or a non-web scheme always asks.
 - DOM Health in same-origin, cross-origin, `data:` and frameset frames,
-  open and closed shadow roots, and tabs opened before an extension update.
+  open and closed shadow roots, and tabs opened before an extension update. Virtualized lists (B4) are reported
+  as partial coverage with the rendered and declared row counts.
+- DOM Health explains each element in Apty DES terms: which step finds it
+  (checkInitialPath, Partial Selector, checkSimplifyDynamic,
+  checkContainers, checkSimplifyNth/checkDirectElement) or why none does,
+  the attributes left out as dynamic, the hit-test reason and a fix; each
+  result counts elements per step and hit-test failures per reason.
+- DOM Health validation bundle (B2): "Export validation bundle" in the DOM
+  Health card builds an allow-listed, strictly redacted JSON (frame tree,
+  counts, overlays, thresholds, timings, route probe hashes, versions) and
+  shows it for review before Download or Copy. Exported on all six
+  application shapes in Chromium. Developer tools can override the
+  unverified thresholds; every override is listed. Not yet run on a real
+  tenant: the protocol is
+  [`real-tenant-validation.md`](development/real-tenant-validation.md).
 - Page console output (including during page load), network capture with
   opt-in response bodies, runtime diagnostics, screenshots, clicks and
-  scrolling.
+  scrolling. The page-world script behind console capture and routing
+  evidence can be turned off or excluded per site (B5), registered by the
+  service worker.
 - Apty Client logs and resource bodies, with named connection failures and
-  a full-response viewer.
+  a full-response viewer. The Data-handling deny list covers Client bodies
+  too (A2): a listed resource returns `body_denied` with its metadata and
+  the Client is never asked for the body. A JSON body comes with a structural summary
+  (B3): item count, the union of item keys with their types, and how many
+  whole items the preview holds, under 1,500 characters.
+- Settings → AI Configuration (C1): "Fetch models" reads the provider's
+  live model list (OpenAI-compatible, Anthropic and Gemini endpoints),
+  with named errors and manual entry as the fallback; Test Connection also
+  probes tool calling and flags a model that does not call tools. Presets
+  audited: the Anthropic host now reaches the API, unverifiable model
+  names were removed, Replicate and Perplexity are marked experimental.
+  Tested against a mock provider, not real ones.
+- Preflight (C2): Options → Apty Integration → Preflight (`#preflight`)
+  runs every demo dependency check with its exact fix and a copy button,
+  exports redacted JSON and resets demo data; `pnpm demo:check` runs it
+  end to end. Demo script: [`docs/demo/DEMO.md`](demo/DEMO.md).
 - The MCP bridge, with the token in the WebSocket handshake.
+- Redaction mode (A3): Strict, Standard or Off (development only) in
+  Settings → Data handling, with a Preview; Off needs a confirmation and
+  shows a side-panel banner. Every caller goes through
+  `runtime/redaction-mode.ts`, and a unit test fails on a direct call.
+
+- Accessibility (C3): axe-core runs on the side panel (empty, approval
+  prompt, tool result, evidence viewers) and every Options tab in light and
+  dark themes and fails on serious or critical violations; none remain
+  ([`accessibility.md`](development/accessibility.md)).
+- Every package has a coverage gate (C5): package-wide ratchets one point
+  below the measured value, plus the stricter groups for approvals, sender
+  checks, cross-extension messaging, capture and redaction; thresholds only
+  go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
+  CI fails on a skip without a `// skip-reason:` (C4).
+
+- Release rehearsal (D3): the Release workflow has a `dry_run` dispatch
+  that builds, tests and packages without publishing, and checks the
+  packaged key yields the pinned ID; `npm run release:dry-run` does the
+  same locally. Branded Chrome and Edge are checked by hand
+  ([`SMOKE_TEST.md`](release/SMOKE_TEST.md)).
 
 ## Open
 
@@ -29,8 +83,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 |---|---|
 | Narrow `<all_urls>` to Apty's target domains | Apty's list of customer application domains |
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
-| Studio integration | Studio's manifest allows no other extension to message it |
-| Turn on `noExplicitAny` | About 130 `any` to replace; the rule is off |
+| Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
+| Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
+| Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | Rename the inherited `aipex_*` storage keys | A migration for existing installs |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 

@@ -1,6 +1,7 @@
 import type { AppSettings } from "@apty/agent-core";
 import { createLogger, STORAGE_KEYS } from "@apty/agent-core";
 import { ChromeStorageAdapter, zenfs } from "@apty/browser-runtime";
+import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { quickjs } from "@apty/browser-runtime/vm/quickjs-manager";
 import { renderChatApp } from "../../components/app-root";
 import { initLogging } from "../../lib/logging";
@@ -8,6 +9,8 @@ import { initLogging } from "../../lib/logging";
 const log = createLogger("Sidepanel");
 
 initLogging();
+// Read the redaction mode now, so the first tool result is redacted in it.
+void getRedactionMode();
 
 // Pre-initialize QuickJS and ZenFS on sidepanel startup so that the first
 // skill execution doesn't incur a cold-start WASM load — but only when the

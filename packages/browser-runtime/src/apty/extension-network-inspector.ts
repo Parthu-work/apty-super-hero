@@ -44,13 +44,20 @@
  * inventing history either way.
  */
 
-import { redactSensitiveText } from "@apty/debug-contract";
+import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
+import { redactText } from "../runtime/redaction-mode.js";
+import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
+import {
+  type JsonBodySummary,
+  summarizeJsonBody,
+} from "./json-body-summary.js";
 import { classifyLogEntry, type LogCategory } from "./log-classification.js";
 import {
   decodeBase64Utf8,
   isTextualMime,
   MAX_INLINE_BODY_CHARS,
+  matchingDenyEntry,
   resourceNameFor,
 } from "./resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
@@ -611,18 +618,8 @@ export type InspectResourceStatus =
   | "failed"
   | "http_error"
   | "pending"
-  | "body_unavailable";
-
-/** A bounded, model-safe summary of a JSON response body — item count, top-level keys, and a small sample — so the model never receives a blind character-truncated slice of a large array that might cut off mid-item. The full body is always available separately via evidence (`get_evidence_json`). */
-export interface JsonBodySummary {
-  kind: "array" | "object";
-  /** Total element count, when the body is a JSON array. */
-  itemCount?: number;
-  /** Keys of the top-level object, or of the first array element if it's an object. */
-  topLevelKeys?: string[];
-  /** First few elements (if an array) or the object itself (if small), already redacted. */
-  sample: unknown;
-}
+  | "body_unavailable"
+  | "body_denied";
 
 export interface InspectResourceResult {
   found: boolean;
@@ -642,44 +639,19 @@ export interface InspectResourceResult {
   suggestions?: ResourceSuggestion[];
   /** Populated when more than one resource matched — the other candidates that were NOT chosen, so the answer can disclose it picked the most-recent/highest-ranked of several. */
   alsoMatched?: string[];
+  /** For `body_denied`: the deny-list entry that matched the resource URL. */
+  deniedBy?: string;
   error?: string;
 }
 
-const MAX_JSON_SAMPLE_ITEMS = 5;
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
-/** Build a bounded, model-safe summary of a (already redacted) JSON-parseable body, or `undefined` if it doesn't parse as JSON. */
-function summarizeJsonBody(text: string): JsonBodySummary | undefined {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return undefined;
-  }
-
-  if (Array.isArray(parsed)) {
-    const sample = parsed.slice(0, MAX_JSON_SAMPLE_ITEMS);
-    const first = sample[0];
-    const topLevelKeys =
-      first && typeof first === "object" && !Array.isArray(first)
-        ? Object.keys(first as Record<string, unknown>)
-        : undefined;
-    return {
-      kind: "array",
-      itemCount: parsed.length,
-      topLevelKeys,
-      sample,
-    };
-  }
-
-  if (parsed && typeof parsed === "object") {
-    return {
-      kind: "object",
-      topLevelKeys: Object.keys(parsed as Record<string, unknown>),
-      sample: parsed,
-    };
-  }
-
-  return undefined;
+/** Settings → Data handling's body deny list, which covers Apty Client bodies as well as page capture. */
+async function loadBodyDenyList(): Promise<readonly string[]> {
+  const settings = await settingsStorage
+    .load(STORAGE_KEYS.SETTINGS)
+    .catch(() => null);
+  return settings?.networkBodyCaptureDenyList ?? [];
 }
 
 /** Find the resource matching `resourceQuery` among what the Apty Client reports observing, and retrieve its actual response body. Never fabricates a body — every non-"ok" status is an explicit, structured failure. */
@@ -773,6 +745,20 @@ export async function inspectResource(
   // the body of a 403/500 response is frequently the one piece of evidence
   // that explains the failure (e.g. an error message or access-denied body).
   const isHttpError = best.status >= 400;
+  // The user's request is consent for this one resource; the deny list is
+  // the standing policy above it, so a matching body is never fetched.
+  const deniedBy = matchingDenyEntry(best.url ?? "", await loadBodyDenyList());
+  if (deniedBy !== null) {
+    return {
+      found: true,
+      status: "body_denied",
+      resourceQuery,
+      request: best,
+      alsoMatched,
+      deniedBy,
+      error: `The response body of ${best.resourceName} was not fetched: its URL matches "${deniedBy}" in the body deny list (Settings → Data handling). The request's metadata is included. Tell the user; to read this body they can remove that entry and ask again. Do not try to get the body another way.`,
+    };
+  }
   const body = await provider.getResourceBody(best.requestId);
   if (!body.found || body.body === undefined) {
     return {
@@ -798,25 +784,27 @@ export async function inspectResource(
     }
   }
 
-  const redacted = isBinary ? "" : redactSensitiveText(text);
+  const redacted = isBinary ? "" : redactText(text);
   const fullLength = redacted.length;
-  const json = isBinary ? undefined : summarizeJsonBody(redacted);
-  // A JSON body is summarized structurally (item count + sample), which is
-  // always far smaller and more useful to the model than a blind character
-  // slice of a potentially 100kB+ array — so its inline preview stays small
-  // regardless of MAX_INLINE_BODY_CHARS. Non-JSON text keeps the existing
-  // char-truncation behavior unchanged.
+  // A JSON body gets a structural summary (root type, length, keys and
+  // their types) plus a preview of whole items that fits the inline limit,
+  // never a character slice that could cut an item in half. Non-JSON text
+  // keeps the character limit.
+  const summarized = isBinary
+    ? undefined
+    : summarizeJsonBody(redacted, MAX_INLINE_BODY_CHARS);
+  const json = summarized?.summary;
   const preview = isBinary
     ? "<binary response body, not shown>"
-    : json
-      ? JSON.stringify(json.sample)
+    : summarized
+      ? summarized.preview
       : fullLength > MAX_INLINE_BODY_CHARS
         ? redacted.slice(0, MAX_INLINE_BODY_CHARS)
         : redacted;
   const truncated = isBinary
     ? false
     : json
-      ? json.kind === "array" && (json.itemCount ?? 0) > MAX_JSON_SAMPLE_ITEMS
+      ? json.previewIsPartial
       : fullLength > MAX_INLINE_BODY_CHARS;
 
   const evidence = recordEvidence({
@@ -836,7 +824,7 @@ export async function inspectResource(
       isBinary,
       // The FULL redacted body (never truncated) — this is what
       // get_evidence_json reads from. The model-bound `response` above only
-      // ever sees `preview`/`json.sample`, never this.
+      // ever sees `preview` and the structural `json` summary, never this.
       body: isBinary ? undefined : redacted,
     },
   });

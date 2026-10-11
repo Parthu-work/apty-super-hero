@@ -23,7 +23,10 @@
 const STORAGE_KEY = "apty-integration-config";
 
 export interface AptyIntegrationConfig {
+  /** Older field for Studio's ID; read when `peers.studio` is unset. */
   studioExtensionId?: string;
+  /** Peers beyond the Client, by name (D2; see peers.ts). */
+  peers?: { studio?: { extensionId: string } };
   clientExtensionId?: string;
   serviceWorkerExtensionId?: string;
   serviceWorkerDiagnosticEndpoint?: string;
@@ -98,7 +101,7 @@ export async function seedAptyIntegrationConfigDefaults(
       const value = defaults[key];
       if (value === undefined) continue; // this build has no default for it
       if (next[key] !== undefined) continue; // already set — never override
-      next[key] = value;
+      (next as Record<string, unknown>)[key] = value;
     }
     await chrome.storage.local.set({ [STORAGE_KEY]: next });
     return next;

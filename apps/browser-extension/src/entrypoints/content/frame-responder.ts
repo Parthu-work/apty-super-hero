@@ -45,6 +45,8 @@ const MARKER_KEY = "__aptyFrameResponder";
 
 let historyTotals: HistoryApiTotals = { ...ZERO_HISTORY_TOTALS };
 let listeningForHistoryApi = false;
+/** Set once the page-world hooks announce themselves; false where they don't run (turned off, or the site excluded in Settings → Troubleshooting). */
+let historyHooksSeen = false;
 
 function historyApiCallCount(): number {
   return (
@@ -70,6 +72,7 @@ function listenForHistoryApi(): void {
   window.addEventListener(HISTORY_API_EVENT, (event) => {
     const totals = parseHistoryTotals((event as CustomEvent).detail);
     if (!totals) return;
+    historyHooksSeen = true;
     historyTotals = {
       pushState: Math.max(historyTotals.pushState, totals.pushState),
       replaceState: Math.max(historyTotals.replaceState, totals.replaceState),
@@ -253,6 +256,27 @@ export function describeFrameSelf(ignoredRoots: string[] = []) {
 }
 
 /** One probe step for this frame: what identifies the screen, plus each child frame's owner attributes mapped to its `frameId`. */
+/** `value` when it is a finite positive number, else undefined (the collector's default applies). */
+function positiveNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
+/** The listed finite, non-negative numbers of `value`; anything else is dropped. */
+function numberFields<K extends string>(
+  value: unknown,
+  keys: readonly K[],
+): Partial<Record<K, number>> {
+  if (!value || typeof value !== "object") return {};
+  const out: Partial<Record<K, number>> = {};
+  for (const key of keys) {
+    const v = (value as Record<string, unknown>)[key];
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[key] = v;
+  }
+  return out;
+}
+
 export function captureRouteProbeFrame() {
   const { owners, ...signals } = collectRouteProbeFrameSignals(document);
   return {
@@ -260,6 +284,7 @@ export function captureRouteProbeFrame() {
     owners: frameOwnersWithIds(owners),
     historyApiCallCount: historyApiCallCount(),
     pushStateCount: historyTotals.pushState,
+    historyHooksSeen,
     firstRequest: routeProbe?.firstRequest ?? null,
     armed: routeProbe !== null,
   };
@@ -520,6 +545,11 @@ export function handleFrameMessage(
                 : undefined,
             frameContext: message.frameContext ?? null,
             ignoredRoots,
+            timeBudgetMs: positiveNumber(message.timeBudgetMs),
+            virtualizationThresholds: numberFields(
+              message.virtualizationThresholds,
+              ["spacerMinPx", "scrollHeightRatio", "scrollHeightExcessPx"],
+            ),
           });
           return {
             snapshot,
@@ -566,6 +596,7 @@ export function handleFrameMessage(
           usesHistoryApiRouting: historyApiCallCount() > 0,
           historyApiCallCount: historyApiCallCount(),
           pushStateCount: historyTotals.pushState,
+          historyHooksSeen,
         },
       });
       return true;

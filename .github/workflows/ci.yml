@@ -84,6 +84,15 @@ jobs:
       - name: MCP bridge docs check
         run: npm run check:mcp-bridge-docs
 
+      - name: Skipped tests say why
+        run: npm run audit:test-skips
+
+      - name: No new explicit any
+        run: npm run audit:any
+
+      - name: Markdown links resolve
+        run: npm run audit:docs-links
+
       - name: Dependency vulnerability audit
         run: pnpm audit --prod
 

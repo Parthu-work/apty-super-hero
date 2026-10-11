@@ -1,4 +1,4 @@
-import type { AppSettings } from "@apty/agent-core";
+import type { AppSettings, RedactionModeSetting } from "@apty/agent-core";
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -14,11 +14,14 @@ import {
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
+import { RedactionModeControl } from "./redaction-mode-control";
 
 export interface DataHandlingCardProps {
   settings: AppSettings;
   onChange: (patch: Partial<AppSettings>) => void;
   language?: string;
+  /** Redacts the Preview sample in a given mode (supplied by the host app). */
+  redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
 }
 
 function parseDenyList(text: string): string[] {
@@ -32,6 +35,7 @@ export function DataHandlingCard({
   settings,
   onChange,
   language,
+  redactionPreview,
 }: DataHandlingCardProps) {
   const zh = language === "zh";
   const [denyListText, setDenyListText] = useState(
@@ -67,11 +71,17 @@ export function DataHandlingCard({
         </CardTitle>
         <CardDescription>
           {zh
-            ? "控制页面网络捕获时是否读取响应正文。正文经过脱敏后发送给您的 AI 服务商。"
-            : "Choose whether a page network capture reads response bodies. Bodies are redacted, then sent to your AI provider."}
+            ? "控制页面网络捕获时是否读取响应正文。正文经过脱敏后发送给您的 AI 服务商。下面的拒绝列表同时适用于页面捕获和 Apty Client 返回的正文。"
+            : "Choose whether a page network capture reads response bodies. Bodies are redacted, then sent to your AI provider. The deny list below applies both to page capture and to bodies the Apty Client returns."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <RedactionModeControl
+          mode={settings.redactionMode ?? "strict"}
+          onChange={(redactionMode) => onChange({ redactionMode })}
+          preview={redactionPreview}
+          language={language}
+        />
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="network-body-capture" className="text-sm font-medium">
             {zh ? "捕获响应正文" : "Capture response bodies"}
@@ -87,14 +97,15 @@ export function DataHandlingCard({
         <div className="space-y-2">
           <Label htmlFor="network-body-deny-list" className="text-sm">
             {zh
-              ? "从不捕获正文的主机或网址（每行一个）"
-              : "Never capture bodies from these hosts or URL fragments (one per line)"}
+              ? "从不读取正文的主机或网址（每行一个，适用于页面捕获和 Apty Client）"
+              : "Never read bodies from these hosts or URL fragments, in page capture or from the Apty Client (one per line)"}
           </Label>
           <Textarea
             id="network-body-deny-list"
             value={denyListText}
-            disabled={!enabled}
-            placeholder={"bank.example.com\n/api/patients"}
+            placeholder={
+              "bank.example.com\n/api/patients\n/users/\n/api/me\n/userinfo"
+            }
             onChange={(event) => {
               setDenyListText(event.target.value);
               pendingDenyList.current = event.target.value;

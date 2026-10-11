@@ -26,7 +26,9 @@ import {
   type ElementSelectorReport,
   type FrameStateSignature,
   mergeExcludedRoots,
+  mergeVirtualizedLists,
 } from "@apty/dom-snapshot";
+import { collectorThresholdOptions } from "./dom-health-thresholds.js";
 import {
   type FrameKey,
   type FrameOwnerAttributes,
@@ -320,6 +322,7 @@ async function captureFrame(
       sequenceIndex: options.sequenceIndex,
       maxInteractiveElements: options.maxInteractiveElements,
       ignoredRoots: options.ignoredRoots ?? [],
+      ...collectorThresholdOptions(),
       frameContext: {
         frameId: frame.frameId,
         url: frame.url,
@@ -513,6 +516,8 @@ export async function captureApplicationState(
     // snapshot or it did not. Reserved for a future signal (e.g. "entirely
     // closed-shadow-DOM content"), never fabricated here.
     framesInaccessible: 0,
+    framesPlaceholder: frames.filter((f) => f.status === "skipped-about-blank")
+      .length,
     sampleFailureReasons: sampleFailureReasons(
       failedFrames.map((f) => f.error),
     ),
@@ -828,6 +833,7 @@ export function aggregateFrameSnapshots(
     ),
     duplicateIds,
     performance: mergePerformance(read),
+    virtualized: mergeVirtualizedLists(read.map((f) => f.snapshot.virtualized)),
   };
 }
 

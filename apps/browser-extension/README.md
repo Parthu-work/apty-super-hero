@@ -77,7 +77,9 @@ Load the built extension by selecting the build output directory in `chrome://ex
 - `src/entrypoints/background/`: service worker
 - `src/entrypoints/content/`: content scripts (`frame-responder.ts` in every
   frame, `index.tsx` UI in the top frame, `console-bridge.ts` in the page's
-  own world)
+  own world). The console bridge is not in `manifest.json`: the build emits
+  it as `content/console-bridge.js` and the service worker registers it
+  (`runtime/page-hooks-registration.ts`), so Settings can turn it off.
 - `src/entrypoints/sidepanel/`: side panel UI
 - `src/entrypoints/options/`: Options page
 
