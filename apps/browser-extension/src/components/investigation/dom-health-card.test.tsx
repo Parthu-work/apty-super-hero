@@ -649,12 +649,14 @@ describe("DomHealthCard", () => {
         pagesSkippedUnsafe: 0,
         pagesSkippedDuplicate: 0,
         pagesNotDiscovered: 0,
+        pagesExploredNoNewState: 2,
         coveragePercent: 100,
         coverageLabel: "OBSERVED_COVERAGE",
         discoveryMethod: "anchor-links",
-        framesDiscovered: 1,
+        framesDiscovered: 3,
         framesInspected: 1,
         framesInaccessible: 0,
+        framesPlaceholder: 2,
       },
       analysisCoverage: {
         candidatesFound: 7,
@@ -685,10 +687,11 @@ describe("DomHealthCard", () => {
           manualDependencyRate: 0,
         },
         hitTestTargetability: {
-          tested: 7,
+          tested: 10,
           fullyTargetable: 1,
           partiallyTargetable: 0,
-          occludedOrHidden: 6,
+          hidden: 3,
+          notTargetable: 6,
         },
         accessibilitySignal: { totalInteractive: 7, missingAccessibleName: 7 },
       } as any,
@@ -717,6 +720,14 @@ describe("DomHealthCard", () => {
           status: "completed",
           result: { score: 91, grade: "EXCELLENT", metricDetails: {} as any },
         },
+        {
+          url: "https://example.com/#control:header>button",
+          title: "Open tab menu",
+          discoverySource: "safe-navigation-control",
+          status: "explored-no-new-state",
+          failureReason:
+            "Clicking this control did not produce a new application state.",
+        },
       ],
       methodology: [],
     });
@@ -742,7 +753,19 @@ describe("DomHealthCard", () => {
     // Hit-test and accessibility failures stay visible even though the
     // headline score is high (spec sections 10-11).
     expect(screen.getByText("6/7")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "3 hidden when sampled (closed menus, inactive tabs), not counted.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("7/7")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "1/1 frames with content reached, 2 empty placeholder(s) skipped",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Clicked, no new state")).toBeInTheDocument();
+    expect(screen.getByText(/2 clicked with no new state/)).toBeInTheDocument();
   });
 
   it("runs both audits with the developer threshold overrides and offers the validation bundle only once there is evidence", async () => {

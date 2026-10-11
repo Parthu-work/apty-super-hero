@@ -320,7 +320,10 @@ export interface DomHealthMetricDetails {
     tested: number;
     fullyTargetable: number;
     partiallyTargetable: number;
-    occludedOrHidden: number;
+    /** Hidden by display or visibility when sampled (a closed menu, an inactive tab): left out of the metric, since nothing should click them until they are shown. */
+    hidden: number;
+    /** Visible elements that failed: covered, zero-size, or outside the viewport. */
+    notTargetable: number;
   };
   domVolatility: {
     maxRelativeElementCountDelta: number;
@@ -646,25 +649,59 @@ function computeAmbiguityRisk(current: DomHealthSnapshot) {
   return scoreAmbiguityRisk({ totalAnalyzed, ambiguous, wrongTarget });
 }
 
+function hiddenNote(hidden: number): string {
+  return hidden > 0
+    ? ` ${hidden} element(s) hidden when sampled (closed menus, inactive tabs) are not counted.`
+    : "";
+}
+
+/** The risk for ids shared by more than one element, or null when every id is unique in its root. */
+export function duplicateIdsRisk(
+  duplicateIds: Omit<DuplicateIdStats, "sampleValues">,
+): DomHealthRisk | null {
+  if (duplicateIds.valuesDuplicatedWithinARoot === 0) return null;
+  return {
+    id: "duplicate-ids",
+    severity: "medium",
+    title: "Ids shared by more than one element",
+    evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
+  };
+}
+
+/**
+ * Share of VISIBLE tested elements that a click can reach. An element
+ * hidden when sampled (a closed menu, an inactive tab) is left out: in the
+ * Infor LN bundle 75 of 131 failures were hidden and only 6 were covered.
+ */
 export function scoreHitTestTargetability(agg: {
   tested: number;
   fullyTargetable: number;
   partiallyTargetable: number;
+  hidden?: number;
 }) {
-  const occludedOrHidden =
-    agg.tested - agg.fullyTargetable - agg.partiallyTargetable;
+  const hidden = agg.hidden ?? 0;
+  const visible = Math.max(0, agg.tested - hidden);
+  const reachable = agg.fullyTargetable + agg.partiallyTargetable;
   return {
-    score: pct(agg.fullyTargetable + agg.partiallyTargetable, agg.tested),
-    detail: { ...agg, occludedOrHidden: Math.max(0, occludedOrHidden) },
+    score: pct(reachable, visible),
+    detail: {
+      tested: agg.tested,
+      fullyTargetable: agg.fullyTargetable,
+      partiallyTargetable: agg.partiallyTargetable,
+      hidden,
+      notTargetable: Math.max(0, visible - reachable),
+    },
   };
 }
 
 function computeHitTestTargetability(current: DomHealthSnapshot) {
-  const { tested, fullyTargetable, partiallyTargetable } = current.hitTesting;
+  const { tested, fullyTargetable, partiallyTargetable, hidden } =
+    current.hitTesting;
   return scoreHitTestTargetability({
     tested,
     fullyTargetable,
     partiallyTargetable,
+    hidden,
   });
 }
 
@@ -780,7 +817,7 @@ export function buildStrengths(
   }
   if (metrics.hitTestTargetability >= 85 && hitTestTargetability.tested > 0) {
     strengths.push(
-      `${metrics.hitTestTargetability}% of visible interactive elements (${hitTestTargetability.fullyTargetable + hitTestTargetability.partiallyTargetable}/${hitTestTargetability.tested}) passed hit testing.`,
+      `${metrics.hitTestTargetability}% of visible interactive elements (${hitTestTargetability.fullyTargetable + hitTestTargetability.partiallyTargetable}/${hitTestTargetability.tested - hitTestTargetability.hidden}) passed hit testing.`,
     );
   }
   if (metrics.ambiguityRisk >= 90 && details.ambiguityRisk.totalAnalyzed > 0) {
@@ -864,7 +901,7 @@ export function buildRisks(
       id: "hit-test-failures",
       severity: metrics.hitTestTargetability < 60 ? "high" : "medium",
       title: "Some interactive elements fail hit testing",
-      evidence: `${details.hitTestTargetability.occludedOrHidden} of ${details.hitTestTargetability.tested} tested elements were occluded, hidden, zero-size, or outside the viewport at the sampled points.`,
+      evidence: `${details.hitTestTargetability.notTargetable} of ${details.hitTestTargetability.tested - details.hitTestTargetability.hidden} visible tested elements were covered, zero-size, or outside the viewport at the sampled points.${hiddenNote(details.hitTestTargetability.hidden)}`,
     });
   }
 
@@ -926,11 +963,11 @@ export function buildRecommendations(
     });
   }
 
-  if (details.hitTestTargetability.occludedOrHidden > 0) {
+  if (details.hitTestTargetability.notTargetable > 0) {
     recommendations.push({
       id: "investigate-hit-test-failures",
       title: "Investigate elements failing hit testing",
-      detail: `${details.hitTestTargetability.occludedOrHidden} interactive element(s) were occluded, hidden, or outside the viewport during testing. Even a uniquely-resolvable element is not usable if nothing can click it.`,
+      detail: `${details.hitTestTargetability.notTargetable} visible interactive element(s) were covered, zero-size, or outside the viewport during testing. Even a uniquely-resolvable element is not usable if nothing can click it.`,
     });
   }
 
@@ -1116,14 +1153,8 @@ export function buildDomHealthAuditResult(
     current.analysisCoverage,
   );
   const duplicateIds = current.duplicateIds ?? NO_DUPLICATE_IDS;
-  if (duplicateIds.valuesDuplicatedWithinARoot > 0) {
-    risks.push({
-      id: "duplicate-ids",
-      severity: "medium",
-      title: "Ids shared by more than one element",
-      evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
-    });
-  }
+  const duplicateIdRisk = duplicateIdsRisk(duplicateIds);
+  if (duplicateIdRisk) risks.push(duplicateIdRisk);
   if (virtualizedCap) {
     risks.push({
       id: "virtualized-list-partial-coverage",

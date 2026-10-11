@@ -1005,7 +1005,11 @@ export async function runApplicationDomHealthAudit(
         url: `${next.fromUrl}#control:${next.domPath}`,
         title: next.candidateText,
         discoverySource: "safe-navigation-control",
-        status: "not-discovered",
+        // A screen verifiably unchanged was explored; an uncertain one was not.
+        status:
+          comparison.result === "same"
+            ? "explored-no-new-state"
+            : "not-discovered",
         failureReason:
           comparison.result === "uncertain"
             ? "State identity could not be confidently determined after clicking this control, and nothing else (history, frame URLs, network) corroborated a navigation."

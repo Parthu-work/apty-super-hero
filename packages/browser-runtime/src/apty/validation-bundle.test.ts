@@ -107,6 +107,23 @@ function pageResult(): DomHealthAuditResult {
         text: NAME,
       },
     ],
+    desEvidence: {
+      steps: [
+        {
+          outcome: "POSITIONAL_ONLY",
+          step: "checkSimplifyNth",
+          elements: 185,
+          meaning: "Only its position among siblings tells it apart.",
+        },
+      ],
+      hitTestReasons: [
+        { reason: "hidden", elements: 75, meaning: "Hidden when sampled." },
+      ],
+      dynamicValuesLeftOut: [
+        { attribute: "aria-level", elements: 20 },
+        { attribute: `data-mrn-${RECORD}`, elements: 1 },
+      ],
+    },
     cookies: COOKIE,
   } as unknown as DomHealthAuditResult;
 }
@@ -291,6 +308,22 @@ describe("buildValidationBundle", () => {
     });
 
     expect(bundle.page?.frames[0]?.urlTemplate).toBe("about:");
+  });
+
+  it("carries DES step and hit-test counts and dynamic attribute names, never meanings or identifiers", () => {
+    const bundle = bundleFor();
+    const expected = {
+      steps: [{ step: "checkSimplifyNth", elements: 185 }],
+      hitTestReasons: [{ reason: "hidden", elements: 75 }],
+      dynamicValuesLeftOut: [
+        { attribute: "aria-level", elements: 20 },
+        { attribute: "data-mrn-:id", elements: 1 },
+      ],
+    };
+
+    expect(bundle.page?.desEvidence).toEqual(expected);
+    expect(bundle.application?.pages[0]?.audit?.desEvidence).toEqual(expected);
+    expect(JSON.stringify(bundle)).not.toContain("tells it apart");
   });
 
   it("lists every threshold, the active override and the rejected one", () => {

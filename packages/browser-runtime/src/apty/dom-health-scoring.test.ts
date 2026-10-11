@@ -118,9 +118,12 @@ function aggregateHitTesting(reports: ElementSelectorReport[]) {
     fullyOccluded: tested.filter(
       (r) => r.hitTest?.classification === "fully-occluded",
     ).length,
-    zeroSize: 0,
-    outsideViewport: 0,
-    hidden: 0,
+    zeroSize: tested.filter((r) => r.hitTest?.classification === "zero-size")
+      .length,
+    outsideViewport: tested.filter(
+      (r) => r.hitTest?.classification === "outside-viewport",
+    ).length,
+    hidden: tested.filter((r) => r.hitTest?.classification === "hidden").length,
   };
 }
 
@@ -319,6 +322,37 @@ describe("buildDomHealthAuditResult — hit testing", () => {
     // 8% weight, so a total wipeout on it alone caps the score below 100.
     expect(result.score).toBeLessThan(95);
     expect(result.risks.map((r) => r.id)).toContain("hit-test-failures");
+  });
+});
+
+describe("buildDomHealthAuditResult — hidden elements in hit testing", () => {
+  it("leaves elements hidden when sampled out of the metric, and says how many", () => {
+    const reports = [
+      ...Array.from({ length: 6 }, () => makeReport()),
+      ...Array.from({ length: 2 }, () =>
+        makeReport({
+          hitTest: { pointsPassed: 0, classification: "fully-occluded" },
+        }),
+      ),
+      ...Array.from({ length: 12 }, () =>
+        makeReport({ hitTest: { pointsPassed: 0, classification: "hidden" } }),
+      ),
+    ];
+
+    const result = buildDomHealthAuditResult([makeSnapshot(reports)], "hidden");
+
+    // 6 of the 8 visible elements are reachable; the 12 hidden ones are not counted.
+    expect(result.metrics.hitTestTargetability).toBe(75);
+    expect(result.metricDetails.hitTestTargetability).toMatchObject({
+      tested: 20,
+      hidden: 12,
+      notTargetable: 2,
+    });
+    expect(
+      result.risks.find((r) => r.id === "hit-test-failures")?.evidence,
+    ).toBe(
+      "2 of 8 visible tested elements were covered, zero-size, or outside the viewport at the sampled points. 12 element(s) hidden when sampled (closed menus, inactive tabs) are not counted.",
+    );
   });
 });
 

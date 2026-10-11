@@ -33,6 +33,7 @@ import {
   type DomHealthRecommendation,
   type DomHealthRisk,
   determineEvidenceState,
+  duplicateIdsRisk,
   type EvidenceState,
   frameConfidenceCaps,
   gradeForScore,
@@ -63,8 +64,10 @@ export type PageAuditStatus =
   | "skipped-unsafe"
   | "skipped-cross-origin"
   | "skipped-duplicate"
-  /** A candidate application state was detected (e.g. a menu/tab/tree item with no real href) but never acted on — see `application-audit.ts`'s `allowClickDiscovery` gate. Reported explicitly, never folded into "discovered". */
-  | "not-discovered";
+  /** A candidate application state was detected (e.g. a menu/tab/tree item with no real href) but never acted on, or acted on without a usable result (the click failed, the state could not be restored or told apart) — see `application-audit.ts`. Reported explicitly, never folded into "discovered". */
+  | "not-discovered"
+  /** A navigation control that was clicked and verifiably left the screen as it was (e.g. a menu that opens a dropdown): explored, and not a state. */
+  | "explored-no-new-state";
 
 export type PageDiscoverySource =
   | "seed"
@@ -110,8 +113,10 @@ export interface ApplicationCoverage {
   pagesFailed: number;
   pagesSkippedUnsafe: number;
   pagesSkippedDuplicate: number;
-  /** States a candidate was detected for but never acted on (click-discovery gate off, or a click that didn't produce a new state) — visibility into what discovery COULD explore further, never hidden. */
+  /** States a candidate was detected for but not explored: the click-discovery gate was off, or the click failed, could not be restored, or left the state uncertain — visibility into what discovery COULD explore further, never hidden. */
   pagesNotDiscovered: number;
+  /** Controls clicked that verifiably changed nothing on screen. Explored, not states: not in `pagesDiscovered`. */
+  pagesExploredNoNewState: number;
   coveragePercent: number;
   /** Always "OBSERVED_COVERAGE" — never "TOTAL_APPLICATION_COVERAGE", because this audit cannot know the true size of the application. */
   coverageLabel: "OBSERVED_COVERAGE";
@@ -120,6 +125,8 @@ export interface ApplicationCoverage {
   framesDiscovered: number;
   framesInspected: number;
   framesInaccessible: number;
+  /** Empty about:blank frames, skipped by design; part of `framesDiscovered`. */
+  framesPlaceholder: number;
 }
 
 /** One state-graph node, presentation-shaped (see `state-graph.ts`'s `ApplicationStateNode` for the full internal model this is derived from). */
@@ -279,7 +286,7 @@ export interface ApplicationAuditResult {
 export function determineApplicationEvidenceState(inputs: {
   pageLevelEvidenceState: EvidenceState;
   audited: number;
-  /** Total known page/state inventory rows (`pages.length`) — completed, failed, and skipped alike. */
+  /** Total known page/state inventory rows — completed, failed, and skipped alike; a click that verifiably changed nothing is not a state and is not counted. */
   discovered: number;
   /** Detected navigation candidates that were never explored (click discovery off, or a click that produced nothing new). */
   notDiscovered: number;
@@ -405,7 +412,10 @@ export function buildApplicationAuditResult(
   const notDiscovered = pages.filter(
     (p) => p.status === "not-discovered",
   ).length;
-  const discovered = pages.length;
+  const exploredNoNewState = pages.filter(
+    (p) => p.status === "explored-no-new-state",
+  ).length;
+  const discovered = pages.length - exploredNoNewState;
   const audited = completed.length;
   const clicksAllowed =
     options.traversal?.clicksAllowed ??
@@ -417,6 +427,10 @@ export function buildApplicationAuditResult(
   );
   const framesInspected = completed.reduce(
     (sum, p) => sum + (p.frameAccessibility?.framesAccessible ?? 0),
+    0,
+  );
+  const framesPlaceholder = completed.reduce(
+    (sum, p) => sum + (p.frameAccessibility?.framesPlaceholder ?? 0),
     0,
   );
   const framesFailedAcrossPages = completed.reduce(
@@ -435,12 +449,14 @@ export function buildApplicationAuditResult(
     pagesSkippedUnsafe: skippedUnsafe,
     pagesSkippedDuplicate: skippedDuplicate,
     pagesNotDiscovered: notDiscovered,
+    pagesExploredNoNewState: exploredNoNewState,
     coveragePercent: discovered === 0 ? 0 : pct(audited, discovered),
     coverageLabel: "OBSERVED_COVERAGE",
     discoveryMethod: options.discoveryMethod ?? "anchor-links",
     framesDiscovered,
     framesInspected,
     framesInaccessible: framesFailedAcrossPages + framesInaccessibleAcrossPages,
+    framesPlaceholder,
   };
 
   const automaticSelection = scoreAutomaticSelection({
@@ -544,6 +560,7 @@ export function buildApplicationAuditResult(
       "hitTestTargetability",
       "partiallyTargetable",
     ),
+    hidden: sumField(completed, "hitTestTargetability", "hidden"),
   });
 
   const accessibilitySignal = scoreAccessibilitySignal({
@@ -707,6 +724,30 @@ export function buildApplicationAuditResult(
     manualSelectorDependency,
     analysisCoverage,
   );
+  const duplicateIdRisk = duplicateIdsRisk(
+    completed.reduce(
+      (sum, p) => {
+        const ids = p.result?.duplicateIds;
+        return ids
+          ? {
+              valuesDuplicatedWithinARoot:
+                sum.valuesDuplicatedWithinARoot +
+                ids.valuesDuplicatedWithinARoot,
+              valuesDuplicatedPageWide:
+                sum.valuesDuplicatedPageWide + ids.valuesDuplicatedPageWide,
+              elementsWithDuplicatedId:
+                sum.elementsWithDuplicatedId + ids.elementsWithDuplicatedId,
+            }
+          : sum;
+      },
+      {
+        valuesDuplicatedWithinARoot: 0,
+        valuesDuplicatedPageWide: 0,
+        elementsWithDuplicatedId: 0,
+      },
+    ),
+  );
+  if (duplicateIdRisk) risks.push(duplicateIdRisk);
   if (failed > 0 || skippedUnsafe > 0) {
     risks.unshift({
       id: "incomplete-application-coverage",

@@ -516,6 +516,8 @@ export async function captureApplicationState(
     // snapshot or it did not. Reserved for a future signal (e.g. "entirely
     // closed-shadow-DOM content"), never fabricated here.
     framesInaccessible: 0,
+    framesPlaceholder: frames.filter((f) => f.status === "skipped-about-blank")
+      .length,
     sampleFailureReasons: sampleFailureReasons(
       failedFrames.map((f) => f.error),
     ),

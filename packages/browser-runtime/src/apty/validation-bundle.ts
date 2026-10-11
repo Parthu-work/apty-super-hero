@@ -26,6 +26,7 @@ import {
   type ResolvedThresholds,
   thresholdReport,
 } from "./dom-health-thresholds.js";
+import type { DesEvidence } from "./element-explanation.js";
 import type { FrameInventoryEntry } from "./frame-audit.js";
 import type { RouteProbeFrameRecord, RouteProbeReport } from "./route-probe.js";
 import { fnv1a } from "./state-fingerprint.js";
@@ -94,6 +95,21 @@ function frameSummary(frame: FrameInventoryEntry) {
   };
 }
 
+/** Counts per DES step and hit-test reason, and the attribute names left out as dynamic: names and numbers only. */
+function desEvidenceSummary(evidence: DesEvidence | undefined) {
+  if (!evidence) return null;
+  return {
+    steps: evidence.steps.map(({ step, elements }) => ({ step, elements })),
+    hitTestReasons: evidence.hitTestReasons.map(({ reason, elements }) => ({
+      reason,
+      elements,
+    })),
+    dynamicValuesLeftOut: evidence.dynamicValuesLeftOut.map(
+      ({ attribute, elements }) => ({ attribute, elements }),
+    ),
+  };
+}
+
 function auditSummary(result: DomHealthAuditResult) {
   return {
     score: result.score,
@@ -106,6 +122,7 @@ function auditSummary(result: DomHealthAuditResult) {
       framesAccessible: result.frameAccessibility.framesAccessible,
       framesFailed: result.frameAccessibility.framesFailed,
       framesInaccessible: result.frameAccessibility.framesInaccessible,
+      framesPlaceholder: result.frameAccessibility.framesPlaceholder ?? 0,
     },
     frames: (result.frames ?? []).map(frameSummary),
     coverage: {
@@ -122,6 +139,7 @@ function auditSummary(result: DomHealthAuditResult) {
       roots: entry.roots,
       elementCount: entry.elementCount,
     })),
+    desEvidence: desEvidenceSummary(result.desEvidence),
     duplicateIds: {
       valuesDuplicatedWithinARoot:
         result.duplicateIds.valuesDuplicatedWithinARoot,
@@ -183,11 +201,14 @@ function applicationSummary(result: ApplicationAuditResult) {
       pagesSkippedUnsafe: result.coverage.pagesSkippedUnsafe,
       pagesSkippedDuplicate: result.coverage.pagesSkippedDuplicate,
       pagesNotDiscovered: result.coverage.pagesNotDiscovered,
+      pagesExploredNoNewState: result.coverage.pagesExploredNoNewState,
       coveragePercent: result.coverage.coveragePercent,
       framesDiscovered: result.coverage.framesDiscovered,
       framesInspected: result.coverage.framesInspected,
       framesInaccessible: result.coverage.framesInaccessible,
+      framesPlaceholder: result.coverage.framesPlaceholder,
     },
+    desEvidence: desEvidenceSummary(result.desEvidence),
     states: result.stateGraph
       ? {
           count: result.stateGraph.nodes.length,

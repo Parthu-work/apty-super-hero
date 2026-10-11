@@ -355,6 +355,89 @@ describe("buildApplicationAuditResult — evidence state, never a fabricated app
     expect(risk?.evidence).toMatch(/click-based discovery is off by default/);
   });
 
+  it("does not count a click that changed nothing as a state, nor let it block the score", () => {
+    const tabMenu: PageAuditRecord = {
+      url: "https://a.example/1#control:header>button",
+      title: "Open tab menu",
+      discoverySource: "safe-navigation-control",
+      status: "explored-no-new-state",
+      failureReason:
+        "Clicking this control did not produce a new application state.",
+    };
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/1", [makeReport(), makeReport()]),
+      tabMenu,
+      { ...tabMenu },
+    ];
+
+    const result = buildApplicationAuditResult(pages, "app-13", {
+      discoveryMethod: "anchor-links+navigation-controls",
+    });
+
+    expect(result.coverage).toMatchObject({
+      pagesDiscovered: 1,
+      pagesAudited: 1,
+      pagesNotDiscovered: 0,
+      pagesExploredNoNewState: 2,
+      coveragePercent: 100,
+    });
+    expect(result.evidenceState).toBe("HEALTHY_EVIDENCE");
+    expect(typeof result.score).toBe("number");
+    expect(result.risks.map((r) => r.id)).not.toContain(
+      "navigation-candidates-not-explored",
+    );
+  });
+
+  it("still gates the score on a click whose result was uncertain", () => {
+    const pages: PageAuditRecord[] = [
+      completedPage("https://a.example/1", [makeReport()]),
+      {
+        url: "https://a.example/1#control:nav>div",
+        title: "Orders",
+        discoverySource: "safe-navigation-control",
+        status: "not-discovered",
+        failureReason: "State identity could not be confidently determined.",
+      },
+    ];
+
+    expect(buildApplicationAuditResult(pages, "app-14").evidenceState).toBe(
+      "INCOMPLETE_EVIDENCE",
+    );
+  });
+
+  it("carries the pages' duplicate ids into one application risk, and counts empty placeholder frames", () => {
+    const page = completedPage("https://a.example/1", [makeReport()]);
+    page.result = {
+      ...page.result!,
+      duplicateIds: {
+        valuesDuplicatedWithinARoot: 88,
+        valuesDuplicatedPageWide: 88,
+        elementsWithDuplicatedId: 209,
+        sampleValues: [],
+      },
+    };
+    page.frameAccessibility = {
+      framesTotal: 4,
+      framesAccessible: 2,
+      framesFailed: 0,
+      framesInaccessible: 0,
+      framesPlaceholder: 2,
+    };
+
+    const result = buildApplicationAuditResult([page], "app-15");
+
+    expect(
+      result.risks.find((r) => r.id === "duplicate-ids")?.evidence,
+    ).toMatch(
+      /^88 id value\(s\) are used by more than one element .* on 209 element\(s\)\./,
+    );
+    expect(result.coverage).toMatchObject({
+      framesDiscovered: 4,
+      framesInspected: 2,
+      framesPlaceholder: 2,
+    });
+  });
+
   it("sums every audited page's DES evidence, leaving out pages that were not audited", () => {
     const pages: PageAuditRecord[] = [
       completedPage("https://a.example/1", [makeReport(), makeReport()]),

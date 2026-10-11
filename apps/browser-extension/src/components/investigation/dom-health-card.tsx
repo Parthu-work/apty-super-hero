@@ -168,6 +168,7 @@ const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], string> = {
   "skipped-cross-origin": "Skipped (cross-origin)",
   "skipped-duplicate": "Skipped (duplicate)",
   "not-discovered": "Detected, not explored",
+  "explored-no-new-state": "Clicked, no new state",
 };
 
 /** A page row's label: its title, else its URL without the query string, which can carry screen context. */
@@ -192,6 +193,23 @@ function riskTone(severity: DomHealthRisk["severity"]): StatusMeta["tone"] {
   if (severity === "high") return "danger";
   if (severity === "medium") return "warning";
   return "neutral";
+}
+
+/** Tested elements that were visible when sampled; hidden ones are not hit-test failures. */
+function visibleTested(hitTest: { tested: number; hidden: number }): number {
+  return Math.max(0, hitTest.tested - hitTest.hidden);
+}
+
+/** "2/2 frames with content reached, 2 empty placeholder(s) skipped": placeholders are part of the total but never readable. */
+function framesReached(
+  reached: number,
+  total: number,
+  placeholders: number,
+): string {
+  const withContent = Math.max(0, total - placeholders);
+  return placeholders > 0
+    ? `${reached}/${withContent} frames with content reached, ${placeholders} empty placeholder(s) skipped`
+    : `${reached}/${total} frames reached`;
 }
 
 function outcomeTone(outcome: string): StatusMeta["tone"] {
@@ -338,22 +356,32 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       )}
 
       {hitTest && hitTest.tested > 0 && (
-        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
-          <span className="text-muted-foreground">Hit-Test Failures</span>
-          <span
-            className={cn(
-              "font-mono font-semibold",
-              toneTextClass(
-                hitTest.occludedOrHidden / hitTest.tested > 0.3
-                  ? "danger"
-                  : hitTest.occludedOrHidden > 0
-                    ? "warning"
-                    : "success",
-              ),
-            )}
-          >
-            {hitTest.occludedOrHidden}/{hitTest.tested}
-          </span>
+        <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">
+              Hit-Test Failures (visible elements)
+            </span>
+            <span
+              className={cn(
+                "font-mono font-semibold",
+                toneTextClass(
+                  hitTest.notTargetable / visibleTested(hitTest) > 0.3
+                    ? "danger"
+                    : hitTest.notTargetable > 0
+                      ? "warning"
+                      : "success",
+                ),
+              )}
+            >
+              {hitTest.notTargetable}/{visibleTested(hitTest)}
+            </span>
+          </div>
+          {hitTest.hidden > 0 && (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {hitTest.hidden} hidden when sampled (closed menus, inactive
+              tabs), not counted.
+            </p>
+          )}
         </div>
       )}
       {hitTest &&
@@ -1012,8 +1040,11 @@ export function DomHealthCard({
                   </dd>
                   <dt>Frames reached</dt>
                   <dd className="text-right font-mono">
-                    {outcome.frameAccessibility.framesAccessible}/
-                    {outcome.frameAccessibility.framesTotal}
+                    {framesReached(
+                      outcome.frameAccessibility.framesAccessible,
+                      outcome.frameAccessibility.framesTotal,
+                      outcome.frameAccessibility.framesPlaceholder ?? 0,
+                    )}
                   </dd>
                 </dl>
               </details>
@@ -1043,8 +1074,11 @@ export function DomHealthCard({
                 </span>
                 <span>·</span>
                 <span>
-                  {appOutcome.coverage.framesInspected}/
-                  {appOutcome.coverage.framesDiscovered} frames reached
+                  {framesReached(
+                    appOutcome.coverage.framesInspected,
+                    appOutcome.coverage.framesDiscovered,
+                    appOutcome.coverage.framesPlaceholder ?? 0,
+                  )}
                 </span>
                 {appOutcome.coverage.pagesNotDiscovered > 0 && (
                   <>
@@ -1137,6 +1171,8 @@ export function DomHealthCard({
                       appOutcome.coverage.pagesSkippedDuplicate}{" "}
                     skipped, {appOutcome.coverage.pagesNotDiscovered} not
                     explored
+                    {appOutcome.coverage.pagesExploredNoNewState > 0 &&
+                      `, ${appOutcome.coverage.pagesExploredNoNewState} clicked with no new state`}
                   </summary>
                   <div className="mt-1.5 max-h-96 overflow-y-auto rounded-md border">
                     <table className="w-full text-left text-[11px]">
@@ -1223,7 +1259,7 @@ export function DomHealthCard({
                                 </td>
                                 <td className="px-1.5 py-1 text-muted-foreground">
                                   {hitTest
-                                    ? `${hitTest.occludedOrHidden}/${hitTest.tested}`
+                                    ? `${hitTest.notTargetable}/${visibleTested(hitTest)}`
                                     : "—"}
                                 </td>
                                 <td className="px-1.5 py-1 text-muted-foreground">

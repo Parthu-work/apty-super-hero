@@ -352,8 +352,10 @@ allows an actual click. When clicking is off (`"page"`/`"application-safe"`),
 every detected candidate is recorded with `status: "not-discovered"` and a
 reason — visible in the inventory, never silently dropped, never
 autonomously acted on. When `"application-deep"` is set, a click is followed by a
-before/after state-fingerprint comparison: `same` → `not-discovered`
-("this control didn't produce a new state"), `uncertain` →
+before/after state-fingerprint comparison: `same` → `explored-no-new-state`
+("this control didn't produce a new state": explored, not a state, so it is
+neither in `pagesDiscovered` nor gating the score; owner decision after the
+Infor LN bundle, whose "Open tab menu" clicks opened a dropdown), `uncertain` →
 `not-discovered` with that reason, `different` → audited as a real new
 state (its own URL is reused since the URL didn't change; the fingerprint
 comparison's reasons become the state's `transitionReason`). A `domPath`
@@ -583,7 +585,9 @@ don't know enough" beats a clean-looking number.
 `dom-health-scoring.ts`'s `WEIGHTS` puts more than half the total weight on
 `automaticSelection` (0.30) + `selectorStability` (0.30) combined, with
 `ambiguityRisk` (0.12, folding in same-snapshot wrong-target candidates)
-above the presentation-layer signals (`hitTestTargetability` 0.06,
+above the presentation-layer signals (`hitTestTargetability` 0.06, the
+share of visible tested elements a click reaches; elements hidden when
+sampled, such as closed menus, are left out,
 `domVolatility` 0.04, `accessibilitySignal` 0.02). This is deliberate: a
 page that resolves every selector perfectly against today's DOM but whose
 captured paths mostly fail (or land on the wrong element) when replayed

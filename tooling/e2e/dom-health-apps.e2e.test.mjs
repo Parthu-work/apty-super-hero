@@ -129,7 +129,9 @@ const LN_PORTAL_SEED = (
   otherOrigin,
 ) => `<!doctype html><title>Portal</title><body>
   <div role="tablist"><div role="tab" aria-selected="true">LN</div><div role="tab" tabindex="0">Open tab menu</div></div>
-  <main><h1>Workbench</h1><form><input name="order" aria-label="Order"><button type="button">Find</button></form></main>
+  <div role="menu"><button type="button" role="menuitem" aria-hidden="true" aria-label="Close all tabs">Close all</button></div>
+  <main><h1>Workbench</h1><form><input name="order" aria-label="Order"><button type="button" id="row-action">Find</button><button type="button" id="row-action">Clear</button></form></main>
+  <iframe id="gwtui" title="placeholder"></iframe>
   <footer><a href="${otherOrigin}/ln.html">Infor</a></footer>
 </body>`;
 
@@ -304,9 +306,24 @@ describe("DOM Health on six application shapes", () => {
     const tab = result.pages.find(
       (p) => p.discoverySource === "safe-navigation-control",
     );
-    assert.equal(tab?.status, "not-discovered", json);
+    // The tab opens nothing: explored, not a state, and not blocking the score.
+    assert.equal(tab?.status, "explored-no-new-state", json);
     assert.ok(tab.failureReason, json);
+    assert.equal(result.coverage.pagesNotDiscovered, 0, json);
+    assert.notEqual(result.evidenceState, "INCOMPLETE_EVIDENCE", json);
     assert.doesNotMatch(json, /off by default/);
+    // An empty about:blank frame is a placeholder, not a frame that failed.
+    assert.ok(result.coverage.framesPlaceholder >= 1, json);
+    // A hidden menu item is not a hit-test failure.
+    assert.ok(
+      result.metricDetails.hitTestTargetability.hidden >= 1,
+      JSON.stringify(result.metricDetails.hitTestTargetability),
+    );
+    assert.ok(
+      result.risks.some((r) => r.id === "duplicate-ids"),
+      json,
+    );
+    assert.ok(result.desEvidence.steps.length > 0, json);
   });
 
   it("third-party overlay: leaves Pendo and the chat launcher out, and counts them", async () => {
@@ -436,6 +453,13 @@ describe("DOM Health on six application shapes", () => {
         ]);
         const audit = shape.application ? bundle.application : bundle.page;
         assert.ok(audit, json.slice(0, 400));
+        assert.ok(Array.isArray(audit.desEvidence?.steps), json.slice(0, 400));
+        assert.ok(
+          audit.desEvidence.steps.every(
+            (s) => typeof s.step === "string" && s.elements > 0 && !s.meaning,
+          ),
+          JSON.stringify(audit.desEvidence),
+        );
         if (shape.application) {
           assert.equal(bundle.application.coverage.pagesAudited, 2, json);
         } else {
