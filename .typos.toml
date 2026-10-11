@@ -4,6 +4,11 @@
 # Exclude mcp-bridge directory (tool schemas contain glob patterns that trigger false positives)
 extend-exclude = ["README*.md", "**/bundled-modules/**", "apps/mcp-bridge/**"]
 
+[default]
+# Commit ids quoted in backticks (REVIEW.md's commit tables) are hex, not
+# words: "67ba3d0" read as "ba", "17e7ded" as "ded".
+extend-ignore-re = ["`[0-9a-f]{7,40}`"]
+
 [default.extend-words]
 # "Infor" is the ERP vendor name (Infor LN) referenced in the DOM Health
 # forensic audit — not a typo of "Info"/"Inform".
@@ -22,3 +27,10 @@ addres = "addres"
 # test the "suggest the closest observed name" fuzzy-match path — the
 # comment right next to it already says "// typo".
 segmetn = "segmetn"
+# The approval gate's flag: whether the prompt may offer "Allow on this
+# site" (`rememberable?: boolean` in approval.ts and its callers). An
+# identifier, not a misspelling of "memorable".
+rememberable = "rememberable"
+# "unparseable" is the accepted spelling for a URL that cannot be parsed
+# (click-risk.test.ts); it is not a misspelling of "unparsable".
+unparseable = "unparseable"
