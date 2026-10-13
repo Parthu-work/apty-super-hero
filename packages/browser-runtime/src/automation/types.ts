@@ -33,6 +33,7 @@ export interface TextSnapshotNode {
   orientation?: string;
   readonly?: boolean;
   required?: boolean;
+  nameIsValue?: boolean;
   elementHandle?: () => Promise<Element>;
 }
 

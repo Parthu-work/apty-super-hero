@@ -25,6 +25,14 @@ const rows = (n) =>
 const BIG_PAGE = `<!doctype html><title>Orders</title><main>${rows(3000)}</main>`;
 const MEDIUM_PAGE = `<!doctype html><title>Orders</title><main>${rows(150)}</main>`;
 
+const FORM_PAGE = `<!doctype html><title>Intake</title><main>
+<h1>Chart summary</h1>
+<label>Patient name <input id="n" value="Jane Testpatient"></label>
+<label>Visit notes <textarea id="t">Note-Marker-Asthma</textarea></label>
+<label>Referral <select id="s"><option value="a">Active</option><option value="r" selected>Referral-Marker-Cardio</option></select></label>
+<div id="e" contenteditable="true" role="textbox" aria-label="Editor">Editor-Marker-Seven</div>
+<button type="button">Open chart</button></main>`;
+
 const PAGE = `<!doctype html><title>Notes</title><main><h1>Notes</h1>
 <p>Deploy key: ${PAGE_TOKEN}</p><button type="button">Done</button></main>`;
 
@@ -38,6 +46,7 @@ before(async () => {
     "/notes.html": PAGE,
     "/big.html": BIG_PAGE,
     "/medium.html": MEDIUM_PAGE,
+    "/form.html": FORM_PAGE,
   });
   browser = await launchBrowser();
 });
@@ -127,7 +136,7 @@ async function openPage(path) {
 }
 
 describe("request budget (O2)", () => {
-  it("cuts a tool result larger than 2,000 tokens before it is sent", async () => {
+  it("cuts a tool result larger than 2,000 tokens before it is sent, keeping it valid JSON", async () => {
     const { app, tabId } = await openPage("/big.html");
     model.script((request) =>
       toolResults(request).length === 0
@@ -137,8 +146,11 @@ describe("request budget (O2)", () => {
     const panel = await openSidePanel(browser, model, app);
     await chatAndWait(panel, "check the form field text on this page");
     const [sent] = toolMessages(model.requests.at(-1));
-    assert.ok(sent.length < 8000 + 300, `sent ${sent.length} characters`);
-    assert.match(sent, /\[truncated: first 8000 of \d+ characters sent\]/);
+    assert.ok(sent.length <= 8000, `sent ${sent.length} characters`);
+    const result = JSON.parse(sent);
+    assert.equal(result.success, true, "keys survive the cut");
+    assert.match(result.data, /more characters not sent\]$/);
+    assert.ok(result.truncatedForModel.originalChars > 8000);
     await panel.close();
     await app.close();
   });
@@ -175,5 +187,70 @@ describe("request budget (O2)", () => {
     assert.ok(stub.preview.length <= 200);
     await panel.close();
     await app.close();
+  });
+});
+
+const VALUE_MARKERS = [
+  "Jane Testpatient",
+  "Note-Marker-Asthma",
+  "Referral-Marker-Cardio",
+  "Editor-Marker-Seven",
+];
+
+/**
+ * Reads the form through search_elements, then asks get_editor_value for the
+ * notes field; returns what the model received for both.
+ */
+async function readForm(mode) {
+  const { app, tabId } = await openPage("/form.html");
+  model.script((request) => {
+    const results = toolResults(request);
+    if (results.length === 0) {
+      return { tool: "search_elements", args: { tabId, query: "*" } };
+    }
+    if (results.length === 1) {
+      const text = JSON.stringify(results[0]);
+      const uid = /uid=([^\s\\"]+) textbox \\?"Visit notes/.exec(text)?.[1];
+      assert.ok(uid, `no uid for the notes field in ${text.slice(0, 400)}`);
+      return { tool: "get_editor_value", args: { tabId, uid } };
+    }
+    return { text: "RESULT: done" };
+  });
+  const panel = await openSidePanel(browser, model, app, {
+    redactionMode: mode,
+  });
+  await chatAndWait(panel, "check the form field values on this page");
+  const [search, editor] = toolMessages(model.requests.at(-1));
+  await panel.close();
+  await app.close();
+  return { search, editor };
+}
+
+describe("typed values in page reads (O3)", () => {
+  it("Strict leaves every typed value out and says the editor value is withheld", async () => {
+    const { search, editor } = await readForm("strict");
+    for (const marker of VALUE_MARKERS) {
+      assert.ok(!search.includes(marker), `${marker} reached the model`);
+      assert.ok(!editor.includes(marker), `${marker} reached the model`);
+    }
+    assert.match(search, /Chart summary/);
+    assert.match(search, /Visit notes/);
+    assert.match(editor, /withheld/);
+  });
+
+  it("Standard masks typed values", async () => {
+    const { search, editor } = await readForm("standard");
+    for (const marker of VALUE_MARKERS) {
+      assert.ok(!search.includes(marker), `${marker} reached the model`);
+      assert.ok(!editor.includes(marker), `${marker} reached the model`);
+    }
+    assert.match(search, /\[masked\]/);
+    assert.match(editor, /\[masked\]/);
+  });
+
+  it("Off sends typed values as the page has them", async () => {
+    const { search, editor } = await readForm("off");
+    assert.ok(search.includes("Jane Testpatient"));
+    assert.ok(editor.includes("Note-Marker-Asthma"));
   });
 });

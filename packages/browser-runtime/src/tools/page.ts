@@ -1,6 +1,8 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { currentValuePolicy } from "../runtime/value-policy";
 import { getActiveTab } from "./tab-utils";
+import { describePageMetadata } from "./value-results";
 
 /**
  * Get page metadata including title, description, keywords, etc.
@@ -49,7 +51,10 @@ export const getPageMetadataTool = tool({
       },
     });
 
-    return results[0]?.result || null;
+    return describePageMetadata(
+      results[0]?.result || null,
+      currentValuePolicy(),
+    );
   },
 });
 

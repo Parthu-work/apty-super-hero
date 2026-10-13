@@ -71,8 +71,8 @@ export function DataHandlingCard({
         </CardTitle>
         <CardDescription>
           {zh
-            ? "控制页面网络捕获时是否读取响应正文。正文经过脱敏后发送给您的 AI 服务商。下面的拒绝列表同时适用于页面捕获和 Apty Client 返回的正文。"
-            : "Choose whether a page network capture reads response bodies. Bodies are redacted, then sent to your AI provider. The deny list below applies both to page capture and to bodies the Apty Client returns."}
+            ? "控制页面网络捕获时是否读取响应正文。正文经过脱敏后发送给您的 AI 服务商。下面的拒绝列表同时适用于页面捕获和 Apty Client 返回的正文。代理读取的页面文字和标签按页面原样发送（密钥除外）；表单中键入的值遵循下面的脱敏模式。"
+            : "Choose whether a page network capture reads response bodies. Bodies are redacted, then sent to your AI provider. The deny list below applies both to page capture and to bodies the Apty Client returns. Page text and labels the agent reads are sent as the page shows them (apart from secrets); values typed into form fields follow the redaction mode below."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

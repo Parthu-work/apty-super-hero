@@ -3,6 +3,7 @@ import { z } from "zod";
 import { type ElementHandle, SmartElementHandle } from "../automation";
 import { DomElementHandle } from "../automation/dom-element-handle";
 import * as snapshotProvider from "../automation/snapshot-provider";
+import { currentValuePolicy } from "../runtime/value-policy";
 import { gateRiskyAction } from "./approval.js";
 import {
   classifyClickRisk,
@@ -15,6 +16,7 @@ import {
   scrollAndMoveFakeMouseToElement,
   waitForEventsAfterAction,
 } from "./ui-operations";
+import { describeEditorValue } from "./value-results";
 
 const log = createLogger("ElementTools");
 
@@ -240,11 +242,7 @@ export const getEditorValueTool = tool({
         };
       }
 
-      return {
-        success: true,
-        value,
-        length: value.length,
-      };
+      return describeEditorValue(value, currentValuePolicy());
     } finally {
       if (handle) {
         handle.dispose();

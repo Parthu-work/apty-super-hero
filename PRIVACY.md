@@ -36,11 +36,20 @@ with your AI provider.
 **Settings → General → Data handling → Redaction** chooses how much is
 masked; every tool result, log line and body goes through the same setting:
 
-| Mode | Masks |
-|---|---|
-| Strict (default) | Secrets, personal data (names, usernames, emails, patient fields) and page context (titles, paths) |
-| Standard | Secrets and personal data; keeps page titles and paths |
-| Off (development only) | Only secrets recognised by their shape: tokens, API keys, JWTs, bearer credentials, emails |
+| Mode | Masks | Values typed into form fields |
+|---|---|---|
+| Strict (default) | Secrets, personal data (names, usernames, emails, patient fields) and page context (titles, paths) | Not sent at all |
+| Standard | Secrets and personal data; keeps page titles and paths | Replaced with `[masked]` (a filled field can be told from an empty one) |
+| Off (development only) | Only secrets recognised by their shape: tokens, API keys, JWTs, bearer credentials, emails | Sent as the page has them |
+
+"Form fields" means inputs, text areas, selects (the chosen option) and
+editable regions, read through `search_elements` or `get_editor_value`; the
+URL of the page in `get_page_metadata` loses its query string in Strict and
+keeps only the parameter names in Standard. Page text and labels are sent as
+the page shows them, so a patient name printed as plain text on a page is
+**not** hidden by these modes. Checkbox and radio states are also sent.
+Anything you type in the chat has tokens, keys, JWTs and emails masked in
+Strict and Standard.
 
 Off asks for confirmation and shows "Redaction is OFF" in the side panel for
 as long as it is on. Preview shows a built-in sample with fake data before

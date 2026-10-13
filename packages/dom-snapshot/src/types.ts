@@ -17,6 +17,8 @@ export interface DomSnapshotNode {
   title?: string;
   textContent?: string;
   inputType?: string;
+  /** `name` was taken from the field's own value (a select's chosen option, a textarea's text), not from a label. */
+  nameIsValue?: boolean;
 }
 
 export interface DomSnapshotFlatMap {
@@ -86,6 +88,7 @@ export interface TextSnapshotNode {
   orientation?: string;
   readonly?: boolean;
   required?: boolean;
+  nameIsValue?: boolean;
   elementHandle?: () => Promise<Element>;
 }
 
