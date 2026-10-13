@@ -70,6 +70,20 @@ export default defineConfig({
       // tests need the same resolution, not a narrower one, to match what
       // actually ships.
       {
+        find: /^@apty\/dom-snapshot\/(.*)$/,
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/dom-snapshot/src/$1",
+        ),
+      },
+      {
+        find: "@apty/dom-snapshot",
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/dom-snapshot/src/index.ts",
+        ),
+      },
+      {
         find: /^@apty\/ui\/(.*)$/,
         replacement: path.resolve(__dirname, "../../packages/ui/src/$1"),
       },
