@@ -23,6 +23,7 @@ import {
   useBrowserModelFactory,
   useBrowserStorage,
   useBrowserTools,
+  useOutboundFilters,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
 import { openOptions } from "../lib/open-options";
@@ -133,6 +134,7 @@ function ChatApp() {
   const contextProviders = useBrowserContextProviders();
   const tools = useBrowserTools();
   const selectTools = useSelectRelevantTools();
+  const outboundFilters = useOutboundFilters();
 
   const { agent, error } = useAgent({
     settings,
@@ -141,6 +143,7 @@ function ChatApp() {
     storage,
     contextProviders,
     tools,
+    agentOptions: { outboundFilters },
     ...BROWSER_AGENT_CONFIG,
   });
 

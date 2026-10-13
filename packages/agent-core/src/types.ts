@@ -104,7 +104,20 @@ export interface AIPexOptions<
    * Optional runtime plugins that can observe conversations.
    */
   plugins?: AgentPlugin[];
+  /**
+   * Filters applied, in order, to the input of every model call, after the
+   * built-in shaping and before the request leaves the agent. This is the one
+   * place that sees everything about to be sent, so privacy and size policy
+   * belongs here rather than in each tool. A filter that throws fails the
+   * call: input is never sent unfiltered.
+   */
+  outboundFilters?: OutboundFilter[];
 }
+
+/** Returns the items to send; must not drop a function_call or its result. */
+export type OutboundFilter = (
+  items: AgentInputItem[],
+) => AgentInputItem[] | Promise<AgentInputItem[]>;
 
 export interface CompressionOptions extends CompressionConfig {
   model: AiSdkModel;

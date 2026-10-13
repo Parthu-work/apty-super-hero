@@ -89,6 +89,7 @@ export type {
   ImageInput,
   MetricsPayload,
   OpenAIAgent,
+  OutboundFilter,
   SerializedSession,
   SessionConfig,
   SessionStorageAdapter,

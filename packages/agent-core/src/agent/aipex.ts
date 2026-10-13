@@ -24,6 +24,7 @@ import type {
   BeforeChatPayload,
   ChatOptions,
   MetricsPayload,
+  OutboundFilter,
   SessionStorageAdapter,
   ToolEventPayload,
 } from "../types.js";
@@ -98,6 +99,7 @@ export class AIPex {
   private pluginContext: AgentPluginContext;
   private modelId?: string;
   private modelProvider?: string;
+  private outboundFilters: OutboundFilter[];
 
   private constructor(
     agent: OpenAIAgent,
@@ -107,6 +109,7 @@ export class AIPex {
     plugins: AgentPlugin[] = [],
     modelId?: string,
     modelProvider?: string,
+    outboundFilters: OutboundFilter[] = [],
   ) {
     this.agent = agent;
     this.conversationManager = conversationManager;
@@ -116,6 +119,7 @@ export class AIPex {
     this.pluginContext = { agent: this };
     this.modelId = modelId;
     this.modelProvider = modelProvider;
+    this.outboundFilters = outboundFilters;
     this.initializePlugins();
   }
 
@@ -136,6 +140,7 @@ export class AIPex {
       options.plugins ?? [],
       options.modelId,
       options.modelProvider,
+      options.outboundFilters,
     );
   }
 
@@ -226,16 +231,19 @@ export class AIPex {
             // Shape screenshot tool results before every model call:
             // strip base64 imageData from tool results and inject a transient
             // user image message so the model can consume images via the vision path.
-            callModelInputFilter: async ({ modelData }) => ({
-              input: shapeScreenshotItems(
+            callModelInputFilter: async ({ modelData }) => {
+              let input = shapeScreenshotItems(
                 sanitizeReasoningItemsForModel(
                   modelData.input,
                   this.modelId,
                   this.modelProvider,
                 ),
-              ),
-              instructions: modelData.instructions,
-            }),
+              );
+              for (const filter of this.outboundFilters) {
+                input = await filter(input);
+              }
+              return { input, instructions: modelData.instructions };
+            },
           });
           break;
         } catch (callError) {

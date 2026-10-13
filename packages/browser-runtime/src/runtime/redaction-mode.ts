@@ -84,6 +84,20 @@ export function redactText(text: string): string {
   return redactSensitiveText(text, currentRedactionMode());
 }
 
+/** Text redacted in an explicit mode: for a caller that reads the mode once for a whole batch. */
+export function redactTextInMode(text: string, mode: RedactionMode): string {
+  return redactSensitiveText(text, mode);
+}
+
+/**
+ * Only what is recognizable by its shape (tokens, keys, JWTs, bearer values,
+ * emails), leaving surrounding prose and JSON keys alone: "off" mode does
+ * not run the page-context key profiles but always runs these passes.
+ */
+export function redactStructuralSecrets(text: string): string {
+  return redactSensitiveText(text, "off");
+}
+
 /** Log entries with each `message` redacted in the current mode. */
 export function redactLogEntries<T extends { message: string }>(
   entries: T[],
