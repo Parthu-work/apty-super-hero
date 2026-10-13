@@ -14,6 +14,8 @@ export {
   type ProviderType,
   REDACTION_MODES,
   type RedactionModeSetting,
+  SCREENSHOT_POLICIES,
+  type ScreenshotPolicySetting,
   type ToolCallingSupport,
 } from "./settings.js";
 export {

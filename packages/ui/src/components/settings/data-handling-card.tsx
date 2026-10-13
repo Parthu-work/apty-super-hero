@@ -15,6 +15,7 @@ import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
 import { RedactionModeControl } from "./redaction-mode-control";
+import { ScreenshotPolicyControl } from "./screenshot-policy-control";
 
 export interface DataHandlingCardProps {
   settings: AppSettings;
@@ -81,6 +82,10 @@ export function DataHandlingCard({
           onChange={(redactionMode) => onChange({ redactionMode })}
           preview={redactionPreview}
           language={language}
+        />
+        <ScreenshotPolicyControl
+          policy={settings.screenshotPolicy ?? "ask"}
+          onChange={(screenshotPolicy) => onChange({ screenshotPolicy })}
         />
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="network-body-capture" className="text-sm font-medium">

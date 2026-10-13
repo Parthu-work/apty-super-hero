@@ -419,10 +419,10 @@ describe("chat agent in a real browser", () => {
  * Run `steps` as consecutive tool calls in one chat turn on `path`. Each step
  * is `(previousResults) => ({ tool, args })`.
  */
-async function runGatedSteps(path, prompt, steps, whileWaiting) {
+async function runGatedSteps(path, prompt, steps, whileWaiting, settings) {
   const app = await browser.context.newPage();
   await app.goto(`${site.origin}${path}`);
-  const panel = await openSidePanel(browser, model, app);
+  const panel = await openSidePanel(browser, model, app, settings);
   // Count this turn's tool calls rather than tool messages: a screenshot
   // sent to the model arrives as a new user message, which resets
   // `toolResults`.
@@ -626,6 +626,9 @@ describe("approval for clicks and new tabs (A1)", () => {
         assert.match(text, /Allow computer\?/);
         assert.match(text, /Click "Delete"/);
       }),
+      // The screenshot is a step toward the click under test, not what it
+      // checks; its own consent prompt is covered in llm-outbound.e2e.
+      { screenshotPolicy: "allow" },
     );
 
     assert.equal(results[1].status, "denied", JSON.stringify(results[1]));

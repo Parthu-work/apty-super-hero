@@ -254,3 +254,65 @@ describe("typed values in page reads (O3)", () => {
     assert.ok(editor.includes("Note-Marker-Asthma"));
   });
 });
+
+/**
+ * Asks for a screenshot sent to the model; `answer` clicks a button on the
+ * approval prompt (or nothing). Returns the tool result and whether any
+ * request carried an image.
+ */
+async function screenshotWith(settings, answer) {
+  const { app } = await openPage("/notes.html");
+  model.script((request) =>
+    model.requests.length === 1
+      ? { tool: "capture_screenshot", args: { sendToLLM: true } }
+      : { text: "RESULT: done" },
+  );
+  const panel = await openSidePanel(browser, model, app, settings);
+  await chatAndWait(panel, "take a screenshot of this page", {
+    whileWaiting: answer
+      ? async () => {
+          const prompt = panel.getByRole("alertdialog");
+          await prompt.waitFor({ timeout: 30_000 });
+          assert.match(
+            await prompt.innerText(),
+            /Send a screenshot of http:\/\/127\.0\.0\.1:\d+ to your AI provider/,
+          );
+          await prompt.getByRole("button", { name: answer }).click();
+        }
+      : undefined,
+  });
+  const [first] = toolMessages(model.requests[1]);
+  const imageSent = model.requests.some((r) =>
+    JSON.stringify(r.messages).includes("data:image/"),
+  );
+  await panel.close();
+  await app.close();
+  return { result: JSON.parse(first), imageSent };
+}
+
+describe("screenshot consent (O4)", () => {
+  it("asks by default, and a Deny sends no image", async () => {
+    const { result, imageSent } = await screenshotWith({}, "Deny");
+    assert.equal(result.status, "denied");
+    assert.equal(imageSent, false);
+  });
+
+  it("sends the image after Allow once", async () => {
+    const { result, imageSent } = await screenshotWith({}, "Allow once");
+    assert.notEqual(result.status, "denied");
+    assert.equal(imageSent, true);
+  });
+
+  it("sends without asking when set to always allow", async () => {
+    const { imageSent } = await screenshotWith({ screenshotPolicy: "allow" });
+    assert.equal(imageSent, true);
+  });
+
+  it("refuses without asking when set to never", async () => {
+    const { result, imageSent } = await screenshotWith({
+      screenshotPolicy: "never",
+    });
+    assert.equal(result.status, "refused");
+    assert.equal(imageSent, false);
+  });
+});

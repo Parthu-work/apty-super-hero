@@ -20,6 +20,8 @@ export {
   type ProviderType,
   REDACTION_MODES,
   type RedactionModeSetting,
+  SCREENSHOT_POLICIES,
+  type ScreenshotPolicySetting,
   STORAGE_KEYS,
   type StorageKey,
   SUPERSEDED_PRESET_HOSTS,

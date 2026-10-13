@@ -3,11 +3,12 @@ import { z } from "zod";
 import { cacheScreenshotMetadata } from "../automation/computer";
 import { getAutomationMode } from "../runtime/automation-mode";
 import { RuntimeScreenshotStorage } from "../storage/screenshot-storage";
+import { gateScreenshotForModel } from "./screenshot-consent";
 import {
   captureVisibleTabWithElementCrop,
   MAX_PADDING,
 } from "./screenshot-helpers.js";
-import { getActiveTab } from "./tab-utils";
+import { getActiveTab, type ToolRunContext } from "./tab-utils";
 
 const log = createLogger("Screenshot");
 
@@ -17,6 +18,31 @@ export type {
   CaptureWithElementCropResult,
 } from "./screenshot-helpers.js";
 export { captureVisibleTabWithElementCrop } from "./screenshot-helpers.js";
+
+/**
+ * Wraps a capture tool's `execute` so a screenshot that would be sent to the
+ * model first passes the consent gate; one kept on the device does not.
+ */
+function withScreenshotConsent<A extends { sendToLLM?: boolean | null }, R>(
+  toolName: string,
+  sendsByDefault: boolean,
+  tabFor: (args: A) => Promise<{ id?: number; url?: string }>,
+  execute: (args: A) => Promise<R>,
+) {
+  return async (args: A, context?: unknown) => {
+    const sends =
+      args.sendToLLM === undefined ? sendsByDefault : Boolean(args.sendToLLM);
+    if (!sends) return execute(args);
+    return gateScreenshotForModel(
+      {
+        conversationId: (context as ToolRunContext)?.context?.conversationId,
+        toolName,
+        tab: await tabFor(args),
+      },
+      () => execute(args),
+    );
+  };
+}
 
 async function compressImage(
   dataUrl: string,
@@ -63,7 +89,9 @@ USE THIS ONLY WHEN:
 - You need to see visual layout, images, charts, or canvas content
 - The page uses non-standard rendering that snapshots miss
 
-When sendToLLM=true: Sends image to LLM (higher latency/cost, may capture sensitive on-screen data) and enables the computer tool for coordinate-based actions. NOTE: This tool requires focus mode.`,
+When sendToLLM=true: Sends image to LLM (higher latency/cost, may capture sensitive on-screen data) and enables the computer tool for coordinate-based actions. NOTE: This tool requires focus mode.
+
+APPROVAL: when the image would be sent to the LLM, Settings → Data handling → Screenshots decides: by default the call waits for the user to click Allow or Deny; it may also be always allowed or never allowed. A denied or refused call returns status "denied" or "refused" with a message: do not retry it, use search_elements instead.`,
   parameters: z.object({
     sendToLLM: z
       .boolean()
@@ -74,140 +102,145 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost, may capture sensit
         "Whether to send the screenshot to LLM for visual analysis. When true, enables computer tool for coordinate actions. Use sparingly - adds latency and token cost.",
       ),
   }),
-  execute: async ({ sendToLLM = false }) => {
-    const mode = await getAutomationMode();
-    log.debug("🔧 Automation mode:", mode);
+  execute: withScreenshotConsent(
+    "capture_screenshot",
+    false,
+    getActiveTab,
+    async ({ sendToLLM = false }) => {
+      const mode = await getAutomationMode();
+      log.debug("🔧 Automation mode:", mode);
 
-    // Background mode: reject screenshot with visual feedback
-    if (mode === "background") {
-      throw new Error(
-        "Screenshot capture is disabled in background mode. Please switch to focus mode to use visual tools.",
-      );
-    }
-
-    const tab = await getActiveTab();
-
-    if (!tab.id || !tab.windowId) {
-      throw new Error("No active tab found");
-    }
-
-    if (
-      tab.url &&
-      (tab.url.startsWith("chrome://") ||
-        tab.url.startsWith("chrome-extension://"))
-    ) {
-      throw new Error("Cannot capture browser internal pages");
-    }
-
-    if (tab.status === "loading") {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    await chrome.windows.update(tab.windowId, { focused: true });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    let dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-      format: "png",
-      quality: 90,
-    });
-
-    if (!dataUrl || !dataUrl.startsWith("data:image/")) {
-      throw new Error("Invalid image data captured");
-    }
-
-    // Get viewport dimensions for metadata caching (graceful degradation)
-    let viewport: { width: number; height: number } | undefined;
-    try {
-      const viewportDimensions = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => ({
-          width: window.innerWidth,
-          height: window.innerHeight,
-        }),
-      });
-      viewport = viewportDimensions[0]?.result ?? undefined;
-    } catch (e) {
-      console.warn("[Screenshot] Failed to get viewport dimensions:", e);
-      // Continue without viewport metadata – screenshot still works
-    }
-
-    // Get image dimensions for metadata
-    let imageWidth = 0;
-    let imageHeight = 0;
-
-    if (sendToLLM) {
-      // Compress for LLM
-      dataUrl = await compressImage(dataUrl, 0.6, 1024);
-
-      // Extract image dimensions
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = dataUrl;
-      });
-      imageWidth = img.width;
-      imageHeight = img.height;
-
-      // Cache screenshot metadata for computer tool
-      if (viewport) {
-        cacheScreenshotMetadata(
-          tab.id,
-          img.width,
-          img.height,
-          viewport.width,
-          viewport.height,
+      // Background mode: reject screenshot with visual feedback
+      if (mode === "background") {
+        throw new Error(
+          "Screenshot capture is disabled in background mode. Please switch to focus mode to use visual tools.",
         );
       }
-    } else {
-      // Get original image dimensions for non-LLM screenshots
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = dataUrl;
-      });
-      imageWidth = img.width;
-      imageHeight = img.height;
-    }
 
-    // Save screenshot to IndexedDB and get uid
-    let screenshotUid: string | undefined;
-    try {
-      screenshotUid = await RuntimeScreenshotStorage.saveScreenshot(dataUrl, {
-        tabId: tab.id,
-        width: imageWidth,
-        height: imageHeight,
-        viewportWidth: viewport?.width ?? 0,
-        viewportHeight: viewport?.height ?? 0,
-      });
-    } catch (err) {
-      console.error("[Screenshot] Failed to save to IndexedDB:", err);
-      // Continue even if storage fails
-    }
+      const tab = await getActiveTab();
 
-    if (sendToLLM) {
+      if (!tab.id || !tab.windowId) {
+        throw new Error("No active tab found");
+      }
+
+      if (
+        tab.url &&
+        (tab.url.startsWith("chrome://") ||
+          tab.url.startsWith("chrome-extension://"))
+      ) {
+        throw new Error("Cannot capture browser internal pages");
+      }
+
+      if (tab.status === "loading") {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      await chrome.windows.update(tab.windowId, { focused: true });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      let dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+        format: "png",
+        quality: 90,
+      });
+
+      if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+        throw new Error("Invalid image data captured");
+      }
+
+      // Get viewport dimensions for metadata caching (graceful degradation)
+      let viewport: { width: number; height: number } | undefined;
+      try {
+        const viewportDimensions = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => ({
+            width: window.innerWidth,
+            height: window.innerHeight,
+          }),
+        });
+        viewport = viewportDimensions[0]?.result ?? undefined;
+      } catch (e) {
+        console.warn("[Screenshot] Failed to get viewport dimensions:", e);
+        // Continue without viewport metadata – screenshot still works
+      }
+
+      // Get image dimensions for metadata
+      let imageWidth = 0;
+      let imageHeight = 0;
+
+      if (sendToLLM) {
+        // Compress for LLM
+        dataUrl = await compressImage(dataUrl, 0.6, 1024);
+
+        // Extract image dimensions
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+        imageWidth = img.width;
+        imageHeight = img.height;
+
+        // Cache screenshot metadata for computer tool
+        if (viewport) {
+          cacheScreenshotMetadata(
+            tab.id,
+            img.width,
+            img.height,
+            viewport.width,
+            viewport.height,
+          );
+        }
+      } else {
+        // Get original image dimensions for non-LLM screenshots
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+        imageWidth = img.width;
+        imageHeight = img.height;
+      }
+
+      // Save screenshot to IndexedDB and get uid
+      let screenshotUid: string | undefined;
+      try {
+        screenshotUid = await RuntimeScreenshotStorage.saveScreenshot(dataUrl, {
+          tabId: tab.id,
+          width: imageWidth,
+          height: imageHeight,
+          viewportWidth: viewport?.width ?? 0,
+          viewportHeight: viewport?.height ?? 0,
+        });
+      } catch (err) {
+        console.error("[Screenshot] Failed to save to IndexedDB:", err);
+        // Continue even if storage fails
+      }
+
+      if (sendToLLM) {
+        return {
+          success: true,
+          imageData: dataUrl,
+          sendToLLM: true,
+          screenshotUid,
+          tabId: tab.id,
+          url: tab.url,
+          title: tab.title,
+        };
+      }
+
       return {
         success: true,
-        imageData: dataUrl,
-        sendToLLM: true,
+        captured: true,
+        sendToLLM: false,
         screenshotUid,
         tabId: tab.id,
         url: tab.url,
         title: tab.title,
       };
-    }
-
-    return {
-      success: true,
-      captured: true,
-      sendToLLM: false,
-      screenshotUid,
-      tabId: tab.id,
-      url: tab.url,
-      title: tab.title,
-    };
-  },
+    },
+  ),
 });
 
 export const captureTabScreenshotTool = tool({
@@ -221,7 +254,9 @@ USE THIS ONLY WHEN:
 - search_elements failed to find the target
 - You need to see images, charts, or canvas content
 
-When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordinate-based actions. NOTE: This tool requires focus mode.`,
+When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordinate-based actions. NOTE: This tool requires focus mode.
+
+APPROVAL: when the image would be sent to the LLM, Settings → Data handling → Screenshots decides: by default the call waits for the user to click Allow or Deny; it may also be always allowed or never allowed. A denied or refused call returns status "denied" or "refused" with a message: do not retry it, use search_elements instead.`,
   parameters: z.object({
     tabId: z.number().describe("The tab ID to capture"),
     sendToLLM: z
@@ -233,123 +268,128 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
         "Whether to send the screenshot to LLM for visual analysis. When true, visual coordinate tools will be enabled.",
       ),
   }),
-  execute: async ({ tabId, sendToLLM = false }) => {
-    const mode = await getAutomationMode();
-    log.debug("🔧 [captureTabScreenshot] Automation mode:", mode);
+  execute: withScreenshotConsent(
+    "capture_tab_screenshot",
+    false,
+    ({ tabId }) => chrome.tabs.get(tabId),
+    async ({ tabId, sendToLLM = false }) => {
+      const mode = await getAutomationMode();
+      log.debug("🔧 [captureTabScreenshot] Automation mode:", mode);
 
-    // Background mode: reject screenshot with visual feedback
-    if (mode === "background") {
-      throw new Error(
-        "Screenshot capture is disabled in background mode. Please switch to focus mode to use visual tools.",
-      );
-    }
-
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab || !tab.windowId) {
-      throw new Error("Tab not found");
-    }
-
-    await chrome.tabs.update(tabId, { active: true });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    let dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-      format: "png",
-      quality: 90,
-    });
-
-    // Get viewport dimensions for metadata caching (graceful degradation)
-    let viewport: { width: number; height: number } | undefined;
-    try {
-      const viewportDimensions = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: () => ({
-          width: window.innerWidth,
-          height: window.innerHeight,
-        }),
-      });
-      viewport = viewportDimensions[0]?.result ?? undefined;
-    } catch (e) {
-      console.warn("[Screenshot] Failed to get viewport dimensions:", e);
-      // Continue without viewport metadata – screenshot still works
-    }
-
-    // Get image dimensions for metadata
-    let imageWidth = 0;
-    let imageHeight = 0;
-
-    if (sendToLLM) {
-      // Compress for LLM
-      dataUrl = await compressImage(dataUrl, 0.6, 1024);
-
-      // Extract image dimensions
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = dataUrl;
-      });
-      imageWidth = img.width;
-      imageHeight = img.height;
-
-      // Cache screenshot metadata for computer tool
-      if (viewport) {
-        cacheScreenshotMetadata(
-          tabId,
-          img.width,
-          img.height,
-          viewport.width,
-          viewport.height,
+      // Background mode: reject screenshot with visual feedback
+      if (mode === "background") {
+        throw new Error(
+          "Screenshot capture is disabled in background mode. Please switch to focus mode to use visual tools.",
         );
       }
-    } else {
-      // Get original image dimensions for non-LLM screenshots
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = dataUrl;
-      });
-      imageWidth = img.width;
-      imageHeight = img.height;
-    }
 
-    // Save screenshot to IndexedDB and get uid
-    let screenshotUid: string | undefined;
-    try {
-      screenshotUid = await RuntimeScreenshotStorage.saveScreenshot(dataUrl, {
-        tabId,
-        width: imageWidth,
-        height: imageHeight,
-        viewportWidth: viewport?.width ?? 0,
-        viewportHeight: viewport?.height ?? 0,
-      });
-    } catch (err) {
-      console.error("[Screenshot] Failed to save to IndexedDB:", err);
-      // Continue even if storage fails
-    }
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab || !tab.windowId) {
+        throw new Error("Tab not found");
+      }
 
-    if (sendToLLM) {
+      await chrome.tabs.update(tabId, { active: true });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      let dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+        format: "png",
+        quality: 90,
+      });
+
+      // Get viewport dimensions for metadata caching (graceful degradation)
+      let viewport: { width: number; height: number } | undefined;
+      try {
+        const viewportDimensions = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: () => ({
+            width: window.innerWidth,
+            height: window.innerHeight,
+          }),
+        });
+        viewport = viewportDimensions[0]?.result ?? undefined;
+      } catch (e) {
+        console.warn("[Screenshot] Failed to get viewport dimensions:", e);
+        // Continue without viewport metadata – screenshot still works
+      }
+
+      // Get image dimensions for metadata
+      let imageWidth = 0;
+      let imageHeight = 0;
+
+      if (sendToLLM) {
+        // Compress for LLM
+        dataUrl = await compressImage(dataUrl, 0.6, 1024);
+
+        // Extract image dimensions
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+        imageWidth = img.width;
+        imageHeight = img.height;
+
+        // Cache screenshot metadata for computer tool
+        if (viewport) {
+          cacheScreenshotMetadata(
+            tabId,
+            img.width,
+            img.height,
+            viewport.width,
+            viewport.height,
+          );
+        }
+      } else {
+        // Get original image dimensions for non-LLM screenshots
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+        imageWidth = img.width;
+        imageHeight = img.height;
+      }
+
+      // Save screenshot to IndexedDB and get uid
+      let screenshotUid: string | undefined;
+      try {
+        screenshotUid = await RuntimeScreenshotStorage.saveScreenshot(dataUrl, {
+          tabId,
+          width: imageWidth,
+          height: imageHeight,
+          viewportWidth: viewport?.width ?? 0,
+          viewportHeight: viewport?.height ?? 0,
+        });
+      } catch (err) {
+        console.error("[Screenshot] Failed to save to IndexedDB:", err);
+        // Continue even if storage fails
+      }
+
+      if (sendToLLM) {
+        return {
+          success: true,
+          imageData: dataUrl,
+          sendToLLM: true,
+          screenshotUid,
+          tabId,
+          url: tab.url,
+          title: tab.title,
+        };
+      }
+
       return {
         success: true,
-        imageData: dataUrl,
-        sendToLLM: true,
+        captured: true,
+        sendToLLM: false,
         screenshotUid,
         tabId,
         url: tab.url,
         title: tab.title,
       };
-    }
-
-    return {
-      success: true,
-      captured: true,
-      sendToLLM: false,
-      screenshotUid,
-      tabId,
-      url: tab.url,
-      title: tab.title,
-    };
-  },
+    },
+  ),
 });
 
 /** Maximum allowed CSS selector length to prevent injection of excessively long strings */
@@ -361,7 +401,9 @@ export const captureScreenshotWithHighlightTool = tool({
   name: "capture_screenshot_with_highlight",
   description: `[HIGH-COST] Capture screenshot of the current visible tab, optionally highlighting and cropping to a specific element identified by CSS selector. The screenshot is always sent to the LLM for visual analysis.
 
-PREFER search_elements for finding/interacting with elements. Use this only when you need to visually verify element appearance or layout. NOTE: This tool requires focus mode.`,
+PREFER search_elements for finding/interacting with elements. Use this only when you need to visually verify element appearance or layout. NOTE: This tool requires focus mode.
+
+APPROVAL: when the image would be sent to the LLM, Settings → Data handling → Screenshots decides: by default the call waits for the user to click Allow or Deny; it may also be always allowed or never allowed. A denied or refused call returns status "denied" or "refused" with a message: do not retry it, use search_elements instead.`,
   parameters: z.object({
     selector: z
       .string()
@@ -391,102 +433,122 @@ PREFER search_elements for finding/interacting with elements. Use this only when
         "Whether to send the screenshot to LLM for visual analysis. Defaults to true.",
       ),
   }),
-  execute: async ({
-    selector,
-    cropToElement = false,
-    padding = 50,
-    sendToLLM = true,
-  }) => {
-    const mode = await getAutomationMode();
-    log.debug("🔧 [captureScreenshotWithHighlight] Automation mode:", mode);
-
-    if (mode === "background") {
-      throw new Error(
-        "Screenshot capture is disabled in background mode. Please switch to focus mode to use visual tools.",
-      );
-    }
-
-    const tab = await getActiveTab();
-
-    if (!tab.id || !tab.windowId) {
-      throw new Error("No active tab found");
-    }
-
-    // Delegate to shared helper for capture + element crop
-    const capture = await captureVisibleTabWithElementCrop({
-      tabId: tab.id,
-      windowId: tab.windowId,
-      tabUrl: tab.url,
+  execute: withScreenshotConsent(
+    "capture_screenshot_with_highlight",
+    true,
+    getActiveTab,
+    async ({
       selector,
-      cropToElement,
-      padding,
-    });
+      cropToElement = false,
+      padding = 50,
+      sendToLLM = true,
+    }) => {
+      const mode = await getAutomationMode();
+      log.debug("🔧 [captureScreenshotWithHighlight] Automation mode:", mode);
 
-    let { dataUrl } = capture;
+      if (mode === "background") {
+        throw new Error(
+          "Screenshot capture is disabled in background mode. Please switch to focus mode to use visual tools.",
+        );
+      }
 
-    // Get viewport dimensions (graceful degradation)
-    let viewport: { width: number; height: number } | undefined;
-    try {
-      const viewportDimensions = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => ({
-          width: window.innerWidth,
-          height: window.innerHeight,
-        }),
-      });
-      viewport = viewportDimensions[0]?.result ?? undefined;
-    } catch (e) {
-      console.warn(
-        "[ScreenshotHighlight] Failed to get viewport dimensions:",
-        e,
-      );
-    }
+      const tab = await getActiveTab();
 
-    if (sendToLLM) {
-      // Compress for LLM
-      dataUrl = await compressImage(dataUrl, 0.6, 1024);
-    }
+      if (!tab.id || !tab.windowId) {
+        throw new Error("No active tab found");
+      }
 
-    // Extract image dimensions
-    const finalImg = new Image();
-    await new Promise<void>((resolve, reject) => {
-      finalImg.onload = () => resolve();
-      finalImg.onerror = () => reject(new Error("Failed to load image"));
-      finalImg.src = dataUrl;
-    });
-    const imageWidth = finalImg.width;
-    const imageHeight = finalImg.height;
-
-    // Cache screenshot metadata for computer tool
-    if (sendToLLM && viewport) {
-      cacheScreenshotMetadata(
-        tab.id,
-        imageWidth,
-        imageHeight,
-        viewport.width,
-        viewport.height,
-      );
-    }
-
-    // Save screenshot to IndexedDB
-    let screenshotUid: string | undefined;
-    try {
-      screenshotUid = await RuntimeScreenshotStorage.saveScreenshot(dataUrl, {
+      // Delegate to shared helper for capture + element crop
+      const capture = await captureVisibleTabWithElementCrop({
         tabId: tab.id,
-        width: imageWidth,
-        height: imageHeight,
-        viewportWidth: viewport?.width ?? 0,
-        viewportHeight: viewport?.height ?? 0,
+        windowId: tab.windowId,
+        tabUrl: tab.url,
+        selector,
+        cropToElement,
+        padding,
       });
-    } catch (err) {
-      console.error("[ScreenshotHighlight] Failed to save to IndexedDB:", err);
-    }
 
-    if (sendToLLM) {
+      let { dataUrl } = capture;
+
+      // Get viewport dimensions (graceful degradation)
+      let viewport: { width: number; height: number } | undefined;
+      try {
+        const viewportDimensions = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => ({
+            width: window.innerWidth,
+            height: window.innerHeight,
+          }),
+        });
+        viewport = viewportDimensions[0]?.result ?? undefined;
+      } catch (e) {
+        console.warn(
+          "[ScreenshotHighlight] Failed to get viewport dimensions:",
+          e,
+        );
+      }
+
+      if (sendToLLM) {
+        // Compress for LLM
+        dataUrl = await compressImage(dataUrl, 0.6, 1024);
+      }
+
+      // Extract image dimensions
+      const finalImg = new Image();
+      await new Promise<void>((resolve, reject) => {
+        finalImg.onload = () => resolve();
+        finalImg.onerror = () => reject(new Error("Failed to load image"));
+        finalImg.src = dataUrl;
+      });
+      const imageWidth = finalImg.width;
+      const imageHeight = finalImg.height;
+
+      // Cache screenshot metadata for computer tool
+      if (sendToLLM && viewport) {
+        cacheScreenshotMetadata(
+          tab.id,
+          imageWidth,
+          imageHeight,
+          viewport.width,
+          viewport.height,
+        );
+      }
+
+      // Save screenshot to IndexedDB
+      let screenshotUid: string | undefined;
+      try {
+        screenshotUid = await RuntimeScreenshotStorage.saveScreenshot(dataUrl, {
+          tabId: tab.id,
+          width: imageWidth,
+          height: imageHeight,
+          viewportWidth: viewport?.width ?? 0,
+          viewportHeight: viewport?.height ?? 0,
+        });
+      } catch (err) {
+        console.error(
+          "[ScreenshotHighlight] Failed to save to IndexedDB:",
+          err,
+        );
+      }
+
+      if (sendToLLM) {
+        return {
+          success: true,
+          imageData: dataUrl,
+          sendToLLM: true,
+          screenshotUid,
+          tabId: tab.id,
+          url: tab.url,
+          title: tab.title,
+          selector: selector ?? undefined,
+          cropped: capture.cropped,
+        };
+      }
+
       return {
         success: true,
-        imageData: dataUrl,
-        sendToLLM: true,
+        captured: true,
+        sendToLLM: false,
         screenshotUid,
         tabId: tab.id,
         url: tab.url,
@@ -494,20 +556,8 @@ PREFER search_elements for finding/interacting with elements. Use this only when
         selector: selector ?? undefined,
         cropped: capture.cropped,
       };
-    }
-
-    return {
-      success: true,
-      captured: true,
-      sendToLLM: false,
-      screenshotUid,
-      tabId: tab.id,
-      url: tab.url,
-      title: tab.title,
-      selector: selector ?? undefined,
-      cropped: capture.cropped,
-    };
-  },
+    },
+  ),
 });
 
 export const captureScreenshotToClipboardTool = tool({

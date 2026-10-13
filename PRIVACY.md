@@ -51,6 +51,13 @@ the page shows them, so a patient name printed as plain text on a page is
 Anything you type in the chat has tokens, keys, JWTs and emails masked in
 Strict and Standard.
 
+**Settings → General → Data handling → Screenshots** decides whether a
+screenshot of the page may be sent to your AI provider: **Ask each time**
+(the default; you can allow one site for 15 minutes), **Always allow**, or
+**Never**. A screenshot is pixels, so redaction cannot mask it. Screenshots
+kept on your device, such as one copied to the clipboard, are not affected.
+Requests from an MCP client follow the same setting.
+
 Off asks for confirmation and shows "Redaction is OFF" in the side panel for
 as long as it is on. Preview shows a built-in sample with fake data before
 and after each mode. Copied and downloaded messages start with a line naming

@@ -53,7 +53,15 @@
     "searchProviders": "搜索提供商...",
     "noProvidersFound": "未找到匹配的提供商",
     "getApiKey": "获取 API 密钥",
-    "current": "当前"
+    "current": "当前",
+    "screenshotPolicy": "截图",
+    "screenshotPolicyHint": "是否可以将页面截图发送给您的 AI 服务商。仅保存在本设备上的截图不受影响。",
+    "screenshotPolicyAsk": "每次询问（推荐）",
+    "screenshotPolicyAskHint": "每张截图都会等待您点击“允许”或“拒绝”；您可以允许某个网站 15 分钟。",
+    "screenshotPolicyAllow": "始终允许",
+    "screenshotPolicyAllowHint": "截图不经询问即发送。截图可能显示屏幕上的任何内容，包括患者数据。",
+    "screenshotPolicyNever": "从不",
+    "screenshotPolicyNeverHint": "截图从不发送；代理改为以文本方式读取页面。"
   },
   "theme": {
     "light": "浅色",

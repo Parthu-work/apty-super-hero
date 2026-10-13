@@ -53,7 +53,15 @@
     "searchProviders": "Search providers...",
     "noProvidersFound": "No providers found",
     "getApiKey": "Get API Key",
-    "current": "Current"
+    "current": "Current",
+    "screenshotPolicy": "Screenshots",
+    "screenshotPolicyHint": "Whether a screenshot of the page may be sent to your AI provider. Screenshots kept on this device are not affected.",
+    "screenshotPolicyAsk": "Ask each time (recommended)",
+    "screenshotPolicyAskHint": "Each screenshot waits for you to click Allow or Deny; you can allow a site for 15 minutes.",
+    "screenshotPolicyAllow": "Always allow",
+    "screenshotPolicyAllowHint": "Screenshots are sent without asking. They can show anything on screen, including patient data.",
+    "screenshotPolicyNever": "Never",
+    "screenshotPolicyNeverHint": "Screenshots are never sent; the agent reads the page as text instead."
   },
   "theme": {
     "light": "Light",

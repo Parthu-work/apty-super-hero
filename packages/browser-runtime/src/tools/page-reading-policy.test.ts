@@ -33,9 +33,9 @@ vi.mock("../automation/dom-element-handle", () => ({
 
 vi.mock("./tab-utils", () => ({ getActiveTab: mockGetActiveTab }));
 
-(global as any).chrome = {
+vi.stubGlobal("chrome", {
   scripting: { executeScript: mockExecuteScript },
-};
+});
 
 import { getEditorValueTool } from "./element";
 import { getPageMetadataTool } from "./page";
