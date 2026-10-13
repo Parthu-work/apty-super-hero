@@ -128,3 +128,4 @@ export {
   type RetentionPolicy,
   selectForEviction,
 } from "./utils/retention.js";
+export { isTransientScreenshotItem } from "./utils/screenshot-shaping.js";

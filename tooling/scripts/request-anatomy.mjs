@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Prints the size of each named request scenario (system prompt, tool
+ * Prints the size of each named request scenario, raw and as sent (system prompt, tool
  * schemas, history, tool results, total) in estimated tokens (chars / 4).
  * Runs apps/browser-extension's request-anatomy.scenarios.test.ts, which
  * writes the numbers as JSON, and renders them as a table. Pass `--json` for
@@ -53,13 +53,19 @@ const cols = [
   ["results", "toolResultTokens"],
   ["total", "totalTokens"],
 ];
-const table = data.rows.map((r) => cols.map(([, key]) => String(r[key])));
-const widths = cols.map(([label], i) =>
-  Math.max(label.length, ...table.map((row) => row[i].length)),
-);
-const line = (cells) => cells.map((c, i) => c.padEnd(widths[i])).join("  ");
-console.log(line(cols.map(([label]) => label)));
-for (const row of table) console.log(line(row));
+function render(rows) {
+  const table = rows.map((r) => cols.map(([, key]) => String(r[key])));
+  const widths = cols.map(([label], i) =>
+    Math.max(label.length, ...table.map((row) => row[i].length)),
+  );
+  const line = (cells) => cells.map((c, i) => c.padEnd(widths[i])).join("  ");
+  return [line(cols.map(([label]) => label)), ...table.map(line)].join("\n");
+}
+
+console.log("As built, before the outbound filters (raw):\n");
+console.log(render(data.raw));
+console.log("\nAs sent, after the outbound filters:\n");
+console.log(render(data.sent));
 console.log(
   `\nregistry: ${data.registry.toolCount} tools, ${data.registry.toolSchemaTokens} schema tokens, system prompt ${data.registry.systemPromptTokens} tokens`,
 );

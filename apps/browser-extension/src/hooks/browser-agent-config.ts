@@ -22,14 +22,13 @@ import {
   selectRelevantTools,
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
-import { createOutboundSanitizer } from "@apty/browser-runtime/runtime/outbound-sanitizer";
-import { currentRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo } from "react";
 import {
   createAIProvider,
   isProviderConfigured,
 } from "../services/ai-provider";
+import { createOutboundFilters } from "./outbound-filters";
 
 /**
  * Create browser-specific storage instance
@@ -149,15 +148,9 @@ export function useSelectRelevantTools() {
   );
 }
 
-/**
- * What runs over every request before it leaves the extension, in order.
- * Stable across renders: the agent reads it once when it is created.
- */
+/** Stable across renders: the agent reads it once when it is created. */
 export function useOutboundFilters(): OutboundFilter[] {
-  return useMemo(
-    () => [createOutboundSanitizer({ getMode: currentRedactionMode })],
-    [],
-  );
+  return useMemo(createOutboundFilters, []);
 }
 
 /**

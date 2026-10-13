@@ -17,6 +17,8 @@ export interface MeasurableTool {
 }
 
 export interface MeasurableItem {
+  name?: string;
+  callId?: string;
   type?: string;
   role?: string;
   content?: unknown;

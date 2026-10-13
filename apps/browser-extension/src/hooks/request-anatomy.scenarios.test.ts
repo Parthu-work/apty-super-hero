@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { AgentInputItem } from "@apty/agent-core";
 import {
   type MeasurableItem,
   type MeasurableTool,
@@ -10,6 +11,7 @@ import { allBrowserTools } from "@apty/browser-runtime/tools/index";
 import { selectRelevantTools } from "@apty/browser-runtime/tools/tool-relevance";
 import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import { describe, expect, it } from "vitest";
+import { createOutboundFilters } from "./outbound-filters";
 
 /**
  * Names the request shapes the agent produces today, with fixed synthetic
@@ -27,12 +29,17 @@ const assistant = (text: string): MeasurableItem => ({
   role: "assistant",
   content: text,
 });
+let nextCall = 0;
 const call = (name: string): MeasurableItem => ({
   type: "function_call",
+  name,
+  callId: `call_${++nextCall}`,
   arguments: JSON.stringify({ name }),
 });
-const result = (chars: number): MeasurableItem => ({
+const result = (chars: number, name = "read_page"): MeasurableItem => ({
   type: "function_call_result",
+  name,
+  callId: `call_${nextCall}`,
   output: "r".repeat(chars),
 });
 
@@ -77,24 +84,53 @@ export const SCENARIOS: Scenario[] = [
     history: investigation,
   },
   {
+    name: "long-chat-8-turns",
+    message: "why isn't my Apty widget showing",
+    history: Array.from({ length: 8 }, (_, i) => [
+      user(`question ${i}`),
+      call("read_page"),
+      result(3000),
+      assistant(`answer ${i}`),
+    ]).flat(),
+  },
+  {
     name: "snapshot-heavy",
     message: "what is on this page",
     history: [call("take_snapshot"), result(60_000)],
   },
 ];
 
-function measure(scenario: Scenario): RequestAnatomy {
+/** `sent` runs the outbound filters the extension installs; `raw` does not. */
+async function measure(
+  scenario: Scenario,
+  sent: boolean,
+): Promise<RequestAnatomy> {
   const tools = selectRelevantTools(scenario.message) as MeasurableTool[];
-  return measureRequest({
-    instructions: SYSTEM_PROMPT,
-    tools,
-    input: [...scenario.history, user(scenario.message)],
-  });
+  let input = [...scenario.history, user(scenario.message)];
+  if (sent) {
+    for (const filter of createOutboundFilters()) {
+      input = (await filter(input as AgentInputItem[])) as MeasurableItem[];
+    }
+  }
+  return measureRequest({ instructions: SYSTEM_PROMPT, tools, input });
 }
 
-describe("request anatomy scenarios", () => {
-  const rows = SCENARIOS.map((s) => ({ scenario: s.name, ...measure(s) }));
+const rows = await Promise.all(
+  SCENARIOS.map(async (s) => ({
+    scenario: s.name,
+    ...(await measure(s, false)),
+  })),
+);
+const sent = await Promise.all(
+  SCENARIOS.map(async (s) => ({
+    scenario: s.name,
+    ...(await measure(s, true)),
+  })),
+);
+const byName = (list: typeof rows, name: string) =>
+  list.find((r) => r.scenario === name) as (typeof rows)[number];
 
+describe("request anatomy scenarios", () => {
   it("measures every named scenario with consistent totals", () => {
     expect(rows).toHaveLength(SCENARIOS.length);
     for (const row of rows) {
@@ -108,6 +144,25 @@ describe("request anatomy scenarios", () => {
     }
   });
 
+  it("the outbound filters shrink only the requests that carry oversized or old results", () => {
+    for (const name of ["snapshot-heavy", "long-chat-8-turns"]) {
+      expect(byName(sent, name).toolResultTokens).toBeLessThan(
+        byName(rows, name).toolResultTokens,
+      );
+    }
+    expect(byName(sent, "snapshot-heavy").toolResultTokens).toBeLessThanOrEqual(
+      2100,
+    );
+    for (const name of [
+      "casual",
+      "apty-question",
+      "dom-health",
+      "click-task",
+    ]) {
+      expect(byName(sent, name)).toEqual(byName(rows, name));
+    }
+  });
+
   it("reports the whole registry size for reference", () => {
     const all = measureRequest({
       instructions: SYSTEM_PROMPT,
@@ -118,7 +173,10 @@ describe("request anatomy scenarios", () => {
     const out = process.env.REQUEST_ANATOMY_OUT;
     if (out) {
       mkdirSync(dirname(out), { recursive: true });
-      writeFileSync(out, JSON.stringify({ registry: all, rows }, null, 2));
+      writeFileSync(
+        out,
+        JSON.stringify({ registry: all, raw: rows, sent }, null, 2),
+      );
     }
   });
 });
