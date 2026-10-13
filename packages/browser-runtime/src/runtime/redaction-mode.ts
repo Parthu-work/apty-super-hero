@@ -16,6 +16,7 @@ import {
 } from "@apty/agent-core";
 import {
   type RedactionMode,
+  redactJsonAware,
   redactLogs,
   redactSensitiveText,
 } from "@apty/debug-contract";
@@ -84,9 +85,40 @@ export function redactText(text: string): string {
   return redactSensitiveText(text, currentRedactionMode());
 }
 
-/** Text redacted in an explicit mode: for a caller that reads the mode once for a whole batch. */
-export function redactTextInMode(text: string, mode: RedactionMode): string {
-  return redactSensitiveText(text, mode);
+function mapStrings(value: unknown, fn: (s: string) => string): unknown {
+  if (typeof value === "string") return fn(value);
+  if (Array.isArray(value)) return value.map((v) => mapStrings(v, fn));
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, mapStrings(v, fn)]),
+    );
+  }
+  return value;
+}
+
+/**
+ * A JSON object or array redacted by key and then string by string, so the
+ * result is still valid JSON: the free-text passes can swallow a brace after a
+ * key like "session". Anything else is redacted as text.
+ */
+export function redactJsonTextInMode(
+  text: string,
+  mode: RedactionMode,
+): string {
+  const trimmed = text.trim();
+  const looksLikeJson =
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"));
+  if (!looksLikeJson) return redactSensitiveText(text, mode);
+  try {
+    JSON.parse(trimmed);
+  } catch {
+    return redactSensitiveText(text, mode);
+  }
+  const keyed: unknown = JSON.parse(redactJsonAware(trimmed, mode));
+  return JSON.stringify(
+    mapStrings(keyed, (leaf) => redactSensitiveText(leaf, mode)),
+  );
 }
 
 /**

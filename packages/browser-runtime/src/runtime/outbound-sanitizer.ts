@@ -9,7 +9,10 @@
  */
 import type { AgentInputItem, OutboundFilter } from "@apty/agent-core";
 import type { RedactionMode } from "@apty/debug-contract";
-import { redactStructuralSecrets, redactTextInMode } from "./redaction-mode.js";
+import {
+  redactJsonTextInMode,
+  redactStructuralSecrets,
+} from "./redaction-mode.js";
 
 const MAX_CACHED_RESULTS = 256;
 
@@ -25,20 +28,20 @@ interface CachedResult {
 }
 
 function redactOutput(output: unknown, mode: RedactionMode): unknown {
-  if (typeof output === "string") return redactTextInMode(output, mode);
+  if (typeof output === "string") return redactJsonTextInMode(output, mode);
   if (Array.isArray(output)) {
     return output.map((part) => redactOutput(part, mode));
   }
   if (typeof output === "object" && output !== null) {
     const record = output as Record<string, unknown>;
     if (typeof record.text === "string" && record.type === "text") {
-      return { ...record, text: redactTextInMode(record.text, mode) };
+      return { ...record, text: redactJsonTextInMode(record.text, mode) };
     }
     if (record.type === "image" || record.type === "input_image") {
       return output;
     }
     const json = JSON.stringify(output);
-    const redacted = redactTextInMode(json, mode);
+    const redacted = redactJsonTextInMode(json, mode);
     return redacted === json ? output : redacted;
   }
   return output;

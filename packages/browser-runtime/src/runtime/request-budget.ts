@@ -2,7 +2,8 @@
  * Keeps tool results from growing a request without bound.
  *
  * - Cap: one result larger than MAX_TOOL_RESULT_TOKENS is cut, with a note
- *   saying how much was cut. A result that carries an `evidenceId` and a
+ *   saying how much was cut. A JSON result stays valid JSON: its long strings
+ *   and arrays are trimmed instead, so keys and scores survive. A result that carries an `evidenceId` and a
  *   preview that is already bounded is left as it is; the model can page the
  *   rest through the evidence tools.
  * - Prune: results from earlier turns beyond the newest FULL_RESULTS_KEPT
@@ -22,6 +23,15 @@ import { CHARS_PER_TOKEN } from "./request-anatomy.js";
 export const MAX_TOOL_RESULT_TOKENS = 2000;
 export const FULL_RESULTS_KEPT = 4;
 export const STUB_PREVIEW_CHARS = 200;
+
+/**
+ * Tools whose result is a report the model is told to relay exactly (DOM
+ * Health), with a higher ceiling than the default cap.
+ */
+export const REPORT_RESULT_TOKENS: Readonly<Record<string, number>> = {
+  run_dom_health_audit: 12_000,
+  run_application_dom_health_audit: 12_000,
+};
 
 const MAX_RESULT_CHARS = MAX_TOOL_RESULT_TOKENS * CHARS_PER_TOKEN;
 /** Evidence previews are bounded at about the cap; past twice that the "preview" is not one. */
@@ -59,8 +69,100 @@ function isStub(text: string): boolean {
   return text.startsWith('{"stubbed":true');
 }
 
-function capped(text: string): string {
-  if (text.length <= MAX_RESULT_CHARS) return text;
+interface ShrinkRound {
+  maxString: number;
+  maxItems: number;
+  /** Arrays and objects nested deeper than this become a one-line marker. */
+  maxDepth: number;
+  /** Keys kept per nested object; the top-level object keeps all of its keys. */
+  maxKeys: number;
+}
+
+const SHRINK_ROUNDS: ShrinkRound[] = [
+  { maxString: 2000, maxItems: 50, maxDepth: Infinity, maxKeys: Infinity },
+  { maxString: 1000, maxItems: 25, maxDepth: Infinity, maxKeys: Infinity },
+  { maxString: 500, maxItems: 12, maxDepth: Infinity, maxKeys: Infinity },
+  { maxString: 250, maxItems: 6, maxDepth: Infinity, maxKeys: Infinity },
+  { maxString: 120, maxItems: 3, maxDepth: Infinity, maxKeys: Infinity },
+  { maxString: 60, maxItems: 1, maxDepth: Infinity, maxKeys: Infinity },
+  { maxString: 60, maxItems: 1, maxDepth: 4, maxKeys: Infinity },
+  { maxString: 60, maxItems: 1, maxDepth: 3, maxKeys: Infinity },
+  { maxString: 60, maxItems: 1, maxDepth: 2, maxKeys: 20 },
+  { maxString: 60, maxItems: 1, maxDepth: 1, maxKeys: 20 },
+  { maxString: 60, maxItems: 1, maxDepth: 1, maxKeys: 5 },
+];
+
+function shrinkValue(value: unknown, round: ShrinkRound, depth = 0): unknown {
+  if (typeof value === "string") {
+    return value.length > round.maxString
+      ? `${value.slice(0, round.maxString)}…[${value.length - round.maxString} more characters not sent]`
+      : value;
+  }
+  if (Array.isArray(value)) {
+    if (depth > round.maxDepth) {
+      return `[array with ${value.length} items not sent]`;
+    }
+    const kept = value
+      .slice(0, round.maxItems)
+      .map((v) => shrinkValue(v, round, depth + 1));
+    return value.length > round.maxItems
+      ? [...kept, `[${value.length - round.maxItems} more items not sent]`]
+      : kept;
+  }
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value);
+    if (depth > round.maxDepth) {
+      return `[object with ${entries.length} keys not sent]`;
+    }
+    const limit = depth === 0 ? Infinity : round.maxKeys;
+    const kept = entries
+      .slice(0, limit)
+      .map(([k, v]) => [k, shrinkValue(v, round, depth + 1)]);
+    if (entries.length > limit) {
+      kept.push(["…", `[${entries.length - limit} more keys not sent]`]);
+    }
+    return Object.fromEntries(kept);
+  }
+  return value;
+}
+
+/**
+ * A JSON result made to fit by trimming long strings and arrays, then deep
+ * objects, more each round, so it stays valid JSON with its top-level keys
+ * and scalars in place. Undefined when even the tightest round does not fit.
+ */
+function shrunkJson(text: string, maxChars: number): string | undefined {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return undefined;
+  }
+  const isObject =
+    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+  for (const round of SHRINK_ROUNDS) {
+    const shrunk = shrinkValue(parsed, round);
+    const candidate = JSON.stringify(
+      isObject
+        ? {
+            ...(shrunk as object),
+            truncatedForModel: { originalChars: text.length },
+          }
+        : shrunk,
+    );
+    if (candidate.length <= maxChars) return candidate;
+  }
+  return undefined;
+}
+
+function capped(text: string, name: string | undefined): string {
+  const maxChars =
+    (name !== undefined && REPORT_RESULT_TOKENS[name] !== undefined
+      ? REPORT_RESULT_TOKENS[name]
+      : MAX_TOOL_RESULT_TOKENS) * CHARS_PER_TOKEN;
+  if (text.length <= maxChars) return text;
   if (TRUNCATION_NOTE_PATTERN.test(text)) return text;
   if (
     EVIDENCE_ID_PATTERN.test(text) &&
@@ -68,7 +170,10 @@ function capped(text: string): string {
   ) {
     return text;
   }
-  return `${text.slice(0, MAX_RESULT_CHARS)}\n[truncated: first ${MAX_RESULT_CHARS} of ${text.length} characters sent]`;
+  return (
+    shrunkJson(text, maxChars) ??
+    `${text.slice(0, maxChars)}\n[truncated: first ${maxChars} of ${text.length} characters sent]`
+  );
 }
 
 function stubOf(name: string | undefined, text: string): string {
@@ -109,7 +214,7 @@ export function createRequestBudgetFilter(): OutboundFilter {
       const replacement =
         !inCurrentTurn && seen > FULL_RESULTS_KEPT && !isStub(text)
           ? stubOf(name, text)
-          : capped(text);
+          : capped(text, name);
       if (replacement !== text) {
         out[i] = {
           ...item,

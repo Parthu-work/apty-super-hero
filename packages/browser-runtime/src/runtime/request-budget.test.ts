@@ -4,6 +4,7 @@ import {
   createRequestBudgetFilter,
   FULL_RESULTS_KEPT,
   MAX_TOOL_RESULT_TOKENS,
+  REPORT_RESULT_TOKENS,
   STUB_PREVIEW_CHARS,
 } from "./request-budget.js";
 
@@ -103,6 +104,107 @@ describe("request budget", () => {
       });
       const [, , out] = await run([user("go"), call("c1"), result("c1", huge)]);
       expect(text(out).length).toBeLessThan(MAX_CHARS + 200);
+    });
+
+    it("keeps an oversized JSON result valid, keeping every scalar and marking what was cut", async () => {
+      const audit = {
+        available: true,
+        score: 54,
+        grade: "NEEDS_ATTENTION",
+        frameAccessibility: { framesTotal: 2, framesFailed: 0 },
+        risks: Array.from({ length: 400 }, (_, i) => ({
+          id: i,
+          detail: "d".repeat(120),
+        })),
+        notes: "n".repeat(20_000),
+      };
+      const original = JSON.stringify(audit);
+      const [, , out] = await run([
+        user("go"),
+        call("c1"),
+        result("c1", original),
+      ]);
+      const sent = text(out);
+      expect(sent.length).toBeLessThanOrEqual(MAX_CHARS);
+      const parsed = JSON.parse(sent);
+      expect(parsed).toMatchObject({
+        available: true,
+        score: 54,
+        grade: "NEEDS_ATTENTION",
+        frameAccessibility: { framesTotal: 2, framesFailed: 0 },
+      });
+      expect(parsed.risks[0]).toEqual(audit.risks[0]);
+      expect(parsed.risks.at(-1)).toMatch(/more items not sent/);
+      expect(parsed.notes).toMatch(/more characters not sent/);
+      expect(parsed.truncatedForModel).toEqual({
+        originalChars: original.length,
+      });
+    });
+
+    it("replaces deep objects with a marker before giving up on JSON", async () => {
+      const app = {
+        available: true,
+        summary: { pagesAudited: 3, score: 67 },
+        pages: Object.fromEntries(
+          Array.from({ length: 300 }, (_, i) => [
+            `page_${i}`,
+            { metrics: { a: i, b: i, c: i }, frames: { top: { ok: true } } },
+          ]),
+        ),
+      };
+      const [, , out] = await run([
+        user("go"),
+        call("c1"),
+        result("c1", JSON.stringify(app)),
+      ]);
+      const parsed = JSON.parse(text(out));
+      expect(text(out).length).toBeLessThanOrEqual(MAX_CHARS);
+      expect(parsed.available).toBe(true);
+      expect(parsed.summary).toEqual({ pagesAudited: 3, score: 67 });
+      expect(Object.keys(parsed.pages)).toHaveLength(21);
+      expect(parsed.pages["…"]).toBe("[280 more keys not sent]");
+    });
+
+    it("cuts as text when even the smallest valid JSON shape is too big", async () => {
+      const wide = JSON.stringify(
+        Object.fromEntries(
+          Array.from({ length: 3000 }, (_, i) => [`key_${i}`, i]),
+        ),
+      );
+      const [, , out] = await run([user("go"), call("c1"), result("c1", wide)]);
+      expect(text(out)).toMatch(
+        /\[truncated: first \d+ of \d+ characters sent\]$/,
+      );
+    });
+
+    it("lets a DOM Health report through whole up to its own, higher ceiling", async () => {
+      const report = JSON.stringify({ score: 54, risks: "r".repeat(40_000) });
+      const item = result("c1", report, "run_dom_health_audit");
+      const out = await run([
+        user("go"),
+        call("c1", "run_dom_health_audit"),
+        item,
+      ]);
+      expect(out[2]).toBe(item);
+      const sameSizeOther = result("c2", report);
+      const [, , other] = await run([user("go"), call("c2"), sameSizeOther]);
+      expect(text(other).length).toBeLessThanOrEqual(MAX_CHARS);
+    });
+
+    it("shrinks a DOM Health report past its ceiling, keeping it valid JSON", async () => {
+      const ceiling =
+        (REPORT_RESULT_TOKENS.run_application_dom_health_audit as number) * 4;
+      const report = JSON.stringify({
+        pagesAudited: 3,
+        notes: "n".repeat(ceiling),
+      });
+      const [, , out] = await run([
+        user("go"),
+        call("c1", "run_application_dom_health_audit"),
+        result("c1", report, "run_application_dom_health_audit"),
+      ]);
+      expect(text(out).length).toBeLessThanOrEqual(ceiling);
+      expect(JSON.parse(text(out)).pagesAudited).toBe(3);
     });
 
     it("never touches a non-text output such as an image", async () => {

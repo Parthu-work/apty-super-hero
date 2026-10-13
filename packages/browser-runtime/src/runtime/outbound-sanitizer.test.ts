@@ -1,13 +1,13 @@
 import type { AgentInputItem } from "@apty/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import { createOutboundSanitizer } from "./outbound-sanitizer.js";
-import { redactTextInMode } from "./redaction-mode.js";
+import { redactJsonTextInMode } from "./redaction-mode.js";
 
 vi.mock("./redaction-mode.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./redaction-mode.js")>();
   return {
     ...actual,
-    redactTextInMode: vi.fn(actual.redactTextInMode),
+    redactJsonTextInMode: vi.fn(actual.redactJsonTextInMode),
   };
 });
 
@@ -59,6 +59,44 @@ describe("outbound sanitizer", () => {
       type: "image",
       image: "data:image/png;base64,AAAA",
     });
+  });
+
+  it("keeps a JSON result valid, including under keys the text passes would swallow", async () => {
+    const original = {
+      started: true,
+      session: { id: "abc", status: "capturing", bodiesCaptured: false },
+      cookies: [{ note: `see ${GITHUB_TOKEN}` }],
+    };
+    for (const mode of ["strict", "standard", "off"] as const) {
+      const [out] = await sanitize(mode, [
+        result("c1", JSON.stringify(original)),
+      ]);
+      const parsed = JSON.parse(outputOf(out) as string);
+      expect(parsed.started).toBe(true);
+      expect(parsed.session).toEqual(original.session);
+      expect(JSON.stringify(parsed)).not.toContain(GITHUB_TOKEN);
+    }
+  });
+
+  it("still masks page context by key in a JSON result in Strict, not in Standard", async () => {
+    const body = JSON.stringify({ page_title: "Chart for Jane", count: 2 });
+    const [strict] = await sanitize("strict", [result("c1", body)]);
+    const [standard] = await sanitize("standard", [result("c2", body)]);
+    expect(JSON.parse(outputOf(strict) as string)).toEqual({
+      page_title: "<REDACTED>",
+      count: 2,
+    });
+    expect(JSON.parse(outputOf(standard) as string).page_title).toBe(
+      "Chart for Jane",
+    );
+  });
+
+  it("falls back to text redaction for output that is not JSON", async () => {
+    const [out] = await sanitize("strict", [
+      result("c1", `plain text with ${GITHUB_TOKEN}`),
+    ]);
+    expect(outputOf(out)).not.toContain(GITHUB_TOKEN);
+    expect(outputOf(out)).toContain("plain text with");
   });
 
   it("redacts a secret held in a structured output", async () => {
@@ -142,7 +180,7 @@ describe("outbound sanitizer", () => {
     let mode: "strict" | "standard" = "strict";
     const sanitizer = createOutboundSanitizer({ getMode: () => mode });
     const item = result("c-cache", `{"x":"Bearer ${JWT}"}`);
-    const spy = vi.mocked(redactTextInMode);
+    const spy = vi.mocked(redactJsonTextInMode);
     spy.mockClear();
 
     await sanitizer([item]);
