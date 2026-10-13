@@ -92,6 +92,8 @@ export type {
   MetricsPayload,
   OpenAIAgent,
   OutboundFilter,
+  OutboundRequestContext,
+  RequestReport,
   SerializedSession,
   SessionConfig,
   SessionStorageAdapter,

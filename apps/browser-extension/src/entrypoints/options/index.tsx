@@ -10,6 +10,7 @@ import type { Theme } from "@apty/ui/theme/types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { chromeStorageAdapter } from "../../hooks";
+import { useRequestReports } from "../../hooks/use-request-reports";
 import { initLogging } from "../../lib/logging";
 import {
   isOptionsNavigateMessage,
@@ -109,6 +110,7 @@ const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 function OptionsPageContent() {
   const { skill: initialSkill } = useMemo(parseUrlParams, []);
   const [tab, setTab] = useUrlTab();
+  const requestReports = useRequestReports();
 
   const handleTestConnection = useCallback(async (settings: AppSettings) => {
     const { toolCalling } = await testConnection(settings);
@@ -137,7 +139,7 @@ function OptionsPageContent() {
       }
       connectionContent={
         <div className="space-y-6">
-          <PreflightPanel />
+          <PreflightPanel requestReports={requestReports} />
           <AptyClientPanel />
           <AptyStudioPanel />
           <McpBridgePanel />
@@ -147,6 +149,7 @@ function OptionsPageContent() {
       onTabChange={setTab}
       initialSkill={initialSkill}
       redactionPreview={previewRedaction}
+      recentRequests={requestReports}
     />
   );
 }

@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
   chatAndWait,
+  extensionPage,
   launchBrowser,
   openSidePanel,
   startMockModel,
@@ -314,5 +315,55 @@ describe("screenshot consent (O4)", () => {
     });
     assert.equal(result.status, "refused");
     assert.equal(imageSent, false);
+  });
+});
+
+describe("what was sent (O5)", () => {
+  it("lists the last requests on the Data-handling card and the Preflight page, with sizes and no content", async () => {
+    const marker = "Patient-Marker-Okafor";
+    const { app, tabId } = await openPage("/notes.html");
+    model.script((request) =>
+      toolResults(request).length === 0
+        ? { tool: "search_elements", args: { tabId, query: "*Deploy*" } }
+        : { text: "RESULT: done" },
+    );
+    const panel = await openSidePanel(browser, model, app);
+    await chatAndWait(panel, `check the form field text for ${marker}`);
+    const sentCount = model.requests.length;
+
+    const options = await extensionPage(browser);
+    const stored = await options.evaluate(async () =>
+      JSON.stringify(await chrome.storage.session.get("apty_request_reports")),
+    );
+    assert.ok(!stored.includes(marker), "typed text was stored");
+    assert.ok(!stored.includes("127.0.0.1"), "a URL was stored");
+    assert.ok(!stored.includes("search_elements"), "a tool name was stored");
+
+    const general = options.getByRole("list", { name: "Recent requests" });
+    await general.waitFor();
+    const rows = general.getByRole("listitem");
+    assert.equal(await rows.count(), Math.min(sentCount, 5));
+    assert.match(
+      await rows.first().innerText(),
+      /about [\d,]+ tokens · Strict/,
+    );
+    assert.match(
+      await rows.first().innerText(),
+      /tool results [\d,]+ \(1 results/,
+    );
+
+    await options.getByRole("tab", { name: "Apty Integration" }).click();
+    const preflight = options
+      .locator("#preflight")
+      .getByRole("list", { name: "Recent requests" });
+    assert.equal(
+      await preflight.getByRole("listitem").count(),
+      Math.min(sentCount, 5),
+    );
+    assert.ok(!(await options.locator("body").innerText()).includes(marker));
+
+    await options.close();
+    await panel.close();
+    await app.close();
   });
 });

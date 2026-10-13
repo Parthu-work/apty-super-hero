@@ -114,10 +114,41 @@ export interface AIPexOptions<
   outboundFilters?: OutboundFilter[];
 }
 
+/** What a call sends besides its input items. */
+export interface OutboundRequestContext {
+  instructions?: string;
+  tools: ReadonlyArray<{
+    name: string;
+    description?: string;
+    parameters?: unknown;
+  }>;
+}
+
 /** Returns the items to send; must not drop a function_call or its result. */
 export type OutboundFilter = (
   items: AgentInputItem[],
+  request: OutboundRequestContext,
 ) => AgentInputItem[] | Promise<AgentInputItem[]>;
+
+/**
+ * Counts and estimated tokens (characters / 4) of one model request. Holds no
+ * content: no text, URLs or tool names.
+ */
+export interface RequestReport {
+  at: number;
+  redactionMode: string;
+  systemPromptTokens: number;
+  toolCount: number;
+  toolSchemaTokens: number;
+  historyTokens: number;
+  toolResultTokens: number;
+  totalTokens: number;
+  items: number;
+  toolResults: number;
+  toolResultsStubbed: number;
+  toolResultsCut: number;
+  images: number;
+}
 
 export interface CompressionOptions extends CompressionConfig {
   model: AiSdkModel;

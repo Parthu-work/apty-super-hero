@@ -231,7 +231,7 @@ export class AIPex {
             // Shape screenshot tool results before every model call:
             // strip base64 imageData from tool results and inject a transient
             // user image message so the model can consume images via the vision path.
-            callModelInputFilter: async ({ modelData }) => {
+            callModelInputFilter: async ({ modelData, agent }) => {
               let input = shapeScreenshotItems(
                 sanitizeReasoningItemsForModel(
                   modelData.input,
@@ -239,8 +239,12 @@ export class AIPex {
                   this.modelProvider,
                 ),
               );
+              const request = {
+                instructions: modelData.instructions,
+                tools: (agent as { tools?: FunctionTool[] }).tools ?? [],
+              };
               for (const filter of this.outboundFilters) {
-                input = await filter(input);
+                input = await filter(input, request);
               }
               return { input, instructions: modelData.instructions };
             },

@@ -87,7 +87,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
 | Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | Rename the inherited `aipex_*` storage keys | A migration for existing installs |
-| LLM request safety and size (branch `optimize/llm-requests`, not on `main`) | Owner review per phase; specs in [`docs/tasks/llm/`](tasks/llm/00-rules.md). Phase A (O1-O5): harness done (`npm run report:request-size`), O1-O5 not started |
+| LLM request safety and size (branch `optimize/llm-requests`, not on `main`) | Owner review per phase; specs in [`docs/tasks/llm/`](tasks/llm/00-rules.md). Phase A (O1-O5) done on the branch, awaiting the owner's review (`REVIEW.md`); Phases B and C not started |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Where to look

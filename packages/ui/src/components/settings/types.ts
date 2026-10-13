@@ -3,6 +3,7 @@ import type {
   AppSettings,
   KeyValueStorage,
   RedactionModeSetting,
+  RequestReport,
   ToolCallingSupport,
 } from "@apty/agent-core";
 import type { ReactNode } from "react";
@@ -52,6 +53,8 @@ export interface SettingsPageProps {
   initialSkill?: string;
   /** Redacts the Data-handling Preview sample in a given mode; the host app supplies its redaction library. */
   redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
+  /** The last requests sent to the AI provider, shown in the Data-handling card. */
+  recentRequests?: RequestReport[];
 }
 
 export interface ConnectionTestResult {

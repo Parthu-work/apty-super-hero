@@ -18,6 +18,35 @@ vi.mock("../../services/preflight", async (importOriginal) => ({
 import { PreflightPanel } from "./preflight-panel";
 
 describe("PreflightPanel", () => {
+  it("shows the recent requests it is given, sizes only", () => {
+    render(
+      <PreflightPanel
+        deps={{} as never}
+        requestReports={[
+          {
+            at: 1,
+            redactionMode: "standard",
+            systemPromptTokens: 3928,
+            toolCount: 0,
+            toolSchemaTokens: 0,
+            historyTokens: 1,
+            toolResultTokens: 0,
+            totalTokens: 3929,
+            items: 1,
+            toolResults: 0,
+            toolResultsStubbed: 0,
+            toolResultsCut: 0,
+            images: 0,
+          },
+        ]}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "Recent requests" });
+    expect(within(list).getByRole("listitem")).toHaveTextContent(
+      "about 3,929 tokens",
+    );
+  });
+
   it("runs the checks on click and shows each fix with a copy button", async () => {
     runPreflight.mockResolvedValue([
       { id: "ai-provider", label: "AI provider", status: "pass", detail: "ok" },

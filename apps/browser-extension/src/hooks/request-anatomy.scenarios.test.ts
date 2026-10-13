@@ -109,7 +109,10 @@ async function measure(
   let input = [...scenario.history, user(scenario.message)];
   if (sent) {
     for (const filter of createOutboundFilters()) {
-      input = (await filter(input as AgentInputItem[])) as MeasurableItem[];
+      input = (await filter(input as AgentInputItem[], {
+        instructions: SYSTEM_PROMPT,
+        tools,
+      })) as MeasurableItem[];
     }
   }
   return measureRequest({ instructions: SYSTEM_PROMPT, tools, input });

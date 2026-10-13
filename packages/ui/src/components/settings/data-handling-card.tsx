@@ -1,4 +1,8 @@
-import type { AppSettings, RedactionModeSetting } from "@apty/agent-core";
+import type {
+  AppSettings,
+  RedactionModeSetting,
+  RequestReport,
+} from "@apty/agent-core";
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -14,6 +18,7 @@ import {
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
+import { RecentRequests } from "./recent-requests";
 import { RedactionModeControl } from "./redaction-mode-control";
 import { ScreenshotPolicyControl } from "./screenshot-policy-control";
 
@@ -23,6 +28,8 @@ export interface DataHandlingCardProps {
   language?: string;
   /** Redacts the Preview sample in a given mode (supplied by the host app). */
   redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
+  /** The last requests sent to the AI provider, when the host app can read them. */
+  recentRequests?: RequestReport[];
 }
 
 function parseDenyList(text: string): string[] {
@@ -37,6 +44,7 @@ export function DataHandlingCard({
   onChange,
   language,
   redactionPreview,
+  recentRequests,
 }: DataHandlingCardProps) {
   const zh = language === "zh";
   const [denyListText, setDenyListText] = useState(
@@ -123,6 +131,7 @@ export function DataHandlingCard({
             onBlur={flushDenyList}
           />
         </div>
+        {recentRequests && <RecentRequests reports={recentRequests} />}
       </CardContent>
     </Card>
   );

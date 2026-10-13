@@ -3,7 +3,9 @@
  * demo depends on, each with its exact fix and a copy button; export the
  * results as redacted JSON; reset demo data. See docs/demo/DEMO.md.
  */
+import type { RequestReport } from "@apty/agent-core";
 import { redactTextStrict } from "@apty/browser-runtime/runtime/redaction-mode";
+import { RecentRequests } from "@apty/ui/components/settings/recent-requests";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   Card,
@@ -117,9 +119,12 @@ function CheckRow({ check }: { check: PreflightCheck }) {
 export function PreflightPanel({
   deps = browserPreflightDeps,
   purge = purgeStoredData,
+  requestReports = [],
 }: {
   deps?: PreflightDeps;
   purge?: () => Promise<void>;
+  /** The last requests sent to the AI provider (sizes and counts only). */
+  requestReports?: RequestReport[];
 }) {
   const [checks, setChecks] = useState<PreflightCheck[] | null>(null);
   const [running, setRunning] = useState(false);
@@ -224,6 +229,7 @@ export function PreflightPanel({
             </ul>
           </>
         )}
+        <RecentRequests reports={requestReports} />
       </CardContent>
     </Card>
   );

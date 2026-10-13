@@ -409,6 +409,23 @@ describe("AIPex", () => {
         ).rejects.toThrow("filter broke");
       });
 
+      it("tells each filter the instructions and the tools offered for the call", async () => {
+        const seen: unknown[] = [];
+        const filter = await inputFilterFor([
+          (items, request) => {
+            seen.push(request);
+            return items;
+          },
+        ]);
+        const tools = [{ name: "read_page", description: "d", parameters: {} }];
+        await filter({
+          modelData: { input: [], instructions: "Be brief" },
+          agent: { tools },
+          context: undefined,
+        });
+        expect(seen).toEqual([{ instructions: "Be brief", tools }]);
+      });
+
       it("leaves the input as shaped when no filter is configured", async () => {
         const filter = await inputFilterFor(undefined);
         const { input } = await filter({
