@@ -17,6 +17,8 @@ import type { FunctionTool } from "@apty/agent-core";
 import { createLogger } from "@apty/agent-core";
 import { evidenceRestored } from "../apty/evidence-store.js";
 import { investigationsRestored } from "../apty/investigation-session.js";
+import { redactToolOutput } from "../runtime/outbound-sanitizer.js";
+import { currentRedactionMode } from "../runtime/redaction-mode.js";
 import { allBrowserTools } from "../tools/index.js";
 import {
   type JSONRPCMessage,
@@ -97,6 +99,14 @@ function buildMcpContent(
   }
 
   return [{ type: "text", text: JSON.stringify(data, null, 2) }];
+}
+
+/** MCP clients get what the model would get: the same tool-result redaction. */
+function redactForMcp(result: unknown): unknown {
+  if (typeof result === "string" && result.startsWith("data:image/")) {
+    return result;
+  }
+  return redactToolOutput(result, currentRedactionMode());
 }
 
 export class WsMcpServer {
@@ -368,7 +378,7 @@ export class WsMcpServer {
       ]).finally(() => clearTimeout(timer));
 
       await this.sendResult(request.id, {
-        content: buildMcpContent(result),
+        content: buildMcpContent(redactForMcp(result)),
       });
     } catch (error) {
       await this.sendResult(request.id, {

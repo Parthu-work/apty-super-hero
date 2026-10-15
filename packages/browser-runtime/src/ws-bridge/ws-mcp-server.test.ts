@@ -213,6 +213,26 @@ describe("WsMcpServer requests from the daemon", () => {
     });
   });
 
+  it("redacts a tool result in the current mode before an MCP client gets it", async () => {
+    tools.invoke.mockResolvedValue({
+      password: "hunter2-Secret",
+      note: "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl",
+    });
+    const socket = await connected(new WsMcpServer());
+
+    const reply = await call(socket, {
+      jsonrpc: "2.0",
+      id: 9,
+      method: "tools/call",
+      params: { name: "get_current_tab", arguments: {} },
+    });
+
+    const text = JSON.stringify(reply);
+    expect(text).not.toContain("hunter2-Secret");
+    expect(text).not.toContain("eyJzdWIiOiIxIn0");
+    expect(reply.result.content[0].type).toBe("text");
+  });
+
   it("returns a screenshot data URL as an image block", async () => {
     tools.invoke.mockResolvedValue("data:image/png;base64,AAAA");
     const socket = await connected(new WsMcpServer());

@@ -11,8 +11,7 @@ configure yourself.
 |---|---|---|
 | The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings | Only while you chat. Nothing is sent before you configure a provider. |
 | The Apty Client extension you connect | Requests for its own service-worker logs, status and observed resources | Only when the agent investigates the Client. |
-| A local MCP daemon you connect (`localhost` only) | Tool results for the MCP client you run, such as Claude Code | Only while you keep the bridge connected. |
-| Websites a skill script requests | Whatever the script sends, without your cookies | Only with skill execution turned on, and only after you allow that script to run. |
+| A local MCP daemon you connect (`localhost` only) | Tool results for the MCP client you run, such as Claude Code, filtered exactly like the results sent to the AI provider (see below) | Only while you keep the bridge connected. |
 | A diagnostic HTTP endpoint built into your build (`VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT`) | Requests for service-worker diagnostics | Only if your build sets it; empty by default. |
 
 There is no analytics, telemetry, crash reporting or advertising. Apty does
@@ -49,32 +48,48 @@ regulated data:
 | Replicate | Nothing beyond the request | [Privacy policy](https://replicate.com/privacy) |
 | Custom (any OpenAI-compatible host) | Nothing beyond the request | The policy of whoever runs that host |
 
-## What the AI provider never sees in the clear
+## What is masked before it leaves your browser
 
-Before any diagnostic data reaches the model, the agent redacts what looks
-sensitive: `Authorization`, cookie and API-key headers, tokens, passwords,
-email addresses and similar values in console output, request details and
-JSON bodies. Redaction is pattern-based, so it can miss secrets in an
-unusual shape; avoid investigating pages that hold data you must not share
-with your AI provider.
+Every tool result goes through the same filter before it reaches the AI
+provider or an MCP client. Its strength is set in **Settings → General →
+Data handling → Redaction**:
 
-**Settings → General → Data handling → Redaction** chooses how much is
-masked; every tool result, log line and body goes through the same setting:
+| | Strict (default) | Standard | Off (development only) |
+|---|---|---|---|
+| Secrets recognised by their shape (tokens, API keys, JWTs, bearer credentials, emails) | Masked | Masked | Masked |
+| `Authorization`, cookie and API-key headers; values of keys such as `password`, `token`, `secret` in JSON | Masked | Masked | Not masked |
+| Values of JSON keys naming a person or record (`username`, `email`, `firstName`, `lastName`, `fullName`, `displayName`, `phone`, `address`, `dob`, `ssn`, `mrn`, any key starting with `patient`; `userId` is replaced by a stable pseudonym). A bare `name` key is not masked. | Masked | Masked | Not masked |
+| Values of JSON keys holding page context (`page_title`, `page_path`, `page_search`, `referrer`) | Masked | Not masked | Not masked |
+| Any web URL in a tool result | Query string and fragment removed; the path is kept | Each query value replaced with `[masked]`; the path is kept | Sent as is |
+| A tab or page as the tab and page tools describe it | Tab id and origin only: no title, no path | Title and URL with masked query values | Sent as is |
+| Values typed or chosen in form fields | Not sent | Replaced with `[masked]` | Sent as is |
 
-| Mode | Masks | Values typed into form fields |
-|---|---|---|
-| Strict (default) | Secrets, personal data (names, usernames, emails, patient fields) and page context (titles, paths) | Not sent at all |
-| Standard | Secrets and personal data; keeps page titles and paths | Replaced with `[masked]` (a filled field can be told from an empty one) |
-| Off (development only) | Only secrets recognised by their shape: tokens, API keys, JWTs, bearer credentials, emails | Sent as the page has them |
+What no mode hides:
+
+- **Page text is sent as the page shows it in every mode.** A patient's
+  name, record number, date of birth or diagnosis written as text on the
+  page, or in a link label, reaches the AI provider when a tool reads the
+  page. Redaction masks values by the key they sit under or by their
+  shape, never by meaning, so it cannot recognise these in prose.
+- Path segments in URLs are kept in Strict, so a record number in a path
+  (`/patients/884213/chart`) is sent. Only the page-context keys above
+  have record-like path segments masked.
+- Checkbox and radio states are sent in every mode.
+- Page titles are sent in Standard and Off.
 
 "Form fields" means inputs, text areas, selects (the chosen option) and
-editable regions, read through `search_elements` or `get_editor_value`; the
-URL of the page in `get_page_metadata` loses its query string in Strict and
-keeps only the parameter names in Standard. Page text and labels are sent as
-the page shows them, so a patient name printed as plain text on a page is
-**not** hidden by these modes. Checkbox and radio states are also sent.
-Anything you type in the chat has tokens, keys, JWTs and emails masked in
-Strict and Standard.
+editable regions, read through `search_elements` or `get_editor_value`.
+Page and tab contexts you attach to a message get the same URL and title
+rules as the tab tools. Anything you type in the chat has tokens, keys,
+JWTs and emails masked in Strict and Standard, and is otherwise sent as you
+typed it.
+
+Redaction is pattern-based, so it can miss a secret in an unusual shape.
+Avoid investigating pages that hold data you must not share with your AI
+provider.
+
+MCP clients receive tool results after the same filter, in the same mode.
+They do not receive your chat messages.
 
 **Settings → General → Data handling → Screenshots** decides whether a
 screenshot of the page may be sent to your AI provider: **Ask each time**

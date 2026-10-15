@@ -26,6 +26,7 @@ import {
   useOutboundFilters,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
+import { formatContextsPrivately } from "../hooks/outbound-filters";
 import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
@@ -143,7 +144,10 @@ function ChatApp() {
     storage,
     contextProviders,
     tools,
-    agentOptions: { outboundFilters },
+    agentOptions: {
+      outboundFilters,
+      contextFormatter: formatContextsPrivately,
+    },
     ...BROWSER_AGENT_CONFIG,
   });
 

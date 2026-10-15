@@ -112,6 +112,12 @@ export interface AIPexOptions<
    * call: input is never sent unfiltered.
    */
   outboundFilters?: OutboundFilter[];
+  /**
+   * Turns attached contexts into the text prepended to the user message.
+   * Defaults to formatContextsForPrompt; a host uses it to apply its
+   * privacy policy to page and tab contexts.
+   */
+  contextFormatter?: (contexts: Context[]) => string;
 }
 
 /** What a call sends besides its input items. */

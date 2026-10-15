@@ -27,10 +27,14 @@ interface CachedResult {
   redacted: unknown;
 }
 
-function redactOutput(output: unknown, mode: RedactionMode): unknown {
+/** A tool result redacted in `mode`; image parts are left as they are. */
+export function redactToolOutput(
+  output: unknown,
+  mode: RedactionMode,
+): unknown {
   if (typeof output === "string") return redactJsonTextInMode(output, mode);
   if (Array.isArray(output)) {
-    return output.map((part) => redactOutput(part, mode));
+    return output.map((part) => redactToolOutput(part, mode));
   }
   if (typeof output === "object" && output !== null) {
     const record = output as Record<string, unknown>;
@@ -90,7 +94,7 @@ export function createOutboundSanitizer(
         ? item
         : ({ ...item, output: cached.redacted } as AgentInputItem);
     }
-    const redacted = redactOutput(output, mode);
+    const redacted = redactToolOutput(output, mode);
     if (callId) remember(callId, { mode, source: output, redacted });
     return sameContent(redacted, output)
       ? item

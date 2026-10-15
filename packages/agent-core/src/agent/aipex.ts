@@ -100,6 +100,8 @@ export class AIPex {
   private modelId?: string;
   private modelProvider?: string;
   private outboundFilters: OutboundFilter[];
+  private contextFormatter: (contexts: Context[]) => string =
+    formatContextsForPrompt;
 
   private constructor(
     agent: OpenAIAgent,
@@ -132,7 +134,7 @@ export class AIPex {
     });
 
     const conversationManager = AIPex.buildConversationManager(options);
-    return new AIPex(
+    const instance = new AIPex(
       agent,
       conversationManager,
       options.contextManager,
@@ -142,6 +144,10 @@ export class AIPex {
       options.modelProvider,
       options.outboundFilters,
     );
+    if (options.contextFormatter) {
+      instance.contextFormatter = options.contextFormatter;
+    }
+    return instance;
   }
 
   private static buildConversationManager(
@@ -486,7 +492,7 @@ export class AIPex {
         if (contextObjs.length > 0) {
           resolvedContexts = contextObjs;
           // Format contexts and prepend to input
-          const contextText = formatContextsForPrompt(contextObjs);
+          const contextText = this.contextFormatter(contextObjs);
           finalTextInput = `${contextText}\n\n${input}`;
 
           yield { type: "contexts_attached", contexts: contextObjs };

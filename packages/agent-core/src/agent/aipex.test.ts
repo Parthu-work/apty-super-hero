@@ -163,6 +163,39 @@ describe("AIPex", () => {
       expect(events[0]?.type).toBe("content_delta");
     });
 
+    it("formats attached contexts with the configured contextFormatter", async () => {
+      vi.mocked(run).mockResolvedValue(
+        createMockRunResult({ finalOutput: "ok" }),
+      );
+      const contextFormatter = vi.fn(() => "[tab: https://ehr.example.com]");
+
+      const agent = AIPex.create({
+        instructions: "Test",
+        model: mockModel,
+        conversation: false,
+        contextFormatter,
+      });
+
+      for await (const _event of agent.chat("Hi", {
+        contexts: [
+          {
+            id: "tab-1",
+            type: "tab",
+            providerId: "p",
+            label: "Jane Testpatient",
+            value: "https://ehr.example.com/?mrn=1",
+          },
+        ],
+      })) {
+        // consume events
+      }
+
+      const input = JSON.stringify(vi.mocked(run).mock.calls[0]![1]);
+      expect(contextFormatter).toHaveBeenCalledOnce();
+      expect(input).toContain("[tab: https://ehr.example.com]");
+      expect(input).not.toContain("Testpatient");
+    });
+
     it("should pass an EphemeralSession to run() in stateless mode", async () => {
       vi.mocked(run).mockResolvedValue(
         createMockRunResult({

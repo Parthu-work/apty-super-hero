@@ -50,10 +50,10 @@ after(async () => {
  * Run `steps` as consecutive tool calls in one chat turn. Each step is
  * `(previousResults) => ({ tool, args })`. Resolves with every tool result.
  */
-async function runSteps(prompt, steps) {
+async function runSteps(prompt, steps, settings = {}) {
   const app = await browser.context.newPage();
   await app.goto(`${site.origin}/orders.html`);
-  const panel = await openSidePanel(browser, model, app);
+  const panel = await openSidePanel(browser, model, app, settings);
   model.script((request) => {
     const results = toolResults(request);
     const step = steps[results.length]?.(results);
@@ -109,6 +109,8 @@ describe("everyday tools in a real browser", () => {
         }),
         () => ({ tool: "get_page_metadata", args: {} }),
       ],
+      // Strict withholds page titles (S4/D4); this test reads one back.
+      { redactionMode: "standard" },
     );
 
     const [tab, search, click, metadata] = results;
