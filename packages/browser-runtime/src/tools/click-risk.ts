@@ -247,7 +247,7 @@ export function inspectClickTargetInPage(
     root: Document | ShadowRoot,
     uid: string,
   ): Element | null => {
-    const selector = `[data-aipex-nodeid="${uid.replace(/["\\]/g, "\\$&")}"]`;
+    const selector = `[data-apty-nodeid="${uid.replace(/["\\]/g, "\\$&")}"]`;
     const direct = root.querySelector(selector);
     if (direct) return direct;
     for (const el of root.querySelectorAll("*")) {

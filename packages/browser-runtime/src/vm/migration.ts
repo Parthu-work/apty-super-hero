@@ -13,8 +13,8 @@ import { zenfs } from "./zenfs-manager";
 
 const log = createLogger("VmMigration");
 
-const MIGRATION_KEY = "aipex_zenfs_migration_status";
-const MIGRATION_V2_KEY = "aipex_zenfs_migration_v2_status";
+const MIGRATION_KEY = "apty_zenfs_migration_status";
+const MIGRATION_V2_KEY = "apty_zenfs_migration_v2_status";
 
 interface MigrationStatus {
   completed: boolean;

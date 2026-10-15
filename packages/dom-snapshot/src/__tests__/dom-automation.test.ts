@@ -33,7 +33,7 @@ describe("DOM snapshot collector", () => {
 
     const snapshot = collectDomSnapshot(document);
     const button = $<HTMLButtonElement>("#primary-btn")!;
-    const buttonUid = button.getAttribute("data-aipex-nodeid")!;
+    const buttonUid = button.getAttribute("data-apty-nodeid")!;
 
     expect(buttonUid).toBeTruthy();
     expect(snapshot.totalNodes).toBeGreaterThan(0);
@@ -276,19 +276,19 @@ describe("DOM snapshot collector", () => {
     expect(allText).not.toContain("Hidden L4");
 
     expect(
-      $<HTMLButtonElement>("#btn-v1")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#btn-v1")!.getAttribute("data-apty-nodeid"),
     ).toBeTruthy();
     expect(
-      $<HTMLButtonElement>("#btn-v2")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#btn-v2")!.getAttribute("data-apty-nodeid"),
     ).toBeTruthy();
     expect(
-      $<HTMLButtonElement>("#btn-v3")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#btn-v3")!.getAttribute("data-apty-nodeid"),
     ).toBeTruthy();
     expect(
-      $<HTMLButtonElement>("#btn-h1")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#btn-h1")!.getAttribute("data-apty-nodeid"),
     ).toBeNull();
     expect(
-      $<HTMLButtonElement>("#btn-h2")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#btn-h2")!.getAttribute("data-apty-nodeid"),
     ).toBeNull();
   });
 
@@ -332,27 +332,25 @@ describe("DOM snapshot collector", () => {
     expect(allText).not.toContain("C hidden");
 
     expect(
-      $<HTMLButtonElement>("#b-visible")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#b-visible")!.getAttribute("data-apty-nodeid"),
     ).toBeTruthy();
     expect(
-      $<HTMLButtonElement>("#b-visible-deep")!.getAttribute(
-        "data-aipex-nodeid",
-      ),
+      $<HTMLButtonElement>("#b-visible-deep")!.getAttribute("data-apty-nodeid"),
     ).toBeTruthy();
     expect(
-      $<HTMLButtonElement>("#c-visible")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#c-visible")!.getAttribute("data-apty-nodeid"),
     ).toBeTruthy();
 
     expect(
-      $<HTMLButtonElement>("#a-hidden")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#a-hidden")!.getAttribute("data-apty-nodeid"),
     ).toBeNull();
     expect(
       $<HTMLButtonElement>("#b-hidden-sibling")!.getAttribute(
-        "data-aipex-nodeid",
+        "data-apty-nodeid",
       ),
     ).toBeNull();
     expect(
-      $<HTMLButtonElement>("#c-hidden")!.getAttribute("data-aipex-nodeid"),
+      $<HTMLButtonElement>("#c-hidden")!.getAttribute("data-apty-nodeid"),
     ).toBeNull();
   });
 
@@ -534,7 +532,7 @@ describe("DOM snapshot collector", () => {
     const { $ } = setHtml(`<button>Test</button>`);
 
     collectDomSnapshot(document);
-    const nodeId = $("button")!.getAttribute("data-aipex-nodeid");
+    const nodeId = $("button")!.getAttribute("data-apty-nodeid");
 
     expect(nodeId).toBeTruthy();
     expect(nodeId).toMatch(/^dom_/);
@@ -542,13 +540,13 @@ describe("DOM snapshot collector", () => {
 
   it("reuses existing node IDs", () => {
     const { $ } = setHtml(
-      `<button data-aipex-nodeid="existing_id">Test Button</button>`,
+      `<button data-apty-nodeid="existing_id">Test Button</button>`,
     );
 
     collectDomSnapshot(document);
 
     // The node ID should remain unchanged
-    expect($("button")!.getAttribute("data-aipex-nodeid")).toBe("existing_id");
+    expect($("button")!.getAttribute("data-apty-nodeid")).toBe("existing_id");
   });
 
   it("generates stable IDs across multiple snapshot calls", () => {
@@ -562,9 +560,9 @@ describe("DOM snapshot collector", () => {
 
     // First snapshot call - generates IDs
     collectDomSnapshot(document);
-    const id1_first = buttons?.[0]?.getAttribute("data-aipex-nodeid");
-    const id2_first = buttons?.[1]?.getAttribute("data-aipex-nodeid");
-    const id3_first = buttons?.[2]?.getAttribute("data-aipex-nodeid");
+    const id1_first = buttons?.[0]?.getAttribute("data-apty-nodeid");
+    const id2_first = buttons?.[1]?.getAttribute("data-apty-nodeid");
+    const id3_first = buttons?.[2]?.getAttribute("data-apty-nodeid");
 
     expect(id1_first).toBeTruthy();
     expect(id2_first).toBeTruthy();
@@ -572,21 +570,21 @@ describe("DOM snapshot collector", () => {
 
     // Second snapshot call - should reuse same IDs
     collectDomSnapshot(document);
-    expect(buttons?.[0]?.getAttribute("data-aipex-nodeid")).toBe(id1_first);
-    expect(buttons?.[1]?.getAttribute("data-aipex-nodeid")).toBe(id2_first);
-    expect(buttons?.[2]?.getAttribute("data-aipex-nodeid")).toBe(id3_first);
+    expect(buttons?.[0]?.getAttribute("data-apty-nodeid")).toBe(id1_first);
+    expect(buttons?.[1]?.getAttribute("data-apty-nodeid")).toBe(id2_first);
+    expect(buttons?.[2]?.getAttribute("data-apty-nodeid")).toBe(id3_first);
 
     // Third snapshot call - IDs still stable
     collectDomSnapshot(document);
-    expect(buttons?.[0]?.getAttribute("data-aipex-nodeid")).toBe(id1_first);
-    expect(buttons?.[1]?.getAttribute("data-aipex-nodeid")).toBe(id2_first);
-    expect(buttons?.[2]?.getAttribute("data-aipex-nodeid")).toBe(id3_first);
+    expect(buttons?.[0]?.getAttribute("data-apty-nodeid")).toBe(id1_first);
+    expect(buttons?.[1]?.getAttribute("data-apty-nodeid")).toBe(id2_first);
+    expect(buttons?.[2]?.getAttribute("data-apty-nodeid")).toBe(id3_first);
 
     // Fourth snapshot call with different options - IDs still stable
     collectDomSnapshot(document, { maxTextLength: 100 });
-    expect(buttons?.[0]?.getAttribute("data-aipex-nodeid")).toBe(id1_first);
-    expect(buttons?.[1]?.getAttribute("data-aipex-nodeid")).toBe(id2_first);
-    expect(buttons?.[2]?.getAttribute("data-aipex-nodeid")).toBe(id3_first);
+    expect(buttons?.[0]?.getAttribute("data-apty-nodeid")).toBe(id1_first);
+    expect(buttons?.[1]?.getAttribute("data-apty-nodeid")).toBe(id2_first);
+    expect(buttons?.[2]?.getAttribute("data-apty-nodeid")).toBe(id3_first);
   });
 
   it("generates unique IDs for different elements", () => {
@@ -599,9 +597,9 @@ describe("DOM snapshot collector", () => {
     collectDomSnapshot(document);
 
     const buttons = $$("button");
-    const id1 = buttons?.[0]?.getAttribute("data-aipex-nodeid");
-    const id2 = buttons?.[1]?.getAttribute("data-aipex-nodeid");
-    const id3 = buttons?.[2]?.getAttribute("data-aipex-nodeid");
+    const id1 = buttons?.[0]?.getAttribute("data-apty-nodeid");
+    const id2 = buttons?.[1]?.getAttribute("data-apty-nodeid");
+    const id3 = buttons?.[2]?.getAttribute("data-apty-nodeid");
 
     // All IDs should be unique
     expect(id1).not.toBe(id2);
@@ -1159,7 +1157,7 @@ describe("DOM snapshot manager", () => {
       </button>`);
     const ignore = $<HTMLDivElement>("div.ignore")!;
     expect(ignore).toBeTruthy();
-    expect(ignore.getAttribute("data-aipex-nodeid")).toBeFalsy();
+    expect(ignore.getAttribute("data-apty-nodeid")).toBeFalsy();
     const serialized = collectDomSnapshot(document);
     const textSnapshot = buildTextSnapshot(serialized);
     const formatted = formatSnapshot(textSnapshot);
@@ -2175,7 +2173,7 @@ describe("cursor: pointer detection", () => {
 
     const snapshot = collectDomSnapshot(document);
     const clickableEl = document.querySelector(".clickable");
-    const nodeId = clickableEl?.getAttribute("data-aipex-nodeid");
+    const nodeId = clickableEl?.getAttribute("data-apty-nodeid");
 
     expect(nodeId).toBeTruthy();
     expect(snapshot.idToNode[nodeId!]).toBeDefined();
@@ -2203,7 +2201,7 @@ describe("cursor: pointer detection", () => {
 
     const snapshot = collectDomSnapshot(document);
     const cardEl = document.querySelector('[data-slot="card"]');
-    const nodeId = cardEl?.getAttribute("data-aipex-nodeid");
+    const nodeId = cardEl?.getAttribute("data-apty-nodeid");
 
     expect(nodeId).toBeTruthy();
     expect(snapshot.idToNode[nodeId!]).toBeDefined();
@@ -2243,10 +2241,10 @@ describe("cursor: pointer detection", () => {
     const outerEl = document.querySelector(".outer-card");
     const innerEl = document.querySelector(".inner-tag");
 
-    expect(outerEl?.getAttribute("data-aipex-nodeid")).toBeTruthy();
-    expect(innerEl?.getAttribute("data-aipex-nodeid")).toBeTruthy();
-    expect(outerEl?.getAttribute("data-aipex-nodeid")).not.toBe(
-      innerEl?.getAttribute("data-aipex-nodeid"),
+    expect(outerEl?.getAttribute("data-apty-nodeid")).toBeTruthy();
+    expect(innerEl?.getAttribute("data-apty-nodeid")).toBeTruthy();
+    expect(outerEl?.getAttribute("data-apty-nodeid")).not.toBe(
+      innerEl?.getAttribute("data-apty-nodeid"),
     );
   });
 
@@ -2260,7 +2258,7 @@ describe("cursor: pointer detection", () => {
 
     const snapshot = collectDomSnapshot(document);
     const tagEl = document.querySelector(".ant-tag");
-    const nodeId = tagEl?.getAttribute("data-aipex-nodeid");
+    const nodeId = tagEl?.getAttribute("data-apty-nodeid");
 
     expect(nodeId).toBeTruthy();
     expect(snapshot.idToNode[nodeId!]).toBeDefined();
@@ -2299,7 +2297,7 @@ describe("cursor: pointer detection", () => {
 
     const snapshot = collectDomSnapshot(document);
     const rowEl = document.querySelector(".clickable-row");
-    const nodeId = rowEl?.getAttribute("data-aipex-nodeid");
+    const nodeId = rowEl?.getAttribute("data-apty-nodeid");
 
     expect(nodeId).toBeTruthy();
     expect(snapshot.idToNode[nodeId!]).toBeDefined();

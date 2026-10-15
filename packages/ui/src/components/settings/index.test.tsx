@@ -127,7 +127,7 @@ describe("SettingsPage", () => {
 
   it("saves General-tab switches at once, keeping the stored AI settings", async () => {
     const storageAdapter = createMemoryStorage<unknown>();
-    await storageAdapter.save("aipex_settings", {
+    await storageAdapter.save("apty_settings", {
       aiToken: "stored-key",
       aiModel: "gpt-4o",
     });
@@ -148,7 +148,7 @@ describe("SettingsPage", () => {
 
     await waitFor(() =>
       expect(storageAdapter.save).toHaveBeenLastCalledWith(
-        "aipex_settings",
+        "apty_settings",
         expect.objectContaining({
           aiToken: "stored-key",
           networkBodyCaptureEnabled: true,
@@ -161,7 +161,7 @@ describe("SettingsPage", () => {
 
   it("fills fields the stored settings leave out with their defaults, and saves the schema version", async () => {
     const storageAdapter = createMemoryStorage<unknown>();
-    await storageAdapter.save("aipex_settings", { aiToken: "stored-key" });
+    await storageAdapter.save("apty_settings", { aiToken: "stored-key" });
     storageAdapter.save.mockClear();
     render(
       <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
@@ -177,7 +177,7 @@ describe("SettingsPage", () => {
 
     await waitFor(() =>
       expect(storageAdapter.save).toHaveBeenLastCalledWith(
-        "aipex_settings",
+        "apty_settings",
         expect.objectContaining({
           aiToken: "stored-key",
           verboseLogging: true,
@@ -274,7 +274,7 @@ describe("SettingsPage", () => {
         await screen.findByText("Settings saved successfully!"),
       ).toBeInTheDocument();
       expect(storageAdapter.save).toHaveBeenCalledWith(
-        "aipex_settings",
+        "apty_settings",
         expect.objectContaining({
           aiToken: "sk-test",
           aiModel: "gpt-4o-mini",

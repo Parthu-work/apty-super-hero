@@ -43,9 +43,9 @@ function matcher(
 }
 
 export const DEFAULT_IGNORED_ROOTS: readonly IgnoredRootMatcher[] = [
-  /** The Agent's content script mounts `#aipex-content-root` and `#aipex-border-overlay` (`apps/browser-extension/src/entrypoints/content/index.tsx`). */
-  matcher("id-prefix", "aipex-", "Apty Agent", "repository"),
-  /** `widget-diagnostics.ts` detects the Apty Widget by `[id^="apty-"]` and `[class*="apty-widget"]`; not checked against a live Widget or Studio DOM. */
+  /** The Agent's content script mounts `#apty-agent-content-root` and `#apty-agent-border-overlay` (`apps/browser-extension/src/entrypoints/content/index.tsx`). */
+  matcher("id-prefix", "apty-agent-", "Apty Agent", "repository"),
+  /** `widget-diagnostics.ts` detects the Apty Widget by `[id^="apty-"]` (other than the Agent's own `apty-agent-` nodes) and `[class*="apty-widget"]`; not checked against a live Widget or Studio DOM. */
   matcher("id-prefix", "apty-", "Apty Widget / Studio", "repository"),
   matcher("class-prefix", "apty-widget", "Apty Widget", "repository"),
   matcher("class-prefix", "apty-studio", "Apty Studio", "unverified"),

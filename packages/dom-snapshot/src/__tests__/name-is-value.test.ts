@@ -7,7 +7,7 @@ function nodeFor(html: string, selector: string): DomSnapshotNode {
   const snapshot = collectDomSnapshot(document);
   const uid = document
     .querySelector(selector)
-    ?.getAttribute("data-aipex-nodeid") as string;
+    ?.getAttribute("data-apty-nodeid") as string;
   return snapshot.idToNode[uid] as DomSnapshotNode;
 }
 

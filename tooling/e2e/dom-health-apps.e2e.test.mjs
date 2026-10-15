@@ -342,7 +342,11 @@ describe("DOM Health on six application shapes", () => {
 
     const matchers = result.excludedRoots.map((r) => r.matcher);
     // The Agent's own UI is in the page during a run, and is left out too.
-    assert.deepEqual(matchers, ["id:_pendo-", "id:aipex-", "id:intercom-"]);
+    assert.deepEqual(matchers, [
+      "id:_pendo-",
+      "id:apty-agent-",
+      "id:intercom-",
+    ]);
     assert.equal(result.coverage.elementsAnalyzed, 2);
   });
 

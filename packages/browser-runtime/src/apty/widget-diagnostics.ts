@@ -59,7 +59,9 @@ export class ScriptingWidgetDiagnosticsProvider
           const bridge = (window as { __APTY_WIDGET__?: RawAptyWidgetBridge })
             .__APTY_WIDGET__;
           const domPresent = Boolean(
-            document.querySelector('[id^="apty-"], [class*="apty-widget"]'),
+            document.querySelector(
+              '[id^="apty-"]:not([id^="apty-agent-"]), [class*="apty-widget"]',
+            ),
           );
           return { present: Boolean(bridge), domPresent, bridge };
         },

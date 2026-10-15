@@ -1,6 +1,6 @@
 /**
  * S3: deleting stored data reaches the agent's own session store
- * (IndexedDB aipex-sessions), which holds raw tool outputs.
+ * (IndexedDB apty-sessions), which holds raw tool outputs.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -58,7 +58,7 @@ function readStore(page, dbName, storeName) {
 }
 
 const sessionIds = async (page) =>
-  (await readStore(page, "aipex-sessions", "sessions")).map((s) => s.id).sort();
+  (await readStore(page, "apty-sessions", "sessions")).map((s) => s.id).sort();
 
 const conversations = (page) =>
   readStore(page, "aipex-conversations-db", "conversations");
@@ -104,7 +104,7 @@ describe("deleting stored data", () => {
     await options.getByRole("button", { name: "Delete everything" }).click();
     await waitFor(
       async () => (await sessionIds(options)).length === 0,
-      "aipex-sessions to be empty",
+      "apty-sessions to be empty",
     );
 
     assert.deepEqual(await sessionIds(options), []);

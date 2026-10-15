@@ -71,10 +71,10 @@ Executable code (JavaScript/Node.js/etc.) that can be run directly to perform sp
 
 **Appropriate for:** JavaScript scripts, Node.js modules, or any executable code that performs automation, data processing, or specific operations.
 
-**Note:** Scripts may be executed without loading into context, but can still be read by AIPex for patching or environment adjustments.
+**Note:** Scripts may be executed without loading into context, but can still be read by Apty Agent for patching or environment adjustments.
 
 ### references/
-Documentation and reference material intended to be loaded into context to inform AIPex's process and thinking.
+Documentation and reference material intended to be loaded into context to inform Apty Agent's process and thinking.
 
 **Examples from other skills:**
 - Product management: \`communication.md\`, \`context_building.md\` - detailed workflow guides
@@ -84,7 +84,7 @@ Documentation and reference material intended to be loaded into context to infor
 **Appropriate for:** In-depth documentation, API references, database schemas, comprehensive guides, or any detailed information that AIP e x should reference while working.
 
 ### assets/
-Files not intended to be loaded into context, but rather used within the output AIPex produces.
+Files not intended to be loaded into context, but rather used within the output Apty Agent produces.
 
 **Examples from other skills:**
 - Brand styling: PowerPoint template files (.pptx), logo files
@@ -140,7 +140,7 @@ This placeholder represents where asset files would be stored.
 Replace with actual asset files (templates, images, fonts, etc.) or delete if not needed.
 
 Asset files are NOT intended to be loaded into context, but rather used within
-the output AIPex produces.
+the output Apty Agent produces.
 
 Example asset files from other skills:
 - Brand guidelines: logo.png, slides_template.pptx

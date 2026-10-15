@@ -326,11 +326,11 @@ export const highlightTextInlineTool = tool({
           let totalMatches = 0;
 
           // Create highlight styles if not already present
-          if (!document.getElementById("aipex-text-highlight-styles")) {
+          if (!document.getElementById("apty-agent-text-highlight-styles")) {
             const styleSheet = document.createElement("style");
-            styleSheet.id = "aipex-text-highlight-styles";
+            styleSheet.id = "apty-agent-text-highlight-styles";
             styleSheet.textContent = `
-              .aipex-text-highlight {
+              .apty-agent-text-highlight {
                 color: ${highlightColor} !important;
                 background-color: ${backgroundColor} !important;
                 font-weight: ${fontWeight} !important;
@@ -339,7 +339,7 @@ export const highlightTextInlineTool = tool({
                 transition: all 0.2s ease;
               }
 
-              .aipex-text-highlight:hover {
+              .apty-agent-text-highlight:hover {
                 background-color: rgba(220, 20, 60, 0.1) !important;
               }
             `;
@@ -388,7 +388,7 @@ export const highlightTextInlineTool = tool({
 
               // Add highlighted match
               const span = document.createElement("span");
-              span.className = "aipex-text-highlight";
+              span.className = "apty-agent-text-highlight";
               span.textContent = match;
               fragment.appendChild(span);
 

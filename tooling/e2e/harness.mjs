@@ -11,6 +11,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -36,8 +37,13 @@ export function chromiumPath() {
   return require("puppeteer").executablePath();
 }
 
+/**
+ * A new temporary directory, by its real path: Chrome derives an unpacked
+ * extension's ID from the real path, and macOS's temp directory is a symlink
+ * (/var → /private/var), so `unpackedExtensionId` would otherwise be wrong.
+ */
 export function tempDir(prefix) {
-  return mkdtempSync(join(tmpdir(), prefix));
+  return realpathSync(mkdtempSync(join(tmpdir(), prefix)));
 }
 
 /** HTTP server on a random loopback port; `handler(req, res, body)`. */
@@ -335,7 +341,7 @@ export async function openSidePanel(browser, model, targetPage, settings = {}) {
   await panel.evaluate(
     async ({ baseUrl, settings }) => {
       await chrome.storage.local.set({
-        aipex_settings: {
+        apty_settings: {
           aiProvider: "custom",
           aiHost: baseUrl,
           aiToken: "e2e-key",

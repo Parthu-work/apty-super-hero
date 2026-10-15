@@ -159,7 +159,7 @@ describe("built extension in Chromium", () => {
         .map((frame) =>
           frame
             .evaluate(() =>
-              Boolean(document.getElementById("aipex-content-root")),
+              Boolean(document.getElementById("apty-agent-content-root")),
             )
             .catch(() => "unreachable"),
         ),

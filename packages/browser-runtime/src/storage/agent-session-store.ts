@@ -5,6 +5,12 @@ import { IndexedDBStorage } from "./indexeddb-storage.js";
  * filter). Every deletion path for conversations must reach it too.
  */
 export const AGENT_SESSION_DB = {
+  dbName: "apty-sessions",
+  storeName: "sessions",
+} as const;
+
+/** The same store under its upstream AIPex name, moved on first use. */
+export const LEGACY_AGENT_SESSION_DB = {
   dbName: "aipex-sessions",
   storeName: "sessions",
 } as const;
@@ -14,6 +20,25 @@ interface StoredSession {
   parentSessionId?: string;
 }
 
+/** Whole-database operations, swappable in tests. */
+export interface SessionDbOps {
+  exists: (dbName: string) => Promise<boolean>;
+  drop: (dbName: string) => Promise<void>;
+}
+
+const browserDbOps: SessionDbOps = {
+  exists: async (dbName) => {
+    if (typeof indexedDB === "undefined" || !indexedDB.databases) return false;
+    return (await indexedDB.databases()).some((db) => db.name === dbName);
+  },
+  drop: (dbName) =>
+    new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(dbName);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    }),
+};
+
 let store: IndexedDBStorage<StoredSession> | null = null;
 
 function sessions(): IndexedDBStorage<StoredSession> {
@@ -21,12 +46,48 @@ function sessions(): IndexedDBStorage<StoredSession> {
   return store;
 }
 
-/** Delete these sessions and every session forked from them. */
-export async function deleteAgentSessions(
+/**
+ * Copy every session from the legacy database, read each one back, then drop
+ * the legacy database. A session already in the new database wins.
+ * Idempotent; returns how many sessions the legacy database held.
+ */
+export async function migrateLegacyAgentSessions(
+  ops: SessionDbOps = browserDbOps,
+): Promise<number> {
+  if (!(await ops.exists(LEGACY_AGENT_SESSION_DB.dbName))) return 0;
+  const legacy = new IndexedDBStorage<StoredSession>(LEGACY_AGENT_SESSION_DB);
+  const rows = await legacy.listAll();
+  for (const row of rows) {
+    if (!(await sessions().load(row.id))) await sessions().save(row.id, row);
+  }
+  for (const row of rows) {
+    if (!(await sessions().load(row.id))) {
+      throw new Error("agent_session_migration_verify_failed");
+    }
+  }
+  await legacy.close();
+  await ops.drop(LEGACY_AGENT_SESSION_DB.dbName);
+  return rows.length;
+}
+
+let migration: Promise<number> | null = null;
+
+/** Runs the legacy-database move once per context; a failed run is retried on the next call. */
+export function ensureAgentSessionsMigrated(
+  ops: SessionDbOps = browserDbOps,
+): Promise<number> {
+  migration ??= migrateLegacyAgentSessions(ops).catch((error) => {
+    migration = null;
+    throw error;
+  });
+  return migration;
+}
+
+async function deleteWithForks(
+  from: IndexedDBStorage<StoredSession>,
   ids: readonly string[],
 ): Promise<void> {
-  if (ids.length === 0) return;
-  const all = await sessions().listAll();
+  const all = await from.listAll();
   const doomed = new Set(ids);
   let grew = true;
   while (grew) {
@@ -42,9 +103,37 @@ export async function deleteAgentSessions(
       }
     }
   }
-  await Promise.all([...doomed].map((id) => sessions().delete(id)));
+  await Promise.all([...doomed].map((id) => from.delete(id)));
 }
 
-export async function clearAgentSessions(): Promise<void> {
+/**
+ * Delete these sessions and every session forked from them, also from the
+ * legacy database when it couldn't be moved yet.
+ */
+export async function deleteAgentSessions(
+  ids: readonly string[],
+  ops: SessionDbOps = browserDbOps,
+): Promise<void> {
+  if (ids.length === 0) return;
+  migration = null;
+  const moved = await ensureAgentSessionsMigrated(ops).then(
+    () => true,
+    () => false,
+  );
+  if (!moved && (await ops.exists(LEGACY_AGENT_SESSION_DB.dbName))) {
+    await deleteWithForks(
+      new IndexedDBStorage<StoredSession>(LEGACY_AGENT_SESSION_DB),
+      ids,
+    );
+  }
+  await deleteWithForks(sessions(), ids);
+}
+
+export async function clearAgentSessions(
+  ops: SessionDbOps = browserDbOps,
+): Promise<void> {
+  if (await ops.exists(LEGACY_AGENT_SESSION_DB.dbName)) {
+    await ops.drop(LEGACY_AGENT_SESSION_DB.dbName);
+  }
   await sessions().clear();
 }

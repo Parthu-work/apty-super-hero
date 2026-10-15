@@ -5,7 +5,7 @@ import type {
   SerializedDomSnapshot,
 } from "./types.js";
 
-const NODE_ID_ATTR = "data-aipex-nodeid";
+const NODE_ID_ATTR = "data-apty-nodeid";
 const STATIC_TEXT_ROLE = "StaticText";
 const ROOT_ROLE = "RootWebArea";
 

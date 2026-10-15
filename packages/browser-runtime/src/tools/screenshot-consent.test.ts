@@ -16,7 +16,7 @@ import {
 const tab = { id: 9, url: "https://ehr.example.com/chart/42?mrn=123" };
 
 function storedPolicy(policy: unknown) {
-  mockGet.mockResolvedValue({ aipex_settings: { screenshotPolicy: policy } });
+  mockGet.mockResolvedValue({ apty_settings: { screenshotPolicy: policy } });
 }
 
 beforeEach(() => {

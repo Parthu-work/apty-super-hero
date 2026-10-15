@@ -19,16 +19,22 @@
  * renaming the bins to "apty-*" and documenting a local-build install
  * instead -- see DECISIONS.md.
  *
- * This script scans for the word "aipex" (case-insensitive) and reports
- * anything NOT already covered by the allowlist below, so an accidental new
- * "AIPex" reference (e.g. a copy-pasted comment, a new stale path) gets
- * caught, without re-litigating the identifiers this repo has deliberately
- * kept.
+ * Production readiness (R2) renamed the storage keys, the agent-session
+ * database, every name injected into customer pages and the log prefix to
+ * Apty names. What is left is listed below, matched as whole tokens and
+ * case-sensitively, so "[AIPex]" or "data-aipex-new" is caught even though
+ * "AIPex" (the class) is allowed.
+ *
+ * Usage: node tooling/scripts/check-branding.mjs [<root>] [--verbose]
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { extname, join, relative, sep } from "node:path";
 
-const ROOT = new URL("../../", import.meta.url).pathname;
+const args = process.argv.slice(2);
+const verbose = args.includes("--verbose");
+const ROOT =
+  args.find((arg) => !arg.startsWith("--")) ??
+  new URL("../../", import.meta.url).pathname;
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -40,56 +46,95 @@ const SKIP_DIRS = new Set([
   ".cache",
 ]);
 
-const SCAN_EXTENSIONS = new Set([".ts", ".tsx", ".md", ".json"]);
+const SCAN_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".md",
+  ".json",
+]);
 
-// Exact substrings that are allowed anywhere: real, unrenamed contracts.
-const ALLOWED_SUBSTRINGS = [
-  // packages/agent-core's kept class/type name
+/** History and saved prompts describe the old names on purpose. */
+const SKIP_PATHS = [
+  "CHANGELOG.md",
+  "DECISIONS.md",
+  "REVIEW.md",
+  `docs${sep}development${sep}STATUS_HISTORY.md`,
+  `docs${sep}archive${sep}`,
+  `docs${sep}tasks${sep}`,
+  // This file's own lists, and check-mcp-bridge-docs.mjs's pattern for the
+  // wrong upstream package.
+  `tooling${sep}scripts${sep}`,
+];
+
+/** Tokens allowed exactly as written. */
+const ALLOWED_TOKENS = new Set([
+  // The upstream fork, by name, and @apty/agent-core's kept class names.
+  "aipex",
   "AIPex",
   "AIPexOptions",
   "AIPexCore",
-  // storage keys / IndexedDB / DB names (must stay stable for existing user data)
-  "aipex_",
-  "aipex-conversations",
-  "aipex-screenshots-db",
-  "aipex-sessions",
-  "aipex-input-mode",
-  "aipex-skills-fs",
-  "aipex_zenfs_migration",
   "AIPexSkills",
-  // DOM attribute/class contracts + cross-context message strings
-  "data-aipex-",
-  "aipex-capture-",
-  "aipex-content-root",
-  "aipex-border-overlay",
-  "aipex-text-highlight",
-  "__aipexHighlightOriginal",
-  "__aipexHighlightTimeoutId",
-  "_aipexOriginalStyles",
-  "aipexBreathe",
-  "aipex:collect-dom-snapshot",
+  // Storage written by earlier versions: read once by the R2 migration
+  // (storage/legacy-storage.ts, storage/agent-session-store.ts) or removed by
+  // "Delete everything" (stored-data.ts).
+  "aipex_theme",
+  "aipex_language",
+  "aipex_settings",
+  "aipex_host_access_config",
+  "aipex_automation_mode",
+  "aipex_risky_origin_grants",
+  "aipex_zenfs_migration_status",
+  "aipex_zenfs_migration_v2_status",
+  "aipex-input-mode",
+  "aipex-sessions",
+  "aipex_last_capture_event",
+  // IndexedDB and localStorage names that still hold user data.
+  "aipex-conversations",
+  "aipex-conversations-db",
+  "aipex-conversations-migrated",
+  "aipex-screenshots-db",
+  "aipex-skills-fs",
+  // The chat's screenshot placeholder host (aipex-screenshot.invalid); never
+  // fetched, never on a page.
+  "aipex-screenshot",
+  // The upstream fork's second conversation-storage version, in
+  // conversation/COMPATIBILITY.md and conversation/README.md.
+  "new-aipex",
+  // Source and test files of the AIPex class (aipex.ts, aipex-retry.test.ts).
+  "aipex-retry",
+  // Messages between the Agent's own contexts; never visible to a page.
   "aipex_open_omni",
   "aipex_close_omni",
-  "aipex-screenshot.invalid",
-  "AIPEX_SCREENSHOT_URL_PREFIX",
-  // apps/mcp-bridge's env vars, kept as-is from the upstream fork's raw
-  // CLI protocol (not a reference to the unrelated "aipex-mcp-bridge" npm
-  // package — see apps/mcp-bridge/README.md). The bin names, PID file and
-  // log prefixes this list used to allow here were renamed to "apty-*" —
-  // see DECISIONS.md for why the old names were a real install hazard,
-  // not just cosmetic branding.
+  "aipex:collect-dom-snapshot",
+  // apps/mcp-bridge env vars kept from the upstream CLI protocol.
   "AIPEX_WS_URL",
   "AIPEX_CONNECT_TIMEOUT",
-  // historical/narrative references (fork origin, changelog, decisions, security log)
+]);
+
+/** Allowed anywhere inside a token (URLs and long identifiers). */
+const ALLOWED_PARTS = [
+  "AIPEX_SCREENSHOT_URL_PREFIX",
+  // github.com/AIPexStudio/AIPex, the fork's origin.
   "AIPexStudio",
-  "aipex-whole",
-  // explicit "never run this" warnings naming the real, wrong upstream
-  // npm package, in README.md / apps/mcp-bridge/README.md / skill/SKILL.md
+  // "never run this" warnings naming the wrong upstream npm package.
   "aipex-mcp-bridge",
 ];
 
-const args = process.argv.slice(2);
-const verbose = args.includes("--verbose");
+const TOKEN = /[\w$@:[\]'*-]*aipex[\w$@:[\]'*-]*/gi;
+
+function isAllowedToken(raw) {
+  const token = raw
+    .replace(/^['*:-]+/, "")
+    .replace(/'s$/, "")
+    .replace(/['*:-]+$/, "");
+  return (
+    ALLOWED_TOKENS.has(token) ||
+    ALLOWED_PARTS.some((part) => token.includes(part))
+  );
+}
 
 /** @param {string} dir */
 function* walk(dir) {
@@ -105,17 +150,14 @@ function* walk(dir) {
   }
 }
 
-function isAllowedMatch(line) {
-  return ALLOWED_SUBSTRINGS.some((allowed) =>
-    line.toLowerCase().includes(allowed.toLowerCase()),
-  );
-}
-
 const findings = [];
 
 for (const file of walk(ROOT)) {
+  const path = relative(ROOT, file);
   if (file.endsWith("pnpm-lock.yaml")) continue;
-  if (file.includes(`${join("tooling", "scripts")}`)) continue; // this file's own allowlist mentions "aipex"
+  if (SKIP_PATHS.some((skip) => path === skip || path.startsWith(skip))) {
+    continue;
+  }
   let content;
   try {
     content = readFileSync(file, "utf8");
@@ -124,14 +166,12 @@ for (const file of walk(ROOT)) {
   }
   if (!/aipex/i.test(content)) continue;
 
-  const lines = content.split("\n");
-  lines.forEach((line, idx) => {
-    if (/aipex/i.test(line) && !isAllowedMatch(line)) {
-      findings.push({
-        file: relative(ROOT, file),
-        line: idx + 1,
-        text: line.trim(),
-      });
+  content.split("\n").forEach((line, idx) => {
+    const unknown = (line.match(TOKEN) ?? []).filter(
+      (token) => !isAllowedToken(token),
+    );
+    if (unknown.length > 0) {
+      findings.push({ file: path, line: idx + 1, text: line.trim() });
     }
   });
 }
@@ -146,7 +186,7 @@ if (findings.length > 0) {
   console.error(
     "\nIf this reference is real branding debt, fix it. If it's a legitimate\n" +
       "new data/behavior contract that must stay stable, add it to\n" +
-      "ALLOWED_SUBSTRINGS in tooling/scripts/check-branding.mjs and explain why.\n",
+      "ALLOWED_TOKENS in tooling/scripts/check-branding.mjs and explain why.\n",
   );
   process.exit(1);
 } else {

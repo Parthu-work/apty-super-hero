@@ -1,4 +1,5 @@
 import { type KeyValueStorage, safeJsonParse } from "@apty/agent-core";
+import { migrateLegacyKey } from "./legacy-storage.js";
 
 export type WatchCallback<T> = (change: { newValue?: T; oldValue?: T }) => void;
 
@@ -38,6 +39,9 @@ export class ChromeStorageAdapter<T = unknown> implements KeyValueStorage<T> {
     const area = this.area;
     if (area) {
       const result = await area.get(key);
+      if (result[key] === undefined && (await migrateLegacyKey(key, area))) {
+        return ((await area.get(key))[key] as T) ?? null;
+      }
       return (result[key] as T) ?? null;
     }
     const parsed = safeJsonParse<T>(localStorage.getItem(key));

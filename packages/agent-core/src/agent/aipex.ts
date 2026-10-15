@@ -412,7 +412,7 @@ export class AIPex {
             classified.retryAfterMs,
           );
           console.warn(
-            `[AIPex] LLM call failed (${classified.code}${classified.statusCode ? `, HTTP ${classified.statusCode}` : ""}), attempt ${attempt}/${LLM_CALL_MAX_ATTEMPTS}; retrying in ${delay}ms`,
+            `[Apty Agent] LLM call failed (${classified.code}${classified.statusCode ? `, HTTP ${classified.statusCode}` : ""}), attempt ${attempt}/${LLM_CALL_MAX_ATTEMPTS}; retrying in ${delay}ms`,
           );
           await sleep(delay);
         }
@@ -420,7 +420,7 @@ export class AIPex {
 
       if (toolCallsDetectedInRaw > 0 || toolCallsEmittedByRunner > 0) {
         log.debug(
-          `[AIPex] Stream complete: ${toolCallsDetectedInRaw} raw tool_call chunks, ` +
+          `[Apty Agent] Stream complete: ${toolCallsDetectedInRaw} raw tool_call chunks, ` +
             `${toolCallsEmittedByRunner} runner tool_called events`,
         );
       }
@@ -947,7 +947,10 @@ export class AIPex {
       try {
         void plugin.setup?.(this.pluginContext);
       } catch (error) {
-        console.error(`[AIPex] Failed to setup plugin ${plugin.id}:`, error);
+        console.error(
+          `[Apty Agent] Failed to setup plugin ${plugin.id}:`,
+          error,
+        );
       }
     }
   }
@@ -971,7 +974,10 @@ export class AIPex {
           };
         }
       } catch (error) {
-        console.error(`[AIPex] Plugin ${plugin.id} beforeChat failed`, error);
+        console.error(
+          `[Apty Agent] Plugin ${plugin.id} beforeChat failed`,
+          error,
+        );
       }
     }
     return current;
@@ -987,7 +993,7 @@ export class AIPex {
         await hook(payload, this.pluginContext);
       } catch (error) {
         console.error(
-          `[AIPex] Plugin ${plugin.id} afterResponse failed`,
+          `[Apty Agent] Plugin ${plugin.id} afterResponse failed`,
           error,
         );
       }
@@ -1001,7 +1007,10 @@ export class AIPex {
       try {
         await hook(payload, this.pluginContext);
       } catch (error) {
-        console.error(`[AIPex] Plugin ${plugin.id} onToolEvent failed`, error);
+        console.error(
+          `[Apty Agent] Plugin ${plugin.id} onToolEvent failed`,
+          error,
+        );
       }
     }
   }
@@ -1013,7 +1022,10 @@ export class AIPex {
       try {
         await hook(payload, this.pluginContext);
       } catch (error) {
-        console.error(`[AIPex] Plugin ${plugin.id} onMetrics failed`, error);
+        console.error(
+          `[Apty Agent] Plugin ${plugin.id} onMetrics failed`,
+          error,
+        );
       }
     }
   }

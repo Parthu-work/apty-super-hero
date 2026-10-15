@@ -100,7 +100,7 @@ async function applyLRU(): Promise<void> {
 /**
  * Runtime-level screenshot storage (for use inside browser-runtime tools).
  * Shares the same IndexedDB database as the UI-level ScreenshotStorage
- * in aipex-react so screenshots are accessible across packages.
+ * in @apty/ui so screenshots are accessible across packages.
  */
 export const RuntimeScreenshotStorage = {
   /**

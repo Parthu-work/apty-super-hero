@@ -101,9 +101,9 @@ function answerPrompt(panel, button) {
 
 async function updateSettings(panel, patch) {
   await panel.evaluate(async (patch) => {
-    const { aipex_settings } = await chrome.storage.local.get("aipex_settings");
+    const { apty_settings } = await chrome.storage.local.get("apty_settings");
     await chrome.storage.local.set({
-      aipex_settings: { ...aipex_settings, ...patch },
+      apty_settings: { ...apty_settings, ...patch },
     });
   }, patch);
 }
@@ -332,7 +332,7 @@ describe("chat agent in a real browser", () => {
       return { text: "RESULT: done thinking" };
     });
 
-    const border = app.locator("#aipex-border-overlay > div");
+    const border = app.locator("#apty-agent-border-overlay > div");
     await chatAndWait(panel, "what is on this page", {
       whileWaiting: async () => {
         await border.first().waitFor({ timeout: 15_000 });

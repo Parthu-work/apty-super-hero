@@ -203,8 +203,8 @@ export class SmartLocator implements Locator {
                 transition: el.style.transition,
               };
 
-              if (!el.hasAttribute('data-aipex-highlighted')) {
-                el.setAttribute('data-aipex-highlighted', 'true');
+              if (!el.hasAttribute('data-apty-highlighted')) {
+                el.setAttribute('data-apty-highlighted', 'true');
                 el.style.outline = '3px solid #3b82f6';
                 el.style.outlineOffset = '2px';
                 el.style.boxShadow = '0 0 0 4px rgba(59, 130, 246, 0.2), 0 0 20px rgba(59, 130, 246, 0.4)';
@@ -212,7 +212,7 @@ export class SmartLocator implements Locator {
 
                 if (!isDev) {
                   setTimeout(() => {
-                    el.removeAttribute('data-aipex-highlighted');
+                    el.removeAttribute('data-apty-highlighted');
                     el.style.outline = originalStyles.outline;
                     el.style.outlineOffset = originalStyles.outlineOffset;
                     el.style.boxShadow = originalStyles.boxShadow;
@@ -718,8 +718,8 @@ export class SmartLocator implements Locator {
           const container = this.closest('.monaco-editor') || this;
 
           // Store original styles
-          if (!container._aipexOriginalStyles) {
-            container._aipexOriginalStyles = {
+          if (!container._aptyOriginalStyles) {
+            container._aptyOriginalStyles = {
               outline: container.style.outline,
               outlineOffset: container.style.outlineOffset,
               transition: container.style.transition
@@ -749,11 +749,11 @@ export class SmartLocator implements Locator {
           const container = this.closest('.monaco-editor') || this;
 
           // Restore original styles
-          if (container._aipexOriginalStyles) {
-            container.style.outline = container._aipexOriginalStyles.outline;
-            container.style.outlineOffset = container._aipexOriginalStyles.outlineOffset;
-            container.style.transition = container._aipexOriginalStyles.transition;
-            delete container._aipexOriginalStyles;
+          if (container._aptyOriginalStyles) {
+            container.style.outline = container._aptyOriginalStyles.outline;
+            container.style.outlineOffset = container._aptyOriginalStyles.outlineOffset;
+            container.style.transition = container._aptyOriginalStyles.transition;
+            delete container._aptyOriginalStyles;
           }
         }`,
         returnByValue: false,

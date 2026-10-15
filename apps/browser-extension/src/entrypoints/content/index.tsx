@@ -179,7 +179,7 @@ function BorderOverlayApp() {
           height: "100vh",
           zIndex: 999998,
           pointerEvents: "none",
-          animation: "aipexBreathe 2.5s ease-in-out infinite",
+          animation: "aptyBreathe 2.5s ease-in-out infinite",
           boxShadow: `
             inset 0 0 15px 3px rgba(37, 99, 235, 0.5),
             inset 0 0 25px 5px rgba(59, 130, 246, 0.4),
@@ -189,7 +189,7 @@ function BorderOverlayApp() {
         }}
       />
       <style>{`
-        @keyframes aipexBreathe {
+        @keyframes aptyBreathe {
           0%, 100% {
             box-shadow:
               inset 0 0 12px 3px rgba(37,99,235,0.35),
@@ -222,7 +222,7 @@ if (window === window.top) {
 function initContentScript() {
   // Mount the content script (shadow DOM for isolation)
   const container = document.createElement("div");
-  container.id = "aipex-content-root";
+  container.id = "apty-agent-content-root";
   document.body.appendChild(container);
 
   const shadowRoot = container.attachShadow({ mode: "open" });
@@ -247,7 +247,7 @@ function initContentScript() {
 
   // Mount breathing border overlay OUTSIDE shadow DOM so z-index works
   const borderContainer = document.createElement("div");
-  borderContainer.id = "aipex-border-overlay";
+  borderContainer.id = "apty-agent-border-overlay";
   document.body.appendChild(borderContainer);
 
   const borderRoot = ReactDOM.createRoot(borderContainer);

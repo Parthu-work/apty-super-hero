@@ -380,10 +380,10 @@ describe("collectDomHealthSnapshot — Shadow DOM", () => {
 
   it("leaves the Agent's own injected UI out of the audit", async () => {
     setHtml(
-      `<button>page</button><div id="aipex-border-overlay"><div><button>x</button></div></div><div id="aipex-content-root"></div>`,
+      `<button>page</button><div id="apty-agent-border-overlay"><div><button>x</button></div></div><div id="apty-agent-content-root"></div>`,
     );
     document
-      .getElementById("aipex-content-root")!
+      .getElementById("apty-agent-content-root")!
       .attachShadow({ mode: "open" }).innerHTML = "<button>agent</button>";
 
     const snapshot = await collectDomHealthSnapshot(document);

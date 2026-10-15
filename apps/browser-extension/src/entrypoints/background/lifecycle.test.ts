@@ -4,7 +4,7 @@ vi.mock("@apty/browser-runtime", () => ({
   seedAptyIntegrationConfigDefaults: vi.fn(),
 }));
 
-import { SETTINGS_VERSION } from "@apty/agent-core";
+import { SETTINGS_VERSION, STORAGE_KEYS } from "@apty/agent-core";
 import { registerInstallHandler } from "./lifecycle";
 
 afterEach(() => {
@@ -39,13 +39,13 @@ describe("registerInstallHandler", () => {
     );
   });
 
-  it("brings stored settings up to the current schema on update", async () => {
+  /** A chrome stub whose local storage area is `store`; returns the update trigger. */
+  function stubUpdate(store: Record<string, unknown>) {
     let onInstalled: ((details: { reason: string }) => void) | undefined;
-    const store: Record<string, unknown> = {
-      aipex_settings: { aiToken: "kept", redactionMode: "standard" },
-    };
+    const keysOf = (keys: string | string[]) =>
+      Array.isArray(keys) ? keys : [keys];
     const set = vi.fn(async (items: Record<string, unknown>) => {
-      Object.assign(store, items);
+      Object.assign(store, structuredClone(items));
     });
     vi.stubGlobal("chrome", {
       runtime: {
@@ -58,24 +58,65 @@ describe("registerInstallHandler", () => {
       },
       storage: {
         local: {
-          get: vi.fn(async (key: string) => ({ [key]: store[key] })),
+          get: vi.fn(async (keys: string | string[]) =>
+            Object.fromEntries(
+              keysOf(keys)
+                .filter((key) => key in store)
+                .map((key) => [key, structuredClone(store[key])]),
+            ),
+          ),
           set,
+          remove: vi.fn(async (keys: string | string[]) => {
+            for (const key of keysOf(keys)) delete store[key];
+          }),
         },
       },
     });
-
     registerInstallHandler();
-    onInstalled?.({ reason: "update" });
+    return { update: () => onInstalled?.({ reason: "update" }), set };
+  }
+
+  it("brings stored settings up to the current schema on update", async () => {
+    const store: Record<string, unknown> = {
+      [STORAGE_KEYS.SETTINGS]: { aiToken: "kept", redactionMode: "standard" },
+    };
+    const { update, set } = stubUpdate(store);
+
+    update();
     await vi.waitFor(() => expect(set).toHaveBeenCalledOnce());
 
-    expect(store.aipex_settings).toEqual({
+    expect(store[STORAGE_KEYS.SETTINGS]).toEqual({
       aiToken: "kept",
       redactionMode: "standard",
       settingsVersion: SETTINGS_VERSION,
     });
 
-    onInstalled?.({ reason: "update" });
+    update();
     await new Promise((r) => setTimeout(r, 10));
     expect(set).toHaveBeenCalledOnce();
+  });
+
+  it("moves settings and grants from their AIPex names on update, then versions the settings", async () => {
+    const grants = [{ tool: "click", origin: "https://a.example" }];
+    const store: Record<string, unknown> = {
+      aipex_settings: { aiToken: "kept" },
+      aipex_risky_origin_grants: grants,
+    };
+    const { update } = stubUpdate(store);
+
+    update();
+    await vi.waitFor(() =>
+      expect(store[STORAGE_KEYS.SETTINGS]).toMatchObject({
+        settingsVersion: SETTINGS_VERSION,
+      }),
+    );
+
+    expect(store).toEqual({
+      [STORAGE_KEYS.SETTINGS]: {
+        aiToken: "kept",
+        settingsVersion: SETTINGS_VERSION,
+      },
+      [STORAGE_KEYS.RISKY_ORIGIN_GRANTS]: grants,
+    });
   });
 });

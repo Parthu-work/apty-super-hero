@@ -184,9 +184,9 @@ describe("DOM Health routing evidence", () => {
 /** Merge `patch` into the stored settings from an extension page, then wait for the bridge registration to match `excluded`. */
 async function setPageHookSettings(ext, patch, expectExcluded) {
   await ext.evaluate(async (patch) => {
-    const { aipex_settings } = await chrome.storage.local.get("aipex_settings");
+    const { apty_settings } = await chrome.storage.local.get("apty_settings");
     await chrome.storage.local.set({
-      aipex_settings: { ...aipex_settings, ...patch },
+      apty_settings: { ...apty_settings, ...patch },
     });
   }, patch);
   const deadline = Date.now() + 10_000;

@@ -14,7 +14,7 @@ import {
  * Resolve the target file input element on the page.
  *
  * Strategy:
- * 1. If uid provided: try UID-based lookup via [data-aipex-nodeid]
+ * 1. If uid provided: try UID-based lookup via [data-apty-nodeid]
  * 2. Fallback: CSS querySelectorAll('input[type=file]')[inputIndex]
  *    This finds ALL file inputs including display:none hidden ones.
  */
@@ -31,7 +31,7 @@ async function resolveFileInputNodeId(
       "DOM.querySelector",
       {
         nodeId: rootNodeId,
-        selector: `[data-aipex-nodeid="${esc}"]`,
+        selector: `[data-apty-nodeid="${esc}"]`,
       },
     );
     if (result.nodeId) {

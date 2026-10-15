@@ -65,7 +65,7 @@ after(async () => {
 async function setTheme(theme) {
   const page = await extensionPage(browser);
   await page.evaluate(
-    (t) => chrome.storage.local.set({ aipex_theme: t }),
+    (t) => chrome.storage.local.set({ apty_theme: t }),
     theme,
   );
   await page.close();

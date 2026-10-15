@@ -22,7 +22,10 @@ import {
   selectRelevantTools,
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
-import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-store";
+import {
+  AGENT_SESSION_DB,
+  ensureAgentSessionsMigrated,
+} from "@apty/browser-runtime/storage/agent-session-store";
 import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo } from "react";
 import {
@@ -35,10 +38,13 @@ import { createOutboundFilters } from "./outbound-filters";
  * Create browser-specific storage instance
  */
 export function useBrowserStorage() {
-  return useMemo(
-    () => new SessionStorage(new IndexedDBStorage(AGENT_SESSION_DB)),
-    [],
-  );
+  return useMemo(() => {
+    // Sessions stored under the old AIPex database name move on first use (R2).
+    ensureAgentSessionsMigrated().catch(() => {
+      console.warn("[Agent] agent_session_migration_failed");
+    });
+    return new SessionStorage(new IndexedDBStorage(AGENT_SESSION_DB));
+  }, []);
 }
 
 /**

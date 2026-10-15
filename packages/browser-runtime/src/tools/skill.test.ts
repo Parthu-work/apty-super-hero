@@ -69,7 +69,7 @@ describe("execute_skill_script gate", () => {
   });
 
   it("refuses to run when skillExecutionEnabled is explicitly false", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: false };
+    storageStore.apty_settings = { skillExecutionEnabled: false };
 
     const result = (await executeSkillScriptTool.invoke(
       EMPTY_CONTEXT,
@@ -85,7 +85,7 @@ describe("execute_skill_script gate", () => {
   });
 
   it("does not run the script when the user denies it", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: true };
+    storageStore.apty_settings = { skillExecutionEnabled: true };
     const { requests, stop } = answerApprovals({ approved: false });
 
     const result = (await executeSkillScriptTool.invoke(
@@ -104,7 +104,7 @@ describe("execute_skill_script gate", () => {
   });
 
   it("shows the script's first lines and its arguments in the prompt", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: true };
+    storageStore.apty_settings = { skillExecutionEnabled: true };
     mockGetSkillScript.mockResolvedValue(
       Array.from({ length: 30 }, (_, i) => `line ${i + 1};`).join("\n"),
     );
@@ -130,7 +130,7 @@ describe("execute_skill_script gate", () => {
   });
 
   it("still asks when the script source cannot be read", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: true };
+    storageStore.apty_settings = { skillExecutionEnabled: true };
     mockGetSkillScript.mockRejectedValue(new Error("missing"));
     const { requests, stop } = answerApprovals({ approved: false });
 
@@ -145,7 +145,7 @@ describe("execute_skill_script gate", () => {
   });
 
   it("runs the script once the user allows it", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: true };
+    storageStore.apty_settings = { skillExecutionEnabled: true };
     const { stop } = answerApprovals({ approved: true });
 
     const result = (await executeSkillScriptTool.invoke(

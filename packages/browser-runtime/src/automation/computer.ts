@@ -768,7 +768,7 @@ async function performScrollTo(
     const result = await chrome.scripting.executeScript({
       target: { tabId },
       func: (uid: string) => {
-        const element = document.querySelector(`[data-aipex-uid="${uid}"]`);
+        const element = document.querySelector(`[data-apty-uid="${uid}"]`);
         if (!element) {
           return {
             success: false,
