@@ -221,9 +221,14 @@ describe("built extension in Chromium", () => {
         },
         { url: page.url(), request },
       );
-    await ext.evaluate(() =>
-      chrome.storage.local.remove("aipex_last_capture_event"),
-    );
+    // The capture event is broadcast to extension pages, never stored (S3).
+    await ext.evaluate(() => {
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message?.request === "capture-click-event") {
+          globalThis.__captureEvent ??= { data: message.data };
+        }
+      });
+    });
     await sendToTab("start-capture");
 
     await clickIn(page);
@@ -231,11 +236,7 @@ describe("built extension in Chromium", () => {
     let event;
     for (let i = 0; i < 30 && !event; i++) {
       await new Promise((r) => setTimeout(r, 100));
-      event = await ext.evaluate(
-        async () =>
-          (await chrome.storage.local.get("aipex_last_capture_event"))
-            .aipex_last_capture_event,
-      );
+      event = await ext.evaluate(() => globalThis.__captureEvent);
     }
     await sendToTab("stop-capture");
     await ext.close();

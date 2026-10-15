@@ -183,7 +183,16 @@ async function audit(path, tool, args = {}) {
     tool === "run_dom_health_audit"
       ? "check dom health of this page"
       : "check dom health across the whole application";
-  await chatAndWait(panel, ask, { timeout: 150_000 });
+  // A clicking (application-deep) run asks once before it starts (S5).
+  const whileWaiting =
+    args.discoveryMode === "application-deep"
+      ? async () => {
+          const prompt = panel.getByRole("alertdialog");
+          await prompt.waitFor({ timeout: 30_000 });
+          await prompt.getByRole("button", { name: "Allow once" }).click();
+        }
+      : undefined;
+  await chatAndWait(panel, ask, { timeout: 150_000, whileWaiting });
   const result = toolResults(model.requests.at(-1)).at(-1);
   await panel.close();
   await page.close();
