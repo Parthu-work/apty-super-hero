@@ -225,7 +225,10 @@ describe("computerTool — background mode", () => {
 
 describe("computerTool — grants are per action class", () => {
   it("remembering a typing approval does not cover a risky click", async () => {
-    const { requests, stop } = answerApprovals({ approved: true, remember: true });
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
     await computerTool.invoke(
       { context: { conversationId: "conv-type" } } as never,
       JSON.stringify({ action: "type", text: "hello" }),
@@ -248,7 +251,15 @@ describe("computerTool — grants are per action class", () => {
 
   it.each([
     ["key", { action: "key", text: "Enter" }, "computer:key"],
-    ["drag", { action: "left_click_drag", start_coordinate: [1, 2], coordinate: [3, 4] }, "computer:drag"],
+    [
+      "drag",
+      {
+        action: "left_click_drag",
+        start_coordinate: [1, 2],
+        coordinate: [3, 4],
+      },
+      "computer:drag",
+    ],
     ["click", { action: "left_click", coordinate: [1, 2] }, "computer:click"],
   ])("stores a %s grant under its own name", async (_c, args, grant) => {
     mockInspectClickTarget.mockResolvedValue(DELETE_BUTTON);
@@ -258,6 +269,8 @@ describe("computerTool — grants are per action class", () => {
       JSON.stringify(args),
     );
     stop();
-    expect((await listApprovalGrants()).map((g) => g.toolName)).toEqual([grant]);
+    expect((await listApprovalGrants()).map((g) => g.toolName)).toEqual([
+      grant,
+    ]);
   });
 });

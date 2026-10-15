@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const tabs = vi.hoisted(
   () =>
-    new Map<number, { id: number; url: string; index: number; windowId: number }>(),
+    new Map<
+      number,
+      { id: number; url: string; index: number; windowId: number }
+    >(),
 );
 
 vi.mock("../runtime/automation-mode", () => ({
@@ -64,9 +67,24 @@ function call(
 beforeEach(async () => {
   storageStore = {};
   tabs.clear();
-  tabs.set(1, { id: 1, url: "https://bound.example.com/app", index: 0, windowId: 1 });
-  tabs.set(2, { id: 2, url: "https://active.example.org/", index: 1, windowId: 1 });
-  tabs.set(3, { id: 3, url: "https://bound.example.com/other", index: 2, windowId: 1 });
+  tabs.set(1, {
+    id: 1,
+    url: "https://bound.example.com/app",
+    index: 0,
+    windowId: 1,
+  });
+  tabs.set(2, {
+    id: 2,
+    url: "https://active.example.org/",
+    index: 1,
+    windowId: 1,
+  });
+  tabs.set(3, {
+    id: 3,
+    url: "https://bound.example.com/other",
+    index: 2,
+    windowId: 1,
+  });
   await resetApprovalStateForTests();
 });
 
@@ -147,7 +165,11 @@ describe("close_tab", () => {
       url: "https://bound.example.com/tmp",
     });
     const { requests, stop } = answerApprovals({ approved: false });
-    await call(closeTabTool, { tabId: opened.tabId }, { conversationId: "other", tabId: 1 });
+    await call(
+      closeTabTool,
+      { tabId: opened.tabId },
+      { conversationId: "other", tabId: 1 },
+    );
     stop();
     expect(requests).toHaveLength(1);
   });

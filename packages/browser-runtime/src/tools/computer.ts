@@ -198,7 +198,10 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
         `${drag ? "Drag" : "Click"}: ${params.action} at (${points.map((p) => p?.join(", ") ?? "?").join(") -> (")})\n${describeClickForApproval(targets.find((t) => classifyClickRisk(t).risky) ?? targets[0]!, risk, pageUrl)}`,
         pageUrl,
         () => runAction(params.tabId ?? tab?.id),
-        { tabId: tab?.id, grantName: drag ? "computer:drag" : "computer:click" },
+        {
+          tabId: tab?.id,
+          grantName: drag ? "computer:drag" : "computer:click",
+        },
       );
     }
 

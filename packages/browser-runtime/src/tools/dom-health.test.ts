@@ -281,7 +281,8 @@ describe("runApplicationDomHealthAuditTool — clicking discovery needs approval
     chromeMock.storage = {
       local: {
         get: async (key: string) => ({ [key]: store[key] }),
-        set: async (items: Record<string, unknown>) => Object.assign(store, items),
+        set: async (items: Record<string, unknown>) =>
+          Object.assign(store, items),
       },
     };
     await resetApprovalStateForTests();
@@ -295,7 +296,10 @@ describe("runApplicationDomHealthAuditTool — clicking discovery needs approval
   }
 
   it("asks once per run, naming the mode and the page limit, and never remembers", async () => {
-    const { requests, stop } = answerApprovals({ approved: true, remember: true });
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
     await deepRun({ maxPages: 20 });
     await deepRun();
     stop();

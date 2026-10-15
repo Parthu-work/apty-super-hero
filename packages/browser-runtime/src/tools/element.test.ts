@@ -214,7 +214,9 @@ describe("fillFormTool", () => {
 
   it("lists each field's label and value, truncated, in the prompt", async () => {
     mockGetNodeByUid.mockImplementation((_tab: number, uid: string) =>
-      uid === "n1" ? { uid, role: "textbox", name: "Patient name" } : { uid, role: "textbox" },
+      uid === "n1"
+        ? { uid, role: "textbox", name: "Patient name" }
+        : { uid, role: "textbox" },
     );
     const { requests } = answerApprovals({ approved: false });
 

@@ -25,19 +25,20 @@ beforeEach(() => {
 });
 
 describe("page styling tools refuse unsafe CSS values", () => {
-  it.each(["highlightColor", "backgroundColor", "fontWeight"])(
-    "highlight_text_inline rejects an injected %s without touching the page",
-    async (param) => {
-      const result = await run(highlightTextInlineTool, {
-        selector: "p",
-        searchText: "x",
-        [param]: INJECTION,
-      });
-      expect(result).toMatchObject({ success: false });
-      expect(String(result.error)).toContain(param);
-      expect(mockExecuteScript).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    "highlightColor",
+    "backgroundColor",
+    "fontWeight",
+  ])("highlight_text_inline rejects an injected %s without touching the page", async (param) => {
+    const result = await run(highlightTextInlineTool, {
+      selector: "p",
+      searchText: "x",
+      [param]: INJECTION,
+    });
+    expect(result).toMatchObject({ success: false });
+    expect(String(result.error)).toContain(param);
+    expect(mockExecuteScript).not.toHaveBeenCalled();
+  });
 
   it("highlight_text_inline accepts safe values", async () => {
     await run(highlightTextInlineTool, {
