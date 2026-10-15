@@ -356,3 +356,15 @@ describe("redactSensitiveText — seeded fuzz: a secret embedded anywhere in ran
     }
   });
 });
+
+describe("redactSensitiveText — truncated JSON", () => {
+  it.each([
+    ['{"password":"hunter2', "hunter2"],
+    ['{"data":{"access_token":"abc', "abc"],
+    ['{"client_secret": "s3cr', "s3cr"],
+  ])("never returns the secret in a truncated body: %s", (input, secret) => {
+    for (const mode of ["strict", "standard"] as const) {
+      expect(redactSensitiveText(input, mode)).not.toContain(secret);
+    }
+  });
+});

@@ -298,7 +298,12 @@ function redactKnownKeysInText(
       replacement = category === "secret" ? '"<REDACTED>"' : '"<REDACTED>"';
     } else if (nextChar === '"') {
       const end = findStringEnd(text, valueStart);
-      if (end === -1) continue;
+      if (end === -1) {
+        // Truncated input: the value runs to the end, so redact all of it.
+        result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        lastIndex = text.length;
+        break;
+      }
       valueEnd = end;
       const raw = text.slice(valueStart + 1, end - 1);
       if (category === "pii" && PII_ID_KEY_NAMES.has(normalizeKey(key))) {

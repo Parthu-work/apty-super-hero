@@ -94,6 +94,9 @@ const SENSITIVE_KEY_FRAGMENT =
  * accepts some false positives (e.g. "author" contains "auth") — redacting
  * something that wasn't actually secret is the safe direction to err in.
  *
+ * A quoted value with no closing quote (a truncated body) runs to the end
+ * of the input and is redacted whole.
+ *
  * The quoted-value branch handles escaped characters (so a value containing
  * `\"` doesn't end the match early) and arbitrary interior whitespace (the
  * `{"password":"my secret pass phrase"}` case). The unquoted-value branch
@@ -111,7 +114,7 @@ const SENSITIVE_KEY_FRAGMENT =
  * regression this rewrite exists to fix.
  */
 const SENSITIVE_KEYVALUE_PATTERN = new RegExp(
-  `(["']?[\\w-]{0,64}(?:${SENSITIVE_KEY_FRAGMENT})[\\w-]{0,64}["']?\\s*[:=]\\s*)(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|(?!(?:Bearer|Basic|Digest)\\b)([^;,&\\s"'}]+))`,
+  `(["']?[\\w-]{0,64}(?:${SENSITIVE_KEY_FRAGMENT})[\\w-]{0,64}["']?\\s*[:=]\\s*)(?:"((?:[^"\\\\]|\\\\.)*)(?:"|$)|'((?:[^'\\\\]|\\\\.)*)(?:'|$)|(?!(?:Bearer|Basic|Digest)\\b)([^;,&\\s"'}]+))`,
   "gi",
 );
 

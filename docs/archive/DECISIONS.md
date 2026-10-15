@@ -1533,3 +1533,14 @@ rides in `Sec-WebSocket-Protocol` as `apty-token.<token>` next to
 `apty-mcp.v1`. The daemon answers with `apty-mcp.v1` only, so the token is
 never echoed, and it refuses `?token=` outright rather than accepting both:
 the extension and the daemon ship from this repository together.
+
+## Truncated JSON: an unterminated sensitive value is redacted to the end
+
+A body cut off mid-value (`{"password":"hunter2`, `{"access_token":"abc`)
+used to come back unredacted: the JSON key pass skipped a string with no
+closing quote, and the text pass's quoted branch needed one too. Both now
+treat the rest of the input as the value and replace it with
+`"<REDACTED>"`. This is the existing rule ("the value of a sensitive key is
+redacted") applied to input that ends early, not a new rule: no key was
+added to either list, and an unbalanced object or array under a sensitive
+key is still left as it is (production-readiness S7; see REVIEW.md).
