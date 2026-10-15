@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const script = fileURLToPath(new URL("./check-tag-on-main.mjs", import.meta.url));
+const script = fileURLToPath(
+  new URL("./check-tag-on-main.mjs", import.meta.url),
+);
 
 let repo;
 const git = (...args) =>

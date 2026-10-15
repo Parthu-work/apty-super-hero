@@ -93,6 +93,9 @@ jobs:
       - name: Markdown links resolve
         run: npm run audit:docs-links
 
+      - name: Third-party notices match the dependencies
+        run: npm run audit:notices
+
       - name: Dependency vulnerability audit
         run: pnpm audit --prod
 

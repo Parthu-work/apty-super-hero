@@ -66,6 +66,7 @@ for step in "${requested[@]}"; do
         npm run audit:branding
         npm run audit:tools
         npm run check:mcp-bridge-docs
+        npm run audit:notices
         if [ -d apps/browser-extension/dist ]; then
           npm run check:tailwind-sources
         fi

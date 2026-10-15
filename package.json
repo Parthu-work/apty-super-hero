@@ -2,6 +2,7 @@
   "name": "@apty/browser-agent",
   "displayName": "Apty Agent",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Apty's AI browser agent - forked from AIPex, customized for Apty Studio/widget integration",
   "author": "Apty",
@@ -11,7 +12,7 @@
   },
   "scripts": {
     "postinstall": "prek install",
-    "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources",
+    "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources && npm run check:dist-licences",
     "dev": "pnpm --filter @apty/browser-extension dev",
     "preflight": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:coverage",
     "fix": "npm run format && npm run lint:fix",
@@ -39,6 +40,8 @@
     "audit:docs-links": "node tooling/scripts/check-docs-links.mjs",
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
+    "check:dist-licences": "node tooling/scripts/check-dist-licences.mjs",
+    "audit:notices": "node tooling/scripts/third-party-notices.mjs --check",
     "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",
     "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },
