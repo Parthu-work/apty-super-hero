@@ -16,6 +16,7 @@ import {
   isPrivateIPv4,
   isPrivateIPv6,
 } from "@apty/browser-runtime/vm/url-guard";
+import { type LanguageModelMiddleware, wrapLanguageModel } from "ai";
 
 export interface ProviderConfig {
   provider: AIProviderKey;
@@ -170,9 +171,27 @@ export function anthropicHeaders(
 }
 
 /**
+ * OpenAI's Responses API keeps every request (page data, screenshots) on
+ * OpenAI's side unless the request says `store: false`.
+ */
+export const openAINoStoreMiddleware: LanguageModelMiddleware = {
+  specificationVersion: "v3",
+  transformParams: async ({ params }) => ({
+    ...params,
+    providerOptions: {
+      ...params.providerOptions,
+      openai: { ...params.providerOptions?.openai, store: false },
+    },
+  }),
+};
+
+/**
  * Create an AI SDK provider for BYOK mode.
  */
-export function createAIProvider(settings: AppSettings) {
+export function createAIProvider(
+  settings: AppSettings,
+  options: { fetch?: typeof fetch } = {},
+) {
   const provider = settings.aiProvider ?? "openai";
   const apiKey = settings.aiToken ?? "";
   const baseURL = validateHostUrl(settings.aiHost || undefined);
@@ -183,11 +202,22 @@ export function createAIProvider(settings: AppSettings) {
         apiKey,
         baseURL: anthropicBaseUrl(baseURL),
         headers: anthropicHeaders(settings.aiWorkspaceId),
+        fetch: options.fetch,
       });
     case "google":
-      return createGoogleGenerativeAI({ apiKey, baseURL });
-    case "openai":
-      return createOpenAI({ apiKey, baseURL });
+      return createGoogleGenerativeAI({
+        apiKey,
+        baseURL,
+        fetch: options.fetch,
+      });
+    case "openai": {
+      const openai = createOpenAI({ apiKey, baseURL, fetch: options.fetch });
+      return (modelId: string) =>
+        wrapLanguageModel({
+          model: openai(modelId),
+          middleware: openAINoStoreMiddleware,
+        });
+    }
     default:
       // For custom providers, baseURL is required
       if (!baseURL) {
@@ -195,7 +225,12 @@ export function createAIProvider(settings: AppSettings) {
           `Custom provider "${provider}" requires aiHost to be specified`,
         );
       }
-      return createOpenAICompatible({ apiKey, baseURL, name: provider });
+      return createOpenAICompatible({
+        apiKey,
+        baseURL,
+        name: provider,
+        fetch: options.fetch,
+      });
   }
 }
 

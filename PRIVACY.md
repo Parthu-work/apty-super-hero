@@ -24,6 +24,31 @@ click; nothing is uploaded. The validation bundle holds hostnames, URL
 templates without queries, counts, hashes and settings, never page text,
 input values, titles or record numbers, and you review it before saving.
 
+## What your AI provider keeps
+
+What a provider does with a request after it arrives is set by that
+provider's own terms, not by this extension. Read the policy for the
+provider you configure before you use it on pages that hold health or other
+regulated data:
+
+| Provider | What this extension asks for | Provider's data policy |
+|---|---|---|
+| OpenAI | Every request is sent with `store: false`, so the Responses API is asked not to keep it as a stored response | [API data usage](https://platform.openai.com/docs/guides/your-data) |
+| Anthropic | Nothing beyond the request | [Privacy center](https://privacy.anthropic.com/), [commercial terms](https://www.anthropic.com/legal/commercial-terms) |
+| Google (Gemini API) | Nothing beyond the request | [Gemini API terms](https://ai.google.dev/gemini-api/terms) |
+| Azure OpenAI | Nothing beyond the request | [Data, privacy and security](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy) |
+| OpenRouter | Nothing beyond the request | [Privacy policy](https://openrouter.ai/privacy) |
+| Requesty | Nothing beyond the request | [Privacy policy](https://www.requesty.ai/privacy) |
+| DeepSeek | Nothing beyond the request | [Privacy policy](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html) |
+| Groq | Nothing beyond the request | [Privacy policy](https://groq.com/privacy-policy/) |
+| Together AI | Nothing beyond the request | [Privacy policy](https://www.together.ai/privacy) |
+| Mistral | Nothing beyond the request | [Terms](https://mistral.ai/terms) |
+| Cohere | Nothing beyond the request | [Privacy policy](https://cohere.com/privacy) |
+| Perplexity | Nothing beyond the request | [Privacy policy](https://www.perplexity.ai/hub/legal/privacy-policy) |
+| Fireworks | Nothing beyond the request | [Privacy policy](https://fireworks.ai/privacy-policy) |
+| Replicate | Nothing beyond the request | [Privacy policy](https://replicate.com/privacy) |
+| Custom (any OpenAI-compatible host) | Nothing beyond the request | The policy of whoever runs that host |
+
 ## What the AI provider never sees in the clear
 
 Before any diagnostic data reaches the model, the agent redacts what looks
