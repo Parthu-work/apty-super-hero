@@ -341,6 +341,33 @@ describe("SettingsPage", () => {
     });
   });
 
+  describe("health-data warning (D7)", () => {
+    it("warns, for a provider not confirmed for health data, to check the agreement first", async () => {
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={createMemoryStorage<unknown>()}
+              initialTab="ai"
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+      await screen.findByPlaceholderText("Your API Key");
+      const anthropic = screen
+        .getAllByText("Anthropic")
+        .map((node) => node.closest("button"))
+        .find(Boolean);
+      fireEvent.click(anthropic as HTMLElement);
+
+      expect(
+        await screen.findByText(/covers health or other regulated data/),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("Fetch models and the tool-calling probe (C1)", () => {
     function renderWith(props: Partial<SettingsPageProps>) {
       render(

@@ -4,6 +4,7 @@ import {
   type AppSettings,
   type CustomModelConfig,
   detectProviderFromHost,
+  PHI_APPROVED_PROVIDERS,
   type ProviderType,
   STORAGE_KEYS,
   SUPERSEDED_PRESET_HOSTS,
@@ -1652,6 +1653,16 @@ export function SettingsPage({
                                     {selectedProviderMeta.experimental}
                                   </p>
                                 )}
+                              {!PHI_APPROVED_PROVIDERS.has(
+                                selectedProviderKey,
+                              ) && (
+                                <p
+                                  role="note"
+                                  className="text-xs text-amber-700 dark:text-amber-400"
+                                >
+                                  {t("settings.phiProviderWarning")}
+                                </p>
+                              )}
                               {selectedProviderMeta.docs && (
                                 <Button
                                   variant="link"

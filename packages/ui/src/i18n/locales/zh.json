@@ -25,6 +25,7 @@
     "aiWorkspaceId": "工作区 ID",
     "aiWorkspaceIdHint": "仅用于未绑定工作区的 API 密钥。可在 Claude Console → Settings → Workspaces 中找到（wrkspc_…）。",
     "aiModel": "AI 模型",
+    "phiProviderWarning": "在显示患者信息的页面上使用此服务提供方之前，请确认您与其签订的协议涵盖健康或其他受监管数据（例如业务伙伴协议 BAA）。",
     "hostPlaceholder": "https://api.deepseek.com/v1",
     "tokenPlaceholder": "请输入您的 API 令牌",
     "modelPlaceholder": "deepseek-chat",

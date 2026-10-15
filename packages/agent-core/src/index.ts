@@ -17,6 +17,7 @@ export {
   detectProviderFromHost,
   isValidConversationStorage,
   normalizeConversationConfig,
+  PHI_APPROVED_PROVIDERS,
   type ProviderType,
   REDACTION_MODES,
   type RedactionModeSetting,

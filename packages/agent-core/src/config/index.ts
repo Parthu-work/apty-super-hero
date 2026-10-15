@@ -4,6 +4,7 @@ export {
   type AIProviderConfig,
   type AIProviderKey,
   detectProviderFromHost,
+  PHI_APPROVED_PROVIDERS,
   SUPERSEDED_PRESET_HOSTS,
 } from "./ai-providers.js";
 export { DEFAULT_CONVERSATION_CONFIG } from "./defaults.js";

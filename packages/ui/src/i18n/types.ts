@@ -27,6 +27,7 @@ export interface TranslationResources {
     aiWorkspaceId: string;
     aiWorkspaceIdHint: string;
     aiModel: string;
+    phiProviderWarning: string;
     hostPlaceholder: string;
     tokenPlaceholder: string;
     modelPlaceholder: string;
@@ -246,6 +247,7 @@ export type BaseTranslationKey =
   | "settings.aiWorkspaceId"
   | "settings.aiWorkspaceIdHint"
   | "settings.aiModel"
+  | "settings.phiProviderWarning"
   | "settings.hostPlaceholder"
   | "settings.tokenPlaceholder"
   | "settings.modelPlaceholder"

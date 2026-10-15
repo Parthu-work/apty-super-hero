@@ -25,6 +25,7 @@
     "aiWorkspaceId": "Workspace ID",
     "aiWorkspaceIdHint": "Only for an API key not scoped to a workspace. Find it in Claude Console → Settings → Workspaces (wrkspc_…).",
     "aiModel": "AI Model",
+    "phiProviderWarning": "Before you use this provider on pages that show patient information, check that your agreement with it covers health or other regulated data (for example, a Business Associate Agreement).",
     "hostPlaceholder": "https://api.deepseek.com/v1",
     "tokenPlaceholder": "Enter your API token",
     "modelPlaceholder": "deepseek-chat",
