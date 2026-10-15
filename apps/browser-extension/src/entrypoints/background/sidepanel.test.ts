@@ -12,7 +12,11 @@ describe("registerSidepanelActionClick", () => {
     const open = vi.fn().mockRejectedValue(new Error("No active side panel"));
     vi.stubGlobal("chrome", {
       action: {
-        onClicked: { addListener: (fn: typeof onClicked) => (onClicked = fn) },
+        onClicked: {
+          addListener: (fn: typeof onClicked) => {
+            onClicked = fn;
+          },
+        },
       },
       sidePanel: { open },
     });

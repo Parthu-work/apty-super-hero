@@ -19,7 +19,9 @@ describe("registerInstallHandler", () => {
     vi.stubGlobal("chrome", {
       runtime: {
         onInstalled: {
-          addListener: (fn: typeof onInstalled) => (onInstalled = fn),
+          addListener: (fn: typeof onInstalled) => {
+            onInstalled = fn;
+          },
         },
         openOptionsPage,
         getManifest: () => ({ version: "0.1.0" }),

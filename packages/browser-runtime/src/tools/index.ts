@@ -89,55 +89,48 @@ const privateGroup = (group: BrowserFunctionTool[]): BrowserFunctionTool[] =>
 
 // Browser/Tab Management (7 tools)
 // Note: organize_tabs temporarily disabled (stub/not shipped)
-const tabToolGroup: BrowserFunctionTool[] = privateGroup(
-  ([] = [
-    getAllTabsTool,
-    getCurrentTabTool,
-    switchToTabTool,
-    createNewTabTool,
-    getTabInfoTool,
-    closeTabTool,
-    ungroupTabsTool,
-  ]),
-);
+const tabToolGroup: BrowserFunctionTool[] = privateGroup([
+  getAllTabsTool,
+  getCurrentTabTool,
+  switchToTabTool,
+  createNewTabTool,
+  getTabInfoTool,
+  closeTabTool,
+  ungroupTabsTool,
+]);
 
 // UI Operations (8 tools) - computer tool replaces visual XY tools
-const uiToolGroup: BrowserFunctionTool[] = privateGroup(
-  ([] = [
-    searchElementsTool,
-    clickTool,
-    fillElementByUidTool,
-    getEditorValueTool,
-    fillFormTool,
-    hoverElementByUidTool,
-    uploadFileToInputTool,
-    computerTool,
-  ]),
-);
+const uiToolGroup: BrowserFunctionTool[] = privateGroup([
+  searchElementsTool,
+  clickTool,
+  fillElementByUidTool,
+  getEditorValueTool,
+  fillFormTool,
+  hoverElementByUidTool,
+  uploadFileToInputTool,
+  computerTool,
+]);
 
 // Page Content (4 tools)
-const pageToolGroup: BrowserFunctionTool[] = privateGroup(
-  ([] = [
-    getPageMetadataTool,
-    scrollToElementTool,
-    highlightElementTool,
-    highlightTextInlineTool,
-  ]),
-);
+const pageToolGroup: BrowserFunctionTool[] = privateGroup([
+  getPageMetadataTool,
+  scrollToElementTool,
+  highlightElementTool,
+  highlightTextInlineTool,
+]);
 
 // Screenshot (3 tools)
-const screenshotToolGroup: BrowserFunctionTool[] = privateGroup(
-  ([] = [
-    captureScreenshotTool,
-    captureScreenshotWithHighlightTool,
-    captureTabScreenshotTool,
-  ]),
-);
+const screenshotToolGroup: BrowserFunctionTool[] = privateGroup([
+  captureScreenshotTool,
+  captureScreenshotWithHighlightTool,
+  captureTabScreenshotTool,
+]);
 
 // Download (2 tools)
-const downloadToolGroup: BrowserFunctionTool[] = privateGroup(
-  ([] = [downloadImageTool, downloadChatImagesTool]),
-);
+const downloadToolGroup: BrowserFunctionTool[] = privateGroup([
+  downloadImageTool,
+  downloadChatImagesTool,
+]);
 
 // Intervention (4 tools)
 const interventionToolGroup: BrowserFunctionTool[] = privateGroup(
