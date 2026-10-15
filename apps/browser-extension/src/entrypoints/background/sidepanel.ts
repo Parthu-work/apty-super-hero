@@ -4,7 +4,9 @@ export function registerSidepanelActionClick(): void {
   // Open side panel when extension icon is clicked
   chrome.action.onClicked.addListener((tab) => {
     if (tab.id) {
-      chrome.sidePanel.open({ tabId: tab.id });
+      chrome.sidePanel.open({ tabId: tab.id }).catch(() => {
+        console.warn("[Background] side_panel_open_failed");
+      });
     }
   });
 }

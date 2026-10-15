@@ -35,7 +35,9 @@ export function registerInstallHandler(): void {
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === "install") {
       log.debug("Apty Agent extension installed");
-      chrome.runtime.openOptionsPage();
+      chrome.runtime.openOptionsPage().catch(() => {
+        console.warn("[Background] options_page_open_failed");
+      });
     } else if (details.reason === "update") {
       log.debug(
         "Apty Agent extension updated to version",
