@@ -188,10 +188,14 @@ export const openAINoStoreMiddleware: LanguageModelMiddleware = {
 /**
  * Create an AI SDK provider for BYOK mode.
  */
+export type ProviderModelFactory = (
+  modelId: string,
+) => ReturnType<typeof wrapLanguageModel>;
+
 export function createAIProvider(
   settings: AppSettings,
   options: { fetch?: typeof fetch } = {},
-) {
+): ProviderModelFactory {
   const provider = settings.aiProvider ?? "openai";
   const apiKey = settings.aiToken ?? "";
   const baseURL = validateHostUrl(settings.aiHost || undefined);
