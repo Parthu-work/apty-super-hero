@@ -64,6 +64,15 @@ function computeLlmRetryDelayMs(
   return Math.max(0, Math.round(exponential + jitter));
 }
 
+/** Drops what a failed attempt added to the session, so a retry does not repeat the user's message. */
+async function rollbackSession(
+  session: { getItems(): Promise<unknown[]>; popItem(): Promise<unknown> },
+  length: number,
+): Promise<void> {
+  let extra = (await session.getItems()).length - length;
+  while (extra-- > 0) await session.popItem();
+}
+
 /**
  * Deliberately narrower than "everything `classifyLlmError` marks
  * recoverable": rate limits, request timeouts, and confirmed 5xx responses
@@ -224,8 +233,16 @@ export class AIPex {
     >();
 
     try {
-      let result: Awaited<ReturnType<typeof run>> | undefined;
+      let result!: Awaited<ReturnType<typeof run>>;
+      let streamedOutput = "";
+      let toolCallsDetectedInRaw = 0;
+      let toolCallsEmittedByRunner = 0;
+      // A failed attempt is retried only while nothing has reached the
+      // caller; with the real runner a 429 or 5xx surfaces while the stream
+      // is read, not from run() itself.
+      let reachedCaller = false;
       for (let attempt = 1; ; attempt++) {
+        const sessionLength = (await runSession.getItems()).length;
         try {
           result = await run(runAgent, input, {
             maxTurns: this.maxTurns,
@@ -255,142 +272,149 @@ export class AIPex {
               return { input, instructions: modelData.instructions };
             },
           });
+          for await (const streamEvent of result) {
+            if (streamEvent.type === "raw_model_stream_event") {
+              // New response boundary: reset per-response tool args tracking.
+              if (
+                (streamEvent.data as unknown as { type?: string })?.type ===
+                "response_started"
+              ) {
+                toolArgsStreamByIndex.clear();
+                continue;
+              }
+
+              // Log response_done events for debugging tool call assembly
+              if (
+                (streamEvent.data as unknown as { type?: string })?.type ===
+                "response_done"
+              ) {
+                const response = (
+                  streamEvent.data as unknown as {
+                    response?: { output?: unknown[] };
+                  }
+                )?.response;
+                const outputItems = response?.output;
+                if (Array.isArray(outputItems)) {
+                  const functionCalls = outputItems.filter(
+                    (item: any) => item?.type === "function_call",
+                  );
+                  if (functionCalls.length > 0) {
+                    log.debug(
+                      `response_done contains ${functionCalls.length} function_call(s):`,
+                      functionCalls.map((fc: any) => fc.name),
+                    );
+                  }
+                }
+              }
+
+              // Best-effort: detect tool call argument streaming from raw provider events.
+              // For OpenAI ChatCompletions streaming, the raw chunk is available under
+              // streamEvent.data.type === "model" with a shape like:
+              //   event.choices[0].delta.tool_calls[].function.{name,arguments}
+              if (
+                (streamEvent.data as unknown as { type?: string })?.type ===
+                "model"
+              ) {
+                const raw = (streamEvent.data as unknown as { event?: unknown })
+                  ?.event as unknown;
+                const choices = (raw as any)?.choices;
+                const delta = Array.isArray(choices)
+                  ? choices?.[0]?.delta
+                  : null;
+                const toolCalls = delta?.tool_calls;
+                if (Array.isArray(toolCalls)) {
+                  toolCallsDetectedInRaw++;
+                  for (const tcDelta of toolCalls) {
+                    const index = tcDelta?.index;
+                    if (typeof index !== "number") continue;
+
+                    const state = toolArgsStreamByIndex.get(index) ?? {
+                      toolName: "",
+                      startEmitted: false,
+                    };
+
+                    const nameDelta = tcDelta?.function?.name;
+                    if (typeof nameDelta === "string" && nameDelta.length > 0) {
+                      state.toolName += nameDelta;
+                    }
+
+                    // If we can identify the tool name, emit args streaming start once.
+                    if (!state.startEmitted && state.toolName.length > 0) {
+                      state.startEmitted = true;
+                      reachedCaller = true;
+                      await this.emitToolEventHooks({
+                        event: {
+                          type: "tool_call_args_streaming_start",
+                          toolName: state.toolName,
+                        },
+                      });
+                      yield {
+                        type: "tool_call_args_streaming_start",
+                        toolName: state.toolName,
+                      };
+                    }
+
+                    toolArgsStreamByIndex.set(index, state);
+                  }
+                }
+              }
+
+              if (streamEvent.data.type === "output_text_delta") {
+                streamedOutput += streamEvent.data.delta;
+                reachedCaller = true;
+                yield { type: "content_delta", delta: streamEvent.data.delta };
+              }
+              continue;
+            }
+
+            if (streamEvent.type === "run_item_stream_event") {
+              // Emit tool args "complete" right before the tool call starts, so UIs can
+              // show a "parameters ready" transition even if they couldn't observe args streaming.
+              if (streamEvent.name === "tool_called") {
+                toolCallsEmittedByRunner++;
+                const toolName = this.extractToolName(streamEvent.item);
+                const params = this.extractToolArguments(streamEvent.item);
+                const argsCompleteEvent: AgentEvent = {
+                  type: "tool_call_args_streaming_complete",
+                  toolName,
+                  params,
+                };
+                reachedCaller = true;
+                await this.emitToolEventHooks({ event: argsCompleteEvent });
+                yield argsCompleteEvent;
+              }
+
+              const toolEvent = this.transformToolEvent(streamEvent);
+              if (toolEvent) {
+                reachedCaller = true;
+                await this.emitToolEventHooks({ event: toolEvent });
+                yield toolEvent;
+              }
+            }
+          }
           break;
         } catch (callError) {
           const classified = classifyLlmError(callError);
           if (
+            reachedCaller ||
             attempt >= LLM_CALL_MAX_ATTEMPTS ||
             !isRetryableLlmError(classified)
           ) {
             throw callError;
           }
+          await rollbackSession(runSession, sessionLength);
+          toolArgsStreamByIndex.clear();
+          streamedOutput = "";
+          toolCallsDetectedInRaw = 0;
+          toolCallsEmittedByRunner = 0;
           const delay = computeLlmRetryDelayMs(
             attempt,
             classified.retryAfterMs,
           );
           console.warn(
-            `[AIPex] LLM call failed (attempt ${attempt}/${LLM_CALL_MAX_ATTEMPTS}), retrying in ${delay}ms:`,
-            callError,
+            `[AIPex] LLM call failed (${classified.code}${classified.statusCode ? `, HTTP ${classified.statusCode}` : ""}), attempt ${attempt}/${LLM_CALL_MAX_ATTEMPTS}; retrying in ${delay}ms`,
           );
           await sleep(delay);
-        }
-      }
-
-      let streamedOutput = "";
-      let toolCallsDetectedInRaw = 0;
-      let toolCallsEmittedByRunner = 0;
-
-      for await (const streamEvent of result) {
-        if (streamEvent.type === "raw_model_stream_event") {
-          // New response boundary: reset per-response tool args tracking.
-          if (
-            (streamEvent.data as unknown as { type?: string })?.type ===
-            "response_started"
-          ) {
-            toolArgsStreamByIndex.clear();
-            continue;
-          }
-
-          // Log response_done events for debugging tool call assembly
-          if (
-            (streamEvent.data as unknown as { type?: string })?.type ===
-            "response_done"
-          ) {
-            const response = (
-              streamEvent.data as unknown as {
-                response?: { output?: unknown[] };
-              }
-            )?.response;
-            const outputItems = response?.output;
-            if (Array.isArray(outputItems)) {
-              const functionCalls = outputItems.filter(
-                (item: any) => item?.type === "function_call",
-              );
-              if (functionCalls.length > 0) {
-                log.debug(
-                  `response_done contains ${functionCalls.length} function_call(s):`,
-                  functionCalls.map((fc: any) => fc.name),
-                );
-              }
-            }
-          }
-
-          // Best-effort: detect tool call argument streaming from raw provider events.
-          // For OpenAI ChatCompletions streaming, the raw chunk is available under
-          // streamEvent.data.type === "model" with a shape like:
-          //   event.choices[0].delta.tool_calls[].function.{name,arguments}
-          if (
-            (streamEvent.data as unknown as { type?: string })?.type === "model"
-          ) {
-            const raw = (streamEvent.data as unknown as { event?: unknown })
-              ?.event as unknown;
-            const choices = (raw as any)?.choices;
-            const delta = Array.isArray(choices) ? choices?.[0]?.delta : null;
-            const toolCalls = delta?.tool_calls;
-            if (Array.isArray(toolCalls)) {
-              toolCallsDetectedInRaw++;
-              for (const tcDelta of toolCalls) {
-                const index = tcDelta?.index;
-                if (typeof index !== "number") continue;
-
-                const state = toolArgsStreamByIndex.get(index) ?? {
-                  toolName: "",
-                  startEmitted: false,
-                };
-
-                const nameDelta = tcDelta?.function?.name;
-                if (typeof nameDelta === "string" && nameDelta.length > 0) {
-                  state.toolName += nameDelta;
-                }
-
-                // If we can identify the tool name, emit args streaming start once.
-                if (!state.startEmitted && state.toolName.length > 0) {
-                  state.startEmitted = true;
-                  await this.emitToolEventHooks({
-                    event: {
-                      type: "tool_call_args_streaming_start",
-                      toolName: state.toolName,
-                    },
-                  });
-                  yield {
-                    type: "tool_call_args_streaming_start",
-                    toolName: state.toolName,
-                  };
-                }
-
-                toolArgsStreamByIndex.set(index, state);
-              }
-            }
-          }
-
-          if (streamEvent.data.type === "output_text_delta") {
-            streamedOutput += streamEvent.data.delta;
-            yield { type: "content_delta", delta: streamEvent.data.delta };
-          }
-          continue;
-        }
-
-        if (streamEvent.type === "run_item_stream_event") {
-          // Emit tool args "complete" right before the tool call starts, so UIs can
-          // show a "parameters ready" transition even if they couldn't observe args streaming.
-          if (streamEvent.name === "tool_called") {
-            toolCallsEmittedByRunner++;
-            const toolName = this.extractToolName(streamEvent.item);
-            const params = this.extractToolArguments(streamEvent.item);
-            const argsCompleteEvent: AgentEvent = {
-              type: "tool_call_args_streaming_complete",
-              toolName,
-              params,
-            };
-            await this.emitToolEventHooks({ event: argsCompleteEvent });
-            yield argsCompleteEvent;
-          }
-
-          const toolEvent = this.transformToolEvent(streamEvent);
-          if (toolEvent) {
-            await this.emitToolEventHooks({ event: toolEvent });
-            yield toolEvent;
-          }
         }
       }
 
