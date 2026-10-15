@@ -1,12 +1,12 @@
-import { fork, spawn } from "node:child_process";
+import { fork } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
 
 import { authProtocols, getOrCreateToken } from "./auth-token.js";
+import { loopbackWsUrl } from "./ws-url.js";
 
-const ENTRYPOINT_PATH = "/entrypoint.sh";
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_RETRY_TIMEOUT_MS = parseInt(
   process.env.BROWSER_CLI_CONNECT_TIMEOUT ?? "60000",
@@ -199,7 +199,14 @@ export async function callTool(
   const port = opts.port ?? 9223;
   const host = opts.host ?? "127.0.0.1";
   const token = getOrCreateToken();
-  const wsUrl = process.env.BROWSER_CLI_WS_URL ?? `ws://${host}:${port}/cli`;
+  let wsUrl: string;
+  try {
+    wsUrl = loopbackWsUrl(
+      process.env.BROWSER_CLI_WS_URL ?? `ws://${host}:${port}/cli`,
+    );
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
+  }
 
   const deadline = Date.now() + MAX_RETRY_TIMEOUT_MS;
   let backoff = INITIAL_BACKOFF_MS;
@@ -224,19 +231,7 @@ export async function callTool(
     }
 
     if (attempt === 1) {
-      if (existsSync(ENTRYPOINT_PATH)) {
-        process.stderr.write(
-          `[browser-cli] Auto-starting services via ${ENTRYPOINT_PATH} ...\n`,
-        );
-        const child = spawn(ENTRYPOINT_PATH, [], {
-          detached: true,
-          stdio: "ignore",
-          shell: true,
-          env: { ...process.env, DISPLAY: ":99" },
-        });
-        child.on("error", () => {});
-        child.unref();
-      } else if (!daemonSpawned) {
+      if (!daemonSpawned) {
         process.stderr.write("[browser-cli] Spawning daemon...\n");
         spawnDaemon(port, host);
         daemonSpawned = true;

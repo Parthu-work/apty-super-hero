@@ -292,6 +292,43 @@ describe("approval grants", () => {
     expect(await listApprovalGrants()).toEqual([]);
   });
 
+  it("are scoped to the requester: a chat grant does not cover MCP, nor the reverse", async () => {
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
+    await gateRiskyAction("chat-1", "tool_a", "x", PAGE, vi.fn());
+    await gateRiskyAction("chat-2", "tool_a", "x", PAGE, vi.fn());
+    await gateRiskyAction(undefined, "tool_a", "x", PAGE, vi.fn());
+    await gateRiskyAction(undefined, "tool_a", "x", PAGE, vi.fn());
+    stop();
+
+    expect(requests.map((r) => r.conversationId)).toEqual([
+      "chat-1",
+      undefined,
+    ]);
+    expect(
+      (await listApprovalGrants()).map((g) => [g.toolName, g.requester]),
+    ).toEqual([
+      ["tool_a", "chat"],
+      ["tool_a", "mcp"],
+    ]);
+  });
+
+  it("ignores a grant stored without a requester", async () => {
+    storageStore[STORAGE_KEYS.RISKY_ORIGIN_GRANTS] = [
+      {
+        toolName: "tool_a",
+        origin: "https://app.example.com",
+        expiresAt: Date.now() + 60_000,
+      },
+    ];
+    const { requests, stop } = answerApprovals({ approved: false });
+    await gateRiskyAction(undefined, "tool_a", "x", PAGE, vi.fn());
+    stop();
+    expect(requests).toHaveLength(1);
+  });
+
   it("ignores grants stored in the old permanent per-origin format", async () => {
     storageStore[STORAGE_KEYS.RISKY_ORIGIN_GRANTS] = [
       "https://app.example.com",

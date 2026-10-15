@@ -51,12 +51,13 @@ export function ApprovalGrantsPanel() {
             <ul className="space-y-2">
               {grants.map((grant) => (
                 <li
-                  key={`${grant.toolName}@${grant.origin}`}
+                  key={`${grant.toolName}@${grant.origin}@${grant.requester}`}
                   className="flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
                 >
                   <span className="min-w-0 break-all">
                     <span className="font-medium">{grant.toolName}</span> on{" "}
-                    {grant.origin}
+                    {grant.origin}{" "}
+                    {grant.requester === "mcp" ? "(MCP clients)" : "(chat)"}
                     <span className="text-muted-foreground">
                       {" "}
                       · {minutesLeft(grant)} min left
@@ -67,7 +68,11 @@ export function ApprovalGrantsPanel() {
                     size="sm"
                     variant="outline"
                     onClick={async () => {
-                      await revokeApprovalGrant(grant.toolName, grant.origin);
+                      await revokeApprovalGrant(
+                        grant.toolName,
+                        grant.origin,
+                        grant.requester,
+                      );
                       await refresh();
                     }}
                   >

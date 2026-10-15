@@ -36,6 +36,8 @@ Every WebSocket connection to the daemon — the extension, this package's own C
 
 The token travels in the handshake, never in the URL: a client offers two WebSocket subprotocols, `apty-mcp.v1` and `apty-token.<token>`, and the daemon answers with `apty-mcp.v1` only. A `?token=` query string is refused. Any other client you point at the daemon must send the token the same way.
 
+The extension is different: it never sends the token, so a program squatting on the port (another user on a shared Citrix or RDS host, say) learns nothing. It offers `apty-mcp.v1` and `apty-auth.hmac-v1`, then runs a challenge: it sends a random nonce, the daemon answers with its own nonce and an HMAC-SHA256 of both under the token, and only if that checks out does the extension send its own HMAC. The daemon treats the socket as the extension only after verifying it, and every `tools/call` it then sends carries a sequence number and an HMAC under a key derived from both nonces; the extension refuses any call without a valid one. The daemon forwards only the tools it publishes in `tools/list`.
+
 1. **Generate/find the token.** It's created automatically the first time anything needs it, stored `0600` under `~/.apty/mcp-daemon/token`. To see the path without starting anything:
 
    ```bash
@@ -158,7 +160,7 @@ node dist/daemon.js [--port <port>] [--host <host>] [--extension-id <id>]
 | `--rotate-token` | | Daemon only. Generates, persists, and prints a new token, invalidating the old one |
 | `--print-extension-id` | | Daemon only. Prints the currently pinned extension id (if any) and exits |
 | `--set-extension-id <id>` | | Daemon only. Persists the pinned extension id and exits (no server started) |
-| `--allow-dangerous-tools` | off | Daemon only. Permits bridge/CLI clients to call state-changing/high-risk tools (`run_console_command`, `upload_file_to_input`, `computer`, `fill_*`, `download_*`) — blocked by default. Only enable this if you trust every client that can reach the daemon; `run_console_command`/`upload_file_to_input` still require in-conversation user approval on the extension side regardless of this flag |
+| `--allow-dangerous-tools` | off | Daemon only. Permits bridge/CLI clients to call the published state-changing/high-risk tools (`upload_file_to_input`, `computer`, `fill_*`, `download_*`) — blocked by default. Only enable this if you trust every client that can reach the daemon; the extension's approval prompt still applies on top of this flag. The daemon forwards only tools in its published list, so `run_console_command` cannot be called over MCP at all |
 | `--help`, `-h` | | Bridge and `browser-cli` only. Show help |
 | `--version`, `-v` | | Bridge and `browser-cli` only. Show version |
 
@@ -166,9 +168,9 @@ node dist/daemon.js [--port <port>] [--host <host>] [--extension-id <id>]
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `AIPEX_WS_URL` | `ws://localhost:9223/cli` | WebSocket URL for the raw CLI (`apty-cli`) — kept as-is from the upstream fork this fork's CLI protocol descends from; not a reference to the unrelated `aipex-mcp-bridge` npm package |
+| `AIPEX_WS_URL` | `ws://localhost:9223/cli` | WebSocket URL for the raw CLI (`apty-cli`); must be `ws://127.0.0.1` or `ws://localhost` — kept as-is from the upstream fork this fork's CLI protocol descends from; not a reference to the unrelated `aipex-mcp-bridge` npm package |
 | `AIPEX_CONNECT_TIMEOUT` | `60000` | Max wait time for the raw CLI |
-| `BROWSER_CLI_WS_URL` | `ws://127.0.0.1:9223/cli` | WebSocket URL for `browser-cli` |
+| `BROWSER_CLI_WS_URL` | `ws://127.0.0.1:9223/cli` | WebSocket URL for `browser-cli`; must be `ws://127.0.0.1` or `ws://localhost`, since the token travels in the handshake |
 | `BROWSER_CLI_CONNECT_TIMEOUT` | `60000` | Max wait time for `browser-cli` |
 | `APTY_MCP_CONFIG_DIR` | `~/.apty/mcp-daemon` | Where the auth token and pinned-extension-id config are stored — override for tests or an isolated install, never needed in normal use |
 

@@ -29,6 +29,16 @@ import {
   tokensMatch,
   WS_PROTOCOL,
 } from "./lib/auth-token.js";
+import {
+  AUTH_PROTOCOL,
+  callMac,
+  daemonProof,
+  extensionProof,
+  isNonce,
+  newNonce,
+  proofsMatch,
+  sessionKey,
+} from "./lib/handshake.js";
 import { toolSchemas } from "./tool-schemas.js";
 
 function current<T>(value: T | (() => T)): T {
@@ -45,6 +55,8 @@ export interface DaemonServerOptions {
   /** Tool names a bridge/CLI client may call even though they're state-changing/high-risk by default (see DANGEROUS_TOOL_NAMES) — opt-in, defaults to none allowed. */
   allowDangerousTools?: boolean;
   idleTimeoutMs?: number;
+  /** How long an extension that authenticates by challenge has to finish. */
+  handshakeTimeoutMs?: number;
   toolCallTimeoutMs?: number;
   pingIntervalMs?: number;
   pingTimeoutMs?: number;
@@ -63,6 +75,7 @@ export interface DaemonServerHandle {
 
 const DEFAULTS = {
   idleTimeoutMs: 30_000,
+  handshakeTimeoutMs: 5_000,
   toolCallTimeoutMs: 60_000,
   pingIntervalMs: 15_000,
   pingTimeoutMs: 5_000,
@@ -70,6 +83,10 @@ const DEFAULTS = {
 
 /** WS close codes in the private-use range (4000-4999, per RFC 6455 §7.4.2). */
 const CLOSE_CODE_DUPLICATE_EXTENSION = 4001;
+const CLOSE_CODE_AUTH_FAILED = 4003;
+
+/** Only the tools this daemon publishes in tools/list are ever forwarded. */
+const PUBLISHED_TOOL_NAMES = new Set(toolSchemas.map((tool) => tool.name));
 
 /** State-changing/high-risk tool names — blocked by default for bridge/CLI callers unless `allowDangerousTools` is explicitly set. The extension's own approval gate (packages/browser-runtime/src/tools/approval.ts) still applies on top of this for run_console_command/upload_file_to_input even when allowed here. */
 const DANGEROUS_TOOL_NAMES = new Set([
@@ -93,6 +110,11 @@ function isExtensionOrigin(origin: string): boolean {
   );
 }
 
+function offeredProtocols(header: string | string[] | undefined): string[] {
+  const value = Array.isArray(header) ? header.join(",") : (header ?? "");
+  return value.split(",").map((p) => p.trim());
+}
+
 function rejectUpgrade(socket: Duplex, status: number, text: string): void {
   socket.write(`HTTP/1.1 ${status} ${text}\r\n\r\n`);
   socket.destroy();
@@ -104,6 +126,8 @@ export function startDaemonServer(
   const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULTS.idleTimeoutMs;
   const toolCallTimeoutMs =
     options.toolCallTimeoutMs ?? DEFAULTS.toolCallTimeoutMs;
+  const handshakeTimeoutMs =
+    options.handshakeTimeoutMs ?? DEFAULTS.handshakeTimeoutMs;
   const pingIntervalMs = options.pingIntervalMs ?? DEFAULTS.pingIntervalMs;
   const pingTimeoutMs = options.pingTimeoutMs ?? DEFAULTS.pingTimeoutMs;
   const log =
@@ -113,6 +137,8 @@ export function startDaemonServer(
   // ── Extension connection ──────────────────────────────────────────────
 
   let extensionWs: WebSocket | undefined;
+  /** Set when the extension authenticated by challenge: tools/call messages to it are signed. */
+  let extensionSession: { key: string; seq: number } | undefined;
   let nextExtId = 1;
 
   interface PendingExtCall {
@@ -217,7 +243,10 @@ export function startDaemonServer(
    * (crashed, network-dropped) socket is reclaimed by the ping-timeout
    * path above, not by trusting whatever connects next.
    */
-  function setExtensionSocket(ws: WebSocket): void {
+  function setExtensionSocket(
+    ws: WebSocket,
+    session?: { key: string; seq: number },
+  ): void {
     if (isExtensionConnected()) {
       log("Rejected new /extension connection: one is already active");
       try {
@@ -232,6 +261,7 @@ export function startDaemonServer(
     }
 
     extensionWs = ws;
+    extensionSession = session;
 
     ws.on("message", (data) => handleExtensionMessage(data.toString()));
 
@@ -241,6 +271,7 @@ export function startDaemonServer(
         stopExtPing();
         rejectAllPendingExt("Extension disconnected");
         extensionWs = undefined;
+        extensionSession = undefined;
         resetIdleTimer();
       }
     });
@@ -280,12 +311,13 @@ export function startDaemonServer(
     }
 
     const extId = nextExtId++;
-    const msg = {
-      jsonrpc: "2.0",
-      id: extId,
-      method: "tools/call",
-      params: { name: toolName, arguments: args },
-    };
+    const params: Record<string, unknown> = { name: toolName, arguments: args };
+    if (extensionSession) {
+      const seq = ++extensionSession.seq;
+      params.seq = seq;
+      params.mac = callMac(extensionSession.key, seq, toolName, args);
+    }
+    const msg = { jsonrpc: "2.0", id: extId, method: "tools/call", params };
     extensionWs!.send(JSON.stringify(msg));
 
     const timer = setTimeout(() => {
@@ -327,6 +359,22 @@ export function startDaemonServer(
       const params = (msg.params ?? {}) as Record<string, unknown>;
       const name = params.name as string;
       const args = (params.arguments ?? {}) as Record<string, unknown>;
+
+      if (!PUBLISHED_TOOL_NAMES.has(name)) {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: id ?? 0,
+              error: {
+                code: -1,
+                message: `Tool '${name}' is not a published tool of this bridge (see tools/list).`,
+              },
+            }),
+          );
+        }
+        return;
+      }
 
       if (DANGEROUS_TOOL_NAMES.has(name) && !options.allowDangerousTools) {
         const errResp = {
@@ -507,7 +555,16 @@ export function startDaemonServer(
       return;
     }
 
-    if (!tokensMatch(token, current(options.requiredToken))) {
+    const isExtensionPath = pathname === "/extension" || pathname === "/";
+    // The extension never sends the token: it offers challenge auth and
+    // proves it holds the token after the socket opens.
+    const challenge =
+      isExtensionPath &&
+      token === undefined &&
+      offeredProtocols(req.headers["sec-websocket-protocol"]).includes(
+        AUTH_PROTOCOL,
+      );
+    if (!challenge && !tokensMatch(token, current(options.requiredToken))) {
       log(
         `Rejected WebSocket upgrade on ${pathname}: invalid or missing token`,
       );
@@ -515,9 +572,10 @@ export function startDaemonServer(
       return;
     }
 
-    if (pathname === "/extension" || pathname === "/") {
+    if (isExtensionPath) {
       extensionWss.handleUpgrade(req, socket, head, (ws) => {
-        extensionWss.emit("connection", ws, req);
+        if (challenge) authenticateByChallenge(ws);
+        else extensionWss.emit("connection", ws, req);
       });
     } else if (pathname === "/bridge") {
       bridgeWss.handleUpgrade(req, socket, head, (ws) => {
@@ -529,6 +587,69 @@ export function startDaemonServer(
       });
     }
   });
+
+  /**
+   * The daemon proves it holds the token first, so an extension talking to
+   * an impostor learns nothing; the socket becomes the extension only once
+   * the extension has proved it too.
+   */
+  function authenticateByChallenge(ws: WebSocket): void {
+    let extNonce: string | undefined;
+    let daemonNonce: string | undefined;
+    const fail = () => {
+      clearTimeout(timer);
+      log("Rejected /extension connection: authentication failed");
+      ws.close(CLOSE_CODE_AUTH_FAILED, "Authentication failed");
+    };
+    const timer = setTimeout(fail, handshakeTimeoutMs);
+    const onMessage = (data: unknown) => {
+      let msg: {
+        id?: unknown;
+        method?: unknown;
+        params?: Record<string, unknown>;
+      };
+      try {
+        msg = JSON.parse(String(data));
+      } catch {
+        return fail();
+      }
+      const tokenNow = current(options.requiredToken);
+      if (msg.method === "auth/challenge" && !extNonce) {
+        if (!isNonce(msg.params?.nonce)) return fail();
+        extNonce = msg.params.nonce;
+        daemonNonce = newNonce();
+        ws.send(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: msg.id,
+            result: {
+              nonce: daemonNonce,
+              proof: daemonProof(tokenNow, extNonce, daemonNonce),
+            },
+          }),
+        );
+        return;
+      }
+      if (msg.method === "auth/prove" && extNonce && daemonNonce) {
+        const expected = extensionProof(tokenNow, extNonce, daemonNonce);
+        if (!proofsMatch(msg.params?.proof, expected)) return fail();
+        clearTimeout(timer);
+        ws.off("message", onMessage);
+        ws.send(
+          JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { ok: true } }),
+        );
+        log("Extension authenticated");
+        setExtensionSocket(ws, {
+          key: sessionKey(tokenNow, extNonce, daemonNonce),
+          seq: 0,
+        });
+        return;
+      }
+      fail();
+    };
+    ws.on("message", onMessage);
+    ws.on("close", () => clearTimeout(timer));
+  }
 
   extensionWss.on("connection", (socket, req) => {
     const addr = req.socket.remoteAddress ?? "unknown";
