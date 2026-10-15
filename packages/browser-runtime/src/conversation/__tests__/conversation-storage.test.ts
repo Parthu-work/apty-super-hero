@@ -364,6 +364,81 @@ describe("ConversationStorage", () => {
     });
   });
 
+  describe("agent sessions follow their conversation", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    function storedWithSession(id: string, ageDays: number, session?: string) {
+      const updatedAt = Date.now() - ageDays * DAY;
+      mockDb[id] = {
+        id,
+        title: id,
+        messages: createMockMessages(2),
+        createdAt: updatedAt,
+        updatedAt,
+        agentSessionId: session,
+      } as ConversationData;
+    }
+
+    it("deletes the agent session when a conversation is deleted", async () => {
+      storedWithSession("c1", 0, "s1");
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.deleteConversation("c1");
+
+      expect(mockDb.c1).toBeUndefined();
+      expect(deleteAgentSessions).toHaveBeenCalledWith(["s1"]);
+    });
+
+    it("does not call the session store for a conversation without a session", async () => {
+      storedWithSession("c1", 0);
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.deleteConversation("c1");
+
+      expect(deleteAgentSessions).not.toHaveBeenCalled();
+    });
+
+    it("evicts the sessions of conversations removed by age or count", async () => {
+      storedWithSession("old", 8, "s-old");
+      for (let i = 0; i < 6; i++) storedWithSession(`c${i}`, i * 0.1, `s${i}`);
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.getAllConversations();
+
+      const evicted = deleteAgentSessions.mock.calls.flatMap(([ids]) => ids);
+      expect(evicted.sort()).toEqual(["s-old", "s5"]);
+      expect(Object.keys(mockDb).sort()).toEqual([
+        "c0",
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+      ]);
+    });
+
+    it("deletes the session of an expired conversation that is opened", async () => {
+      storedWithSession("stale", 30, "s-stale");
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      expect(await storage.getConversation("stale")).toBeNull();
+      expect(deleteAgentSessions).toHaveBeenCalledWith(["s-stale"]);
+    });
+
+    it("still deletes the conversation when the session store fails", async () => {
+      storedWithSession("c1", 0, "s1");
+      const deleteAgentSessions = vi.fn().mockRejectedValue(new Error("x"));
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.deleteConversation("c1");
+
+      expect(mockDb.c1).toBeUndefined();
+    });
+  });
+
   describe("message types", () => {
     it("should handle text messages", () => {
       const storage = new ConversationStorage();

@@ -151,6 +151,7 @@ export interface TranslationResources {
     recentConversations: string;
     messagesCount: string;
     newConversation: string;
+    deleteConversation: string;
     timeFormat: {
       justNow: string;
       minutesAgo: string;
@@ -342,6 +343,7 @@ export type BaseTranslationKey =
   | "conversationHistory.recentConversations"
   | "conversationHistory.messagesCount"
   | "conversationHistory.newConversation"
+  | "conversationHistory.deleteConversation"
   | "conversationHistory.timeFormat.justNow"
   | "conversationHistory.timeFormat.minutesAgo"
   | "conversationHistory.timeFormat.hourAgo"

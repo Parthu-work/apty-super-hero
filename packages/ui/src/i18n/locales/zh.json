@@ -297,6 +297,7 @@
     "recentConversations": "最近对话",
     "messagesCount": "条消息",
     "newConversation": "新对话",
+    "deleteConversation": "删除对话",
     "timeFormat": {
       "justNow": "刚刚",
       "minutesAgo": "{{count}} 分钟前",

@@ -12,10 +12,7 @@ import { registerGlobalDownloadHelper } from "./downloads";
 import { registerInstallHandler, seedAptyIntegrationConfig } from "./lifecycle";
 import { registerMcpBridge } from "./mcp-bridge";
 import { registerMessageRouter } from "./message-router";
-import {
-  registerSidepanelActionClick,
-  registerSidepanelPortLifecycle,
-} from "./sidepanel";
+import { registerSidepanelActionClick } from "./sidepanel";
 import { lockdownStorageAccess } from "./storage-lockdown";
 
 const log = createLogger("Background");
@@ -31,7 +28,6 @@ seedAptyIntegrationConfig();
 registerSidepanelActionClick();
 registerCommandHandlers();
 registerInstallHandler();
-registerSidepanelPortLifecycle();
 registerMessageRouter();
 registerGlobalDownloadHelper();
 registerMcpBridge();

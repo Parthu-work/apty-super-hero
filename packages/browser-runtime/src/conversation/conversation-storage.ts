@@ -4,6 +4,7 @@ import {
   isExpired,
   selectForEviction,
 } from "@apty/agent-core";
+import { deleteAgentSessions } from "../storage/agent-session-store";
 import { IndexedDBStorage } from "../storage/indexeddb-storage";
 import { LRUPolicy } from "./lru-policy";
 import { migrate } from "./migration";
@@ -22,7 +23,10 @@ const log = createLogger("ConversationStorage");
 export class ConversationStorage {
   private readonly storage: IndexedDBStorage<ConversationData>;
   private readonly lruPolicy: LRUPolicy;
-  private readonly config: Required<ConversationStorageConfig>;
+  private readonly config: Required<
+    Omit<ConversationStorageConfig, "deleteAgentSessions">
+  >;
+  private readonly deleteAgentSessions: (ids: string[]) => Promise<void>;
   private migrationPromise: Promise<void> | null = null;
 
   constructor(config: ConversationStorageConfig = {}) {
@@ -32,6 +36,8 @@ export class ConversationStorage {
       dbName: config.dbName ?? "aipex-conversations-db",
       storeName: config.storeName ?? "conversations",
     };
+    this.deleteAgentSessions =
+      config.deleteAgentSessions ?? deleteAgentSessions;
 
     this.storage = new IndexedDBStorage<ConversationData>({
       dbName: this.config.dbName,
@@ -115,6 +121,7 @@ export class ConversationStorage {
       if (toDelete.length > 0) {
         log.debug(`🗑️ LRU: Removing ${toDelete.length} old conversation(s)`);
         await Promise.all(toDelete.map((conv) => this.storage.delete(conv.id)));
+        await this.removeAgentSessionsOf(toDelete);
       }
     } catch (error) {
       console.error("❌ [ConversationStorage] Failed to apply LRU:", error);
@@ -202,6 +209,7 @@ export class ConversationStorage {
       }
       if (isExpired(conversation.updatedAt, this.config.maxAgeMs)) {
         await this.storage.delete(conversationId);
+        await this.removeAgentSessionsOf([conversation]);
         return null;
       }
 
@@ -264,7 +272,9 @@ export class ConversationStorage {
     await this.ensureMigrated();
 
     try {
+      const conversation = await this.storage.load(conversationId);
       await this.storage.delete(conversationId);
+      if (conversation) await this.removeAgentSessionsOf([conversation]);
       log.debug("🗑️ Conversation deleted:", conversationId);
     } catch (error) {
       console.error(
@@ -288,6 +298,20 @@ export class ConversationStorage {
         "❌ [ConversationStorage] Failed to clear conversations:",
         error,
       );
+    }
+  }
+
+  private async removeAgentSessionsOf(
+    conversations: ConversationData[],
+  ): Promise<void> {
+    const ids = conversations
+      .map((c) => c.agentSessionId)
+      .filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+    try {
+      await this.deleteAgentSessions(ids);
+    } catch {
+      log.warn("agent_session_delete_failed");
     }
   }
 

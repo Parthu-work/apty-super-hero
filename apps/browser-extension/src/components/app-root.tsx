@@ -185,18 +185,10 @@ function ChatApp() {
   const [interventionMode, setInterventionMode] =
     useState<InterventionMode>("passive");
 
-  // Sidepanel lifecycle: port connection + cleanup on hide/close
+  // Stop element capture on the active tab when the side panel is hidden
   useEffect(() => {
-    // Long-lived port so the background can detect sidepanel disconnect
-    const port = chrome.runtime.connect({ name: "sidepanel" });
-
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Stop any active recording
-        chrome.runtime.sendMessage({ request: "stop-recording" }).catch(() => {
-          /* background may be busy */
-        });
-        // Stop element capture on the active tab
         chrome.runtime
           .sendMessage({
             request: "relay-to-active-tab",
@@ -212,7 +204,6 @@ function ChatApp() {
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      port.disconnect();
     };
   }, []);
 

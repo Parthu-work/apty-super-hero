@@ -196,6 +196,7 @@ export function ConversationHistory({
                   variant="ghost"
                   size="icon"
                   className="size-6 flex-shrink-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label={t("conversationHistory.deleteConversation")}
                   onClick={(e) => handleDeleteConversation(conversation.id, e)}
                 >
                   <Trash2Icon className="size-3" />

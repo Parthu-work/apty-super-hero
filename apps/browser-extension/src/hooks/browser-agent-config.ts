@@ -22,6 +22,7 @@ import {
   selectRelevantTools,
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
+import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-store";
 import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo } from "react";
 import {
@@ -35,13 +36,7 @@ import { createOutboundFilters } from "./outbound-filters";
  */
 export function useBrowserStorage() {
   return useMemo(
-    () =>
-      new SessionStorage(
-        new IndexedDBStorage({
-          dbName: "aipex-sessions",
-          storeName: "sessions",
-        }),
-      ),
+    () => new SessionStorage(new IndexedDBStorage(AGENT_SESSION_DB)),
     [],
   );
 }

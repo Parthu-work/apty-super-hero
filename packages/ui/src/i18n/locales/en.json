@@ -297,6 +297,7 @@
     "recentConversations": "Recent conversations",
     "messagesCount": "messages",
     "newConversation": "New conversation",
+    "deleteConversation": "Delete conversation",
     "timeFormat": {
       "justNow": "Just now",
       "minutesAgo": "{{count}} min ago",
