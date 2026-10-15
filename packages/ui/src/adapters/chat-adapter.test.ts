@@ -1,6 +1,6 @@
 import type * as AIPexCore from "@apty/agent-core";
 import { AgentError, ErrorCode } from "@apty/agent-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "../types";
 import {
   ChatAdapter,
@@ -853,5 +853,42 @@ describe("formatAgentErrorForDisplay", () => {
       new AgentError("connection reset", ErrorCode.TOOL_EXECUTION_ERROR, false),
     );
     expect(text).toContain("connection reset");
+  });
+});
+
+describe("formatAgentErrorForDisplay — network failures", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    "Failed to fetch",
+    "NetworkError when attempting to fetch resource.",
+    "Load failed",
+    "net::ERR_INTERNET_DISCONNECTED",
+  ])("explains %s as an unreachable provider, not a raw message", (message) => {
+    const text = formatAgentErrorForDisplay(
+      new AgentError(message, ErrorCode.LLM_API_ERROR, true),
+    );
+    expect(text).toMatch(/could not reach the AI provider/i);
+    expect(text).not.toContain(message);
+  });
+
+  it("says the browser is offline when it is", () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const text = formatAgentErrorForDisplay(
+      new AgentError("Failed to fetch", ErrorCode.LLM_API_ERROR, true),
+    );
+    expect(text).toMatch(/offline/i);
+  });
+
+  it("uses the translation it is given", () => {
+    const translate = vi.fn((key: string) => `T:${key}`);
+    expect(
+      formatAgentErrorForDisplay(
+        new AgentError("Failed to fetch", ErrorCode.LLM_API_ERROR, true),
+        translate,
+      ),
+    ).toBe("T:chatErrors.network");
   });
 });

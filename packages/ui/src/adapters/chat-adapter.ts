@@ -211,7 +211,7 @@ export class ChatAdapter {
    */
   private showErrorInChat(error: AgentError): void {
     this.ensureAssistantMessage();
-    const text = formatAgentErrorForDisplay(error);
+    const text = formatAgentErrorForDisplay(error, this.options.translate);
     this.updateCurrentAssistantMessage((message) => ({
       ...message,
       parts: [...message.parts, { type: "text", text } as UITextPart],
@@ -637,8 +637,29 @@ export function createChatAdapter(
   return new ChatAdapter(options);
 }
 
+const NETWORK_FAILURE =
+  /failed to fetch|networkerror|network request failed|load failed|err_internet_disconnected|err_network_changed|err_name_not_resolved|err_connection_(refused|reset|closed)/i;
+
+const NETWORK_ERROR_TEXT = {
+  "chatErrors.network":
+    "⚠️ Could not reach the AI provider. Check your connection, or the AI host in Settings, and try again.",
+  "chatErrors.offline": "⚠️ You appear to be offline. Reconnect and try again.",
+} as const;
+
+type NetworkErrorKey = keyof typeof NETWORK_ERROR_TEXT;
+
 /** A short, human-readable explanation of an `AgentError` for display in the chat transcript — never just the raw error code or a bare "Error". */
-export function formatAgentErrorForDisplay(error: AgentError): string {
+export function formatAgentErrorForDisplay(
+  error: AgentError,
+  translate: (key: NetworkErrorKey) => string = (key) =>
+    NETWORK_ERROR_TEXT[key],
+): string {
+  const offline =
+    typeof navigator !== "undefined" && navigator.onLine === false;
+  if (offline || NETWORK_FAILURE.test(error.message)) {
+    return translate(offline ? "chatErrors.offline" : "chatErrors.network");
+  }
+
   const retryAfterMs = error.context?.retryAfterMs;
   const retryNote =
     typeof retryAfterMs === "number" && retryAfterMs > 0

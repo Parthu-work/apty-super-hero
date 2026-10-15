@@ -290,6 +290,10 @@
     "stop_investigation": "🛑 停止调查",
     "get_investigation_status": "📋 检查调查状态"
   },
+  "chatErrors": {
+    "network": "⚠️ 无法连接到 AI 服务提供方。请检查网络连接或设置中的 AI 主机地址，然后重试。",
+    "offline": "⚠️ 您似乎已离线。请重新连接后再试。"
+  },
   "conversationHistory": {
     "title": "对话历史",
     "loading": "加载中...",

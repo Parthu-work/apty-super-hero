@@ -144,6 +144,10 @@ export interface TranslationResources {
   tools: {
     [key: string]: string;
   };
+  chatErrors: {
+    network: string;
+    offline: string;
+  };
   conversationHistory: {
     title: string;
     loading: string;
@@ -337,6 +341,8 @@ export type BaseTranslationKey =
   | "config.description"
   | "config.apiTokenRequired"
   | "config.openSettings"
+  | "chatErrors.network"
+  | "chatErrors.offline"
   | "conversationHistory.title"
   | "conversationHistory.loading"
   | "conversationHistory.noHistory"
