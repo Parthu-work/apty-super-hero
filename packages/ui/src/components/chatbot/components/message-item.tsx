@@ -15,6 +15,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
+import { isLocalImageUrl } from "../../../lib/safe-media";
 import { transformScreenshotPlaceholders } from "../../../lib/screenshot-utils";
 import { cn } from "../../../lib/utils";
 import type {
@@ -210,7 +211,8 @@ export function DefaultMessageItem({
                 from={message.role as "user" | "assistant" | "system"}
               >
                 <MessageContent>
-                  {part.mediaType.startsWith("image/") ? (
+                  {part.mediaType.startsWith("image/") &&
+                  isLocalImageUrl(part.url) ? (
                     <div className="max-w-md">
                       <img
                         src={part.url}

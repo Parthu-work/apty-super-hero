@@ -15,6 +15,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { isLocalImageUrl } from "../../lib/safe-media";
 import { ScreenshotStorage } from "../../lib/screenshot-storage";
 import { cn } from "../../lib/utils";
 import { Badge } from "../ui/badge";
@@ -224,7 +225,7 @@ export const ToolScreenshot = ({
         </div>
       ) : error ? (
         <div className="text-destructive text-sm">{error}</div>
-      ) : imageData ? (
+      ) : isLocalImageUrl(imageData) ? (
         <img
           src={imageData}
           alt="Screenshot"

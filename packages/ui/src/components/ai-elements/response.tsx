@@ -1,10 +1,26 @@
 "use client";
 
 import { type ComponentProps, memo } from "react";
-import { Streamdown } from "streamdown";
+import {
+  defaultRehypePlugins,
+  defaultUrlTransform,
+  Streamdown,
+  type UrlTransform,
+} from "streamdown";
+import { isLocalImageUrl, rehypeBlockRemoteMedia } from "../../lib/safe-media";
 import { cn } from "../../lib/utils";
 
 type ResponseProps = ComponentProps<typeof Streamdown>;
+
+const rehypePlugins = [
+  ...Object.values(defaultRehypePlugins),
+  rehypeBlockRemoteMedia,
+];
+
+const urlTransform: UrlTransform = (url, key, node) => {
+  if (key === "src") return isLocalImageUrl(url) ? url : "";
+  return defaultUrlTransform(url, key, node);
+};
 
 export const Response = memo(
   ({ className, ...props }: ResponseProps) => (
@@ -14,6 +30,8 @@ export const Response = memo(
         className,
       )}
       {...props}
+      rehypePlugins={rehypePlugins}
+      urlTransform={urlTransform}
     />
   ),
   (prevProps, nextProps) => prevProps.children === nextProps.children,

@@ -41,6 +41,7 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { isLocalImageUrl } from "../../lib/safe-media";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import {
@@ -262,7 +263,7 @@ export function PromptInputAttachment({
       key={data.id}
       {...props}
     >
-      {data.mediaType?.startsWith("image/") && data.url ? (
+      {data.mediaType?.startsWith("image/") && isLocalImageUrl(data.url) ? (
         <img
           alt={data.filename || "attachment"}
           className="size-full rounded-md object-cover"
