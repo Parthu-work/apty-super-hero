@@ -207,7 +207,7 @@ describe("chat agent in a real browser", () => {
     await app.close();
   });
 
-  it("remembers 'Allow on this site' for that tool only, until revoked in options", async () => {
+  it("never remembers run_console_command: it asks every time and lists no grant", async () => {
     const app = await openApp();
     const panel = await openSidePanel(browser, model, app);
 
@@ -215,39 +215,38 @@ describe("chat agent in a real browser", () => {
       callToolThenReport("run_console_command", { expression: "1 + 1" }),
     );
     await chatAndWait(panel, "run a console command", {
-      whileWaiting: answerPrompt(panel, /Allow on this site/),
+      whileWaiting: async () => {
+        const prompt = panel.getByRole("alertdialog");
+        await prompt.waitFor({ timeout: 30_000 });
+        assert.equal(
+          await prompt
+            .getByRole("button", { name: /Allow on this site/ })
+            .count(),
+          0,
+        );
+        await prompt.getByRole("button", { name: "Allow once" }).click();
+      },
     });
-
-    model.script(
-      callToolThenReport("run_console_command", {
-        expression: "document.title = 'REMEMBERED'; 2 + 2",
-      }),
-    );
-    await chatAndWait(panel, "run a console command again");
     assert.equal(
       lastToolResult().success,
       true,
       JSON.stringify(lastToolResult()),
     );
-    assert.equal(await app.title(), "REMEMBERED");
-
-    const options = await extensionPage(browser);
-    await options.getByText("Remembered approvals").waitFor();
-    await options.getByText(/run_console_command/).waitFor();
-    await options.getByRole("button", { name: "Revoke all" }).click();
-    await options.getByText("No active approvals.").waitFor();
-    await options.close();
-    await app.bringToFront();
 
     model.script(
       callToolThenReport("run_console_command", {
-        expression: "document.title = 'AFTER-REVOKE'",
+        expression: "document.title = 'NOT-REMEMBERED'",
       }),
     );
-    await chatAndWait(panel, "run a console command once more", {
+    await chatAndWait(panel, "run a console command again", {
       whileWaiting: answerPrompt(panel, "Deny"),
     });
-    assert.equal(await app.title(), "REMEMBERED");
+    assert.equal(await app.title(), "Original");
+
+    const options = await extensionPage(browser);
+    await options.getByText("Remembered approvals").waitFor();
+    assert.equal(await options.getByText(/run_console_command/).count(), 0);
+    await options.close();
     await panel.close();
     await app.close();
   });
@@ -689,5 +688,59 @@ describe("approval for clicks and new tabs (A1)", () => {
     assert.equal(await revoked.app.title(), "count 0");
     await revoked.panel.close();
     await revoked.app.close();
+  });
+});
+
+describe("approval hardening (S5)", () => {
+  it("remembering a typing approval does not pre-approve a Delete click", async () => {
+    const typed = await runGatedSteps(
+      "/full-delete.html",
+      "use the computer to type into the page: hello",
+      [() => ({ tool: "computer", args: { action: "type", text: "hello" } })],
+      answerGate(/Allow on this site/, (text) => assert.match(text, /Typing/)),
+    );
+    assert.notEqual(typed.results[0].status, "denied");
+    await typed.panel.close();
+    await typed.app.close();
+
+    const click = await runGatedSteps(
+      "/full-delete.html",
+      "use the computer to click the Delete button in the middle of the page",
+      [
+        () => ({
+          tool: "computer",
+          args: { action: "left_click", coordinate: [200, 200] },
+        }),
+      ],
+      answerGate("Deny", (text) => assert.match(text, /Click/)),
+    );
+    assert.equal(click.results[0].status, "denied");
+    assert.equal(await click.app.title(), "count 0");
+    await click.panel.close();
+    await click.app.close();
+  });
+
+  it("a deep DOM Health run asks once, naming the mode and page limit", async () => {
+    let prompts = 0;
+    const run = await runGatedSteps(
+      "/shop/p1.html",
+      "run an application DOM health audit across pages with deep state discovery",
+      [
+        () => ({
+          tool: "run_application_dom_health_audit",
+          args: { discoveryMode: "application-deep", maxPages: 2 },
+        }),
+      ],
+      answerGate("Allow once", (text) => {
+        prompts += 1;
+        assert.match(text, /application-deep/);
+        assert.match(text, /2 pages/);
+      }),
+    );
+    assert.equal(prompts, 1);
+    assert.notEqual(run.results[0].status, "denied");
+    assert.equal(await run.panel.getByRole("alertdialog").count(), 0);
+    await run.panel.close();
+    await run.app.close();
   });
 });

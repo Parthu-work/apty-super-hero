@@ -132,11 +132,23 @@ extension's own pages and service worker.
 
 ## Actions on your behalf
 
-The agent asks before it runs JavaScript in a page, fills fields, types,
-uploads or downloads files, or runs a skill script. You approve each action
-in the side panel, or allow one tool on one site for 15 minutes. If the tab
-moves to another site while the prompt is open, the action is not run. The
-AI model can't approve its own actions.
+The agent asks before it runs JavaScript in a page, fills fields (the
+prompt lists each field and its value), types or presses keys, makes a
+risky click or drag, opens or switches to a tab on another site, closes a
+tab it did not open, uploads or downloads files, runs a skill script (the
+prompt shows its first lines and arguments), or runs a DOM Health audit
+that clicks through the application. You approve each action in the side
+panel. For most of them you can instead allow that kind of action on one
+site for 15 minutes; typing, key presses, clicks and drags are separate
+kinds, so allowing one never allows another. Running JavaScript, closing a
+tab and a clicking DOM Health audit always ask. If the tab moves to another
+site while the prompt is open, the action is not run. The AI model can't
+approve its own actions.
+
+Skill scripts can't create or change files in a skill's `scripts/` folder,
+so the agent can't write a script and then ask to run it: scripts come only
+from skill packages you import. A file a skill script downloads always
+opens the save dialog.
 
 ## Permissions
 

@@ -291,13 +291,16 @@ export async function gateRiskyAction<T>(
     tabId?: number;
     /** False to ignore grants and always ask, without offering to remember. */
     rememberable?: boolean;
+    /** What a remembered grant is stored and looked up under; defaults to the tool name. */
+    grantName?: string;
   } = {},
 ): Promise<T | ApprovalDeniedResult> {
   const origin = originOf(pageUrl);
   const rememberable = options.rememberable !== false;
+  const grantName = options.grantName ?? toolName;
   if (origin && rememberable) {
     const grants = await loadActiveGrants();
-    if (grants.some((g) => g.toolName === toolName && g.origin === origin)) {
+    if (grants.some((g) => g.toolName === grantName && g.origin === origin)) {
       return run();
     }
   }
@@ -328,7 +331,7 @@ export async function gateRiskyAction<T>(
   }
 
   if (outcome.remember && origin && rememberable) {
-    await addGrant(toolName, origin);
+    await addGrant(grantName, origin);
   }
   return run();
 }

@@ -7,6 +7,33 @@ import { getActiveTab, type ToolRunContext } from "./tab-utils";
 
 const log = createLogger("TabTools");
 
+/** Tabs each conversation opened (MCP calls share one key); only these close without asking. */
+const openedTabs = new Map<string, Set<number>>();
+
+function requesterKey(context: unknown): string {
+  return (context as ToolRunContext)?.context?.conversationId ?? "mcp";
+}
+
+function originOf(url: string | undefined): string | null {
+  try {
+    const { origin } = new URL(url ?? "");
+    return origin === "null" ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
+/** The URL of the tab this conversation is bound to; undefined when it has none. */
+async function boundTabUrl(context: unknown): Promise<string | undefined> {
+  const tabId = (context as ToolRunContext)?.context?.tabId;
+  if (typeof tabId !== "number") return undefined;
+  try {
+    return (await chrome.tabs.get(tabId)).url;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Get all open tabs across all windows
  */
@@ -56,7 +83,9 @@ export const getCurrentTabTool = tool({
  */
 export const switchToTabTool = tool({
   name: "switch_to_tab",
-  description: "Switch to a specific tab by ID or URL pattern",
+  description:
+    "Switch to a specific tab by ID or URL pattern. " +
+    'APPROVAL: switching to a tab on another origin than the conversation\'s tab waits for the user to click Allow or Deny. A denied call returns status "denied": do not retry it.',
   parameters: z.object({
     tabId: z.number().nullable().optional().describe("Tab ID to switch to"),
     urlPattern: z
@@ -65,65 +94,52 @@ export const switchToTabTool = tool({
       .optional()
       .describe("URL pattern to match (e.g., 'github.com')"),
   }),
-  execute: async ({ tabId, urlPattern }) => {
-    const mode = await getAutomationMode();
-    log.debug("🔧 Automation mode:", mode);
-
+  execute: async ({ tabId, urlPattern }, context) => {
+    let target: chrome.tabs.Tab | undefined;
     if (tabId != null) {
-      const tab = await chrome.tabs.get(tabId);
-      if (!tab.id) {
-        throw new Error("Tab not found");
+      target = await chrome.tabs.get(tabId);
+      if (!target.id) throw new Error("Tab not found");
+    } else if (urlPattern) {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      target = tabs.find((tab) => tab.url?.includes(urlPattern));
+      if (!target?.id) {
+        throw new Error(`No tab found matching pattern: ${urlPattern}`);
       }
+    } else {
+      throw new Error("Either tabId or urlPattern must be provided");
+    }
+    const tab = target;
 
-      // Background mode: use highlight only, avoid window focus
+    const activate = async () => {
+      const mode = await getAutomationMode();
+      log.debug("🔧 Automation mode:", mode);
       if (mode === "background") {
+        // Background mode: highlight only, avoid window focus
         await chrome.tabs.highlight({
           tabs: tab.index ?? 0,
           windowId: tab.windowId,
         });
-        log.debug("ℹ️ Background mode: tab highlighted without window focus");
       } else {
-        // Focus mode: activate tab normally (may focus window)
-        await chrome.tabs.update(tabId, { active: true });
+        await chrome.tabs.update(tab.id!, { active: true });
       }
-
       return {
         success: true,
         tab: { id: tab.id, url: tab.url, title: tab.title },
       };
-    }
+    };
 
-    if (urlPattern) {
-      const tabs = await chrome.tabs.query({ currentWindow: true });
-      const matchingTab = tabs.find((tab) => tab.url?.includes(urlPattern));
+    const targetOrigin = originOf(tab.url);
+    const boundOrigin = originOf(await boundTabUrl(context));
+    if (targetOrigin && targetOrigin === boundOrigin) return activate();
 
-      if (!matchingTab?.id) {
-        throw new Error(`No tab found matching pattern: ${urlPattern}`);
-      }
-
-      // Background mode: use highlight only, avoid window focus
-      if (mode === "background") {
-        await chrome.tabs.highlight({
-          tabs: matchingTab.index ?? 0,
-          windowId: matchingTab.windowId,
-        });
-        log.debug("ℹ️ Background mode: tab highlighted without window focus");
-      } else {
-        // Focus mode: activate tab normally (may focus window)
-        await chrome.tabs.update(matchingTab.id, { active: true });
-      }
-
-      return {
-        success: true,
-        tab: {
-          id: matchingTab.id,
-          url: matchingTab.url,
-          title: matchingTab.title,
-        },
-      };
-    }
-
-    throw new Error("Either tabId or urlPattern must be provided");
+    return gateRiskyAction(
+      (context as ToolRunContext)?.context?.conversationId,
+      "switch_to_tab",
+      `Switch to the tab at ${targetOrigin ?? "an unknown page"}\nFrom: ${boundOrigin ?? "no tab bound to this conversation"}`,
+      tab.url,
+      activate,
+      { tabId: tab.id },
+    );
   },
 });
 
@@ -132,7 +148,9 @@ export const switchToTabTool = tool({
  */
 export const closeTabTool = tool({
   name: "close_tab",
-  description: "Close a specific tab or the current tab",
+  description:
+    "Close a specific tab or the current tab. " +
+    'APPROVAL: closing a tab this conversation did not open waits for the user to click Allow or Deny. A denied call returns status "denied": do not retry it.',
   parameters: z.object({
     tabId: z
       .number()
@@ -140,15 +158,27 @@ export const closeTabTool = tool({
       .optional()
       .describe("Tab ID to close (defaults to current tab)"),
   }),
-  execute: async ({ tabId }) => {
-    if (tabId != null) {
-      await chrome.tabs.remove(tabId);
-      return { success: true, tabId };
-    }
+  execute: async ({ tabId }, context) => {
+    const targetId = tabId ?? (await getActiveTab()).id!;
+    const close = async () => {
+      await chrome.tabs.remove(targetId);
+      openedTabs.get(requesterKey(context))?.delete(targetId);
+      return { success: true, tabId: targetId };
+    };
+    if (openedTabs.get(requesterKey(context))?.has(targetId)) return close();
 
-    const tab = await getActiveTab();
-    await chrome.tabs.remove(tab.id!);
-    return { success: true, tabId: tab.id };
+    const url = await chrome.tabs
+      .get(targetId)
+      .then((t) => t.url)
+      .catch(() => undefined);
+    return gateRiskyAction(
+      (context as ToolRunContext)?.context?.conversationId,
+      "close_tab",
+      `Close the tab at ${originOf(url) ?? "an unknown page"}. The agent did not open this tab.`,
+      url,
+      close,
+      { tabId: targetId, rememberable: false },
+    );
   },
 });
 
@@ -167,7 +197,7 @@ export const createNewTabTool = tool({
   name: "create_new_tab",
   description:
     "Create a new tab with the specified URL. " +
-    'APPROVAL: opening a page on another origin than the current tab waits for the user to click Allow or Deny in the extension UI; a non-web scheme or a URL with a long query or fragment always asks. A denied call returns status "denied" with a message: do not retry it.',
+    'APPROVAL: opening a page on another origin than the conversation\'s tab waits for the user to click Allow or Deny in the extension UI; a non-web scheme or a URL with a long query or fragment always asks. A denied call returns status "denied" with a message: do not retry it.',
   parameters: z.object({
     url: z.string().url().describe("The URL to open in the new tab"),
   }),
@@ -201,6 +231,10 @@ export const createNewTabTool = tool({
         `✅ [createNewTab] Tab created in ${mode} mode (active=${active})`,
       );
 
+      const key = requesterKey(context);
+      if (!openedTabs.has(key)) openedTabs.set(key, new Set());
+      openedTabs.get(key)?.add(tab.id);
+
       return {
         success: true,
         tabId: tab.id,
@@ -209,14 +243,14 @@ export const createNewTabTool = tool({
       };
     };
 
-    const currentTab = await getActiveTab().catch(() => undefined);
-    const decision = classifyNewTabUrl(finalUrl, currentTab?.url);
+    const referenceUrl = await boundTabUrl(context);
+    const decision = classifyNewTabUrl(finalUrl, referenceUrl);
     if (decision.approval === "none") return openTab();
 
     return gateRiskyAction(
       (context as ToolRunContext)?.context?.conversationId,
       "create_new_tab",
-      `Open a new tab at:\n${finalUrl}\nFrom: ${originOrUnknown(currentTab?.url)}\nWhy approval is needed: ${decision.reason}`,
+      `Open a new tab at:\n${finalUrl}\nFrom: ${originOrUnknown(referenceUrl)}\nWhy approval is needed: ${decision.reason}`,
       finalUrl,
       openTab,
       { rememberable: decision.rememberable },

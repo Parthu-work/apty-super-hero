@@ -237,6 +237,16 @@ describe("classifyNewTabUrl", () => {
       { approval: "required", rememberable: false },
     ],
     [
+      "a long path",
+      `https://docs.example.org/${long}`,
+      { approval: "required", rememberable: false },
+    ],
+    [
+      "a path, query and fragment that add up past the limit",
+      `${PAGE}/${"p".repeat(50)}?a=${"x".repeat(40)}#${"y".repeat(40)}`,
+      { approval: "required", rememberable: false },
+    ],
+    [
       "a data: URL",
       "data:text/html,<h1>hi</h1>",
       { approval: "required", rememberable: false },

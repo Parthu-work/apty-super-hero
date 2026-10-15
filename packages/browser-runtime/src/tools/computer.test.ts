@@ -40,7 +40,7 @@ let storageStore: Record<string, unknown> = {};
   },
 };
 
-import { resetApprovalStateForTests } from "./approval";
+import { listApprovalGrants, resetApprovalStateForTests } from "./approval";
 import { answerApprovals } from "./approval-test-utils";
 import type { ClickTargetInfo } from "./click-risk";
 import { computerTool } from "./computer";
@@ -220,5 +220,44 @@ describe("computerTool — background mode", () => {
 
     expect(String(result)).toMatch(/background mode/i);
     expect(mockExecuteComputerAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("computerTool — grants are per action class", () => {
+  it("remembering a typing approval does not cover a risky click", async () => {
+    const { requests, stop } = answerApprovals({ approved: true, remember: true });
+    await computerTool.invoke(
+      { context: { conversationId: "conv-type" } } as never,
+      JSON.stringify({ action: "type", text: "hello" }),
+    );
+    expect(requests[0]?.summary).toMatch(/^Typing:/);
+    expect(await listApprovalGrants()).toMatchObject([
+      { toolName: "computer:type", origin: "https://example.com" },
+    ]);
+
+    mockInspectClickTarget.mockResolvedValue(DELETE_BUTTON);
+    await computerTool.invoke(
+      { context: { conversationId: "conv-type" } } as never,
+      JSON.stringify({ action: "left_click", coordinate: [10, 20] }),
+    );
+    stop();
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.summary).toMatch(/^Click:/);
+  });
+
+  it.each([
+    ["key", { action: "key", text: "Enter" }, "computer:key"],
+    ["drag", { action: "left_click_drag", start_coordinate: [1, 2], coordinate: [3, 4] }, "computer:drag"],
+    ["click", { action: "left_click", coordinate: [1, 2] }, "computer:click"],
+  ])("stores a %s grant under its own name", async (_c, args, grant) => {
+    mockInspectClickTarget.mockResolvedValue(DELETE_BUTTON);
+    const { stop } = answerApprovals({ approved: true, remember: true });
+    await computerTool.invoke(
+      { context: { conversationId: "conv-class" } } as never,
+      JSON.stringify(args),
+    );
+    stop();
+    expect((await listApprovalGrants()).map((g) => g.toolName)).toEqual([grant]);
   });
 });

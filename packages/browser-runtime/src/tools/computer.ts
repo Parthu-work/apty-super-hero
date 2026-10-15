@@ -191,13 +191,14 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
       const risk = mergeRisks(targets.map(classifyClickRisk));
       if (!risk.risky) return runAction(params.tabId ?? tab?.id);
       const pageUrl = tab?.url;
+      const drag = params.action === "left_click_drag";
       return gateRiskyAction(
         conversationId,
         "computer",
-        `${params.action} at (${points.map((p) => p?.join(", ") ?? "?").join(") -> (")})\n${describeClickForApproval(targets.find((t) => classifyClickRisk(t).risky) ?? targets[0]!, risk, pageUrl)}`,
+        `${drag ? "Drag" : "Click"}: ${params.action} at (${points.map((p) => p?.join(", ") ?? "?").join(") -> (")})\n${describeClickForApproval(targets.find((t) => classifyClickRisk(t).risky) ?? targets[0]!, risk, pageUrl)}`,
         pageUrl,
         () => runAction(params.tabId ?? tab?.id),
-        { tabId: tab?.id },
+        { tabId: tab?.id, grantName: drag ? "computer:drag" : "computer:click" },
       );
     }
 
@@ -213,11 +214,14 @@ APPROVAL: the "type" and "key" actions inject text/keystrokes into the page, so 
       conversationId,
       "computer",
       params.action === "type"
-        ? `Type "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`
-        : `Press key(s) "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`,
+        ? `Typing: type "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`
+        : `Key press: press key(s) "${params.text ?? ""}" on the current page (${pageUrl ?? "unknown URL"})`,
       pageUrl,
       () => runAction(params.tabId ?? tab?.id),
-      { tabId: tab?.id },
+      {
+        tabId: tab?.id,
+        grantName: params.action === "type" ? "computer:type" : "computer:key",
+      },
     );
   },
 });

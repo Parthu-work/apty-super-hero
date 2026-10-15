@@ -582,14 +582,9 @@ export class SkillManager {
       const skillName = "skill-creator";
       const skillPath = zenfs.getSkillPath(skillName);
 
-      // Check if skill-creator already exists
+      // Built-in files are rewritten on every start, so an update reaches
+      // installs that already have them.
       const exists = await zenfs.exists(skillPath);
-      if (exists) {
-        log.debug("✅ Built-in skill-creator already exists");
-        return;
-      }
-
-      // Create skill directory
       await zenfs.mkdir(skillPath, { recursive: true });
 
       // Write all skill files to ZenFS
@@ -613,6 +608,7 @@ export class SkillManager {
       }
 
       log.debug(`✅ Skill-creator files written to ZenFS: ${skillPath}`);
+      if (exists) return;
 
       // Create lightweight metadata
       const skillCreatorMetadata: SkillMetadata = {

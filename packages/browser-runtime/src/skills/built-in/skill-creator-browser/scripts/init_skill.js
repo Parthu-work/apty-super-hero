@@ -63,7 +63,7 @@ Delete this entire "Structuring This Skill" section when done - it's just guidan
 This skill includes example resource directories that demonstrate how to organize different types of bundled resources:
 
 ### scripts/
-Executable code (JavaScript/Node.js/etc.) that can be run directly to perform specific operations.
+Executable code (JavaScript/Node.js/etc.) that can be run directly to perform specific operations. Scripts can only be added through a skill package the user imports; Apty Agent cannot create them.
 
 **Examples from other skills:**
 - PDF skill: \`fill_fillable_fields.js\`, \`extract_form_field_info.js\` - utilities for PDF manipulation
@@ -96,31 +96,6 @@ Files not intended to be loaded into context, but rather used within the output 
 ---
 
 **Any unneeded directories can be deleted.** Not every skill requires all three types of resources.
-`;
-
-const EXAMPLE_SCRIPT = `
-/**
- * Example helper script for {skill_name}
- *
- * This is a placeholder script that can be executed directly.
- * Replace with actual implementation or delete if not needed.
- *
- * Example real scripts from other skills:
- * - pdf/scripts/fill_fillable_fields.js - Fills PDF form fields
- * - pdf/scripts/convert_pdf_to_images.js - Converts PDF pages to images
- */
-
-function main() {
-    console.log("This is an example script for {skill_name}");
-    // TODO: Add actual script logic here
-    // This could be data processing, file conversion, API calls, etc.
-}
-
-if (require.main === module) {
-    main();
-}
-
-module.exports = { main };
 `;
 
 const EXAMPLE_REFERENCE = `# Reference Documentation for {skill_title}
@@ -241,17 +216,6 @@ function initSkill(skillName, basePath, fs) {
 
   // Create resource directories with example files
   try {
-    // Create scripts/ directory with example script
-    const scriptsDir = `${skillDir}/scripts`;
-    fs.mkdirSync(scriptsDir, { recursive: true });
-    const exampleScript = `${scriptsDir}/example.js`;
-    const exampleScriptContent = EXAMPLE_SCRIPT.replace(
-      /{skill_name}/g,
-      skillName,
-    );
-    fs.writeFileSync(exampleScript, exampleScriptContent);
-    console.log("✅ Created scripts/example.js");
-
     // Create references/ directory with example reference doc
     const referencesDir = `${skillDir}/references`;
     fs.mkdirSync(referencesDir, { recursive: true });
@@ -283,7 +247,7 @@ function initSkill(skillName, basePath, fs) {
     "1. Edit SKILL.md to complete the TODO items and update the description",
   );
   console.log(
-    "2. Customize or delete the example files in scripts/, references/, and assets/",
+    "2. Customize or delete the example files in references/ and assets/",
   );
   console.log("3. Run the validator when ready to check the skill structure");
 

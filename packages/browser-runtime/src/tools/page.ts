@@ -1,6 +1,7 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { currentValuePolicy } from "../runtime/value-policy";
+import { cssValueError } from "./css-values";
 import { getActiveTab } from "./tab-utils";
 import { describePageMetadata } from "./value-results";
 
@@ -139,6 +140,8 @@ export const highlightElementTool = tool({
       .describe("Whether to keep the highlight permanently"),
   }),
   execute: async ({ selector, color, duration, intensity, persist }) => {
+    const unsafe = cssValueError({ colors: { color } });
+    if (unsafe) return { success: false, error: unsafe };
     const tab = await getActiveTab();
     if (!tab.id) {
       return null;
@@ -269,6 +272,11 @@ export const highlightTextInlineTool = tool({
     fontWeight,
     persist,
   }) => {
+    const unsafe = cssValueError({
+      colors: { highlightColor, backgroundColor },
+      fontWeight,
+    });
+    if (unsafe) return { success: false, error: unsafe };
     const tab = await getActiveTab();
     if (!tab.id) {
       return null;

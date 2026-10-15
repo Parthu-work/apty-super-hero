@@ -212,6 +212,26 @@ describe("fillFormTool", () => {
     expect(mockFill).toHaveBeenCalledTimes(2);
   });
 
+  it("lists each field's label and value, truncated, in the prompt", async () => {
+    mockGetNodeByUid.mockImplementation((_tab: number, uid: string) =>
+      uid === "n1" ? { uid, role: "textbox", name: "Patient name" } : { uid, role: "textbox" },
+    );
+    const { requests } = answerApprovals({ approved: false });
+
+    await invoke(fillFormTool, {
+      tabId: TAB_ID,
+      elements: [
+        { uid: "n1", value: "Jane Testpatient" },
+        { uid: "n2", value: "x".repeat(200) },
+      ],
+    });
+
+    const summary = requests[0]?.summary ?? "";
+    expect(summary).toContain('Patient name: "Jane Testpatient"');
+    expect(summary).toContain(`textbox: "${"x".repeat(60)}…"`);
+    expect(summary).not.toContain("x".repeat(61));
+  });
+
   it("a remembered fill_element_by_uid grant does not cover fill_form", async () => {
     const { requests } = answerApprovals({ approved: true, remember: true });
 
