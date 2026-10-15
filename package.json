@@ -76,11 +76,6 @@
       "fflate": ">=0.8.3",
       "@babel/core": ">=7.29.6",
       "@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33": "^4.0.33"
-    },
-    "auditConfig": {
-      "ignoreCves": [
-        "CVE-2026-93687"
-      ]
     }
   }
 }

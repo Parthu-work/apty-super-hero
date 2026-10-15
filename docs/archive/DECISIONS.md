@@ -999,6 +999,14 @@ would still fail `pnpm audit`). Re-check `pnpm audit` periodically and
 drop the entry once a patched `braces` (or a `micromatch`/`fast-glob`/
 `knip` bump that stops pulling it in) exists.
 
+**Superseded (2026-10-16, production-readiness R1):** the reason above was
+out of date. In production the advisory reached the extension only through
+`assistant-ui@0.0.78` (`assistant-ui → jscodeshift → micromatch → braces`),
+an unused CLI codemod listed as a runtime dependency. R1 removed it, with the
+other unused dependencies, and the `ignoreCves` entry is gone: `pnpm audit
+--prod` reports "No known vulnerabilities found" with nothing ignored. The
+`knip` path is dev-only and is not part of `--prod`.
+
 ## v7 WP4 B5: CI workflow fixes
 
 `.github/workflows/ci.yml` had several gaps found during this audit pass:

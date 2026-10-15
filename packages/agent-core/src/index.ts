@@ -1,5 +1,5 @@
 // AI SDK
-export { aisdk } from "@openai/agents-extensions";
+export { aisdk } from "@openai/agents-extensions/ai-sdk";
 // Agent
 export { AIPex } from "./agent/index.js";
 

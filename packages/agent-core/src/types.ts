@@ -3,7 +3,7 @@ import type {
   FunctionTool,
   Agent as OpenAIAgent,
 } from "@openai/agents";
-import type { AiSdkModel } from "@openai/agents-extensions";
+import type { AiSdkModel } from "@openai/agents-extensions/ai-sdk";
 import type { Context, ContextManager } from "./context/index.js";
 import type { AgentError } from "./utils/errors.js";
 

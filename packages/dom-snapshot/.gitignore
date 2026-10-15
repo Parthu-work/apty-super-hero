@@ -1,0 +1,2 @@
+# Declarations are built into dist/; a stray tsc run must not leave them in src/.
+src/**/*.d.ts
