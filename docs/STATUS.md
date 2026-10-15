@@ -55,7 +55,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   runs every demo dependency check with its exact fix and a copy button,
   exports redacted JSON and resets demo data; `pnpm demo:check` runs it
   end to end. Demo script: [`docs/demo/DEMO.md`](demo/DEMO.md).
-- The MCP bridge, with the token in the WebSocket handshake.
+- The MCP bridge: the extension never sends the token; the daemon proves
+  it holds it first (HMAC challenge), every call is signed, and only
+  published tools are forwarded (S6).
 - Redaction mode (A3): Strict, Standard or Off (development only) in
   Settings → Data handling, with a Preview; Off needs a confirmation and
   shows a side-panel banner. Every caller goes through
@@ -87,7 +89,8 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
 | Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | Rename the inherited `aipex_*` storage keys | A migration for existing installs |
-| LLM request safety and size (branch `optimize/llm-requests`, not on `main`) | Owner review per phase; specs in [`docs/tasks/llm/`](tasks/llm/00-rules.md). Phase A (O1-O5) done on the branch, awaiting the owner's review (`REVIEW.md`); Phases B and C not started |
+| LLM request safety and size | Phase A (O1-O5) is the base of `hardening/prod-ready`; Phases B and C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
+| Production readiness (branch `hardening/prod-ready`, not on `main`) | Phase 1 (S1-S7: privacy and security blockers) done, awaiting the owner's review (`REVIEW.md`); D1-D7 unanswered, D3/D4/D7 defaults applied provisionally; Phase 2 (R1-R9) and Phase 3 not started ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Where to look
