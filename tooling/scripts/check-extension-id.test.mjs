@@ -59,4 +59,21 @@ describe("check-extension-id", () => {
       /no "key"/,
     );
   });
+
+  it("--store passes a Web Store manifest without a key, and fails one with a key (D2)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ext-id-"));
+    dirs.push(dir);
+    const store = join(dir, "store.json");
+    writeFileSync(store, JSON.stringify({ name: "Apty Agent" }));
+
+    assert.match(
+      execFileSync("node", [SCRIPT, "--store", store], { encoding: "utf8" }),
+      /no "key"/,
+    );
+    assert.throws(
+      () =>
+        execFileSync("node", [SCRIPT, "--store", MANIFEST], { stdio: "pipe" }),
+      /still has a "key"/,
+    );
+  });
 });

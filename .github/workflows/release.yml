@@ -99,6 +99,7 @@ jobs:
           (cd apps/browser-extension/dist && zip -qr "../../../${name}" .)
           cp -r apps/browser-extension/dist store-dist
           node -e 'const f="store-dist/manifest.json",fs=require("fs"),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))'
+          node tooling/scripts/check-extension-id.mjs --store store-dist/manifest.json
           (cd store-dist && zip -qr "../${store}" .)
           sha256sum "${name}" "${store}" > "apty-agent-${RELEASE_NAME}.sha256"
           sha256sum -c "apty-agent-${RELEASE_NAME}.sha256"

@@ -46,7 +46,7 @@ package() {
     node -e 'const f=process.argv[1],fs=require("fs"),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))' "$OUT/store-dist/manifest.json" &&
     (cd "$OUT/store-dist" && zip -qr "$store" .) &&
     unzip -l "$zip" manifest.json | grep -q " manifest.json$" &&
-    ! grep -q '"key"' "$OUT/store-dist/manifest.json"
+    node tooling/scripts/check-extension-id.mjs --store "$OUT/store-dist/manifest.json"
 }
 
 checksums() {

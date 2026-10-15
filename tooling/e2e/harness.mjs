@@ -512,7 +512,11 @@ export function unpackedExtensionId(dir) {
     .join("");
 }
 
-/** The Agent's extension id is pinned by the manifest `key`. */
+/**
+ * The ID of the unpacked/enterprise package, pinned by the manifest `key`.
+ * The Web Store package has no `key` and gets the store's ID (D2; see
+ * docs/integrations/apty/README.md#extension-ids).
+ */
 export const AGENT_EXTENSION_ID = "bpiondflhhdplemamgggcdajclmoeple";
 
 // ---------------------------------------------------------------------------

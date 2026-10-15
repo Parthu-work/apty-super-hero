@@ -46,6 +46,21 @@ describe("AptyClientPanel", () => {
     expect(screen.getByText("agent-own-id")).toBeInTheDocument();
   });
 
+  it("copies this Agent's running ID for the Client team", () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    render(<AptyClientPanel />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy this Agent's extension ID" }),
+    );
+
+    expect(writeText).toHaveBeenCalledWith("agent-own-id");
+  });
+
   it("reports the Client as answering only after a real handshake", async () => {
     clientAnswers({ running: true });
 

@@ -14,7 +14,7 @@ Use a fresh browser profile. About 15 minutes per browser.
 | # | Step | Expected |
 |---|---|---|
 | 1 | Unzip the package. `chrome://extensions` (Edge: `edge://extensions`) → Developer mode → **Load unpacked** → the folder | The Agent loads with no errors on its card |
-| 2 | Read the ID on the card | `bpiondflhhdplemamgggcdajclmoeple` (pinned by the manifest `key`; the Apty Client allow-lists this ID) |
+| 2 | Read the ID on the card | Unpacked zip: `bpiondflhhdplemamgggcdajclmoeple` (pinned by the manifest `key`). Web Store install: the store's ID, which must match the one recorded in [Extension IDs](../integrations/apty/README.md#extension-ids). The Apty Client must allow-list the ID shown |
 | 3 | Open the side panel (toolbar icon) | The welcome screen with readiness chips; "AI provider" asks for setup |
 | 4 | Settings → AI Configuration: provider, API key, **Fetch models**, pick a model, **Test Connection**, **Save Settings** | "Connection test successful · Tool calling: yes" |
 | 5 | Open `https://example.com`, side panel: "what is the title of this page?" | An answer that names the page title, after a visible tool call (the thinking section lists it) |
@@ -27,8 +27,13 @@ Use a fresh browser profile. About 15 minutes per browser.
 
 ## Results
 
-Record one row per browser and release. Mark a step ✗ with a note on what
-happened; any ✗ blocks the release until understood.
+Record one row per browser and release, in this file, in the release's
+pull request (prepared; no row has been recorded yet). Run it twice per
+browser for a store release: once with the unpacked zip and once installed
+from the unlisted Web Store listing, and note which in the Notes column
+with the ID from step 2. Mark a step ✗ with a note on what happened; any ✗
+blocks the release until understood. Screenshots of a ✗ go in the pull
+request, never with customer data in them.
 
 | Release | Browser and version | OS | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | Tester | Date | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|

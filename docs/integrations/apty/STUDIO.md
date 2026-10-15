@@ -25,9 +25,12 @@ Apty Studio Extension.
    }
    ```
 
-   The ID above is the Agent's pinned ID (from its manifest `key`). The
-   Studio row in the Agent's Settings shows the ID and this snippet with a
-   Copy button; use what it shows if your build of the Agent differs.
+   The ID above is the Agent's pinned development and enterprise ID (from
+   its manifest `key`). The Web Store build gets a different ID from the
+   store at its first upload; add that one too
+   ([Extension IDs](README.md#extension-ids)). The Studio row in the
+   Agent's Settings shows the running ID and this snippet with a Copy
+   button.
 
 2. **Answer the Agent's messages.** Register
    `chrome.runtime.onMessageExternal` at the top level of Studio's service

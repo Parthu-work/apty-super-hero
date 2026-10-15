@@ -31,7 +31,8 @@ The `Release` workflow (`.github/workflows/release.yml`) then:
 - packages `apps/browser-extension/dist` twice: `apty-agent-vX.Y.Z.zip`
   keeps the manifest `key` that pins the extension ID (for loading unpacked
   or enterprise policy), and `apty-agent-vX.Y.Z-webstore.zip` drops it,
-  because the Chrome Web Store rejects a `key`;
+  because the Chrome Web Store rejects a `key` and assigns its own ID
+  ([Extension IDs](../integrations/apty/README.md#extension-ids));
 - writes `apty-agent-vX.Y.Z.sha256` for both; a separate job, the only one
   with write access, checks them and creates the GitHub release with all
   three files.

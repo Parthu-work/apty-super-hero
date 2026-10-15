@@ -137,9 +137,26 @@ export function allowListSnippet(agentId: string): string {
   return `"externally_connectable": { "ids": ["${agentId}"] }`;
 }
 
+/** Copies `value`, and says so once it has. */
+function CopyButton({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      aria-label={label}
+      onClick={() => {
+        void navigator.clipboard?.writeText(value).then(() => setCopied(true));
+      }}
+    >
+      {copied ? "Copied" : "Copy"}
+    </Button>
+  );
+}
+
 /** A read-only value with a Copy button. */
 function CopyField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2">
       <Input
@@ -150,19 +167,10 @@ function CopyField({ label, value }: { label: string; value: string }) {
         className="h-8 flex-1 font-mono text-xs"
         onFocus={(event) => event.currentTarget.select()}
       />
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        aria-label={`Copy ${label.charAt(0).toLowerCase()}${label.slice(1)}`}
-        onClick={() => {
-          void navigator.clipboard
-            ?.writeText(value)
-            .then(() => setCopied(true));
-        }}
-      >
-        {copied ? "Copied" : "Copy"}
-      </Button>
+      <CopyButton
+        label={`Copy ${label.charAt(0).toLowerCase()}${label.slice(1)}`}
+        value={value}
+      />
     </div>
   );
 }
@@ -387,7 +395,11 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
                 This Agent's extension ID (the {copy.name} must allow-list it):{" "}
                 <code className="select-all rounded bg-muted px-1 py-0.5 font-mono">
                   {ownId}
-                </code>
+                </code>{" "}
+                <CopyButton
+                  label="Copy this Agent's extension ID"
+                  value={ownId}
+                />
               </p>
             ) : (
               <CopyField

@@ -5,7 +5,12 @@
  * tooling/e2e/harness.mjs). Chrome derives the ID from the SHA-256 of the
  * public key: the first 32 hex digits, each mapped 0-f → a-p.
  *
+ * With --store, checks the opposite for the Chrome Web Store package: its
+ * manifest must have no `key`, because the store rejects one and assigns
+ * its own ID (owner decision D2).
+ *
  * Usage: node tooling/scripts/check-extension-id.mjs [manifest.json] [expected-id]
+ *        node tooling/scripts/check-extension-id.mjs --store <manifest.json>
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -39,6 +44,18 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
+  if (process.argv[2] === "--store") {
+    const storePath = resolve(process.argv[3] ?? "");
+    const store = JSON.parse(readFileSync(storePath, "utf8"));
+    if ("key" in store) {
+      console.error(
+        `✗ ${storePath} still has a "key"; the Web Store rejects it`,
+      );
+      process.exit(1);
+    }
+    console.log(`✓ ${storePath} has no "key"; the Web Store assigns the ID`);
+    process.exit(0);
+  }
   const manifestPath = resolve(
     process.argv[2] ??
       resolve(ROOT, "apps/browser-extension/dist/manifest.json"),
