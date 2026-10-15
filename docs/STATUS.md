@@ -83,7 +83,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 
 | Item | Needs |
 |---|---|
-| Narrow `<all_urls>` to Apty's target domains | Apty's list of customer application domains |
+| Narrow `<all_urls>` to Apty's target domains | Kept for 0.1.0, because customers run their applications on their own domains (same position as [`WEB_STORE_LISTING.md`](store/WEB_STORE_LISTING.md)); narrowing needs Apty's list of customer application domains |
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
 | Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |

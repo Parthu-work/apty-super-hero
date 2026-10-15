@@ -80,7 +80,10 @@ export function startPageServer(pages) {
  * Launch Chromium with the built Agent extension and any `extraExtensions`
  * (directories). Resolves the Agent's extension id from its service worker.
  */
-export async function launchBrowser({ extraExtensions = [] } = {}) {
+export async function launchBrowser({
+  extraExtensions = [],
+  extraArgs = [],
+} = {}) {
   if (!existsSync(join(EXTENSION_DIR, "manifest.json"))) {
     throw new Error("Build the extension first (npm run build).");
   }
@@ -90,7 +93,11 @@ export async function launchBrowser({ extraExtensions = [] } = {}) {
     executablePath: chromiumPath(),
     headless: true,
     acceptDownloads: true,
-    args: [`--disable-extensions-except=${all}`, `--load-extension=${all}`],
+    args: [
+      `--disable-extensions-except=${all}`,
+      `--load-extension=${all}`,
+      ...extraArgs,
+    ],
   });
   const agentWorker = await waitForWorker(context, (url) =>
     url.endsWith("/service-worker-loader.js"),
