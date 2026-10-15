@@ -3,7 +3,7 @@
  * service-worker startup, and handling install/update.
  */
 
-import { createLogger } from "@apty/agent-core";
+import { createLogger, migrateSettings, STORAGE_KEYS } from "@apty/agent-core";
 import { seedAptyIntegrationConfigDefaults } from "@apty/browser-runtime";
 
 const log = createLogger("Lifecycle");
@@ -30,6 +30,15 @@ export function seedAptyIntegrationConfig(): void {
   });
 }
 
+/** Writes stored settings back in the current schema, once per update. */
+async function upgradeStoredSettings(): Promise<void> {
+  const key = STORAGE_KEYS.SETTINGS;
+  const stored = (await chrome.storage.local.get(key))[key];
+  if (stored === undefined) return;
+  const { settings, changed } = migrateSettings(stored);
+  if (changed) await chrome.storage.local.set({ [key]: settings });
+}
+
 export function registerInstallHandler(): void {
   // Handle extension installation or update
   chrome.runtime.onInstalled.addListener((details) => {
@@ -43,6 +52,9 @@ export function registerInstallHandler(): void {
         "Apty Agent extension updated to version",
         chrome.runtime.getManifest().version,
       );
+      upgradeStoredSettings().catch(() => {
+        console.warn("[Background] settings_upgrade_failed");
+      });
     }
   });
 }

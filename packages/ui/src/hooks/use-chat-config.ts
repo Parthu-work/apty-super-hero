@@ -2,6 +2,7 @@ import {
   type AppSettings,
   DEFAULT_APP_SETTINGS,
   type KeyValueStorage,
+  migrateSettings,
   STORAGE_KEYS,
 } from "@apty/agent-core";
 import { useCallback, useEffect, useState } from "react";
@@ -103,7 +104,7 @@ export function useChatConfig(
     try {
       const stored = await storageAdapter.load(STORAGE_KEYS.SETTINGS);
       if (stored) {
-        applyStoredSettings(stored);
+        applyStoredSettings(migrateSettings(stored).settings);
       }
     } catch (error) {
       console.error("Failed to load chat settings:", error);

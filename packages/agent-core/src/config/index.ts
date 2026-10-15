@@ -20,6 +20,14 @@ export {
   type ToolCallingSupport,
 } from "./settings.js";
 export {
+  type MigratedSettings,
+  migrateSettings,
+  SETTINGS_MIGRATIONS,
+  SETTINGS_VERSION,
+  type SettingsMigration,
+  withSettingsDefaults,
+} from "./settings-migration.js";
+export {
   type AutomationMode,
   STORAGE_KEYS,
   type StorageKey,

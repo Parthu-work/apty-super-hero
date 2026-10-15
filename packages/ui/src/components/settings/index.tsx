@@ -4,11 +4,13 @@ import {
   type AppSettings,
   type CustomModelConfig,
   detectProviderFromHost,
+  migrateSettings,
   PHI_APPROVED_PROVIDERS,
   type ProviderType,
   STORAGE_KEYS,
   SUPERSEDED_PRESET_HOSTS,
   type ToolCallingSupport,
+  withSettingsDefaults,
 } from "@apty/agent-core";
 import {
   Bot,
@@ -434,7 +436,9 @@ export function SettingsPage({
     const loadSettings = async () => {
       try {
         const result = await storageAdapter.load(storageKey);
-        const loadedSettings = (result ?? {}) as AppSettings;
+        const loadedSettings = withSettingsDefaults(
+          migrateSettings(result).settings,
+        );
         let loadedCustomModels = loadedSettings.customModels ?? [];
         const resolvedProviderType =
           loadedSettings.providerType ??
@@ -736,8 +740,9 @@ export function SettingsPage({
       setSettings((prev: AppSettings) => ({ ...prev, ...patch }));
       generalSaveQueue.current = generalSaveQueue.current.then(async () => {
         try {
-          const stored = ((await storageAdapter.load(storageKey)) ??
-            {}) as AppSettings;
+          const stored = withSettingsDefaults(
+            migrateSettings(await storageAdapter.load(storageKey)).settings,
+          );
           await storageAdapter.save(storageKey, { ...stored, ...patch });
         } catch (error) {
           console.error("Failed to save setting:", error);

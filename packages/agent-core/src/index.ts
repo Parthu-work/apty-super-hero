@@ -16,6 +16,8 @@ export {
   DEFAULT_CONVERSATION_CONFIG,
   detectProviderFromHost,
   isValidConversationStorage,
+  type MigratedSettings,
+  migrateSettings,
   normalizeConversationConfig,
   PHI_APPROVED_PROVIDERS,
   type ProviderType,
@@ -23,11 +25,15 @@ export {
   type RedactionModeSetting,
   SCREENSHOT_POLICIES,
   type ScreenshotPolicySetting,
+  SETTINGS_MIGRATIONS,
+  SETTINGS_VERSION,
+  type SettingsMigration,
   STORAGE_KEYS,
   type StorageKey,
   SUPERSEDED_PRESET_HOSTS,
   type ToolCallingSupport,
   validateAutomationMode,
+  withSettingsDefaults,
 } from "./config/index.js";
 
 // Context

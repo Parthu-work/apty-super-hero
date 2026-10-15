@@ -45,6 +45,8 @@ export const SCREENSHOT_POLICIES: readonly ScreenshotPolicySetting[] = [
 ];
 
 export interface AppSettings {
+  /** The stored schema's version; see `settings-migration.ts`. Missing means 0. */
+  settingsVersion?: number;
   aiProvider?: AIProviderKey;
   aiHost?: string;
   aiToken?: string;

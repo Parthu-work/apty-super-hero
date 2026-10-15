@@ -1,4 +1,8 @@
-import type { AppSettings, CustomModelConfig } from "@apty/agent-core";
+import {
+  type AppSettings,
+  type CustomModelConfig,
+  SETTINGS_VERSION,
+} from "@apty/agent-core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n/context";
@@ -150,6 +154,38 @@ describe("SettingsPage", () => {
           networkBodyCaptureEnabled: true,
           verboseLogging: true,
           developerTools: true,
+        }),
+      ),
+    );
+  });
+
+  it("fills fields the stored settings leave out with their defaults, and saves the schema version", async () => {
+    const storageAdapter = createMemoryStorage<unknown>();
+    await storageAdapter.save("aipex_settings", { aiToken: "stored-key" });
+    storageAdapter.save.mockClear();
+    render(
+      <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+        <ThemeProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <SettingsPage storageAdapter={storageAdapter} initialTab="general" />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Verbose logging" }),
+    );
+
+    await waitFor(() =>
+      expect(storageAdapter.save).toHaveBeenLastCalledWith(
+        "aipex_settings",
+        expect.objectContaining({
+          aiToken: "stored-key",
+          verboseLogging: true,
+          settingsVersion: SETTINGS_VERSION,
+          redactionMode: "strict",
+          screenshotPolicy: "ask",
+          pageHooksEnabled: true,
+          networkBodyCaptureEnabled: false,
         }),
       ),
     );
