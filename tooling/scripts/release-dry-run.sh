@@ -68,7 +68,7 @@ if [ "$skip_e2e" = 1 ]; then
 else
   step "real-browser tests" npm run test:e2e
 fi
-step "audits" bash -c 'npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips && npm run audit:any && npm run audit:docs-links && npm run audit:notices'
+step "audits" bash -c 'npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips && npm run audit:any && npm run audit:i18n && npm run audit:docs-links && npm run audit:notices'
 step "production dependency audit" bash -c 'pnpm audit --prod && (cd apps/mcp-bridge && pnpm audit --prod --ignore-workspace)'
 step "pinned extension ID" node tooling/scripts/check-extension-id.mjs apps/browser-extension/dist/manifest.json
 step "package" package

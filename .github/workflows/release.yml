@@ -81,7 +81,7 @@ jobs:
         run: npm run test:e2e
 
       - name: Manifest, architecture, branding and tool audits
-        run: npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips && npm run audit:any && npm run audit:docs-links && npm run audit:notices
+        run: npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips && npm run audit:any && npm run audit:i18n && npm run audit:docs-links && npm run audit:notices
 
       - name: Production dependency audit
         run: pnpm audit --prod && (cd apps/mcp-bridge && pnpm audit --prod --ignore-workspace)
