@@ -24,7 +24,16 @@ export interface PageHookSettings {
   pageHooksExcludedSites?: string[];
 }
 
-export function pageHooksEnabled(settings: PageHookSettings | null): boolean {
+/** Settings that exist but could not be read: the bridge stays off, since an exclusion might be missing. */
+export const SETTINGS_UNREADABLE = "settings-unreadable" as const;
+
+export type PageHookSettingsRead =
+  | PageHookSettings
+  | null
+  | typeof SETTINGS_UNREADABLE;
+
+export function pageHooksEnabled(settings: PageHookSettingsRead): boolean {
+  if (settings === SETTINGS_UNREADABLE) return false;
   return settings?.pageHooksEnabled !== false;
 }
 
@@ -59,14 +68,16 @@ export function excludeMatchesFor(sites: readonly string[]): {
 /** Whether the bridge may run on `url`: the switch is on and no excluded host matches. Full match patterns in the list are honoured by Chrome's registration, not here. */
 export function pageHooksAllowedOn(
   url: string | undefined,
-  settings: PageHookSettings | null,
+  settings: PageHookSettingsRead,
 ): boolean {
-  if (!pageHooksEnabled(settings)) return false;
+  if (!pageHooksEnabled(settings) || settings === SETTINGS_UNREADABLE) {
+    return false;
+  }
   let host = "";
   try {
     host = new URL(url ?? "").hostname.toLowerCase();
   } catch {
-    return true;
+    return false;
   }
   return !(settings?.pageHooksExcludedSites ?? []).some((raw) => {
     const site = raw.trim().toLowerCase().replace(/^\.+/, "");
@@ -79,9 +90,11 @@ export function pageHooksAllowedOn(
 }
 
 export function desiredRegistration(
-  settings: PageHookSettings | null,
+  settings: PageHookSettingsRead,
 ): chrome.scripting.RegisteredContentScript | null {
-  if (!pageHooksEnabled(settings)) return null;
+  if (!pageHooksEnabled(settings) || settings === SETTINGS_UNREADABLE) {
+    return null;
+  }
   const { patterns } = excludeMatchesFor(
     settings?.pageHooksExcludedSites ?? [],
   );
@@ -121,12 +134,14 @@ export type PageHooksReconcileResult =
   | "unchanged"
   | "failed";
 
-async function loadSettings(): Promise<AppSettings | null> {
+async function loadSettings(): Promise<
+  AppSettings | null | typeof SETTINGS_UNREADABLE
+> {
   try {
     const stored = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
     return (stored?.[STORAGE_KEYS.SETTINGS] as AppSettings | undefined) ?? null;
   } catch {
-    return null;
+    return SETTINGS_UNREADABLE;
   }
 }
 
@@ -134,7 +149,7 @@ let queue: Promise<PageHooksReconcileResult> = Promise.resolve("unchanged");
 
 /** Make the registered bridge match the settings. Calls are serialized. */
 export function reconcilePageHooks(
-  settings?: PageHookSettings | null,
+  settings?: PageHookSettingsRead,
 ): Promise<PageHooksReconcileResult> {
   queue = queue.then(async () => {
     try {

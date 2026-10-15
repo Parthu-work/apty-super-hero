@@ -9,6 +9,7 @@ type ChangeListener = (
 
 let registered: Registration[] = [];
 let storedSettings: unknown;
+let failNextRead = false;
 let changeListeners: ChangeListener[] = [];
 const register = vi.fn(async (scripts: Registration[]) => {
   registered.push(...scripts);
@@ -26,7 +27,13 @@ const unregister = vi.fn(async ({ ids }: { ids: string[] }) => {
   },
   storage: {
     local: {
-      get: async (key: string) => ({ [key]: storedSettings }),
+      get: async (key: string) => {
+        if (failNextRead) {
+          failNextRead = false;
+          throw new Error("storage unavailable");
+        }
+        return { [key]: storedSettings };
+      },
     },
     onChanged: {
       addListener: (listener: ChangeListener) => changeListeners.push(listener),
@@ -41,6 +48,7 @@ import {
   excludeMatchesFor,
   pageHooksAllowedOn,
   reconcilePageHooks,
+  SETTINGS_UNREADABLE,
   watchPageHookSettings,
 } from "./page-hooks-registration";
 
@@ -102,6 +110,16 @@ describe("pageHooksAllowedOn", () => {
   ])("%s", (_label, settings, url, allowed) => {
     expect(pageHooksAllowedOn(url, settings ?? null)).toBe(allowed);
   });
+
+  it("is off when the settings could not be read", () => {
+    expect(
+      pageHooksAllowedOn("https://app.example.com/", SETTINGS_UNREADABLE),
+    ).toBe(false);
+  });
+
+  it("is off for a URL it cannot parse", () => {
+    expect(pageHooksAllowedOn("not a url", null)).toBe(false);
+  });
 });
 
 describe("desiredRegistration", () => {
@@ -155,6 +173,18 @@ describe("reconcilePageHooks", () => {
     storedSettings = { pageHooksEnabled: false };
     await expect(reconcilePageHooks()).resolves.toBe("unchanged");
     expect(register).not.toHaveBeenCalled();
+  });
+
+  it("does not register the bridge when the settings cannot be read", async () => {
+    failNextRead = true;
+    await expect(reconcilePageHooks()).resolves.toBe("unchanged");
+    expect(register).not.toHaveBeenCalled();
+  });
+
+  it("removes a registered bridge when the settings cannot be read", async () => {
+    await reconcilePageHooks({});
+    failNextRead = true;
+    await expect(reconcilePageHooks()).resolves.toBe("unregistered");
   });
 
   it("reports a failed registration instead of throwing", async () => {

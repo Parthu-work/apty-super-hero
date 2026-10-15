@@ -42,6 +42,7 @@ import {
 import {
   CONSOLE_BRIDGE_FILE,
   pageHooksAllowedOn,
+  SETTINGS_UNREADABLE,
 } from "../runtime/page-hooks-registration.js";
 import { redactLogEntries } from "../runtime/redaction-mode.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
@@ -381,7 +382,9 @@ export const getAptyPageLogsTool = tool({
       tabId,
       pageHooksAllowedOn(
         tab.url,
-        await settingsStorage.load(STORAGE_KEYS.SETTINGS).catch(() => null),
+        await settingsStorage
+          .load(STORAGE_KEYS.SETTINGS)
+          .catch(() => SETTINGS_UNREADABLE),
       ),
     );
     if (errorCode) {
