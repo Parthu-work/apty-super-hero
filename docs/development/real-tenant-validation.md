@@ -63,6 +63,41 @@ Also note, by looking at the page, what the bundle cannot say: whether
 selected menu items carry `fe_is-selected` or `fe_is-active`, and whether
 Pendo opened inside a frame.
 
+## Infor LN re-run with 0.1.0 (prepared, not run)
+
+The first LN bundle led to four owner-approved rule changes. This re-run
+checks them on the same tenant. A person with LN test-tenant access runs
+it; no one has yet.
+
+1. Build: the `apty-agent-v0.1.0.zip` release package (or
+   `npm run build` at the release commit), loaded unpacked in a fresh
+   Chrome profile. Note the commit and Chrome version.
+2. Settings: Developer tools on, threshold overrides empty, page script on,
+   redaction Strict.
+3. Screens: the two LN screens above, plus the screen where the first
+   bundle showed hidden menu items.
+4. On each screen, the four steps above (Check DOM Health, Audit
+   Application on the last screen with Deep state discovery, route probe,
+   export the bundle).
+
+Record, per change, pass or fail and the bundle field:
+
+| Change from the first LN bundle | Pass when | Where |
+|---|---|---|
+| A click that opens nothing is explored, not a failure | Its page has `status: explored-no-new-state`; `pagesExploredNoNewState` is at least 1 and `pagesNotDiscovered` is 0 | Bundle: `application.pages[]`, `application.coverage` |
+| An empty `about:blank` frame is a placeholder | `framesPlaceholder` is at least 1 and that frame is not counted in `framesFailed` | Bundle: `page.frameAccessibility` |
+| Duplicate ids appear as a risk in the application view | The risks list names duplicate ids | DOM Health card, application result (not in the bundle) |
+| Hidden menu items are left out of hit testing | They are counted as hidden, and none of them as not targetable | DOM Health card, hit-test details (not in the bundle) |
+
+Also record the six checks in "Checks" above.
+
+**Where:** add a row to the table below in a pull request, and send the
+bundles through the channel in "What to send back". Never commit a bundle.
+
+| Date | Tester | Commit | Chrome | Screens | Four changes (pass/fail each) | Six checks | Bundles sent to |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+
 ## What the bundle holds, and what it does not
 
 Holds: schema `apty-dom-health-validation/1`, extension and Chrome
