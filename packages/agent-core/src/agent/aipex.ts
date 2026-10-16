@@ -42,6 +42,16 @@ const log = createLogger("AIPex");
  * it. */
 const LLM_CALL_MAX_ATTEMPTS = 3;
 
+/** A plugin's error can carry page data, so only its type is logged. */
+function logPluginFailure(
+  pluginId: string,
+  hook: string,
+  error: unknown,
+): void {
+  const kind = error instanceof Error ? error.name : typeof error;
+  console.error(`[Apty Agent] Plugin ${pluginId} ${hook} failed (${kind})`);
+}
+
 /** The tool name in the runner's "Tool X not found in agent Y" error, if that's what this is. */
 function missingToolName(error: unknown): string | undefined {
   const message = error instanceof Error ? error.message : "";
@@ -983,10 +993,7 @@ export class AIPex {
       try {
         void plugin.setup?.(this.pluginContext);
       } catch (error) {
-        console.error(
-          `[Apty Agent] Failed to setup plugin ${plugin.id}:`,
-          error,
-        );
+        logPluginFailure(plugin.id, "setup", error);
       }
     }
   }
@@ -1010,10 +1017,7 @@ export class AIPex {
           };
         }
       } catch (error) {
-        console.error(
-          `[Apty Agent] Plugin ${plugin.id} beforeChat failed`,
-          error,
-        );
+        logPluginFailure(plugin.id, "beforeChat", error);
       }
     }
     return current;
@@ -1028,10 +1032,7 @@ export class AIPex {
       try {
         await hook(payload, this.pluginContext);
       } catch (error) {
-        console.error(
-          `[Apty Agent] Plugin ${plugin.id} afterResponse failed`,
-          error,
-        );
+        logPluginFailure(plugin.id, "afterResponse", error);
       }
     }
   }
@@ -1043,10 +1044,7 @@ export class AIPex {
       try {
         await hook(payload, this.pluginContext);
       } catch (error) {
-        console.error(
-          `[Apty Agent] Plugin ${plugin.id} onToolEvent failed`,
-          error,
-        );
+        logPluginFailure(plugin.id, "onToolEvent", error);
       }
     }
   }
@@ -1058,10 +1056,7 @@ export class AIPex {
       try {
         await hook(payload, this.pluginContext);
       } catch (error) {
-        console.error(
-          `[Apty Agent] Plugin ${plugin.id} onMetrics failed`,
-          error,
-        );
+        logPluginFailure(plugin.id, "onMetrics", error);
       }
     }
   }
