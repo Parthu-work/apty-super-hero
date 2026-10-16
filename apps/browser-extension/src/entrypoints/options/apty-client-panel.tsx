@@ -397,7 +397,7 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
                   {ownId}
                 </code>{" "}
                 <CopyButton
-                  label="Copy this Agent's extension ID"
+                  label="Copy this Agent's ID"
                   value={ownId}
                 />
               </p>

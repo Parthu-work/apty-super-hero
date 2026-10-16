@@ -55,7 +55,7 @@ describe("AptyClientPanel", () => {
     render(<AptyClientPanel />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Copy this Agent's extension ID" }),
+      screen.getByRole("button", { name: "Copy this Agent's ID" }),
     );
 
     expect(writeText).toHaveBeenCalledWith("agent-own-id");
