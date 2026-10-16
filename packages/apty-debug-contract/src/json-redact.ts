@@ -293,7 +293,12 @@ function redactKnownKeysInText(
 
     if (nextChar === "{" || nextChar === "[") {
       const end = findBalancedEnd(text, valueStart);
-      if (end === -1) continue; // unbalanced to the end of input — leave as-is rather than guess
+      if (end === -1) {
+        // Truncated input: the value runs to the end, so redact all of it.
+        result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        lastIndex = text.length;
+        break;
+      }
       valueEnd = end;
       replacement = category === "secret" ? '"<REDACTED>"' : '"<REDACTED>"';
     } else if (nextChar === '"') {

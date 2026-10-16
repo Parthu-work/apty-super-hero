@@ -1550,5 +1550,10 @@ closing quote, and the text pass's quoted branch needed one too. Both now
 treat the rest of the input as the value and replace it with
 `"<REDACTED>"`. This is the existing rule ("the value of a sensitive key is
 redacted") applied to input that ends early, not a new rule: no key was
-added to either list, and an unbalanced object or array under a sensitive
-key is still left as it is (production-readiness S7; see REVIEW.md).
+added to either list (production-readiness S7).
+
+**Extended (2026-10-16, with the owner's go-ahead):** an object or array
+under a sensitive key that is cut off before it closes
+(`{"cookie":{"sid":"abc`) is now redacted to the end the same way. Before,
+the key pass left it as it was. Unclosed non-sensitive values are still
+left alone.
