@@ -12,6 +12,7 @@ import {
   isExpired,
   selectForEviction,
 } from "@apty/agent-core";
+import { moveLegacyDatabases, SCREENSHOTS_DB } from "./legacy-databases.js";
 
 export interface ScreenshotData {
   uid: string;
@@ -27,7 +28,7 @@ export interface ScreenshotData {
   };
 }
 
-const DB_NAME = "aipex-screenshots-db";
+const DB_NAME = SCREENSHOTS_DB;
 const DB_VERSION = 1;
 const STORE_NAME = "screenshots";
 const MAX_SCREENSHOTS = 50;
@@ -39,32 +40,37 @@ function initialize(): Promise<void> {
   if (initPromise) return initPromise;
   if (db) return Promise.resolve();
 
-  initPromise = new Promise<void>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+  // Screenshots stored under the old AIPex database name move first (R2).
+  const moved = moveLegacyDatabases().catch(() => undefined);
+  initPromise = moved.then(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => {
-      initPromise = null;
-      reject(request.error);
-    };
+        request.onerror = () => {
+          initPromise = null;
+          reject(request.error);
+        };
 
-    request.onsuccess = () => {
-      db = request.result;
-      initPromise = null;
-      resolve();
-      applyLRU().catch(() => {});
-    };
+        request.onsuccess = () => {
+          db = request.result;
+          initPromise = null;
+          resolve();
+          applyLRU().catch(() => {});
+        };
 
-    request.onupgradeneeded = (event) => {
-      const database = (event.target as IDBOpenDBRequest).result;
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
-        const store = database.createObjectStore(STORE_NAME, {
-          keyPath: "uid",
-        });
-        store.createIndex("timestamp", "timestamp", { unique: false });
-        store.createIndex("tabId", "tabId", { unique: false });
-      }
-    };
-  });
+        request.onupgradeneeded = (event) => {
+          const database = (event.target as IDBOpenDBRequest).result;
+          if (!database.objectStoreNames.contains(STORE_NAME)) {
+            const store = database.createObjectStore(STORE_NAME, {
+              keyPath: "uid",
+            });
+            store.createIndex("timestamp", "timestamp", { unique: false });
+            store.createIndex("tabId", "tabId", { unique: false });
+          }
+        };
+      }),
+  );
 
   return initPromise;
 }

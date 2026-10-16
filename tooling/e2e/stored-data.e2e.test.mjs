@@ -61,7 +61,7 @@ const sessionIds = async (page) =>
   (await readStore(page, "apty-sessions", "sessions")).map((s) => s.id).sort();
 
 const conversations = (page) =>
-  readStore(page, "aipex-conversations-db", "conversations");
+  readStore(page, "apty-conversations-db", "conversations");
 
 async function waitFor(check, what, timeout = 15_000) {
   const deadline = Date.now() + timeout;

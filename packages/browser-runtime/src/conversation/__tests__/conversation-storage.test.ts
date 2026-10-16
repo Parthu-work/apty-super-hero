@@ -197,7 +197,7 @@ describe("ConversationStorage", () => {
       const storage = new ConversationStorage();
 
       expect((storage as any).config.maxConversations).toBe(5);
-      expect((storage as any).config.dbName).toBe("aipex-conversations-db");
+      expect((storage as any).config.dbName).toBe("apty-conversations-db");
       expect((storage as any).config.storeName).toBe("conversations");
     });
 
@@ -219,7 +219,7 @@ describe("ConversationStorage", () => {
       });
 
       expect((storage as any).config.maxConversations).toBe(10);
-      expect((storage as any).config.dbName).toBe("aipex-conversations-db");
+      expect((storage as any).config.dbName).toBe("apty-conversations-db");
       expect((storage as any).config.storeName).toBe("conversations");
     });
   });

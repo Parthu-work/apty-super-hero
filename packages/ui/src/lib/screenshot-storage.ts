@@ -24,7 +24,8 @@ export interface ScreenshotData {
   };
 }
 
-const DB_NAME = "aipex-screenshots-db";
+/** Same database as browser-runtime's screenshot store, which moves the old AIPex-named one. */
+const DB_NAME = "apty-screenshots-db";
 const DB_VERSION = 1;
 const STORE_NAME = "screenshots";
 const MAX_SCREENSHOTS = 50;

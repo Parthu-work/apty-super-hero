@@ -6,6 +6,7 @@
 import { createLogger, migrateSettings, STORAGE_KEYS } from "@apty/agent-core";
 import { seedAptyIntegrationConfigDefaults } from "@apty/browser-runtime";
 import { ensureAgentSessionsMigrated } from "@apty/browser-runtime/storage/agent-session-store";
+import { moveLegacyDatabases } from "@apty/browser-runtime/storage/legacy-databases";
 import { migrateLegacyStorageKeys } from "@apty/browser-runtime/storage/legacy-storage";
 
 const log = createLogger("Lifecycle");
@@ -42,6 +43,7 @@ export function migrateLegacyStorage(): Promise<void> {
   legacyStorageMove ??= Promise.all([
     migrateLegacyStorageKeys(),
     ensureAgentSessionsMigrated(),
+    moveLegacyDatabases(),
   ])
     .then(() => undefined)
     .finally(() => {
