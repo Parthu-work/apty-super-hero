@@ -51,6 +51,30 @@ describe("applyUrlPolicy", () => {
     );
   });
 
+  it("replaces record numbers, GUIDs, long hex ids and emails in the path when withholding", () => {
+    expect(
+      applyUrlPolicy(
+        "https://ehr.example.com/patients/884213/notes/3f2b9c1e-8a4d-4c2e-9b7f-1a2b3c4d5e6f/v/0123456789abcdef0123?x=1",
+        "withhold",
+      ),
+    ).toBe("https://ehr.example.com/patients/:id/notes/:id/v/:id");
+    expect(
+      applyUrlPolicy(
+        "https://app.example.com/users/jane.doe@example.com/profile",
+        "withhold",
+      ),
+    ).toBe("https://app.example.com/users/:email/profile");
+  });
+
+  it("keeps short numbers and words in the path, and the path itself when masking", () => {
+    expect(
+      applyUrlPolicy("https://app.example.com/v2/orders/42/page/7", "withhold"),
+    ).toBe("https://app.example.com/v2/orders/42/page/7");
+    expect(
+      applyUrlPolicy("https://app.example.com/patients/884213", "mask"),
+    ).toBe("https://app.example.com/patients/884213");
+  });
+
   it("leaves a URL with no query or fragment alone, in every policy", () => {
     const plain = "https://app.example.com/chart/42";
     for (const policy of ["show", "mask", "withhold"] as const) {

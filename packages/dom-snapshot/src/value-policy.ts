@@ -14,6 +14,17 @@ export type ValuePolicy = "show" | "mask" | "withhold";
 
 export const MASKED_VALUE = "[masked]";
 
+/** Identifier-shaped runs inside a value: 5+ digits, a GUID, 16+ hex. */
+export const ID_RUN =
+  /(?<![0-9a-z])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{5,})(?![0-9a-z])/gi;
+
+const PATH_EMAIL = /[^/@\s]+@[^/@\s]+\.[a-z]{2,}/gi;
+
+/** A URL path with record numbers, GUIDs, long hex ids and emails replaced. */
+function withholdPathIdentifiers(path: string): string {
+  return path.replace(PATH_EMAIL, ":email").replace(ID_RUN, ":id");
+}
+
 /** Roles whose value, and whose text children, are what a person entered. */
 const EDITABLE_ROLES = new Set([
   "textbox",
@@ -46,8 +57,11 @@ export function applyUrlPolicy(
   } catch {
     return url;
   }
+  if (policy === "withhold") {
+    return `${parsed.origin}${withholdPathIdentifiers(parsed.pathname)}`;
+  }
   const base = `${parsed.origin}${parsed.pathname}`;
-  if (policy === "withhold" || !parsed.search) return base;
+  if (!parsed.search) return base;
   const keys = parsed.search
     .slice(1)
     .split("&")

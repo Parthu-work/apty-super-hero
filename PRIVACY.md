@@ -60,7 +60,7 @@ Data handling → Redaction**:
 | `Authorization`, cookie and API-key headers; values of keys such as `password`, `token`, `secret` in JSON | Masked | Masked | Not masked |
 | Values of JSON keys naming a person or record (`username`, `email`, `firstName`, `lastName`, `fullName`, `displayName`, `phone`, `address`, `dob`, `ssn`, `mrn`, any key starting with `patient`; `userId` is replaced by a stable pseudonym). A bare `name` key is not masked. | Masked | Masked | Not masked |
 | Values of JSON keys holding page context (`page_title`, `page_path`, `page_search`, `referrer`) | Masked | Not masked | Not masked |
-| Any web URL in a tool result | Query string and fragment removed; the path is kept | Each query value replaced with `[masked]`; the path is kept | Sent as is |
+| Any web URL in a tool result | Query string and fragment removed; in the path, record numbers (5+ digits), GUIDs, long hex ids and email addresses become `:id` / `:email` | Each query value replaced with `[masked]`; the path is kept | Sent as is |
 | A tab or page as the tab and page tools describe it | Tab id and origin only: no title, no path | Title and URL with masked query values | Sent as is |
 | Values typed or chosen in form fields | Not sent | Replaced with `[masked]` | Sent as is |
 
@@ -71,9 +71,10 @@ What no mode hides:
   page, or in a link label, reaches the AI provider when a tool reads the
   page. Redaction masks values by the key they sit under or by their
   shape, never by meaning, so it cannot recognise these in prose.
-- Path segments in URLs are kept in Strict, so a record number in a path
-  (`/patients/884213/chart`) is sent. Only the page-context keys above
-  have record-like path segments masked.
+- In Strict, a path keeps its words and short numbers
+  (`/patients/:id/chart`, `/orders/42`); a short record number of four
+  digits or fewer, or a name written into a path, is sent. Standard keeps
+  the whole path.
 - Checkbox and radio states are sent in every mode.
 - Page titles are sent in Standard and Off.
 
