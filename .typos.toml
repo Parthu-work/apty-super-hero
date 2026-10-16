@@ -2,7 +2,16 @@
 # Exclude README files from typos checking (they contain multiple languages)
 # Exclude bundled-modules directory (contains third-party bundled code)
 # Exclude mcp-bridge directory (tool schemas contain glob patterns that trigger false positives)
-extend-exclude = ["README*.md", "**/bundled-modules/**", "apps/mcp-bridge/**"]
+# Exclude the generated third-party notices and the Inter licence: licence
+# texts and copyright holders' names must stay exactly as their authors wrote
+# them (typos once "corrected" a name in them).
+extend-exclude = [
+  "README*.md",
+  "**/bundled-modules/**",
+  "apps/mcp-bridge/**",
+  "apps/browser-extension/THIRD_PARTY_NOTICES.txt",
+  "apps/browser-extension/assets/Inter-OFL.txt",
+]
 
 [default]
 # Commit ids quoted in backticks (REVIEW.md's commit tables) are hex, not

@@ -513,7 +513,7 @@ describe("WsMcpServer mutual authentication (S6)", () => {
     await connecting.catch(() => undefined);
   });
 
-  it("refuses an unsigned, mis-signed or replayed tools/call", async () => {
+  it("refuses an unsigned, wrongly signed or replayed tools/call", async () => {
     const socket = await connected(new WsMcpServer());
     const unsigned = {
       jsonrpc: "2.0",
