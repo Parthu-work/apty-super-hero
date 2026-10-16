@@ -183,9 +183,10 @@ async function audit(path, tool, args = {}) {
     tool === "run_dom_health_audit"
       ? "check dom health of this page"
       : "check dom health across the whole application";
-  // A clicking (application-deep) run asks once before it starts (S5).
+  // An application run asks once before it starts: the clicking mode since
+  // S5, link-only discovery since Phase 4. A page-only run doesn't.
   const whileWaiting =
-    args.discoveryMode === "application-deep"
+    tool === "run_application_dom_health_audit" && args.discoveryMode !== "page"
       ? async () => {
           const prompt = panel.getByRole("alertdialog");
           await prompt.waitFor({ timeout: 30_000 });

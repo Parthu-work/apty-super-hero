@@ -362,8 +362,14 @@ describe("chat agent in a real browser", () => {
     );
 
     const started = Date.now();
+    // An application run asks first (S5; link-only too since Phase 4).
     await chatAndWait(panel, "check dom health across the whole application", {
       timeout: 120_000,
+      whileWaiting: async () => {
+        const prompt = panel.getByRole("alertdialog");
+        await prompt.waitFor({ timeout: 30_000 });
+        await prompt.getByRole("button", { name: "Allow once" }).click();
+      },
     });
 
     // About 7s; waiting out every stability timeout on the busy frame took 30s.

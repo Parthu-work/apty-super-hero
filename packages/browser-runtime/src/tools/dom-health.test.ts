@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRunDomHealthAudit = vi.hoisted(() => vi.fn());
 const mockRunApplicationDomHealthAudit = vi.hoisted(() => vi.fn());
@@ -113,13 +113,17 @@ describe("runDomHealthAuditTool", () => {
 });
 
 describe("runApplicationDomHealthAuditTool", () => {
+  // Application runs now ask first; these tests are about what runs after.
+  let stopApprovals: () => void;
   beforeEach(() => {
     vi.clearAllMocks();
     (global as any).chrome.tabs.get = vi.fn(async (tabId: number) => ({
       id: tabId,
     }));
     (global as any).chrome.tabs.query = vi.fn(async () => [{ id: 7 }]);
+    stopApprovals = answerApprovals({ approved: true }).stop;
   });
+  afterEach(() => stopApprovals());
 
   it("delegates to runApplicationDomHealthAudit for the tab bound to the conversation, forwarding maxPages", async () => {
     mockRunApplicationDomHealthAudit.mockResolvedValue({
@@ -320,11 +324,33 @@ describe("runApplicationDomHealthAuditTool — clicking discovery needs approval
     expect(mockRunApplicationDomHealthAudit).not.toHaveBeenCalled();
   });
 
-  it("runs link-only discovery without asking", async () => {
+  it("asks before link-only discovery too, which may be remembered for the site", async () => {
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
+    const safeRun = () =>
+      runApplicationDomHealthAuditTool.invoke(
+        { context: { conversationId: "conv-safe", tabId: 12 } } as never,
+        JSON.stringify({ discoveryMode: "application-safe", maxPages: 4 }),
+      );
+    await safeRun();
+    await safeRun();
+    stop();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.summary).toContain("application-safe");
+    expect(requests[0]?.summary).toContain("4 pages");
+    expect(requests[0]?.summary).toMatch(/links/);
+    expect(requests[0]?.rememberable).not.toBe(false);
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs page-only discovery, which navigates nowhere, without asking", async () => {
     const { requests, stop } = answerApprovals({ approved: false });
     await runApplicationDomHealthAuditTool.invoke(
-      { context: { conversationId: "conv-safe", tabId: 12 } } as never,
-      JSON.stringify({ discoveryMode: "application-safe" }),
+      { context: { conversationId: "conv-page", tabId: 12 } } as never,
+      JSON.stringify({ discoveryMode: "page" }),
     );
     stop();
     expect(requests).toHaveLength(0);

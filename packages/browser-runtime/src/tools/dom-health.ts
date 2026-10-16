@@ -134,16 +134,22 @@ export const runApplicationDomHealthAuditTool = tool({
       });
       return { ...result, meta: { tab: describeTabForReport(tab) } };
     };
-    if (input.discoveryMode !== "application-deep") return run();
+    if (input.discoveryMode === "page") return run();
 
+    // Both application modes take the user's tab through other pages; the
+    // clicking one asks every run, the link-only one may be remembered.
+    const deep = input.discoveryMode === "application-deep";
     const pageLimit = input.maxPages ?? DEFAULT_APPLICATION_MAX_PAGES;
+    const site = tab.url ? new URL(tab.url).origin : "this application";
     return gateRiskyAction(
       (context as ToolRunContext)?.context?.conversationId,
       "run_application_dom_health_audit",
-      `DOM Health in application-deep mode: click navigation controls on ${tab.url ? new URL(tab.url).origin : "this application"} and visit up to ${pageLimit} pages or states. Destructive-looking controls are skipped.`,
+      deep
+        ? `DOM Health in application-deep mode: click navigation controls on ${site} and visit up to ${pageLimit} pages or states. Destructive-looking controls are skipped.`
+        : `DOM Health in application-safe mode: open up to ${pageLimit} pages on ${site} by following its links, in this tab. Nothing is clicked; destructive-looking links are skipped.`,
       tab.url,
       run,
-      { tabId: tab.id, rememberable: false },
+      { tabId: tab.id, rememberable: !deep },
     );
   },
 });

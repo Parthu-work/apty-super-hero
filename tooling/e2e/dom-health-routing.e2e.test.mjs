@@ -259,8 +259,14 @@ describe("page-world script switch (B5)", () => {
     model.script(
       callToolThenReport("run_application_dom_health_audit", { maxPages: 2 }),
     );
+    // An application run asks first (Phase 4: link-only discovery too).
     await chatAndWait(panel, "check dom health across the whole application", {
       timeout: 150_000,
+      whileWaiting: async () => {
+        const prompt = panel.getByRole("alertdialog");
+        await prompt.waitFor({ timeout: 30_000 });
+        await prompt.getByRole("button", { name: "Allow once" }).click();
+      },
     });
     const result = toolResults(model.requests.at(-1)).at(-1);
     const navigation = result.pages[0].navigationModel;
