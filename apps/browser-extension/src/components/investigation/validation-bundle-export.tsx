@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { useState } from "react";
 
 export interface ValidationBundleSources {
@@ -69,6 +70,7 @@ function download(json: string) {
 }
 
 export function ValidationBundleExport(sources: ValidationBundleSources) {
+  const { t } = useTranslation();
   const [json, setJson] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const hasEvidence =
@@ -88,7 +90,7 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
           setJson(validationBundleJson(sources));
         }}
       >
-        Export validation bundle
+        {t("investigation.bundle.export")}
       </Button>
       <Dialog
         open={json !== null}
@@ -96,15 +98,13 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
       >
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Review before sharing</DialogTitle>
+            <DialogTitle>{t("investigation.bundle.review")}</DialogTitle>
             <DialogDescription>
-              Hostnames, URL templates, frame roles, counts, hashes, thresholds
-              and timings only: no element text, input values, page titles,
-              record numbers or cookies. Check it before you send it.
+              {t("investigation.bundle.reviewDescription")}
             </DialogDescription>
           </DialogHeader>
           <section
-            aria-label="Validation bundle"
+            aria-label={t("investigation.bundle.label")}
             className="flex min-h-0 flex-1 flex-col"
           >
             <pre
@@ -121,7 +121,7 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
               variant="outline"
               onClick={() => setJson(null)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -133,7 +133,7 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
                   .then(() => setCopied(true));
               }}
             >
-              {copied ? "Copied" : "Copy"}
+              {t(copied ? "common.copied" : "common.copy")}
             </Button>
             <Button
               type="button"
@@ -142,7 +142,7 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
                 setJson(null);
               }}
             >
-              Download
+              {t("common.download")}
             </Button>
           </DialogFooter>
         </DialogContent>

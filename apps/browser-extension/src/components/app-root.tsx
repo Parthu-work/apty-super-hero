@@ -8,7 +8,7 @@ import { useAgent, useChatConfig } from "@apty/ui";
 import ChatBot from "@apty/ui/components/chatbot";
 import { ErrorBoundary } from "@apty/ui/components/error/ErrorBoundary";
 import type { InterventionMode } from "@apty/ui/components/intervention";
-import { I18nProvider } from "@apty/ui/i18n/context";
+import { I18nProvider, useTranslation } from "@apty/ui/i18n/context";
 import type { Language } from "@apty/ui/i18n/types";
 import { ThemeProvider } from "@apty/ui/theme/context";
 import type { Theme } from "@apty/ui/theme/types";
@@ -125,6 +125,7 @@ async function checkAuth(
 }
 
 function ChatApp() {
+  const { t } = useTranslation();
   const { settings, isLoading } = useChatConfig({
     storageAdapter: chromeStorageAdapter,
     autoLoad: true,
@@ -214,7 +215,7 @@ function ChatApp() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">{t("common.loading")}</div>
       </div>
     );
   }

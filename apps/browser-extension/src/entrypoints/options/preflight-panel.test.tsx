@@ -15,6 +15,8 @@ vi.mock("../../services/preflight", async (importOriginal) => ({
   runPreflight,
 }));
 
+import { I18nProvider } from "@apty/ui/i18n/context";
+import type { PreflightDeps } from "../../services/preflight";
 import { PreflightPanel } from "./preflight-panel";
 
 describe("PreflightPanel", () => {
@@ -95,5 +97,46 @@ describe("PreflightPanel", () => {
       ),
     ).toBeTruthy();
     expect(purge).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the checks, their details and fixes in Chinese when the language is zh", async () => {
+    const actual = await vi.importActual<
+      typeof import("../../services/preflight")
+    >("../../services/preflight");
+    runPreflight.mockImplementation(actual.runPreflight);
+    const deps = {
+      loadSettings: async () => ({}),
+      clientId: async () => undefined,
+      agentId: () => "bpiondflhhdplemamgggcdajclmoeple",
+      pageTab: async () => null,
+      bridgeRegistered: async () => true,
+      clipboardPermission: async () => "granted",
+    } as unknown as PreflightDeps;
+    const languageStorage = {
+      load: vi.fn().mockResolvedValue("zh"),
+      save: vi.fn(),
+      watch: vi.fn(() => () => {}),
+    };
+    render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <PreflightPanel deps={deps} />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "运行全部检查" }),
+    );
+
+    const results = await screen.findByRole("list", { name: "预检结果" });
+    const aiProvider = within(results)
+      .getAllByRole("listitem")
+      .find((item) => item.dataset.check === "ai-provider");
+    expect(aiProvider).toHaveTextContent("AI 服务商");
+    expect(aiProvider).toHaveTextContent("未设置 API 密钥或模型。");
+    expect(
+      screen.getByRole("button", { name: "复制 Apty Client 的修复方法" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("没有打开的网页。")).toBeInTheDocument();
+    expect(screen.queryByText("AI provider", { exact: false })).toBeNull();
   });
 });

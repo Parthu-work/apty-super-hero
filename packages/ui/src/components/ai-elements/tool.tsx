@@ -15,6 +15,8 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useTranslation } from "../../i18n/context";
+import type { I18nContextValue } from "../../i18n/types";
 import { isLocalImageUrl } from "../../lib/safe-media";
 import { ScreenshotStorage } from "../../lib/screenshot-storage";
 import { cn } from "../../lib/utils";
@@ -42,16 +44,19 @@ export type ToolHeaderProps = {
   className?: string;
 };
 
-const getStatusBadge = (status: ToolUIPart["state"] | "executing") => {
+const getStatusBadge = (
+  t: I18nContextValue["t"],
+  status: ToolUIPart["state"] | "executing",
+) => {
   const labels = {
-    "input-streaming": "Pending",
-    "input-available": "Running",
-    executing: "Running",
-    "approval-requested": "Approval Requested",
-    "approval-responded": "Approved",
-    "output-available": "Completed",
-    "output-error": "Error",
-    "output-denied": "Denied",
+    "input-streaming": "chat.toolStatus.pending",
+    "input-available": "chat.toolStatus.running",
+    executing: "chat.toolStatus.running",
+    "approval-requested": "chat.toolStatus.approvalRequested",
+    "approval-responded": "chat.toolStatus.approved",
+    "output-available": "chat.toolStatus.completed",
+    "output-error": "chat.toolStatus.error",
+    "output-denied": "chat.toolStatus.denied",
   } as const;
 
   const icons = {
@@ -68,7 +73,7 @@ const getStatusBadge = (status: ToolUIPart["state"] | "executing") => {
   return (
     <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
       {icons[status]}
-      {labels[status]}
+      {t(labels[status])}
     </Badge>
   );
 };
@@ -78,22 +83,25 @@ export const ToolHeader = ({
   type,
   state,
   ...props
-}: ToolHeaderProps) => (
-  <CollapsibleTrigger
-    className={cn(
-      "flex w-full items-center justify-between gap-4 p-3",
-      className,
-    )}
-    {...props}
-  >
-    <div className="flex items-center gap-2">
-      <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-medium text-sm">{type}</span>
-      {getStatusBadge(state)}
-    </div>
-    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-  </CollapsibleTrigger>
-);
+}: ToolHeaderProps) => {
+  const { t } = useTranslation();
+  return (
+    <CollapsibleTrigger
+      className={cn(
+        "flex w-full items-center justify-between gap-4 p-3",
+        className,
+      )}
+      {...props}
+    >
+      <div className="flex items-center gap-2">
+        <WrenchIcon className="size-4 text-muted-foreground" />
+        <span className="font-medium text-sm">{type}</span>
+        {getStatusBadge(t, state)}
+      </div>
+      <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+    </CollapsibleTrigger>
+  );
+};
 
 export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 
@@ -111,16 +119,19 @@ export type ToolInputProps = ComponentProps<"div"> & {
   input: ToolUIPart["input"];
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-    <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      Parameters
-    </h4>
-    <div className="rounded-md bg-muted/50">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  const { t } = useTranslation();
+  return (
+    <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        {t("chat.parameters")}
+      </h4>
+      <div className="rounded-md bg-muted/50">
+        <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export type ToolOutputProps = ComponentProps<"div"> & {
   output: ToolUIPart["output"];
@@ -133,6 +144,7 @@ export const ToolOutput = ({
   errorText,
   ...props
 }: ToolOutputProps) => {
+  const { t } = useTranslation();
   if (!(output || errorText)) {
     return null;
   }
@@ -146,7 +158,7 @@ export const ToolOutput = ({
   return (
     <div className={cn("space-y-2 p-4", className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? "Error" : "Result"}
+        {t(errorText ? "chat.toolStatus.error" : "chat.result")}
       </h4>
       <div
         className={cn(
@@ -182,6 +194,7 @@ export const ToolScreenshot = ({
   screenshotUid,
   ...props
 }: ToolScreenshotProps) => {
+  const { t } = useTranslation();
   const [imageData, setImageData] = useState<string | null>(screenshot ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,35 +213,35 @@ export const ToolScreenshot = ({
       ScreenshotStorage.getScreenshot(screenshotUid)
         .then((data) => {
           setImageData(data);
-          if (!data) setError("Screenshot not found");
+          if (!data) setError(t("chat.screenshotNotFound"));
         })
         .catch(() => {
-          setError("Failed to load screenshot");
+          setError(t("chat.screenshotLoadFailed"));
         })
         .finally(() => {
           setLoading(false);
         });
     }
-  }, [screenshot, screenshotUid]);
+  }, [screenshot, screenshotUid, t]);
 
   if (!screenshot && !screenshotUid) return null;
 
   return (
     <div className={cn("space-y-2 p-4", className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        Screenshot
+        {t("chat.screenshot")}
       </h4>
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <ClockIcon className="size-4 animate-spin" />
-          <span>Loading screenshot...</span>
+          <span>{t("chat.loadingScreenshot")}</span>
         </div>
       ) : error ? (
         <div className="text-destructive text-sm">{error}</div>
       ) : isLocalImageUrl(imageData) ? (
         <img
           src={imageData}
-          alt="Screenshot"
+          alt={t("chat.screenshot")}
           className="cursor-pointer rounded-md max-w-full"
         />
       ) : null}

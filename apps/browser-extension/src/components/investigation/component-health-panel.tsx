@@ -11,6 +11,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@apty/ui/components/ui/collapsible";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import type { ComponentHealth } from "./component-health";
@@ -22,8 +23,9 @@ export function ComponentHealthPanel({
 }: {
   components: ComponentHealth[];
 }) {
+  const { t } = useTranslation();
   return (
-    <ul className="space-y-1.5" aria-label="Apty component health">
+    <ul className="space-y-1.5" aria-label={t("investigation.componentHealth")}>
       {components.map((component) => {
         const meta = describeComponentHealth(component.state);
         return (

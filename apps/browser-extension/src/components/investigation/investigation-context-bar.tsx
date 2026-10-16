@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import { useState } from "react";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
@@ -28,6 +29,7 @@ import { useInvestigationData } from "./use-investigation-data";
 
 export function InvestigationContextBar() {
   const { sessionId, status, interrupt } = useChatContext();
+  const { t } = useTranslation();
   const isActive =
     status === "streaming" ||
     status === "submitted" ||
@@ -93,7 +95,7 @@ export function InvestigationContextBar() {
                 toneBadgeClass(meta.tone),
               )}
             >
-              Live investigation
+              {t("investigation.live")}
             </span>
           </div>
           {target.hostname && (
@@ -114,25 +116,24 @@ export function InvestigationContextBar() {
           className="shrink-0"
           onClick={() => setConfirmOpen(true)}
         >
-          Stop
+          {t("common.stop")}
         </Button>
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Stop investigation?</DialogTitle>
+            <DialogTitle>{t("investigation.stopTitle")}</DialogTitle>
             <DialogDescription>
-              Evidence collected so far will remain available in this
-              conversation.
+              {t("investigation.stopDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={() => void handleStop()}>
-              Stop
+              {t("common.stop")}
             </Button>
           </DialogFooter>
         </DialogContent>

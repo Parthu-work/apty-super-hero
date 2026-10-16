@@ -6,6 +6,7 @@ import {
   ThumbsUpIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "../../../../i18n/context";
 import type { MessageActionsSlotProps } from "../../../../types";
 import { Action, Actions } from "../../../ai-elements/actions";
 
@@ -17,6 +18,7 @@ export function DefaultMessageActions({
   onRegenerate,
   onCopy,
 }: MessageActionsSlotProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   // Find text content for copy
@@ -28,7 +30,7 @@ export function DefaultMessageActions({
   return (
     <Actions className="mt-2">
       {onRegenerate && (
-        <Action onClick={onRegenerate} label="Retry">
+        <Action onClick={onRegenerate} label={t("chat.retry")}>
           <RefreshCcwIcon className="size-3" />
         </Action>
       )}
@@ -41,7 +43,7 @@ export function DefaultMessageActions({
               setTimeout(() => setCopied(false), 2000);
             }
           }}
-          label={copied ? "Copied" : "Copy"}
+          label={t(copied ? "common.copied" : "common.copy")}
         >
           {copied ? (
             <CheckIcon className="size-3" />
@@ -65,6 +67,7 @@ export function MessageActionsWithFeedback({
 }: MessageActionsSlotProps & {
   onFeedback?: (messageId: string, type: "up" | "down") => void;
 }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const textContent = message.parts
@@ -75,7 +78,7 @@ export function MessageActionsWithFeedback({
   return (
     <Actions className="mt-2">
       {onRegenerate && (
-        <Action onClick={onRegenerate} label="Retry">
+        <Action onClick={onRegenerate} label={t("chat.retry")}>
           <RefreshCcwIcon className="size-3" />
         </Action>
       )}
@@ -88,7 +91,7 @@ export function MessageActionsWithFeedback({
               setTimeout(() => setCopied(false), 2000);
             }
           }}
-          label={copied ? "Copied" : "Copy"}
+          label={t(copied ? "common.copied" : "common.copy")}
         >
           {copied ? (
             <CheckIcon className="size-3" />
@@ -101,13 +104,13 @@ export function MessageActionsWithFeedback({
         <>
           <Action
             onClick={() => onFeedback(message.id, "up")}
-            label="Good response"
+            label={t("chat.goodResponse")}
           >
             <ThumbsUpIcon className="size-3" />
           </Action>
           <Action
             onClick={() => onFeedback(message.id, "down")}
-            label="Bad response"
+            label={t("chat.badResponse")}
           >
             <ThumbsDownIcon className="size-3" />
           </Action>

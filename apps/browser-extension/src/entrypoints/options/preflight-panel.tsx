@@ -143,7 +143,7 @@ export function PreflightPanel({
   const run = async () => {
     setRunning(true);
     try {
-      setChecks(await runPreflight(deps));
+      setChecks(await runPreflight(deps, t));
     } finally {
       setRunning(false);
     }

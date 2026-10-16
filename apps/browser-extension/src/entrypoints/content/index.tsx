@@ -2,6 +2,8 @@ import { FakeMouse } from "@apty/ui/components/fake-mouse";
 import type { FakeMouseController } from "@apty/ui/components/fake-mouse/types";
 import type { OmniCommandGroup } from "@apty/ui/components/omni";
 import { Omni } from "@apty/ui/components/omni";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { I18nContextValue } from "@apty/ui/i18n/types";
 import { MessageSquareText } from "lucide-react";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -9,13 +11,13 @@ import ReactDOM from "react-dom/client";
 import tailwindCss from "../../styles/tailwind.css?inline";
 import { isAgentActivityMessage } from "./agent-activity";
 
-const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
+const omniCommandGroups = (t: I18nContextValue["t"]): OmniCommandGroup[] => [
   {
     heading: "Apty",
     items: [
       {
         id: "open-apty-live-debugging",
-        label: "Open Apty Live Debugging",
+        label: t("contentScript.openLiveDebugging"),
         icon: MessageSquareText,
         onSelect: () => {
           chrome.runtime.sendMessage({ request: "open-sidepanel" });
@@ -26,6 +28,7 @@ const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
 ];
 
 const ContentApp = () => {
+  const { t } = useTranslation();
   const [isOmniOpen, setIsOmniOpen] = React.useState(false);
   const fakeMouseRef = React.useRef<FakeMouseController | null>(null);
 
@@ -121,8 +124,8 @@ const ContentApp = () => {
         <Omni
           open={isOmniOpen}
           setOpen={setIsOmniOpen}
-          groups={OMNI_COMMAND_GROUPS}
-          placeholder="Search Apty commands..."
+          groups={omniCommandGroups(t)}
+          placeholder={t("contentScript.searchCommands")}
         />
       )}
       <FakeMouse

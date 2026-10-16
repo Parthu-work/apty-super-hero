@@ -13,6 +13,8 @@ import {
   CardTitle,
 } from "@apty/ui/components/ui/card";
 import { Switch } from "@apty/ui/components/ui/switch";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -25,26 +27,24 @@ import {
 
 const PERMISSION_COPY: Record<
   OptionalPermissionName,
-  { label: string; description: string }
+  { label: TranslationKey; description: TranslationKey }
 > = {
   bookmarks: {
-    label: "Bookmarks",
-    description:
-      "Include your bookmarks as context the AI can reference. Without this, bookmark context is simply omitted — nothing else changes.",
+    label: "permissions.bookmarks",
+    description: "permissions.bookmarksDescription",
   },
   history: {
-    label: "Browsing history",
-    description:
-      "Include your recent browsing history as context the AI can reference. Without this, history context is simply omitted.",
+    label: "permissions.history",
+    description: "permissions.historyDescription",
   },
   management: {
-    label: "Manage extensions",
-    description:
-      "Needed only by the Apty Integration tab: Detect lists your extensions to find the Apty Client, and Connect checks that its ID is installed and enabled. Nothing else in the product uses this.",
+    label: "permissions.management",
+    description: "permissions.managementDescription",
   },
 };
 
 export function PermissionsPanel() {
+  const { t } = useTranslation();
   const [granted, setGranted] = useState<
     Record<OptionalPermissionName, boolean>
   >({ bookmarks: false, history: false, management: false });
@@ -81,25 +81,23 @@ export function PermissionsPanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
-          Optional permissions
+          {t("permissions.title")}
         </CardTitle>
-        <CardDescription>
-          Off by default. Each one is requested only when you turn it on here.
-        </CardDescription>
+        <CardDescription>{t("permissions.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {OPTIONAL_PERMISSIONS.map((name) => (
           <div key={name} className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-medium">
-                {PERMISSION_COPY[name].label}
+                {t(PERMISSION_COPY[name].label)}
               </p>
               <p className="text-xs text-muted-foreground">
-                {PERMISSION_COPY[name].description}
+                {t(PERMISSION_COPY[name].description)}
               </p>
             </div>
             <Switch
-              aria-label={PERMISSION_COPY[name].label}
+              aria-label={t(PERMISSION_COPY[name].label)}
               checked={granted[name]}
               disabled={!loaded}
               onCheckedChange={(checked) => handleToggle(name, checked)}

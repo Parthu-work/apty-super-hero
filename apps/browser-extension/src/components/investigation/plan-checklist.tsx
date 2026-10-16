@@ -6,6 +6,7 @@
 
 import type { InvestigationPlan } from "@apty/browser-runtime";
 import { Progress } from "@apty/ui/components/ui/progress";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import { toneBadgeClass } from "./tone-classes";
 
@@ -29,10 +30,11 @@ export function PlanChecklist({
 }: {
   plan: InvestigationPlan | undefined;
 }) {
+  const { t } = useTranslation();
   if (!plan) {
     return (
       <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-        No plan generated for this investigation.
+        {t("investigation.plan.none")}
       </p>
     );
   }
@@ -46,7 +48,10 @@ export function PlanChecklist({
       <div className="space-y-1 px-1">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            {doneCount}/{plan.steps.length} steps done
+            {t("investigation.plan.stepsDone", {
+              done: doneCount,
+              total: plan.steps.length,
+            })}
           </span>
           <span className="capitalize">{plan.category.replace(/_/g, " ")}</span>
         </div>

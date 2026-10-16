@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
 import { Progress } from "@apty/ui/components/ui/progress";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { AlertCircle, CheckCircle, FileArchive, Upload } from "lucide-react";
 import type React from "react";
 import { useCallback, useRef, useState } from "react";
@@ -32,6 +33,7 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
   onUploadSuccess,
   onUploadError,
 }) => {
+  const { t } = useTranslation();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
@@ -47,7 +49,7 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
   const handleFileSelect = useCallback(
     async (file: File, replace: boolean = false) => {
       if (!file.name.endsWith(".zip")) {
-        onUploadError("Please select a valid ZIP file");
+        onUploadError(t("skills.uploader.invalidZip"));
         return;
       }
 
@@ -76,7 +78,10 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
         if (result.ok) {
           setUploadStatus("success");
           setStatusMessage(
-            `Skill "${result.skill.name}" ${replace ? "replaced" : "uploaded"} successfully!`,
+            t(
+              replace ? "skills.uploader.replaced" : "skills.uploader.uploaded",
+              { name: result.skill.name },
+            ),
           );
           onUploadSuccess(result.skill);
 
@@ -98,14 +103,14 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
       } catch (error) {
         setUploadStatus("error");
         const message =
-          error instanceof Error ? error.message : "Upload failed";
+          error instanceof Error ? error.message : t("skills.uploader.failed");
         setStatusMessage(message);
         onUploadError(message);
       } finally {
         setIsUploading(false);
       }
     },
-    [skillClient, onUploadSuccess, onUploadError],
+    [skillClient, onUploadSuccess, onUploadError, t],
   );
 
   const handleConfirmReplace = useCallback(async () => {
@@ -159,11 +164,9 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Upload className="h-5 w-5" />
-          Upload Skill
+          {t("skills.uploader.title")}
         </CardTitle>
-        <CardDescription>
-          Upload a skill ZIP file to extend AI capabilities
-        </CardDescription>
+        <CardDescription>{t("skills.uploader.description")}</CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -182,7 +185,7 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
             onDrop={handleDrop}
           >
             <input
-              aria-label="Upload skill ZIP file"
+              aria-label={t("skills.uploader.inputLabel")}
               type="file"
               accept=".zip"
               onChange={handleFileInputChange}
@@ -194,10 +197,14 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
             <div className="space-y-2">
               <FileArchive className="h-12 w-12 mx-auto text-muted-foreground" />
               <div className="text-lg font-medium">
-                {isUploading ? "Uploading..." : "Drop your skill ZIP file here"}
+                {t(
+                  isUploading
+                    ? "skills.uploader.uploading"
+                    : "skills.uploader.dropHere",
+                )}
               </div>
               <div className="text-sm text-muted-foreground">
-                or click to browse files
+                {t("skills.uploader.browse")}
               </div>
             </div>
           </div>
@@ -206,7 +213,7 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
           {isUploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span>Uploading skill...</span>
+                <span>{t("skills.uploader.uploadingSkill")}</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress value={uploadProgress} className="w-full" />
@@ -231,14 +238,9 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
 
           {/* Help Text */}
           <div className="text-xs text-muted-foreground space-y-1">
-            <div>
-              • Skill files must be ZIP archives containing a SKILL.md file
-            </div>
-            <div>
-              • Supported file types: scripts (JS), references (MD), assets
-              (any)
-            </div>
-            <div>• Maximum file size: 10MB</div>
+            <div>{t("skills.uploader.helpZip")}</div>
+            <div>{t("skills.uploader.helpTypes")}</div>
+            <div>{t("skills.uploader.helpSize")}</div>
           </div>
         </div>
       </CardContent>
@@ -247,17 +249,20 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
       <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Skill Already Exists</DialogTitle>
+            <DialogTitle>{t("skills.uploader.conflictTitle")}</DialogTitle>
             <DialogDescription>
-              A skill named "{conflictingSkillName}" already exists. Do you want
-              to replace it with the new version?
+              {t("skills.uploader.conflictDescription", {
+                name: conflictingSkillName,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={handleCancelReplace}>
-              Cancel
+              {t("common.cancel")}
             </Button>
-            <Button onClick={handleConfirmReplace}>Replace</Button>
+            <Button onClick={handleConfirmReplace}>
+              {t("skills.uploader.replace")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

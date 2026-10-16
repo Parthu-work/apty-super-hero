@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "../../../i18n/context";
 
 export interface ModelInfo {
   id: string;
@@ -18,20 +19,6 @@ interface ModelChangePromptProps {
   onFetchModels?: () => Promise<ModelInfo[]>;
 }
 
-// Default translations for model change prompt
-const defaultTranslations = {
-  "modelChangePrompt.noMatchingModels": "No Matching Models",
-  "modelChangePrompt.contactSupport":
-    "None of the requested models are available. Please contact support.",
-  "modelChangePrompt.title": "Model Selection",
-  "modelChangePrompt.description":
-    "The requested model is not available. Please select an alternative:",
-  "modelChangePrompt.clickToSwitch": "Click on a model to switch",
-  "modelSelector.priceLevel.cheap": "Economy",
-  "modelSelector.priceLevel.normal": "Standard",
-  "modelSelector.priceLevel.expensive": "Premium",
-};
-
 export const ModelChangePrompt: React.FC<ModelChangePromptProps> = ({
   supportedModels,
   onModelChange,
@@ -39,10 +26,7 @@ export const ModelChangePrompt: React.FC<ModelChangePromptProps> = ({
   availableModels = [],
   onFetchModels,
 }) => {
-  // Simple translation function
-  const t = (key: string): string => {
-    return defaultTranslations[key as keyof typeof defaultTranslations] || key;
-  };
+  const { t } = useTranslation();
   const [allModels, setAllModels] = useState<ModelInfo[]>(availableModels);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
@@ -104,7 +88,7 @@ export const ModelChangePrompt: React.FC<ModelChangePromptProps> = ({
         <div className="flex items-center">
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
           <span className="text-sm text-blue-700">
-            Loading available models...
+            {t("modelChangePrompt.loading")}
           </span>
         </div>
       </div>
@@ -194,7 +178,7 @@ export const ModelChangePrompt: React.FC<ModelChangePromptProps> = ({
                               : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {t(`modelSelector.priceLevel.${model.priceLevel}`)}
+                        {t(`modelChangePrompt.priceLevel.${model.priceLevel}`)}
                       </span>
                       {currentModel === model.id && (
                         <svg

@@ -16,6 +16,8 @@ import {
 } from "@apty/ui/components/ui/card";
 import { Input } from "@apty/ui/components/ui/input";
 import { Label } from "@apty/ui/components/ui/label";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import { Cable, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -24,11 +26,11 @@ const DEFAULT_URL = "ws://localhost:9223";
 
 type ConnectionStatus = WsMcpServerState["status"];
 
-const STATUS_LABEL: Record<ConnectionStatus, string> = {
-  disconnected: "Not Connected",
-  connecting: "Connecting…",
-  connected: "Connected",
-  error: "Connection Error",
+const STATUS_LABEL: Record<ConnectionStatus, TranslationKey> = {
+  disconnected: "mcpBridge.status.disconnected",
+  connecting: "mcpBridge.status.connecting",
+  connected: "mcpBridge.status.connected",
+  error: "mcpBridge.status.error",
 };
 
 const STATUS_BADGE_CLASSES: Record<ConnectionStatus, string> = {
@@ -44,6 +46,7 @@ const STATUS_BADGE_CLASSES: Record<ConnectionStatus, string> = {
 const STORAGE_KEY_WS_TOKEN = "ws-mcp-token";
 
 export function McpBridgePanel() {
+  const { t } = useTranslation();
   const [url, setUrl] = useState(DEFAULT_URL);
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -98,7 +101,7 @@ export function McpBridgePanel() {
         token,
       });
       if (!response.success) {
-        setError(response.error || "Connection failed");
+        setError(response.error || t("mcpBridge.connectionFailed"));
       }
       await refreshStatus();
     } catch (err) {
@@ -124,12 +127,9 @@ export function McpBridgePanel() {
           <div className="space-y-1.5">
             <CardTitle className="flex items-center gap-2 text-base">
               <Cable className="h-4 w-4 text-muted-foreground" />
-              MCP WebSocket Bridge
+              {t("mcpBridge.title")}
             </CardTitle>
-            <CardDescription>
-              Connect to an external MCP client (e.g. Claude, Cursor) to expose
-              Apty Agent's browser tools to external AI agents.
-            </CardDescription>
+            <CardDescription>{t("mcpBridge.description")}</CardDescription>
           </div>
           <Badge
             variant="outline"
@@ -141,31 +141,33 @@ export function McpBridgePanel() {
             {status === "connecting" && (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             )}
-            {STATUS_LABEL[status]}
+            {t(STATUS_LABEL[status])}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {status === "connected" && connectedAt && (
           <p className="text-xs text-muted-foreground">
-            Connected since {new Date(connectedAt).toLocaleTimeString()}
+            {t("mcpBridge.connectedSince", {
+              time: new Date(connectedAt).toLocaleTimeString(),
+            })}
           </p>
         )}
         {status !== "connected" && reconnectAttempt > 0 && (
           <p className="text-xs text-muted-foreground">
-            Reconnect attempt {reconnectAttempt}
+            {t("mcpBridge.reconnectAttempt", { count: reconnectAttempt })}
           </p>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="mcp-bridge-url">Bridge URL</Label>
+          <Label htmlFor="mcp-bridge-url">{t("mcpBridge.url")}</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               id="mcp-bridge-url"
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="ws://localhost:9223"
+              placeholder={DEFAULT_URL}
               disabled={isBusy}
               className="flex-1"
             />
@@ -175,7 +177,7 @@ export function McpBridgePanel() {
                 variant="destructive"
                 onClick={handleDisconnect}
               >
-                Disconnect
+                {t("aptyPeer.disconnect")}
               </Button>
             ) : (
               <Button
@@ -188,32 +190,34 @@ export function McpBridgePanel() {
                 {status === "connecting" && (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 )}
-                {status === "connecting" ? "Connecting..." : "Connect"}
+                {t(
+                  status === "connecting"
+                    ? "aptyPeer.connecting"
+                    : "aptyPeer.connect",
+                )}
               </Button>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Only localhost connections (127.0.0.1, ::1) are allowed.
+            {t("mcpBridge.localhostOnly")}
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="mcp-bridge-token">Auth Token</Label>
+          <Label htmlFor="mcp-bridge-token">{t("mcpBridge.token")}</Label>
           <Input
             id="mcp-bridge-token"
             type="password"
             autoComplete="off"
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            placeholder="Paste the daemon's token"
+            placeholder={t("mcpBridge.tokenPlaceholder")}
             disabled={isBusy}
           />
           <p className="text-xs text-muted-foreground">
-            Every connection requires this per-install secret. From the
-            repository, run{" "}
+            {t("mcpBridge.tokenHintBefore")}{" "}
             <code>node apps/mcp-bridge/dist/daemon.js --print-token-path</code>{" "}
-            and copy the token from that file. It is never shown in logs or
-            exported from here.
+            {t("mcpBridge.tokenHintAfter")}
           </p>
         </div>
 
@@ -225,9 +229,9 @@ export function McpBridgePanel() {
         )}
 
         <p className="text-xs text-muted-foreground">
-          The bridge exposes <code>tools/list</code> and <code>tools/call</code>{" "}
-          over the MCP protocol, allowing external agents to use Apty Agent's
-          browser automation tools.
+          {t("mcpBridge.exposesBefore")} <code>tools/list</code>{" "}
+          {t("mcpBridge.exposesAnd")} <code>tools/call</code>{" "}
+          {t("mcpBridge.exposesAfter")}
         </p>
       </CardContent>
     </Card>

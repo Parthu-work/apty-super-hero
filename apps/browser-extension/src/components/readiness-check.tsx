@@ -6,6 +6,8 @@
 import type { AppSettings } from "@apty/agent-core";
 import { getAptyIntegrationConfig } from "@apty/browser-runtime";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import {
   AlertTriangleIcon,
@@ -17,6 +19,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { type OptionsSection, openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
 import { checkClient } from "../services/apty-client-check";
+import { englishTranslate, type Translate } from "../services/model-list";
 
 type RowState = "ok" | "warning" | "info" | "checking";
 
@@ -36,6 +39,7 @@ const STORE_HOSTS = new Set(["chromewebstore.google.com", "chrome.google.com"]);
 export function describePage(
   url: string | undefined,
   fileAccessAllowed = true,
+  t: Translate = englishTranslate,
 ): {
   inspectable: boolean;
   detail: string;
@@ -43,14 +47,14 @@ export function describePage(
   if (!url) {
     return {
       inspectable: false,
-      detail: "No page is open in this window.",
+      detail: t("readiness.noPage"),
     };
   }
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return { inspectable: false, detail: "This page's address can't be read." };
+    return { inspectable: false, detail: t("readiness.unreadableAddress") };
   }
   if (
     !INSPECTABLE_PROTOCOLS.has(parsed.protocol) ||
@@ -58,19 +62,26 @@ export function describePage(
   ) {
     return {
       inspectable: false,
-      detail: `Chrome doesn't let extensions inspect ${parsed.protocol === "https:" ? parsed.hostname : `${parsed.protocol.replace(":", "")}:`} pages. Open the page you want to investigate.`,
+      detail: t("readiness.notInspectable", {
+        kind:
+          parsed.protocol === "https:"
+            ? parsed.hostname
+            : `${parsed.protocol.replace(":", "")}:`,
+      }),
     };
   }
   if (parsed.protocol === "file:") {
     return fileAccessAllowed
-      ? { inspectable: true, detail: "Ready to inspect this local file." }
+      ? { inspectable: true, detail: t("readiness.localFileReady") }
       : {
           inspectable: false,
-          detail:
-            'Turn on "Allow access to file URLs" for Apty Agent in chrome://extensions to inspect local files.',
+          detail: t("readiness.fileAccessOff"),
         };
   }
-  return { inspectable: true, detail: `Ready to inspect ${parsed.hostname}.` };
+  return {
+    inspectable: true,
+    detail: t("readiness.ready", { host: parsed.hostname }),
+  };
 }
 
 function useActiveTabUrl(): string | undefined | null {
@@ -100,42 +111,46 @@ function useActiveTabUrl(): string | undefined | null {
   return url;
 }
 
-function useClientRow(): Row {
+function useClientRow(t: Translate): Row {
+  const label = t("readiness.client.label");
   const [row, setRow] = useState<Row>({
-    label: "Apty Client",
-    summary: "Apty Client",
+    label,
+    summary: label,
     state: "checking",
-    detail: "Checking the connection…",
+    detail: t("readiness.client.checking"),
   });
   useEffect(() => {
     let cancelled = false;
+    const clientLabel = t("readiness.client.label");
     (async () => {
       const { clientExtensionId } = await getAptyIntegrationConfig();
       if (!clientExtensionId) {
         return {
-          label: "Apty Client",
-          summary: "Apty Client not connected",
+          label: clientLabel,
+          summary: t("readiness.client.notConnected"),
           state: "info",
-          detail:
-            "Not connected. Only needed to read the Client's service-worker logs and requests.",
-          action: { label: "Connect", section: "apty-client" },
+          detail: t("readiness.client.notConnectedDetail"),
+          action: {
+            label: t("readiness.client.connect"),
+            section: "apty-client",
+          },
         } satisfies Row;
       }
       const check = await checkClient(clientExtensionId);
       if (check.status === "ok") {
         return {
-          label: "Apty Client",
-          summary: "Apty Client connected",
+          label: clientLabel,
+          summary: t("readiness.client.connected"),
           state: "ok",
-          detail: "Connected.",
+          detail: t("readiness.client.connectedDetail"),
         } satisfies Row;
       }
       return {
-        label: "Apty Client",
-        summary: "Apty Client not answering",
+        label: clientLabel,
+        summary: t("readiness.client.notAnswering"),
         state: "warning",
         detail: check.message,
-        action: { label: "Fix", section: "apty-client" },
+        action: { label: t("readiness.fix"), section: "apty-client" },
       } satisfies Row;
     })()
       .then((next) => {
@@ -144,18 +159,18 @@ function useClientRow(): Row {
       .catch(() => {
         if (!cancelled) {
           setRow({
-            label: "Apty Client",
-            summary: "Apty Client not checked",
+            label: clientLabel,
+            summary: t("readiness.client.notChecked"),
             state: "warning",
-            detail: "The connection couldn't be checked.",
-            action: { label: "Fix", section: "apty-client" },
+            detail: t("readiness.client.notCheckedDetail"),
+            action: { label: t("readiness.fix"), section: "apty-client" },
           });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
   return row;
 }
 
@@ -175,16 +190,16 @@ const STATE_ICON: Record<RowState, ReactNode> = {
   ),
 };
 
-const STATE_LABEL: Record<RowState, string> = {
-  ok: "Ready",
-  warning: "Needs attention",
-  info: "Optional",
-  checking: "Checking",
+const STATE_LABEL: Record<RowState, TranslationKey> = {
+  ok: "readiness.state.ok",
+  warning: "readiness.state.warning",
+  info: "readiness.state.info",
+  checking: "readiness.state.checking",
 };
 
-function hostOf(url: string | undefined): string {
+function hostOf(url: string | undefined, t: Translate): string {
   try {
-    return url ? new URL(url).hostname || "local file" : "";
+    return url ? new URL(url).hostname || t("readiness.localFile") : "";
   } catch {
     return "";
   }
@@ -202,39 +217,47 @@ function useFileAccessAllowed(): boolean {
 }
 
 export function ReadinessCheck({ settings }: { settings: AppSettings }) {
+  const { t } = useTranslation();
   const url = useActiveTabUrl();
-  const client = useClientRow();
+  const client = useClientRow(t);
   const fileAccessAllowed = useFileAccessAllowed();
-  const page = url === null ? null : describePage(url, fileAccessAllowed);
+  const page = url === null ? null : describePage(url, fileAccessAllowed, t);
+  const providerLabel = t("readiness.provider.label");
+  const pageLabel = t("readiness.page.label");
 
   const rows: Row[] = [
     isProviderConfigured(settings)
       ? {
-          label: "AI provider",
-          summary: settings.aiModel ?? "AI provider",
+          label: providerLabel,
+          summary: settings.aiModel ?? providerLabel,
           state: "ok",
-          detail: `Using ${settings.aiModel}.`,
+          detail: t("readiness.provider.using", {
+            model: settings.aiModel ?? "",
+          }),
         }
       : {
-          label: "AI provider",
-          summary: "Set up an AI provider",
+          label: providerLabel,
+          summary: t("readiness.provider.setUpSummary"),
           state: "warning",
-          detail: "Add your own API key and choose a model to start.",
-          action: { label: "Set up", section: "ai-provider" },
+          detail: t("readiness.provider.setUpDetail"),
+          action: {
+            label: t("readiness.provider.setUp"),
+            section: "ai-provider",
+          },
         },
     client,
     page === null
       ? {
-          label: "This page",
-          summary: "This page",
+          label: pageLabel,
+          summary: pageLabel,
           state: "checking",
-          detail: "Checking…",
+          detail: t("readiness.page.checking"),
         }
       : {
-          label: "This page",
+          label: pageLabel,
           summary: page.inspectable
-            ? hostOf(url ?? undefined)
-            : "Page can't be inspected",
+            ? hostOf(url ?? undefined, t)
+            : t("readiness.page.notInspectable"),
           state: page.inspectable ? "ok" : "warning",
           detail: page.detail,
         },
@@ -242,14 +265,14 @@ export function ReadinessCheck({ settings }: { settings: AppSettings }) {
   const warnings = rows.filter((row) => row.state === "warning");
 
   return (
-    <section aria-label="Readiness check" className="w-full max-w-2xl">
+    <section aria-label={t("readiness.label")} className="w-full max-w-2xl">
       <ul className="flex flex-wrap justify-center gap-1.5">
         {rows.map((row) => {
           const content = (
             <>
               {STATE_ICON[row.state]}
               <span className="sr-only">
-                {row.label}, {STATE_LABEL[row.state]}:
+                {row.label}, {t(STATE_LABEL[row.state])}:
               </span>
               <span className="max-w-[16rem] truncate">{row.summary}</span>
             </>

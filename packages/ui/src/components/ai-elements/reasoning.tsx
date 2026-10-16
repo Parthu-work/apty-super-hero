@@ -4,6 +4,8 @@ import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
+import { useTranslation } from "../../i18n/context";
+import type { I18nContextValue } from "../../i18n/types";
 import { cn } from "../../lib/utils";
 import {
   Collapsible,
@@ -113,18 +115,23 @@ export const Reasoning = memo(
 
 export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger>;
 
-const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
+const getThinkingMessage = (
+  t: I18nContextValue["t"],
+  isStreaming: boolean,
+  duration?: number,
+) => {
   if (isStreaming || duration === 0) {
-    return <p>Thinking...</p>;
+    return <p>{t("chat.thinking")}</p>;
   }
   if (duration === undefined) {
-    return <p>Thought for a few seconds</p>;
+    return <p>{t("chat.thoughtBriefly")}</p>;
   }
-  return <p>Thought for {duration} seconds</p>;
+  return <p>{t("chat.thoughtFor", { duration })}</p>;
 };
 
 export const ReasoningTrigger = memo(
   ({ className, children, ...props }: ReasoningTriggerProps) => {
+    const { t } = useTranslation();
     const { isStreaming, isOpen, duration } = useReasoning();
 
     return (
@@ -138,7 +145,7 @@ export const ReasoningTrigger = memo(
         {children ?? (
           <>
             <BrainIcon className="size-4" />
-            {getThinkingMessage(isStreaming, duration)}
+            {getThinkingMessage(t, isStreaming, duration)}
             <ChevronDownIcon
               className={cn(
                 "size-4 transition-transform",

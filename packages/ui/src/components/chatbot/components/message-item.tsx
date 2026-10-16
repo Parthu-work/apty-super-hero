@@ -71,6 +71,7 @@ export function DefaultMessageItem({
   ...props
 }: MessageItemProps) {
   const { slots } = useComponentsContext();
+  const { t } = useTranslation();
 
   // Tracks which part's Copy button most recently succeeded, so the icon
   // can briefly swap to a checkmark — the only previous feedback for a
@@ -157,7 +158,7 @@ export function DefaultMessageItem({
                   ) : (
                     <Actions className="mt-2">
                       {onRegenerate && (
-                        <Action onClick={onRegenerate} label="Retry">
+                        <Action onClick={onRegenerate} label={t("chat.retry")}>
                           <RefreshCcwIcon className="size-3" />
                         </Action>
                       )}
@@ -177,7 +178,9 @@ export function DefaultMessageItem({
                               );
                             }
                           }}
-                          label={copiedKey === key ? "Copied" : "Copy"}
+                          label={t(
+                            copiedKey === key ? "common.copied" : "common.copy",
+                          )}
                         >
                           {copiedKey === key ? (
                             <CheckIcon className="size-3" />
@@ -194,7 +197,7 @@ export function DefaultMessageItem({
                             "text/markdown",
                           )
                         }
-                        label="Download"
+                        label={t("common.download")}
                       >
                         <DownloadIcon className="size-3" />
                       </Action>
@@ -216,7 +219,7 @@ export function DefaultMessageItem({
                     <div className="max-w-md">
                       <img
                         src={part.url}
-                        alt={part.filename || "Attached image"}
+                        alt={part.filename || t("chat.attachedImage")}
                         className="rounded-lg border border-border"
                       />
                       {part.filename && (
@@ -230,7 +233,7 @@ export function DefaultMessageItem({
                       <PaperclipIcon className="size-4 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
                         <p className="text-sm truncate">
-                          {part.filename || "Attached file"}
+                          {part.filename || t("chat.attachedFile")}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {part.mediaType}

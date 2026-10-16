@@ -13,6 +13,8 @@
  */
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import {
@@ -57,20 +59,28 @@ function isSelectorAnalysisOutput(
 
 const VERDICT_META: Record<
   RankedSelectorCandidate["verdict"],
-  { label: string; tone: "success" | "warning" | "danger" }
+  { label: TranslationKey; tone: "success" | "warning" | "danger" }
 > = {
-  recommended: { label: "Recommended", tone: "success" },
-  risky: { label: "Risky", tone: "warning" },
-  broken: { label: "Broken", tone: "danger" },
+  recommended: { label: "investigation.selector.recommended", tone: "success" },
+  risky: { label: "investigation.selector.risky", tone: "warning" },
+  broken: { label: "investigation.selector.broken", tone: "danger" },
 };
 
 const RISK_META: Record<
   RankedSelectorCandidate["staticRisk"],
-  { label: string; bars: number; tone: "success" | "warning" | "danger" }
+  {
+    label: TranslationKey;
+    bars: number;
+    tone: "success" | "warning" | "danger";
+  }
 > = {
-  low: { label: "Strong", bars: 3, tone: "success" },
-  medium: { label: "Moderate", bars: 2, tone: "warning" },
-  high: { label: "Weak", bars: 1, tone: "danger" },
+  low: { label: "investigation.selector.strong", bars: 3, tone: "success" },
+  medium: {
+    label: "investigation.selector.moderate",
+    bars: 2,
+    tone: "warning",
+  },
+  high: { label: "investigation.selector.weak", bars: 1, tone: "danger" },
 };
 
 function ReliabilityMeter({
@@ -78,11 +88,14 @@ function ReliabilityMeter({
 }: {
   risk: RankedSelectorCandidate["staticRisk"];
 }) {
+  const { t } = useTranslation();
   const meta = RISK_META[risk];
   return (
     <span
       className="inline-flex items-center gap-1.5"
-      title={`Reliability: ${meta.label.toLowerCase()}`}
+      title={t("investigation.selector.reliability", {
+        level: t(meta.label).toLowerCase(),
+      })}
     >
       <span className="flex items-end gap-0.5" aria-hidden="true">
         {[1, 2, 3].map((bar) => (
@@ -97,7 +110,7 @@ function ReliabilityMeter({
         ))}
       </span>
       <span className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
-        {meta.label}
+        {t(meta.label)}
       </span>
     </span>
   );
@@ -122,6 +135,7 @@ function RecommendedCandidate({
 }: {
   candidate: RankedSelectorCandidate;
 }) {
+  const { t } = useTranslation();
   const { copied, handleCopy } = useCopySelector(candidate.selector);
 
   return (
@@ -136,7 +150,7 @@ function RecommendedCandidate({
             toneTextClass("success"),
           )}
         >
-          Recommended selector
+          {t("investigation.selector.recommendedSelector")}
         </span>
       </div>
       <div className="flex items-start gap-2">
@@ -148,20 +162,28 @@ function RecommendedCandidate({
           variant="ghost"
           className="size-7 shrink-0"
           onClick={() => void handleCopy()}
-          aria-label={`Copy selector ${candidate.selector}`}
+          aria-label={t("investigation.selector.copy", {
+            selector: candidate.selector,
+          })}
         >
           <CopyIcon className="size-3.5" />
         </Button>
       </div>
       {copied && (
-        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>Copied</p>
+        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>
+          {t("common.copied")}
+        </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <ReliabilityMeter risk={candidate.staticRisk} />
         {candidate.live && (
           <span className="text-xs text-muted-foreground">
-            Matches {candidate.live.matchCount} element
-            {candidate.live.matchCount === 1 ? "" : "s"} on the page
+            {t(
+              candidate.live.matchCount === 1
+                ? "investigation.selector.matchesOne"
+                : "investigation.selector.matchesMany",
+              { count: candidate.live.matchCount },
+            )}
           </span>
         )}
       </div>
@@ -180,6 +202,7 @@ function RecommendedCandidate({
 }
 
 function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
+  const { t } = useTranslation();
   const meta = VERDICT_META[candidate.verdict];
   const { copied, handleCopy } = useCopySelector(candidate.selector);
 
@@ -212,7 +235,7 @@ function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
                 toneTextClass(meta.tone),
               )}
             >
-              {meta.label}
+              {t(meta.label)}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -220,8 +243,12 @@ function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
           </p>
           {candidate.live && (
             <p className="text-xs text-muted-foreground">
-              Matches {candidate.live.matchCount} element
-              {candidate.live.matchCount === 1 ? "" : "s"} on the page
+              {t(
+                candidate.live.matchCount === 1
+                  ? "investigation.selector.matchesOne"
+                  : "investigation.selector.matchesMany",
+                { count: candidate.live.matchCount },
+              )}
             </p>
           )}
         </div>
@@ -230,19 +257,24 @@ function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
           variant="ghost"
           className="size-6 shrink-0"
           onClick={() => void handleCopy()}
-          aria-label={`Copy selector ${candidate.selector}`}
+          aria-label={t("investigation.selector.copy", {
+            selector: candidate.selector,
+          })}
         >
           <CopyIcon className="size-3.5" />
         </Button>
       </div>
       {copied && (
-        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>Copied</p>
+        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>
+          {t("common.copied")}
+        </p>
       )}
     </li>
   );
 }
 
 export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
+  const { t } = useTranslation();
   const output = isSelectorAnalysisOutput(tool.output)
     ? tool.output
     : undefined;
@@ -250,11 +282,11 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
   if (!output || !output.available) {
     return (
       <div className="rounded-md border p-3 text-sm">
-        <p className="font-medium">Unable to analyze this element.</p>
+        <p className="font-medium">{t("investigation.selector.unable")}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {output?.message ??
             tool.errorText ??
-            "Selector analysis unavailable."}
+            t("investigation.selector.unavailable")}
         </p>
       </div>
     );
@@ -268,7 +300,7 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Selector analysis
+          {t("investigation.selector.title")}
         </span>
         {output.tagName && <Badge variant="outline">{output.tagName}</Badge>}
       </div>
@@ -283,13 +315,13 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
         >
           <LayersIcon className="mt-0.5 size-3.5 shrink-0" />
           <span>
-            This element is inside{" "}
-            {output.inIframe && output.inShadowDom
-              ? "an iframe and a Shadow DOM subtree"
-              : output.inIframe
-                ? "an iframe"
-                : "a Shadow DOM subtree"}{" "}
-            — a selector for it may not be usable from the top-level document.
+            {t(
+              output.inIframe && output.inShadowDom
+                ? "investigation.selector.insideBoth"
+                : output.inIframe
+                  ? "investigation.selector.insideIframe"
+                  : "investigation.selector.insideShadow",
+            )}
           </span>
         </div>
       )}
@@ -299,7 +331,7 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
       {others.length > 0 && (
         <div>
           <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Other candidates
+            {t("investigation.selector.others")}
           </h4>
           <ul className="space-y-1.5">
             {others.map((candidate) => (
@@ -311,7 +343,7 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
 
       {candidates.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          No usable selector candidates were found for this element.
+          {t("investigation.selector.none")}
         </p>
       )}
     </div>

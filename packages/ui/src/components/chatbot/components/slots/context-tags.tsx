@@ -8,6 +8,7 @@ import {
   XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "../../../../i18n/context";
 import { cn } from "../../../../lib/utils";
 import type { ContextItem, ContextTagsSlotProps } from "../../../../types";
 import { Button } from "../../../ui/button";
@@ -45,6 +46,7 @@ export function ContextTag({
   onRemove?: () => void;
   className?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -60,7 +62,7 @@ export function ContextTag({
       <span className="max-w-[200px] truncate">{context.label}</span>
       {onRemove && (
         <Button
-          aria-label="Remove context"
+          aria-label={t("chat.removeContext")}
           className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={onRemove}
           size="icon"
@@ -105,6 +107,7 @@ export function CompactContextTags({
   contexts,
   onRemove,
 }: ContextTagsSlotProps) {
+  const { t } = useTranslation();
   if (contexts.length === 0) {
     return null;
   }
@@ -125,7 +128,7 @@ export function CompactContextTags({
     <div className="flex items-center gap-2 p-3 pb-0">
       <ContextTag context={contexts[0]!} />
       <span className="text-xs text-muted-foreground">
-        +{contexts.length - 1} more
+        {t("chat.moreContexts", { count: contexts.length - 1 })}
       </span>
     </div>
   );

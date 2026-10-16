@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@apty/ui/components/ui/card";
 import { Input } from "@apty/ui/components/ui/input";
+import { useTranslation } from "@apty/ui/i18n/context";
 import {
   AlertCircle,
   Files,
@@ -46,6 +47,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
   initialFilePath,
   onInitialFileOpened,
 }) => {
+  const { t } = useTranslation();
   const [fileTree, setFileTree] = useState<FileTreeNode[]>([]);
   const [diskUsage, setDiskUsage] = useState<DiskUsage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,13 +74,13 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
       setDiskUsage(usage);
     } catch (err) {
       const errorMsg =
-        err instanceof Error ? err.message : "Failed to load file system";
+        err instanceof Error ? err.message : t("fileManager.loadSystemFailed");
       setError(errorMsg);
       console.error("Failed to load file system:", err);
     } finally {
       setLoading(false);
     }
-  }, [basePath]);
+  }, [basePath, t]);
 
   useEffect(() => {
     void loadFileSystem();
@@ -114,7 +116,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
       }
     } catch (err) {
       const errorMsg =
-        err instanceof Error ? err.message : "Failed to delete file";
+        err instanceof Error ? err.message : t("fileManager.deleteFailed");
       setError(errorMsg);
     }
   };
@@ -158,7 +160,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-          Loading file system...
+          {t("fileManager.loadingSystem")}
         </CardContent>
       </Card>
     );
@@ -173,22 +175,22 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <HardDrive className="h-5 w-5" />
-                File Manager
+                {t("fileManager.title")}
               </CardTitle>
-              <CardDescription>
-                Browse and manage files in the virtual file system
-              </CardDescription>
+              <CardDescription>{t("fileManager.description")}</CardDescription>
             </div>
             <div className="flex gap-2">
               {diskUsage && (
                 <>
                   <Badge variant="outline" className="flex items-center gap-1">
                     <Files className="h-3 w-3" />
-                    {diskUsage.fileCount} files
+                    {t("fileManager.files", { count: diskUsage.fileCount })}
                   </Badge>
                   <Badge variant="outline" className="flex items-center gap-1">
                     <FolderOpen className="h-3 w-3" />
-                    {diskUsage.directoryCount} folders
+                    {t("fileManager.folders", {
+                      count: diskUsage.directoryCount,
+                    })}
                   </Badge>
                   <Badge variant="default" className="flex items-center gap-1">
                     <HardDrive className="h-3 w-3" />
@@ -208,7 +210,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search files and folders..."
+                placeholder={t("fileManager.search")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -217,7 +219,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
 
             <Button variant="outline" size="sm" onClick={handleRefresh}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+              {t("common.refresh")}
             </Button>
           </div>
         </CardContent>
@@ -235,7 +237,9 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
       {diskUsage && Object.keys(diskUsage.bySkill).length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Disk Usage by Skill</CardTitle>
+            <CardTitle className="text-sm">
+              {t("fileManager.diskUsageBySkill")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -251,7 +255,9 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
                       <span className="font-medium">{skillName}</span>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{usage.fileCount} files</span>
+                      <span>
+                        {t("fileManager.files", { count: usage.fileCount })}
+                      </span>
                       <Badge variant="secondary">
                         {formatBytes(usage.size)}
                       </Badge>
@@ -266,17 +272,21 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
       {/* File Tree */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">File Browser</CardTitle>
+          <CardTitle className="text-sm">{t("fileManager.browser")}</CardTitle>
         </CardHeader>
         <CardContent>
           {filteredTree.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No files found</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {t("fileManager.none")}
+              </h3>
               <p className="text-muted-foreground">
-                {searchQuery
-                  ? "Try adjusting your search query"
-                  : "The file system is empty"}
+                {t(
+                  searchQuery
+                    ? "fileManager.adjustSearch"
+                    : "fileManager.empty",
+                )}
               </p>
             </div>
           ) : (

@@ -12,6 +12,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@apty/ui/components/ui/tabs";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { Puzzle, Search } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
@@ -30,6 +31,7 @@ interface SkillsOptionsTabProps {
 }
 
 export function SkillsOptionsTab({ initialSkill }: SkillsOptionsTabProps) {
+  const { t } = useTranslation();
   const [refreshKey, setRefreshKey] = useState(0);
   const [skillsSubTab, setSkillsSubTab] = useState<"skills" | "files">(
     "skills",
@@ -74,11 +76,11 @@ export function SkillsOptionsTab({ initialSkill }: SkillsOptionsTabProps) {
         <TabsList className="grid w-full grid-cols-2 mb-4">
           <TabsTrigger value="skills" className="flex items-center gap-2">
             <Puzzle className="h-4 w-4" />
-            Skills Management
+            {t("skills.tabManagement")}
           </TabsTrigger>
           <TabsTrigger value="files" className="flex items-center gap-2">
             <Search className="h-4 w-4" />
-            File System
+            {t("skills.tabFiles")}
           </TabsTrigger>
         </TabsList>
 

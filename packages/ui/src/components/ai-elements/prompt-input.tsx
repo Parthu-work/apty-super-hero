@@ -41,6 +41,7 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "../../i18n/context";
 import { isLocalImageUrl } from "../../lib/safe-media";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -255,6 +256,7 @@ export function PromptInputAttachment({
   className,
   ...props
 }: PromptInputAttachmentProps) {
+  const { t } = useTranslation();
   const attachments = usePromptInputAttachments();
 
   return (
@@ -277,7 +279,7 @@ export function PromptInputAttachment({
         </div>
       )}
       <Button
-        aria-label="Remove attachment"
+        aria-label={t("chat.removeAttachment")}
         className="-right-1.5 -top-1.5 absolute h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"
         onClick={() => attachments.remove(data.id)}
         size="icon"
@@ -345,9 +347,10 @@ export type PromptInputActionAddAttachmentsProps = ComponentProps<
 };
 
 export const PromptInputActionAddAttachments = ({
-  label = "Add photos or files",
+  label,
   ...props
 }: PromptInputActionAddAttachmentsProps) => {
+  const { t } = useTranslation();
   const attachments = usePromptInputAttachments();
 
   return (
@@ -358,7 +361,7 @@ export const PromptInputActionAddAttachments = ({
         attachments.openFileDialog();
       }}
     >
-      <ImageIcon className="mr-2 size-4" /> {label}
+      <ImageIcon className="mr-2 size-4" /> {label ?? t("chat.addFiles")}
     </DropdownMenuItem>
   );
 };
@@ -375,6 +378,7 @@ export function PromptInputContextTag({
   className,
   ...props
 }: PromptInputContextTagProps) {
+  const { t } = useTranslation();
   const contexts = usePromptInputContexts();
 
   return (
@@ -392,7 +396,7 @@ export function PromptInputContextTag({
       </span>
       <span className="max-w-[200px] truncate">{data.label}</span>
       <Button
-        aria-label="Remove context"
+        aria-label={t("chat.removeContext")}
         className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={() => contexts.remove(data.id)}
         size="icon"
@@ -467,6 +471,7 @@ export function PromptInputSkillTag({
   className,
   ...props
 }: PromptInputSkillTagProps) {
+  const { t } = useTranslation();
   const skills = usePromptInputSkills();
 
   const handleLabelClick = () => {
@@ -498,12 +503,12 @@ export function PromptInputSkillTag({
         type="button"
         className="max-w-[200px] truncate cursor-pointer hover:underline text-primary bg-transparent border-none p-0 font-inherit text-left"
         onClick={handleLabelClick}
-        title="Click to open skill settings"
+        title={t("chat.openSkillSettings")}
       >
         {data.name}
       </button>
       <Button
-        aria-label="Remove skill"
+        aria-label={t("chat.removeSkill")}
         className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={() => skills.remove(data.id)}
         size="icon"
@@ -958,12 +963,14 @@ export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
 export const PromptInputTextarea = ({
   onChange,
   className,
-  placeholder = "What would you like to know?",
+  placeholder: placeholderProp,
   enableTypingAnimation = false,
   placeholderTexts,
   typingOptions,
   ...props
 }: PromptInputTextareaProps) => {
+  const { t } = useTranslation();
+  const placeholder = placeholderProp ?? t("chat.defaultPlaceholder");
   const attachments = usePromptInputAttachments();
   const contexts = usePromptInputContexts();
   const skills = usePromptInputSkills();
@@ -1424,11 +1431,11 @@ export const PromptInputTextarea = ({
               {/* Search hint */}
               {searchQuery && (
                 <div className="px-3 py-2 text-xs text-muted-foreground border-b bg-muted/50">
-                  Searching for:{" "}
+                  {`${t("chat.searchingFor")} `}
                   <span className="font-medium">@{searchQuery}</span>
                   {filteredContexts.length > 0 && (
                     <span className="ml-2">
-                      ({filteredContexts.length} found)
+                      {t("chat.found", { count: filteredContexts.length })}
                     </span>
                   )}
                 </div>
@@ -1489,16 +1496,20 @@ export const PromptInputTextarea = ({
               <div className="px-3 py-2 text-xs text-muted-foreground border-b bg-muted/50">
                 {slashSearchQuery ? (
                   <>
-                    Searching skills:{" "}
+                    {`${t("chat.searchingSkills")} `}
                     <span className="font-medium">/{slashSearchQuery}</span>
                     {filteredSkills.length > 0 && (
                       <span className="ml-2">
-                        ({filteredSkills.length} found)
+                        {t("chat.found", { count: filteredSkills.length })}
                       </span>
                     )}
                   </>
                 ) : (
-                  <span>{filteredSkills.length} skills available</span>
+                  <span>
+                    {t("chat.skillsAvailable", {
+                      count: filteredSkills.length,
+                    })}
+                  </span>
                 )}
               </div>
 
@@ -1525,7 +1536,7 @@ export const PromptInputTextarea = ({
                         {skill.name}
                       </span>
                       <span className="text-xs text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-background/50">
-                        skill
+                        {t("chat.skillBadge")}
                       </span>
                     </div>
                     {skill.description && (
@@ -1611,17 +1622,20 @@ export const PromptInputActionMenuTrigger = ({
   className,
   children,
   ...props
-}: PromptInputActionMenuTriggerProps) => (
-  <DropdownMenuTrigger asChild>
-    <PromptInputButton
-      className={className}
-      aria-label={children ? undefined : "More actions"}
-      {...props}
-    >
-      {children ?? <PlusIcon className="size-4" />}
-    </PromptInputButton>
-  </DropdownMenuTrigger>
-);
+}: PromptInputActionMenuTriggerProps) => {
+  const { t } = useTranslation();
+  return (
+    <DropdownMenuTrigger asChild>
+      <PromptInputButton
+        className={className}
+        aria-label={children ? undefined : t("chat.moreActions")}
+        {...props}
+      >
+        {children ?? <PlusIcon className="size-4" />}
+      </PromptInputButton>
+    </DropdownMenuTrigger>
+  );
+};
 
 export type PromptInputActionMenuContentProps = ComponentProps<
   typeof DropdownMenuContent
@@ -1658,6 +1672,7 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
+  const { t } = useTranslation();
   let Icon = <SendIcon className="size-4" />;
 
   if (status === "submitted") {
@@ -1670,7 +1685,7 @@ export const PromptInputSubmit = ({
 
   return (
     <Button
-      aria-label="Submit"
+      aria-label={t("chat.submit")}
       className={cn("gap-1.5 rounded-lg", className)}
       size={size}
       type="submit"

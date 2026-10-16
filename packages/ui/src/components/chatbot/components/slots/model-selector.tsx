@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../i18n/context";
 import { cn } from "../../../../lib/utils";
 import type { ModelSelectorSlotProps } from "../../../../types";
 import {
@@ -16,6 +17,7 @@ export function DefaultModelSelector({
   onChange,
   models = [],
 }: ModelSelectorSlotProps) {
+  const { t } = useTranslation();
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
@@ -24,7 +26,7 @@ export function DefaultModelSelector({
           'hover:bg-accent hover:text-foreground [&[aria-expanded="true"]]:bg-accent [&[aria-expanded="true"]]:text-foreground',
         )}
       >
-        <SelectValue placeholder="Select model" />
+        <SelectValue placeholder={t("chat.selectModel")} />
       </SelectTrigger>
       <SelectContent>
         {models.map((model) => (

@@ -1,6 +1,7 @@
 import { findEvidenceById } from "@apty/browser-runtime/apty/evidence-store";
 import { currentRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { downloadText } from "@apty/ui/lib/download";
 import { withExportHeader } from "@apty/ui/lib/export-header";
 import { CopyIcon, DownloadIcon, FileJsonIcon } from "lucide-react";
@@ -43,6 +44,7 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
  * The model only ever saw a bounded preview of it.
  */
 export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const body = useMemo(() => {
     const data = findEvidenceById(evidenceId)?.data as
@@ -56,7 +58,7 @@ export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
   if (!body) {
     return (
       <p className="mt-1 text-xs text-muted-foreground">
-        The full response is no longer available in this session.
+        {t("investigation.response.unavailable")}
       </p>
     );
   }
@@ -82,17 +84,24 @@ export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
           onClick={() => setOpen(!open)}
         >
           <FileJsonIcon className="h-4 w-4" />
-          {open ? "Hide full response" : "View full response"}
+          {t(
+            open
+              ? "investigation.response.hide"
+              : "investigation.response.view",
+          )}
         </Button>
         <span className="text-xs text-muted-foreground">
-          {body.text.length.toLocaleString()} characters · redaction {mode}
+          {t("investigation.response.size", {
+            count: body.text.length.toLocaleString(),
+            mode: t(`redactionModes.${mode}`),
+          })}
         </span>
         <div className="ml-auto flex gap-1">
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            aria-label="Copy full response"
+            aria-label={t("investigation.response.copy")}
             onClick={() => navigator.clipboard?.writeText(exported)}
           >
             <CopyIcon className="h-4 w-4" />
@@ -101,7 +110,7 @@ export function ResponseBodyViewer({ evidenceId }: { evidenceId: string }) {
             type="button"
             size="sm"
             variant="ghost"
-            aria-label="Download full response"
+            aria-label={t("investigation.response.download")}
             onClick={() =>
               downloadText(
                 filename,
