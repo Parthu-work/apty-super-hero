@@ -91,7 +91,8 @@ const ALLOWED_TOKENS = new Set([
   "aipex-input-mode",
   "aipex-sessions",
   "aipex_last_capture_event",
-  // IndexedDB and localStorage names that still hold user data.
+  // Databases an earlier version created, moved by storage/legacy-databases.ts,
+  // and the localStorage keys the first conversation-storage migration reads.
   "aipex-conversations",
   "aipex-conversations-db",
   "aipex-conversations-migrated",
