@@ -41,8 +41,8 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "@openai/agents": "^0.7.2",
-    "@openai/agents-extensions": "^0.7.2",
+    "@openai/agents": "^0.20.0",
+    "@openai/agents-extensions": "^0.20.0",
     "lru-cache": "^11.2.7",
     "zod": "^4.3.6"
   },
