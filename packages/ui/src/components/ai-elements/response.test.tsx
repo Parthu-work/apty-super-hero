@@ -143,11 +143,20 @@ describe("Response — model output never loads a remote resource", () => {
     expect(container.textContent).toContain("chart");
   });
 
-  it("keeps Streamdown's own block on data: images in markdown", () => {
+  it("renders a local data: image, which is how the chat shows its own screenshots", () => {
     const dataUrl =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
     const { container } = render(<Response>{`![dot](${dataUrl})`}</Response>);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(dataUrl);
+    expect(container.textContent).not.toContain("Image blocked");
+  });
+
+  it("never renders a data: URL that is not an image", () => {
+    const { container } = render(
+      <Response>
+        {"![x](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)"}
+      </Response>,
+    );
     expect(container.querySelector("img")).toBeNull();
-    expect(container.textContent).toContain("dot");
   });
 });
