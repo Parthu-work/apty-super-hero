@@ -572,6 +572,9 @@ describe("approval for clicks and new tabs (A1)", () => {
     for (const page of browser.context.pages()) {
       if (page.url().startsWith(evil.origin)) await page.close();
     }
+    // The opened tab's /favicon.ico can arrive after it closes; let it land
+    // before clearing, so a later test doesn't count it.
+    await new Promise((r) => setTimeout(r, 1500));
     evilRequests.length = 0;
     await panel.close();
     await app.close();

@@ -396,10 +396,7 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
                 <code className="select-all rounded bg-muted px-1 py-0.5 font-mono">
                   {ownId}
                 </code>{" "}
-                <CopyButton
-                  label="Copy this Agent's ID"
-                  value={ownId}
-                />
+                <CopyButton label="Copy this Agent's ID" value={ownId} />
               </p>
             ) : (
               <CopyField
