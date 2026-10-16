@@ -207,4 +207,41 @@ describe("everyday tools in a real browser", () => {
     );
     await app.close();
   });
+
+  it("runs a tool the message's wording didn't offer, instead of hanging", async () => {
+    // "find" matches no UI keyword, so search_elements isn't offered at first.
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/orders.html`);
+    const tabId = await browser.agentWorker.evaluate(
+      async (url) => (await chrome.tabs.query({ url })).at(0)?.id,
+      `${site.origin}/orders.html`,
+    );
+    const offeredFirst = [];
+    model.script((request) => {
+      if (offeredFirst.length === 0) {
+        offeredFirst.push(...(request.tools ?? []).map((t) => t.function.name));
+      }
+      return toolResults(request).length === 0
+        ? { tool: "search_elements", args: { tabId, query: "*Save*" } }
+        : { text: "RESULT: found it" };
+    });
+    const panel = await openSidePanel(browser, model, app);
+
+    const reply = await chatAndWait(
+      panel,
+      "find the save button on this page",
+      {
+        timeout: 60_000,
+      },
+    );
+
+    assert.ok(!offeredFirst.includes("search_elements"), offeredFirst.join());
+    assert.match(reply, /RESULT: found it/);
+    assert.match(
+      JSON.stringify(toolResults(model.requests.at(-1))),
+      /Save order/,
+    );
+    await panel.close();
+    await app.close();
+  });
 });

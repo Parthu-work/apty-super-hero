@@ -41,6 +41,12 @@ const log = createLogger("AIPex");
  * output has already reached the UI and a retry would duplicate or garble
  * it. */
 const LLM_CALL_MAX_ATTEMPTS = 3;
+
+/** The tool name in the runner's "Tool X not found in agent Y" error, if that's what this is. */
+function missingToolName(error: unknown): string | undefined {
+  const message = error instanceof Error ? error.message : "";
+  return /^Tool (\S+) not found in agent /.exec(message)?.[1];
+}
 const LLM_RETRY_BASE_DELAY_MS = 500;
 const LLM_RETRY_MAX_DELAY_MS = 8_000;
 
@@ -223,7 +229,8 @@ export class AIPex {
     // different tool set for this call only. The agent's own default tools
     // are untouched — every tool still exists, only what's exposed to the
     // model for this specific request changes.
-    const runAgent = tools ? this.agent.clone({ tools }) : this.agent;
+    let offeredTools = tools;
+    let runAgent = tools ? this.agent.clone({ tools }) : this.agent;
 
     // Track tool-call argument streaming during a single model response.
     // This is best-effort and provider-dependent (e.g. OpenAI ChatCompletions tool_calls deltas).
@@ -394,6 +401,35 @@ export class AIPex {
           }
           break;
         } catch (callError) {
+          const missing = missingToolName(callError);
+          if (missing) {
+            // The model called a tool this turn didn't offer. A registered
+            // one is offered and the turn runs again; anything else is
+            // named, not reported as a provider failure.
+            const registered = (this.agent.tools as FunctionTool[]).find(
+              (t) => t.name === missing,
+            );
+            if (
+              !offeredTools ||
+              !registered ||
+              offeredTools.some((t) => t.name === missing)
+            ) {
+              throw new AgentError(
+                `The model called a tool that doesn't exist: ${missing}`,
+                ErrorCode.TOOL_NOT_FOUND,
+                true,
+              );
+            }
+            offeredTools = [...offeredTools, registered];
+            runAgent = this.agent.clone({ tools: offeredTools });
+            await rollbackSession(runSession, sessionLength);
+            toolArgsStreamByIndex.clear();
+            streamedOutput = "";
+            toolCallsDetectedInRaw = 0;
+            toolCallsEmittedByRunner = 0;
+            attempt--;
+            continue;
+          }
           const classified = classifyLlmError(callError);
           if (
             reachedCaller ||

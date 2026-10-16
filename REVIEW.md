@@ -176,6 +176,25 @@ branch head before packaging.
   3,929). The whole registry's schemas went from 14,597 to 14,683 tokens
   (+0.59%), under the 2% limit; the system prompt stays 3,928.
 
+## After Checkpoint 3: fix for an unoffered tool call
+
+Found while writing the R2 e2e and listed as "observed": when the model
+called a tool that wasn't offered for the message (the side panel offers
+tools by relevance), the runner threw "Tool X not found", the agent
+reported it as a provider error and never finished the turn, and the side
+panel showed nothing. Now a registered tool the model asks for is added to
+the offered set and the turn runs again, and a tool that doesn't exist is
+reported as `TOOL_NOT_FOUND` naming it.
+
+- `aipex-unknown-tool.test.ts` (the real `run()`): before, "expected
+  [session_created, …] to include execution_complete" and "expected
+  LLM_API_ERROR to be TOOL_NOT_FOUND"; after, 2/2.
+- `core-tools.e2e` "runs a tool the message's wording didn't offer":
+  "find the save button" offers no UI tools, the model calls
+  `search_elements`, and the reply arrives. On the Checkpoint 3 build:
+  "No new reply matching /^RESULT:/"; on this build: pass.
+- Release dry run on this commit: every step ✓, e2e 123/123.
+
 ## Work packages (Phase 2)
 
 Each behaviour change has a test that failed on the code before it and
@@ -439,10 +458,6 @@ Only people can do these:
 
 ## Observed, not changed
 
-- When the model calls a tool that wasn't offered for the message (tools
-  are offered by relevance), the chat hangs with no error and no reply.
-  Found while writing the R2 e2e ("find the deploy button" offers no UI
-  tools). Worth a fix: answer such a call with an error the model can read.
 - The conversation, screenshot and skills IndexedDB names still say aipex
   (user data; not in R2's scope).
 - Four production packages are LGPL-3.0-or-later (see R4).
