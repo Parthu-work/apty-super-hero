@@ -3,7 +3,7 @@ import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import { previewRedaction } from "@apty/browser-runtime/runtime/redaction-mode";
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import { SettingsPage } from "@apty/ui";
-import { I18nProvider } from "@apty/ui/i18n/context";
+import { I18nProvider, useTranslation } from "@apty/ui/i18n/context";
 import type { Language } from "@apty/ui/i18n/types";
 import { ThemeProvider } from "@apty/ui/theme/context";
 import type { Theme } from "@apty/ui/theme/types";
@@ -111,18 +111,25 @@ function OptionsPageContent() {
   const { skill: initialSkill } = useMemo(parseUrlParams, []);
   const [tab, setTab] = useUrlTab();
   const requestReports = useRequestReports();
+  const { t } = useTranslation();
 
-  const handleTestConnection = useCallback(async (settings: AppSettings) => {
-    const { toolCalling } = await testConnection(settings);
-    return { ok: true, toolCalling };
-  }, []);
+  const handleTestConnection = useCallback(
+    async (settings: AppSettings) => {
+      const { toolCalling } = await testConnection(settings, Date.now, t);
+      return { ok: true, toolCalling };
+    },
+    [t],
+  );
 
-  const handleFetchModels = useCallback(async (settings: AppSettings) => {
-    const outcome = await fetchModelList(settings);
-    return outcome.ok
-      ? { ok: true as const, models: outcome.models }
-      : { ok: false as const, error: outcome.error };
-  }, []);
+  const handleFetchModels = useCallback(
+    async (settings: AppSettings) => {
+      const outcome = await fetchModelList(settings, { translate: t });
+      return outcome.ok
+        ? { ok: true as const, models: outcome.models }
+        : { ok: false as const, error: outcome.error };
+    },
+    [t],
+  );
 
   return (
     <SettingsPage

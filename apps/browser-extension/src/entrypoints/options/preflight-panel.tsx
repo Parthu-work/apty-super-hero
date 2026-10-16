@@ -14,6 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@apty/ui/components/ui/card";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import {
   AlertTriangle,
@@ -35,16 +37,20 @@ import { purgeStoredData } from "../../services/stored-data";
 
 const STATUS: Record<
   CheckStatus,
-  { label: string; icon: typeof CheckCircle2; className: string }
+  { label: TranslationKey; icon: typeof CheckCircle2; className: string }
 > = {
-  pass: { label: "Pass", icon: CheckCircle2, className: "text-success" },
+  pass: {
+    label: "preflight.status.pass",
+    icon: CheckCircle2,
+    className: "text-success",
+  },
   warn: {
-    label: "Warning",
+    label: "preflight.status.warn",
     icon: AlertTriangle,
     className: "text-amber-700 dark:text-amber-400",
   },
   fail: {
-    label: "Fail",
+    label: "preflight.status.fail",
     icon: XCircle,
     className: "text-destructive dark:text-red-400",
   },
@@ -62,6 +68,7 @@ function download(json: string) {
 }
 
 function CheckRow({ check }: { check: PreflightCheck }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const status = STATUS[check.status];
   const Icon = status.icon;
@@ -79,14 +86,14 @@ function CheckRow({ check }: { check: PreflightCheck }) {
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium">
             {check.label}:{" "}
-            <span className={status.className}>{status.label}</span>
+            <span className={status.className}>{t(status.label)}</span>
           </p>
           <p className="break-words text-sm text-muted-foreground">
             {check.detail}
           </p>
           {check.fix && check.id !== "agent-id" && (
             <p className="text-sm">
-              <span className="font-medium">Fix: </span>
+              <span className="font-medium">{`${t("preflight.fix")} `}</span>
               {check.fix}
             </p>
           )}
@@ -98,8 +105,8 @@ function CheckRow({ check }: { check: PreflightCheck }) {
             variant="ghost"
             aria-label={
               check.id === "agent-id"
-                ? "Copy this extension's ID"
-                : `Copy the fix for ${check.label}`
+                ? t("preflight.copyAgentId")
+                : t("preflight.copyFix", { label: check.label })
             }
             onClick={() => {
               void navigator.clipboard
@@ -108,7 +115,7 @@ function CheckRow({ check }: { check: PreflightCheck }) {
             }}
           >
             <ClipboardCheck aria-hidden="true" className="h-4 w-4" />
-            {copied ? "Copied" : "Copy"}
+            {t(copied ? "preflight.copied" : "preflight.copy")}
           </Button>
         )}
       </div>
@@ -126,6 +133,7 @@ export function PreflightPanel({
   /** The last requests sent to the AI provider (sizes and counts only). */
   requestReports?: RequestReport[];
 }) {
+  const { t } = useTranslation();
   const [checks, setChecks] = useState<PreflightCheck[] | null>(null);
   const [running, setRunning] = useState(false);
   const [reset, setReset] = useState<"idle" | "confirming" | "done" | "failed">(
@@ -147,13 +155,8 @@ export function PreflightPanel({
   return (
     <Card id="preflight" className="scroll-mt-4">
       <CardHeader>
-        <CardTitle>Preflight</CardTitle>
-        <CardDescription>
-          Checks everything a demo needs: the AI provider and tool calling, the
-          Apty Client, the open page and its frames, console capture, clipboard,
-          storage and data handling. Each problem comes with its fix. Runs only
-          when you click.
-        </CardDescription>
+        <CardTitle>{t("preflight.title")}</CardTitle>
+        <CardDescription>{t("preflight.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
@@ -161,7 +164,7 @@ export function PreflightPanel({
             {running && (
               <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
             )}
-            {running ? "Checking…" : "Run all checks"}
+            {t(running ? "preflight.checking" : "preflight.runAll")}
           </Button>
           <Button
             type="button"
@@ -171,7 +174,7 @@ export function PreflightPanel({
               checks && download(preflightJson(checks, redactTextStrict))
             }
           >
-            Export results (redacted JSON)
+            {t("preflight.export")}
           </Button>
           {reset === "confirming" ? (
             <>
@@ -184,14 +187,14 @@ export function PreflightPanel({
                     .catch(() => setReset("failed"));
                 }}
               >
-                Delete conversations and screenshots
+                {t("preflight.deleteData")}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setReset("idle")}
               >
-                Cancel
+                {t("preflight.cancel")}
               </Button>
             </>
           ) : (
@@ -200,29 +203,28 @@ export function PreflightPanel({
               variant="outline"
               onClick={() => setReset("confirming")}
             >
-              Reset demo data
+              {t("preflight.resetDemoData")}
             </Button>
           )}
         </div>
         {reset === "done" && (
           <p role="status" className="text-sm text-muted-foreground">
-            Demo data reset: stored conversations and screenshots deleted.
+            {t("preflight.resetDone")}
           </p>
         )}
         {reset === "failed" && (
           <p role="alert" className="text-sm text-destructive">
-            Could not delete the stored data. Try again from General → Stored
-            conversations.
+            {t("preflight.resetFailed")}
           </p>
         )}
         {checks && (
           <>
             <p role="status" className="text-sm font-medium">
               {failures === 0 && warnings === 0
-                ? "All checks passed."
-                : `${failures} failing, ${warnings} with warnings.`}
+                ? t("preflight.allPassed")
+                : t("preflight.summary", { failures, warnings })}
             </p>
-            <ul aria-label="Preflight results" className="space-y-2">
+            <ul aria-label={t("preflight.resultsLabel")} className="space-y-2">
               {checks.map((check) => (
                 <CheckRow key={check.id} check={check} />
               ))}

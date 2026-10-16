@@ -103,9 +103,9 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({
 
 const fallbackContext: I18nContextValue = {
   language: DEFAULT_LANGUAGE,
-  t: (key: TranslationKey) => {
+  t: (key: TranslationKey, params?: Record<string, string | number>) => {
     const translationFn = createTranslationFunction(DEFAULT_LANGUAGE);
-    return translationFn(key);
+    return translationFn(key, params);
   },
   changeLanguage: async () => {
     console.warn("changeLanguage called without I18nProvider");

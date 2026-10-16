@@ -7,12 +7,17 @@
  * On any failure the presets and manual entry stay available.
  */
 import type { AppSettings } from "@apty/agent-core";
+import { createTranslationFunction } from "@apty/ui/i18n/index";
+import type { I18nContextValue } from "@apty/ui/i18n/types";
 import {
   anthropicBaseUrl,
   anthropicHeaders,
   validateHostUrl,
-  WORKSPACE_ID_FIX,
 } from "./ai-provider";
+
+export type Translate = I18nContextValue["t"];
+
+export const englishTranslate: Translate = createTranslationFunction("en");
 
 export type ModelListKind = "openai-compatible" | "anthropic" | "google";
 
@@ -119,18 +124,21 @@ export function parseModelPage(
   return { models, next };
 }
 
-export function describeModelListError(status: number): string {
+export function describeModelListError(
+  status: number,
+  t: Translate = englishTranslate,
+): string {
   switch (status) {
     case 401:
-      return "The provider rejected the API key (401).";
+      return t("providerErrors.rejectedKey");
     case 403:
-      return "The API key is not allowed to list models (403).";
+      return t("providerErrors.cannotListModels");
     case 404:
-      return "This host has no models list (404). Type the model id instead.";
+      return t("providerErrors.noModelsList");
     case 429:
-      return "The provider is rate limiting requests (429). Try again shortly.";
+      return t("providerErrors.rateLimited");
     default:
-      return `The provider answered ${status} to the models list request.`;
+      return t("providerErrors.modelsListStatus", { status });
   }
 }
 
@@ -139,10 +147,16 @@ export async function fetchModelList(
   {
     fetchImpl = fetch,
     now = Date.now,
-  }: { fetchImpl?: typeof fetch; now?: () => number } = {},
+    translate: t = englishTranslate,
+  }: {
+    fetchImpl?: typeof fetch;
+    now?: () => number;
+    /** Turns message keys into the user's language; English by default. */
+    translate?: Translate;
+  } = {},
 ): Promise<ModelListResult> {
   const apiKey = settings.aiToken?.trim();
-  if (!apiKey) return { ok: false, error: "Enter an API key first." };
+  if (!apiKey) return { ok: false, error: t("providerErrors.enterApiKey") };
 
   const kind = modelListKind(settings);
   let base: string;
@@ -177,8 +191,11 @@ export async function fetchModelList(
       return {
         ok: false,
         error: timedOut
-          ? `${new URL(base).host} did not answer within ${REQUEST_TIMEOUT_MS / 1000}s.`
-          : `Could not reach ${new URL(base).host}.`,
+          ? t("providerErrors.hostTimedOut", {
+              host: new URL(base).host,
+              seconds: REQUEST_TIMEOUT_MS / 1000,
+            })
+          : t("providerErrors.hostUnreachable", { host: new URL(base).host }),
       };
     }
     if (!response.ok) {
@@ -192,15 +209,17 @@ export async function fetchModelList(
         ok: false,
         status: response.status,
         error: needsWorkspace
-          ? `This API key is not scoped to a workspace (400). ${WORKSPACE_ID_FIX}`
-          : describeModelListError(response.status),
+          ? t("providerErrors.notScopedToWorkspace", {
+              fix: t("providerErrors.workspaceIdFix"),
+            })
+          : describeModelListError(response.status, t),
       };
     }
     let body: unknown;
     try {
       body = await response.json();
     } catch {
-      return { ok: false, error: "The models list was not JSON." };
+      return { ok: false, error: t("providerErrors.modelsListNotJson") };
     }
     const parsed = parseModelPage(kind, body);
     for (const model of parsed.models) if (model) found.add(model);
@@ -210,7 +229,7 @@ export async function fetchModelList(
 
   const models = [...found].sort((a, b) => a.localeCompare(b));
   if (models.length === 0) {
-    return { ok: false, error: "The provider listed no models." };
+    return { ok: false, error: t("providerErrors.noModelsListed") };
   }
   cache.set(cacheKey, { at: now(), models });
   return { ok: true, models, cached: false };

@@ -35,6 +35,7 @@ import {
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../i18n/context";
+import type { I18nContextValue, TranslationKey } from "../../i18n/types";
 import { downloadText, timestampedFilename } from "../../lib/download";
 import { cn } from "../../lib/utils";
 import { useTheme } from "../../theme/context";
@@ -277,27 +278,19 @@ const failedToolProbe = (model: CustomModelConfig): boolean =>
   model.toolCalling?.support === "no" &&
   model.toolCalling.model === model.aiModel;
 
-const toolProbeWarning = (modelId: string, language: string): string =>
-  language === "zh"
-    ? `模型 ${modelId} 在上次连接测试中没有调用工具。代理需要函数调用才能工作。仍然使用？`
-    : `${modelId} did not call a tool in the last connection test. The agent needs function calling to work. Use it anyway?`;
+type Translate = I18nContextValue["t"];
 
-const toolProbeLabel = (
-  support: ToolCallingSupport,
-  language: string,
-): string => {
-  const zh = {
-    yes: "支持工具调用",
-    no: "不支持工具调用",
-    unknown: "工具调用：未知",
-  };
-  const en = {
-    yes: "Tool calling: yes",
-    no: "Tool calling: no — the agent needs it",
-    unknown: "Tool calling: unknown",
-  };
-  return (language === "zh" ? zh : en)[support];
+const toolProbeWarning = (modelId: string, t: Translate): string =>
+  t("providerErrors.toolCallingWarning", { model: modelId });
+
+const TOOL_PROBE_LABEL: Record<ToolCallingSupport, TranslationKey> = {
+  yes: "providerErrors.toolCallingYes",
+  no: "providerErrors.toolCallingNo",
+  unknown: "providerErrors.toolCallingUnknown",
 };
+
+const toolProbeLabel = (support: ToolCallingSupport, t: Translate): string =>
+  t(TOOL_PROBE_LABEL[support]);
 
 const resolveActiveModel = (
   settings: AppSettings,
@@ -345,22 +338,14 @@ const resolveActiveModel = (
 };
 
 const ERROR_MESSAGES = {
-  enableOneModel: {
-    zh: "请先启用至少一个模型",
-    en: "Please enable at least one model",
-  },
-  fillRequired: {
-    zh: "请填写所有必填字段",
-    en: "Please fill in all required fields",
-  },
-} as const;
+  enableOneModel: "providerErrors.enableOneModel",
+  fillRequired: "providerErrors.fillRequired",
+} as const satisfies Record<string, TranslationKey>;
 
 const createErrorMessage = (
   key: keyof typeof ERROR_MESSAGES,
-  language: string,
-): string => {
-  return ERROR_MESSAGES[key][language as "zh" | "en"] ?? ERROR_MESSAGES[key].en;
-};
+  t: Translate,
+): string => t(ERROR_MESSAGES[key]);
 
 export function SettingsPage({
   storageAdapter,
@@ -540,7 +525,7 @@ export function SettingsPage({
         target &&
         id !== selectedModelId &&
         failedToolProbe(target) &&
-        !window.confirm(toolProbeWarning(target.aiModel, language))
+        !window.confirm(toolProbeWarning(target.aiModel, t))
       ) {
         return;
       }
@@ -550,7 +535,7 @@ export function SettingsPage({
         updateSettingsFromModel(target);
       }
     },
-    [customModels, selectedModelId, updateSettingsFromModel, language],
+    [customModels, selectedModelId, updateSettingsFromModel, t],
   );
 
   const handleFetchModels = useCallback(async () => {
@@ -563,10 +548,9 @@ export function SettingsPage({
         setFetchedModels((prev) => ({ ...prev, [model.id]: outcome.models }));
         setModelFetch({
           state: "done",
-          message:
-            language === "zh"
-              ? `已获取 ${outcome.models.length} 个模型`
-              : `${outcome.models.length} models from the provider`,
+          message: t("providerErrors.modelsFetched", {
+            count: outcome.models.length,
+          }),
         });
       } else {
         setModelFetch({ state: "error", message: outcome.error });
@@ -577,7 +561,7 @@ export function SettingsPage({
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [customModels, selectedModelId, onFetchModels, settings, language]);
+  }, [customModels, selectedModelId, onFetchModels, settings, t]);
 
   const handleModelFieldChange = useCallback(
     <K extends keyof CustomModelConfig>(
@@ -772,7 +756,7 @@ export function SettingsPage({
     if (hasIncomplete) {
       setSaveStatus({
         type: "error",
-        message: createErrorMessage("fillRequired", language),
+        message: createErrorMessage("fillRequired", t),
       });
       setIsSaving(false);
       return;
@@ -825,7 +809,6 @@ export function SettingsPage({
     storageAdapter,
     storageKey,
     onSave,
-    language,
     t,
     defaultModelOptions,
   ]);
@@ -847,7 +830,7 @@ export function SettingsPage({
     if (!activeModel) {
       setSaveStatus({
         type: "error",
-        message: createErrorMessage("enableOneModel", language),
+        message: createErrorMessage("enableOneModel", t),
       });
       setIsTesting(false);
       return;
@@ -856,7 +839,7 @@ export function SettingsPage({
     if (!aiToken || !aiModel) {
       setSaveStatus({
         type: "error",
-        message: createErrorMessage("fillRequired", language),
+        message: createErrorMessage("fillRequired", t),
       });
       setIsTesting(false);
       return;
@@ -866,7 +849,7 @@ export function SettingsPage({
       if (!onTestConnection) {
         setSaveStatus({
           type: "error",
-          message: "Test connection handler not provided",
+          message: t("providerErrors.handlerMissing"),
         });
         setIsTesting(false);
         return;
@@ -901,7 +884,7 @@ export function SettingsPage({
         setSaveStatus({
           type: toolCalling === "no" ? "error" : "success",
           message: toolCalling
-            ? `${t("settings.testSuccess")} · ${toolProbeLabel(toolCalling, language)}`
+            ? `${t("settings.testSuccess")} · ${toolProbeLabel(toolCalling, t)}`
             : t("settings.testSuccess"),
         });
       } else {
@@ -914,7 +897,9 @@ export function SettingsPage({
     } catch (error) {
       console.error("Connection test error:", error);
       const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+        error instanceof Error
+          ? error.message
+          : t("providerErrors.unknownError");
       setSaveStatus({
         type: "error",
         message: `${t("settings.testFailed")}: ${errorMessage}`,
@@ -923,7 +908,7 @@ export function SettingsPage({
     } finally {
       setIsTesting(false);
     }
-  }, [settings, customModels, selectedModelId, onTestConnection, t, language]);
+  }, [settings, customModels, selectedModelId, onTestConnection, t]);
 
   const handleReset = useCallback(() => {
     if (confirm(t("settings.resetConfirm"))) {
@@ -1890,13 +1875,11 @@ export function SettingsPage({
                                   modelFetch.state === "loading"
                                 }
                               >
-                                {modelFetch.state === "loading"
-                                  ? language === "zh"
-                                    ? "获取中…"
-                                    : "Fetching…"
-                                  : language === "zh"
-                                    ? "获取模型"
-                                    : "Fetch models"}
+                                {t(
+                                  modelFetch.state === "loading"
+                                    ? "providerErrors.fetchingModels"
+                                    : "providerErrors.fetchModels",
+                                )}
                               </Button>
                             )}
                           </div>
@@ -1916,9 +1899,7 @@ export function SettingsPage({
                             >
                               {modelFetch.message}
                               {modelFetch.state === "error" &&
-                                (language === "zh"
-                                  ? " 仍可从建议中选择或手动输入。"
-                                  : " Pick a suggestion or type the model id.")}
+                                ` ${t("providerErrors.fetchFallback")}`}
                             </p>
                           )}
                           {(fetchedModels[selectedModel.id]?.length ?? 0) +
@@ -1952,7 +1933,7 @@ export function SettingsPage({
                               >
                                 {toolProbeLabel(
                                   selectedModel.toolCalling.support,
-                                  language,
+                                  t,
                                 )}
                               </Badge>
                             )}

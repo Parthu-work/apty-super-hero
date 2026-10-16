@@ -98,7 +98,10 @@ export function validateHostUrl(url: string | undefined): string | undefined {
  * status code when present (e.g. `401`, `404`) and redacts anything that
  * looks like a credential, in case a provider ever echoes one back.
  */
-export function describeConnectionTestError(error: unknown): string {
+export function describeConnectionTestError(
+  error: unknown,
+  workspaceIdFix: string = WORKSPACE_ID_FIX,
+): string {
   const statusCode = (error as { statusCode?: number } | undefined)?.statusCode;
   const rawMessage =
     error instanceof Error ? error.message : String(error ?? "Unknown error");
@@ -119,7 +122,7 @@ export function describeConnectionTestError(error: unknown): string {
   }
 
   if (/anthropic-workspace-id/.test(message)) {
-    message += ` ${WORKSPACE_ID_FIX}`;
+    message += ` ${workspaceIdFix}`;
   }
   return typeof statusCode === "number" ? `${statusCode}: ${message}` : message;
 }
