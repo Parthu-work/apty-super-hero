@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type Row = { id: string; parentSessionId?: string; turns?: number };
+type Row = {
+  id: string;
+  parentSessionId?: string;
+  turns?: number;
+  metadata?: { lastActiveAt?: number; createdAt?: number };
+};
 
 const { dbs, failSaves } = vi.hoisted(() => ({
   dbs: new Map<string, Map<string, Row>>(),
@@ -35,6 +40,7 @@ import {
   AGENT_SESSION_DB,
   clearAgentSessions,
   deleteAgentSessions,
+  deleteOrphanAgentSessions,
   LEGACY_AGENT_SESSION_DB,
   migrateLegacyAgentSessions,
 } from "./agent-session-store";
@@ -121,5 +127,57 @@ describe("agent session database rename", () => {
 
     expect(dbs.has(LEGACY_AGENT_SESSION_DB.dbName)).toBe(false);
     expect(current().size).toBe(0);
+  });
+});
+
+describe("orphan agent sessions", () => {
+  beforeEach(() => {
+    dbs.clear();
+    failSaves.count = 0;
+  });
+
+  const HOUR = 60 * 60 * 1000;
+  const NOW = 100 * 24 * HOUR;
+  function session(id: string, ageHours: number, parentSessionId?: string) {
+    return {
+      id,
+      parentSessionId,
+      metadata: { lastActiveAt: NOW - ageHours * HOUR },
+    } as Row;
+  }
+
+  it("deletes old sessions no saved conversation points to, keeping forks of kept ones and anything recent", async () => {
+    dbs.set(
+      AGENT_SESSION_DB.dbName,
+      new Map(
+        [
+          session("kept", 72),
+          session("kept-fork", 72, "kept"),
+          session("orphan", 48),
+          session("orphan-fork", 30, "orphan"),
+          session("in-progress", 0.5),
+        ].map((row) => [row.id, row]),
+      ),
+    );
+
+    const deleted = await deleteOrphanAgentSessions(new Set(["kept"]), {
+      now: NOW,
+      ops,
+    });
+
+    expect(deleted.sort()).toEqual(["orphan", "orphan-fork"]);
+    expect([...current().keys()].sort()).toEqual([
+      "in-progress",
+      "kept",
+      "kept-fork",
+    ]);
+  });
+
+  it("keeps a session with no timestamp rather than guess its age", async () => {
+    dbs.set(AGENT_SESSION_DB.dbName, new Map([["old", { id: "old" }]]));
+
+    expect(
+      await deleteOrphanAgentSessions(new Set(), { now: NOW, ops }),
+    ).toEqual([]);
   });
 });

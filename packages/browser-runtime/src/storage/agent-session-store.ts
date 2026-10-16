@@ -18,7 +18,11 @@ export const LEGACY_AGENT_SESSION_DB = {
 interface StoredSession {
   id: string;
   parentSessionId?: string;
+  metadata?: { lastActiveAt?: unknown; createdAt?: unknown };
 }
+
+/** A session this long idle, with no saved conversation, is not a chat in progress. */
+export const ORPHAN_SESSION_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Whole-database operations, swappable in tests. */
 export interface SessionDbOps {
@@ -136,4 +140,51 @@ export async function clearAgentSessions(
     await ops.drop(LEGACY_AGENT_SESSION_DB.dbName);
   }
   await sessions().clear();
+}
+
+function lastActive(session: StoredSession): number | undefined {
+  const at = session.metadata?.lastActiveAt ?? session.metadata?.createdAt;
+  return typeof at === "number" ? at : undefined;
+}
+
+/**
+ * Delete sessions that no saved conversation leads to (by id or through the
+ * session it was forked from) and that have been idle for
+ * ORPHAN_SESSION_AGE_MS. A side panel closed without "New chat" leaves one.
+ * Returns the deleted ids.
+ */
+export async function deleteOrphanAgentSessions(
+  referenced: ReadonlySet<string>,
+  {
+    now = Date.now(),
+    ops = browserDbOps,
+  }: { now?: number; ops?: SessionDbOps } = {},
+): Promise<string[]> {
+  await ensureAgentSessionsMigrated(ops).catch(() => undefined);
+  const all = await sessions().listAll();
+  const byId = new Map(all.map((s) => [s.id, s]));
+  const leadsToReferenced = (session: StoredSession): boolean => {
+    const seen = new Set<string>();
+    for (
+      let current: StoredSession | undefined = session;
+      current && !seen.has(current.id);
+      current = current.parentSessionId
+        ? byId.get(current.parentSessionId)
+        : undefined
+    ) {
+      if (referenced.has(current.id)) return true;
+      seen.add(current.id);
+    }
+    return false;
+  };
+  const orphans = all.filter((session) => {
+    const at = lastActive(session);
+    return (
+      at !== undefined &&
+      now - at >= ORPHAN_SESSION_AGE_MS &&
+      !leadsToReferenced(session)
+    );
+  });
+  await Promise.all(orphans.map((s) => sessions().delete(s.id)));
+  return orphans.map((s) => s.id);
 }

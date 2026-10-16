@@ -120,7 +120,7 @@ must not reach your AI provider.
 |---|---|---|
 | Settings and API keys | `chrome.storage.local`, readable only by the extension's own pages | Until you remove them or the extension |
 | Conversations | The extension's IndexedDB | Deleted after 7 days without use; at most 5 are kept |
-| The agent's history of each conversation (including raw tool results, before masking) | The extension's IndexedDB | Deleted with its conversation: by age, by the 5-conversation limit, when you delete the conversation from history, or by "New chat" |
+| The agent's history of each conversation (including raw tool results, before masking) | The extension's IndexedDB | Deleted with its conversation: by age, by the 5-conversation limit, when you delete the conversation from history, or by "New chat". History with no saved conversation (a side panel closed mid-chat) is deleted after a day |
 | Screenshots | The extension's IndexedDB | Deleted after 7 days without use; at most 50 are kept |
 | Evidence and investigations from the current session | `chrome.storage.session` | Cleared when the browser closes |
 | Remembered approvals ("Allow on this site for 15 min") | `chrome.storage.local` | 15 minutes, or until revoked |

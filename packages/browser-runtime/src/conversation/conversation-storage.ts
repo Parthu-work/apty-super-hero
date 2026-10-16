@@ -4,7 +4,10 @@ import {
   isExpired,
   selectForEviction,
 } from "@apty/agent-core";
-import { deleteAgentSessions } from "../storage/agent-session-store";
+import {
+  deleteAgentSessions,
+  deleteOrphanAgentSessions,
+} from "../storage/agent-session-store";
 import { IndexedDBStorage } from "../storage/indexeddb-storage";
 import { LRUPolicy } from "./lru-policy";
 import { migrate } from "./migration";
@@ -24,9 +27,15 @@ export class ConversationStorage {
   private readonly storage: IndexedDBStorage<ConversationData>;
   private readonly lruPolicy: LRUPolicy;
   private readonly config: Required<
-    Omit<ConversationStorageConfig, "deleteAgentSessions">
+    Omit<
+      ConversationStorageConfig,
+      "deleteAgentSessions" | "deleteOrphanAgentSessions"
+    >
   >;
   private readonly deleteAgentSessions: (ids: string[]) => Promise<void>;
+  private readonly deleteOrphanAgentSessions: (
+    referenced: Set<string>,
+  ) => Promise<string[]>;
   private migrationPromise: Promise<void> | null = null;
 
   constructor(config: ConversationStorageConfig = {}) {
@@ -38,6 +47,9 @@ export class ConversationStorage {
     };
     this.deleteAgentSessions =
       config.deleteAgentSessions ?? deleteAgentSessions;
+    this.deleteOrphanAgentSessions =
+      config.deleteOrphanAgentSessions ??
+      ((referenced) => deleteOrphanAgentSessions(referenced));
 
     this.storage = new IndexedDBStorage<ConversationData>({
       dbName: this.config.dbName,
@@ -123,6 +135,10 @@ export class ConversationStorage {
         await Promise.all(toDelete.map((conv) => this.storage.delete(conv.id)));
         await this.removeAgentSessionsOf(toDelete);
       }
+      const evicted = new Set(toDelete.map((c) => c.id));
+      await this.sweepOrphanAgentSessions(
+        allConversations.filter((c) => !evicted.has(c.id)),
+      );
     } catch (error) {
       console.error("❌ [ConversationStorage] Failed to apply LRU:", error);
     }
@@ -298,6 +314,22 @@ export class ConversationStorage {
         "❌ [ConversationStorage] Failed to clear conversations:",
         error,
       );
+    }
+  }
+
+  /** Agent sessions left by a panel closed without "New chat" (no saved conversation). */
+  private async sweepOrphanAgentSessions(
+    kept: ConversationData[],
+  ): Promise<void> {
+    const referenced = new Set(
+      kept
+        .map((c) => c.agentSessionId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    try {
+      await this.deleteOrphanAgentSessions(referenced);
+    } catch {
+      log.warn("orphan_agent_session_sweep_failed");
     }
   }
 

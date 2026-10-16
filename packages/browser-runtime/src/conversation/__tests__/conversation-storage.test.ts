@@ -299,6 +299,33 @@ describe("ConversationStorage", () => {
     });
   });
 
+  describe("orphan agent sessions", () => {
+    it("sweeps after a save, keeping every session a saved conversation points to", async () => {
+      const deleteOrphanAgentSessions = vi.fn(async () => []);
+      const storage = new ConversationStorage({ deleteOrphanAgentSessions });
+
+      await storage.saveConversation(createMockMessages(), "session-a");
+      await storage.saveConversation(createMockMessages(), "session-b");
+      await storage.saveConversation(createMockMessages());
+
+      expect(deleteOrphanAgentSessions).toHaveBeenLastCalledWith(
+        new Set(["session-a", "session-b"]),
+      );
+    });
+
+    it("still saves the conversation when the sweep fails", async () => {
+      const storage = new ConversationStorage({
+        deleteOrphanAgentSessions: vi.fn(async () => {
+          throw new Error("idb closed");
+        }),
+      });
+
+      const id = await storage.saveConversation(createMockMessages(), "s");
+
+      expect(mockDb[id]?.agentSessionId).toBe("s");
+    });
+  });
+
   describe("agentSessionId — reconciling UI conversations with agent sessions", () => {
     // `ConversationData.id` (this store's key) and the `core.Session.id`
     // that actually holds the LLM message history are two different id
