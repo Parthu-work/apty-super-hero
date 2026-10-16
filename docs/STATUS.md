@@ -89,7 +89,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
 | Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | LLM request safety and size | Phase A (O1-O5) is the base of `hardening/prod-ready`; Phases B and C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
-| Production readiness (branch `hardening/prod-ready`, not on `main`) | Phase 1 (S1-S7) approved; Phase 2 (R1-R9) done except R6's icons (owner artwork, D6) and R9's human-only items; Checkpoint 2 in `REVIEW.md`; D1-D7 unanswered, all defaults applied provisionally; Phase 3 next ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
+| Production readiness (branch `hardening/prod-ready`, not on `main`) | Phases 1-3 done (Checkpoint 3, `REVIEW.md`), except R6's icons (owner artwork, D6) and R9's human-only items; D1-D7 unanswered, all defaults applied provisionally; waiting for the owner's review ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Where to look

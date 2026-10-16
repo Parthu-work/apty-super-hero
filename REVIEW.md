@@ -1,19 +1,21 @@
-# Review: `hardening/prod-ready`, Checkpoint 2 (Phase 2: R1–R9)
+# Review: `hardening/prod-ready`, Checkpoint 3 (final: Phases 1–3)
 
 | | |
 |---|---|
 | Branch | `hardening/prod-ready` (local only, never pushed) |
 | Base | `origin/main` `c64838b` (unchanged since Checkpoint 1) plus the 8 Phase A commits and Phase 1 |
-| Code head | `e492c55`; the branch head is the next commit, which adds this file and STATUS |
-| Build zip | `apty-agent-prod-phase2-e492c55.zip`, a clean build, `manifest.json` at the top; also the release-style pair `apty-agent-v0.1.0.zip` and `apty-agent-v0.1.0-webstore.zip` |
-| Git bundle | `apty-agent-prod-phase2-e492c55.bundle`: `HEAD` and `refs/heads/hardening/prod-ready`, excluding `origin/main` (Phase A, Phase 1 and Phase 2) |
+| Code head | `e492c55`; Phase 3 changed no code, and the branch head is the next commit, which updates this file and STATUS |
+| Build zip | `apty-agent-prod-phase3-e492c55.zip`, a clean build, `manifest.json` at the top; also the release-style pair `apty-agent-v0.1.0.zip` and `apty-agent-v0.1.0-webstore.zip` |
+| Git bundle | `apty-agent-prod-phase3-e492c55.bundle`: `HEAD` and `refs/heads/hardening/prod-ready`, excluding `origin/main` (Phase A, Phase 1 and Phase 2) |
 | Checksums | `SHA256SUMS.txt` |
 | Spec | [`docs/tasks/prod/`](docs/tasks/prod/00-rules.md) |
 
-This file replaces the Checkpoint 1 review: `git show c2ac898:REVIEW.md`
-has Phase 1 (S1–S7) in full. You approved Checkpoint 1 and then asked to
-"complete all the phases", so Phase 2 ran without a separate "continue";
-Phase 3 follows this checkpoint the same way.
+This file replaces the earlier reviews: `git show c2ac898:REVIEW.md` has
+Phase 1 (S1–S7) in full, and `git show 1e4284b:REVIEW.md` is Checkpoint 2.
+You approved Checkpoint 1 and then asked to "complete all the phases", so
+Phases 2 and 3 ran without a separate "continue". Checkpoint 2's files are in
+`~/Downloads/apty-agent-prod-phase2/`, this checkpoint's in
+`~/Downloads/apty-agent-prod-phase3/`.
 
 Nothing here was run against a real AI provider, a real tenant or the
 Chrome Web Store. Browser tests ran in Chrome for Testing 145 against a mock
@@ -52,7 +54,7 @@ Please confirm or change each.
 | `e492c55` | test(e2e): let a closed tab's favicon request land before clearing; format the Copy button |
 | (next) | docs: Checkpoint 2 review and status |
 
-## Gates (Checkpoint 2)
+## Gates (Checkpoint 2, code head `e492c55`)
 
 `rm -rf apps/browser-extension/dist`, then `tooling/scripts/release-dry-run.sh`
 (format, lint, typecheck, unit tests, `test:coverage` with the default
@@ -128,6 +130,51 @@ Secret scan: TruffleHog 3.99.2 (Homebrew),
 `trufflehog git file://<repo> --since-commit c2ac898 --branch hardening/prod-ready --no-verification`,
 no exclude list: 602 chunks, **0 verified, 0 unverified**. Repeated on the
 branch head before packaging.
+
+## Phase 3: final verification
+
+- **Rebase:** `origin/main` is still `c64838b` (fetched today); the branch
+  already contains it and has no merge commits, so there was nothing to
+  rebase.
+- **Gates on the branch head** (`rm -rf apps/browser-extension/dist` first):
+
+  ```
+  ✓ typecheck (8s)
+  ✓ lint (1s)
+  ✓ test (46s)
+  ✓ audit (4s)
+  ✓ build (13s)
+  npm run format:check       Checked 790 files. No fixes applied.
+  npm run audit:test-skips   ✓ every skipped test says why
+  npm run audit:any          ✓ 604 explicit any, none above the baseline
+  npm run audit:docs-links   ✓ every relative link in the Markdown files resolves
+  check-extension-id.mjs     ✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
+  pnpm audit --prod          No known vulnerabilities found   (package.json has no ignoreCves)
+  ```
+
+- **Coverage, full e2e and the release dry run:** the dry run under
+  "Gates" (Checkpoint 2) ran on `e492c55`, the same code: coverage with the
+  default timeouts, e2e 122/122, every step ✓.
+- **TruffleHog over `origin/main..HEAD`** (`--no-verification`, no
+  exclude list): 3,484 chunks, **0 verified, 0 unverified**.
+- **The final Web Store zip in Chromium** (`apty-agent-v0.1.0-webstore.zip`
+  unpacked, no `key`, loaded through `E2E_EXTENSION_DIR`):
+
+  | Probe | Result |
+  |---|---|
+  | S1 exfiltration (`exfiltration.e2e`) | 2/2 pass |
+  | S3 deletion (`stored-data.e2e`) | 2/2 pass |
+  | S4 PHI fixture (`phi-fixture.e2e`) | 2/2 pass |
+
+  The PHI fixture first timed out twice (870 s wall time against a 600 s
+  limit) and once failed with "Service worker did not start" on the dev
+  build too: the laptop was sleeping. Rerun with `caffeinate -dims`, it
+  passed 2/2 in about 10 s on both the store zip and the dev build.
+- **Request size** (`npm run report:request-size`), base `5fe5227` →
+  head: every scenario is identical, raw and as sent (for example
+  `investigation-10-turns` 11,163 tokens, `snapshot-heavy` 6,598, `casual`
+  3,929). The whole registry's schemas went from 14,597 to 14,683 tokens
+  (+0.59%), under the 2% limit; the system prompt stays 3,928.
 
 ## Work packages (Phase 2)
 
@@ -354,7 +401,6 @@ Only people can do these:
   unused files, 71 unused exports) outside the Facts list.
 - **R8:** 277 hard-coded strings remain outside the listed files; the
   ratchet stops them growing.
-- **Phase 3:** next.
 
 ## Conflicts between the prompt and the repo
 
