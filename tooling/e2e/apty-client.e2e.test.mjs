@@ -231,6 +231,7 @@ describe("Apty Client integration in a real browser", () => {
     await app.goto(`${site.origin}/app.html`);
     const panel = await openSidePanel(browser, model, app, {
       networkBodyCaptureDenyList: ["/users/"],
+      redactionMode: "standard",
     });
     const client = await waitForWorker(browser.context, (url) =>
       url.startsWith(`chrome-extension://${clients.working.id}/`),
