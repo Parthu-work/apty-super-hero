@@ -32,7 +32,7 @@ export function InterventionModeProvider({
   );
 }
 
-export function useInterventionMode(): InterventionModeContextValue {
+function useInterventionMode(): InterventionModeContextValue {
   const context = useContext(InterventionModeContext);
   if (!context) {
     throw new Error(

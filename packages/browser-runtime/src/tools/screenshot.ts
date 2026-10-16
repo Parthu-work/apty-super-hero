@@ -17,7 +17,6 @@ export type {
   CaptureWithElementCropOptions,
   CaptureWithElementCropResult,
 } from "./screenshot-helpers.js";
-export { captureVisibleTabWithElementCrop } from "./screenshot-helpers.js";
 
 /**
  * Wraps a capture tool's `execute` so a screenshot that would be sent to the
@@ -560,7 +559,7 @@ APPROVAL: when the image would be sent to the LLM, Settings â†’ Data handling â†
   ),
 });
 
-export const captureScreenshotToClipboardTool = tool({
+const captureScreenshotToClipboardTool = tool({
   name: "capture_screenshot_to_clipboard",
   description:
     "Capture screenshot of current tab and save directly to clipboard. NOTE: This tool requires focus mode.",
@@ -608,7 +607,7 @@ export const captureScreenshotToClipboardTool = tool({
 
 // ===================== Clipboard image tools (P1) =====================
 
-export const readClipboardImageTool = tool({
+const readClipboardImageTool = tool({
   name: "read_clipboard_image",
   description:
     "Read an image from the system clipboard and return it as a base64 data URL. " +
@@ -651,7 +650,7 @@ export const readClipboardImageTool = tool({
   },
 });
 
-export const getClipboardImageInfoTool = tool({
+const getClipboardImageInfoTool = tool({
   name: "get_clipboard_image_info",
   description:
     "Check whether the system clipboard contains an image, and if so return " +

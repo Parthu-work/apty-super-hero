@@ -155,7 +155,7 @@ const DB_NAME = "AIPexSkills";
 const DB_VERSION = 1;
 const STORE_NAME = "skills";
 
-export class SkillStorage {
+class SkillStorage {
   private db: IDBDatabase | null = null;
   private initialized = false;
   private lastSyncTime = 0;

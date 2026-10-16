@@ -399,7 +399,7 @@ export interface ResourceSuggestion {
  * deduplicated with how many times each was observed, ranked by edit
  * distance to the query (closest first), capped at `limit`.
  */
-export function suggestClosestResourceNames(
+function suggestClosestResourceNames(
   requests: ExtensionCaptureEntry[],
   resourceQuery: string,
   limit = 5,

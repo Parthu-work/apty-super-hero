@@ -19,7 +19,7 @@ const log = createLogger("InterventionTools");
 /**
  * List all available interventions
  */
-export const listInterventionsTool = tool({
+const listInterventionsTool = tool({
   name: "list_interventions",
   description:
     "List all available human intervention types. Use this to discover what interventions the AI can request from the user.",
@@ -72,7 +72,7 @@ export const listInterventionsTool = tool({
 /**
  * Get detailed information about a specific intervention
  */
-export const getInterventionInfoTool = tool({
+const getInterventionInfoTool = tool({
   name: "get_intervention_info",
   description:
     "Get detailed information about a specific intervention type, including input/output schemas and examples.",
@@ -255,7 +255,7 @@ export const requestInterventionTool = tool({
 /**
  * Cancel current intervention
  */
-export const cancelInterventionTool = tool({
+const cancelInterventionTool = tool({
   name: "cancel_intervention",
   description:
     "Cancel the currently active intervention. Use this if you realize the intervention is no longer needed.",

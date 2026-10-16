@@ -57,7 +57,7 @@ export function getAllGroups(): Map<string, CommandGroup> {
   return groups;
 }
 
-export function getToolSchema(toolName: string): ToolSchema | undefined {
+function getToolSchema(toolName: string): ToolSchema | undefined {
   return toolSchemas.find((t) => t.name === toolName);
 }
 

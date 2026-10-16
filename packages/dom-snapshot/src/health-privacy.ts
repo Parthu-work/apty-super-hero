@@ -86,7 +86,7 @@ function looksLikeSecret(value: string): boolean {
  * knowledge, unverified against the two applications (neither export
  * contains one).
  */
-export const PRIVATE_CONTAINER_SELECTOR = [
+const PRIVATE_CONTAINER_SELECTOR = [
   '[data-dd-privacy="mask"]',
   '[data-dd-privacy="hidden"]',
   ".dd-privacy-mask",

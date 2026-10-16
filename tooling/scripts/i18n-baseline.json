@@ -4,6 +4,5 @@
   "apps/browser-extension/src/entrypoints/content/index.tsx": 1,
   "apps/browser-extension/src/entrypoints/options/apty-client-panel.tsx": 1,
   "apps/browser-extension/src/entrypoints/options/mcp-bridge-panel.tsx": 3,
-  "packages/ui/src/components/settings/index.tsx": 6,
-  "packages/ui/src/components/ui/breathing-border-overlay.tsx": 1
+  "packages/ui/src/components/settings/index.tsx": 6
 }

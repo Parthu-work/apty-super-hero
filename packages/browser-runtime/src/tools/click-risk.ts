@@ -12,7 +12,7 @@
  * Words in a control's accessible name or text that mark it as destructive
  * or confirming. Matched as whole words, case-insensitively.
  */
-export const RISKY_CLICK_WORDS: readonly string[] = [
+const RISKY_CLICK_WORDS: readonly string[] = [
   "delete",
   "remove",
   "submit",
@@ -219,9 +219,7 @@ export type ClickTargetQuery = { uid: string } | { x: number; y: number };
  * closed shadow roots) or at a viewport point, and describes the control a
  * click there would activate. Returns null when this frame has no match.
  */
-export function inspectClickTargetInPage(
-  query: ClickTargetQuery,
-): ClickTarget | null {
+function inspectClickTargetInPage(query: ClickTargetQuery): ClickTarget | null {
   const shadowOf = (el: Element): ShadowRoot | null => {
     try {
       const dom = (

@@ -19,7 +19,7 @@ export function readErpFixture(name: ErpFixtureName): string {
  * number of roots attached; closed ones are also recorded in `closedRoots`,
  * standing in for `chrome.dom.openOrClosedShadowRoot` in tests.
  */
-export function attachDeclarativeShadowRoots(
+function attachDeclarativeShadowRoots(
   root: ParentNode,
   closedRoots?: Map<Element, ShadowRoot>,
 ): number {

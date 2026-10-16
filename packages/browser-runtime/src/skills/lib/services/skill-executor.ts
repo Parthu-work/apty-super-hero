@@ -13,7 +13,7 @@ type ToolDefinition = {
   handler: (args: any) => Promise<any>;
 };
 
-export class SkillExecutor {
+class SkillExecutor {
   private registeredTools: Map<string, ToolDefinition> = new Map();
   private initialized = false;
 

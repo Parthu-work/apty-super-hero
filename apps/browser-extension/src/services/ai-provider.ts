@@ -128,7 +128,7 @@ export function describeConnectionTestError(
 }
 
 /** Where to fix Anthropic's "not scoped to a workspace" error in this extension. */
-export const WORKSPACE_ID_FIX =
+const WORKSPACE_ID_FIX =
   "Fix: enter the workspace ID (wrkspc_…, from Claude Console → Settings → Workspaces) in Settings → AI Configuration → Workspace ID, or use an API key created for a single workspace.";
 
 /**
@@ -177,7 +177,7 @@ export function anthropicHeaders(
  * OpenAI's Responses API keeps every request (page data, screenshots) on
  * OpenAI's side unless the request says `store: false`.
  */
-export const openAINoStoreMiddleware: LanguageModelMiddleware = {
+const openAINoStoreMiddleware: LanguageModelMiddleware = {
   specificationVersion: "v3",
   transformParams: async ({ params }) => ({
     ...params,

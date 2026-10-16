@@ -41,7 +41,7 @@ export function clearModelListCache() {
   cache.clear();
 }
 
-export function modelListKind(settings: AppSettings): ModelListKind {
+function modelListKind(settings: AppSettings): ModelListKind {
   if (settings.aiProvider === "anthropic") return "anthropic";
   if (settings.aiProvider === "google") return "google";
   return "openai-compatible";
@@ -124,7 +124,7 @@ export function parseModelPage(
   return { models, next };
 }
 
-export function describeModelListError(
+function describeModelListError(
   status: number,
   t: Translate = englishTranslate,
 ): string {

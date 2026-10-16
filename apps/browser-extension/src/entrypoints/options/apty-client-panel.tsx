@@ -127,7 +127,7 @@ export function AptyStudioPanel() {
 }
 
 /** The snippet the peer's manifest needs, with this Agent's ID filled in. */
-export function allowListSnippet(agentId: string): string {
+function allowListSnippet(agentId: string): string {
   return `"externally_connectable": { "ids": ["${agentId}"] }`;
 }
 
@@ -173,7 +173,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
+function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
   const { t } = useTranslation();
   const copy = COPY[peer];
   const [extensionId, setExtensionId] = useState("");

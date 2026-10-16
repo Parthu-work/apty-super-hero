@@ -18,7 +18,7 @@ interface DownloadInfo {
 /**
  * Get all downloads
  */
-export async function getAllDownloads(): Promise<{
+async function getAllDownloads(): Promise<{
   success: boolean;
   downloads?: DownloadInfo[];
   error?: string;
@@ -57,7 +57,7 @@ export async function getAllDownloads(): Promise<{
 /**
  * Open download file
  */
-export async function openDownload(downloadId: number): Promise<{
+async function openDownload(downloadId: number): Promise<{
   success: boolean;
   error?: string;
 }> {
@@ -75,7 +75,7 @@ export async function openDownload(downloadId: number): Promise<{
 /**
  * Show download in folder
  */
-export async function showDownloadInFolder(downloadId: number): Promise<{
+async function showDownloadInFolder(downloadId: number): Promise<{
   success: boolean;
   error?: string;
 }> {
@@ -93,7 +93,7 @@ export async function showDownloadInFolder(downloadId: number): Promise<{
 /**
  * Cancel download
  */
-export async function cancelDownload(downloadId: number): Promise<{
+async function cancelDownload(downloadId: number): Promise<{
   success: boolean;
   error?: string;
 }> {
@@ -111,7 +111,7 @@ export async function cancelDownload(downloadId: number): Promise<{
 /**
  * Download text content as markdown file
  */
-export async function downloadTextAsMarkdown(
+async function downloadTextAsMarkdown(
   text: string,
   filename?: string,
 ): Promise<{
@@ -176,7 +176,7 @@ export async function downloadTextAsMarkdown(
 }
 
 // Export the most commonly used tools
-export const getAllDownloadsTool = tool({
+const getAllDownloadsTool = tool({
   name: "get_all_downloads",
   description: "Get all downloads",
   parameters: z.object({}),
@@ -185,7 +185,7 @@ export const getAllDownloadsTool = tool({
   },
 });
 
-export const openDownloadTool = tool({
+const openDownloadTool = tool({
   name: "open_download",
   description: "Open a downloaded file",
   parameters: z.object({
@@ -196,7 +196,7 @@ export const openDownloadTool = tool({
   },
 });
 
-export const showDownloadInFolderTool = tool({
+const showDownloadInFolderTool = tool({
   name: "show_download_in_folder",
   description: "Show download in folder",
   parameters: z.object({
@@ -207,7 +207,7 @@ export const showDownloadInFolderTool = tool({
   },
 });
 
-export const cancelDownloadTool = tool({
+const cancelDownloadTool = tool({
   name: "cancel_download",
   description: "Cancel a download",
   parameters: z.object({
@@ -218,7 +218,7 @@ export const cancelDownloadTool = tool({
   },
 });
 
-export const downloadTextAsMarkdownTool = tool({
+const downloadTextAsMarkdownTool = tool({
   name: "download_text_as_markdown",
   description: "Download text content as a markdown file",
   parameters: z.object({
@@ -501,7 +501,7 @@ export const downloadChatImagesTool = tool({
 /**
  * Download images from current chat
  */
-export const downloadCurrentChatImagesTool = tool({
+const downloadCurrentChatImagesTool = tool({
   name: "download_current_chat_images",
   description: "Download all images from the current chat conversation",
   parameters: z.object({

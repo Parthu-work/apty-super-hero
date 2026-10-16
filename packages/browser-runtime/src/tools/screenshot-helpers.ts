@@ -16,7 +16,7 @@ export const MAX_PADDING = 200;
 /**
  * Crop image to a specific region using canvas.
  */
-export async function cropImage(
+async function cropImage(
   dataUrl: string,
   region: { x: number; y: number; width: number; height: number },
 ): Promise<string> {

@@ -22,7 +22,7 @@ interface StoredSession {
 }
 
 /** A session this long idle, with no saved conversation, is not a chat in progress. */
-export const ORPHAN_SESSION_AGE_MS = 24 * 60 * 60 * 1000;
+const ORPHAN_SESSION_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Whole-database operations, swappable in tests. */
 export interface SessionDbOps {

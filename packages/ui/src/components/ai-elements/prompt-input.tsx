@@ -96,7 +96,7 @@ const CONTEXT_ICONS: Record<ContextItemType, ReactNode> = {
  * Custom hook for typing animation effect
  * Extracted from typing text component algorithm
  */
-export function useTypingPlaceholder(
+function useTypingPlaceholder(
   texts: string[],
   options: {
     typingSpeed?: number;
@@ -183,7 +183,7 @@ type AttachmentsContext = {
 
 const AttachmentsContext = createContext<AttachmentsContext | null>(null);
 
-export const usePromptInputAttachments = () => {
+const usePromptInputAttachments = () => {
   const context = useContext(AttachmentsContext);
 
   if (!context) {
@@ -1585,7 +1585,7 @@ export const PromptInputTools = ({
 
 export type PromptInputButtonProps = ComponentProps<typeof Button>;
 
-export const PromptInputButton = ({
+const PromptInputButton = ({
   variant = "ghost",
   className,
   size,
@@ -1650,7 +1650,7 @@ export const PromptInputActionMenuContent = ({
 export type PromptInputActionMenuItemProps = ComponentProps<
   typeof DropdownMenuItem
 >;
-export const PromptInputActionMenuItem = ({
+const PromptInputActionMenuItem = ({
   className,
   ...props
 }: PromptInputActionMenuItemProps) => (

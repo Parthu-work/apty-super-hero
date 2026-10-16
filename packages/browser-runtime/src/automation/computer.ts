@@ -972,7 +972,7 @@ export async function executeComputerAction(
 /**
  * Clear screenshot cache for a tab
  */
-export function clearScreenshotCache(tabId?: number): void {
+function clearScreenshotCache(tabId?: number): void {
   if (tabId !== undefined) {
     screenshotCache.delete(tabId);
   } else {
@@ -983,8 +983,6 @@ export function clearScreenshotCache(tabId?: number): void {
 /**
  * Get cached screenshot metadata for a tab
  */
-export function getScreenshotMetadata(
-  tabId: number,
-): ScreenshotMetadata | undefined {
+function getScreenshotMetadata(tabId: number): ScreenshotMetadata | undefined {
   return screenshotCache.get(tabId);
 }

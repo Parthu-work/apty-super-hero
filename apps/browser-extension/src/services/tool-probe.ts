@@ -9,7 +9,7 @@ import { generateText, jsonSchema, type LanguageModel, tool } from "ai";
 export type ToolCallingSupport = "yes" | "no" | "unknown";
 
 export const PROBE_TOOL_NAME = "report_probe";
-export const PROBE_TIMEOUT_MS = 15_000;
+const PROBE_TIMEOUT_MS = 15_000;
 
 const UNSUPPORTED_PATTERN =
   /\b(tools?|function[ _-]?call(ing)?|tool[ _-]?choice)\b.*\b(not|un)\s*supported|does not support (tools|function)|tool use is not supported|no endpoints found that support tool/i;

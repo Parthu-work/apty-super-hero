@@ -4,7 +4,7 @@ import enTranslations from "./locales/en.json";
 import zhTranslations from "./locales/zh.json";
 import type { Language, TranslationKey, TranslationResources } from "./types";
 
-export const SUPPORTED_LANGUAGES: Language[] = ["en", "zh"];
+const SUPPORTED_LANGUAGES: Language[] = ["en", "zh"];
 export const DEFAULT_LANGUAGE: Language = "en";
 export const LANGUAGE_STORAGE_KEY = STORAGE_KEYS.LANGUAGE;
 
@@ -27,7 +27,7 @@ export function detectBrowserLanguage(): Language {
   return DEFAULT_LANGUAGE;
 }
 
-export const getTranslation = (
+const getTranslation = (
   language: Language,
   key: TranslationKey,
   params?: Record<string, string | number>,

@@ -91,7 +91,7 @@ export function applyConfidenceCaps(
 }
 
 /** Above this share of unreadable frames, the audit did not see most of the page. Unverified threshold: "most" read literally. */
-export const MAX_UNREADABLE_FRAME_SHARE =
+const MAX_UNREADABLE_FRAME_SHARE =
   DOM_HEALTH_THRESHOLDS.maxUnreadableFrameShare.default;
 
 const NO_PERFORMANCE: CollectorPerformance = {
@@ -111,7 +111,7 @@ const NO_DUPLICATE_IDS: DuplicateIdStats = {
 };
 
 /** Above this share of a virtualized list's declared rows left unrendered, confidence is LOW. Unverified threshold: "large" read as "most". */
-export const MAX_UNSEEN_VIRTUALIZED_SHARE =
+const MAX_UNSEEN_VIRTUALIZED_SHARE =
   DOM_HEALTH_THRESHOLDS.maxUnseenVirtualizedShare.default;
 
 /**
@@ -773,9 +773,7 @@ function computeConfidence(
 // Manual selector dependency (spec section 30)
 // ---------------------------------------------------------------------------
 
-export function computeManualSelectorDependency(
-  current: DomHealthSnapshot,
-): number {
+function computeManualSelectorDependency(current: DomHealthSnapshot): number {
   const { totalAnalyzed, positionalOnly, ambiguous, wrongTarget, notResolved } =
     current.selectorAnalysis;
   return pct(
@@ -986,7 +984,7 @@ export function buildRecommendations(
 // Evidence-driven summary (spec section 28) — every sentence maps to a real number.
 // ---------------------------------------------------------------------------
 
-export function buildSummary(
+function buildSummary(
   score: number | null,
   metrics: DomHealthMetrics,
   details: DomHealthMetricDetails,

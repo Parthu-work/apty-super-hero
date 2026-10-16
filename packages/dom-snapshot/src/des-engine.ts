@@ -107,7 +107,7 @@ export type ElementPath = ElementPattern[];
 // Rendered / visibility check (module 92516's `isElementRendered`).
 // ---------------------------------------------------------------------------
 
-export function isElementRendered(el: Element): boolean {
+function isElementRendered(el: Element): boolean {
   const withCheckVisibility = el as Element & {
     checkVisibility?: (opts: {
       visibilityProperty: boolean;

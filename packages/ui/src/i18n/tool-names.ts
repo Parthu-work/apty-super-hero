@@ -34,7 +34,7 @@ export const translatedToolName = (
  * @param toolName The original snake_case tool name
  * @returns Formatted tool name
  */
-export const formatToolName = (toolName: string): string => {
+const formatToolName = (toolName: string): string => {
   return toolName
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -48,7 +48,7 @@ export const formatToolName = (toolName: string): string => {
  * @param translations Translation resources
  * @returns Translated tool name or formatted original name
  */
-export const getToolName = (
+const getToolName = (
   toolName: string,
   language: string,
   translations: any,

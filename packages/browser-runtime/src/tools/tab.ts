@@ -290,7 +290,7 @@ export const getTabInfoTool = tool({
 /**
  * Duplicate a tab
  */
-export const duplicateTabTool = tool({
+const duplicateTabTool = tool({
   name: "duplicate_tab",
   description: "Duplicate an existing tab",
   parameters: z.object({
@@ -311,7 +311,7 @@ export const duplicateTabTool = tool({
 /**
  * Use AI to automatically group tabs by topic/purpose
  */
-export const organizeTabsTool = tool({
+const organizeTabsTool = tool({
   name: "organize_tabs",
   description: "Use AI to automatically group tabs by topic/purpose",
   parameters: z.object({}),

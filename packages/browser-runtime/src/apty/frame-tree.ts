@@ -128,7 +128,7 @@ export interface FrameAccessibilitySummary {
 }
 
 /** Cap on `sampleFailureReasons` — a handful of distinct reasons is enough to explain the failure pattern; more would read as noise in a one-sentence evidence string. */
-export const MAX_SAMPLE_FAILURE_REASONS = 3;
+const MAX_SAMPLE_FAILURE_REASONS = 3;
 
 /** Build a short, de-duplicated sample of per-frame failure reasons for `FrameAccessibilitySummary.sampleFailureReasons`. */
 export function sampleFailureReasons(errors: (string | undefined)[]): string[] {
@@ -149,7 +149,7 @@ export interface FrameMessageResult<T> {
 }
 
 /** Substring identifying the frame responder content script in the built manifest. */
-export const FRAME_RESPONDER_SCRIPT_MARKER = "frame-responder";
+const FRAME_RESPONDER_SCRIPT_MARKER = "frame-responder";
 
 const NO_RECEIVER_PATTERN =
   /receiving end does not exist|could not establish connection/i;
@@ -170,7 +170,7 @@ function frameResponderFiles(): string[] {
  * content script never ran or belongs to a previous extension instance
  * (tabs opened before an extension reload or update).
  */
-export async function injectFrameResponder(
+async function injectFrameResponder(
   tabId: number,
   frameId: number,
 ): Promise<boolean> {
@@ -280,7 +280,7 @@ function sendFrameMessageOnce<T>(
 }
 
 /** Lightweight reachability probe — used to build frame accessibility evidence without paying for a full snapshot collection. */
-export async function pingFrame(
+async function pingFrame(
   tabId: number,
   frameId: number,
   timeoutMs = 3000,

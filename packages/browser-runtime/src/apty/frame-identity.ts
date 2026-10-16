@@ -35,8 +35,8 @@ export interface FrameOwnerAttributes {
   ignoredBy?: string | null;
 }
 
-export const PLACEHOLDER_ID = ":id";
-export const PLACEHOLDER_TENANT = ":tenant";
+const PLACEHOLDER_ID = ":id";
+const PLACEHOLDER_TENANT = ":tenant";
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const GUID_ANYWHERE =

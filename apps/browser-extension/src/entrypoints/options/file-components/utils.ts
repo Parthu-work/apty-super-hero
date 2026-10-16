@@ -105,7 +105,7 @@ export function getFileIcon(filename: string): string {
 /**
  * Check if a path is protected (should not be deleted)
  */
-export function isProtectedPath(path: string): boolean {
+function isProtectedPath(path: string): boolean {
   const protectedPaths = ["/skills", "/skills/skill-creator"];
 
   // Exact match

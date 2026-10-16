@@ -39,7 +39,7 @@ function extensionVersion(): string {
   }
 }
 
-export function validationBundleJson({
+function validationBundleJson({
   page,
   application,
   probe,

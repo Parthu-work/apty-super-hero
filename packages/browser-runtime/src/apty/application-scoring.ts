@@ -218,7 +218,7 @@ export interface CrossStateSelectorEvidence {
   statesTested: number;
 }
 
-export const EMPTY_CROSS_STATE_SELECTOR_EVIDENCE: CrossStateSelectorEvidence = {
+const EMPTY_CROSS_STATE_SELECTOR_EVIDENCE: CrossStateSelectorEvidence = {
   attempted: 0,
   directStable: 0,
   recoveredStable: 0,
@@ -283,7 +283,7 @@ export interface ApplicationAuditResult {
  * `isScoreMeaningful`): a real number is never reported standing in for
  * "we don't actually know how much of this application this covers."
  */
-export function determineApplicationEvidenceState(inputs: {
+function determineApplicationEvidenceState(inputs: {
   pageLevelEvidenceState: EvidenceState;
   audited: number;
   /** Total known page/state inventory rows — completed, failed, and skipped alike; a click that verifiably changed nothing is not a state and is not counted. */

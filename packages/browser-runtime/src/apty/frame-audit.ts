@@ -97,7 +97,7 @@ interface FrameBundleResponse {
 }
 
 /** How long a capture waits, once, for a rendered about:blank frame the page may be about to navigate (athenaOne navigates `GlobalNav` and `Status` from script after load). */
-export const PLACEHOLDER_RECHECK_MS = 500;
+const PLACEHOLDER_RECHECK_MS = 500;
 /** About:blank frames usually answer at once, or are not worth the full timeout. */
 const ABOUT_BLANK_TIMEOUT_MS = 2000;
 const OWNER_TIMEOUT_MS = 2000;
@@ -390,7 +390,7 @@ function carriesTheApplication(
   return childControls > 0 && childControls >= parentControls;
 }
 
-export function classifyShellFrames(
+function classifyShellFrames(
   frames: FrameCaptureResult[],
 ): FrameCaptureResult[] {
   return frames.map((entry) => {

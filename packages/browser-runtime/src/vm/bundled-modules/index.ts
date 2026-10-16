@@ -29,13 +29,13 @@ export const bundledModules: Record<string, string> = {
 /**
  * Check if a module is available as a bundled module
  */
-export function isBundledModule(moduleName: string): boolean {
+function isBundledModule(moduleName: string): boolean {
   return moduleName in bundledModules;
 }
 
 /**
  * Get the list of available bundled modules
  */
-export function getAvailableBundledModules(): string[] {
+function getAvailableBundledModules(): string[] {
   return Object.keys(bundledModules);
 }

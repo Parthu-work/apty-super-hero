@@ -159,7 +159,7 @@ export function threshold(name: ThresholdName): number {
   return current.values[name];
 }
 
-export function currentThresholds(): ResolvedThresholds {
+function currentThresholds(): ResolvedThresholds {
   return current;
 }
 

@@ -4,7 +4,7 @@ import type { Language } from "./types";
 /**
  * Hook to get current language
  */
-export const useLanguage = (): Language => {
+const useLanguage = (): Language => {
   const { language } = useI18nTranslation();
   return language;
 };
@@ -12,7 +12,7 @@ export const useLanguage = (): Language => {
 /**
  * Hook to get language change function
  */
-export const useLanguageChanger = () => {
+const useLanguageChanger = () => {
   const { changeLanguage } = useI18nTranslation();
   return changeLanguage;
 };
@@ -20,7 +20,7 @@ export const useLanguageChanger = () => {
 /**
  * Hook to check if a language is currently active
  */
-export const useIsLanguageActive = (targetLanguage: Language): boolean => {
+const useIsLanguageActive = (targetLanguage: Language): boolean => {
   const { language } = useI18nTranslation();
   return language === targetLanguage;
 };

@@ -12,8 +12,3 @@ export type {
   ContextQuery,
   ContextType,
 } from "./types";
-export {
-  formatContextsForPrompt,
-  isContext,
-  resolveContexts,
-} from "./utils";

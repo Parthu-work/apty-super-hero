@@ -1,7 +1,7 @@
 import { skillManager } from "../lib/services/skill-manager";
 
 // Tool: Load skill content
-export async function loadSkill(skillName: string): Promise<{
+async function loadSkill(skillName: string): Promise<{
   success: boolean;
   content?: string;
   error?: string;
@@ -23,7 +23,7 @@ export async function loadSkill(skillName: string): Promise<{
 }
 
 // Tool: Execute skill script
-export async function executeSkillScript(
+async function executeSkillScript(
   skillName: string,
   scriptPath: string,
   args?: any,
@@ -53,7 +53,7 @@ export async function executeSkillScript(
 }
 
 // Tool: Read skill reference
-export async function readSkillReference(
+async function readSkillReference(
   skillName: string,
   refPath: string,
 ): Promise<{
@@ -78,7 +78,7 @@ export async function readSkillReference(
 }
 
 // Tool: Get skill asset
-export async function getSkillAsset(
+async function getSkillAsset(
   skillName: string,
   assetPath: string,
 ): Promise<{
@@ -115,7 +115,7 @@ export async function getSkillAsset(
 }
 
 // Tool: List available skills
-export async function listSkills(enabledOnly: boolean = false): Promise<{
+async function listSkills(enabledOnly: boolean = false): Promise<{
   success: boolean;
   skills?: Array<{
     id: string;
@@ -218,7 +218,7 @@ export async function getSkillInfo(skillName: string): Promise<{
 }
 
 // Tool: Execute skill tool (for dynamically registered tools)
-export async function executeSkillTool(
+async function executeSkillTool(
   toolName: string,
   args: any,
 ): Promise<{
@@ -243,7 +243,7 @@ export async function executeSkillTool(
 }
 
 // Tool: Get registered tools from skills
-export async function getSkillTools(skillName?: string): Promise<{
+async function getSkillTools(skillName?: string): Promise<{
   success: boolean;
   tools?: Array<{
     name: string;

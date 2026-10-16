@@ -136,7 +136,7 @@ export const executeSkillScriptTool = tool({
   },
 });
 
-export const readSkillReferenceTool = tool({
+const readSkillReferenceTool = tool({
   name: "read_skill_reference",
   description:
     "Read a reference document from a skill. Reference files are located in the references/ directory and contain additional documentation, guides, or examples.",
@@ -171,7 +171,7 @@ export const readSkillReferenceTool = tool({
   },
 });
 
-export const getSkillAssetTool = tool({
+const getSkillAssetTool = tool({
   name: "get_skill_asset",
   description:
     "Get an asset file from a skill. Assets are located in the assets/ directory and can be images, data files, or other resources.",
@@ -219,7 +219,7 @@ export const getSkillAssetTool = tool({
   },
 });
 
-export const listSkillsTool = tool({
+const listSkillsTool = tool({
   name: "list_skills",
   description:
     "List all available skills in the system. Shows enabled skills by default, or all skills if specified.",
@@ -254,7 +254,7 @@ export const listSkillsTool = tool({
   },
 });
 
-export const getSkillInfoTool = tool({
+const getSkillInfoTool = tool({
   name: "get_skill_info",
   description:
     "Get detailed information about a specific skill, including its scripts, references, assets, and metadata.",

@@ -100,12 +100,12 @@ function byPosition(a: FrameSignatureEntry, b: FrameSignatureEntry): number {
 }
 
 /** Text as identity: whitespace collapsed, identifier-shaped runs masked. */
-export function identityText(text: string): string {
+function identityText(text: string): string {
   return maskIdLike(text.replace(/\s+/g, " ").trim());
 }
 
 /** The application frames, outermost first; the chrome frames when the tab has no application frame at all. */
-export function selectAppFrames(
+function selectAppFrames(
   entries: FrameSignatureEntry[],
 ): FrameSignatureEntry[] {
   const app = entries.filter((entry) => entry.frameRole === "application");

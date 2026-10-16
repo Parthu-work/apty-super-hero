@@ -171,7 +171,6 @@ function CommandShortcut({
 }
 
 export {
-  Command,
   CommandDialog,
   CommandInput,
   CommandList,

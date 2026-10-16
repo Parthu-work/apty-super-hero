@@ -19,7 +19,7 @@ export interface SkillSummary {
   enabled: boolean;
 }
 
-export class SkillRegistry {
+class SkillRegistry {
   private skills: Map<string, ParsedSkill> = new Map();
   private initialized = false;
 

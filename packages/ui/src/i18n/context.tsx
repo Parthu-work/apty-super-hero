@@ -116,5 +116,3 @@ export const useTranslation = (): I18nContextValue => {
   const context = useContext(I18nContext);
   return context ?? fallbackContext;
 };
-
-export { I18nContext };

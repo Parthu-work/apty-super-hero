@@ -32,7 +32,7 @@ export type PageHookSettingsRead =
   | null
   | typeof SETTINGS_UNREADABLE;
 
-export function pageHooksEnabled(settings: PageHookSettingsRead): boolean {
+function pageHooksEnabled(settings: PageHookSettingsRead): boolean {
   if (settings === SETTINGS_UNREADABLE) return false;
   return settings?.pageHooksEnabled !== false;
 }

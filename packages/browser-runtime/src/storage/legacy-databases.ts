@@ -4,7 +4,7 @@
  * and record (with its key) is copied, every key is read back, and only then
  * is the old database deleted. A record already in the new database wins.
  */
-export const LEGACY_DATABASE_RENAMES: Readonly<Record<string, string>> = {
+const LEGACY_DATABASE_RENAMES: Readonly<Record<string, string>> = {
   "aipex-conversations-db": "apty-conversations-db",
   "aipex-screenshots-db": "apty-screenshots-db",
   "aipex-skills-fs": "apty-skills-fs",
@@ -150,7 +150,7 @@ async function databaseExists(name: string): Promise<boolean> {
 }
 
 /** Moves one database; returns how many records the old one held. */
-export async function moveDatabase(from: string, to: string): Promise<number> {
+async function moveDatabase(from: string, to: string): Promise<number> {
   if (!(await databaseExists(from))) return 0;
   const source = await open(from);
   const version = source.version;
