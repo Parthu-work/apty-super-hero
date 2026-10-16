@@ -1,10 +1,10 @@
-# Review: `hardening/prod-ready`, Checkpoint 3 (final: Phases 1–3)
+# Review: `hardening/prod-ready`, Checkpoint 3 (Phases 1–3) and Phase 4
 
 | | |
 |---|---|
-| Branch | `hardening/prod-ready` (local only, never pushed) |
+| Branch | `hardening/prod-ready`, pushed to `origin` at your request for the PR review (never `main`, no force-push) |
 | Base | `origin/main` `c64838b` (unchanged since Checkpoint 1) plus the 8 Phase A commits and Phase 1 |
-| Code head | `e492c55`; Phase 3 changed no code, and the branch head is the next commit, which updates this file and STATUS |
+| Code head | Checkpoint 3: `e492c55`. Phase 4 (below) adds `4f8f755`..`451ef90`; the branch head is the commit after, which updates this file and STATUS |
 | Build zip | `apty-agent-prod-phase3-e492c55.zip`, a clean build, `manifest.json` at the top; also the release-style pair `apty-agent-v0.1.0.zip` and `apty-agent-v0.1.0-webstore.zip` |
 | Git bundle | `apty-agent-prod-phase3-e492c55.bundle`: `HEAD` and `refs/heads/hardening/prod-ready`, excluding `origin/main` (Phase A, Phase 1 and Phase 2) |
 | Checksums | `SHA256SUMS.txt` |
@@ -194,6 +194,114 @@ reported as `TOOL_NOT_FOUND` naming it.
   `search_elements`, and the reply arrives. On the Checkpoint 3 build:
   "No new reply matching /^RESULT:/"; on this build: pass.
 - Release dry run on this commit: every step ✓, e2e 123/123.
+
+## Phase 4: the items Checkpoint 3 left out
+
+You asked whether the PR held every bug, gap and fix, and then to
+"complete all the phases". These are the ten items it did not hold
+(numbered as in that answer). Two of them change rules the plan had kept
+fixed: item 7 (redaction) and item 8 (approval). Each has its own
+commit. The "before" lines are the new tests run on the code before the
+change.
+
+| # | Change | Commit | Before → after |
+|---|---|---|---|
+| 6 | **Strict** replaces record numbers (6+ digits), GUIDs, long hex ids with `:id` and emails with `:email` in URL paths, for example `/patients/884213` → `/patients/:id`. Standard keeps the path, as before. | `4f8f755` | `value-policy.test` "replaces record numbers, GUIDs, long hex ids and emails…": 1 failed → pass |
+| 7 | A sensitive key whose object or array is cut off by truncation (`{"cookie":{"sid":"abc…`) is redacted to the end of the text; before, the rest passed through. | `b360e33` | `json-redact.test` "redacts an unclosed sensitive object or array to the end" (2 rows): 2 failed → pass |
+| 8 | DOM Health's **application-safe** mode (link-only discovery) now asks first, like application-deep; the prompt says how many pages it may open and that nothing is clicked. It can be remembered for the site; deep still can't. Page mode still runs without asking. | `fa5766c` | `dom-health.test` "asks before link-only discovery too…": 1 failed → pass |
+| 9 | Agent session history that no saved conversation leads to (by id or through the session it forked from) and that has been idle for 24 h is deleted after each save. A side panel closed without "New chat" used to leave one forever. A session with no timestamp is kept. | `b9e119f` | `agent-session-migration.test` (2) and `conversation-storage.test` "sweeps after a save…": 3 failed → pass |
+| 10 | A failing plugin hook is logged as `[Apty Agent] Plugin <id> <hook> failed (<error type>)`; before, `console.error` printed the error, which can carry page text. | `55e5c58` | `aipex-plugin-logs.test`: "expected '[Apty Agent] Failed to setup plugin l…' not to contain 'PATIENT-884213'" → pass |
+| 11 | The chat shows its own `data:` and `blob:` screenshots inline again. S1 had blocked them along with remote images. Remote images stay blocked, and a `data:` URL that is not an image is still not rendered. | `1afbd8d` | `response.test` "renders a local data: image…": 1 failed → pass; "never renders a data: URL that is not an image" passes before and after |
+| 12 | The conversation, screenshot and skills IndexedDB databases move from `aipex-*` to `apty-*` names (copy, read back every key, then delete), like `aipex-sessions` in R2. A record already under the new name wins. | `3aec0af`, `2f22cc1`, `d53b20f` | `legacy-storage.e2e` first test, extended: see below |
+| 13 | The remaining hard-coded UI text is in `en` and `zh` (495 keys each, 57 files, including Preflight's results and the error screen). The ratchet went from 277 to 13. | `c5f8b5c` | `preflight-panel.test` new zh case; ratchet 13 |
+| 14 | knip's unused files (14 files, 1,285 lines) and unused exports are removed, along with `@radix-ui/react-hover-card` and `embla-carousel-react` from `@apty/ui`. The explicit-any baseline went from 604 to 603. | `914c3d0`, `08aea1e` | typecheck, lint, every unit test |
+| 15 | `@openai/agents` and `@openai/agents-extensions` 0.7.2 → 0.20.0. See the notes below. | `6e9ab92`, `753e815`, `2a15cf3` | below |
+
+**Item 15 notes:**
+
+- **Strict tool schemas.** 0.20 rejects `z.record` in a tool's parameters
+  and won't take `strict: false` with Zod. The intervention tools' `params`
+  is now an object with explicit nullable fields, and nulls are dropped
+  before the intervention runs (`tools/interventions/index.test.ts`).
+- **Tool error messages.** 0.20 tells the model only "An error occurred
+  while running the tool". Tools rely on the error's text to say why they
+  refused (for example "disabled in background mode", checked by
+  `computer.test`), so `tool()` in `@apty/agent-core` puts back 0.7's
+  message. The result still passes through the outbound filters.
+- **undici.** 0.20 pulls in `openai` 7 and undici 7 with known advisories.
+  A pnpm override pins `undici >= 7.29.1`, `pnpm audit --prod` finds
+  nothing, and THIRD_PARTY_NOTICES is regenerated.
+- **Request size.** 0.20 writes every optional field as required plus
+  nullable and repeats its description inside the non-null variant. Raw
+  totals, Checkpoint 3 (every scenario identical to the base `5fe5227`) →
+  after the upgrade → after `2a15cf3`, which
+  drops the repeated description (`tools/index.test.ts`: "expected [ 'What
+  to echo', 'What to echo' ] to have a length of 1" → pass):
+
+  | Scenario | Before | 0.20 | Now | Change |
+  |---|---|---|---|---|
+  | apty-question | 7,723 | 8,097 | 7,892 | +2.2% |
+  | segments-json | 9,166 | 9,565 | 9,345 | +2.0% |
+  | dom-health | 5,647 | 5,854 | 5,668 | +0.4% |
+  | click-task | 6,400 | 6,828 | 6,490 | +1.4% |
+  | investigation-10-turns (as sent) | 11,163 | 11,537 | 11,332 | +1.5% |
+  | casual, followup, snapshot-heavy | unchanged | | | 0% |
+  | Registry schemas (65 tools) | 14,683 | 16,000 | 15,200 | +3.5% |
+
+  The 2% limit is for S4 and S5, but I note it here: the rest of the
+  growth is the `anyOf […, {"type":"null"}]` wrappers strict mode needs.
+  The model may now send `null` for an optional field. The SDK drops it
+  before parsing (checked: `{"a":null}` parses as `{}`), and
+  `tools/index.test.ts` covers it.
+
+**Existing tests changed in Phase 4 (setup or expectation, with the reason):**
+
+- `dom-health.test` S5 "runs link-only discovery without asking" became
+  "asks before link-only discovery too…". That is the item 8 behaviour,
+  which reverses S5's choice. The earlier tests in that file now answer
+  the approval in `beforeEach`, and their assertions are unchanged. A new
+  test checks that page mode still doesn't ask.
+- `response.test` S1 "keeps Streamdown's own block on data: images" became
+  "renders a local data: image…" (item 11). A new test keeps a non-image
+  `data:` URL out.
+- e2e setups answer the item 8 prompt: `agent.e2e` (DOM Health on a tab
+  opened before a restart), `dom-health-routing.e2e` and the
+  `dom-health-apps` helper (any `run_application_dom_health_audit` whose
+  mode isn't `page`). Their assertions are unchanged.
+- `stored-data.e2e` reads `apty-conversations-db`, and tests that named
+  the old database use the new constants (item 12).
+- `apty-client.e2e` A2 deny-list test: its setup now sets
+  `redactionMode: "standard"`. Under Strict, item 6 turns
+  `/users/4815162342.json` into `/users/:id.json`, and the test asserts the
+  real path to show it got the right request. The assertion is unchanged.
+  Found by the release dry run: 122/123, then 8/8 for that file after the
+  change.
+
+**Gates on `451ef90`:**
+
+```
+✓ typecheck  ✓ lint  ✓ test  ✓ audit  ✓ build
+unit tests: debug-contract 83, agent-core 288, dom-snapshot 397,
+            browser-runtime 1094, ui 269, extension 318, mcp-bridge 60
+i18n ratchet   ✓ 13 hard-coded UI strings
+audit:any      ✓ 603
+pnpm audit --prod   No known vulnerabilities found
+```
+
+**Real-browser tests on `451ef90`** (Chrome for Testing 145, mock model):
+
+- Full suite: 122/123. The failure was `preflight.e2e` "with a Client that
+  has no bridge module", which timed out loading the Options page after 30 s
+  while I was building another commit at the same time. Run alone
+  afterwards: 5/5. The release dry run on `08aea1e` had passed it.
+- Item 12, `legacy-storage.e2e` with the extended first test, on the
+  pre-Phase-4 build (`bb08694`, through `E2E_EXTENSION_DIR`): "Timed out
+  waiting for the chat to be saved". The second test then failed too
+  because the first left the browser broken; run alone on that build it
+  passes 1/1. On this build: 2/2.
+- **TruffleHog** over `origin/main..HEAD` (`--no-verification`; the scan
+  began at an older commit, so it covers all 59 branch commits): 4,266
+  chunks, **0 verified, 0 unverified**.
 
 ## Work packages (Phase 2)
 
@@ -416,10 +524,8 @@ Only people can do these:
 - **R6 icons:** wait for your artwork (D6). Everything else in R6 is done.
 - **R9:** prepared only; the real-tenant re-run, the smoke matrix and the
   store submission need people.
-- **R1 follow-ups:** `@openai/agents` 0.7 → 0.20; the knip findings (15
-  unused files, 71 unused exports) outside the Facts list.
-- **R8:** 277 hard-coded strings remain outside the listed files; the
-  ratchet stops them growing.
+- **R8:** 13 hard-coded strings remain (277 before Phase 4); the ratchet
+  stops them growing.
 
 ## Conflicts between the prompt and the repo
 
@@ -458,11 +564,9 @@ Only people can do these:
 
 ## Observed, not changed
 
-- The conversation, screenshot and skills IndexedDB names still say aipex
-  (user data; not in R2's scope).
 - Four production packages are LGPL-3.0-or-later (see R4).
-- `settings/index.tsx` still has six inline `language === "zh"` strings
-  outside R8's list.
+- The items observed at Checkpoint 3 (the IndexedDB names, the inline
+  `language === "zh"` strings, the R1 follow-ups) are fixed in Phase 4.
 - Phase 1's observations still stand (`git show c2ac898:REVIEW.md`).
 
 ## Five-minute owner test, per work package

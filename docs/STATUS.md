@@ -87,9 +87,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
 | Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
-| Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
+| Remove the remaining explicit `any` | 603 in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | LLM request safety and size | Phase A (O1-O5) is the base of `hardening/prod-ready`; Phases B and C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
-| Production readiness (branch `hardening/prod-ready`, not on `main`) | Phases 1-3 done (Checkpoint 3, `REVIEW.md`), except R6's icons (owner artwork, D6) and R9's human-only items; D1-D7 unanswered, all defaults applied provisionally; waiting for the owner's review ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
+| Production readiness (branch `hardening/prod-ready`, not on `main`) | Phases 1-3 done (Checkpoint 3, `REVIEW.md`), and Phase 4 fixed the ten items they left out (Strict URL paths, truncated-JSON redaction, approval for link-only DOM Health, orphan session cleanup, plugin logs, local chat images, Apty IndexedDB names, i18n, unused code, `@openai/agents` 0.20). Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally. The branch is pushed for PR review ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Where to look
