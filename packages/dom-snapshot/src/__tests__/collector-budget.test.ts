@@ -53,7 +53,9 @@ describe("collector budget (brief section 4.11)", () => {
     expect(snapshot.performance.longestSliceMs).toBeLessThanOrEqual(
       DEFAULT_COLLECTOR_BUDGET.sliceMs + snapshot.performance.longestStepMs + 1,
     );
-  });
+    // The time budget asserted above is the collector's own; this limit is only
+    // the harness's, which a coverage run on a CI runner can exceed at 5 s.
+  }, 20_000);
 
   it("stops at the time budget and labels the result partial instead of returning nothing", async () => {
     lnShapedPage();

@@ -72,7 +72,8 @@ describe("collectDomHealthSnapshot — element counts", () => {
     expect(snapshot.analysisCoverage.capped).toBe(false);
     expect(snapshot.analysisCoverage.candidatesFound).toBe(400);
     expect(snapshot.analysisCoverage.candidatesAnalyzed).toBe(400);
-  });
+    // 400 elements under coverage on a CI runner can pass the default 5 s.
+  }, 20_000);
 
   it("reports an explicit, honest cap when the runaway-safety ceiling is configured low and hit", async () => {
     const buttons = Array.from(
