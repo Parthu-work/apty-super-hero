@@ -18,10 +18,24 @@ function originOf(url: unknown): string | undefined {
   }
 }
 
+/** Shorter titles ("Home", "Inbox") are common words: replacing them everywhere would garble the page text. */
+const TITLE_REPLACED_EVERYWHERE_FROM = 12;
+
 function withoutTitle(text: string, title: unknown): string {
-  return typeof title === "string" && title.trim()
-    ? text.split(title).join(WITHHELD_TITLE)
-    : text;
+  if (typeof title !== "string" || !title.trim()) return text;
+  if (title.trim().length >= TITLE_REPLACED_EVERYWHERE_FROM) {
+    return text.split(title).join(WITHHELD_TITLE);
+  }
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed === title.trim()) return WITHHELD_TITLE;
+      if (trimmed === `Title: ${title.trim()}`)
+        return `Title: ${WITHHELD_TITLE}`;
+      return line;
+    })
+    .join("\n");
 }
 
 function privateContext(ctx: Context, policy: ValuePolicy): Context {

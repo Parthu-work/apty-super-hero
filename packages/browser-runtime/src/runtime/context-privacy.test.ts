@@ -36,6 +36,19 @@ describe("privateContexts", () => {
     expect(t?.value).toBe("https://ehr.example.com/chart");
   });
 
+  it("withholds a short title only where it stands alone, leaving the page text readable", () => {
+    const short: Context = {
+      ...page(),
+      label: "Home",
+      value: "Home\nGo Home or open Settings\nTitle: Home",
+      metadata: { tabId: 7, url: URL_PHI, title: "Home" },
+    };
+    const [p] = privateContexts([short], "withhold");
+    expect(p?.value).toBe(
+      "[title withheld]\nGo Home or open Settings\nTitle: [title withheld]",
+    );
+  });
+
   it("masks query values and keeps the title in Standard", () => {
     const [t] = privateContexts([tab()], "mask");
     expect(t?.label).toBe(TITLE);
