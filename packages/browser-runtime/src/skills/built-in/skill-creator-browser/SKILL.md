@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends AIPex's capabilities with specialized knowledge, workflows, or tool integrations.
+description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Apty Agent's capabilities with specialized knowledge, workflows, or tool integrations.
 license: Complete terms in LICENSE.txt
 ---
 
@@ -46,6 +46,10 @@ skill-name/
 #### Bundled Resources (optional)
 
 ##### Scripts (`scripts/`)
+
+**This skill cannot create scripts.** Apty Agent refuses to write files in a skill's `scripts/` directory, so a skill created here holds instructions, references and assets only. Scripts come only from a skill package that the user imports in Settings. When a script would help, describe it in SKILL.md and tell the user that a person has to add it to an imported package.
+
+The rest of this section describes scripts in imported packages.
 
 Executable code (JavaScript/Browser/etc.) for tasks that require deterministic reliability or are repeatedly rewritten.
 
@@ -178,7 +182,7 @@ Conclude this step when there is a clear sense of the functionality the skill sh
 To turn concrete examples into an effective skill, analyze each example by:
 
 1. Considering how to execute on the example from scratch
-2. Identifying what scripts, references, and assets would be helpful when executing these workflows repeatedly
+2. Identifying what references and assets would be helpful when executing these workflows repeatedly (scripts cannot be created here; see above)
 
 Example: When building a `pdf-editor` skill to handle queries like "Help me rotate this PDF," the analysis shows:
 
@@ -195,7 +199,7 @@ Example: When building a `big-query` skill to handle queries like "How many user
 1. Querying BigQuery requires re-discovering the table schemas and relationships each time
 2. A `references/schema.md` file documenting the table schemas would be helpful to store in the skill
 
-To establish the skill's contents, analyze each concrete example to create a list of the reusable resources to include: scripts, references, and assets.
+To establish the skill's contents, analyze each concrete example to create a list of the reusable resources to include: references and assets.
 
 ### Step 3: Initializing the Skill
 
@@ -215,7 +219,7 @@ The script:
 
 - Creates the skill directory at the specified path
 - Generates a SKILL.md template with proper frontmatter and TODO placeholders
-- Creates example resource directories: `scripts/`, `references/`, and `assets/`
+- Creates example resource directories: `references/` and `assets/`
 - Adds example files in each directory that can be customized or deleted
 
 After initialization, customize or remove the generated SKILL.md and example files as needed.
@@ -228,7 +232,7 @@ When editing the (newly-generated or existing) skill, remember that the skill is
 
 To begin implementation, start with the reusable resources identified above: `scripts/`, `references/`, and `assets/` files. Note that this step may require user input. For example, when implementing a `brand-guidelines` skill, the user may need to provide brand assets or templates to store in `assets/`, or documentation to store in `references/`.
 
-Also, delete any example files and directories not needed for the skill. The initialization script creates example files in `scripts/`, `references/`, and `assets/` to demonstrate structure, but most skills won't need all of them.
+Also, delete any example files and directories not needed for the skill. The initialization script creates example files in `references/` and `assets/` to demonstrate structure, but most skills won't need all of them.
 
 #### Update SKILL.md
 

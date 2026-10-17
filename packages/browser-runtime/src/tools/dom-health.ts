@@ -12,11 +12,13 @@ import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
 import { REDACTED_TITLE } from "../apty/dom-health-redaction.js";
 import {
+  DEFAULT_APPLICATION_MAX_PAGES,
   recordToolCall,
   runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "../apty/index.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
+import { gateRiskyAction } from "./approval.js";
 import {
   describeTabForMeta,
   describeTabResolutionFailure,
@@ -124,12 +126,31 @@ export const runApplicationDomHealthAuditTool = tool({
       };
     }
     const tab = resolution.tab;
-    const result = await runApplicationDomHealthAudit(tab.id as number, {
-      maxPages: input.maxPages,
-      discoveryMode: input.discoveryMode,
-      ...(await userAuditSettings()),
-    });
-    return { ...result, meta: { tab: describeTabForReport(tab) } };
+    const run = async () => {
+      const result = await runApplicationDomHealthAudit(tab.id as number, {
+        maxPages: input.maxPages,
+        discoveryMode: input.discoveryMode,
+        ...(await userAuditSettings()),
+      });
+      return { ...result, meta: { tab: describeTabForReport(tab) } };
+    };
+    if (input.discoveryMode === "page") return run();
+
+    // Both application modes take the user's tab through other pages; the
+    // clicking one asks every run, the link-only one may be remembered.
+    const deep = input.discoveryMode === "application-deep";
+    const pageLimit = input.maxPages ?? DEFAULT_APPLICATION_MAX_PAGES;
+    const site = tab.url ? new URL(tab.url).origin : "this application";
+    return gateRiskyAction(
+      (context as ToolRunContext)?.context?.conversationId,
+      "run_application_dom_health_audit",
+      deep
+        ? `DOM Health in application-deep mode: click navigation controls on ${site} and visit up to ${pageLimit} pages or states. Destructive-looking controls are skipped.`
+        : `DOM Health in application-safe mode: open up to ${pageLimit} pages on ${site} by following its links, in this tab. Nothing is clicked; destructive-looking links are skipped.`,
+      tab.url,
+      run,
+      { tabId: tab.id, rememberable: !deep },
+    );
   },
 });
 

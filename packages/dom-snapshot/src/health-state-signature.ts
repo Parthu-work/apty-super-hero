@@ -47,11 +47,11 @@ export interface FrameStateSignature {
   structureHash: string;
 }
 
-export const HEADING_SELECTOR = 'h1, h2, h3, [role="heading"]';
+const HEADING_SELECTOR = 'h1, h2, h3, [role="heading"]';
 const MAX_HEADING_SAMPLE = 5;
 const MAX_HEADING_TEXT_LENGTH = 120;
 
-export const NAV_CONTAINER_SELECTOR =
+const NAV_CONTAINER_SELECTOR =
   'nav, [role="navigation"], [role="tablist"], [role="menu"], [role="menubar"], [role="tree"]';
 
 /**
@@ -62,7 +62,7 @@ export const NAV_CONTAINER_SELECTOR =
  * `fe_is-required` were measured, but `fe_is-selected` / `fe_is-active`
  * were not seen in the exports, so those are unverified.
  */
-export const ACTIVE_ITEM_SELECTOR = [
+const ACTIVE_ITEM_SELECTOR = [
   '[aria-current]:not([aria-current="false"])',
   '[aria-selected="true"]',
   '[aria-expanded="true"]',

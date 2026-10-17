@@ -196,7 +196,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
   );
 }
 
-export function InterventionModeToggleHeader({
+function InterventionModeToggleHeader({
   mode,
   onModeChange,
 }: InterventionUIProps) {

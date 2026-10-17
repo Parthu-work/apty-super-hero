@@ -214,7 +214,7 @@ export function explainElement(
 const STEP_ORDER = Object.keys(STEPS) as SelectorResolutionOutcome[];
 
 /** Counts per DES step, in DES order; steps with no elements are left out. */
-export function desSteps(
+function desSteps(
   counts: Partial<Record<SelectorResolutionOutcome, number>>,
 ): DesStepCount[] {
   return STEP_ORDER.filter((outcome) => (counts[outcome] ?? 0) > 0).map(
@@ -228,7 +228,7 @@ export function desSteps(
 }
 
 /** Counts per hit-test failure reason, most frequent first; reasons with no elements are left out. */
-export function hitTestReasons(
+function hitTestReasons(
   counts: Partial<Record<HitTestReasonCount["reason"], number>>,
 ): HitTestReasonCount[] {
   return (Object.keys(HIT_TEST_MEANING) as HitTestReasonCount["reason"][])
@@ -244,7 +244,7 @@ export function hitTestReasons(
 const MAX_DYNAMIC_ATTRIBUTES = 8;
 
 /** Attribute names left out as dynamic, by how many elements carried each, most frequent first. */
-export function dynamicValuesLeftOut(
+function dynamicValuesLeftOut(
   reports: readonly Pick<ElementSelectorReport, "dynamicAttributeNames">[],
 ): DynamicValueCount[] {
   const counts = new Map<string, number>();
@@ -259,7 +259,7 @@ export function dynamicValuesLeftOut(
 }
 
 /** Several pages' dynamic-value counts summed, most frequent first, capped. */
-export function mergeDynamicValues(
+function mergeDynamicValues(
   lists: readonly (readonly DynamicValueCount[])[],
 ): DynamicValueCount[] {
   const counts = new Map<string, number>();

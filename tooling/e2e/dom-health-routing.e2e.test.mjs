@@ -184,9 +184,9 @@ describe("DOM Health routing evidence", () => {
 /** Merge `patch` into the stored settings from an extension page, then wait for the bridge registration to match `excluded`. */
 async function setPageHookSettings(ext, patch, expectExcluded) {
   await ext.evaluate(async (patch) => {
-    const { aipex_settings } = await chrome.storage.local.get("aipex_settings");
+    const { apty_settings } = await chrome.storage.local.get("apty_settings");
     await chrome.storage.local.set({
-      aipex_settings: { ...aipex_settings, ...patch },
+      apty_settings: { ...apty_settings, ...patch },
     });
   }, patch);
   const deadline = Date.now() + 10_000;
@@ -259,8 +259,14 @@ describe("page-world script switch (B5)", () => {
     model.script(
       callToolThenReport("run_application_dom_health_audit", { maxPages: 2 }),
     );
+    // An application run asks first (Phase 4: link-only discovery too).
     await chatAndWait(panel, "check dom health across the whole application", {
       timeout: 150_000,
+      whileWaiting: async () => {
+        const prompt = panel.getByRole("alertdialog");
+        await prompt.waitFor({ timeout: 30_000 });
+        await prompt.getByRole("button", { name: "Allow once" }).click();
+      },
     });
     const result = toolResults(model.requests.at(-1)).at(-1);
     const navigation = result.pages[0].navigationModel;

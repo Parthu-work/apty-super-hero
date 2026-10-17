@@ -197,7 +197,7 @@ describe("ConversationStorage", () => {
       const storage = new ConversationStorage();
 
       expect((storage as any).config.maxConversations).toBe(5);
-      expect((storage as any).config.dbName).toBe("aipex-conversations-db");
+      expect((storage as any).config.dbName).toBe("apty-conversations-db");
       expect((storage as any).config.storeName).toBe("conversations");
     });
 
@@ -219,7 +219,7 @@ describe("ConversationStorage", () => {
       });
 
       expect((storage as any).config.maxConversations).toBe(10);
-      expect((storage as any).config.dbName).toBe("aipex-conversations-db");
+      expect((storage as any).config.dbName).toBe("apty-conversations-db");
       expect((storage as any).config.storeName).toBe("conversations");
     });
   });
@@ -299,6 +299,33 @@ describe("ConversationStorage", () => {
     });
   });
 
+  describe("orphan agent sessions", () => {
+    it("sweeps after a save, keeping every session a saved conversation points to", async () => {
+      const deleteOrphanAgentSessions = vi.fn(async () => []);
+      const storage = new ConversationStorage({ deleteOrphanAgentSessions });
+
+      await storage.saveConversation(createMockMessages(), "session-a");
+      await storage.saveConversation(createMockMessages(), "session-b");
+      await storage.saveConversation(createMockMessages());
+
+      expect(deleteOrphanAgentSessions).toHaveBeenLastCalledWith(
+        new Set(["session-a", "session-b"]),
+      );
+    });
+
+    it("still saves the conversation when the sweep fails", async () => {
+      const storage = new ConversationStorage({
+        deleteOrphanAgentSessions: vi.fn(async () => {
+          throw new Error("idb closed");
+        }),
+      });
+
+      const id = await storage.saveConversation(createMockMessages(), "s");
+
+      expect(mockDb[id]?.agentSessionId).toBe("s");
+    });
+  });
+
   describe("agentSessionId — reconciling UI conversations with agent sessions", () => {
     // `ConversationData.id` (this store's key) and the `core.Session.id`
     // that actually holds the LLM message history are two different id
@@ -361,6 +388,81 @@ describe("ConversationStorage", () => {
 
       const stored = await storage.getConversation(conversationId);
       expect(stored?.agentSessionId).toBe("core-session-abc");
+    });
+  });
+
+  describe("agent sessions follow their conversation", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    function storedWithSession(id: string, ageDays: number, session?: string) {
+      const updatedAt = Date.now() - ageDays * DAY;
+      mockDb[id] = {
+        id,
+        title: id,
+        messages: createMockMessages(2),
+        createdAt: updatedAt,
+        updatedAt,
+        agentSessionId: session,
+      } as ConversationData;
+    }
+
+    it("deletes the agent session when a conversation is deleted", async () => {
+      storedWithSession("c1", 0, "s1");
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.deleteConversation("c1");
+
+      expect(mockDb.c1).toBeUndefined();
+      expect(deleteAgentSessions).toHaveBeenCalledWith(["s1"]);
+    });
+
+    it("does not call the session store for a conversation without a session", async () => {
+      storedWithSession("c1", 0);
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.deleteConversation("c1");
+
+      expect(deleteAgentSessions).not.toHaveBeenCalled();
+    });
+
+    it("evicts the sessions of conversations removed by age or count", async () => {
+      storedWithSession("old", 8, "s-old");
+      for (let i = 0; i < 6; i++) storedWithSession(`c${i}`, i * 0.1, `s${i}`);
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.getAllConversations();
+
+      const evicted = deleteAgentSessions.mock.calls.flatMap(([ids]) => ids);
+      expect(evicted.sort()).toEqual(["s-old", "s5"]);
+      expect(Object.keys(mockDb).sort()).toEqual([
+        "c0",
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+      ]);
+    });
+
+    it("deletes the session of an expired conversation that is opened", async () => {
+      storedWithSession("stale", 30, "s-stale");
+      const deleteAgentSessions = vi.fn().mockResolvedValue(undefined);
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      expect(await storage.getConversation("stale")).toBeNull();
+      expect(deleteAgentSessions).toHaveBeenCalledWith(["s-stale"]);
+    });
+
+    it("still deletes the conversation when the session store fails", async () => {
+      storedWithSession("c1", 0, "s1");
+      const deleteAgentSessions = vi.fn().mockRejectedValue(new Error("x"));
+      const storage = new ConversationStorage({ deleteAgentSessions });
+
+      await storage.deleteConversation("c1");
+
+      expect(mockDb.c1).toBeUndefined();
     });
   });
 

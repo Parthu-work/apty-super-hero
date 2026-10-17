@@ -2,6 +2,8 @@ import { FakeMouse } from "@apty/ui/components/fake-mouse";
 import type { FakeMouseController } from "@apty/ui/components/fake-mouse/types";
 import type { OmniCommandGroup } from "@apty/ui/components/omni";
 import { Omni } from "@apty/ui/components/omni";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { I18nContextValue } from "@apty/ui/i18n/types";
 import { MessageSquareText } from "lucide-react";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -9,13 +11,13 @@ import ReactDOM from "react-dom/client";
 import tailwindCss from "../../styles/tailwind.css?inline";
 import { isAgentActivityMessage } from "./agent-activity";
 
-const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
+const omniCommandGroups = (t: I18nContextValue["t"]): OmniCommandGroup[] => [
   {
     heading: "Apty",
     items: [
       {
         id: "open-apty-live-debugging",
-        label: "Open Apty Live Debugging",
+        label: t("contentScript.openLiveDebugging"),
         icon: MessageSquareText,
         onSelect: () => {
           chrome.runtime.sendMessage({ request: "open-sidepanel" });
@@ -26,6 +28,7 @@ const OMNI_COMMAND_GROUPS: OmniCommandGroup[] = [
 ];
 
 const ContentApp = () => {
+  const { t } = useTranslation();
   const [isOmniOpen, setIsOmniOpen] = React.useState(false);
   const fakeMouseRef = React.useRef<FakeMouseController | null>(null);
 
@@ -121,8 +124,8 @@ const ContentApp = () => {
         <Omni
           open={isOmniOpen}
           setOpen={setIsOmniOpen}
-          groups={OMNI_COMMAND_GROUPS}
-          placeholder="Search Apty commands..."
+          groups={omniCommandGroups(t)}
+          placeholder={t("contentScript.searchCommands")}
         />
       )}
       <FakeMouse
@@ -179,7 +182,7 @@ function BorderOverlayApp() {
           height: "100vh",
           zIndex: 999998,
           pointerEvents: "none",
-          animation: "aipexBreathe 2.5s ease-in-out infinite",
+          animation: "aptyBreathe 2.5s ease-in-out infinite",
           boxShadow: `
             inset 0 0 15px 3px rgba(37, 99, 235, 0.5),
             inset 0 0 25px 5px rgba(59, 130, 246, 0.4),
@@ -189,7 +192,7 @@ function BorderOverlayApp() {
         }}
       />
       <style>{`
-        @keyframes aipexBreathe {
+        @keyframes aptyBreathe {
           0%, 100% {
             box-shadow:
               inset 0 0 12px 3px rgba(37,99,235,0.35),
@@ -222,7 +225,7 @@ if (window === window.top) {
 function initContentScript() {
   // Mount the content script (shadow DOM for isolation)
   const container = document.createElement("div");
-  container.id = "aipex-content-root";
+  container.id = "apty-agent-content-root";
   document.body.appendChild(container);
 
   const shadowRoot = container.attachShadow({ mode: "open" });
@@ -247,7 +250,7 @@ function initContentScript() {
 
   // Mount breathing border overlay OUTSIDE shadow DOM so z-index works
   const borderContainer = document.createElement("div");
-  borderContainer.id = "aipex-border-overlay";
+  borderContainer.id = "apty-agent-border-overlay";
   document.body.appendChild(borderContainer);
 
   const borderRoot = ReactDOM.createRoot(borderContainer);

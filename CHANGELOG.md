@@ -4,7 +4,41 @@ Meaningful changes to this repo, newest first. Not every commit is listed
 individually where several form one logical change — see `git log` for the
 full commit-level history.
 
-## Unreleased — remaining audit gaps and production readiness
+## Unreleased
+
+Nothing yet.
+
+## 0.1.0 — 2026-10-16
+
+The first release of Apty Agent. Everything below shipped in 0.1.0; the
+subsections keep the order in which the work landed, newest first.
+
+### Production readiness (security, privacy and release)
+
+- Model output can never load a remote image or media: Streamdown blocks
+  remote `<img>`/`<video>`/`srcset`/CSS `url()`, and the extension-page CSP
+  allows images and media only from `'self'`, `data:` and `blob:`.
+- OpenAI requests send `store: false`.
+- Deleting a conversation, the history cleanup and "Delete everything" also
+  delete the agent's own session history; the last captured element is no
+  longer stored.
+- Every tool result, attached context and MCP reply goes through the URL and
+  page-title policy of the redaction mode.
+- The approval gate is tighter: console commands are never remembered,
+  typing and clicking have separate grants, CSS values are checked, tab
+  switching and closing are gated, DOM Health application-deep runs ask
+  first, and form fills and skill runs show what they will do.
+- The MCP bridge and the extension authenticate each other (HMAC
+  challenge–response, signed calls) and the daemon publishes an allow-list
+  of tools; grants are per requester.
+- LLM rate limits and 5xx errors that happen before any output are retried;
+  truncated JSON with a sensitive key is redacted to the end; page hooks fail
+  closed; session snapshots no longer overwrite each other; the service worker
+  catches unhandled rejections; offline errors say so.
+- Unused dependencies and about 4,500 lines of dead code were removed, and
+  `pnpm audit --prod` is clean with nothing ignored.
+
+### Remaining audit gaps and production readiness
 
 **Bugs**
 - `get_apty_page_logs` now captures console output written while a page is
@@ -52,7 +86,7 @@ full commit-level history.
   `docs/store/WEB_STORE_LISTING.md`, and a short `docs/STATUS.md` (the old
   round-by-round log is `docs/development/STATUS_HISTORY.md`).
 
-## Unreleased — fixes from the 2026-10-08 repository audit
+### Fixes from the 2026-10-08 repository audit
 
 **Security**
 - Risky actions (running JavaScript, filling fields, typing, uploads,
@@ -106,7 +140,7 @@ full commit-level history.
   release workflow builds, tests, zips and checksums the extension.
 - `AIPex` defaults to 30 turns instead of 2000.
 
-## Earlier — Apty Client resource inspection: fixed the transport, verified against real Chrome
+### Apty Client resource inspection: fixed the transport, verified against real Chrome
 
 **Fixed — critical, verified against a real Chrome build, not just mocks**
 - The Apty Client Service Worker network inspection feature below (V1) was
@@ -155,7 +189,7 @@ full commit-level history.
   `open-aipex` command to `open-apty-agent` and fixed remaining user-visible
   "AIPex" text in the MCP bridge panel.
 
-## Unreleased (earlier session) — Apty Client extension Service Worker network inspection (V1)
+### Apty Client extension Service Worker network inspection (V1)
 
 **Added**
 - Resource-agnostic Apty Client Service Worker Network inspection — the
@@ -238,7 +272,7 @@ regression risk this session; the user-facing product surface already
 says "Apty Live Debugging" throughout, per `browser-chat-header.tsx`/
 `debugging-welcome-screen.tsx` from earlier sessions).
 
-## Unreleased (previous session) — investigation-aware network capture session
+### Investigation-aware network capture session
 
 **Added**
 - Investigation-aware network capture
@@ -303,7 +337,7 @@ Verified: `npm run preflight` (format, lint, typecheck, test) and
 typechecks clean separately. Test totals: `browser-runtime` 331 (was
 314), workspace total 851 (was 834).
 
-## Unreleased (this session) — autonomous investigation orchestrator, MCP bridge tool-registry fix
+### Autonomous investigation orchestrator, MCP bridge tool-registry fix
 
 **Added**
 - P0 autonomous investigation orchestrator
@@ -374,7 +408,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   unmerged/TODO on `main`, which still only has the old fixed-window
   `get_network_diagnostics`.
 
-## Unreleased (this session) — console/runtime event classification
+### Console/runtime event classification
 
 **Added**
 - Console/runtime event classification
@@ -403,7 +437,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   over already-redacted text/metadata — no new permission, no new data
   read, no redaction-ordering risk.
 
-## Unreleased (this session) — unified Apty component model, investigation planner, structured hypotheses, verification guard, debugger-manager fix
+### Unified Apty component model, investigation planner, structured hypotheses, verification guard, debugger-manager fix
 
 **Added**
 - Corrected the Apty product model the investigation engine reasons about:
@@ -454,7 +488,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   (`automation/debugger-manager.test.ts`) confirm attach/detach never
   touch the page. See `docs/security/SECURITY_AUDIT.md` finding #8.
 
-## Unreleased (this session) — investigation session lifecycle + investigation-first side panel redesign
+### Investigation session lifecycle + investigation-first side panel redesign
 
 **Added**
 - `InvestigationSession` lifecycle (`packages/browser-runtime/src/apty/investigation-session.ts`):
@@ -498,7 +532,7 @@ typechecks clean separately. Test totals: `browser-runtime` 331 (was
   `/lib/utils` or `/components/ui/*` that aren't in `aipex-react`'s
   `package.json` exports map but do resolve at build time via that alias.
 
-## Unreleased (this session) — evidence correlation, investigation timeline, selector diagnostics
+### Evidence correlation, investigation timeline, selector diagnostics
 
 **Added**
 - Deterministic evidence correlation: `DiagnosticEvidence` (`packages/browser-runtime/src/apty/types.ts`)
@@ -547,7 +581,7 @@ UX; console/runtime event classification; self-healing/stale-UID
 recovery; friendly tool-call-name UX; `host-access-config.json`/
 console-bridge domain scoping (blocked on Apty's target domain list).
 
-## Previous session — multi-session/multi-chat isolation
+### Multi-session/multi-chat isolation
 
 **Added**
 - Per-conversation browser-tab binding: `ChatOptions.runContext`
@@ -592,7 +626,7 @@ full writeup, including what's still a follow-up (best-effort first-turn
 binding, no concurrent multi-pane UI within one window,
 `InterventionManager`'s conversation mode not yet per-conversation).
 
-## Previous session — engineering documentation package
+### Engineering documentation package
 
 **Added**
 - A 12-page engineering documentation package published to Apty's
@@ -617,7 +651,7 @@ binding, no concurrent multi-pane UI within one window,
   that bookmark/history tools are registered — their source files exist
   from the AIPex baseline but are not included in `allBrowserTools`.
 
-## Previous session — Apty Service-Worker diagnostics hardening
+### Apty Service-Worker diagnostics hardening
 
 **Added**
 - `docs/integrations/apty/apty-widget-service-worker.reference.ts` — a
@@ -655,7 +689,7 @@ active rather than a conversation-bound tab, and the fix is to thread a
 
 **Tests**: 656 passing (was 640; +16 for `service-worker-diagnostics.ts`).
 
-## Previous session — Apty diagnostics infrastructure
+### Apty diagnostics infrastructure
 
 **Added**
 - Evidence model and four Apty diagnostic provider interfaces
@@ -701,7 +735,7 @@ active rather than a conversation-bound tab, and the fix is to thread a
 since they're thin Chrome-API wrappers — see `docs/development/PROJECT_PROGRESS.md`'s "Not
 Implemented" test section for why).
 
-## Prior session
+### Earlier work
 
 **Removed** (AIPex product features with no Apty relevance):
 - Proxy/login auth mode routing through `claudechrome.com`
@@ -725,9 +759,9 @@ Implemented" test section for why).
 - `apps/browser-extension/src/entrypoints/content/console-bridge.ts` — MAIN-world content
   script buffering console output/errors since page load
 - Initial `get_apty_debug_logs` and `get_apty_widget_snapshot` tools (the
-  latter later replaced by `get_apty_widget_diagnostics`, see Unreleased above)
+  latter later replaced by `get_apty_widget_diagnostics`, see above)
 
-## Initial import
+### Initial import
 
 - Cloned from [AIPexStudio/AIPex](https://github.com/AIPexStudio/AIPex)
   (MIT licensed) as the starting point.

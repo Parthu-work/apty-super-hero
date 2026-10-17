@@ -24,6 +24,22 @@ describe("RedactionModeControl", () => {
     );
   });
 
+  it("says what each mode does with values typed into form fields", () => {
+    render(<RedactionModeControl mode="strict" onChange={vi.fn()} />);
+
+    expect(
+      screen.getByLabelText("Strict (recommended)"),
+    ).toHaveAccessibleDescription(/not sent at all/);
+    expect(screen.getByLabelText("Standard")).toHaveAccessibleDescription(
+      /replaced with \[masked\]/,
+    );
+    expect(
+      screen.getByLabelText("Off (development only)"),
+    ).toHaveAccessibleDescription(
+      /what you type and form values are sent as they are/,
+    );
+  });
+
   it("switches between strict and standard at once", () => {
     const onChange = vi.fn();
     render(<RedactionModeControl mode="strict" onChange={onChange} />);

@@ -6,6 +6,10 @@
 import { createLogger } from "@apty/agent-core";
 import { configure, fs } from "@zenfs/core";
 import { IndexedDB } from "@zenfs/dom";
+import {
+  moveLegacyDatabases,
+  SKILLS_FS_DB,
+} from "../storage/legacy-databases.js";
 import type { FileStats } from "./types";
 
 const log = createLogger("ZenFS");
@@ -46,11 +50,13 @@ class ZenFSManager {
     try {
       log.debug("Initializing file system...");
 
+      // Skills stored under the old AIPex database name move first (R2).
+      await moveLegacyDatabases().catch(() => undefined);
       await configure({
         mounts: {
           "/skills": {
             backend: IndexedDB,
-            storeName: "aipex-skills-fs",
+            storeName: SKILLS_FS_DB,
           },
         },
       });

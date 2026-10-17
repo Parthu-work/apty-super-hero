@@ -57,7 +57,7 @@ const initialState: StreamingState = {
   endTime: null,
 };
 
-export const useStreamingState = (
+const useStreamingState = (
   messageId: string,
   onMessage?: (callback: (message: unknown) => void) => () => void,
 ) => {
@@ -312,5 +312,3 @@ const StreamingStateManager: React.FC<StreamingStateManagerProps> = ({
 
   return null; // This component doesn't render anything
 };
-
-export default StreamingStateManager;

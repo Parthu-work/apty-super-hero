@@ -98,3 +98,46 @@ describe("pseudonymizeId", () => {
     expect(a).toMatch(/^u_[0-9a-f]{8}$/);
   });
 });
+
+describe("redactJsonAware — truncated input", () => {
+  it.each([
+    ['{"password":"hunter2', "hunter2"],
+    ['{"data":{"access_token":"abc', "abc"],
+    ['{"session_token": "s3cr', "s3cr"],
+  ])("redacts an unterminated sensitive string to the end: %s", (input, secret) => {
+    for (const mode of ["strict", "standard"] as const) {
+      const out = redactJsonAware(input, mode);
+      expect(out).not.toContain(secret);
+      expect(out).toContain("<REDACTED>");
+    }
+  });
+
+  it("keeps everything before the truncated value", () => {
+    expect(redactJsonAware('{"user":"jo","password":"hun', "strict")).toMatch(
+      /^\{"user":"jo","password":"<REDACTED>/,
+    );
+  });
+
+  it.each([
+    ['{"cookie":{"sid":"abc123", "csrf":"zz9', "abc123"],
+    ['{"headers":{"authorization":["Bearer tok-777", "next', "tok-777"],
+  ])("redacts an unclosed sensitive object or array to the end: %s", (input, secret) => {
+    for (const mode of ["strict", "standard"] as const) {
+      const out = redactJsonAware(input, mode);
+      expect(out).not.toContain(secret);
+      expect(out).toContain("<REDACTED>");
+    }
+  });
+
+  it("leaves an unclosed non-sensitive object alone", () => {
+    expect(redactJsonAware('{"items":[{"name":"a"', "strict")).toBe(
+      '{"items":[{"name":"a"',
+    );
+  });
+
+  it("leaves an unterminated non-sensitive string alone", () => {
+    expect(redactJsonAware('{"note":"partial', "strict")).toBe(
+      '{"note":"partial',
+    );
+  });
+});

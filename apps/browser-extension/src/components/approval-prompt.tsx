@@ -14,6 +14,7 @@ import {
   AlertTitle,
 } from "@apty/ui/components/ui/alert";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { ShieldAlertIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -105,6 +106,7 @@ function formatRemaining(ms: number): string {
 }
 
 export function ApprovalPrompt() {
+  const { t } = useTranslation();
   const { requests, decide } = usePendingApprovals();
   const now = useNow(requests.length > 0);
   if (requests.length === 0) return null;
@@ -120,16 +122,20 @@ export function ApprovalPrompt() {
         >
           <ShieldAlertIcon aria-hidden="true" />
           <AlertTitle id={`approval-title-${request.approvalId}`}>
-            Allow {request.toolName}?
+            {t("approval.title", { tool: request.toolName })}
           </AlertTitle>
           <AlertDescription>
             <p className="mb-1 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
               <span>
-                {request.origin ?? "No page origin"}
-                {request.conversationId ? "" : " · requested by an MCP client"}
+                {request.origin ?? t("approval.noOrigin")}
+                {request.conversationId
+                  ? ""
+                  : ` · ${t("approval.fromMcpClient")}`}
               </span>
-              <span role="timer" aria-label="Time left to answer">
-                Expires in {formatRemaining(request.expiresAt - now)}
+              <span role="timer" aria-label={t("approval.timeLeft")}>
+                {t("approval.expiresIn", {
+                  time: formatRemaining(request.expiresAt - now),
+                })}
               </span>
             </p>
             <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded border bg-muted/40 px-2 py-1.5 text-xs">
@@ -141,7 +147,7 @@ export function ApprovalPrompt() {
                 size="sm"
                 onClick={() => decide(request, { approved: true })}
               >
-                Allow once
+                {t("approval.allowOnce")}
               </Button>
               {request.origin && request.rememberable !== false && (
                 <Button
@@ -152,7 +158,7 @@ export function ApprovalPrompt() {
                     decide(request, { approved: true, remember: true })
                   }
                 >
-                  Allow on this site for 15 min
+                  {t("approval.allowOnSite")}
                 </Button>
               )}
               <Button
@@ -161,7 +167,7 @@ export function ApprovalPrompt() {
                 variant="ghost"
                 onClick={() => decide(request, { approved: false })}
               >
-                Deny
+                {t("approval.deny")}
               </Button>
             </div>
           </AlertDescription>

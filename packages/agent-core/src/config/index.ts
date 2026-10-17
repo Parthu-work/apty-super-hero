@@ -4,6 +4,7 @@ export {
   type AIProviderConfig,
   type AIProviderKey,
   detectProviderFromHost,
+  PHI_APPROVED_PROVIDERS,
   SUPERSEDED_PRESET_HOSTS,
 } from "./ai-providers.js";
 export { DEFAULT_CONVERSATION_CONFIG } from "./defaults.js";
@@ -14,8 +15,18 @@ export {
   type ProviderType,
   REDACTION_MODES,
   type RedactionModeSetting,
+  SCREENSHOT_POLICIES,
+  type ScreenshotPolicySetting,
   type ToolCallingSupport,
 } from "./settings.js";
+export {
+  type MigratedSettings,
+  migrateSettings,
+  SETTINGS_MIGRATIONS,
+  SETTINGS_VERSION,
+  type SettingsMigration,
+  withSettingsDefaults,
+} from "./settings-migration.js";
 export {
   type AutomationMode,
   STORAGE_KEYS,

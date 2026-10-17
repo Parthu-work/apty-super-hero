@@ -108,3 +108,52 @@ describe("investigation persistence", () => {
     );
   });
 });
+
+describe("createSessionSnapshot", () => {
+  it("keeps the side panel's and the service worker's state apart", async () => {
+    const { createSessionSnapshot } = await import("./session-snapshot");
+    const panel = createSessionSnapshot("k", () => ["panel"], vi.fn(), "page");
+    const worker = createSessionSnapshot(
+      "k",
+      () => ["worker"],
+      vi.fn(),
+      "worker",
+    );
+    await panel.flush();
+    await worker.flush();
+
+    const restoredPanel = vi.fn();
+    await createSessionSnapshot("k", () => [], restoredPanel, "page").ready;
+    const restoredWorker = vi.fn();
+    await createSessionSnapshot("k", () => [], restoredWorker, "worker").ready;
+
+    expect(restoredPanel).toHaveBeenCalledWith(["panel"]);
+    expect(restoredWorker).toHaveBeenCalledWith(["worker"]);
+  });
+
+  it("reports a failed write with a code and the key, never the content", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    (
+      globalThis as unknown as {
+        chrome: { storage: { session: { set: () => Promise<void> } } };
+      }
+    ).chrome.storage.session.set = async () => {
+      throw new Error("QUOTA_BYTES quota exceeded");
+    };
+    const { createSessionSnapshot } = await import("./session-snapshot");
+    const snapshot = createSessionSnapshot(
+      "apty_evidence_store",
+      () => ({ body: "PATIENT-SECRET" }),
+      vi.fn(),
+      "page",
+    );
+
+    await expect(snapshot.flush()).resolves.toBe("failed");
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain("session_snapshot_write_failed");
+    expect(logged).toContain("apty_evidence_store");
+    expect(logged).not.toContain("PATIENT-SECRET");
+    expect(logged).not.toContain("quota exceeded");
+    warn.mockRestore();
+  });
+});

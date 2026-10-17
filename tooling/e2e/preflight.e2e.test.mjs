@@ -103,7 +103,7 @@ async function runChecks() {
 
 describe("preflight (C2)", () => {
   it("is all green with a configured provider, the working Client and an open page", async () => {
-    await store({ aipex_settings: SETTINGS() });
+    await store({ apty_settings: SETTINGS() });
     await useClient("working");
     await openApp();
 
@@ -136,7 +136,7 @@ describe("preflight (C2)", () => {
   });
 
   it("without an API key: the AI provider check says where to add one", async () => {
-    await store({ aipex_settings: { ...SETTINGS(), aiToken: "" } });
+    await store({ apty_settings: { ...SETTINGS(), aiToken: "" } });
     const { options, checks } = await runChecks();
     assert.equal(checks["ai-provider"].status, "fail");
     assert.match(checks["ai-provider"].text, /No API key or model is set/);
@@ -144,7 +144,7 @@ describe("preflight (C2)", () => {
       checks["ai-provider"].text,
       /Fix: Open Settings → AI Configuration/,
     );
-    await store({ aipex_settings: SETTINGS() });
+    await store({ apty_settings: SETTINGS() });
     await options.close();
   });
 

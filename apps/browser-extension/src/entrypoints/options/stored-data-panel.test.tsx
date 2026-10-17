@@ -10,6 +10,14 @@ vi.mock("@apty/browser-runtime/conversation/conversation-storage", () => ({
 vi.mock("@apty/browser-runtime/storage/screenshot-storage", () => ({
   RuntimeScreenshotStorage: { clearAll: mockClearScreenshots },
 }));
+vi.mock("@apty/browser-runtime/storage/agent-session-store", () => ({
+  clearAgentSessions: vi.fn().mockResolvedValue(undefined),
+}));
+Object.assign(globalThis, {
+  chrome: {
+    storage: { local: { remove: vi.fn().mockResolvedValue(undefined) } },
+  },
+});
 
 import { StoredDataPanel } from "./stored-data-panel";
 

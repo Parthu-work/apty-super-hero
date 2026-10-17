@@ -115,7 +115,7 @@ describe("getRedactionMode", () => {
     await getRedactionMode();
 
     emitChange({ redactionMode: "off" }, "session");
-    emitChange({ redactionMode: "off" }, "local", "aipex_other");
+    emitChange({ redactionMode: "off" }, "local", "unrelated_key");
     expect(currentRedactionMode()).toBe("standard");
   });
 

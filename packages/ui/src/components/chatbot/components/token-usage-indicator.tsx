@@ -1,5 +1,6 @@
 import type { AgentMetrics } from "@apty/agent-core";
 import { useMemo } from "react";
+import { useTranslation } from "../../../i18n/context";
 import { cn } from "../../../lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { useChatContext } from "../context";
@@ -60,6 +61,7 @@ export function TokenUsageIndicator({
 }: TokenUsageIndicatorProps) {
   // Get metrics from context if not provided via props
   const chatContext = useChatContext();
+  const { t } = useTranslation();
   const metrics = metricsProp ?? chatContext.metrics;
 
   const usage = useMemo(() => {
@@ -109,7 +111,7 @@ export function TokenUsageIndicator({
                 className="w-3.5 h-3.5 transform -rotate-90"
                 viewBox="0 0 16 16"
                 role="img"
-                aria-label="Token usage progress"
+                aria-label={t("chat.tokenUsageProgress")}
               >
                 {/* Background circle */}
                 <circle
@@ -154,18 +156,25 @@ export function TokenUsageIndicator({
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">
           <div className="flex flex-col gap-0.5">
-            <div className="font-medium">Context Usage</div>
+            <div className="font-medium">{t("chat.contextUsage")}</div>
             <div className="text-muted-foreground">
-              {formatTokens(usage.tokens)} / {formatTokens(maxTokens)} tokens
+              {t("chat.tokensOf", {
+                used: formatTokens(usage.tokens),
+                max: formatTokens(maxTokens),
+              })}
             </div>
             {metrics && (
               <div className="text-muted-foreground text-xs">
-                Prompt: {formatTokens(metrics.promptTokens)} | Completion:{" "}
-                {formatTokens(metrics.completionTokens)}
+                {t("chat.promptCompletion", {
+                  prompt: formatTokens(metrics.promptTokens),
+                  completion: formatTokens(metrics.completionTokens),
+                })}
               </div>
             )}
             {isSummarizing && (
-              <div className="text-info text-xs mt-1">Summarizing...</div>
+              <div className="text-info text-xs mt-1">
+                {t("chat.summarizing")}
+              </div>
             )}
           </div>
         </TooltipContent>
@@ -189,7 +198,7 @@ export function TokenUsageIndicator({
           className="w-4 h-4 transform -rotate-90"
           viewBox="0 0 16 16"
           role="img"
-          aria-label="Token usage progress"
+          aria-label={t("chat.tokenUsageProgress")}
         >
           {/* Background circle */}
           <circle
@@ -238,7 +247,7 @@ export function TokenUsageIndicator({
       {isSummarizing ? (
         <div className="ml-auto flex items-center gap-1">
           <div className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
-          <span className="text-info text-xs">Summarizing...</span>
+          <span className="text-info text-xs">{t("chat.summarizing")}</span>
         </div>
       ) : usage.percentage >= (watermarkTokens / maxTokens) * 100 ? (
         <div className="ml-auto">

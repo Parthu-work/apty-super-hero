@@ -11,6 +11,8 @@ import {
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
 import { Textarea } from "@apty/ui/components/ui/textarea";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { I18nContextValue } from "@apty/ui/i18n/types";
 import { useTheme } from "@apty/ui/theme/context";
 import {
   AlertCircle,
@@ -40,13 +42,16 @@ const MAX_EDIT_SIZE = 1024 * 1024;
  * - Must start with /skills/
  * - Must not contain path traversal segments (..)
  */
-function validateFilePath(path: string): { valid: boolean; error?: string } {
+function validateFilePath(
+  path: string,
+  t: I18nContextValue["t"],
+): { valid: boolean; error?: string } {
   if (!path.startsWith("/skills/")) {
-    return { valid: false, error: "File path must be under /skills/" };
+    return { valid: false, error: t("fileManager.pathOutsideSkills") };
   }
   const decodedPath = decodeURIComponent(path);
   if (decodedPath.includes("..")) {
-    return { valid: false, error: "Path traversal (..) is not allowed" };
+    return { valid: false, error: t("fileManager.pathTraversal") };
   }
   return { valid: true };
 }
@@ -79,6 +84,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   onOpenChange,
   onFileSaved,
 }) => {
+  const { t } = useTranslation();
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,13 +105,13 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       setFileInfo(info);
     } catch (err) {
       const errorMsg =
-        err instanceof Error ? err.message : "Failed to load file";
+        err instanceof Error ? err.message : t("fileManager.loadFailed");
       setError(errorMsg);
       console.error("Failed to load file:", err);
     } finally {
       setLoading(false);
     }
-  }, [filePath]);
+  }, [filePath, t]);
 
   useEffect(() => {
     if (filePath && open) {
@@ -140,9 +146,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
     if (!filePath || !fileInfo) return;
 
     // Validate path
-    const pathValidation = validateFilePath(filePath);
+    const pathValidation = validateFilePath(filePath, t);
     if (!pathValidation.valid) {
-      setSaveError(pathValidation.error || "Invalid file path");
+      setSaveError(pathValidation.error || t("fileManager.invalidPath"));
       return;
     }
 
@@ -150,7 +156,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
     const contentSize = new Blob([editedContent]).size;
     if (contentSize > MAX_EDIT_SIZE) {
       setSaveError(
-        `File content exceeds maximum size of ${formatBytes(MAX_EDIT_SIZE)}`,
+        t("fileManager.tooLarge", { size: formatBytes(MAX_EDIT_SIZE) }),
       );
       return;
     }
@@ -170,7 +176,10 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
           if (parsedName && parsedName !== skillId) {
             setSaveError(
-              `Cannot rename skill. The name "${parsedName}" in SKILL.md must match the skill ID "${skillId}". Skill renaming is not supported.`,
+              t("fileManager.renameNotSupported", {
+                name: parsedName,
+                id: skillId,
+              }),
             );
             return;
           }
@@ -204,7 +213,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       onFileSaved?.();
     } catch (err) {
       const errorMsg =
-        err instanceof Error ? err.message : "Failed to save file";
+        err instanceof Error ? err.message : t("skillDetails.saveFileFailed");
       setSaveError(errorMsg);
     } finally {
       setSaving(false);
@@ -245,9 +254,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       return (
         <Alert>
           <FileIcon className="h-4 w-4" />
-          <AlertDescription>
-            This is a directory. Use the file browser to view its contents.
-          </AlertDescription>
+          <AlertDescription>{t("fileManager.isDirectory")}</AlertDescription>
         </Alert>
       );
     }
@@ -266,7 +273,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
               <div className="flex items-center gap-2">
                 <Edit className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">
-                  Editing {language ? `${language} file` : "text file"}
+                  {language
+                    ? t("fileManager.editingLanguage", { language })
+                    : t("fileManager.editingText")}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -277,7 +286,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                   disabled={saving}
                 >
                   <X className="h-4 w-4 mr-1" />
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button size="sm" onClick={handleSave} disabled={saving}>
                   {saving ? (
@@ -285,7 +294,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                   ) : (
                     <Save className="h-4 w-4 mr-1" />
                   )}
-                  Save
+                  {t("skillDetails.save")}
                 </Button>
               </div>
             </div>
@@ -301,7 +310,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
               className="font-mono text-sm min-h-[400px] resize-y"
-              placeholder="File content..."
+              placeholder={t("fileManager.contentPlaceholder")}
               disabled={saving}
             />
           </div>
@@ -315,13 +324,15 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
             <div className="flex items-center gap-2">
               <Code className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {language ? `${language} code` : "Text file"}
+                {language
+                  ? t("fileManager.languageCode", { language })
+                  : t("fileManager.textFile")}
               </span>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={handleStartEdit}>
                 <Edit className="h-4 w-4 mr-1" />
-                Edit
+                {t("common.edit")}
               </Button>
             )}
           </div>
@@ -376,8 +387,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       <Alert>
         <FileIcon className="h-4 w-4" />
         <AlertDescription>
-          Binary file preview is not available. File size:{" "}
-          {formatBytes(fileInfo.size)}
+          {t("fileManager.binaryPreview", { size: formatBytes(fileInfo.size) })}
         </AlertDescription>
       </Alert>
     );
@@ -389,7 +399,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            {fileInfo?.name || "File Preview"}
+            {fileInfo?.name || t("fileManager.preview")}
           </DialogTitle>
           <DialogDescription>
             {fileInfo && (
@@ -397,7 +407,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                 <Badge variant="outline">{fileInfo.type}</Badge>
                 <Badge variant="outline">{formatBytes(fileInfo.size)}</Badge>
                 <Badge variant="outline">
-                  Modified: {formatDate(fileInfo.mtime)}
+                  {t("fileManager.modifiedValue", {
+                    date: formatDate(fileInfo.mtime),
+                  })}
                 </Badge>
               </div>
             )}
@@ -410,14 +422,17 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
           <div className="mt-4 pt-4 border-t">
             <div className="text-xs text-muted-foreground space-y-1">
               <div>
-                <span className="font-semibold">Path:</span> {fileInfo.path}
+                <span className="font-semibold">{t("fileManager.path")}</span>{" "}
+                {fileInfo.path}
               </div>
               <div>
-                <span className="font-semibold">Size:</span>{" "}
+                <span className="font-semibold">{t("fileManager.size")}</span>{" "}
                 {formatBytes(fileInfo.size)}
               </div>
               <div>
-                <span className="font-semibold">Modified:</span>{" "}
+                <span className="font-semibold">
+                  {t("fileManager.modified")}
+                </span>{" "}
                 {fileInfo.mtime.toLocaleString()}
               </div>
             </div>

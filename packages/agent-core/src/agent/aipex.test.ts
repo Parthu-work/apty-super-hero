@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationManager } from "../conversation/manager.js";
 import { SessionStorage } from "../conversation/storage.js";
 import { InMemoryStorage } from "../storage/memory.js";
-import type { AgentEvent, AiSdkModel, SerializedSession } from "../types.js";
+import type {
+  AgentEvent,
+  AgentInputItem,
+  AiSdkModel,
+  SerializedSession,
+} from "../types.js";
 import { AIPex, DEFAULT_MAX_TURNS } from "./aipex.js";
 
 vi.mock("@openai/agents", () => ({
@@ -158,6 +163,39 @@ describe("AIPex", () => {
       expect(events[0]?.type).toBe("content_delta");
     });
 
+    it("formats attached contexts with the configured contextFormatter", async () => {
+      vi.mocked(run).mockResolvedValue(
+        createMockRunResult({ finalOutput: "ok" }),
+      );
+      const contextFormatter = vi.fn(() => "[tab: https://ehr.example.com]");
+
+      const agent = AIPex.create({
+        instructions: "Test",
+        model: mockModel,
+        conversation: false,
+        contextFormatter,
+      });
+
+      for await (const _event of agent.chat("Hi", {
+        contexts: [
+          {
+            id: "tab-1",
+            type: "tab",
+            providerId: "p",
+            label: "Jane Testpatient",
+            value: "https://ehr.example.com/?mrn=1",
+          },
+        ],
+      })) {
+        // consume events
+      }
+
+      const input = JSON.stringify(vi.mocked(run).mock.calls[0]![1]);
+      expect(contextFormatter).toHaveBeenCalledOnce();
+      expect(input).toContain("[tab: https://ehr.example.com]");
+      expect(input).not.toContain("Testpatient");
+    });
+
     it("should pass an EphemeralSession to run() in stateless mode", async () => {
       vi.mocked(run).mockResolvedValue(
         createMockRunResult({
@@ -293,6 +331,143 @@ describe("AIPex", () => {
 
       // Instructions should pass through unchanged
       expect(result.instructions).toBe("Test instructions");
+    });
+
+    describe("outbound filters", () => {
+      type InputFilter = (args: {
+        modelData: { input: unknown[]; instructions?: string };
+        agent: unknown;
+        context: unknown;
+      }) => Promise<{ input: unknown[]; instructions?: string }>;
+
+      async function inputFilterFor(
+        outboundFilters: Parameters<typeof AIPex.create>[0]["outboundFilters"],
+      ): Promise<InputFilter> {
+        vi.mocked(run).mockResolvedValue(
+          createMockRunResult({ finalOutput: "Reply" }),
+        );
+        const agent = AIPex.create({
+          instructions: "Test",
+          model: mockModel,
+          outboundFilters,
+        });
+        for await (const _event of agent.chat("Hi")) {
+          // consume events
+        }
+        const options = vi.mocked(run).mock.calls[0]![2] as unknown as {
+          callModelInputFilter: InputFilter;
+        };
+        return options.callModelInputFilter;
+      }
+
+      const withOutput = (item: AgentInputItem, suffix: string) =>
+        ({
+          ...item,
+          output: `${(item as { output?: string }).output}${suffix}`,
+        }) as AgentInputItem;
+
+      const toolResult = (output: string) => ({
+        type: "function_call_result",
+        name: "read_page",
+        callId: "call_1",
+        output,
+      });
+
+      it("runs every filter, in order, on the input of each model call", async () => {
+        const seen: string[] = [];
+        const filter = await inputFilterFor([
+          (items) => {
+            seen.push("first");
+            return items.map((i) => withOutput(i, "+a"));
+          },
+          async (items) => {
+            seen.push("second");
+            return items.map((i) => withOutput(i, "+b"));
+          },
+        ]);
+
+        for (let call = 0; call < 2; call++) {
+          const { input } = await filter({
+            modelData: { input: [toolResult("x")] },
+            agent: {},
+            context: undefined,
+          });
+          expect((input[0] as { output: string }).output).toBe("x+a+b");
+        }
+        expect(seen).toEqual(["first", "second", "first", "second"]);
+      });
+
+      it("filters after screenshot shaping, so the transient image message is filtered too", async () => {
+        const filter = await inputFilterFor([
+          (items) =>
+            items.map(
+              (i) => ({ ...i, seen: true }) as unknown as AgentInputItem,
+            ),
+        ]);
+        const { input } = await filter({
+          modelData: {
+            input: [
+              {
+                type: "function_call_result",
+                name: "capture_screenshot",
+                callId: "call_s",
+                output: JSON.stringify({
+                  success: true,
+                  imageData: "data:image/jpeg;base64,/9j/4AAQ",
+                  sendToLLM: true,
+                  screenshotUid: "screenshot_1",
+                }),
+              },
+            ],
+          },
+          agent: {},
+          context: undefined,
+        });
+        expect(input).toHaveLength(2);
+        expect(input.every((i) => (i as { seen?: boolean }).seen)).toBe(true);
+      });
+
+      it("fails the call instead of sending unfiltered input when a filter throws", async () => {
+        const filter = await inputFilterFor([
+          () => {
+            throw new Error("filter broke");
+          },
+        ]);
+        await expect(
+          filter({
+            modelData: { input: [toolResult("secret")] },
+            agent: {},
+            context: undefined,
+          }),
+        ).rejects.toThrow("filter broke");
+      });
+
+      it("tells each filter the instructions and the tools offered for the call", async () => {
+        const seen: unknown[] = [];
+        const filter = await inputFilterFor([
+          (items, request) => {
+            seen.push(request);
+            return items;
+          },
+        ]);
+        const tools = [{ name: "read_page", description: "d", parameters: {} }];
+        await filter({
+          modelData: { input: [], instructions: "Be brief" },
+          agent: { tools },
+          context: undefined,
+        });
+        expect(seen).toEqual([{ instructions: "Be brief", tools }]);
+      });
+
+      it("leaves the input as shaped when no filter is configured", async () => {
+        const filter = await inputFilterFor(undefined);
+        const { input } = await filter({
+          modelData: { input: [toolResult("plain")] },
+          agent: {},
+          context: undefined,
+        });
+        expect((input[0] as { output: string }).output).toBe("plain");
+      });
     });
 
     it("callModelInputFilter should drop reasoning items from a different model before the model call (provider-switch safety)", async () => {

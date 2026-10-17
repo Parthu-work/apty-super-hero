@@ -17,7 +17,7 @@ const log = createLogger("ElementCaptureService");
 
 type CaptureCallback = (event: ElementCaptureEvent) => void;
 
-export class ElementCaptureService {
+class ElementCaptureService {
   private static instance: ElementCaptureService | null = null;
   private isCapturing = false;
   private currentTabId: number | null = null;

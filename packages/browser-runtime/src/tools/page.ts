@@ -1,6 +1,9 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { currentValuePolicy } from "../runtime/value-policy";
+import { cssValueError } from "./css-values";
 import { getActiveTab } from "./tab-utils";
+import { describePageMetadata } from "./value-results";
 
 /**
  * Get page metadata including title, description, keywords, etc.
@@ -49,7 +52,10 @@ export const getPageMetadataTool = tool({
       },
     });
 
-    return results[0]?.result || null;
+    return describePageMetadata(
+      results[0]?.result || null,
+      currentValuePolicy(),
+    );
   },
 });
 
@@ -134,6 +140,8 @@ export const highlightElementTool = tool({
       .describe("Whether to keep the highlight permanently"),
   }),
   execute: async ({ selector, color, duration, intensity, persist }) => {
+    const unsafe = cssValueError({ colors: { color } });
+    if (unsafe) return { success: false, error: unsafe };
     const tab = await getActiveTab();
     if (!tab.id) {
       return null;
@@ -264,6 +272,11 @@ export const highlightTextInlineTool = tool({
     fontWeight,
     persist,
   }) => {
+    const unsafe = cssValueError({
+      colors: { highlightColor, backgroundColor },
+      fontWeight,
+    });
+    if (unsafe) return { success: false, error: unsafe };
     const tab = await getActiveTab();
     if (!tab.id) {
       return null;
@@ -313,11 +326,11 @@ export const highlightTextInlineTool = tool({
           let totalMatches = 0;
 
           // Create highlight styles if not already present
-          if (!document.getElementById("aipex-text-highlight-styles")) {
+          if (!document.getElementById("apty-agent-text-highlight-styles")) {
             const styleSheet = document.createElement("style");
-            styleSheet.id = "aipex-text-highlight-styles";
+            styleSheet.id = "apty-agent-text-highlight-styles";
             styleSheet.textContent = `
-              .aipex-text-highlight {
+              .apty-agent-text-highlight {
                 color: ${highlightColor} !important;
                 background-color: ${backgroundColor} !important;
                 font-weight: ${fontWeight} !important;
@@ -326,7 +339,7 @@ export const highlightTextInlineTool = tool({
                 transition: all 0.2s ease;
               }
 
-              .aipex-text-highlight:hover {
+              .apty-agent-text-highlight:hover {
                 background-color: rgba(220, 20, 60, 0.1) !important;
               }
             `;
@@ -375,7 +388,7 @@ export const highlightTextInlineTool = tool({
 
               // Add highlighted match
               const span = document.createElement("span");
-              span.className = "aipex-text-highlight";
+              span.className = "apty-agent-text-highlight";
               span.textContent = match;
               fragment.appendChild(span);
 

@@ -1,6 +1,11 @@
-import type { AppSettings, RedactionModeSetting } from "@apty/agent-core";
+import type {
+  AppSettings,
+  RedactionModeSetting,
+  RequestReport,
+} from "@apty/agent-core";
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "../../i18n/context";
 
 const DENY_LIST_SAVE_DELAY_MS = 500;
 
@@ -14,7 +19,9 @@ import {
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
+import { RecentRequests } from "./recent-requests";
 import { RedactionModeControl } from "./redaction-mode-control";
+import { ScreenshotPolicyControl } from "./screenshot-policy-control";
 
 export interface DataHandlingCardProps {
   settings: AppSettings;
@@ -22,6 +29,8 @@ export interface DataHandlingCardProps {
   language?: string;
   /** Redacts the Preview sample in a given mode (supplied by the host app). */
   redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
+  /** The last requests sent to the AI provider, when the host app can read them. */
+  recentRequests?: RequestReport[];
 }
 
 function parseDenyList(text: string): string[] {
@@ -36,8 +45,9 @@ export function DataHandlingCard({
   onChange,
   language,
   redactionPreview,
+  recentRequests,
 }: DataHandlingCardProps) {
-  const zh = language === "zh";
+  const { t } = useTranslation();
   const [denyListText, setDenyListText] = useState(
     (settings.networkBodyCaptureDenyList ?? []).join("\n"),
   );
@@ -67,13 +77,9 @@ export function DataHandlingCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
-          {zh ? "数据处理" : "Data handling"}
+          {t("dataHandling.title")}
         </CardTitle>
-        <CardDescription>
-          {zh
-            ? "控制页面网络捕获时是否读取响应正文。正文经过脱敏后发送给您的 AI 服务商。下面的拒绝列表同时适用于页面捕获和 Apty Client 返回的正文。"
-            : "Choose whether a page network capture reads response bodies. Bodies are redacted, then sent to your AI provider. The deny list below applies both to page capture and to bodies the Apty Client returns."}
-        </CardDescription>
+        <CardDescription>{t("dataHandling.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <RedactionModeControl
@@ -82,9 +88,13 @@ export function DataHandlingCard({
           preview={redactionPreview}
           language={language}
         />
+        <ScreenshotPolicyControl
+          policy={settings.screenshotPolicy ?? "ask"}
+          onChange={(screenshotPolicy) => onChange({ screenshotPolicy })}
+        />
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="network-body-capture" className="text-sm font-medium">
-            {zh ? "捕获响应正文" : "Capture response bodies"}
+            {t("dataHandling.captureBodies")}
           </Label>
           <Switch
             id="network-body-capture"
@@ -96,9 +106,7 @@ export function DataHandlingCard({
         </div>
         <div className="space-y-2">
           <Label htmlFor="network-body-deny-list" className="text-sm">
-            {zh
-              ? "从不读取正文的主机或网址（每行一个，适用于页面捕获和 Apty Client）"
-              : "Never read bodies from these hosts or URL fragments, in page capture or from the Apty Client (one per line)"}
+            {t("dataHandling.denyListLabel")}
           </Label>
           <Textarea
             id="network-body-deny-list"
@@ -118,6 +126,7 @@ export function DataHandlingCard({
             onBlur={flushDenyList}
           />
         </div>
+        {recentRequests && <RecentRequests reports={recentRequests} />}
       </CardContent>
     </Card>
   );

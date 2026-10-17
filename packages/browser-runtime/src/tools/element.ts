@@ -3,6 +3,7 @@ import { z } from "zod";
 import { type ElementHandle, SmartElementHandle } from "../automation";
 import { DomElementHandle } from "../automation/dom-element-handle";
 import * as snapshotProvider from "../automation/snapshot-provider";
+import { currentValuePolicy } from "../runtime/value-policy";
 import { gateRiskyAction } from "./approval.js";
 import {
   classifyClickRisk,
@@ -15,6 +16,7 @@ import {
   scrollAndMoveFakeMouseToElement,
   waitForEventsAfterAction,
 } from "./ui-operations";
+import { describeEditorValue } from "./value-results";
 
 const log = createLogger("ElementTools");
 
@@ -240,11 +242,7 @@ export const getEditorValueTool = tool({
         };
       }
 
-      return {
-        success: true,
-        value,
-        length: value.length,
-      };
+      return describeEditorValue(value, currentValuePolicy());
     } finally {
       if (handle) {
         handle.dispose();
@@ -252,6 +250,9 @@ export const getEditorValueTool = tool({
     }
   },
 });
+
+/** How much of each value the fill_form prompt shows. */
+const FILL_PROMPT_VALUE_CHARS = 60;
 
 export const fillFormTool = tool({
   name: "fill_form",
@@ -346,10 +347,21 @@ export const fillFormTool = tool({
     };
 
     const pageUrl = await getTabUrl(tabId);
+    const fields = elements
+      .map(({ uid, value }) => {
+        const node = snapshotProvider.getNodeByUid(tabId, uid);
+        const label = node?.name?.trim() || node?.role || uid;
+        const shown =
+          value.length > FILL_PROMPT_VALUE_CHARS
+            ? `${value.slice(0, FILL_PROMPT_VALUE_CHARS)}…`
+            : value;
+        return `- ${label}: "${shown}"`;
+      })
+      .join("\n");
     return gateRiskyAction(
       conversationId,
       "fill_form",
-      `Fill ${elements.length} form field(s) on the current page (${pageUrl ?? "unknown URL"})`,
+      `Fill ${elements.length} form field(s) on the current page (${pageUrl ?? "unknown URL"}):\n${fields}`,
       pageUrl,
       runFillForm,
       { tabId },

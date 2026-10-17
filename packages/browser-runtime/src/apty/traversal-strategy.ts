@@ -72,13 +72,13 @@ export const EMPTY_TRAVERSAL_EVIDENCE: TraversalEvidence = {
  * application; LN and athenaOne have none. Not tuned against an
  * application with exactly one or two links: unverified.
  */
-export const MIN_SEED_LINKS_FOR_URL_FIRST =
+const MIN_SEED_LINKS_FOR_URL_FIRST =
   DOM_HEALTH_THRESHOLDS.minSeedLinksForUrlFirst.default;
 /** Same-URL transitions only decide once there are at least this many transitions to judge from. */
-export const MIN_EDGES_FOR_SAME_URL_RATIO =
+const MIN_EDGES_FOR_SAME_URL_RATIO =
   DOM_HEALTH_THRESHOLDS.minEdgesForSameUrlRatio.default;
 /** At or above this share of same-URL transitions, the URL is not where navigation shows. Unverified threshold: half is the point where URLs stop describing most of the moves. */
-export const SAME_URL_RATIO_FOR_CLICK_FIRST =
+const SAME_URL_RATIO_FOR_CLICK_FIRST =
   DOM_HEALTH_THRESHOLDS.sameUrlRatioForClickFirst.default;
 
 /** Rules in order of strength of evidence: a failed URL restoration is proof, the same-URL share is observation, the seed's link count is a prediction. */

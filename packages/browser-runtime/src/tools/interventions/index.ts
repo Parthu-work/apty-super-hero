@@ -19,7 +19,7 @@ const log = createLogger("InterventionTools");
 /**
  * List all available interventions
  */
-export const listInterventionsTool = tool({
+const listInterventionsTool = tool({
   name: "list_interventions",
   description:
     "List all available human intervention types. Use this to discover what interventions the AI can request from the user.",
@@ -72,7 +72,7 @@ export const listInterventionsTool = tool({
 /**
  * Get detailed information about a specific intervention
  */
-export const getInterventionInfoTool = tool({
+const getInterventionInfoTool = tool({
   name: "get_intervention_info",
   description:
     "Get detailed information about a specific intervention type, including input/output schemas and examples.",
@@ -132,6 +132,28 @@ export const getInterventionInfoTool = tool({
   },
 });
 
+/** The parameters with every null field (and null option description) left out. */
+function withoutNulls(
+  params: Record<string, unknown> | null,
+): Record<string, unknown> | undefined {
+  if (!params) return undefined;
+  const kept = Object.entries(params)
+    .filter(([, value]) => value !== null)
+    .map(([key, value]) =>
+      key === "options" && Array.isArray(value)
+        ? [
+            key,
+            value.map((option: Record<string, unknown>) =>
+              Object.fromEntries(
+                Object.entries(option).filter(([, v]) => v !== null),
+              ),
+            ),
+          ]
+        : [key, value],
+    );
+  return kept.length > 0 ? Object.fromEntries(kept) : undefined;
+}
+
 /**
  * Request intervention execution
  */
@@ -143,12 +165,28 @@ export const requestInterventionTool = tool({
     type: z
       .enum(["monitor-operation", "user-selection"])
       .describe("Intervention type (monitor-operation, user-selection)"),
+    // Every field either type takes, each nullable: the shape strict tool
+    // schemas can express. Nulls are dropped before the intervention runs.
     params: z
-      .record(z.string(), z.unknown())
+      .object({
+        reason: z.string().nullable(),
+        highlightColor: z.string().nullable(),
+        question: z.string().nullable(),
+        options: z
+          .array(
+            z.object({
+              id: z.string(),
+              label: z.string(),
+              description: z.string().nullable(),
+            }),
+          )
+          .nullable(),
+        mode: z.enum(["single", "multiple"]).nullable(),
+        allowOther: z.boolean().nullable(),
+      })
       .nullable()
-      .default({})
       .describe(
-        "Intervention-specific parameters. See get_intervention_info for details.",
+        "Intervention-specific parameters; set the ones the type uses and the rest to null. monitor-operation: reason, highlightColor. user-selection: question, options, mode, allowOther. See get_intervention_info.",
       ),
     timeout: z
       .number()
@@ -184,7 +222,7 @@ export const requestInterventionTool = tool({
       // Execute intervention
       const result = await interventionManager.requestIntervention(
         type as InterventionType,
-        params && Object.keys(params).length > 0 ? params : undefined,
+        withoutNulls(params),
         timeout,
         reason || undefined,
       );
@@ -217,7 +255,7 @@ export const requestInterventionTool = tool({
 /**
  * Cancel current intervention
  */
-export const cancelInterventionTool = tool({
+const cancelInterventionTool = tool({
   name: "cancel_intervention",
   description:
     "Cancel the currently active intervention. Use this if you realize the intervention is no longer needed.",

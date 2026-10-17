@@ -8,6 +8,8 @@ import {
   Suggestion,
   Suggestions,
 } from "@apty/ui/components/ai-elements/suggestion";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import type { WelcomeScreenProps } from "@apty/ui/types";
 import {
@@ -30,38 +32,38 @@ const TONE_ICON_CLASSES: Record<PromptTone, string> = {
 };
 
 const DEBUG_PROMPTS: Array<{
-  category: string;
-  text: string;
+  category: TranslationKey;
+  text: TranslationKey;
   icon: typeof PuzzleIcon;
   tone: PromptTone;
 }> = [
   {
-    category: "Widget",
-    text: "Why isn't my Apty Widget showing?",
+    category: "investigation.welcome.widget",
+    text: "investigation.welcome.widgetPrompt",
     icon: PuzzleIcon,
     tone: "danger",
   },
   {
-    category: "Studio",
-    text: "Why can't Studio select this element?",
+    category: "investigation.welcome.studio",
+    text: "investigation.welcome.studioPrompt",
     icon: CrosshairIcon,
     tone: "active",
   },
   {
-    category: "Workflow",
-    text: "Why did this workflow stop?",
+    category: "investigation.welcome.workflow",
+    text: "investigation.welcome.workflowPrompt",
     icon: WorkflowIcon,
     tone: "warning",
   },
   {
-    category: "Selectors",
-    text: "Is this selector reliable?",
+    category: "investigation.welcome.selectors",
+    text: "investigation.welcome.selectorsPrompt",
     icon: SearchCodeIcon,
     tone: "success",
   },
   {
-    category: "Network",
-    text: "What caused this network failure?",
+    category: "investigation.welcome.network",
+    text: "investigation.welcome.networkPrompt",
     icon: WifiOffIcon,
     tone: "danger",
   },
@@ -73,6 +75,7 @@ export function DebuggingWelcomeScreen({
   readiness,
   ...props
 }: WelcomeScreenProps & { readiness?: ReactNode }) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -83,10 +86,10 @@ export function DebuggingWelcomeScreen({
     >
       <div className="mb-3 text-center">
         <h3 className="mb-1.5 text-lg font-semibold tracking-tight text-foreground">
-          Apty Live Debugging
+          {t("investigation.welcome.title")}
         </h3>
         <p className="text-sm text-muted-foreground">
-          Investigate Apty issues with evidence from this page.
+          {t("investigation.welcome.subtitle")}
         </p>
       </div>
 
@@ -96,13 +99,13 @@ export function DebuggingWelcomeScreen({
 
       <div className="w-full max-w-2xl">
         <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Start an investigation
+          {t("investigation.welcome.start")}
         </p>
         <Suggestions className="grid w-full gap-2 sm:grid-cols-2">
           {DEBUG_PROMPTS.map(({ category, text, icon: Icon, tone }) => (
             <Suggestion
               key={text}
-              suggestion={text}
+              suggestion={t(text)}
               onClick={onSuggestionClick}
               variant="outline"
               size="lg"
@@ -121,10 +124,10 @@ export function DebuggingWelcomeScreen({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {category}
+                  {t(category)}
                 </div>
                 <div className="whitespace-normal break-words text-xs font-medium text-foreground">
-                  {text}
+                  {t(text)}
                 </div>
               </div>
               <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/60" />

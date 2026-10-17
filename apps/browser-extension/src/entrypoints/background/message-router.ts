@@ -1,8 +1,7 @@
-/** Internal extension messaging: capture events, tab relays, recording state, sidepanel and chat-image download requests. */
+/** Internal extension messaging: capture events, tab relays, sidepanel and chat-image download requests. */
 
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import { downloadChatImagesInBackground } from "./downloads";
-import { setIsRecording } from "./recording";
 import { openSidePanelOnDemand } from "./sidepanel";
 
 export function registerMessageRouter(): void {
@@ -12,6 +11,10 @@ export function registerMessageRouter(): void {
 
     // Echo capture events to all extension contexts
     if (message.request === "capture-click-event") {
+      if (sender.id !== chrome.runtime.id) {
+        sendResponse({ success: false, error: "Unauthorized sender" });
+        return true;
+      }
       try {
         // Immediately acknowledge sender (content script)
         sendResponse({ success: true });
@@ -20,14 +23,6 @@ export function registerMessageRouter(): void {
           .sendMessage({ request: "capture-click-event", data: message.data })
           .catch(() => {
             // Ignore broadcast errors (OK if no receivers)
-          });
-        // Persist latest event for sidepanel to pick up via storage change
-        chrome.storage.local
-          .set({
-            aipex_last_capture_event: { data: message.data, ts: Date.now() },
-          })
-          .catch((err) => {
-            console.warn("⚠️ Failed to persist capture event:", err);
           });
       } catch (err) {
         console.error("❌ Failed to echo capture event:", err);
@@ -61,26 +56,6 @@ export function registerMessageRouter(): void {
           sendResponse({ success: false, error: "No active tab" });
         }
       });
-      return true;
-    }
-
-    // Recording lifecycle markers
-    if (message.request === "start-recording") {
-      if (!isTrustedExtensionPage) {
-        sendResponse({ success: false, error: "Unauthorized sender" });
-        return true;
-      }
-      setIsRecording(true);
-      sendResponse({ success: true });
-      return true;
-    }
-    if (message.request === "stop-recording") {
-      if (!isTrustedExtensionPage) {
-        sendResponse({ success: false, error: "Unauthorized sender" });
-        return true;
-      }
-      setIsRecording(false);
-      sendResponse({ success: true });
       return true;
     }
 

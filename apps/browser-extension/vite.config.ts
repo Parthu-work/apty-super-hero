@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { crx, type ManifestV3Export } from "@crxjs/vite-plugin";
 import react from "@vitejs/plugin-react";
@@ -44,11 +45,36 @@ function emittedConsoleBridge(entry: string, fileName: string): Plugin {
   };
 }
 
+/** Ship the licence and the third-party notices at the package root (R4). */
+function emittedLicences(): Plugin {
+  const files = {
+    LICENSE: path.resolve(__dirname, "../../LICENSE"),
+    "THIRD_PARTY_NOTICES.txt": path.resolve(
+      __dirname,
+      "THIRD_PARTY_NOTICES.txt",
+    ),
+  };
+  return {
+    name: "apty:licences",
+    apply: "build",
+    generateBundle() {
+      for (const [fileName, source] of Object.entries(files)) {
+        this.emitFile({
+          type: "asset",
+          fileName,
+          source: readFileSync(source, "utf8"),
+        });
+      }
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
   plugins: [
     react(),
     emittedConsoleBridge(CONSOLE_BRIDGE, CONSOLE_BRIDGE_FILE),
+    emittedLicences(),
     crx({ manifest: manifest as unknown as ManifestV3Export }),
     viteStaticCopy({
       targets: [

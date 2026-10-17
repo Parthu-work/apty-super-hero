@@ -1,4 +1,4 @@
-const PREFIX = "aipex_";
+const PREFIX = "apty_";
 
 export const STORAGE_KEYS = {
   THEME: `${PREFIX}theme`,

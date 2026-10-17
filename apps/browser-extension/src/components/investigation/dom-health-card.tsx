@@ -37,6 +37,8 @@ import {
 } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { I18nContextValue, TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, Loader2Icon, ScanSearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -46,37 +48,39 @@ import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useCurrentTarget } from "./use-current-target";
 import { ValidationBundleExport } from "./validation-bundle-export";
 
-const LOADING_STAGES = [
-  "Scanning DOM...",
-  "Generating selector candidates...",
-  "Testing selector uniqueness...",
-  "Testing selector stability...",
-  "Running hit tests...",
-  "Building report...",
+type Translate = I18nContextValue["t"];
+
+const LOADING_STAGES: TranslationKey[] = [
+  "domHealth.loadingStages.scanning",
+  "domHealth.loadingStages.generating",
+  "domHealth.loadingStages.uniqueness",
+  "domHealth.loadingStages.stability",
+  "domHealth.loadingStages.hitTests",
+  "domHealth.loadingStages.building",
 ];
 
 const GRADE_META: Record<
   DomHealthGrade,
-  { label: string; badgeClassName: string }
+  { label: TranslationKey; badgeClassName: string }
 > = {
   EXCELLENT: {
-    label: "EXCELLENT",
+    label: "domHealth.grade.excellent",
     badgeClassName: "border-transparent bg-success text-success-foreground",
   },
   GOOD: {
-    label: "GOOD",
+    label: "domHealth.grade.good",
     badgeClassName: "border-transparent bg-success/20 text-success",
   },
   FAIR: {
-    label: "FAIR",
+    label: "domHealth.grade.fair",
     badgeClassName: "border-warning/40 bg-transparent text-warning",
   },
   NEEDS_ATTENTION: {
-    label: "NEEDS ATTENTION",
+    label: "domHealth.grade.needsAttention",
     badgeClassName: "border-transparent bg-warning/20 text-warning",
   },
   HIGH_RISK: {
-    label: "HIGH RISK",
+    label: "domHealth.grade.highRisk",
     badgeClassName:
       "border-transparent bg-destructive text-destructive-foreground",
   },
@@ -85,26 +89,35 @@ const GRADE_META: Record<
   // EvidenceState). A neutral, clearly-different treatment so this can
   // never be mistaken for a passing or failing result.
   NOT_ASSESSED: {
-    label: "NOT ASSESSED",
+    label: "domHealth.grade.notAssessed",
     badgeClassName: "border-muted-foreground/40 bg-muted text-muted-foreground",
   },
 };
 
-const EVIDENCE_STATE_LABEL: Record<string, string> = {
-  HEALTHY_EVIDENCE: "Full evidence",
-  PARTIAL_EVIDENCE: "Partial evidence — some frames could not be inspected",
-  NO_EVIDENCE: "No interactive elements found",
-  INACCESSIBLE: "No elements found, and coverage is incomplete",
-  INCOMPLETE_EVIDENCE:
-    "Application coverage incomplete — real states/navigation candidates were never explored, or a backtracking restoration failed",
-  FAILED: "Could not be inspected at all",
-  NOT_ASSESSED: "Not assessed",
+const EVIDENCE_STATE_LABEL: Record<string, TranslationKey> = {
+  HEALTHY_EVIDENCE: "domHealth.evidenceState.healthy",
+  PARTIAL_EVIDENCE: "domHealth.evidenceState.partial",
+  NO_EVIDENCE: "domHealth.evidenceState.none",
+  INACCESSIBLE: "domHealth.evidenceState.inaccessible",
+  INCOMPLETE_EVIDENCE: "domHealth.evidenceState.incomplete",
+  FAILED: "domHealth.evidenceState.failed",
+  NOT_ASSESSED: "domHealth.evidenceState.notAssessed",
 };
 
-const CONFIDENCE_LABEL: Record<DomHealthConfidence, string> = {
-  HIGH: "High confidence",
-  MEDIUM: "Medium confidence",
-  LOW: "Low confidence",
+/** A lookup-map label, or the raw value when the map has no entry for it. */
+function labelOrRaw(
+  t: Translate,
+  map: Record<string, TranslationKey>,
+  value: string,
+): string {
+  const key = map[value];
+  return key ? t(key) : value;
+}
+
+const CONFIDENCE_LABEL: Record<DomHealthConfidence, TranslationKey> = {
+  HIGH: "domHealth.confidence.high",
+  MEDIUM: "domHealth.confidence.medium",
+  LOW: "domHealth.confidence.low",
 };
 
 const METRIC_ORDER: DomHealthMetricKey[] = [
@@ -118,57 +131,58 @@ const METRIC_ORDER: DomHealthMetricKey[] = [
   "accessibilitySignal",
 ];
 
-const METRIC_LABELS: Record<DomHealthMetricKey, string> = {
-  automaticSelection: "Automatic Selection",
-  selectorStability: "Selector Stability",
-  recoveryEfficacy: "Recovery Efficacy",
-  selectorComplexity: "Selector Complexity",
-  ambiguityRisk: "Ambiguity/Wrong-Target Risk",
-  hitTestTargetability: "Hit-Test Targetability",
-  domVolatility: "DOM Volatility",
-  accessibilitySignal: "Accessibility Signal",
+const METRIC_LABELS: Record<DomHealthMetricKey, TranslationKey> = {
+  automaticSelection: "domHealth.metric.automaticSelection",
+  selectorStability: "domHealth.metric.selectorStability",
+  recoveryEfficacy: "domHealth.metric.recoveryEfficacy",
+  selectorComplexity: "domHealth.metric.selectorComplexity",
+  ambiguityRisk: "domHealth.metric.ambiguityRisk",
+  hitTestTargetability: "domHealth.metric.hitTestTargetability",
+  domVolatility: "domHealth.metric.domVolatility",
+  accessibilitySignal: "domHealth.metric.accessibilitySignal",
 };
 
-const OUTCOME_LABELS: Record<string, string> = {
-  DIRECT_SUCCESS: "Direct",
-  RECOVERED_BY_IGNORE: "Recovered (ignore)",
-  RECOVERED_BY_PARTIAL: "Recovered (partial)",
-  RECOVERED_BY_CONTEXT: "Recovered (context)",
-  POSITIONAL_ONLY: "Manual likely (positional)",
-  AMBIGUOUS: "Manual likely (ambiguous)",
-  WRONG_TARGET: "Manual likely (wrong target)",
-  NOT_RESOLVED: "Manual likely (unresolved)",
-  INACCESSIBLE: "Inaccessible",
+const OUTCOME_LABELS: Record<string, TranslationKey> = {
+  DIRECT_SUCCESS: "domHealth.outcome.direct",
+  RECOVERED_BY_IGNORE: "domHealth.outcome.recoveredIgnore",
+  RECOVERED_BY_PARTIAL: "domHealth.outcome.recoveredPartial",
+  RECOVERED_BY_CONTEXT: "domHealth.outcome.recoveredContext",
+  POSITIONAL_ONLY: "domHealth.outcome.positionalOnly",
+  AMBIGUOUS: "domHealth.outcome.ambiguous",
+  WRONG_TARGET: "domHealth.outcome.wrongTarget",
+  NOT_RESOLVED: "domHealth.outcome.notResolved",
+  INACCESSIBLE: "domHealth.outcome.inaccessible",
 };
 
-const DISCOVERY_MODE_DESCRIPTION: Record<ApplicationDiscoveryMode, string> = {
-  page: "Audits ONLY the current page/state — no navigation, no clicking, nothing else visited.",
-  "application-safe":
-    "Discovers other same-origin pages via real <a href> links only, and DETECTS (never clicks) menu/tab/tree-style controls with no real href.",
-  "application-deep":
-    "Additionally CLICKS detected safe navigation controls to explore same-URL, menu-driven application states — a real click on the live application.",
+const DISCOVERY_MODE_DESCRIPTION: Record<
+  ApplicationDiscoveryMode,
+  TranslationKey
+> = {
+  page: "domHealth.discoveryModeDescription.page",
+  "application-safe": "domHealth.discoveryModeDescription.applicationSafe",
+  "application-deep": "domHealth.discoveryModeDescription.applicationDeep",
 };
 
-const DISCOVERY_MODE_LABEL: Record<ApplicationDiscoveryMode, string> = {
-  page: "Current page only",
-  "application-safe": "Safe link discovery",
-  "application-deep": "Deep state discovery",
+const DISCOVERY_MODE_LABEL: Record<ApplicationDiscoveryMode, TranslationKey> = {
+  page: "domHealth.discoveryMode.page",
+  "application-safe": "domHealth.discoveryMode.applicationSafe",
+  "application-deep": "domHealth.discoveryMode.applicationDeep",
 };
 
-const DISCOVERY_METHOD_LABEL: Record<string, string> = {
-  "single-page-only": "Current page only (no discovery)",
-  "anchor-links": "Safe link discovery",
-  "anchor-links+navigation-controls": "Deep state discovery",
+const DISCOVERY_METHOD_LABEL: Record<string, TranslationKey> = {
+  "single-page-only": "domHealth.discoveryMethod.singlePageOnly",
+  "anchor-links": "domHealth.discoveryMode.applicationSafe",
+  "anchor-links+navigation-controls": "domHealth.discoveryMode.applicationDeep",
 };
 
-const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], string> = {
-  completed: "Audited",
-  failed: "Failed",
-  "skipped-unsafe": "Skipped (unsafe)",
-  "skipped-cross-origin": "Skipped (cross-origin)",
-  "skipped-duplicate": "Skipped (duplicate)",
-  "not-discovered": "Detected, not explored",
-  "explored-no-new-state": "Clicked, no new state",
+const PAGE_STATUS_LABELS: Record<PageAuditRecord["status"], TranslationKey> = {
+  completed: "domHealth.pageStatus.completed",
+  failed: "domHealth.pageStatus.failed",
+  "skipped-unsafe": "domHealth.pageStatus.skippedUnsafe",
+  "skipped-cross-origin": "domHealth.pageStatus.skippedCrossOrigin",
+  "skipped-duplicate": "domHealth.pageStatus.skippedDuplicate",
+  "not-discovered": "domHealth.pageStatus.notDiscovered",
+  "explored-no-new-state": "domHealth.pageStatus.exploredNoNewState",
 };
 
 /** A page row's label: its title, else its URL without the query string, which can carry screen context. */
@@ -202,14 +216,19 @@ function visibleTested(hitTest: { tested: number; hidden: number }): number {
 
 /** "2/2 frames with content reached, 2 empty placeholder(s) skipped": placeholders are part of the total but never readable. */
 function framesReached(
+  t: Translate,
   reached: number,
   total: number,
   placeholders: number,
 ): string {
   const withContent = Math.max(0, total - placeholders);
   return placeholders > 0
-    ? `${reached}/${withContent} frames with content reached, ${placeholders} empty placeholder(s) skipped`
-    : `${reached}/${total} frames reached`;
+    ? t("domHealth.framesWithContentReached", {
+        reached,
+        withContent,
+        placeholders,
+      })
+    : t("domHealth.framesReachedCount", { reached, total });
 }
 
 function outcomeTone(outcome: string): StatusMeta["tone"] {
@@ -245,14 +264,15 @@ interface SharedEvidence {
 }
 
 function DesStepsSection({ evidence }: { evidence: DesEvidence }) {
+  const { t } = useTranslation();
   if (evidence.steps.length === 0) return null;
   return (
     <section
-      aria-label="How Apty's DES would find these elements"
+      aria-label={t("domHealth.desTitle")}
       className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]"
     >
       <div className="mb-1 font-medium uppercase tracking-wide text-muted-foreground">
-        How Apty's DES would find these elements
+        {t("domHealth.desTitle")}
       </div>
       <ul className="space-y-1">
         {evidence.steps.map((row) => (
@@ -272,11 +292,16 @@ function DesStepsSection({ evidence }: { evidence: DesEvidence }) {
       </ul>
       {evidence.dynamicValuesLeftOut.length > 0 && (
         <p className="mt-1.5 text-muted-foreground">
-          Left out as dynamic (Ignore Selector):{" "}
-          {evidence.dynamicValuesLeftOut
-            .map((row) => `${row.attribute} on ${row.elements} element(s)`)
-            .join(", ")}
-          .
+          {t("domHealth.dynamicLeftOut", {
+            list: evidence.dynamicValuesLeftOut
+              .map((row) =>
+                t("domHealth.dynamicLeftOutItem", {
+                  attribute: row.attribute,
+                  count: row.elements,
+                }),
+              )
+              .join(", "),
+          })}
         </p>
       )}
     </section>
@@ -284,6 +309,7 @@ function DesStepsSection({ evidence }: { evidence: DesEvidence }) {
 }
 
 function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
+  const { t } = useTranslation();
   const evidenceIsIncomplete = result.evidenceState !== "HEALTHY_EVIDENCE";
   const auto = result.metricDetails?.automaticSelection;
   const hitTest = result.metricDetails?.hitTestTargetability;
@@ -301,8 +327,9 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
             ),
           )}
         >
-          Evidence:{" "}
-          {EVIDENCE_STATE_LABEL[result.evidenceState] ?? result.evidenceState}
+          {t("domHealth.evidence", {
+            state: labelOrRaw(t, EVIDENCE_STATE_LABEL, result.evidenceState),
+          })}
         </p>
       )}
       <p className="text-xs text-muted-foreground">{result.summary}</p>
@@ -313,7 +340,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       {auto && auto.totalAnalyzed > 0 && (
         <div className="rounded-md border bg-muted/30 px-2.5 py-2">
           <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Automatic Selection Breakdown
+            {t("domHealth.autoBreakdown")}
           </div>
           <div className="grid grid-cols-3 gap-x-2 text-center">
             <div>
@@ -325,7 +352,9 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
               >
                 {auto.directSuccessRate}%
               </div>
-              <div className="text-[10px] text-muted-foreground">Direct</div>
+              <div className="text-[10px] text-muted-foreground">
+                {t("domHealth.breakdownDirect")}
+              </div>
             </div>
             <div>
               <div
@@ -336,7 +365,9 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
               >
                 {auto.recoveredSuccessRate}%
               </div>
-              <div className="text-[10px] text-muted-foreground">Recovered</div>
+              <div className="text-[10px] text-muted-foreground">
+                {t("domHealth.breakdownRecovered")}
+              </div>
             </div>
             <div>
               <div
@@ -349,7 +380,9 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
               >
                 {auto.manualDependencyRate}%
               </div>
-              <div className="text-[10px] text-muted-foreground">Manual</div>
+              <div className="text-[10px] text-muted-foreground">
+                {t("domHealth.breakdownManual")}
+              </div>
             </div>
           </div>
         </div>
@@ -359,7 +392,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
         <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted-foreground">
-              Hit-Test Failures (visible elements)
+              {t("domHealth.hitTestFailures")}
             </span>
             <span
               className={cn(
@@ -378,8 +411,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
           </div>
           {hitTest.hidden > 0 && (
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {hitTest.hidden} hidden when sampled (closed menus, inactive
-              tabs), not counted.
+              {t("domHealth.hiddenNotCounted", { count: hitTest.hidden })}
             </p>
           )}
         </div>
@@ -388,7 +420,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
         hitTest.tested > 0 &&
         (result.desEvidence?.hitTestReasons.length ?? 0) > 0 && (
           <ul
-            aria-label="Why hit tests failed"
+            aria-label={t("domHealth.whyHitTestsFailed")}
             className="-mt-1 space-y-0.5 px-2.5 text-[11px] text-muted-foreground"
           >
             {result.desEvidence?.hitTestReasons.map((row) => (
@@ -405,7 +437,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       {a11y && a11y.totalInteractive > 0 && (
         <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
           <span className="text-muted-foreground">
-            Missing Accessible Names
+            {t("domHealth.missingAccessibleNames")}
           </span>
           <span
             className={cn(
@@ -427,7 +459,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       <div className="rounded-md border bg-muted/30 px-2.5 py-2">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Manual Selector Dependency
+            {t("domHealth.manualSelectorDependency")}
           </span>
           <span
             className={cn(
@@ -449,17 +481,20 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       {result.desEvidence && <DesStepsSection evidence={result.desEvidence} />}
 
       <p className="text-[11px] text-muted-foreground">
-        Selector Configuration:{" "}
-        {result.selectorConfiguration?.source === "customer"
-          ? "Customer Apty DES configuration"
-          : "Default/reconstructed DES configuration"}
+        {t("domHealth.selectorConfiguration", {
+          source: t(
+            result.selectorConfiguration?.source === "customer"
+              ? "domHealth.selectorConfigurationCustomer"
+              : "domHealth.selectorConfigurationDefault",
+          ),
+        })}
         {result.selectorConfiguration?.profile &&
-          ` + audit profile ${result.selectorConfiguration.profile}`}
+          ` ${t("domHealth.auditProfile", { profile: result.selectorConfiguration.profile })}`}
       </p>
 
       <div>
         <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Metrics
+          {t("domHealth.metrics")}
         </h4>
         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
           {METRIC_ORDER.map((key) => {
@@ -470,7 +505,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
                 className="flex items-center justify-between gap-2 text-xs"
               >
                 <span className="truncate text-muted-foreground">
-                  {METRIC_LABELS[key]}
+                  {t(METRIC_LABELS[key])}
                 </span>
                 <span
                   className={cn(
@@ -489,7 +524,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       {result.strengths.length > 0 && (
         <div>
           <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            What's working well
+            {t("domHealth.strengths")}
           </h4>
           <ul className="space-y-1 text-xs text-foreground">
             {result.strengths.map((s) => (
@@ -505,7 +540,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       {result.risks.length > 0 && (
         <div>
           <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Risks
+            {t("domHealth.risks")}
           </h4>
           <ul className="space-y-1.5">
             {result.risks.map((risk) => (
@@ -532,7 +567,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       {result.recommendations.length > 0 && (
         <div>
           <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Recommendations
+            {t("domHealth.recommendations")}
           </h4>
           <ul className="space-y-1.5">
             {result.recommendations.map((rec) => (
@@ -547,7 +582,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
 
       <details className="text-xs">
         <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-          How was this score calculated?
+          {t("domHealth.methodology")}
         </summary>
         <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-muted-foreground">
           {result.methodology.map((step) => (
@@ -568,6 +603,7 @@ function FramesAndExclusions({
     "confidenceCaps" | "frames" | "excludedRoots"
   >;
 }) {
+  const { t } = useTranslation();
   const caps = result.confidenceCaps ?? [];
   const frames = result.frames ?? [];
   const excluded = result.excludedRoots ?? [];
@@ -576,14 +612,17 @@ function FramesAndExclusions({
       {caps.length > 0 && (
         <ul className={cn("space-y-0.5 text-[11px]", toneTextClass("warning"))}>
           {caps.map((reason) => (
-            <li key={reason}>Confidence capped: {reason}</li>
+            <li key={reason}>{t("domHealth.confidenceCapped", { reason })}</li>
           ))}
         </ul>
       )}
       {(frames.length > 1 || excluded.length > 0) && (
         <details className="text-xs">
           <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-            Frames ({frames.length}) and excluded content ({excluded.length})
+            {t("domHealth.framesAndExcluded", {
+              frames: frames.length,
+              excluded: excluded.length,
+            })}
           </summary>
           <ul className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
             {frames.map((frame) => (
@@ -591,14 +630,18 @@ function FramesAndExclusions({
                 <span className="font-mono">{frame.key}</span> — {frame.role},{" "}
                 {frame.status}
                 {typeof frame.score === "number" && ` · ${frame.score}/100`}
-                {frame.role !== "application" && " · not scored"}
+                {frame.role !== "application" &&
+                  ` · ${t("domHealth.notScored")}`}
               </li>
             ))}
             {excluded.map((entry) => (
               <li key={entry.matcher}>
-                Left out {entry.owner} (
-                <span className="font-mono">{entry.matcher}</span>):{" "}
-                {entry.roots} root(s), {entry.elementCount} element(s)
+                {t("domHealth.excludedPrefix", { owner: entry.owner })}
+                <span className="font-mono">{entry.matcher}</span>
+                {t("domHealth.excludedSuffix", {
+                  roots: entry.roots,
+                  count: entry.elementCount,
+                })}
               </li>
             ))}
           </ul>
@@ -620,6 +663,7 @@ export function DomHealthCard({
   /** Developer tools: threshold overrides for real-tenant validation. */
   thresholdOverrides?: Record<string, number>;
 }) {
+  const { t } = useTranslation();
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
   const [isLoading, setIsLoading] = useState(false);
@@ -699,14 +743,32 @@ export function DomHealthCard({
           onClick={() => setExpanded((v) => !v)}
           className="flex w-full min-w-0 items-center gap-2 text-left"
           aria-expanded={expanded}
-          aria-label={`DOM Health: ${active?.available ? (active.score !== null ? `${active.score} out of 100, ${GRADE_META[active.grade].label}` : `not assessed — ${EVIDENCE_STATE_LABEL[active.evidenceState] ?? active.evidenceState}`) : active ? "unavailable" : "not checked yet"}. Click to ${expanded ? "collapse" : "expand"}.`}
+          aria-label={t("domHealth.toggleLabel", {
+            status: active?.available
+              ? active.score !== null
+                ? t("domHealth.statusScore", {
+                    score: active.score,
+                    grade: t(GRADE_META[active.grade].label),
+                  })
+                : t("domHealth.statusNotAssessed", {
+                    state: labelOrRaw(
+                      t,
+                      EVIDENCE_STATE_LABEL,
+                      active.evidenceState,
+                    ),
+                  })
+              : active
+                ? t("domHealth.statusUnavailable")
+                : t("domHealth.statusNotChecked"),
+            action: t(expanded ? "domHealth.collapse" : "domHealth.expand"),
+          })}
         >
           <ScanSearchIcon
             className="size-3.5 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            DOM Health
+            {t("domHealth.title")}
           </span>
           {active?.available && (
             <span
@@ -716,8 +778,8 @@ export function DomHealthCard({
               )}
             >
               {active.score !== null
-                ? `${active.score}/100 · ${GRADE_META[active.grade].label}`
-                : GRADE_META[active.grade].label}
+                ? `${active.score}/100 · ${t(GRADE_META[active.grade].label)}`
+                : t(GRADE_META[active.grade].label)}
             </span>
           )}
           {active && !active.available && (
@@ -727,12 +789,12 @@ export function DomHealthCard({
                 toneBadgeClass("danger"),
               )}
             >
-              Unavailable
+              {t("domHealth.unavailable")}
             </span>
           )}
           {!active && !activeIsLoading && (
             <span className="truncate text-xs text-muted-foreground">
-              Not checked yet
+              {t("domHealth.notCheckedYet")}
             </span>
           )}
           {activeIsLoading && view === "page" && (
@@ -741,7 +803,12 @@ export function DomHealthCard({
                 className="size-3 shrink-0 animate-spin"
                 aria-hidden="true"
               />
-              <span className="truncate">{LOADING_STAGES[stageIndex]}</span>
+              <span className="truncate">
+                {t(
+                  LOADING_STAGES[stageIndex] ??
+                    "domHealth.loadingStages.scanning",
+                )}
+              </span>
             </span>
           )}
           {activeIsLoading && view === "application" && (
@@ -752,10 +819,12 @@ export function DomHealthCard({
               />
               <span className="truncate">
                 {appProgress?.phase === "auditing"
-                  ? `Auditing page ${appProgress.pageIndex + 1}...`
+                  ? t("domHealth.auditingPage", {
+                      index: appProgress.pageIndex + 1,
+                    })
                   : appProgress?.phase === "discovering-links"
-                    ? "Discovering pages..."
-                    : "Starting application audit..."}
+                    ? t("domHealth.discoveringPages")
+                    : t("domHealth.startingAppAudit")}
               </span>
             </span>
           )}
@@ -778,15 +847,21 @@ export function DomHealthCard({
               e.stopPropagation();
               void runCheck();
             }}
-            aria-label={
+            aria-label={t(
               isLoading
-                ? "Checking DOM Health..."
+                ? "domHealth.checkingAria"
                 : outcome
-                  ? "Recheck DOM Health"
-                  : "Check DOM Health"
-            }
+                  ? "domHealth.recheckAria"
+                  : "domHealth.checkAria",
+            )}
           >
-            {isLoading ? "Checking..." : outcome ? "Recheck" : "Check"}
+            {t(
+              isLoading
+                ? "domHealth.checking"
+                : outcome
+                  ? "domHealth.recheck"
+                  : "domHealth.check",
+            )}
           </Button>
           <select
             value={discoveryMode}
@@ -796,16 +871,16 @@ export function DomHealthCard({
             }}
             onClick={(e) => e.stopPropagation()}
             disabled={isLoading || isAppLoading || !target.tabId}
-            aria-label="Application discovery mode"
-            title={DISCOVERY_MODE_DESCRIPTION[discoveryMode]}
+            aria-label={t("domHealth.discoveryModeAria")}
+            title={t(DISCOVERY_MODE_DESCRIPTION[discoveryMode])}
             className="rounded-md border bg-background px-1.5 py-1 text-[11px] text-muted-foreground"
           >
-            <option value="page">{DISCOVERY_MODE_LABEL.page}</option>
+            <option value="page">{t(DISCOVERY_MODE_LABEL.page)}</option>
             <option value="application-safe">
-              {DISCOVERY_MODE_LABEL["application-safe"]}
+              {t(DISCOVERY_MODE_LABEL["application-safe"])}
             </option>
             <option value="application-deep">
-              {DISCOVERY_MODE_LABEL["application-deep"]}
+              {t(DISCOVERY_MODE_LABEL["application-deep"])}
             </option>
           </select>
           <Button
@@ -816,19 +891,21 @@ export function DomHealthCard({
               e.stopPropagation();
               void runApplicationCheck();
             }}
-            aria-label={
+            aria-label={t(
               isAppLoading
-                ? "Auditing application..."
+                ? "domHealth.auditingAppAria"
                 : appOutcome
-                  ? "Re-audit application"
-                  : "Audit application"
-            }
+                  ? "domHealth.reauditAppAria"
+                  : "domHealth.auditAppAria",
+            )}
           >
-            {isAppLoading
-              ? "Auditing..."
-              : appOutcome
-                ? "Re-audit"
-                : "Audit app"}
+            {t(
+              isAppLoading
+                ? "domHealth.auditing"
+                : appOutcome
+                  ? "domHealth.reaudit"
+                  : "domHealth.auditApp",
+            )}
           </Button>
         </div>
       </div>
@@ -848,7 +925,7 @@ export function DomHealthCard({
                 )}
                 disabled={!outcome}
               >
-                Current Page
+                {t("domHealth.currentPage")}
               </button>
               <button
                 type="button"
@@ -861,45 +938,37 @@ export function DomHealthCard({
                 )}
                 disabled={!appOutcome}
               >
-                Application
+                {t("domHealth.application")}
               </button>
             </div>
           )}
 
           {!active && !activeIsLoading && (
             <p className="py-2 text-xs text-muted-foreground">
-              Assess how reliably Apty-style element selection could target this
-              page or application: real selector generation, live
-              uniqueness/stability verification, and hit testing — not a generic
-              DOM statistic. Nothing runs until you click "Check DOM Health" or
-              "Audit Application".
+              {t("domHealth.intro")}
             </p>
           )}
 
           {activeIsLoading && view === "page" && (
             <p className="py-2 text-xs text-muted-foreground">
-              Taking three DOM snapshots over a few seconds and verifying
-              selectors live against the page — this takes a few seconds.
+              {t("domHealth.loadingPage")}
             </p>
           )}
 
           {activeIsLoading && view === "application" && (
             <p className="py-2 text-xs text-muted-foreground">
-              Discovering same-origin pages from real links already on the page
-              (never by clicking anything), then auditing each one in turn —
-              this can take up to a few minutes and will navigate this tab
-              through several pages.
+              {t("domHealth.loadingApp")}
             </p>
           )}
 
           {active && !active.available && (
             <div className="space-y-1 py-1">
               <p className="text-sm text-foreground">
-                Unable to{" "}
-                {view === "application"
-                  ? "run the application audit"
-                  : "audit this page"}
-                .
+                {t(
+                  view === "application"
+                    ? "domHealth.unableToAuditApp"
+                    : "domHealth.unableToAuditPage",
+                )}
               </p>
               <p className="text-xs text-muted-foreground">{active.error}</p>
             </div>
@@ -908,31 +977,41 @@ export function DomHealthCard({
           {view === "page" && outcome?.available && (
             <div className="space-y-3 pt-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                <span>{CONFIDENCE_LABEL[outcome.confidence]}</span>
-                <span>·</span>
-                <span>Scope: Current Page</span>
-                <span>·</span>
-                <span>{outcome.coverage.snapshotsCompared} snapshots</span>
+                <span>{t(CONFIDENCE_LABEL[outcome.confidence])}</span>
                 <span>·</span>
                 <span>
-                  {outcome.coverage.elementsAnalyzed} elements analyzed
+                  {t("domHealth.scope", {
+                    scope: t("domHealth.currentPage"),
+                  })}
+                </span>
+                <span>·</span>
+                <span>
+                  {t("domHealth.snapshots", {
+                    count: outcome.coverage.snapshotsCompared,
+                  })}
+                </span>
+                <span>·</span>
+                <span>
+                  {t("domHealth.elementsAnalyzedCount", {
+                    count: outcome.coverage.elementsAnalyzed,
+                  })}
                 </span>
                 {outcome.coverage.analysis.capped && (
                   <>
                     <span>·</span>
                     <span className={toneTextClass("warning")}>
-                      analysis capped
+                      {t("domHealth.analysisCapped")}
                     </span>
                   </>
                 )}
               </div>
               <p className="text-xs font-medium text-foreground">
-                Observed current-page DOM health:{" "}
-                {outcome.score !== null
-                  ? `${outcome.score}/100`
-                  : "NOT ENOUGH EVIDENCE"}{" "}
-                — never application-wide health from a single page. For the
-                whole application, use "Audit Application".
+                {t("domHealth.observedPageNote", {
+                  score:
+                    outcome.score !== null
+                      ? `${outcome.score}/100`
+                      : t("domHealth.notEnoughEvidence"),
+                })}
               </p>
 
               <SharedEvidenceSections result={outcome} />
@@ -940,17 +1019,29 @@ export function DomHealthCard({
               {outcome.elementSamples.length > 0 && (
                 <details className="text-xs">
                   <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-                    Element-level details ({outcome.elementSamples.length})
+                    {t("domHealth.elementDetails", {
+                      count: outcome.elementSamples.length,
+                    })}
                   </summary>
                   <div className="mt-1.5 max-h-64 overflow-y-auto rounded-md border">
                     <table className="w-full text-left text-[11px]">
                       <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
                         <tr>
-                          <th className="px-1.5 py-1 font-medium">Element</th>
-                          <th className="px-1.5 py-1 font-medium">Selector</th>
-                          <th className="px-1.5 py-1 font-medium">Result</th>
-                          <th className="px-1.5 py-1 font-medium">Stability</th>
-                          <th className="px-1.5 py-1 font-medium">Hit Test</th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colElement")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colSelector")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colResult")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colStability")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colHitTest")}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -972,7 +1063,7 @@ export function DomHealthCard({
                                 toneTextClass(outcomeTone(el.outcome)),
                               )}
                             >
-                              {OUTCOME_LABELS[el.outcome] ?? el.outcome}
+                              {labelOrRaw(t, OUTCOME_LABELS, el.outcome)}
                             </td>
                             <td className="px-1.5 py-1 text-muted-foreground">
                               {el.stability}
@@ -999,7 +1090,7 @@ export function DomHealthCard({
                                 {el.explanation.fix && (
                                   <p>
                                     <span className="font-medium text-foreground">
-                                      Fix:{" "}
+                                      {t("domHealth.fix")}{" "}
                                     </span>
                                     {el.explanation.fix}
                                   </p>
@@ -1018,29 +1109,30 @@ export function DomHealthCard({
 
               <details className="text-xs">
                 <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-                  View technical details
+                  {t("domHealth.technicalDetails")}
                 </summary>
                 <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-muted-foreground">
-                  <dt>Elements analyzed</dt>
+                  <dt>{t("domHealth.elementsAnalyzed")}</dt>
                   <dd className="text-right font-mono">
                     {outcome.metadata.elementsAnalyzed}
                   </dd>
-                  <dt>Interactive elements</dt>
+                  <dt>{t("domHealth.interactiveElements")}</dt>
                   <dd className="text-right font-mono">
                     {outcome.metadata.interactiveElementsAnalyzed}
                   </dd>
-                  <dt>Iframes / frames</dt>
+                  <dt>{t("domHealth.iframesFrames")}</dt>
                   <dd className="text-right font-mono">
                     {outcome.iframes.byTag.iframe} /{" "}
                     {outcome.iframes.byTag.frame}
                   </dd>
-                  <dt>Shadow roots</dt>
+                  <dt>{t("domHealth.shadowRoots")}</dt>
                   <dd className="text-right font-mono">
                     {outcome.metadata.shadowRootCount}
                   </dd>
-                  <dt>Frames reached</dt>
+                  <dt>{t("domHealth.framesReached")}</dt>
                   <dd className="text-right font-mono">
                     {framesReached(
+                      t,
                       outcome.frameAccessibility.framesAccessible,
                       outcome.frameAccessibility.framesTotal,
                       outcome.frameAccessibility.framesPlaceholder ?? 0,
@@ -1050,7 +1142,9 @@ export function DomHealthCard({
               </details>
 
               <p className="text-[11px] text-muted-foreground">
-                Last checked: {new Date(outcome.timestamp).toLocaleTimeString()}
+                {t("domHealth.lastChecked", {
+                  time: new Date(outcome.timestamp).toLocaleTimeString(),
+                })}
               </p>
             </div>
           )}
@@ -1058,23 +1152,29 @@ export function DomHealthCard({
           {view === "application" && appOutcome?.available && (
             <div className="space-y-3 pt-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                <span>{CONFIDENCE_LABEL[appOutcome.confidence]}</span>
+                <span>{t(CONFIDENCE_LABEL[appOutcome.confidence])}</span>
                 <span>·</span>
                 <span>
-                  Scope:{" "}
-                  {appOutcome.scopeLabel === "APPLICATION"
-                    ? "Application"
-                    : "Current Page"}
+                  {t("domHealth.scope", {
+                    scope: t(
+                      appOutcome.scopeLabel === "APPLICATION"
+                        ? "domHealth.application"
+                        : "domHealth.currentPage",
+                    ),
+                  })}
                 </span>
                 <span>·</span>
                 <span>
-                  {appOutcome.coverage.pagesAudited}/
-                  {appOutcome.coverage.pagesDiscovered} states audited (
-                  {appOutcome.coverage.coveragePercent}% observed coverage)
+                  {t("domHealth.statesAudited", {
+                    audited: appOutcome.coverage.pagesAudited,
+                    discovered: appOutcome.coverage.pagesDiscovered,
+                    percent: appOutcome.coverage.coveragePercent,
+                  })}
                 </span>
                 <span>·</span>
                 <span>
                   {framesReached(
+                    t,
                     appOutcome.coverage.framesInspected,
                     appOutcome.coverage.framesDiscovered,
                     appOutcome.coverage.framesPlaceholder ?? 0,
@@ -1084,31 +1184,44 @@ export function DomHealthCard({
                   <>
                     <span>·</span>
                     <span className={toneTextClass("warning")}>
-                      {appOutcome.coverage.pagesNotDiscovered} control(s)
-                      detected but not explored
+                      {t("domHealth.controlsNotExplored", {
+                        count: appOutcome.coverage.pagesNotDiscovered,
+                      })}
                     </span>
                   </>
                 )}
               </div>
               <p className="text-xs font-medium text-foreground">
-                {appOutcome.scopeLabel === "APPLICATION"
-                  ? `Application DOM health: ${appOutcome.score !== null ? `${appOutcome.score}/100` : "NOT ENOUGH EVIDENCE"}`
-                  : `Observed current-page DOM health: ${appOutcome.score !== null ? `${appOutcome.score}/100` : "NOT ENOUGH EVIDENCE"}`}
+                {t(
+                  appOutcome.scopeLabel === "APPLICATION"
+                    ? "domHealth.appHealth"
+                    : "domHealth.observedPageHealth",
+                  {
+                    score:
+                      appOutcome.score !== null
+                        ? `${appOutcome.score}/100`
+                        : t("domHealth.notEnoughEvidence"),
+                  },
+                )}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                Coverage is observed, not total — this audit cannot know how
-                many states the application actually has. Discovery:{" "}
-                {DISCOVERY_METHOD_LABEL[appOutcome.coverage.discoveryMethod] ??
-                  appOutcome.coverage.discoveryMethod}
-                .
+                {t("domHealth.coverageNote", {
+                  method: labelOrRaw(
+                    t,
+                    DISCOVERY_METHOD_LABEL,
+                    appOutcome.coverage.discoveryMethod,
+                  ),
+                })}
               </p>
               {appOutcome.traversal && (
                 <p className="text-[11px] text-muted-foreground">
-                  Traversal:{" "}
+                  {t("domHealth.traversal")}{" "}
                   <span className="font-medium text-foreground">
-                    {appOutcome.traversal.mode === "click-first"
-                      ? "click-first"
-                      : "URL-first"}
+                    {t(
+                      appOutcome.traversal.mode === "click-first"
+                        ? "domHealth.traversalClickFirst"
+                        : "domHealth.traversalUrlFirst",
+                    )}
                   </span>{" "}
                   — {appOutcome.traversal.reason}
                 </p>
@@ -1118,30 +1231,32 @@ export function DomHealthCard({
                 appOutcome.crossStateEvidence.attempted > 0 && (
                   <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]">
                     <div className="mb-1 font-medium uppercase tracking-wide text-muted-foreground">
-                      Cross-State Selector Replay (
-                      {appOutcome.crossStateEvidence.statesTested} other state
-                      {appOutcome.crossStateEvidence.statesTested === 1
-                        ? ""
-                        : "s"}{" "}
-                      tested)
+                      {t(
+                        appOutcome.crossStateEvidence.statesTested === 1
+                          ? "domHealth.crossStateTitleOne"
+                          : "domHealth.crossStateTitleMany",
+                        { count: appOutcome.crossStateEvidence.statesTested },
+                      )}
                     </div>
                     <p className="text-muted-foreground">
-                      Of {appOutcome.crossStateEvidence.attempted} element
-                      path(s) captured at the seed state and replayed against
-                      other discovered states:{" "}
-                      {appOutcome.crossStateEvidence.directStable +
-                        appOutcome.crossStateEvidence.recoveredStable +
-                        appOutcome.crossStateEvidence.positionalStable}{" "}
-                      still resolved correctly,{" "}
+                      {t("domHealth.crossStateIntro", {
+                        attempted: appOutcome.crossStateEvidence.attempted,
+                        resolved:
+                          appOutcome.crossStateEvidence.directStable +
+                          appOutcome.crossStateEvidence.recoveredStable +
+                          appOutcome.crossStateEvidence.positionalStable,
+                      })}{" "}
                       <span className={toneTextClass("danger")}>
-                        {appOutcome.crossStateEvidence.wrongTarget} resolved to
-                        the wrong element
+                        {t("domHealth.crossStateWrong", {
+                          count: appOutcome.crossStateEvidence.wrongTarget,
+                        })}
                       </span>
-                      , and {appOutcome.crossStateEvidence.notResolved} resolved
-                      to nothing.
+                      {t("domHealth.crossStateNothing", {
+                        count: appOutcome.crossStateEvidence.notResolved,
+                      })}
                       {(appOutcome.crossStateEvidence.hostChainBroken ?? 0) >
                         0 &&
-                        ` ${appOutcome.crossStateEvidence.hostChainBroken} of those stopped at a shadow host before reaching the element.`}
+                        ` ${t("domHealth.crossStateHostChain", { count: appOutcome.crossStateEvidence.hostChainBroken ?? 0 })}`}
                     </p>
                     {(appOutcome.crossStateEvidence.hostChainBreaks ?? [])
                       .length > 0 && (
@@ -1149,7 +1264,10 @@ export function DomHealthCard({
                         {appOutcome.crossStateEvidence.hostChainBreaks.map(
                           (b) => (
                             <li key={`${b.frameId}-${b.hop}-${b.hostSelector}`}>
-                              Frame {b.frameId}, host {b.hop + 1}:{" "}
+                              {t("domHealth.hostChainBreak", {
+                                frame: b.frameId,
+                                host: b.hop + 1,
+                              })}{" "}
                               <code>{b.hostSelector}</code>
                             </li>
                           ),
@@ -1164,33 +1282,45 @@ export function DomHealthCard({
               {appOutcome.pages.length > 0 && (
                 <details className="text-xs" open>
                   <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-                    Pages/States ({appOutcome.pages.length}) —{" "}
-                    {appOutcome.coverage.pagesAudited} audited,{" "}
-                    {appOutcome.coverage.pagesFailed} failed,{" "}
-                    {appOutcome.coverage.pagesSkippedUnsafe +
-                      appOutcome.coverage.pagesSkippedDuplicate}{" "}
-                    skipped, {appOutcome.coverage.pagesNotDiscovered} not
-                    explored
+                    {t("domHealth.pagesSummary", {
+                      count: appOutcome.pages.length,
+                      audited: appOutcome.coverage.pagesAudited,
+                      failed: appOutcome.coverage.pagesFailed,
+                      skipped:
+                        appOutcome.coverage.pagesSkippedUnsafe +
+                        appOutcome.coverage.pagesSkippedDuplicate,
+                      notExplored: appOutcome.coverage.pagesNotDiscovered,
+                    })}
                     {appOutcome.coverage.pagesExploredNoNewState > 0 &&
-                      `, ${appOutcome.coverage.pagesExploredNoNewState} clicked with no new state`}
+                      t("domHealth.pagesClickedNoNewState", {
+                        count: appOutcome.coverage.pagesExploredNoNewState,
+                      })}
                   </summary>
                   <div className="mt-1.5 max-h-96 overflow-y-auto rounded-md border">
                     <table className="w-full text-left text-[11px]">
                       <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
                         <tr>
                           <th className="px-1.5 py-1 font-medium">
-                            Page/State
-                          </th>
-                          <th className="px-1.5 py-1 font-medium">Discovery</th>
-                          <th className="px-1.5 py-1 font-medium">Status</th>
-                          <th className="px-1.5 py-1 font-medium">Elements</th>
-                          <th className="px-1.5 py-1 font-medium">
-                            Direct/Recovered/Manual
+                            {t("domHealth.colPageState")}
                           </th>
                           <th className="px-1.5 py-1 font-medium">
-                            Hit-Test Fail
+                            {t("domHealth.colDiscovery")}
                           </th>
-                          <th className="px-1.5 py-1 font-medium">Score</th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colStatus")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colElements")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colRates")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colHitTestFail")}
+                          </th>
+                          <th className="px-1.5 py-1 font-medium">
+                            {t("domHealth.colScore")}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1228,7 +1358,7 @@ export function DomHealthCard({
                                   <span className="block truncate">
                                     {label}
                                     {isDuplicateLabel
-                                      ? ` (state ${occurrence})`
+                                      ? ` ${t("domHealth.stateOccurrence", { count: occurrence })}`
                                       : ""}
                                   </span>
                                 </td>
@@ -1241,7 +1371,7 @@ export function DomHealthCard({
                                     toneTextClass(pageStatusTone(page.status)),
                                   )}
                                 >
-                                  {PAGE_STATUS_LABELS[page.status]}
+                                  {t(PAGE_STATUS_LABELS[page.status])}
                                   {page.status !== "completed" &&
                                     page.failureReason && (
                                       <span className="block font-normal text-muted-foreground">
@@ -1266,7 +1396,7 @@ export function DomHealthCard({
                                   {page.result
                                     ? page.result.score !== null
                                       ? `${page.result.score}/100`
-                                      : GRADE_META[page.result.grade].label
+                                      : t(GRADE_META[page.result.grade].label)
                                     : "—"}
                                 </td>
                               </tr>
@@ -1280,8 +1410,9 @@ export function DomHealthCard({
               )}
 
               <p className="text-[11px] text-muted-foreground">
-                Last checked:{" "}
-                {new Date(appOutcome.timestamp).toLocaleTimeString()}
+                {t("domHealth.lastChecked", {
+                  time: new Date(appOutcome.timestamp).toLocaleTimeString(),
+                })}
               </p>
             </div>
           )}

@@ -11,6 +11,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -36,8 +37,13 @@ export function chromiumPath() {
   return require("puppeteer").executablePath();
 }
 
+/**
+ * A new temporary directory, by its real path: Chrome derives an unpacked
+ * extension's ID from the real path, and macOS's temp directory is a symlink
+ * (/var → /private/var), so `unpackedExtensionId` would otherwise be wrong.
+ */
 export function tempDir(prefix) {
-  return mkdtempSync(join(tmpdir(), prefix));
+  return realpathSync(mkdtempSync(join(tmpdir(), prefix)));
 }
 
 /** HTTP server on a random loopback port; `handler(req, res, body)`. */
@@ -74,7 +80,10 @@ export function startPageServer(pages) {
  * Launch Chromium with the built Agent extension and any `extraExtensions`
  * (directories). Resolves the Agent's extension id from its service worker.
  */
-export async function launchBrowser({ extraExtensions = [] } = {}) {
+export async function launchBrowser({
+  extraExtensions = [],
+  extraArgs = [],
+} = {}) {
   if (!existsSync(join(EXTENSION_DIR, "manifest.json"))) {
     throw new Error("Build the extension first (npm run build).");
   }
@@ -84,7 +93,11 @@ export async function launchBrowser({ extraExtensions = [] } = {}) {
     executablePath: chromiumPath(),
     headless: true,
     acceptDownloads: true,
-    args: [`--disable-extensions-except=${all}`, `--load-extension=${all}`],
+    args: [
+      `--disable-extensions-except=${all}`,
+      `--load-extension=${all}`,
+      ...extraArgs,
+    ],
   });
   const agentWorker = await waitForWorker(context, (url) =>
     url.endsWith("/service-worker-loader.js"),
@@ -335,7 +348,7 @@ export async function openSidePanel(browser, model, targetPage, settings = {}) {
   await panel.evaluate(
     async ({ baseUrl, settings }) => {
       await chrome.storage.local.set({
-        aipex_settings: {
+        apty_settings: {
           aiProvider: "custom",
           aiHost: baseUrl,
           aiToken: "e2e-key",
@@ -506,7 +519,11 @@ export function unpackedExtensionId(dir) {
     .join("");
 }
 
-/** The Agent's extension id is pinned by the manifest `key`. */
+/**
+ * The ID of the unpacked/enterprise package, pinned by the manifest `key`.
+ * The Web Store package has no `key` and gets the store's ID (D2; see
+ * docs/integrations/apty/README.md#extension-ids).
+ */
 export const AGENT_EXTENSION_ID = "bpiondflhhdplemamgggcdajclmoeple";
 
 // ---------------------------------------------------------------------------

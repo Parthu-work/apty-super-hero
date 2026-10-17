@@ -6,6 +6,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "../../i18n/context";
 import {
   FakeMouseControllerImpl,
   type FakeMouseState,
@@ -165,6 +166,7 @@ export function FakeMouse({ options, onReady }: FakeMouseProps) {
 }
 
 function CursorSVG({ color, glowColor }: { color: string; glowColor: string }) {
+  const { t } = useTranslation();
   return (
     <svg
       width="48"
@@ -173,9 +175,9 @@ function CursorSVG({ color, glowColor }: { color: string; glowColor: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="Virtual cursor"
+      aria-label={t("ui.virtualCursor")}
     >
-      <title>Virtual cursor</title>
+      <title>{t("ui.virtualCursor")}</title>
       <defs>
         <linearGradient
           id="cursor-gradient"

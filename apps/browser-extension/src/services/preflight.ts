@@ -7,7 +7,9 @@
  */
 import type { AppSettings, ToolCallingSupport } from "@apty/agent-core";
 import type { AptyServiceWorkerStatus } from "@apty/browser-runtime/apty/types";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { isProviderConfigured } from "./ai-provider";
+import { englishTranslate, type Translate } from "./model-list";
 
 export type CheckStatus = "pass" | "warn" | "fail";
 
@@ -72,77 +74,76 @@ function hostOf(url: string): string {
 async function aiProviderCheck(
   deps: PreflightDeps,
   settings: AppSettings,
+  t: Translate,
 ): Promise<PreflightCheck> {
   const base = {
     id: "ai-provider" as const,
-    label: "AI provider",
+    label: t("preflight.checks.aiProvider.label"),
     section: "ai-provider",
   };
   if (!isProviderConfigured(settings)) {
     return {
       ...base,
       status: "fail",
-      detail: "No API key or model is set.",
-      fix: "Open Settings → AI Configuration, enter the API key and a model for your provider, turn it on and click Save Settings.",
+      detail: t("preflight.checks.aiProvider.notConfigured"),
+      fix: t("preflight.checks.aiProvider.notConfiguredFix"),
     };
   }
   try {
     const { latencyMs, toolCalling } = await deps.testConnection(settings);
-    const answered = `${settings.aiModel} answered in ${latencyMs} ms`;
+    const answered = { model: settings.aiModel ?? "", latency: latencyMs };
     if (toolCalling === "yes") {
       return {
         ...base,
         status: "pass",
-        detail: `${answered} and calls tools.`,
+        detail: t("preflight.checks.aiProvider.callsTools", answered),
       };
     }
     if (toolCalling === "no") {
       return {
         ...base,
         status: "fail",
-        detail: `${answered} but did not call a tool. The agent needs function calling.`,
-        fix: "Choose a model that supports function (tool) calling: in AI Configuration, Test Connection marks each model.",
+        detail: t("preflight.checks.aiProvider.noTools", answered),
+        fix: t("preflight.checks.aiProvider.noToolsFix"),
       };
     }
     return {
       ...base,
       status: "warn",
-      detail: `${answered}; whether it calls tools could not be determined.`,
-      fix: "Run Test Connection in AI Configuration again; if it stays unknown, try a model the provider documents as supporting tools.",
+      detail: t("preflight.checks.aiProvider.toolsUnknown", answered),
+      fix: t("preflight.checks.aiProvider.toolsUnknownFix"),
     };
   } catch (error) {
     return {
       ...base,
       status: "fail",
-      detail: `The provider did not answer: ${error instanceof Error ? error.message : String(error)}`,
-      fix: "Check the API key, AI Host and model in AI Configuration, then click Test Connection to see the provider's answer.",
+      detail: t("preflight.checks.aiProvider.noAnswer", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      fix: t("preflight.checks.aiProvider.noAnswerFix"),
     };
   }
 }
 
 const CLIENT_FIXES: Record<
   NonNullable<AptyServiceWorkerStatus["peerFailure"]>,
-  (agentId: string) => string
+  TranslationKey
 > = {
-  no_receiver: (agentId) =>
-    `The Apty Client does not let this extension in. Add "${agentId}" to externally_connectable.ids in the Client's manifest.json, reload the Client in chrome://extensions, then run the checks again.`,
-  no_response: () =>
-    "The Apty Client answers but has no Agent bridge. Install the Agent bridge module in the Client's service worker (docs/integrations/apty/README.md) and reload the Client.",
-  timeout: () =>
-    "The Apty Client accepted the message but never answered. Install or update the Agent bridge module in its service worker, and check chrome://extensions for errors on the Client.",
-  send_failed: () =>
-    "Chrome refused to message the Apty Client. Check that the extension ID in Apty Integration is the Client's ID (32 letters a–p).",
-  malformed_response: () =>
-    "The Apty Client's bridge module is out of date. Update it to the current contract (docs/integrations/apty/README.md).",
+  no_receiver: "preflight.checks.aptyClient.fixNoReceiver",
+  no_response: "preflight.checks.aptyClient.fixNoResponse",
+  timeout: "preflight.checks.aptyClient.fixTimeout",
+  send_failed: "preflight.checks.aptyClient.fixSendFailed",
+  malformed_response: "preflight.checks.aptyClient.fixMalformed",
 };
 
 async function aptyClientCheck(
   deps: PreflightDeps,
   agentId: string,
+  t: Translate,
 ): Promise<PreflightCheck> {
   const base = {
     id: "apty-client" as const,
-    label: "Apty Client",
+    label: t("preflight.checks.aptyClient.label"),
     section: "apty-client",
   };
   const id = await deps.clientId();
@@ -150,16 +151,16 @@ async function aptyClientCheck(
     return {
       ...base,
       status: "fail",
-      detail: "No Apty Client is connected.",
-      fix: "Open Settings → Apty Integration, click Detect (or paste the Client's extension ID) and click Connect.",
+      detail: t("preflight.checks.aptyClient.notConnected"),
+      fix: t("preflight.checks.aptyClient.notConnectedFix"),
     };
   }
   if ((await deps.clientInstalled(id)) === false) {
     return {
       ...base,
       status: "fail",
-      detail: `No enabled extension has the ID ${id}.`,
-      fix: "Install or enable the Apty Client in chrome://extensions, or correct the ID in Apty Integration.",
+      detail: t("preflight.checks.aptyClient.notInstalled", { id }),
+      fix: t("preflight.checks.aptyClient.notInstalledFix"),
     };
   }
   const status = await deps.clientStatus(id);
@@ -168,8 +169,8 @@ async function aptyClientCheck(
     return {
       ...base,
       status: "fail",
-      detail: status.error ?? "The Apty Client did not answer.",
-      fix: CLIENT_FIXES[failure](agentId),
+      detail: status.error ?? t("preflight.checks.aptyClient.noAnswer"),
+      fix: t(CLIENT_FIXES[failure], { agentId }),
     };
   }
   const resources = await deps.clientResources(id);
@@ -177,30 +178,36 @@ async function aptyClientCheck(
     return {
       ...base,
       status: "warn",
-      detail: "The Client answers the handshake but not the request list.",
-      fix: "Update the Agent bridge module in the Client: it must answer apty-debug-agent:list-observed-resources.",
+      detail: t("preflight.checks.aptyClient.noResources"),
+      fix: t("preflight.checks.aptyClient.noResourcesFix"),
     };
   }
   return {
     ...base,
     status: "pass",
-    detail: `Answering: status, logs and ${resources.count} observed request(s).`,
+    detail: t("preflight.checks.aptyClient.answering", {
+      count: resources.count,
+    }),
   };
 }
 
 function frameSummary(
   frames: FrameAnswer[],
   pick: (f: FrameAnswer) => boolean,
+  t: Translate,
 ) {
   const missing = frames.filter((f) => !pick(f));
   return {
     count: frames.length - missing.length,
-    missing: missing.map((f) => `frame ${f.frameId} (${hostOf(f.url)})`),
+    missing: missing.map((f) =>
+      t("preflight.checks.frame", { id: f.frameId, host: hostOf(f.url) }),
+    ),
   };
 }
 
 export async function runPreflight(
   deps: PreflightDeps,
+  t: Translate = englishTranslate,
 ): Promise<PreflightCheck[]> {
   const settings = await deps.loadSettings();
   const agentId = deps.agentId();
@@ -208,38 +215,41 @@ export async function runPreflight(
   const frames = tab ? await deps.frames(tab.id) : null;
 
   const checks: PreflightCheck[] = [
-    await aiProviderCheck(deps, settings),
-    await aptyClientCheck(deps, agentId),
+    await aiProviderCheck(deps, settings, t),
+    await aptyClientCheck(deps, agentId, t),
     {
       id: "agent-id",
-      label: "This extension's ID",
+      label: t("preflight.checks.agentId.label"),
       status: "pass",
       detail: agentId,
       fix: agentId,
     },
   ];
 
+  const pageLabel = t("preflight.checks.boundTab.label");
   if (!tab) {
     checks.push({
       id: "bound-tab",
-      label: "Page and frames",
+      label: pageLabel,
       status: "fail",
-      detail: "No web page is open.",
-      fix: "Open the application in a tab (an http or https page), click into it once, then run the checks again.",
+      detail: t("preflight.checks.boundTab.noPage"),
+      fix: t("preflight.checks.boundTab.noPageFix"),
     });
   } else if (!frames || frames.length === 0) {
     checks.push({
       id: "bound-tab",
-      label: "Page and frames",
+      label: pageLabel,
       status: "fail",
-      detail: `The frames of ${hostOf(tab.url)} could not be listed.`,
-      fix: "Reload the tab, then run the checks again.",
+      detail: t("preflight.checks.boundTab.framesUnlisted", {
+        host: hostOf(tab.url),
+      }),
+      fix: t("preflight.checks.boundTab.reloadFix"),
     });
   } else {
-    const answering = frameSummary(frames, (f) => f.answered);
+    const answering = frameSummary(frames, (f) => f.answered, t);
     checks.push({
       id: "bound-tab",
-      label: "Page and frames",
+      label: pageLabel,
       status:
         answering.missing.length === 0
           ? "pass"
@@ -248,107 +258,109 @@ export async function runPreflight(
             : "fail",
       detail:
         answering.missing.length === 0
-          ? `${hostOf(tab.url)}: all ${frames.length} frame(s) answer.`
-          : `${hostOf(tab.url)}: ${answering.count} of ${frames.length} frame(s) answer; not answering: ${answering.missing.join(", ")}.`,
+          ? t("preflight.checks.boundTab.allAnswer", {
+              host: hostOf(tab.url),
+              total: frames.length,
+            })
+          : t("preflight.checks.boundTab.someAnswer", {
+              host: hostOf(tab.url),
+              count: answering.count,
+              total: frames.length,
+              missing: answering.missing.join(", "),
+            }),
       ...(answering.missing.length > 0
-        ? {
-            fix: "Reload the tab so every frame gets the page script. A frame that still does not answer is blocked by the page (sandboxed or a browser page).",
-          }
+        ? { fix: t("preflight.checks.boundTab.someAnswerFix") }
         : {}),
     });
   }
 
   const bridgeBase = {
     id: "console-bridge" as const,
-    label: "Console and routing capture",
+    label: t("preflight.checks.consoleBridge.label"),
     section: "troubleshooting",
   };
   if (settings.pageHooksEnabled === false) {
     checks.push({
       ...bridgeBase,
       status: "warn",
-      detail:
-        "Turned off: console output is read only from when you ask, and DOM Health cannot measure routing.",
-      fix: 'Settings → General → Troubleshooting: turn on "Track client-side routing and capture console output from page load".',
+      detail: t("preflight.checks.consoleBridge.off"),
+      fix: t("preflight.checks.consoleBridge.offFix"),
     });
   } else if (!(await deps.bridgeRegistered())) {
     checks.push({
       ...bridgeBase,
       status: "fail",
-      detail: "The page script is on in Settings but not registered.",
-      fix: "Reload the extension in chrome://extensions.",
+      detail: t("preflight.checks.consoleBridge.notRegistered"),
+      fix: t("preflight.checks.consoleBridge.reloadExtensionFix"),
     });
   } else if (tab && !deps.bridgeAllowedOn(tab.url, settings)) {
+    const host = hostOf(tab.url);
     checks.push({
       ...bridgeBase,
       status: "warn",
-      detail: `${hostOf(tab.url)} is in "Sites where that script never runs".`,
-      fix: `Remove ${hostOf(tab.url)} from that list in Settings → General → Troubleshooting if this site should be captured.`,
+      detail: t("preflight.checks.consoleBridge.excluded", { host }),
+      fix: t("preflight.checks.consoleBridge.excludedFix", { host }),
     });
   } else if (frames && frames.length > 0) {
-    const covered = frameSummary(frames, (f) => f.bridgeSeen);
+    const covered = frameSummary(frames, (f) => f.bridgeSeen, t);
     checks.push({
       ...bridgeBase,
       status: covered.missing.length === 0 ? "pass" : "warn",
       detail:
         covered.missing.length === 0
-          ? `Running in all ${frames.length} frame(s).`
-          : `Running in ${covered.count} of ${frames.length} frame(s); missing in ${covered.missing.join(", ")}.`,
+          ? t("preflight.checks.consoleBridge.allFrames", {
+              total: frames.length,
+            })
+          : t("preflight.checks.consoleBridge.someFrames", {
+              count: covered.count,
+              total: frames.length,
+              missing: covered.missing.join(", "),
+            }),
       ...(covered.missing.length > 0
-        ? {
-            fix: "Reload the tab: frames loaded before the script was registered do not have it.",
-          }
+        ? { fix: t("preflight.checks.consoleBridge.someFramesFix") }
         : {}),
     });
   } else {
     checks.push({
       ...bridgeBase,
       status: "pass",
-      detail: "Registered for every site.",
+      detail: t("preflight.checks.consoleBridge.everySite"),
     });
   }
 
   const clipboard = await deps.clipboardPermission();
   checks.push({
     id: "clipboard",
-    label: "Copy to clipboard",
+    label: t("preflight.checks.clipboard.label"),
     status:
       clipboard === "granted"
         ? "pass"
         : clipboard === "denied"
           ? "fail"
           : "warn",
-    detail:
+    detail: t(
       clipboard === "granted"
-        ? "Copy buttons can write to the clipboard."
+        ? "preflight.checks.clipboard.granted"
         : clipboard === "denied"
-          ? "Writing to the clipboard is blocked."
-          : "Chrome will ask before the first copy.",
+          ? "preflight.checks.clipboard.denied"
+          : "preflight.checks.clipboard.prompt",
+    ),
     ...(clipboard === "granted"
       ? {}
-      : {
-          fix: "Allow clipboard access for this extension: chrome://settings/content/clipboard.",
-        }),
+      : { fix: t("preflight.checks.clipboard.fix") }),
   });
 
   const storage = tab ? await deps.contentScriptStorage(tab.id) : "unknown";
   checks.push({
     id: "storage-access",
-    label: "Storage access",
+    label: t("preflight.checks.storage.label"),
     status:
       storage === "blocked" ? "pass" : storage === "readable" ? "fail" : "warn",
-    detail:
-      storage === "blocked"
-        ? "Only the extension's own pages can read its storage (API keys stay out of pages)."
-        : storage === "readable"
-          ? "A script in a web page can read the extension's storage, including API keys."
-          : "Could not check without an open web page.",
+    detail: t(`preflight.checks.storage.${storage}`),
     ...(storage === "readable"
-      ? {
-          fix: "Reload the extension in chrome://extensions so its service worker restricts storage again.",
-        }
+      ? { fix: t("preflight.checks.storage.readableFix") }
       : storage === "unknown"
-        ? { fix: "Open a web page and run the checks again." }
+        ? { fix: t("preflight.checks.storage.unknownFix") }
         : {}),
   });
 
@@ -356,14 +368,25 @@ export async function runPreflight(
   const mode = settings.redactionMode ?? "strict";
   checks.push({
     id: "data-handling",
-    label: "Data handling",
+    label: t("preflight.checks.dataHandling.label"),
     status: mode === "off" ? "warn" : "pass",
-    detail: `Response bodies: ${settings.networkBodyCaptureEnabled ? "captured" : "not captured"} · deny list: ${denyList.length} entr${denyList.length === 1 ? "y" : "ies"} · redaction: ${mode}.`,
+    detail: t("preflight.checks.dataHandling.detail", {
+      bodies: t(
+        settings.networkBodyCaptureEnabled
+          ? "preflight.checks.dataHandling.captured"
+          : "preflight.checks.dataHandling.notCaptured",
+      ),
+      entries: t(
+        denyList.length === 1
+          ? "preflight.checks.dataHandling.entryOne"
+          : "preflight.checks.dataHandling.entryMany",
+        { count: denyList.length },
+      ),
+      mode: t(`redactionModes.${mode}`),
+    }),
     section: "data-handling",
     ...(mode === "off"
-      ? {
-          fix: "Redaction is off (development only). Settings → General → Data handling → Redaction: choose Strict before a demo with real data.",
-        }
+      ? { fix: t("preflight.checks.dataHandling.offFix") }
       : {}),
   });
 

@@ -1,520 +1,479 @@
-# Review: `hardening/open-work` (Phases A–D, then round 2)
+# Review: `hardening/prod-ready`, Checkpoint 3 (Phases 1–3), Phase 4 and the PR review
 
 | | |
 |---|---|
-| Branch | `hardening/open-work` (local only, never pushed) |
-| Base | `origin/main` at `dc27e2f` |
-| Code head | `c52b011` (round 2); the branch head is the next commit, which updates this file |
-| Build zip | `apty-agent-review-final-<head>.zip`: a clean build of the branch head, the contents of `apps/browser-extension/dist` with `manifest.json` at the top |
-| Git bundle | `apty-final-<head>.bundle`: refs `HEAD` and `refs/heads/hardening/open-work`, requires `dc27e2f`; every commit of Phases A–D and round 2 |
-| Checksums | `SHA256SUMS.txt` (SHA-256 of the zip and the bundle) |
+| Branch | `hardening/prod-ready`, pushed to `origin` at your request for the PR review (never `main`, no force-push) |
+| Base | `origin/main` `c64838b` (unchanged since Checkpoint 1) plus the 8 Phase A commits and Phase 1 |
+| Code head | Checkpoint 3: `e492c55`. Phase 4 (below) adds `4f8f755`..`451ef90`; the branch head is the commit after, which updates this file and STATUS |
+| Build zip | `apty-agent-prod-phase3-e492c55.zip`, a clean build, `manifest.json` at the top; also the release-style pair `apty-agent-v0.1.0.zip` and `apty-agent-v0.1.0-webstore.zip` |
+| Git bundle | `apty-agent-prod-phase3-e492c55.bundle`: `HEAD` and `refs/heads/hardening/prod-ready`, excluding `origin/main` (Phase A, Phase 1 and Phase 2) |
+| Checksums | `SHA256SUMS.txt` |
+| Spec | [`docs/tasks/prod/`](docs/tasks/prod/00-rules.md) |
 
-This file replaces the previous round's `REVIEW.md` (the v7 WP1 review),
-following that file's own convention of one review per round; that text is
-in git history: `git show dc27e2f:REVIEW.md`. Round 2 (the owner's
-answers and real-tenant feedback) comes first; then Phase D, C, B and A,
-unchanged apart from headings and the answered decisions.
+This file replaces the earlier reviews: `git show c2ac898:REVIEW.md` has
+Phase 1 (S1–S7) in full, and `git show 1e4284b:REVIEW.md` is Checkpoint 2.
+You approved Checkpoint 1 and then asked to "complete all the phases", so
+Phases 2 and 3 ran without a separate "continue". Checkpoint 2's files are in
+`~/Downloads/apty-agent-prod-phase2/`, this checkpoint's in
+`~/Downloads/apty-agent-prod-phase3/`.
 
-## Decisions from Phases A–D (answered)
+Nothing here was run against a real AI provider, a real tenant or the
+Chrome Web Store. Browser tests ran in Chrome for Testing 145 against a mock
+model, fixture pages and the real MCP daemon.
 
-The five questions below were answered No, No, No, No, Yes; see "Owner
-decisions, as answered" in round 2. Round 2's own open questions are under
-"Round 2: decisions needed from the owner".
+## Owner decisions (D1–D7)
 
-1. Add "save" to the risky click words? (A1) — No
-2. A header line inside JSON exports? (A3) — No
-3. Exempt right-click from the click gate? (A1) — No
-4. Add `@vitest/coverage-v8` at a matching version to `apps/mcp-bridge`? (C5) — No
-5. Fix the evidence-id de-duplication bug now? (C3) — Yes, with the other open bugs
+Still unanswered, so every default below is applied **provisionally**.
+Please confirm or change each.
 
-The skills feature stays (D1: `SKILLS_DECISION` was not edited, so KEEP).
-
-## Round 2: the owner's answers and real-tenant feedback
-
-After the Phase A–D review the owner answered the five decisions, passed
-T11–T18 by hand, ran DOM Health on athenaOne (bundle returned, works) and
-Infor LN (card text returned, no bundle), reported the export dialog cut
-off in the side panel, and asked for DOM evidence described in Apty's DES
-terms (with the DES, Picker Service and DOM Analysis documentation).
-
-### Owner decisions, as answered
-
-| # | Question | Answer | Effect |
-|---|---|---|---|
-| 1 | Add "save" to the risky click words? | No | Unchanged |
-| 2 | A header line inside JSON exports? | No | Unchanged |
-| 3 | Exempt right-click from the click gate? | No | Right-click stays gated |
-| 4 | Add `@vitest/coverage-v8` to `apps/mcp-bridge`? | No | No new dependency; the mixed-version warning stays |
-| 5 | Fix the open bugs now? | Yes | Fixed: below |
-
-T11–T18: passed on the owner's machine (owner's report; not re-run by me
-on a real tenant).
-
-### Round 2 commits
-
-| Commit | Change |
-|---|---|
-| `8bf1667` | The four open bugs (evidence id, downloads, Test Connection log, contrast) |
-| `20cd625` | Export dialog fits the side panel and scrolls |
-| `4a47ef1` | Infor LN findings: tenant and screen-context redaction, Deep-mode risk text, cross-origin link label, reasons in the pages table; athenaOne `"null"` template |
-| `aa6f306` | Element evidence in Apty DES terms |
-| `7cb7145` | The SVG download test kept inside the explicit-`any` baseline |
-| `445e481` | Workspace ID for Anthropic keys not scoped to a workspace (owner report after round 2) |
-| `02c0af1` | `anthropic-dangerous-direct-browser-access` on every Anthropic request (owner report) |
-| `9a77b6b` | This file, before the gate numbers |
-| `4e7e64a` | Gate numbers after the Anthropic fixes |
-| `731e5bc` | Acting on the Infor LN validation bundle (owner decisions) |
-| `c52b011` | An element inside a hidden container is hidden, not zero-size (second LN run) |
-| branch head | This `REVIEW.md` and `docs/STATUS.md` |
-
-### Round 2 gates (build of the code head, `c52b011`)
-
-```
-$ tooling/scripts/verify-quiet.sh       (after rm -rf apps/browser-extension/dist)
-✓ typecheck (17s)
-✓ lint (1s)
-✓ test (77s)
-✓ audit (1s)
-✓ build (28s)
-$ npm run test:e2e        (Chromium from /opt/pw-browsers)
-# tests 95
-# pass 95
-# fail 0
-# skipped 0
-$ npm run format:check                 → exit 0
-$ npm run audit:test-skips             ✓ every skipped test says why
-$ npm run audit:any                    ✓ 605 explicit any, none above the baseline
-$ npm run audit:docs-links             ✓ every relative link in the Markdown files resolves
-$ node tooling/scripts/check-extension-id.mjs
-✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
-$ pnpm -r --workspace-concurrency=1 --if-present test:coverage && npm --prefix apps/mcp-bridge run test:coverage
-→ exit 0
-```
-
-`npm run test:coverage` (all packages in parallel) failed twice on this
-machine (4 cores) earlier in round 2, each time on a different heavy
-`dom-snapshot` test hitting Vitest's 5 s timeout under instrumentation
-("analyzes the full interactive-element universe…", then "audits a
-251-shadow-root page…"). `dom-snapshot` is unchanged since `689698c`,
-where the same command passed. Run alone both pass, and the gate run one
-package at a time (above) passes with every threshold met. No timeout was
-raised and no test was changed; if this recurs in CI, run coverage with
-less parallelism rather than loosen the tests.
-
-| Package | Unit tests | Statements | Branches | Functions | Lines |
-|---|---|---|---|---|---|
-| agent-core | 260 | 76.25 | 70.13 | 83.73 | 77.99 |
-| apty-debug-contract | 72 | 84.91 | 78.46 | 93.18 | 87.66 |
-| dom-snapshot | 369 | 91.00 | 82.60 | 97.75 | 92.77 |
-| browser-runtime | 892 | 50.46 | 46.65 | 54.70 | 50.39 |
-| ui | 217 | 44.76 | 35.20 | 43.24 | 45.58 |
-| browser-extension | 298 | 44.60 | 45.82 | 42.03 | 44.50 |
-| mcp-bridge | 44 | 21.27 | 18.15 | 24.74 | 21.51 |
-
-Plus 17 script tests (`node:test`). New e2e tests this round: 7 (95,
-from 88).
-
-### Second Infor LN run (owner)
-
-With the build above, LN scored **64/100** (needs attention, LOW
-confidence, scope "Current Page"): the "Open tab menu" clicks read
-"Clicked, no new state", "13/14 frames with content reached, 5 empty
-placeholder(s) skipped", and "Ids shared by more than one element" (269
-values on 646 elements) is under Risks.
-
-It showed one defect, now fixed: **103 of the 158 "visible" elements were
-zero-size**. An element inside a `display: none` container (a closed menu,
-a collapsed panel) keeps its own `display` but has no box, so the hit test
-read it as 0×0. `checkVisibility` (which sees hidden ancestors) now
-classifies it as hidden. The LN-shaped e2e page has such a button: on the
-previous build it was a visible failure (`notTargetable: 1`), now it is
-hidden. Expected effect on that run: most of the 103 move to hidden, and
-hit-test targetability (19) and the score rise. Not re-run on LN.
-
-Seen in that run, not changed (needs evidence first):
-
-- **DOM volatility 0**: "Total element count changed by up to 106% between
-  consecutive snapshots" of the seed page. Either LN was still rendering
-  during the audit, or one of the 14 frames answered in one snapshot and
-  not the next (13/14 reached). The bundle does not carry per-snapshot
-  counts; exporting it from the next run, and re-running once the screen
-  has fully loaded, would tell which.
-- **Element ceiling** on the seed ("not every interactive element was
-  analyzed", 198 analyzed). The ceiling is a runaway guard; not raised
-  without a bundle showing how many were found.
-
-### Infor LN validation bundle (owner) and the decisions taken on it
-
-The owner ran Deep state discovery on LN and returned the bundle. What it
-showed, and what the owner chose (both "decisions needed" from round 2
-are now answered):
-
-| Finding in the bundle | Owner decision | Change |
+| ID | Decision | Applied |
 |---|---|---|
-| Both "LN Open tab menu" clicks: "did not produce a new application state", no history, frame or network change: a dropdown | Count such clicks as explored | New status `explored-no-new-state` ("Clicked, no new state"): not in `pagesDiscovered`, not unexplored, not gating the score. Failed, unrestorable and uncertain clicks still gate it. |
-| "2/4 frames reached": the two others are empty `about:blank` placeholders (`gwtui` and one more), skipped by design | Clearer frame count | `framesPlaceholder` counted; the card reads "2/2 frames with content reached, 2 empty placeholder(s) skipped". Display only. |
-| 88 id values shared within a root, on 209 elements; the page-level risk was missing from the Application view | Show it in the Application view | The duplicate-id risk is summed over the audited pages. It explains the 185 elements found only by position. |
-| 131 hit-test failures: 75 hidden, 48 outside the viewport, 4 + 2 covered, 2 zero-size | Discount hidden elements | Hit-test targetability is the share of VISIBLE tested elements a click reaches; hidden ones are shown ("N hidden when sampled, not counted") but not failures. LN: 103/159 (65), was 103/234 (44). |
-| DES steps, hit-test reasons and dynamic names were on the card only | All three summaries in the bundle | `desEvidence` (step and reason counts, attribute names left out as dynamic) in the page and application summaries; meanings are not exported. Also `framesPlaceholder` and `pagesExploredNoNewState`. |
+| D1 | Distribution | Default: **unlisted Web Store**. The listing, smoke test and R9 list assume it. |
+| D2 | Extension ID | Default: **adopt the Web Store's ID**. The store zip has no `key`; the unpacked zip keeps the pinned ID for development, enterprise and tests. Client and Studio must allow-list both (R7). |
+| D3 | Skills in the store build | Default (Phase 1): imported skills stay; the model can't write scripts. The remote-code answer is written for this. |
+| D4 | Tab titles in Strict | Default (Phase 1): withheld in Strict. |
+| D5 | Licence | Default: **MIT**; `LICENSE` adds "Copyright (c) 2026 Apty". Check the legal entity name. |
+| D6 | Icon artwork | Default: you supply it; **R6 is partial** until then. |
+| D7 | Providers for PHI | Default (Phase 1): Settings warns for every provider. |
 
-Expected effect on the same LN run: the evidence gate no longer fires (no
-unexplored controls), so the application view reports the seed page's
-score, about 59/100 (58 before, plus the hit-test metric's 6% weight
-moving from 44 to 65), scope "Current Page", LOW confidence, coverage
-1 of 2 (the infor.com link is skipped). Not re-run on LN by me; the
-stand-in e2e page checks each rule.
+## Commits (Phase 2)
 
-Tests: unit (a no-change click neither discovered nor gating; an uncertain
-one still gating; the duplicate-id rollup and placeholders; hidden
-elements out of the metric with its evidence text; the bundle's DES
-summaries with an identifier masked inside an attribute name), the card
-(frame wording, hidden note, "Clicked, no new state", the summary count),
-and the e2e LN page, now with a dropdown tab, an `aria-hidden` menu item,
-an empty iframe and a shared id: the click is explored, the score is not
-gated, the placeholder, the hidden item and the duplicate-id risk are
-counted, and every exported bundle carries `desEvidence` without
-meanings. The existing test "reports not-discovered … when a click
-produces no real change" asserted the old rule; it now asserts the
-decided one (explored, never a fabricated state, not gating), with more
-assertions than before.
-
-### Anthropic key "not scoped to a workspace", then the browser-access 401 (owner reports)
-
-Test Connection with the owner's Claude API key failed with
-`400: This API key is not scoped to a workspace, so this request must
-include the anthropic-workspace-id header…`. Such a key can run in several
-workspaces, and the Claude API then needs the workspace's ID
-(`wrkspc_…`) on every request; a key created for one workspace does not
-(platform.claude.com/docs/en/api/overview, "Authentication"). The
-extension had no way to send it.
-
-- Settings → AI Configuration has an optional **Workspace ID** field for
-  Anthropic, saved with the model config. Chat, Test Connection, the
-  tool-calling probe and Fetch models send it as `anthropic-workspace-id`.
-  No new request: the header rides the existing ones.
-- Without it, the 400 now says where to enter the ID (Test Connection and
-  Fetch models); `docs/TROUBLESHOOTING.md` has the row.
-- Found while testing it: the active model's provider was resolved from
-  its host alone, so the built-in Anthropic entry behind a
-  non-`anthropic.com` host (a proxy, or the e2e mock) was sent in the
-  OpenAI format to `/chat/completions`. It now resolves like the list and
-  the form do.
-
-Tests: unit (`anthropicWorkspaceHeaders`, the fix text, the model-list
-header and 400), the Settings component (field only for Anthropic; the ID
-reaches Test Connection and Save, behind a proxy host), and an e2e
-(`anthropic-workspace.e2e.test.mjs`) against a mock of Anthropic's
-Messages and Models endpoints that answers the real 400 without the
-header: the message names the fix; with the ID, Test Connection and Fetch
-models succeed and every request carried it. Before the provider fix the
-same e2e recorded `/v1/chat/completions`.
-
-With the Workspace ID set, the owner's next Test Connection failed with
-`401: CORS requests must set 'anthropic-dangerous-direct-browser-access'
-header`: the API treats an extension page as a browser origin. Every
-Anthropic request (chat, Test Connection, the probe, Fetch models) now
-sends `anthropic-dangerous-direct-browser-access: true`, which
-acknowledges that the user's own key is used from the browser (it is
-stored locally, as before). The e2e mock refuses a request with an
-`Origin` and without that header, with Anthropic's 401, after the
-workspace check (the order the owner saw); on a build without this fix the
-second e2e test fails, with it both pass, and the recorded requests carry
-`Origin: chrome-extension://…`.
-
-Not tested against the real Claude API (no key here). Observed, not
-changed: a user-created model of type "Claude" with an unknown host is
-still sent as OpenAI-compatible (`detectProviderFromHost` returns
-`custom`, which wins over the type); the built-in Anthropic entry is not
-affected.
-
-### The four open bugs (decision 5)
-
-Each new test was run against the old code or the old build first and
-failed; it passes now.
-
-- **Evidence id after de-duplication.** `recordEvidence` returned a fresh
-  id for a record it did not store, so the second inspection of the same
-  Client resource produced a "View full response" that found nothing. It
-  now returns the stored record. Unit tests (resolves; stored again once
-  evicted) and an e2e in `apty-client.e2e.test.mjs` ("inspecting the same
-  body again…", `not ok` on the old build). The a11y suite no longer needs
-  a different resource per theme.
-- **Chat image downloads.** A failed download did not advance the name
-  index, so the next image took the failed one's name; `image/svg+xml`
-  saved as `.svg+xml`. Fixed in the background download and in the
-  `download_chat_images` tool. Unit tests only: see "Not done".
-- **Test Connection log.** The raw provider error went to
-  `console.error`. In Chromium, against a mock provider that echoes the
-  key like OpenAI does, the old build printed
-  `Connection test failed: AI_APICallError: Incorrect API key provided: sk-e2e-…`
-  with its stack in the Options console. Now only the sanitized message is
-  logged: `Connection test failed: 401: Incorrect API key provided: [REDACTED]`.
-  Unit tests and an e2e in `model-settings.e2e.test.mjs`.
-- **Amber text contrast.** Light `--warning` was amber-600, 3.19:1 on
-  white (axe, old build, DOM Health card). It is amber-800 now. The same
-  new a11y test found the dark theme's danger text at 1.97:1 (`#82181a`
-  on `#0a0a0a`); `toneTextClass`/`toneBadgeClass` now use `red-400` in dark
-  mode, the pattern C3 used for alerts. This second fix is beyond the four
-  bugs, on the same card and of the same kind.
-
-### Export dialog cut off (owner report)
-
-The dialog was centred with no height limit; at side-panel height the
-header and the buttons fell outside the panel and nothing scrolled. It is
-now capped at the viewport, the JSON scrolls inside it (keyboard-reachable,
-which axe requires of a scroll region) and the buttons stay on one row.
-The a11y suite opens it at 400×600 in both themes and asserts the dialog is
-inside the panel, the JSON scrolls and Cancel, Copy and Download are
-visible.
-
-### Infor LN (from the owner's card text; no bundle)
-
-What the card showed, and what was done:
-
-1. **Tenant and screen context reached the model.** The portal URL carries
-   the tenant as its first path segment (`/<16 characters>_TRN/…`) and the
-   open screen as base64 JSON in `favoriteContext` (its description, the
-   session type and the LN program it launches). Neither matched the
-   redaction patterns, so both reached the model and the card. Now tenant
-   ids become `:tenant` wherever identifier shapes are masked, and any
-   24+ character base64-like query value becomes `<REDACTED>`. Unit tests
-   with a fake tenant; an e2e serves a page at an LN-shaped URL and asserts
-   neither the tenant, the base64 nor the decoded text is in the tool
-   result.
-2. **"click-based discovery is off by default" in Deep mode.** Wrong: Deep
-   mode did click. The two "LN Open tab menu" rows are controls that were
-   clicked and did not lead to a new audited state, or whose click or
-   restore failed; each row recorded why, but the card did not show it.
-   The risk now says the controls were clicked and lists each reason with
-   its count, and the pages table shows the reason under the status.
-3. **`https://www.infor.com/` labelled `same-origin-link`.** A skipped link
-   to another site is now `cross-origin-link`.
-4. **Page rows showed the full query string.** Rows are now labelled by
-   URL without the query.
-
-Not changed, pending the LN bundle:
-
-- **NOT ENOUGH EVIDENCE.** By design: detected controls that did not lead
-  anywhere new, with only the seed state audited, gate the score to
-  `INCOMPLETE_EVIDENCE` (`determineApplicationEvidenceState`, whose doc
-  counts "a click that produced nothing new" as unexplored). Whether a
-  verified no-new-state click should stop counting is decision 1 below.
-- **7/10 frames, the element ceiling on the seed, 245/323 hit-test
-  failures.** Thresholds are not tuned without real-tenant evidence. The
-  next run's card will split the hit-test failures by reason (hidden,
-  zero-size, outside the viewport, covered), which says whether they are
-  closed tabs and menus or real overlays.
-
-### athenaOne bundle (owner)
-
-The audit works (79/100 FAIR, MEDIUM confidence, 12/12 frames). One defect
-fixed: a frame with no http URL (`about:blank`, GlobalNav at capture time)
-was exported with `"urlTemplate": "null"` (the opaque origin's string); it
-is now `"about:"`. The rest is under "Observed, not changed".
-
-### Element evidence in DES terms (owner request)
-
-The card showed one outcome label per element and three percentages per
-page. Now, from the engine's own per-element evidence and in the
-vocabulary of the DES documentation the owner shared:
-
-- Each element sample carries an explanation: the step that finds it
-  (`checkInitialPath`, Partial Selector, `checkSimplifyDynamic`,
-  `checkContainers`, `checkSimplifyNth` then `checkDirectElement`) or why
-  none does (ambiguous within 0.03, wrong target, below the 0.90 score,
-  behind a closed shadow root or cross-origin frame); the attribute names
-  left out as dynamic; shadow depth; the hit-test reason; the cross-state
-  result; a missing accessible name; and a fix (a stable attribute, an
-  Attribute Priority or Partial Selector rule, the cross-origin iframe or
-  shadow root configuration). Shown under each row of "Element-level
-  details".
-- Each page and application result carries `desEvidence`: elements per
-  DES step with what the step means, the attributes most often left out
-  as dynamic (Ignore Selector), and hit-test failures by reason. Shown as
-  "How Apty's DES would find these elements" and under "Hit-Test
-  Failures".
-- The model receives the same text through the redacted result. Attribute
-  names only, never values. `docs/development/des-engine.md` maps the
-  documentation's step names to the port's (`dropDynamicValues`,
-  `dropPositionalPseudo`, `dropOneAncestor`, `leafFieldCombinations`).
-
-The mapping is DOM Health's own: the outcome comes from
-`generateMinimalSelector`, as the DES doc already explains, so "the step
-that finds it" means the step that matches how the element is
-identified, not a trace of Apty's player.
-
-Tests: unit (`element-explanation.test.ts`, scoring and audit
-integration, the card), and e2e: the deep shadow DOM audit's explanations
-name the three shadow roots and the step counts add up to the elements
-analyzed; the a11y suite checks the new section on a form page in both
-themes.
-
-### Round 2: not done, or partial
-
-- The downloads fix has unit tests only. The background download opens
-  Chrome's Save As dialog (`saveAs: true`), which the e2e harness cannot
-  answer; the changed code is the file name and index computation.
-- Infor LN: the changes above are tested on a stand-in page, not re-run
-  on the real tenant.
-- No real tenant was used by me; the LN fixes are tested on stand-in pages
-  built from the URL shape in the card text.
-
-### Round 2: decisions needed from the owner
-
-None open. Both earlier questions were answered after the LN bundle:
-no-change clicks count as explored, and the bundle carries all three DES
-summaries (see "Infor LN validation bundle" above).
-
-### Round 2: observed, not changed
-
-- athenaOne: the `frHelp`, `frHidden` and `frScheduleNav` frames load
-  `static_<n>/blank.html` and are classified `application` ("Holds
-  application content"). They have no controls, so they are unscored and
-  do not affect the score; the role is misleading. Not changed without a
-  rule that would also hold on other tenants.
-- athenaOne: the top `globalframeset.esp` document is classified
-  `application` and scored 73, because it holds controls of its own;
-  `GlobalWrapper` is unscored (no controls).
-- `token-usage-indicator.tsx` uses `text-warning/70` at 60% of the context
-  window; at 70% opacity it may be below 4.5:1 even with amber-800. No
-  tested screen shows it.
-- The Settings component also logs `Connection test error:` with the
-  sanitized message and a stack; it carries no provider data.
-
-### Round 2: owner test script (about 5 minutes)
-
-1. Load the zip. Open Infor LN in the portal, DOM Health → Application →
-   Deep state discovery → Audit. Check: no page row shows `?` or
-   `favoriteContext`, the tenant segment reads `:tenant`; each "Detected,
-   not explored" row shows a reason under its status; the risk says the
-   controls "were clicked", not "off by default"; the infor.com row says
-   `cross-origin-link`.
-2. Same card: Export validation bundle. The dialog fits the panel, the
-   JSON scrolls, Download is visible. Please send that bundle.
-3. athenaOne: Check DOM Health. "How Apty's DES would find these elements"
-   lists counts per step; under Hit-Test Failures the reasons are listed;
-   in Element-level details each row has a `check…:` line and a Fix line.
-4. Inspect `segments.json` from the Apty Client twice in one chat; "View
-   full response" opens both times.
-5. Settings → AI Configuration: enter a wrong key, Test Connection. The
-   error shows `[REDACTED]` for any echoed key; the Options page console
-   (right-click → Inspect) shows `Connection test failed: 401: …` and no
-   key.
-6. Light theme: the amber "FAIR"/warning texts on the DOM Health card are
-   clearly readable.
-7. Settings → AI Configuration → Anthropic: with your multi-workspace key
-   and no Workspace ID, Test Connection says where to enter it; paste the
-   `wrkspc_…` ID from Claude Console → Settings → Workspaces, Test
-   Connection succeeds (no CORS 401), Fetch models lists the models, and
-   chat answers.
-8. Infor LN again (Application → Deep state discovery): the "Open tab
-   menu" rows read "Clicked, no new state" and a score is reported; the
-   frame line reads "2/2 frames with content reached, 2 empty
-   placeholder(s) skipped"; "Ids shared by more than one element" is under
-   Risks; Hit-Test Failures counts visible elements and notes the hidden
-   ones. Export the bundle: it has `desEvidence`.
-
----
-
-
-# Phases A–D
-
-## Commits
-
-| Commit | Work package |
+| Commit | Subject |
 |---|---|
-| `79f7e66` | Spec saved as `docs/tasks/master/00-rules.md` plus one file per work package |
-| `aa35083` | A1: ask before risky clicks and before opening other origins |
-| `b2f58a0` | A2: apply the body deny list to Apty Client bodies |
-| `d924303` | A3: a redaction mode setting, honoured by every caller |
-| `d50a906` | Checkpoint A `REVIEW.md` |
-| `d5fa21c` | B3: a structural summary for JSON bodies |
-| `0829dbf` | B4: virtualized lists reported as partial coverage |
-| `1784d54` | B5: a switch and site exclusions for the page-world script |
-| `d179913` | B2: real-tenant validation bundle and threshold overrides |
-| `15ab96e` | Checkpoint B `REVIEW.md` |
-| `1a9d225` | C4: re-enable the skipped chat tests, fix Stop while submitted |
-| `67ba3d0` | C5: a coverage gate in every package |
-| `1acf975` | C3: axe accessibility checks and fixes |
-| `c8d0d92` | C1: live model list, tool-calling probe, preset audit |
-| `ea932f5` | C2: preflight page, demo script, `demo:check` |
-| `371e566` | C5 ratchet raised after Phase C's tests |
-| `29d9622` | Checkpoint C `REVIEW.md` |
-| `f3c53a8` | D2: Apty Studio as a second peer, Agent side (D1 skipped: kept) |
-| `17e7ded` | D3: release dry run, local rehearsal, browser smoke test |
-| `0030894` | D4: any ratchet, noConsole, typed CDP params |
-| `e1835f5` | D5: DECISIONS.md and PROJECT_PROGRESS.md moved to docs/archive (pure rename) |
-| `689698c` | D5: decision index, project guide, link checker, docs vs code |
-| branch head | This `REVIEW.md` (final) |
+| `a0fd0d7` | chore(deps): remove unused dependencies and dead code; one @openai/agents-core (R1) |
+| `57308f4` | build(release): release only from main; run every CI audit; one 0.1.0 changelog (R5) |
+| `487af35` | build: ship LICENSE, third-party notices and the Inter OFL (R4) |
+| `450a0b4` | feat(settings): version the stored settings and migrate them (R3) |
+| `f486316` | feat(branding): move AIPex storage names to Apty ones, with a migration; Apty names on pages (R2) |
+| `9b25b8c` | feat(release): two extension IDs per D2; copy the running ID (R7) |
+| `288c2a4` | docs(store): single purpose, description, remote code, data use, screenshots (R6, partial) |
+| `a05429f` | docs(release): prepare the Infor LN re-run and say where results go (R9) |
+| `1dbe264` | test(i18n): ratchet on hard-coded UI text; en/zh key parity; keys typed from en.json (R8) |
+| `dac9c14` | feat(i18n): move the DOM Health, skills, route probe, preflight, data-handling, recent-requests and provider-error text into en/zh (R8) |
+| `5cf6110` | fix(options): label the ID Copy button so it doesn't also match "Extension ID" (R7) |
+| `e492c55` | test(e2e): let a closed tab's favicon request land before clearing; format the Copy button |
+| (next) | docs: Checkpoint 2 review and status |
 
-B1 was skipped: see below.
+## Gates (Checkpoint 2, code head `e492c55`)
 
-## Final gates (clean build of `689698c`)
+`rm -rf apps/browser-extension/dist`, then `tooling/scripts/release-dry-run.sh`
+(format, lint, typecheck, unit tests, `test:coverage` with the default
+timeouts, build, the full e2e suite, every audit, packaging, checksums):
 
 ```
-$ rm -rf apps/browser-extension/dist
-$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
-✓ typecheck (12s)
-✓ lint (1s)
-✓ test (63s)
-✓ audit (1s)
-✓ build (26s)
-$ npm run format:check                 → exit 0
-$ npm run test:coverage                → exit 0
-$ npm run audit:test-skips             ✓ every skipped test says why
-$ npm run audit:any                    ✓ 605 explicit any, none above the baseline
-$ npm run audit:docs-links             ✓ every relative link in the Markdown files resolves
-$ node tooling/scripts/check-extension-id.mjs
-✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
+✓ version check (0s)
+✓ format lint typecheck test coverage (117s)
+✓ build (13s)
+✓ real-browser tests (439s)
+✓ audits (7s)
+✓ production dependency audit (4s)
+✓ pinned extension ID (0s)
+✓ package (2s)
+✓ checksums (0s)
+✓ verify checksums (0s)
 ```
 
-Unit tests (no skipped test anywhere):
+End-to-end, inside that run:
 
 ```
-packages/apty-debug-contract   Tests  72 passed (72)
-packages/agent-core            Tests 260 passed (260)
-packages/dom-snapshot          Tests 367 passed (367)
-packages/ui                    Tests 216 passed (216)
-packages/browser-runtime       Tests 870 passed (870)
-apps/browser-extension         Tests 291 passed (291)
-apps/mcp-bridge                Tests  44 passed (44)
-tooling/scripts (node:test)    pass 17, fail 0
-```
-
-```
-$ npm run test:e2e        (Chromium from /opt/pw-browsers, against the clean build)
-# tests 88
-# pass 88
+# tests 122
+# pass 122
 # fail 0
-# skipped 0
+# cancelled 0
 ```
 
-| Coverage | Statements | Branches | Functions | Lines |
+All 13 tests that failed in Checkpoint 1 on the base build too now pass:
+the harness computed unpacked extension IDs from macOS's `/var/…` temp path
+while Chrome uses the real `/private/var/…` path (fixed in R2,
+`tempDir` returns the real path), and the A1 test counted a late
+`/favicon.ico` from the previous test's tab (setup fixed, 3/3 runs green).
+
+Unit tests, after Phase 1 → after Phase 2:
+
+| Suite | Phase 1 | Phase 2 |
+|---|---|---|
+| apty-debug-contract | 80 | 80 |
+| agent-core | 271 | 282 |
+| dom-snapshot | 395 | 395 |
+| browser-runtime | 1069 | 1086 |
+| ui | 264 | 268 |
+| browser-extension | 313 | 317 |
+| mcp-bridge | 60 | 60 |
+| tooling scripts (`node --test`) | 23 | 42 |
+
+Coverage (default timeouts this time; every threshold passed):
+
+| Package | Statements | Branches | Functions | Lines |
 |---|---|---|---|---|
-| agent-core | 76.25 | 70.13 | 83.73 | 77.99 |
-| dom-snapshot | 90.99 | 82.58 | 97.75 | 92.76 |
-| ui | 44.71 | 35.04 | 43.09 | 45.52 |
-| browser-runtime | 49.93 | 45.95 | 53.85 | 49.87 |
-| apty-debug-contract | 84.91 | 78.46 | 93.18 | 87.66 |
-| browser-extension | 43.97 | 44.79 | 41.51 | 43.84 |
-| mcp-bridge | 21.27 | 18.15 | 24.74 | 21.51 |
+| apty-debug-contract | 85.45% | 78.84% | 93.18% | 88.02% |
+| agent-core | 78.70% | 72.52% | 85.25% | 80.50% |
+| dom-snapshot | 91.41% | 83.45% | 97.82% | 93.17% |
+| browser-runtime | 57.21% | 54.33% | 62.25% | 57.21% |
+| ui | 50.09% | 39.32% | 48.85% | 51.22% |
+| browser-extension | 46.09% | 46.70% | 44.16% | 46.01% |
+| mcp-bridge | 31.47% | 26.17% | 34.43% | 31.64% |
 
-The packaged manifest still has `"externally_connectable": {"ids": []}`;
-the unpacked build is 14,669,025 bytes (`du -sb dist`). TruffleHog 3.99.2
-over `origin/main..HEAD` (22 commits before this file), no exclude list,
-verification off: `"chunks":1168 "bytes":1142864 "verified_secrets":0
-"unverified_secrets":0`.
-
-The local release rehearsal (D3), run at `17e7ded`:
+Other gates:
 
 ```
-$ tooling/scripts/release-dry-run.sh
+npm run format:check       Checked 790 files. No fixes applied.
+npm run audit:any          ✓ 604 explicit any, none above the baseline
+npm run audit:i18n         ✓ 277 hard-coded UI strings, none above the baseline
+npm run audit:notices      ✓ THIRD_PARTY_NOTICES.txt matches the production dependencies
+npm run audit:branding     ✓ No unreviewed AIPex branding found.
+npm run audit:docs-links   ✓ every relative link in the Markdown files resolves
+pnpm audit --prod          No known vulnerabilities found   (mcp-bridge: the same)
+check-extension-id.mjs --store <store-dist>/manifest.json   ✓ has no "key"
+```
+
+Secret scan: TruffleHog 3.99.2 (Homebrew),
+`trufflehog git file://<repo> --since-commit c2ac898 --branch hardening/prod-ready --no-verification`,
+no exclude list: 602 chunks, **0 verified, 0 unverified**. Repeated on the
+branch head before packaging.
+
+## Phase 3: final verification
+
+- **Rebase:** `origin/main` is still `c64838b` (fetched today); the branch
+  already contains it and has no merge commits, so there was nothing to
+  rebase.
+- **Gates on the branch head** (`rm -rf apps/browser-extension/dist` first):
+
+  ```
+  ✓ typecheck (8s)
+  ✓ lint (1s)
+  ✓ test (46s)
+  ✓ audit (4s)
+  ✓ build (13s)
+  npm run format:check       Checked 790 files. No fixes applied.
+  npm run audit:test-skips   ✓ every skipped test says why
+  npm run audit:any          ✓ 604 explicit any, none above the baseline
+  npm run audit:docs-links   ✓ every relative link in the Markdown files resolves
+  check-extension-id.mjs     ✓ The manifest key yields the pinned Agent ID bpiondflhhdplemamgggcdajclmoeple
+  pnpm audit --prod          No known vulnerabilities found   (package.json has no ignoreCves)
+  ```
+
+- **Coverage, full e2e and the release dry run:** the dry run under
+  "Gates" (Checkpoint 2) ran on `e492c55`, the same code: coverage with the
+  default timeouts, e2e 122/122, every step ✓.
+- **TruffleHog over `origin/main..HEAD`** (`--no-verification`, no
+  exclude list): 3,484 chunks, **0 verified, 0 unverified**.
+- **The final Web Store zip in Chromium** (`apty-agent-v0.1.0-webstore.zip`
+  unpacked, no `key`, loaded through `E2E_EXTENSION_DIR`):
+
+  | Probe | Result |
+  |---|---|
+  | S1 exfiltration (`exfiltration.e2e`) | 2/2 pass |
+  | S3 deletion (`stored-data.e2e`) | 2/2 pass |
+  | S4 PHI fixture (`phi-fixture.e2e`) | 2/2 pass |
+
+  The PHI fixture first timed out twice (870 s wall time against a 600 s
+  limit) and once failed with "Service worker did not start" on the dev
+  build too: the laptop was sleeping. Rerun with `caffeinate -dims`, it
+  passed 2/2 in about 10 s on both the store zip and the dev build.
+- **Request size** (`npm run report:request-size`), base `5fe5227` →
+  head: every scenario is identical, raw and as sent (for example
+  `investigation-10-turns` 11,163 tokens, `snapshot-heavy` 6,598, `casual`
+  3,929). The whole registry's schemas went from 14,597 to 14,683 tokens
+  (+0.59%), under the 2% limit; the system prompt stays 3,928.
+
+## After Checkpoint 3: fix for an unoffered tool call
+
+Found while writing the R2 e2e and listed as "observed": when the model
+called a tool that wasn't offered for the message (the side panel offers
+tools by relevance), the runner threw "Tool X not found", the agent
+reported it as a provider error and never finished the turn, and the side
+panel showed nothing. Now a registered tool the model asks for is added to
+the offered set and the turn runs again, and a tool that doesn't exist is
+reported as `TOOL_NOT_FOUND` naming it.
+
+- `aipex-unknown-tool.test.ts` (the real `run()`): before, "expected
+  [session_created, …] to include execution_complete" and "expected
+  LLM_API_ERROR to be TOOL_NOT_FOUND"; after, 2/2.
+- `core-tools.e2e` "runs a tool the message's wording didn't offer":
+  "find the save button" offers no UI tools, the model calls
+  `search_elements`, and the reply arrives. On the Checkpoint 3 build:
+  "No new reply matching /^RESULT:/"; on this build: pass.
+- Release dry run on this commit: every step ✓, e2e 123/123.
+
+## Phase 4: the items Checkpoint 3 left out
+
+You asked whether the PR held every bug, gap and fix, and then to
+"complete all the phases". These are the ten items it did not hold
+(numbered as in that answer). Two of them change rules the plan had kept
+fixed: item 7 (redaction) and item 8 (approval). Each has its own
+commit. The "before" lines are the new tests run on the code before the
+change.
+
+| # | Change | Commit | Before → after |
+|---|---|---|---|
+| 6 | **Strict** replaces record numbers (6+ digits), GUIDs, long hex ids with `:id` and emails with `:email` in URL paths, for example `/patients/884213` → `/patients/:id`. Standard keeps the path, as before. | `4f8f755` | `value-policy.test` "replaces record numbers, GUIDs, long hex ids and emails…": 1 failed → pass |
+| 7 | A sensitive key whose object or array is cut off by truncation (`{"cookie":{"sid":"abc…`) is redacted to the end of the text; before, the rest passed through. | `b360e33` | `json-redact.test` "redacts an unclosed sensitive object or array to the end" (2 rows): 2 failed → pass |
+| 8 | DOM Health's **application-safe** mode (link-only discovery) now asks first, like application-deep; the prompt says how many pages it may open and that nothing is clicked. It can be remembered for the site; deep still can't. Page mode still runs without asking. | `fa5766c` | `dom-health.test` "asks before link-only discovery too…": 1 failed → pass |
+| 9 | Agent session history that no saved conversation leads to (by id or through the session it forked from) and that has been idle for 24 h is deleted after each save. A side panel closed without "New chat" used to leave one forever. A session with no timestamp is kept. | `b9e119f` | `agent-session-migration.test` (2) and `conversation-storage.test` "sweeps after a save…": 3 failed → pass |
+| 10 | A failing plugin hook is logged as `[Apty Agent] Plugin <id> <hook> failed (<error type>)`; before, `console.error` printed the error, which can carry page text. | `55e5c58` | `aipex-plugin-logs.test`: "expected '[Apty Agent] Failed to setup plugin l…' not to contain 'PATIENT-884213'" → pass |
+| 11 | The chat shows its own `data:` and `blob:` screenshots inline again. S1 had blocked them along with remote images. Remote images stay blocked, and a `data:` URL that is not an image is still not rendered. | `1afbd8d` | `response.test` "renders a local data: image…": 1 failed → pass; "never renders a data: URL that is not an image" passes before and after |
+| 12 | The conversation, screenshot and skills IndexedDB databases move from `aipex-*` to `apty-*` names (copy, read back every key, then delete), like `aipex-sessions` in R2. A record already under the new name wins. | `3aec0af`, `2f22cc1`, `d53b20f` | `legacy-storage.e2e` first test, extended: see below |
+| 13 | The remaining hard-coded UI text is in `en` and `zh` (495 keys each, 57 files, including Preflight's results and the error screen). The ratchet went from 277 to 13. | `c5f8b5c` | `preflight-panel.test` new zh case; ratchet 13 |
+| 14 | knip's unused files (14 files, 1,285 lines) and unused exports are removed, along with `@radix-ui/react-hover-card` and `embla-carousel-react` from `@apty/ui`. The explicit-any baseline went from 604 to 603. | `914c3d0`, `08aea1e` | typecheck, lint, every unit test |
+| 15 | `@openai/agents` and `@openai/agents-extensions` 0.7.2 → 0.20.0. See the notes below. | `6e9ab92`, `753e815`, `2a15cf3` | below |
+
+**Item 15 notes:**
+
+- **Strict tool schemas.** 0.20 rejects `z.record` in a tool's parameters
+  and won't take `strict: false` with Zod. The intervention tools' `params`
+  is now an object with explicit nullable fields, and nulls are dropped
+  before the intervention runs (`tools/interventions/index.test.ts`).
+- **Tool error messages.** 0.20 tells the model only "An error occurred
+  while running the tool". Tools rely on the error's text to say why they
+  refused (for example "disabled in background mode", checked by
+  `computer.test`), so `tool()` in `@apty/agent-core` puts back 0.7's
+  message. The result still passes through the outbound filters.
+- **undici.** 0.20 pulls in `openai` 7 and undici 7 with known advisories.
+  A pnpm override pins `undici >= 7.29.1`, `pnpm audit --prod` finds
+  nothing, and THIRD_PARTY_NOTICES is regenerated.
+- **Request size.** 0.20 writes every optional field as required plus
+  nullable and repeats its description inside the non-null variant. Raw
+  totals, Checkpoint 3 (every scenario identical to the base `5fe5227`) →
+  after the upgrade → after `2a15cf3`, which
+  drops the repeated description (`tools/index.test.ts`: "expected [ 'What
+  to echo', 'What to echo' ] to have a length of 1" → pass):
+
+  | Scenario | Before | 0.20 | Now | Change |
+  |---|---|---|---|---|
+  | apty-question | 7,723 | 8,097 | 7,892 | +2.2% |
+  | segments-json | 9,166 | 9,565 | 9,345 | +2.0% |
+  | dom-health | 5,647 | 5,854 | 5,668 | +0.4% |
+  | click-task | 6,400 | 6,828 | 6,490 | +1.4% |
+  | investigation-10-turns (as sent) | 11,163 | 11,537 | 11,332 | +1.5% |
+  | casual, followup, snapshot-heavy | unchanged | | | 0% |
+  | Registry schemas (65 tools) | 14,683 | 16,000 | 15,200 | +3.5% |
+
+  The 2% limit is for S4 and S5, but I note it here: the rest of the
+  growth is the `anyOf […, {"type":"null"}]` wrappers strict mode needs.
+  The model may now send `null` for an optional field. The SDK drops it
+  before parsing (checked: `{"a":null}` parses as `{}`), and
+  `tools/index.test.ts` covers it.
+
+**Existing tests changed in Phase 4 (setup or expectation, with the reason):**
+
+- `dom-health.test` S5 "runs link-only discovery without asking" became
+  "asks before link-only discovery too…". That is the item 8 behaviour,
+  which reverses S5's choice. The earlier tests in that file now answer
+  the approval in `beforeEach`, and their assertions are unchanged. A new
+  test checks that page mode still doesn't ask.
+- `response.test` S1 "keeps Streamdown's own block on data: images" became
+  "renders a local data: image…" (item 11). A new test keeps a non-image
+  `data:` URL out.
+- e2e setups answer the item 8 prompt: `agent.e2e` (DOM Health on a tab
+  opened before a restart), `dom-health-routing.e2e` and the
+  `dom-health-apps` helper (any `run_application_dom_health_audit` whose
+  mode isn't `page`). Their assertions are unchanged.
+- `stored-data.e2e` reads `apty-conversations-db`, and tests that named
+  the old database use the new constants (item 12).
+- `apty-client.e2e` A2 deny-list test: its setup now sets
+  `redactionMode: "standard"`. Under Strict, item 6 turns
+  `/users/4815162342.json` into `/users/:id.json`, and the test asserts the
+  real path to show it got the right request. The assertion is unchanged.
+  Found by the release dry run: 122/123, then 8/8 for that file after the
+  change.
+
+**Gates on `451ef90`:**
+
+```
+✓ typecheck  ✓ lint  ✓ test  ✓ audit  ✓ build
+unit tests: debug-contract 83, agent-core 288, dom-snapshot 397,
+            browser-runtime 1094, ui 269, extension 318, mcp-bridge 60
+i18n ratchet   ✓ 13 hard-coded UI strings
+audit:any      ✓ 603
+pnpm audit --prod   No known vulnerabilities found
+```
+
+**Real-browser tests on `451ef90`** (Chrome for Testing 145, mock model):
+
+- Full suite: 122/123. The failure was `preflight.e2e` "with a Client that
+  has no bridge module", which timed out loading the Options page after 30 s
+  while I was building another commit at the same time. Run alone
+  afterwards: 5/5. The release dry run on `08aea1e` had passed it.
+- Item 12, `legacy-storage.e2e` with the extended first test, on the
+  pre-Phase-4 build (`bb08694`, through `E2E_EXTENSION_DIR`): "Timed out
+  waiting for the chat to be saved". The second test then failed too
+  because the first left the browser broken; run alone on that build it
+  passes 1/1. On this build: 2/2.
+- **TruffleHog** over `origin/main..HEAD` (`--no-verification`; the scan
+  began at an older commit, so it covers all 59 branch commits): 4,266
+  chunks, **0 verified, 0 unverified**.
+
+## PR #20 review, before merging
+
+Four reviewers each read one area of the whole diff: agent-core, storage
+and privacy, tools and the MCP bridge, and UI and the extension. CodeQL
+ran on the PR too. Each finding below was confirmed by a test that fails
+on the code before the fix.
+
+| Severity | Finding | Fix | Before → after |
+|---|---|---|---|
+| High | After the R2/item 12 database move, `apty-conversations-db` and `apty-screenshots-db` ended at version 2, which the Agent opens at version 1. Every open failed with `VersionError`, so history and screenshots stopped working for upgrading users. | `1e86836`: a new target is created at the source's version. An existing target that lacks a store keeps the old database for a later retry. | `legacy-storage.e2e` opens each database at the Agent's version: `VersionError` → pass |
+| High | ZenFS names its store after the database, so the skills store was copied as `aipex-skills-fs`, where ZenFS never reads it. The source was then deleted. | `1e86836`: the store is renamed too. The e2e test now seeds ZenFS's real layout. | "Timed out waiting for the skill files to move" → pass |
+| High | A malformed frame on an `/extension` socket still authenticating (no token needed) or on `/cli` stopped the daemon: an unhandled `error` event. | `e09740d` | 2 unhandled `WS_ERR_INVALID_UTF8` errors → pass |
+| Medium-high | My fix for unoffered tools (`0632df0`) reran the turn from the user's message even after a tool had run, repeating that tool. | `6c00ba9`: it reruns only before any output; later, the turn ends with `TOOL_NOT_FOUND` naming the tool. | the tool ran 31 times → 1 |
+| Medium | Settings saved with only `aiProvider` (for example `anthropic`) got the default `providerType` `openai`. Test Connection then sent the key to OpenAI, and Save wrote `aiProvider: openai`. | `fc3b5cd`: settings version 2 derives `providerType` from `aiProvider`. | `undefined` → `claude` |
+| Medium | MCP calls have no bound tab, so since S5 every MCP `switch_to_tab` and same-origin `create_new_tab` asked first, and failed with the side panel closed. | `d10eba0`: MCP compares with the active tab, as on main. Another origin still asks, and so does a chat with no bound tab. | 2 prompts → 0 |
+| Medium | Strict rewrote the URLs in the user's own skill text (`/orders/123456?view=audit` → `/orders/:id`), so the agent opened the wrong page. | `b8e1ac6`: skill content tools are exempt. `execute_skill_script` output still goes through the policy. | → pass |
+| Medium | A 3.x daemon refuses the S6 extension, which only sees a socket error and retries forever. | `dd5ca85`: `/health` advertises challenge auth. The extension names an outdated daemon and says to update to **apty-mcp-bridge 4.0.0** (the version is bumped for the protocol change). | "WebSocket error" → the update message |
+| Low | A handshake abandoned when the daemon restarted timed out 5 s later and wiped out the newer connection, because both shared the auth reply slots. | `a1d9d2b` | stuck `connecting` → `connected` |
+| Low | In Strict, a short tab title ("Home") was replaced throughout the attached page text. | `4783817`: titles under 12 characters are replaced only on their own line or the `Title:` line. | → pass |
+| Low | A legacy session database connection stayed open after a failed move or a delete. | `98944cb` | → pass |
+| CodeQL (6 high, 1 medium) | Quadratic `[[screenshot:` placeholder regex (7.5 s on 260 KB of model output); `Math.random` for node ids, screenshot uids and the redaction pseudonym salt; an auth reply lookup without a function check; 1024-bit keys in a test; an error's text in an e2e server reply. | `3fd0be4`, `3c9cf86` | regex 7,457 ms → under 500 ms |
+
+**Reviewed and kept as designed:**
+
+- **New tabs with long paths.** A same-origin new tab whose path, query and fragment add up past 128 characters still asks. That is S5's rule, and an S5 test asserts it.
+- **Strict URL masking.** Strict masks URLs in page-derived results: it drops queries and, since item 6, replaces ids in paths. That is the point of Strict. Standard keeps paths.
+- **Truncated JSON.** An unclosed sensitive object in truncated text is redacted to the end. That errs toward hiding.
+- **Cross-origin MCP tab switch.** It still needs approval (S5).
+
+**Nothing on main was lost.** Every `it`/`test` title on main and on the branch was compared: main has 2,122 and the branch 2,473. The 8 titles missing on the branch were each renamed or replaced by a stricter test: S3 click echo, R2 `data-apty-nodeid`, S5 DevTools and approval grants, S6 token handshake. The exception is S3's three click-recording tests, which were removed with the dead code they covered (see Phase 1).
+
+**Gates on the final head** (release dry run, `rm -rf dist` first):
+
+```
+✓ format lint typecheck test coverage   ✓ build   ✓ real-browser tests (123/123)
+✓ audits   ✓ production dependency audit   ✓ pinned extension ID   ✓ package, checksums
+unit: debug-contract 83, agent-core 290, dom-snapshot 397, browser-runtime 1103,
+      ui 273, extension 318, mcp-bridge 61
+request size: unchanged from Phase 4 (registry 15,200 schema tokens)
+TruffleHog origin/main..HEAD: 4,347 chunks, 0 verified, 0 unverified
+```
+
+## Work packages (Phase 2)
+
+Each behaviour change has a test that failed on the code before it and
+passes after; the outputs are in the commit messages' tests and listed here.
+
+### R1. Dependencies and dead code: done
+
+- **Removed** from `apps/browser-extension`: `assistant-ui`, `bip39`,
+  `ahooks`, `markdown-to-jsx`, `remark-gfm`, `@modelcontextprotocol/sdk`,
+  `tokenlens`, and 20 packages only `@apty/ui` imports (it declares them
+  itself). From `@apty/ui`: `markdown-to-jsx`, `remark-gfm`, `tokenlens`.
+  Each had no import (a script that checks every `from`/`import()`/
+  `@import` in the package); build, unit tests and the model-path e2e files
+  passed without them, and the full e2e suite later passed 120/120.
+- **`pnpm audit --prod`:** before, with the ignore entry removed: 1 high
+  (`braces`, path `apps__browser-extension>assistant-ui>jscodeshift>micromatch>braces`).
+  After: "No known vulnerabilities found". The `ignoreCves` entry is gone;
+  `docs/archive/DECISIONS.md` records why the old reason was wrong.
+- **`@openai/agents-extensions` `^0.5.4` → `^0.7.2`:** `pnpm why` went from
+  two `@openai/agents-core` (0.5.4, 0.7.2) to one (0.7.2). `aisdk` moved to
+  the `ai-sdk` subpath (three imports changed).
+- **Dead code:** 20 files, 4,491 lines: `tools/{bookmark,history,organize-tabs}.ts`,
+  `tools/tools/{clipboard,context-menus,extensions,sessions,tab-groups,window-management}`,
+  `tools/tools/utils/wait-helper.ts`, `ui/src/i18n/i18n.ts`, and nine unused
+  ai-elements (`artifact`, `branch`, `chain-of-thought`, `context`, `image`,
+  `inline-citation`, `open-in-chat`, `task`, `web-preview`). No test covered
+  them. `hooks/use-storage.ts` is **not** dead (two importers); see Conflicts.
+- **Stale `packages/dom-snapshot/src/*.d.ts`** (6) deleted;
+  `packages/dom-snapshot/.gitignore` now ignores `src/**/*.d.ts`
+  (`git check-ignore` confirmed).
+- **`knip.json`** lists the real entry points (manifest entries, Vite
+  inputs, tooling scripts and e2e, the mcp-bridge bins). knip now reports 15
+  unused files, 71 unused exports and a few dependency findings; they are
+  listed as follow-up, not removed, because R1 scopes removal to the Facts.
+- **Follow-up:** `@openai/agents` 0.7 → 0.20 (not done here, as asked).
+- **Dependabot PRs** (open, checked through the GitHub API; none merged):
+
+  | PR | Bump | Verdict |
+  |---|---|---|
+  | #15 | `pnpm/action-setup` 5.0.0 → 6.1.0 | Safe: CI green; touches `ci.yml` and `release.yml` |
+  | #7 | `@types/node` 25 → 26 (dev) | Safe once rebased onto this branch: CI green, types only |
+  | #3 | `@types/chrome` 0.1 → 0.3 (dev) | Safe once rebased: CI green, types only; it edits the extension's `package.json`, which R1 changed |
+  | #5 | `@radix-ui/react-dropdown-menu` 2.1.16 → 2.1.25 | Safe after rebase: patch, CI green; R1 removed the extension's copy, so only `@apty/ui`'s remains |
+  | #17, #18 | `actions/upload-artifact` 4 → 7, `actions/download-artifact` 4 → 8 | Not yet: CI is green but CI never runs `release.yml`; merge both together and run a release dry run (`workflow_dispatch`) first |
+  | #16 | `actions/setup-node` 6.5 → 7.1 | Not safe: its CI run failed |
+  | #4, #8 | `assistant-ui`, `ahooks` | Close: R1 removed both packages |
+
+### R2. Branding and storage keys: done
+
+- **Keys:** `STORAGE_KEYS` use `apty_*`; the input-mode and ZenFS keys moved
+  too. `storage/legacy-storage.ts` copies each old key, reads it back, and
+  only then removes the old one; a value already under the new name wins.
+  It runs at service-worker start (before the redaction mode and page-hook
+  settings are read), on update (before the R3 settings upgrade), and when
+  `ChromeStorageAdapter.load` finds a new key empty.
+- **Database:** `aipex-sessions` → `apty-sessions`, copied and verified
+  before the old database is dropped. Deleting a conversation or "Delete
+  everything" still reaches sessions not yet moved (S3 holds).
+- **On customer pages:** `data-apty-nodeid`/`-uid`/`-highlighted`, and
+  `apty-agent-*` ids and classes. Plain `apty-*` would have collided with
+  Apty Widget detection (`[id^="apty-"]`), so the Agent uses `apty-agent-`
+  and Widget detection now skips it. Logs say `[Apty Agent]`; skill-creator
+  text says Apty Agent.
+- **`check-branding.mjs`** scans `.js`/`.mjs` and matches whole tokens
+  case-sensitively. Before, its `"AIPex"` entry was compared
+  case-insensitively and so allowed every line: the check could not fail.
+- **Tests (red → green):** `legacy-storage.test.ts` (7; interrupted copy,
+  failed copy, torn copy, idempotence), `storage-adapter.test.ts` (lazy read),
+  `agent-session-migration.test.ts` (6), `lifecycle.test.ts` (update moves
+  settings and grants, then versions them), `widget-diagnostics.test.ts`,
+  `check-branding.test.mjs` (4), and `tooling/e2e/legacy-storage.e2e.test.mjs`:
+  seeds settings, grants and sessions under the old names, restarts the
+  Agent, and finds them under the new names with the conversation intact and
+  the chat working; and a page the agent worked on carries `data-apty-nodeid`
+  and no "aipex". On the old build the second test fails showing
+  `data-aipex-nodeid`, `#aipex-content-root` and `#aipex-border-overlay`.
+- **Not renamed** (listed in `check-branding.mjs`): the conversation,
+  screenshot and skills IndexedDB names, which hold user data and were not in
+  scope; internal message strings; the screenshot placeholder host; the
+  `AIPex` class; two mcp-bridge env vars.
+
+### R3. Settings schema version: done
+
+`settingsVersion`, `SETTINGS_MIGRATIONS` and `migrateSettings` (idempotent,
+never downgrades) in agent-core; `withSettingsDefaults` fills missing
+fields. `onInstalled` (update) writes migrated settings back; the Settings
+page and the side panel's settings hook migrate on load; the Settings page
+applies defaults, also when a General-tab switch saves. Tests: a field added,
+renamed and removed across versions, plus idempotence, no downgrade and
+garbage input (11, red → green); the Settings page saves defaults and the
+version (red → green); the update handler (red → green).
+
+### R4. Licences: done (D5 default: MIT)
+
+`LICENSE` adds "Copyright (c) 2026 Apty" under AIPex's line;
+`THIRD_PARTY_NOTICES.txt` is generated from `pnpm licenses list --prod`
+(346 packages; 20 ship no licence file and say so) by
+`tooling/scripts/third-party-notices.mjs`, and `npm run audit:notices`
+fails when it is stale. A Vite plugin emits `LICENSE` and the notices into
+the build; the Inter OFL ships as `assets/Inter-OFL.txt`.
+`check-dist-licences.mjs` ends every `npm run build` and fails when any of
+the three is missing (before: "missing: LICENSE, THIRD_PARTY_NOTICES.txt,
+…"). The root and extension `package.json` say MIT.
+**For you:** four production packages are LGPL-3.0-or-later (`@zenfs/core`,
+`@zenfs/dom`, `memium`, `utilium`, used by the skill file system). Bundling
+LGPL code into a closed or store build has obligations; please have this
+checked.
+
+### R5. Release hygiene: done
+
+`release.yml` fetches full history and fails a tag whose commit is not on
+`origin/main` (`check-tag-on-main.mjs`, 3 tests, red → green). The gate adds
+`audit:any`, `audit:docs-links`, `audit:i18n`, `audit:notices` and
+`pnpm audit --prod` (also for the mcp-bridge), as CI runs them; the local
+dry run does the same. `CHANGELOG.md` has one `0.1.0 — 2026-10-16` section
+and an empty "Unreleased".
+
+`tooling/scripts/release-dry-run.sh` (the release job, locally; full output
+under "Gates"):
+
+```
 Release dry run for v0.1.0 (nothing is published)
-✓ version check (1s)
-✓ format lint typecheck test coverage (142s)
-✓ build (20s)
-✓ real-browser tests (374s)
-✓ audits (1s)
+✓ version check (0s)
+- tag on main: checked by release.yml for a tag push only
+✓ format lint typecheck test coverage (117s)
+✓ build (13s)
+✓ real-browser tests (439s)
+✓ audits (7s)
+✓ production dependency audit (4s)
 ✓ pinned extension ID (0s)
 ✓ package (2s)
 ✓ checksums (0s)
@@ -522,1141 +481,162 @@ Release dry run for v0.1.0 (nothing is published)
 Packages: /tmp/release-dry-run/release/
 ```
 
-## D1: Remove the skills feature (skipped: kept by owner decision)
-
-`SKILLS_DECISION` was not edited, so the default KEEP applies. Nothing was
-removed; the `'wasm-unsafe-eval'` CSP allowance, QuickJS and the Skills tab
-stay.
-
-## D2: Apty Studio, Agent side (done; Studio itself unchanged)
-
-- `packages/browser-runtime/src/apty/peers.ts`: one peer abstraction for
-  the Client and Studio: names, where each ID is stored (the Client keeps
-  `clientExtensionId`; Studio uses `peers.studio.extensionId`, an older
-  `studioExtensionId` is still read), failure messages (the Client's
-  wording unchanged, asserted in a test) and the allow-list fix with the
-  Agent's ID filled in. The service-worker provider and the Options check
-  take a `peer`.
-- `get_apty_studio_service_worker_diagnostics`: Studio's status and logs
-  over the Client's contract, through the same helper as the Client's
-  tool, so the same redaction applies; recorded as `apty-studio` evidence;
-  added to the MCP bridge's static tool schemas.
-- Settings → Apty Integration → **Apty Studio Extension**: Detect, its ID
-  ("Apty Studio's Chrome ID"), Connect / Test connection / Disconnect, the
-  Agent's ID and the manifest snippet in read-only fields with Copy, and
-  on `not_allowlisted` the fix: `Apty Studio's manifest must list this
-  Agent ID in externally_connectable.ids: "<id>"`.
-- `docs/integrations/apty/STUDIO.md` for the Studio team.
-- Tests: `peers.test.ts` (both peers, storage, messages),
-  `apty-client-panel.test.tsx` (+3 Studio), `tools/apty.test.ts` (+3: not
-  configured, logs redacted and recorded, refusal named);
-  `studio.e2e.test.mjs` with fixture Studios (not allow-listed, no bridge,
-  working: handshake, storage shape, the agent reads Studio's logs).
-  `apty-client.e2e.test.mjs` passes unchanged.
-
-## D3: Release dry run and smoke matrix (done; GitHub Actions not run)
-
-- `.github/workflows/release.yml`: `workflow_dispatch` with `dry_run`
-  (default `true`); top-level `permissions: contents: read`; the release
-  name comes from the tag, or `v<manifest version>` on a branch; audits
-  include `audit:test-skips`; a step checks the packaged manifest `key`
-  yields `AGENT_EXTENSION_ID`; checksums are verified in the build job;
-  `publish` runs only for a `v*` tag ref and (push, or dispatch with
-  `dry_run` off). Actions stay SHA-pinned; no new action.
-- `tooling/scripts/check-extension-id.mjs` (+3 node tests),
-  `tooling/scripts/release-dry-run.sh` (`npm run release:dry-run`; output
-  above), `docs/release/SMOKE_TEST.md` (Chrome stable and Edge stable,
-  with a results table; says branded Chrome 137+ ignores
-  `--load-extension`, so the automated e2e cannot run there).
-- **I cannot run GitHub Actions.** The workflow was checked by parsing it
-  (Python `yaml`) and reading it against the publish job.
-
-## D4: Typing and logging ratchets (done)
-
-- Explicit `any` (Biome): 612 in 107 files before (452 in tests), 605 in
-  104 files after (153 outside tests, was 160). The spec's "126" does not
-  match today's tree.
-- Security-critical files, before → after: `tools/approval.ts` 0 → 0,
-  `runtime/trusted-sender.ts` 0 → 0, `apty/external-messaging.ts` 0 → 0,
-  `apty/network-capture-session.ts` 3 → 0, `tools/devtools.ts` 2 → 0,
-  `ws-bridge/*` 2 → 0, `apps/mcp-bridge/src/*` 0 → 0. CDP event payloads
-  are typed (`automation/cdp-event-params.ts`); no runtime change.
-- `noExplicitAny: "warn"`; `tooling/scripts/check-any-baseline.mjs` with
-  `any-baseline.json` (`npm run audit:any`, CI) fails when a file's count
-  rises or a new file adds one. Proved locally: a new file with one `any`
-  gives "packages/agent-core/src/any-probe.ts: 1 (allowed 0)", exit 1.
-- `console.log/info/debug`: none left in non-test source (the spec's 81
-  were already migrated before this branch). Biome `noConsole` (warn and
-  error allowed) with documented exceptions (CONTRIBUTING "Logging and
-  typing"). Proved: a probe `console.log` fails `npm run lint`.
-- Tests: the MCP executor never logs its token and prints nothing at the
-  production level; `console-output.e2e.test.mjs`: no log/debug/info from
-  the side panel, Options and the service worker through a chat with a
-  tool call and the preflight (proved it catches output by emitting one
-  line in each, then reverted). The approval path logs nothing.
-
-## D5: Documentation consolidation (done)
-
-| File | Before | After |
-|---|---|---|
-| `DECISIONS.md` | 1,535 lines | 57 (index) |
-| `docs/development/PROJECT_PROGRESS.md` | 1,647 lines | 60 (one page) |
-| `docs/archive/DECISIONS.md` | — | 1,535 (verbatim) |
-| `docs/archive/PROJECT_PROGRESS.md` | — | 1,647 (verbatim) |
-
-- The move is its own pure-rename commit (`e1835f5`), so
-  `git log --follow` keeps the history.
-- The index has one row per decision (41): title linked to its archive
-  section, the date it entered git (28 predate the repository's first
-  commit and read "≤ 2026-09-30"), and a status (Accepted; Record for
-  round summaries; Superseded: the "built, not adopted" logger; Amended by
-  B5: the all-sites console bridge).
-- `tooling/scripts/check-docs-links.mjs` (+3 node tests;
-  `npm run audit:docs-links`; CI) checks files and heading anchors. It
-  found no broken link before or after the move.
-- Docs vs code: every backticked path and tool name in README,
-  SECURITY_AUDIT, ARCHITECTURE and PERMISSIONS was checked against the
-  tree and the tool registry. Fixed: README's approval list and Studio
-  line, ARCHITECTURE's console-bridge paragraph and tool counts,
-  PERMISSIONS' `scripting` and `management` uses, two code comments.
-
-## Phase D: not done, or partial
-
-- D3: the workflow has not run on GitHub.
-- D4: content scripts' own log level is unchanged; the console e2e does not
-  read console output inside web pages.
-- D5: links inside `docs/archive/` are not checked (the files are
-  verbatim). A background agent meant to cross-check the four documents
-  stopped on a rate limit; the check above is my own.
-
-## Phase D: conflicts between the prompt and the repo
-
-- D2: to keep `apty-client.e2e` unchanged (it uses
-  `getByLabel("Extension ID")` and `getByText(<agent id>)` on the tab),
-  Studio's field is labelled "Apty Studio's Chrome ID" and the Agent ID is
-  visible text only in the Client card; elsewhere it is in read-only
-  fields.
-- D3: `dry_run: false` from a branch still cannot publish (there is no tag
-  to release); documented in the workflow.
-- D4: counts differ from the spec (612 `any`, not 126; 0 console calls, not
-  81).
-- D5: "move unchanged" and "fix every broken link" conflict for links
-  inside the archive; the checker skips the archive's own links.
-
-## Phase D: observed, not changed
-
-- README's "What it does today" does not list DOM Health, the redaction
-  mode, Fetch models, preflight or the validation bundle.
-- ARCHITECTURE's "registry grows from 51 to 54 tools" is a historical
-  sentence; `audit:tools` counts 126 registrations today (runtime and MCP
-  schemas together).
-
-## Phase D: owner test scripts (about 5 minutes each)
-
-### D2: Studio
-
-1. Settings → Apty Integration. **Expected:** an "Apty Studio Extension"
-   card below the Client card, with the Agent's ID and a manifest snippet,
-   each with Copy.
-2. Paste Apty Studio's real ID (from `chrome://extensions`) and Connect.
-   **Expected today:** "Installed, but not answering the Agent." with
-   "Apty Studio's manifest must list this Agent ID in
-   externally_connectable.ids: "bpiondflhhdplemamgggcdajclmoeple"".
-3. Dry run with a fixture: create one with
-   `node -e "import('./tooling/e2e/harness.mjs').then(h => h.writeFakeClient('/tmp/fake-studio', 'working', 'bpiondflhhdplemamgggcdajclmoeple', 'Studio'))"`,
-   Load unpacked, Connect it in the Studio card. **Expected:** "Answering";
-   in the side panel "show apty studio's service worker logs" returns two
-   log lines.
-
-### D3: release
-
-1. `tooling/scripts/release-dry-run.sh --skip-e2e`. **Expected:** one ✓
-   line per step and two zips plus a `.sha256` in
-   `/tmp/release-dry-run/release/`.
-2. In GitHub (after merging): Actions → Release → Run workflow (dry_run
-   on). **Expected:** the build job uploads the packages; publish is
-   skipped.
-3. Run `docs/release/SMOKE_TEST.md` on Chrome and Edge with the zip.
-
-### D4: ratchets
-
-1. Add `const x: any = 1;` to any source file, run `npm run audit:any`.
-   **Expected:** the file is named with "(allowed 0)" or its baseline
-   count, exit 1. Remove it.
-2. Add `console.log("x")` to a source file, run `npm run lint`.
-   **Expected:** `lint/suspicious/noConsole`, exit 1. Remove it.
-3. Load the build, open the side panel's DevTools console, chat once.
-   **Expected:** no log/info/debug lines (only warnings or errors, if any).
-
-### D5: docs
-
-1. Open `DECISIONS.md` on GitHub. **Expected:** a table; each title jumps to
-   its section in `docs/archive/DECISIONS.md`.
-2. Break a link in any `.md`, run `npm run audit:docs-links`.
-   **Expected:** the file, line and target, exit 1.
-
-# Phase C
-
-## Checkpoint C gates (clean build of `371e566`)
-
-```
-$ rm -rf apps/browser-extension/dist
-$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
-✓ typecheck (11s)
-✓ lint (1s)
-✓ test (61s)
-✓ audit (1s)
-✓ build (20s)
-```
-
-Unit tests inside `test` (no skipped test anywhere):
-
-```
-packages/apty-debug-contract   Tests  72 passed (72)
-packages/agent-core            Tests 260 passed (260)
-packages/dom-snapshot          Tests 367 passed (367)
-packages/ui                    Tests 216 passed (216)
-packages/browser-runtime       Tests 861 passed (861)
-apps/browser-extension         Tests 288 passed (288)
-apps/mcp-bridge                Tests  44 passed (44)
-tooling/scripts (node:test)    pass 10, fail 0
-$ npm run audit:test-skips
-✓ every skipped test says why
-```
-
-```
-$ npm run test:e2e        (Chromium from /opt/pw-browsers, against the clean build)
-# tests 84
-# pass 84
-# fail 0
-# skipped 0
-```
-
-Coverage (`npm run test:coverage`, exit 0; every package now measures all
-of `src`, see C5):
-
-| Package | Statements | Branches | Functions | Lines |
-|---|---|---|---|---|
-| agent-core | 76.25 | 70.13 | 83.73 | 77.99 |
-| dom-snapshot | 90.99 | 82.58 | 97.75 | 92.76 |
-| ui | 44.71 | 35.04 | 43.09 | 45.52 |
-| browser-runtime | 49.77 | 45.76 | 53.67 | 49.71 |
-| apty-debug-contract | 84.91 | 78.46 | 93.18 | 87.66 |
-| browser-extension | 43.86 | 44.59 | 41.22 | 43.72 |
-| mcp-bridge | 21.27 | 18.15 | 24.74 | 21.51 |
-
-The packaged manifest still has `"externally_connectable": {"ids": []}`.
-TruffleHog 3.99.2 over `origin/main..HEAD`, no exclude list, verification
-off: `"chunks":1068 "bytes":1036641 "verified_secrets":0 "unverified_secrets":0`.
-
-## C4: The skipped tests (done)
-
-The ten skips were all in `packages/ui`:
-
-| Test | Outcome |
-|---|---|
-| use-chat: reset and delete the session; message handlers; tool handlers; context items; onError; tool call parts | Passed unchanged when re-enabled; re-enabled (a stale NOTE comment removed) |
-| use-chat: regenerate | Failed only because the mock agent lacked `rollbackLastAssistantTurn`, added to `useChat` after the test; mock added, assertions strengthened |
-| use-chat: interrupt an active stream | **Real bug.** Stop pressed while a turn was still "submitted" (before its generator existed) was lost and the turn started anyway. Fixed with a turn token in `use-chat.ts`; the test now waits for the stream, and a new test, "never starts a turn that was stopped while still submitted", fails on the old code (proved) |
-| chatbot: `onNewChat` / `onSettingsOpen` via `handlers` | Targeted props `Chatbot` never had (its own skip comment said so). Settings: deleted, covered by "should call chrome.runtime.openOptionsPage when settings button is clicked". New Chat: replaced by "New Chat clears the conversation and deletes its agent session" |
-
-A second Stop gap: the side panel's own toolbar only offered Stop while
-"streaming", so Stop was impossible while "submitted". Now Stop in both
-(`automation-mode-toolbar.test.tsx`).
-
-Covered by: Stop while streaming: use-chat "should interrupt an active
-stream" and the toolbar test; Stop while submitted: use-chat "never starts
-a turn…" and the toolbar test; reset / new chat: use-chat "should reset
-chat state…" and chatbot "New Chat clears…"; settings: chatbot "should call
-chrome.runtime.openOptionsPage…". No e2e added.
-
-`tooling/scripts/check-test-skips.mjs` (`npm run audit:test-skips`, a CI
-step, and 5 node tests) fails on a `.skip`/`.skipIf` without
-`// skip-reason:` on that line or the one above. It is not in
-`verify-quiet.sh` (not to be overwritten); run it separately.
-
-## C5: Coverage gate (done)
-
-Measured at the start of C5 (all of `src/**/*.{ts,tsx}`, tests excluded),
-S/B/F/L: agent-core 76.32/70.31/83.73/78.14; dom-snapshot
-90.99/82.58/97.75/92.76; ui 42.77/32.42/41.27/43.62; browser-runtime
-47.78/44.57/51.08/47.63; apty-debug-contract 84.91/78.46/93.18/87.66;
-browser-extension 38.84/37.79/38.84/38.86; mcp-bridge 21.27/18.15/24.74/21.51.
-
-- `test:coverage` in every package; `mcp-bridge` wired into the root
-  script, which CI already runs.
-- Thresholds one point below the measured value (re-measured after the
-  targeted tests, and raised again after Phase C), documented in
-  `docs/development/coverage.md` with the rule that they only go up.
-- The six trust-boundary files in browser-runtime and the three
-  redaction files in the contract keep their old numbers, as glob groups.
-- Targeted tests: chat image downloads (path-traversal guard, data URLs
-  only; 0% before), the background router's download request (sender gate
-  and fallbacks), the WebSocket MCP executor and transport (0% before:
-  localhost only, token only as a subprotocol and never in status, tool
-  dispatch, errors, timeout, reconnect vs. user disconnect), cross-extension
-  message failures (57% branches before), Settings' Save and Test
-  Connection.
-- Proved locally, not committed: a 99% statements threshold on the
-  critical group gives "ERROR: Coverage for statements (91.92%) does not
-  meet … threshold (99%)" and exit 1; a ui global threshold of 45 gives
-  "does not meet global threshold (45%)".
-
-## C3: Accessibility (done)
-
-- `axe-core` 4.13.0 is the only new dependency (pinned exactly; 4.14.0
-  was five days old). `runAxe(page)` in the harness waits for CSS
-  transitions to settle first (a button switching variants measured
-  3.32:1 mid-transition) and reports each node's markup and axe's reason.
-- `tooling/e2e/a11y.e2e.test.mjs`: the side panel empty, with an approval
-  prompt, after a tool result, with the investigation summary and the full
-  response viewer, and every Options tab, in light and dark; fails on
-  serious or critical. **No rule disabled.**
-- Fixes (table in `docs/development/accessibility.md`): `--muted-foreground`
-  and `--success` reach 4.5:1; dark destructive alert and built-in badge
-  colours; names for every icon-only button and select found; the approval
-  `alertdialog` is named by its title; the skill upload's file input is the
-  control instead of a `role="button"` wrapper around it.
-- Proved it can fail: removing the approval prompt's `aria-labelledby` and
-  rebuilding gives "serious aria-dialog-name"; restored.
-
-## C1: Live model list, tool-calling probe, preset audit (done; no real provider called)
-
-- **Fetch models** beside the model field: OpenAI-compatible
-  `GET {base}/models` with Bearer; Anthropic `GET {base}/models?limit=1000`
-  (+`after_id`) with `x-api-key` and `anthropic-version: 2023-06-01`; Gemini
-  `GET {base}/models?pageSize=1000` (+`pageToken`) with `x-goog-api-key`,
-  keeping models that support `generateContent`. Up to five pages, 10 s
-  timeout, 10-minute cache per provider and base URL (successes only),
-  hosts through `validateHostUrl`, named 401/403/404/429/network/timeout
-  errors, presets and manual entry kept on failure.
-- **Probe** after Test Connection's basic request: one tool
-  `report_probe` (never executed), 15 s, one retry when inconclusive.
-  "no" = answered without calling it, or a 400/404/422 saying tools are
-  unsupported. Saved on the model config for that model id; badge by the
-  model field, "No tools" in the list, and a confirmation before selecting
-  a model whose last probe said no.
-- **Preset audit** (sources below): the Anthropic host was
-  `https://api.anthropic.com`, and `@ai-sdk/anthropic` appends `/messages`,
-  so every chat went to a 404; the preset is now `…/v1` and
-  `createAIProvider` adds `/v1` to a bare origin so saved settings work.
-  Together `api.together.ai`; Cohere's OpenAI compatibility URL
-  `https://api.cohere.ai/compatibility/v1` (its `/v1` is the native API);
-  DeepSeek `https://api.deepseek.com`; Azure the v1 form
-  `https://YOUR-RESOURCE.openai.azure.com/openai/v1` (model = deployment
-  name). Suggestions: Anthropic `claude-opus-5-5`, `claude-sonnet-5-5`,
-  `claude-haiku-5-5`, `claude-fable-5-1` (docs: no floating aliases); Gemini
-  `gemini-flash-latest`, `gemini-flash-lite-latest`, `gemini-pro-latest`;
-  Mistral `-latest` kept; DeepSeek `deepseek-flash`, `deepseek-v4-pro`;
-  Perplexity `sonar`, `sonar-pro`; every other list emptied. Replicate (no
-  OpenAI-compatible chat API) and Perplexity (tool calling undocumented)
-  are kept and marked experimental in Settings. Built-in providers saved
-  on a superseded host move to the current one.
-- Tests: parsers and requests per provider, errors, cache, SSRF refusals,
-  probe classification and retry, Settings UI (fetch, failure, badge,
-  warning); e2e `model-settings.e2e.test.mjs` against the mock model:
-  fetch 401 with manual fallback, fetch success, probe yes / no (text) /
-  no (400 refusal) / unknown (503 twice, three requests).
-
-How the docs were checked: a research agent could read only
-platform.claude.com in full (this session's proxy blocked the other docs
-hosts); the other rows come from web-search extracts of each provider's
-own documentation domain. Anything those did not state was treated as
-unverified and not hardcoded.
-
-## C2: Preflight page and demo docs (done)
-
-- Options → Apty Integration → **Preflight** (`#preflight`; a bare hash
-  now opens the right tab): Run all checks → pass / warn / fail, each with
-  its fix and a Copy button: AI provider (live test with latency and the
-  probe), Apty Client (installed, handshake, request list; the fix names
-  the manifest change with this Agent's ID for `not_allowlisted`, the
-  bridge module for `bridge_missing`), this extension's ID, the page and
-  every frame answering, console-capture coverage per frame, clipboard
-  permission, whether a page script can read extension storage, data
-  handling. Export results as redacted JSON; Reset demo data (reuses the
-  purge, with confirmation).
-- `docs/demo/DEMO.md`; `pnpm demo:check` builds and runs
-  `tooling/e2e/preflight.e2e.test.mjs`: all green against the fixture
-  Client and a mock model that calls tools, then no API key, a Client that
-  does not allow-list the Agent, one without the bridge, and no open page,
-  each with its own fix.
-- Test Connection and the purge moved to shared services.
-
-## Phase C: not done, or partial
-
-- C1: no real provider was called (no keys); Anthropic's need for
-  `anthropic-dangerous-direct-browser-access` from an extension page is
-  unverified (extension pages with host permissions are not subject to
-  CORS, and chats already reach Anthropic without it).
-- C2: in DEMO.md only the segments.json prompt is exercised by e2e; "show
-  the apty client's service worker logs" and "why isn't my Apty widget
-  showing?" (needs a real Widget) are not.
-- C3 covers the screens listed; DOM Health results and the skill detail
-  dialog are not in the axe suite.
-
-## Phase C: conflicts between the prompt and the repo
-
-- C1: `ai-provider.test.ts` asserted Groq's first suggestion is
-  `openai/gpt-oss-20b`; C1 forbids unverifiable names, so the test now
-  asserts Groq has no suggestions (no stale default). Changed, not deleted.
-- C1: Replicate was flagged experimental rather than removed, so saved
-  settings that reference it still load.
-- C1: Anthropic docs now also accept `Authorization: Bearer`; the model
-  list uses `x-api-key`, as the chat SDK does.
-- C2: Options has no conversation, so "bound tab" is the most recently
-  used http(s) tab, named in the result.
-- C2: the clipboard check queries the permission rather than writing,
-  which would overwrite the user's clipboard. The storage check runs a
-  content script that tries to read a key that never exists (Chrome has no
-  getter for the access level).
-- C3: "the evidence viewer" was taken as the investigation summary and the
-  full response viewer.
-- C5: `mcp-bridge` has no coverage provider of its own and adding one is a
-  new dependency; it uses the root `@vitest/coverage-v8` 4.1.0 with its
-  Vitest 4.1.11, and Vitest prints "Running mixed versions is not
-  supported". It works today (decision 4 below).
-
-## Phase C: decisions needed from the owner
-
-4. Add `@vitest/coverage-v8` at a matching version to `apps/mcp-bridge`'s
-   devDependencies, to end the mixed-version warning?
-
-## Phase C: observed, not changed
-
-- **Evidence ids after de-duplication (a real bug, found by C3's test).**
-  `recordEvidence` drops a repeat of the same request but returns a new
-  `evidenceId` that is never stored. Inspecting `segments.json` a second
-  time in one browser session gives the model and the UI an id the viewer
-  cannot find ("The full response is no longer available in this
-  session."). Suggested fix: return the stored record's id on a duplicate.
-  The a11y test inspects a different resource per theme because of it.
-- `downloads.ts` does not advance the image index when a download throws,
-  so the next image takes the failed one's name; `data:image/svg+xml` gets
-  the extension `svg+xml`.
-- Settings' "Please fill in all required fields" save path is
-  unreachable from the UI (Save is disabled until key and model exist).
-- `--warning` (amber) as text on white is about 3.2:1 (DOM Health tone
-  classes); not in a screen the axe suite covers.
-- Test Connection logs the raw provider error with `console.error` (moved
-  unchanged into `connection-test.ts`); AI SDK errors can carry the request
-  body (the prompt "Hi"; never the key) and the response body.
-
-## Phase C: owner test scripts (about 5 minutes each)
-
-Setup as for Phase A (load the unzipped build, configure a model).
-
-### C1: models and tool calling
-
-1. Settings → AI Configuration → your provider. Paste a wrong key, click
-   **Fetch models**. **Expected:** "The provider rejected the API key
-   (401). Pick a suggestion or type the model id." and the model field
-   still accepts typing.
-2. Paste the right key, **Fetch models**. **Expected:** "N models from the
-   provider", and the model field's suggestions list them.
-3. Pick a model known to call tools, **Test Connection**. **Expected:**
-   "Connection test successful · Tool calling: yes" and a badge.
-4. Pick a model your provider documents as not supporting function
-   calling, **Test Connection**. **Expected:** "… Tool
-   calling: no — the agent needs it", "No tools" in the provider list;
-   selecting another provider and back asks for confirmation.
-5. Select **Anthropic** with a key and send a chat. **Expected:** an answer
-   (before C1 the preset host made every request 404).
-
-### C2: preflight
-
-1. Open `chrome-extension://<id>/src/entrypoints/options/index.html#preflight`.
-   **Expected:** Apty Integration opens with the Preflight card.
-2. With the provider, the Client (or the fixture Client from DEMO.md) and
-   an application tab ready: **Run all checks**. **Expected:** "All checks
-   passed."
-3. Remove the Client ID in Apty Integration (Disconnect), run again.
-   **Expected:** Apty Client fails with "Fix: Open Settings → Apty
-   Integration, click Detect …"; **Copy** copies that fix.
-4. **Export results (redacted JSON)**. **Expected:** a file
-   `apty-preflight-<time>.json` with `schema: apty-preflight/1`.
-5. **Reset demo data** → **Delete conversations and screenshots**.
-   **Expected:** "Demo data reset…"; the side panel's history is empty.
-
-### C3: accessibility (spot check)
-
-1. In Options turn on dark theme. **Expected:** muted text and the green
-   "Answering" badge stay readable.
-2. With a screen reader or the Accessibility pane of DevTools, inspect the
-   eye icon by the API key. **Expected:** named "Show API key".
-
-### C4: Stop
-
-1. Ask a long question and click the send button while it shows the
-   spinner. **Expected:** the turn stops and nothing streams afterwards.
-
-# Phase B
-
-## Checkpoint B gates (clean build of `d179913`)
-
-```
-$ rm -rf apps/browser-extension/dist
-$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
-✓ typecheck (11s)
-✓ lint (1s)
-✓ test (56s)
-✓ audit (2s)
-✓ build (21s)
-```
-
-Unit tests inside `test`:
-
-```
-packages/apty-debug-contract   Tests  72 passed (72)
-packages/agent-core            Tests 260 passed (260)
-packages/dom-snapshot          Tests 367 passed (367)
-packages/ui                    Tests 200 passed | 10 skipped (210)   (the 10 skips are pre-existing; C4)
-packages/browser-runtime       Tests 839 passed (839)
-apps/browser-extension         Tests 214 passed (214)
-apps/mcp-bridge                Tests  44 passed (44)
-tooling/scripts (node:test)    pass 5, fail 0                         (new: npm run test:scripts)
-```
-
-```
-$ npm run test:e2e        (Chromium from /opt/pw-browsers)
-# tests 65
-# pass 65
-# fail 0
-# skipped 0
-
-$ npm run test:coverage   (CI's gate; not part of verify-quiet)
-browser-runtime      Statements 90.52%  Branches 82.6%   Functions 93.15%  Lines 92.72%   (exit 0)
-apty-debug-contract  Statements 91.7%   Branches 84.67%  Functions 96.42%  Lines 94.83%   (exit 0)
-```
-
-The coverage numbers equal checkpoint A's because the gate's include list
-covers only a few files; widening it is C5.
-
-The packaged manifest still has `"externally_connectable": {"ids": []}`.
-
-Secret scan, TruffleHog 3.99.2 over every commit in `origin/main..HEAD`,
-no exclude list, verification off:
-
-```
-$ trufflehog git file://. --since-commit origin/main --branch hardening/open-work --no-verification --no-update --json
-"chunks":886  "bytes":861160  "verified_secrets":0  "unverified_secrets":0
-```
-
-## B1: Production Widget module (skipped)
-
-The spec says to skip B1 when `docs/integrations/apty/reference-js/` is
-missing. It is missing at `dc27e2f` and on this branch, so there is no
-`producer.ts`, no paste bundle, no producer e2e and no
-`VERIFY_WITH_REAL_CLIENT.md`. Nothing was claimed about a real Client.
-
-## B2: Real-tenant validation tooling (done; the tenant run is the owner's)
-
-What changed:
-
-- `packages/browser-runtime/src/apty/dom-health-thresholds.ts` (new): one
-  registry of the tunable thresholds (seed link count, same-URL edges and
-  share, unreadable-frame share, unseen virtualized share, collector
-  budget, three virtualization detector values), each with default,
-  bounds, description and an `unverified` flag. Traversal, scoring, the
-  frame collector and the virtualization detector read from it; the old
-  exported constants are kept and equal the defaults.
-- `AppSettings.domHealthThresholdOverrides`: honoured only while Developer
-  tools is on (side panel card and the agent tools). Unknown names,
-  non-numbers and out-of-range values are rejected with a reason; every
-  active or rejected override is listed in the audit result
-  (`thresholdOverrides`) and the bundle. Defaults are unchanged.
-- Settings → Troubleshooting (Developer tools on): a JSON field for the
-  overrides; invalid JSON is not saved and says so.
-- `packages/browser-runtime/src/apty/validation-bundle.ts` (new):
-  `buildValidationBundle` copies fields from an allow-list (never copies a
-  result and strips it): hosts; URL templates (origin, path with ids
-  masked, hash route, never a query); the frame tree with keys only from
-  `top`, `data-osp-id`, `name` or `id` (a title key is kept as a hash);
-  roles, reasons and failures; counts, coverage, confidence caps, overlays
-  with evidence level, duplicate-id counts, virtualized lists, timings and
-  `withinBudget`; application coverage, state and transition counts and
-  traversal; the route probe's hashes and counts; every threshold; and
-  extension and Chrome versions. The result then goes through the DOM
-  Health exit redaction and strict contract redaction, whatever the
-  redaction mode.
-- DOM Health card: "Export validation bundle" (enabled once a page
-  result, application result or finished route probe exists) opens
-  "Review before sharing" with the exact JSON and Download, Copy, Cancel.
-  The route probe hands its finished report to the card.
-- `tooling/scripts/bundle-to-fixture.mjs` (new): a bundle becomes
-  `<name>.html` (frame-tree skeleton, overlay placeholders, hosts replaced
-  with `host-N.example.test`), `<name>.values.json` and a
-  `<name>.fixture.test.ts` stub with one `it.todo` per check. It refuses
-  other schemas, non-kebab names and overwriting.
-- Docs: `docs/development/real-tenant-validation.md` (new: tenant rules,
-  athenaOne and LN screens, the checks and the bundle field for each, what
-  to send back), `dom-health-architecture.md` (known limitations),
-  `PRIVACY.md` (exports), `docs/STATUS.md`.
-
-Tests:
-
-- Unit: `validation-bundle.test.ts` (5): a fixture with a name, record
-  number, email, page title, input value and cookie in fields the bundle
-  reads and in fields it must not read; none appears in the JSON, URL
-  templates have no query, and the structure is checked field by field.
-  `dom-health-thresholds.test.ts` (7, including an override changing a
-  traversal decision and resetting), `tools/dom-health.test.ts` (+2:
-  overrides only with Developer tools), `troubleshooting-card.test.tsx`
-  (+10), `validation-bundle-export.test.tsx` (4),
-  `dom-health-card.test.tsx` (+1), `bundle-to-fixture.test.mjs` (5).
-- e2e, `dom-health-apps.e2e.test.mjs` (6 new): on each of the six
-  application shapes, the real side panel runs Check DOM Health (Audit
-  Application on the SPA), exports, and the reviewed JSON has the schema,
-  the manifest's version, a Chrome version, the host, the active override,
-  no URL template with a query, and none of that page's text, titles,
-  tenant id or session parameter.
-
-## B3: Structural summary for JSON bodies (done)
-
-- `apty/json-body-summary.ts` (new): `summarizeJsonBody` returns kind, item
-  count, top-level keys, the union of item keys with their types, how many
-  whole items the preview holds and whether it is partial, in under 1,500
-  characters (30 keys, 5 preview items at most).
-- The Client resource inspector returns it as `json`; tool descriptions
-  and the system prompt tell the model to read it before paging.
-- Tests: `json-body-summary.test.ts`, inspector tests, `wp1-acceptance`
-  (see conflicts).
-
-## B4: Virtualized lists (done)
-
-- `packages/dom-snapshot/src/health-virtualized.ts` (new): a list is
-  virtualized on `aria-rowcount`/`aria-setsize` above the rendered rows, a
-  gap in `data-index`/`aria-rowindex`, a tall empty spacer, or a scroll
-  height far beyond its rendered rows; nested findings merge.
-- Scoring: a confidence cap when more than half of the declared rows were
-  never rendered, the risk `virtualized-list-partial-coverage`, and
-  `result.virtualized`; the route probe shows rendered/declared rows.
-- Tests: detector and scoring units; e2e on a 1,000-row grid with 15
-  rendered (counts, signals, LOW confidence, risk, scroll position left
-  alone).
-
-## B5: Page-hook kill switch (done)
-
-- The MAIN-world console bridge left the manifest. The service worker
-  registers it with `chrome.scripting.registerContentScripts`
-  (`runtime/page-hooks-registration.ts`), excludes the listed sites, and
-  unregisters it when Settings → Troubleshooting → "Track client-side
-  routing and capture console output from page load" is off. Settings
-  changes reconcile at once.
-- With the hooks off, DOM Health reports routing evidence as unavailable
-  (never as "no routing"), the route probe shows unknown counts, and the
-  console tool does not inject the bridge.
-- `validate-manifest.mjs` checks the emitted bridge path.
-- Tests: registration units; e2e on an excluded site (no bridge, routing
-  reported unavailable).
-
-## Phase B: not done, or partial
-
-- B1 skipped (above).
-- B2: the bundle has not been produced on a real athenaOne or Infor LN
-  tenant; that is the owner's run. No threshold was tuned.
-- B2: overrides for the collector budget and virtualization thresholds
-  reach the content script through the collect message; that path is
-  unit-tested, while the e2e exercises an override that the service-worker
-  side reads (`sameUrlRatioForClickFirst`).
-- B4: the optional scroll sample was not built; the audit never scrolls.
-
-## Phase B: conflicts between the prompt and the repo
-
-- B2: the spec lists the `data-*` free-text cut-off and the
-  structure-only cap among the unverified values. The cut-off is in the
-  collector's privacy code, not a threshold the audit reads, and the
-  structure-only cap is a rule, not a number; neither is in the registry.
-- B2: the spec asks for the button "in the DOM Health card and Developer
-  tools". Developer tools in Settings live in `@apty/ui`, which may not
-  depend on `@apty/browser-runtime`; the button is in the DOM Health card,
-  where the developer route probe is, and covers its report.
-- B2: the threshold overrides are a global in the service worker or side
-  panel for the duration of an audit; two audits running at once in the
-  same context would share the later one's overrides.
-- B3: at `dc27e2f` the inspector already returned a small `json` summary
-  with a 5-item `sample`. B3 replaced `sample` with the key union and
-  types; `wp1-acceptance` asserted `json.sample` length, so the same bound
-  is now asserted on the parsed preview and `json.inPreview`. A JSON
-  object body used to be put in the preview whole, with no size cap;
-  fixed.
-- B5: the spec says to resolve the hashed script path from the built
-  manifest. With the bridge gone from the manifest there is nothing to
-  resolve, so the build emits it at `content/console-bridge.js` and the
-  validator checks both sides. `match_about_blank` has no equivalent in a
-  registered script; `matchOriginAsFallback` is used.
-- B5: `page-hooks.test.ts` and `frame-responder.test.ts` were adapted to
-  the install-time announcement and the new `historyHooksSeen` field, with
-  a test added for each.
-- B5 (my error, fixed): a `git checkout` while proving the validator
-  reverted uncommitted `vite.config.ts` edits; they were re-applied and
-  the clean build and full e2e (59/59 then) re-run before committing.
-
-## Phase B: decisions needed from the owner
-
-The three Phase A decisions are still open (below). No new one.
-
-## Phase B: observed, not changed
-
-- The application audit does not aggregate `virtualized` across states;
-  each state's page result carries it.
-- The coverage gate's include list is narrow, so B's new modules do not
-  move its numbers (C5).
-- `tooling/e2e/agent.e2e.test.mjs` line 198 has a Biome `useTemplate`
-  info (string concatenation), from A1; info only, `lint` passes.
-
-## Phase B: owner test scripts (about 5 minutes each)
-
-Setup as for Phase A below (load the unzipped build, configure a model).
-
-### B2: validation bundle
-
-1. Settings → Troubleshooting: turn on **Developer tools**. **Expected:**
-   a "DOM Health: threshold overrides (JSON)" field appears. Type
-   `{"sameUrlRatioForClickFirst": 0.4}` and click elsewhere. Type
-   `{"x": "1"` and click elsewhere. **Expected:** "Needs a JSON object
-   whose values are all numbers. Not saved." Restore the first value.
-2. Open any page with a form (for example
-   `https://httpbin.org/forms/post`) and the side panel. Click **Check DOM
-   Health** and wait for "Last checked".
-3. Click **Export validation bundle**. **Expected:** "Review before
-   sharing" with JSON whose `schema` is `apty-dom-health-validation/1`,
-   `hosts` is `["httpbin.org"]`, `thresholdOverrides.active` lists
-   `sameUrlRatioForClickFirst` 0.4 (default 0.5), `thresholds` lists nine
-   entries, and no field contains the page's labels or title.
-4. Click **Copy**, paste somewhere: the same JSON. Click **Download**:
-   a file `apty-dom-health-validation-<time>.json`.
-5. Turn Developer tools off and run step 2–3 again. **Expected:**
-   `thresholdOverrides.active` is empty.
-6. For the real tenants: follow `docs/development/real-tenant-validation.md`.
-
-### B3: JSON summary
-
-1. With the fake Client from the A2 script connected, ask: "List the
-   items in segments.json from the Apty Client." **Expected:** the answer
-   says 206 items and names their keys; the tool result (expand it) has
-   `json.itemCount: 206`, `json.itemKeys` with types and `json.inPreview`.
-
-### B4: virtualized lists
-
-1. Save the `VIRTUALIZED_PAGE` markup from
-   `tooling/e2e/dom-health-apps.e2e.test.mjs` as `grid.html`, serve it
-   with `python3 -m http.server 8000`, open it, scroll the grid.
-2. Click **Check DOM Health**. **Expected:** confidence Low with "1
-   virtualized list(s) render 15 of 1000 declared rows; the other 985 were
-   not audited."; the grid's scroll position does not move.
-
-### B5: page-script switch
-
-1. Open any page, then ask "show the apty page logs from page load".
-   **Expected:** console output from load is returned.
-2. Settings → Troubleshooting: add that page's host to "Sites where that
-   script never runs", reload the page, ask again. **Expected:** only
-   output after the request; DOM Health's routing evidence reads
-   "unavailable" rather than zero.
-3. Turn the switch off: the site list disappears; turn it back on.
-
-# Phase A
-
-### Checkpoint A gates (at `d924303`)
-
-```
-$ rm -rf apps/browser-extension/dist
-$ tooling/scripts/verify-quiet.sh typecheck lint test audit build
-✓ typecheck (10s)
-✓ lint (1s)
-✓ test (52s)
-✓ audit (1s)
-✓ build (20s)
-```
-
-Unit tests inside `test`:
-
-```
-packages/apty-debug-contract   Tests  72 passed (72)
-packages/agent-core            Tests 260 passed (260)
-packages/dom-snapshot          Tests 355 passed (355)
-packages/ui                    Tests 188 passed | 10 skipped (198)   (the 10 skips are pre-existing; C4)
-packages/browser-runtime       Tests 788 passed (788)
-apps/browser-extension         Tests 202 passed (202)
-apps/mcp-bridge                Tests  44 passed (44)
-```
-
-Audit step: manifest valid, no architecture-boundary violations, no
-unreviewed branding, no duplicate tool names, MCP bridge docs consistent.
-
-```
-$ npm run test:e2e        (Chromium from /opt/pw-browsers, against the clean build)
-# tests 56
-# suites 10
-# pass 56
-# fail 0
-# cancelled 0
-# skipped 0
-
-$ npm run test:coverage   (CI's gate; not part of verify-quiet)
-browser-runtime  Statements 90.52%  Branches 82.6%  Functions 93.15%  Lines 92.72%   (exit 0)
-apty-debug-contract  Statements 91.7%  Branches 84.67%  Functions 96.42%  Lines 94.83%   (exit 0)
-```
-
-The packaged manifest still has `"externally_connectable": {"ids": []}`.
-
-## Secret scan of the diff
-
-TruffleHog 3.99.2 (the version CI pins; download checked against the
-release's published SHA-256), over every commit in `origin/main..HEAD`,
-with no exclude list and with verification turned off so no candidate is
-sent to a third party:
-
-```
-$ trufflehog git file://. --since-commit origin/main --branch hardening/open-work --no-verification --no-update --json
-"chunks":707  "bytes":681296  "verified_secrets":0  "unverified_secrets":0
-```
-
-## A1: Gate state-changing clicks and new tabs (done)
-
-What changed:
-
-- `packages/browser-runtime/src/tools/click-risk.ts` (new):
-  - `classifyClickRisk(target)` is pure. A click is risky when the target
-    is a submit control (`button[type=submit]`, `input[type=submit|image]`,
-    a typeless `button` inside a `<form>`), or its accessible name contains
-    a word from `RISKY_CLICK_WORDS`, or it links to another origin (or a
-    non-web URL), or it sits on a frame or canvas, or it cannot be found.
-  - `classifyNewTabUrl(url, currentPageUrl)` decides the new-tab policy.
-  - `inspectClickTargetInPage` finds the element by snapshot uid (in any
-    frame, through open and closed shadow roots) or at a viewport point,
-    and describes the control a click would activate.
-  - `describeClickForApproval` builds the prompt text: role, accessible
-    name, tag, form method and action, link and page origin.
-- `click`: safe clicks run at once; risky ones go through `gateRiskyAction`.
-- `computer`: the click actions and `left_click_drag` map the screenshot
-  point to the element under it (both ends of a drag) and apply the same
-  rules. With no screenshot to map the point, or a frame or canvas under
-  it, the click asks.
-- `create_new_tab`: the same origin as the current tab opens at once.
-  Another origin asks, and an "Allow on this site" grant is keyed on the
-  destination origin. A non-`http(s)` scheme, or a query plus fragment over
-  128 characters, always asks and never offers "Allow on this site". The
-  prompt shows the full URL.
-- `gateRiskyAction` takes `{ rememberable: false }`: it ignores and never
-  creates grants. The prompt hides "Allow on this site" for such requests.
-- Every affected tool description has an `APPROVAL:` sentence and tells the
-  model that a `denied` result must not be retried. MCP calls use the same
-  tools and the existing relay.
-- Docs: `docs/security/SECURITY_AUDIT.md` finding #18,
-  `docs/security/PERMISSIONS.md` "Tools that wait for a person's click",
-  `docs/STATUS.md`.
-
-Tests:
-
-- Unit:
-  - `click-risk.test.ts` (33): the classifier table, the new-tab policy for
-    same origin, cross origin, long query, long fragment, `data:`,
-    `javascript:`, `chrome:` and unparseable URLs, and the inspector
-    wrapper (fails closed).
-  - `element.test.ts` (+5: click).
-  - `computer.test.ts` (+4).
-  - `tab.test.ts` (5, new).
-  - `approval.test.ts` (+1: a non-rememberable request).
-  - `approval-prompt.test.tsx` (+1: no remember button).
-- e2e, "approval for clicks and new tabs (A1)" in `agent.e2e.test.mjs`
-  (6 tests):
-  - Deny on `create_new_tab` to `http://127.0.0.1:<evil port>/?d=<200-char
-    secret>` leaves the evil server with **zero requests**, and the prompt
-    offers no "Allow on this site".
-  - "Allow once" opens it.
-  - A benign click runs with no prompt.
-  - A "Delete" submit button prompts (showing `Form: POST …/orders/delete`)
-    and Deny leaves the page counter at 0.
-  - A `computer` click at that button's coordinates prompts.
-  - "Allow on this site" for `click` does not enable `create_new_tab`, and
-    "Revoke all" in Options makes the click ask again.
-
-  All existing agent tests still pass.
-
-## A2: Deny list for Apty Client bodies (done)
-
-What changed:
-
-- `inspectResource` loads Settings → Data handling's deny list itself and
-  checks the resource URL before `getResourceBody`. On a match:
-  - it returns `status: "body_denied"`, the request metadata, `deniedBy`
-    (the entry) and how to change it;
-  - it never calls the Client's `get-resource-body`;
-  - it records no evidence, so `get_evidence_json` cannot expose the body.
-- `matchingDenyEntry` reports which entry matched (`isUrlDenied` uses it).
-- Data-handling card:
-  - the list stays editable when page capture is off (Client bodies don't
-    depend on that switch);
-  - its copy says it covers the Apty Client;
-  - the placeholder shows `/users/`, `/api/me` and `/userinfo` as examples;
-  - the default stays `[]`.
-- `PRIVACY.md`, `docs/TROUBLESHOOTING.md`, `docs/STATUS.md` and the
-  inspect tool's description explain `body_denied`.
-
-Tests:
-
-- Unit: `extension-network-inspector.test.ts` (+5): denied (never asks the
-  Client, no evidence), a host entry, an allowed body in full, and an empty
-  list or no settings. `resource-body-utils.test.ts` (+2) and
-  `data-handling-card.test.tsx` (+1, 1 updated).
-- e2e, `apty-client.e2e.test.mjs` (1 new):
-  - the fake Client serves `/users/4815162342.json` and `segment.json`;
-  - with `/users/` on the list the agent gets `body_denied`, and the
-    Client's recorded `get-resource-body` calls are exactly `["r1"]` (the
-    segments body), so the denied body was never requested;
-  - `segment.json` returns in full;
-  - clearing the list returns the preference body.
-
-## A3: Redaction mode control (done)
-
-What changed:
-
-- `AppSettings.redactionMode` (default `"strict"`).
-- `packages/browser-runtime/src/runtime/redaction-mode.ts` is the one
-  accessor:
-  - `getRedactionMode()` reads the setting once and caches it;
-  - `chrome.storage.onChanged` updates the cache;
-  - `currentRedactionMode()` is strict until the first read completes;
-  - callers redact only through `redactText` and `redactLogEntries`.
-- All 17 call sites in 10 files were moved to those wrappers. The side
-  panel and the service worker read the mode at startup.
-- `redaction-mode.test.ts` scans every non-test source file in
-  browser-runtime, the extension app, ui, agent-core and dom-snapshot, and
-  fails on any direct call to the redaction library. I proved it fails by
-  adding a temporary direct call (not committed).
-- Settings → General → Data handling → Redaction:
-  - Strict (recommended), Standard, and Off (development only), each with a
-    plain description and its own Preview of a fake sample, before and
-    after;
-  - Off opens a confirmation dialog that says structural secret redaction
-    stays on;
-  - the preview function is passed in by the options page, so `@apty/ui`
-    still depends only on agent-core.
-- Side panel: a persistent "Redaction is OFF" banner with a Change button.
-- Exports: message Copy and Download begin with
-  `Apty Agent export · redaction mode: <mode> · <ISO time>`. The response
-  viewer adds that header to text bodies, and for JSON puts the mode in the
-  file name and next to the buttons (see Decisions).
-- `PRIVACY.md` (mode table) and `docs/STATUS.md`.
-
-Tests:
-
-- Unit:
-  - `redaction-mode.test.ts` (16): reads, defaults, caching (one storage
-    read), invalidation by change events, ignores other areas and keys,
-    Strict vs Standard vs Off output, a JWT masked in Off, and the bypass
-    scan.
-  - `redaction-mode-control.test.tsx` (6), `export-header.test.ts` (3),
-    `message-item.test.tsx` (+1), `redaction-off-banner.test.tsx` (4) and
-    `redact.test.ts` (+1).
-- e2e, `redaction.e2e.test.mjs` (3, new):
-  - a fresh profile is strict, and the model sees neither the page title
-    nor the username;
-  - Standard shows the page title and still masks the username;
-  - Off needs confirmation ("Keep current mode" leaves Standard), the mode
-    survives an Options reload, the side panel shows "Redaction is OFF" and
-    keeps it after a reload, the username is visible, and the JWT is still
-    masked.
-
-## Phase A: not done, or partial
-
-Nothing in Phase A is partial. Not verified:
-
-- A real model was not used; every e2e test drives the real side panel with
-  a scripted model. Whether a real model retries after a `denied` click is
-  up to the model; the tool tells it not to.
-- No real Apty Client and no real customer tenant were used (B1 and B2 are
-  the owner's runs).
-- The MCP path for the new click and tab gates is covered by the existing
-  relay tests and unit tests, not by a new MCP e2e test.
-
-## Phase A: conflicts between the prompt and the repo
-
-- The prompt says `origin/main` has 190 commits; `git rev-list --count
-  origin/main` gives 107 at `dc27e2f`.
-- Owner checklist:
-  - the boxes were not ticked;
-  - `docs/integrations/apty/reference-js/` is absent, so WP-B1 will be
-    skipped and reported in Phase B;
-  - `SKILLS_DECISION` was not edited, so the default KEEP applies (D1);
-  - Chromium is at `/opt/pw-browsers`.
-- The prompt's bundle command `git bundle create … origin/main..HEAD`
-  produces a bundle with only a `HEAD` ref, which the apply command `git
-  fetch <bundle> hardening/open-work:bundle-work` cannot fetch. I built the
-  bundle with both `HEAD` and `refs/heads/hardening/open-work` and tested
-  the apply flow in a scratch clone (fetch, "fast-forward OK", 4 commits).
-- A1:
-  - **"save" is not in the word list.** The spec's examples don't name it,
-    and the existing core-tools e2e clicks a "Save order" button expecting
-    no prompt. See Decisions.
-  - **Point lookup method.** The spec offers CDP `DOM.getNodeForLocation`
-    or `elementFromPoint` through the frame responder. I used
-    `chrome.scripting.executeScript` with `document.elementFromPoint` in the
-    top frame (no debugger attach, the same pattern the DOM locator uses).
-    A frame under the point counts as unresolvable, so the click asks.
-  - **A test updated to the new behaviour.** `computer.test.ts` had "left_click runs immediately with no
-    approval", asserting the ungated behaviour this package reverses. It is
-    kept, now with a known-safe target, alongside new risky and fail-closed
-    cases. No test was deleted.
-  - **Unit-test gap for the in-page inspector.** `inspectClickTargetInPage`
-    has no jsdom unit test: jsdom is not a browser-runtime dependency, and
-    adding it would be a new dependency. It is covered by the real-Chromium
-    e2e tests.
-- A2:
-  - **Privacy statement location.** The spec says "the privacy statement
-    under `docs/`", but the privacy statement is `PRIVACY.md` at the repo
-    root. I updated that file and `docs/TROUBLESHOOTING.md`.
-  - **A test updated to the new behaviour.** `data-handling-card.test.tsx`
-    asserted the list is disabled while page capture is off. That would
-    stop a user from protecting Client bodies, so the assertion now
-    requires it to be enabled.
-- A3:
-  - **Call-site count.** The spec says 16 non-test callers; I found 17 call
-    sites.
-  - **How Standard differs from Strict.** In this codebase Standard differs
-    from Strict only for page-context keys (`page_title`, `page_search`,
-    `page_path`, `referrer`); usernames and other personal-data keys are
-    masked in both. Off skips only the key-name pass; PEM, JWT, bearer,
-    known token shapes, generic secret key/value pairs and emails are
-    masked in every mode. The UI copy says exactly this.
-  - **DOM Health's own privacy is unchanged.** Page titles replaced,
-    identifier-shaped values and element ids masked: this is structural and
-    stays on in every mode. Only its inner text-redaction call follows the
-    mode.
-
-## Phase A: decisions needed from the owner
-
-1. **Add "save" to `RISKY_CLICK_WORDS`?** It would prompt on every Save
-   button, and the existing core-tools e2e would need its approval
-   answered.
-2. **A header line inside JSON exports?** The response viewer's JSON
-   Copy/Download currently stays valid JSON, with the mode in the file name
-   and on screen. A header line would make the file invalid JSON.
-3. **Right-click.** A `computer` `right_click` goes through the same
-   classifier as other clicks (the spec says "click and drag actions"). It
-   can't submit or follow a link, so it could be exempted if the prompts
-   are a nuisance.
-
-## Phase A: observed, not changed
-
-- The DOM Health application audit navigates the bound tab itself
-  (`apty/page-navigation.ts`, `chrome.tabs.update`) to same-origin links it
-  discovered. It is not a model tool call and is not gated (also noted in
-  SECURITY_AUDIT #18).
-- `tooling/e2e/harness.mjs`:
-  - `toolResults()` counts tool messages after the last user message. A
-    screenshot sent to the model arrives as a new user message, which
-    resets it, so the A1 e2e uses its own per-prompt counting.
-  - `openSidePanel()` overwrites the whole settings object, wiping other
-    settings.
-- `RISKY_CLICK_WORDS` is English only. A destructive control with no
-  telling label or form (a `div` with a click handler named "Go") still
-  runs at once.
-- `inspect_extension_network` returns the request URL in its metadata even
-  for `body_denied` (unchanged existing behaviour; the URL goes through the
-  inspector's usual handling, not the deny list).
-- The response viewer's JSON Copy, and the code-block and selector Copy
-  buttons, carry no export header (they copy snippets, not exports).
-- `packages/ui` still has 10 skipped tests (C4 in Phase C).
-
-## Phase A: owner test scripts (about 5 minutes each)
-
-Setup for all three:
-
-1. Unzip `the latest `apty-agent-review-*.zip`` into a folder. In Chromium (or
-   Chrome for Testing; branded Chrome 137+ ignores `--load-extension` but
-   "Load unpacked" still works), open `chrome://extensions`, turn on
-   Developer mode, click **Load unpacked** and pick that folder. The ID
-   should be `bpiondflhhdplemamgggcdajclmoeple`.
-2. In Options → AI provider, configure your own model and key, and click
-   Test connection.
-
-### A1: clicks and new tabs
-
-1. Save this as `a1.html`, and in that folder run `python3 -m http.server
-   8000`:
-
-   ```html
-   <!doctype html><title>count 0</title><h1>Orders</h1>
-   <form action="/orders/delete" method="post" onsubmit="event.preventDefault(); window.n=(window.n||0)+1; document.title='count '+window.n">
-     <button type="submit">Delete</button></form>
-   <button onclick="document.title='details shown'">Show details</button>
-   ```
-
-2. Open `http://localhost:8000/a1.html` and open the side panel.
-3. Type: "On the current tab, click the Show details button."
-   **Expected:** no approval prompt; the tab title becomes "details shown".
-4. Type: "On the current tab, click the Delete button."
-   **Expected:** a prompt "Allow click?" showing `Click "Delete"
-   (<button type=submit>, role button)`, `Form: POST
-   http://localhost:8000/orders/delete`, "Why approval is needed: it
-   submits a form; its label contains "delete"". Click **Deny**.
-   **Expected:** the title stays "count 0".
-5. Type: "Open a new tab at https://example.org/?d=" followed by about 200
-   characters of text.
-   **Expected:** a prompt "Allow create_new_tab?" showing the full URL, with
-   only **Allow once** and **Deny** (no "Allow on this site"). Click
-   **Deny**. **Expected:** no new tab opens.
-6. Type: "Open a new tab at https://example.org/".
-   **Expected:** a prompt that offers "Allow on this site for 15 min".
-   Click it. **Expected:** the tab opens. Ask again.
-   **Expected:** it opens with no prompt.
-7. Options → General → Remembered approvals shows `create_new_tab` for
-   `https://example.org`. Click **Revoke all**; step 6 asks again.
-
-### A2: deny list for Apty Client bodies
-
-1. Create the test Client from the repo:
-
-   ```sh
-   node -e "import('./tooling/e2e/harness.mjs').then(h => h.writeFakeClient('/tmp/fake-client', 'working', 'bpiondflhhdplemamgggcdajclmoeple'))"
-   ```
-
-   Load `/tmp/fake-client` unpacked too.
-2. Options → Connection → Apty Integration: paste the fake Client's ID from
-   `chrome://extensions` and click **Connect**.
-   **Expected:** "Answering".
-3. Options → General → Data handling: leave "Capture response bodies" off.
-   **Expected:** the deny-list box is still editable, and its label
-   mentions the Apty Client. Type `/users/` and click elsewhere.
-4. In the side panel type: "Get 4815162342.json from the Apty Client."
-   **Expected:** the answer says the body was withheld because it matches
-   `/users/` in the deny list; no body content (`en-GB`) appears. In
-   `chrome://extensions`, open the fake Client's service worker console and
-   run `bodyRequests`. **Expected:** it does not contain `"r3"`.
-5. Type: "Get the data from segments.json in the Apty Client."
-   **Expected:** the segments come back; **View full response** shows 206
-   items.
-6. Clear the deny list and repeat step 4.
-   **Expected:** the preference body (`theme`, `language: en-GB`) is
-   returned.
-
-### A3: redaction mode
-
-1. Options → General → Data handling → Redaction.
-   **Expected:** **Strict (recommended)** is selected.
-2. Click **Preview** next to Standard.
-   **Expected:** "Before (sample data)" shows the fake chart title and
-   username. "After: Standard" keeps the title, masks the username, and
-   replaces the Bearer JWT with `<REDACTED>`. Preview Strict.
-   **Expected:** the title is masked too.
-3. Select **Standard**. **Expected:** it is saved at once (reload Options to
-   check).
-4. Select **Off (development only)**.
-   **Expected:** a dialog "Turn redaction off?" stating "Structural secret
-   redaction stays on: tokens, API keys, JWTs, bearer credentials and
-   emails are still masked." Click **Keep current mode**.
-   **Expected:** Standard is still selected.
-5. Select **Off** again and click **Turn redaction off**. Open the side
-   panel.
-   **Expected:** a banner "Redaction is OFF (development only) …" with a
-   **Change** button. Reload the side panel.
-   **Expected:** the banner is still there.
-6. Ask any question, then click **Copy** on the answer and paste it
-   somewhere.
-   **Expected:** the first line reads `Apty Agent export · redaction mode:
-   off · <time>`.
-7. Click **Change** in the banner, select **Strict**.
-   **Expected:** the banner disappears from the side panel.
+### R6. Store package: partial (icons wait for D6)
+
+- Single purpose = the manifest `description`, word for word.
+- Store description copy written.
+- Remote code: recommended answer **Yes**, with the exact text for the D3
+  build (imported skill scripts in the bundled sandbox; page JavaScript only
+  after a per-run approval). Answering "No" would be inaccurate. Your call.
+- Data use: health information, PII, authentication information,
+  personal communications, web history, user activity and website content,
+  each with what the code sends.
+- `<all_urls>`: one position in both the listing and STATUS: kept for 0.1.0,
+  because customers run their applications on their own domains.
+- Five 1280×800 screenshots of the real extension on a synthetic demo app
+  (`docs/store/screenshots/`, `screenshot-harness.mjs --store`), checked by eye.
+- `tooling/scripts/rasterize-icons.mjs` renders 16/48/128 px icons, the
+  store's 128 px icon and the 440×280 tile from your artwork, with the
+  existing Chromium (its e2e test passes on a sample SVG). **Missing:** the
+  artwork (D6), so the icons are still AIPex's.
+- The store zip is built exactly as `release.yml` builds it (see Gates); its
+  manifest has no `key` and passes `validate:extension`.
+
+### R7. Extension ID: done (D2 default: the Web Store's ID)
+
+The unpacked/enterprise zip keeps the pinned `key`
+(`bpiondflhhdplemamgggcdajclmoeple`, still the e2e harness's
+`AGENT_EXTENSION_ID`); the Web Store zip has none and gets the store's ID at
+first upload. `check-extension-id.mjs --store` fails a store manifest that
+still has a key (test, red → green); `release.yml` and the dry run use it.
+`docs/integrations/apty/README.md#extension-ids` states both IDs and that
+the Client and Studio must allow-list both; STUDIO.md, SMOKE_TEST.md and
+RELEASING.md point to it. Settings → Apty Client now has a Copy button for
+the running ID (red → green); Studio already had one.
+
+### R8. i18n: done
+
+- **Moved:** every hard-coded string in `dom-health-card.tsx`,
+  `SkillDetails.tsx`, `route-probe-panel.tsx`, `preflight-panel.tsx`, the
+  Data-handling card, the recent-requests list and the provider errors
+  (model list, Test Connection, tool calling). 280 keys in `en.json` and
+  `zh.json`; English values are unchanged, so existing tests that read
+  English still pass. The screenshot-policy control already used `t()`.
+  Model-list and connection-test helpers take a translate function, English
+  by default; `ai-provider.ts` stays free of i18n.
+- **Ratchet** `tooling/scripts/check-i18n-baseline.mjs` (TypeScript parser;
+  JSX text, string children, user-visible attribute strings per file),
+  wired into CI, the release gate, the dry run and verify: **418 strings in
+  56 files → 277 in 52**. `dom-health-card.tsx` 85 → 0, `SkillDetails.tsx`
+  29 → 1 (the file name `SKILL.md`), `route-probe-panel.tsx` 17 → 0,
+  `preflight-panel.tsx` 10 → 0, `recent-requests.tsx` 1 → 0.
+- **Parity test** `packages/ui/src/i18n/locales.test.ts`: the same keys,
+  non-empty values and the same `{{placeholders}}` in en and zh.
+  Translation keys are now typed from `en.json` instead of a hand-kept union.
+- **Behaviour test:** the DOM Health card in Chinese shows "尚未检查" and a
+  "检查 DOM 健康度" button. Before: "Unable to find an element with the
+  text: 尚未检查". After: passes.
+- **Bug fixed on the way:** without an `I18nProvider`, `t()` dropped its
+  parameters, so `{{x}}` showed literally.
+- **Left in English, by scope:** the Preflight checks' own labels and fixes
+  (`services/preflight.ts`), `validateHostUrl` errors and raw provider error
+  text. The other 277 strings are elsewhere and the ratchet keeps them from
+  growing.
+
+### R9. Human-only items: prepared
+
+`docs/development/real-tenant-validation.md` has the Infor LN re-run with
+0.1.0: build, settings, screens, each of the four rule changes with where to
+see it (bundle field, or the DOM Health card where the bundle doesn't carry
+it), and a results table. `docs/release/SMOKE_TEST.md` says where results go
+and to run it for both the unpacked and the Web Store install. Not run.
+
+Only people can do these:
+
+1. The Infor LN real-tenant re-run.
+2. The manual smoke matrix on Chrome and Edge stable.
+3. The Chrome Web Store submission (unlisted, per the D1 default), including
+   the remote-code answer and the data-use form.
+4. Turning on GitHub secret scanning and push protection.
+5. The Apty Client and Studio teams allow-listing the final IDs (both).
+6. Supplying the icon artwork (D6) and checking the LGPL packages.
+
+## Not done, or partial
+
+- **R6 icons:** wait for your artwork (D6). Everything else in R6 is done.
+- **R9:** prepared only; the real-tenant re-run, the smoke matrix and the
+  store submission need people.
+- **R8:** 13 hard-coded strings remain (277 before Phase 4); the ratchet
+  stops them growing.
+
+## Conflicts between the prompt and the repo
+
+1. **Facts that differ:** `hooks/use-storage.ts` is not dead (imported by
+   `automation-mode-toolbar.tsx` and `browser-agent-config.ts`), so R1 kept it.
+   `utils/wait-helper.ts` is at `tools/tools/utils/wait-helper.ts`.
+2. **The branding check could not fail** (its `"AIPex"` entry, compared
+   case-insensitively, allowed every line). Rewritten in R2.
+3. **Existing tests changed, with the reason:**
+   - Storage key names in test setups (`aipex_settings` → `apty_settings`,
+     `aipex_theme` → `apty_theme`; 11 files, unit and e2e). The asserted
+     values are unchanged; where an assertion names the key passed to
+     `save()`, only the key changed.
+   - Page-visible names in tests (`data-aipex-*`, `aipex-capture-highlight`
+     and the like; 9 files): the R2 rename, same assertions.
+   - `dom-health-apps.e2e` overlay test expects the matcher `id:apty-agent-`
+     instead of `id:aipex-`: the Agent's own UI is still left out, under its
+     new id prefix.
+   - `element-capture.test.ts`: the fixture's own-class `aipex-x` became
+     `apty-agent-x`.
+   - `apty-client.e2e`: reads the S7 per-context evidence keys
+     (`apty_evidence_store:<context>`); same assertion. Hidden until now by
+     the harness ID bug.
+   - `stored-data.e2e`: reads `apty-sessions`.
+   - `redaction-mode.test.ts`: an unrelated-key fixture renamed.
+   - `lifecycle.test.ts` (my R3 test): the settings key by constant.
+   - `agent.e2e` A1: waits 1.5 s for the previous test's favicon request
+     before clearing the list.
+4. **Test harness:** `tempDir` returns the real path (macOS), and
+   `launchBrowser` takes `extraArgs` (for the screenshot window size).
+5. **Rule slip:** while the e2e suite ran I once ran
+   `check-extension-id.test.mjs` (4 tiny script tests). That suite run passed
+   120/120.
+6. **R7 regression caught by the dry run:** the new Copy button's label
+   matched `getByLabel("Extension ID")`; renamed to "Copy this Agent's ID".
+
+## Observed, not changed
+
+- Four production packages are LGPL-3.0-or-later (see R4).
+- The items observed at Checkpoint 3 (the IndexedDB names, the inline
+  `language === "zh"` strings, the R1 follow-ups) are fixed in Phase 4.
+- Phase 1's observations still stand (`git show c2ac898:REVIEW.md`).
+
+## Five-minute owner test, per work package
+
+Build: `npm run build`, then load `apps/browser-extension/dist` unpacked.
+
+- **R1:** `pnpm audit --prod` prints "No known vulnerabilities found";
+  `pnpm why @openai/agents-core -r` finds one version.
+- **R2:** load the Checkpoint 1 build, save a setting and chat once; load
+  this build over it (same folder, Reload). In DevTools → Application,
+  `chrome.storage.local` has `apty_settings` and no `aipex_*` key, and
+  IndexedDB has `apty-sessions` and no `aipex-sessions`. On any page after
+  a chat, Elements shows `data-apty-nodeid` and no `aipex`.
+- **R3:** `apty_settings` now has `settingsVersion: 1`.
+- **R4:** the build folder has `LICENSE`, `THIRD_PARTY_NOTICES.txt` and
+  `assets/Inter-OFL.txt`; delete one and `npm run check:dist-licences` fails.
+- **R5:** `tooling/scripts/release-dry-run.sh` ends with "Packages:".
+- **R6:** read `docs/store/WEB_STORE_LISTING.md` and the five screenshots in
+  `docs/store/screenshots/`.
+- **R7:** Settings → Apty Integration → Apty Client → Copy puts the running
+  ID on the clipboard; `unzip -p apty-agent-v0.1.0-webstore.zip manifest.json | grep key` prints nothing.
+- **R8:** Settings → General → Language → 中文, then open the side panel:
+  the DOM Health card is in Chinese.
+- **R9:** read the LN re-run section in
+  `docs/development/real-tenant-validation.md`.
+
+## After you write "approved"
+
+I will give the exact commands to fetch and verify the bundle, merge it
+with `--ff-only`, push, and roll back with `git revert`. I will not push
+anything myself.

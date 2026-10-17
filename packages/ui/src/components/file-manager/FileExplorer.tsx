@@ -8,6 +8,7 @@
 import { FolderOpen, HardDrive } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
+import { useTranslation } from "../../i18n/context";
 
 import {
   Card,
@@ -27,6 +28,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   fileSystemClient,
   basePath = "/skills",
 }) => {
+  const { t } = useTranslation();
   const [loading] = useState(false);
   void fileSystemClient;
 
@@ -35,27 +37,28 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <HardDrive className="h-5 w-5" />
-          File Manager
+          {t("fileManager.title")}
         </CardTitle>
-        <CardDescription>
-          Browse and manage files in the virtual file system
-        </CardDescription>
+        <CardDescription>{t("fileManager.description")}</CardDescription>
       </CardHeader>
 
       <CardContent>
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <span className="text-muted-foreground">Loading...</span>
+            <span className="text-muted-foreground">{t("common.loading")}</span>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">File Browser</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {t("fileManager.browser")}
+            </h3>
             <p className="text-muted-foreground">
-              File browser UI will be available in a future update
+              {t("fileManager.comingSoon")}
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              Base path: <span className="font-mono">{basePath}</span>
+              {t("fileManager.basePath")}{" "}
+              <span className="font-mono">{basePath}</span>
             </p>
           </div>
         )}

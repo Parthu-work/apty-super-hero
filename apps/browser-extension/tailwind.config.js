@@ -5,9 +5,8 @@ module.exports = {
     "./components/**/*.{tsx,ts,jsx,js}",
     "./lib/**/*.{tsx,ts,jsx,js}",
     // Include workspace packages source files for direct source imports
-    "../aipex-react/src/**/*.{tsx,ts,jsx,js}",
-    "../browser-runtime/src/**/*.{tsx,ts,jsx,js}",
-    "../core/src/**/*.{tsx,ts,jsx,js}",
+    "../../packages/ui/src/**/*.{tsx,ts,jsx,js}",
+    "../../packages/browser-runtime/src/**/*.{tsx,ts,jsx,js}",
   ],
   darkMode: "class",
   prefix: "",

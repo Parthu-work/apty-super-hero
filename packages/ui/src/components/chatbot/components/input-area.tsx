@@ -235,7 +235,9 @@ export function DefaultInputArea({
             <div className="mt-2 flex items-center gap-2 rounded-md border border-info/20 bg-info/10 px-3 py-2 text-xs font-medium text-info">
               <ClockIcon className="size-3.5" />
               <span>
-                {queueCount} message{queueCount > 1 ? "s" : ""} queued
+                {t(queueCount > 1 ? "chat.queuedMany" : "chat.queuedOne", {
+                  count: queueCount,
+                })}
               </span>
             </div>
           )}
@@ -271,7 +273,7 @@ export function DefaultInputArea({
                   {serverModels.length > 0 && (
                     <PromptInputModelSelectGroup>
                       <PromptInputModelSelectLabel>
-                        Hosted Models
+                        {t("chat.hostedModels")}
                       </PromptInputModelSelectLabel>
                       {serverModels.map((model) => (
                         <PromptInputModelSelectItem
@@ -292,7 +294,7 @@ export function DefaultInputArea({
                       )}
                       <PromptInputModelSelectGroup>
                         <PromptInputModelSelectLabel>
-                          BYOK Models
+                          {t("chat.byokModels")}
                         </PromptInputModelSelectLabel>
                         {byokModelEntries.map((model) => (
                           <PromptInputModelSelectItem
@@ -309,7 +311,7 @@ export function DefaultInputArea({
                   {serverModels.length === 0 &&
                     byokModelEntries.length === 0 && (
                       <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        No models available
+                        {t("chat.noModels")}
                       </div>
                     )}
                 </PromptInputModelSelectContent>

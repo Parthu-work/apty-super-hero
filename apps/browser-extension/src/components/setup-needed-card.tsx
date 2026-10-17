@@ -12,6 +12,7 @@ import {
   AlertTitle,
 } from "@apty/ui/components/ui/alert";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { SettingsIcon, XIcon } from "lucide-react";
 
 export interface SetupNeededCardProps {
@@ -26,6 +27,7 @@ export function SetupNeededCard({
   onOpenSettings,
   onDismiss,
 }: SetupNeededCardProps) {
+  const { t } = useTranslation();
   const trimmed = draftText.trim();
   const preview = trimmed.length > 160 ? `${trimmed.slice(0, 160)}…` : trimmed;
 
@@ -37,25 +39,22 @@ export function SetupNeededCard({
         variant="ghost"
         size="icon"
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={t("common.dismiss")}
         className="absolute right-2 top-2 h-6 w-6"
       >
         <XIcon className="h-4 w-4" />
       </Button>
-      <AlertTitle>Connect an AI provider</AlertTitle>
+      <AlertTitle>{t("setupNeeded.title")}</AlertTitle>
       <AlertDescription>
-        <p className="mb-2">
-          Add your own API key and choose a model in Settings, then send your
-          message again.
-        </p>
+        <p className="mb-2">{t("setupNeeded.description")}</p>
         {preview && (
           <p className="mb-3 rounded border bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
-            Your message wasn't sent: &ldquo;{preview}&rdquo;
+            {t("setupNeeded.notSent", { preview })}
           </p>
         )}
         <Button type="button" size="sm" onClick={onOpenSettings}>
           <SettingsIcon aria-hidden="true" />
-          Set up AI provider
+          {t("setupNeeded.setUp")}
         </Button>
       </AlertDescription>
     </Alert>

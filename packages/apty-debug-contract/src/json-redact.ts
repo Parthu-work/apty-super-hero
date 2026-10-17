@@ -293,12 +293,22 @@ function redactKnownKeysInText(
 
     if (nextChar === "{" || nextChar === "[") {
       const end = findBalancedEnd(text, valueStart);
-      if (end === -1) continue; // unbalanced to the end of input — leave as-is rather than guess
+      if (end === -1) {
+        // Truncated input: the value runs to the end, so redact all of it.
+        result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        lastIndex = text.length;
+        break;
+      }
       valueEnd = end;
       replacement = category === "secret" ? '"<REDACTED>"' : '"<REDACTED>"';
     } else if (nextChar === '"') {
       const end = findStringEnd(text, valueStart);
-      if (end === -1) continue;
+      if (end === -1) {
+        // Truncated input: the value runs to the end, so redact all of it.
+        result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        lastIndex = text.length;
+        break;
+      }
       valueEnd = end;
       const raw = text.slice(valueStart + 1, end - 1);
       if (category === "pii" && PII_ID_KEY_NAMES.has(normalizeKey(key))) {
@@ -327,7 +337,9 @@ let installSalt: string | undefined;
 /** A process-lifetime-stable salt for pseudonymizing IDs, generated once. Not persisted across restarts by design — pseudonyms only need to be stable within one debugging session, not forever, and never persisting it avoids it becoming its own secret to protect. */
 function getInstallSalt(): string {
   if (!installSalt) {
-    installSalt = `${Date.now()}-${Math.random()}`;
+    installSalt = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
   }
   return installSalt;
 }

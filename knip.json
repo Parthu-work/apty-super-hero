@@ -1,0 +1,44 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreWorkspaces": [],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "tooling/scripts/*.{mjs,js}",
+        "tooling/e2e/*.{mjs,js}",
+        "tooling/e2e/fixtures/**/*.{mjs,js}"
+      ],
+      "project": ["tooling/**/*.{mjs,js}"]
+    },
+    "apps/browser-extension": {
+      "entry": [
+        "src/entrypoints/background/index.ts",
+        "src/entrypoints/content/index.tsx",
+        "src/entrypoints/content/frame-responder.ts",
+        "src/entrypoints/content/console-bridge.ts",
+        "src/entrypoints/content/page-hooks.ts",
+        "src/entrypoints/sidepanel/index.html",
+        "src/entrypoints/sidepanel/index.tsx",
+        "src/entrypoints/options/index.html",
+        "src/entrypoints/options/index.tsx",
+        "vite.config.ts",
+        "**/*.test.{ts,tsx}"
+      ],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "apps/mcp-bridge": {
+      "entry": [
+        "src/bridge.ts",
+        "src/daemon.ts",
+        "src/cli.ts",
+        "src/browser-cli.ts",
+        "**/*.test.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/*": {
+      "entry": ["src/index.ts", "**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  }
+}

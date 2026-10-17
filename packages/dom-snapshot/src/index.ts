@@ -117,3 +117,12 @@ export { buildTextSnapshot, formatSnapshot } from "./manager.js";
 export { searchAndFormat, searchSnapshotText } from "./query.js";
 export { shadowRootOf } from "./shadow-roots.js";
 export * from "./types.js";
+export {
+  applyUrlPolicy,
+  applyValuePolicy,
+  isEditableRole,
+  MASKED_VALUE,
+  type PolicyNode,
+  prepareNodeForPolicy,
+  type ValuePolicy,
+} from "./value-policy.js";

@@ -33,7 +33,7 @@ import { createNewTabTool } from "./tab";
 
 function open(url: string): Promise<any> {
   return createNewTabTool.invoke(
-    { context: { conversationId: "conv-tab" } } as any,
+    { context: { conversationId: "conv-tab", tabId: 3 } } as any,
     JSON.stringify({ url }),
   );
 }

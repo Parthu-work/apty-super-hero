@@ -9,13 +9,24 @@ beforeEach(() => {
   const future = Date.now() + 10 * 60_000;
   storageStore = {
     [STORAGE_KEYS.RISKY_ORIGIN_GRANTS]: [
-      { toolName: "fill_form", origin: "https://a.test", expiresAt: future },
+      {
+        toolName: "fill_form",
+        origin: "https://a.test",
+        requester: "chat",
+        expiresAt: future,
+      },
       {
         toolName: "run_console_command",
         origin: "https://b.test",
+        requester: "chat",
         expiresAt: future,
       },
-      { toolName: "fill_form", origin: "https://old.test", expiresAt: 1 },
+      {
+        toolName: "fill_form",
+        origin: "https://old.test",
+        requester: "chat",
+        expiresAt: 1,
+      },
     ],
   };
   (global as any).chrome = {

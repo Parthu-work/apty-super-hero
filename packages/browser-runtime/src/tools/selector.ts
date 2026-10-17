@@ -147,7 +147,7 @@ function redactAttributeValues(
   return redacted;
 }
 
-export const analyzeElementSelectorsTool = tool({
+const analyzeElementSelectorsTool = tool({
   name: "analyze_element_selectors",
   description:
     "Analyze an element (found via search_elements/take_snapshot's uid) and recommend a stable CSS/XPath selector for it — Apty's core 'why can't Studio select this element' question. " +

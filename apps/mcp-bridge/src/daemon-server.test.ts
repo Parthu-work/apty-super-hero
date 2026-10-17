@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 
 import { type DaemonServerHandle, startDaemonServer } from "./daemon-server.js";
-import { authProtocols } from "./lib/auth-token.js";
+import { authProtocols, WS_PROTOCOL } from "./lib/auth-token.js";
+import {
+  AUTH_PROTOCOL,
+  callMac,
+  daemonProof,
+  extensionProof,
+  sessionKey,
+} from "./lib/handshake.js";
 
 const TOKEN = "correct-token-0123456789abcdef";
 const EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
@@ -418,7 +425,9 @@ describe("daemon-server — dangerous tool allowlist", () => {
 
   it("blocks a dangerous tool by default, never reaching the extension", async () => {
     const h = await startTestDaemon();
-    const response = await callTool(h, "run_console_command");
+    // A published dangerous tool (run_console_command is not published at
+    // all since S6, so the allow list refuses it before this check).
+    const response = await callTool(h, "computer");
     expect(response.error?.message).toMatch(/blocked for bridge\/CLI/i);
   });
 
@@ -431,7 +440,7 @@ describe("daemon-server — dangerous tool allowlist", () => {
 
   it("allowDangerousTools:true permits a dangerous tool through to forwarding", async () => {
     const h = await startTestDaemon({ allowDangerousTools: true });
-    const response = await callTool(h, "run_console_command");
+    const response = await callTool(h, "computer");
     // Forwarded (not blocked) — reports extension-not-connected instead,
     // since no real extension is attached in this test.
     expect(response.error?.message).toMatch(/not connected/i);
@@ -449,10 +458,224 @@ describe("daemon-server — GET /health", () => {
       status: "ok",
       extensionConnected: false,
       bridgeClients: 0,
-      version: "3.1.0",
+      version: "4.0.0",
+      auth: [AUTH_PROTOCOL],
     });
     const raw = JSON.stringify(body);
     expect(raw).not.toContain(TOKEN);
     expect(raw).not.toContain(EXTENSION_ID);
+  });
+});
+
+/** A raw client on /extension that offers challenge auth instead of the token. */
+async function openChallengeSocket(port: number, origin = EXTENSION_ORIGIN) {
+  const ws = new WebSocket(
+    `ws://127.0.0.1:${port}/extension`,
+    [WS_PROTOCOL, AUTH_PROTOCOL],
+    { headers: { Origin: origin } },
+  );
+  const messages: Array<Record<string, unknown>> = [];
+  ws.on("message", (data) => messages.push(JSON.parse(data.toString())));
+  const closed = new Promise<number>((resolve) =>
+    ws.on("close", (code) => resolve(code)),
+  );
+  await new Promise<void>((resolve, reject) => {
+    ws.on("open", () => resolve());
+    ws.on("error", reject);
+  });
+  const next = async (predicate: (m: Record<string, unknown>) => boolean) => {
+    for (let i = 0; i < 100; i++) {
+      const found = messages.find(predicate);
+      if (found) return found;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error("no matching message");
+  };
+  return { ws, messages, closed, next };
+}
+
+const EXT_NONCE = "a".repeat(64);
+
+async function authenticate(port: number, token = TOKEN) {
+  const client = await openChallengeSocket(port);
+  client.ws.send(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: "auth-1",
+      method: "auth/challenge",
+      params: { nonce: EXT_NONCE },
+    }),
+  );
+  const challenge = (await client.next((m) => m.id === "auth-1")) as {
+    result: { nonce: string; proof: string };
+  };
+  client.ws.send(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: "auth-2",
+      method: "auth/prove",
+      params: {
+        proof: extensionProof(token, EXT_NONCE, challenge.result.nonce),
+      },
+    }),
+  );
+  return { ...client, daemonNonce: challenge.result.nonce, challenge };
+}
+
+describe("daemon-server — challenge authentication on /extension", () => {
+  it("survives a malformed frame before authentication, on /extension and /cli", async () => {
+    const h = await startTestDaemon();
+    const invalidUtf8 = Buffer.from([0xff, 0xfe, 0xfd]);
+    const intruder = await openChallengeSocket(h.port);
+    intruder.ws.send(invalidUtf8, { binary: false });
+    expect(await intruder.closed).toBe(1007);
+    const { ws: cli, result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/cli`,
+      { token: TOKEN },
+    );
+    expect((await result).opened).toBe(true);
+    const cliClosed = new Promise<number>((resolve) =>
+      cli.on("close", (code) => resolve(code)),
+    );
+    cli.send(invalidUtf8, { binary: false });
+    expect(await cliClosed).toBe(1007);
+
+    const client = await authenticate(h.port);
+    await client.next((m) => m.id === "auth-2");
+    expect(h.isExtensionConnected()).toBe(true);
+    client.ws.close();
+  });
+
+  it("proves it holds the token before the extension proves anything", async () => {
+    const h = await startTestDaemon();
+    const client = await openChallengeSocket(h.port);
+    client.ws.send(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: "auth-1",
+        method: "auth/challenge",
+        params: { nonce: EXT_NONCE },
+      }),
+    );
+    const reply = (await client.next((m) => m.id === "auth-1")) as {
+      result: { nonce: string; proof: string };
+    };
+    expect(reply.result.proof).toBe(
+      daemonProof(TOKEN, EXT_NONCE, reply.result.nonce),
+    );
+    expect(JSON.stringify(client.messages)).not.toContain(TOKEN);
+    expect(h.isExtensionConnected()).toBe(false);
+    client.ws.close();
+  });
+
+  it("registers the extension only after a valid proof", async () => {
+    const h = await startTestDaemon();
+    const client = await authenticate(h.port);
+    await client.next((m) => m.id === "auth-2");
+    expect(h.isExtensionConnected()).toBe(true);
+    client.ws.close();
+  });
+
+  it("closes a socket whose proof is wrong, never registering it", async () => {
+    const h = await startTestDaemon();
+    const client = await authenticate(h.port, "not-the-token");
+    expect(await client.closed).toBe(4003);
+    expect(h.isExtensionConnected()).toBe(false);
+  });
+
+  it("closes a socket that never authenticates", async () => {
+    const h = await startTestDaemon({ handshakeTimeoutMs: 200 });
+    const client = await openChallengeSocket(h.port);
+    expect(await client.closed).toBe(4003);
+    expect(h.isExtensionConnected()).toBe(false);
+  });
+
+  it("still requires the extension origin", async () => {
+    const h = await startTestDaemon();
+    await expect(
+      openChallengeSocket(h.port, "chrome-extension://someoneelse"),
+    ).rejects.toThrow();
+  });
+
+  it("signs every forwarded tools/call with the session key", async () => {
+    const h = await startTestDaemon();
+    const ext = await authenticate(h.port);
+    await ext.next((m) => m.id === "auth-2");
+
+    const cli = new WebSocket(
+      `ws://127.0.0.1:${h.port}/cli`,
+      authProtocols(TOKEN),
+    );
+    await new Promise((r) => cli.on("open", r));
+    cli.send(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 5,
+        method: "tools/call",
+        params: { name: "get_current_tab", arguments: { verbose: true } },
+      }),
+    );
+    const call = (await ext.next((m) => m.method === "tools/call")) as {
+      params: { name: string; arguments: unknown; seq: number; mac: string };
+    };
+    const key = sessionKey(TOKEN, EXT_NONCE, ext.daemonNonce);
+    expect(call.params.seq).toBe(1);
+    expect(call.params.mac).toBe(
+      callMac(key, 1, "get_current_tab", { verbose: true }),
+    );
+    cli.close();
+    ext.ws.close();
+  });
+});
+
+describe("daemon-server — published tool allow list", () => {
+  it("refuses run_console_command, which it does not publish, even with allowDangerousTools", async () => {
+    const h = await startTestDaemon({ allowDangerousTools: true });
+    const cli = new WebSocket(
+      `ws://127.0.0.1:${h.port}/cli`,
+      authProtocols(TOKEN),
+    );
+    await new Promise((r) => cli.on("open", r));
+    const reply = new Promise<Record<string, unknown>>((resolve) =>
+      cli.on("message", (d) => resolve(JSON.parse(d.toString()))),
+    );
+    cli.send(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 8,
+        method: "tools/call",
+        params: { name: "run_console_command", arguments: {} },
+      }),
+    );
+    expect(JSON.stringify(await reply)).toMatch(/not a published tool/);
+    cli.close();
+  });
+
+  it("refuses a tool that is not in its published tool list, never forwarding it", async () => {
+    const h = await startTestDaemon();
+    const ext = await authenticate(h.port);
+    await ext.next((m) => m.id === "auth-2");
+    const cli = new WebSocket(
+      `ws://127.0.0.1:${h.port}/cli`,
+      authProtocols(TOKEN),
+    );
+    const replies: Array<Record<string, unknown>> = [];
+    cli.on("message", (d) => replies.push(JSON.parse(d.toString())));
+    await new Promise((r) => cli.on("open", r));
+    cli.send(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 7,
+        method: "tools/call",
+        params: { name: "organize_tabs", arguments: {} },
+      }),
+    );
+    for (let i = 0; i < 50 && replies.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(JSON.stringify(replies[0])).toMatch(/not a published tool/);
+    expect(ext.messages.some((m) => m.method === "tools/call")).toBe(false);
+    cli.close();
+    ext.ws.close();
   });
 });

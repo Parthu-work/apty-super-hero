@@ -14,6 +14,7 @@ import {
   TabsTrigger,
 } from "@apty/ui/components/ui/tabs";
 import { Textarea } from "@apty/ui/components/ui/textarea";
+import { useTranslation } from "@apty/ui/i18n/context";
 import {
   AlertCircle,
   Code,
@@ -59,6 +60,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
   onEditInFileManager,
   onSkillUpdated,
 }) => {
+  const { t } = useTranslation();
   const [skillContent, setSkillContent] = useState<string>("");
   const [scriptsData, setScriptsData] = useState<ScriptData[]>([]);
   const [referencesData, setReferencesData] = useState<ReferenceData[]>([]);
@@ -116,7 +118,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
             console.error(`Failed to load script ${scriptPath}:`, error);
             scriptDataList.push({
               path: scriptPath,
-              content: "// Error loading script",
+              content: t("skillDetails.errorLoadingScript"),
             });
           }
         }
@@ -135,7 +137,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
             console.error(`Failed to load reference ${refPath}:`, error);
             refDataList.push({
               path: refPath,
-              content: "// Error loading reference",
+              content: t("skillDetails.errorLoadingReference"),
             });
           }
         }
@@ -149,7 +151,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [skill, skillClient, resetEditStates]);
+  }, [skill, skillClient, resetEditStates, t]);
 
   useEffect(() => {
     if (skill && open) {
@@ -206,7 +208,10 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
 
     if (parsedName && parsedName !== skill.id) {
       setSaveError(
-        `Cannot rename skill. The name "${parsedName}" must match "${skill.id}". Skill renaming is not supported.`,
+        t("skillDetails.renameNotSupported", {
+          name: parsedName,
+          id: skill.id,
+        }),
       );
       return;
     }
@@ -234,7 +239,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
       onSkillUpdated?.();
     } catch (err) {
       const errorMsg =
-        err instanceof Error ? err.message : "Failed to save file";
+        err instanceof Error ? err.message : t("skillDetails.saveFileFailed");
       setSaveError(errorMsg);
     } finally {
       setSaving(false);
@@ -283,7 +288,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
       onSkillUpdated?.();
     } catch (err) {
       const errorMsg =
-        err instanceof Error ? err.message : "Failed to save script";
+        err instanceof Error ? err.message : t("skillDetails.saveScriptFailed");
       setSaveError(errorMsg);
     } finally {
       setSaving(false);
@@ -332,7 +337,9 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
       onSkillUpdated?.();
     } catch (err) {
       const errorMsg =
-        err instanceof Error ? err.message : "Failed to save reference";
+        err instanceof Error
+          ? err.message
+          : t("skillDetails.saveReferenceFailed");
       setSaveError(errorMsg);
     } finally {
       setSaving(false);
@@ -355,7 +362,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                 variant="outline"
                 className="text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400"
               >
-                Built-in
+                {t("skillDetails.builtIn")}
               </Badge>
             )}
           </DialogTitle>
@@ -366,29 +373,33 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Description
+                {t("skillDetails.description")}
               </div>
               <div className="text-sm mt-1">{skill.description}</div>
             </div>
             <div className="space-y-2">
               <div>
                 <div className="text-sm font-medium text-muted-foreground">
-                  Version
+                  {t("skillDetails.version")}
                 </div>
                 <div className="text-sm">{skill.version}</div>
               </div>
               <div>
                 <div className="text-sm font-medium text-muted-foreground">
-                  Uploaded
+                  {t("skillDetails.uploaded")}
                 </div>
                 <div className="text-sm">{formatDate(skill.uploadedAt)}</div>
               </div>
               <div>
                 <div className="text-sm font-medium text-muted-foreground">
-                  Status
+                  {t("skillDetails.status")}
                 </div>
                 <Badge variant={skill.enabled ? "default" : "secondary"}>
-                  {skill.enabled ? "Enabled" : "Disabled"}
+                  {t(
+                    skill.enabled
+                      ? "skillDetails.enabled"
+                      : "skillDetails.disabled",
+                  )}
                 </Badge>
               </div>
               {onEditInFileManager && (
@@ -399,7 +410,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                   className="mt-1"
                 >
                   <FolderOpen className="h-4 w-4 mr-1" />
-                  Edit in File Manager
+                  {t("skillDetails.editInFileManager")}
                 </Button>
               )}
             </div>
@@ -413,22 +424,24 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="content" className="flex items-center gap-1">
                 <FileText className="h-3 w-3" />
-                Content
+                {t("skillDetails.tabContent")}
               </TabsTrigger>
               <TabsTrigger value="scripts" className="flex items-center gap-1">
                 <Code className="h-3 w-3" />
-                Scripts ({scriptsData.length})
+                {t("skillDetails.tabScripts", { count: scriptsData.length })}
               </TabsTrigger>
               <TabsTrigger
                 value="references"
                 className="flex items-center gap-1"
               >
                 <Eye className="h-3 w-3" />
-                References ({referencesData.length})
+                {t("skillDetails.tabReferences", {
+                  count: referencesData.length,
+                })}
               </TabsTrigger>
               <TabsTrigger value="assets" className="flex items-center gap-1">
                 <Download className="h-3 w-3" />
-                Assets ({assets.length})
+                {t("skillDetails.tabAssets", { count: assets.length })}
               </TabsTrigger>
             </TabsList>
 
@@ -442,7 +455,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                   <>
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium">
-                        SKILL.md (Editing)
+                        {t("skillDetails.skillMdEditing")}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -452,7 +465,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                           disabled={saving}
                         >
                           <X className="h-4 w-4 mr-1" />
-                          Cancel
+                          {t("skillDetails.cancel")}
                         </Button>
                         <Button
                           size="sm"
@@ -464,7 +477,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                           ) : (
                             <Save className="h-4 w-4 mr-1" />
                           )}
-                          Save
+                          {t("skillDetails.save")}
                         </Button>
                       </div>
                     </div>
@@ -478,7 +491,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                       value={editedContent}
                       onChange={(e) => setEditedContent(e.target.value)}
                       className="font-mono text-sm min-h-[400px] resize-y flex-1"
-                      placeholder="SKILL.md content..."
+                      placeholder={t("skillDetails.skillMdPlaceholder")}
                       disabled={saving}
                     />
                   </>
@@ -492,11 +505,11 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                         onClick={handleStartEditContent}
                       >
                         <Edit className="h-4 w-4 mr-1" />
-                        Edit
+                        {t("skillDetails.edit")}
                       </Button>
                     </div>
                     <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm whitespace-pre-wrap">
-                      {loading ? "Loading..." : skillContent}
+                      {loading ? t("skillDetails.loading") : skillContent}
                     </pre>
                   </>
                 )}
@@ -511,7 +524,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
               <div className="space-y-4 overflow-y-auto flex-1">
                 {scriptsData.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
-                    No scripts found
+                    {t("skillDetails.noScripts")}
                   </div>
                 ) : (
                   scriptsData.map((scriptData, index) => (
@@ -520,7 +533,9 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                         <>
                           <div className="flex items-center justify-between">
                             <div className="text-sm font-medium">
-                              {scriptData.path} (Editing)
+                              {t("skillDetails.fileEditing", {
+                                path: scriptData.path,
+                              })}
                             </div>
                             <div className="flex items-center gap-2">
                               <Button
@@ -530,7 +545,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                                 disabled={saving}
                               >
                                 <X className="h-4 w-4 mr-1" />
-                                Cancel
+                                {t("skillDetails.cancel")}
                               </Button>
                               <Button
                                 size="sm"
@@ -542,7 +557,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                                 ) : (
                                   <Save className="h-4 w-4 mr-1" />
                                 )}
-                                Save
+                                {t("skillDetails.save")}
                               </Button>
                             </div>
                           </div>
@@ -558,7 +573,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                               setEditedScriptContent(e.target.value)
                             }
                             className="font-mono text-sm min-h-[300px] resize-y"
-                            placeholder="Script content..."
+                            placeholder={t("skillDetails.scriptPlaceholder")}
                             disabled={saving}
                           />
                         </>
@@ -575,7 +590,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                               disabled={editingScriptIndex !== null}
                             >
                               <Edit className="h-4 w-4 mr-1" />
-                              Edit
+                              {t("skillDetails.edit")}
                             </Button>
                           </div>
                           <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm max-h-[60vh] whitespace-pre-wrap">
@@ -597,7 +612,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
               <div className="space-y-4 overflow-y-auto flex-1">
                 {referencesData.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
-                    No references found
+                    {t("skillDetails.noReferences")}
                   </div>
                 ) : (
                   referencesData.map((refData, index) => (
@@ -606,7 +621,9 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                         <>
                           <div className="flex items-center justify-between">
                             <div className="text-sm font-medium">
-                              {refData.path} (Editing)
+                              {t("skillDetails.fileEditing", {
+                                path: refData.path,
+                              })}
                             </div>
                             <div className="flex items-center gap-2">
                               <Button
@@ -616,7 +633,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                                 disabled={saving}
                               >
                                 <X className="h-4 w-4 mr-1" />
-                                Cancel
+                                {t("skillDetails.cancel")}
                               </Button>
                               <Button
                                 size="sm"
@@ -628,7 +645,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                                 ) : (
                                   <Save className="h-4 w-4 mr-1" />
                                 )}
-                                Save
+                                {t("skillDetails.save")}
                               </Button>
                             </div>
                           </div>
@@ -644,7 +661,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                               setEditedRefContent(e.target.value)
                             }
                             className="font-mono text-sm min-h-[300px] resize-y"
-                            placeholder="Reference content..."
+                            placeholder={t("skillDetails.referencePlaceholder")}
                             disabled={saving}
                           />
                         </>
@@ -661,7 +678,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                               disabled={editingRefIndex !== null}
                             >
                               <Edit className="h-4 w-4 mr-1" />
-                              Edit
+                              {t("skillDetails.edit")}
                             </Button>
                           </div>
                           <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm max-h-[60vh] whitespace-pre-wrap">
@@ -683,7 +700,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
               <div className="space-y-2">
                 {assets.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
-                    No assets found
+                    {t("skillDetails.noAssets")}
                   </div>
                 ) : (
                   assets.map((asset) => (

@@ -2,6 +2,7 @@
   "name": "@apty/browser-agent",
   "displayName": "Apty Agent",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Apty's AI browser agent - forked from AIPex, customized for Apty Studio/widget integration",
   "author": "Apty",
@@ -11,7 +12,7 @@
   },
   "scripts": {
     "postinstall": "prek install",
-    "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources",
+    "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources && npm run check:dist-licences",
     "dev": "pnpm --filter @apty/browser-extension dev",
     "preflight": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:coverage",
     "fix": "npm run format && npm run lint:fix",
@@ -30,14 +31,18 @@
     "test:e2e": "node --test --test-timeout=180000 --test-concurrency=1 \"tooling/e2e/*.e2e.test.mjs\"",
     "typecheck:mcp-bridge": "npm --prefix apps/mcp-bridge run typecheck",
     "build:mcp-bridge": "npm --prefix apps/mcp-bridge run build",
+    "report:request-size": "node tooling/scripts/request-anatomy.mjs",
     "audit:branding": "node tooling/scripts/check-branding.mjs",
     "audit:architecture": "node tooling/scripts/check-architecture.mjs",
     "audit:tools": "node tooling/scripts/audit-tools.mjs",
     "audit:test-skips": "node tooling/scripts/check-test-skips.mjs",
     "audit:any": "node tooling/scripts/check-any-baseline.mjs",
+    "audit:i18n": "node tooling/scripts/check-i18n-baseline.mjs",
     "audit:docs-links": "node tooling/scripts/check-docs-links.mjs",
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
+    "check:dist-licences": "node tooling/scripts/check-dist-licences.mjs",
+    "audit:notices": "node tooling/scripts/third-party-notices.mjs --check",
     "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",
     "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },
@@ -74,12 +79,8 @@
       "body-parser": ">=2.3.0",
       "fflate": ">=0.8.3",
       "@babel/core": ">=7.29.6",
-      "@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33": "^4.0.33"
-    },
-    "auditConfig": {
-      "ignoreCves": [
-        "CVE-2026-93687"
-      ]
+      "@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33": "^4.0.33",
+      "undici@>=7.0.0 <7.29.1": "^7.29.1"
     }
   }
 }

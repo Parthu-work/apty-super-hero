@@ -9,6 +9,25 @@ import type { FileStats } from "./types";
 import { assertSkillFetchUrlAllowed } from "./url-guard";
 import { zenfs } from "./zenfs-manager";
 
+/**
+ * Sandboxed code must never create or change a skill's scripts: otherwise
+ * the model could write a script through one skill and then ask to run it.
+ * Scripts arrive only in a skill package the user imports.
+ */
+function assertNotScriptPath(path: string): void {
+  const segments: string[] = [];
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") segments.pop();
+    else segments.push(part);
+  }
+  if (segments[0] === "skills" && segments[2] === "scripts") {
+    throw new Error(
+      "Skill scripts cannot create or change files in a skill's scripts/ directory. Scripts come only from skill packages the user imports.",
+    );
+  }
+}
+
 const log = createLogger("SkillAPI");
 
 export type { FileStats };
@@ -121,6 +140,7 @@ export function createSkillAPIBridge(options: {
 
       async writeFile(path: string, data: string | Uint8Array): Promise<void> {
         log.debug(`fs.writeFile: ${path}`);
+        assertNotScriptPath(path);
         await zenfs.writeFile(path, data);
       },
 
@@ -139,6 +159,7 @@ export function createSkillAPIBridge(options: {
         options?: { recursive?: boolean },
       ): Promise<void> {
         log.debug(`fs.mkdir: ${path}`);
+        assertNotScriptPath(path);
         await zenfs.mkdir(path, options);
       },
 
@@ -178,6 +199,7 @@ export function createSkillAPIBridge(options: {
 
       writeFileSync(path: string, data: string | Uint8Array): void {
         log.debug(`fs.writeFileSync: ${path}`);
+        assertNotScriptPath(path);
         zenfs.writeFileSync(path, data);
       },
 
@@ -188,6 +210,7 @@ export function createSkillAPIBridge(options: {
 
       mkdirSync(path: string, options?: { recursive?: boolean }): void {
         log.debug(`fs.mkdirSync: ${path}`);
+        assertNotScriptPath(path);
         zenfs.mkdirSync(path, options);
       },
 
@@ -336,7 +359,8 @@ export function createSkillAPIBridge(options: {
         const downloadId = await chrome.downloads.download({
           url: dataUri,
           filename: filename,
-          saveAs: options?.saveAs ?? true, // Default to showing save dialog
+          // Always ask where to save: a script must not drop files silently.
+          saveAs: true,
         });
 
         log.debug(

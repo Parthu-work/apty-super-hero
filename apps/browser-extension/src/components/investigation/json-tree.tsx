@@ -1,3 +1,4 @@
+import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
@@ -25,6 +26,7 @@ interface JsonNodeProps {
 }
 
 function JsonNode({ name, value, depth }: JsonNodeProps) {
+  const { t } = useTranslation();
   const isContainer = typeof value === "object" && value !== null;
   const [open, setOpen] = useState(depth < 1);
   const [shown, setShown] = useState(CHILDREN_PAGE);
@@ -69,8 +71,10 @@ function JsonNode({ name, value, depth }: JsonNodeProps) {
               className="pl-4 text-primary hover:underline"
               onClick={() => setShown(shown + CHILDREN_PAGE)}
             >
-              Show {Math.min(CHILDREN_PAGE, entries.length - shown)} more of{" "}
-              {entries.length - shown}
+              {t("investigation.jsonShowMore", {
+                count: Math.min(CHILDREN_PAGE, entries.length - shown),
+                total: entries.length - shown,
+              })}
             </button>
           )}
         </div>

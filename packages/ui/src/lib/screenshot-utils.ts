@@ -11,13 +11,13 @@ const SCREENSHOT_TOOL_NAMES = new Set([
 ]);
 
 /** URL prefix used in markdown for screenshot references */
-export const AIPEX_SCREENSHOT_URL_PREFIX = "https://aipex-screenshot.invalid/";
+const AIPEX_SCREENSHOT_URL_PREFIX = "https://aipex-screenshot.invalid/";
 
 /** Regex matching [[screenshot:...]] placeholders */
-const SCREENSHOT_PLACEHOLDER_REGEX = /\[\[screenshot:([^\]]+)\]\]/g;
+const SCREENSHOT_PLACEHOLDER_REGEX = /\[\[screenshot:([^[\]]{1,100})\]\]/g;
 
 /** Validate that a uid looks like a screenshot uid */
-export function isValidScreenshotUid(uid: string): boolean {
+function isValidScreenshotUid(uid: string): boolean {
   return /^screenshot_\d+_[a-z0-9]{1,20}$/i.test(uid);
 }
 

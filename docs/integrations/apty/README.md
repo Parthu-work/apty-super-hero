@@ -21,6 +21,22 @@ instead of `status: "not_configured"`.
 - **`STUDIO.md`**: what Apty Studio must add (allow-list the Agent's ID,
   answer two messages) so the Agent can read Studio's service worker.
 
+## Extension IDs
+
+The Agent has two IDs, one per package (owner decision D2, default
+applied: adopt the Chrome Web Store's ID):
+
+| Package | ID | Used for |
+|---|---|---|
+| `apty-agent-vX.Y.Z.zip` (keeps the manifest `key`) | `bpiondflhhdplemamgggcdajclmoeple` | Loading unpacked, enterprise installs, development, QA and the e2e tests (`AGENT_EXTENSION_ID` in `tooling/e2e/harness.mjs`) |
+| `apty-agent-vX.Y.Z-webstore.zip` (no `key`) | Assigned by the Chrome Web Store when the listing is first uploaded; not known before then | Production installs from the store |
+
+The Apty Client and Apty Studio must list **both** IDs in
+`externally_connectable.ids`: the first now, the store's as soon as the
+first upload assigns it. Record the store's ID here when it exists. Each
+build shows the ID it is running under, with a Copy button, in Settings →
+Apty Integration.
+
 ## Why a reference file instead of just prose
 
 The message contract, response shape, and persistence design all need to
@@ -32,7 +48,7 @@ and build tooling, not something to drop in unmodified.
 
 ## What's still needed from Apty engineering
 
-1. Confirm this extension's real ID and hardcode it as
+1. Hardcode this extension's IDs (see [Extension IDs](#extension-ids)) as
    `DEBUG_AGENT_EXTENSION_ID` in the reference file (and the equivalent
    `externally_connectable.ids` entry in the Widget's manifest).
 2. Decide where this code actually lives in the Widget's codebase, and

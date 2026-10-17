@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRunDomHealthAudit = vi.hoisted(() => vi.fn());
 const mockRunApplicationDomHealthAudit = vi.hoisted(() => vi.fn());
 const mockRecordToolCall = vi.hoisted(() => vi.fn());
 
 vi.mock("../apty/index.js", () => ({
+  DEFAULT_APPLICATION_MAX_PAGES: 15,
   runDomHealthAudit: mockRunDomHealthAudit,
   runApplicationDomHealthAudit: mockRunApplicationDomHealthAudit,
   recordToolCall: mockRecordToolCall,
@@ -17,6 +18,8 @@ vi.mock("../apty/index.js", () => ({
   },
 };
 
+import { resetApprovalStateForTests } from "./approval";
+import { answerApprovals } from "./approval-test-utils";
 import {
   runApplicationDomHealthAuditTool,
   runDomHealthAuditTool,
@@ -110,13 +113,17 @@ describe("runDomHealthAuditTool", () => {
 });
 
 describe("runApplicationDomHealthAuditTool", () => {
+  // Application runs now ask first; these tests are about what runs after.
+  let stopApprovals: () => void;
   beforeEach(() => {
     vi.clearAllMocks();
     (global as any).chrome.tabs.get = vi.fn(async (tabId: number) => ({
       id: tabId,
     }));
     (global as any).chrome.tabs.query = vi.fn(async () => [{ id: 7 }]);
+    stopApprovals = answerApprovals({ approved: true }).stop;
   });
+  afterEach(() => stopApprovals());
 
   it("delegates to runApplicationDomHealthAudit for the tab bound to the conversation, forwarding maxPages", async () => {
     mockRunApplicationDomHealthAudit.mockResolvedValue({
@@ -257,5 +264,96 @@ describe("runApplicationDomHealthAuditTool", () => {
       ...outcome,
       meta: { tab: { id: 3, origin: null, title: null } },
     });
+  });
+});
+
+type ChromeMock = {
+  tabs: { get: unknown };
+  storage?: unknown;
+};
+
+describe("runApplicationDomHealthAuditTool — clicking discovery needs approval", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const chromeMock = (globalThis as unknown as { chrome: ChromeMock }).chrome;
+    chromeMock.tabs.get = vi.fn(async (tabId: number) => ({
+      id: tabId,
+      url: "https://app.example.com/home",
+    }));
+    mockRunApplicationDomHealthAudit.mockResolvedValue({ available: true });
+    const store: Record<string, unknown> = {};
+    chromeMock.storage = {
+      local: {
+        get: async (key: string) => ({ [key]: store[key] }),
+        set: async (items: Record<string, unknown>) =>
+          Object.assign(store, items),
+      },
+    };
+    await resetApprovalStateForTests();
+  });
+
+  function deepRun(args: Record<string, unknown> = {}) {
+    return runApplicationDomHealthAuditTool.invoke(
+      { context: { conversationId: "conv-deep", tabId: 12 } } as never,
+      JSON.stringify({ discoveryMode: "application-deep", ...args }),
+    );
+  }
+
+  it("asks once per run, naming the mode and the page limit, and never remembers", async () => {
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
+    await deepRun({ maxPages: 20 });
+    await deepRun();
+    stop();
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.summary).toContain("application-deep");
+    expect(requests[0]?.summary).toContain("20 pages");
+    expect(requests[1]?.summary).toContain("15 pages");
+    expect(requests[0]?.rememberable).toBe(false);
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not run when the user denies", async () => {
+    const { stop } = answerApprovals({ approved: false });
+    const result = await deepRun();
+    stop();
+    expect(result).toMatchObject({ status: "denied" });
+    expect(mockRunApplicationDomHealthAudit).not.toHaveBeenCalled();
+  });
+
+  it("asks before link-only discovery too, which may be remembered for the site", async () => {
+    const { requests, stop } = answerApprovals({
+      approved: true,
+      remember: true,
+    });
+    const safeRun = () =>
+      runApplicationDomHealthAuditTool.invoke(
+        { context: { conversationId: "conv-safe", tabId: 12 } } as never,
+        JSON.stringify({ discoveryMode: "application-safe", maxPages: 4 }),
+      );
+    await safeRun();
+    await safeRun();
+    stop();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.summary).toContain("application-safe");
+    expect(requests[0]?.summary).toContain("4 pages");
+    expect(requests[0]?.summary).toMatch(/links/);
+    expect(requests[0]?.rememberable).not.toBe(false);
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs page-only discovery, which navigates nowhere, without asking", async () => {
+    const { requests, stop } = answerApprovals({ approved: false });
+    await runApplicationDomHealthAuditTool.invoke(
+      { context: { conversationId: "conv-page", tabId: 12 } } as never,
+      JSON.stringify({ discoveryMode: "page" }),
+    );
+    stop();
+    expect(requests).toHaveLength(0);
+    expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledOnce();
   });
 });

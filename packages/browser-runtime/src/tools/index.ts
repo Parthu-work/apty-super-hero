@@ -1,5 +1,7 @@
 import type { FunctionTool } from "@apty/agent-core";
 import type { z } from "zod";
+import { applyResultPrivacy } from "../runtime/result-privacy.js";
+import { currentValuePolicy } from "../runtime/value-policy.js";
 import { aptyTools } from "./apty";
 import { computerTool } from "./computer";
 import { devToolsTools } from "./devtools.js";
@@ -73,9 +75,21 @@ type BrowserFunctionTool = FunctionTool<
   unknown
 >;
 
+/** Every result leaves through the URL and page-title policy of the current redaction mode. */
+function withResultPrivacy(tool: BrowserFunctionTool): BrowserFunctionTool {
+  return {
+    ...tool,
+    invoke: async (...args: Parameters<BrowserFunctionTool["invoke"]>) =>
+      applyResultPrivacy(await tool.invoke(...args), currentValuePolicy()),
+  } as BrowserFunctionTool;
+}
+
+const privateGroup = (group: BrowserFunctionTool[]): BrowserFunctionTool[] =>
+  group.map(withResultPrivacy);
+
 // Browser/Tab Management (7 tools)
 // Note: organize_tabs temporarily disabled (stub/not shipped)
-const tabToolGroup: BrowserFunctionTool[] = [
+const tabToolGroup: BrowserFunctionTool[] = privateGroup([
   getAllTabsTool,
   getCurrentTabTool,
   switchToTabTool,
@@ -83,10 +97,10 @@ const tabToolGroup: BrowserFunctionTool[] = [
   getTabInfoTool,
   closeTabTool,
   ungroupTabsTool,
-];
+]);
 
 // UI Operations (8 tools) - computer tool replaces visual XY tools
-const uiToolGroup: BrowserFunctionTool[] = [
+const uiToolGroup: BrowserFunctionTool[] = privateGroup([
   searchElementsTool,
   clickTool,
   fillElementByUidTool,
@@ -95,65 +109,78 @@ const uiToolGroup: BrowserFunctionTool[] = [
   hoverElementByUidTool,
   uploadFileToInputTool,
   computerTool,
-];
+]);
 
 // Page Content (4 tools)
-const pageToolGroup: BrowserFunctionTool[] = [
+const pageToolGroup: BrowserFunctionTool[] = privateGroup([
   getPageMetadataTool,
   scrollToElementTool,
   highlightElementTool,
   highlightTextInlineTool,
-];
+]);
 
 // Screenshot (3 tools)
-const screenshotToolGroup: BrowserFunctionTool[] = [
+const screenshotToolGroup: BrowserFunctionTool[] = privateGroup([
   captureScreenshotTool,
   captureScreenshotWithHighlightTool,
   captureTabScreenshotTool,
-];
+]);
 
 // Download (2 tools)
-const downloadToolGroup: BrowserFunctionTool[] = [
+const downloadToolGroup: BrowserFunctionTool[] = privateGroup([
   downloadImageTool,
   downloadChatImagesTool,
-];
+]);
 
 // Intervention (4 tools)
-const interventionToolGroup: BrowserFunctionTool[] =
-  interventionTools as unknown as BrowserFunctionTool[];
+const interventionToolGroup: BrowserFunctionTool[] = privateGroup(
+  interventionTools as unknown as BrowserFunctionTool[],
+);
 
 // Skills (6 tools)
-const skillToolGroup: BrowserFunctionTool[] =
-  skillTools as unknown as BrowserFunctionTool[];
+// The user's own skill text is not page content, so only what a skill script
+// returns goes through the policy; a skill's URLs reach the model as written.
+const skillToolGroup: BrowserFunctionTool[] = (
+  skillTools as unknown as BrowserFunctionTool[]
+).map((tool) =>
+  tool.name === "execute_skill_script" ? withResultPrivacy(tool) : tool,
+);
 
 // DevTools / CDP diagnostics (3 tools)
-const devToolsToolGroup: BrowserFunctionTool[] =
-  devToolsTools as unknown as BrowserFunctionTool[];
+const devToolsToolGroup: BrowserFunctionTool[] = privateGroup(
+  devToolsTools as unknown as BrowserFunctionTool[],
+);
 
 // Apty DOM Health / DOM Readiness audit (1 tool)
-const domHealthToolGroup: BrowserFunctionTool[] =
-  domHealthTools as unknown as BrowserFunctionTool[];
+const domHealthToolGroup: BrowserFunctionTool[] = privateGroup(
+  domHealthTools as unknown as BrowserFunctionTool[],
+);
 
 // Apty integration (5 tools)
-const aptyToolGroup: BrowserFunctionTool[] =
-  aptyTools as unknown as BrowserFunctionTool[];
+const aptyToolGroup: BrowserFunctionTool[] = privateGroup(
+  aptyTools as unknown as BrowserFunctionTool[],
+);
 
 // Investigation lifecycle, timeline/evidence correlation, and the
 // autonomous orchestrator's next-action recommendation (9 tools)
-const investigationToolGroup: BrowserFunctionTool[] =
-  investigationTools as unknown as BrowserFunctionTool[];
+const investigationToolGroup: BrowserFunctionTool[] = privateGroup(
+  investigationTools as unknown as BrowserFunctionTool[],
+);
 
 // Selector diagnostics (1 tool)
-const selectorToolGroup: BrowserFunctionTool[] =
-  selectorTools as unknown as BrowserFunctionTool[];
+const selectorToolGroup: BrowserFunctionTool[] = privateGroup(
+  selectorTools as unknown as BrowserFunctionTool[],
+);
 
 // Investigation-aware network capture (3 tools)
-const networkCaptureToolGroup: BrowserFunctionTool[] =
-  networkCaptureTools as unknown as BrowserFunctionTool[];
+const networkCaptureToolGroup: BrowserFunctionTool[] = privateGroup(
+  networkCaptureTools as unknown as BrowserFunctionTool[],
+);
 
 // Apty Client extension Service Worker network inspection (6 tools)
-const extensionNetworkToolGroup: BrowserFunctionTool[] =
-  extensionNetworkTools as unknown as BrowserFunctionTool[];
+const extensionNetworkToolGroup: BrowserFunctionTool[] = privateGroup(
+  extensionNetworkTools as unknown as BrowserFunctionTool[],
+);
 
 const browserFunctionTools: BrowserFunctionTool[] = [
   ...tabToolGroup,

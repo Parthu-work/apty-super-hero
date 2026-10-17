@@ -80,7 +80,7 @@ export const connectAptyClientTool = tool({
   },
 });
 
-export const disconnectAptyClientTool = tool({
+const disconnectAptyClientTool = tool({
   name: "disconnect_apty_client",
   description:
     "Forget this conversation's connected Apty Client extension (there is no persistent session to tear down — each request is independent). " +
@@ -93,7 +93,7 @@ export const disconnectAptyClientTool = tool({
   },
 });
 
-export const getAptyClientConnectionStatusTool = tool({
+const getAptyClientConnectionStatusTool = tool({
   name: "get_apty_client_connection_status",
   description:
     "Check whether this conversation is currently connected to a cooperating Apty Client extension.",
@@ -242,7 +242,7 @@ export const getExtensionServiceWorkerLogsTool = tool({
   },
 });
 
-export const getEvidenceJsonTool = tool({
+const getEvidenceJsonTool = tool({
   name: "get_evidence_json",
   description:
     "Query a previously-recorded JSON body (from inspect_extension_network's evidenceId) by path, without re-fetching. Read the inspect result's response.json first: it already gives the item count and keys; use this tool for values beyond bodyPreview ('show segment 20', 'every segment name'). " +

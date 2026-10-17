@@ -183,7 +183,17 @@ async function audit(path, tool, args = {}) {
     tool === "run_dom_health_audit"
       ? "check dom health of this page"
       : "check dom health across the whole application";
-  await chatAndWait(panel, ask, { timeout: 150_000 });
+  // An application run asks once before it starts: the clicking mode since
+  // S5, link-only discovery since Phase 4. A page-only run doesn't.
+  const whileWaiting =
+    tool === "run_application_dom_health_audit" && args.discoveryMode !== "page"
+      ? async () => {
+          const prompt = panel.getByRole("alertdialog");
+          await prompt.waitFor({ timeout: 30_000 });
+          await prompt.getByRole("button", { name: "Allow once" }).click();
+        }
+      : undefined;
+  await chatAndWait(panel, ask, { timeout: 150_000, whileWaiting });
   const result = toolResults(model.requests.at(-1)).at(-1);
   await panel.close();
   await page.close();
@@ -333,7 +343,11 @@ describe("DOM Health on six application shapes", () => {
 
     const matchers = result.excludedRoots.map((r) => r.matcher);
     // The Agent's own UI is in the page during a run, and is left out too.
-    assert.deepEqual(matchers, ["id:_pendo-", "id:aipex-", "id:intercom-"]);
+    assert.deepEqual(matchers, [
+      "id:_pendo-",
+      "id:apty-agent-",
+      "id:intercom-",
+    ]);
     assert.equal(result.coverage.elementsAnalyzed, 2);
   });
 

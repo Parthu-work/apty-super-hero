@@ -22,6 +22,7 @@
 
 import { closestComposed, composedText } from "./composed-tree.js";
 import type { DomHealthElementAttributes } from "./health-types.js";
+import { ID_RUN } from "./value-policy.js";
 
 export const REDACTED_VALUE = "<redacted>";
 export const REDACTED_TEXT = "<redacted-text>";
@@ -42,9 +43,6 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LONG_HEX = /^[0-9a-f]{16,}$/i;
 /** 24+ characters of the base64 alphabet mixing upper case, lower case and digits: an opaque key. Underscores and hyphens are left out so a stable framework id (`ctl00_Main_txtName`) is not mistaken for one. */
 const OPAQUE_KEY = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[A-Za-z0-9+/=]{24,}$/;
-/** Identifier-shaped runs inside a value: 5+ digits, a GUID, 16+ hex. */
-const ID_RUN =
-  /(?<![0-9a-z])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{5,})(?![0-9a-z])/gi;
 
 /** A digit run standing alone inside an id (`patient-1234`, `row_7`), not one that is part of a word (`ctl00`, `h1`). */
 const ID_DIGIT_RUN = /(?<![0-9a-z])\d+(?![0-9a-z])/gi;
@@ -88,7 +86,7 @@ function looksLikeSecret(value: string): boolean {
  * knowledge, unverified against the two applications (neither export
  * contains one).
  */
-export const PRIVATE_CONTAINER_SELECTOR = [
+const PRIVATE_CONTAINER_SELECTOR = [
   '[data-dd-privacy="mask"]',
   '[data-dd-privacy="hidden"]',
   ".dd-privacy-mask",

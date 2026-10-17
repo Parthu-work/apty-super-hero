@@ -74,7 +74,7 @@ const customModel = {
 describe("useChatConfig", () => {
   it("keeps previously loaded customModels when a later storage snapshot omits the field", async () => {
     const storage = createFakeStorage();
-    await storage.save("aipex_settings", {
+    await storage.save("apty_settings", {
       aiModel: "gpt-4",
       customModels: [customModel],
     } satisfies AppSettings);
@@ -91,7 +91,7 @@ describe("useChatConfig", () => {
     // fixture, standing in for whatever the next stored payload turns out
     // to be) that says nothing about customModels.
     act(() => {
-      storage.emit("aipex_settings", { aiModel: "gpt-4o-mini" });
+      storage.emit("apty_settings", { aiModel: "gpt-4o-mini" });
     });
 
     await waitFor(() => {
@@ -105,7 +105,7 @@ describe("useChatConfig", () => {
 
   it("prefers the stored value over the previous one when the snapshot provides it", async () => {
     const storage = createFakeStorage();
-    await storage.save("aipex_settings", {
+    await storage.save("apty_settings", {
       customModels: [],
     } satisfies AppSettings);
 
@@ -118,7 +118,7 @@ describe("useChatConfig", () => {
     });
 
     act(() => {
-      storage.emit("aipex_settings", { customModels: [customModel] });
+      storage.emit("apty_settings", { customModels: [customModel] });
     });
 
     await waitFor(() => {
@@ -128,7 +128,7 @@ describe("useChatConfig", () => {
 
   it("resetSettings explicitly clears customModels back to the default", async () => {
     const storage = createFakeStorage();
-    await storage.save("aipex_settings", {
+    await storage.save("apty_settings", {
       customModels: [customModel],
     } satisfies AppSettings);
 

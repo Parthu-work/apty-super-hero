@@ -21,6 +21,7 @@ vi.mock("@apty/browser-runtime", () => ({
   toShareableRouteProbeReport: vi.fn(),
 }));
 
+import { I18nProvider } from "@apty/ui/i18n/context";
 import { DomHealthCard } from "./dom-health-card";
 
 function deferred<T>() {
@@ -838,5 +839,24 @@ describe("DomHealthCard", () => {
 
     // The action row wraps instead of forcing everything onto one line.
     expect(checkButton.parentElement?.className).toContain("flex-wrap");
+  });
+
+  it("shows the card in Chinese when the language is set to zh", async () => {
+    const languageStorage = {
+      load: vi.fn().mockResolvedValue("zh"),
+      save: vi.fn(),
+      watch: vi.fn(() => () => {}),
+    };
+    render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <DomHealthCard />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("尚未检查")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "检查 DOM 健康度" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Not checked yet")).toBeNull();
   });
 });

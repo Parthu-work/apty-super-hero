@@ -999,6 +999,14 @@ would still fail `pnpm audit`). Re-check `pnpm audit` periodically and
 drop the entry once a patched `braces` (or a `micromatch`/`fast-glob`/
 `knip` bump that stops pulling it in) exists.
 
+**Superseded (2026-10-16, production-readiness R1):** the reason above was
+out of date. In production the advisory reached the extension only through
+`assistant-ui@0.0.78` (`assistant-ui → jscodeshift → micromatch → braces`),
+an unused CLI codemod listed as a runtime dependency. R1 removed it, with the
+other unused dependencies, and the `ignoreCves` entry is gone: `pnpm audit
+--prod` reports "No known vulnerabilities found" with nothing ignored. The
+`knip` path is dev-only and is not part of `--prod`.
+
 ## v7 WP4 B5: CI workflow fixes
 
 `.github/workflows/ci.yml` had several gaps found during this audit pass:
@@ -1533,3 +1541,19 @@ rides in `Sec-WebSocket-Protocol` as `apty-token.<token>` next to
 `apty-mcp.v1`. The daemon answers with `apty-mcp.v1` only, so the token is
 never echoed, and it refuses `?token=` outright rather than accepting both:
 the extension and the daemon ship from this repository together.
+
+## Truncated JSON: an unterminated sensitive value is redacted to the end
+
+A body cut off mid-value (`{"password":"hunter2`, `{"access_token":"abc`)
+used to come back unredacted: the JSON key pass skipped a string with no
+closing quote, and the text pass's quoted branch needed one too. Both now
+treat the rest of the input as the value and replace it with
+`"<REDACTED>"`. This is the existing rule ("the value of a sensitive key is
+redacted") applied to input that ends early, not a new rule: no key was
+added to either list (production-readiness S7).
+
+**Extended (2026-10-16, with the owner's go-ahead):** an object or array
+under a sensitive key that is cut off before it closes
+(`{"cookie":{"sid":"abc`) is now redacted to the end the same way. Before,
+the key pass left it as it was. Unclosed non-sensitive values are still
+left alone.

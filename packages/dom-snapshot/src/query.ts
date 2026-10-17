@@ -375,7 +375,7 @@ function shouldSkipLine(line: string): boolean {
  * Example: "登录 | Login | Sign In" -> ["登录", "Login", "Sign In"]
  * Example: "button* | login | submit?" -> ["button*", "login", "submit?"]
  */
-export function parseSearchQuery(query: string): string[] {
+function parseSearchQuery(query: string): string[] {
   return query
     .split("|")
     .map((term) => term.trim())
@@ -385,6 +385,6 @@ export function parseSearchQuery(query: string): string[] {
 /**
  * Check if any search terms contain glob patterns
  */
-export function hasGlobPatterns(searchTerms: string[]): boolean {
+function hasGlobPatterns(searchTerms: string[]): boolean {
   return searchTerms.some((term) => hasGlobPattern(term));
 }

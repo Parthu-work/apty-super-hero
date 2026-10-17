@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Apty Agent",
   "version": "0.1.0",
-  "description": "Apty's AI browser agent - understands the page, resolves elements, and drives Apty workflows",
+  "description": "Debugs web applications and Apty's products in the browser: reads the page, console and network, and answers with your AI provider.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "assets/icon16.png",
@@ -44,7 +44,7 @@
     "open_in_tab": true
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'none'"
   },
   "web_accessible_resources": [
     {

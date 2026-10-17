@@ -5,7 +5,7 @@
  * the intervention service then sends stop-capture to the whole tab.
  */
 
-const HIGHLIGHT_CLASS = "aipex-capture-highlight";
+const HIGHLIGHT_CLASS = "apty-agent-capture-highlight";
 
 let isCapturing = false;
 let highlighted: Element | null = null;
@@ -28,7 +28,7 @@ export function generateCssSelector(element: Element): string {
 
     if (current.classList.length > 0) {
       const classes = Array.from(current.classList)
-        .filter((c) => !c.startsWith("plasmo-") && !c.startsWith("aipex-"))
+        .filter((c) => !c.startsWith("plasmo-") && !c.startsWith("apty-agent-"))
         .slice(0, 2)
         .join(".");
       if (classes) {
@@ -61,7 +61,7 @@ function describeElement(target: Element) {
     selector: generateCssSelector(target),
     id: target.id || undefined,
     classes: Array.from(target.classList).filter(
-      (c) => !c.startsWith("aipex-") && !c.startsWith("plasmo-"),
+      (c) => !c.startsWith("apty-agent-") && !c.startsWith("plasmo-"),
     ),
     textContent: target.textContent?.trim().substring(0, 200) || undefined,
     attributes: Array.from(target.attributes).reduce(
@@ -83,9 +83,9 @@ function describeElement(target: Element) {
 }
 
 function ensureHighlightStyle(): void {
-  if (document.getElementById("aipex-capture-styles")) return;
+  if (document.getElementById("apty-agent-capture-styles")) return;
   const style = document.createElement("style");
-  style.id = "aipex-capture-styles";
+  style.id = "apty-agent-capture-styles";
   style.textContent = `
     .${HIGHLIGHT_CLASS} {
       outline: 2px solid #3b82f6 !important;

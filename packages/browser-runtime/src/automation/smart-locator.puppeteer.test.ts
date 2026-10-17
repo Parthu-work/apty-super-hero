@@ -78,7 +78,7 @@ async function buildDomSnapshot(
   prefix: string = "dom",
 ) {
   return frame.evaluate((prefixValue) => {
-    const NODE_ID_ATTR = "data-aipex-nodeid";
+    const NODE_ID_ATTR = "data-apty-nodeid";
     let counter = 0;
     const ensureId = (element: Element) => {
       const existing = element.getAttribute(NODE_ID_ATTR);
@@ -575,7 +575,7 @@ describe("SmartLocator (Puppeteer)", () => {
       executeScript: async () => {
         const iframes = await testContext.page.$$eval("iframe", (frames) =>
           frames.map((f) => ({
-            uid: f.getAttribute("data-aipex-nodeid") || "",
+            uid: f.getAttribute("data-apty-nodeid") || "",
             src: f.getAttribute("src") || "",
             resolvedSrc: f.src || "",
           })),

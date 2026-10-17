@@ -187,7 +187,7 @@ export function ignoreFnForTag(config: DesConfig): IgnoreFn {
   return ignoreFnFor(config, "tag");
 }
 
-export function ignoreFnForContains(config: DesConfig): IgnoreFn {
+function ignoreFnForContains(config: DesConfig): IgnoreFn {
   return ignoreFnFor(config, "contains");
 }
 

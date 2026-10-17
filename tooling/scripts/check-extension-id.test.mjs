@@ -28,7 +28,7 @@ describe("check-extension-id", () => {
   });
 
   it("maps the key's hash to 32 letters a-p", () => {
-    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 1024 });
+    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const key = publicKey
       .export({ type: "spki", format: "der" })
       .toString("base64");
@@ -38,7 +38,7 @@ describe("check-extension-id", () => {
   it("fails on another key and on a manifest without one", () => {
     const dir = mkdtempSync(join(tmpdir(), "ext-id-"));
     dirs.push(dir);
-    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 1024 });
+    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const other = join(dir, "other.json");
     writeFileSync(
       other,
@@ -57,6 +57,23 @@ describe("check-extension-id", () => {
     assert.throws(
       () => execFileSync("node", [SCRIPT, none], { stdio: "pipe" }),
       /no "key"/,
+    );
+  });
+
+  it("--store passes a Web Store manifest without a key, and fails one with a key (D2)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ext-id-"));
+    dirs.push(dir);
+    const store = join(dir, "store.json");
+    writeFileSync(store, JSON.stringify({ name: "Apty Agent" }));
+
+    assert.match(
+      execFileSync("node", [SCRIPT, "--store", store], { encoding: "utf8" }),
+      /no "key"/,
+    );
+    assert.throws(
+      () =>
+        execFileSync("node", [SCRIPT, "--store", MANIFEST], { stdio: "pipe" }),
+      /still has a "key"/,
     );
   });
 });

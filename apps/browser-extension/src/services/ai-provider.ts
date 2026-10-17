@@ -16,6 +16,7 @@ import {
   isPrivateIPv4,
   isPrivateIPv6,
 } from "@apty/browser-runtime/vm/url-guard";
+import { type LanguageModelMiddleware, wrapLanguageModel } from "ai";
 
 export interface ProviderConfig {
   provider: AIProviderKey;
@@ -97,7 +98,10 @@ export function validateHostUrl(url: string | undefined): string | undefined {
  * status code when present (e.g. `401`, `404`) and redacts anything that
  * looks like a credential, in case a provider ever echoes one back.
  */
-export function describeConnectionTestError(error: unknown): string {
+export function describeConnectionTestError(
+  error: unknown,
+  workspaceIdFix: string = WORKSPACE_ID_FIX,
+): string {
   const statusCode = (error as { statusCode?: number } | undefined)?.statusCode;
   const rawMessage =
     error instanceof Error ? error.message : String(error ?? "Unknown error");
@@ -118,13 +122,13 @@ export function describeConnectionTestError(error: unknown): string {
   }
 
   if (/anthropic-workspace-id/.test(message)) {
-    message += ` ${WORKSPACE_ID_FIX}`;
+    message += ` ${workspaceIdFix}`;
   }
   return typeof statusCode === "number" ? `${statusCode}: ${message}` : message;
 }
 
 /** Where to fix Anthropic's "not scoped to a workspace" error in this extension. */
-export const WORKSPACE_ID_FIX =
+const WORKSPACE_ID_FIX =
   "Fix: enter the workspace ID (wrkspc_…, from Claude Console → Settings → Workspaces) in Settings → AI Configuration → Workspace ID, or use an API key created for a single workspace.";
 
 /**
@@ -170,9 +174,31 @@ export function anthropicHeaders(
 }
 
 /**
+ * OpenAI's Responses API keeps every request (page data, screenshots) on
+ * OpenAI's side unless the request says `store: false`.
+ */
+const openAINoStoreMiddleware: LanguageModelMiddleware = {
+  specificationVersion: "v3",
+  transformParams: async ({ params }) => ({
+    ...params,
+    providerOptions: {
+      ...params.providerOptions,
+      openai: { ...params.providerOptions?.openai, store: false },
+    },
+  }),
+};
+
+/**
  * Create an AI SDK provider for BYOK mode.
  */
-export function createAIProvider(settings: AppSettings) {
+export type ProviderModelFactory = (
+  modelId: string,
+) => ReturnType<typeof wrapLanguageModel>;
+
+export function createAIProvider(
+  settings: AppSettings,
+  options: { fetch?: typeof fetch } = {},
+): ProviderModelFactory {
   const provider = settings.aiProvider ?? "openai";
   const apiKey = settings.aiToken ?? "";
   const baseURL = validateHostUrl(settings.aiHost || undefined);
@@ -183,11 +209,22 @@ export function createAIProvider(settings: AppSettings) {
         apiKey,
         baseURL: anthropicBaseUrl(baseURL),
         headers: anthropicHeaders(settings.aiWorkspaceId),
+        fetch: options.fetch,
       });
     case "google":
-      return createGoogleGenerativeAI({ apiKey, baseURL });
-    case "openai":
-      return createOpenAI({ apiKey, baseURL });
+      return createGoogleGenerativeAI({
+        apiKey,
+        baseURL,
+        fetch: options.fetch,
+      });
+    case "openai": {
+      const openai = createOpenAI({ apiKey, baseURL, fetch: options.fetch });
+      return (modelId: string) =>
+        wrapLanguageModel({
+          model: openai(modelId),
+          middleware: openAINoStoreMiddleware,
+        });
+    }
     default:
       // For custom providers, baseURL is required
       if (!baseURL) {
@@ -195,7 +232,12 @@ export function createAIProvider(settings: AppSettings) {
           `Custom provider "${provider}" requires aiHost to be specified`,
         );
       }
-      return createOpenAICompatible({ apiKey, baseURL, name: provider });
+      return createOpenAICompatible({
+        apiKey,
+        baseURL,
+        name: provider,
+        fetch: options.fetch,
+      });
   }
 }
 

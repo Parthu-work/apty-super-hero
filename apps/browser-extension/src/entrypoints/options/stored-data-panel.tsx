@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@apty/ui/components/ui/card";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { purgeStoredData } from "../../services/stored-data";
@@ -17,6 +18,7 @@ type PurgeState = "idle" | "confirming" | "deleting" | "done" | "failed";
 
 /** States the retention policy and deletes every stored conversation and screenshot on request. */
 export function StoredDataPanel() {
+  const { t } = useTranslation();
   const [state, setState] = useState<PurgeState>("idle");
 
   const purge = async () => {
@@ -34,27 +36,23 @@ export function StoredDataPanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Trash2 className="h-5 w-5" />
-          Stored conversations and screenshots
+          {t("storedData.title")}
         </CardTitle>
         <CardDescription>
-          Kept only on this device, and deleted automatically after{" "}
-          {RETENTION_DAYS} days without use (at most 5 conversations and 50
-          screenshots).
+          {t("storedData.description", { days: RETENTION_DAYS })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {state === "confirming" ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm">
-              Delete every stored conversation and screenshot?
-            </span>
+            <span className="text-sm">{t("storedData.confirm")}</span>
             <Button
               type="button"
               size="sm"
               variant="destructive"
               onClick={purge}
             >
-              Delete everything
+              {t("storedData.deleteEverything")}
             </Button>
             <Button
               type="button"
@@ -62,7 +60,7 @@ export function StoredDataPanel() {
               variant="ghost"
               onClick={() => setState("idle")}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </div>
         ) : (
@@ -73,18 +71,16 @@ export function StoredDataPanel() {
             disabled={state === "deleting"}
             onClick={() => setState("confirming")}
           >
-            Delete stored data now
+            {t("storedData.deleteNow")}
           </Button>
         )}
         {state === "done" && (
           <p className="text-sm text-muted-foreground">
-            All stored conversations and screenshots were deleted.
+            {t("storedData.done")}
           </p>
         )}
         {state === "failed" && (
-          <p className="text-sm text-destructive">
-            Deleting stored data failed. Try again.
-          </p>
+          <p className="text-sm text-destructive">{t("storedData.failed")}</p>
         )}
       </CardContent>
     </Card>

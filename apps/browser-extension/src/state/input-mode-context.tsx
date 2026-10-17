@@ -24,7 +24,7 @@ const InputModeContext = createContext<InputModeContextValue>({
   setInputMode: () => {},
 });
 
-const STORAGE_KEY = "aipex-input-mode";
+const STORAGE_KEY = "apty-input-mode";
 
 export function InputModeProvider({ children }: { children: React.ReactNode }) {
   const [inputMode, setInputModeState] = useState<InputMode>("text");

@@ -42,6 +42,8 @@ import {
 } from "@apty/ui/components/ui/card";
 import { Input } from "@apty/ui/components/ui/input";
 import { Label } from "@apty/ui/components/ui/label";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import { CheckCircle2, Info, Loader2, Plug, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -79,48 +81,40 @@ const COPY: Record<
   AptyPeer,
   {
     cardId: string;
-    title: string;
-    description: string;
+    title: TranslationKey;
+    description: TranslationKey;
     name: string;
     inputId: string;
-    inputLabel: string;
-    placeholder: string;
-    notConnected: string;
-    noneDetected: string;
-    usage: string;
+    inputLabel: TranslationKey;
+    placeholder: TranslationKey;
+    notConnected: TranslationKey;
+    noneDetected: TranslationKey;
+    usage: TranslationKey;
   }
 > = {
   client: {
     cardId: "apty-client",
-    title: "Apty Client Extension",
-    description:
-      'Lets the agent ask the Apty Client directly for its resources — e.g. "Get segments.json" — without repeating the extension ID in every chat message.',
+    title: "aptyPeer.client.title",
+    description: "aptyPeer.client.description",
     name: "Apty Client",
     inputId: "apty-client-extension-id",
-    inputLabel: "Extension ID",
-    placeholder: "Apty Client extension ID (32 characters)",
-    notConnected:
-      "Not connected yet. Paste the Apty Client's 32-character Chrome extension ID below (find it at",
-    noneDetected:
-      "No installed extension named like the Apty Client was found (or permission to list extensions was declined). Paste its ID instead.",
-    usage:
-      'Once configured, ask the agent things like "Get segments.json", "Show me app.json", or "What resources did the Apty Client load?" — no need to repeat the extension ID.',
+    inputLabel: "aptyPeer.client.inputLabel",
+    placeholder: "aptyPeer.client.placeholder",
+    notConnected: "aptyPeer.client.notConnected",
+    noneDetected: "aptyPeer.client.noneDetected",
+    usage: "aptyPeer.client.usage",
   },
   studio: {
     cardId: "apty-studio",
-    title: "Apty Studio Extension",
-    description:
-      "Lets the agent read Apty Studio's service-worker status and logs. Studio must first list this Agent's ID in its manifest (docs/integrations/apty/STUDIO.md).",
+    title: "aptyPeer.studio.title",
+    description: "aptyPeer.studio.description",
     name: "Apty Studio",
     inputId: "apty-studio-extension-id",
-    inputLabel: "Apty Studio's Chrome ID",
-    placeholder: "Apty Studio extension ID (32 characters)",
-    notConnected:
-      "Not connected yet. Paste Apty Studio's 32-character Chrome extension ID below (find it at",
-    noneDetected:
-      "No installed extension named like Apty Studio was found (or permission to list extensions was declined). Paste its ID instead.",
-    usage:
-      'Once configured, ask the agent "Show Apty Studio\'s service worker logs".',
+    inputLabel: "aptyPeer.studio.inputLabel",
+    placeholder: "aptyPeer.studio.placeholder",
+    notConnected: "aptyPeer.studio.notConnected",
+    noneDetected: "aptyPeer.studio.noneDetected",
+    usage: "aptyPeer.studio.usage",
   },
 };
 
@@ -133,13 +127,32 @@ export function AptyStudioPanel() {
 }
 
 /** The snippet the peer's manifest needs, with this Agent's ID filled in. */
-export function allowListSnippet(agentId: string): string {
+function allowListSnippet(agentId: string): string {
   return `"externally_connectable": { "ids": ["${agentId}"] }`;
+}
+
+/** Copies `value`, and says so once it has. */
+function CopyButton({ label, value }: { label: string; value: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      aria-label={label}
+      onClick={() => {
+        void navigator.clipboard?.writeText(value).then(() => setCopied(true));
+      }}
+    >
+      {t(copied ? "common.copied" : "common.copy")}
+    </Button>
+  );
 }
 
 /** A read-only value with a Copy button. */
 function CopyField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2">
       <Input
@@ -150,24 +163,18 @@ function CopyField({ label, value }: { label: string; value: string }) {
         className="h-8 flex-1 font-mono text-xs"
         onFocus={(event) => event.currentTarget.select()}
       />
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        aria-label={`Copy ${label.charAt(0).toLowerCase()}${label.slice(1)}`}
-        onClick={() => {
-          void navigator.clipboard
-            ?.writeText(value)
-            .then(() => setCopied(true));
-        }}
-      >
-        {copied ? "Copied" : "Copy"}
-      </Button>
+      <CopyButton
+        label={t("aptyPeer.copyLabel", {
+          label: `${label.charAt(0).toLowerCase()}${label.slice(1)}`,
+        })}
+        value={value}
+      />
     </div>
   );
 }
 
-export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
+function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
+  const { t } = useTranslation();
   const copy = COPY[peer];
   const [extensionId, setExtensionId] = useState("");
   const [saved, setSaved] = useState<string | undefined>(undefined);
@@ -197,7 +204,7 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
     if (!isValidExtensionId(id)) {
       setCheck({
         status: "error",
-        message: `Invalid Chrome extension ID. Please provide a valid ${copy.name} extension ID (32 lowercase a-p characters).`,
+        message: t("aptyPeer.invalidId", { name: copy.name }),
       });
       return;
     }
@@ -236,9 +243,9 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
           <div className="space-y-1.5">
             <CardTitle className="flex items-center gap-2 text-base">
               <Plug className="h-4 w-4 text-muted-foreground" />
-              {copy.title}
+              {t(copy.title)}
             </CardTitle>
-            <CardDescription>{copy.description}</CardDescription>
+            <CardDescription>{t(copy.description)}</CardDescription>
           </div>
           <Badge
             variant="outline"
@@ -254,11 +261,13 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
             ) : (
               <XCircle className="h-3.5 w-3.5" />
             )}
-            {check.status === "ok"
-              ? "Answering"
-              : isConnected
-                ? "Configured"
-                : "Not Connected"}
+            {t(
+              check.status === "ok"
+                ? "aptyPeer.answering"
+                : isConnected
+                  ? "aptyPeer.configuredBadge"
+                  : "aptyPeer.notConnectedBadge",
+            )}
           </Badge>
         </div>
       </CardHeader>
@@ -268,15 +277,18 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
             <CheckCircle2 className="h-4 w-4 text-success" />
             <AlertDescription>
               <p className="text-foreground">
-                {copy.name} configured{" "}
+                {t("aptyPeer.configured", { name: copy.name })}{" "}
                 <span className="font-mono text-xs text-muted-foreground">
                   ({saved})
                 </span>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {check.status === "ok"
-                  ? `The ${copy.name} answered the Agent's handshake.`
-                  : `Saved. Use Test connection to confirm the ${copy.name} answers.`}
+                {t(
+                  check.status === "ok"
+                    ? "aptyPeer.answered"
+                    : "aptyPeer.savedTest",
+                  { name: copy.name },
+                )}
               </p>
             </AlertDescription>
           </Alert>
@@ -284,24 +296,24 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
           <Alert className="border-border bg-muted/40">
             <Info className="h-4 w-4 text-muted-foreground" />
             <AlertDescription className="text-muted-foreground">
-              {copy.notConnected}{" "}
+              {t(copy.notConnected)}{" "}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">
                 chrome://extensions
               </code>{" "}
-              with Developer mode on) and click Connect.
+              {t("aptyPeer.notConnectedSuffix")}
             </AlertDescription>
           </Alert>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor={copy.inputId}>{copy.inputLabel}</Label>
+          <Label htmlFor={copy.inputId}>{t(copy.inputLabel)}</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               id={copy.inputId}
               type="text"
               value={extensionId}
               onChange={(e) => setExtensionId(e.target.value.trim())}
-              placeholder={copy.placeholder}
+              placeholder={t(copy.placeholder)}
               className="flex-1 font-mono"
             />
             {saved ? (
@@ -313,20 +325,20 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
                   disabled={isChecking}
                 >
                   {isChecking && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Test connection
+                  {t("aptyPeer.testConnection")}
                 </Button>
                 <Button
                   type="button"
                   variant="destructive"
                   onClick={handleDisconnect}
                 >
-                  Disconnect
+                  {t("aptyPeer.disconnect")}
                 </Button>
               </>
             ) : (
               <>
                 <Button type="button" variant="outline" onClick={handleDetect}>
-                  Detect
+                  {t("aptyPeer.detect")}
                 </Button>
                 <Button
                   type="button"
@@ -334,13 +346,15 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
                   disabled={isChecking || !extensionId.trim()}
                 >
                   {isChecking && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {isChecking ? "Connecting..." : "Connect"}
+                  {t(isChecking ? "aptyPeer.connecting" : "aptyPeer.connect")}
                 </Button>
               </>
             )}
           </div>
           {detected && detected.length === 0 && (
-            <p className="text-xs text-muted-foreground">{copy.noneDetected}</p>
+            <p className="text-xs text-muted-foreground">
+              {t(copy.noneDetected)}
+            </p>
           )}
           {detected && detected.length > 0 && (
             <ul className="space-y-1">
@@ -352,7 +366,7 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
                     variant="ghost"
                     onClick={() => setExtensionId(ext.id)}
                   >
-                    Use {ext.name}{" "}
+                    {t("aptyPeer.use", { name: ext.name })}{" "}
                     <span className="font-mono text-xs text-muted-foreground">
                       {ext.id}
                     </span>
@@ -368,9 +382,7 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
             <XCircle className="h-4 w-4" />
             <AlertDescription>
               {check.status === "not_answering" && (
-                <p className="font-medium">
-                  Installed, but not answering the Agent.
-                </p>
+                <p className="font-medium">{t("aptyPeer.notAnswering")}</p>
               )}
               <p>{check.message}</p>
               {check.status === "not_answering" && check.fix && (
@@ -384,25 +396,26 @@ export function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
           <div className="space-y-1">
             {peer === "client" ? (
               <p className="text-xs text-muted-foreground">
-                This Agent's extension ID (the {copy.name} must allow-list it):{" "}
+                {t("aptyPeer.ownId", { name: copy.name })}{" "}
                 <code className="select-all rounded bg-muted px-1 py-0.5 font-mono">
                   {ownId}
-                </code>
+                </code>{" "}
+                <CopyButton label={t("aptyPeer.copyOwnId")} value={ownId} />
               </p>
             ) : (
               <CopyField
-                label={`This Agent's ID, which ${copy.name} must allow-list`}
+                label={t("aptyPeer.ownIdField", { name: copy.name })}
                 value={ownId}
               />
             )}
             <CopyField
-              label={`The ${copy.name} manifest snippet`}
+              label={t("aptyPeer.manifestSnippet", { name: copy.name })}
               value={allowListSnippet(ownId)}
             />
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground">{copy.usage}</p>
+        <p className="text-xs text-muted-foreground">{t(copy.usage)}</p>
       </CardContent>
     </Card>
   );

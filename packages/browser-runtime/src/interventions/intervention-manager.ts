@@ -54,7 +54,7 @@ function getCancelMessage(reason: CancelReason): string {
   }
 }
 
-export class InterventionManager {
+class InterventionManager {
   private static instance: InterventionManager;
   private currentIntervention: InterventionState | null = null;
   private requestQueue: InterventionRequest[] = [];

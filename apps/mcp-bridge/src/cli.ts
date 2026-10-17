@@ -11,8 +11,7 @@
  *   apty-cli --json '{"name":"create_new_tab","arguments":{"url":"..."}}'
  */
 
-import { fork, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { fork } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
@@ -23,10 +22,10 @@ import {
   getTokenPath,
   rotateToken,
 } from "./lib/auth-token.js";
+import { loopbackWsUrl } from "./lib/ws-url.js";
 import { toolSchemas } from "./tool-schemas.js";
 
 const DEFAULT_WS_URL = "ws://localhost:9223/cli";
-const ENTRYPOINT_PATH = "/entrypoint.sh";
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_RETRY_TIMEOUT_MS = parseInt(
   process.env.AIPEX_CONNECT_TIMEOUT ?? "60000",
@@ -371,7 +370,13 @@ async function runTool(
   args: Record<string, unknown>,
 ): Promise<void> {
   const token = getOrCreateToken();
-  const wsUrl = process.env.AIPEX_WS_URL ?? DEFAULT_WS_URL;
+  let wsUrl: string;
+  try {
+    wsUrl = loopbackWsUrl(process.env.AIPEX_WS_URL ?? DEFAULT_WS_URL);
+  } catch (error) {
+    process.stderr.write(`${(error as Error).message}\n`);
+    process.exit(1);
+  }
   const deadline = Date.now() + MAX_RETRY_TIMEOUT_MS;
   let backoff = INITIAL_BACKOFF_MS;
   let attempt = 0;
@@ -394,20 +399,7 @@ async function runTool(
     }
 
     if (attempt === 1) {
-      // In Docker, try the entrypoint script
-      if (existsSync(ENTRYPOINT_PATH)) {
-        process.stderr.write(
-          `[apty-cli] Auto-starting services via ${ENTRYPOINT_PATH} ...\n`,
-        );
-        const child = spawn(ENTRYPOINT_PATH, [], {
-          detached: true,
-          stdio: "ignore",
-          shell: true,
-          env: { ...process.env, DISPLAY: ":99" },
-        });
-        child.on("error", () => {});
-        child.unref();
-      } else if (!daemonSpawned) {
+      if (!daemonSpawned) {
         process.stderr.write("[apty-cli] Spawning daemon...\n");
         spawnDaemon();
         daemonSpawned = true;

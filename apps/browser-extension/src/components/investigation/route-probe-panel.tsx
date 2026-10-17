@@ -19,68 +19,80 @@ import {
   toShareableRouteProbeReport,
 } from "@apty/browser-runtime";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { I18nContextValue, TranslationKey } from "@apty/ui/i18n/types";
 import { useEffect, useRef, useState } from "react";
 
-const HINT_LABEL: Record<RouteProbeReport["analysis"]["hint"], string> = {
-  "url-first": "URL-first looks viable",
-  "click-first": "Click-first traversal needed",
-  undetermined: "No identifying signal found",
-};
+const HINT_LABEL: Record<RouteProbeReport["analysis"]["hint"], TranslationKey> =
+  {
+    "url-first": "routeProbe.hint.urlFirst",
+    "click-first": "routeProbe.hint.clickFirst",
+    undetermined: "routeProbe.hint.undetermined",
+  };
 
 function show(value: ProbeText | null | undefined): string {
   return value?.text || "—";
 }
 
-function frameLabel(frame: RouteProbeFrameRecord): string {
-  if (frame.frameId === 0) return "top";
+function frameLabel(
+  t: I18nContextValue["t"],
+  frame: RouteProbeFrameRecord,
+): string {
+  if (frame.frameId === 0) return t("routeProbe.frameTop");
   const owner = frame.owner;
   return (
     owner?.ospId ??
     owner?.id ??
     owner?.title?.text ??
     owner?.name?.text ??
-    `frame ${frame.frameId}`
+    t("routeProbe.frameNumber", { id: frame.frameId })
   );
 }
 
 function StepView({ step }: { step: RouteProbeStep }) {
+  const { t } = useTranslation();
   return (
     <li className="rounded border p-2">
       <p className="font-medium text-foreground">
         {step.trigger === "start"
-          ? "Start"
-          : `Click ${step.index}: ${show(step.clickLabel)}`}
+          ? t("routeProbe.stepStart")
+          : t("routeProbe.stepClick", {
+              index: step.index,
+              label: show(step.clickLabel),
+            })}
       </p>
       {step.error && <p className="text-destructive">{step.error}</p>}
       <table className="mt-1 w-full table-fixed text-[10px]">
         <thead className="text-left text-muted-foreground">
           <tr>
-            <th className="w-16">Frame</th>
-            <th>URL</th>
-            <th>Title</th>
-            <th>Heading</th>
-            <th>Active nav</th>
-            <th className="w-12">pushState</th>
-            <th className="w-16">Virtualized</th>
-            <th>First request</th>
+            <th className="w-16">{t("routeProbe.colFrame")}</th>
+            <th>{t("routeProbe.colUrl")}</th>
+            <th>{t("routeProbe.colTitle")}</th>
+            <th>{t("routeProbe.colHeading")}</th>
+            <th>{t("routeProbe.colActiveNav")}</th>
+            <th className="w-12">{t("routeProbe.colPushState")}</th>
+            <th className="w-16">{t("routeProbe.colVirtualized")}</th>
+            <th>{t("routeProbe.colFirstRequest")}</th>
           </tr>
         </thead>
         <tbody>
           {step.frames.map((frame) => (
             <tr key={frame.frameId} className="align-top">
               <td className="truncate" title={`frameId ${frame.frameId}`}>
-                {frameLabel(frame)}
+                {frameLabel(t, frame)}
               </td>
               <td className="truncate" title={frame.url}>
                 {frame.status === "failed"
-                  ? `not read: ${frame.error ?? "no answer"}`
+                  ? t("routeProbe.notRead", {
+                      error: frame.error ?? t("routeProbe.noAnswer"),
+                    })
                   : frame.url}
               </td>
               <td className="truncate">{show(frame.title)}</td>
               <td className="truncate">{show(frame.heading)}</td>
               <td className="truncate">{show(frame.activeNav)}</td>
               <td>{frame.pushStateCount ?? "—"}</td>
-              <td title="Virtualized lists: rendered of declared rows">
+              <td title={t("routeProbe.virtualizedHint")}>
                 {describeVirtualized(frame.virtualized)}
               </td>
               <td className="truncate">
@@ -125,6 +137,7 @@ export function RouteProbePanel({
   /** The finished report, for the DOM Health card's validation bundle. */
   onReport?: (report: RouteProbeReport) => void;
 }) {
+  const { t } = useTranslation();
   const [steps, setSteps] = useState<RouteProbeStep[]>([]);
   const [report, setReport] = useState<RouteProbeReport | null>(null);
   const [state, setState] = useState<"idle" | "starting" | "running">("idle");
@@ -159,18 +172,19 @@ export function RouteProbePanel({
 
   return (
     <section
-      aria-label="Route probe"
+      aria-label={t("routeProbe.title")}
       className="border-t px-3 py-2 text-[11px] text-muted-foreground"
     >
       <div className="flex items-center justify-between gap-2">
         <p>
-          <span className="font-medium text-foreground">Route probe</span>{" "}
-          (developer): click through the application yourself; each click is
-          recorded in every frame. The probe never clicks.
+          <span className="font-medium text-foreground">
+            {t("routeProbe.title")}
+          </span>{" "}
+          {t("routeProbe.intro")}
         </p>
         {state === "idle" ? (
           <Button size="sm" variant="outline" onClick={() => void start()}>
-            Start probe
+            {t("routeProbe.start")}
           </Button>
         ) : (
           <Button
@@ -179,7 +193,7 @@ export function RouteProbePanel({
             disabled={state === "starting"}
             onClick={() => void stop()}
           >
-            Stop probe
+            {t("routeProbe.stop")}
           </Button>
         )}
       </div>
@@ -187,7 +201,10 @@ export function RouteProbePanel({
       {report && (
         <div className="mt-2 rounded border bg-muted/40 p-2">
           <p className="font-medium text-foreground">
-            {HINT_LABEL[report.analysis.hint]} ({report.analysis.clicks} clicks)
+            {t("routeProbe.hintWithClicks", {
+              hint: t(HINT_LABEL[report.analysis.hint]),
+              count: report.analysis.clicks,
+            })}
           </p>
           <ul className="list-disc pl-4">
             {report.analysis.reasons.map((reason) => (
@@ -195,10 +212,11 @@ export function RouteProbePanel({
             ))}
           </ul>
           <p className="mt-1">
-            Changed on clicks:{" "}
-            {report.analysis.signals
-              .map((s) => `${s.signal} ${s.changedOnClicks}`)
-              .join(" · ")}
+            {t("routeProbe.changedOnClicks", {
+              signals: report.analysis.signals
+                .map((s) => `${s.signal} ${s.changedOnClicks}`)
+                .join(" · "),
+            })}
           </p>
           <Button
             size="sm"
@@ -206,7 +224,7 @@ export function RouteProbePanel({
             className="h-auto p-0 text-[11px]"
             onClick={() => saveReport(report)}
           >
-            Save report (page text kept as hashes only)
+            {t("routeProbe.saveReport")}
           </Button>
         </div>
       )}

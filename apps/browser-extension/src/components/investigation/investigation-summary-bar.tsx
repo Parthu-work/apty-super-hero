@@ -20,6 +20,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@apty/ui/components/ui/tabs";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
@@ -33,6 +34,7 @@ import { useInvestigationData } from "./use-investigation-data";
 
 export function InvestigationSummaryBar() {
   const { sessionId, status, sendMessage } = useChatContext();
+  const { t } = useTranslation();
   const isActive =
     status === "streaming" ||
     status === "submitted" ||
@@ -59,7 +61,21 @@ export function InvestigationSummaryBar() {
     >
       <CollapsibleTrigger
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40"
-        aria-label={`Investigation status: ${meta.label}. ${evidence.length} evidence items collected${warningCount > 0 ? `, ${warningCount} component warnings` : ""}. Click to ${open ? "collapse" : "expand"}.`}
+        aria-label={t("investigation.summary.statusLabel", {
+          status: meta.label,
+          count: evidence.length,
+          warnings:
+            warningCount > 0
+              ? t("investigation.summary.componentWarnings", {
+                  count: warningCount,
+                })
+              : "",
+          action: t(
+            open
+              ? "investigation.summary.collapse"
+              : "investigation.summary.expand",
+          ),
+        })}
       >
         <span
           className={cn(
@@ -70,7 +86,7 @@ export function InvestigationSummaryBar() {
           aria-hidden="true"
         />
         <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Investigation
+          {t("investigation.summary.title")}
         </span>
         <span
           className={cn(
@@ -81,7 +97,7 @@ export function InvestigationSummaryBar() {
           {meta.label}
         </span>
         <span className="truncate text-xs text-muted-foreground">
-          {evidence.length} evidence
+          {t("investigation.summary.evidence", { count: evidence.length })}
         </span>
         {warningCount > 0 && (
           <span
@@ -90,7 +106,12 @@ export function InvestigationSummaryBar() {
               toneBadgeClass("warning"),
             )}
           >
-            {warningCount} need{warningCount === 1 ? "s" : ""} attention
+            {t(
+              warningCount === 1
+                ? "investigation.summary.needsAttentionOne"
+                : "investigation.summary.needsAttentionMany",
+              { count: warningCount },
+            )}
           </span>
         )}
         <ChevronDownIcon
@@ -104,23 +125,23 @@ export function InvestigationSummaryBar() {
       <CollapsibleContent className="overflow-hidden border-t px-2 pb-2 pt-2 data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out data-[state=open]:fade-in data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 duration-200">
         {investigation?.userProblem && (
           <p className="mb-2 px-1 text-xs text-muted-foreground">
-            Investigating:{" "}
+            {`${t("investigation.summary.investigating")} `}
             <span className="text-foreground">{investigation.userProblem}</span>
           </p>
         )}
         <Tabs defaultValue="timeline">
           <TabsList className="grid h-9 w-full grid-cols-4 p-0.5">
             <TabsTrigger value="plan" className="px-1 text-xs">
-              Plan
+              {t("investigation.summary.plan")}
             </TabsTrigger>
             <TabsTrigger value="timeline" className="px-1 text-xs">
-              Timeline
+              {t("investigation.summary.timeline")}
             </TabsTrigger>
             <TabsTrigger value="components" className="px-1 text-xs">
-              Components
+              {t("investigation.summary.components")}
             </TabsTrigger>
             <TabsTrigger value="diagnosis" className="px-1 text-xs">
-              Diagnosis
+              {t("investigation.summary.diagnosis")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="plan" className="max-h-64 overflow-y-auto">

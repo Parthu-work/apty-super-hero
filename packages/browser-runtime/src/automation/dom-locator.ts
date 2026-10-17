@@ -108,7 +108,7 @@ function runDomAction(payload: DomActionPayload): DomActionResponse<any> {
 
   // Helper: query element by uid attribute (searches iframes recursively)
   const queryByUid = (uid: string): Element | null => {
-    const selector = `[data-aipex-nodeid="${cssEscape(uid)}"]`;
+    const selector = `[data-apty-nodeid="${cssEscape(uid)}"]`;
 
     // Search in main document first
     const found = document.querySelector(selector);
@@ -146,8 +146,8 @@ function runDomAction(payload: DomActionPayload): DomActionResponse<any> {
 
   // Helper: apply highlight effect to element
   const applyHighlight = (element: HTMLElement): void => {
-    const highlightKey = "__aipexHighlightOriginal";
-    const timeoutKey = "__aipexHighlightTimeoutId";
+    const highlightKey = "__aptyHighlightOriginal";
+    const timeoutKey = "__aptyHighlightTimeoutId";
     const htmlTarget = element as HTMLElement & {
       [highlightKey]?: {
         outline: string;
@@ -171,7 +171,7 @@ function runDomAction(payload: DomActionPayload): DomActionResponse<any> {
       };
     }
 
-    htmlTarget.setAttribute("data-aipex-highlighted", "true");
+    htmlTarget.setAttribute("data-apty-highlighted", "true");
     htmlTarget.style.outline = "3px solid #3b82f6";
     htmlTarget.style.outlineOffset = "2px";
     htmlTarget.style.boxShadow =
@@ -187,7 +187,7 @@ function runDomAction(payload: DomActionPayload): DomActionResponse<any> {
         htmlTarget.style.transition = original.transition;
         delete htmlTarget[highlightKey];
       }
-      htmlTarget.removeAttribute("data-aipex-highlighted");
+      htmlTarget.removeAttribute("data-apty-highlighted");
       delete htmlTarget[timeoutKey];
     }, 1200);
   };

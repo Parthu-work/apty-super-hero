@@ -1,6 +1,6 @@
 {
   "name": "apty-mcp-bridge",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "private": true,
   "description": "MCP bridge that connects AI agents (Cursor, Claude Code, VS Code Copilot, etc.) to the Apty Agent browser extension. Auto-spawns a shared daemon to support multiple simultaneous clients. Not published — run it locally (see README.md).",
   "type": "module",

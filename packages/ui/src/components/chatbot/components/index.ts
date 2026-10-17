@@ -1,6 +1,6 @@
 // Main component
 
-export { Chatbot, type ChatbotProps, ChatbotProvider } from "./chatbot";
+export type { ChatbotProps } from "./chatbot";
 // Individual components
 export {
   ConfigurationGuide,
@@ -24,12 +24,10 @@ export {
   ModelChangePrompt,
   type ModelInfo,
 } from "./model-change-prompt";
-export {
-  default as StreamingStateManager,
-  type StreamChunk,
-  type StreamingState,
-  type StreamingStateManagerProps,
-  useStreamingState,
+export type {
+  StreamChunk,
+  StreamingState,
+  StreamingStateManagerProps,
 } from "./streaming-state-manager";
 export {
   TokenUsageIndicator,

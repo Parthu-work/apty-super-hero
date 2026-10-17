@@ -55,7 +55,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   runs every demo dependency check with its exact fix and a copy button,
   exports redacted JSON and resets demo data; `pnpm demo:check` runs it
   end to end. Demo script: [`docs/demo/DEMO.md`](demo/DEMO.md).
-- The MCP bridge, with the token in the WebSocket handshake.
+- The MCP bridge: the extension never sends the token; the daemon proves
+  it holds it first (HMAC challenge), every call is signed, and only
+  published tools are forwarded (S6).
 - Redaction mode (A3): Strict, Standard or Off (development only) in
   Settings → Data handling, with a Preview; Off needs a confirmation and
   shows a side-panel banner. Every caller goes through
@@ -81,12 +83,13 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 
 | Item | Needs |
 |---|---|
-| Narrow `<all_urls>` to Apty's target domains | Apty's list of customer application domains |
+| Narrow `<all_urls>` to Apty's target domains | Kept for 0.1.0, because customers run their applications on their own domains (same position as [`WEB_STORE_LISTING.md`](store/WEB_STORE_LISTING.md)); narrowing needs Apty's list of customer application domains |
 | Agent bridge module in the Apty Client | The Client team ships [`docs/integrations/apty`](integrations/apty/README.md)'s module |
 | Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
-| Remove the remaining explicit `any` | 605 (153 outside tests) in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
-| Rename the inherited `aipex_*` storage keys | A migration for existing installs |
+| Remove the remaining explicit `any` | 603 in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
+| LLM request safety and size | Phase A (O1-O5) is the base of `hardening/prod-ready`; Phases B and C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
+| Production readiness (branch `hardening/prod-ready`, not on `main`) | Phases 1-3 done (Checkpoint 3, `REVIEW.md`), and Phase 4 fixed the ten items they left out (Strict URL paths, truncated-JSON redaction, approval for link-only DOM Health, orphan session cleanup, plugin logs, local chat images, Apty IndexedDB names, i18n, unused code, `@openai/agents` 0.20). Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally. The PR #20 review found and fixed 11 regressions and the CodeQL findings (the database move, a daemon crash, a repeated tool, MCP tab gating and others; see `REVIEW.md`). The MCP bridge is now 4.0.0, and an older daemon can't connect to this extension ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Where to look

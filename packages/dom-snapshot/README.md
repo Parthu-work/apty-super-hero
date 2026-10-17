@@ -19,7 +19,7 @@ This library takes a different approach by directly traversing the DOM and build
 - **Accessibility-aware**: Captures semantic roles, names, and states following ARIA patterns
 - **Interactive element focus**: Prioritizes buttons, links, inputs, and other actionable elements
 - **Hidden element filtering**: Automatically skips `aria-hidden`, `display:none`, `visibility:hidden`, and `inert` elements
-- **Stable node IDs**: Assigns persistent `data-aipex-nodeid` attributes for reliable element targeting
+- **Stable node IDs**: Assigns persistent `data-apty-nodeid` attributes for reliable element targeting
 - **Text content extraction**: Captures static text nodes for full page context
 - **Configurable options**: Control text length limits, hidden element inclusion, and text node capture
 - **Search functionality**: Built-in glob pattern search across snapshot text

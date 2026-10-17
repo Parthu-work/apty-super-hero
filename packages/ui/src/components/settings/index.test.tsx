@@ -1,4 +1,8 @@
-import type { AppSettings, CustomModelConfig } from "@apty/agent-core";
+import {
+  type AppSettings,
+  type CustomModelConfig,
+  SETTINGS_VERSION,
+} from "@apty/agent-core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n/context";
@@ -123,7 +127,7 @@ describe("SettingsPage", () => {
 
   it("saves General-tab switches at once, keeping the stored AI settings", async () => {
     const storageAdapter = createMemoryStorage<unknown>();
-    await storageAdapter.save("aipex_settings", {
+    await storageAdapter.save("apty_settings", {
       aiToken: "stored-key",
       aiModel: "gpt-4o",
     });
@@ -144,12 +148,44 @@ describe("SettingsPage", () => {
 
     await waitFor(() =>
       expect(storageAdapter.save).toHaveBeenLastCalledWith(
-        "aipex_settings",
+        "apty_settings",
         expect.objectContaining({
           aiToken: "stored-key",
           networkBodyCaptureEnabled: true,
           verboseLogging: true,
           developerTools: true,
+        }),
+      ),
+    );
+  });
+
+  it("fills fields the stored settings leave out with their defaults, and saves the schema version", async () => {
+    const storageAdapter = createMemoryStorage<unknown>();
+    await storageAdapter.save("apty_settings", { aiToken: "stored-key" });
+    storageAdapter.save.mockClear();
+    render(
+      <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+        <ThemeProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <SettingsPage storageAdapter={storageAdapter} initialTab="general" />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Verbose logging" }),
+    );
+
+    await waitFor(() =>
+      expect(storageAdapter.save).toHaveBeenLastCalledWith(
+        "apty_settings",
+        expect.objectContaining({
+          aiToken: "stored-key",
+          verboseLogging: true,
+          settingsVersion: SETTINGS_VERSION,
+          redactionMode: "strict",
+          screenshotPolicy: "ask",
+          pageHooksEnabled: true,
+          networkBodyCaptureEnabled: false,
         }),
       ),
     );
@@ -238,7 +274,7 @@ describe("SettingsPage", () => {
         await screen.findByText("Settings saved successfully!"),
       ).toBeInTheDocument();
       expect(storageAdapter.save).toHaveBeenCalledWith(
-        "aipex_settings",
+        "apty_settings",
         expect.objectContaining({
           aiToken: "sk-test",
           aiModel: "gpt-4o-mini",
@@ -338,6 +374,33 @@ describe("SettingsPage", () => {
           expect.objectContaining({ aiWorkspaceId: "wrkspc_01Test" }),
         ),
       );
+    });
+  });
+
+  describe("health-data warning (D7)", () => {
+    it("warns, for a provider not confirmed for health data, to check the agreement first", async () => {
+      render(
+        <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <ThemeProvider
+            storageAdapter={createMemoryStorage<string>() as never}
+          >
+            <SettingsPage
+              storageAdapter={createMemoryStorage<unknown>()}
+              initialTab="ai"
+            />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+      await screen.findByPlaceholderText("Your API Key");
+      const anthropic = screen
+        .getAllByText("Anthropic")
+        .map((node) => node.closest("button"))
+        .find(Boolean);
+      fireEvent.click(anthropic as HTMLElement);
+
+      expect(
+        await screen.findByText(/covers health or other regulated data/),
+      ).toBeInTheDocument();
     });
   });
 

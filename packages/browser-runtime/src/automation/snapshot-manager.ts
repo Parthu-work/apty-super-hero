@@ -67,14 +67,16 @@ export class SnapshotManager {
   #snapshotMap: Map<number, TextSnapshot> = new Map();
   #snapshotStrategyMap: Map<number, SnapshotStrategy> = new Map();
   /**
-   * Fetch existing data-aipex-nodeid attributes from DOM elements and tagName
+   * Fetch existing data-apty-nodeid attributes from DOM elements and tagName
    * Returns a map of backendDOMNodeId → { existingId, tagName }
    */
   private async fetchExistingNodeIds(
     tabId: number,
     nodeMap: Map<string, AXNode>,
   ): Promise<Map<number, { existingId: string; tagName: string }>> {
-    log.debug("🔍 Fetching existing aipex-nodeids and tagNames from page");
+    log.debug(
+      "🔍 Fetching existing data-apty-nodeid values and tagNames from page",
+    );
     const existingData = new Map<
       number,
       { existingId: string; tagName: string }
@@ -117,7 +119,7 @@ export class SnapshotManager {
                 return;
               }
 
-              // Read the data-aipex-nodeid attribute and tagName
+              // Read the data-apty-nodeid attribute and tagName
               const result = await cdpCommander.sendCommand<{
                 result?: { value?: { existingId: string; tagName: string } };
               }>("Runtime.callFunctionOn", {
@@ -126,7 +128,7 @@ export class SnapshotManager {
                   function() {
                     if (this && this.getAttribute && this.tagName) {
                       return {
-                        existingId: this.getAttribute('data-aipex-nodeid'),
+                        existingId: this.getAttribute('data-apty-nodeid'),
                         tagName: this.tagName.toLowerCase()
                       };
                     }
@@ -160,7 +162,7 @@ export class SnapshotManager {
       await Promise.all(fetchTasks);
 
       log.debug(
-        `✅ Found ${existingData.size} existing aipex-nodeids with tagNames`,
+        `✅ Found ${existingData.size} existing data-apty-nodeid values with tagNames`,
       );
 
       // Disable DOM domain
@@ -368,7 +370,7 @@ export class SnapshotManager {
       target: { tabId, frameIds: [0] },
       func: () =>
         Array.from(document.querySelectorAll("iframe")).map((frame) => ({
-          uid: frame.getAttribute("data-aipex-nodeid") || "",
+          uid: frame.getAttribute("data-apty-nodeid") || "",
           src: frame.getAttribute("src") || "",
           resolvedSrc: frame instanceof HTMLIFrameElement ? frame.src : "",
         })),
@@ -1169,7 +1171,7 @@ export class SnapshotManager {
         idToNode: snapshotResult.idToNode,
         tabId,
       };
-      // inject aipex-nodeId attribute to page elements for precise positioning
+      // inject the data-apty-nodeid attribute to page elements for precise positioning
       // only inject new nodes, skip those that already have the correct ID
       await this.injectNodeIdsToPage(
         tabId,
@@ -1186,7 +1188,7 @@ export class SnapshotManager {
   }
 
   /**
-   * inject aipex-nodeId attribute to page elements for precise positioning
+   * inject the data-apty-nodeid attribute to page elements for precise positioning
    * use CDP's DOM.resolveNode to precisely locate elements instead of heuristic lookup
    *
    * solution: use backendNodeId to locate DOM nodes using CDP, then inject attribute
@@ -1197,7 +1199,7 @@ export class SnapshotManager {
     idToNode: Map<string, TextSnapshotNode>,
     existingNodeData: Map<number, { existingId: string; tagName: string }>,
   ): Promise<void> {
-    log.debug("🔍 Injecting aipex-nodeId to page elements using CDP");
+    log.debug("🔍 Injecting data-apty-nodeid into page elements using CDP");
     const cdpCommander = new CdpCommander(tabId);
 
     try {
@@ -1260,7 +1262,7 @@ export class SnapshotManager {
                   function(nodeId) {
                     // this is the corresponding DOM element
                     if (this && this.setAttribute) {
-                      this.setAttribute('data-aipex-nodeid', nodeId);
+                      this.setAttribute('data-apty-nodeid', nodeId);
                       return true;
                     }
                     return false;

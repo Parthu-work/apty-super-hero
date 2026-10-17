@@ -90,8 +90,14 @@ jobs:
       - name: No new explicit any
         run: npm run audit:any
 
+      - name: No new hard-coded UI text
+        run: npm run audit:i18n
+
       - name: Markdown links resolve
         run: npm run audit:docs-links
+
+      - name: Third-party notices match the dependencies
+        run: npm run audit:notices
 
       - name: Dependency vulnerability audit
         run: pnpm audit --prod

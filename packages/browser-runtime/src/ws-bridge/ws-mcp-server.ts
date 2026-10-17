@@ -17,7 +17,20 @@ import type { FunctionTool } from "@apty/agent-core";
 import { createLogger } from "@apty/agent-core";
 import { evidenceRestored } from "../apty/evidence-store.js";
 import { investigationsRestored } from "../apty/investigation-session.js";
+import { redactToolOutput } from "../runtime/outbound-sanitizer.js";
+import { currentRedactionMode } from "../runtime/redaction-mode.js";
 import { allBrowserTools } from "../tools/index.js";
+import {
+  AUTH_PROTOCOL,
+  callMac,
+  daemonProof,
+  extensionProof,
+  isNonce,
+  newNonce,
+  proofsMatch,
+  sessionKey,
+} from "./handshake.js";
+import { MCP_TOOL_NAMES } from "./mcp-tool-names.js";
 import {
   type JSONRPCMessage,
   type JSONRPCRequest,
@@ -49,15 +62,49 @@ const TOOL_CALL_TIMEOUT_MS = 60_000;
 const STORAGE_KEY_WS_URL = "ws-mcp-url";
 const STORAGE_KEY_WS_TOKEN = "ws-mcp-token";
 
-/**
- * The daemon reads the token from the handshake's subprotocol list, never
- * the URL, so it can't leak through logs. Keep in step with
- * apps/mcp-bridge/src/lib/auth-token.ts.
- */
+/** Tokens the daemon's token file can hold. */
 const HANDSHAKE_SAFE_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
-export function authProtocols(token: string): string[] {
-  return ["apty-mcp.v1", `apty-token.${token}`];
+/** The extension offers challenge auth; the token itself is never sent. */
+const EXTENSION_PROTOCOLS = ["apty-mcp.v1", AUTH_PROTOCOL];
+const AUTH_TIMEOUT_MS = 5_000;
+/** JSON-RPC error for a call that is not signed by the authenticated daemon. */
+const UNAUTHENTICATED_CALL = -32001;
+
+class DaemonAuthError extends Error {}
+
+/** The first apty-mcp-bridge release with challenge authentication. */
+const MIN_DAEMON_VERSION = "4.0.0";
+
+/**
+ * A daemon from before challenge authentication refuses this extension's
+ * upgrade, which a browser reports only as a socket error. Its unauthenticated
+ * /health says which it is.
+ */
+async function outdatedDaemonMessage(url: string): Promise<string | null> {
+  try {
+    const health = new URL(url);
+    health.protocol = health.protocol === "wss:" ? "https:" : "http:";
+    health.pathname = "/health";
+    health.search = "";
+    const response = await fetch(health.toString(), {
+      signal: AbortSignal.timeout(2_000),
+    });
+    const body = (await response.json()) as {
+      status?: unknown;
+      version?: unknown;
+      auth?: unknown;
+    };
+    if (body.status !== "ok") return null;
+    if (Array.isArray(body.auth) && body.auth.includes(AUTH_PROTOCOL)) {
+      return null;
+    }
+    const version =
+      typeof body.version === "string" ? body.version : "an older version";
+    return `The MCP bridge daemon (${version}) is too old for this extension. Update it to apty-mcp-bridge ${MIN_DAEMON_VERSION} or later and restart it.`;
+  } catch {
+    return null;
+  }
 }
 
 function getReconnectDelayMs(attempt: number): number {
@@ -99,6 +146,14 @@ function buildMcpContent(
   return [{ type: "text", text: JSON.stringify(data, null, 2) }];
 }
 
+/** MCP clients get what the model would get: the same tool-result redaction. */
+function redactForMcp(result: unknown): unknown {
+  if (typeof result === "string" && result.startsWith("data:image/")) {
+    return result;
+  }
+  return redactToolOutput(result, currentRedactionMode());
+}
+
 export class WsMcpServer {
   private transport: WebSocketClientTransport | null = null;
   private state: WsMcpServerState = {
@@ -119,6 +174,12 @@ export class WsMcpServer {
    * to rebuild the authenticated URL on reconnect.
    */
   private token: string | null = null;
+  /** Set once the daemon has proved it holds the token and we have proved the same. */
+  private session: { key: string; lastSeq: number } | null = null;
+  private authReplies = new Map<string, (reply: unknown) => void>();
+  /** Bumped by every connect and disconnect, so a stale attempt leaves the state alone. */
+  private connectAttempt = 0;
+  private callVerification: Promise<unknown> = Promise.resolve();
 
   private validateUrl(url: string): void {
     let parsed: URL;
@@ -167,12 +228,12 @@ export class WsMcpServer {
       connectedAt: null,
     });
 
+    const attempt = ++this.connectAttempt;
+    const transport = new WebSocketClientTransport(url, EXTENSION_PROTOCOLS);
+    this.transport = transport;
     try {
-      const transport = new WebSocketClientTransport(url, authProtocols(token));
-      this.transport = transport;
-
       transport.onclose = () => {
-        this.handleDisconnect();
+        if (this.transport === transport) this.handleDisconnect();
       };
 
       transport.onerror = (error: Error) => {
@@ -180,10 +241,18 @@ export class WsMcpServer {
       };
 
       transport.onmessage = (message: JSONRPCMessage) => {
-        this.handleMessage(message);
+        if (this.transport === transport) this.handleMessage(message);
       };
 
-      await transport.start();
+      await transport.start().catch(async (error: unknown) => {
+        throw new Error(
+          (await outdatedDaemonMessage(url)) ??
+            (error instanceof Error ? error.message : String(error)),
+        );
+      });
+      const session = await this.authenticate(transport, token);
+      if (attempt !== this.connectAttempt) throw new Error("superseded");
+      this.session = session;
       this.updateState({
         status: "connected",
         connectedAt: Date.now(),
@@ -194,15 +263,25 @@ export class WsMcpServer {
       this.autoReconnectEnabled = true;
       log.debug(`Connected to ${url}`);
     } catch (error) {
+      if (attempt !== this.connectAttempt) {
+        // A newer attempt or a disconnect replaced this one: leave its state alone.
+        await transport.close().catch(() => undefined);
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       this.updateState({ status: "error", error: message, connectedAt: null });
+      if (error instanceof DaemonAuthError) {
+        await transport.close().catch(() => undefined);
+      }
       this.transport = null;
+      this.session = null;
       this.scheduleReconnect(url, token);
       throw error;
     }
   }
 
   async disconnect(): Promise<void> {
+    this.connectAttempt++;
     this.autoReconnectEnabled = false;
     this.cancelReconnect();
     this.stopKeepalive();
@@ -217,6 +296,7 @@ export class WsMcpServer {
     }
 
     this.token = null;
+    this.session = null;
     this.updateState({
       status: "disconnected",
       url: null,
@@ -305,10 +385,109 @@ export class WsMcpServer {
     }
   }
 
+  // -- Mutual authentication --
+
+  /**
+   * The daemon must prove it holds the token before we prove anything, so a
+   * program squatting on the port learns nothing. Throws DaemonAuthError
+   * when the proof is wrong or missing.
+   */
+  private async authenticate(
+    transport: WebSocketClientTransport,
+    token: string,
+  ): Promise<NonNullable<WsMcpServer["session"]>> {
+    const extNonce = newNonce();
+    const challenge = (await this.authRequest(
+      transport,
+      "auth-1",
+      "auth/challenge",
+      {
+        nonce: extNonce,
+      },
+    )) as { result?: { nonce?: unknown; proof?: unknown } };
+    const daemonNonce = challenge.result?.nonce;
+    if (
+      !isNonce(daemonNonce) ||
+      !proofsMatch(
+        challenge.result?.proof,
+        await daemonProof(token, extNonce, daemonNonce),
+      )
+    ) {
+      throw new DaemonAuthError(
+        "The program at this address could not prove it holds the token, so nothing was sent to it. Check that the Apty MCP daemon is running and the token matches.",
+      );
+    }
+    const accepted = (await this.authRequest(
+      transport,
+      "auth-2",
+      "auth/prove",
+      {
+        proof: await extensionProof(token, extNonce, daemonNonce),
+      },
+    )) as { result?: { ok?: unknown } };
+    if (accepted.result?.ok !== true) {
+      throw new DaemonAuthError("The daemon did not accept this extension.");
+    }
+    return {
+      key: await sessionKey(token, extNonce, daemonNonce),
+      lastSeq: 0,
+    };
+  }
+
+  private authRequest(
+    transport: WebSocketClientTransport,
+    id: string,
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const onReply = (reply: unknown) => {
+        clearTimeout(timer);
+        if (this.authReplies.get(id) === onReply) this.authReplies.delete(id);
+        resolve(reply);
+      };
+      const timer = setTimeout(() => {
+        if (this.authReplies.get(id) === onReply) this.authReplies.delete(id);
+        reject(new DaemonAuthError("The daemon did not answer the challenge."));
+      }, AUTH_TIMEOUT_MS);
+      this.authReplies.set(id, onReply);
+      transport
+        .send({ jsonrpc: "2.0", id, method, params } as JSONRPCMessage)
+        .catch(reject);
+    });
+  }
+
+  /** True when this call carries the next sequence number and a valid MAC; checked one at a time. */
+  private verifyCall(params: Record<string, unknown>): Promise<boolean> {
+    const check = this.callVerification.then(async () => {
+      const session = this.session;
+      if (!session || params.seq !== session.lastSeq + 1) return false;
+      const expected = await callMac(
+        session.key,
+        session.lastSeq + 1,
+        String(params.name),
+        params.arguments ?? {},
+      );
+      if (!proofsMatch(params.mac, expected) || this.session !== session) {
+        return false;
+      }
+      session.lastSeq += 1;
+      return true;
+    });
+    this.callVerification = check.catch(() => false);
+    return check;
+  }
+
   // -- Message handling --
 
   private handleMessage(message: JSONRPCMessage): void {
-    if (!("method" in message) || !("id" in message)) {
+    if (!("method" in message)) {
+      const id = (message as { id?: unknown }).id;
+      const reply = typeof id === "string" ? this.authReplies.get(id) : null;
+      if (typeof reply === "function") reply(message);
+      return;
+    }
+    if (!("id" in message) || !this.session) {
       return;
     }
     const request = message as JSONRPCRequest;
@@ -338,11 +517,26 @@ export class WsMcpServer {
     const name = params.name as string | undefined;
     const args = (params.arguments || {}) as Record<string, unknown>;
 
+    if (!(await this.verifyCall(params))) {
+      return this.sendError(
+        request.id,
+        UNAUTHENTICATED_CALL,
+        "Unauthenticated call refused",
+      );
+    }
+
     if (!name) {
       return this.sendError(
         request.id,
         -32602,
         "Missing required parameter: name",
+      );
+    }
+    if (!MCP_TOOL_NAMES.has(name)) {
+      return this.sendError(
+        request.id,
+        -32602,
+        `Tool '${name}' is not exposed over MCP`,
       );
     }
 
@@ -368,7 +562,7 @@ export class WsMcpServer {
       ]).finally(() => clearTimeout(timer));
 
       await this.sendResult(request.id, {
-        content: buildMcpContent(result),
+        content: buildMcpContent(redactForMcp(result)),
       });
     } catch (error) {
       await this.sendResult(request.id, {
@@ -430,6 +624,7 @@ export class WsMcpServer {
 
   private handleDisconnect(): void {
     this.stopKeepalive();
+    this.session = null;
     const lastUrl = this.state.url;
     const lastToken = this.token;
     this.transport = null;

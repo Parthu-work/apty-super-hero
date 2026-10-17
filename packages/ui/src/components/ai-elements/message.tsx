@@ -63,7 +63,7 @@ export type MessageAvatarProps = ComponentProps<typeof Avatar> & {
   name?: string;
 };
 
-export const MessageAvatar = ({
+const MessageAvatar = ({
   src,
   name,
   className,

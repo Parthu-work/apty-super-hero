@@ -19,6 +19,8 @@ import type {
 } from "@apty/browser-runtime";
 import { Badge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
+import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import {
   CheckCircle2Icon,
@@ -34,35 +36,33 @@ import { toneTextClass } from "./tone-classes";
 const CONFIDENCE_META: Record<
   DiagnosisConfidence,
   {
-    label: string;
-    description: string;
+    label: TranslationKey;
+    description: TranslationKey;
     badgeClassName: string;
     Icon: ComponentType<{ className?: string }>;
   }
 > = {
   confirmed: {
-    label: "CONFIRMED",
-    description: "Confirmed by a successful verification check.",
+    label: "investigation.diagnosis.confirmed",
+    description: "investigation.diagnosis.confirmedDescription",
     badgeClassName: "border-transparent bg-success text-success-foreground",
     Icon: CheckCircle2Icon,
   },
   likely: {
-    label: "LIKELY",
-    description:
-      "Strong evidence points here, but it hasn't been independently verified.",
+    label: "investigation.diagnosis.likely",
+    description: "investigation.diagnosis.likelyDescription",
     badgeClassName: "border-transparent bg-warning/20 text-warning",
     Icon: TriangleAlertIcon,
   },
   possible: {
-    label: "POSSIBLE",
-    description:
-      "One plausible explanation among others — treat as a lead, not a conclusion.",
+    label: "investigation.diagnosis.possible",
+    description: "investigation.diagnosis.possibleDescription",
     badgeClassName: "border-warning/40 bg-transparent text-warning",
     Icon: CircleHelpIcon,
   },
   unknown: {
-    label: "UNKNOWN",
-    description: "Not enough evidence yet to point to a cause.",
+    label: "investigation.diagnosis.unknown",
+    description: "investigation.diagnosis.unknownDescription",
     badgeClassName:
       "border-dashed border-muted-foreground/40 bg-transparent text-muted-foreground",
     Icon: ShieldQuestionIcon,
@@ -84,11 +84,11 @@ export function DiagnosisCard({
   investigation: InvestigationSession | undefined;
   onVerify: () => void;
 }) {
+  const { t } = useTranslation();
   if (!investigation?.diagnosis) {
     return (
       <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-        No diagnosis yet. The agent records one here once it reaches a
-        conclusion backed by evidence.
+        {t("investigation.diagnosis.none")}
       </p>
     );
   }
@@ -103,19 +103,19 @@ export function DiagnosisCard({
       <div className="flex items-start gap-2">
         <Badge className={cn("gap-1 shrink-0", meta.badgeClassName)}>
           <meta.Icon className="size-3" />
-          {meta.label}
+          {t(meta.label)}
         </Badge>
-        <p className="text-xs text-muted-foreground">{meta.description}</p>
+        <p className="text-xs text-muted-foreground">{t(meta.description)}</p>
       </div>
 
       <div>
-        <SectionLabel>What happened</SectionLabel>
+        <SectionLabel>{t("investigation.diagnosis.whatHappened")}</SectionLabel>
         <p className="text-sm font-medium leading-snug">
           {investigation.diagnosis}
         </p>
         {investigation.suspectedComponents.length > 0 && (
           <p className="mt-1 text-xs text-muted-foreground">
-            <span>Suspected: </span>
+            <span>{`${t("investigation.diagnosis.suspected")} `}</span>
             <span>
               {investigation.suspectedComponents
                 .map((c) => describeAptyComponent(c))
@@ -127,7 +127,7 @@ export function DiagnosisCard({
 
       {investigation.hypotheses.length > 0 && (
         <div>
-          <SectionLabel>Why · hypotheses considered</SectionLabel>
+          <SectionLabel>{t("investigation.diagnosis.why")}</SectionLabel>
           <ul className="space-y-1.5">
             {investigation.hypotheses.map((hypothesis) => {
               const statusMeta = describeHypothesisStatus(hypothesis.status);
@@ -150,8 +150,13 @@ export function DiagnosisCard({
                   </div>
                   {(supporting > 0 || contradicting > 0) && (
                     <p className="text-[11px] text-muted-foreground">
-                      Evidence: {supporting} supporting
-                      {contradicting > 0 && `, ${contradicting} contradicting`}
+                      {t("investigation.diagnosis.evidenceSupporting", {
+                        count: supporting,
+                      })}
+                      {contradicting > 0 &&
+                        t("investigation.diagnosis.evidenceContradicting", {
+                          count: contradicting,
+                        })}
                     </p>
                   )}
                 </li>
@@ -162,7 +167,7 @@ export function DiagnosisCard({
       )}
 
       <div className="space-y-1.5 border-t pt-2">
-        <SectionLabel>What to do next</SectionLabel>
+        <SectionLabel>{t("investigation.diagnosis.next")}</SectionLabel>
         {lastAttempt && (
           <div className="flex items-center gap-1.5 text-xs">
             <ShieldCheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -175,11 +180,12 @@ export function DiagnosisCard({
                     : toneTextClass("neutral")
               }
             >
-              {lastAttempt.outcome === "confirmed" && "Diagnosis confirmed"}
+              {lastAttempt.outcome === "confirmed" &&
+                t("investigation.diagnosis.outcomeConfirmed")}
               {lastAttempt.outcome === "not_confirmed" &&
-                "Diagnosis not confirmed by last check"}
+                t("investigation.diagnosis.outcomeNotConfirmed")}
               {lastAttempt.outcome === "inconclusive" &&
-                "Last verification was inconclusive"}
+                t("investigation.diagnosis.outcomeInconclusive")}
             </span>
           </div>
         )}
@@ -189,7 +195,7 @@ export function DiagnosisCard({
           onClick={onVerify}
           className="w-full"
         >
-          Verify diagnosis
+          {t("investigation.diagnosis.verify")}
         </Button>
       </div>
     </div>

@@ -13,8 +13,8 @@ import { zenfs } from "./zenfs-manager";
 
 const log = createLogger("VmMigration");
 
-const MIGRATION_KEY = "aipex_zenfs_migration_status";
-const MIGRATION_V2_KEY = "aipex_zenfs_migration_v2_status";
+const MIGRATION_KEY = "apty_zenfs_migration_status";
+const MIGRATION_V2_KEY = "apty_zenfs_migration_v2_status";
 
 interface MigrationStatus {
   completed: boolean;
@@ -33,7 +33,7 @@ interface MigrationV2Status {
 /**
  * Check if migration has been completed
  */
-export async function isMigrationCompleted(): Promise<boolean> {
+async function isMigrationCompleted(): Promise<boolean> {
   try {
     const result = await chrome.storage.local.get(MIGRATION_KEY);
     const status = result[MIGRATION_KEY] as MigrationStatus | undefined;
@@ -46,7 +46,7 @@ export async function isMigrationCompleted(): Promise<boolean> {
 /**
  * Get migration status
  */
-export async function getMigrationStatus(): Promise<MigrationStatus | null> {
+async function getMigrationStatus(): Promise<MigrationStatus | null> {
   try {
     const result = await chrome.storage.local.get(MIGRATION_KEY);
     return (result[MIGRATION_KEY] as MigrationStatus) || null;
@@ -111,7 +111,7 @@ async function migrateSkill(skillId: string): Promise<boolean> {
 /**
  * Migrate all skills from SimpleFileSystem to ZenFS
  */
-export async function migrateAllSkills(): Promise<{
+async function migrateAllSkills(): Promise<{
   success: boolean;
   migratedCount: number;
   failedCount: number;
@@ -187,7 +187,7 @@ export async function migrateAllSkills(): Promise<{
 /**
  * Reset migration status (for testing)
  */
-export async function resetMigration(): Promise<void> {
+async function resetMigration(): Promise<void> {
   await chrome.storage.local.remove(MIGRATION_KEY);
   log.debug("Migration status reset");
 }
@@ -195,7 +195,7 @@ export async function resetMigration(): Promise<void> {
 /**
  * Check if V2 migration (ID format change) has been completed
  */
-export async function isMigrationV2Completed(): Promise<boolean> {
+async function isMigrationV2Completed(): Promise<boolean> {
   try {
     const result = await chrome.storage.local.get(MIGRATION_V2_KEY);
     const status = result[MIGRATION_V2_KEY] as MigrationV2Status | undefined;
@@ -280,7 +280,7 @@ async function migrateSkillIdFormat(
 /**
  * Migrate all skills from old ID format to new ID format
  */
-export async function migrateAllSkillIds(): Promise<{
+async function migrateAllSkillIds(): Promise<{
   success: boolean;
   renamedCount: number;
   failedCount: number;

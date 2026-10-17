@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockInitialize = vi.hoisted(() => vi.fn());
 const mockExecuteSkillScript = vi.hoisted(() => vi.fn());
 const mockGetSkillContent = vi.hoisted(() => vi.fn());
+const mockGetSkillScript = vi.hoisted(() => vi.fn());
 
 vi.mock("../skills/lib/services/skill-manager", () => ({
   skillManager: {
     initialize: mockInitialize,
     executeSkillScript: mockExecuteSkillScript,
     getSkillContent: mockGetSkillContent,
+    getSkillScript: mockGetSkillScript,
   },
 }));
 
@@ -67,7 +69,7 @@ describe("execute_skill_script gate", () => {
   });
 
   it("refuses to run when skillExecutionEnabled is explicitly false", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: false };
+    storageStore.apty_settings = { skillExecutionEnabled: false };
 
     const result = (await executeSkillScriptTool.invoke(
       EMPTY_CONTEXT,
@@ -83,7 +85,7 @@ describe("execute_skill_script gate", () => {
   });
 
   it("does not run the script when the user denies it", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: true };
+    storageStore.apty_settings = { skillExecutionEnabled: true };
     const { requests, stop } = answerApprovals({ approved: false });
 
     const result = (await executeSkillScriptTool.invoke(
@@ -101,8 +103,49 @@ describe("execute_skill_script gate", () => {
     expect(mockExecuteSkillScript).not.toHaveBeenCalled();
   });
 
+  it("shows the script's first lines and its arguments in the prompt", async () => {
+    storageStore.apty_settings = { skillExecutionEnabled: true };
+    mockGetSkillScript.mockResolvedValue(
+      Array.from({ length: 30 }, (_, i) => `line ${i + 1};`).join("\n"),
+    );
+    const { requests, stop } = answerApprovals({ approved: false });
+
+    await executeSkillScriptTool.invoke(
+      EMPTY_CONTEXT,
+      JSON.stringify({
+        skillName: "demo",
+        scriptPath: "scripts/run.js",
+        args: { target: "orders", limit: 5 },
+      }),
+    );
+    stop();
+
+    const summary = requests[0]?.summary ?? "";
+    expect(mockGetSkillScript).toHaveBeenCalledWith("demo", "scripts/run.js");
+    expect(summary).toContain("line 1;");
+    expect(summary).toContain("line 12;");
+    expect(summary).not.toContain("line 13;");
+    expect(summary).toContain("18 more lines");
+    expect(summary).toContain('Arguments: {"target":"orders","limit":5}');
+  });
+
+  it("still asks when the script source cannot be read", async () => {
+    storageStore.apty_settings = { skillExecutionEnabled: true };
+    mockGetSkillScript.mockRejectedValue(new Error("missing"));
+    const { requests, stop } = answerApprovals({ approved: false });
+
+    await executeSkillScriptTool.invoke(
+      EMPTY_CONTEXT,
+      JSON.stringify({ skillName: "demo", scriptPath: "scripts/run.js" }),
+    );
+    stop();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.summary).toContain("could not be read");
+  });
+
   it("runs the script once the user allows it", async () => {
-    storageStore.aipex_settings = { skillExecutionEnabled: true };
+    storageStore.apty_settings = { skillExecutionEnabled: true };
     const { stop } = answerApprovals({ approved: true });
 
     const result = (await executeSkillScriptTool.invoke(

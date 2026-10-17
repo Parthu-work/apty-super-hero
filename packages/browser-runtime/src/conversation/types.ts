@@ -56,4 +56,7 @@ export interface ConversationStorageConfig {
   maxAgeMs?: number; // Delete conversations unused for longer (default: 7 days)
   dbName?: string; // IndexedDB database name
   storeName?: string; // IndexedDB store name
+  deleteAgentSessions?: (ids: string[]) => Promise<void>;
+  /** Deletes idle agent sessions none of these ids leads to; returns what it deleted. */
+  deleteOrphanAgentSessions?: (referenced: Set<string>) => Promise<string[]>;
 }

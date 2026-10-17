@@ -117,9 +117,8 @@ describe("readiness check and settings links", () => {
     });
     await bodies.click();
     await options.waitForFunction(async () => {
-      const { aipex_settings } =
-        await chrome.storage.local.get("aipex_settings");
-      return aipex_settings?.networkBodyCaptureEnabled === true;
+      const { apty_settings } = await chrome.storage.local.get("apty_settings");
+      return apty_settings?.networkBodyCaptureEnabled === true;
     });
 
     await options.reload();

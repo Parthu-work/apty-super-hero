@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The release workflow's build job, locally, without publishing: version
-# check, checks and tests, build, real-browser tests, audits, the pinned
+# check, checks and tests, build, real-browser tests, audits (including
+# pnpm audit --prod), the pinned
 # extension ID, packaging, checksums and their verification. One line per
 # step; each step's full output is in /tmp/release-dry-run/<step>.log.
 #
@@ -45,7 +46,7 @@ package() {
     node -e 'const f=process.argv[1],fs=require("fs"),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))' "$OUT/store-dist/manifest.json" &&
     (cd "$OUT/store-dist" && zip -qr "$store" .) &&
     unzip -l "$zip" manifest.json | grep -q " manifest.json$" &&
-    ! grep -q '"key"' "$OUT/store-dist/manifest.json"
+    node tooling/scripts/check-extension-id.mjs --store "$OUT/store-dist/manifest.json"
 }
 
 checksums() {
@@ -59,6 +60,7 @@ verify_checksums() {
 
 echo "Release dry run for ${name} (nothing is published)"
 step "version check" node tooling/scripts/check-release-version.mjs "$name"
+echo "- tag on main: checked by release.yml for a tag push only"
 step "format lint typecheck test coverage" bash -c 'npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:coverage'
 step "build" npm run build
 if [ "$skip_e2e" = 1 ]; then
@@ -66,7 +68,8 @@ if [ "$skip_e2e" = 1 ]; then
 else
   step "real-browser tests" npm run test:e2e
 fi
-step "audits" bash -c 'npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips'
+step "audits" bash -c 'npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips && npm run audit:any && npm run audit:i18n && npm run audit:docs-links && npm run audit:notices'
+step "production dependency audit" bash -c 'pnpm audit --prod && (cd apps/mcp-bridge && pnpm audit --prod --ignore-workspace)'
 step "pinned extension ID" node tooling/scripts/check-extension-id.mjs apps/browser-extension/dist/manifest.json
 step "package" package
 step "checksums" checksums

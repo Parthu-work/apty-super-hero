@@ -40,8 +40,9 @@ export function DefaultToolDisplay({ tool }: ToolDisplaySlotProps) {
       <ToolContent>
         {displayName !== tool.toolName && (
           <p className="px-4 pt-3 text-xs text-muted-foreground">
-            Tool: <code>{tool.toolName}</code>
-            {typeof tool.duration === "number" && ` · ${tool.duration}ms`}
+            {t("chat.toolLabel")} <code>{tool.toolName}</code>
+            {typeof tool.duration === "number" &&
+              ` · ${t("chat.durationMs", { duration: tool.duration })}`}
           </p>
         )}
         <ToolInput input={tool.input} />
@@ -92,21 +93,21 @@ export function CompactToolDisplay({ tool }: ToolDisplaySlotProps) {
         <span className="text-sm font-medium">{displayName}</span>
         {tool.duration && (
           <span className="text-xs text-muted-foreground ml-auto">
-            {tool.duration}ms
+            {t("chat.durationMs", { duration: tool.duration })}
           </span>
         )}
       </CollapsibleTrigger>
       <CollapsibleContent className="pl-6 pt-2">
         <div className="text-xs space-y-2">
           <div>
-            <span className="text-muted-foreground">Input:</span>
+            <span className="text-muted-foreground">{t("chat.input")}</span>
             <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto max-h-32">
               {JSON.stringify(tool.input, null, 2)}
             </pre>
           </div>
           {tool.output !== undefined && tool.output !== null && (
             <div>
-              <span className="text-muted-foreground">Output:</span>
+              <span className="text-muted-foreground">{t("chat.output")}</span>
               <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto max-h-32">
                 {typeof tool.output === "string"
                   ? tool.output
@@ -116,7 +117,7 @@ export function CompactToolDisplay({ tool }: ToolDisplaySlotProps) {
           )}
           {tool.errorText && (
             <div className="text-red-500">
-              <span>Error:</span>
+              <span>{t("chat.errorLabel")}</span>
               <pre className="mt-1 p-2 bg-red-50 dark:bg-red-950 rounded text-xs">
                 {tool.errorText}
               </pre>

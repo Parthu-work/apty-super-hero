@@ -42,6 +42,7 @@ import {
 import {
   CONSOLE_BRIDGE_FILE,
   pageHooksAllowedOn,
+  SETTINGS_UNREADABLE,
 } from "../runtime/page-hooks-registration.js";
 import { redactLogEntries } from "../runtime/redaction-mode.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
@@ -381,7 +382,9 @@ export const getAptyPageLogsTool = tool({
       tabId,
       pageHooksAllowedOn(
         tab.url,
-        await settingsStorage.load(STORAGE_KEYS.SETTINGS).catch(() => null),
+        await settingsStorage
+          .load(STORAGE_KEYS.SETTINGS)
+          .catch(() => SETTINGS_UNREADABLE),
       ),
     );
     if (errorCode) {
@@ -497,7 +500,7 @@ function classificationHintForSource(
   }
 }
 
-export const getAptyWidgetDiagnosticsTool = tool({
+const getAptyWidgetDiagnosticsTool = tool({
   name: "get_apty_widget_diagnostics",
   description:
     "Get the Apty Widget's status (loaded, initialized, visible, last error) and recent logs on the current page. " +
@@ -544,7 +547,7 @@ export const getAptyWidgetDiagnosticsTool = tool({
   },
 });
 
-export const getAptyClientDiagnosticsTool = tool({
+const getAptyClientDiagnosticsTool = tool({
   name: "get_apty_client_diagnostics",
   description:
     "Get the Apty Client's status (loaded, initialized, version) and recent logs on the current page. " +
@@ -591,7 +594,7 @@ export const getAptyClientDiagnosticsTool = tool({
   },
 });
 
-export const getAptyStudioDiagnosticsTool = tool({
+const getAptyStudioDiagnosticsTool = tool({
   name: "get_apty_studio_diagnostics",
   description:
     "Get Apty Studio's status (active, selection mode, last selected selector) and recent logs, via cross-extension messaging. " +
@@ -645,7 +648,7 @@ export const getAptyStudioDiagnosticsTool = tool({
   },
 });
 
-export const getAptyServiceWorkerDiagnosticsTool = tool({
+const getAptyServiceWorkerDiagnosticsTool = tool({
   name: "get_apty_service_worker_diagnostics",
   description:
     "Get Apty's service-worker status and recent logs, via a configured extension message channel or diagnostic HTTP endpoint. " +

@@ -12,6 +12,7 @@ import {
   isExpired,
   selectForEviction,
 } from "@apty/agent-core";
+import { moveLegacyDatabases, SCREENSHOTS_DB } from "./legacy-databases.js";
 
 export interface ScreenshotData {
   uid: string;
@@ -27,7 +28,7 @@ export interface ScreenshotData {
   };
 }
 
-const DB_NAME = "aipex-screenshots-db";
+const DB_NAME = SCREENSHOTS_DB;
 const DB_VERSION = 1;
 const STORE_NAME = "screenshots";
 const MAX_SCREENSHOTS = 50;
@@ -39,38 +40,49 @@ function initialize(): Promise<void> {
   if (initPromise) return initPromise;
   if (db) return Promise.resolve();
 
-  initPromise = new Promise<void>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+  // Screenshots stored under the old AIPex database name move first (R2).
+  const moved = moveLegacyDatabases().catch(() => undefined);
+  initPromise = moved.then(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => {
-      initPromise = null;
-      reject(request.error);
-    };
+        request.onerror = () => {
+          initPromise = null;
+          reject(request.error);
+        };
 
-    request.onsuccess = () => {
-      db = request.result;
-      initPromise = null;
-      resolve();
-      applyLRU().catch(() => {});
-    };
+        request.onsuccess = () => {
+          db = request.result;
+          initPromise = null;
+          resolve();
+          applyLRU().catch(() => {});
+        };
 
-    request.onupgradeneeded = (event) => {
-      const database = (event.target as IDBOpenDBRequest).result;
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
-        const store = database.createObjectStore(STORE_NAME, {
-          keyPath: "uid",
-        });
-        store.createIndex("timestamp", "timestamp", { unique: false });
-        store.createIndex("tabId", "tabId", { unique: false });
-      }
-    };
-  });
+        request.onupgradeneeded = (event) => {
+          const database = (event.target as IDBOpenDBRequest).result;
+          if (!database.objectStoreNames.contains(STORE_NAME)) {
+            const store = database.createObjectStore(STORE_NAME, {
+              keyPath: "uid",
+            });
+            store.createIndex("timestamp", "timestamp", { unique: false });
+            store.createIndex("tabId", "tabId", { unique: false });
+          }
+        };
+      }),
+  );
 
   return initPromise;
 }
 
+function randomBase36(length: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(length)), (byte) =>
+    (byte % 36).toString(36),
+  ).join("");
+}
+
 function generateUid(): string {
-  return `screenshot_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  return `screenshot_${Date.now()}_${randomBase36(9)}`;
 }
 
 async function applyLRU(): Promise<void> {
@@ -100,7 +112,7 @@ async function applyLRU(): Promise<void> {
 /**
  * Runtime-level screenshot storage (for use inside browser-runtime tools).
  * Shares the same IndexedDB database as the UI-level ScreenshotStorage
- * in aipex-react so screenshots are accessible across packages.
+ * in @apty/ui so screenshots are accessible across packages.
  */
 export const RuntimeScreenshotStorage = {
   /**

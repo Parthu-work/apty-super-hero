@@ -10,6 +10,7 @@
  * Must be rendered inside a ChatbotProvider so useChatContext() is available.
  */
 
+import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import { useChatContext } from "@apty/ui/components/chatbot/context";
 import { useEffect } from "react";
 
@@ -24,10 +25,11 @@ export function ChatImagesListener() {
   useEffect(() => {
     const handleRequest = (
       message: unknown,
-      _sender: chrome.runtime.MessageSender,
+      sender: chrome.runtime.MessageSender,
       sendResponse: (response: unknown) => void,
     ): boolean => {
       if (
+        !isOwnExtensionPage(sender) ||
         !message ||
         typeof message !== "object" ||
         (message as { request?: string }).request !==

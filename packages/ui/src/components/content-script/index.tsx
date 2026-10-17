@@ -332,7 +332,7 @@ export function initContentScript(
   },
 ): () => void {
   const {
-    containerId = "aipex-content-root",
+    containerId = "apty-agent-content-root",
     shadowMode = "open",
     injectCSS,
   } = options || {};

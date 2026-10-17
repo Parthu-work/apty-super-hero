@@ -13,7 +13,7 @@ import type {
   SkillUploadResult,
 } from "../components/skill/types";
 
-export class SkillClientAdapter implements SkillClient {
+class SkillClientAdapter implements SkillClient {
   async initialize(): Promise<void> {
     await skillManager.initialize();
   }

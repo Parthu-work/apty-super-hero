@@ -29,6 +29,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Full history, so the next steps can tell whether the tag is on main.
+          fetch-depth: 0
 
       # The pnpm version comes from package.json's packageManager field;
       # also passing `version` here makes the action fail.
@@ -54,6 +56,10 @@ jobs:
       - name: Check the tag matches the extension version
         run: node tooling/scripts/check-release-version.mjs "${RELEASE_NAME}"
 
+      - name: Check the tag's commit is on main
+        if: github.ref_type == 'tag'
+        run: node tooling/scripts/check-tag-on-main.mjs "${GITHUB_SHA}" origin/main
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -75,7 +81,10 @@ jobs:
         run: npm run test:e2e
 
       - name: Manifest, architecture, branding and tool audits
-        run: npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips
+        run: npm run validate:extension && npm run audit:architecture && npm run audit:branding && npm run audit:tools && npm run check:mcp-bridge-docs && npm run audit:test-skips && npm run audit:any && npm run audit:i18n && npm run audit:docs-links && npm run audit:notices
+
+      - name: Production dependency audit
+        run: pnpm audit --prod && (cd apps/mcp-bridge && pnpm audit --prod --ignore-workspace)
 
       - name: The packaged manifest key yields the pinned Agent ID
         run: node tooling/scripts/check-extension-id.mjs apps/browser-extension/dist/manifest.json
@@ -90,6 +99,7 @@ jobs:
           (cd apps/browser-extension/dist && zip -qr "../../../${name}" .)
           cp -r apps/browser-extension/dist store-dist
           node -e 'const f="store-dist/manifest.json",fs=require("fs"),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))'
+          node tooling/scripts/check-extension-id.mjs --store store-dist/manifest.json
           (cd store-dist && zip -qr "../${store}" .)
           sha256sum "${name}" "${store}" > "apty-agent-${RELEASE_NAME}.sha256"
           sha256sum -c "apty-agent-${RELEASE_NAME}.sha256"

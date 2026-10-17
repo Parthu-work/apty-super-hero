@@ -8,7 +8,7 @@ import { useAgent, useChatConfig } from "@apty/ui";
 import ChatBot from "@apty/ui/components/chatbot";
 import { ErrorBoundary } from "@apty/ui/components/error/ErrorBoundary";
 import type { InterventionMode } from "@apty/ui/components/intervention";
-import { I18nProvider } from "@apty/ui/i18n/context";
+import { I18nProvider, useTranslation } from "@apty/ui/i18n/context";
 import type { Language } from "@apty/ui/i18n/types";
 import { ThemeProvider } from "@apty/ui/theme/context";
 import type { Theme } from "@apty/ui/theme/types";
@@ -23,8 +23,10 @@ import {
   useBrowserModelFactory,
   useBrowserStorage,
   useBrowserTools,
+  useOutboundFilters,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
+import { formatContextsPrivately } from "../hooks/outbound-filters";
 import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
@@ -123,6 +125,7 @@ async function checkAuth(
 }
 
 function ChatApp() {
+  const { t } = useTranslation();
   const { settings, isLoading } = useChatConfig({
     storageAdapter: chromeStorageAdapter,
     autoLoad: true,
@@ -133,6 +136,7 @@ function ChatApp() {
   const contextProviders = useBrowserContextProviders();
   const tools = useBrowserTools();
   const selectTools = useSelectRelevantTools();
+  const outboundFilters = useOutboundFilters();
 
   const { agent, error } = useAgent({
     settings,
@@ -141,6 +145,10 @@ function ChatApp() {
     storage,
     contextProviders,
     tools,
+    agentOptions: {
+      outboundFilters,
+      contextFormatter: formatContextsPrivately,
+    },
     ...BROWSER_AGENT_CONFIG,
   });
 
@@ -182,18 +190,10 @@ function ChatApp() {
   const [interventionMode, setInterventionMode] =
     useState<InterventionMode>("passive");
 
-  // Sidepanel lifecycle: port connection + cleanup on hide/close
+  // Stop element capture on the active tab when the side panel is hidden
   useEffect(() => {
-    // Long-lived port so the background can detect sidepanel disconnect
-    const port = chrome.runtime.connect({ name: "sidepanel" });
-
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Stop any active recording
-        chrome.runtime.sendMessage({ request: "stop-recording" }).catch(() => {
-          /* background may be busy */
-        });
-        // Stop element capture on the active tab
         chrome.runtime
           .sendMessage({
             request: "relay-to-active-tab",
@@ -209,14 +209,13 @@ function ChatApp() {
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      port.disconnect();
     };
   }, []);
 
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">{t("common.loading")}</div>
       </div>
     );
   }

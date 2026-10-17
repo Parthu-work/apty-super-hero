@@ -9,7 +9,9 @@
  */
 
 import { createLogger } from "@apty/agent-core";
+import { prepareNodeForPolicy, type ValuePolicy } from "@apty/dom-snapshot";
 import { getAutomationMode } from "../runtime/automation-mode";
+import { currentValuePolicy } from "../runtime/value-policy";
 import { type SearchOptions, SKIP_ROLES, searchSnapshotText } from "./query";
 import { snapshotManager } from "./snapshot-manager";
 import type { TextSnapshotNode } from "./types";
@@ -38,6 +40,7 @@ export interface DomSnapshotNode {
   title?: string;
   textContent?: string;
   inputType?: string;
+  nameIsValue?: boolean;
 }
 
 /**
@@ -105,6 +108,8 @@ function convertDomNodeToTextNode(node: DomSnapshotNode): TextSnapshotNode {
     checked: node.checked,
     pressed: node.pressed,
   };
+
+  if (node.nameIsValue) textNode.nameIsValue = true;
 
   // Copy additional properties if present
   if (node.placeholder) textNode.valuetext = node.placeholder;
@@ -423,10 +428,12 @@ function getNodeAttributes(node: TextSnapshotNode): string[] {
  * Format node recursively
  */
 function formatNode(
-  node: TextSnapshotNode,
+  rawNode: TextSnapshotNode,
   depth: number,
   focusAncestorSet: Set<string>,
+  policy: ValuePolicy,
 ): string {
+  const node = prepareNodeForPolicy(rawNode, policy);
   const shouldInclude = shouldIncludeInOutput(node);
   const attributes = shouldInclude ? getNodeAttributes(node) : [node.role];
   // marker: '*' = exact focused node; '→' = ancestor in focus path
@@ -435,21 +442,25 @@ function formatNode(
 
   // recursively format child nodes
   for (const child of node.children) {
-    result += formatNode(child, depth + 1, focusAncestorSet);
+    result += formatNode(child, depth + 1, focusAncestorSet, policy);
   }
 
   return result;
 }
 
 /**
- * Format snapshot to text representation
+ * Format snapshot to text representation. What it says about typed or chosen
+ * values follows the redaction mode unless a policy is given.
  */
-export function formatSnapshot(snapshot: UnifiedSnapshot): string {
+export function formatSnapshot(
+  snapshot: UnifiedSnapshot,
+  policy: ValuePolicy = currentValuePolicy(),
+): string {
   const focusAncestorSet = buildFocusAncestorSet(
     snapshot.root,
     snapshot.idToNode,
   );
-  return formatNode(snapshot.root, 0, focusAncestorSet);
+  return formatNode(snapshot.root, 0, focusAncestorSet, policy);
 }
 
 /**

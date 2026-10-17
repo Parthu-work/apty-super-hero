@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@apty/ui/components/ui/card";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { KeyRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -21,6 +22,7 @@ function minutesLeft(grant: ApprovalGrant): number {
 
 /** Lists the "allow on this site" approvals that are still active, with revoke controls. */
 export function ApprovalGrantsPanel() {
+  const { t } = useTranslation();
   const [grants, setGrants] = useState<ApprovalGrant[]>([]);
 
   const refresh = useCallback(async () => {
@@ -36,30 +38,37 @@ export function ApprovalGrantsPanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <KeyRound className="h-5 w-5" />
-          Remembered approvals
+          {t("approvalGrants.title")}
         </CardTitle>
-        <CardDescription>
-          Risky actions you allowed on a site for a limited time. Revoke one to
-          be asked again.
-        </CardDescription>
+        <CardDescription>{t("approvalGrants.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {grants.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active approvals.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("approvalGrants.none")}
+          </p>
         ) : (
           <>
             <ul className="space-y-2">
               {grants.map((grant) => (
                 <li
-                  key={`${grant.toolName}@${grant.origin}`}
+                  key={`${grant.toolName}@${grant.origin}@${grant.requester}`}
                   className="flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
                 >
                   <span className="min-w-0 break-all">
-                    <span className="font-medium">{grant.toolName}</span> on{" "}
-                    {grant.origin}
+                    <span className="font-medium">{grant.toolName}</span>{" "}
+                    {t("approvalGrants.onOrigin", {
+                      origin: grant.origin,
+                      requester: t(
+                        grant.requester === "mcp"
+                          ? "approvalGrants.mcpClients"
+                          : "approvalGrants.chat",
+                      ),
+                    })}
                     <span className="text-muted-foreground">
-                      {" "}
-                      · {minutesLeft(grant)} min left
+                      {` · ${t("approvalGrants.minutesLeft", {
+                        count: minutesLeft(grant),
+                      })}`}
                     </span>
                   </span>
                   <Button
@@ -67,11 +76,15 @@ export function ApprovalGrantsPanel() {
                     size="sm"
                     variant="outline"
                     onClick={async () => {
-                      await revokeApprovalGrant(grant.toolName, grant.origin);
+                      await revokeApprovalGrant(
+                        grant.toolName,
+                        grant.origin,
+                        grant.requester,
+                      );
                       await refresh();
                     }}
                   >
-                    Revoke
+                    {t("approvalGrants.revoke")}
                   </Button>
                 </li>
               ))}
@@ -85,7 +98,7 @@ export function ApprovalGrantsPanel() {
                 await refresh();
               }}
             >
-              Revoke all
+              {t("approvalGrants.revokeAll")}
             </Button>
           </>
         )}

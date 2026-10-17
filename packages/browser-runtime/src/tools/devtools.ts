@@ -491,7 +491,7 @@ export const runConsoleCommandTool = tool({
       `Run this JavaScript in the current page (${tab.url ?? "unknown URL"}): ${expression}`,
       tab.url,
       runEvaluate,
-      { tabId },
+      { tabId, rememberable: false },
     );
   },
 });

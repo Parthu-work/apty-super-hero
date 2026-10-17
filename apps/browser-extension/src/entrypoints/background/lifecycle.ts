@@ -3,8 +3,11 @@
  * service-worker startup, and handling install/update.
  */
 
-import { createLogger } from "@apty/agent-core";
+import { createLogger, migrateSettings, STORAGE_KEYS } from "@apty/agent-core";
 import { seedAptyIntegrationConfigDefaults } from "@apty/browser-runtime";
+import { ensureAgentSessionsMigrated } from "@apty/browser-runtime/storage/agent-session-store";
+import { moveLegacyDatabases } from "@apty/browser-runtime/storage/legacy-databases";
+import { migrateLegacyStorageKeys } from "@apty/browser-runtime/storage/legacy-storage";
 
 const log = createLogger("Lifecycle");
 
@@ -30,17 +33,52 @@ export function seedAptyIntegrationConfig(): void {
   });
 }
 
+let legacyStorageMove: Promise<void> | null = null;
+
+/**
+ * Moves data stored under the upstream AIPex names to the Apty ones. Calls
+ * made while a move runs share it, so start-up and onInstalled never race.
+ */
+export function migrateLegacyStorage(): Promise<void> {
+  legacyStorageMove ??= Promise.all([
+    migrateLegacyStorageKeys(),
+    ensureAgentSessionsMigrated(),
+    moveLegacyDatabases(),
+  ])
+    .then(() => undefined)
+    .finally(() => {
+      legacyStorageMove = null;
+    });
+  return legacyStorageMove;
+}
+
+/** Writes stored settings back in the current schema, once per update. */
+async function upgradeStoredSettings(): Promise<void> {
+  const key = STORAGE_KEYS.SETTINGS;
+  const stored = (await chrome.storage.local.get(key))[key];
+  if (stored === undefined) return;
+  const { settings, changed } = migrateSettings(stored);
+  if (changed) await chrome.storage.local.set({ [key]: settings });
+}
+
 export function registerInstallHandler(): void {
   // Handle extension installation or update
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === "install") {
       log.debug("Apty Agent extension installed");
-      chrome.runtime.openOptionsPage();
+      chrome.runtime.openOptionsPage().catch(() => {
+        console.warn("[Background] options_page_open_failed");
+      });
     } else if (details.reason === "update") {
       log.debug(
         "Apty Agent extension updated to version",
         chrome.runtime.getManifest().version,
       );
+      migrateLegacyStorage()
+        .then(upgradeStoredSettings)
+        .catch(() => {
+          console.warn("[Background] settings_upgrade_failed");
+        });
     }
   });
 }

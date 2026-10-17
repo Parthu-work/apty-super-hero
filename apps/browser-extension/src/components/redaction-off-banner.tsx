@@ -1,5 +1,6 @@
 import type { RedactionModeSetting } from "@apty/agent-core";
 import { Button } from "@apty/ui/components/ui/button";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { ShieldOffIcon } from "lucide-react";
 import { openOptions } from "../lib/open-options";
 
@@ -9,6 +10,7 @@ export function RedactionOffBanner({
 }: {
   mode: RedactionModeSetting | undefined;
 }) {
+  const { t } = useTranslation();
   if (mode !== "off") return null;
   return (
     <div
@@ -17,9 +19,8 @@ export function RedactionOffBanner({
     >
       <ShieldOffIcon className="size-4 shrink-0" aria-hidden="true" />
       <p className="flex-1">
-        <strong>Redaction is OFF</strong> (development only). Personal data,
-        page titles and paths reach your AI provider unmasked; tokens, keys and
-        emails are still masked.
+        <strong>{t("redactionBanner.title")}</strong>{" "}
+        {t("redactionBanner.detail")}
       </p>
       <Button
         type="button"
@@ -27,7 +28,7 @@ export function RedactionOffBanner({
         variant="outline"
         onClick={() => void openOptions({ section: "data-handling" })}
       >
-        Change
+        {t("redactionBanner.change")}
       </Button>
     </div>
   );

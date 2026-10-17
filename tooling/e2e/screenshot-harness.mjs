@@ -17,6 +17,9 @@ import { readFile } from "node:fs/promises";
  * WP16-WP21 are about. Real extension-boundary behaviour (frames, shadow
  * DOM, injection) is covered by `extension.e2e.test.mjs`, which loads the
  * built extension for real.
+ *
+ * With --store it instead captures the five Chrome Web Store screenshots
+ * from the real extension (store-screenshots.mjs).
  */
 import { createServer } from "node:http";
 import { extname, join } from "node:path";
@@ -149,9 +152,9 @@ function startStaticServer(rootDir) {
             MIME_TYPES[extname(filePath)] ?? "application/octet-stream",
         });
         res.end(body);
-      } catch (error) {
+      } catch {
         res.writeHead(500);
-        res.end(String(error));
+        res.end("Internal error");
       }
     });
     server.listen(0, "127.0.0.1", () => {
@@ -177,6 +180,17 @@ const TARGETS = [
 const THEMES = ["light", "dark"];
 
 async function main() {
+  if (process.argv.includes("--store")) {
+    // R6: Chrome Web Store screenshots of the real extension.
+    const { captureStoreScreenshots, pngSize } = await import(
+      "./store-screenshots.mjs"
+    );
+    for (const file of await captureStoreScreenshots()) {
+      const { width, height } = pngSize(file);
+      console.log(`✓ ${file} (${width}×${height})`);
+    }
+    return;
+  }
   if (!existsSync(DIST_DIR)) {
     console.error(
       `✗ ${DIST_DIR} does not exist — run \`pnpm --filter @apty/browser-extension build\` first`,

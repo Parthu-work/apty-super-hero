@@ -47,7 +47,7 @@ let storageStore: Record<string, unknown> = {};
   },
 };
 
-import { resetApprovalStateForTests } from "./approval";
+import { listApprovalGrants, resetApprovalStateForTests } from "./approval";
 import { answerApprovals } from "./approval-test-utils";
 import {
   getNetworkDiagnosticsTool,
@@ -247,7 +247,7 @@ describe("runConsoleCommandTool", () => {
     expect(mockSendCommand).not.toHaveBeenCalled();
   });
 
-  it("a remembered approval lets the next call on the same origin run without a prompt", async () => {
+  it("never offers to remember, and asks again on every call even with a stored grant", async () => {
     mockSendCommand.mockImplementation(async (command: string) => {
       if (command === "Runtime.evaluate") {
         return { result: { type: "number", value: 1 } };
@@ -259,13 +259,12 @@ describe("runConsoleCommandTool", () => {
       remember: true,
     });
     await invoke("conv-console-regrant", "1");
+    await invoke("conv-console-other", "2");
     stop();
 
-    const second = await invoke("conv-console-other", "2");
-
-    expect(requests).toHaveLength(1);
-    expect(second.available).toBe(true);
-    expect(second.success).toBe(true);
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.rememberable).toBe(false);
+    expect(await listApprovalGrants()).toEqual([]);
   });
 
   it("evaluates an expression and returns its JSON-serializable result", async () => {

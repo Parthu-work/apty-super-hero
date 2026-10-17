@@ -35,7 +35,18 @@ export const REDACTION_MODES: readonly RedactionModeSetting[] = [
   "off",
 ];
 
+/** Whether a screenshot may be sent to the AI provider: ask each time, always, or never. */
+export type ScreenshotPolicySetting = "ask" | "allow" | "never";
+
+export const SCREENSHOT_POLICIES: readonly ScreenshotPolicySetting[] = [
+  "ask",
+  "allow",
+  "never",
+];
+
 export interface AppSettings {
+  /** The stored schema's version; see `settings-migration.ts`. Missing means 0. */
+  settingsVersion?: number;
   aiProvider?: AIProviderKey;
   aiHost?: string;
   aiToken?: string;
@@ -98,6 +109,8 @@ export interface AppSettings {
   domHealthThresholdOverrides?: Record<string, number>;
   /** Redaction applied to diagnostic data; missing or unknown means "strict". */
   redactionMode?: RedactionModeSetting;
+  /** Whether a screenshot may be sent to the AI provider; missing or unknown means "ask". */
+  screenshotPolicy?: ScreenshotPolicySetting;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -115,6 +128,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   developerTools: false,
   domHealthIgnoredRoots: [],
   redactionMode: "strict",
+  screenshotPolicy: "ask",
   pageHooksEnabled: true,
   pageHooksExcludedSites: [],
 };

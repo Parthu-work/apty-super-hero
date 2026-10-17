@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./downloads", () => ({ downloadChatImagesInBackground: vi.fn() }));
-vi.mock("./recording", () => ({ setIsRecording: vi.fn() }));
 vi.mock("./sidepanel", () => ({ openSidePanelOnDemand: vi.fn() }));
 
 const EXTENSION_ID = "this-extension-id";
@@ -35,7 +34,6 @@ let registeredListener:
 
 import { downloadChatImagesInBackground } from "./downloads";
 import { registerMessageRouter } from "./message-router";
-import { setIsRecording } from "./recording";
 import { openSidePanelOnDemand } from "./sidepanel";
 
 const TRUSTED_SENDER = {
@@ -65,34 +63,6 @@ afterEach(() => {
 });
 
 describe("message-router — privileged request sender checks", () => {
-  it("start-recording from a trusted extension page is accepted", async () => {
-    const result = (await invoke(
-      { request: "start-recording" },
-      TRUSTED_SENDER,
-    )) as any;
-    expect(result.success).toBe(true);
-    expect(setIsRecording).toHaveBeenCalledWith(true);
-  });
-
-  it("start-recording from a content script (sender.tab set) is rejected", async () => {
-    const result = (await invoke(
-      { request: "start-recording" },
-      UNTRUSTED_SENDER,
-    )) as any;
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/unauthorized/i);
-    expect(setIsRecording).not.toHaveBeenCalled();
-  });
-
-  it("stop-recording from a content script is rejected", async () => {
-    const result = (await invoke(
-      { request: "stop-recording" },
-      UNTRUSTED_SENDER,
-    )) as any;
-    expect(result.success).toBe(false);
-    expect(setIsRecording).not.toHaveBeenCalledWith(false);
-  });
-
   it("relay-to-active-tab from a content script is rejected before querying tabs", async () => {
     const result = (await invoke(
       { request: "relay-to-active-tab", message: { foo: "bar" } },
@@ -241,7 +211,7 @@ describe("message-router — other requests", () => {
     delete (global as any).chrome.tabs.sendMessage;
   });
 
-  it("re-broadcasts and stores a captured click", async () => {
+  it("re-broadcasts a captured click without storing it", async () => {
     await invoke(
       { request: "capture-click-event", data: { x: 1 } },
       UNTRUSTED_SENDER,
@@ -250,9 +220,16 @@ describe("message-router — other requests", () => {
       request: "capture-click-event",
       data: { x: 1 },
     });
-    expect((global as any).chrome.storage.local.set).toHaveBeenCalledWith({
-      aipex_last_capture_event: { data: { x: 1 }, ts: expect.any(Number) },
-    });
+    expect((global as any).chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it("ignores a captured click from another extension", async () => {
+    const result = (await invoke(
+      { request: "capture-click-event", data: { x: 1 } },
+      { id: "another-extension", url: "chrome-extension://another/x.html" },
+    )) as any;
+    expect(result.success).toBe(false);
+    expect((global as any).chrome.runtime.sendMessage).not.toHaveBeenCalled();
   });
 
   it("reports a side panel that could not open", async () => {

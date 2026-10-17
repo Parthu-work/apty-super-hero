@@ -3,7 +3,7 @@ import type {
   FunctionTool,
   Agent as OpenAIAgent,
 } from "@openai/agents";
-import type { AiSdkModel } from "@openai/agents-extensions";
+import type { AiSdkModel } from "@openai/agents-extensions/ai-sdk";
 import type { Context, ContextManager } from "./context/index.js";
 import type { AgentError } from "./utils/errors.js";
 
@@ -104,6 +104,56 @@ export interface AIPexOptions<
    * Optional runtime plugins that can observe conversations.
    */
   plugins?: AgentPlugin[];
+  /**
+   * Filters applied, in order, to the input of every model call, after the
+   * built-in shaping and before the request leaves the agent. This is the one
+   * place that sees everything about to be sent, so privacy and size policy
+   * belongs here rather than in each tool. A filter that throws fails the
+   * call: input is never sent unfiltered.
+   */
+  outboundFilters?: OutboundFilter[];
+  /**
+   * Turns attached contexts into the text prepended to the user message.
+   * Defaults to formatContextsForPrompt; a host uses it to apply its
+   * privacy policy to page and tab contexts.
+   */
+  contextFormatter?: (contexts: Context[]) => string;
+}
+
+/** What a call sends besides its input items. */
+export interface OutboundRequestContext {
+  instructions?: string;
+  tools: ReadonlyArray<{
+    name: string;
+    description?: string;
+    parameters?: unknown;
+  }>;
+}
+
+/** Returns the items to send; must not drop a function_call or its result. */
+export type OutboundFilter = (
+  items: AgentInputItem[],
+  request: OutboundRequestContext,
+) => AgentInputItem[] | Promise<AgentInputItem[]>;
+
+/**
+ * Counts and estimated tokens (characters / 4) of one model request. Holds no
+ * content: no text, URLs or tool names.
+ */
+export interface RequestReport {
+  at: number;
+  redactionMode: string;
+  systemPromptTokens: number;
+  toolCount: number;
+  toolSchemaTokens: number;
+  historyTokens: number;
+  toolResultTokens: number;
+  totalTokens: number;
+  items: number;
+  toolResults: number;
+  toolResultsStubbed: number;
+  toolResultsCut: number;
+  images: number;
 }
 
 export interface CompressionOptions extends CompressionConfig {

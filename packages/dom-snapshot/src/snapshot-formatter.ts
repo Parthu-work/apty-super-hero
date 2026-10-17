@@ -28,7 +28,7 @@ const INTERACTIVE_ROLES = [
 /**
  * Check if a node should be included in output with full attributes
  */
-export function shouldIncludeInOutput(
+function shouldIncludeInOutput(
   node: TextSnapshotNode,
   skipRoles: string[] = SKIP_ROLES,
 ): boolean {
@@ -59,7 +59,7 @@ export function shouldIncludeInOutput(
 /**
  * Get node attributes for formatting
  */
-export function getNodeAttributes(node: TextSnapshotNode): string[] {
+function getNodeAttributes(node: TextSnapshotNode): string[] {
   const attributes: string[] = [];
 
   // StaticText nodes don't need uid - they can't be operated on directly

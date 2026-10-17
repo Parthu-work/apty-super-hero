@@ -18,7 +18,7 @@ export type OptionsSection = keyof typeof OPTIONS_SECTIONS;
 
 const OPTIONS_PATH = "src/entrypoints/options/index.html";
 
-export const OPTIONS_NAVIGATE_MESSAGE = "apty-options-navigate";
+const OPTIONS_NAVIGATE_MESSAGE = "apty-options-navigate";
 
 export interface OptionsNavigateMessage {
   type: typeof OPTIONS_NAVIGATE_MESSAGE;

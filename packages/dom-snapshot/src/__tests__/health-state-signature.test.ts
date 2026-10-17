@@ -128,7 +128,7 @@ describe("computeFrameStateSignature", () => {
 
     document.body.insertAdjacentHTML(
       "afterbegin",
-      '<div id="aipex-content-root"><h1>Agent</h1><nav><a aria-current="page">Chat</a></nav><form></form></div>',
+      '<div id="apty-agent-content-root"><h1>Agent</h1><nav><a aria-current="page">Chat</a></nav><form></form></div>',
     );
 
     expect(computeFrameStateSignature(document)).toEqual(before);

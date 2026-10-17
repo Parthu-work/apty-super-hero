@@ -1,5 +1,5 @@
 // AI SDK
-export { aisdk } from "@openai/agents-extensions";
+export { aisdk } from "@openai/agents-extensions/ai-sdk";
 // Agent
 export { AIPex } from "./agent/index.js";
 
@@ -16,15 +16,24 @@ export {
   DEFAULT_CONVERSATION_CONFIG,
   detectProviderFromHost,
   isValidConversationStorage,
+  type MigratedSettings,
+  migrateSettings,
   normalizeConversationConfig,
+  PHI_APPROVED_PROVIDERS,
   type ProviderType,
   REDACTION_MODES,
   type RedactionModeSetting,
+  SCREENSHOT_POLICIES,
+  type ScreenshotPolicySetting,
+  SETTINGS_MIGRATIONS,
+  SETTINGS_VERSION,
+  type SettingsMigration,
   STORAGE_KEYS,
   type StorageKey,
   SUPERSEDED_PRESET_HOSTS,
   type ToolCallingSupport,
   validateAutomationMode,
+  withSettingsDefaults,
 } from "./config/index.js";
 
 // Context
@@ -89,6 +98,9 @@ export type {
   ImageInput,
   MetricsPayload,
   OpenAIAgent,
+  OutboundFilter,
+  OutboundRequestContext,
+  RequestReport,
   SerializedSession,
   SessionConfig,
   SessionStorageAdapter,
@@ -127,3 +139,4 @@ export {
   type RetentionPolicy,
   selectForEviction,
 } from "./utils/retention.js";
+export { isTransientScreenshotItem } from "./utils/screenshot-shaping.js";

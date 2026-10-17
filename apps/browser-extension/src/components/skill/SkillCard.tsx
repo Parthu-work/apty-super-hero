@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@apty/ui/components/ui/card";
 import { Switch } from "@apty/ui/components/ui/switch";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { Download, Eye, Settings, Trash2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -30,6 +31,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
   onViewDetails,
   onExport,
 }) => {
+  const { t } = useTranslation();
   const isBuiltin = skill.id === "skill-creator";
   const [fileStats, setFileStats] = useState({
     scripts: 0,
@@ -39,9 +41,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
 
   const handleToggleEnabled = (checked: boolean) => {
     if (isBuiltin) {
-      alert(
-        "Cannot disable built-in skill-creator. This skill is required for the system to function.",
-      );
+      alert(t("skills.card.cannotDisableBuiltIn"));
       return;
     }
     onToggleEnabled(skill.id, checked);
@@ -49,12 +49,10 @@ export const SkillCard: React.FC<SkillCardProps> = ({
 
   const handleDelete = () => {
     if (isBuiltin) {
-      alert(
-        "Cannot delete built-in skill-creator. This skill is required for the system to function.",
-      );
+      alert(t("skills.card.cannotDeleteBuiltIn"));
       return;
     }
-    if (confirm(`Are you sure you want to delete the skill "${skill.name}"?`)) {
+    if (confirm(t("skills.card.confirmDelete", { name: skill.name }))) {
       onDelete(skill.id);
     }
   };
@@ -104,14 +102,16 @@ export const SkillCard: React.FC<SkillCardProps> = ({
               variant="outline"
               className="text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400"
             >
-              Built-in
+              {t("skillDetails.builtIn")}
             </Badge>
           )}
           <Badge variant={skill.enabled ? "default" : "secondary"}>
-            {skill.enabled ? "Enabled" : "Disabled"}
+            {t(
+              skill.enabled ? "skillDetails.enabled" : "skillDetails.disabled",
+            )}
           </Badge>
           <Switch
-            aria-label={`Enable ${skill.name}`}
+            aria-label={t("skills.card.enable", { name: skill.name })}
             checked={skill.enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={isBuiltin}
@@ -125,20 +125,24 @@ export const SkillCard: React.FC<SkillCardProps> = ({
           {/* Left Column - Statistics */}
           <div className="space-y-3">
             <div className="text-sm font-semibold text-foreground text-center">
-              File Statistics
+              {t("skills.card.fileStatistics")}
             </div>
             <div className="space-y-2 text-sm text-muted-foreground text-center">
               <div className="flex items-center justify-center gap-2">
                 <Settings className="h-4 w-4" />
-                <span>{stats.scripts} scripts</span>
+                <span>
+                  {t("skills.card.scripts", { count: stats.scripts })}
+                </span>
               </div>
               <div className="flex items-center justify-center gap-2">
                 <Eye className="h-4 w-4" />
-                <span>{stats.references} references</span>
+                <span>
+                  {t("skills.card.references", { count: stats.references })}
+                </span>
               </div>
               <div className="flex items-center justify-center gap-2">
                 <Download className="h-4 w-4" />
-                <span>{stats.assets} assets</span>
+                <span>{t("skills.card.assets", { count: stats.assets })}</span>
               </div>
             </div>
           </div>
@@ -146,12 +150,24 @@ export const SkillCard: React.FC<SkillCardProps> = ({
           {/* Right Column - Metadata */}
           <div className="space-y-3">
             <div className="text-sm font-semibold text-foreground text-center">
-              Metadata
+              {t("skills.card.metadata")}
             </div>
             <div className="space-y-2 text-sm text-muted-foreground text-center">
-              <div>Version: {skill.version}</div>
-              <div>Uploaded: {formatDate(skill.uploadedAt)}</div>
-              <div>Status: {skill.enabled ? "Active" : "Inactive"}</div>
+              <div>{t("skills.card.version", { version: skill.version })}</div>
+              <div>
+                {t("skills.card.uploaded", {
+                  date: formatDate(skill.uploadedAt),
+                })}
+              </div>
+              <div>
+                {t("skills.card.status", {
+                  status: t(
+                    skill.enabled
+                      ? "skills.card.active"
+                      : "skills.card.inactive",
+                  ),
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -165,14 +181,14 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             className="flex-1"
           >
             <Eye className="h-3 w-3 mr-1" />
-            View Details
+            {t("skills.card.viewDetails")}
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             onClick={() => onExport(skill)}
-            aria-label={`Export ${skill.name}`}
+            aria-label={t("skills.card.export", { name: skill.name })}
           >
             <Download className="h-3 w-3" />
           </Button>
@@ -182,7 +198,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             size="sm"
             onClick={handleDelete}
             disabled={isBuiltin}
-            aria-label={`Delete ${skill.name}`}
+            aria-label={t("skills.card.delete", { name: skill.name })}
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="h-3 w-3" />

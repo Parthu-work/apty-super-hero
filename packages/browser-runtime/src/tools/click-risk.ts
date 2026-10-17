@@ -12,7 +12,7 @@
  * Words in a control's accessible name or text that mark it as destructive
  * or confirming. Matched as whole words, case-insensitively.
  */
-export const RISKY_CLICK_WORDS: readonly string[] = [
+const RISKY_CLICK_WORDS: readonly string[] = [
   "delete",
   "remove",
   "submit",
@@ -158,7 +158,7 @@ export function describeClickForApproval(
   return lines.join("\n");
 }
 
-/** Characters of query plus fragment above which a new tab's URL may be carrying data out. */
+/** Characters of path (after the first "/"), query and fragment above which a new tab's URL may be carrying data out. */
 export const NEW_TAB_MAX_QUERY_AND_FRAGMENT = 128;
 
 export type NewTabDecision =
@@ -193,13 +193,14 @@ export function classifyNewTabUrl(
     };
   }
   const carried =
+    parsed.pathname.replace(/^\//, "").length +
     parsed.search.replace(/^\?/, "").length +
     parsed.hash.replace(/^#/, "").length;
   if (carried > NEW_TAB_MAX_QUERY_AND_FRAGMENT) {
     return {
       approval: "required",
       rememberable: false,
-      reason: `its query and fragment are ${carried} characters long, enough to carry page data out`,
+      reason: `its path, query and fragment are ${carried} characters long, enough to carry page data out`,
     };
   }
   if (parsed.origin === originOf(currentPageUrl)) return { approval: "none" };
@@ -218,9 +219,7 @@ export type ClickTargetQuery = { uid: string } | { x: number; y: number };
  * closed shadow roots) or at a viewport point, and describes the control a
  * click there would activate. Returns null when this frame has no match.
  */
-export function inspectClickTargetInPage(
-  query: ClickTargetQuery,
-): ClickTarget | null {
+function inspectClickTargetInPage(query: ClickTargetQuery): ClickTarget | null {
   const shadowOf = (el: Element): ShadowRoot | null => {
     try {
       const dom = (
@@ -246,7 +245,7 @@ export function inspectClickTargetInPage(
     root: Document | ShadowRoot,
     uid: string,
   ): Element | null => {
-    const selector = `[data-aipex-nodeid="${uid.replace(/["\\]/g, "\\$&")}"]`;
+    const selector = `[data-apty-nodeid="${uid.replace(/["\\]/g, "\\$&")}"]`;
     const direct = root.querySelector(selector);
     if (direct) return direct;
     for (const el of root.querySelectorAll("*")) {

@@ -4,10 +4,13 @@ import {
   type AppSettings,
   type CustomModelConfig,
   detectProviderFromHost,
+  migrateSettings,
+  PHI_APPROVED_PROVIDERS,
   type ProviderType,
   STORAGE_KEYS,
   SUPERSEDED_PRESET_HOSTS,
   type ToolCallingSupport,
+  withSettingsDefaults,
 } from "@apty/agent-core";
 import {
   Bot,
@@ -32,6 +35,7 @@ import {
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../i18n/context";
+import type { I18nContextValue, TranslationKey } from "../../i18n/types";
 import { downloadText, timestampedFilename } from "../../lib/download";
 import { cn } from "../../lib/utils";
 import { useTheme } from "../../theme/context";
@@ -274,27 +278,19 @@ const failedToolProbe = (model: CustomModelConfig): boolean =>
   model.toolCalling?.support === "no" &&
   model.toolCalling.model === model.aiModel;
 
-const toolProbeWarning = (modelId: string, language: string): string =>
-  language === "zh"
-    ? `模型 ${modelId} 在上次连接测试中没有调用工具。代理需要函数调用才能工作。仍然使用？`
-    : `${modelId} did not call a tool in the last connection test. The agent needs function calling to work. Use it anyway?`;
+type Translate = I18nContextValue["t"];
 
-const toolProbeLabel = (
-  support: ToolCallingSupport,
-  language: string,
-): string => {
-  const zh = {
-    yes: "支持工具调用",
-    no: "不支持工具调用",
-    unknown: "工具调用：未知",
-  };
-  const en = {
-    yes: "Tool calling: yes",
-    no: "Tool calling: no — the agent needs it",
-    unknown: "Tool calling: unknown",
-  };
-  return (language === "zh" ? zh : en)[support];
+const toolProbeWarning = (modelId: string, t: Translate): string =>
+  t("providerErrors.toolCallingWarning", { model: modelId });
+
+const TOOL_PROBE_LABEL: Record<ToolCallingSupport, TranslationKey> = {
+  yes: "providerErrors.toolCallingYes",
+  no: "providerErrors.toolCallingNo",
+  unknown: "providerErrors.toolCallingUnknown",
 };
+
+const toolProbeLabel = (support: ToolCallingSupport, t: Translate): string =>
+  t(TOOL_PROBE_LABEL[support]);
 
 const resolveActiveModel = (
   settings: AppSettings,
@@ -342,22 +338,14 @@ const resolveActiveModel = (
 };
 
 const ERROR_MESSAGES = {
-  enableOneModel: {
-    zh: "请先启用至少一个模型",
-    en: "Please enable at least one model",
-  },
-  fillRequired: {
-    zh: "请填写所有必填字段",
-    en: "Please fill in all required fields",
-  },
-} as const;
+  enableOneModel: "providerErrors.enableOneModel",
+  fillRequired: "providerErrors.fillRequired",
+} as const satisfies Record<string, TranslationKey>;
 
 const createErrorMessage = (
   key: keyof typeof ERROR_MESSAGES,
-  language: string,
-): string => {
-  return ERROR_MESSAGES[key][language as "zh" | "en"] ?? ERROR_MESSAGES[key].en;
-};
+  t: Translate,
+): string => t(ERROR_MESSAGES[key]);
 
 export function SettingsPage({
   storageAdapter,
@@ -375,6 +363,7 @@ export function SettingsPage({
   onTabChange,
   initialSkill: _initialSkill,
   redactionPreview,
+  recentRequests,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
   void _initialSkill;
@@ -432,7 +421,9 @@ export function SettingsPage({
     const loadSettings = async () => {
       try {
         const result = await storageAdapter.load(storageKey);
-        const loadedSettings = (result ?? {}) as AppSettings;
+        const loadedSettings = withSettingsDefaults(
+          migrateSettings(result).settings,
+        );
         let loadedCustomModels = loadedSettings.customModels ?? [];
         const resolvedProviderType =
           loadedSettings.providerType ??
@@ -534,7 +525,7 @@ export function SettingsPage({
         target &&
         id !== selectedModelId &&
         failedToolProbe(target) &&
-        !window.confirm(toolProbeWarning(target.aiModel, language))
+        !window.confirm(toolProbeWarning(target.aiModel, t))
       ) {
         return;
       }
@@ -544,7 +535,7 @@ export function SettingsPage({
         updateSettingsFromModel(target);
       }
     },
-    [customModels, selectedModelId, updateSettingsFromModel, language],
+    [customModels, selectedModelId, updateSettingsFromModel, t],
   );
 
   const handleFetchModels = useCallback(async () => {
@@ -557,10 +548,9 @@ export function SettingsPage({
         setFetchedModels((prev) => ({ ...prev, [model.id]: outcome.models }));
         setModelFetch({
           state: "done",
-          message:
-            language === "zh"
-              ? `已获取 ${outcome.models.length} 个模型`
-              : `${outcome.models.length} models from the provider`,
+          message: t("providerErrors.modelsFetched", {
+            count: outcome.models.length,
+          }),
         });
       } else {
         setModelFetch({ state: "error", message: outcome.error });
@@ -571,7 +561,7 @@ export function SettingsPage({
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [customModels, selectedModelId, onFetchModels, settings, language]);
+  }, [customModels, selectedModelId, onFetchModels, settings, t]);
 
   const handleModelFieldChange = useCallback(
     <K extends keyof CustomModelConfig>(
@@ -636,17 +626,14 @@ export function SettingsPage({
         setImportError(null);
         setSaveStatus({
           type: "success",
-          message:
-            language === "zh"
-              ? `已导入 ${imported.length} 个模型配置（已禁用，保存后生效）`
-              : `Imported ${imported.length} model config(s) (disabled — save to persist, then enable).`,
+          message: t("settings.importedModels", { count: imported.length }),
         });
         setTimeout(() => setSaveStatus({ type: "", message: "" }), 4000);
       } catch (error) {
         setImportError(error instanceof Error ? error.message : String(error));
       }
     },
-    [language],
+    [t],
   );
 
   const handleDeleteModel = useCallback(
@@ -734,8 +721,9 @@ export function SettingsPage({
       setSettings((prev: AppSettings) => ({ ...prev, ...patch }));
       generalSaveQueue.current = generalSaveQueue.current.then(async () => {
         try {
-          const stored = ((await storageAdapter.load(storageKey)) ??
-            {}) as AppSettings;
+          const stored = withSettingsDefaults(
+            migrateSettings(await storageAdapter.load(storageKey)).settings,
+          );
           await storageAdapter.save(storageKey, { ...stored, ...patch });
         } catch (error) {
           console.error("Failed to save setting:", error);
@@ -765,7 +753,7 @@ export function SettingsPage({
     if (hasIncomplete) {
       setSaveStatus({
         type: "error",
-        message: createErrorMessage("fillRequired", language),
+        message: createErrorMessage("fillRequired", t),
       });
       setIsSaving(false);
       return;
@@ -818,7 +806,6 @@ export function SettingsPage({
     storageAdapter,
     storageKey,
     onSave,
-    language,
     t,
     defaultModelOptions,
   ]);
@@ -840,7 +827,7 @@ export function SettingsPage({
     if (!activeModel) {
       setSaveStatus({
         type: "error",
-        message: createErrorMessage("enableOneModel", language),
+        message: createErrorMessage("enableOneModel", t),
       });
       setIsTesting(false);
       return;
@@ -849,7 +836,7 @@ export function SettingsPage({
     if (!aiToken || !aiModel) {
       setSaveStatus({
         type: "error",
-        message: createErrorMessage("fillRequired", language),
+        message: createErrorMessage("fillRequired", t),
       });
       setIsTesting(false);
       return;
@@ -859,7 +846,7 @@ export function SettingsPage({
       if (!onTestConnection) {
         setSaveStatus({
           type: "error",
-          message: "Test connection handler not provided",
+          message: t("providerErrors.handlerMissing"),
         });
         setIsTesting(false);
         return;
@@ -894,7 +881,7 @@ export function SettingsPage({
         setSaveStatus({
           type: toolCalling === "no" ? "error" : "success",
           message: toolCalling
-            ? `${t("settings.testSuccess")} · ${toolProbeLabel(toolCalling, language)}`
+            ? `${t("settings.testSuccess")} · ${toolProbeLabel(toolCalling, t)}`
             : t("settings.testSuccess"),
         });
       } else {
@@ -907,7 +894,9 @@ export function SettingsPage({
     } catch (error) {
       console.error("Connection test error:", error);
       const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+        error instanceof Error
+          ? error.message
+          : t("providerErrors.unknownError");
       setSaveStatus({
         type: "error",
         message: `${t("settings.testFailed")}: ${errorMessage}`,
@@ -916,7 +905,7 @@ export function SettingsPage({
     } finally {
       setIsTesting(false);
     }
-  }, [settings, customModels, selectedModelId, onTestConnection, t, language]);
+  }, [settings, customModels, selectedModelId, onTestConnection, t]);
 
   const handleReset = useCallback(() => {
     if (confirm(t("settings.resetConfirm"))) {
@@ -925,13 +914,10 @@ export function SettingsPage({
       setSelectedModelId(null);
       setSaveStatus({
         type: "info",
-        message:
-          language === "zh"
-            ? "设置已重置，请记得保存"
-            : "Settings reset, remember to save",
+        message: t("settings.resetDone"),
       });
     }
-  }, [t, language]);
+  }, [t]);
 
   const handleSaveStt = useCallback(async () => {
     if (!sttConfig) return;
@@ -1010,9 +996,7 @@ export function SettingsPage({
             <h1 className="text-3xl font-bold">{t("settings.title")}</h1>
           </div>
           <p className="text-muted-foreground">
-            {language === "zh"
-              ? "配置你的 Apty Agent 扩展"
-              : "Configure your Apty Agent extension"}
+            {t("settings.extensionSubtitle")}
           </p>
         </div>
 
@@ -1088,7 +1072,7 @@ export function SettingsPage({
                 className="flex items-center gap-2"
               >
                 <Plug className="h-4 w-4" />
-                {language === "zh" ? "Apty 集成" : "Apty Integration"}
+                {t("settings.aptyIntegration")}
               </TabsTrigger>
             )}
           </TabsList>
@@ -1104,9 +1088,7 @@ export function SettingsPage({
                     {t("settings.language")}
                   </CardTitle>
                   <CardDescription>
-                    {language === "zh"
-                      ? "选择您的首选语言"
-                      : "Choose your preferred language"}
+                    {t("settings.languageHint")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1137,11 +1119,7 @@ export function SettingsPage({
                     <Palette className="h-5 w-5" />
                     {t("settings.theme")}
                   </CardTitle>
-                  <CardDescription>
-                    {language === "zh"
-                      ? "选择您喜欢的主题"
-                      : "Choose your preferred theme"}
-                  </CardDescription>
+                  <CardDescription>{t("settings.themeHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-3 gap-3">
@@ -1184,9 +1162,7 @@ export function SettingsPage({
               <CardContent>
                 <div className="rounded-lg border bg-muted/30 p-4">
                   <p className="text-sm leading-relaxed">
-                    {language === "zh"
-                      ? "不会收集任何分析或遥测数据。您的消息和工具结果只会发送给您在下方配置的 AI 服务商，使用您自己的 API 密钥。"
-                      : "No analytics or telemetry are collected. Your messages and tool results go only to the AI provider you configure below, using your own API key."}
+                    {t("settings.privacyNotice")}
                   </p>
                 </div>
               </CardContent>
@@ -1197,6 +1173,7 @@ export function SettingsPage({
               language={language}
               onChange={saveGeneralSetting}
               redactionPreview={redactionPreview}
+              recentRequests={recentRequests}
             />
 
             <TroubleshootingCard
@@ -1213,29 +1190,19 @@ export function SettingsPage({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  {language === "zh"
-                    ? "技能执行（实验性）"
-                    : "Skill execution (experimental)"}
+                  {t("settings.skillExecution")}
                 </CardTitle>
                 <CardDescription>
-                  {language === "zh"
-                    ? "允许技能脚本在沙盒中运行。默认关闭。"
-                    : "Allow skill scripts to run in a sandbox. Off by default."}
+                  {t("settings.skillExecutionHint")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">
-                    {language === "zh"
-                      ? "启用技能执行"
-                      : "Enable skill execution"}
+                    {t("settings.enableSkillExecution")}
                   </span>
                   <Switch
-                    aria-label={
-                      language === "zh"
-                        ? "启用技能执行"
-                        : "Enable skill execution"
-                    }
+                    aria-label={t("settings.enableSkillExecution")}
                     checked={settings.skillExecutionEnabled === true}
                     onCheckedChange={(checked) =>
                       saveGeneralSetting({ skillExecutionEnabled: checked })
@@ -1244,9 +1211,7 @@ export function SettingsPage({
                 </div>
                 <Alert variant="destructive">
                   <AlertDescription className="text-sm leading-relaxed">
-                    {language === "zh"
-                      ? "启用后，已安装技能附带的脚本会在沙盒中运行，并可通过受限的网络接口发起请求。仅在信任所安装的技能时启用。"
-                      : "When enabled, scripts that come with your installed skills run in a sandbox and can make network requests through a restricted bridge. Only enable this if you trust the skills you've installed."}
+                    {t("settings.skillExecutionWarning")}
                   </AlertDescription>
                 </Alert>
               </CardContent>
@@ -1260,20 +1225,16 @@ export function SettingsPage({
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Mic className="h-5 w-5" />
-                    {language === "zh"
-                      ? "ElevenLabs 语音转文本"
-                      : "ElevenLabs Speech-to-Text"}
+                    {t("settings.sttTitle")}
                   </CardTitle>
                   <CardDescription>
-                    {language === "zh"
-                      ? "配置 ElevenLabs API 密钥以启用语音注释功能"
-                      : "Configure ElevenLabs API key to enable voice annotation feature"}
+                    {t("settings.sttDescription")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="sttApiKey">
-                      {language === "zh" ? "API 密钥" : "API Key"}
+                      {t("settings.sttApiKey")}
                       <span className="text-destructive ml-1">*</span>
                     </Label>
                     <div className="relative">
@@ -1290,9 +1251,11 @@ export function SettingsPage({
                         variant="ghost"
                         size="icon"
                         onClick={() => setShowSttKey(!showSttKey)}
-                        aria-label={
-                          showSttKey ? "Hide API key" : "Show API key"
-                        }
+                        aria-label={t(
+                          showSttKey
+                            ? "settings.hideApiKey"
+                            : "settings.showApiKey",
+                        )}
                         aria-pressed={showSttKey}
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                       >
@@ -1304,9 +1267,7 @@ export function SettingsPage({
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {language === "zh"
-                        ? "在 ElevenLabs 获取 API 密钥："
-                        : "Get your API key from ElevenLabs:"}{" "}
+                      {t("settings.sttGetKey")}{" "}
                       <a
                         href="https://elevenlabs.io/app/developers/api-keys"
                         target="_blank"
@@ -1321,25 +1282,17 @@ export function SettingsPage({
 
                   <div className="space-y-2">
                     <Label htmlFor="sttModelId">
-                      {language === "zh"
-                        ? "模型 ID（可选）"
-                        : "Model ID (Optional)"}
+                      {t("settings.sttModelId")}
                     </Label>
                     <Input
                       id="sttModelId"
                       type="text"
                       value={sttModelId}
                       onChange={(e) => setSttModelId(e.target.value)}
-                      placeholder={
-                        language === "zh"
-                          ? "留空使用默认模型"
-                          : "Leave blank to use default model"
-                      }
+                      placeholder={t("settings.sttModelPlaceholder")}
                     />
                     <p className="text-xs text-muted-foreground">
-                      {language === "zh"
-                        ? "默认使用通用多语言模型。如需指定特定模型，请输入模型 ID。"
-                        : "Default uses the general multilingual model. Specify a model ID if needed."}
+                      {t("settings.sttModelHint")}
                     </p>
                   </div>
 
@@ -1352,12 +1305,10 @@ export function SettingsPage({
                       {isSavingStt ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                          {language === "zh" ? "保存中..." : "Saving..."}
+                          {t("common.saving")}
                         </>
-                      ) : language === "zh" ? (
-                        "保存配置"
                       ) : (
-                        "Save Configuration"
+                        t("settings.saveConfiguration")
                       )}
                     </Button>
                     {sttApiKey && (
@@ -1368,14 +1319,11 @@ export function SettingsPage({
                           setSttApiKey("");
                           setSaveStatus({
                             type: "info",
-                            message:
-                              language === "zh"
-                                ? "已清空，点击保存以生效"
-                                : "Cleared. Click Save to apply.",
+                            message: t("settings.cleared"),
                           });
                         }}
                       >
-                        {language === "zh" ? "清空" : "Clear"}
+                        {t("settings.clear")}
                       </Button>
                     )}
                   </div>
@@ -1385,9 +1333,7 @@ export function SettingsPage({
                       <AlertDescription className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-600" />
                         <span className="text-sm">
-                          {language === "zh"
-                            ? "API 密钥已配置"
-                            : "API key is configured"}
+                          {t("settings.sttKeyConfigured")}
                         </span>
                       </AlertDescription>
                     </Alert>
@@ -1406,12 +1352,10 @@ export function SettingsPage({
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Bot className="h-5 w-5" />
-                    {language === "zh" ? "默认模型" : "Default model"}
+                    {t("settings.defaultModel")}
                   </CardTitle>
                   <CardDescription>
-                    {language === "zh"
-                      ? "新建会话优先使用该模型；未选择时使用列表首个可用模型"
-                      : "New chats start with this model; otherwise use the first available"}
+                    {t("settings.defaultModelHint")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1421,23 +1365,15 @@ export function SettingsPage({
                   >
                     <SelectTrigger
                       className="w-full"
-                      aria-label={
-                        language === "zh" ? "默认模型" : "Default model"
-                      }
+                      aria-label={t("settings.defaultModel")}
                     >
                       <SelectValue
-                        placeholder={
-                          language === "zh"
-                            ? "使用列表首个模型"
-                            : "Use first available"
-                        }
+                        placeholder={t("settings.useFirstAvailable")}
                       />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={DEFAULT_MODEL_AUTO_VALUE}>
-                        {language === "zh"
-                          ? "使用列表首个模型"
-                          : "Use first available"}
+                        {t("settings.useFirstAvailable")}
                       </SelectItem>
                       {defaultModelOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
@@ -1474,7 +1410,7 @@ export function SettingsPage({
                       onClick={handleAddModel}
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      {language === "zh" ? "新增模型" : "Add Model"}
+                      {t("settings.addModel")}
                     </Button>
                     <div className="flex gap-2">
                       <Button
@@ -1485,7 +1421,7 @@ export function SettingsPage({
                         disabled={customModels.length === 0}
                       >
                         <Download className="h-4 w-4 mr-1" />
-                        {language === "zh" ? "导出" : "Export"}
+                        {t("settings.export")}
                       </Button>
                       <Button
                         variant="ghost"
@@ -1494,7 +1430,7 @@ export function SettingsPage({
                         onClick={() => importFileInputRef.current?.click()}
                       >
                         <Upload className="h-4 w-4 mr-1" />
-                        {language === "zh" ? "导入" : "Import"}
+                        {t("settings.import")}
                       </Button>
                       <input
                         ref={importFileInputRef}
@@ -1506,16 +1442,10 @@ export function SettingsPage({
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">
-                        {language === "zh"
-                          ? "导出时包含 API 密钥"
-                          : "Include API keys when exporting"}
+                        {t("settings.includeKeysOnExport")}
                       </span>
                       <Switch
-                        aria-label={
-                          language === "zh"
-                            ? "导出时包含 API 密钥"
-                            : "Include API keys when exporting"
-                        }
+                        aria-label={t("settings.includeKeysOnExport")}
                         checked={includeKeysOnExport}
                         onCheckedChange={setIncludeKeysOnExport}
                       />
@@ -1523,8 +1453,7 @@ export function SettingsPage({
                     {importError && (
                       <Alert variant="destructive">
                         <AlertDescription className="text-xs">
-                          {language === "zh" ? "导入失败：" : "Import failed: "}
-                          {importError}
+                          {t("settings.importFailed")} {importError}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -1539,7 +1468,7 @@ export function SettingsPage({
                           {t("settings.noProvidersFound")}
                         </p>
                         <Button size="sm" onClick={handleAddModel}>
-                          {language === "zh" ? "创建模型" : "Create model"}
+                          {t("settings.createModel")}
                         </Button>
                       </div>
                     ) : (
@@ -1590,9 +1519,7 @@ export function SettingsPage({
                                 </div>
                                 {failedToolProbe(model) && (
                                   <Badge variant="destructive">
-                                    {language === "zh"
-                                      ? "无工具调用"
-                                      : "No tools"}
+                                    {t("settings.noTools")}
                                   </Badge>
                                 )}
                                 {model.enabled && (
@@ -1606,7 +1533,7 @@ export function SettingsPage({
                               variant="ghost"
                               size="icon"
                               className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                              aria-label={`${language === "zh" ? "删除" : "Delete"} ${model.name || model.aiModel || ""}`.trim()}
+                              aria-label={`${t("settings.deleteModel")} ${model.name || model.aiModel || ""}`.trim()}
                               onClick={() => handleDeleteModel(model.id)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -1644,12 +1571,20 @@ export function SettingsPage({
                                     role="note"
                                     className="text-xs text-destructive dark:text-red-400"
                                   >
-                                    {language === "zh"
-                                      ? "实验性："
-                                      : "Experimental: "}
+                                    {t("settings.experimental")}{" "}
                                     {selectedProviderMeta.experimental}
                                   </p>
                                 )}
+                              {!PHI_APPROVED_PROVIDERS.has(
+                                selectedProviderKey,
+                              ) && (
+                                <p
+                                  role="note"
+                                  className="text-xs text-amber-700 dark:text-amber-400"
+                                >
+                                  {t("settings.phiProviderWarning")}
+                                </p>
+                              )}
                               {selectedProviderMeta.docs && (
                                 <Button
                                   variant="link"
@@ -1672,10 +1607,10 @@ export function SettingsPage({
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">
-                              {language === "zh" ? "启用" : "Enable"}
+                              {t("settings.enable")}
                             </span>
                             <Switch
-                              aria-label={language === "zh" ? "启用" : "Enable"}
+                              aria-label={t("settings.enable")}
                               checked={selectedModel.enabled}
                               onCheckedChange={(checked) =>
                                 handleModelFieldChange("enabled", checked)
@@ -1685,9 +1620,7 @@ export function SettingsPage({
                         </>
                       ) : (
                         <div className="text-muted-foreground">
-                          {language === "zh"
-                            ? "选择或创建一个模型以开始配置"
-                            : "Select or create a model to configure"}
+                          {t("settings.selectOrCreateModel")}
                         </div>
                       )}
                     </div>
@@ -1699,7 +1632,7 @@ export function SettingsPage({
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="modelName">
-                            {language === "zh" ? "展示名称" : "Display Name"}
+                            {t("settings.displayName")}
                           </Label>
                           <Input
                             id="modelName"
@@ -1708,20 +1641,14 @@ export function SettingsPage({
                             onChange={(e) =>
                               handleModelFieldChange("name", e.target.value)
                             }
-                            placeholder={
-                              language === "zh"
-                                ? "可选，用于下拉展示"
-                                : "Optional display name"
-                            }
+                            placeholder={t("settings.displayNamePlaceholder")}
                           />
                         </div>
 
                         {/* Provider Type */}
                         <div className="space-y-2">
                           <Label htmlFor="providerType">
-                            {language === "zh"
-                              ? "Provider 类型"
-                              : "Provider Type"}
+                            {t("settings.providerType")}
                             <span className="text-destructive ml-1">*</span>
                           </Label>
                           <Select
@@ -1760,9 +1687,7 @@ export function SettingsPage({
                           {isLikelyLoopbackHost(selectedModel.aiHost || "") && (
                             <Alert>
                               <AlertDescription className="text-xs leading-relaxed">
-                                {language === "zh"
-                                  ? "这是本机地址（如 Ollama、LM Studio）。请求不会离开这台电脑，且允许使用 http。"
-                                  : "This is a local-machine address (e.g. Ollama, LM Studio). Requests won't leave this computer, and http is allowed here."}
+                                {t("settings.localAddressNotice")}
                               </AlertDescription>
                             </Alert>
                           )}
@@ -1795,9 +1720,11 @@ export function SettingsPage({
                               variant="ghost"
                               size="icon"
                               onClick={() => setShowToken(!showToken)}
-                              aria-label={
-                                showToken ? "Hide API key" : "Show API key"
-                              }
+                              aria-label={t(
+                                showToken
+                                  ? "settings.hideApiKey"
+                                  : "settings.showApiKey",
+                              )}
                               aria-pressed={showToken}
                               className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             >
@@ -1872,13 +1799,11 @@ export function SettingsPage({
                                   modelFetch.state === "loading"
                                 }
                               >
-                                {modelFetch.state === "loading"
-                                  ? language === "zh"
-                                    ? "获取中…"
-                                    : "Fetching…"
-                                  : language === "zh"
-                                    ? "获取模型"
-                                    : "Fetch models"}
+                                {t(
+                                  modelFetch.state === "loading"
+                                    ? "providerErrors.fetchingModels"
+                                    : "providerErrors.fetchModels",
+                                )}
                               </Button>
                             )}
                           </div>
@@ -1898,9 +1823,7 @@ export function SettingsPage({
                             >
                               {modelFetch.message}
                               {modelFetch.state === "error" &&
-                                (language === "zh"
-                                  ? " 仍可从建议中选择或手动输入。"
-                                  : " Pick a suggestion or type the model id.")}
+                                ` ${t("providerErrors.fetchFallback")}`}
                             </p>
                           )}
                           {(fetchedModels[selectedModel.id]?.length ?? 0) +
@@ -1934,22 +1857,18 @@ export function SettingsPage({
                               >
                                 {toolProbeLabel(
                                   selectedModel.toolCalling.support,
-                                  language,
+                                  t,
                                 )}
                               </Badge>
                             )}
                           <p className="text-xs text-muted-foreground">
-                            {language === "zh"
-                              ? "提示: 从建议列表中选择，或输入任意模型 ID。"
-                              : "Tip: Pick a suggestion or type any model id."}
+                            {t("settings.modelTip")}
                           </p>
                         </div>
                       </>
                     ) : (
                       <div className="text-center text-muted-foreground py-12">
-                        {language === "zh"
-                          ? "左侧选择或创建模型以配置"
-                          : "Select or create a model on the left to configure"}
+                        {t("settings.selectOrCreateModelLeft")}
                       </div>
                     )}
                   </div>

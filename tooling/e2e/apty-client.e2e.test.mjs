@@ -167,8 +167,10 @@ describe("Apty Client integration in a real browser", () => {
     assert.equal(await panel.getByText("{3 keys}").count(), 206);
 
     const persisted = await panel.evaluate(async (evidenceId) => {
-      const stored = (await chrome.storage.session.get("apty_evidence_store"))
-        .apty_evidence_store;
+      // One snapshot key per context (S7): apty_evidence_store:<context>.
+      const stored = Object.entries(await chrome.storage.session.get(null))
+        .filter(([key]) => key.startsWith("apty_evidence_store"))
+        .map(([, value]) => value);
       return JSON.stringify(stored ?? []).includes(evidenceId);
     }, result.response.evidenceId);
     assert.ok(persisted, "evidence should be written to session storage");
@@ -229,6 +231,7 @@ describe("Apty Client integration in a real browser", () => {
     await app.goto(`${site.origin}/app.html`);
     const panel = await openSidePanel(browser, model, app, {
       networkBodyCaptureDenyList: ["/users/"],
+      redactionMode: "standard",
     });
     const client = await waitForWorker(browser.context, (url) =>
       url.startsWith(`chrome-extension://${clients.working.id}/`),
@@ -268,10 +271,9 @@ describe("Apty Client integration in a real browser", () => {
     );
 
     await panel.evaluate(async () => {
-      const { aipex_settings } =
-        await chrome.storage.local.get("aipex_settings");
+      const { apty_settings } = await chrome.storage.local.get("apty_settings");
       await chrome.storage.local.set({
-        aipex_settings: { ...aipex_settings, networkBodyCaptureDenyList: [] },
+        apty_settings: { ...apty_settings, networkBodyCaptureDenyList: [] },
       });
     });
     const restored = await ask(

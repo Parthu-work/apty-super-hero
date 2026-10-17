@@ -43,6 +43,43 @@ export const loadSkillTool = tool({
   },
 });
 
+/** Lines of a script the run prompt shows. */
+const PROMPT_SCRIPT_LINES = 12;
+const PROMPT_ARGS_CHARS = 300;
+
+async function readScriptSource(
+  skillName: string,
+  scriptPath: string,
+): Promise<string | null> {
+  try {
+    const source = await skillManager.getSkillScript(skillName, scriptPath);
+    return typeof source === "string" ? source : null;
+  } catch {
+    return null;
+  }
+}
+
+function describeScriptForApproval(
+  source: string | null,
+  args: unknown,
+): string {
+  let code: string;
+  if (source === null) {
+    code = "(The script source could not be read.)";
+  } else {
+    const lines = source.split("\n");
+    const more = lines.length - PROMPT_SCRIPT_LINES;
+    code = lines.slice(0, PROMPT_SCRIPT_LINES).join("\n");
+    if (more > 0) code += `\n… ${more} more lines`;
+  }
+  const json = JSON.stringify(args ?? null) ?? "null";
+  const shown =
+    json.length > PROMPT_ARGS_CHARS
+      ? `${json.slice(0, PROMPT_ARGS_CHARS)}…`
+      : json;
+  return `${code}\nArguments: ${shown}`;
+}
+
 export const executeSkillScriptTool = tool({
   name: "execute_skill_script",
   description:
@@ -73,12 +110,13 @@ export const executeSkillScriptTool = tool({
       const normalizedPath = scriptPath.startsWith("scripts/")
         ? scriptPath
         : `scripts/${scriptPath}`;
-      // A script can be written by the model itself (skill-creator), read
-      // files and make network requests, so each run needs a click.
+      // A script reads and writes the skill file system and can download
+      // files, so each run needs a click on what will actually run.
+      const source = await readScriptSource(skillName, normalizedPath);
       return gateRiskyAction(
         (context as ToolRunContext)?.context?.conversationId,
         "execute_skill_script",
-        `Run the script ${normalizedPath} from the skill "${skillName}"`,
+        `Run the script ${normalizedPath} from the skill "${skillName}"\n${describeScriptForApproval(source, args)}`,
         undefined,
         async () => ({
           success: true,
@@ -98,7 +136,7 @@ export const executeSkillScriptTool = tool({
   },
 });
 
-export const readSkillReferenceTool = tool({
+const readSkillReferenceTool = tool({
   name: "read_skill_reference",
   description:
     "Read a reference document from a skill. Reference files are located in the references/ directory and contain additional documentation, guides, or examples.",
@@ -133,7 +171,7 @@ export const readSkillReferenceTool = tool({
   },
 });
 
-export const getSkillAssetTool = tool({
+const getSkillAssetTool = tool({
   name: "get_skill_asset",
   description:
     "Get an asset file from a skill. Assets are located in the assets/ directory and can be images, data files, or other resources.",
@@ -181,7 +219,7 @@ export const getSkillAssetTool = tool({
   },
 });
 
-export const listSkillsTool = tool({
+const listSkillsTool = tool({
   name: "list_skills",
   description:
     "List all available skills in the system. Shows enabled skills by default, or all skills if specified.",
@@ -216,7 +254,7 @@ export const listSkillsTool = tool({
   },
 });
 
-export const getSkillInfoTool = tool({
+const getSkillInfoTool = tool({
   name: "get_skill_info",
   description:
     "Get detailed information about a specific skill, including its scripts, references, assets, and metadata.",

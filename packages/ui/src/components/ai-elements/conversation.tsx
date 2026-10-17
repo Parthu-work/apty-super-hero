@@ -36,7 +36,7 @@ export type ConversationEmptyStateProps = ComponentProps<"div"> & {
   icon?: React.ReactNode;
 };
 
-export const ConversationEmptyState = ({
+const ConversationEmptyState = ({
   className,
   title = "No messages yet",
   description = "Start a conversation to see messages here",

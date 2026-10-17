@@ -24,7 +24,8 @@ export interface ScreenshotData {
   };
 }
 
-const DB_NAME = "aipex-screenshots-db";
+/** Same database as browser-runtime's screenshot store, which moves the one stored under the old AIPex name. */
+const DB_NAME = "apty-screenshots-db";
 const DB_VERSION = 1;
 const STORE_NAME = "screenshots";
 const MAX_SCREENSHOTS = 50;
@@ -65,8 +66,14 @@ function initialize(): Promise<void> {
   return initPromise;
 }
 
+function randomBase36(length: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(length)), (byte) =>
+    (byte % 36).toString(36),
+  ).join("");
+}
+
 function generateUid(): string {
-  return `screenshot_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  return `screenshot_${Date.now()}_${randomBase36(9)}`;
 }
 
 async function applyLRU(): Promise<void> {

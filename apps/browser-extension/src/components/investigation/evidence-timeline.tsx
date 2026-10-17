@@ -24,6 +24,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@apty/ui/components/ui/collapsible";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, TriangleAlertIcon } from "lucide-react";
 import { toneBadgeClass, toneTextClass } from "./tone-classes";
@@ -54,6 +55,7 @@ function isFailure(type: string): boolean {
 }
 
 function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
+  const { t } = useTranslation();
   return (
     <Collapsible>
       <CollapsibleTrigger className="group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted/40">
@@ -78,15 +80,17 @@ function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
         </div>
         <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
           <span className="hidden group-data-[state=closed]:inline">
-            View details
+            {t("investigation.timeline.viewDetails")}
           </span>
-          <span className="hidden group-data-[state=open]:inline">Hide</span>
+          <span className="hidden group-data-[state=open]:inline">
+            {t("investigation.timeline.hide")}
+          </span>
           <ChevronDownIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-180" />
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1 pb-1 pl-8 pr-2">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Raw evidence data
+          {t("investigation.timeline.rawData")}
         </p>
         <CodeBlock code={JSON.stringify(item.data, null, 2)} language="json" />
       </CollapsibleContent>
@@ -95,12 +99,15 @@ function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
 }
 
 function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
+  const { t } = useTranslation();
   return (
     <li className="overflow-hidden rounded-md border bg-card">
       <div className="space-y-1 p-2">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Observation · {formatClockTime(cluster.startTimestamp)}
+            {t("investigation.timeline.observation", {
+              time: formatClockTime(cluster.startTimestamp),
+            })}
           </span>
           {cluster.likelySameIncident && (
             <Badge
@@ -108,7 +115,7 @@ function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
               variant="outline"
             >
               <TriangleAlertIcon className="size-3" />
-              Likely related incident
+              {t("investigation.timeline.likelyRelated")}
             </Badge>
           )}
         </div>
@@ -116,7 +123,9 @@ function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
       </div>
       <div className="border-t px-2 py-1.5">
         <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Evidence ({cluster.evidence.length})
+          {t("investigation.timeline.evidence", {
+            count: cluster.evidence.length,
+          })}
         </p>
         <div className="divide-y divide-border/60">
           {cluster.evidence.map((item) => (
@@ -133,17 +142,17 @@ export function EvidenceTimeline({
 }: {
   clusters: CorrelationCluster[];
 }) {
+  const { t } = useTranslation();
   if (clusters.length === 0) {
     return (
       <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-        No evidence collected yet. Evidence appears here as the agent inspects
-        the page, console, network, and Apty components.
+        {t("investigation.timeline.none")}
       </p>
     );
   }
 
   return (
-    <ol className="space-y-2" aria-label="Investigation timeline">
+    <ol className="space-y-2" aria-label={t("investigation.timeline.label")}>
       {clusters.map((cluster) => (
         <TimelineCluster key={cluster.clusterId} cluster={cluster} />
       ))}

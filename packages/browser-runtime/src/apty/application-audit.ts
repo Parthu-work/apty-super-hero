@@ -140,8 +140,10 @@ export interface ApplicationAuditLimits {
 /** How many host-chain breaks are kept, with their hop and host selector, as examples in the report. */
 const MAX_HOST_CHAIN_BREAK_SAMPLES = 5;
 
+export const DEFAULT_APPLICATION_MAX_PAGES = 15;
+
 const DEFAULT_LIMITS: Required<ApplicationAuditLimits> = {
-  maxPages: 15,
+  maxPages: DEFAULT_APPLICATION_MAX_PAGES,
   maxTotalAuditMs: 180_000,
   maxQueueSize: 100,
   maxSkipRows: 50,

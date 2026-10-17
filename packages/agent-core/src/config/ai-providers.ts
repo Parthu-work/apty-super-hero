@@ -220,3 +220,10 @@ export function detectProviderFromHost(host: string): AIProviderKey {
   }
   return "custom";
 }
+
+/**
+ * Providers the owner has confirmed may receive health or other regulated
+ * data (for example under a Business Associate Agreement). Settings warns
+ * for every other provider. Empty until the owner names them.
+ */
+export const PHI_APPROVED_PROVIDERS: ReadonlySet<AIProviderKey> = new Set([]);

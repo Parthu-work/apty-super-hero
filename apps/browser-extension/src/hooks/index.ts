@@ -4,10 +4,7 @@
  */
 
 // Re-export storage adapter (no React dependency)
-export {
-  ChromeStorageAdapter,
-  chromeStorageAdapter,
-} from "@apty/browser-runtime";
+export { chromeStorageAdapter } from "@apty/browser-runtime";
 // Re-export types only (no runtime React dependency)
 export type {
   ChatbotEventHandlers,

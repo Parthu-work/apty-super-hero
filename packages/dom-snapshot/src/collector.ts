@@ -5,7 +5,7 @@ import type {
   SerializedDomSnapshot,
 } from "./types.js";
 
-const NODE_ID_ATTR = "data-aipex-nodeid";
+const NODE_ID_ATTR = "data-apty-nodeid";
 const STATIC_TEXT_ROLE = "StaticText";
 const ROOT_ROLE = "RootWebArea";
 
@@ -392,6 +392,9 @@ function createNodeFromElement(
 
   if (element instanceof HTMLTextAreaElement) {
     node.inputType = "textarea";
+    if (node.name && !hasAriaName(element)) {
+      node.nameIsValue = true;
+    }
     if (!node.value && element.value) {
       node.value = element.value;
     }
@@ -413,6 +416,7 @@ function createNodeFromElement(
         .join(", ");
       if (selectedText) {
         node.name = selectedText;
+        node.nameIsValue = true;
       }
     }
   }
@@ -458,6 +462,13 @@ function createNodeFromElement(
   // Setting a massive name from all descendant text creates redundancy and noise
 
   return node;
+}
+
+function hasAriaName(element: Element): boolean {
+  return Boolean(
+    element.getAttribute("aria-label")?.trim() ||
+      element.getAttribute("aria-labelledby"),
+  );
 }
 
 function hasExplicitAccessibleLabel(
@@ -743,8 +754,14 @@ function ensureElementUid(element: Element): string {
   return uid;
 }
 
+function randomBase36(length: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(length)), (byte) =>
+    (byte % 36).toString(36),
+  ).join("");
+}
+
 function generateShortId(): string {
-  const random = Math.random().toString(36).slice(2, 8);
+  const random = randomBase36(6);
   const time = Date.now().toString(36).slice(-4);
   return `${time}${random}`;
 }

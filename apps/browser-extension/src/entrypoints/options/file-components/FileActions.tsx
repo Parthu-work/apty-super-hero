@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@apty/ui/components/ui/dropdown-menu";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { Eye, Info, MoreVertical, Trash2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -26,6 +27,7 @@ export const FileActions: React.FC<FileActionsProps> = ({
   onDelete,
   onView,
 }) => {
+  const { t } = useTranslation();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const handleView = () => {
@@ -75,14 +77,14 @@ export const FileActions: React.FC<FileActionsProps> = ({
           {node.type === "file" && onView && (
             <DropdownMenuItem onClick={handleView}>
               <Eye className="mr-2 h-4 w-4" />
-              View
+              {t("common.view")}
             </DropdownMenuItem>
           )}
 
           {/* Info */}
           <DropdownMenuItem onClick={handleInfo}>
             <Info className="mr-2 h-4 w-4" />
-            Properties
+            {t("fileManager.properties")}
           </DropdownMenuItem>
 
           {/* Delete */}
@@ -93,7 +95,7 @@ export const FileActions: React.FC<FileActionsProps> = ({
             className="text-destructive focus:text-destructive"
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            {t("common.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -14,7 +14,7 @@ import {
 beforeEach(() => {
   sendMessage.mockReset().mockResolvedValue(undefined);
   document.body.innerHTML =
-    '<main><ul><li>a</li><li><button class="btn aipex-x primary">Save</button></li></ul></main>';
+    '<main><ul><li>a</li><li><button class="btn apty-agent-x primary">Save</button></li></ul></main>';
 });
 
 afterEach(() => {
@@ -61,10 +61,14 @@ describe("element capture", () => {
 
     startCapture();
     button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    expect(button.classList.contains("aipex-capture-highlight")).toBe(true);
+    expect(button.classList.contains("apty-agent-capture-highlight")).toBe(
+      true,
+    );
 
     stopCapture();
-    expect(button.classList.contains("aipex-capture-highlight")).toBe(false);
+    expect(button.classList.contains("apty-agent-capture-highlight")).toBe(
+      false,
+    );
   });
 
   it("does nothing on click once stopped", () => {

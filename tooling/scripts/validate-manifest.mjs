@@ -7,6 +7,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { extensionPageCspErrors } from "./csp-policy.mjs";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const EXT_DIR = join(ROOT, "apps/browser-extension");
@@ -94,6 +95,10 @@ if (
       "extensions via the manifest.",
   );
 }
+
+errors.push(
+  ...extensionPageCspErrors(manifest.content_security_policy?.extension_pages),
+);
 
 // Every permission must have a documented, verified justification in
 // docs/security/PERMISSIONS.md, and every justification there must still

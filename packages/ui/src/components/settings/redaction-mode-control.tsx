@@ -39,18 +39,19 @@ function modeOptions(zh: boolean): ModeOption[] {
           value: "strict",
           label: "严格（推荐）",
           description:
-            "屏蔽密钥、个人数据（姓名、用户名、邮箱、患者字段）以及页面上下文（标题、路径）。",
+            "屏蔽密钥和个人数据字段（用户名、邮箱、患者相关字段）；标签页只显示来源，URL 去掉查询参数。表单中键入的值完全不发送。页面正文按原样发送。",
         },
         {
           value: "standard",
           label: "标准",
-          description: "屏蔽密钥和个人数据；保留页面标题和路径。",
+          description:
+            "屏蔽密钥和个人数据字段；保留页面标题和路径，URL 查询值显示为 [masked]。表单中键入的值显示为 [masked]。页面正文按原样发送。",
         },
         {
           value: "off",
           label: "关闭（仅限开发）",
           description:
-            "只屏蔽可按格式识别的密钥（令牌、API 密钥、JWT、邮箱）。切勿用于真实的客户或患者数据。",
+            "只屏蔽工具结果中可按格式识别的密钥（令牌、API 密钥、JWT、邮箱）；您键入的内容和表单值原样发送。切勿用于真实的客户或患者数据。",
         },
       ]
     : [
@@ -58,19 +59,19 @@ function modeOptions(zh: boolean): ModeOption[] {
           value: "strict",
           label: "Strict (recommended)",
           description:
-            "Masks secrets, personal data (names, usernames, emails, patient fields) and page context (titles, paths).",
+            "Masks secrets and personal-data fields (usernames, emails, patient fields); tabs show only their origin and URLs lose their query. Values typed into form fields are not sent at all. Page text is sent as shown.",
         },
         {
           value: "standard",
           label: "Standard",
           description:
-            "Masks secrets and personal data; keeps page titles and paths.",
+            "Masks secrets and personal-data fields; keeps page titles and paths, with URL query values masked. Values typed into form fields are replaced with [masked]. Page text is sent as shown.",
         },
         {
           value: "off",
           label: "Off (development only)",
           description:
-            "Masks only secrets recognised by their shape (tokens, API keys, JWTs, emails). Never use it with real customer or patient data.",
+            "Masks only secrets recognised by their shape (tokens, API keys, JWTs, emails) in tool results; what you type and form values are sent as they are. Never use it with real customer or patient data.",
         },
       ];
 }

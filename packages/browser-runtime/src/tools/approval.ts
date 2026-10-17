@@ -67,10 +67,18 @@ export interface ApprovalDeniedResult {
   message: string;
 }
 
+/** Who asked: a chat conversation, or an MCP client through the bridge. A grant covers only its own requester. */
+export type ApprovalRequester = "chat" | "mcp";
+
 export interface ApprovalGrant {
   toolName: string;
   origin: string;
+  requester: ApprovalRequester;
   expiresAt: number;
+}
+
+function requesterOf(conversationId: string | undefined): ApprovalRequester {
+  return conversationId ? "chat" : "mcp";
 }
 
 interface PendingApproval {
@@ -105,6 +113,7 @@ function isGrant(value: unknown): value is ApprovalGrant {
   return (
     typeof v.toolName === "string" &&
     typeof v.origin === "string" &&
+    (v.requester === "chat" || v.requester === "mcp") &&
     typeof v.expiresAt === "number"
   );
 }
@@ -119,20 +128,41 @@ export function listApprovalGrants(): Promise<ApprovalGrant[]> {
   return loadActiveGrants();
 }
 
-async function addGrant(toolName: string, origin: string): Promise<void> {
+async function addGrant(
+  toolName: string,
+  origin: string,
+  requester: ApprovalRequester,
+): Promise<void> {
   const grants = (await loadActiveGrants()).filter(
-    (g) => !(g.toolName === toolName && g.origin === origin),
+    (g) =>
+      !(
+        g.toolName === toolName &&
+        g.origin === origin &&
+        g.requester === requester
+      ),
   );
-  grants.push({ toolName, origin, expiresAt: Date.now() + GRANT_TTL_MS });
+  grants.push({
+    toolName,
+    origin,
+    requester,
+    expiresAt: Date.now() + GRANT_TTL_MS,
+  });
   await storage.save(STORAGE_KEYS.RISKY_ORIGIN_GRANTS, grants);
 }
 
+/** Revokes the grant for this requester, or for every requester when none is given. */
 export async function revokeApprovalGrant(
   toolName: string,
   origin: string,
+  requester?: ApprovalRequester,
 ): Promise<void> {
   const grants = (await loadActiveGrants()).filter(
-    (g) => !(g.toolName === toolName && g.origin === origin),
+    (g) =>
+      !(
+        g.toolName === toolName &&
+        g.origin === origin &&
+        (requester === undefined || g.requester === requester)
+      ),
   );
   await storage.save(STORAGE_KEYS.RISKY_ORIGIN_GRANTS, grants);
 }
@@ -291,13 +321,24 @@ export async function gateRiskyAction<T>(
     tabId?: number;
     /** False to ignore grants and always ask, without offering to remember. */
     rememberable?: boolean;
+    /** What a remembered grant is stored and looked up under; defaults to the tool name. */
+    grantName?: string;
   } = {},
 ): Promise<T | ApprovalDeniedResult> {
   const origin = originOf(pageUrl);
   const rememberable = options.rememberable !== false;
+  const grantName = options.grantName ?? toolName;
+  const requester = requesterOf(conversationId);
   if (origin && rememberable) {
     const grants = await loadActiveGrants();
-    if (grants.some((g) => g.toolName === toolName && g.origin === origin)) {
+    if (
+      grants.some(
+        (g) =>
+          g.toolName === grantName &&
+          g.origin === origin &&
+          g.requester === requester,
+      )
+    ) {
       return run();
     }
   }
@@ -328,7 +369,7 @@ export async function gateRiskyAction<T>(
   }
 
   if (outcome.remember && origin && rememberable) {
-    await addGrant(toolName, origin);
+    await addGrant(grantName, origin, requester);
   }
   return run();
 }

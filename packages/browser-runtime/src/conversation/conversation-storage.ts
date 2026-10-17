@@ -4,7 +4,15 @@ import {
   isExpired,
   selectForEviction,
 } from "@apty/agent-core";
+import {
+  deleteAgentSessions,
+  deleteOrphanAgentSessions,
+} from "../storage/agent-session-store";
 import { IndexedDBStorage } from "../storage/indexeddb-storage";
+import {
+  CONVERSATIONS_DB,
+  moveLegacyDatabases,
+} from "../storage/legacy-databases";
 import { LRUPolicy } from "./lru-policy";
 import { migrate } from "./migration";
 import type {
@@ -22,16 +30,30 @@ const log = createLogger("ConversationStorage");
 export class ConversationStorage {
   private readonly storage: IndexedDBStorage<ConversationData>;
   private readonly lruPolicy: LRUPolicy;
-  private readonly config: Required<ConversationStorageConfig>;
+  private readonly config: Required<
+    Omit<
+      ConversationStorageConfig,
+      "deleteAgentSessions" | "deleteOrphanAgentSessions"
+    >
+  >;
+  private readonly deleteAgentSessions: (ids: string[]) => Promise<void>;
+  private readonly deleteOrphanAgentSessions: (
+    referenced: Set<string>,
+  ) => Promise<string[]>;
   private migrationPromise: Promise<void> | null = null;
 
   constructor(config: ConversationStorageConfig = {}) {
     this.config = {
       maxConversations: config.maxConversations ?? 5,
       maxAgeMs: config.maxAgeMs ?? DEFAULT_RETENTION_MS,
-      dbName: config.dbName ?? "aipex-conversations-db",
+      dbName: config.dbName ?? CONVERSATIONS_DB,
       storeName: config.storeName ?? "conversations",
     };
+    this.deleteAgentSessions =
+      config.deleteAgentSessions ?? deleteAgentSessions;
+    this.deleteOrphanAgentSessions =
+      config.deleteOrphanAgentSessions ??
+      ((referenced) => deleteOrphanAgentSessions(referenced));
 
     this.storage = new IndexedDBStorage<ConversationData>({
       dbName: this.config.dbName,
@@ -51,6 +73,12 @@ export class ConversationStorage {
    */
   private async performMigration(): Promise<void> {
     try {
+      // Conversations stored under the old AIPex database name move first (R2).
+      if (this.config.dbName === CONVERSATIONS_DB) {
+        await moveLegacyDatabases().catch(() => {
+          log.warn("legacy_database_move_failed");
+        });
+      }
       const result = await migrate(async (conversation) => {
         await this.storage.save(conversation.id, conversation);
       });
@@ -115,7 +143,12 @@ export class ConversationStorage {
       if (toDelete.length > 0) {
         log.debug(`🗑️ LRU: Removing ${toDelete.length} old conversation(s)`);
         await Promise.all(toDelete.map((conv) => this.storage.delete(conv.id)));
+        await this.removeAgentSessionsOf(toDelete);
       }
+      const evicted = new Set(toDelete.map((c) => c.id));
+      await this.sweepOrphanAgentSessions(
+        allConversations.filter((c) => !evicted.has(c.id)),
+      );
     } catch (error) {
       console.error("❌ [ConversationStorage] Failed to apply LRU:", error);
     }
@@ -202,6 +235,7 @@ export class ConversationStorage {
       }
       if (isExpired(conversation.updatedAt, this.config.maxAgeMs)) {
         await this.storage.delete(conversationId);
+        await this.removeAgentSessionsOf([conversation]);
         return null;
       }
 
@@ -264,7 +298,9 @@ export class ConversationStorage {
     await this.ensureMigrated();
 
     try {
+      const conversation = await this.storage.load(conversationId);
       await this.storage.delete(conversationId);
+      if (conversation) await this.removeAgentSessionsOf([conversation]);
       log.debug("🗑️ Conversation deleted:", conversationId);
     } catch (error) {
       console.error(
@@ -288,6 +324,36 @@ export class ConversationStorage {
         "❌ [ConversationStorage] Failed to clear conversations:",
         error,
       );
+    }
+  }
+
+  /** Agent sessions left by a panel closed without "New chat" (no saved conversation). */
+  private async sweepOrphanAgentSessions(
+    kept: ConversationData[],
+  ): Promise<void> {
+    const referenced = new Set(
+      kept
+        .map((c) => c.agentSessionId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    try {
+      await this.deleteOrphanAgentSessions(referenced);
+    } catch {
+      log.warn("orphan_agent_session_sweep_failed");
+    }
+  }
+
+  private async removeAgentSessionsOf(
+    conversations: ConversationData[],
+  ): Promise<void> {
+    const ids = conversations
+      .map((c) => c.agentSessionId)
+      .filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+    try {
+      await this.deleteAgentSessions(ids);
+    } catch {
+      log.warn("agent_session_delete_failed");
     }
   }
 

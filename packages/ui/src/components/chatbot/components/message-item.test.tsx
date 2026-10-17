@@ -165,3 +165,36 @@ describe("toolFooter slot", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("DefaultMessageItem — image file parts", () => {
+  function fileMessage(url: string): UIMessage {
+    return {
+      id: "msg-file",
+      role: "user",
+      parts: [
+        { type: "file", mediaType: "image/png", url, filename: "shot.png" },
+      ],
+      timestamp: Date.now(),
+    } as UIMessage;
+  }
+
+  it("never loads a remote image URL from a file part", () => {
+    const { container } = render(
+      <DefaultMessageItem
+        message={fileMessage("https://evil.test/leak.png?d=SECRET")}
+        isLast={false}
+      />,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.innerHTML).not.toContain("evil.test");
+    expect(screen.getByText("shot.png")).toBeInTheDocument();
+  });
+
+  it("renders a data: image file part", () => {
+    const url = "data:image/png;base64,AAAA";
+    const { container } = render(
+      <DefaultMessageItem message={fileMessage(url)} isLast={false} />,
+    );
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(url);
+  });
+});

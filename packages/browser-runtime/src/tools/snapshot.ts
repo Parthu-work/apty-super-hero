@@ -1,7 +1,10 @@
 import { tool } from "@apty/agent-core";
+import { applyUrlPolicy } from "@apty/dom-snapshot";
 import { z } from "zod";
 import * as snapshotProvider from "../automation/snapshot-provider";
+import { currentValuePolicy } from "../runtime/value-policy";
 import { getActiveTab } from "./tab-utils";
+import { capSnapshotText } from "./value-results";
 
 export const takeSnapshotTool = tool({
   name: "take_snapshot",
@@ -25,8 +28,8 @@ export const takeSnapshotTool = tool({
       success: true,
       tabId: tab.id,
       title: tab.title || "",
-      url: tab.url || "",
-      snapshot: snapshotText,
+      url: applyUrlPolicy(tab.url, currentValuePolicy()) || "",
+      snapshot: capSnapshotText(snapshotText),
     };
   },
 });

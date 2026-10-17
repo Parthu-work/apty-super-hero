@@ -1,5 +1,5 @@
 import type { AgentInputItem } from "@openai/agents";
-import type { AiSdkModel } from "@openai/agents-extensions";
+import type { AiSdkModel } from "@openai/agents-extensions/ai-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationCompressor } from "./compressor.js";
 

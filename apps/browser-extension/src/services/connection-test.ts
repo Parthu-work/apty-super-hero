@@ -6,6 +6,7 @@
 import type { AppSettings, ToolCallingSupport } from "@apty/agent-core";
 import { generateText, type LanguageModel } from "ai";
 import { createAIProvider, describeConnectionTestError } from "./ai-provider";
+import { englishTranslate, type Translate } from "./model-list";
 import { probeToolCalling } from "./tool-probe";
 
 export const TEST_CONNECTION_TIMEOUT_MS = 20_000;
@@ -19,10 +20,11 @@ export interface ConnectionTestOutcome {
 export async function testConnection(
   settings: AppSettings,
   now: () => number = Date.now,
+  t: Translate = englishTranslate,
 ): Promise<ConnectionTestOutcome> {
   const modelId = settings.aiModel;
   if (!modelId) {
-    throw new Error("No model selected. Choose a model for this provider.");
+    throw new Error(t("providerErrors.noModelSelected"));
   }
 
   const provider = createAIProvider(settings);
@@ -46,8 +48,11 @@ export async function testConnection(
       error instanceof Error &&
       (error.name === "AbortError" || error.name === "TimeoutError");
     const message = isAbort
-      ? `Connection test timed out after ${TEST_CONNECTION_TIMEOUT_MS / 1000}s — the host may be unreachable, or this provider's "AI Host" field may be set to the wrong URL (a website instead of an API endpoint).`
-      : describeConnectionTestError(error);
+      ? t("providerErrors.connectionTimedOut", {
+          seconds: TEST_CONNECTION_TIMEOUT_MS / 1000,
+        })
+      : describeConnectionTestError(error, t("providerErrors.workspaceIdFix"));
+
     console.error(`Connection test failed: ${message}`);
     throw new Error(message);
   }
