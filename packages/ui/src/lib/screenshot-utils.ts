@@ -14,7 +14,7 @@ const SCREENSHOT_TOOL_NAMES = new Set([
 const AIPEX_SCREENSHOT_URL_PREFIX = "https://aipex-screenshot.invalid/";
 
 /** Regex matching [[screenshot:...]] placeholders */
-const SCREENSHOT_PLACEHOLDER_REGEX = /\[\[screenshot:([^\]]+)\]\]/g;
+const SCREENSHOT_PLACEHOLDER_REGEX = /\[\[screenshot:([^[\]]{1,100})\]\]/g;
 
 /** Validate that a uid looks like a screenshot uid */
 function isValidScreenshotUid(uid: string): boolean {
