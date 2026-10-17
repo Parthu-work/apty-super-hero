@@ -248,6 +248,57 @@ describe("WsMcpServer.connect", () => {
   });
 });
 
+describe("WsMcpServer reconnecting during a stalled handshake", () => {
+  async function answerHandshake(socket: FakeWebSocket) {
+    await vi.waitFor(() =>
+      expect(socket.sent.some((m) => m.method === "auth/challenge")).toBe(true),
+    );
+    const challenge = socket.sent.find((m) => m.method === "auth/challenge");
+    socket.receive({
+      jsonrpc: "2.0",
+      id: challenge.id,
+      result: {
+        nonce: DAEMON_NONCE,
+        proof: await daemonProof(TOKEN, challenge.params.nonce, DAEMON_NONCE),
+      },
+    });
+    await vi.waitFor(() =>
+      expect(socket.sent.some((m) => m.method === "auth/prove")).toBe(true),
+    );
+    const prove = socket.sent.find((m) => m.method === "auth/prove");
+    socket.receive({ jsonrpc: "2.0", id: prove.id, result: { ok: true } });
+  }
+
+  it("keeps the newer connection when an abandoned handshake times out", async () => {
+    vi.useFakeTimers();
+    const server = new WsMcpServer();
+    (await connected(server)).onclose?.();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const abandoned = latestSocket();
+    abandoned.open();
+    await vi.waitFor(() =>
+      expect(abandoned.sent.some((m) => m.method === "auth/challenge")).toBe(
+        true,
+      ),
+    );
+    abandoned.onclose?.();
+
+    for (let i = 0; i < 10 && latestSocket() === abandoned; i++) {
+      await vi.advanceTimersByTimeAsync(500);
+    }
+    const current = latestSocket();
+    expect(current).not.toBe(abandoned);
+    current.open();
+    await answerHandshake(current);
+    await vi.waitFor(() => expect(server.getStatus().status).toBe("connected"));
+
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(server.getStatus().status).toBe("connected");
+    expect(current.close).not.toHaveBeenCalled();
+    await server.disconnect();
+  });
+});
+
 describe("WsMcpServer with a daemon too old for challenge authentication", () => {
   const health = (body: unknown) =>
     vi

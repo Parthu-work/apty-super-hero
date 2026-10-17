@@ -177,6 +177,8 @@ export class WsMcpServer {
   /** Set once the daemon has proved it holds the token and we have proved the same. */
   private session: { key: string; lastSeq: number } | null = null;
   private authReplies = new Map<string, (reply: unknown) => void>();
+  /** Bumped by every connect and disconnect, so a stale attempt leaves the state alone. */
+  private connectAttempt = 0;
   private callVerification: Promise<unknown> = Promise.resolve();
 
   private validateUrl(url: string): void {
@@ -226,12 +228,12 @@ export class WsMcpServer {
       connectedAt: null,
     });
 
+    const attempt = ++this.connectAttempt;
+    const transport = new WebSocketClientTransport(url, EXTENSION_PROTOCOLS);
+    this.transport = transport;
     try {
-      const transport = new WebSocketClientTransport(url, EXTENSION_PROTOCOLS);
-      this.transport = transport;
-
       transport.onclose = () => {
-        this.handleDisconnect();
+        if (this.transport === transport) this.handleDisconnect();
       };
 
       transport.onerror = (error: Error) => {
@@ -239,7 +241,7 @@ export class WsMcpServer {
       };
 
       transport.onmessage = (message: JSONRPCMessage) => {
-        this.handleMessage(message);
+        if (this.transport === transport) this.handleMessage(message);
       };
 
       await transport.start().catch(async (error: unknown) => {
@@ -248,7 +250,9 @@ export class WsMcpServer {
             (error instanceof Error ? error.message : String(error)),
         );
       });
-      await this.authenticate(transport, token);
+      const session = await this.authenticate(transport, token);
+      if (attempt !== this.connectAttempt) throw new Error("superseded");
+      this.session = session;
       this.updateState({
         status: "connected",
         connectedAt: Date.now(),
@@ -259,10 +263,15 @@ export class WsMcpServer {
       this.autoReconnectEnabled = true;
       log.debug(`Connected to ${url}`);
     } catch (error) {
+      if (attempt !== this.connectAttempt) {
+        // A newer attempt or a disconnect replaced this one: leave its state alone.
+        await transport.close().catch(() => undefined);
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       this.updateState({ status: "error", error: message, connectedAt: null });
       if (error instanceof DaemonAuthError) {
-        await this.transport?.close().catch(() => undefined);
+        await transport.close().catch(() => undefined);
       }
       this.transport = null;
       this.session = null;
@@ -272,6 +281,7 @@ export class WsMcpServer {
   }
 
   async disconnect(): Promise<void> {
+    this.connectAttempt++;
     this.autoReconnectEnabled = false;
     this.cancelReconnect();
     this.stopKeepalive();
@@ -385,7 +395,7 @@ export class WsMcpServer {
   private async authenticate(
     transport: WebSocketClientTransport,
     token: string,
-  ): Promise<void> {
+  ): Promise<NonNullable<WsMcpServer["session"]>> {
     const extNonce = newNonce();
     const challenge = (await this.authRequest(
       transport,
@@ -418,7 +428,7 @@ export class WsMcpServer {
     if (accepted.result?.ok !== true) {
       throw new DaemonAuthError("The daemon did not accept this extension.");
     }
-    this.session = {
+    return {
       key: await sessionKey(token, extNonce, daemonNonce),
       lastSeq: 0,
     };
@@ -431,15 +441,16 @@ export class WsMcpServer {
     params: Record<string, unknown>,
   ): Promise<unknown> {
     return new Promise((resolve, reject) => {
+      const onReply = (reply: unknown) => {
+        clearTimeout(timer);
+        if (this.authReplies.get(id) === onReply) this.authReplies.delete(id);
+        resolve(reply);
+      };
       const timer = setTimeout(() => {
-        this.authReplies.delete(id);
+        if (this.authReplies.get(id) === onReply) this.authReplies.delete(id);
         reject(new DaemonAuthError("The daemon did not answer the challenge."));
       }, AUTH_TIMEOUT_MS);
-      this.authReplies.set(id, (reply) => {
-        clearTimeout(timer);
-        this.authReplies.delete(id);
-        resolve(reply);
-      });
+      this.authReplies.set(id, onReply);
       transport
         .send({ jsonrpc: "2.0", id, method, params } as JSONRPCMessage)
         .catch(reject);
