@@ -6,7 +6,18 @@ full commit-level history.
 
 ## Unreleased
 
-Nothing yet.
+- **Widget network calls** (Settings → Apty Integration → Apty Client): load
+  the calls the Apty Client reports, filter them by text and by
+  failed/4xx/5xx, read a response body, and download either as JSON, with no
+  AI model involved. URLs get the chat tools' URL policy, bodies the body
+  deny list and redaction, and every failure says what to change. The panel
+  and `inspect_extension_network` share one path from a call to its body.
+- The Widget team's reference service worker answers
+  `list-observed-resources` and `get-resource-body`, recording the Widget's
+  own requests through `observedFetch`; a contract test keeps it in step
+  with the Agent's schemas. The Widget team still has to adopt it.
+- Decided against an Agent-side `webRequest` recorder: a spike showed Chrome
+  does not show one extension's requests to another.
 
 ## 0.1.0 — 2026-10-16
 
