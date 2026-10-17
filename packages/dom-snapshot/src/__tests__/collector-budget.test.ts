@@ -39,13 +39,16 @@ beforeEach(() => {
 describe("collector budget (brief section 4.11)", () => {
   it("audits a 251-shadow-root page inside the time budget, yielding to the page as it goes", async () => {
     lnShapedPage();
+    const budget = process.env.DOM_SNAPSHOT_INSTRUMENTED
+      ? { timeBudgetMs: 60_000 }
+      : {};
 
-    const snapshot = await collectDomHealthSnapshot(document);
+    const snapshot = await collectDomHealthSnapshot(document, budget);
 
     expect(snapshot.shadowDom.roots).toBe(251);
     expect(snapshot.performance.partialReasons).toEqual([]);
     expect(snapshot.performance.timings.totalMs).toBeLessThan(
-      DEFAULT_COLLECTOR_BUDGET.timeBudgetMs,
+      budget.timeBudgetMs ?? DEFAULT_COLLECTOR_BUDGET.timeBudgetMs,
     );
     expect(snapshot.performance.yields).toBeGreaterThan(0);
     // The clock is read between steps (one element, one root), so a slice

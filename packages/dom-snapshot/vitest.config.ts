@@ -6,6 +6,12 @@ export default defineConfig({
     silent: true,
     environment: "jsdom",
     exclude: ["**/node_modules/**", "**/dist/**"],
+    // Coverage instrumentation slows the collector several times over, so
+    // tests that hold it to its wall-clock budget relax it in that run; the
+    // plain run (CI's Test step) still holds them to the real budget.
+    env: {
+      DOM_SNAPSHOT_INSTRUMENTED: process.argv.includes("--coverage") ? "1" : "",
+    },
     // `npm run test:coverage`: package-wide thresholds are a ratchet, set
     // one point below the measured value. They may only go up
     // (docs/development/coverage.md).

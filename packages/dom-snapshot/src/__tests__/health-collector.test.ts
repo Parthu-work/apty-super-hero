@@ -65,7 +65,10 @@ describe("collectDomHealthSnapshot — element counts", () => {
     ).join("");
     setHtml(buttons);
 
-    const snapshot = await collectDomHealthSnapshot(document);
+    const snapshot = await collectDomHealthSnapshot(
+      document,
+      process.env.DOM_SNAPSHOT_INSTRUMENTED ? { timeBudgetMs: 60_000 } : {},
+    );
 
     expect(snapshot.counts.interactiveElements).toBe(400);
     expect(snapshot.elementReports).toHaveLength(400);
