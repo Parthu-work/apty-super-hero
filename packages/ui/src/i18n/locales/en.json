@@ -1275,5 +1275,49 @@
     "hint": "Try again below, or close and reopen the panel if the problem keeps happening.",
     "retry": "Try Again",
     "details": "View technical details"
+  },
+  "networkCalls": {
+    "title": "Widget network calls",
+    "description": "Lists the requests the Apty Client reports making, and reads a response body when you ask. No AI model is involved, and nothing is requested until you click.",
+    "load": "Load network calls",
+    "reload": "Reload",
+    "loadFailed": "Couldn't load the Client's network calls",
+    "count": "Showing {{shown}} of {{total}} calls the Client reported.",
+    "mayBeBounded": "The Client reported its maximum of 1,000 calls, so older calls may be missing.",
+    "filterText": "Filter by name, URL or method",
+    "filterStatus": "Status",
+    "filterAll": "All",
+    "filterFailed": "Failed",
+    "filter4xx": "4xx",
+    "filter5xx": "5xx",
+    "downloadList": "Download JSON",
+    "redactedNote": "What is shown and downloaded here is redacted ({{mode}} mode).",
+    "empty": "The Client reported no network calls.",
+    "failed": "Failed",
+    "pending": "Pending",
+    "columns": {
+      "time": "Time",
+      "method": "Method",
+      "status": "Status",
+      "resource": "Resource",
+      "url": "URL",
+      "actions": "Actions"
+    },
+    "viewBody": "View body",
+    "viewBodyOf": "View the body of {{name}}",
+    "body": {
+      "loading": "Reading the body from the Client…",
+      "notObserved": "The Client no longer lists this call. Load the calls again.",
+      "failed": "The call failed, so there is no body.",
+      "failedWithError": "The call failed, so there is no body: {{error}}",
+      "pending": "The Client hasn't reported a response for this call yet.",
+      "denied": "Not fetched: its URL matches \"{{entry}}\" in the body deny list (Settings → Data handling).",
+      "unavailable": "The Client observed this call but didn't provide its body.",
+      "httpErrorNoBody": "The call returned HTTP {{status}}, and the Client didn't provide its body.",
+      "binary": "Binary body, not shown.",
+      "size": "{{count}} characters, redacted ({{mode}} mode)",
+      "copy": "Copy",
+      "download": "Download"
+    }
   }
 }

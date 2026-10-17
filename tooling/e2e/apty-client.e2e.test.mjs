@@ -5,6 +5,7 @@
  * chat agent pulling a large segments body plus a 403 body from the Client.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import {
@@ -284,5 +285,139 @@ describe("Apty Client integration in a real browser", () => {
     assert.match(restored.response.bodyPreview, /en-GB/);
     await panel.close();
     await app.close();
+  });
+});
+
+describe("Widget network calls in Options, with no model involved", () => {
+  async function denyUsersBodies(options) {
+    await options.evaluate(async () => {
+      const { apty_settings } = await chrome.storage.local.get("apty_settings");
+      await chrome.storage.local.set({
+        apty_settings: {
+          ...apty_settings,
+          redactionMode: "strict",
+          networkBodyCaptureDenyList: ["/users/"],
+        },
+      });
+    });
+  }
+
+  async function downloaded(options, click) {
+    const [download] = await Promise.all([
+      options.waitForEvent("download"),
+      click(),
+    ]);
+    return {
+      name: download.suggestedFilename(),
+      text: readFileSync(await download.path(), "utf8"),
+    };
+  }
+
+  it("lists, filters and downloads the Client's calls, and reads bodies on demand", async () => {
+    const client = await waitForWorker(browser.context, (url) =>
+      url.startsWith(`chrome-extension://${clients.working.id}/`),
+    ).catch(() => null);
+    const options = await connectInOptions(clients.working.id);
+    await options.getByText("Answering").waitFor({ timeout: 30_000 });
+    await denyUsersBodies(options);
+    const worker =
+      client ??
+      (await waitForWorker(browser.context, (url) =>
+        url.startsWith(`chrome-extension://${clients.working.id}/`),
+      ));
+    await worker.evaluate(() => {
+      globalThis.bodyRequests = [];
+    });
+
+    const section = options.getByRole("region", {
+      name: "Widget network calls",
+    });
+    await section.getByRole("button", { name: "Load network calls" }).click();
+    await section
+      .getByText("Showing 5 of 5 calls the Client reported.")
+      .waitFor({ timeout: 30_000 });
+    const listed = await section.innerText();
+    assert.match(listed, /missing\.json/);
+    assert.match(listed, /404/);
+    assert.match(listed, /users\/:id\.json/);
+    assert.doesNotMatch(listed, /4815162342/);
+    const failedRow = section.getByRole("row", { name: /flows\.json/ });
+    assert.match(
+      await failedRow.innerText(),
+      /Failed[\s\S]*ERR_CONNECTION_RESET/,
+    );
+
+    await section.getByRole("button", { name: "4xx" }).click();
+    await section
+      .getByText("Showing 2 of 5 calls the Client reported.")
+      .waitFor();
+    await section.getByRole("button", { name: "All", exact: true }).click();
+    await section.getByLabel("Filter by name, URL or method").fill("segment");
+    await section
+      .getByText("Showing 1 of 5 calls the Client reported.")
+      .waitFor();
+
+    const list = await downloaded(options, () =>
+      section.getByRole("button", { name: "Download JSON" }).click(),
+    );
+    assert.equal(list.name, "apty-client-network-calls.redaction-strict.json");
+    const parsed = JSON.parse(list.text);
+    assert.equal(parsed.redactionMode, "strict");
+    assert.deepEqual(
+      parsed.calls.map((call) => call.resourceName),
+      ["segment.json"],
+    );
+    await section.getByLabel("Filter by name, URL or method").fill("");
+
+    await section
+      .getByRole("button", { name: "View the body of missing.json" })
+      .click();
+    await section.getByText('"Not Found"').waitFor({ timeout: 30_000 });
+
+    await section
+      .getByRole("button", { name: "View the body of :id.json" })
+      .click();
+    await section
+      .getByText(/Not fetched: its URL matches "\/users\/"/)
+      .waitFor({ timeout: 30_000 });
+    assert.deepEqual(
+      await worker.evaluate(() => globalThis.bodyRequests),
+      ["r4"],
+      "the Client was never asked for the denied body",
+    );
+
+    await section
+      .getByRole("button", { name: "View the body of segment.json" })
+      .click();
+    await section.getByText("Array(206)").waitFor({ timeout: 30_000 });
+    const body = await downloaded(options, () =>
+      section.getByRole("button", { name: "Download", exact: true }).click(),
+    );
+    assert.equal(body.name, "segment.json.redaction-strict.json");
+    assert.equal(JSON.parse(body.text).length, 206);
+
+    await options.evaluate(async () => {
+      const { apty_settings } = await chrome.storage.local.get("apty_settings");
+      await chrome.storage.local.set({
+        apty_settings: { ...apty_settings, networkBodyCaptureDenyList: [] },
+      });
+    });
+    await disconnectInOptions(options);
+  });
+
+  it("names a Client that doesn't allow-list the Agent, with the fix", async () => {
+    const options = await connectInOptions(clients["not-allowlisted"].id);
+    const section = options.getByRole("region", {
+      name: "Widget network calls",
+    });
+    await section.getByRole("button", { name: "Load network calls" }).click();
+
+    await section
+      .getByText("Couldn't load the Client's network calls")
+      .waitFor({ timeout: 30_000 });
+    const text = await section.innerText();
+    assert.match(text, /externally_connectable\.ids/);
+    assert.ok(text.includes(AGENT_EXTENSION_ID), text);
+    await disconnectInOptions(options);
   });
 });

@@ -12,10 +12,32 @@
  * A complete, adaptable reference for the producer side of Option A
  * (live Apty service-worker diagnostics, see docs/development/PROJECT_PROGRESS.md /
  * ARCHITECTURE.md): the code that should live inside the Apty Widget's own
- * Manifest V3 service worker so the Apty Live Browser Debugging Agent can
- * request its status and recent logs. The debugging agent's consumer side
- * already exists and matches this exact contract — see
- * packages/browser-runtime/src/apty/service-worker-diagnostics.ts.
+ * Manifest V3 service worker so the Apty Agent can request its status, its
+ * recent logs, the network calls it made and their response bodies. The
+ * Agent's consumer side already exists and matches this exact contract — see
+ * packages/browser-runtime/src/apty/service-worker-diagnostics.ts, whose zod
+ * schemas a contract test in this repo checks this file's answers against
+ * (packages/browser-runtime/src/apty/widget-reference-contract.test.ts).
+ *
+ * WHAT THE WIDGET TEAM MUST CHANGE
+ * --------------------------------
+ * 1. The Widget's manifest.json lists BOTH Agent IDs (docs/integrations/apty/
+ *    README.md, "Extension IDs"):
+ *      "externally_connectable": { "ids": ["bpiondflhhdplemamgggcdajclmoeple",
+ *                                          "<the Web Store ID, once assigned>"] }
+ *    and DEBUG_AGENT_EXTENSION_IDS below holds the same two.
+ * 2. Paste this file's code into the Widget's service worker (or import it
+ *    from there), at the top level, so the onMessageExternal listener is
+ *    registered on every service-worker start.
+ * 3. Route the Widget's own requests through `observedFetch` instead of
+ *    `fetch`. Only requests made through it are recorded; nothing else is
+ *    intercepted.
+ * 4. If the Widget makes a request such as segments.json from a content
+ *    script rather than from the service worker, this service worker never
+ *    sees it, and observedFetch must run in the content script with a relay
+ *    (chrome.runtime.sendMessage to this worker) recording the result here.
+ *    We do not know which context makes these calls; check before relying on
+ *    this.
  *
  * WHY THIS CAN'T JUST BE BUILT INTO THIS REPO
  * --------------------------------------------
@@ -56,10 +78,16 @@
  *    "[object Object]" in others. safeStringifyArg below handles circular
  *    references, Error objects (message + stack, not the whole object
  *    graph), and depth-bounds nested structures.
- * 5. Sender validation — only responds to the specific, configured
- *    debugging-agent extension ID. There is no wildcard path. A request
- *    from any other sender.id is ignored (no response sent), not merely
- *    "logged and allowed."
+ * 5. Sender validation — only responds to the configured Agent extension
+ *    IDs. There is no wildcard path. A request from any other sender.id is
+ *    ignored (no response sent), not merely "logged and allowed."
+ * 6. Network calls are kept in chrome.storage.session, never in
+ *    chrome.storage.local: they survive a service-worker restart but are
+ *    never written to disk and are gone when the browser closes. At most
+ *    MAX_NETWORK_ENTRIES calls are kept, and response bodies only for the
+ *    MAX_KEPT_BODIES most recent calls; a body over MAX_BODY_CHARS (the
+ *    Agent's own limit) is not kept, and the Agent is told so (found:
+ *    false). Non-text bodies are kept base64-encoded.
  *
  * WHAT THIS DELIBERATELY DOES NOT DO
  * -----------------------------------
@@ -69,17 +97,24 @@
  *   anything that slips through as defense in depth, but don't rely on
  *   that as the only safeguard — avoid logging tokens/passwords/cookies
  *   from this service worker at all.
- * - Send logs anywhere off the Widget's own extension. No network calls
- *   are made in this file; this is a local (extension-to-extension
- *   message-passing) mechanism only.
+ * - Send logs or recorded calls anywhere off the Widget's own extension.
+ *   This file makes no network calls of its own (observedFetch only makes
+ *   the request the Widget asked for); this is a local
+ *   (extension-to-extension message-passing) mechanism only.
+ *
+ * The message names are the legacy `apty-debug-agent:*` ones the Agent
+ * reads today; moving to the v1 contract in packages/apty-debug-contract is
+ * separate work.
  */
 
 // ---------------------------------------------------------------------------
-// Config — fill in with the real debugging agent's extension ID once known.
-// Do not use a wildcard/placeholder in production.
+// Config — the Agent's two extension IDs (README "Extension IDs"). Fill in
+// the Web Store ID once the first upload assigns it. Never a wildcard.
 // ---------------------------------------------------------------------------
-const DEBUG_AGENT_EXTENSION_ID =
-  "<the Apty Debugging Agent's real extension ID>";
+export const DEBUG_AGENT_EXTENSION_IDS: readonly string[] = [
+  "bpiondflhhdplemamgggcdajclmoeple",
+  "<the Agent's Chrome Web Store ID, once assigned>",
+];
 
 const STORAGE_KEY = "apty_sw_log_buffer";
 const MAX_ENTRIES = 1000;
@@ -221,6 +256,173 @@ function installConsoleCapture(): void {
 installConsoleCapture();
 
 // ---------------------------------------------------------------------------
+// Network calls — the Widget's own requests, made through observedFetch
+// ---------------------------------------------------------------------------
+
+const NETWORK_STORAGE_KEY = "apty_sw_network_calls";
+const MAX_NETWORK_ENTRIES = 1000;
+const MAX_KEPT_BODIES = 10;
+// The Agent rejects a longer body, so a longer one is not kept at all
+// rather than cut into something that is no longer valid JSON.
+const MAX_BODY_CHARS = 200_000;
+
+// Matches AptyObservedResource in packages/browser-runtime/src/apty/types.ts,
+// with the Agent's own bounds on each field.
+interface ObservedCall {
+  requestId: string;
+  url: string;
+  method: string;
+  status?: number;
+  mimeType?: string;
+  failed?: boolean;
+  errorText?: string;
+  timestamp: number;
+}
+
+interface KeptBody {
+  body: string;
+  base64Encoded: boolean;
+}
+
+interface NetworkState {
+  calls: ObservedCall[];
+  bodies: Record<string, KeptBody>;
+}
+
+let network: NetworkState = { calls: [], bodies: {} };
+let networkLoaded: Promise<void> | undefined;
+let networkCounter = 0;
+
+function loadNetworkOnce(): Promise<void> {
+  networkLoaded ??= chrome.storage.session
+    .get(NETWORK_STORAGE_KEY)
+    .then((result) => {
+      const stored = result[NETWORK_STORAGE_KEY] as NetworkState | undefined;
+      if (stored && Array.isArray(stored.calls)) {
+        network = {
+          calls: [...stored.calls, ...network.calls].slice(
+            -MAX_NETWORK_ENTRIES,
+          ),
+          bodies: { ...stored.bodies, ...network.bodies },
+        };
+      }
+    })
+    .catch(() => undefined);
+  return networkLoaded;
+}
+
+async function saveNetwork(): Promise<void> {
+  await chrome.storage.session
+    .set({ [NETWORK_STORAGE_KEY]: network })
+    .catch(() => undefined);
+}
+
+function bounded(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max) : text;
+}
+
+function isTextual(mimeType: string | undefined): boolean {
+  if (!mimeType) return true;
+  return (
+    mimeType.startsWith("text/") ||
+    /json|xml|javascript|ecmascript|x-www-form-urlencoded/.test(mimeType)
+  );
+}
+
+function base64(bytes: ArrayBuffer): string {
+  let binary = "";
+  const view = new Uint8Array(bytes);
+  for (let i = 0; i < view.length; i += 0x8000) {
+    binary += String.fromCharCode(...view.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+async function record(call: ObservedCall, body?: KeptBody): Promise<void> {
+  await loadNetworkOnce();
+  const index = network.calls.findIndex((c) => c.requestId === call.requestId);
+  if (index === -1) network.calls.push(call);
+  else network.calls[index] = call;
+  network.calls = network.calls.slice(-MAX_NETWORK_ENTRIES);
+  if (body) network.bodies[call.requestId] = body;
+  // Keep bodies only for the most recent calls that still have one.
+  const keep = new Set(
+    network.calls
+      .map((c) => c.requestId)
+      .filter((id) => id in network.bodies)
+      .slice(-MAX_KEPT_BODIES),
+  );
+  for (const id of Object.keys(network.bodies)) {
+    if (!keep.has(id)) delete network.bodies[id];
+  }
+  await saveNetwork();
+}
+
+async function keptBody(response: Response): Promise<KeptBody | undefined> {
+  const mimeType = response.headers.get("content-type") ?? undefined;
+  try {
+    if (isTextual(mimeType)) {
+      const body = await response.clone().text();
+      return body.length > MAX_BODY_CHARS
+        ? undefined
+        : { body, base64Encoded: false };
+    }
+    const body = base64(await response.clone().arrayBuffer());
+    return body.length > MAX_BODY_CHARS
+      ? undefined
+      : { body, base64Encoded: true };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `fetch`, plus a record the Agent can read: the call as soon as it starts
+ * (no status yet), then its status and body, or `failed` with the error.
+ * The Widget gets the same Response, or the same error, it would have got.
+ */
+export async function observedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const request = input instanceof Request ? input : undefined;
+  const call: ObservedCall = {
+    requestId: `w${Date.now().toString(36)}-${++networkCounter}`,
+    url: bounded(request ? request.url : String(input), 4000),
+    method: bounded(
+      (init?.method ?? request?.method ?? "GET").toUpperCase(),
+      20,
+    ),
+    timestamp: Date.now(),
+  };
+  await record(call);
+  let response: Response;
+  try {
+    response = await fetch(input, init);
+  } catch (error) {
+    await record({
+      ...call,
+      failed: true,
+      errorText: bounded(
+        error instanceof Error ? error.message : String(error),
+        2000,
+      ),
+    });
+    throw error;
+  }
+  const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim();
+  await record(
+    {
+      ...call,
+      status: response.status,
+      ...(mimeType ? { mimeType: bounded(mimeType, 200) } : {}),
+    },
+    await keptBody(response),
+  );
+  return response;
+}
+
+// ---------------------------------------------------------------------------
 // External message handler — validated, allowlisted, schema-shaped responses
 // ---------------------------------------------------------------------------
 
@@ -229,7 +431,7 @@ chrome.runtime.onMessageExternal.addListener(
     // Reject anything not from the specific, configured debugging-agent
     // extension. No response is sent to unrecognized senders — never
     // acknowledge or leak status information to an unexpected caller.
-    if (sender.id !== DEBUG_AGENT_EXTENSION_ID) {
+    if (!sender.id || !DEBUG_AGENT_EXTENSION_IDS.includes(sender.id)) {
       return false;
     }
 
@@ -253,6 +455,32 @@ chrome.runtime.onMessageExternal.addListener(
       return true; // keep the message channel open for the async response
     }
 
+    if (message.type === "apty-debug-agent:list-observed-resources") {
+      (async () => {
+        await loadNetworkOnce();
+        sendResponse({ resources: network.calls });
+      })();
+      return true;
+    }
+
+    if (message.type === "apty-debug-agent:get-resource-body") {
+      if (typeof message.requestId !== "string") return false;
+      (async () => {
+        await loadNetworkOnce();
+        const kept = network.bodies[message.requestId];
+        sendResponse(
+          kept
+            ? {
+                found: true,
+                body: kept.body,
+                base64Encoded: kept.base64Encoded,
+              }
+            : { found: false },
+        );
+      })();
+      return true;
+    }
+
     return false;
   },
 );
@@ -261,10 +489,11 @@ chrome.runtime.onMessageExternal.addListener(
 // Manifest requirement for the Apty Widget's own manifest.json:
 //
 //   "externally_connectable": {
-//     "ids": ["<the Apty Debugging Agent's real extension ID>"]
+//     "ids": ["bpiondflhhdplemamgggcdajclmoeple",
+//             "<the Agent's Chrome Web Store ID, once assigned>"]
 //   }
 //
-// Use the SAME id as DEBUG_AGENT_EXTENSION_ID above. Never use a wildcard
+// Use the SAME IDs as DEBUG_AGENT_EXTENSION_IDS above. Never use a wildcard
 // ("ids": ["*"]) or omit externally_connectable's ids restriction — either
 // would let any installed extension query these diagnostics.
 // ---------------------------------------------------------------------------

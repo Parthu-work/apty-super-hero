@@ -259,5 +259,25 @@ for (const theme of ["light", "dark"]) {
       }
       await options.close();
     });
+
+    it("Options, widget network calls with a body open", async () => {
+      const options = await extensionPage(browser);
+      await assertThemeApplied(options, theme);
+      await options.getByRole("tab", { name: "Apty Integration" }).click();
+      const section = options.getByRole("region", {
+        name: "Widget network calls",
+      });
+      await section.getByRole("button", { name: "Load network calls" }).click();
+      await section.getByRole("table").waitFor({ timeout: 30_000 });
+      await section
+        .getByRole("button", { name: "View the body of segment.json" })
+        .click();
+      await section.getByText("Array(206)").waitFor({ timeout: 30_000 });
+      await assertNoSeriousViolations(
+        options,
+        `${theme} Options, widget network calls`,
+      );
+      await options.close();
+    });
   });
 }

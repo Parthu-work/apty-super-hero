@@ -44,15 +44,16 @@ export function peerExtensionIdPatch(
 export function peerFailureMessage(
   peer: AptyPeer,
   failure: ExternalMessageFailure,
+  messageType = "apty-debug-agent:get-service-worker-status",
 ): string {
   const { full, short } = PEER_NAMES[peer];
   switch (failure) {
     case "no_receiver":
       return `Chrome found nothing listening in the ${full} for this extension. The ${short} must list this extension's ID under externally_connectable.ids in its manifest and register a chrome.runtime.onMessageExternal handler at the top level of its service worker.`;
     case "no_response":
-      return `The ${full} received the message but answered nothing, so it does not implement the apty-debug-agent:get-service-worker-status message. Install the Agent bridge module in the ${short}'s service worker.`;
+      return `The ${full} received the message but answered nothing, so it does not implement the ${messageType} message. Install the Agent bridge module in the ${short}'s service worker.`;
     case "timeout":
-      return `The ${full} accepted the message but never answered, even after a retry. Usually its onMessageExternal handler does not implement the apty-debug-agent:get-service-worker-status message (install or update the Agent bridge module); otherwise its service worker is stuck, so check chrome://extensions for errors on the ${short}.`;
+      return `The ${full} accepted the message but never answered, even after a retry. Usually its onMessageExternal handler does not implement the ${messageType} message (install or update the Agent bridge module); otherwise its service worker is stuck, so check chrome://extensions for errors on the ${short}.`;
     case "send_failed":
       return `Chrome refused to send the message to the ${full}.`;
   }

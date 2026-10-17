@@ -44,6 +44,25 @@ Agent's own ID, which the Client must allow-list.
 | "…answered with an unexpected shape" | The Client's bridge module is older than this Agent | Update the bridge module. |
 | "could not be found or is not currently available" | The ID is wrong, or the Client is disabled | Copy the ID again from `chrome://extensions`. |
 
+### Widget network calls
+
+The same Client row has **Widget network calls**: **Load network calls**
+lists what the Client reports requesting, and **View body** reads one
+response, with no AI model involved. It asks the Client only when you click.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "Couldn't load the Client's network calls" with "…does not implement the apty-debug-agent:list-observed-resources message" | The Client answers status and logs but not the network messages | The Widget team adds the handlers and `observedFetch` from [`apty-widget-service-worker.reference.ts`](integrations/apty/apty-widget-service-worker.reference.ts) (steps in [`docs/integrations/apty`](integrations/apty/README.md)). |
+| "Chrome found nothing listening…" with the manifest line to add | The Client doesn't allow-list this Agent | Add the ID shown to the Client's `externally_connectable.ids`. |
+| "The Client reported no network calls." | The Client answered with an empty list: nothing went through `observedFetch` yet, or its calls come from a content script it doesn't relay | Use the widget, then reload. If it stays empty, check which context makes the calls (README step 4). |
+| "The Client reported its maximum of 1,000 calls…" | The Client keeps only its most recent calls | Reload sooner after reproducing the problem. |
+| "Not fetched: its URL matches … in the body deny list" | Settings → Data handling's body deny list covers this URL | Remove that entry to read this body. |
+| "The Client observed this call but didn't provide its body." | The Client keeps bodies only for its 10 most recent calls, and none over 200,000 characters | Reproduce the call and read it right away. |
+| "The Client no longer lists this call." | The Client dropped it since the list was loaded | Load the calls again. |
+
+The Agent can't watch the Client's requests itself: Chrome doesn't show one
+extension's requests to another (see `DECISIONS.md`).
+
 ## Response bodies are missing from a network capture
 
 Response bodies are off by default. Turn on **Settings → General → Data

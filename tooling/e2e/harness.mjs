@@ -412,6 +412,8 @@ const RESOURCES = [
   { requestId: "r1", url: "https://cdn.apty.example/config/segment.json", method: "GET", status: 200, mimeType: "application/json", timestamp: Date.now() },
   { requestId: "r2", url: "https://cdn.apty.example/config/themes.json", method: "GET", status: 403, mimeType: "application/json", timestamp: Date.now() },
   { requestId: "r3", url: "https://cdn.apty.example/users/4815162342.json", method: "GET", status: 200, mimeType: "application/json", timestamp: Date.now() },
+  { requestId: "r4", url: "https://cdn.apty.example/config/missing.json", method: "GET", status: 404, mimeType: "application/json", timestamp: Date.now() },
+  { requestId: "r5", url: "https://cdn.apty.example/config/flows.json", method: "POST", failed: true, errorText: "net::ERR_CONNECTION_RESET", timestamp: Date.now() },
 ];
 // Which bodies the Agent asked for, read by tests through the worker.
 globalThis.bodyRequests = [];
@@ -419,6 +421,7 @@ const BODIES = {
   r1: JSON.stringify(SEGMENTS),
   r2: JSON.stringify({ error: "Forbidden", reason: "token expired" }),
   r3: JSON.stringify({ userId: 4815162342, theme: "dark", language: "en-GB" }),
+  r4: JSON.stringify({ error: "Not Found", path: "/config/missing.json" }),
 };
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (sender.id !== AGENT_ID || MODE === "bridge-missing") return false;
