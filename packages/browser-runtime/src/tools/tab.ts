@@ -24,11 +24,21 @@ function originOf(url: string | undefined): string | null {
 }
 
 /** The URL of the tab this conversation is bound to; undefined when it has none. */
+/**
+ * The page a tab action is compared with: the conversation's bound tab, or,
+ * for an MCP client (no conversation, so never a bound tab), the active tab.
+ */
 async function boundTabUrl(context: unknown): Promise<string | undefined> {
-  const tabId = (context as ToolRunContext)?.context?.tabId;
-  if (typeof tabId !== "number") return undefined;
+  const runContext = (context as ToolRunContext)?.context;
+  const tabId = runContext?.tabId;
   try {
-    return (await chrome.tabs.get(tabId)).url;
+    if (typeof tabId === "number") return (await chrome.tabs.get(tabId)).url;
+    if (runContext?.conversationId) return undefined;
+    const [active] = await chrome.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    return active?.url;
   } catch {
     return undefined;
   }

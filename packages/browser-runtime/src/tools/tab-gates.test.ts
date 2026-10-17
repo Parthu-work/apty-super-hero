@@ -174,3 +174,29 @@ describe("close_tab", () => {
     expect(requests).toHaveLength(1);
   });
 });
+
+describe("an MCP client, which has no bound tab, compares with the active tab", () => {
+  const MCP = {};
+
+  it("opens or switches to the active tab's origin without asking", async () => {
+    const { requests, stop } = answerApprovals({ approved: false });
+    const opened = await call(
+      createNewTabTool,
+      { url: "https://active.example.org/x" },
+      MCP,
+    );
+    const switched = await call(switchToTabTool, { tabId: 2 }, MCP);
+    stop();
+    expect(requests).toHaveLength(0);
+    expect(opened).toMatchObject({ success: true });
+    expect(switched).toMatchObject({ success: true });
+  });
+
+  it("still asks before switching to another origin", async () => {
+    const { requests, stop } = answerApprovals({ approved: false });
+    const result = await call(switchToTabTool, { tabId: 3 }, MCP);
+    stop();
+    expect(requests).toHaveLength(1);
+    expect(result).toMatchObject({ status: "denied" });
+  });
+});
