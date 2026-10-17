@@ -7,14 +7,19 @@ type Row = {
   metadata?: { lastActiveAt?: number; createdAt?: number };
 };
 
-const { dbs, failSaves } = vi.hoisted(() => ({
+const { dbs, failSaves, connections } = vi.hoisted(() => ({
   dbs: new Map<string, Map<string, Row>>(),
   failSaves: { count: 0 },
+  connections: [] as Array<{ dbName: string; closed: boolean }>,
 }));
 
 vi.mock("./indexeddb-storage.js", () => ({
   IndexedDBStorage: class {
-    constructor(private config: { dbName: string }) {}
+    private connection: { dbName: string; closed: boolean };
+    constructor(private config: { dbName: string }) {
+      this.connection = { dbName: config.dbName, closed: false };
+      connections.push(this.connection);
+    }
     private get rows(): Map<string, Row> {
       if (!dbs.has(this.config.dbName)) dbs.set(this.config.dbName, new Map());
       return dbs.get(this.config.dbName) as Map<string, Row>;
@@ -32,7 +37,9 @@ vi.mock("./indexeddb-storage.js", () => ({
       this.rows.delete(id);
     };
     clear = async () => this.rows.clear();
-    close = async () => {};
+    close = async () => {
+      this.connection.closed = true;
+    };
   },
 }));
 
@@ -102,6 +109,21 @@ describe("agent session database rename", () => {
     await migrateLegacyAgentSessions(ops);
     expect([...current().keys()].sort()).toEqual(["a", "b"]);
     expect(dbs.has(LEGACY_AGENT_SESSION_DB.dbName)).toBe(false);
+  });
+
+  it("closes every connection to the old database, even when a copy fails", async () => {
+    connections.length = 0;
+    seedLegacy({ id: "a" }, { id: "b" });
+    failSaves.count = 99;
+
+    await expect(migrateLegacyAgentSessions(ops)).rejects.toThrow();
+    await deleteAgentSessions(["a"], ops);
+
+    const legacy = connections.filter(
+      (c) => c.dbName === LEGACY_AGENT_SESSION_DB.dbName,
+    );
+    expect(legacy.length).toBeGreaterThan(1);
+    expect(legacy.every((c) => c.closed)).toBe(true);
   });
 
   it("deleting a conversation's sessions also reaches sessions not yet migrated", async () => {

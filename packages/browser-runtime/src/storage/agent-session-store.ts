@@ -60,16 +60,21 @@ export async function migrateLegacyAgentSessions(
 ): Promise<number> {
   if (!(await ops.exists(LEGACY_AGENT_SESSION_DB.dbName))) return 0;
   const legacy = new IndexedDBStorage<StoredSession>(LEGACY_AGENT_SESSION_DB);
-  const rows = await legacy.listAll();
-  for (const row of rows) {
-    if (!(await sessions().load(row.id))) await sessions().save(row.id, row);
-  }
-  for (const row of rows) {
-    if (!(await sessions().load(row.id))) {
-      throw new Error("agent_session_migration_verify_failed");
+  let rows: StoredSession[];
+  try {
+    rows = await legacy.listAll();
+    for (const row of rows) {
+      if (!(await sessions().load(row.id))) await sessions().save(row.id, row);
     }
+    for (const row of rows) {
+      if (!(await sessions().load(row.id))) {
+        throw new Error("agent_session_migration_verify_failed");
+      }
+    }
+  } finally {
+    // An open connection would block the drop here or in another context.
+    await legacy.close();
   }
-  await legacy.close();
   await ops.drop(LEGACY_AGENT_SESSION_DB.dbName);
   return rows.length;
 }
@@ -125,10 +130,12 @@ export async function deleteAgentSessions(
     () => false,
   );
   if (!moved && (await ops.exists(LEGACY_AGENT_SESSION_DB.dbName))) {
-    await deleteWithForks(
-      new IndexedDBStorage<StoredSession>(LEGACY_AGENT_SESSION_DB),
-      ids,
-    );
+    const legacy = new IndexedDBStorage<StoredSession>(LEGACY_AGENT_SESSION_DB);
+    try {
+      await deleteWithForks(legacy, ids);
+    } finally {
+      await legacy.close();
+    }
   }
   await deleteWithForks(sessions(), ids);
 }
