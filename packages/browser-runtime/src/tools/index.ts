@@ -138,8 +138,12 @@ const interventionToolGroup: BrowserFunctionTool[] = privateGroup(
 );
 
 // Skills (6 tools)
-const skillToolGroup: BrowserFunctionTool[] = privateGroup(
-  skillTools as unknown as BrowserFunctionTool[],
+// The user's own skill text is not page content, so only what a skill script
+// returns goes through the policy; a skill's URLs reach the model as written.
+const skillToolGroup: BrowserFunctionTool[] = (
+  skillTools as unknown as BrowserFunctionTool[]
+).map((tool) =>
+  tool.name === "execute_skill_script" ? withResultPrivacy(tool) : tool,
 );
 
 // DevTools / CDP diagnostics (3 tools)

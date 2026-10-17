@@ -32,6 +32,7 @@ vi.hoisted(() => {
 });
 
 import { allBrowserTools, browserToolGroups } from "./index";
+import { executeSkillScriptTool, loadSkillTool } from "./skill";
 
 async function run(name: string, args: unknown = {}, tools = allBrowserTools) {
   const tool = tools.find((t) => t.name === name) as unknown as {
@@ -79,5 +80,35 @@ describe("tab tool results under the redaction mode", () => {
       browserToolGroups.tabs as unknown as typeof allBrowserTools,
     );
     expect(JSON.stringify(result)).not.toMatch(/Testpatient|884213/);
+  });
+});
+
+describe("skill tool results under the redaction mode", () => {
+  const SKILL_URL = "https://app.example.com/orders/123456?view=audit";
+
+  it("returns the user's own skill text as written, even in Strict", async () => {
+    mockPolicy.mockReturnValue("withhold");
+    vi.spyOn(loadSkillTool, "invoke").mockResolvedValue(`Open ${SKILL_URL}`);
+    const tool = allBrowserTools.find(
+      (t) => t.name === "load_skill",
+    ) as unknown as {
+      invoke: (ctx: unknown, input: string) => Promise<unknown>;
+    };
+    expect(await tool.invoke({}, "{}")).toBe(`Open ${SKILL_URL}`);
+  });
+
+  it("still applies the policy to what a skill script returns", async () => {
+    mockPolicy.mockReturnValue("withhold");
+    vi.spyOn(executeSkillScriptTool, "invoke").mockResolvedValue(
+      `Read ${SKILL_URL}`,
+    );
+    const tool = allBrowserTools.find(
+      (t) => t.name === "execute_skill_script",
+    ) as unknown as {
+      invoke: (ctx: unknown, input: string) => Promise<unknown>;
+    };
+    expect(await tool.invoke({}, "{}")).toBe(
+      "Read https://app.example.com/orders/:id",
+    );
   });
 });
