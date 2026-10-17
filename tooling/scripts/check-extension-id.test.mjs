@@ -28,7 +28,7 @@ describe("check-extension-id", () => {
   });
 
   it("maps the key's hash to 32 letters a-p", () => {
-    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 1024 });
+    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const key = publicKey
       .export({ type: "spki", format: "der" })
       .toString("base64");
@@ -38,7 +38,7 @@ describe("check-extension-id", () => {
   it("fails on another key and on a manifest without one", () => {
     const dir = mkdtempSync(join(tmpdir(), "ext-id-"));
     dirs.push(dir);
-    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 1024 });
+    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const other = join(dir, "other.json");
     writeFileSync(
       other,

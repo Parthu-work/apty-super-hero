@@ -754,8 +754,14 @@ function ensureElementUid(element: Element): string {
   return uid;
 }
 
+function randomBase36(length: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(length)), (byte) =>
+    (byte % 36).toString(36),
+  ).join("");
+}
+
 function generateShortId(): string {
-  const random = Math.random().toString(36).slice(2, 8);
+  const random = randomBase36(6);
   const time = Date.now().toString(36).slice(-4);
   return `${time}${random}`;
 }

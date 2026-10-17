@@ -337,7 +337,9 @@ let installSalt: string | undefined;
 /** A process-lifetime-stable salt for pseudonymizing IDs, generated once. Not persisted across restarts by design — pseudonyms only need to be stable within one debugging session, not forever, and never persisting it avoids it becoming its own secret to protect. */
 function getInstallSalt(): string {
   if (!installSalt) {
-    installSalt = `${Date.now()}-${Math.random()}`;
+    installSalt = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
   }
   return installSalt;
 }

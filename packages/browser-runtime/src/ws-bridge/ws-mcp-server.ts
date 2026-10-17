@@ -433,7 +433,8 @@ export class WsMcpServer {
   private handleMessage(message: JSONRPCMessage): void {
     if (!("method" in message)) {
       const id = (message as { id?: unknown }).id;
-      if (typeof id === "string") this.authReplies.get(id)?.(message);
+      const reply = typeof id === "string" ? this.authReplies.get(id) : null;
+      if (typeof reply === "function") reply(message);
       return;
     }
     if (!("id" in message) || !this.session) {

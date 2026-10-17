@@ -152,9 +152,9 @@ function startStaticServer(rootDir) {
             MIME_TYPES[extname(filePath)] ?? "application/octet-stream",
         });
         res.end(body);
-      } catch (error) {
+      } catch {
         res.writeHead(500);
-        res.end(String(error));
+        res.end("Internal error");
       }
     });
     server.listen(0, "127.0.0.1", () => {
