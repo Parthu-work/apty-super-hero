@@ -649,6 +649,9 @@ export function startDaemonServer(
     };
     ws.on("message", onMessage);
     ws.on("close", () => clearTimeout(timer));
+    ws.on("error", (err) => {
+      log(`Unauthenticated /extension socket error: ${err.message}`);
+    });
   }
 
   extensionWss.on("connection", (socket, req) => {
@@ -688,6 +691,10 @@ export function startDaemonServer(
     socket.on("close", () => {
       bridgeClients.delete(socket);
       resetIdleTimer();
+    });
+
+    socket.on("error", (err) => {
+      log(`CLI client error: ${err.message}`);
     });
   });
 

@@ -522,6 +522,29 @@ async function authenticate(port: number, token = TOKEN) {
 }
 
 describe("daemon-server — challenge authentication on /extension", () => {
+  it("survives a malformed frame before authentication, on /extension and /cli", async () => {
+    const h = await startTestDaemon();
+    const invalidUtf8 = Buffer.from([0xff, 0xfe, 0xfd]);
+    const intruder = await openChallengeSocket(h.port);
+    intruder.ws.send(invalidUtf8, { binary: false });
+    expect(await intruder.closed).toBe(1007);
+    const { ws: cli, result } = await attemptConnect(
+      `ws://127.0.0.1:${h.port}/cli`,
+      { token: TOKEN },
+    );
+    expect((await result).opened).toBe(true);
+    const cliClosed = new Promise<number>((resolve) =>
+      cli.on("close", (code) => resolve(code)),
+    );
+    cli.send(invalidUtf8, { binary: false });
+    expect(await cliClosed).toBe(1007);
+
+    const client = await authenticate(h.port);
+    await client.next((m) => m.id === "auth-2");
+    expect(h.isExtensionConnected()).toBe(true);
+    client.ws.close();
+  });
+
   it("proves it holds the token before the extension proves anything", async () => {
     const h = await startTestDaemon();
     const client = await openChallengeSocket(h.port);
