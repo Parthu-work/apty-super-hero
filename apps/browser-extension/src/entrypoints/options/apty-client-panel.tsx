@@ -49,6 +49,7 @@ import { CheckCircle2, Info, Loader2, Plug, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { type ClientCheck, checkPeer } from "../../services/apty-client-check";
 import { requestOptionalPermission } from "../../services/optional-permissions";
+import { ClientNetworkCallsPanel } from "./client-network-calls-panel";
 
 type CheckState = { status: "idle" } | { status: "checking" } | ClientCheck;
 
@@ -416,6 +417,8 @@ function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
         )}
 
         <p className="text-xs text-muted-foreground">{t(copy.usage)}</p>
+
+        {peer === "client" && <ClientNetworkCallsPanel extensionId={saved} />}
       </CardContent>
     </Card>
   );
