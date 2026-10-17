@@ -458,7 +458,8 @@ describe("daemon-server — GET /health", () => {
       status: "ok",
       extensionConnected: false,
       bridgeClients: 0,
-      version: "3.1.0",
+      version: "4.0.0",
+      auth: [AUTH_PROTOCOL],
     });
     const raw = JSON.stringify(body);
     expect(raw).not.toContain(TOKEN);

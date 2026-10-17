@@ -17,7 +17,7 @@ import {
 import { callTool, type DaemonClientOptions } from "./lib/daemon-client.js";
 import { error, printHelp, printResult, success } from "./lib/output.js";
 
-const VERSION = "3.1.0";
+const VERSION = "4.0.0";
 
 // ── Global option extraction ────────────────────────────────────────────────
 

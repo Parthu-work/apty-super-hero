@@ -73,6 +73,40 @@ const UNAUTHENTICATED_CALL = -32001;
 
 class DaemonAuthError extends Error {}
 
+/** The first apty-mcp-bridge release with challenge authentication. */
+const MIN_DAEMON_VERSION = "4.0.0";
+
+/**
+ * A daemon from before challenge authentication refuses this extension's
+ * upgrade, which a browser reports only as a socket error. Its unauthenticated
+ * /health says which it is.
+ */
+async function outdatedDaemonMessage(url: string): Promise<string | null> {
+  try {
+    const health = new URL(url);
+    health.protocol = health.protocol === "wss:" ? "https:" : "http:";
+    health.pathname = "/health";
+    health.search = "";
+    const response = await fetch(health.toString(), {
+      signal: AbortSignal.timeout(2_000),
+    });
+    const body = (await response.json()) as {
+      status?: unknown;
+      version?: unknown;
+      auth?: unknown;
+    };
+    if (body.status !== "ok") return null;
+    if (Array.isArray(body.auth) && body.auth.includes(AUTH_PROTOCOL)) {
+      return null;
+    }
+    const version =
+      typeof body.version === "string" ? body.version : "an older version";
+    return `The MCP bridge daemon (${version}) is too old for this extension. Update it to apty-mcp-bridge ${MIN_DAEMON_VERSION} or later and restart it.`;
+  } catch {
+    return null;
+  }
+}
+
 function getReconnectDelayMs(attempt: number): number {
   const withJitter = (base: number) =>
     Math.round(base * (0.7 + Math.random() * 0.6));
@@ -208,7 +242,12 @@ export class WsMcpServer {
         this.handleMessage(message);
       };
 
-      await transport.start();
+      await transport.start().catch(async (error: unknown) => {
+        throw new Error(
+          (await outdatedDaemonMessage(url)) ??
+            (error instanceof Error ? error.message : String(error)),
+        );
+      });
       await this.authenticate(transport, token);
       this.updateState({
         status: "connected",

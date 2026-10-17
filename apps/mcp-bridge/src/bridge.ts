@@ -62,7 +62,7 @@ to find it).
 }
 
 if (cliArgs.includes("--version") || cliArgs.includes("-v")) {
-  process.stderr.write("apty-mcp-bridge 3.1.0\n");
+  process.stderr.write("apty-mcp-bridge 4.0.0\n");
   process.exit(0);
 }
 
@@ -277,7 +277,7 @@ async function ensureDaemonConnection() {
 // ── MCP Server (stdio to IDE) ───────────────────────────────────────────────
 
 const server = new Server(
-  { name: "apty-mcp-bridge", version: "3.1.0" },
+  { name: "apty-mcp-bridge", version: "4.0.0" },
   { capabilities: { tools: {} } },
 );
 

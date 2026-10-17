@@ -38,6 +38,8 @@ The token travels in the handshake, never in the URL: a client offers two WebSoc
 
 The extension is different: it never sends the token, so a program squatting on the port (another user on a shared Citrix or RDS host, say) learns nothing. It offers `apty-mcp.v1` and `apty-auth.hmac-v1`, then runs a challenge: it sends a random nonce, the daemon answers with its own nonce and an HMAC-SHA256 of both under the token, and only if that checks out does the extension send its own HMAC. The daemon treats the socket as the extension only after verifying it, and every `tools/call` it then sends carries a sequence number and an HMAC under a key derived from both nonces; the extension refuses any call without a valid one. The daemon forwards only the tools it publishes in `tools/list`.
 
+This needs apty-mcp-bridge 4.0.0 or later. A 3.x daemon refuses the extension's connection, and the extension's MCP status then says to update the daemon.
+
 1. **Generate/find the token.** It's created automatically the first time anything needs it, stored `0600` under `~/.apty/mcp-daemon/token`. To see the path without starting anything:
 
    ```bash

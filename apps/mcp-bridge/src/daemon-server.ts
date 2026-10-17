@@ -452,7 +452,9 @@ export function startDaemonServer(
           status: "ok",
           extensionConnected: isExtensionConnected(),
           bridgeClients: bridgeClients.size,
-          version: "3.1.0",
+          version: "4.0.0",
+          // Lets an extension tell an outdated daemon from a wrong token.
+          auth: [AUTH_PROTOCOL],
         }),
       );
       return;

@@ -143,6 +143,7 @@ beforeEach(() => {
   tools.invoke.mockReset();
   for (const key of Object.keys(storage)) delete storage[key];
   vi.stubGlobal("WebSocket", FakeWebSocket);
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
   vi.stubGlobal("chrome", {
     alarms,
     storage: {
@@ -243,6 +244,38 @@ describe("WsMcpServer.connect", () => {
     });
     await vi.advanceTimersByTimeAsync(1_000);
     expect(FakeWebSocket.instances).toHaveLength(2);
+    await server.disconnect();
+  });
+});
+
+describe("WsMcpServer with a daemon too old for challenge authentication", () => {
+  const health = (body: unknown) =>
+    vi
+      .mocked(fetch)
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+
+  it("says to update the daemon when it answers without challenge authentication", async () => {
+    health({ status: "ok", version: "3.1.0" });
+    const server = new WsMcpServer();
+    const connecting = server.connect(URL, TOKEN);
+    latestSocket().fail();
+
+    await expect(connecting).rejects.toThrow(/3\.1\.0.*update/i);
+    expect(server.getStatus().error).toMatch(/apty-mcp-bridge 4\.0\.0/);
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "http://127.0.0.1:9223/health",
+      expect.anything(),
+    );
+    expect(JSON.stringify(vi.mocked(fetch).mock.calls)).not.toContain(TOKEN);
+    await server.disconnect();
+  });
+
+  it("keeps the socket error when the daemon supports it or doesn't answer", async () => {
+    health({ status: "ok", version: "4.0.0", auth: ["apty-auth.hmac-v1"] });
+    const server = new WsMcpServer();
+    const connecting = server.connect(URL, TOKEN);
+    latestSocket().fail();
+    await expect(connecting).rejects.toThrow("WebSocket error");
     await server.disconnect();
   });
 });
