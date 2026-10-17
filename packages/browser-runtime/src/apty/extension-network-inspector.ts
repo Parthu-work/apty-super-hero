@@ -45,7 +45,9 @@
  */
 
 import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
-import { redactText } from "../runtime/redaction-mode.js";
+import { applyUrlPolicy } from "@apty/dom-snapshot";
+import { getRedactionMode, redactText } from "../runtime/redaction-mode.js";
+import { currentValuePolicy } from "../runtime/value-policy.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
 import {
@@ -73,6 +75,15 @@ export type ExtensionCaptureEntry = AptyObservedResource;
 export interface MatchedResource extends ExtensionCaptureEntry {
   resourceName: string;
   matchKind: "exact" | "tolerant" | "path" | "fragment";
+}
+
+/**
+ * A resource's name as the model sees it: taken from the URL after the
+ * current mode's URL policy, so Strict's `:id` hides a record number in the
+ * name as it does in the URL. Matching still uses the real name.
+ */
+function shownResourceName(url: string): string {
+  return resourceNameFor(applyUrlPolicy(url, currentValuePolicy()) ?? url);
 }
 
 /** A log entry reported by the Apty Client's own service worker. */
@@ -408,7 +419,7 @@ function suggestClosestResourceNames(
   const counts = new Map<string, number>();
   for (const req of requests) {
     if (!req.url) continue;
-    const name = resourceNameFor(req.url);
+    const name = shownResourceName(req.url);
     if (!name) continue;
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
@@ -446,13 +457,14 @@ export async function listObservedResources(
   if (!result.ok) {
     return { connected: false, error: result.error };
   }
+  await getRedactionMode();
 
   return {
     connected: true,
     extensionId: active.extensionId,
     resources: result.resources.map((r) => ({
       ...r,
-      resourceName: resourceNameFor(r.url ?? ""),
+      resourceName: shownResourceName(r.url ?? ""),
     })),
   };
 }
@@ -683,7 +695,10 @@ export async function inspectResource(
     };
   }
 
-  const matches = matchResources(listed.resources, resourceQuery);
+  await getRedactionMode();
+  const matches = matchResources(listed.resources, resourceQuery).map(
+    (match) => ({ ...match, resourceName: shownResourceName(match.url) }),
+  );
   const best = matches[0];
   if (!best) {
     const suggestions = suggestClosestResourceNames(
@@ -691,7 +706,7 @@ export async function inspectResource(
       resourceQuery,
     );
     const observedResources = Array.from(
-      new Set(listed.resources.map((r) => resourceNameFor(r.url ?? ""))),
+      new Set(listed.resources.map((r) => shownResourceName(r.url ?? ""))),
     ).filter(Boolean);
     return {
       found: false,

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetRedactionModeForTests } from "../runtime/redaction-mode";
 import { clearEvidence, getEvidence } from "./evidence-store";
 
 const EXT_ID = "abcdefghijklmnopabcdefghijklmnop"; // 32 chars, a-p
@@ -690,6 +691,91 @@ describe("listServiceWorkerLogs", () => {
     );
     expect(evidence).toHaveLength(1);
     expect(evidence[0]?.type).toBe("service-worker-log");
+    await disconnectExtensionClient("conv-a");
+  });
+});
+
+describe("resource names the model sees", () => {
+  const USERS = [
+    {
+      requestId: "u1",
+      url: "https://cdn.apty.example/users/4815162342.json",
+      method: "GET",
+      status: 404,
+      mimeType: "application/json",
+      timestamp: 1,
+    },
+    {
+      requestId: "u2",
+      url: "https://cdn.apty.example/users/4815162343.json",
+      method: "GET",
+      failed: true,
+      timestamp: 2,
+    },
+  ];
+
+  function clientListing(mode: "strict" | "standard") {
+    (chrome as any).storage = {
+      local: {
+        get: async (key: string) => ({ [key]: { redactionMode: mode } }),
+      },
+    };
+    resetRedactionModeForTests();
+    mockResponsesByType({
+      "apty-debug-agent:get-service-worker-status": OK_STATUS,
+      "apty-debug-agent:list-observed-resources": { resources: USERS },
+      "apty-debug-agent:get-resource-body": { found: false },
+    });
+  }
+
+  afterEach(() => {
+    delete (chrome as any).storage;
+    resetRedactionModeForTests();
+  });
+
+  it("hide a record number in Strict, in the list, the match, its error and the suggestions", async () => {
+    clientListing("strict");
+    await connectExtensionClient("conv-a", EXT_ID);
+
+    const listed = await listObservedResources("conv-a");
+    const matched = await inspectResource("conv-a", "4815162342.json");
+    const failed = await inspectResource("conv-a", "4815162343.json");
+    const missing = await inspectResource("conv-a", "segments.json");
+
+    expect(
+      listed.connected && listed.resources.map((r) => r.resourceName),
+    ).toEqual([":id.json", ":id.json"]);
+    expect(matched).toMatchObject({
+      status: "http_error",
+      request: { requestId: "u1", resourceName: ":id.json" },
+    });
+    expect(failed).toMatchObject({
+      status: "failed",
+      request: { requestId: "u2" },
+    });
+    expect(missing).toMatchObject({
+      status: "not_observed",
+      observedResources: [":id.json"],
+      suggestions: [{ resourceName: ":id.json", count: 2 }],
+    });
+    const { resourceQuery: _q1, ...matchedRest } = matched;
+    const { resourceQuery: _q2, ...failedRest } = failed;
+    const shown = JSON.stringify([listed, missing, matchedRest, failedRest]);
+    expect(shown.replace(/https:\/\/[^"]+/g, "")).not.toMatch(/481516234[23]/);
+    await disconnectExtensionClient("conv-a");
+  });
+
+  it("keep the real name in Standard, which keeps paths", async () => {
+    clientListing("standard");
+    await connectExtensionClient("conv-a", EXT_ID);
+
+    const listed = await listObservedResources("conv-a");
+    const matched = await inspectResource("conv-a", "4815162342.json");
+
+    expect(
+      listed.connected && listed.resources.map((r) => r.resourceName),
+    ).toEqual(["4815162342.json", "4815162343.json"]);
+    expect(matched.request?.resourceName).toBe("4815162342.json");
     await disconnectExtensionClient("conv-a");
   });
 });
