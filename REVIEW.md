@@ -1,4 +1,4 @@
-# Review: `hardening/prod-ready`, Checkpoint 3 (Phases 1–3) and Phase 4
+# Review: `hardening/prod-ready`, Checkpoint 3 (Phases 1–3), Phase 4 and the PR review
 
 | | |
 |---|---|
@@ -302,6 +302,48 @@ pnpm audit --prod   No known vulnerabilities found
 - **TruffleHog** over `origin/main..HEAD` (`--no-verification`; the scan
   began at an older commit, so it covers all 59 branch commits): 4,266
   chunks, **0 verified, 0 unverified**.
+
+## PR #20 review, before merging
+
+Four reviewers each read one area of the whole diff: agent-core, storage
+and privacy, tools and the MCP bridge, and UI and the extension. CodeQL
+ran on the PR too. Each finding below was confirmed by a test that fails
+on the code before the fix.
+
+| Severity | Finding | Fix | Before → after |
+|---|---|---|---|
+| High | After the R2/item 12 database move, `apty-conversations-db` and `apty-screenshots-db` ended at version 2, which the Agent opens at version 1. Every open failed with `VersionError`, so history and screenshots stopped working for upgrading users. | `1e86836`: a new target is created at the source's version. An existing target that lacks a store keeps the old database for a later retry. | `legacy-storage.e2e` opens each database at the Agent's version: `VersionError` → pass |
+| High | ZenFS names its store after the database, so the skills store was copied as `aipex-skills-fs`, where ZenFS never reads it. The source was then deleted. | `1e86836`: the store is renamed too. The e2e test now seeds ZenFS's real layout. | "Timed out waiting for the skill files to move" → pass |
+| High | A malformed frame on an `/extension` socket still authenticating (no token needed) or on `/cli` stopped the daemon: an unhandled `error` event. | `e09740d` | 2 unhandled `WS_ERR_INVALID_UTF8` errors → pass |
+| Medium-high | My fix for unoffered tools (`0632df0`) reran the turn from the user's message even after a tool had run, repeating that tool. | `6c00ba9`: it reruns only before any output; later, the turn ends with `TOOL_NOT_FOUND` naming the tool. | the tool ran 31 times → 1 |
+| Medium | Settings saved with only `aiProvider` (for example `anthropic`) got the default `providerType` `openai`. Test Connection then sent the key to OpenAI, and Save wrote `aiProvider: openai`. | `fc3b5cd`: settings version 2 derives `providerType` from `aiProvider`. | `undefined` → `claude` |
+| Medium | MCP calls have no bound tab, so since S5 every MCP `switch_to_tab` and same-origin `create_new_tab` asked first, and failed with the side panel closed. | `d10eba0`: MCP compares with the active tab, as on main. Another origin still asks, and so does a chat with no bound tab. | 2 prompts → 0 |
+| Medium | Strict rewrote the URLs in the user's own skill text (`/orders/123456?view=audit` → `/orders/:id`), so the agent opened the wrong page. | `b8e1ac6`: skill content tools are exempt. `execute_skill_script` output still goes through the policy. | → pass |
+| Medium | A 3.x daemon refuses the S6 extension, which only sees a socket error and retries forever. | `dd5ca85`: `/health` advertises challenge auth. The extension names an outdated daemon and says to update to **apty-mcp-bridge 4.0.0** (the version is bumped for the protocol change). | "WebSocket error" → the update message |
+| Low | A handshake abandoned when the daemon restarted timed out 5 s later and wiped out the newer connection, because both shared the auth reply slots. | `a1d9d2b` | stuck `connecting` → `connected` |
+| Low | In Strict, a short tab title ("Home") was replaced throughout the attached page text. | `4783817`: titles under 12 characters are replaced only on their own line or the `Title:` line. | → pass |
+| Low | A legacy session database connection stayed open after a failed move or a delete. | `98944cb` | → pass |
+| CodeQL (6 high, 1 medium) | Quadratic `[[screenshot:` placeholder regex (7.5 s on 260 KB of model output); `Math.random` for node ids, screenshot uids and the redaction pseudonym salt; an auth reply lookup without a function check; 1024-bit keys in a test; an error's text in an e2e server reply. | `3fd0be4`, `3c9cf86` | regex 7,457 ms → under 500 ms |
+
+**Reviewed and kept as designed:**
+
+- **New tabs with long paths.** A same-origin new tab whose path, query and fragment add up past 128 characters still asks. That is S5's rule, and an S5 test asserts it.
+- **Strict URL masking.** Strict masks URLs in page-derived results: it drops queries and, since item 6, replaces ids in paths. That is the point of Strict. Standard keeps paths.
+- **Truncated JSON.** An unclosed sensitive object in truncated text is redacted to the end. That errs toward hiding.
+- **Cross-origin MCP tab switch.** It still needs approval (S5).
+
+**Nothing on main was lost.** Every `it`/`test` title on main and on the branch was compared: main has 2,122 and the branch 2,473. The 8 titles missing on the branch were each renamed or replaced by a stricter test: S3 click echo, R2 `data-apty-nodeid`, S5 DevTools and approval grants, S6 token handshake. The exception is S3's three click-recording tests, which were removed with the dead code they covered (see Phase 1).
+
+**Gates on the final head** (release dry run, `rm -rf dist` first):
+
+```
+✓ format lint typecheck test coverage   ✓ build   ✓ real-browser tests (123/123)
+✓ audits   ✓ production dependency audit   ✓ pinned extension ID   ✓ package, checksums
+unit: debug-contract 83, agent-core 290, dom-snapshot 397, browser-runtime 1103,
+      ui 273, extension 318, mcp-bridge 61
+request size: unchanged from Phase 4 (registry 15,200 schema tokens)
+TruffleHog origin/main..HEAD: 4,347 chunks, 0 verified, 0 unverified
+```
 
 ## Work packages (Phase 2)
 
