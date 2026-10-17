@@ -3,6 +3,8 @@
  * the names that replaced them. Each moves once: every object store, index
  * and record (with its key) is copied, every key is read back, and only then
  * is the old database deleted. A record already in the new database wins.
+ * The new database keeps the old one's version, which is the version the
+ * Agent opens it at.
  */
 const LEGACY_DATABASE_RENAMES: Readonly<Record<string, string>> = {
   "aipex-conversations-db": "apty-conversations-db",
@@ -13,6 +15,11 @@ const LEGACY_DATABASE_RENAMES: Readonly<Record<string, string>> = {
 export const CONVERSATIONS_DB = "apty-conversations-db";
 export const SCREENSHOTS_DB = "apty-screenshots-db";
 export const SKILLS_FS_DB = "apty-skills-fs";
+
+/** ZenFS names its one object store after the database, so the store is renamed too. */
+const STORE_RENAMES: Readonly<Record<string, string>> = {
+  "aipex-skills-fs": SKILLS_FS_DB,
+};
 
 interface StoreShape {
   name: string;
@@ -98,19 +105,25 @@ function createMissingStores(db: IDBDatabase, shapes: StoreShape[]): void {
   }
 }
 
+/**
+ * A new target is created at the source's version with every store. An
+ * existing one is used only if it already has every store: raising its
+ * version would leave it at one the Agent can't open.
+ */
 async function openTarget(
   name: string,
   shapes: StoreShape[],
-  minVersion: number,
+  version: number,
 ): Promise<IDBDatabase> {
+  if (!(await databaseExists(name))) {
+    return open(name, version, (created) =>
+      createMissingStores(created, shapes),
+    );
+  }
   const db = await open(name);
-  const missing = shapes.some((s) => !db.objectStoreNames.contains(s.name));
-  if (!missing && db.version >= minVersion) return db;
-  const version = Math.max(db.version + (missing ? 1 : 0), minVersion);
+  if (shapes.every((s) => db.objectStoreNames.contains(s.name))) return db;
   db.close();
-  return open(name, version, (upgraded) =>
-    createMissingStores(upgraded, shapes),
-  );
+  throw new Error("legacy_database_target_mismatch");
 }
 
 async function copyRecords(
@@ -154,7 +167,10 @@ async function moveDatabase(from: string, to: string): Promise<number> {
   if (!(await databaseExists(from))) return 0;
   const source = await open(from);
   const version = source.version;
-  const shapes = await readShape(source);
+  const shapes = (await readShape(source)).map((shape) => ({
+    ...shape,
+    name: STORE_RENAMES[shape.name] ?? shape.name,
+  }));
   source.close();
   const target = await openTarget(to, shapes, version);
   try {
@@ -172,9 +188,11 @@ let moving: Promise<void> | null = null;
 /** Moves every legacy database, once per context; a failed run is retried on the next call. */
 export function moveLegacyDatabases(): Promise<void> {
   moving ??= (async () => {
+    const failures: unknown[] = [];
     for (const [from, to] of Object.entries(LEGACY_DATABASE_RENAMES)) {
-      await moveDatabase(from, to);
+      await moveDatabase(from, to).catch((error) => failures.push(error));
     }
+    if (failures.length > 0) throw failures[0];
   })().catch((error) => {
     moving = null;
     throw error;

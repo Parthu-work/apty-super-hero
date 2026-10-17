@@ -71,6 +71,23 @@ function readDb(page, dbName, storeName) {
   );
 }
 
+/** Opens `dbName` at the version the Agent itself asks for; the error name if it can't. */
+function openAsTheAgentDoes(page, dbName, version) {
+  return page.evaluate(
+    ({ dbName, version }) =>
+      new Promise((resolve) => {
+        const open = indexedDB.open(dbName, version);
+        open.onsuccess = () => {
+          const stores = Array.from(open.result.objectStoreNames);
+          open.result.close();
+          resolve(stores);
+        };
+        open.onerror = () => resolve(open.error?.name ?? "error");
+      }),
+    { dbName, version },
+  );
+}
+
 /** Put the agent's sessions back under the old database name, as an earlier version left them. */
 function moveSessionsToLegacyDb(page) {
   return page.evaluate(async () => {
@@ -266,10 +283,14 @@ describe("data stored under the AIPex names (R2)", () => {
       "uid",
       [{ value: { uid: "screenshot_1_legacy", timestamp: 1, tabId: 1 } }],
     );
-    // A skill file system keeps its keys outside the records.
-    await createDatabaseInPage(probe, "aipex-skills-fs", "store", null, [
-      { key: "/skills/demo/SKILL.md", value: "# Demo skill" },
-    ]);
+    // ZenFS names its one store after the database and keeps keys outside the records.
+    await createDatabaseInPage(
+      probe,
+      "aipex-skills-fs",
+      "aipex-skills-fs",
+      null,
+      [{ key: "/skills/demo/SKILL.md", value: "# Demo skill" }],
+    );
     await probe.close();
 
     await restartAgent(browser, helperDir);
@@ -318,7 +339,7 @@ describe("data stored under the AIPex names (R2)", () => {
       JSON.stringify(screenshots),
     );
     const skillFile = await poll(async () => {
-      const legacy = await readDb(after, "aipex-skills-fs", "store");
+      const legacy = await readDb(after, "aipex-skills-fs", "aipex-skills-fs");
       if (legacy !== null) return null;
       return after.evaluate(async () => {
         const open = indexedDB.open("apty-skills-fs");
@@ -326,10 +347,10 @@ describe("data stored under the AIPex names (R2)", () => {
           open.onsuccess = () => resolve(open.result);
           open.onerror = () => reject(open.error);
         });
-        if (!db.objectStoreNames.contains("store")) return null;
+        if (!db.objectStoreNames.contains("apty-skills-fs")) return null;
         const get = db
-          .transaction("store")
-          .objectStore("store")
+          .transaction("apty-skills-fs")
+          .objectStore("apty-skills-fs")
           .get("/skills/demo/SKILL.md");
         return new Promise((resolve) => {
           get.onsuccess = () => resolve(get.result ?? null);
@@ -337,6 +358,14 @@ describe("data stored under the AIPex names (R2)", () => {
       });
     }, "the skill files to move");
     assert.equal(skillFile, "# Demo skill");
+    assert.deepEqual(
+      await openAsTheAgentDoes(after, "apty-conversations-db", 1),
+      ["conversations"],
+    );
+    assert.deepEqual(
+      await openAsTheAgentDoes(after, "apty-screenshots-db", 1),
+      ["screenshots"],
+    );
 
     await after.getByText("https://grant.example").first().waitFor();
     await after.close();
@@ -350,6 +379,14 @@ describe("data stored under the AIPex names (R2)", () => {
     model.script(() => ({ text: "RESULT: second" }));
     await app.bringToFront();
     assert.match(await chatAndWait(panelAgain, "again"), /RESULT: second/);
+    await poll(async () => {
+      const rows = await readDb(
+        panelAgain,
+        "apty-conversations-db",
+        "conversations",
+      );
+      return rows && rows.length > conversationsBefore.length ? rows : null;
+    }, "the chat after the move to be saved");
     await panelAgain.close();
     await app.close();
   });
