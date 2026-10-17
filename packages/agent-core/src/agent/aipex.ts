@@ -414,11 +414,20 @@ export class AIPex {
           const missing = missingToolName(callError);
           if (missing) {
             // The model called a tool this turn didn't offer. A registered
-            // one is offered and the turn runs again; anything else is
-            // named, not reported as a provider failure.
+            // one is offered and the turn runs again, but only while nothing
+            // has reached the caller: running it again after a tool ran
+            // would repeat that tool. Anything else is named, not reported
+            // as a provider failure.
             const registered = (this.agent.tools as FunctionTool[]).find(
               (t) => t.name === missing,
             );
+            if (registered && offeredTools && reachedCaller) {
+              throw new AgentError(
+                `The model called ${missing}, which wasn't offered for this message. Ask again and say what you need it to do.`,
+                ErrorCode.TOOL_NOT_FOUND,
+                true,
+              );
+            }
             if (
               !offeredTools ||
               !registered ||

@@ -90,7 +90,64 @@ async function collect(agent: AIPex, input: string, tools?: FunctionTool[]) {
 const offeredNames = (request: ModelRequest) =>
   (request.tools ?? []).map((t) => (t as { name: string }).name).sort();
 
+/** Runs `offered_tool` first, then calls `missing_tool` once that result is back. */
+function modelCallingMissingToolSecond() {
+  const model: Model = {
+    async getResponse() {
+      throw new Error("not used");
+    },
+    async *getStreamedResponse(
+      request: ModelRequest,
+    ): AsyncIterable<StreamEvent> {
+      const results = Array.isArray(request.input)
+        ? request.input.filter(
+            (item) =>
+              (item as { type?: string }).type === "function_call_result",
+          ).length
+        : 0;
+      if (results === 0) {
+        yield { type: "output_text_delta", delta: "Submitting" } as StreamEvent;
+      }
+      yield done(`resp_${results}`, [
+        {
+          type: "function_call",
+          callId: `call_${results}`,
+          name: results === 0 ? "offered_tool" : "missing_tool",
+          arguments: "{}",
+          status: "completed",
+        },
+      ]);
+    },
+  };
+  return model as unknown as Parameters<typeof AIPex.create>[0]["model"];
+}
+
 describe("a call to a tool that wasn't offered", () => {
+  it("never runs the turn again once a tool has run, naming the tool instead", async () => {
+    const ran: string[] = [];
+    const offered = namedTool("offered_tool", ran);
+    const agent = AIPex.create({
+      instructions: "Test",
+      model: modelCallingMissingToolSecond(),
+      tools: [offered, namedTool("missing_tool", ran)],
+    });
+
+    const events = await collect(agent, "submit the form", [offered]);
+    const error = events.find((e) => e.type === "error");
+
+    expect(ran).toEqual(["offered_tool"]);
+    expect(error?.type === "error" && error.error.code).toBe(
+      ErrorCode.TOOL_NOT_FOUND,
+    );
+    expect(error?.type === "error" && error.error.message).toMatch(
+      /missing_tool/,
+    );
+    const text = events
+      .map((e) => (e.type === "content_delta" ? e.delta : ""))
+      .join("");
+    expect(text).toBe("Submitting");
+  });
+
   it("offers a registered tool the model asked for, runs it, and finishes the turn", async () => {
     const { model, requests } = modelCallingMissingTool();
     const ran: string[] = [];
