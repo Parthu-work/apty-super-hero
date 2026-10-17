@@ -1,3 +1,4 @@
+import { AI_PROVIDERS } from "./ai-providers.js";
 import { type AppSettings, DEFAULT_APP_SETTINGS } from "./settings.js";
 
 /** One step of the stored-settings schema: upgrades settings at `version - 1` to `version`. */
@@ -15,6 +16,21 @@ export interface SettingsMigration {
  */
 export const SETTINGS_MIGRATIONS: readonly SettingsMigration[] = [
   { version: 1, migrate: (settings) => settings },
+  {
+    // Old flat settings name only `aiProvider`; without this the default
+    // `providerType` ("openai") would win over it.
+    version: 2,
+    migrate: (settings) => {
+      const provider =
+        typeof settings.aiProvider === "string" &&
+        Object.hasOwn(AI_PROVIDERS, settings.aiProvider)
+          ? AI_PROVIDERS[settings.aiProvider as keyof typeof AI_PROVIDERS]
+          : undefined;
+      return settings.providerType === undefined && provider
+        ? { ...settings, providerType: provider.providerType }
+        : settings;
+    },
+  },
 ];
 
 export const SETTINGS_VERSION = Math.max(

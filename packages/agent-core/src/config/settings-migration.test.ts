@@ -39,6 +39,26 @@ describe("migrateSettings", () => {
     expect(changed).toBe(true);
   });
 
+  it("takes the provider type of old flat settings from their provider, never the default", () => {
+    const { settings } = migrateSettings({
+      aiProvider: "anthropic",
+      aiToken: "sk-ant-key",
+      aiModel: "claude-x",
+    });
+    expect(settings.providerType).toBe("claude");
+    expect(
+      withSettingsDefaults(migrateSettings({ aiProvider: "google" }).settings)
+        .providerType,
+    ).toBe("google");
+    expect(
+      migrateSettings({ aiProvider: "anthropic", providerType: "openai" })
+        .settings.providerType,
+    ).toBe("openai");
+    expect(
+      migrateSettings({ aiProvider: "not-a-provider" }).settings.providerType,
+    ).toBeUndefined();
+  });
+
   it("leaves current settings alone", () => {
     const current = { aiToken: "key", settingsVersion: SETTINGS_VERSION };
 
