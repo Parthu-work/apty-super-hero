@@ -356,6 +356,7 @@ describe("what was sent (O5)", () => {
     const preflight = options
       .locator("#preflight")
       .getByRole("list", { name: "Recent requests" });
+    await preflight.waitFor();
     assert.equal(
       await preflight.getByRole("listitem").count(),
       Math.min(sentCount, 5),

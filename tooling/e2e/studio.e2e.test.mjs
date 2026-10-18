@@ -15,6 +15,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  savedPeerId,
   startMockModel,
   startPageServer,
   tempDir,
@@ -66,13 +67,9 @@ async function connectStudio(mode) {
     "src/entrypoints/options/index.html#apty-studio",
   );
   const card = studioCard(options);
-  // The saved ID loads asynchronously; wait until the row shows its buttons.
-  await card
-    .getByRole("button", { name: /^(Connect|Disconnect)$/ })
-    .first()
-    .waitFor();
-  const disconnect = card.getByRole("button", { name: "Disconnect" });
-  if (await disconnect.isVisible()) await disconnect.click();
+  if (await savedPeerId(options, "studio")) {
+    await card.getByRole("button", { name: "Disconnect" }).click();
+  }
   await card.getByLabel("Apty Studio's Chrome ID").fill(studios[mode].id);
   await card.getByRole("button", { name: "Connect", exact: true }).click();
   return { options, card };
