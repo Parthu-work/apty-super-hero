@@ -714,8 +714,11 @@ describe("resource names the model sees", () => {
     },
   ];
 
+  /** The test's chrome stub, which gets a storage area per test. */
+  const stub = chrome as unknown as { storage?: unknown };
+
   function clientListing(mode: "strict" | "standard") {
-    (chrome as any).storage = {
+    stub.storage = {
       local: {
         get: async (key: string) => ({ [key]: { redactionMode: mode } }),
       },
@@ -729,7 +732,7 @@ describe("resource names the model sees", () => {
   }
 
   afterEach(() => {
-    delete (chrome as any).storage;
+    delete stub.storage;
     resetRedactionModeForTests();
   });
 
