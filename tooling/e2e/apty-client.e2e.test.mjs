@@ -14,6 +14,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  savedPeerId,
   startMockModel,
   startPageServer,
   tempDir,
@@ -59,10 +60,9 @@ function aptyRow(options) {
 async function connectInOptions(clientId) {
   const options = await extensionPage(browser);
   await options.getByRole("tab", { name: "Apty Integration" }).click();
-  const disconnect = aptyRow(options).getByRole("button", {
-    name: "Disconnect",
-  });
-  if (await disconnect.isVisible()) await disconnect.click();
+  if (await savedPeerId(options, "client")) {
+    await aptyRow(options).getByRole("button", { name: "Disconnect" }).click();
+  }
   await options.getByLabel("Extension ID").fill(clientId);
   await aptyRow(options)
     .getByRole("button", { name: "Connect", exact: true })
