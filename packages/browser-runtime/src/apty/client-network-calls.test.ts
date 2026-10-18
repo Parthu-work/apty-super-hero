@@ -294,3 +294,90 @@ describe("readClientNetworkCallBody", () => {
     });
   });
 });
+
+describe("a relative URL the Client reports", () => {
+  const ID = "4815162342";
+  const DOB = "1980-01-01";
+  const RELATIVE = [
+    {
+      requestId: "rel",
+      url: `/api/users/${ID}.json?dob=${DOB}`,
+      method: "GET",
+      status: 200,
+      mimeType: "application/json",
+      timestamp: 1,
+    },
+    {
+      requestId: "bad",
+      url: `http://[${ID}?dob=${DOB}`,
+      method: "GET",
+      status: 200,
+      mimeType: "application/json",
+      timestamp: 2,
+    },
+  ];
+
+  function setMode(mode: "strict" | "standard") {
+    settings.value = { redactionMode: mode };
+    resetRedactionModeForTests();
+  }
+
+  beforeEach(() => {
+    client({
+      "apty-debug-agent:list-observed-resources": { resources: RELATIVE },
+      "apty-debug-agent:get-resource-body": { found: true, body: "{}" },
+    });
+  });
+
+  it("in Strict shows neither the record number nor the query value, in the list or with a body", async () => {
+    setMode("strict");
+    const list = await listClientNetworkCalls(EXT_ID);
+    const body = await readClientNetworkCallBody(EXT_ID, "rel");
+
+    expect(list.ok && list.calls[0]).toMatchObject({
+      url: "/api/users/:id.json",
+      resourceName: ":id.json",
+    });
+    expect(body).toMatchObject({
+      status: "ok",
+      call: { resourceName: ":id.json" },
+    });
+    expect(JSON.stringify([list, body])).not.toMatch(
+      new RegExp(`${ID}|${DOB}`),
+    );
+  });
+
+  it("in Standard keeps the path but never the query value", async () => {
+    setMode("standard");
+    const list = await listClientNetworkCalls(EXT_ID);
+    const body = await readClientNetworkCallBody(EXT_ID, "rel");
+
+    expect(list.ok && list.calls[0]?.url).toContain(`/api/users/${ID}.json`);
+    expect(JSON.stringify([list, body])).not.toContain(DOB);
+  });
+
+  it("follows the mode current when it is shown, either way round", async () => {
+    setMode("standard");
+    expect(JSON.stringify(await listClientNetworkCalls(EXT_ID))).toContain(ID);
+    setMode("strict");
+    const strictBody = await readClientNetworkCallBody(EXT_ID, "rel");
+    expect(JSON.stringify(strictBody)).not.toMatch(new RegExp(`${ID}|${DOB}`));
+
+    setMode("standard");
+    const standardBody = await readClientNetworkCallBody(EXT_ID, "rel");
+    expect(JSON.stringify(standardBody)).toContain(ID);
+    expect(JSON.stringify(standardBody)).not.toContain(DOB);
+  });
+
+  it("shows an unparsable URL as empty, never raw", async () => {
+    for (const mode of ["strict", "standard"] as const) {
+      setMode(mode);
+      const list = await listClientNetworkCalls(EXT_ID);
+      expect(list.ok && list.calls[1]).toMatchObject({
+        url: "",
+        resourceName: "",
+      });
+      expect(JSON.stringify(list)).not.toContain(DOB);
+    }
+  });
+});

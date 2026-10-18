@@ -13,12 +13,12 @@ import {
   readResourceBody,
 } from "./extension-network-inspector.js";
 import { allowListFix, PEER_NAMES, peerFailureMessage } from "./peers.js";
-import { resourceNameFor } from "./resource-body-utils.js";
 import {
   ConfiguredServiceWorkerDiagnosticsProvider,
   LIST_RESOURCES_MESSAGE,
   MAX_RESOURCES_ACCEPTED,
 } from "./service-worker-diagnostics.js";
+import { shownResourceName, shownUrl } from "./shown-url.js";
 import type { AptyObservedResource, AptyResourceList } from "./types.js";
 
 export interface NetworkCall extends AptyObservedResource {
@@ -71,7 +71,11 @@ function unavailable(
   }
 }
 
-/** The name comes from the URL after the policy, so Strict's `:id` hides a record number in the name too. */
+/**
+ * The URL and name as the current mode shows them, built from the raw URL so
+ * a relative one is masked too (and an unparsable one is dropped, never
+ * shown raw). Call `getRedactionMode()` first.
+ */
 function toNetworkCall(resource: AptyObservedResource): NetworkCall {
   const call = applyResultPrivacy(
     {
@@ -82,7 +86,11 @@ function toNetworkCall(resource: AptyObservedResource): NetworkCall {
     },
     currentValuePolicy(),
   ) as AptyObservedResource;
-  return { ...call, resourceName: resourceNameFor(call.url) };
+  return {
+    ...call,
+    url: shownUrl(resource.url),
+    resourceName: shownResourceName(resource.url),
+  };
 }
 
 async function fetchList(extensionId: string | undefined) {
@@ -125,5 +133,6 @@ export async function readClientNetworkCallBody(
     resource,
     await loadBodyDenyList(),
   );
+  await getRedactionMode();
   return { call: toNetworkCall(resource), ...read };
 }
