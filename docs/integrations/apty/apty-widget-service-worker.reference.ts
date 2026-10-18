@@ -87,7 +87,16 @@
  *    MAX_NETWORK_ENTRIES calls are kept, and response bodies only for the
  *    MAX_KEPT_BODIES most recent calls; a body over MAX_BODY_CHARS (the
  *    Agent's own limit) is not kept, and the Agent is told so (found:
- *    false). Non-text bodies are kept base64-encoded.
+ *    false). Non-text bodies are kept base64-encoded. The state is written
+ *    once the calls pause for SAVE_DEBOUNCE_MS (and on onSuspend), not on
+ *    every call.
+ * 7. observedFetch never slows or changes the Widget's own fetch: it
+ *    returns the Response as soon as fetch does, reads the body afterwards
+ *    from a clone, stopping at MAX_BODY_CHARS, and swallows any recording
+ *    error. A relative URL is recorded as fetch resolves it in a service
+ *    worker, against the worker's own location. This assumes the code runs
+ *    in the Widget's service worker (see "WHAT THE WIDGET TEAM MUST
+ *    CHANGE", item 4).
  *
  * WHAT THIS DELIBERATELY DOES NOT DO
  * -----------------------------------
@@ -311,11 +320,28 @@ function loadNetworkOnce(): Promise<void> {
   return networkLoaded;
 }
 
+const SAVE_DEBOUNCE_MS = 300;
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
 async function saveNetwork(): Promise<void> {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = undefined;
   await chrome.storage.session
     .set({ [NETWORK_STORAGE_KEY]: network })
     .catch(() => undefined);
 }
+
+/** One write of the whole state after the calls stop for SAVE_DEBOUNCE_MS, not one per call. */
+function scheduleNetworkSave(): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveNetwork().catch(() => undefined);
+  }, SAVE_DEBOUNCE_MS);
+}
+
+chrome.runtime.onSuspend?.addListener(() => {
+  if (saveTimer) saveNetwork().catch(() => undefined);
+});
 
 function bounded(text: string, max: number): string {
   return text.length > max ? text.slice(0, max) : text;
@@ -329,20 +355,34 @@ function isTextual(mimeType: string | undefined): boolean {
   );
 }
 
-function base64(bytes: ArrayBuffer): string {
+function base64(bytes: Uint8Array): string {
   let binary = "";
-  const view = new Uint8Array(bytes);
-  for (let i = 0; i < view.length; i += 0x8000) {
-    binary += String.fromCharCode(...view.subarray(i, i + 0x8000));
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   }
   return btoa(binary);
+}
+
+/**
+ * The URL as fetch resolves it: a relative one against this worker's own
+ * location, the way fetch does in a service worker. Anything that can't be
+ * resolved is recorded as given.
+ */
+function absoluteUrl(input: RequestInfo | URL): string {
+  if (input instanceof Request) return input.url;
+  const text = String(input);
+  try {
+    return new URL(text, globalThis.location?.href).href;
+  } catch {
+    return text;
+  }
 }
 
 async function record(call: ObservedCall, body?: KeptBody): Promise<void> {
   await loadNetworkOnce();
   const index = network.calls.findIndex((c) => c.requestId === call.requestId);
   if (index === -1) network.calls.push(call);
-  else network.calls[index] = call;
+  else network.calls[index] = { ...network.calls[index], ...call };
   network.calls = network.calls.slice(-MAX_NETWORK_ENTRIES);
   if (body) network.bodies[call.requestId] = body;
   // Keep bodies only for the most recent calls that still have one.
@@ -355,70 +395,149 @@ async function record(call: ObservedCall, body?: KeptBody): Promise<void> {
   for (const id of Object.keys(network.bodies)) {
     if (!keep.has(id)) delete network.bodies[id];
   }
-  await saveNetwork();
+  scheduleNetworkSave();
 }
 
-async function keptBody(response: Response): Promise<KeptBody | undefined> {
-  const mimeType = response.headers.get("content-type") ?? undefined;
+/** Recording never throws into, or waits inside, the Widget's own fetch. */
+function recordSilently(call: ObservedCall, body?: KeptBody): void {
+  record(call, body).catch(() => undefined);
+}
+
+/**
+ * At most `maxChars` of the body, read from a clone so the Widget's own
+ * Response is untouched; stops reading (and cancels the clone) at the limit.
+ * Base64 takes 4 characters per 3 bytes, so binary stops at the byte count
+ * that encodes to `maxChars`.
+ */
+async function readBounded(
+  response: Response,
+  textual: boolean,
+  maxChars: number,
+): Promise<{ body: KeptBody; truncated: boolean } | undefined> {
+  const stream = response.clone().body;
+  if (!stream)
+    return { body: { body: "", base64Encoded: !textual }, truncated: false };
+  const reader = stream.getReader();
+  const maxBytes = Math.floor(maxChars / 4) * 3;
+  const decoder = new TextDecoder();
+  const chunks: Uint8Array[] = [];
+  let text = "";
+  let bytes = 0;
+  let truncated = false;
   try {
-    if (isTextual(mimeType)) {
-      const body = await response.clone().text();
-      return body.length > MAX_BODY_CHARS
-        ? undefined
-        : { body, base64Encoded: false };
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (textual) {
+        text += decoder.decode(value, { stream: true });
+        if (text.length > maxChars) {
+          truncated = true;
+          break;
+        }
+      } else {
+        chunks.push(value);
+        bytes += value.byteLength;
+        if (bytes > maxBytes) {
+          truncated = true;
+          break;
+        }
+      }
     }
-    const body = base64(await response.clone().arrayBuffer());
-    return body.length > MAX_BODY_CHARS
-      ? undefined
-      : { body, base64Encoded: true };
   } catch {
     return undefined;
+  } finally {
+    if (truncated) reader.cancel().catch(() => undefined);
   }
+  if (textual) {
+    text = truncated ? text.slice(0, maxChars) : text + decoder.decode();
+    return { body: { body: text, base64Encoded: false }, truncated };
+  }
+  const all = new Uint8Array(Math.min(bytes, truncated ? maxBytes : bytes));
+  let offset = 0;
+  for (const chunk of chunks) {
+    const part = chunk.subarray(0, all.length - offset);
+    all.set(part, offset);
+    offset += part.length;
+    if (offset >= all.length) break;
+  }
+  return { body: { body: base64(all), base64Encoded: true }, truncated };
+}
+
+/** The body, recorded after the Widget already has its Response. */
+async function recordBody(
+  call: ObservedCall,
+  response: Response,
+  mimeType?: string,
+) {
+  const read = await readBounded(response, isTextual(mimeType), MAX_BODY_CHARS);
+  // A body cut at the limit is not kept, so the Agent never reads part of
+  // one as if it were whole: it hears found: false, as for no body.
+  if (read && !read.truncated) recordSilently(call, read.body);
 }
 
 /**
  * `fetch`, plus a record the Agent can read: the call as soon as it starts
- * (no status yet), then its status and body, or `failed` with the error.
- * The Widget gets the same Response, or the same error, it would have got.
+ * (no status yet), then its status, or `failed` with the error. The Widget
+ * gets the same Response, or the same error, as soon as fetch gives it:
+ * recording and reading the body happen afterwards and never throw into it.
  */
 export async function observedFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const request = input instanceof Request ? input : undefined;
-  const call: ObservedCall = {
-    requestId: `w${Date.now().toString(36)}-${++networkCounter}`,
-    url: bounded(request ? request.url : String(input), 4000),
-    method: bounded(
-      (init?.method ?? request?.method ?? "GET").toUpperCase(),
-      20,
-    ),
-    timestamp: Date.now(),
-  };
-  await record(call);
+  let call: ObservedCall | undefined;
+  try {
+    const request = input instanceof Request ? input : undefined;
+    call = {
+      requestId: `w${Date.now().toString(36)}-${++networkCounter}`,
+      url: bounded(absoluteUrl(input), 4000),
+      method: bounded(
+        (init?.method ?? request?.method ?? "GET").toUpperCase(),
+        20,
+      ),
+      timestamp: Date.now(),
+    };
+    recordSilently(call);
+  } catch {
+    call = undefined;
+  }
   let response: Response;
   try {
     response = await fetch(input, init);
   } catch (error) {
-    await record({
-      ...call,
-      failed: true,
-      errorText: bounded(
-        error instanceof Error ? error.message : String(error),
-        2000,
-      ),
-    });
+    if (call) {
+      try {
+        recordSilently({
+          ...call,
+          failed: true,
+          errorText: bounded(
+            error instanceof Error ? error.message : String(error),
+            2000,
+          ),
+        });
+      } catch {
+        // Recording must never change what the Widget's fetch throws.
+      }
+    }
     throw error;
   }
-  const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim();
-  await record(
-    {
-      ...call,
-      status: response.status,
-      ...(mimeType ? { mimeType: bounded(mimeType, 200) } : {}),
-    },
-    await keptBody(response),
-  );
+  if (call) {
+    try {
+      const mimeType = response.headers
+        .get("content-type")
+        ?.split(";")[0]
+        ?.trim();
+      const answered: ObservedCall = {
+        ...call,
+        status: response.status,
+        ...(mimeType ? { mimeType: bounded(mimeType, 200) } : {}),
+      };
+      recordSilently(answered);
+      recordBody(answered, response, mimeType).catch(() => undefined);
+    } catch {
+      // Recording must never change the Response the Widget gets.
+    }
+  }
   return response;
 }
 

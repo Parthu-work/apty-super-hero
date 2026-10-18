@@ -113,6 +113,27 @@ async function ask(message: unknown, senderId = AGENT_ID): Promise<unknown> {
   });
 }
 
+const NETWORK_KEY = "apty_sw_network_calls";
+
+interface SavedNetwork {
+  calls: Array<{ requestId: string; status?: number; failed?: boolean }>;
+  bodies: Record<string, unknown>;
+}
+
+/** Recording happens after the Widget has its Response; wait until the debounced write holds what `done` expects. */
+async function saved(done: (state: SavedNetwork) => boolean) {
+  await vi.waitFor(
+    () => {
+      const state = store.session[NETWORK_KEY] as SavedNetwork | undefined;
+      if (!state || !done(state)) throw new Error("not saved yet");
+    },
+    { timeout: 4000, interval: 20 },
+  );
+}
+
+const answered = (state: SavedNetwork) =>
+  state.calls.every((c) => c.status !== undefined || c.failed);
+
 const list = () => ask({ type: "apty-debug-agent:list-observed-resources" });
 const body = (requestId: string) =>
   ask({ type: "apty-debug-agent:get-resource-body", requestId });
@@ -142,6 +163,12 @@ async function recordCalls(reference: Reference) {
   await expect(
     observedFetch("https://cdn.apty.example/offline.json"),
   ).rejects.toThrow("Failed to fetch");
+  await saved(
+    (state) =>
+      state.calls.length === 5 &&
+      answered(state) &&
+      Object.keys(state.bodies).length === 3,
+  );
   return segments;
 }
 
@@ -246,6 +273,12 @@ describe("the Widget reference service worker", () => {
     for (let i = 0; i < 1005; i++) {
       await reference.observedFetch("https://cdn.apty.example/segments.json");
     }
+    await saved(
+      (state) =>
+        state.calls.length === 1000 &&
+        answered(state) &&
+        Object.keys(state.bodies).length === 10,
+    );
     const first = resourcesResponseSchema.parse(await list()).resources;
     expect(first).toHaveLength(1000);
     const withBody = [];
@@ -303,5 +336,165 @@ describe("the Widget reference service worker", () => {
     expect(
       await readClientNetworkCallBody(WIDGET_ID, offline!.requestId),
     ).toMatchObject({ status: "failed" });
+  });
+});
+
+describe("observedFetch never slows or changes the Widget's own fetch", () => {
+  const ID = "4815162342";
+  const DOB = "1980-01-01";
+
+  /** A response whose body arrives only when the test says so. */
+  function heldResponse(contentType = "application/json") {
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const cancelled = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        controller = c;
+      },
+      cancel: cancelled,
+    });
+    const response = new Response(stream, {
+      headers: { "content-type": contentType },
+    });
+    const encoder = new TextEncoder();
+    return {
+      response,
+      cancelled,
+      send: (text: string) => controller.enqueue(encoder.encode(text)),
+      end: () => controller.close(),
+    };
+  }
+
+  function fetchReturns(response: Response) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => response),
+    );
+  }
+
+  it("resolves while the body stream is still pending, then keeps the body once it ends", async () => {
+    const reference = await loadReference();
+    const held = heldResponse();
+    fetchReturns(held.response);
+    held.send('{"partial":');
+
+    const response = await reference.observedFetch(
+      "https://cdn.apty.example/slow.json",
+    );
+    expect(response).toBe(held.response);
+    await saved((state) => state.calls[0]?.status === 200);
+    const [call] = resourcesResponseSchema.parse(await list()).resources;
+    expect(await body(call!.requestId)).toEqual({ found: false });
+
+    held.send("true}");
+    held.end();
+    await saved((state) => call!.requestId in state.bodies);
+    expect(
+      resourceBodyResponseSchema.parse(await body(call!.requestId)),
+    ).toEqual({ found: true, body: '{"partial":true}', base64Encoded: false });
+    expect(await response.json()).toEqual({ partial: true });
+  });
+
+  it("stops reading a body at 200,000 characters and does not keep the cut body", async () => {
+    const reference = await loadReference();
+    const held = heldResponse();
+    fetchReturns(held.response);
+    const cancel = vi.spyOn(ReadableStreamDefaultReader.prototype, "cancel");
+    for (let i = 0; i < 5; i++) held.send("x".repeat(50_000));
+
+    const response = await reference.observedFetch(
+      "https://cdn.apty.example/endless.json",
+    );
+
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalled(), {
+      timeout: 4000,
+    });
+    cancel.mockRestore();
+    await saved((state) => state.calls[0]?.status === 200);
+    const [call] = resourcesResponseSchema.parse(await list()).resources;
+    expect(
+      resourceBodyResponseSchema.parse(await body(call!.requestId)),
+    ).toEqual({ found: false });
+    // Only the clone was cancelled: the Widget still reads its whole body.
+    expect(held.cancelled).not.toHaveBeenCalled();
+    held.end();
+    expect(await response.text()).toHaveLength(250_000);
+  });
+
+  it("records a relative URL as fetch resolves it in the service worker, and the panel masks it", async () => {
+    vi.stubGlobal("location", {
+      href: `chrome-extension://${WIDGET_ID}/background.js`,
+    });
+    const reference = await loadReference();
+    fetchReturns(Response.json({ ok: true }));
+
+    await reference.observedFetch(`/api/users/${ID}.json?dob=${DOB}`);
+    await saved((state) => answered(state) && state.calls.length === 1);
+
+    const [call] = resourcesResponseSchema.parse(await list()).resources;
+    expect(call?.url).toBe(
+      `chrome-extension://${WIDGET_ID}/api/users/${ID}.json?dob=${DOB}`,
+    );
+    const { listClientNetworkCalls } = await import("./client-network-calls");
+    const shown = await listClientNetworkCalls(WIDGET_ID);
+    expect(shown).toMatchObject({ ok: true });
+    expect(JSON.stringify(shown)).not.toMatch(new RegExp(`${ID}|${DOB}`));
+  });
+
+  it("writes the state to session storage once the calls pause, not once per call", async () => {
+    const reference = await loadReference();
+    const set = chrome.storage.session.set as ReturnType<typeof vi.fn>;
+    set.mockClear();
+
+    for (let i = 0; i < 5; i++) {
+      await reference.observedFetch("https://cdn.apty.example/segments.json");
+    }
+    await saved(
+      (state) =>
+        state.calls.length === 5 &&
+        answered(state) &&
+        Object.keys(state.bodies).length === 5,
+    );
+
+    expect(
+      set.mock.calls.filter(([items]) => NETWORK_KEY in items),
+    ).toHaveLength(1);
+  });
+
+  it("gives the Widget its Response and its error even when recording fails", async () => {
+    const reference = await loadReference();
+    const get = chrome.storage.session.get as ReturnType<typeof vi.fn>;
+    const set = chrome.storage.session.set as ReturnType<typeof vi.fn>;
+    get.mockImplementationOnce(() => {
+      throw new Error("storage is gone");
+    });
+    set.mockImplementation(() => {
+      throw new Error("storage is gone");
+    });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const ok = Response.json({ ok: true });
+      fetchReturns(ok);
+      expect(
+        await reference.observedFetch("https://cdn.apty.example/a.json"),
+      ).toBe(ok);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("Failed to fetch");
+        }),
+      );
+      await expect(
+        reference.observedFetch("https://cdn.apty.example/b.json"),
+      ).rejects.toThrow("Failed to fetch");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      set.mockImplementation(async (items: Record<string, unknown>) => {
+        Object.assign(store.session, structuredClone(items));
+      });
+    }
   });
 });
