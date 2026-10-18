@@ -45,9 +45,7 @@
  */
 
 import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
-import { applyUrlPolicy } from "@apty/dom-snapshot";
 import { getRedactionMode, redactText } from "../runtime/redaction-mode.js";
-import { currentValuePolicy } from "../runtime/value-policy.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
 import {
@@ -63,6 +61,7 @@ import {
   resourceNameFor,
 } from "./resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
+import { shownResourceName, shownUrl } from "./shown-url.js";
 import type { AptyObservedResource, AptyServiceWorkerStatus } from "./types.js";
 
 // Re-exported for existing consumers (apty/index.ts) — the canonical
@@ -75,15 +74,6 @@ export type ExtensionCaptureEntry = AptyObservedResource;
 export interface MatchedResource extends ExtensionCaptureEntry {
   resourceName: string;
   matchKind: "exact" | "tolerant" | "path" | "fragment";
-}
-
-/**
- * A resource's name as the model sees it: taken from the URL after the
- * current mode's URL policy, so Strict's `:id` hides a record number in the
- * name as it does in the URL. Matching still uses the real name.
- */
-function shownResourceName(url: string): string {
-  return resourceNameFor(applyUrlPolicy(url, currentValuePolicy()) ?? url);
 }
 
 /** A log entry reported by the Apty Client's own service worker. */
@@ -464,6 +454,7 @@ export async function listObservedResources(
     extensionId: active.extensionId,
     resources: result.resources.map((r) => ({
       ...r,
+      url: shownUrl(r.url ?? ""),
       resourceName: shownResourceName(r.url ?? ""),
     })),
   };
@@ -695,12 +686,18 @@ export async function inspectResource(
     };
   }
 
+  // Matching, the deny list, the body request and the evidence record use
+  // the raw URL; everything returned uses the URL as the current mode shows it.
   await getRedactionMode();
-  const matches = matchResources(listed.resources, resourceQuery).map(
-    (match) => ({ ...match, resourceName: shownResourceName(match.url) }),
-  );
+  const rawMatches = matchResources(listed.resources, resourceQuery);
+  const raw = rawMatches[0];
+  const matches = rawMatches.map((match) => ({
+    ...match,
+    url: shownUrl(match.url),
+    resourceName: shownResourceName(match.url),
+  }));
   const best = matches[0];
-  if (!best) {
+  if (!best || !raw) {
     const suggestions = suggestClosestResourceNames(
       listed.resources,
       resourceQuery,
@@ -762,7 +759,7 @@ export async function inspectResource(
   const isHttpError = best.status >= 400;
   // The user's request is consent for this one resource; the deny list is
   // the standing policy above it, so a matching body is never fetched.
-  const deniedBy = matchingDenyEntry(best.url ?? "", await loadBodyDenyList());
+  const deniedBy = matchingDenyEntry(raw.url ?? "", await loadBodyDenyList());
   if (deniedBy !== null) {
     return {
       found: true,
@@ -774,7 +771,7 @@ export async function inspectResource(
       error: `The response body of ${best.resourceName} was not fetched: its URL matches "${deniedBy}" in the body deny list (Settings → Data handling). The request's metadata is included. Tell the user; to read this body they can remove that entry and ask again. Do not try to get the body another way.`,
     };
   }
-  const body = await provider.getResourceBody(best.requestId);
+  const body = await provider.getResourceBody(raw.requestId);
   if (!body.found || body.body === undefined) {
     return {
       found: true,
@@ -829,11 +826,11 @@ export async function inspectResource(
     timestamp: Date.now(),
     tabId: null,
     scope: "shared",
-    requestId: best.requestId,
-    url: best.url,
+    requestId: raw.requestId,
+    url: raw.url,
     data: {
       extensionId: active.extensionId,
-      resourceName: best.resourceName,
+      resourceName: resourceNameFor(raw.url ?? ""),
       status: best.status,
       mimeType: best.mimeType,
       isBinary,

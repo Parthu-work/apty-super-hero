@@ -24,6 +24,7 @@ import {
   getInvestigation,
   type InvestigationSession,
 } from "@apty/browser-runtime";
+import { shownEvidence } from "@apty/browser-runtime/apty/shown-url";
 import { useEffect, useState } from "react";
 import {
   type ComponentHealth,
@@ -41,8 +42,9 @@ export interface InvestigationData {
 const ACTIVE_POLL_MS = 1200;
 const IDLE_POLL_MS = 5000;
 
+/** URLs and resource names as the current redaction mode shows them; the store keeps them raw. Strict until the stored mode has loaded. */
 function snapshot(conversationId: string | undefined): InvestigationData {
-  const evidence = getEvidence(conversationId);
+  const evidence = getEvidence(conversationId).map(shownEvidence);
   const clusters = correlateEvidence(evidence);
   return {
     investigation: getInvestigation(conversationId),

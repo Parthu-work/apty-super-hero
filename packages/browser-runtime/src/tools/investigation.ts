@@ -32,6 +32,8 @@ import {
   stopInvestigation,
   updateInvestigation,
 } from "../apty/investigation-session.js";
+import { shownEvidence } from "../apty/shown-url.js";
+import { getRedactionMode } from "../runtime/redaction-mode.js";
 import type { ToolRunContext } from "./tab-utils";
 
 /**
@@ -83,7 +85,9 @@ export const getInvestigationTimelineTool = tool({
   }),
   execute: async ({ windowMs }, context) => {
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
-    const evidence = getEvidence(conversationId);
+    // The store keeps raw URLs; show them under the mode as it is now.
+    await getRedactionMode();
+    const evidence = getEvidence(conversationId).map(shownEvidence);
 
     if (evidence.length === 0) {
       return {

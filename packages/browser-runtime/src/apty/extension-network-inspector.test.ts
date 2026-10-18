@@ -481,25 +481,31 @@ describe("inspectResource", () => {
       });
     }
 
-    function useDenyList(denyList: string[] | undefined) {
+    function useDenyList(
+      denyList: string[] | undefined,
+      redactionMode?: "standard",
+    ) {
       (chrome as any).storage = {
         local: {
           get: async (key: string) => ({
             [key]:
               denyList === undefined
                 ? undefined
-                : { networkBodyCaptureDenyList: denyList },
+                : { networkBodyCaptureDenyList: denyList, redactionMode },
           }),
         },
       };
+      resetRedactionModeForTests();
     }
 
     afterEach(() => {
+      resetRedactionModeForTests();
       delete (chrome as any).storage;
     });
 
     it("never asks the Client for a denied body, and still returns the metadata", async () => {
-      useDenyList(["/users/"]);
+      // Standard keeps the path, so the request's URL is returned as it is.
+      useDenyList(["/users/"], "standard");
       clientWith([{ requestId: "req-pref", url: PREFERENCE_URL }]);
       await connectExtensionClient("conv-a", EXT_ID);
 
@@ -717,7 +723,10 @@ describe("resource names the model sees", () => {
   /** The test's chrome stub, which gets a storage area per test. */
   const stub = chrome as unknown as { storage?: unknown };
 
-  function clientListing(mode: "strict" | "standard") {
+  function clientListing(
+    mode: "strict" | "standard",
+    resources: unknown[] = USERS,
+  ) {
     stub.storage = {
       local: {
         get: async (key: string) => ({ [key]: { redactionMode: mode } }),
@@ -726,7 +735,7 @@ describe("resource names the model sees", () => {
     resetRedactionModeForTests();
     mockResponsesByType({
       "apty-debug-agent:get-service-worker-status": OK_STATUS,
-      "apty-debug-agent:list-observed-resources": { resources: USERS },
+      "apty-debug-agent:list-observed-resources": { resources },
       "apty-debug-agent:get-resource-body": { found: false },
     });
   }
@@ -765,6 +774,27 @@ describe("resource names the model sees", () => {
     const { resourceQuery: _q2, ...failedRest } = failed;
     const shown = JSON.stringify([listed, missing, matchedRest, failedRest]);
     expect(shown.replace(/https:\/\/[^"]+/g, "")).not.toMatch(/481516234[23]/);
+    await disconnectExtensionClient("conv-a");
+  });
+
+  it("mask a record number in the name of a relative URL in Strict", async () => {
+    clientListing("strict", [
+      {
+        requestId: "rel",
+        url: "/api/users/4815162342.json",
+        method: "GET",
+        status: 200,
+        mimeType: "application/json",
+        timestamp: 3,
+      },
+    ]);
+    await connectExtensionClient("conv-a", EXT_ID);
+
+    const listed = await listObservedResources("conv-a");
+
+    expect(
+      listed.connected && listed.resources.map((r) => r.resourceName),
+    ).toEqual([":id.json"]);
     await disconnectExtensionClient("conv-a");
   });
 
