@@ -175,6 +175,25 @@ describe("listClientNetworkCalls", () => {
     }
   });
 
+  it("lists the newest 1000 of a longer list and says it may be cut off", async () => {
+    const many = Array.from({ length: 1200 }, (_, i) => ({
+      requestId: `r${i}`,
+      url: `https://cdn.apty.example/${i}.json`,
+      method: "GET",
+      status: 200,
+      timestamp: i,
+    }));
+    client({ "apty-debug-agent:list-observed-resources": { resources: many } });
+
+    const result = await listClientNetworkCalls(EXT_ID);
+
+    expect(result).toMatchObject({ ok: true, mayBeBounded: true });
+    if (result.ok) {
+      expect(result.calls).toHaveLength(1000);
+      expect(result.calls[0]?.requestId).toBe("r200");
+    }
+  });
+
   it("names a missing ID instead of sending anything", async () => {
     const result = await listClientNetworkCalls(undefined);
 

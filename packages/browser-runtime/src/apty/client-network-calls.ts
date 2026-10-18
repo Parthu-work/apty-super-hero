@@ -16,7 +16,7 @@ import { allowListFix, PEER_NAMES, peerFailureMessage } from "./peers.js";
 import {
   ConfiguredServiceWorkerDiagnosticsProvider,
   LIST_RESOURCES_MESSAGE,
-  MAX_RESOURCES_ACCEPTED,
+  MAX_RESOURCES_KEPT,
 } from "./service-worker-diagnostics.js";
 import { shownResourceName, shownUrl } from "./shown-url.js";
 import type { AptyObservedResource, AptyResourceList } from "./types.js";
@@ -112,7 +112,7 @@ export async function listClientNetworkCalls(
   return {
     ok: true,
     calls: list.resources.map(toNetworkCall),
-    mayBeBounded: list.resources.length >= MAX_RESOURCES_ACCEPTED,
+    mayBeBounded: list.resources.length >= MAX_RESOURCES_KEPT,
   };
 }
 

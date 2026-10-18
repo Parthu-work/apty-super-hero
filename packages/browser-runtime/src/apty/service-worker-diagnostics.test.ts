@@ -277,6 +277,41 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
       const result = await provider.listResources();
       expect(result.ok).toBe(false);
     });
+
+    const calls = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        requestId: `req-${i}`,
+        url: `https://cdn.apty.io/${i}.json`,
+        method: "GET",
+        timestamp: i,
+      }));
+
+    it("reads a list longer than it keeps, and keeps the newest 1000 (the last ones)", async () => {
+      respondWith({ resources: calls(1500) });
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      const result = await provider.listResources();
+      expect(result.ok).toBe(true);
+      expect(result.resources).toHaveLength(1000);
+      expect(result.resources[0]?.requestId).toBe("req-500");
+      expect(result.resources.at(-1)?.requestId).toBe("req-1499");
+    });
+
+    it("accepts up to 5000 and names a longer list malformed", async () => {
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+      respondWith({ resources: calls(5000) });
+      expect(await provider.listResources()).toMatchObject({ ok: true });
+
+      respondWith({ resources: calls(5001) });
+      expect(await provider.listResources()).toMatchObject({
+        ok: false,
+        failure: "malformed_response",
+      });
+    });
   });
 
   describe("getResourceBody", () => {

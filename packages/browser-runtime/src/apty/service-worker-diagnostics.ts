@@ -110,8 +110,11 @@ const logsResponseSchema = z.object({
   logs: z.array(aptyLogSchema).max(MAX_LOGS_ACCEPTED).optional(),
 });
 
-// Same defensive-ceiling reasoning as MAX_LOGS_ACCEPTED.
-export const MAX_RESOURCES_ACCEPTED = 1000;
+// Same defensive-ceiling reasoning as MAX_LOGS_ACCEPTED. A longer list than
+// is kept is still read: the reference appends and trims from the front
+// (buffer.slice(-N)), so the newest calls are last and those are kept.
+const MAX_RESOURCES_ACCEPTED = 5000;
+export const MAX_RESOURCES_KEPT = 1000;
 
 export const LIST_RESOURCES_MESSAGE =
   "apty-debug-agent:list-observed-resources";
@@ -317,7 +320,10 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
         error: `malformed resources response: ${result.reason}`,
       };
     }
-    return { ok: true, resources: result.value.resources };
+    return {
+      ok: true,
+      resources: result.value.resources.slice(-MAX_RESOURCES_KEPT),
+    };
   }
 
   async getResourceBody(requestId: string): Promise<AptyResourceBody> {
