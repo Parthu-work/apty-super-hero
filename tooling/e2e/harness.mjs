@@ -515,6 +515,21 @@ export async function restartAgent(browser, helperDir) {
   await new Promise((r) => setTimeout(r, 1500));
 }
 
+/**
+ * The Apty peer ID saved in this profile. A peer row shows Connect until its
+ * saved ID has loaded, so tests decide whether to disconnect from this, not
+ * from what the row shows at that moment.
+ */
+export function savedPeerId(page, peer) {
+  return page.evaluate(async (peer) => {
+    const { "apty-integration-config": config = {} } =
+      await chrome.storage.local.get("apty-integration-config");
+    return peer === "client"
+      ? config.clientExtensionId
+      : (config.peers?.studio?.extensionId ?? config.studioExtensionId);
+  }, peer);
+}
+
 /** Chrome's id for an unpacked extension without a `key`: derived from its absolute path. */
 export function unpackedExtensionId(dir) {
   return [...createHash("sha256").update(dir).digest("hex").slice(0, 32)]

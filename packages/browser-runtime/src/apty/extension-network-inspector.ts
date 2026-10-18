@@ -45,7 +45,7 @@
  */
 
 import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
-import { redactText } from "../runtime/redaction-mode.js";
+import { getRedactionMode, redactText } from "../runtime/redaction-mode.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
 import {
@@ -61,6 +61,7 @@ import {
   resourceNameFor,
 } from "./resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
+import { shownResourceName, shownUrl } from "./shown-url.js";
 import type { AptyObservedResource, AptyServiceWorkerStatus } from "./types.js";
 
 // Re-exported for existing consumers (apty/index.ts) — the canonical
@@ -408,7 +409,7 @@ function suggestClosestResourceNames(
   const counts = new Map<string, number>();
   for (const req of requests) {
     if (!req.url) continue;
-    const name = resourceNameFor(req.url);
+    const name = shownResourceName(req.url);
     if (!name) continue;
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
@@ -446,13 +447,15 @@ export async function listObservedResources(
   if (!result.ok) {
     return { connected: false, error: result.error };
   }
+  await getRedactionMode();
 
   return {
     connected: true,
     extensionId: active.extensionId,
     resources: result.resources.map((r) => ({
       ...r,
-      resourceName: resourceNameFor(r.url ?? ""),
+      url: shownUrl(r.url ?? ""),
+      resourceName: shownResourceName(r.url ?? ""),
     })),
   };
 }
@@ -733,15 +736,24 @@ export async function inspectResource(
     };
   }
 
-  const matches = matchResources(listed.resources, resourceQuery);
+  // Matching, the deny list, the body request and the evidence record use
+  // the raw URL; everything returned uses the URL as the current mode shows it.
+  await getRedactionMode();
+  const rawMatches = matchResources(listed.resources, resourceQuery);
+  const raw = rawMatches[0];
+  const matches = rawMatches.map((match) => ({
+    ...match,
+    url: shownUrl(match.url),
+    resourceName: shownResourceName(match.url),
+  }));
   const best = matches[0];
-  if (!best) {
+  if (!best || !raw) {
     const suggestions = suggestClosestResourceNames(
       listed.resources,
       resourceQuery,
     );
     const observedResources = Array.from(
-      new Set(listed.resources.map((r) => resourceNameFor(r.url ?? ""))),
+      new Set(listed.resources.map((r) => shownResourceName(r.url ?? ""))),
     ).filter(Boolean);
     return {
       found: false,
@@ -770,7 +782,7 @@ export async function inspectResource(
 
   // The user's request is consent for this one resource; the deny list is
   // the standing policy above it, so a matching body is never fetched.
-  const read = await readResourceBody(provider, best, await loadBodyDenyList());
+  const read = await readResourceBody(provider, raw, await loadBodyDenyList());
   if (read.status === "failed") {
     return {
       found: true,
@@ -846,11 +858,11 @@ export async function inspectResource(
     timestamp: Date.now(),
     tabId: null,
     scope: "shared",
-    requestId: best.requestId,
-    url: best.url,
+    requestId: raw.requestId,
+    url: raw.url,
     data: {
       extensionId: active.extensionId,
-      resourceName: best.resourceName,
+      resourceName: resourceNameFor(raw.url ?? ""),
       status: best.status,
       mimeType: best.mimeType,
       isBinary,

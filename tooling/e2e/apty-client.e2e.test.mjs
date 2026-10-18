@@ -15,6 +15,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  savedPeerId,
   startMockModel,
   startPageServer,
   tempDir,
@@ -60,10 +61,9 @@ function aptyRow(options) {
 async function connectInOptions(clientId) {
   const options = await extensionPage(browser);
   await options.getByRole("tab", { name: "Apty Integration" }).click();
-  const disconnect = aptyRow(options).getByRole("button", {
-    name: "Disconnect",
-  });
-  if (await disconnect.isVisible()) await disconnect.click();
+  if (await savedPeerId(options, "client")) {
+    await aptyRow(options).getByRole("button", { name: "Disconnect" }).click();
+  }
   await options.getByLabel("Extension ID").fill(clientId);
   await aptyRow(options)
     .getByRole("button", { name: "Connect", exact: true })
@@ -222,6 +222,28 @@ describe("Apty Client integration in a real browser", () => {
     );
     assert.equal(result.request.status, 403);
     assert.match(result.response.bodyPreview, /token expired/);
+    await panel.close();
+    await app.close();
+  });
+
+  it("never shows the model a record number in a resource name in Strict", async () => {
+    await useWorkingClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app, {
+      redactionMode: "strict",
+    });
+    model.script(callToolThenReport("list_extension_network_resources", {}));
+
+    await chatAndWait(panel, "what did the apty client load?");
+
+    const result = toolResults(model.requests.at(-1)).at(-1);
+    assert.equal(result.connected, true, JSON.stringify(result));
+    assert.ok(
+      result.resources.some((r) => r.resourceName === ":id.json"),
+      JSON.stringify(result.resources),
+    );
+    assert.ok(!JSON.stringify(result).includes("4815162342"));
     await panel.close();
     await app.close();
   });

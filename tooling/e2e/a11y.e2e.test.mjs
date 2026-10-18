@@ -250,6 +250,8 @@ for (const theme of ["light", "dark"]) {
     it("every Options tab", async () => {
       const options = await extensionPage(browser);
       await assertThemeApplied(options, theme);
+      // Options shows a spinner, not its tabs, until settings have loaded.
+      await options.getByRole("tab").nth(2).waitFor();
       const tabs = await options.getByRole("tab").allInnerTexts();
       assert.ok(tabs.length >= 3, tabs.join());
       for (const name of tabs) {
