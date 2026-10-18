@@ -225,6 +225,28 @@ describe("Apty Client integration in a real browser", () => {
     await app.close();
   });
 
+  it("never shows the model a record number in a resource name in Strict", async () => {
+    await useWorkingClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app, {
+      redactionMode: "strict",
+    });
+    model.script(callToolThenReport("list_extension_network_resources", {}));
+
+    await chatAndWait(panel, "what did the apty client load?");
+
+    const result = toolResults(model.requests.at(-1)).at(-1);
+    assert.equal(result.connected, true, JSON.stringify(result));
+    assert.ok(
+      result.resources.some((r) => r.resourceName === ":id.json"),
+      JSON.stringify(result.resources),
+    );
+    assert.ok(!JSON.stringify(result).includes("4815162342"));
+    await panel.close();
+    await app.close();
+  });
+
   it("withholds a body on the deny list without asking the Client for it (A2)", async () => {
     await useWorkingClient();
     const app = await browser.context.newPage();
