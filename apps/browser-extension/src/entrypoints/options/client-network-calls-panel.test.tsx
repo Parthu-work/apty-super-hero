@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
@@ -165,6 +165,9 @@ describe("ClientNetworkCallsPanel", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "4xx" }));
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: " missing " },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
 
     const [filename, content, mime] = download.mock.calls[0] as [
@@ -178,8 +181,89 @@ describe("ClientNetworkCallsPanel", () => {
     expect(parsed).toMatchObject({
       source: "Apty Client",
       redactionMode: "strict",
+      filter: { text: "missing", status: "4xx" },
+      shown: 1,
+      total: 4,
+      summary: "shown 1 of 4",
     });
     expect(parsed.calls.map((c: NetworkCall) => c.requestId)).toEqual(["r2"]);
+  });
+
+  it("says in the download when nothing is filtered out", async () => {
+    api.list.mockResolvedValue({ ok: true, calls: CALLS, mayBeBounded: false });
+    renderPanel();
+    await screen.findByText("segments.json");
+    fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+
+    expect(JSON.parse(download.mock.calls[0]?.[1] as string)).toMatchObject({
+      filter: { text: "", status: "all" },
+      summary: "shown 4 of 4",
+    });
+  });
+
+  it("never lets an older body answer replace the one asked for since", async () => {
+    api.list.mockResolvedValue({ ok: true, calls: CALLS, mayBeBounded: false });
+    let answerFirst!: (value: unknown) => void;
+    api.body
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answerFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        status: "ok",
+        call: CALLS[1],
+        body: { text: '{"newer":true}', fullLength: 14, isBinary: false },
+      });
+    renderPanel();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "View the body of segments.json",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "View the body of missing.json" }),
+    );
+    expect(await screen.findByText(/newer/)).toBeInTheDocument();
+
+    await act(async () => {
+      answerFirst({
+        status: "ok",
+        call: CALLS[0],
+        body: { text: '{"older":true}', fullLength: 14, isBinary: false },
+      });
+    });
+    expect(screen.queryByText(/older/)).not.toBeInTheDocument();
+    expect(screen.getByText(/newer/)).toBeInTheDocument();
+  });
+
+  it("drops a body answer that arrives after the calls were reloaded", async () => {
+    api.list.mockResolvedValue({ ok: true, calls: CALLS, mayBeBounded: false });
+    let answer!: (value: unknown) => void;
+    api.body.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    renderPanel();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "View the body of segments.json",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+    await screen.findByText("Showing 4 of 4 calls the Client reported.");
+
+    await act(async () => {
+      answer({
+        status: "ok",
+        call: CALLS[0],
+        body: { text: '{"stale":true}', fullLength: 14, isBinary: false },
+      });
+    });
+    expect(screen.queryByText(/stale/)).not.toBeInTheDocument();
   });
 
   it("views and downloads a body on demand", async () => {

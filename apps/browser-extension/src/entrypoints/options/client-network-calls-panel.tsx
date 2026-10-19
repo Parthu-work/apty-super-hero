@@ -15,7 +15,7 @@ import type { TranslationKey } from "@apty/ui/i18n/types";
 import { downloadText } from "@apty/ui/lib/download";
 import { withExportHeader } from "@apty/ui/lib/export-header";
 import { CopyIcon, DownloadIcon, Loader2, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { JsonTree } from "../../components/investigation/json-tree";
 
 export type StatusClass = "all" | "failed" | "4xx" | "5xx";
@@ -200,23 +200,30 @@ export function ClientNetworkCallsPanel({
   const [text, setText] = useState("");
   const [statusClass, setStatusClass] = useState<StatusClass>("all");
   const [body, setBody] = useState<BodyState | null>(null);
+  // Only the latest request's answer is shown: an older one that arrives
+  // late is dropped instead of replacing a newer one.
+  const listRequest = useRef(0);
+  const bodyRequest = useRef(0);
 
   const load = async () => {
+    const request = ++listRequest.current;
+    bodyRequest.current++;
     setList({ status: "loading" });
     setBody(null);
-    setList({
-      status: "loaded",
-      result: await listClientNetworkCalls(extensionId),
-    });
+    const result = await listClientNetworkCalls(extensionId);
+    if (request !== listRequest.current) return;
+    setList({ status: "loaded", result });
   };
 
   const viewBody = async (requestId: string) => {
+    const request = ++bodyRequest.current;
     setBody({ requestId, status: "loading" });
     const result = await readClientNetworkCallBody(extensionId, requestId);
+    if (request !== bodyRequest.current) return;
     setBody({ requestId, status: "loaded", result });
   };
 
-  const downloadList = (calls: NetworkCall[]) => {
+  const downloadList = (calls: NetworkCall[], total: number) => {
     const mode = currentRedactionMode();
     downloadText(
       `apty-client-network-calls.redaction-${mode}.json`,
@@ -225,6 +232,10 @@ export function ClientNetworkCallsPanel({
           source: "Apty Client",
           redactionMode: mode,
           exportedAt: new Date().toISOString(),
+          filter: { text: text.trim(), status: statusClass },
+          shown: calls.length,
+          total,
+          summary: `shown ${calls.length} of ${total}`,
           calls,
         },
         null,
@@ -318,7 +329,7 @@ export function ClientNetworkCallsPanel({
               variant="outline"
               className="ml-auto"
               disabled={result.calls.length === 0}
-              onClick={() => downloadList(shown)}
+              onClick={() => downloadList(shown, result.calls.length)}
             >
               <DownloadIcon className="h-4 w-4" />
               {t("networkCalls.downloadList")}

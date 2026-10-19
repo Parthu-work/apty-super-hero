@@ -385,6 +385,8 @@ describe("Widget network calls in Options, with no model involved", () => {
     assert.equal(list.name, "apty-client-network-calls.redaction-strict.json");
     const parsed = JSON.parse(list.text);
     assert.equal(parsed.redactionMode, "strict");
+    assert.deepEqual(parsed.filter, { text: "segment", status: "all" });
+    assert.equal(parsed.summary, "shown 1 of 5");
     assert.deepEqual(
       parsed.calls.map((call) => call.resourceName),
       ["segment.json"],
