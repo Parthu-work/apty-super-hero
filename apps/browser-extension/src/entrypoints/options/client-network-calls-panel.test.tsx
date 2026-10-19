@@ -316,6 +316,15 @@ describe("ClientNetworkCallsPanel", () => {
       "The Client observed this call but didn't provide its body.",
     ],
     [
+      {
+        status: "body_unavailable",
+        tooLargeToRedact: true,
+        fullLength: 150_000,
+        call: CALLS[0],
+      },
+      "The body is 150,000 characters, too large to redact safely, so it was not shown or kept.",
+    ],
+    [
       { status: "http_error", call: CALLS[1] },
       "The call returned HTTP 404, and the Client didn't provide its body.",
     ],

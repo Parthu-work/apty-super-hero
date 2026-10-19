@@ -84,6 +84,11 @@ function bodyMessage(
   if (result.status === "not_connected") return result.message;
   if (result.status === "not_observed")
     return t("networkCalls.body.notObserved");
+  if ("tooLargeToRedact" in result && result.tooLargeToRedact) {
+    return t("networkCalls.body.tooLargeToRedact", {
+      count: (result.fullLength ?? 0).toLocaleString(),
+    });
+  }
   switch (result.status) {
     case "failed":
       return result.call.errorText
