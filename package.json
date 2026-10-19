@@ -15,6 +15,7 @@
     "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources && npm run check:dist-licences",
     "dev": "pnpm --filter @apty/browser-extension dev",
     "preflight": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:coverage",
+    "ci:local": "node tooling/scripts/ci-local.mjs",
     "fix": "npm run format && npm run lint:fix",
     "format": "biome format . --write",
     "format:check": "biome format .",
