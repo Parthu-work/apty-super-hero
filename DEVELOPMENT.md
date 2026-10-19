@@ -32,6 +32,7 @@ pnpm lint:fix     # biome check . --fix --unsafe
 pnpm format      # biome format . --write
 pnpm fix         # format + lint:fix: rewrites files
 pnpm preflight   # format check + lint + typecheck + test + coverage, no rewrites — run this before submitting changes
+pnpm ci:local    # every run: step of .github/workflows/ci.yml, in order, with CI=true — what CI will run (about 15 minutes)
 ```
 
 Run a single package's script with `pnpm --filter <package-name> <script>`,
