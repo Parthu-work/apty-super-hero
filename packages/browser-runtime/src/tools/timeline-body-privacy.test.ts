@@ -176,6 +176,32 @@ describe("get_investigation_timeline never carries a stored response body", () =
     expectBodyDropped(await timeline());
   });
 
+  it("keeps each record's evidenceId, and the body can be read by it with get_evidence_json", async () => {
+    await record();
+    const { chat } = await timeline();
+    const emitted = JSON.parse(chat) as {
+      clusters: Array<{ evidence: Array<{ evidenceId: string }> }>;
+    };
+    const evidenceId = emitted.clusters[0]?.evidence[0]?.evidenceId;
+    expect(evidenceId).toBe(getEvidence(CONV)[0]?.evidenceId);
+
+    const answer = (await invoke("get_evidence_json", {
+      evidenceId,
+      path: "items",
+      limit: 10,
+      offset: 0,
+    })) as { found: boolean };
+    expect(answer).toMatchObject({ found: true });
+  });
+
+  it("tells the model a dropped body is read by evidenceId with get_evidence_json", () => {
+    const description = allBrowserTools.find(
+      (t) => t.name === "get_investigation_timeline",
+    )?.description;
+    expect(description).toMatch(/bodyDropped/);
+    expect(description).toMatch(/get_evidence_json[^.]*evidenceId/);
+  });
+
   it("leaves the stored body for get_evidence_json, which reads it by id", async () => {
     await record();
     await timeline();

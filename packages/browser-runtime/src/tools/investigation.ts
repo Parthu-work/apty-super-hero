@@ -92,7 +92,8 @@ export const getInvestigationTimelineTool = tool({
   description:
     "Get a deterministically correlated timeline of all diagnostic evidence (console/runtime errors, failed network requests, Apty Widget/Client/Studio/Service-Worker findings) collected so far in this conversation. " +
     "Evidence that happened close together in time (or shares a network request id) is grouped into clusters, with clusters spanning more than one source (e.g. a failed network request plus a console error) flagged as likely the same incident. " +
-    "Call diagnostic tools first (get_apty_page_logs, get_network_diagnostics, get_apty_widget_diagnostics, etc.) — this tool only correlates what's already been collected, it does not gather new evidence itself.",
+    "Call diagnostic tools first (get_apty_page_logs, get_network_diagnostics, get_apty_widget_diagnostics, etc.) — this tool only correlates what's already been collected, it does not gather new evidence itself. " +
+    "Response bodies are left out: a record whose data has bodyLength and bodyDropped: true had its body dropped here, and a dropped JSON body can be read with get_evidence_json using that record's evidenceId.",
   parameters: z.object({
     windowMs: z
       .number()
