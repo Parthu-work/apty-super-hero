@@ -82,9 +82,60 @@ describe("applyUrlPolicy", () => {
     }
   });
 
-  it("returns something unparseable unchanged rather than throwing", () => {
-    expect(applyUrlPolicy("not a url?x=1", "withhold")).toBe("not a url?x=1");
+  it("returns an unparsable URL as empty, never its raw text, rather than throwing", () => {
+    expect(
+      applyUrlPolicy("https://[patients/884213?mrn=884213", "withhold"),
+    ).toBe("");
+    expect(applyUrlPolicy("https://[patients/884213?mrn=884213", "mask")).toBe(
+      "",
+    );
     expect(applyUrlPolicy(undefined, "mask")).toBeUndefined();
+  });
+});
+
+describe("applyUrlPolicy beyond absolute web URLs", () => {
+  const RELATIVE = "/patients/884213/chart?mrn=884213#top";
+
+  it("masks a relative URL as text, like an absolute one", () => {
+    expect(applyUrlPolicy(RELATIVE, "withhold")).toBe("/patients/:id/chart");
+    expect(applyUrlPolicy(RELATIVE, "mask")).toBe(
+      "/patients/884213/chart?mrn=[masked]",
+    );
+  });
+
+  it("never re-encodes or normalizes a relative value", () => {
+    expect(applyUrlPolicy("/html/body/div[3]/../a b", "withhold")).toBe(
+      "/html/body/div[3]/../a b",
+    );
+  });
+
+  it("keeps a protocol-relative URL protocol-relative", () => {
+    expect(
+      applyUrlPolicy("//cdn.example.com/patients/884213?mrn=1", "withhold"),
+    ).toBe("//cdn.example.com/patients/:id");
+  });
+
+  it("masks a file: URL like any other and never gives null as its origin", () => {
+    const file = "file:///patients/884213/chart?mrn=884213";
+    expect(applyUrlPolicy(file, "withhold")).toBe("file:///patients/:id/chart");
+    expect(applyUrlPolicy(file, "mask")).toBe(
+      "file:///patients/884213/chart?mrn=[masked]",
+    );
+  });
+
+  it("keeps browser and extension pages readable", () => {
+    expect(applyUrlPolicy("chrome://extensions", "withhold")).toBe(
+      "chrome://extensions",
+    );
+    expect(
+      applyUrlPolicy(
+        "chrome-extension://bpiondflhhdplemamgggcdajclmoeple/src/entrypoints/sidepanel/index.html",
+        "withhold",
+      ),
+    ).toBe(
+      "chrome-extension://bpiondflhhdplemamgggcdajclmoeple/src/entrypoints/sidepanel/index.html",
+    );
+    expect(applyUrlPolicy("about:blank", "withhold")).toBe("about:blank");
   });
 });
 

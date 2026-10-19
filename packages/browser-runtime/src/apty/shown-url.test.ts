@@ -27,7 +27,7 @@ describe("shownUrl", () => {
 
   it("returns nothing, never the raw text, for a URL it can't parse", () => {
     const broken = "http://[4815162342";
-    expect(applyUrlPolicy(broken, "withhold")).toBe(broken);
+    expect(applyUrlPolicy(broken, "withhold")).toBe("");
     expect(shownUrl(broken)).toBe("");
     expect(shownResourceName(broken)).toBe("");
   });

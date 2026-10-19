@@ -42,6 +42,13 @@ full commit-level history.
   no longer pushes a body at the limit over it, and base64 longer than the
   limit is no longer cut before decoding. Checked with unit tests and a
   mocked `chrome`, not against the real Client or Widget.
+- URL masking fails closed: a URL that can't be parsed is shown as empty,
+  never as its raw text; a relative URL, a `file:` URL and any string under a
+  URL key (or a whole value shaped like a URL under any key) are masked like
+  absolute ones; `file:`, `chrome:` and `chrome-extension:` URLs keep a real
+  origin instead of `null`, and a local file's title is dropped in Strict.
+  Prose and console text are unchanged. Checked with unit tests and a mocked
+  `chrome`, not in a real browser.
 
 ## 0.1.0 — 2026-10-16
 

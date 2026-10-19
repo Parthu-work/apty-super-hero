@@ -79,6 +79,59 @@ describe("applyResultPrivacy", () => {
     expect(applyResultPrivacy(result, "withhold")).toEqual(result);
   });
 
+  it("masks any string under a URL key, relative or not, and empties one it can't parse", () => {
+    const result = {
+      ogImage: "/patients/884213/photo.jpg?mrn=884213",
+      favicon: "https://[patients/884213?mrn=884213",
+      url: "file:///patients/884213/chart?mrn=884213",
+    };
+    expect(applyResultPrivacy(result, "withhold")).toEqual({
+      ogImage: "/patients/:id/photo.jpg",
+      favicon: "",
+      url: "file:///patients/:id/chart",
+    });
+  });
+
+  it("masks a whole value shaped like a URL under any key, but not prose, XPath or JSON text", () => {
+    const xpath = "//button[normalize-space()='Save']";
+    const json = '{"next":"https://ehr.example/patients/884213"}';
+    const result = {
+      segmentsUrl: "/patients/884213/chart?mrn=884213",
+      cdn: "//cdn.example.com/patients/884213/x.js",
+      selector: xpath,
+      absolutePath: "/html/body/div[3]",
+      note: "opened /patients/884213/chart today",
+      body: json,
+    };
+    expect(applyResultPrivacy(result, "withhold")).toEqual({
+      segmentsUrl: "/patients/:id/chart",
+      cdn: "//cdn.example.com/patients/:id/x.js",
+      selector: xpath,
+      absolutePath: "/html/body/div[3]",
+      note: "opened /patients/884213/chart today",
+      body: '{"next":"https://ehr.example/patients/:id"}',
+    });
+  });
+
+  it("drops a local file's title in Strict but keeps a browser page's", () => {
+    expect(
+      applyResultPrivacy(
+        {
+          id: 1,
+          title: "Smith, John — chart",
+          url: "file:///patients/884213.html",
+        },
+        "withhold",
+      ),
+    ).toEqual({ id: 1, url: "file://" });
+    expect(
+      applyResultPrivacy(
+        { id: 2, title: "Extensions", url: "chrome://extensions" },
+        "withhold",
+      ),
+    ).toEqual({ id: 2, title: "Extensions", url: "chrome://extensions" });
+  });
+
   it("keeps non-page titles", () => {
     const result = { findings: [{ title: "Missing label", severity: "high" }] };
     expect(applyResultPrivacy(result, "withhold")).toEqual(result);

@@ -124,5 +124,6 @@ export {
   MASKED_VALUE,
   type PolicyNode,
   prepareNodeForPolicy,
+  urlOrigin,
   type ValuePolicy,
 } from "./value-policy.js";
