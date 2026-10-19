@@ -33,6 +33,7 @@ import {
   updateInvestigation,
 } from "../apty/investigation-session.js";
 import { shownEvidence } from "../apty/shown-url.js";
+import type { DiagnosticEvidence } from "../apty/types.js";
 import { getRedactionMode } from "../runtime/redaction-mode.js";
 import type { ToolRunContext } from "./tab-utils";
 
@@ -56,6 +57,26 @@ const INVESTIGATION_STATUSES = [
   "resolved",
   "failed",
 ] as const;
+
+/**
+ * A record as the timeline emits it: a stored response body is replaced by
+ * its length. The body was redacted once, when it was recorded, and free
+ * text in it passes every later redaction pass; get_evidence_json reads it
+ * from the store by id when the model asks for it.
+ */
+function withoutBody(record: DiagnosticEvidence): DiagnosticEvidence {
+  const data = record.data as Record<string, unknown> | null | undefined;
+  if (!data || typeof data !== "object" || !("body" in data)) return record;
+  const { body, ...rest } = data;
+  return {
+    ...record,
+    data: {
+      ...rest,
+      ...(typeof body === "string" ? { bodyLength: body.length } : {}),
+      bodyDropped: true,
+    },
+  };
+}
 
 const HYPOTHESIS_STATUSES = [
   "open",
@@ -87,7 +108,9 @@ export const getInvestigationTimelineTool = tool({
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
     // The store keeps raw URLs; show them under the mode as it is now.
     await getRedactionMode();
-    const evidence = getEvidence(conversationId).map(shownEvidence);
+    const evidence = getEvidence(conversationId)
+      .map(shownEvidence)
+      .map(withoutBody);
 
     if (evidence.length === 0) {
       return {
