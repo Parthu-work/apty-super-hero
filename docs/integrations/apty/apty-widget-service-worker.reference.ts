@@ -85,9 +85,9 @@
  *    chrome.storage.local: they survive a service-worker restart but are
  *    never written to disk and are gone when the browser closes. At most
  *    MAX_NETWORK_ENTRIES calls are kept, and response bodies only for the
- *    MAX_KEPT_BODIES most recent calls; a body over MAX_BODY_CHARS (the
- *    Agent's own limit) is not kept, and the Agent is told so (found:
- *    false). Non-text bodies are kept base64-encoded. The state is written
+ *    MAX_KEPT_BODIES most recent calls. A response body over 200,000
+ *    characters (MAX_BODY_CHARS, the Agent's own limit) is not served; the
+ *    Agent hears found: false. Non-text bodies are kept base64-encoded. The state is written
  *    once the calls pause for SAVE_DEBOUNCE_MS (and on onSuspend), not on
  *    every call.
  * 7. observedFetch never slows or changes the Widget's own fetch: it

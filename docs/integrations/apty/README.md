@@ -66,8 +66,9 @@ and build tooling, not something to drop in unmodified.
 3. Make the Widget's own requests through `observedFetch` instead of
    `fetch`. Only those are recorded. Calls are kept in
    `chrome.storage.session` (never `chrome.storage.local`): at most 1,000
-   calls, and bodies only for the 10 most recent; a body over 200,000
-   characters is not kept. `observedFetch` returns the Response as soon
+   calls, and bodies only for the 10 most recent. A response body over
+   200,000 characters is not served; the Agent hears `found: false`.
+   `observedFetch` returns the Response as soon
    as `fetch` does: the body is read afterwards from a clone (reading
    stops at 200,000 characters), recording errors never reach the
    Widget's code, a relative URL is recorded as `fetch` resolves it in
