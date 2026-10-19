@@ -115,6 +115,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   response-body capture in Settings) that appears in
   `get_investigation_timeline`; `stop_network_capture` already returns the
   same text; free text in it is not caught by any redaction pattern.
+- A URL inside prose or console output (for example a `run_console_command`
+  result) is masked only when it is an absolute http(s) URL; a relative or
+  non-http URL in free text reaches the model as it is.
 
 ## Where to look
 

@@ -46,28 +46,71 @@ export function applyValuePolicy(
   return value ? MASKED_VALUE : value;
 }
 
+const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+
+/**
+ * `scheme://host`, or `scheme:` for a URL with no authority (`about:`,
+ * `mailto:`). Never `"null"`, which `URL#origin` gives for `file:`,
+ * `chrome:` and `chrome-extension:` URLs.
+ */
+export function urlOrigin(url: string, parsed: URL): string {
+  if (parsed.origin !== "null") return parsed.origin;
+  return url.slice(parsed.protocol.length).startsWith("//")
+    ? `${parsed.protocol}//${parsed.host}`
+    : parsed.protocol;
+}
+
+function maskedQuery(search: string): string {
+  return search
+    .split("&")
+    .filter(Boolean)
+    .map((pair) => `${pair.split("=")[0]}=${MASKED_VALUE}`)
+    .join("&");
+}
+
+/** A relative URL masked as text, so a path is never re-encoded or normalized. */
+function applyRelativeUrlPolicy(url: string, policy: ValuePolicy): string {
+  const end = url.search(/[?#]/);
+  const path = end === -1 ? url : url.slice(0, end);
+  if (policy === "withhold") return withholdPathIdentifiers(path);
+  const query =
+    end !== -1 && url[end] === "?"
+      ? (url.slice(end + 1).split("#")[0] ?? "")
+      : "";
+  return query ? `${path}?${maskedQuery(query)}` : path;
+}
+
+/**
+ * A URL as the policy lets it be described: Strict keeps the origin and the
+ * path with record numbers, GUIDs and emails replaced; Standard keeps the
+ * path and masks every query value. A relative or protocol-relative URL is
+ * masked the same way; anything that can't be parsed comes back empty,
+ * never as its raw text.
+ */
 export function applyUrlPolicy(
   url: string | undefined,
   policy: ValuePolicy,
 ): string | undefined {
   if (policy === "show" || !url) return url;
+  if (url.startsWith("//")) {
+    const shown = applyUrlPolicy(`https:${url}`, policy);
+    return shown ? shown.slice("https:".length) : "";
+  }
+  if (!HAS_SCHEME.test(url)) return applyRelativeUrlPolicy(url, policy);
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return url;
+    return "";
   }
+  const origin = urlOrigin(url, parsed);
   if (policy === "withhold") {
-    return `${parsed.origin}${withholdPathIdentifiers(parsed.pathname)}`;
+    return `${origin}${withholdPathIdentifiers(parsed.pathname)}`;
   }
-  const base = `${parsed.origin}${parsed.pathname}`;
-  if (!parsed.search) return base;
-  const keys = parsed.search
-    .slice(1)
-    .split("&")
-    .filter(Boolean)
-    .map((pair) => `${pair.split("=")[0]}=${MASKED_VALUE}`);
-  return `${base}?${keys.join("&")}`;
+  const base = `${origin}${parsed.pathname}`;
+  return parsed.search
+    ? `${base}?${maskedQuery(parsed.search.slice(1))}`
+    : base;
 }
 
 export interface PolicyNode {
