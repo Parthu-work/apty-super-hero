@@ -36,7 +36,7 @@
  */
 
 import { z } from "zod";
-import { redactLogEntries, redactText } from "../runtime/redaction-mode.js";
+import { redactLogEntries } from "../runtime/redaction-mode.js";
 import {
   type ExternalMessageOutcome,
   sendExternalMessageDetailed,
@@ -340,12 +340,11 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
     const result = validate(resourceBodyResponseSchema, raw);
     if (!result.ok) return { found: false };
 
+    // Returned as received: readResourceBody, its only caller, redacts it
+    // once it is decoded, and only when it is short enough to redact whole.
     return {
       found: result.value.found,
-      body:
-        result.value.body !== undefined
-          ? redactText(result.value.body)
-          : undefined,
+      body: result.value.body,
       base64Encoded: result.value.base64Encoded,
     };
   }

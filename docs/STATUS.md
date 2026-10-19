@@ -109,6 +109,13 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Widget network calls from the real Apty Client (partial) | The Widget team adopts the reference handlers and `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)) and lists both Agent IDs. Open question: which Widget context makes calls such as `segments.json`; a content script would need a relay. Until then the panel names the Client's failure instead of listing calls |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
+## Known limitations
+
+- Page network-capture evidence carries a body preview (opt-in via
+  response-body capture in Settings) that appears in
+  `get_investigation_timeline`; `stop_network_capture` already returns the
+  same text; free text in it is not caught by any redaction pattern.
+
 ## Where to look
 
 - Problems: [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md)

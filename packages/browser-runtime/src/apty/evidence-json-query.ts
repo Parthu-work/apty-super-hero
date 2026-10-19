@@ -108,7 +108,15 @@ export function queryEvidenceJson(
     };
   }
 
-  const data = evidence.data as { body?: unknown } | undefined;
+  const data = evidence.data as
+    | { body?: unknown; tooLargeToRedact?: boolean; fullLength?: number }
+    | undefined;
+  if (data?.tooLargeToRedact) {
+    return {
+      found: false,
+      error: `This response body (${data.fullLength ?? "unknown"} characters) was too large to redact safely, so it was never stored and cannot be queried.`,
+    };
+  }
   const bodyText = data?.body;
   if (typeof bodyText !== "string") {
     return {

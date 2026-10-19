@@ -45,6 +45,7 @@
  */
 
 import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
+import { MAX_REDACT_INPUT_LENGTH } from "@apty/debug-contract";
 import { getRedactionMode, redactText } from "../runtime/redaction-mode.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
@@ -644,6 +645,9 @@ export interface InspectResourceResult {
   alsoMatched?: string[];
   /** For `body_denied`: the deny-list entry that matched the resource URL. */
   deniedBy?: string;
+  /** The body was too large to redact safely, so it was neither shown nor stored; `evidenceId` is the metadata-only record. */
+  tooLargeToRedact?: true;
+  evidenceId?: string;
   error?: string;
 }
 
@@ -662,7 +666,13 @@ export type ResourceBodyRead =
   | { status: "failed" }
   | { status: "pending" }
   | { status: "body_denied"; deniedBy: string }
-  | { status: "http_error" | "body_unavailable"; body?: undefined }
+  | {
+      status: "http_error" | "body_unavailable";
+      body?: undefined;
+      /** The decoded text is longer than redaction can cover whole, so it was neither redacted nor kept; `fullLength` is its length. */
+      tooLargeToRedact?: true;
+      fullLength?: number;
+    }
   | {
       status: "ok" | "http_error";
       body: { text: string; fullLength: number; isBinary: boolean };
@@ -673,7 +683,8 @@ export type ResourceBodyRead =
  * `inspect_extension_network` and Options' network-calls panel: a failed or
  * pending request has no body; a URL on the body deny list is never
  * fetched; anything else is fetched (an HTTP error's body too, since it
- * often explains the failure), decoded when textual, and redacted.
+ * often explains the failure), decoded when textual, and redacted. Text too
+ * long to redact whole is dropped rather than redacted in part and cut off.
  */
 export async function readResourceBody(
   provider: Pick<ConfiguredServiceWorkerDiagnosticsProvider, "getResourceBody">,
@@ -699,6 +710,13 @@ export async function readResourceBody(
     } catch {
       isBinary = true;
     }
+  }
+  if (!isBinary && text.length > MAX_REDACT_INPUT_LENGTH) {
+    return {
+      status: isHttpError ? "http_error" : "body_unavailable",
+      tooLargeToRedact: true,
+      fullLength: text.length,
+    };
   }
   const redacted = isBinary ? "" : redactText(text);
   return {
@@ -813,6 +831,38 @@ export async function inspectResource(
       alsoMatched,
       deniedBy: read.deniedBy,
       error: `The response body of ${best.resourceName} was not fetched: its URL matches "${read.deniedBy}" in the body deny list (Settings → Data handling). The request's metadata is included. Tell the user; to read this body they can remove that entry and ask again. Do not try to get the body another way.`,
+    };
+  }
+  if ("tooLargeToRedact" in read && read.tooLargeToRedact) {
+    // Recorded without a body, so get_evidence_json can say why it has none.
+    const evidence = recordEvidence({
+      conversationId,
+      source: "service-worker",
+      type: "network-response",
+      timestamp: Date.now(),
+      tabId: null,
+      scope: "shared",
+      requestId: raw.requestId,
+      url: raw.url,
+      data: {
+        extensionId: active.extensionId,
+        resourceName: resourceNameFor(raw.url ?? ""),
+        status: best.status,
+        mimeType: best.mimeType,
+        isBinary: false,
+        tooLargeToRedact: true,
+        fullLength: read.fullLength,
+      },
+    });
+    return {
+      found: true,
+      status: read.status,
+      resourceQuery,
+      request: best,
+      alsoMatched,
+      tooLargeToRedact: true,
+      evidenceId: evidence.evidenceId,
+      error: `The response body of ${best.resourceName} is ${read.fullLength} characters, more than the ${MAX_REDACT_INPUT_LENGTH} that can be redacted safely, so it was not read, shown or stored. Tell the user; the body cannot be retrieved through this tool.`,
     };
   }
   if (!read.body) {

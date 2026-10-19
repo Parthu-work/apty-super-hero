@@ -1314,6 +1314,7 @@
       "denied": "Not fetched: its URL matches \"{{entry}}\" in the body deny list (Settings → Data handling).",
       "unavailable": "The Client observed this call but didn't provide its body.",
       "httpErrorNoBody": "The call returned HTTP {{status}}, and the Client didn't provide its body.",
+      "tooLargeToRedact": "The body is {{count}} characters, too large to redact safely, so it was not shown or kept.",
       "binary": "Binary body, not shown.",
       "size": "{{count}} characters, redacted ({{mode}} mode)",
       "copy": "Copy",

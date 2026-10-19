@@ -322,18 +322,18 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
       });
     });
 
-    it("returns and redacts the body", async () => {
-      respondWith({
-        found: true,
-        body: JSON.stringify({ token: "abc123secret", ok: true }),
-      });
+    // Redaction happens once the body is decoded, in readResourceBody (its
+    // only caller): see client-network-calls.test.ts and
+    // too-large-to-redact.test.ts.
+    it("returns the body as received, for readResourceBody to decode and redact", async () => {
+      const body = JSON.stringify({ token: "abc123secret", ok: true });
+      respondWith({ found: true, body, base64Encoded: false });
       const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
         extensionId: "client-ext-id",
       });
 
       const result = await provider.getResourceBody("req-1");
-      expect(result.found).toBe(true);
-      expect(result.body).not.toContain("abc123secret");
+      expect(result).toEqual({ found: true, body, base64Encoded: false });
       expect(mockSendMessage).toHaveBeenCalledWith(
         "client-ext-id",
         { type: "apty-debug-agent:get-resource-body", requestId: "req-1" },

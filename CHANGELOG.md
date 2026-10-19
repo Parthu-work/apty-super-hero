@@ -34,6 +34,14 @@ full commit-level history.
   the Widget, records a relative URL as `fetch` resolves it in a service
   worker, and writes to session storage once the calls pause. Checked by the
   contract test with a mocked `chrome`, not against the real Widget.
+- An Apty Client body longer than redaction can cover whole (100,000
+  characters) is no longer redacted in part and stored cut off: it is neither
+  shown nor stored, and `inspect_extension_network`, the Widget network calls
+  panel and `get_evidence_json` say it was too large to redact safely. The
+  body is now redacted once, after it is decoded, so a secret's placeholder
+  no longer pushes a body at the limit over it, and base64 longer than the
+  limit is no longer cut before decoding. Checked with unit tests and a
+  mocked `chrome`, not against the real Client or Widget.
 
 ## 0.1.0 — 2026-10-16
 
