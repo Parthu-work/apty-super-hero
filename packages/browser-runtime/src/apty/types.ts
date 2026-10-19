@@ -116,12 +116,22 @@ export interface AptyServiceWorkerStatus {
   lastActivity?: number;
   error?: string;
   /** Why the Client could not be read over cross-extension messaging, when it couldn't. */
-  peerFailure?:
-    | "no_receiver"
-    | "no_response"
-    | "timeout"
-    | "send_failed"
-    | "malformed_response";
+  peerFailure?: AptyPeerFailure;
+}
+
+export type AptyPeerFailure =
+  | "no_receiver"
+  | "no_response"
+  | "timeout"
+  | "send_failed"
+  | "malformed_response";
+
+/** What `listResources` returns; `failure` names why it is `ok: false`. */
+export interface AptyResourceList {
+  ok: boolean;
+  resources: AptyObservedResource[];
+  error?: string;
+  failure?: AptyPeerFailure | "not_configured";
 }
 
 /**
@@ -191,11 +201,7 @@ export interface AptyServiceWorkerDiagnosticsProvider {
   getStatus(): Promise<AptyServiceWorkerStatus>;
   getLogs(): Promise<AptyLog[]>;
   /** Every resource the Apty Client's service worker has observed itself requesting, oldest-to-newest. `ok: false` when unreachable — never fabricated. */
-  listResources(): Promise<{
-    ok: boolean;
-    resources: AptyObservedResource[];
-    error?: string;
-  }>;
+  listResources(): Promise<AptyResourceList>;
   /** The actual response body for one previously-listed resource, by its requestId. */
   getResourceBody(requestId: string): Promise<AptyResourceBody>;
 }

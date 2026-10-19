@@ -2,7 +2,8 @@
 
 This folder is hand-off material for **Apty engineering teams** (Widget,
 Client, Studio), not code that runs as part of this extension. Nothing
-here is compiled or imported by any package in this repo — that's
+here is compiled into this extension (one test imports the reference
+file to check it against the Agent's message schemas) — that's
 deliberate, since this describes what needs to exist in *other*
 repositories (the Apty Widget/Client/Studio codebases) before the
 corresponding diagnostics tool in this extension can return real data
@@ -13,10 +14,14 @@ instead of `status: "not_configured"`.
 - **`apty-widget-service-worker.reference.ts`** — a complete reference
   implementation for the Apty Widget's own Manifest V3 service worker:
   safe console-argument serialization, a bounded/persisted/debounced log
-  buffer (survives MV3 service-worker restarts), and a sender-validated
-  `onMessageExternal` handler matching the exact message contract this
-  extension's consumer already implements
+  buffer (survives MV3 service-worker restarts), an `observedFetch`
+  wrapper that records the Widget's own network calls and a few recent
+  response bodies, and a sender-validated `onMessageExternal` handler
+  matching the exact message contract this extension's consumer already
+  implements
   (`packages/browser-runtime/src/apty/service-worker-diagnostics.ts`).
+  `packages/browser-runtime/src/apty/widget-reference-contract.test.ts`
+  checks its answers against the consumer's schemas.
 
 - **`STUDIO.md`**: what Apty Studio must add (allow-list the Agent's ID,
   answer two messages) so the Agent can read Studio's service worker.
@@ -48,14 +53,38 @@ and build tooling, not something to drop in unmodified.
 
 ## What's still needed from Apty engineering
 
-1. Hardcode this extension's IDs (see [Extension IDs](#extension-ids)) as
-   `DEBUG_AGENT_EXTENSION_ID` in the reference file (and the equivalent
-   `externally_connectable.ids` entry in the Widget's manifest).
-2. Decide where this code actually lives in the Widget's codebase, and
+1. List both of this extension's IDs (see [Extension IDs](#extension-ids))
+   in `DEBUG_AGENT_EXTENSION_IDS` in the reference file and in the
+   Widget's manifest:
+   `"externally_connectable": { "ids": ["bpiondflhhdplemamgggcdajclmoeple", "<the Web Store ID>"] }`.
+   The first ID is filled in already; add the Web Store's when it exists.
+2. Paste the reference code into the Widget's service worker at the top
+   level, so its `onMessageExternal` listener is registered on every
+   service-worker start. It answers `list-observed-resources` and
+   `get-resource-body` as well as status and logs, inside the same
+   sender check.
+3. Make the Widget's own requests through `observedFetch` instead of
+   `fetch`. Only those are recorded. Calls are kept in
+   `chrome.storage.session` (never `chrome.storage.local`): at most 1,000
+   calls, and bodies only for the 10 most recent. A response body over
+   200,000 characters is not served; the Agent hears `found: false`.
+   `observedFetch` returns the Response as soon
+   as `fetch` does: the body is read afterwards from a clone (reading
+   stops at 200,000 characters), recording errors never reach the
+   Widget's code, a relative URL is recorded as `fetch` resolves it in
+   the service worker, and the calls are written to storage once they
+   pause rather than on every call.
+4. **Check which context makes the calls.** If the Widget fetches
+   `segments.json` and similar from a content script rather than from its
+   service worker, the service worker never sees those calls: run
+   `observedFetch` in the content script and relay each record to the
+   service worker (`chrome.runtime.sendMessage`). We have not been able to
+   check which context the Widget uses.
+5. Decide where this code actually lives in the Widget's codebase, and
    adapt build tooling/imports accordingly.
-3. Give us that Widget extension ID to put in
+6. Give us that Widget extension ID to put in
    `packages/browser-ext/.env` as `VITE_APTY_SERVICE_WORKER_EXTENSION_ID`.
-4. Confirm whether Apty has (or is building) any backend log/telemetry
+7. Confirm whether Apty has (or is building) any backend log/telemetry
    endpoint instead — if so, the HTTP path
    (`VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT`) is likely a better fit
    than this messaging-based approach; see

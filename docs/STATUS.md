@@ -79,6 +79,22 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   same locally. Branded Chrome and Edge are checked by hand
   ([`SMOKE_TEST.md`](release/SMOKE_TEST.md)).
 
+- Widget network calls (Settings → Apty Integration → Apty Client): the
+  Client's own network calls, listed, filtered, downloaded and read body by
+  body, with no AI model involved and only on click. URLs get the chat
+  tools' URL policy and bodies the deny list and redaction; every failure
+  names its fix. Tested against the e2e fake Client in Chromium, including
+  a filtered download that records its filter text, status class and
+  "shown N of M"; the real Client does not answer these messages yet
+  (below). Covered by unit tests only, not in a real browser: a relative
+  Client URL is masked under the current redaction mode (an unparsable one
+  shows empty); a Client list of up to 5,000 calls is read and the newest
+  1,000 kept; an older body answer never replaces a newer one. The
+  reference `observedFetch` returns the Widget's Response before reading
+  the body, and a response body over 200,000 characters is not served (the
+  Agent hears `found: false`); a contract test with a mocked `chrome` checks
+  this, not the real Widget.
+
 ## Open
 
 | Item | Needs |
@@ -90,6 +106,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Remove the remaining explicit `any` | 603 in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
 | LLM request safety and size | Phase A (O1-O5) is the base of `hardening/prod-ready`; Phases B and C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
 | Production readiness (branch `hardening/prod-ready`, not on `main`) | Phases 1-3 done (Checkpoint 3, `REVIEW.md`), and Phase 4 fixed the ten items they left out (Strict URL paths, truncated-JSON redaction, approval for link-only DOM Health, orphan session cleanup, plugin logs, local chat images, Apty IndexedDB names, i18n, unused code, `@openai/agents` 0.20). Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally. The PR #20 review found and fixed 11 regressions and the CodeQL findings (the database move, a daemon crash, a repeated tool, MCP tab gating and others; see `REVIEW.md`). The MCP bridge is now 4.0.0, and an older daemon can't connect to this extension ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
+| Widget network calls from the real Apty Client (partial) | The Widget team adopts the reference handlers and `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)) and lists both Agent IDs. Open question: which Widget context makes calls such as `segments.json`; a content script would need a relay. Until then the panel names the Client's failure instead of listing calls |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Where to look

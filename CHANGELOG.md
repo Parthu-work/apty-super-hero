@@ -6,7 +6,34 @@ full commit-level history.
 
 ## Unreleased
 
-Nothing yet.
+- **Widget network calls** (Settings → Apty Integration → Apty Client): load
+  the calls the Apty Client reports, filter them by text and by
+  failed/4xx/5xx, read a response body, and download either as JSON, with no
+  AI model involved. URLs get the chat tools' URL policy, bodies the body
+  deny list and redaction, and every failure says what to change. The panel
+  and `inspect_extension_network` share one path from a call to its body.
+- The Widget team's reference service worker answers
+  `list-observed-resources` and `get-resource-body`, recording the Widget's
+  own requests through `observedFetch`; a contract test keeps it in step
+  with the Agent's schemas. The Widget team still has to adopt it.
+- Decided against an Agent-side `webRequest` recorder: a spike showed Chrome
+  does not show one extension's requests to another.
+- Widget network calls panel: a relative Client URL such as
+  `/api/users/4815162342.json?dob=…` is masked under the current redaction
+  mode (Strict hides the record number and query values, Standard the query
+  values), and an unparsable URL shows empty, never raw. An older body answer
+  can no longer replace a newer one, and a reload drops a body still
+  loading. The list download records its filter text, status class and
+  "shown N of M".
+- A Client list longer than 1,000 calls is read instead of rejected as
+  malformed: up to 5,000 are accepted and the newest 1,000 kept.
+- The reference `observedFetch` no longer slows the Widget's own fetch: it
+  returns the Response as soon as `fetch` does, reads the body afterwards
+  from a clone (stopping at 200,000 characters; a longer body is not served
+  and the Agent hears `found: false`), never throws a recording error into
+  the Widget, records a relative URL as `fetch` resolves it in a service
+  worker, and writes to session storage once the calls pause. Checked by the
+  contract test with a mocked `chrome`, not against the real Widget.
 
 ## 0.1.0 — 2026-10-16
 

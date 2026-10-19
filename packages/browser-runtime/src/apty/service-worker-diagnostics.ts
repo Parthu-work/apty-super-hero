@@ -46,6 +46,7 @@ import type {
   AptyLog,
   AptyObservedResource,
   AptyResourceBody,
+  AptyResourceList,
   AptyServiceWorkerDiagnosticsProvider,
   AptyServiceWorkerStatus,
 } from "./types.js";
@@ -109,11 +110,18 @@ const logsResponseSchema = z.object({
   logs: z.array(aptyLogSchema).max(MAX_LOGS_ACCEPTED).optional(),
 });
 
-// Same defensive-ceiling reasoning as MAX_LOGS_ACCEPTED.
-const MAX_RESOURCES_ACCEPTED = 1000;
+// Same defensive-ceiling reasoning as MAX_LOGS_ACCEPTED. A longer list than
+// is kept is still read: the reference appends and trims from the front
+// (buffer.slice(-N)), so the newest calls are last and those are kept.
+const MAX_RESOURCES_ACCEPTED = 5000;
+export const MAX_RESOURCES_KEPT = 1000;
+
+export const LIST_RESOURCES_MESSAGE =
+  "apty-debug-agent:list-observed-resources";
+export const RESOURCE_BODY_MESSAGE = "apty-debug-agent:get-resource-body";
 const MAX_BODY_CHARS_ACCEPTED = 200_000;
 
-const observedResourceSchema = z.object({
+export const observedResourceSchema = z.object({
   requestId: z.string().max(200),
   url: z.string().max(4000),
   method: z.string().max(20),
@@ -124,11 +132,11 @@ const observedResourceSchema = z.object({
   timestamp: z.number().finite(),
 });
 
-const resourcesResponseSchema = z.object({
+export const resourcesResponseSchema = z.object({
   resources: z.array(observedResourceSchema).max(MAX_RESOURCES_ACCEPTED),
 });
 
-const resourceBodyResponseSchema = z.object({
+export const resourceBodyResponseSchema = z.object({
   found: z.boolean(),
   body: z.string().max(MAX_BODY_CHARS_ACCEPTED).optional(),
   base64Encoded: z.boolean().optional(),
@@ -279,41 +287,43 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
     return [];
   }
 
-  async listResources(): Promise<{
-    ok: boolean;
-    resources: AptyObservedResource[];
-    error?: string;
-  }> {
+  async listResources(): Promise<AptyResourceList> {
     if (!this.config.extensionId) {
       return {
         ok: false,
         resources: [],
+        failure: "not_configured",
         error:
           "No Apty Client extension ID is configured for resource inspection.",
       };
     }
 
-    const raw = await sendExternalMessageWithRetry(this.config.extensionId, {
-      type: "apty-debug-agent:list-observed-resources",
+    const outcome = await sendWithRetryDetailed(this.config.extensionId, {
+      type: LIST_RESOURCES_MESSAGE,
     });
-    if (raw === undefined) {
+    if (!outcome.ok) {
       return {
         ok: false,
         resources: [],
+        failure: outcome.failure,
         error:
           "The Apty Client extension did not respond. It may not be installed, may not allowlist this extension (externally_connectable), or may not implement the resource-inspection message contract yet.",
       };
     }
 
-    const result = validate(resourcesResponseSchema, raw);
+    const result = validate(resourcesResponseSchema, outcome.response);
     if (!result.ok) {
       return {
         ok: false,
         resources: [],
+        failure: "malformed_response",
         error: `malformed resources response: ${result.reason}`,
       };
     }
-    return { ok: true, resources: result.value.resources };
+    return {
+      ok: true,
+      resources: result.value.resources.slice(-MAX_RESOURCES_KEPT),
+    };
   }
 
   async getResourceBody(requestId: string): Promise<AptyResourceBody> {
@@ -322,7 +332,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
     }
 
     const raw = await sendExternalMessageWithRetry(this.config.extensionId, {
-      type: "apty-debug-agent:get-resource-body",
+      type: RESOURCE_BODY_MESSAGE,
       requestId,
     });
     if (raw === undefined) return { found: false };
@@ -350,14 +360,11 @@ export class NotConfiguredServiceWorkerDiagnosticsProvider
   async getLogs(): Promise<AptyLog[]> {
     return [];
   }
-  async listResources(): Promise<{
-    ok: boolean;
-    resources: AptyObservedResource[];
-    error?: string;
-  }> {
+  async listResources(): Promise<AptyResourceList> {
     return {
       ok: false,
       resources: [],
+      failure: "not_configured",
       error: "No Apty Client extension ID is configured.",
     };
   }

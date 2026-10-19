@@ -1557,3 +1557,35 @@ under a sensitive key that is cut off before it closes
 (`{"cookie":{"sid":"abc`) is now redacted to the end the same way. Before,
 the key pass left it as it was. Unclosed non-sensitive values are still
 left alone.
+
+## No Agent-side webRequest recorder for the Apty Client's calls
+
+The widget-network task asked whether the Agent could list the Apty
+Client's network calls with no Client change, by watching them with a
+passive `chrome.webRequest` listener. A spike tested this in Chrome for
+Testing 145.0.7632.77, through the e2e harness
+(`tooling/e2e/spikes/webrequest-cross-extension.spike.mjs`). An observer
+extension with `webRequest` and `<all_urls>` listened on `onCompleted` and
+`onErrorOccurred`. A widget extension's service worker fetched a local
+test-server URL, and a page in a normal tab fetched the same server as a
+control.
+
+| | Seen by the observer |
+|---|---|
+| The tab's request | yes (`initiator` the page's origin, `type` `xmlhttprequest`) |
+| The widget's request, HTTP 200 | no |
+| The widget's refused request (`Failed to fetch`) | no |
+| The tab's request after the observer sat idle 45 s | yes |
+| The widget's request after that idle wait | no |
+
+The result was the same on a second run. Chrome does not show one
+extension's requests to another extension's `webRequest` listener, so
+`initiator` could not be checked: no event arrived. The observer's worker
+did not stop during the idle wait while the harness was attached to it, so
+the idle part says nothing about a stopped worker; it does not change the
+answer, since nothing arrived while it was active either.
+
+**Decision:** no `webRequest` permission and no Agent-side recorder. The
+Agent reads the Client's calls only from the Client's own answers
+(`list-observed-resources`), which the Widget team adds from
+`docs/integrations/apty/apty-widget-service-worker.reference.ts`.

@@ -650,11 +650,61 @@ export interface InspectResourceResult {
 const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 /** Settings → Data handling's body deny list, which covers Apty Client bodies as well as page capture. */
-async function loadBodyDenyList(): Promise<readonly string[]> {
+export async function loadBodyDenyList(): Promise<readonly string[]> {
   const settings = await settingsStorage
     .load(STORAGE_KEYS.SETTINGS)
     .catch(() => null);
   return settings?.networkBodyCaptureDenyList ?? [];
+}
+
+/** The outcome of reading one observed resource's body; `body` is the full redacted text, unbounded by the inline preview limit. */
+export type ResourceBodyRead =
+  | { status: "failed" }
+  | { status: "pending" }
+  | { status: "body_denied"; deniedBy: string }
+  | { status: "http_error" | "body_unavailable"; body?: undefined }
+  | {
+      status: "ok" | "http_error";
+      body: { text: string; fullLength: number; isBinary: boolean };
+    };
+
+/**
+ * The one path from an observed resource to its redacted body, shared by
+ * `inspect_extension_network` and Options' network-calls panel: a failed or
+ * pending request has no body; a URL on the body deny list is never
+ * fetched; anything else is fetched (an HTTP error's body too, since it
+ * often explains the failure), decoded when textual, and redacted.
+ */
+export async function readResourceBody(
+  provider: Pick<ConfiguredServiceWorkerDiagnosticsProvider, "getResourceBody">,
+  resource: ExtensionCaptureEntry,
+  denyList: readonly string[],
+): Promise<ResourceBodyRead> {
+  if (resource.failed) return { status: "failed" };
+  if (resource.status === undefined) return { status: "pending" };
+  const isHttpError = resource.status >= 400;
+  const deniedBy = matchingDenyEntry(resource.url ?? "", denyList);
+  if (deniedBy !== null) return { status: "body_denied", deniedBy };
+  const fetched = await provider.getResourceBody(resource.requestId);
+  if (!fetched.found || fetched.body === undefined) {
+    return { status: isHttpError ? "http_error" : "body_unavailable" };
+  }
+  let isBinary = !isTextualMime(resource.mimeType);
+  let text = "";
+  if (!isBinary) {
+    try {
+      text = fetched.base64Encoded
+        ? decodeBase64Utf8(fetched.body)
+        : fetched.body;
+    } catch {
+      isBinary = true;
+    }
+  }
+  const redacted = isBinary ? "" : redactText(text);
+  return {
+    status: isHttpError ? "http_error" : "ok",
+    body: { text: redacted, fullLength: redacted.length, isBinary },
+  };
 }
 
 /** Find the resource matching `resourceQuery` among what the Apty Client reports observing, and retrieve its actual response body. Never fabricates a body — every non-"ok" status is an explicit, structured failure. */
@@ -730,7 +780,10 @@ export async function inspectResource(
         )
       : undefined;
 
-  if (best.failed) {
+  // The user's request is consent for this one resource; the deny list is
+  // the standing policy above it, so a matching body is never fetched.
+  const read = await readResourceBody(provider, raw, await loadBodyDenyList());
+  if (read.status === "failed") {
     return {
       found: true,
       status: "failed",
@@ -740,7 +793,7 @@ export async function inspectResource(
       error: `${best.resourceName} was requested but failed.${best.errorText ? ` ${best.errorText}` : ""}`,
     };
   }
-  if (best.status === undefined) {
+  if (read.status === "pending") {
     return {
       found: true,
       status: "pending",
@@ -751,53 +804,32 @@ export async function inspectResource(
         "The Apty Client observed this request but has not yet reported a response. Please try again shortly.",
     };
   }
-
-  // From here on, a response (of SOME status, including 4xx/5xx) exists —
-  // always attempt to fetch the body. An HTTP error status never skips this:
-  // the body of a 403/500 response is frequently the one piece of evidence
-  // that explains the failure (e.g. an error message or access-denied body).
-  const isHttpError = best.status >= 400;
-  // The user's request is consent for this one resource; the deny list is
-  // the standing policy above it, so a matching body is never fetched.
-  const deniedBy = matchingDenyEntry(raw.url ?? "", await loadBodyDenyList());
-  if (deniedBy !== null) {
+  if (read.status === "body_denied") {
     return {
       found: true,
       status: "body_denied",
       resourceQuery,
       request: best,
       alsoMatched,
-      deniedBy,
-      error: `The response body of ${best.resourceName} was not fetched: its URL matches "${deniedBy}" in the body deny list (Settings → Data handling). The request's metadata is included. Tell the user; to read this body they can remove that entry and ask again. Do not try to get the body another way.`,
+      deniedBy: read.deniedBy,
+      error: `The response body of ${best.resourceName} was not fetched: its URL matches "${read.deniedBy}" in the body deny list (Settings → Data handling). The request's metadata is included. Tell the user; to read this body they can remove that entry and ask again. Do not try to get the body another way.`,
     };
   }
-  const body = await provider.getResourceBody(raw.requestId);
-  if (!body.found || body.body === undefined) {
+  if (!read.body) {
     return {
       found: true,
-      status: isHttpError ? "http_error" : "body_unavailable",
+      status: read.status,
       resourceQuery,
       request: best,
       alsoMatched,
-      error: isHttpError
-        ? `${best.resourceName} returned HTTP ${best.status}, and the Apty Client did not provide the response body.`
-        : "The request was observed, but the Apty Client did not provide the response body.",
+      error:
+        read.status === "http_error"
+          ? `${best.resourceName} returned HTTP ${best.status}, and the Apty Client did not provide the response body.`
+          : "The request was observed, but the Apty Client did not provide the response body.",
     };
   }
 
-  const textual = isTextualMime(best.mimeType);
-  let text = "";
-  let isBinary = !textual;
-  if (textual) {
-    try {
-      text = body.base64Encoded ? decodeBase64Utf8(body.body) : body.body;
-    } catch {
-      isBinary = true;
-    }
-  }
-
-  const redacted = isBinary ? "" : redactText(text);
-  const fullLength = redacted.length;
+  const { text: redacted, fullLength, isBinary } = read.body;
   // A JSON body gets a structural summary (root type, length, keys and
   // their types) plus a preview of whole items that fits the inline limit,
   // never a character slice that could cut an item in half. Non-JSON text
@@ -843,7 +875,7 @@ export async function inspectResource(
 
   return {
     found: true,
-    status: isHttpError ? "http_error" : "ok",
+    status: read.status,
     resourceQuery,
     request: best,
     alsoMatched,
