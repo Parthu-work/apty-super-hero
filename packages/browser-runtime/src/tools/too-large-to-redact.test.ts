@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   mode: "standard" as "strict" | "standard",
   body: "",
   base64Encoded: false,
+  status: 200,
 }));
 
 vi.hoisted(() => {
@@ -41,7 +42,7 @@ vi.hoisted(() => {
                     requestId: "r1",
                     url: "https://cdn.apty.example/api/segments.json",
                     method: "GET",
-                    status: 200,
+                    status: state.status,
                     mimeType: "application/json",
                     timestamp: 1,
                   },
@@ -155,6 +156,7 @@ function storedData(): Record<string, unknown> {
 beforeEach(async () => {
   clearEvidence(CONV);
   state.base64Encoded = false;
+  state.status = 200;
   await setMode("standard");
   await connectExtensionClient(CONV, EXT_ID);
 });
@@ -195,6 +197,30 @@ describe("a Client body too large to redact safely", () => {
       expect(text, layer).toContain("too large to redact safely");
       expect(text, layer).not.toContain("not valid JSON");
     }
+  });
+
+  it("an HTTP error whose body is too large keeps its http_error status and says why there is no body", async () => {
+    state.status = 500;
+    state.body = jsonBody(150_000);
+
+    const inspected = await inspect();
+    for (const [layer, text] of Object.entries(inspected)) {
+      expect(text, layer).toContain('"status":"http_error"');
+      expect(text, layer).toContain('"tooLargeToRedact":true');
+      expect(text, layer).toContain("redacted safely");
+      expect(text, layer).not.toContain(MARKER);
+    }
+    expect(storedData()).toMatchObject({
+      status: 500,
+      tooLargeToRedact: true,
+      fullLength: 150_000,
+    });
+    expect(storedData()).not.toHaveProperty("body");
+
+    expect(await readClientNetworkCallBody(EXT_ID, "r1")).toMatchObject({
+      status: "http_error",
+      tooLargeToRedact: true,
+    });
   });
 
   it("is named in the Options panel's answer too, with nothing to show", async () => {
