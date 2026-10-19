@@ -33,6 +33,7 @@ import {
   updateInvestigation,
 } from "../apty/investigation-session.js";
 import { shownEvidence } from "../apty/shown-url.js";
+import type { DiagnosticEvidence } from "../apty/types.js";
 import { getRedactionMode } from "../runtime/redaction-mode.js";
 import type { ToolRunContext } from "./tab-utils";
 
@@ -57,6 +58,26 @@ const INVESTIGATION_STATUSES = [
   "failed",
 ] as const;
 
+/**
+ * A record as the timeline emits it: a stored response body is replaced by
+ * its length. The body was redacted once, when it was recorded, and free
+ * text in it passes every later redaction pass; get_evidence_json reads it
+ * from the store by id when the model asks for it.
+ */
+function withoutBody(record: DiagnosticEvidence): DiagnosticEvidence {
+  const data = record.data as Record<string, unknown> | null | undefined;
+  if (!data || typeof data !== "object" || !("body" in data)) return record;
+  const { body, ...rest } = data;
+  return {
+    ...record,
+    data: {
+      ...rest,
+      ...(typeof body === "string" ? { bodyLength: body.length } : {}),
+      bodyDropped: true,
+    },
+  };
+}
+
 const HYPOTHESIS_STATUSES = [
   "open",
   "testing",
@@ -71,7 +92,8 @@ export const getInvestigationTimelineTool = tool({
   description:
     "Get a deterministically correlated timeline of all diagnostic evidence (console/runtime errors, failed network requests, Apty Widget/Client/Studio/Service-Worker findings) collected so far in this conversation. " +
     "Evidence that happened close together in time (or shares a network request id) is grouped into clusters, with clusters spanning more than one source (e.g. a failed network request plus a console error) flagged as likely the same incident. " +
-    "Call diagnostic tools first (get_apty_page_logs, get_network_diagnostics, get_apty_widget_diagnostics, etc.) — this tool only correlates what's already been collected, it does not gather new evidence itself.",
+    "Call diagnostic tools first (get_apty_page_logs, get_network_diagnostics, get_apty_widget_diagnostics, etc.) — this tool only correlates what's already been collected, it does not gather new evidence itself. " +
+    "Response bodies are left out: a record whose data has bodyLength and bodyDropped: true had its body dropped here, and a dropped JSON body can be read with get_evidence_json using that record's evidenceId.",
   parameters: z.object({
     windowMs: z
       .number()
@@ -87,7 +109,9 @@ export const getInvestigationTimelineTool = tool({
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
     // The store keeps raw URLs; show them under the mode as it is now.
     await getRedactionMode();
-    const evidence = getEvidence(conversationId).map(shownEvidence);
+    const evidence = getEvidence(conversationId)
+      .map(shownEvidence)
+      .map(withoutBody);
 
     if (evidence.length === 0) {
       return {
