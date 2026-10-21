@@ -134,7 +134,7 @@ function toolNamed(name: string) {
 async function asSent(
   name: string,
   input: Record<string, unknown>,
-): Promise<{ chat: string; mcp: string; raw: Record<string, any> }> {
+): Promise<{ chat: string; mcp: string; raw: ReturnType<typeof JSON.parse> }> {
   const output = await toolNamed(name).invoke(
     { context: { conversationId: CONV } },
     JSON.stringify(input),
