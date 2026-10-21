@@ -368,3 +368,34 @@ describe("redactSensitiveText — truncated JSON", () => {
     }
   });
 });
+
+describe("medical record numbers in free text", () => {
+  it.each([
+    ["MRN 4815162342", "MRN <REDACTED>"],
+    ["patient MRN: 4815162342 admitted", "patient MRN: <REDACTED> admitted"],
+    ["mrn#A-123456", "mrn#<REDACTED>"],
+    ["mrn=99887766&x=1", "mrn=<REDACTED>&x=1"],
+    ["Medical Record Number 12345", "Medical Record Number <REDACTED>"],
+    ["medical record no. 5550123", "medical record no. <REDACTED>"],
+    ["MRN4815162342", "MRN<REDACTED>"],
+  ])("masks the number in %s, in strict and standard", (text, expected) => {
+    expect(redactSensitiveText(text, "strict")).toBe(expected);
+    expect(redactSensitiveText(text, "standard")).toBe(expected);
+  });
+
+  it("leaves it in off mode, as it does every PII profile", () => {
+    expect(redactSensitiveText("MRN 4815162342", "off")).toBe("MRN 4815162342");
+  });
+
+  it("keeps JSON valid and leaves words that only contain the letters alone", () => {
+    const json = '{"note":"MRN 4815162342 seen","mrnFormat":"digits"}';
+    const out = redactSensitiveText(json, "strict");
+    expect(JSON.parse(out)).toEqual({
+      note: "MRN <REDACTED> seen",
+      mrnFormat: "digits",
+    });
+    expect(
+      redactSensitiveText("SMRN 1234, MRN ab, MRN format, mrnFormat", "strict"),
+    ).toBe("SMRN 1234, MRN ab, MRN format, mrnFormat");
+  });
+});

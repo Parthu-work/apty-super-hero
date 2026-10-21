@@ -176,6 +176,16 @@ const KNOWN_TOKEN_SHAPE_PATTERN =
 
 const EMAIL_PATTERN = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
 
+/**
+ * A medical record number written out in text (`MRN 4815162342`,
+ * `MRN#A-123456`, `medical record number: 123456`): the label stays, the
+ * number (at least four characters, one a digit) is masked. The JSON-aware pass already covers an `mrn` key; this
+ * covers the number inside a sentence, a URL or a log line. PII, so it runs
+ * in strict and standard mode, like the PII key profiles.
+ */
+const MRN_PATTERN =
+  /\b(MRN|medical[\s_-]+record[\s_-]+(?:number|num|no\.?|#))(\s*[:#=]\s*|\s+|(?=\d))((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{3,})\b/gi;
+
 function redactKeyValuePairs(text: string): string {
   return text.replace(
     SENSITIVE_KEYVALUE_PATTERN,
@@ -247,6 +257,10 @@ export function redactSensitiveText(
   result = result.replace(KNOWN_TOKEN_SHAPE_PATTERN, "<REDACTED>");
   // 7. Generic sensitive key = value (JSON/query/header/cookie shaped).
   result = redactKeyValuePairs(result);
+  // 7.5. Medical record numbers in free text (PII: strict and standard).
+  if (mode !== "off") {
+    result = result.replace(MRN_PATTERN, "$1$2<REDACTED>");
+  }
   // 8. Emails, last (documented default-on constant).
   if (REDACT_EMAILS) {
     result = result.replace(EMAIL_PATTERN, "<REDACTED-EMAIL>");

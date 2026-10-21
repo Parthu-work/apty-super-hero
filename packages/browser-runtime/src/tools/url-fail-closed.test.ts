@@ -201,13 +201,15 @@ describe("controls that do not change", () => {
     }
   });
 
-  it("console free text is left alone (a known limitation, not fixed here)", async () => {
+  it("console free text keeps the path (a known limitation, not fixed here); only an mrn value is masked", async () => {
     for (const mode of ["strict", "standard"] as const) {
       await setMode(mode);
       const sent = await asSent(
         wrapped({ result: `link: ${INPUTS.relative}` }),
       );
-      expect(sent.chat).toContain(`link: ${INPUTS.relative}`);
+      expect(sent.chat).toContain(
+        `link: ${INPUTS.relative.replace(/mrn=\d+/, "mrn=<REDACTED>")}`,
+      );
     }
   });
 });
