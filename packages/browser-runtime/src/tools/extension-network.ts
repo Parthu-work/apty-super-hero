@@ -109,7 +109,7 @@ export const inspectExtensionNetworkTool = tool({
   name: "inspect_extension_network",
   description:
     "Retrieve the actual response body for a resource the Apty Client extension reports having requested itself — e.g. resourceQuery 'segments.json', 'app.json', a path, or a fragment. " +
-    "Tolerant matching (case/plural/extension-insensitive); alsoMatched lists other candidates if several matched. Auto-connects using the configured extension ID (never accepts one as input). " +
+    "Tolerant matching (case/plural/extension-insensitive); alsoMatched lists other candidates if several matched. If the newest call of the resource has no body, an older call's body is returned and bodyFromOlderCall says which call it is from. Auto-connects using the configured extension ID (never accepts one as input). " +
     "Body returns for ANY status, including 4xx/5xx. For a JSON body, read response.json first (root type, itemCount, the keys and their types, how many items bodyPreview holds), then page with get_evidence_json(evidenceId, path, limit, offset). " +
     "Status: not_observed (use returned suggestions), failed/http_error, pending, body_unavailable, body_denied (the URL is on the user's body deny list: report the metadata and the deniedBy entry, never try to get the body another way). Never fabricated.",
   parameters: z.object({
@@ -154,7 +154,8 @@ export const inspectExtensionNetworkTool = tool({
 export const listExtensionNetworkResourcesTool = tool({
   name: "list_extension_network_resources",
   description:
-    "List every resource the Apty Client extension reports having requested itself — useful to answer 'what resources did the Apty Client load?' before picking one to inspect with inspect_extension_network. " +
+    "List the unique resources the Apty Client extension reports having requested itself (a method plus a URL without its query string), each with how many times it was called (count), how many failed (failedCount), its latest status and time, and hasBody when the Client says whether it kept a body — useful to answer 'what resources did the Apty Client load?' before picking one to inspect with inspect_extension_network. " +
+    "The list is capped: omittedResources says how many more exist. " +
     "Auto-connects using the configured Apty Client extension ID if not already connected (this tool never accepts an extension ID as input).",
   parameters: z.object({}),
   execute: async (_input, context) => {
