@@ -322,7 +322,7 @@ describe("ClientNetworkCallsPanel", () => {
         fullLength: 150_000,
         call: CALLS[0],
       },
-      "The body is 150,000 characters, too large to redact safely, so it was not shown or kept.",
+      "The body is 150,000 characters. Redaction takes at most 100,000 characters of text at once; a longer JSON body is redacted value by value, but this one is not JSON, has a single value over that limit, or has text that runs from one value into the next. It was withheld (not shown or kept) rather than shown partly redacted.",
     ],
     [
       { status: "http_error", call: CALLS[1] },

@@ -46,7 +46,11 @@
 
 import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
 import { MAX_REDACT_INPUT_LENGTH } from "@apty/debug-contract";
-import { getRedactionMode, redactText } from "../runtime/redaction-mode.js";
+import {
+  getRedactionMode,
+  redactLargeJson,
+  redactText,
+} from "../runtime/redaction-mode.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
 import {
@@ -712,10 +716,19 @@ export async function readResourceBody(
     }
   }
   if (!isBinary && text.length > MAX_REDACT_INPUT_LENGTH) {
+    // Too long to redact as one text: a JSON body is redacted value by
+    // value; anything that can't be is withheld, never redacted in part.
+    const redacted = redactLargeJson(text);
+    if (redacted === undefined) {
+      return {
+        status: isHttpError ? "http_error" : "body_unavailable",
+        tooLargeToRedact: true,
+        fullLength: text.length,
+      };
+    }
     return {
-      status: isHttpError ? "http_error" : "body_unavailable",
-      tooLargeToRedact: true,
-      fullLength: text.length,
+      status: isHttpError ? "http_error" : "ok",
+      body: { text: redacted, fullLength: redacted.length, isBinary: false },
     };
   }
   const redacted = isBinary ? "" : redactText(text);
@@ -862,7 +875,7 @@ export async function inspectResource(
       alsoMatched,
       tooLargeToRedact: true,
       evidenceId: evidence.evidenceId,
-      error: `The response body of ${best.resourceName} is ${read.fullLength} characters, more than the ${MAX_REDACT_INPUT_LENGTH} that can be redacted safely, so it was not read, shown or stored. Tell the user; the body cannot be retrieved through this tool.`,
+      error: `The response body of ${best.resourceName} is ${read.fullLength} characters, more than the ${MAX_REDACT_INPUT_LENGTH} that can be redacted safely as one text, and it could not be redacted value by value (it is not JSON, one value alone is over that limit, or text runs from one value into the next), so it was not read, shown or stored. Tell the user; the body cannot be retrieved through this tool.`,
     };
   }
   if (!read.body) {

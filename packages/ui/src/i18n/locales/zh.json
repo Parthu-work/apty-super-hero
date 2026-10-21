@@ -1314,7 +1314,7 @@
       "denied": "未获取：其 URL 匹配正文拒绝列表中的“{{entry}}”（设置 → 数据处理）。",
       "unavailable": "Client 观察到了此请求，但未提供其正文。",
       "httpErrorNoBody": "该请求返回 HTTP {{status}}，Client 未提供其正文。",
-      "tooLargeToRedact": "正文有 {{count}} 个字符，过大，无法安全脱敏，因此未显示也未保存。",
+      "tooLargeToRedact": "正文有 {{count}} 个字符。脱敏一次最多处理 100,000 个字符的文本；更长的 JSON 正文会逐个值脱敏，但此正文不是 JSON、含有单个超过该上限的值，或有文本从一个值延续到下一个值。因此它被保留（未显示也未保存），而不是以部分脱敏的形式显示。",
       "binary": "二进制正文，不予显示。",
       "size": "{{count}} 个字符，已脱敏（{{mode}} 模式）",
       "copy": "复制",

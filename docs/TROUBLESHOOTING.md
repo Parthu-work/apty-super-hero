@@ -57,6 +57,7 @@ response, with no AI model involved. It asks the Client only when you click.
 | "The Client reported no network calls." | The Client answered with an empty list: nothing went through `observedFetch` yet, or its calls come from a content script it doesn't relay | Use the widget, then reload. If it stays empty, check which context makes the calls (README step 4). |
 | "The Client reported its maximum of 1,000 calls…" | The Client keeps only its most recent calls | Reload sooner after reproducing the problem. |
 | "Not fetched: its URL matches … in the body deny list" | Settings → Data handling's body deny list covers this URL | Remove that entry to read this body. |
+| "The body is N characters. Redaction takes at most 100,000 characters of text at once…" | The body is over 100,000 characters and could not be redacted value by value: it is not JSON, one value is over 100,000 characters, or text runs from one value into the next. It is withheld rather than shown partly redacted | Nothing to change in the Agent; ask the Client team whether the resource can be split or served smaller. |
 | "The Client observed this call but didn't provide its body." | The Client keeps bodies only for its 10 most recent calls, and none over 200,000 characters | Reproduce the call and read it right away. |
 | "The Client no longer lists this call." | The Client dropped it since the list was loaded | Load the calls again. |
 
