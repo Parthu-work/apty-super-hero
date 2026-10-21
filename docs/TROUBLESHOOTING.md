@@ -47,8 +47,17 @@ Agent's own ID, which the Client must allow-list.
 ### Widget network calls
 
 The same Client row has **Widget network calls**: **Load network calls**
-lists what the Client reports requesting, and **View body** reads one
-response, with no AI model involved. It asks the Client only when you click.
+lists what the Client reports requesting, one row per unique request (a
+method plus a URL without its query string, so the Client's
+`?timestamp=...` cache-busters don't make every call look new), and **View
+body** reads a response, with no AI model involved. The header says "N
+unique requests (M calls)"; a row shows the latest status, `×3` for three
+calls, "1 of 5 failed" when any call failed, and a button that lists its
+calls. **View body** reads the newest call of that request that has a body
+and says when it is an older one. It asks the Client only when you click.
+The chat's `list_extension_network_resources` gives the model the same
+unique list, and `inspect_extension_network` falls back to an older call's
+body the same way.
 
 | What you see | Cause | Fix |
 |---|---|---|
@@ -56,8 +65,13 @@ response, with no AI model involved. It asks the Client only when you click.
 | "Chrome found nothing listening…" with the manifest line to add | The Client doesn't allow-list this Agent | Add the ID shown to the Client's `externally_connectable.ids`. |
 | "The Client reported no network calls." | The Client answered with an empty list: nothing went through `observedFetch` yet, or its calls come from a content script it doesn't relay | Use the widget, then reload. If it stays empty, check which context makes the calls (README step 4). |
 | "The Client reported its maximum of 1,000 calls…" | The Client keeps only its most recent calls | Reload sooner after reproducing the problem. |
+| "The Client could not save its call history N times…" | The Client's `chrome.storage.session` write failed (usually its quota), so a Client reload may lose calls | Ask the Widget team to lower the body budget or check the quota. |
 | "Not fetched: its URL matches … in the body deny list" | Settings → Data handling's body deny list covers this URL | Remove that entry to read this body. |
-| "The Client observed this call but didn't provide its body." | The Client keeps bodies only for its 10 most recent calls, and none over 200,000 characters | Reproduce the call and read it right away. |
+| "The Client observed this call but didn't provide its body." | The Client sent no reason (an older Client), or it keeps bodies per request (the latest success and the latest failure) and none over 200,000 characters | Reproduce the call and read it right away. |
+| "…over its size limit, so it did not keep it." | The Client read the body but it is over its 200,000-character limit | Nothing to change here; the Client doesn't serve it. |
+| "The Client no longer has this body: a newer call … or its memory limit, replaced it." | A newer call of the same request replaced it, or the Client's total body budget evicted it | Reproduce the call and read it right away. |
+| "The Client could not read this response's body." | The Client could not read the stream | Reproduce the call. |
+| "This call has no body." | The call failed before a response, or returned nothing | Nothing to read. |
 | "The Client no longer lists this call." | The Client dropped it since the list was loaded | Load the calls again. |
 
 The Agent can't watch the Client's requests itself: Chrome doesn't show one
