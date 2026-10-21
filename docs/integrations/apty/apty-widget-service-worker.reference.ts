@@ -474,7 +474,10 @@ async function record(
   else network.calls[index] = { ...network.calls[index], ...call };
   network.calls = network.calls.slice(-MAX_NETWORK_ENTRIES);
   if (body) network.bodies[call.requestId] = body;
-  if (notKept) (network.notKept ??= {})[call.requestId] = notKept;
+  if (notKept) {
+    network.notKept ??= {};
+    network.notKept[call.requestId] = notKept;
+  }
   pruneBodies();
   const known = new Set(network.calls.map((c) => c.requestId));
   for (const id of Object.keys(network.bodies)) {
