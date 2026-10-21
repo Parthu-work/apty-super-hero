@@ -6,6 +6,20 @@ full commit-level history.
 
 ## Unreleased
 
+- **Redaction keeps a JSON body JSON**: a JSON object or array is redacted
+  value by value with the same passes. A key the key/value pass treats as
+  sensitive (`auth`, `session…`, `…token…`) now loses its whole value
+  whatever its type, where a number came out as a bare `<REDACTED>` and an
+  object or array lost only its first character; a string ending in
+  `token=` no longer masks the values after it. Text that is not JSON, and
+  JSON where a PEM block or URL userinfo match runs from one value into the
+  next, are redacted as one text as before.
+- A medical record number written in text (`MRN 4815162342`, `?mrn=…`) is
+  masked in Strict and Standard; before, only an `mrn` key was.
+- The chat tools redact the Apty Client's error text where they build their
+  result; the outbound sanitizer already masked it before the model.
+- `check-tag-on-main.test.mjs` no longer writes into the repository being
+  pushed when the pre-push hook runs it from a linked worktree.
 - **Widget network calls** (Settings → Apty Integration → Apty Client): load
   the calls the Apty Client reports, filter them by text and by
   failed/4xx/5xx, read a response body, and download either as JSON, with no
