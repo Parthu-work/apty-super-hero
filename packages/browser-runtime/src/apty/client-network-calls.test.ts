@@ -26,7 +26,9 @@ import { resetRedactionModeForTests } from "../runtime/redaction-mode";
 import {
   listClientNetworkCalls,
   readClientNetworkCallBody,
+  readClientResourceBody,
 } from "./client-network-calls";
+import { groupByResource } from "./network-resource-groups";
 
 const CALLS = [
   {
@@ -398,5 +400,165 @@ describe("a relative URL the Client reports", () => {
       });
       expect(JSON.stringify(list)).not.toContain(DOB);
     }
+  });
+});
+
+describe("readClientResourceBody", () => {
+  const RECORD = "4815162342";
+  const BIRTH = "1980-01-01";
+  const loads = [1, 2, 3].map((load) => ({
+    requestId: `rec-${load}`,
+    url: `https://api.apty.example/records/${RECORD}.json?dob=${BIRTH}&timestamp=${load}`,
+    method: "GET",
+    status: 200,
+    mimeType: "application/json",
+    timestamp: load,
+  }));
+  const KEY_STRICT = "GET https://api.apty.example/records/:id.json";
+
+  function listing(
+    resources: unknown[],
+    bodies: Record<string, string>,
+    reasons: Record<string, string> = {},
+  ) {
+    return client({
+      "apty-debug-agent:list-observed-resources": { resources },
+      "apty-debug-agent:get-resource-body": (m: { requestId: string }) =>
+        bodies[m.requestId] !== undefined
+          ? { found: true, body: bodies[m.requestId] }
+          : {
+              found: false,
+              ...(reasons[m.requestId] ? { reason: reasons[m.requestId] } : {}),
+            },
+    });
+  }
+
+  it("groups by the shown URL in Strict, so no key or name carries the record number, query value or cache-buster", async () => {
+    settings.value = { redactionMode: "strict" };
+    listing(loads, {});
+    const list = await listClientNetworkCalls(EXT_ID);
+    expect(list.ok).toBe(true);
+    if (!list.ok) return;
+
+    const groups = groupByResource(list.calls);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ key: KEY_STRICT, count: 3 });
+    expect(
+      JSON.stringify(groups.map(({ calls: _calls, latest: _l, ...g }) => g)),
+    ).not.toMatch(new RegExp(`${RECORD}|${BIRTH}|timestamp`));
+  });
+
+  it("in Strict and Standard reads the newest call that has a body, masked, from its key", async () => {
+    for (const mode of ["strict", "standard"] as const) {
+      settings.value = { redactionMode: mode, networkBodyCaptureDenyList: [] };
+      resetRedactionModeForTests();
+      const resources = loads.map((l) => ({
+        ...l,
+        hasBody: l.requestId === "rec-2",
+      }));
+      const asked = listing(resources, {
+        "rec-2": '{"email":"jane.doe@example.com","v":2}',
+      });
+      const list = await listClientNetworkCalls(EXT_ID);
+      if (!list.ok) throw new Error("list failed");
+      const [group] = groupByResource(list.calls);
+
+      const result = await readClientResourceBody(EXT_ID, group?.key ?? "");
+
+      expect(result, mode).toMatchObject({
+        status: "ok",
+        call: { requestId: "rec-2" },
+        newerCallsWithoutBody: 1,
+      });
+      expect(asked.bodyRequests, mode).toEqual(["rec-2"]);
+      const shown = JSON.stringify(result);
+      expect(shown, mode).not.toContain("jane.doe@example.com");
+      expect(shown, mode).not.toContain(BIRTH);
+      if (mode === "strict") expect(shown).not.toContain(RECORD);
+    }
+  });
+
+  it("with a Client that sends no hasBody, tries the newest three calls and stops at the first body", async () => {
+    const many = [1, 2, 3, 4, 5].map((n) => ({
+      ...loads[0],
+      requestId: `m${n}`,
+      timestamp: n,
+    }));
+    const asked = listing(many, { m3: "{}" });
+    const result = await readClientResourceBody(EXT_ID, KEY_STRICT);
+    expect(result).toMatchObject({
+      status: "ok",
+      call: { requestId: "m3" },
+      newerCallsWithoutBody: 2,
+    });
+    expect(asked.bodyRequests).toEqual(["m5", "m4", "m3"]);
+
+    const none = listing(many, { m1: "{}" });
+    const missed = await readClientResourceBody(EXT_ID, KEY_STRICT);
+    expect(missed).toMatchObject({
+      status: "body_unavailable",
+      call: { requestId: "m5" },
+    });
+    expect(none.bodyRequests).toEqual(["m5", "m4", "m3"]);
+  });
+
+  it("passes the Client's reason through, and nothing when it sends none", async () => {
+    listing(loads, {}, { "rec-3": "evicted" });
+    expect(await readClientResourceBody(EXT_ID, KEY_STRICT)).toMatchObject({
+      status: "body_unavailable",
+      reason: "evicted",
+    });
+    listing(loads, {});
+    const plain = await readClientResourceBody(EXT_ID, KEY_STRICT);
+    expect(plain).toMatchObject({ status: "body_unavailable" });
+    expect("reason" in plain).toBe(false);
+  });
+
+  it("never asks the Client for a body whose raw URL is on the deny list", async () => {
+    settings.value = {
+      redactionMode: "strict",
+      networkBodyCaptureDenyList: ["dob=1980"],
+    };
+    const asked = listing(loads, { "rec-3": "{}" });
+    const result = await readClientResourceBody(EXT_ID, KEY_STRICT);
+    expect(result).toMatchObject({
+      status: "body_denied",
+      deniedBy: "dob=1980",
+    });
+    expect(asked.bodyRequests).toEqual([]);
+  });
+
+  it("reads a resource it no longer lists as not observed, and a missing Client as not connected", async () => {
+    listing(loads, {});
+    expect(
+      await readClientResourceBody(EXT_ID, "GET https://gone.example/x.json"),
+    ).toEqual({
+      status: "not_observed",
+    });
+    client({}, "Could not establish connection. Receiving end does not exist.");
+    expect(await readClientResourceBody(EXT_ID, KEY_STRICT)).toMatchObject({
+      status: "not_connected",
+    });
+  });
+
+  it("reports the Client's failed history saves with the list", async () => {
+    client({
+      "apty-debug-agent:list-observed-resources": {
+        resources: loads,
+        saveFailures: 3,
+      },
+    });
+    expect(await listClientNetworkCalls(EXT_ID)).toMatchObject({
+      ok: true,
+      saveFailures: 3,
+    });
+    client({
+      "apty-debug-agent:list-observed-resources": {
+        resources: loads,
+        saveFailures: 0,
+      },
+    });
+    const none = await listClientNetworkCalls(EXT_ID);
+    expect(none.ok && "saveFailures" in none).toBe(false);
   });
 });
