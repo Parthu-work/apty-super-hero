@@ -15,10 +15,12 @@ import {
   STORAGE_KEYS,
 } from "@apty/agent-core";
 import {
+  MAX_REDACT_INPUT_LENGTH,
   type RedactionMode,
   redactJsonAware,
   redactLogs,
   redactSensitiveText,
+  unboundedPatternMatches,
 } from "@apty/debug-contract";
 
 const DEFAULT_MODE: RedactionMode = "strict";
@@ -119,6 +121,227 @@ export function redactJsonTextInMode(
   return JSON.stringify(
     mapStrings(keyed, (leaf) => redactSensitiveText(leaf, mode)),
   );
+}
+
+/** The most JSON text `redactLargeJsonText` takes on; bounds the work. */
+export const MAX_LARGE_JSON_CHARS = 2_000_000;
+
+export type LargeJsonRedaction =
+  | { ok: true; text: string }
+  | {
+      ok: false;
+      reason: "not-json" | "string-too-large" | "too-large" | "crosses-members";
+    };
+
+class StringTooLarge extends Error {}
+
+const REDACTED = "<REDACTED>";
+
+/** `[key, value]` as it reads once the whole-text redactor has seen it with its key; invalid JSON after redaction is replaced whole. */
+function redactMember(
+  key: string | undefined,
+  value: unknown,
+  mode: RedactionMode,
+  containerLimit: number,
+): [string | undefined, unknown] {
+  const snippet =
+    key === undefined
+      ? JSON.stringify([value])
+      : JSON.stringify({ [key]: value });
+  const isContainer = typeof value === "object" && value !== null;
+  if (
+    snippet.length <= MAX_REDACT_INPUT_LENGTH &&
+    (!isContainer || snippet.length <= containerLimit)
+  ) {
+    try {
+      const parsed: unknown = JSON.parse(redactSensitiveText(snippet, mode));
+      if (key === undefined && Array.isArray(parsed) && parsed.length === 1) {
+        return [undefined, parsed[0]];
+      }
+      if (
+        key !== undefined &&
+        typeof parsed === "object" &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+      ) {
+        const [entry] = Object.entries(parsed);
+        if (entry) return [entry[0], entry[1]];
+      }
+    } catch {
+      // Redaction left something that is not JSON: the member is replaced whole.
+    }
+    return [
+      key === undefined ? undefined : redactMemberKey(key, mode),
+      REDACTED,
+    ];
+  }
+  if (!isContainer) throw new StringTooLarge();
+  if (key === undefined) {
+    return [undefined, redactChildren(value as object, mode, containerLimit)];
+  }
+  // The whole-text pass masks what follows a key it finds sensitive by
+  // name (`"auth":[123,` loses its `[123`); a container split apart would
+  // not, so one under such a key is replaced whole.
+  if (isSensitiveByName(key, mode)) {
+    return [redactMemberKey(key, mode), REDACTED];
+  }
+  const keyed = keyedContainer(key, value as object, mode);
+  return [
+    redactMemberKey(key, mode),
+    keyed === value
+      ? redactChildren(value as object, mode, containerLimit)
+      : keyed,
+  ];
+}
+
+/** A key as the whole-text redactor would leave it: only what it recognizes in the key's own text. */
+function redactMemberKey(key: string, mode: RedactionMode): string {
+  const literal = JSON.stringify(key);
+  if (literal.length > MAX_REDACT_INPUT_LENGTH) throw new StringTooLarge();
+  try {
+    const redacted: unknown = JSON.parse(redactSensitiveText(literal, mode));
+    if (typeof redacted === "string") return redacted;
+  } catch {
+    // Fall through to the placeholder.
+  }
+  return REDACTED;
+}
+
+const PROBE = '"PROBE"';
+
+/**
+ * Whether some string (key or value) ends so that the free-text key/value
+ * pass would carry on past its closing quote (`"... auth="` followed by
+ * `,123`): in the whole text that masks what follows, which redacting the
+ * members apart would not.
+ */
+function someStringRunsOn(node: unknown): boolean {
+  const runsOn = (text: string) => {
+    const literal = JSON.stringify(text).slice(1, -1);
+    if (literal.length + PROBE.length + 1 > MAX_REDACT_INPUT_LENGTH) {
+      throw new StringTooLarge();
+    }
+    return !redactSensitiveText(`"${literal}${PROBE}`, "off").includes(PROBE);
+  };
+  if (typeof node === "string") return runsOn(node);
+  if (Array.isArray(node)) return node.some(someStringRunsOn);
+  if (typeof node === "object" && node !== null) {
+    return Object.entries(node).some(
+      ([key, value]) => runsOn(key) || someStringRunsOn(value),
+    );
+  }
+  return false;
+}
+
+/** Whether the free-text key/value pass masks a value under `key`. */
+function isSensitiveByName(key: string, mode: RedactionMode): boolean {
+  const probe = JSON.stringify({ [key]: "probe-value" });
+  return !redactSensitiveText(probe, mode).includes("probe-value");
+}
+
+/** What the key-based pass makes of a container under `key`: the container itself, or its replacement when the key is sensitive. */
+function keyedContainer(
+  key: string,
+  value: object,
+  mode: RedactionMode,
+): unknown {
+  const probe = JSON.parse(
+    redactJsonAware(
+      JSON.stringify({ [key]: Array.isArray(value) ? [] : {} }),
+      mode,
+    ),
+  ) as Record<string, unknown>;
+  const replaced = Object.values(probe)[0];
+  return typeof replaced === "object" && replaced !== null ? value : replaced;
+}
+
+function redactChildren(
+  node: object,
+  mode: RedactionMode,
+  containerLimit: number,
+): unknown {
+  if (Array.isArray(node)) {
+    return node.map(
+      (item) => redactMember(undefined, item, mode, containerLimit)[1],
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => {
+      const [redactedKey, redacted] = redactMember(
+        key,
+        value,
+        mode,
+        containerLimit,
+      );
+      return [redactedKey ?? key, redacted];
+    }),
+  );
+}
+
+/**
+ * A JSON body longer than `redactSensitiveText` takes whole (it refuses
+ * input over MAX_REDACT_INPUT_LENGTH), redacted member by member: each
+ * object property (key and value together) or array item is run through
+ * that same redactor as a small JSON text of its own, and a container whose
+ * text is still too long is split the same way. Nothing is cut off.
+ *
+ * It must never show what redacting the whole text would hide, so where the
+ * two could differ it is stricter or refuses: a member the redactor leaves
+ * as invalid JSON is replaced whole, as is a split container under a key the
+ * key/value pass masks, and a body is refused when it is not JSON, is longer
+ * than MAX_LARGE_JSON_CHARS, holds one string the redactor can't take, or
+ * has a match that would run from one member into the next (a PEM block,
+ * URL userinfo, or a string ending in `token=`). large-json-equivalence.test.ts
+ * compares it with whole-text redaction.
+ *
+ * `containerLimit` splits containers longer than that (default: only those
+ * too long to redact whole); tests lower it to split small bodies.
+ */
+export function redactLargeJsonText(
+  text: string,
+  mode: RedactionMode,
+  containerLimit: number = MAX_REDACT_INPUT_LENGTH,
+): LargeJsonRedaction {
+  if (text.length > MAX_LARGE_JSON_CHARS)
+    return { ok: false, reason: "too-large" };
+  const trimmed = text.trim();
+  const looksLikeJson =
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"));
+  if (!looksLikeJson) return { ok: false, reason: "not-json" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return { ok: false, reason: "not-json" };
+  }
+  // A PEM block or URL userinfo match spanning two members is masked by the
+  // whole-text pass but by neither member alone: such a body is refused.
+  const keyed = redactJsonAware(JSON.stringify(parsed), mode);
+  if (unboundedPatternMatches(keyed).some((match) => match.includes('"'))) {
+    return { ok: false, reason: "crosses-members" };
+  }
+  try {
+    if (someStringRunsOn(parsed)) {
+      return { ok: false, reason: "crosses-members" };
+    }
+    return {
+      ok: true,
+      text: JSON.stringify(
+        redactChildren(parsed as object, mode, containerLimit),
+      ),
+    };
+  } catch (error) {
+    if (error instanceof StringTooLarge)
+      return { ok: false, reason: "string-too-large" };
+    throw error;
+  }
+}
+
+/** A JSON body too long for `redactText`, redacted member by member in the current mode; undefined when it cannot be (see `redactLargeJsonText`). */
+export function redactLargeJson(text: string): string | undefined {
+  const redacted = redactLargeJsonText(text, currentRedactionMode());
+  return redacted.ok ? redacted.text : undefined;
 }
 
 /**

@@ -256,6 +256,25 @@ export function redactSensitiveText(
 }
 
 /**
+ * What the two passes of `redactSensitiveText` that are not bounded by a
+ * quote character (PEM blocks, URL userinfo) would match in `text`, in the
+ * order that function runs them. A caller that redacts a JSON text member by
+ * member uses it to find a match that would cross from one member into the
+ * next, which redacting the members apart would miss.
+ */
+export function unboundedPatternMatches(text: string): string[] {
+  const pem = [...text.matchAll(PEM_BLOCK_PATTERN)].map((m) => m[0]);
+  const afterPem = text.replace(
+    PEM_BLOCK_PATTERN,
+    (_m, type) => `-----BEGIN ${type}-----<REDACTED>-----END ${type}-----`,
+  );
+  const userinfo = [...afterPem.matchAll(URL_USERINFO_PATTERN)].map(
+    (m) => m[0],
+  );
+  return [...pem, ...userinfo];
+}
+
+/**
  * Redact query-string parameters and userinfo in a URL specifically — for
  * call sites that only ever have a URL, not free text (network capture,
  * evidence records, peer responses). Delegates to the same passes as

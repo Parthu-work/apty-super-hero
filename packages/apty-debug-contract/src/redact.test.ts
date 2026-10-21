@@ -5,6 +5,7 @@ import {
   redactLogs,
   redactSensitiveText,
   redactUrl,
+  unboundedPatternMatches,
 } from "./redact";
 
 describe("redactHeaders", () => {
@@ -366,5 +367,22 @@ describe("redactSensitiveText — truncated JSON", () => {
     for (const mode of ["strict", "standard"] as const) {
       expect(redactSensitiveText(input, mode)).not.toContain(secret);
     }
+  });
+});
+
+describe("unboundedPatternMatches", () => {
+  it("finds PEM blocks and URL userinfo as redactSensitiveText would, including across JSON strings", () => {
+    expect(unboundedPatternMatches('["see http://x","user:pw@host"]')).toEqual([
+      'http://x","user:pw@',
+    ]);
+    expect(
+      unboundedPatternMatches(
+        '["-----BEGIN KEY-----a","b","-----END KEY-----"]',
+      ),
+    ).toEqual(['-----BEGIN KEY-----a","b","-----END KEY-----']);
+    expect(unboundedPatternMatches('{"u":"https://u:p@h/"}')).toEqual([
+      "https://u:p@",
+    ]);
+    expect(unboundedPatternMatches('{"a":"nothing here"}')).toEqual([]);
   });
 });
