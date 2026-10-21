@@ -83,13 +83,23 @@
  *    ignored (no response sent), not merely "logged and allowed."
  * 6. Network calls are kept in chrome.storage.session, never in
  *    chrome.storage.local: they survive a service-worker restart but are
- *    never written to disk and are gone when the browser closes. At most
- *    MAX_NETWORK_ENTRIES calls are kept, and response bodies only for the
- *    MAX_KEPT_BODIES most recent calls. A response body over 200,000
+ *    never written to disk and are gone when the browser closes (and when
+ *    the Client extension is reloaded). At most MAX_NETWORK_ENTRIES calls
+ *    are kept. Bodies are kept per RESOURCE (method + URL without its
+ *    query string, so the cache-buster `?timestamp=...` does not make
+ *    every call a new resource): the body of the latest successful call
+ *    and, separately, of the latest failed call (status >= 400) per
+ *    resource, so a later success does not erase the error body and the
+ *    other way round. All kept bodies together stay under
+ *    MAX_KEPT_BODY_CHARS; over it, the oldest resources' successful bodies
+ *    go first and failed bodies last. A response body over 200,000
  *    characters (MAX_BODY_CHARS, the Agent's own limit) is not served; the
- *    Agent hears found: false. Non-text bodies are kept base64-encoded. The state is written
- *    once the calls pause for SAVE_DEBOUNCE_MS (and on onSuspend), not on
- *    every call.
+ *    Agent hears found: false, reason: "too-large". Non-text bodies are
+ *    kept base64-encoded. The state is written once the calls pause for
+ *    SAVE_DEBOUNCE_MS (and on onSuspend), not on every call. A write that
+ *    fails (quota) is counted and reported as `saveFailures` in the list
+ *    answer: the in-memory state still serves, but a service-worker restart
+ *    then loads the last state that was saved.
  * 7. observedFetch never slows or changes the Widget's own fetch: it
  *    returns the Response as soon as fetch does, reads the body afterwards
  *    from a clone, stopping at MAX_BODY_CHARS, and swallows any recording
@@ -128,6 +138,9 @@ export const DEBUG_AGENT_EXTENSION_IDS: readonly string[] = [
 const STORAGE_KEY = "apty_sw_log_buffer";
 const MAX_ENTRIES = 1000;
 const FLUSH_INTERVAL_MS = 5000;
+// Whether to wrap console.log/warn/error to fill the log buffer. A Widget
+// that only wants network recording can set this to false.
+const CAPTURE_CONSOLE = true;
 
 type LogLevel = "debug" | "log" | "info" | "warn" | "error";
 
@@ -262,7 +275,7 @@ function installConsoleCapture(): void {
     };
   });
 }
-installConsoleCapture();
+if (CAPTURE_CONSOLE) installConsoleCapture();
 
 // ---------------------------------------------------------------------------
 // Network calls — the Widget's own requests, made through observedFetch
@@ -270,7 +283,11 @@ installConsoleCapture();
 
 const NETWORK_STORAGE_KEY = "apty_sw_network_calls";
 const MAX_NETWORK_ENTRIES = 1000;
-const MAX_KEPT_BODIES = 10;
+// Total characters of all kept bodies. chrome.storage.session holds 10 MB
+// (Chrome 112+; 1 MB before that), counted on the JSON that is stored, so
+// 2,000,000 leaves room for the call list and for non-ASCII text. A value
+// to decide with the Widget team, not a measured one.
+const MAX_KEPT_BODY_CHARS = 2_000_000;
 // The Agent rejects a longer body, so a longer one is not kept at all
 // rather than cut into something that is no longer valid JSON.
 const MAX_BODY_CHARS = 200_000;
@@ -293,12 +310,21 @@ interface KeptBody {
   base64Encoded: boolean;
 }
 
+/** Why a call has no kept body, as the Agent's get-resource-body answer names it. */
+type MissingBodyReason = "too-large" | "evicted" | "unreadable" | "none";
+
 interface NetworkState {
   calls: ObservedCall[];
   bodies: Record<string, KeptBody>;
+  /** Calls whose body was read but could not be kept: "too-large" or "unreadable". */
+  notKept?: Record<string, "too-large" | "unreadable">;
 }
 
-let network: NetworkState = { calls: [], bodies: {} };
+let network: NetworkState = { calls: [], bodies: {}, notKept: {} };
+// Calls whose body is still being read after their status was recorded.
+const readingBody = new Set<string>();
+let saveFailures = 0;
+let lastSaveError: string | undefined;
 let networkLoaded: Promise<void> | undefined;
 let networkCounter = 0;
 
@@ -313,6 +339,7 @@ function loadNetworkOnce(): Promise<void> {
             -MAX_NETWORK_ENTRIES,
           ),
           bodies: { ...stored.bodies, ...network.bodies },
+          notKept: { ...stored.notKept, ...network.notKept },
         };
       }
     })
@@ -326,9 +353,20 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 async function saveNetwork(): Promise<void> {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = undefined;
-  await chrome.storage.session
-    .set({ [NETWORK_STORAGE_KEY]: network })
-    .catch(() => undefined);
+  try {
+    await chrome.storage.session.set({ [NETWORK_STORAGE_KEY]: network });
+  } catch (error) {
+    saveFailures++;
+    lastSaveError = bounded(
+      error instanceof Error ? error.message : String(error),
+      500,
+    );
+  }
+}
+
+/** The last storage.session write error, for the Client's own debugging; the Agent sees only the count. */
+export function getLastNetworkSaveError(): string | undefined {
+  return lastSaveError;
 }
 
 /** One write of the whole state after the calls stop for SAVE_DEBOUNCE_MS, not one per call. */
@@ -378,29 +416,83 @@ function absoluteUrl(input: RequestInfo | URL): string {
   }
 }
 
-async function record(call: ObservedCall, body?: KeptBody): Promise<void> {
+/** The resource a call belongs to: method + URL without its query string or fragment. */
+function resourceKey(call: ObservedCall): string {
+  return `${call.method} ${call.url.split(/[?#]/, 1)[0]}`;
+}
+
+function isFailure(call: ObservedCall): boolean {
+  return call.failed === true || (call.status ?? 0) >= 400;
+}
+
+/**
+ * Keep the body of the latest successful call and of the latest failed call
+ * of each resource, then bring the total under MAX_KEPT_BODY_CHARS: the
+ * oldest resources' successful bodies go first, failed bodies last.
+ */
+function pruneBodies(): void {
+  const latestSuccess = new Map<string, string>();
+  const latestFailure = new Map<string, string>();
+  for (const call of network.calls) {
+    if (!(call.requestId in network.bodies)) continue;
+    (isFailure(call) ? latestFailure : latestSuccess).set(
+      resourceKey(call),
+      call.requestId,
+    );
+  }
+  const keep = new Set([...latestSuccess.values(), ...latestFailure.values()]);
+  for (const id of Object.keys(network.bodies)) {
+    if (!keep.has(id)) delete network.bodies[id];
+  }
+  let total = Object.values(network.bodies).reduce(
+    (sum, kept) => sum + kept.body.length,
+    0,
+  );
+  const successIds = new Set(latestSuccess.values());
+  const oldestFirst = network.calls
+    .map((c) => c.requestId)
+    .filter((id) => id in network.bodies);
+  const evictionOrder = [
+    ...oldestFirst.filter((id) => successIds.has(id)),
+    ...oldestFirst.filter((id) => !successIds.has(id)),
+  ];
+  for (const id of evictionOrder) {
+    if (total <= MAX_KEPT_BODY_CHARS) break;
+    total -= network.bodies[id]?.body.length ?? 0;
+    delete network.bodies[id];
+  }
+}
+
+async function record(
+  call: ObservedCall,
+  body?: KeptBody,
+  notKept?: "too-large" | "unreadable",
+): Promise<void> {
   await loadNetworkOnce();
   const index = network.calls.findIndex((c) => c.requestId === call.requestId);
   if (index === -1) network.calls.push(call);
   else network.calls[index] = { ...network.calls[index], ...call };
   network.calls = network.calls.slice(-MAX_NETWORK_ENTRIES);
   if (body) network.bodies[call.requestId] = body;
-  // Keep bodies only for the most recent calls that still have one.
-  const keep = new Set(
-    network.calls
-      .map((c) => c.requestId)
-      .filter((id) => id in network.bodies)
-      .slice(-MAX_KEPT_BODIES),
-  );
+  if (notKept) (network.notKept ??= {})[call.requestId] = notKept;
+  pruneBodies();
+  const known = new Set(network.calls.map((c) => c.requestId));
   for (const id of Object.keys(network.bodies)) {
-    if (!keep.has(id)) delete network.bodies[id];
+    if (!known.has(id)) delete network.bodies[id];
+  }
+  for (const id of Object.keys(network.notKept ?? {})) {
+    if (!known.has(id)) delete network.notKept?.[id];
   }
   scheduleNetworkSave();
 }
 
 /** Recording never throws into, or waits inside, the Widget's own fetch. */
-function recordSilently(call: ObservedCall, body?: KeptBody): void {
-  record(call, body).catch(() => undefined);
+function recordSilently(
+  call: ObservedCall,
+  body?: KeptBody,
+  notKept?: "too-large" | "unreadable",
+): void {
+  record(call, body, notKept).catch(() => undefined);
 }
 
 /**
@@ -414,7 +506,12 @@ async function readBounded(
   textual: boolean,
   maxChars: number,
 ): Promise<{ body: KeptBody; truncated: boolean } | undefined> {
-  const stream = response.clone().body;
+  let stream: ReadableStream<Uint8Array> | null;
+  try {
+    stream = response.clone().body;
+  } catch {
+    return undefined;
+  }
   if (!stream)
     return { body: { body: "", base64Encoded: !textual }, truncated: false };
   const reader = stream.getReader();
@@ -469,10 +566,32 @@ async function recordBody(
   response: Response,
   mimeType?: string,
 ) {
-  const read = await readBounded(response, isTextual(mimeType), MAX_BODY_CHARS);
-  // A body cut at the limit is not kept, so the Agent never reads part of
-  // one as if it were whole: it hears found: false, as for no body.
-  if (read && !read.truncated) recordSilently(call, read.body);
+  readingBody.add(call.requestId);
+  try {
+    const read = await readBounded(
+      response,
+      isTextual(mimeType),
+      MAX_BODY_CHARS,
+    );
+    // A body cut at the limit is not kept, so the Agent never reads part of
+    // one as if it were whole: it hears found: false, reason "too-large".
+    if (!read) recordSilently(call, undefined, "unreadable");
+    else if (read.truncated) recordSilently(call, undefined, "too-large");
+    else recordSilently(call, read.body);
+  } finally {
+    readingBody.delete(call.requestId);
+  }
+}
+
+/** Why `requestId` has no kept body; undefined while that is not yet known (the call or its body is still arriving). */
+function missingBodyReason(requestId: string): MissingBodyReason | undefined {
+  const noted = network.notKept?.[requestId];
+  if (noted) return noted;
+  const call = network.calls.find((c) => c.requestId === requestId);
+  if (!call) return "evicted";
+  if (call.failed) return "none";
+  if (call.status === undefined || readingBody.has(requestId)) return undefined;
+  return "evicted";
 }
 
 /**
@@ -577,7 +696,13 @@ chrome.runtime.onMessageExternal.addListener(
     if (message.type === "apty-debug-agent:list-observed-resources") {
       (async () => {
         await loadNetworkOnce();
-        sendResponse({ resources: network.calls });
+        sendResponse({
+          resources: network.calls.map((c) => ({
+            ...c,
+            hasBody: c.requestId in network.bodies,
+          })),
+          saveFailures,
+        });
       })();
       return true;
     }
@@ -594,7 +719,12 @@ chrome.runtime.onMessageExternal.addListener(
                 body: kept.body,
                 base64Encoded: kept.base64Encoded,
               }
-            : { found: false },
+            : {
+                found: false,
+                ...(missingBodyReason(message.requestId)
+                  ? { reason: missingBodyReason(message.requestId) }
+                  : {}),
+              },
         );
       })();
       return true;

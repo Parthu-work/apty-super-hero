@@ -81,7 +81,8 @@ const SEGMENTS = Array.from({ length: 206 }, (_, i) => ({
   name: `segment-${i}`,
 }));
 
-function serve(url: string): Response {
+function serve(fullUrl: string): Response {
+  const url = fullUrl.split("?")[0] ?? fullUrl;
   if (url.endsWith("/segments.json")) {
     return Response.json(SEGMENTS);
   }
@@ -245,11 +246,19 @@ describe("the Widget reference service worker", () => {
     });
     expect(
       resourceBodyResponseSchema.parse(await body(huge!.requestId)),
-    ).toEqual({
+    ).toEqual({ found: false, reason: "too-large" });
+    expect(await body(offline!.requestId)).toEqual({
       found: false,
+      reason: "none",
     });
-    expect(await body(offline!.requestId)).toEqual({ found: false });
-    expect(await body("unknown")).toEqual({ found: false });
+    expect(await body("unknown")).toEqual({ found: false, reason: "evicted" });
+    expect(listed.resources.map((r) => r.hasBody)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+    ]);
   });
 
   it("answers only the Agent's IDs, and ignores a body request without an ID", async () => {
@@ -268,27 +277,30 @@ describe("the Widget reference service worker", () => {
     expect(await ask({ type: "something-else" })).toBe("no answer");
   });
 
-  it("keeps at most 1000 calls and 10 bodies, in session storage only, across a restart", async () => {
+  it("keeps at most 1000 calls, one body for one resource, in session storage only, across a restart", async () => {
     const reference = await loadReference();
     for (let i = 0; i < 1005; i++) {
-      await reference.observedFetch("https://cdn.apty.example/segments.json");
+      await reference.observedFetch(
+        `https://cdn.apty.example/segments.json?timestamp=${i}`,
+      );
     }
     await saved(
       (state) =>
         state.calls.length === 1000 &&
         answered(state) &&
-        Object.keys(state.bodies).length === 10,
+        Object.keys(state.bodies).length === 1,
     );
     const first = resourcesResponseSchema.parse(await list()).resources;
     expect(first).toHaveLength(1000);
-    const withBody = [];
-    for (const call of first) {
-      const answer = resourceBodyResponseSchema.parse(
-        await body(call.requestId),
-      );
-      if (answer.found) withBody.push(call.requestId);
-    }
-    expect(withBody).toEqual(first.slice(-10).map((c) => c.requestId));
+    const withBody = first.filter((call) => call.hasBody);
+    expect(withBody.map((c) => c.requestId)).toEqual([first.at(-1)?.requestId]);
+    expect(
+      resourceBodyResponseSchema.parse(await body(withBody[0]!.requestId))
+        .found,
+    ).toBe(true);
+    expect(
+      resourceBodyResponseSchema.parse(await body(first[0]!.requestId)),
+    ).toEqual({ found: false, reason: "evicted" });
     expect(Object.keys(store.local).some((k) => k.includes("network"))).toBe(
       false,
     );
@@ -414,7 +426,7 @@ describe("observedFetch never slows or changes the Widget's own fetch", () => {
     const [call] = resourcesResponseSchema.parse(await list()).resources;
     expect(
       resourceBodyResponseSchema.parse(await body(call!.requestId)),
-    ).toEqual({ found: false });
+    ).toEqual({ found: false, reason: "too-large" });
     // Only the clone was cancelled: the Widget still reads its whole body.
     expect(held.cancelled).not.toHaveBeenCalled();
     held.end();
@@ -453,7 +465,7 @@ describe("observedFetch never slows or changes the Widget's own fetch", () => {
       (state) =>
         state.calls.length === 5 &&
         answered(state) &&
-        Object.keys(state.bodies).length === 5,
+        Object.keys(state.bodies).length === 1,
     );
 
     expect(
@@ -496,5 +508,213 @@ describe("observedFetch never slows or changes the Widget's own fetch", () => {
         Object.assign(store.session, structuredClone(items));
       });
     }
+  });
+});
+
+describe("bodies are kept per resource", () => {
+  const BASE = "https://cdn.apty.example";
+
+  /** The calls the Client lists, each with whether its body can be read. */
+  async function listedWithBodies() {
+    const { resources } = resourcesResponseSchema.parse(await list());
+    return Promise.all(
+      resources.map(async (call) => ({
+        call,
+        answer: resourceBodyResponseSchema.parse(await body(call.requestId)),
+      })),
+    );
+  }
+
+  /** Serve `answers` in order; the last one repeats. */
+  function serveInOrder(...answers: Response[]) {
+    let i = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const answer = answers[Math.min(i++, answers.length - 1)]!;
+        return answer.clone();
+      }),
+    );
+  }
+
+  it("keeps the latest body per resource when only the query string differs", async () => {
+    const reference = await loadReference();
+    serveInOrder(
+      Response.json({ version: 1 }),
+      Response.json({ version: 2 }),
+      Response.json({ version: 3 }),
+    );
+    for (const stamp of [1, 2, 3]) {
+      await reference.observedFetch(`${BASE}/styles.json?timestamp=${stamp}`);
+    }
+    await saved(
+      (state) => answered(state) && Object.keys(state.bodies).length === 1,
+    );
+
+    const calls = await listedWithBodies();
+    expect(calls.map(({ call }) => call.hasBody)).toEqual([false, false, true]);
+    expect(JSON.parse(calls[2]!.answer.body ?? "")).toEqual({ version: 3 });
+    expect(calls[0]!.answer).toEqual({ found: false, reason: "evicted" });
+  });
+
+  it("keeps a failed call's body through 30 later successful calls of the same resource and others", async () => {
+    const reference = await loadReference();
+    serveInOrder(
+      Response.json({ error: "Boom" }, { status: 500 }),
+      Response.json({ ok: true }),
+    );
+    await reference.observedFetch(`${BASE}/rules.json?timestamp=0`);
+    for (let i = 1; i <= 30; i++) {
+      await reference.observedFetch(`${BASE}/rules.json?timestamp=${i}`);
+      await reference.observedFetch(`${BASE}/other-${i}.json`);
+    }
+    await saved(
+      (state) =>
+        state.calls.length === 61 &&
+        answered(state) &&
+        Object.keys(state.bodies).length === 31 + 1,
+    );
+
+    const calls = await listedWithBodies();
+    const failed = calls.find(({ call }) => call.status === 500)!;
+    expect(failed.call.hasBody).toBe(true);
+    expect(failed.answer.body).toContain("Boom");
+    const rules = calls.filter(({ call }) => call.url.includes("/rules.json"));
+    expect(rules.filter(({ call }) => call.hasBody)).toHaveLength(2);
+  });
+
+  it("drops the oldest resources' successful bodies first when the total passes the budget", async () => {
+    const reference = await loadReference();
+    const bigBody = (i: number) =>
+      `"${String(i).padStart(2, "0")}${"x".repeat(189_995)}"`;
+    let n = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(bigBody(n++), {
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    for (let i = 0; i < 12; i++) {
+      await reference.observedFetch(`${BASE}/resource-${i}.json`);
+    }
+    await saved((state) => answered(state) && state.calls.length === 12);
+    await saved((state) => Object.keys(state.bodies).length === 10);
+
+    const calls = await listedWithBodies();
+    const kept = calls
+      .filter(({ call }) => call.hasBody)
+      .map(({ call }) => call.url);
+    expect(kept).toEqual(
+      Array.from({ length: 10 }, (_, i) => `${BASE}/resource-${i + 2}.json`),
+    );
+    expect(calls[0]!.answer).toEqual({ found: false, reason: "evicted" });
+  });
+
+  it("evicts failed bodies only after every successful body", async () => {
+    const reference = await loadReference();
+    const big = `"${"x".repeat(190_000)}"`;
+    const respond = (status: number) =>
+      new Response(big, {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    const statuses = [
+      500, 500, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+    ];
+    let n = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond(statuses[n++]!)),
+    );
+    for (let i = 0; i < statuses.length; i++) {
+      await reference.observedFetch(`${BASE}/resource-${i}.json`);
+    }
+    await saved((state) => answered(state) && state.calls.length === 12);
+    await saved((state) => Object.keys(state.bodies).length === 10);
+
+    const kept = (await listedWithBodies())
+      .filter(({ call }) => call.hasBody)
+      .map(({ call }) => call.status);
+    expect(kept.filter((status) => status === 500)).toHaveLength(2);
+  });
+
+  it("says why a body is missing: too-large, unreadable, evicted or none", async () => {
+    const reference = await loadReference();
+    serveInOrder(
+      new Response(`"${"x".repeat(200_001)}"`, {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    await reference.observedFetch(`${BASE}/huge.json`);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const unreadable = Response.json({});
+        vi.spyOn(unreadable, "clone").mockImplementation(() => {
+          throw new Error("cannot clone");
+        });
+        return unreadable;
+      }),
+    );
+    await reference.observedFetch(`${BASE}/unreadable.json`);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    await expect(
+      reference.observedFetch(`${BASE}/down.json`),
+    ).rejects.toThrow();
+    await saved((state) => answered(state) && state.calls.length === 3);
+    await saved((state) => Object.keys(state.notKept ?? {}).length >= 1);
+
+    const reasons = Object.fromEntries(
+      (await listedWithBodies()).map(({ call, answer }) => [
+        call.url.split("/").at(-1),
+        answer.reason,
+      ]),
+    );
+    expect(reasons["huge.json"]).toBe("too-large");
+    expect(reasons["down.json"]).toBe("none");
+    expect(reasons["unreadable.json"]).toBe("unreadable");
+    expect(await body("never-recorded")).toEqual({
+      found: false,
+      reason: "evicted",
+    });
+  });
+
+  it("counts failed saves in the list answer, and keeps answering from memory", async () => {
+    const reference = await loadReference();
+    const set = chrome.storage.session.set as ReturnType<typeof vi.fn>;
+    set.mockRejectedValue(new Error("QUOTA_BYTES quota exceeded"));
+    try {
+      serveInOrder(Response.json({ ok: true }));
+      await reference.observedFetch(`${BASE}/a.json`);
+      await vi.waitFor(
+        async () => {
+          const answer = (await list()) as { saveFailures?: number };
+          expect(answer.saveFailures).toBeGreaterThan(0);
+        },
+        { timeout: 4000, interval: 50 },
+      );
+      expect(
+        (resourcesResponseSchema.parse(await list()).resources[0] ?? {}).url,
+      ).toBe(`${BASE}/a.json`);
+    } finally {
+      set.mockImplementation(async (items: Record<string, unknown>) => {
+        Object.assign(store.session, structuredClone(items));
+      });
+    }
+  });
+
+  it("wraps console unless CAPTURE_CONSOLE is false", async () => {
+    const before = console.log;
+    await loadReference();
+    expect(console.log).not.toBe(before);
+    console.log = before;
   });
 });
