@@ -130,16 +130,30 @@ export const observedResourceSchema = z.object({
   failed: z.boolean().optional(),
   errorText: z.string().max(2000).optional(),
   timestamp: z.number().finite(),
+  /** True when the Client keeps this exact call's body. A Client that does not send it is read as "unknown". */
+  hasBody: z.boolean().optional(),
 });
 
 export const resourcesResponseSchema = z.object({
   resources: z.array(observedResourceSchema).max(MAX_RESOURCES_ACCEPTED),
+  /** How many times the Client failed to save its call history; a nonzero count means a restart may lose calls. */
+  saveFailures: z.number().int().nonnegative().optional(),
 });
+
+export const BODY_MISSING_REASONS = [
+  "too-large",
+  "evicted",
+  "unreadable",
+  "none",
+] as const;
+export type BodyMissingReason = (typeof BODY_MISSING_REASONS)[number];
 
 export const resourceBodyResponseSchema = z.object({
   found: z.boolean(),
   body: z.string().max(MAX_BODY_CHARS_ACCEPTED).optional(),
   base64Encoded: z.boolean().optional(),
+  /** Why there is no body when `found` is false. A value this Agent does not know reads as absent. */
+  reason: z.enum(BODY_MISSING_REASONS).optional().catch(undefined),
 });
 
 /** Result of validating an untrusted external response. */
@@ -323,6 +337,9 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
     return {
       ok: true,
       resources: result.value.resources.slice(-MAX_RESOURCES_KEPT),
+      ...(result.value.saveFailures
+        ? { saveFailures: result.value.saveFailures }
+        : {}),
     };
   }
 
@@ -346,6 +363,7 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
       found: result.value.found,
       body: result.value.body,
       base64Encoded: result.value.base64Encoded,
+      ...(result.value.reason ? { reason: result.value.reason } : {}),
     };
   }
 }
