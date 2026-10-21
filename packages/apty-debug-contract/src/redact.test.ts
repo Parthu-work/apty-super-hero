@@ -399,3 +399,71 @@ describe("medical record numbers in free text", () => {
     ).toBe("SMRN 1234, MRN ab, MRN format, mrnFormat");
   });
 });
+
+describe("a JSON object or array stays JSON", () => {
+  const parsed = (
+    text: string,
+    mode: "strict" | "standard" | "off" = "strict",
+  ) => JSON.parse(redactSensitiveText(text, mode));
+
+  it.each([
+    "strict",
+    "standard",
+    "off",
+  ] as const)("%s: a number, boolean or null under a sensitive key name is replaced with a string", (mode) => {
+    expect(
+      parsed(
+        '{"auth":true,"session_count":12345,"my_token":null,"id":7}',
+        mode,
+      ),
+    ).toEqual({
+      auth: "<REDACTED>",
+      session_count: "<REDACTED>",
+      my_token: "<REDACTED>",
+      id: 7,
+    });
+  });
+
+  it("an object or array under a sensitive key name is replaced whole, not just its first character", () => {
+    expect(
+      parsed(
+        '{"auth_list":[987654,"x"],"session":{"user":"u","pw":"p"},"ok":[1]}',
+      ),
+    ).toEqual({ auth_list: "<REDACTED>", session: "<REDACTED>", ok: [1] });
+  });
+
+  it("a string ending in a key and '=' no longer masks the values after it", () => {
+    expect(parsed('["auth=",900087001,{"a":"token=\'","b":31337}]')).toEqual([
+      "auth=",
+      900087001,
+      { a: "token='<REDACTED>'", b: 31337 },
+    ]);
+  });
+
+  it("still redacts inside every string and key, and keeps everything else", () => {
+    expect(
+      parsed(
+        '{"jane@example.com":"x","note":"call Bearer abc.def with token=T1","url":"https://u:pw@h/p?sig=S1","list":["a.b@c.org",4,false]}',
+      ),
+    ).toEqual({
+      "<REDACTED-EMAIL>": "x",
+      note: "call Bearer <REDACTED> with token=<REDACTED>",
+      url: "https://<REDACTED>@h/p?sig=<REDACTED>",
+      list: ["<REDACTED-EMAIL>", 4, false],
+    });
+  });
+
+  it("falls back to redacting the whole text when a match runs from one value into the next", () => {
+    const out = redactSensitiveText('["see http://x","user:pw@host"]');
+    expect(out).not.toContain("user:pw");
+  });
+
+  it("leaves text that is not a JSON object or array to the text passes", () => {
+    expect(redactSensitiveText("auth: true, session=12345")).toBe(
+      "auth: <REDACTED>, session=<REDACTED>",
+    );
+    expect(redactSensitiveText('{"auth": 1, broken')).toBe(
+      '{"auth": <REDACTED>, broken',
+    );
+  });
+});
