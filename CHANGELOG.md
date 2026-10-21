@@ -20,6 +20,10 @@ full commit-level history.
   result; the outbound sanitizer already masked it before the model.
 - `check-tag-on-main.test.mjs` no longer writes into the repository being
   pushed when the pre-push hook runs it from a linked worktree.
+- **Groq chat works again**: Groq rejects a `strict: true` tool whose
+  parameters have no properties (`connect_apty_client` and the other
+  no-argument tools). For Groq hosts only, those tools are now sent without
+  `strict`; tools with parameters and every other provider are unchanged.
 - **Widget network calls** (Settings → Apty Integration → Apty Client): load
   the calls the Apty Client reports, filter them by text and by
   failed/4xx/5xx, read a response body, and download either as JSON, with no
