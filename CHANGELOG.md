@@ -6,6 +6,16 @@ full commit-level history.
 
 ## Unreleased
 
+- **Network calls read as unique requests, end to end**: the Settings
+  panel and the chat's `list_extension_network_resources` group the Client's
+  calls by method + URL without query ("32 unique requests (105 calls)"),
+  with a count, a failed marker and a per-request history.
+  `inspect_extension_network` and **View body** read the newest call that
+  has a body, and say when it is an older one. The reference service worker
+  keeps bodies per request (latest success and latest failure) under a
+  total budget instead of for the last 10 calls, reports `hasBody` per call
+  and a `reason` when a body is missing (both optional). See
+  `docs/integrations/apty/CLIENT-PATCH.md`.
 - **Widget network calls** (Settings → Apty Integration → Apty Client): load
   the calls the Apty Client reports, filter them by text and by
   failed/4xx/5xx, read a response body, and download either as JSON, with no
