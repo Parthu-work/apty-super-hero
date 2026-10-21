@@ -272,7 +272,7 @@ function GroupStatus({
         <div className="mt-0.5 text-muted-foreground">{latest.errorText}</div>
       )}
       {group.failedCount > 0 && (
-        <div className="mt-0.5 flex items-center gap-1 text-destructive">
+        <div className="mt-0.5 flex items-center gap-1 text-destructive dark:text-red-400">
           <AlertTriangle className="h-3 w-3" aria-hidden="true" />
           {t("networkCalls.someFailed", {
             failed: String(group.failedCount),
