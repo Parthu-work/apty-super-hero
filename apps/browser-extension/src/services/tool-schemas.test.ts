@@ -130,3 +130,68 @@ describe("tool schemas as each provider receives them", () => {
     });
   });
 });
+
+describe("strict on tools without parameters", () => {
+  type SentTool = {
+    function: { name: string; parameters: Schema; strict?: boolean };
+  };
+
+  async function sentTools(settings: Record<string, string>) {
+    return ((await requestBody(settings)).tools as SentTool[]).map(
+      (t) => t.function,
+    );
+  }
+  const hasNoProperties = (fn: { parameters: Schema }) =>
+    Object.keys((fn.parameters.properties as object) ?? {}).length === 0;
+
+  it("Groq: tools without parameters carry no strict, tools with parameters keep it", async () => {
+    const tools = await sentTools(
+      PROVIDERS["OpenAI-compatible (custom, e.g. Groq)"],
+    );
+
+    expect(tools).toHaveLength(allBrowserTools.length);
+    const empty = tools.filter(hasNoProperties);
+    const withParameters = tools.filter((fn) => !hasNoProperties(fn));
+    expect(empty.map((fn) => fn.name)).toEqual(
+      expect.arrayContaining([
+        "connect_apty_client",
+        "get_apty_widget_diagnostics",
+      ]),
+    );
+    for (const fn of empty) expect("strict" in fn, fn.name).toBe(false);
+    expect(withParameters.length).toBeGreaterThan(0);
+    for (const fn of withParameters) expect(fn.strict, fn.name).toBe(true);
+  });
+
+  it("Groq is detected by host, whatever the provider key", async () => {
+    const tools = await sentTools({
+      aiProvider: "custom",
+      aiHost: "https://api.groq.com/openai/v1",
+    });
+    expect(
+      tools.find((fn) => fn.name === "connect_apty_client"),
+    ).not.toHaveProperty("strict");
+  });
+
+  it.each([
+    [
+      "OpenRouter",
+      { aiProvider: "openrouter", aiHost: "https://openrouter.ai/api/v1" },
+    ],
+    [
+      "another OpenAI-compatible host",
+      { aiProvider: "custom", aiHost: "https://llm.example.com/v1" },
+    ],
+  ])("%s: every tool keeps strict: true", async (_label, settings) => {
+    const tools = await sentTools(settings);
+    expect(tools).toHaveLength(allBrowserTools.length);
+    for (const fn of tools) expect(fn.strict, fn.name).toBe(true);
+  });
+
+  it("OpenAI: every tool keeps strict: true", async () => {
+    const body = await requestBody(PROVIDERS.OpenAI);
+    const tools = body.tools as Array<{ name: string; strict?: boolean }>;
+    expect(tools).toHaveLength(allBrowserTools.length);
+    for (const tool of tools) expect(tool.strict, tool.name).toBe(true);
+  });
+});

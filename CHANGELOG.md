@@ -6,6 +6,10 @@ full commit-level history.
 
 ## Unreleased
 
+- **Groq chat works again**: Groq rejects a `strict: true` tool whose
+  parameters have no properties (`connect_apty_client` and the other
+  no-argument tools). For Groq hosts only, those tools are now sent without
+  `strict`; tools with parameters and every other provider are unchanged.
 - **Widget network calls** (Settings → Apty Integration → Apty Client): load
   the calls the Apty Client reports, filter them by text and by
   failed/4xx/5xx, read a response body, and download either as JSON, with no
