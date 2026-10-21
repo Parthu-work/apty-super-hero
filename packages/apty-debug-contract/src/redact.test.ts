@@ -386,3 +386,62 @@ describe("unboundedPatternMatches", () => {
     expect(unboundedPatternMatches('{"a":"nothing here"}')).toEqual([]);
   });
 });
+
+describe("PEM blocks", () => {
+  // What the scanner replaced; it must match exactly what this matched.
+  const REFERENCE = /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g;
+  const reference = (text: string) =>
+    [...text.matchAll(REFERENCE)].map((m) => m[0]);
+  const pemOnly = (text: string) =>
+    unboundedPatternMatches(text).filter((m) => m.startsWith("-----BEGIN "));
+
+  it.each([
+    "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----",
+    "a -----BEGIN X-----1-----END X----- b -----BEGIN Y-----2-----END Y-----",
+    "-----BEGIN A-----x-----END B----- -----BEGIN B-----y-----END B-----",
+    "-----BEGIN A----------BEGIN A-----x-----END A-----",
+    "------BEGIN  -----x------END  ------",
+    "-----BEGIN A B-----x-----END A B----------END A B-----",
+    "-----BEGIN -----x-----END -----",
+    "-----BEGIN a-----x-----END a-----",
+    "-----BEGIN A-----x-----END AB----- -----END A-----",
+  ])("finds what the regex found in %j", (text) => {
+    expect(pemOnly(text)).toEqual(reference(text));
+  });
+
+  it("finds what the regex found on 2,000 seeded random texts", () => {
+    let state = 7;
+    const rand = () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 2 ** 32;
+    };
+    const parts = [
+      "-----BEGIN ",
+      "-----END ",
+      "-----",
+      "A",
+      "B",
+      " ",
+      "x",
+      "\n",
+      "-",
+    ];
+    for (let n = 0; n < 2000; n++) {
+      const text = Array.from(
+        { length: 5 + Math.floor(rand() * 40) },
+        () => parts[Math.floor(rand() * parts.length)],
+      ).join("");
+      expect(pemOnly(text), JSON.stringify(text)).toEqual(reference(text));
+    }
+  });
+
+  it("stays linear on many BEGIN lines without an END", () => {
+    const text = "-----BEGIN X-----".repeat(60_000);
+    const started = Date.now();
+    expect(unboundedPatternMatches(text)).toEqual([]);
+    expect(redactSensitiveText(text.slice(0, 99_000))).toBe(
+      text.slice(0, 99_000),
+    );
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+});

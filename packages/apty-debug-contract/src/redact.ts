@@ -124,9 +124,87 @@ const AUTH_SCHEME_PATTERN = /\b(Bearer|Basic|Digest)\s+[A-Za-z0-9\-._~+/]+=*/g;
 /** JWT-shaped: three base64url segments, header segment starting `eyJ` (the base64url encoding of `{"`), anywhere in the text — not just after a recognized key name. */
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
 
-/** A PEM-armored block of any kind (private key, certificate, ...), single- or multi-line. */
-const PEM_BLOCK_PATTERN =
-  /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g;
+const PEM_BEGIN = "-----BEGIN ";
+const PEM_END = "-----END ";
+const PEM_DASHES = "-----";
+
+function isPemTypeChar(code: number): boolean {
+  return (
+    (code >= 65 && code <= 90) || (code >= 48 && code <= 57) || code === 32
+  );
+}
+
+/** The type at `index` in a BEGIN or END line: a run of A-Z, 0-9 and spaces closed by `-----`. */
+function pemTypeAt(text: string, index: number): string | undefined {
+  let end = index;
+  while (end < text.length && isPemTypeChar(text.charCodeAt(end))) end++;
+  if (end === index || !text.startsWith(PEM_DASHES, end)) return undefined;
+  return text.slice(index, end);
+}
+
+/**
+ * Every PEM-armored block of any kind (private key, certificate, ...),
+ * single- or multi-line: `-----BEGIN <type>-----` up to the first
+ * `-----END <type>-----` after it, left to right without overlaps — what
+ * `/-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g` matches. That
+ * regex rescans to the end of the text for each BEGIN line without an END,
+ * which is quadratic; this finds each END line once.
+ */
+function pemBlocks(
+  text: string,
+): Array<{ start: number; end: number; type: string }> {
+  const ends = new Map<string, number[]>();
+  for (
+    let i = text.indexOf(PEM_END);
+    i !== -1;
+    i = text.indexOf(PEM_END, i + 1)
+  ) {
+    const type = pemTypeAt(text, i + PEM_END.length);
+    if (type === undefined) continue;
+    const at = ends.get(type);
+    if (at) at.push(i);
+    else ends.set(type, [i]);
+  }
+  const blocks: Array<{ start: number; end: number; type: string }> = [];
+  let from = 0;
+  for (
+    let i = text.indexOf(PEM_BEGIN);
+    i !== -1;
+    i = text.indexOf(PEM_BEGIN, Math.max(i + 1, from))
+  ) {
+    const type = pemTypeAt(text, i + PEM_BEGIN.length);
+    if (type === undefined) continue;
+    const bodyStart = i + PEM_BEGIN.length + type.length + PEM_DASHES.length;
+    const endAt = firstAtOrAfter(ends.get(type) ?? [], bodyStart);
+    if (endAt === undefined) continue;
+    from = endAt + PEM_END.length + type.length + PEM_DASHES.length;
+    blocks.push({ start: i, end: from, type });
+  }
+  return blocks;
+}
+
+/** The first number in ascending `list` that is at least `min`. */
+function firstAtOrAfter(list: number[], min: number): number | undefined {
+  let low = 0;
+  let high = list.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if ((list[mid] as number) < min) low = mid + 1;
+    else high = mid;
+  }
+  return list[low];
+}
+
+/** `text` with each PEM block's body replaced, its BEGIN and END lines kept. */
+function redactPemBlocks(text: string): string {
+  let result = "";
+  let last = 0;
+  for (const { start, end, type } of pemBlocks(text)) {
+    result += `${text.slice(last, start)}-----BEGIN ${type}-----<REDACTED>-----END ${type}-----`;
+    last = end;
+  }
+  return result + text.slice(last);
+}
 
 /** `scheme://user:password@host` — the whole userinfo component, never just the password, since the username can itself be sensitive (an email, an account id). */
 const URL_USERINFO_PATTERN = /\b([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^/\s@]+)@/g;
@@ -230,10 +308,7 @@ export function redactSensitiveText(
   });
   // 1. PEM blocks first — they contain their own `:`/`=`-like base64 content
   //    that could otherwise confuse later passes, and are unambiguous once matched.
-  result = result.replace(
-    PEM_BLOCK_PATTERN,
-    (_m, type) => `-----BEGIN ${type}-----<REDACTED>-----END ${type}-----`,
-  );
+  result = redactPemBlocks(result);
   // 2. URL userinfo — before the email pattern, since `user:pass@host` reads
   //    like an email address once the scheme/userinfo separator is gone.
   result = result.replace(URL_USERINFO_PATTERN, "$1<REDACTED>@");
@@ -263,11 +338,8 @@ export function redactSensitiveText(
  * next, which redacting the members apart would miss.
  */
 export function unboundedPatternMatches(text: string): string[] {
-  const pem = [...text.matchAll(PEM_BLOCK_PATTERN)].map((m) => m[0]);
-  const afterPem = text.replace(
-    PEM_BLOCK_PATTERN,
-    (_m, type) => `-----BEGIN ${type}-----<REDACTED>-----END ${type}-----`,
-  );
+  const pem = pemBlocks(text).map(({ start, end }) => text.slice(start, end));
+  const afterPem = redactPemBlocks(text);
   const userinfo = [...afterPem.matchAll(URL_USERINFO_PATTERN)].map(
     (m) => m[0],
   );
