@@ -120,7 +120,7 @@ const CASES: Case[] = [
     value: {
       msg: "line1\nline2 password=ABCDEF\nGHIJKL tail",
       quote: 'say "token=ZNINE" now',
-      uni: "caf\u00e9 jane.roe@ex.com \u2603",
+      uni: "\u00e9t\u00e9 jane.roe@ex.com \u2603",
       tab: "a\tb token:\tTABSEC",
       back: "path C:\\\\temp\\\\x password=BACKSEC",
     },
@@ -381,7 +381,7 @@ const TEMPLATES = [
   "-----BEGIN KEY-----S-----END KEY-----",
   "see http://",
   "S:pw@",
-  "caf\u00e9 S",
+  "\u00e9t\u00e9 S",
   "tab\tsecret=S",
   "/patients/S/view",
   "token",
