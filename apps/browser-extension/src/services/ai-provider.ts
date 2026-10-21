@@ -10,7 +10,11 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { AIProviderKey, AppSettings } from "@apty/agent-core";
+import {
+  type AIProviderKey,
+  type AppSettings,
+  detectProviderFromHost,
+} from "@apty/agent-core";
 import {
   isIPv4,
   isPrivateIPv4,
@@ -188,6 +192,37 @@ const openAINoStoreMiddleware: LanguageModelMiddleware = {
   }),
 };
 
+/** True when a tool's JSON schema declares no properties (empty or absent). */
+function hasNoProperties(inputSchema: unknown): boolean {
+  const properties = (inputSchema as { properties?: unknown } | null)
+    ?.properties;
+  return (
+    !properties ||
+    typeof properties !== "object" ||
+    Object.keys(properties).length === 0
+  );
+}
+
+/**
+ * Groq rejects a `strict: true` function whose parameters have no properties
+ * ("'required' present but 'properties' is missing") while accepting the same
+ * schema without `strict`. The SDK marks every tool strict, so a tool with no
+ * arguments is sent without it; tools with parameters keep their setting.
+ */
+const groqEmptyToolsNotStrictMiddleware: LanguageModelMiddleware = {
+  specificationVersion: "v3",
+  transformParams: async ({ params }) => ({
+    ...params,
+    tools: params.tools?.map((tool) => {
+      if (tool.type !== "function" || !hasNoProperties(tool.inputSchema)) {
+        return tool;
+      }
+      const { strict: _strict, ...withoutStrict } = tool;
+      return withoutStrict;
+    }),
+  }),
+};
+
 /**
  * Create an AI SDK provider for BYOK mode.
  */
@@ -225,19 +260,26 @@ export function createAIProvider(
           middleware: openAINoStoreMiddleware,
         });
     }
-    default:
+    default: {
       // For custom providers, baseURL is required
       if (!baseURL) {
         throw new Error(
           `Custom provider "${provider}" requires aiHost to be specified`,
         );
       }
-      return createOpenAICompatible({
+      const compatible = createOpenAICompatible({
         apiKey,
         baseURL,
         name: provider,
         fetch: options.fetch,
       });
+      if (detectProviderFromHost(baseURL) !== "groq") return compatible;
+      return (modelId: string) =>
+        wrapLanguageModel({
+          model: compatible(modelId),
+          middleware: groqEmptyToolsNotStrictMiddleware,
+        });
+    }
   }
 }
 
