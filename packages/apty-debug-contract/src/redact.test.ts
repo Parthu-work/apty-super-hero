@@ -370,20 +370,102 @@ describe("redactSensitiveText — truncated JSON", () => {
   });
 });
 
-describe("unboundedPatternMatches", () => {
-  it("finds PEM blocks and URL userinfo as redactSensitiveText would, including across JSON strings", () => {
-    expect(unboundedPatternMatches('["see http://x","user:pw@host"]')).toEqual([
-      'http://x","user:pw@',
-    ]);
+describe("medical record numbers in free text", () => {
+  it.each([
+    ["MRN 4815162342", "MRN <REDACTED>"],
+    ["patient MRN: 4815162342 admitted", "patient MRN: <REDACTED> admitted"],
+    ["mrn#A-123456", "mrn#<REDACTED>"],
+    ["mrn=99887766&x=1", "mrn=<REDACTED>&x=1"],
+    ["Medical Record Number 12345", "Medical Record Number <REDACTED>"],
+    ["medical record no. 5550123", "medical record no. <REDACTED>"],
+    ["MRN4815162342", "MRN<REDACTED>"],
+  ])("masks the number in %s, in strict and standard", (text, expected) => {
+    expect(redactSensitiveText(text, "strict")).toBe(expected);
+    expect(redactSensitiveText(text, "standard")).toBe(expected);
+  });
+
+  it("leaves it in off mode, as it does every PII profile", () => {
+    expect(redactSensitiveText("MRN 4815162342", "off")).toBe("MRN 4815162342");
+  });
+
+  it("keeps JSON valid and leaves words that only contain the letters alone", () => {
+    const json = '{"note":"MRN 4815162342 seen","mrnFormat":"digits"}';
+    const out = redactSensitiveText(json, "strict");
+    expect(JSON.parse(out)).toEqual({
+      note: "MRN <REDACTED> seen",
+      mrnFormat: "digits",
+    });
     expect(
-      unboundedPatternMatches(
-        '["-----BEGIN KEY-----a","b","-----END KEY-----"]',
+      redactSensitiveText("SMRN 1234, MRN ab, MRN format, mrnFormat", "strict"),
+    ).toBe("SMRN 1234, MRN ab, MRN format, mrnFormat");
+  });
+});
+
+describe("a JSON object or array stays JSON", () => {
+  const parsed = (
+    text: string,
+    mode: "strict" | "standard" | "off" = "strict",
+  ) => JSON.parse(redactSensitiveText(text, mode));
+
+  it.each([
+    "strict",
+    "standard",
+    "off",
+  ] as const)("%s: a number, boolean or null under a sensitive key name is replaced with a string", (mode) => {
+    expect(
+      parsed(
+        '{"auth":true,"session_count":12345,"my_token":null,"id":7}',
+        mode,
       ),
-    ).toEqual(['-----BEGIN KEY-----a","b","-----END KEY-----']);
-    expect(unboundedPatternMatches('{"u":"https://u:p@h/"}')).toEqual([
-      "https://u:p@",
+    ).toEqual({
+      auth: "<REDACTED>",
+      session_count: "<REDACTED>",
+      my_token: "<REDACTED>",
+      id: 7,
+    });
+  });
+
+  it("an object or array under a sensitive key name is replaced whole, not just its first character", () => {
+    expect(
+      parsed(
+        '{"auth_list":[987654,"x"],"session":{"user":"u","pw":"p"},"ok":[1]}',
+      ),
+    ).toEqual({ auth_list: "<REDACTED>", session: "<REDACTED>", ok: [1] });
+  });
+
+  it("a string ending in a key and '=' no longer masks the values after it", () => {
+    expect(parsed('["auth=",900087001,{"a":"token=\'","b":31337}]')).toEqual([
+      "auth=",
+      900087001,
+      { a: "token='<REDACTED>'", b: 31337 },
     ]);
-    expect(unboundedPatternMatches('{"a":"nothing here"}')).toEqual([]);
+  });
+
+  it("still redacts inside every string and key, and keeps everything else", () => {
+    expect(
+      parsed(
+        '{"jane@example.com":"x","note":"call Bearer abc.def with token=T1","url":"https://u:pw@h/p?sig=S1","list":["a.b@c.org",4,false]}',
+      ),
+    ).toEqual({
+      "<REDACTED-EMAIL>": "x",
+      note: "call Bearer <REDACTED> with token=<REDACTED>",
+      url: "https://<REDACTED>@h/p?sig=<REDACTED>",
+      list: ["<REDACTED-EMAIL>", 4, false],
+    });
+  });
+
+  it("falls back to redacting the whole text when a match runs from one value into the next", () => {
+    const out = redactSensitiveText('["see http://x","user:pw@host"]');
+    expect(out).not.toContain("user:pw");
+  });
+
+  it("leaves text that is not a JSON object or array to the text passes", () => {
+    expect(redactSensitiveText("auth: true, session=12345")).toBe(
+      "auth: <REDACTED>, session=<REDACTED>",
+    );
+    expect(redactSensitiveText('{"auth": 1, broken')).toBe(
+      '{"auth": <REDACTED>, broken',
+    );
   });
 });
 
@@ -443,5 +525,22 @@ describe("PEM blocks", () => {
       text.slice(0, 99_000),
     );
     expect(Date.now() - started).toBeLessThan(2_000);
+  });
+});
+
+describe("unboundedPatternMatches", () => {
+  it("finds PEM blocks and URL userinfo as redactSensitiveText would, including across JSON strings", () => {
+    expect(unboundedPatternMatches('["see http://x","user:pw@host"]')).toEqual([
+      'http://x","user:pw@',
+    ]);
+    expect(
+      unboundedPatternMatches(
+        '["-----BEGIN KEY-----a","b","-----END KEY-----"]',
+      ),
+    ).toEqual(['-----BEGIN KEY-----a","b","-----END KEY-----']);
+    expect(unboundedPatternMatches('{"u":"https://u:p@h/"}')).toEqual([
+      "https://u:p@",
+    ]);
+    expect(unboundedPatternMatches('{"a":"nothing here"}')).toEqual([]);
   });
 });

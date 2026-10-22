@@ -43,7 +43,9 @@ describe("ResponseBodyViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: /Show 6 more/ }));
 
     expect(screen.getAllByText("{2 keys}")).toHaveLength(206);
-  });
+    // Rendering 206 rows takes 4-5 s under coverage on a 4-core machine,
+    // around vitest's 5 s default.
+  }, 15_000);
 
   it("shows a non-JSON body as text", () => {
     const evidenceId = recordBody("<html>forbidden</html>");

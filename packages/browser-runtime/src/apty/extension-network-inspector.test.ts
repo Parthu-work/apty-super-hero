@@ -798,6 +798,38 @@ describe("resource names the model sees", () => {
     await disconnectExtensionClient("conv-a");
   });
 
+  it("redact a failed call's error text in what the tools return, before the outbound sanitizer", async () => {
+    const error = "net::ERR_FAILED for jane.doe@example.com token=abc123secret";
+    clientListing("standard", [
+      {
+        requestId: "e1",
+        url: "https://cdn.apty.example/flows.json",
+        method: "GET",
+        failed: true,
+        errorText: error,
+        timestamp: 1,
+      },
+    ]);
+    await connectExtensionClient("conv-a", EXT_ID);
+
+    const listed = await listObservedResources("conv-a");
+    const inspected = await inspectResource("conv-a", "flows.json");
+
+    expect(listed.connected && listed.resources[0]?.errorText).toBe(
+      "net::ERR_FAILED for <REDACTED-EMAIL> token=<REDACTED>",
+    );
+    expect(inspected).toMatchObject({
+      status: "failed",
+      request: {
+        errorText: "net::ERR_FAILED for <REDACTED-EMAIL> token=<REDACTED>",
+      },
+    });
+    expect(JSON.stringify([listed, inspected])).not.toMatch(
+      /jane\.doe|abc123secret/,
+    );
+    await disconnectExtensionClient("conv-a");
+  });
+
   it("keep the real name in Standard, which keeps paths", async () => {
     clientListing("standard");
     await connectExtensionClient("conv-a", EXT_ID);

@@ -59,6 +59,7 @@ Data handling → Redaction**:
 | Secrets recognised by their shape (tokens, API keys, JWTs, bearer credentials, emails) | Masked | Masked | Masked |
 | `Authorization`, cookie and API-key headers; values of keys such as `password`, `token`, `secret` in JSON | Masked | Masked | Not masked |
 | Values of JSON keys naming a person or record (`username`, `email`, `firstName`, `lastName`, `fullName`, `displayName`, `phone`, `address`, `dob`, `ssn`, `mrn`, any key starting with `patient`; `userId` is replaced by a stable pseudonym). A bare `name` key is not masked. | Masked | Masked | Not masked |
+| A medical record number written after `MRN` or `medical record number` in any text (`MRN 4815162342`, `?mrn=4815162342`) | Masked | Masked | Not masked |
 | Values of JSON keys holding page context (`page_title`, `page_path`, `page_search`, `referrer`) | Masked | Not masked | Not masked |
 | Any web URL in a tool result | Query string and fragment removed; in the path, record numbers (5+ digits), GUIDs, long hex ids and email addresses become `:id` / `:email` | Each query value replaced with `[masked]`; the path is kept | Sent as is |
 | A tab or page as the tab and page tools describe it | Tab id and origin only: no title, no path | Title and URL with masked query values | Sent as is |
@@ -70,7 +71,8 @@ What no mode hides:
   name, record number, date of birth or diagnosis written as text on the
   page, or in a link label, reaches the AI provider when a tool reads the
   page. Redaction masks values by the key they sit under or by their
-  shape, never by meaning, so it cannot recognise these in prose.
+  shape, never by meaning, so it cannot recognise these in prose (a
+  record number labelled `MRN` is the one exception).
 - In Strict, a path keeps its words and short numbers
   (`/patients/:id/chart`, `/orders/42`); a short record number of four
   digits or fewer, or a name written into a path, is sent. Standard keeps
