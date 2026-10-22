@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **PRIVACY.md's redaction table matches what reaches the model**: header lines and credential words in text are masked in Off too, JSON keys are matched by an exact list (now in the doc), and `redaction-table.test.ts` pins every row's Off column.
 - **Client JSON bodies over 100,000 characters can be read** (the real
   Client's `rules.json` is 109,410): such a body is redacted value by
   value with the same redactor, up to 2,000,000 characters, instead of

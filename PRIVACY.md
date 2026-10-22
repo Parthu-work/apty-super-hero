@@ -57,13 +57,41 @@ Data handling → Redaction**:
 | | Strict (default) | Standard | Off (development only) |
 |---|---|---|---|
 | Secrets recognised by their shape (tokens, API keys, JWTs, bearer credentials, emails) | Masked | Masked | Masked |
-| `Authorization`, cookie and API-key headers; values of keys such as `password`, `token`, `secret` in JSON | Masked | Masked | Not masked |
+| In any text a tool result holds (a log line, a response body, a header written as text): a credential header line, and a value written after a credential word (`password=…`, `csrf_token: …`, `"authToken":"…"`); both lists below | Masked | Masked | Masked |
+| Values of the tool result's own JSON keys named for a credential (`password`, `token`, `secret`, `cookie`, …; the exact names are below) | Masked | Masked | Not masked, unless the value is masked by one of the two rows above |
 | Values of JSON keys naming a person or record (`username`, `email`, `firstName`, `lastName`, `fullName`, `displayName`, `phone`, `address`, `dob`, `ssn`, `mrn`, any key starting with `patient`; `userId` is replaced by a stable pseudonym). A bare `name` key is not masked. | Masked | Masked | Not masked |
 | A medical record number written after `MRN` or `medical record number` in any text (`MRN 4815162342`, `?mrn=4815162342`) | Masked | Masked | Not masked |
 | Values of JSON keys holding page context (`page_title`, `page_path`, `page_search`, `referrer`) | Masked | Not masked | Not masked |
 | Any web URL in a tool result | Query string and fragment removed; in the path, record numbers (5+ digits), GUIDs, long hex ids and email addresses become `:id` / `:email` | Each query value replaced with `[masked]`; the path is kept | Sent as is |
 | A tab or page as the tab and page tools describe it | Tab id and origin only: no title, no path | Title and URL with masked query values | Sent as is |
 | Values typed or chosen in form fields | Not sent | Replaced with `[masked]` | Sent as is |
+
+How credentials are matched:
+
+- **Header lines in text.** A line that starts with `Authorization`,
+  `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key` or
+  `X-Auth-Token` and a colon loses the rest of the line.
+- **Credential words in text.** A value written after a key whose name
+  contains `password`, `passwd`, `pwd`, `token`, `secret`, `auth`,
+  `session`, `api-key` (or `api_key`, `apikey`), `csrf`, `xsrf`, `jwt`,
+  `credential`, `signature`, `private-key` (or `private_key`), `otp` or
+  `bearer` is masked: `password=…`, `csrf_token: …`, `"authToken":"…"`.
+  JSON held inside a string, such as a response body, counts as text.
+- **JSON keys** of the tool result itself are matched by exact name,
+  ignoring case and punctuation (`apiKey` matches `api_key`): `token`,
+  `id_token`, `access_token`, `refresh_token`, `auth_token`,
+  `session_token`, `csrf_token`, `xsrf_token`, `api_key`, `secret`,
+  `password`, `passwd`, `pwd`, `private_key`, `signature`, `credential`,
+  `cookie`, `set_cookie`, `jwt`, `otp`, `bearer`, `authorization`,
+  `session_id`, `user_session_id`. Other keys are not masked by their name,
+  even ones that look like a credential, such as `X-Api-Key` or
+  `x-auth-token`.
+
+Size does not change this: a JSON tool result over 100,000 characters is
+masked the same way in each mode. A response body read from the Apty Client
+is masked as text by the tool before it becomes a tool result, at any size
+(one over 100,000 characters value by value when it is JSON), so `password`
+and `token` values in it are masked in Off too.
 
 What no mode hides:
 
