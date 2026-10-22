@@ -78,14 +78,15 @@ How credentials are matched:
   `bearer` is masked: `password=…`, `csrf_token: …`, `"authToken":"…"`.
   JSON held inside a string, such as a response body, counts as text.
 - **JSON keys** of the tool result itself are matched by exact name,
-  ignoring case and punctuation (`apiKey` matches `api_key`): `token`,
-  `id_token`, `access_token`, `refresh_token`, `auth_token`,
-  `session_token`, `csrf_token`, `xsrf_token`, `api_key`, `secret`,
+  ignoring case and punctuation (`apiKey` matches `api_key`, `X-Api-Key`
+  matches `x_api_key`): `token`, `id_token`, `access_token`,
+  `refresh_token`, `auth_token`, `session_token`, `csrf_token`,
+  `xsrf_token`, `api_key`, `x_api_key`, `x_auth_token`, `secret`,
   `password`, `passwd`, `pwd`, `private_key`, `signature`, `credential`,
   `cookie`, `set_cookie`, `jwt`, `otp`, `bearer`, `authorization`,
-  `session_id`, `user_session_id`. Other keys are not masked by their name,
-  even ones that look like a credential, such as `X-Api-Key` or
-  `x-auth-token`.
+  `proxy_authorization`, `session_id`, `user_session_id`. Other keys are not
+  masked by their name, even ones that look like a credential, such as
+  `session`.
 
 Size does not change this: a JSON tool result over 100,000 characters is
 masked the same way in each mode. A response body read from the Apty Client

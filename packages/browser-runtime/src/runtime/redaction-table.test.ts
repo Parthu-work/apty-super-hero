@@ -59,6 +59,8 @@ const JSON_KEY_NAMES = [
   "csrf_token",
   "xsrf_token",
   "api_key",
+  "x_api_key",
+  "x_auth_token",
   "secret",
   "password",
   "passwd",
@@ -72,6 +74,7 @@ const JSON_KEY_NAMES = [
   "otp",
   "bearer",
   "authorization",
+  "proxy_authorization",
   "session_id",
   "user_session_id",
   // The same names in another case or punctuation.
@@ -79,6 +82,9 @@ const JSON_KEY_NAMES = [
   "authToken",
   "Authorization",
   "Set-Cookie",
+  "X-Api-Key",
+  "x-auth-token",
+  "Proxy-Authorization",
 ];
 
 const headerLines = HEADER_LINE_NAMES.map(
