@@ -58,7 +58,7 @@ Data handling → Redaction**:
 |---|---|---|---|
 | Secrets recognised by their shape (tokens, API keys, JWTs, bearer credentials, emails) | Masked | Masked | Masked |
 | In any text a tool result holds (a log line, a response body, a header written as text): a credential header line, and a value written after a credential word (`password=…`, `csrf_token: …`, `"authToken":"…"`); both lists below | Masked | Masked | Masked |
-| Values of the tool result's own JSON keys named for a credential (`password`, `token`, `secret`, `cookie`, …; the exact names are below) | Masked | Masked | Not masked, unless the value is masked by one of the two rows above |
+| Values of the tool result's own JSON keys named for a credential (`password`, `token`, `secret`, `cookie`, …; the exact names are below) | Masked | Masked | Not masked, unless the value is masked by one of the two rows above. A header name used as a JSON key (`{"Proxy-Authorization":"…"}`, `{"X-Api-Key":"…"}`) is not masked; the same header written as a text line is |
 | Values of JSON keys naming a person or record (`username`, `email`, `firstName`, `lastName`, `fullName`, `displayName`, `phone`, `address`, `dob`, `ssn`, `mrn`, any key starting with `patient`; `userId` is replaced by a stable pseudonym). A bare `name` key is not masked. | Masked | Masked | Not masked |
 | A medical record number written after `MRN` or `medical record number` in any text (`MRN 4815162342`, `?mrn=4815162342`) | Masked | Masked | Not masked |
 | Values of JSON keys holding page context (`page_title`, `page_path`, `page_search`, `referrer`) | Masked | Not masked | Not masked |
