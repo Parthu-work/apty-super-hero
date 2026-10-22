@@ -1052,7 +1052,7 @@ When sendToLLM=true: Sends image to LLM (higher latency/cost) and enables coordi
   {
     name: "list_extension_network_resources",
     description:
-      "List every network resource observed so far on the Apty Client extension's Service Worker since connecting. Auto-connects using the configured extension ID if not already connected; this tool never accepts an extension ID as input.",
+      "List the unique network resources (method + URL without query) the Apty Client extension's Service Worker has observed, each with call count, failed count, latest status and time. Capped; omittedResources says how many more exist. Auto-connects using the configured extension ID if not already connected; this tool never accepts an extension ID as input.",
     inputSchema: {
       type: "object",
       properties: {},

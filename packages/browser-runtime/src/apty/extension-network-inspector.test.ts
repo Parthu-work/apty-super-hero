@@ -272,7 +272,13 @@ describe("listObservedResources", () => {
     if (result.connected) {
       expect(result.resources).toHaveLength(1);
       expect(result.resources[0]?.resourceName).toBe("segments.json");
-      expect(result.resources[0]?.status).toBe(200);
+      expect(result.resources[0]?.latestStatus).toBe(200);
+      expect(result.resources[0]).toMatchObject({
+        count: 1,
+        failedCount: 0,
+        latestTimestamp: 1,
+      });
+      expect(result).toMatchObject({ uniqueResources: 1, totalCalls: 1 });
     }
     await disconnectExtensionClient("conv-a");
   });
@@ -756,7 +762,11 @@ describe("resource names the model sees", () => {
 
     expect(
       listed.connected && listed.resources.map((r) => r.resourceName),
-    ).toEqual([":id.json", ":id.json"]);
+    ).toEqual([":id.json"]);
+    expect(listed.connected && listed.resources[0]).toMatchObject({
+      count: 2,
+      failedCount: 2,
+    });
     expect(matched).toMatchObject({
       status: "http_error",
       request: { requestId: "u1", resourceName: ":id.json" },
@@ -815,7 +825,7 @@ describe("resource names the model sees", () => {
     const listed = await listObservedResources("conv-a");
     const inspected = await inspectResource("conv-a", "flows.json");
 
-    expect(listed.connected && listed.resources[0]?.errorText).toBe(
+    expect(listed.connected && listed.resources[0]?.latestError).toBe(
       "net::ERR_FAILED for <REDACTED-EMAIL> token=<REDACTED>",
     );
     expect(inspected).toMatchObject({
@@ -839,7 +849,7 @@ describe("resource names the model sees", () => {
 
     expect(
       listed.connected && listed.resources.map((r) => r.resourceName),
-    ).toEqual(["4815162342.json", "4815162343.json"]);
+    ).toEqual(["4815162343.json", "4815162342.json"]);
     expect(matched.request?.resourceName).toBe("4815162342.json");
     await disconnectExtensionClient("conv-a");
   });

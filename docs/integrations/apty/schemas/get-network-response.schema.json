@@ -41,6 +41,9 @@
           "durationMs": {
             "type": "number"
           },
+          "hasBody": {
+            "type": "boolean"
+          },
           "context": {
             "type": "string",
             "enum": ["service-worker", "content-script", "popup"]

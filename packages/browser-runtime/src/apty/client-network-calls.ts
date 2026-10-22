@@ -12,6 +12,7 @@ import {
   type ResourceBodyRead,
   readResourceBody,
 } from "./extension-network-inspector.js";
+import { bodyCandidates, groupByResource } from "./network-resource-groups.js";
 import { allowListFix, PEER_NAMES, peerFailureMessage } from "./peers.js";
 import {
   ConfiguredServiceWorkerDiagnosticsProvider,
@@ -35,13 +36,23 @@ export interface NetworkCallsUnavailable {
 }
 
 export type NetworkCallList =
-  | { ok: true; calls: NetworkCall[]; mayBeBounded: boolean }
+  | {
+      ok: true;
+      calls: NetworkCall[];
+      mayBeBounded: boolean;
+      /** The Client's count of failed history saves, when it reports one. */
+      saveFailures?: number;
+    }
   | ({ ok: false } & NetworkCallsUnavailable);
 
 export type NetworkCallBody =
   | ({ status: "not_connected" } & NetworkCallsUnavailable)
   | { status: "not_observed" }
-  | ({ call: NetworkCall } & ResourceBodyRead);
+  | ({
+      call: NetworkCall;
+      /** Set when `call` is older than the resource's newest call, which has no body. */
+      newerCallsWithoutBody?: number;
+    } & ResourceBodyRead);
 
 function unavailable(
   list: AptyResourceList,
@@ -113,6 +124,7 @@ export async function listClientNetworkCalls(
     ok: true,
     calls: list.resources.map(toNetworkCall),
     mayBeBounded: list.resources.length >= MAX_RESOURCES_KEPT,
+    ...(list.saveFailures ? { saveFailures: list.saveFailures } : {}),
   };
 }
 
@@ -135,4 +147,50 @@ export async function readClientNetworkCallBody(
   );
   await getRedactionMode();
   return { call: toNetworkCall(resource), ...read };
+}
+
+/**
+ * The body of a resource (a group's `key`, built from the URLs the panel
+ * shows): the newest call that has one. A call the Client says has a body
+ * comes first; without that flag the newest few calls are tried. Each
+ * candidate goes through the same deny list and redaction as any other read.
+ */
+export async function readClientResourceBody(
+  extensionId: string | undefined,
+  resourceKey: string,
+  agentId: string | undefined = globalThis.chrome?.runtime?.id,
+): Promise<NetworkCallBody> {
+  const { provider, list } = await fetchList(extensionId);
+  if (!list.ok) {
+    return { status: "not_connected", ...unavailable(list, agentId) };
+  }
+  const rawById = new Map(list.resources.map((r) => [r.requestId, r]));
+  const group = groupByResource(list.resources.map(toNetworkCall)).find(
+    (g) => g.key === resourceKey,
+  );
+  if (!group) return { status: "not_observed" };
+
+  const denyList = await loadBodyDenyList();
+  let first: NetworkCallBody | undefined;
+  for (const candidate of bodyCandidates(group.calls)) {
+    const raw = rawById.get(candidate.requestId);
+    if (!raw) continue;
+    const read = await readResourceBody(provider, raw, denyList);
+    await getRedactionMode();
+    const index = group.calls.findIndex(
+      (c) => c.requestId === candidate.requestId,
+    );
+    const result: NetworkCallBody = {
+      call: candidate,
+      ...(index > 0 ? { newerCallsWithoutBody: index } : {}),
+      ...read,
+    };
+    first ??= result;
+    const decisive =
+      read.status === "body_denied" ||
+      ("body" in read && read.body !== undefined) ||
+      ("tooLargeToRedact" in read && read.tooLargeToRedact);
+    if (decisive) return result;
+  }
+  return first ?? { status: "not_observed" };
 }
