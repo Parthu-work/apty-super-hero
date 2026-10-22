@@ -1282,7 +1282,8 @@
     "load": "加载网络请求",
     "reload": "重新加载",
     "loadFailed": "无法加载 Client 的网络请求",
-    "count": "显示 Client 报告的 {{total}} 个请求中的 {{shown}} 个。",
+    "count": "{{groups}} 个唯一请求（{{calls}} 次调用）。",
+    "countFiltered": "显示 {{groups}} 个唯一请求中的 {{shown}} 个（{{calls}} 次调用）。",
     "mayBeBounded": "Client 报告了其上限 1,000 个请求，因此较早的请求可能缺失。",
     "filterText": "按名称、URL 或方法筛选",
     "filterStatus": "状态",
@@ -1301,7 +1302,8 @@
       "status": "状态",
       "resource": "资源",
       "url": "URL",
-      "actions": "操作"
+      "actions": "操作",
+      "calls": "调用"
     },
     "viewBody": "查看正文",
     "viewBodyOf": "查看 {{name}} 的正文",
@@ -1318,7 +1320,20 @@
       "binary": "二进制正文，不予显示。",
       "size": "{{count}} 个字符，已脱敏（{{mode}} 模式）",
       "copy": "复制",
-      "download": "下载"
-    }
+      "download": "下载",
+      "fromOlderCall": "这是 {{time}} 那次调用的正文：此资源较新的 {{count}} 次调用没有正文。",
+      "reason": {
+        "tooLarge": "Client 读取了此正文，但超出其大小限制，因此未保留。",
+        "evicted": "Client 已不再保留此正文：同一资源较新的调用或其内存上限已将其替换。",
+        "unreadable": "Client 无法读取此响应的正文。",
+        "none": "此调用没有正文。"
+      }
+    },
+    "saveFailures": "Client 保存调用历史失败 {{count}} 次，因此重新加载 Client 可能丢失调用记录。",
+    "someFailed": "{{count}} 次中 {{failed}} 次失败",
+    "timesCalled": "×{{count}}",
+    "bodyKept": "已保留正文",
+    "showCallsOf": "显示 {{name}} 的各次调用",
+    "hideCallsOf": "隐藏 {{name}} 的各次调用"
   }
 }

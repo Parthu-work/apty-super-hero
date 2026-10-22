@@ -1282,7 +1282,8 @@
     "load": "Load network calls",
     "reload": "Reload",
     "loadFailed": "Couldn't load the Client's network calls",
-    "count": "Showing {{shown}} of {{total}} calls the Client reported.",
+    "count": "{{groups}} unique requests ({{calls}} calls).",
+    "countFiltered": "Showing {{shown}} of {{groups}} unique requests ({{calls}} calls).",
     "mayBeBounded": "The Client reported its maximum of 1,000 calls, so older calls may be missing.",
     "filterText": "Filter by name, URL or method",
     "filterStatus": "Status",
@@ -1301,7 +1302,8 @@
       "status": "Status",
       "resource": "Resource",
       "url": "URL",
-      "actions": "Actions"
+      "actions": "Actions",
+      "calls": "Calls"
     },
     "viewBody": "View body",
     "viewBodyOf": "View the body of {{name}}",
@@ -1318,7 +1320,20 @@
       "binary": "Binary body, not shown.",
       "size": "{{count}} characters, redacted ({{mode}} mode)",
       "copy": "Copy",
-      "download": "Download"
-    }
+      "download": "Download",
+      "fromOlderCall": "This is the body of the call at {{time}}: the {{count}} newer call(s) of this resource have none.",
+      "reason": {
+        "tooLarge": "The Client read this body but it is over its size limit, so it did not keep it.",
+        "evicted": "The Client no longer has this body: a newer call of the same resource, or its memory limit, replaced it.",
+        "unreadable": "The Client could not read this response's body.",
+        "none": "This call has no body."
+      }
+    },
+    "saveFailures": "The Client could not save its call history {{count}} times, so reloading the Client may lose calls.",
+    "someFailed": "{{failed}} of {{count}} failed",
+    "timesCalled": "×{{count}}",
+    "bodyKept": "body kept",
+    "showCallsOf": "Show the calls of {{name}}",
+    "hideCallsOf": "Hide the calls of {{name}}"
   }
 }

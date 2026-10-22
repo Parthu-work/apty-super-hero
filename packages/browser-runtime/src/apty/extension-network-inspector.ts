@@ -59,6 +59,11 @@ import {
 } from "./json-body-summary.js";
 import { classifyLogEntry, type LogCategory } from "./log-classification.js";
 import {
+  bodyCandidates,
+  groupByResource,
+  resourceKeyOf,
+} from "./network-resource-groups.js";
+import {
   decodeBase64Utf8,
   isTextualMime,
   MAX_INLINE_BODY_CHARS,
@@ -67,7 +72,11 @@ import {
 } from "./resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "./service-worker-diagnostics.js";
 import { shownResourceName, shownUrl } from "./shown-url.js";
-import type { AptyObservedResource, AptyServiceWorkerStatus } from "./types.js";
+import type {
+  AptyBodyMissingReason,
+  AptyObservedResource,
+  AptyServiceWorkerStatus,
+} from "./types.js";
 
 // Re-exported for existing consumers (apty/index.ts) — the canonical
 // definition now lives in resource-body-utils.ts, shared with
@@ -430,15 +439,41 @@ function suggestClosestResourceNames(
     .map(({ resourceName, count }) => ({ resourceName, count }));
 }
 
+/** The most resources `list_extension_network_resources` returns; `omittedResources` says how many more exist. */
+export const MAX_LISTED_RESOURCES = 200;
+
+/** One resource (method + URL without its query string) and what the Client reported about its calls. */
+export interface ListedResource {
+  resourceName: string;
+  method: string;
+  /** As the current redaction mode shows it, without a query string. */
+  url: string;
+  count: number;
+  failedCount: number;
+  latestStatus?: number;
+  latestFailed?: true;
+  latestError?: string;
+  latestTimestamp: number;
+  /** Whether the Client keeps a body for any call of this resource; absent when the Client does not say. */
+  hasBody?: boolean;
+}
+
 export type ListResourcesResult =
   | { connected: false; error?: string }
   | {
       connected: true;
       extensionId: string;
-      resources: Array<ExtensionCaptureEntry & { resourceName: string }>;
+      /** Unique resources, the most recently called first. */
+      resources: ListedResource[];
+      uniqueResources: number;
+      totalCalls: number;
+      /** Resources beyond the cap that are not listed. */
+      omittedResources?: number;
+      /** The Client failed to save its history this many times, so a restart may lose calls. */
+      saveFailures?: number;
     };
 
-/** Ask the connected Apty Client extension what resources it has observed itself requesting. */
+/** Ask the connected Apty Client extension what resources it has observed itself requesting, one entry per unique resource. */
 export async function listObservedResources(
   conversationId: string | undefined,
 ): Promise<ListResourcesResult> {
@@ -454,17 +489,44 @@ export async function listObservedResources(
   }
   await getRedactionMode();
 
-  return {
-    connected: true,
-    extensionId: active.extensionId,
-    resources: result.resources.map((r) => ({
+  // Grouped on the URL as the mode shows it, so a key is never a raw URL.
+  const groups = groupByResource(
+    result.resources.map((r) => ({
       ...r,
       url: shownUrl(r.url ?? ""),
       resourceName: shownResourceName(r.url ?? ""),
-      ...(r.errorText !== undefined
-        ? { errorText: redactText(r.errorText) }
-        : {}),
     })),
+  );
+  const resources = groups.slice(0, MAX_LISTED_RESOURCES).map((group) => {
+    const { latest } = group;
+    const knowsBodies = group.calls.some((c) => c.hasBody !== undefined);
+    return {
+      resourceName: group.resourceName,
+      method: group.method,
+      url: group.url,
+      count: group.count,
+      failedCount: group.failedCount,
+      ...(latest.status !== undefined ? { latestStatus: latest.status } : {}),
+      ...(latest.failed ? { latestFailed: true as const } : {}),
+      ...(latest.errorText !== undefined
+        ? { latestError: redactText(latest.errorText) }
+        : {}),
+      latestTimestamp: latest.timestamp,
+      ...(knowsBodies
+        ? { hasBody: group.calls.some((c) => c.hasBody === true) }
+        : {}),
+    };
+  });
+  return {
+    connected: true,
+    extensionId: active.extensionId,
+    resources,
+    uniqueResources: groups.length,
+    totalCalls: result.resources.length,
+    ...(groups.length > resources.length
+      ? { omittedResources: groups.length - resources.length }
+      : {}),
+    ...(result.saveFailures ? { saveFailures: result.saveFailures } : {}),
   };
 }
 
@@ -650,6 +712,12 @@ export interface InspectResourceResult {
   suggestions?: ResourceSuggestion[];
   /** Populated when more than one resource matched — the other candidates that were NOT chosen, so the answer can disclose it picked the most-recent/highest-ranked of several. */
   alsoMatched?: string[];
+  /** Set when the body is from an older call of the resource because the newest has none. */
+  bodyFromOlderCall?: {
+    timestamp: string;
+    newerCallsWithoutBody: number;
+    note: string;
+  };
   /** For `body_denied`: the deny-list entry that matched the resource URL. */
   deniedBy?: string;
   /** The body was too large to redact safely, so it was neither shown nor stored; `evidenceId` is the metadata-only record. */
@@ -679,6 +747,8 @@ export type ResourceBodyRead =
       /** The decoded text is longer than redaction can cover whole, so it was neither redacted nor kept; `fullLength` is its length. */
       tooLargeToRedact?: true;
       fullLength?: number;
+      /** Why the Client has no body for this call, when it says. */
+      reason?: AptyBodyMissingReason;
     }
   | {
       status: "ok" | "http_error";
@@ -705,7 +775,10 @@ export async function readResourceBody(
   if (deniedBy !== null) return { status: "body_denied", deniedBy };
   const fetched = await provider.getResourceBody(resource.requestId);
   if (!fetched.found || fetched.body === undefined) {
-    return { status: isHttpError ? "http_error" : "body_unavailable" };
+    return {
+      status: isHttpError ? "http_error" : "body_unavailable",
+      ...(fetched.reason ? { reason: fetched.reason } : {}),
+    };
   }
   let isBinary = !isTextualMime(resource.mimeType);
   let text = "";
@@ -741,6 +814,15 @@ export async function readResourceBody(
   };
 }
 
+const MISSING_BODY_EXPLANATIONS: Record<AptyBodyMissingReason, string> = {
+  "too-large":
+    "The Client read it but it is over the Client's size limit, so it did not keep it.",
+  evicted:
+    "The Client no longer has it: a newer call of the same resource or its memory budget replaced it.",
+  unreadable: "The Client could not read the response body.",
+  none: "This call has no body to keep.",
+};
+
 /** Find the resource matching `resourceQuery` among what the Apty Client reports observing, and retrieve its actual response body. Never fabricates a body — every non-"ok" status is an explicit, structured failure. */
 export async function inspectResource(
   conversationId: string | undefined,
@@ -774,7 +856,6 @@ export async function inspectResource(
   // the raw URL; everything returned uses the URL as the current mode shows it.
   await getRedactionMode();
   const rawMatches = matchResources(listed.resources, resourceQuery);
-  const raw = rawMatches[0];
   const matches = rawMatches.map((match) => ({
     ...match,
     url: shownUrl(match.url),
@@ -783,8 +864,9 @@ export async function inspectResource(
       ? { errorText: redactText(match.errorText) }
       : {}),
   }));
-  const best = matches[0];
-  if (!best || !raw) {
+  const newest = matches[0];
+  const rawNewest = rawMatches[0];
+  if (!newest || !rawNewest) {
     const suggestions = suggestClosestResourceNames(
       listed.resources,
       resourceQuery,
@@ -812,14 +894,56 @@ export async function inspectResource(
             matches
               .slice(1)
               .map((m) => m.resourceName)
-              .filter((name) => name !== best.resourceName),
+              .filter((name) => name !== newest.resourceName),
           ),
         )
       : undefined;
 
   // The user's request is consent for this one resource; the deny list is
-  // the standing policy above it, so a matching body is never fetched.
-  const read = await readResourceBody(provider, raw, await loadBodyDenyList());
+  // the standing policy above it, so a matching body is never fetched. It
+  // is checked against each candidate's raw URL.
+  const denyList = await loadBodyDenyList();
+  const rawById = new Map(rawMatches.map((m) => [m.requestId, m]));
+  // The newest call may have no body (it failed, or the Client keeps only
+  // another call's): an older call of the same resource may have one.
+  const newestKey = resourceKeyOf(newest.method, newest.url);
+  const sameResource = matches.filter(
+    (m) => resourceKeyOf(m.method, m.url) === newestKey,
+  );
+  let best = newest;
+  let raw = rawNewest;
+  let read: ResourceBodyRead | undefined;
+  for (const candidate of bodyCandidates(sameResource)) {
+    const candidateRaw = rawById.get(candidate.requestId) ?? rawNewest;
+    const attempt = await readResourceBody(provider, candidateRaw, denyList);
+    if (!read) {
+      read = attempt;
+      best = candidate;
+      raw = candidateRaw;
+    }
+    const decisive =
+      attempt.status === "body_denied" ||
+      ("body" in attempt && attempt.body !== undefined) ||
+      ("tooLargeToRedact" in attempt && attempt.tooLargeToRedact);
+    if (decisive) {
+      read = attempt;
+      best = candidate;
+      raw = candidateRaw;
+      break;
+    }
+  }
+  if (!read) throw new Error("no candidate call for a matched resource");
+  const olderCallIndex = sameResource.findIndex(
+    (m) => m.requestId === best.requestId,
+  );
+  const bodyFromOlderCall =
+    olderCallIndex > 0 && "body" in read && read.body
+      ? {
+          timestamp: new Date(best.timestamp).toISOString(),
+          newerCallsWithoutBody: olderCallIndex,
+          note: `The newest call of ${best.resourceName} (${new Date(newest.timestamp).toISOString()}) has no body; this body is from the call at ${new Date(best.timestamp).toISOString()}.`,
+        }
+      : undefined;
   if (read.status === "failed") {
     return {
       found: true,
@@ -885,16 +1009,18 @@ export async function inspectResource(
     };
   }
   if (!read.body) {
+    const why = read.reason ? ` ${MISSING_BODY_EXPLANATIONS[read.reason]}` : "";
     return {
       found: true,
       status: read.status,
       resourceQuery,
       request: best,
       alsoMatched,
-      error:
+      error: `${
         read.status === "http_error"
           ? `${best.resourceName} returned HTTP ${best.status}, and the Apty Client did not provide the response body.`
-          : "The request was observed, but the Apty Client did not provide the response body.",
+          : "The request was observed, but the Apty Client did not provide the response body."
+      }${why}`,
     };
   }
 
@@ -948,6 +1074,7 @@ export async function inspectResource(
     resourceQuery,
     request: best,
     alsoMatched,
+    ...(bodyFromOlderCall ? { bodyFromOlderCall } : {}),
     response: {
       bodyPreview: preview,
       fullLength,

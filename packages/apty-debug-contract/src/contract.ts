@@ -111,6 +111,8 @@ export const networkEntrySchema = z.object({
   failed: z.boolean().optional(),
   errorText: z.string().optional(),
   durationMs: z.number().optional(),
+  /** True when this exact call's body is kept and `get-resource-body` can return it. Optional; absent means unknown. */
+  hasBody: z.boolean().optional(),
   context: logContextSchema,
 });
 export type NetworkEntry = z.infer<typeof networkEntrySchema>;
@@ -191,7 +193,7 @@ export const getResourceBodyResponseSchema = z.object({
   found: z.boolean(),
   body: z.string().optional(),
   base64Encoded: z.boolean().optional(),
-  /** Present when `found` is false, or when a body exists but couldn't be provided (e.g. capture wasn't enabled, or the body was already evicted) — never silently omitted in favor of an empty `found:true`. */
+  /** Present when `found` is false, or when a body exists but couldn't be provided (e.g. capture wasn't enabled, or the body was already evicted) — never silently omitted in favor of an empty `found:true`. Producers should use one of "too-large", "evicted", "unreadable" or "none"; consumers must accept any string. */
   reason: z.string().optional(),
 });
 export type GetResourceBodyResponse = z.infer<

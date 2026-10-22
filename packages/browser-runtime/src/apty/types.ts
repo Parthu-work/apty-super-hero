@@ -130,6 +130,8 @@ export type AptyPeerFailure =
 export interface AptyResourceList {
   ok: boolean;
   resources: AptyObservedResource[];
+  /** The Client's count of failed history saves, when it reports one. */
+  saveFailures?: number;
   error?: string;
   failure?: AptyPeerFailure | "not_configured";
 }
@@ -177,13 +179,23 @@ export interface AptyObservedResource {
   failed?: boolean;
   errorText?: string;
   timestamp: number;
+  /** True when the Client keeps this exact call's body; absent when the Client does not say. */
+  hasBody?: boolean;
 }
+
+/** Why a resource has no body to give, when the Client says. */
+export type AptyBodyMissingReason =
+  | "too-large"
+  | "evicted"
+  | "unreadable"
+  | "none";
 
 /** The actual body of a previously-listed resource, fetched by requestId. */
 export interface AptyResourceBody {
   found: boolean;
   body?: string;
   base64Encoded?: boolean;
+  reason?: AptyBodyMissingReason;
 }
 
 /**

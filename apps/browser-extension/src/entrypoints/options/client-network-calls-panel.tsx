@@ -3,8 +3,13 @@ import {
   type NetworkCall,
   type NetworkCallBody,
   type NetworkCallList,
-  readClientNetworkCallBody,
+  readClientResourceBody,
 } from "@apty/browser-runtime/apty/client-network-calls";
+import {
+  groupByResource,
+  isFailedCall,
+  type ResourceGroup,
+} from "@apty/browser-runtime/apty/network-resource-groups";
 import { currentRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { Badge } from "@apty/ui/components/ui/badge";
@@ -14,8 +19,16 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
 import { downloadText } from "@apty/ui/lib/download";
 import { withExportHeader } from "@apty/ui/lib/export-header";
-import { CopyIcon, DownloadIcon, Loader2, XCircle } from "lucide-react";
-import { useRef, useState } from "react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  CopyIcon,
+  DownloadIcon,
+  Loader2,
+  XCircle,
+} from "lucide-react";
+import { Fragment, useRef, useState } from "react";
 import { JsonTree } from "../../components/investigation/json-tree";
 
 export type StatusClass = "all" | "failed" | "4xx" | "5xx";
@@ -59,6 +72,32 @@ export function filterNetworkCalls(
   );
 }
 
+/**
+ * Resources matching the text (in any of their calls' name, URL or method)
+ * and the status class: a resource matches a class when its latest call
+ * does, or any of its failed calls does.
+ */
+export function filterResourceGroups(
+  groups: readonly ResourceGroup<NetworkCall>[],
+  text: string,
+  statusClass: StatusClass,
+): ResourceGroup<NetworkCall>[] {
+  const needle = text.trim().toLowerCase();
+  return groups.filter(
+    (group) =>
+      (inClass(group.latest, statusClass) ||
+        group.calls.some(
+          (call) => isFailedCall(call) && inClass(call, statusClass),
+        )) &&
+      (!needle ||
+        group.calls.some((call) =>
+          [call.resourceName, call.url, call.method].some((field) =>
+            field.toLowerCase().includes(needle),
+          ),
+        )),
+  );
+}
+
 function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
   try {
     return { ok: true, value: JSON.parse(text) };
@@ -73,8 +112,15 @@ type ListState =
   | { status: "loaded"; result: NetworkCallList };
 
 type BodyState =
-  | { requestId: string; status: "loading" }
-  | { requestId: string; status: "loaded"; result: NetworkCallBody };
+  | { key: string; status: "loading" }
+  | { key: string; status: "loaded"; result: NetworkCallBody };
+
+const REASON_MESSAGES = {
+  "too-large": "networkCalls.body.reason.tooLarge",
+  evicted: "networkCalls.body.reason.evicted",
+  unreadable: "networkCalls.body.reason.unreadable",
+  none: "networkCalls.body.reason.none",
+} as const satisfies Record<string, TranslationKey>;
 
 /** Why a call has no body to show, or `null` when there is one. */
 function bodyMessage(
@@ -101,12 +147,17 @@ function bodyMessage(
     case "body_denied":
       return t("networkCalls.body.denied", { entry: result.deniedBy });
     case "body_unavailable":
-      return t("networkCalls.body.unavailable");
+      return result.reason
+        ? t(REASON_MESSAGES[result.reason])
+        : t("networkCalls.body.unavailable");
   }
   if (!result.body) {
-    return t("networkCalls.body.httpErrorNoBody", {
+    const base = t("networkCalls.body.httpErrorNoBody", {
       status: String(result.call.status ?? ""),
     });
+    return result.reason
+      ? `${base} ${t(REASON_MESSAGES[result.reason])}`
+      : base;
   }
   return result.body.isBinary ? t("networkCalls.body.binary") : null;
 }
@@ -139,6 +190,14 @@ function BodyView({ result }: { result: NetworkCallBody }) {
   const exported = parsed.ok ? text : withExportHeader(text, mode);
   return (
     <div className="space-y-2">
+      {result.newerCallsWithoutBody ? (
+        <p className="text-xs text-muted-foreground">
+          {t("networkCalls.body.fromOlderCall", {
+            time: new Date(result.call.timestamp).toLocaleTimeString(),
+            count: String(result.newerCallsWithoutBody),
+          })}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">
           {t("networkCalls.body.size", {
@@ -194,6 +253,37 @@ function statusLabel(
     : String(call.status);
 }
 
+function GroupStatus({
+  group,
+  t,
+}: {
+  group: ResourceGroup<NetworkCall>;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  const { latest } = group;
+  return (
+    <>
+      {latest.failed ? (
+        <Badge variant="destructive">{statusLabel(latest, t)}</Badge>
+      ) : (
+        statusLabel(latest, t)
+      )}
+      {latest.failed && latest.errorText && (
+        <div className="mt-0.5 text-muted-foreground">{latest.errorText}</div>
+      )}
+      {group.failedCount > 0 && (
+        <div className="mt-0.5 flex items-center gap-1 text-destructive dark:text-red-400">
+          <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+          {t("networkCalls.someFailed", {
+            failed: String(group.failedCount),
+            count: String(group.count),
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** The Apty Client's own network calls, loaded and read only when the user asks; no model is involved. */
 export function ClientNetworkCallsPanel({
   extensionId,
@@ -205,6 +295,7 @@ export function ClientNetworkCallsPanel({
   const [text, setText] = useState("");
   const [statusClass, setStatusClass] = useState<StatusClass>("all");
   const [body, setBody] = useState<BodyState | null>(null);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // Only the latest request's answer is shown: an older one that arrives
   // late is dropped instead of replacing a newer one.
   const listRequest = useRef(0);
@@ -220,16 +311,28 @@ export function ClientNetworkCallsPanel({
     setList({ status: "loaded", result });
   };
 
-  const viewBody = async (requestId: string) => {
+  const viewBody = async (key: string) => {
     const request = ++bodyRequest.current;
-    setBody({ requestId, status: "loading" });
-    const result = await readClientNetworkCallBody(extensionId, requestId);
+    setBody({ key, status: "loading" });
+    const result = await readClientResourceBody(extensionId, key);
     if (request !== bodyRequest.current) return;
-    setBody({ requestId, status: "loaded", result });
+    setBody({ key, status: "loaded", result });
   };
 
-  const downloadList = (calls: NetworkCall[], total: number) => {
+  const toggle = (key: string) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  const downloadList = (
+    shownGroups: ResourceGroup<NetworkCall>[],
+    allGroups: number,
+    total: number,
+  ) => {
     const mode = currentRedactionMode();
+    const calls = shownGroups.flatMap((group) => [...group.calls].reverse());
     downloadText(
       `apty-client-network-calls.redaction-${mode}.json`,
       JSON.stringify(
@@ -240,7 +343,19 @@ export function ClientNetworkCallsPanel({
           filter: { text: text.trim(), status: statusClass },
           shown: calls.length,
           total,
-          summary: `shown ${calls.length} of ${total}`,
+          uniqueRequests: { shown: shownGroups.length, total: allGroups },
+          summary: `shown ${calls.length} of ${total} calls, in ${shownGroups.length} of ${allGroups} unique requests`,
+          groups: shownGroups.map((group) => ({
+            key: group.key,
+            method: group.method,
+            url: group.url,
+            resourceName: group.resourceName,
+            calls: group.count,
+            failedCalls: group.failedCount,
+            latestStatus: group.latest.status,
+            latestFailed: group.latest.failed === true ? true : undefined,
+            latestTimestamp: group.latest.timestamp,
+          })),
           calls,
         },
         null,
@@ -251,9 +366,9 @@ export function ClientNetworkCallsPanel({
   };
 
   const result = list.status === "loaded" ? list.result : null;
-  const shown = result?.ok
-    ? filterNetworkCalls(result.calls, text, statusClass)
-    : [];
+  const allGroups = result?.ok ? groupByResource(result.calls) : [];
+  const shown = filterResourceGroups(allGroups, text, statusClass);
+  const bodyGroup = body && allGroups.find((g) => g.key === body.key);
 
   return (
     <section
@@ -296,11 +411,20 @@ export function ClientNetworkCallsPanel({
       {result?.ok && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground" role="status">
-            {t("networkCalls.count", {
-              shown: String(shown.length),
-              total: String(result.calls.length),
-            })}
+            {shown.length === allGroups.length
+              ? t("networkCalls.count", {
+                  groups: String(allGroups.length),
+                  calls: String(result.calls.length),
+                })
+              : t("networkCalls.countFiltered", {
+                  shown: String(shown.length),
+                  groups: String(allGroups.length),
+                  calls: String(result.calls.length),
+                })}
             {result.mayBeBounded && ` ${t("networkCalls.mayBeBounded")}`}
+            {result.saveFailures
+              ? ` ${t("networkCalls.saveFailures", { count: String(result.saveFailures) })}`
+              : ""}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Input
@@ -334,7 +458,9 @@ export function ClientNetworkCallsPanel({
               variant="outline"
               className="ml-auto"
               disabled={result.calls.length === 0}
-              onClick={() => downloadList(shown, result.calls.length)}
+              onClick={() =>
+                downloadList(shown, allGroups.length, result.calls.length)
+              }
             >
               <DownloadIcon className="h-4 w-4" />
               {t("networkCalls.downloadList")}
@@ -366,6 +492,9 @@ export function ClientNetworkCallsPanel({
                       {t("networkCalls.columns.resource")}
                     </th>
                     <th scope="col" className="px-2 py-1">
+                      {t("networkCalls.columns.calls")}
+                    </th>
+                    <th scope="col" className="px-2 py-1">
                       {t("networkCalls.columns.url")}
                     </th>
                     <th scope="col" className="px-2 py-1">
@@ -376,50 +505,113 @@ export function ClientNetworkCallsPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {shown.map((call) => (
-                    <tr key={call.requestId} className="border-t align-top">
-                      <td className="whitespace-nowrap px-2 py-1">
-                        {new Date(call.timestamp).toLocaleTimeString()}
-                      </td>
-                      <td className="px-2 py-1 font-mono">{call.method}</td>
-                      <td className="px-2 py-1">
-                        {call.failed ? (
-                          <Badge variant="destructive">
-                            {statusLabel(call, t)}
-                          </Badge>
-                        ) : (
-                          statusLabel(call, t)
-                        )}
-                        {call.failed && call.errorText && (
-                          <div className="mt-0.5 text-muted-foreground">
-                            {call.errorText}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 font-mono">
-                        {call.resourceName}
-                      </td>
-                      <td
-                        className="max-w-xs truncate px-2 py-1 font-mono"
-                        title={call.url}
-                      >
-                        {call.url}
-                      </td>
-                      <td className="px-2 py-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          aria-label={t("networkCalls.viewBodyOf", {
-                            name: call.resourceName || call.url,
-                          })}
-                          onClick={() => viewBody(call.requestId)}
-                        >
-                          {t("networkCalls.viewBody")}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {shown.map((group) => {
+                    const open = expanded.has(group.key);
+                    const name = group.resourceName || group.url;
+                    return (
+                      <Fragment key={group.key}>
+                        <tr className="border-t align-top">
+                          <td className="whitespace-nowrap px-2 py-1">
+                            {new Date(
+                              group.latest.timestamp,
+                            ).toLocaleTimeString()}
+                          </td>
+                          <td className="px-2 py-1 font-mono">
+                            {group.method}
+                          </td>
+                          <td className="px-2 py-1">
+                            <GroupStatus group={group} t={t} />
+                          </td>
+                          <td className="px-2 py-1 font-mono">
+                            {group.resourceName}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1">
+                            {t("networkCalls.timesCalled", {
+                              count: String(group.count),
+                            })}
+                          </td>
+                          <td
+                            className="max-w-xs truncate px-2 py-1 font-mono"
+                            title={group.url}
+                          >
+                            {group.url}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              aria-expanded={open}
+                              aria-label={t(
+                                open
+                                  ? "networkCalls.hideCallsOf"
+                                  : "networkCalls.showCallsOf",
+                                { name },
+                              )}
+                              onClick={() => toggle(group.key)}
+                            >
+                              {open ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              aria-label={t("networkCalls.viewBodyOf", {
+                                name,
+                              })}
+                              onClick={() => viewBody(group.key)}
+                            >
+                              {t("networkCalls.viewBody")}
+                            </Button>
+                          </td>
+                        </tr>
+                        {open &&
+                          group.calls.map((call) => (
+                            <tr
+                              key={call.requestId}
+                              className="bg-muted/40 align-top"
+                              data-testid="group-call"
+                            >
+                              <td className="whitespace-nowrap py-1 pl-6 pr-2">
+                                {new Date(call.timestamp).toLocaleTimeString()}
+                              </td>
+                              <td className="px-2 py-1 font-mono">
+                                {call.method}
+                              </td>
+                              <td className="px-2 py-1">
+                                {isFailedCall(call) ? (
+                                  <Badge variant="destructive">
+                                    {statusLabel(call, t)}
+                                  </Badge>
+                                ) : (
+                                  statusLabel(call, t)
+                                )}
+                                {call.failed && call.errorText && (
+                                  <div className="mt-0.5 text-muted-foreground">
+                                    {call.errorText}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-2 py-1 text-muted-foreground">
+                                {call.hasBody ? t("networkCalls.bodyKept") : ""}
+                              </td>
+                              <td />
+                              <td
+                                className="max-w-xs truncate px-2 py-1 font-mono"
+                                title={call.url}
+                              >
+                                {call.url}
+                              </td>
+                              <td />
+                            </tr>
+                          ))}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -433,6 +625,9 @@ export function ClientNetworkCallsPanel({
           aria-live="polite"
           aria-busy={body.status === "loading"}
         >
+          {bodyGroup && (
+            <p className="font-mono text-xs">{bodyGroup.resourceName}</p>
+          )}
           {body.status === "loading" ? (
             <p className="flex items-center gap-2 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" />

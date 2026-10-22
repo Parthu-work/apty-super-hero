@@ -356,7 +356,7 @@ describe("Widget network calls in Options, with no model involved", () => {
     });
     await section.getByRole("button", { name: "Load network calls" }).click();
     await section
-      .getByText("Showing 5 of 5 calls the Client reported.")
+      .getByText("5 unique requests (5 calls).")
       .waitFor({ timeout: 30_000 });
     const listed = await section.innerText();
     assert.match(listed, /missing\.json/);
@@ -371,12 +371,12 @@ describe("Widget network calls in Options, with no model involved", () => {
 
     await section.getByRole("button", { name: "4xx" }).click();
     await section
-      .getByText("Showing 2 of 5 calls the Client reported.")
+      .getByText("Showing 2 of 5 unique requests (5 calls).")
       .waitFor();
     await section.getByRole("button", { name: "All", exact: true }).click();
     await section.getByLabel("Filter by name, URL or method").fill("segment");
     await section
-      .getByText("Showing 1 of 5 calls the Client reported.")
+      .getByText("Showing 1 of 5 unique requests (5 calls).")
       .waitFor();
 
     const list = await downloaded(options, () =>
@@ -386,7 +386,10 @@ describe("Widget network calls in Options, with no model involved", () => {
     const parsed = JSON.parse(list.text);
     assert.equal(parsed.redactionMode, "strict");
     assert.deepEqual(parsed.filter, { text: "segment", status: "all" });
-    assert.equal(parsed.summary, "shown 1 of 5");
+    assert.equal(
+      parsed.summary,
+      "shown 1 of 5 calls, in 1 of 5 unique requests",
+    );
     assert.deepEqual(
       parsed.calls.map((call) => call.resourceName),
       ["segment.json"],

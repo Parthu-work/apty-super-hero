@@ -13,6 +13,16 @@ full commit-level history.
   over 100,000 characters, or has a match that would run from one value into
   the next; a test compares the result with whole-text redaction and fails on
   any secret the whole-text pass hides and this one shows.
+- **Network calls read as unique requests, end to end**: the Settings
+  panel and the chat's `list_extension_network_resources` group the Client's
+  calls by method + URL without query ("32 unique requests (105 calls)"),
+  with a count, a failed marker and a per-request history.
+  `inspect_extension_network` and **View body** read the newest call that
+  has a body, and say when it is an older one. The reference service worker
+  keeps bodies per request (latest success and latest failure) under a
+  total budget instead of for the last 10 calls, reports `hasBody` per call
+  and a `reason` when a body is missing (both optional). See
+  `docs/integrations/apty/CLIENT-PATCH.md`.
 - **Redaction keeps a JSON body JSON**: a JSON object or array is redacted
   value by value with the same passes. A key the key/value pass treats as
   sensitive (`auth`, `session…`, `…token…`) now loses its whole value
