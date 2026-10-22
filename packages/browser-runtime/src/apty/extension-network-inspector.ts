@@ -491,9 +491,6 @@ export async function listObservedResources(
       ...r,
       url: shownUrl(r.url ?? ""),
       resourceName: shownResourceName(r.url ?? ""),
-      ...(r.errorText !== undefined
-        ? { errorText: redactText(r.errorText) }
-        : {}),
     })),
   );
   const resources = groups.slice(0, MAX_LISTED_RESOURCES).map((group) => {

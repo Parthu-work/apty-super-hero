@@ -825,7 +825,7 @@ describe("resource names the model sees", () => {
     const listed = await listObservedResources("conv-a");
     const inspected = await inspectResource("conv-a", "flows.json");
 
-    expect(listed.connected && listed.resources[0]?.errorText).toBe(
+    expect(listed.connected && listed.resources[0]?.latestError).toBe(
       "net::ERR_FAILED for <REDACTED-EMAIL> token=<REDACTED>",
     );
     expect(inspected).toMatchObject({
