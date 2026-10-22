@@ -491,6 +491,9 @@ export async function listObservedResources(
       ...r,
       url: shownUrl(r.url ?? ""),
       resourceName: shownResourceName(r.url ?? ""),
+      ...(r.errorText !== undefined
+        ? { errorText: redactText(r.errorText) }
+        : {}),
     })),
   );
   const resources = groups.slice(0, MAX_LISTED_RESOURCES).map((group) => {
@@ -847,6 +850,9 @@ export async function inspectResource(
     ...match,
     url: shownUrl(match.url),
     resourceName: shownResourceName(match.url),
+    ...(match.errorText !== undefined
+      ? { errorText: redactText(match.errorText) }
+      : {}),
   }));
   const newest = matches[0];
   const rawNewest = rawMatches[0];

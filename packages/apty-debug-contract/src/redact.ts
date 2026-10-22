@@ -124,9 +124,87 @@ const AUTH_SCHEME_PATTERN = /\b(Bearer|Basic|Digest)\s+[A-Za-z0-9\-._~+/]+=*/g;
 /** JWT-shaped: three base64url segments, header segment starting `eyJ` (the base64url encoding of `{"`), anywhere in the text — not just after a recognized key name. */
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
 
-/** A PEM-armored block of any kind (private key, certificate, ...), single- or multi-line. */
-const PEM_BLOCK_PATTERN =
-  /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g;
+const PEM_BEGIN = "-----BEGIN ";
+const PEM_END = "-----END ";
+const PEM_DASHES = "-----";
+
+function isPemTypeChar(code: number): boolean {
+  return (
+    (code >= 65 && code <= 90) || (code >= 48 && code <= 57) || code === 32
+  );
+}
+
+/** The type at `index` in a BEGIN or END line: a run of A-Z, 0-9 and spaces closed by `-----`. */
+function pemTypeAt(text: string, index: number): string | undefined {
+  let end = index;
+  while (end < text.length && isPemTypeChar(text.charCodeAt(end))) end++;
+  if (end === index || !text.startsWith(PEM_DASHES, end)) return undefined;
+  return text.slice(index, end);
+}
+
+/**
+ * Every PEM-armored block of any kind (private key, certificate, ...),
+ * single- or multi-line: `-----BEGIN <type>-----` up to the first
+ * `-----END <type>-----` after it, left to right without overlaps — what
+ * `/-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g` matches. That
+ * regex rescans to the end of the text for each BEGIN line without an END,
+ * which is quadratic; this finds each END line once.
+ */
+function pemBlocks(
+  text: string,
+): Array<{ start: number; end: number; type: string }> {
+  const ends = new Map<string, number[]>();
+  for (
+    let i = text.indexOf(PEM_END);
+    i !== -1;
+    i = text.indexOf(PEM_END, i + 1)
+  ) {
+    const type = pemTypeAt(text, i + PEM_END.length);
+    if (type === undefined) continue;
+    const at = ends.get(type);
+    if (at) at.push(i);
+    else ends.set(type, [i]);
+  }
+  const blocks: Array<{ start: number; end: number; type: string }> = [];
+  let from = 0;
+  for (
+    let i = text.indexOf(PEM_BEGIN);
+    i !== -1;
+    i = text.indexOf(PEM_BEGIN, Math.max(i + 1, from))
+  ) {
+    const type = pemTypeAt(text, i + PEM_BEGIN.length);
+    if (type === undefined) continue;
+    const bodyStart = i + PEM_BEGIN.length + type.length + PEM_DASHES.length;
+    const endAt = firstAtOrAfter(ends.get(type) ?? [], bodyStart);
+    if (endAt === undefined) continue;
+    from = endAt + PEM_END.length + type.length + PEM_DASHES.length;
+    blocks.push({ start: i, end: from, type });
+  }
+  return blocks;
+}
+
+/** The first number in ascending `list` that is at least `min`. */
+function firstAtOrAfter(list: number[], min: number): number | undefined {
+  let low = 0;
+  let high = list.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if ((list[mid] as number) < min) low = mid + 1;
+    else high = mid;
+  }
+  return list[low];
+}
+
+/** `text` with each PEM block's body replaced, its BEGIN and END lines kept. */
+function redactPemBlocks(text: string): string {
+  let result = "";
+  let last = 0;
+  for (const { start, end, type } of pemBlocks(text)) {
+    result += `${text.slice(last, start)}-----BEGIN ${type}-----<REDACTED>-----END ${type}-----`;
+    last = end;
+  }
+  return result + text.slice(last);
+}
 
 /** `scheme://user:password@host` — the whole userinfo component, never just the password, since the username can itself be sensitive (an email, an account id). */
 const URL_USERINFO_PATTERN = /\b([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^/\s@]+)@/g;
@@ -176,6 +254,16 @@ const KNOWN_TOKEN_SHAPE_PATTERN =
 
 const EMAIL_PATTERN = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
 
+/**
+ * A medical record number written out in text (`MRN 4815162342`,
+ * `MRN#A-123456`, `medical record number: 123456`): the label stays, the
+ * number (at least four characters, one a digit) is masked. The JSON-aware pass already covers an `mrn` key; this
+ * covers the number inside a sentence, a URL or a log line. PII, so it runs
+ * in strict and standard mode, like the PII key profiles.
+ */
+const MRN_PATTERN =
+  /\b(MRN|medical[\s_-]+record[\s_-]+(?:number|num|no\.?|#))(\s*[:#=]\s*|\s+|(?=\d))((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{3,})\b/gi;
+
 function redactKeyValuePairs(text: string): string {
   return text.replace(
     SENSITIVE_KEYVALUE_PATTERN,
@@ -194,13 +282,18 @@ function redactKeyValuePairs(text: string): string {
  * Order matters: each pass below only needs to worry about patterns it
  * could otherwise collide with, documented pass-by-pass.
  *
- * `mode` gates the JSON-aware key-profile pass (0, below) only — "off" is a
- * deliberate, explicit development-only escape hatch for over-eager PII/
- * page-context stripping (see json-redact.ts), never for the structural
- * passes that follow it (PEM/JWT/Bearer/known token shapes/emails): those
- * catch a credential by its SHAPE regardless of what key it sits under, and
- * always run, in every mode, because there is no comparable "false
- * positive" cost to weigh against leaving a real credential exposed.
+ * `mode` gates the JSON-aware key-profile pass (0, below) and the PII
+ * pattern (7.5) only — "off" is a deliberate, explicit development-only
+ * escape hatch for over-eager PII/page-context stripping (see
+ * json-redact.ts), never for the structural passes that follow it
+ * (PEM/JWT/Bearer/known token shapes/emails): those catch a credential by
+ * its SHAPE regardless of what key it sits under, and always run, in every
+ * mode, because there is no comparable "false positive" cost to weigh
+ * against leaving a real credential exposed.
+ *
+ * A JSON object or array is redacted value by value (`redactJsonText`), so
+ * the result is still JSON; anything else, or JSON that can't be, is
+ * redacted as one text.
  */
 export function redactSensitiveText(
   text: string,
@@ -211,15 +304,24 @@ export function redactSensitiveText(
   if (truncated.length > MAX_REDACT_INPUT_LENGTH) {
     truncationNotice = ` […${truncated.length - MAX_REDACT_INPUT_LENGTH} more chars truncated before redaction]`;
     truncated = truncated.slice(0, MAX_REDACT_INPUT_LENGTH);
+  } else {
+    const json = redactJsonText(truncated, mode);
+    if (json !== undefined) return json;
   }
 
-  let result = truncated;
   // 0. JSON-aware key-profile redaction (secrets/pii/page-context, by exact
   //    key name) — must run first so an object/array-valued sensitive key
   //    (e.g. `"cookie": {...}`) is redacted as a whole, balanced unit
   //    instead of the scalar-oriented regex below only partially consuming
   //    it and corrupting the surrounding JSON.
-  result = redactJsonAware(result, mode);
+  return (
+    redactPatterns(redactJsonAware(truncated, mode), mode) + truncationNotice
+  );
+}
+
+/** Passes 0.5 to 8 of `redactSensitiveText`: everything after the key-profile pass. */
+function redactPatterns(text: string, mode: RedactionMode): string {
+  let result = text;
   // 0.5. A known fully-sensitive header name at the start of a line — blank
   //    the whole rest of that line first (see SENSITIVE_HEADER_LINE_PATTERN's
   //    doc comment), before any other pass gets a chance to only partially
@@ -230,10 +332,7 @@ export function redactSensitiveText(
   });
   // 1. PEM blocks first — they contain their own `:`/`=`-like base64 content
   //    that could otherwise confuse later passes, and are unambiguous once matched.
-  result = result.replace(
-    PEM_BLOCK_PATTERN,
-    (_m, type) => `-----BEGIN ${type}-----<REDACTED>-----END ${type}-----`,
-  );
+  result = redactPemBlocks(result);
   // 2. URL userinfo — before the email pattern, since `user:pass@host` reads
   //    like an email address once the scheme/userinfo separator is gone.
   result = result.replace(URL_USERINFO_PATTERN, "$1<REDACTED>@");
@@ -247,12 +346,102 @@ export function redactSensitiveText(
   result = result.replace(KNOWN_TOKEN_SHAPE_PATTERN, "<REDACTED>");
   // 7. Generic sensitive key = value (JSON/query/header/cookie shaped).
   result = redactKeyValuePairs(result);
+  // 7.5. Medical record numbers in free text (PII: strict and standard).
+  if (mode !== "off") {
+    result = result.replace(MRN_PATTERN, "$1$2<REDACTED>");
+  }
   // 8. Emails, last (documented default-on constant).
   if (REDACT_EMAILS) {
     result = result.replace(EMAIL_PATTERN, "<REDACTED-EMAIL>");
   }
+  return result;
+}
 
-  return result + truncationNotice;
+const REDACTED = "<REDACTED>";
+
+/** Whether the key/value pass masks the value of a JSON property named `key`. */
+function isSensitiveKeyName(key: string): boolean {
+  const probe = `"${JSON.stringify(key).slice(1, -1)}":"v"`;
+  return redactKeyValuePairs(probe) !== probe;
+}
+
+/**
+ * A JSON string as the passes leave it when they see it inside the JSON
+ * text (escaped, between its quotes), or a placeholder when what they leave
+ * no longer reads as a string.
+ */
+function redactJsonString(value: string, mode: RedactionMode): string {
+  const literal = JSON.stringify(value).slice(1, -1);
+  const redacted = redactPatterns(literal, mode);
+  if (redacted === literal) return value;
+  try {
+    const parsed: unknown = JSON.parse(`"${redacted}"`);
+    if (typeof parsed === "string") return parsed;
+  } catch {
+    // Falls through to the placeholder.
+  }
+  return REDACTED;
+}
+
+function redactJsonNode(node: unknown, mode: RedactionMode): unknown {
+  if (typeof node === "string") return redactJsonString(node, mode);
+  if (Array.isArray(node))
+    return node.map((item) => redactJsonNode(item, mode));
+  if (typeof node === "object" && node !== null) {
+    return Object.fromEntries(
+      Object.entries(node).map(([key, value]) => [
+        redactJsonString(key, mode),
+        isSensitiveKeyName(key) ? REDACTED : redactJsonNode(value, mode),
+      ]),
+    );
+  }
+  return node;
+}
+
+/**
+ * A JSON object or array redacted value by value with the same passes, so
+ * the result is still JSON: a property whose key the key/value pass treats
+ * as sensitive loses its whole value, whatever its type (over the text, a
+ * number came out as a bare `<REDACTED>` and an object lost only its `{`),
+ * and a string ending in `token=` no longer masks what follows its closing
+ * quote. Undefined, so the text is redacted as before, when the input is
+ * not a JSON object or array, or when a PEM block or URL userinfo match
+ * would run from one value into the next: over the text that match is
+ * masked, value by value it would not be.
+ */
+function redactJsonText(text: string, mode: RedactionMode): string | undefined {
+  const trimmed = text.trim();
+  const looksLikeJson =
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"));
+  if (!looksLikeJson) return undefined;
+  let keyed: unknown;
+  try {
+    keyed = JSON.parse(redactJsonAware(trimmed, mode));
+  } catch {
+    return undefined;
+  }
+  const compact = JSON.stringify(keyed);
+  if (unboundedPatternMatches(compact).some((match) => match.includes('"'))) {
+    return undefined;
+  }
+  return JSON.stringify(redactJsonNode(keyed, mode));
+}
+
+/**
+ * What the two passes of `redactSensitiveText` that are not bounded by a
+ * quote character (PEM blocks, URL userinfo) would match in `text`, in the
+ * order that function runs them. A caller that redacts a JSON text member by
+ * member uses it to find a match that would cross from one member into the
+ * next, which redacting the members apart would miss.
+ */
+export function unboundedPatternMatches(text: string): string[] {
+  const pem = pemBlocks(text).map(({ start, end }) => text.slice(start, end));
+  const afterPem = redactPemBlocks(text);
+  const userinfo = [...afterPem.matchAll(URL_USERINFO_PATTERN)].map(
+    (m) => m[0],
+  );
+  return [...pem, ...userinfo];
 }
 
 /**
