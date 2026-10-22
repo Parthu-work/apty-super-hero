@@ -10,9 +10,20 @@ const script = fileURLToPath(
   new URL("./check-tag-on-main.mjs", import.meta.url),
 );
 
+// Inside a git hook, GIT_DIR and its siblings point at the repository being
+// pushed; dropped here, so every git command uses the scratch repository.
+const localVars = execFileSync("git", ["rev-parse", "--local-env-vars"], {
+  encoding: "utf8",
+})
+  .split("\n")
+  .filter(Boolean);
+const env = Object.fromEntries(
+  Object.entries(process.env).filter(([name]) => !localVars.includes(name)),
+);
+
 let repo;
 const git = (...args) =>
-  execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  execFileSync("git", args, { cwd: repo, encoding: "utf8", env }).trim();
 const commit = (message) => {
   writeFileSync(join(repo, "file.txt"), message);
   git("add", "file.txt");
@@ -23,6 +34,7 @@ const check = (sha, ref = "main") =>
   spawnSync(process.execPath, [script, sha, ref], {
     cwd: repo,
     encoding: "utf8",
+    env,
   });
 
 let onMain;

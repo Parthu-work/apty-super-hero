@@ -457,6 +457,9 @@ export async function listObservedResources(
       ...r,
       url: shownUrl(r.url ?? ""),
       resourceName: shownResourceName(r.url ?? ""),
+      ...(r.errorText !== undefined
+        ? { errorText: redactText(r.errorText) }
+        : {}),
     })),
   };
 }
@@ -763,6 +766,9 @@ export async function inspectResource(
     ...match,
     url: shownUrl(match.url),
     resourceName: shownResourceName(match.url),
+    ...(match.errorText !== undefined
+      ? { errorText: redactText(match.errorText) }
+      : {}),
   }));
   const best = matches[0];
   if (!best || !raw) {

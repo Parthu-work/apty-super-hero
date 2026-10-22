@@ -5,6 +5,7 @@ import {
   redactLogs,
   redactSensitiveText,
   redactUrl,
+  unboundedPatternMatches,
 } from "./redact";
 
 describe("redactHeaders", () => {
@@ -366,5 +367,163 @@ describe("redactSensitiveText — truncated JSON", () => {
     for (const mode of ["strict", "standard"] as const) {
       expect(redactSensitiveText(input, mode)).not.toContain(secret);
     }
+  });
+});
+
+describe("medical record numbers in free text", () => {
+  it.each([
+    ["MRN 4815162342", "MRN <REDACTED>"],
+    ["patient MRN: 4815162342 admitted", "patient MRN: <REDACTED> admitted"],
+    ["mrn#A-123456", "mrn#<REDACTED>"],
+    ["mrn=99887766&x=1", "mrn=<REDACTED>&x=1"],
+    ["Medical Record Number 12345", "Medical Record Number <REDACTED>"],
+    ["medical record no. 5550123", "medical record no. <REDACTED>"],
+    ["MRN4815162342", "MRN<REDACTED>"],
+  ])("masks the number in %s, in strict and standard", (text, expected) => {
+    expect(redactSensitiveText(text, "strict")).toBe(expected);
+    expect(redactSensitiveText(text, "standard")).toBe(expected);
+  });
+
+  it("leaves it in off mode, as it does every PII profile", () => {
+    expect(redactSensitiveText("MRN 4815162342", "off")).toBe("MRN 4815162342");
+  });
+
+  it("keeps JSON valid and leaves words that only contain the letters alone", () => {
+    const json = '{"note":"MRN 4815162342 seen","mrnFormat":"digits"}';
+    const out = redactSensitiveText(json, "strict");
+    expect(JSON.parse(out)).toEqual({
+      note: "MRN <REDACTED> seen",
+      mrnFormat: "digits",
+    });
+    expect(
+      redactSensitiveText("SMRN 1234, MRN ab, MRN format, mrnFormat", "strict"),
+    ).toBe("SMRN 1234, MRN ab, MRN format, mrnFormat");
+  });
+});
+
+describe("a JSON object or array stays JSON", () => {
+  const parsed = (
+    text: string,
+    mode: "strict" | "standard" | "off" = "strict",
+  ) => JSON.parse(redactSensitiveText(text, mode));
+
+  it.each([
+    "strict",
+    "standard",
+    "off",
+  ] as const)("%s: a number, boolean or null under a sensitive key name is replaced with a string", (mode) => {
+    expect(
+      parsed(
+        '{"auth":true,"session_count":12345,"my_token":null,"id":7}',
+        mode,
+      ),
+    ).toEqual({
+      auth: "<REDACTED>",
+      session_count: "<REDACTED>",
+      my_token: "<REDACTED>",
+      id: 7,
+    });
+  });
+
+  it("an object or array under a sensitive key name is replaced whole, not just its first character", () => {
+    expect(
+      parsed(
+        '{"auth_list":[987654,"x"],"session":{"user":"u","pw":"p"},"ok":[1]}',
+      ),
+    ).toEqual({ auth_list: "<REDACTED>", session: "<REDACTED>", ok: [1] });
+  });
+
+  it("a string ending in a key and '=' no longer masks the values after it", () => {
+    expect(parsed('["auth=",900087001,{"a":"token=\'","b":31337}]')).toEqual([
+      "auth=",
+      900087001,
+      { a: "token='<REDACTED>'", b: 31337 },
+    ]);
+  });
+
+  it("still redacts inside every string and key, and keeps everything else", () => {
+    expect(
+      parsed(
+        '{"jane@example.com":"x","note":"call Bearer abc.def with token=T1","url":"https://u:pw@h/p?sig=S1","list":["a.b@c.org",4,false]}',
+      ),
+    ).toEqual({
+      "<REDACTED-EMAIL>": "x",
+      note: "call Bearer <REDACTED> with token=<REDACTED>",
+      url: "https://<REDACTED>@h/p?sig=<REDACTED>",
+      list: ["<REDACTED-EMAIL>", 4, false],
+    });
+  });
+
+  it("falls back to redacting the whole text when a match runs from one value into the next", () => {
+    const out = redactSensitiveText('["see http://x","user:pw@host"]');
+    expect(out).not.toContain("user:pw");
+  });
+
+  it("leaves text that is not a JSON object or array to the text passes", () => {
+    expect(redactSensitiveText("auth: true, session=12345")).toBe(
+      "auth: <REDACTED>, session=<REDACTED>",
+    );
+    expect(redactSensitiveText('{"auth": 1, broken')).toBe(
+      '{"auth": <REDACTED>, broken',
+    );
+  });
+});
+
+describe("PEM blocks", () => {
+  // What the scanner replaced; it must match exactly what this matched.
+  const REFERENCE = /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g;
+  const reference = (text: string) =>
+    [...text.matchAll(REFERENCE)].map((m) => m[0]);
+  const pemOnly = (text: string) =>
+    unboundedPatternMatches(text).filter((m) => m.startsWith("-----BEGIN "));
+
+  it.each([
+    "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----",
+    "a -----BEGIN X-----1-----END X----- b -----BEGIN Y-----2-----END Y-----",
+    "-----BEGIN A-----x-----END B----- -----BEGIN B-----y-----END B-----",
+    "-----BEGIN A----------BEGIN A-----x-----END A-----",
+    "------BEGIN  -----x------END  ------",
+    "-----BEGIN A B-----x-----END A B----------END A B-----",
+    "-----BEGIN -----x-----END -----",
+    "-----BEGIN a-----x-----END a-----",
+    "-----BEGIN A-----x-----END AB----- -----END A-----",
+  ])("finds what the regex found in %j", (text) => {
+    expect(pemOnly(text)).toEqual(reference(text));
+  });
+
+  it("finds what the regex found on 2,000 seeded random texts", () => {
+    let state = 7;
+    const rand = () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 2 ** 32;
+    };
+    const parts = [
+      "-----BEGIN ",
+      "-----END ",
+      "-----",
+      "A",
+      "B",
+      " ",
+      "x",
+      "\n",
+      "-",
+    ];
+    for (let n = 0; n < 2000; n++) {
+      const text = Array.from(
+        { length: 5 + Math.floor(rand() * 40) },
+        () => parts[Math.floor(rand() * parts.length)],
+      ).join("");
+      expect(pemOnly(text), JSON.stringify(text)).toEqual(reference(text));
+    }
+  });
+
+  it("stays linear on many BEGIN lines without an END", () => {
+    const text = "-----BEGIN X-----".repeat(60_000);
+    const started = Date.now();
+    expect(unboundedPatternMatches(text)).toEqual([]);
+    expect(redactSensitiveText(text.slice(0, 99_000))).toBe(
+      text.slice(0, 99_000),
+    );
+    expect(Date.now() - started).toBeLessThan(2_000);
   });
 });
