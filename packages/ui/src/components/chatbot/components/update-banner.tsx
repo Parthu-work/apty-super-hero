@@ -50,6 +50,7 @@ const defaultTranslations = {
   "update.updating": "Checking...",
   "update.openStore": "Open Store",
   "update.updateNow": "Update Now",
+  "update.dismiss": "Dismiss",
 };
 
 export function UpdateBanner({
@@ -211,6 +212,7 @@ export function UpdateBanner({
             size="icon"
             className="h-8 w-8"
             onClick={handleDismiss}
+            aria-label={t("update.dismiss")}
           >
             <XIcon className="size-4" aria-hidden="true" />
           </Button>
@@ -277,6 +279,7 @@ export function UpdateBanner({
             size="icon"
             className="h-8 w-8"
             onClick={handleDismiss}
+            aria-label={t("update.dismiss")}
           >
             <XIcon className="size-4" aria-hidden="true" />
           </Button>

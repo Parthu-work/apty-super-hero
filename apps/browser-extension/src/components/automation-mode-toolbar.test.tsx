@@ -1,3 +1,4 @@
+import { I18nProvider } from "@apty/ui/i18n/context";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,13 +40,16 @@ describe("AutomationModeInputToolbar", () => {
     expect(onFormSubmit).not.toHaveBeenCalled();
   });
 
-  it("is a Send button that submits the form when idle", () => {
+  it.each([
+    "idle",
+    "error",
+  ] as const)("is a Send button that submits the form when %s", (status) => {
     const onFormSubmit = vi.fn((event: React.FormEvent) =>
       event.preventDefault(),
     );
     render(
       <form onSubmit={onFormSubmit}>
-        <AutomationModeInputToolbar status="idle" onStop={onStop} />
+        <AutomationModeInputToolbar status={status} onStop={onStop} />
       </form>,
     );
 
@@ -53,6 +57,24 @@ describe("AutomationModeInputToolbar", () => {
 
     expect(onFormSubmit).toHaveBeenCalledTimes(1);
     expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["idle", "发送"],
+    ["streaming", "停止"],
+  ] as const)("names the submit button in the UI language when %s", async (status, name) => {
+    const languageStorage = {
+      load: vi.fn().mockResolvedValue("zh"),
+      save: vi.fn(),
+      watch: vi.fn(() => () => {}),
+    };
+    render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <AutomationModeInputToolbar status={status} onStop={onStop} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByRole("button", { name })).toBeTruthy();
   });
 
   it("names the icon-only automation mode button", () => {
