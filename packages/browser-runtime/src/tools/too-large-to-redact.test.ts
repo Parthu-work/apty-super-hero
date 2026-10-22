@@ -12,10 +12,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const EXT_ID = "abcdefghijklmnopabcdefghijklmnop";
 const MARKER = "START-MARKER-7f3a";
 
-type Mode = "strict" | "standard";
+type Mode = "strict" | "standard" | "off";
 
 const state = vi.hoisted(() => ({
-  mode: "standard" as "strict" | "standard",
+  mode: "standard" as "strict" | "standard" | "off",
   body: "",
   base64Encoded: false,
   status: 200,
@@ -389,6 +389,33 @@ describe("a JSON body over the limit made of many values", () => {
         expect(text, layer).not.toContain("user:pw");
       }
       expect(storedData()).not.toHaveProperty("body");
+    }
+  });
+});
+
+describe("in Off, a Client JSON body is still masked as text, at any size", () => {
+  function credentialsBody(minLength: number): string {
+    const records = [];
+    for (let i = 0; JSON.stringify(records).length < minLength; i++) {
+      records.push({
+        name: `rule-${i}`,
+        password: `pw${i}secret`,
+        token: `tok${i}secret`,
+      });
+    }
+    return JSON.stringify(records);
+  }
+
+  it.each([
+    5_000, 120_000,
+  ])("about %i characters: password and token values are masked", async (size) => {
+    await setMode("off");
+    state.body = credentialsBody(size);
+    const inspected = await inspect();
+    for (const [layer, text] of Object.entries(inspected)) {
+      expect(text, layer).toContain('"status":"ok"');
+      expect(text, layer).toContain("rule-0");
+      expect(text, layer).not.toMatch(/pw\d+secret|tok\d+secret/);
     }
   });
 });
