@@ -18,6 +18,25 @@ describe("redactJsonAware — v4 WP1 regression table", () => {
     expect(output).not.toMatch(/"cookie":\{[^}]*$/);
   });
 
+  it.each([
+    "strict",
+    "standard",
+  ] as const)("%s mode redacts the X-Api-Key, X-Auth-Token and Proxy-Authorization header names as JSON keys, in any case", (mode) => {
+    const output = redactJsonAware(
+      '{"X-Api-Key":"k1","x-auth-token":"t1","X_API_KEY":"k2","xAuthToken":"t2","Proxy-Authorization":"p1","proxy":"keep","xApi":"keep"}',
+      mode,
+    );
+    expect(JSON.parse(output)).toEqual({
+      "X-Api-Key": "<REDACTED>",
+      "x-auth-token": "<REDACTED>",
+      X_API_KEY: "<REDACTED>",
+      xAuthToken: "<REDACTED>",
+      "Proxy-Authorization": "<REDACTED>",
+      proxy: "keep",
+      xApi: "keep",
+    });
+  });
+
   it("redacts user_session_id", () => {
     const output = redactJsonAware('{"user_session_id":"59f4d5e2"}');
     expect(output).not.toContain("59f4d5e2");
