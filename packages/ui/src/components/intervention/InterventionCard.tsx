@@ -146,6 +146,7 @@ export const InterventionCard: React.FC<InterventionCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={onCancel}
+              aria-label={t("common.cancel")}
               className="ml-2 h-8 w-8 p-0 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
             >
               <XIcon className="w-4 h-4" />

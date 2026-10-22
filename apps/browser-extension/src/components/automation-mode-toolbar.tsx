@@ -54,20 +54,17 @@ export function AutomationModeInputToolbar({
     [automationModeRaw],
   );
 
-  // While a turn is in flight (submitted or streaming) the button is Stop.
+  // While a turn is in flight (submitted or streaming) the button is Stop;
+  // otherwise it submits the form, so it is named Send, after an error too.
   const inFlight = status === "submitted" || status === "streaming";
   let submitIcon = <SendIcon className="size-4" />;
-  let submitLabel = "Send";
 
   if (status === "submitted") {
     submitIcon = <Loader2Icon className="size-4 animate-spin" />;
-    submitLabel = "Stop";
   } else if (status === "streaming") {
     submitIcon = <SquareIcon className="size-4" />;
-    submitLabel = "Stop";
   } else if (status === "error") {
     submitIcon = <XIcon className="size-4" />;
-    submitLabel = "Error";
   }
 
   return (
@@ -161,7 +158,7 @@ export function AutomationModeInputToolbar({
 
       {/* Submit Button */}
       <Button
-        aria-label={submitLabel}
+        aria-label={t(inFlight ? "common.stop" : "common.send")}
         className="gap-1.5 rounded-lg"
         size="icon"
         type={inFlight ? "button" : "submit"}

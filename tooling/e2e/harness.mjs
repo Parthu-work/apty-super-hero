@@ -176,9 +176,11 @@ function chunk(delta, finish = null) {
 
 /**
  * OpenAI-compatible chat-completions endpoint driven by `respond(request)`,
- * which returns `{ tool: name, args }` to make a tool call, `{ text }` to
- * answer, or `{ error: { status, message } }` to refuse. Streaming requests
- * get SSE, others a JSON completion. Every request body is kept in
+ * which returns (or resolves to) `{ tool: name, args }` to make a tool call,
+ * `{ text }` to answer, or `{ error: { status, message } }` to refuse.
+ * Streaming requests get SSE, others a JSON completion; a streamed `{ text,
+ * hold }` sends the text and ends the stream only once the `hold` promise
+ * settles. Every request body is kept in
  * `requests`. `GET /v1/models` answers `models` (set with `serveModels`);
  * its requests' Authorization headers are kept in `modelListAuth`.
  */
@@ -270,6 +272,15 @@ export async function startMockModel() {
         }),
         chunk({}, "tool_calls"),
       ]);
+      return;
+    }
+    if (reply.hold) {
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.write(
+        `data: ${JSON.stringify(chunk({ role: "assistant", content: reply.text }))}\n\n`,
+      );
+      await reply.hold;
+      res.end(`data: ${JSON.stringify(chunk({}, "stop"))}\n\ndata: [DONE]\n\n`);
       return;
     }
     sse(res, [

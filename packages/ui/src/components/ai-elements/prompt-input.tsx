@@ -1685,7 +1685,11 @@ export const PromptInputSubmit = ({
 
   return (
     <Button
-      aria-label={t("chat.submit")}
+      aria-label={t(
+        status === "submitted" || status === "streaming"
+          ? "common.stop"
+          : "common.send",
+      )}
       className={cn("gap-1.5 rounded-lg", className)}
       size={size}
       type="submit"
