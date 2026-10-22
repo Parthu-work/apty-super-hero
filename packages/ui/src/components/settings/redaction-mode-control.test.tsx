@@ -56,7 +56,10 @@ describe("RedactionModeControl", () => {
     fireEvent.click(screen.getByLabelText("Off (development only)"));
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent(
-      "Structural secret redaction stays on: tokens, API keys, JWTs, bearer credentials and emails are still masked.",
+      "Password or token values in a tool result can reach your AI provider too. Values that look like tokens, API keys, JWTs, bearer credentials or emails, and credential header lines, are still masked.",
+    );
+    expect(dialog).not.toHaveTextContent(
+      "Structural secret redaction stays on",
     );
     expect(onChange).not.toHaveBeenCalled();
 

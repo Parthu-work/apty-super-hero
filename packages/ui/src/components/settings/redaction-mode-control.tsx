@@ -190,8 +190,8 @@ export function RedactionModeControl({
             </DialogTitle>
             <DialogDescription>
               {zh
-                ? "仅用于测试数据的开发工作。个人数据、页面标题和路径将不经屏蔽地发送给您的 AI 服务商并出现在导出中。基于格式的密钥脱敏仍然开启：令牌、API 密钥、JWT、Bearer 凭据和邮箱仍会被屏蔽。"
-                : "Off is for development with test data only. Personal data, page titles and paths will reach your AI provider, the side panel and exports unmasked. Structural secret redaction stays on: tokens, API keys, JWTs, bearer credentials and emails are still masked."}
+                ? "仅用于测试数据的开发工作。个人数据、页面标题和路径将不经屏蔽地发送给您的 AI 服务商并出现在导出中。工具结果中的密码或令牌值也可能发送给您的 AI 服务商。看起来像令牌、API 密钥、JWT、Bearer 凭据或邮箱的值，以及凭据请求头行，仍会被屏蔽。"
+                : "Off is for development with test data only. Personal data, page titles and paths will reach your AI provider, the side panel and exports unmasked. Password or token values in a tool result can reach your AI provider too. Values that look like tokens, API keys, JWTs, bearer credentials or emails, and credential header lines, are still masked."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
