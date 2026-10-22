@@ -1044,7 +1044,7 @@
   },
   "redactionBanner": {
     "title": "Redaction is OFF",
-    "detail": "(development only). Personal data, page titles and paths reach your AI provider unmasked; tokens, keys and emails are still masked.",
+    "detail": "(development only). Personal data, page titles and paths reach your AI provider unmasked, and so can password or token values. Values that look like tokens, keys or emails, and credential header lines, are still masked.",
     "change": "Change"
   },
   "setupNeeded": {

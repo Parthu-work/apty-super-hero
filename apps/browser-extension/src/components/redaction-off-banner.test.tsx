@@ -20,12 +20,14 @@ describe("RedactionOffBanner", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("says redaction is off and links to Data handling", () => {
+  it("says redaction is off, what can reach the provider, and links to Data handling", () => {
     render(<RedactionOffBanner mode="off" />);
 
-    expect(screen.getByRole("status").textContent).toMatch(
-      /Redaction is OFF.*tokens, keys and emails are still masked/,
+    const text = screen.getByRole("status").textContent;
+    expect(text).toMatch(
+      /Redaction is OFF.*so can password or token values\. Values that look like tokens, keys or emails, and credential header lines, are still masked\./,
     );
+    expect(text).not.toMatch(/tokens, keys and emails are still masked/);
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
     expect(mockOpenOptions).toHaveBeenCalledWith({ section: "data-handling" });
   });
