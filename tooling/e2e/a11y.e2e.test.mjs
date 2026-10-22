@@ -1,10 +1,11 @@
 /**
  * Accessibility (C3): axe-core on the real side panel and Options page, in
  * light and dark themes. Fails on any `serious` or `critical` violation.
- * Side panel states: empty, a chat with a tool result, an approval prompt,
- * the evidence viewers (the investigation summary and the full response
- * viewer), and a DOM Health result with its export dialog at side-panel
- * size. Options: every tab. No axe rule is disabled.
+ * Side panel states: empty, the conversation history still loading, a chat
+ * with a tool result, an approval prompt, the evidence viewers (the
+ * investigation summary and the full response viewer), and a DOM Health
+ * result with its export dialog at side-panel size. Options: every tab. No
+ * axe rule is disabled.
  */
 import assert from "node:assert/strict";
 import { join } from "node:path";
@@ -102,10 +103,38 @@ async function assertNoSeriousViolations(page, where) {
   );
 }
 
-async function openPanel(theme) {
+/** Runs in the panel before its own scripts: the conversations database never opens, so the history stays in its loading state. */
+function holdConversationHistory() {
+  const open = IDBFactory.prototype.open;
+  IDBFactory.prototype.open = function (name, ...rest) {
+    if (name !== "apty-conversations-db") return open.call(this, name, ...rest);
+    globalThis.__conversationHistoryHeld = true;
+    return new EventTarget();
+  };
+}
+
+const HISTORY_LOADED = { name: "Conversation History", exact: true };
+
+/**
+ * The side panel once its conversation history has loaded, or, with
+ * `holdHistory`, while it is still loading: the history control is
+ * scanned in one state or the other, never whichever a race leaves.
+ */
+async function openPanel(theme, { holdHistory = false } = {}) {
   const app = await browser.context.newPage();
   await app.goto(`${site.origin}/app.html`);
   const panel = await openSidePanel(browser, model, app);
+  if (holdHistory) {
+    await panel.addInitScript(holdConversationHistory);
+    await panel.reload();
+    await panel
+      .getByRole("button", { name: "Settings", exact: true })
+      .waitFor();
+    await panel.waitForFunction(() => globalThis.__conversationHistoryHeld);
+    assert.equal(await panel.getByRole("button", HISTORY_LOADED).count(), 0);
+  } else {
+    await panel.getByRole("button", HISTORY_LOADED).waitFor();
+  }
   await assertThemeApplied(panel, theme);
   return { app, panel };
 }
@@ -121,6 +150,22 @@ for (const theme of ["light", "dark"]) {
     it("side panel, empty", async () => {
       const { app, panel } = await openPanel(theme);
       await assertNoSeriousViolations(panel, `${theme} side panel, empty`);
+      await panel.close();
+      await app.close();
+    });
+
+    it("side panel, conversation history still loading", async () => {
+      const { app, panel } = await openPanel(theme, { holdHistory: true });
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} side panel, conversation history still loading`,
+      );
+      assert.equal(
+        await panel
+          .getByRole("button", { name: "Loading...", exact: true })
+          .isDisabled(),
+        true,
+      );
       await panel.close();
       await app.close();
     });

@@ -125,6 +125,7 @@ export function ConversationHistory({
             size="sm"
             disabled
             className={cn("animate-pulse", className)}
+            aria-label={t("conversationHistory.loading")}
           >
             <ClockIcon className="size-4" />
           </Button>
