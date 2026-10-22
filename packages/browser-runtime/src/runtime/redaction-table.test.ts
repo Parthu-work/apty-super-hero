@@ -53,15 +53,22 @@ const JSON_KEY_NAMES = [
   "token",
   "id_token",
   "access_token",
+  "x_access_token",
   "refresh_token",
   "auth_token",
+  "authorization_token",
+  "private_token",
   "session_token",
+  "x_amz_security_token",
   "csrf_token",
+  "x_csrf_token",
   "xsrf_token",
+  "x_xsrf_token",
   "api_key",
   "x_api_key",
   "x_auth_token",
   "secret",
+  "client_secret",
   "password",
   "passwd",
   "pwd",
@@ -76,6 +83,7 @@ const JSON_KEY_NAMES = [
   "authorization",
   "proxy_authorization",
   "session_id",
+  "x_session_id",
   "user_session_id",
   // The same names in another case or punctuation.
   "apiKey",
@@ -85,6 +93,28 @@ const JSON_KEY_NAMES = [
   "X-Api-Key",
   "x-auth-token",
   "Proxy-Authorization",
+  "access-token",
+  "x-access-token",
+  "private-token",
+  "X-Amz-Security-Token",
+  "X-CSRF-Token",
+  "x-xsrf-token",
+  "X-Auth-Token",
+  "clientSecret",
+  "set-cookie",
+  "X-Session-Id",
+];
+
+/** Keys not on the list are sent as is in every mode, even when they contain a credential word. */
+const OTHER_KEY_NAMES = [
+  "session",
+  "session_start_time",
+  "time_spent",
+  "token_count",
+  "tokenizer",
+  "name",
+  "x-request-id",
+  "x-correlation-id",
 ];
 
 const headerLines = HEADER_LINE_NAMES.map(
@@ -102,6 +132,9 @@ const FIXTURE = {
   body: '{"password":"bodyPass123","token":"bodyToken123"}',
   credentials: Object.fromEntries(
     JSON_KEY_NAMES.map((name, i) => [name, `cred${i}Value`]),
+  ),
+  otherKeys: Object.fromEntries(
+    OTHER_KEY_NAMES.map((name, i) => [name, `other${i}Value`]),
   ),
   firstName: "Janeth",
   mrn: MRN,
@@ -212,6 +245,18 @@ describe("PRIVACY.md redaction table, at the model layer", () => {
         expectSentAsIs(result, path, layer);
       }
       expectSentAsIs(result, "url", layer);
+    }
+  });
+
+  it.each([
+    "strict",
+    "standard",
+    "off",
+  ] as const)("%s: values of JSON keys not on the list are sent as is, even when the key contains a credential word", async (mode) => {
+    for (const [layer, result] of Object.entries(await asSent(mode))) {
+      for (const name of OTHER_KEY_NAMES) {
+        expectSentAsIs(result, `otherKeys.${name}`, layer);
+      }
     }
   });
 

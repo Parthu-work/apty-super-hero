@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **More header and client credential names as JSON keys are masked in Strict and Standard**: the exact key list now includes `x_csrf_token`, `x_xsrf_token`, `x_session_id`, `x_amz_security_token`, `client_secret`, `authorization_token`, `private_token` and `x_access_token` (any case or punctuation), so a tool result such as `{"X-CSRF-Token":"…"}` or `{"clientSecret":"…"}` no longer reaches the model unmasked. Off is unchanged, and keys that only contain a credential word, such as `token_count` or `session_start_time`, are still not masked by name.
 - **`X-Api-Key`, `X-Auth-Token` and `Proxy-Authorization` as JSON keys are masked in Strict and Standard**: the exact key list now includes `x_api_key`, `x_auth_token` and `proxy_authorization` (any case or punctuation), so a tool result such as `{"X-Api-Key":"…"}` no longer reaches the model unmasked. Off is unchanged.
 - **PRIVACY.md's redaction table matches what reaches the model**: header lines and credential words in text are masked in Off too, JSON keys are matched by an exact list (now in the doc), and `redaction-table.test.ts` pins every row's Off column.
 - **Client JSON bodies over 100,000 characters can be read** (the real
