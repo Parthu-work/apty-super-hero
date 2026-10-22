@@ -122,7 +122,7 @@ describe("redaction mode (A3)", () => {
           .click();
         const dialog = options.getByRole("dialog");
         await dialog
-          .getByText(/Structural secret redaction stays on/)
+          .getByText(/credential header lines, are still masked\./)
           .waitFor();
         await dialog.getByRole("button", { name: "Keep current mode" }).click();
         assert.equal(
