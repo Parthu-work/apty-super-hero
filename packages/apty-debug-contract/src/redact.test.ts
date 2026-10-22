@@ -527,3 +527,20 @@ describe("PEM blocks", () => {
     expect(Date.now() - started).toBeLessThan(2_000);
   });
 });
+
+describe("unboundedPatternMatches", () => {
+  it("finds PEM blocks and URL userinfo as redactSensitiveText would, including across JSON strings", () => {
+    expect(unboundedPatternMatches('["see http://x","user:pw@host"]')).toEqual([
+      'http://x","user:pw@',
+    ]);
+    expect(
+      unboundedPatternMatches(
+        '["-----BEGIN KEY-----a","b","-----END KEY-----"]',
+      ),
+    ).toEqual(['-----BEGIN KEY-----a","b","-----END KEY-----']);
+    expect(unboundedPatternMatches('{"u":"https://u:p@h/"}')).toEqual([
+      "https://u:p@",
+    ]);
+    expect(unboundedPatternMatches('{"a":"nothing here"}')).toEqual([]);
+  });
+});

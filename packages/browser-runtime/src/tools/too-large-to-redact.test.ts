@@ -103,6 +103,30 @@ function jsonBody(length: number, { secret = true } = {}): string {
   return body;
 }
 
+/** Text that is not JSON, of exactly `length` characters, starting with MARKER and holding a password. */
+function textBody(length: number): string {
+  const head = `${MARKER} password=hunter2 `;
+  return `${head}${"x".repeat(length - head.length)}`;
+}
+
+/** Like the Client's rules.json: a JSON array of many small records, over the limit as a whole. */
+function recordsBody(minLength: number): string {
+  const records = [];
+  for (let i = 0; JSON.stringify(records).length < minLength; i++) {
+    records.push({
+      id: i,
+      name: `rule-${i}`,
+      owner: `owner${i}@corp.example`,
+      token: `tok-${i}-secret`,
+      url: `https://api.example/rules/${i}?access_token=qs${i}secret`,
+      steps: [
+        { selector: `#step-${i}`, note: `Authorization: Bearer b${i}secret` },
+      ],
+    });
+  }
+  return JSON.stringify(records);
+}
+
 async function setMode(mode: Mode): Promise<void> {
   state.mode = mode;
   resetRedactionModeForTests();
@@ -163,13 +187,13 @@ beforeEach(async () => {
 
 describe("a Client body too large to redact safely", () => {
   it.each([
-    [100_001, "standard"],
-    [100_001, "strict"],
-    [199_881, "standard"],
-    [199_881, "strict"],
-  ] as const)("%i characters (%s): never shown cut off, never stored, and every answer says why", async (length, mode) => {
+    [100_001, "standard", "not JSON", textBody],
+    [100_001, "strict", "not JSON", textBody],
+    [199_881, "standard", "JSON with one value over the limit", jsonBody],
+    [199_881, "strict", "JSON with one value over the limit", jsonBody],
+  ] as const)("%i characters (%s, %s): never shown cut off, never stored, and every answer says why", async (length, mode, _kind, body) => {
     await setMode(mode);
-    state.body = jsonBody(length);
+    state.body = body(length);
 
     const inspected = await inspect();
     for (const [layer, text] of Object.entries(inspected)) {
@@ -224,7 +248,7 @@ describe("a Client body too large to redact safely", () => {
   });
 
   it("is named in the Options panel's answer too, with nothing to show", async () => {
-    state.body = jsonBody(100_001);
+    state.body = textBody(100_001);
     const read = await readClientNetworkCallBody(EXT_ID, "r1");
     expect(read).toMatchObject({
       status: "body_unavailable",
@@ -281,5 +305,90 @@ describe("a body at the limit, or base64 that decodes under it", () => {
     const body = storedData().body as string;
     expect(() => JSON.parse(body)).not.toThrow();
     expect(body).toContain(MARKER);
+  });
+});
+
+describe("a JSON body over the limit made of many values", () => {
+  const SECRETS =
+    /owner\d+@corp\.example|tok-\d+-secret|qs\d+secret|b\d+secret/;
+
+  it.each([
+    "strict",
+    "standard",
+  ] as const)("%s: readable through preview, summary, evidence and get_evidence_json, with its values redacted", async (mode) => {
+    await setMode(mode);
+    state.body = recordsBody(120_000);
+    expect(state.body.length).toBeGreaterThan(MAX_REDACT_INPUT_LENGTH);
+    const count = (JSON.parse(state.body) as unknown[]).length;
+
+    const inspected = await inspect();
+    for (const [layer, text] of Object.entries(inspected)) {
+      expect(text, layer).toContain('"status":"ok"');
+      expect(text, layer).not.toContain("tooLargeToRedact");
+      expect(text, layer).not.toContain("truncated before redaction");
+      expect(text, layer).not.toMatch(SECRETS);
+      expect(text, layer).toContain("rule-0");
+    }
+    const result = JSON.parse(inspected.chat) as {
+      response: {
+        json: { kind: string; itemCount: number };
+        evidenceId: string;
+      };
+    };
+    expect(result.response.json).toMatchObject({
+      kind: "array",
+      itemCount: count,
+    });
+
+    const stored = storedData().body as string;
+    expect(stored).not.toMatch(SECRETS);
+    expect(JSON.parse(stored)).toHaveLength(count);
+
+    const queried = await asSent("get_evidence_json", {
+      evidenceId: result.response.evidenceId,
+      path: `[${count - 1}]`,
+      limit: 10,
+      offset: 0,
+    });
+    for (const [layer, text] of Object.entries(queried)) {
+      expect(text, layer).toContain('"found":true');
+      expect(text, layer).toContain(`rule-${count - 1}`);
+      expect(text, layer).not.toMatch(SECRETS);
+    }
+
+    const shown = await timeline();
+    for (const [layer, text] of Object.entries(shown)) {
+      expect(text, layer).not.toMatch(SECRETS);
+    }
+
+    const panel = await readClientNetworkCallBody(EXT_ID, "r1");
+    expect(panel).toMatchObject({ status: "ok", body: { isBinary: false } });
+    const panelText = "body" in panel ? (panel.body?.text ?? "") : "";
+    expect(panelText).not.toMatch(SECRETS);
+    expect(JSON.parse(panelText)).toHaveLength(count);
+  });
+
+  it.each([
+    "strict",
+    "standard",
+  ] as const)("%s: a body of the same size that is not JSON, holds one value over the limit, or runs a match across values stays withheld", async (mode) => {
+    await setMode(mode);
+    const size = recordsBody(120_000).length;
+    const crossing = JSON.stringify([
+      "see http://x",
+      "user:pw@host",
+      "x".repeat(size),
+    ]);
+    for (const body of [textBody(size), jsonBody(size), crossing]) {
+      clearEvidence(CONV);
+      state.body = body;
+      const inspected = await inspect();
+      for (const [layer, text] of Object.entries(inspected)) {
+        expect(text, layer).toContain('"tooLargeToRedact":true');
+        expect(text, layer).not.toContain(MARKER);
+        expect(text, layer).not.toContain("user:pw");
+      }
+      expect(storedData()).not.toHaveProperty("body");
+    }
   });
 });

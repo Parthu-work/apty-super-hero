@@ -1316,7 +1316,7 @@
       "denied": "Not fetched: its URL matches \"{{entry}}\" in the body deny list (Settings → Data handling).",
       "unavailable": "The Client observed this call but didn't provide its body.",
       "httpErrorNoBody": "The call returned HTTP {{status}}, and the Client didn't provide its body.",
-      "tooLargeToRedact": "The body is {{count}} characters, too large to redact safely, so it was not shown or kept.",
+      "tooLargeToRedact": "The body is {{count}} characters. Redaction takes at most 100,000 characters of text at once; a longer JSON body is redacted value by value, but this one is not JSON, has a single value over that limit, or has text that runs from one value into the next. It was withheld (not shown or kept) rather than shown partly redacted.",
       "binary": "Binary body, not shown.",
       "size": "{{count}} characters, redacted ({{mode}} mode)",
       "copy": "Copy",

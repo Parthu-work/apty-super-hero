@@ -6,6 +6,13 @@ full commit-level history.
 
 ## Unreleased
 
+- **Client JSON bodies over 100,000 characters can be read** (the real
+  Client's `rules.json` is 109,410): such a body is redacted value by
+  value with the same redactor, up to 2,000,000 characters, instead of
+  being withheld. It is still withheld when it is not JSON, holds one value
+  over 100,000 characters, or has a match that would run from one value into
+  the next; a test compares the result with whole-text redaction and fails on
+  any secret the whole-text pass hides and this one shows.
 - **Network calls read as unique requests, end to end**: the Settings
   panel and the chat's `list_extension_network_resources` group the Client's
   calls by method + URL without query ("32 unique requests (105 calls)"),
