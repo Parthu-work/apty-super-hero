@@ -1,4 +1,12 @@
-import { applyUrlPolicy } from "@apty/dom-snapshot";
+import { piiShapeOf } from "@apty/dom-snapshot";
+
+export {
+  isSafeLiteral,
+  type PiiShape,
+  piiShapeOf,
+  queryParams,
+  toUrlShape,
+} from "@apty/dom-snapshot";
 
 /** Code-unit order: the same on every machine and locale, unlike `localeCompare`. */
 export function compareText(a: string, b: string): number {
@@ -7,29 +15,6 @@ export function compareText(a: string, b: string): number {
 
 export function sortedUnique(values: Iterable<string>): string[] {
   return [...new Set(values)].sort(compareText);
-}
-
-export type PiiShape = "email" | "phone" | "digits";
-
-/** Each pattern does bounded work per start position, so a long value costs linear time. */
-const EMAIL_SHAPE = /[^\s@<>"'`]@[^\s@<>"'`]+\.[a-z]{2,}/i;
-const PHONE_SHAPE =
-  /(?<!\d)(?:\+\d{1,3}[\s.-]?)?(?:\(\d{3}\)\s?|\d{3}[\s.-])\d{3}[\s.-]\d{4}(?!\d)/;
-const LONG_DIGIT_RUN = /\d{5,}/;
-
-/** D2: emails, phone-number shapes and runs of 5+ digits. Person names have no shape and are not detected. */
-export function piiShapeOf(value: string): PiiShape | null {
-  if (value.includes("@") && EMAIL_SHAPE.test(value)) return "email";
-  if (PHONE_SHAPE.test(value)) return "phone";
-  if (LONG_DIGIT_RUN.test(value)) return "digits";
-  return null;
-}
-
-const IDENTIFIER_FRAGMENT = /^[A-Za-z0-9_.:-]{1,32}$/;
-
-/** D3: a literal that may appear in a rule or as an example: short, identifier-shaped, no PII shape. */
-export function isSafeLiteral(text: string): boolean {
-  return IDENTIFIER_FRAGMENT.test(text) && piiShapeOf(text) === null;
 }
 
 export const PII_HIDDEN = "[PII value hidden]";
@@ -44,46 +29,10 @@ export function displayValue(value: string): string {
     : value;
 }
 
-/** The query of a URL-shaped value: everything after the first `?`, up to a `#`. */
-function queryOf(value: string): string | null {
-  const start = value.indexOf("?");
-  if (start === -1) return null;
-  const hash = value.indexOf("#", start);
-  return value.slice(start + 1, hash === -1 ? undefined : hash);
-}
-
-/** Parameter names and values of a URL-shaped value, in order; empty when it has no query. */
-export function queryParams(value: string): Array<[string, string]> {
-  const query = queryOf(value);
-  if (!query) return [];
-  return query
-    .split("&")
-    .filter(Boolean)
-    .map((pair) => {
-      const eq = pair.indexOf("=");
-      return eq === -1 ? [pair, ""] : [pair.slice(0, eq), pair.slice(eq + 1)];
-    });
-}
-
 /** The value with its query removed, used to pair the same link across runs. */
 export function withoutQuery(value: string): string {
   const end = value.search(/[?#]/);
   return end === -1 ? value : value.slice(0, end);
-}
-
-/**
- * D11: the path through the strict path policy (record numbers, GUIDs and
- * emails become `:id` / `:email`) and the query reduced to parameter
- * names. A name that is not identifier-shaped is dropped.
- */
-export function toUrlShape(url: string): string {
-  const path = applyUrlPolicy(url, "withhold") ?? "";
-  const names = sortedUnique(
-    queryParams(url)
-      .map(([name]) => name)
-      .filter(isSafeLiteral),
-  );
-  return names.length ? `${path}?${names.join("&")}` : path;
 }
 
 const URL_ATTRIBUTES = new Set([

@@ -14,11 +14,10 @@ import {
   type IgnoredRootTarget,
   ignoredRootPolicy,
   matchIgnoredRootTarget,
-  PASSWORD_MANAGER,
+  type NoiseSource,
+  noiseSourceOf,
 } from "@apty/dom-snapshot";
 import { EXTENSION_Z_INDEX } from "./limits.js";
-
-export type NoiseSource = "apty" | "extension" | "overlay";
 
 export interface NoiseHit {
   matcher: string;
@@ -32,18 +31,14 @@ export function noisePolicy(userEntries: readonly string[] = []): NoisePolicy {
   return ignoredRootPolicy(userEntries);
 }
 
-function sourceOf(owner: string): NoiseSource {
-  if (owner.startsWith("Apty")) return "apty";
-  if (owner === PASSWORD_MANAGER || owner === BROWSER_EXTENSION) {
-    return "extension";
-  }
-  return "overlay";
-}
-
 function hit(target: IgnoredRootTarget, policy: NoisePolicy): NoiseHit | null {
   const m = matchIgnoredRootTarget(target, policy);
   return m
-    ? { matcher: describeMatcher(m), owner: m.owner, source: sourceOf(m.owner) }
+    ? {
+        matcher: describeMatcher(m),
+        owner: m.owner,
+        source: noiseSourceOf(m.owner),
+      }
     : null;
 }
 

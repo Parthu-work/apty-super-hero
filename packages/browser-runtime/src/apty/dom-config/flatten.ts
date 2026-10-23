@@ -4,7 +4,7 @@
  * same-origin frames the profile could read. Values are held within the
  * D10 caps; what a cap cut is recorded, never dropped silently.
  */
-import { fnv1a } from "@apty/dom-snapshot";
+import { type ExcludedRootSummary, fnv1a } from "@apty/dom-snapshot";
 import { DOM_CONFIG_LIMITS } from "./limits.js";
 import {
   attributeNameNoise,
@@ -28,7 +28,8 @@ export interface FlatFrame {
   /** URL shape (D11) of the frame's real `src`, or null when the profile does not say. */
   src: string | null;
   crossOrigin: boolean | null;
-  extension: boolean;
+  /** An extension's page or an overlay vendor's frame is listed, never treated as the application. */
+  kind: "application" | "extension" | "overlay";
   analyzed: boolean;
   reason: string;
 }
@@ -60,6 +61,8 @@ export interface FlatRun {
   incomplete: boolean;
   truncations: Omit<TruncationEntry, "pageId" | "run">[];
   probe: BehaviorProbe | null;
+  /** Noise subtrees the collector left out whole (schema 2). */
+  excludedRoots: ExcludedRootSummary[];
   fingerprints: Map<string, Record<string, string>> | null;
   elementCount: number;
 }
@@ -103,7 +106,9 @@ export function flattenRun(run: ProfileRun, policy: NoisePolicy): FlatRun {
     zIndexSourcesKnown: run.profile.zIndexSources !== undefined,
     zIndexSources: run.profile.zIndexSources ?? [],
     shadowHosts: [],
-    seesClosedShadowRoots: run.profile.shadow !== undefined,
+    seesClosedShadowRoots:
+      run.profile.meta?.closedShadowRootsVisible ??
+      run.profile.shadow !== undefined,
     frames: [],
     truncatedNames: new Set(run.profile.meta?.truncatedAttributes ?? []),
     incomplete: Boolean(run.meta.partial || run.profile.meta?.partial),
@@ -113,6 +118,7 @@ export function flattenRun(run: ProfileRun, policy: NoisePolicy): FlatRun {
       dropped: 0,
     })),
     probe: run.profile.probe ?? null,
+    excludedRoots: run.profile.meta?.excludedRoots ?? [],
     fingerprints: run.profile.elementFingerprints
       ? new Map(
           run.profile.elementFingerprints.map((e) => [
@@ -180,12 +186,13 @@ export function flattenRun(run: ProfileRun, policy: NoisePolicy): FlatRun {
     const { src } = parseLegacyFrameKey(key);
     const extension = isExtensionSrc(src, policy);
     const analyzed = hasContent(frame) && !extension;
+    const kind = extension ? "extension" : "application";
     if (!run.profile.frames) {
       flat.frames.push({
         src: src === null ? null : toUrlShape(src),
         crossOrigin:
           typeof frame.isCrossOrigin === "boolean" ? frame.isCrossOrigin : null,
-        extension,
+        kind,
         analyzed,
         reason: analyzed
           ? "analyzed"
@@ -204,7 +211,11 @@ export function flattenRun(run: ProfileRun, policy: NoisePolicy): FlatRun {
     flat.frames.push({
       src: src === null ? null : toUrlShape(src),
       crossOrigin: record.crossOrigin,
-      extension: isExtensionSrc(src, policy),
+      kind: isExtensionSrc(src, policy)
+        ? "extension"
+        : record.reason === "noise"
+          ? "overlay"
+          : "application",
       analyzed: record.readable,
       reason: record.readable ? "analyzed" : (record.reason ?? "not readable"),
     });
@@ -308,7 +319,9 @@ export function detectNoisePresence(
       note(attributeValueNoise(name, value, policy)?.source);
     }
   }
-  if (flat.frames.some((frame) => frame.extension)) sources.add("extension");
+  if (flat.frames.some((frame) => frame.kind === "extension")) {
+    sources.add("extension");
+  }
   return {
     aptyPresent: sources.has("apty"),
     extensionNoisePresent: sources.has("extension"),

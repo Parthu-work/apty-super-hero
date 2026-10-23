@@ -10,6 +10,35 @@ export {
 } from "./composed-tree.js";
 export type { ElementPath } from "./des-engine.js";
 export {
+  armBehaviorProbe,
+  type BehaviorProbeHandle,
+  type BehaviorProbeOptions,
+  DEFAULT_PROBE_WINDOW_MS,
+  PROBE_BURST_GAP_MS,
+} from "./dom-config-probe.js";
+export {
+  collectDomProfile,
+  DOM_PROFILE_LIMITS,
+  type DomProfileCollectorOptions,
+  EXTENSION_ICON_Z_INDEX,
+  profileEntry,
+  profileMap,
+} from "./dom-profile-collector.js";
+export type {
+  BehaviorProbe,
+  DomProfile,
+  DomProfileFrame,
+  DomProfileNode,
+  DomProfileV2,
+  ElementFingerprintRecord,
+  FrameRecord,
+  FrameUnreadableReason,
+  MutationBurst,
+  ProfileMeta,
+  ShadowHostRecord,
+  ZIndexSource,
+} from "./dom-profile-types.js";
+export {
   buildElementRef,
   describeElementRef,
   ELEMENT_REF_VERSION,
@@ -119,6 +148,8 @@ export {
   matchIgnoredRoot,
   matchIgnoredRootTarget,
   mergeExcludedRoots,
+  type NoiseSource,
+  noiseSourceOf,
   PASSWORD_MANAGER,
   parseIgnoredRootMatcher,
 } from "./ignored-roots.js";
@@ -136,3 +167,10 @@ export {
   urlOrigin,
   type ValuePolicy,
 } from "./value-policy.js";
+export {
+  isSafeLiteral,
+  type PiiShape,
+  piiShapeOf,
+  queryParams,
+  toUrlShape,
+} from "./value-shapes.js";

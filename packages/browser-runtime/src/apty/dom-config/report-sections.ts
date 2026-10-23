@@ -5,6 +5,8 @@
  * pages whose markup suggests each one; whether a kind was captured is the
  * SE's call, never the engine's.
  */
+
+import { noiseSourceOf } from "@apty/dom-snapshot";
 import type { AnalyzedPage } from "./classify.js";
 import { DOM_CONFIG_LIMITS } from "./limits.js";
 import { type NoisePolicy, tagNoise, unconfirmedNoiseMarker } from "./noise.js";
@@ -30,10 +32,10 @@ export function collectIframes(pages: AnalyzedPage[]): IframeEntry[] {
           pages: [],
           src: frame.src ?? "(src not recorded)",
           crossOrigin: frame.crossOrigin,
-          kind: frame.extension ? "extension" : "application",
+          kind: frame.kind,
           analyzed: frame.analyzed,
           reason: frame.reason,
-          needsHandling: !frame.extension,
+          needsHandling: frame.kind === "application",
         };
         const key = JSON.stringify([
           entry.src,
@@ -50,7 +52,8 @@ export function collectIframes(pages: AnalyzedPage[]): IframeEntry[] {
   }
   return [...byKey.values()].sort(
     (a, b) =>
-      Number(a.kind === "extension") - Number(b.kind === "extension") ||
+      Number(a.kind !== "application") - Number(b.kind !== "application") ||
+      compareText(a.kind, b.kind) ||
       compareText(a.src, b.src) ||
       Number(a.analyzed) - Number(b.analyzed),
   );
@@ -98,7 +101,10 @@ function signalsOf(page: AnalyzedPage): PageSignals {
     urlShapes: page.runs.map((run) => run.meta.urlShape ?? ""),
     applicationFrames: page.runs.reduce(
       (most, run) =>
-        Math.max(most, run.frames.filter((f) => !f.extension).length),
+        Math.max(
+          most,
+          run.frames.filter((f) => f.kind === "application").length,
+        ),
       0,
     ),
   };
@@ -224,10 +230,40 @@ export function collectNoise(
     entry.pages = sortedUnique([...entry.pages, page]);
     byMatcher.set(hit.matcher, entry);
   };
+  /** Subtrees left out by the collector: the most roots one run of the page had, per matcher. */
+  const roots = new Map<string, Map<string, number>>();
   for (const page of pages) {
     for (const item of page.classified.items) {
       if (item.noise)
         note(item.noise, `${item.name}\u0000${item.value}`, page.pageId);
+    }
+    for (const run of page.runs) {
+      for (const excluded of run.excludedRoots) {
+        const hit = {
+          matcher: excluded.matcher,
+          owner: excluded.owner,
+          source: noiseSourceOf(excluded.owner),
+        };
+        const entry = byMatcher.get(hit.matcher);
+        if (!entry) {
+          byMatcher.set(hit.matcher, {
+            ...hit,
+            count: 0,
+            pages: [],
+            values: new Set(),
+          });
+        }
+        byMatcher.get(hit.matcher)!.pages = sortedUnique([
+          ...byMatcher.get(hit.matcher)!.pages,
+          page.pageId,
+        ]);
+        const perPage = roots.get(hit.matcher) ?? new Map<string, number>();
+        perPage.set(
+          page.pageId,
+          Math.max(perPage.get(page.pageId) ?? 0, excluded.roots),
+        );
+        roots.set(hit.matcher, perPage);
+      }
     }
     for (const run of page.runs) {
       for (const tagName of run.tags.keys()) {
@@ -237,7 +273,15 @@ export function collectNoise(
     }
   }
   return [...byMatcher.values()]
-    .map(({ values, ...entry }) => ({ ...entry, count: values.size }))
+    .map(({ values, ...entry }) => ({
+      ...entry,
+      count:
+        values.size +
+        [...(roots.get(entry.matcher)?.values() ?? [])].reduce(
+          (a, b) => a + b,
+          0,
+        ),
+    }))
     .sort(
       (a, b) =>
         compareText(a.source, b.source) || compareText(a.matcher, b.matcher),

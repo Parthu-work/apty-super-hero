@@ -8,9 +8,12 @@
  * to a previous extension instance (see frame-tree.ts in browser-runtime).
  */
 import {
+  armBehaviorProbe,
+  type BehaviorProbeHandle,
   closestComposed,
   collectDiscoverableLinks,
   collectDomHealthSnapshot,
+  collectDomProfile,
   collectDomSnapshot,
   collectFrameOwners,
   collectRouteProbeFrameSignals,
@@ -44,6 +47,8 @@ interface FrameResponderMarker {
 const MARKER_KEY = "__aptyFrameResponder";
 
 let historyTotals: HistoryApiTotals = { ...ZERO_HISTORY_TOTALS };
+/** The DOM Config behavior probe armed in this frame, if any. */
+let domConfigProbe: BehaviorProbeHandle | null = null;
 let listeningForHistoryApi = false;
 /** Set once the page-world hooks announce themselves; false where they don't run (turned off, or the site excluded in Settings → Troubleshooting). */
 let historyHooksSeen = false;
@@ -638,6 +643,40 @@ export function handleFrameMessage(
         "Failed to capture route probe signals",
         captureRouteProbeFrame,
       );
+    case "collect-dom-profile":
+      return respondAsync(sendResponse, "Failed to collect a DOM profile", () =>
+        collectDomProfile(document, {
+          ignoredRoots: settingsEntries(message.ignoredRoots),
+          timeBudgetMs: positiveNumber(message.timeBudgetMs),
+          frameIdOf,
+        }),
+      );
+    case "dom-config-probe-arm":
+      domConfigProbe?.disarm();
+      domConfigProbe = armBehaviorProbe(document, {
+        windowMs: positiveNumber(message.windowMs),
+        ignoredRoots: settingsEntries(message.ignoredRoots),
+      });
+      sendResponse({ success: true, data: { armed: true } });
+      return true;
+    case "dom-config-probe-capture":
+      if (!domConfigProbe) {
+        sendResponse({
+          success: false,
+          error: "The behavior probe is not armed in this frame.",
+        });
+        return true;
+      }
+      return respondAsync(
+        sendResponse,
+        "Failed to capture the behavior probe",
+        () => domConfigProbe!.capture(),
+      );
+    case "dom-config-probe-disarm":
+      domConfigProbe?.disarm();
+      domConfigProbe = null;
+      sendResponse({ success: true, data: { armed: false } });
+      return true;
     default:
       return false;
   }

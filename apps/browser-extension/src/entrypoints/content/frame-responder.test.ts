@@ -380,3 +380,48 @@ describe("cross-state replay", () => {
     });
   });
 });
+
+describe("DOM Config requests", () => {
+  it("collects this frame's DOM profile, Agent UI left out", async () => {
+    document.body.innerHTML =
+      '<div id="apty-agent-content-root"><button>Agent</button></div><main id="app" class="RptTable"></main>';
+
+    const response = await ask({
+      request: "collect-dom-profile",
+      ignoredRoots: [],
+    });
+
+    expect(response.success).toBe(true);
+    expect(response.data).toMatchObject({
+      schema: 2,
+      tags: { main: 1 },
+      attributes: { id: { app: 1 }, class: { RptTable: 1 } },
+      meta: { aptyPresent: true, partial: false },
+    });
+    expect(response.data.tags.button).toBeUndefined();
+  });
+
+  it("arms, captures and disarms the behavior probe", async () => {
+    document.body.innerHTML = '<main id="app"></main>';
+
+    expect(await ask({ request: "dom-config-probe-capture" })).toEqual({
+      success: false,
+      error: "The behavior probe is not armed in this frame.",
+    });
+    await expect(
+      ask({ request: "dom-config-probe-arm", windowMs: 3000 }),
+    ).resolves.toEqual({ success: true, data: { armed: true } });
+    document.getElementById("app")!.append(document.createElement("p"));
+    const captured = await ask({ request: "dom-config-probe-capture" });
+    await expect(ask({ request: "dom-config-probe-disarm" })).resolves.toEqual({
+      success: true,
+      data: { armed: false },
+    });
+
+    expect(captured.data).toMatchObject({
+      ran: true,
+      windowMs: 3000,
+      mutationBursts: [{ mutationCount: 1 }],
+    });
+  });
+});

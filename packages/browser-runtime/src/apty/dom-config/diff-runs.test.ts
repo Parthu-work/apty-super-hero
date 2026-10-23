@@ -172,14 +172,14 @@ describe("flattenRun", () => {
       {
         src: "https://app.example.test/frame?patient",
         crossOrigin: false,
-        extension: false,
+        kind: "application",
         analyzed: true,
         reason: "analyzed",
       },
       {
         src: "chrome-extension://abc/x.html",
         crossOrigin: true,
-        extension: true,
+        kind: "extension",
         analyzed: false,
         reason: "cross-origin: the console script cannot read it",
       },
@@ -233,7 +233,7 @@ describe("flattenRun", () => {
       {
         src: "https://docs.example.test/view?doc&sig",
         crossOrigin: true,
-        extension: false,
+        kind: "application",
         analyzed: false,
         reason: "blocked-cross-origin",
       },
