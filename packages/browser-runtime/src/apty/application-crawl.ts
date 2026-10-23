@@ -150,6 +150,28 @@ export async function captureFingerprint(
 /** How long before a click the network capture is read, to tell a request the click caused from one the page was already making. */
 const NETWORK_LOOKBACK_MS = 10_000;
 
+/**
+ * Capture the state the tab should now show. Right after a load a frame
+ * can fail to answer once, which makes the comparison "uncertain", not
+ * "different": then the DOM is let settle and the state captured once
+ * more before anything is concluded from it.
+ */
+async function captureExpecting(
+  tabId: number,
+  expected: AuditStateFingerprint | undefined,
+  capture: () => Promise<AuditStateFingerprint | null>,
+): Promise<AuditStateFingerprint | null> {
+  const first = await capture();
+  if (
+    expected &&
+    (!first || compareStateFingerprints(expected, first).result === "uncertain")
+  ) {
+    await waitForDomStable(tabId);
+    return (await capture()) ?? first;
+  }
+  return first;
+}
+
 /** What restoration needs from the traversal strategy: the current mode, and a place to report how a direct URL load went. */
 interface RestorationStrategy {
   mode: () => TraversalMode;
@@ -192,7 +214,11 @@ async function restoreToState(
   if (isPureUrlPath && strategy.mode() === "url-first") {
     await navigateTab(tabId, targetNode.url);
     await waitForDomStable(tabId);
-    const observed = await strategy.capture();
+    const observed = await captureExpecting(
+      tabId,
+      targetNode.fingerprint,
+      strategy.capture,
+    );
     const reproduced =
       observed?.fingerprint === targetNode.fingerprint.fingerprint;
     strategy.onDirectUrlLoad(reproduced);
@@ -265,7 +291,7 @@ async function replayFromSeed(
   const seedStateId = graph.getSeedStateId();
   const seedNode = seedStateId ? graph.getNode(seedStateId) : undefined;
   if (seedNode && seedStateId !== targetStateId) {
-    const atSeed = await capture();
+    const atSeed = await captureExpecting(tabId, seedNode.fingerprint, capture);
     if (atSeed?.fingerprint !== seedNode.fingerprint.fingerprint) {
       return outcome(
         false,
@@ -307,7 +333,11 @@ async function replayFromSeed(
       );
     }
     await waitForDomStable(tabId);
-    const observed = await capture();
+    const observed = await captureExpecting(
+      tabId,
+      graph.getNode(edge.targetStateId)?.fingerprint,
+      capture,
+    );
     if (observed?.fingerprint !== edge.afterFingerprint) {
       return outcome(
         false,
@@ -524,7 +554,7 @@ export async function crawlApplication<V>(
       };
     }
     await waitForDomStable(tabId);
-    const observed = await capture();
+    const observed = await captureExpecting(tabId, node.fingerprint, capture);
     if (!observed) {
       graph.forgetCurrentState();
       return {
@@ -835,7 +865,11 @@ export async function crawlApplication<V>(
     }
 
     const beforeNavModel = await getNavigationModel(tabId).catch(() => null);
-    const beforeFingerprint = await capture();
+    const beforeFingerprint = await captureExpecting(
+      tabId,
+      graph.getNode(next.sourceStateId)?.fingerprint,
+      capture,
+    );
     const clickedAt = Date.now();
     const requestsBefore = peekTabRequests(
       tabId,

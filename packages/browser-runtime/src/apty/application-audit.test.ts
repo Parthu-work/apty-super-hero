@@ -1199,8 +1199,11 @@ describe("runApplicationDomHealthAudit — traversal strategy (WP-6)", () => {
     deepLinkWorksOnce?: string[];
     historyCallsOnClick?: Record<string, number>;
     unreadableAfter?: string[];
+    /** The first frame read after each URL load fails, as a frame that has not answered yet. */
+    firstReadAfterLoadFails?: boolean;
   }) {
     let screen = params.start;
+    let failNextRead = false;
     let historyCalls = 0;
     const loads = new Map<string, number>();
     const linkClicks: string[] = [];
@@ -1210,6 +1213,7 @@ describe("runApplicationDomHealthAudit — traversal strategy (WP-6)", () => {
     mockTabsUpdate.mockImplementation(
       async (_tabId: number, updateInfo: { url?: string }) => {
         if (updateInfo.url) {
+          failNextRead = Boolean(params.firstReadAfterLoadFails);
           currentUrl = updateInfo.url;
           const target = screenForUrl(updateInfo.url) ?? params.start;
           const count = (loads.get(target) ?? 0) + 1;
@@ -1233,6 +1237,11 @@ describe("runApplicationDomHealthAudit — traversal strategy (WP-6)", () => {
         const current = params.screens[screen]!;
         switch (msg.request) {
           case "collect-dom-health-frame-bundle":
+            if (failNextRead) {
+              failNextRead = false;
+              callback({ success: false, error: "frame did not respond" });
+              return;
+            }
             if (params.unreadableAfter?.includes(screen)) {
               callback({ success: false, error: "frame did not respond" });
               return;
@@ -1360,6 +1369,27 @@ describe("runApplicationDomHealthAudit — traversal strategy (WP-6)", () => {
     expect(result.traversal?.reason).toContain(
       "0 distinct link target(s) and 2 navigation control(s)",
     );
+  });
+
+  it("reads the state again when a frame does not answer right after the seed is reloaded, instead of failing the restoration", async () => {
+    currentUrl = "https://app.example.com/home";
+    setupApp({
+      ...CLICK_ONLY,
+      screens: {
+        ...CLICK_ONLY.screens,
+        Orders: {
+          controls: [{ domPath: "order-detail", text: "Detail", to: "Detail" }],
+        },
+        Detail: {},
+      },
+      firstReadAfterLoadFails: true,
+    });
+
+    const result = await run("application-deep");
+
+    expect(result.coverage.pagesAudited).toBe(4);
+    expect(result.restorations).toHaveLength(2);
+    expect(result.restorations.every((r) => r.success)).toBe(true);
   });
 
   it("says when click-first is indicated but clicks are off", async () => {

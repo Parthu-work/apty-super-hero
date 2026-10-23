@@ -355,6 +355,11 @@ The driver adds three things the audit does not use:
 - `unexplored`: the work still queued when a limit or the signal stopped
   the crawl.
 
+A capture right after a load that misses a frame (comparison `uncertain`)
+or fails outright is taken once more after the DOM settles before a
+restoration hop, the seed check, a revisit or the capture before a click
+is judged; one late frame used to fail the restoration.
+
 ### `runDomConfigCapture(tabId, options)` (`dom-config/crawl.ts`)
 
 | Option | Default |
