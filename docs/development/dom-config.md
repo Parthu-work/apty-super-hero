@@ -412,8 +412,11 @@ changed; a new one is returned.
   different URL templates, so the page is captured twice. This is the
   audit's URL identity (`urlTemplate`), unchanged here.
 - In deep mode the nav anchors inside a `<nav>` are also click candidates,
-  as in the audit, which makes a deep crawl several times slower than a
-  safe one.
+  as in the audit. A click on one starts a navigation that the crawl does
+  not wait for, so the fingerprint taken after it depends on timing: the
+  page it leads to can appear again as `<page> [state-N]`, and its fresh
+  visit usually comes back `state-mismatch` (kept out of the rules). It
+  also makes a deep crawl several times slower than a safe one.
 - Results live in memory only (D12); nothing is written to storage.
 
 ## Open questions

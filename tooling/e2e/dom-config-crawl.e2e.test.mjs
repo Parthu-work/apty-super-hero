@@ -225,11 +225,11 @@ describe("DOM Config crawl in Chromium", () => {
   it("deep mode: also captures the menu-driven state, restoring it by replay for run 2", async () => {
     const { outcome } = await crawl({ discoveryMode: "application-deep" });
     assert.equal(outcome.available, true, outcome.error);
-    const menuState = outcome.capture.pages.find((p) =>
-      p.pageId.includes("[state-"),
+    const menuState = outcome.capture.pages.find(
+      (p) => p.runs[0].profile.attributes.id?.["report-panel"],
     );
     assert.ok(
-      menuState,
+      menuState?.pageId.includes("[state-"),
       JSON.stringify(outcome.capture.pages.map((p) => p.pageId)),
     );
     assert.deepEqual(
@@ -238,6 +238,9 @@ describe("DOM Config crawl in Chromium", () => {
         ["initial", false],
         ["after-reload", false],
       ],
+      JSON.stringify(
+        outcome.inventory.find((r) => r.pageId === menuState.pageId),
+      ),
     );
     assert.equal(outcome.returnedToSeed.success, true);
   });
