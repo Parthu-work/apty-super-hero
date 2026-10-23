@@ -246,6 +246,159 @@ describe("redactSensitiveText — ReDoS safety", () => {
     const elapsedMs = performance.now() - start;
     expect(elapsedMs).toBeLessThan(1000);
   });
+
+  // Emails, URL userinfo and JWTs were found with regexes that scanned the
+  // rest of runs like these from every word boundary in them: seconds each.
+  const longRun = (unit: string, prefix = "") =>
+    (prefix + unit.repeat(MAX_REDACT_INPUT_LENGTH)).slice(
+      0,
+      MAX_REDACT_INPUT_LENGTH,
+    );
+
+  it.each([
+    ["a-a-a-…", longRun("a-")],
+    ["a.a.a.…", longRun("a.")],
+    ["a+a+a+…", longRun("a+")],
+    ["1-1-1-…", longRun("1-")],
+    ["http://a-a-a-…", longRun("a-", "http://")],
+    ["a@a@a@…", longRun("a@")],
+    ["a:a:a:…", longRun("a:")],
+    ["aaa…", longRun("a")],
+    ["@@@…", longRun("@")],
+    ["eyJ-eyJ-…", longRun("eyJ-")],
+  ])("redacts 100,000 characters of %s in under 500 ms in each mode", (_label, text) => {
+    for (const mode of ["strict", "standard", "off"] as const) {
+      const started = performance.now();
+      redactSensitiveText(text, mode);
+      expect(performance.now() - started, mode).toBeLessThan(500);
+    }
+  });
+
+  it("finds URL userinfo in 100,000 characters of a-a-a-… in under 500 ms", () => {
+    const started = performance.now();
+    expect(unboundedPatternMatches(longRun("a-"))).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});
+
+describe("emails, URL userinfo and JWTs, against the regexes they replace", () => {
+  const EMAIL = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
+  const URL_USERINFO = /\b([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^/\s@]+)@/g;
+
+  // No other pass can match text made of these: they spell no credential
+  // word, header name, token prefix or PEM line, and hold no `=` or quote.
+  const PIECES = [
+    "a",
+    "bc",
+    "x1",
+    "y.z",
+    "c-a",
+    "b+x",
+    "_",
+    "9",
+    "-",
+    ".",
+    "+",
+    ":",
+    "/",
+    "://",
+    "://",
+    "@",
+    "@",
+    " ",
+    "\t",
+    "\n",
+    "\u00a0",
+    "\u2028",
+  ];
+  let state = 7;
+  const rand = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 2 ** 32;
+  };
+  const texts = [
+    "a@b.c@d.e",
+    "x@y.z-",
+    "x@y.z.-",
+    "x@a-.b",
+    "..a@b.c",
+    "1abc://u@h",
+    "x+y.z-1://u:p@h",
+    "a://b://c@d",
+    "a://u\u00a0v@h",
+    "abc://x@y.z@q",
+    ...Array.from({ length: 3000 }, () =>
+      Array.from(
+        { length: 1 + Math.floor(rand() * 40) },
+        () => PIECES[Math.floor(rand() * PIECES.length)],
+      ).join(""),
+    ),
+  ];
+
+  it("redacts each text as replacing with those regexes did, in every mode", () => {
+    for (const text of texts) {
+      const expected = text
+        .replace(URL_USERINFO, "$1<REDACTED>@")
+        .replace(EMAIL, "<REDACTED-EMAIL>");
+      for (const mode of ["strict", "standard", "off"] as const) {
+        expect(redactSensitiveText(text, mode), JSON.stringify(text)).toBe(
+          expected,
+        );
+      }
+    }
+  });
+
+  it("reports the same URL userinfo matches", () => {
+    for (const text of texts) {
+      expect(unboundedPatternMatches(text), JSON.stringify(text)).toEqual(
+        [...text.matchAll(URL_USERINFO)].map((match) => match[0]),
+      );
+    }
+  });
+
+  it("redacts JWT-shaped text as replacing with that regex did, in every mode", () => {
+    const JWT = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
+    // As above, and with no `@`, `:` or `/` either.
+    const jwtPieces = [
+      "eyJ",
+      "eyJ",
+      "a",
+      "x1",
+      "Ab",
+      "J",
+      "9",
+      "-",
+      "_",
+      ".",
+      ".",
+      " ",
+      "\t",
+      "\u00a0",
+    ];
+    const jwtTexts = [
+      "eyJa.b.c",
+      "eyJa.b.c-",
+      "eyJa.b.-",
+      "x-eyJa.b.c",
+      "eyJeyJa.b.c",
+      "eyJa.b.c.d.eyJe.f.g",
+      "eyJa.b.c-eyJd.e.f",
+      ...Array.from({ length: 3000 }, () =>
+        Array.from(
+          { length: 1 + Math.floor(rand() * 40) },
+          () => jwtPieces[Math.floor(rand() * jwtPieces.length)],
+        ).join(""),
+      ),
+    ];
+    for (const text of jwtTexts) {
+      const expected = text.replace(JWT, "<REDACTED>");
+      for (const mode of ["strict", "standard", "off"] as const) {
+        expect(redactSensitiveText(text, mode), JSON.stringify(text)).toBe(
+          expected,
+        );
+      }
+    }
+  });
 });
 
 describe("redactSensitiveText — seeded fuzz: a secret embedded anywhere in random surrounding text never survives", () => {
