@@ -256,8 +256,12 @@ no clock); every setting says whether it was measured, derived or is a
 default, and every rule carries its evidence. It shares the noise list with
 DOM Health (`DEFAULT_IGNORED_ROOTS`) and reads Apty's reconstructed
 defaults (`DEFAULT_IGNORE`, `DEFAULT_PRIORITY`) to report what Apty already
-covers. Capture (R2, R3) and the side panel (R4) come later; see
-[`docs/development/dom-config.md`](docs/development/dom-config.md).
+covers. The profiles come from `collectDomProfile` (`@apty/dom-snapshot`),
+run by the frame responder in each frame (`collect-dom-profile`), and
+`collectStateProfile` nests the frames of one state by frameId, cross-origin
+frames included; a behavior probe (`dom-config-probe-*`) measures mutation
+bursts for the debounce. The crawl (R3) and the side panel (R4) come later;
+see [`docs/development/dom-config.md`](docs/development/dom-config.md).
 
 ### Service Worker diagnostics — evidence scope
 

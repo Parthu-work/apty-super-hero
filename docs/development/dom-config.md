@@ -11,8 +11,8 @@ It is delivered in steps:
 
 | Step | What | Status |
 |---|---|---|
-| R1 | Pure engine: validate, diff, classify, generate rules, derive settings, warnings, Markdown; importer for the console script's JSON | This document |
-| R2 | In-page collector and behavior probe | Not started |
+| R1 | Pure engine: validate, diff, classify, generate rules, derive settings, warnings, Markdown; importer for the console script's JSON | Done |
+| R2 | In-page collector and behavior probe | Done (see [Collector and behavior probe](#collector-and-behavior-probe-r2)) |
 | R3 | Automatic crawl with several runs per state | Not started |
 | R4 | Side panel card, progress, report, import and export | Not started |
 
@@ -253,6 +253,76 @@ DOMs, rules beyond the limit.
   parameter names. Page titles are never stored. Person names have no shape
   and are not detected: one can appear in a page's diff, never in a rule, an
   example or the Markdown.
+
+## Collector and behavior probe (R2)
+
+### `collectDomProfile` (`packages/dom-snapshot/src/dom-profile-collector.ts`)
+
+Runs in the frame responder, one frame at a time, within the same budget
+as the DOM Health collector (`collector-budget.ts`: 50,000 elements, 2,500
+shadow roots, 6 s, yielding every 16 ms, below the 8 s per-frame message
+timeout). It walks the composed tree (`walkComposedTree`) and only reads.
+
+On the shared fields (`tags`, `attributes`, `maxZIndex`, `shadowRoots`)
+it writes what the console script writes; a jsdom test and an e2e test
+run the script on the same document and compare. Where it differs, on
+purpose:
+
+- Noise subtrees (`DEFAULT_IGNORED_ROOTS`) are left out whole and listed
+  in `meta.excludedRoots`; the script reads them as page content.
+- Every shadow root of a host tag is read and merged under that tag; the
+  script reads only the first. Closed roots are read where
+  `chrome.dom.openOrClosedShadowRoot` exists (`meta.closedShadowRootsVisible`);
+  `shadow` lists each host as `open` or `closed`, never a guess.
+- Child frames are not entered. Each one is profiled by its own
+  responder, which runs in every frame (`all_frames`, `match_about_blank`,
+  `match_origin_as_fallback`), so a cross-origin frame is read too, where
+  the script prints a placeholder. `frames` records each frame element
+  from this document's side: its `src` as a URL shape, and whether this
+  document can read it (`blocked-cross-origin`, `about:blank`, `srcdoc`,
+  `not-loaded`, or `noise`).
+- Values are bounded: a value over 400 characters keeps its start, then
+  `…[length#hash]` of the rest; an attribute with more than 5,000 distinct
+  values stops growing and is named in `meta.truncatedAttributes`.
+- Maps are keyed by page data, so they have no prototype: a value such as
+  `constructor` or `__proto__` is just a key.
+
+It adds `zIndexSources` (each element with a z-index of 1000 or more: tag,
+short id and class, whether the z-index is inline), `meta` (URL shape,
+viewport, Apty and extension presence, element count, duration, `partial`
+with reasons) and `schema: 2`.
+
+**Element fingerprints are not collected.** A structural path changes
+whenever rows or content change, which is exactly when D1 needs it; a
+per-attribute value hash is derived from the value, so a short value can
+be recovered by guessing; and one record per element would make each
+message as large as the page. Changes stay `set-diff`.
+
+### Frames of one state (`collect-state-profile.ts`)
+
+`collectStateProfile(tabId)` lists the frames (`getFrameTree`), joins each
+to its element (`collectFrameOwnersByFrameId`), sends
+`collect-dom-profile` to each by frameId in parallel and nests the
+results as the script nests readable frames: under the parent's
+`iframes`, keyed by the frame's URL shape. A frame that did not answer
+keeps the script's `Cross Origin N (src: …)` key with no content and makes
+the state `partial`. Extension pages and overlay frames are listed, never
+read. `frames` in the merged profile has one record per child frame (its
+`src` attribute and URL as shapes, readable or why not), and the inventory
+gives each frame's role (`frameRole`) and why it was or was not read.
+
+### Behavior probe (`dom-config-probe.ts`)
+
+`captureBehaviorProbe(tabId, { windowMs })` arms every frame
+(`dom-config-probe-arm`), waits the window (3 s by default), captures and
+disarms. In each frame a `MutationObserver` on the document and every
+shadow root present when it is armed records callbacks; callbacks less
+than 100 ms apart form one burst (duration and mutation count). Mutations
+inside noise subtrees are not counted. Hover, pointer, scroll, wheel,
+resize and touch events are counted only when they fire, as events per
+second. An automatic capture has no human input, so event rates are
+usually zero and the report says "none measured" (D6). A shadow root
+attached after arming is not watched.
 
 ## Open questions
 

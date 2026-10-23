@@ -168,9 +168,14 @@ export function buildDomConfigReport(
         const presence = detectNoisePresence(flat, policy);
         flat.meta = {
           ...flat.meta,
-          aptyPresent: flat.meta.aptyPresent || presence.aptyPresent,
+          aptyPresent:
+            flat.meta.aptyPresent ||
+            presence.aptyPresent ||
+            Boolean(run.profile.meta?.aptyPresent),
           extensionNoisePresent:
-            flat.meta.extensionNoisePresent || presence.extensionNoisePresent,
+            flat.meta.extensionNoisePresent ||
+            presence.extensionNoisePresent ||
+            Boolean(run.profile.meta?.extensionNoisePresent),
         };
         for (const t of flat.truncations) {
           truncations.push({ pageId: page.pageId, run: index, ...t });

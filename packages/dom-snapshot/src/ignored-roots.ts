@@ -53,6 +53,17 @@ function matcher(
 export const PASSWORD_MANAGER = "Password manager";
 export const BROWSER_EXTENSION = "Browser extension";
 
+export type NoiseSource = "apty" | "extension" | "overlay";
+
+/** Whose content a matcher's owner is: Apty's own, an extension on the capturing machine, or an overlay vendor's. */
+export function noiseSourceOf(owner: string): NoiseSource {
+  if (owner.startsWith("Apty")) return "apty";
+  if (owner === PASSWORD_MANAGER || owner === BROWSER_EXTENSION) {
+    return "extension";
+  }
+  return "overlay";
+}
+
 export const DEFAULT_IGNORED_ROOTS: readonly IgnoredRootMatcher[] = [
   /** The Agent's content script mounts `#apty-agent-content-root` and `#apty-agent-border-overlay` (`apps/browser-extension/src/entrypoints/content/index.tsx`). */
   matcher("id-prefix", "apty-agent-", "Apty Agent", "repository"),

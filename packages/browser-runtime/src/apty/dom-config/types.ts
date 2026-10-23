@@ -1,99 +1,25 @@
 /**
- * Input and output shapes of the DOM Config engine. A `DomProfile` is what
- * the console script SEs run today prints (schema 1); `DomProfileV2` adds
- * what the extension's own collector can see. Nested nodes (a shadow root,
- * a same-origin frame) carry only the sections their content produced: the
- * script writes a key the first time it has something to put in it.
+ * Input and output shapes of the DOM Config engine. The profile shapes
+ * themselves (`DomProfile`, `DomProfileV2`) live in `@apty/dom-snapshot`,
+ * next to the collector that writes them.
  */
 
-export interface DomProfileNode {
-  tags?: Record<string, number>;
-  attributes?: Record<string, Record<string, number>>;
-  maxZIndex?: number;
-  shadowRoots?: Record<string, DomProfileNode>;
-  iframes?: Record<string, DomProfileFrame>;
-}
+export type {
+  BehaviorProbe,
+  DomProfile,
+  DomProfileFrame,
+  DomProfileNode,
+  DomProfileV2,
+  ElementFingerprintRecord,
+  FrameRecord,
+  FrameUnreadableReason,
+  MutationBurst,
+  ProfileMeta,
+  ShadowHostRecord,
+  ZIndexSource,
+} from "@apty/dom-snapshot";
 
-export interface DomProfileFrame extends DomProfileNode {
-  isCrossOrigin?: boolean;
-}
-
-export interface DomProfile extends DomProfileNode {
-  tags: Record<string, number>;
-  attributes: Record<string, Record<string, number>>;
-}
-
-export interface ZIndexSource {
-  value: number;
-  tag: string;
-  id?: string;
-  class?: string;
-  /** The z-index came from the element's own `style` attribute. */
-  inline?: boolean;
-}
-
-export type FrameUnreadableReason =
-  | "blocked-cross-origin"
-  | "about:blank"
-  | "srcdoc"
-  | "not-loaded";
-
-export interface FrameRecord {
-  /** The `src` attribute as written. */
-  src: string;
-  resolvedSrc?: string;
-  crossOrigin: boolean;
-  readable: boolean;
-  reason?: FrameUnreadableReason;
-}
-
-export interface ShadowHostRecord {
-  hostTag: string;
-  mode: "open" | "closed" | "unknown";
-}
-
-export interface MutationBurst {
-  durationMs: number;
-  mutationCount: number;
-}
-
-export interface BehaviorProbe {
-  ran: boolean;
-  windowMs: number;
-  mutationBursts: MutationBurst[];
-  burstGapsMs: number[];
-  /** Events per second, only for events that actually fired. */
-  eventRates: Record<string, number>;
-  ranToCompletion: boolean;
-}
-
-export interface ProfileMeta {
-  urlShape?: string;
-  viewport?: { width: number; height: number };
-  aptyPresent?: boolean;
-  extensionNoisePresent?: boolean;
-  elementCount?: number;
-  durationMs?: number;
-  partial?: boolean;
-  /** Attribute names whose values the collector cut to its caps. */
-  truncatedAttributes?: string[];
-}
-
-/** One element identified without its attribute values: a structural fingerprint and, per attribute name, a hash of the value. */
-export interface ElementFingerprintRecord {
-  fingerprint: string;
-  attributeHashes: Record<string, string>;
-}
-
-export interface DomProfileV2 extends DomProfile {
-  schema?: 2;
-  zIndexSources?: ZIndexSource[];
-  frames?: FrameRecord[];
-  shadow?: ShadowHostRecord[];
-  probe?: BehaviorProbe;
-  meta?: ProfileMeta;
-  elementFingerprints?: ElementFingerprintRecord[];
-}
+import type { DomProfileV2 } from "@apty/dom-snapshot";
 
 export type RunLabel = "initial" | "after-reload" | "repeat";
 
@@ -265,7 +191,7 @@ export interface IframeEntry {
   pages: string[];
   src: string;
   crossOrigin: boolean | null;
-  kind: "application" | "extension";
+  kind: "application" | "extension" | "overlay";
   analyzed: boolean;
   reason: string;
   needsHandling: boolean;

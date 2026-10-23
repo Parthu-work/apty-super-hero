@@ -1,5 +1,12 @@
 export { buildDomConfigReport } from "./build-report.js";
 export {
+  captureBehaviorProbe,
+  collectStateProfile,
+  type DomConfigFrameInventoryEntry,
+  type StateProfileOutcome,
+  type StateProfileResult,
+} from "./collect-state-profile.js";
+export {
   buildPageCapture,
   type ImportedRunInput as DomConfigImportedRun,
   type PageImportInput as DomConfigPageImportInput,

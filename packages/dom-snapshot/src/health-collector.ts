@@ -53,6 +53,12 @@
  *   a fingerprint with another element in THIS snapshot is reported
  *   `AMBIGUOUS`, never silently resolved by taking the first match.
  */
+import {
+  type CollectorBudget,
+  createBudget,
+  DEFAULT_COLLECTOR_BUDGET,
+  now,
+} from "./collector-budget.js";
 import { type ElementPath, resetDesPerformanceCaches } from "./des-engine.js";
 import { hitTestElement } from "./health-hit-test.js";
 import {
@@ -94,24 +100,10 @@ import { shadowRootOf } from "./shadow-roots.js";
  * fact is reported via `analysisCoverage.capped`, never silently absorbed
  * into the score.
  */
+export { DEFAULT_COLLECTOR_BUDGET } from "./collector-budget.js";
+
 const DEFAULT_ELEMENT_CEILING = 4000;
 const DEFAULT_MAX_STYLE_CHECKS = 2000;
-/**
- * Per-frame budget (DOM Health brief, section 4.11). The Infor LN top
- * document, the largest measured, has 3,788 elements and 251 shadow
- * roots; the element and root ceilings sit an order of magnitude above it
- * so they only stop a runaway page. The time budget stays below the
- * service worker's 8 s per-frame message timeout, so a slow frame returns
- * a partial, labelled result instead of nothing. The 16 ms slice is one
- * frame at 60 Hz: the collector yields to the page at least that often.
- * None of these was tuned on a live tenant.
- */
-export const DEFAULT_COLLECTOR_BUDGET = {
-  maxTotalElements: 50_000,
-  maxShadowRoots: 2_500,
-  timeBudgetMs: 6_000,
-  sliceMs: 16,
-} as const;
 /** Caps `elementPathSamples` (cross-application-state replay candidates) so the message payload never grows unbounded on a huge page — first-N-in-document-order, not a "most important" ranking. */
 const MAX_ELEMENT_PATH_SAMPLES = 50;
 /** A positioned element at or above this z-index is counted as "high" for overlay-risk scoring. */
@@ -483,88 +475,6 @@ function recordSelectorOutcome(
       state.selectorAnalysis.inaccessible++;
       break;
   }
-}
-
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-function now(): number {
-  return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
-
-/** Ceilings, the time budget and the slice clock for one collection. */
-interface CollectorBudget {
-  maxTotalElements: number;
-  maxShadowRoots: number;
-  timeBudgetMs: number;
-  startedAt: number;
-  /** True once the time budget is spent: nothing further is traversed or analyzed. */
-  expired: boolean;
-  /** Why the result is partial, for the report. */
-  reasons: string[];
-  longestSliceMs: number;
-  /** Longest single unit of work between two clock checks: the floor on how long a slice can be. */
-  longestStepMs: number;
-  yields: number;
-  note(reason: string): void;
-  /** Yield to the page once the current slice is used up; true once the time budget is spent. */
-  tick(): Promise<boolean>;
-  /** Close the last slice, so `longestSliceMs` covers the whole run. */
-  finish(): void;
-}
-
-function createBudget(options: DomHealthCollectorOptions): CollectorBudget {
-  const sliceMs = options.sliceMs ?? DEFAULT_COLLECTOR_BUDGET.sliceMs;
-  const startedAt = now();
-  let sliceStart = startedAt;
-  let lastCheck = startedAt;
-  const closeSlice = (at: number) => {
-    budget.longestSliceMs = Math.max(budget.longestSliceMs, at - sliceStart);
-  };
-  const budget: CollectorBudget = {
-    maxTotalElements:
-      options.maxTotalElements ?? DEFAULT_COLLECTOR_BUDGET.maxTotalElements,
-    maxShadowRoots:
-      options.maxShadowRoots ?? DEFAULT_COLLECTOR_BUDGET.maxShadowRoots,
-    timeBudgetMs: options.timeBudgetMs ?? DEFAULT_COLLECTOR_BUDGET.timeBudgetMs,
-    startedAt,
-    expired: false,
-    reasons: [],
-    longestSliceMs: 0,
-    longestStepMs: 0,
-    yields: 0,
-    note(reason) {
-      if (!budget.reasons.includes(reason)) budget.reasons.push(reason);
-    },
-    async tick() {
-      if (budget.expired) return true;
-      const t = now();
-      budget.longestStepMs = Math.max(budget.longestStepMs, t - lastCheck);
-      lastCheck = t;
-      if (t - startedAt > budget.timeBudgetMs) {
-        budget.expired = true;
-        budget.note(
-          `Time budget of ${budget.timeBudgetMs} ms reached; the rest of this frame was not analyzed.`,
-        );
-        return true;
-      }
-      if (t - sliceStart >= sliceMs) {
-        closeSlice(t);
-        budget.yields++;
-        await yieldToEventLoop();
-        sliceStart = now();
-        lastCheck = sliceStart;
-      }
-      return false;
-    },
-    finish() {
-      const t = now();
-      budget.longestStepMs = Math.max(budget.longestStepMs, t - lastCheck);
-      closeSlice(t);
-    },
-  };
-  return budget;
 }
 
 function analyzeInteractiveElement(

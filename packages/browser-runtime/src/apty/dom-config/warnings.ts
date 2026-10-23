@@ -233,7 +233,7 @@ export function buildWarnings(input: WarningInput): ReportWarning[] {
       warning(
         "closed-shadow-roots",
         "warn",
-        "Closed or unreadable shadow roots: their content was not analyzed.",
+        "Closed shadow roots: the extension read them, but a page script cannot. Whether Apty's Shadow DOM support reaches closed roots is not known; check these components in Apty.",
         closed,
       ),
     );
