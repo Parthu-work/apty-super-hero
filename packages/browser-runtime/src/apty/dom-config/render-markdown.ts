@@ -15,12 +15,18 @@ import type {
 } from "./types.js";
 import { DEFAULTS_ASSUMPTION } from "./warnings.js";
 
+/** Plain text in a table cell: a backslash or a pipe is escaped, so neither can end the cell. */
 function cell(text: string): string {
-  return text.replace(/\r?\n/g, " ").replace(/\|/g, "\\|");
+  return text.replace(/\r?\n/g, " ").replace(/[\\|]/g, "\\$&");
 }
 
+/**
+ * A code span in a table cell. A backslash is literal in a code span, so a
+ * pattern's `\d` stays as written; only a pipe, and a backslash right before
+ * one, are escaped to keep the table's columns.
+ */
 function code(text: string): string {
-  return `\`${cell(text)}\``;
+  return `\`${text.replace(/\r?\n/g, " ").replace(/\\(?=\|)|\|/g, "\\$&")}\``;
 }
 
 function table(header: string[], rows: string[][]): string[] {

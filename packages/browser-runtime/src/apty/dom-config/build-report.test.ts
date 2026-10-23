@@ -297,6 +297,36 @@ describe("Markdown", () => {
     }
   });
 
+  /** A row's cells as GitHub-flavored Markdown splits them: a backslash escapes the next character, an unescaped pipe ends a cell. */
+  const gfmCells = (row: string) =>
+    (
+      row
+        .trim()
+        .slice(1)
+        .match(/(?:\\.|[^|\\])*\|/g) ?? []
+    ).map((c) => c.slice(0, -1).trim());
+
+  it("keeps a table's columns when a page name or a value has a backslash before a pipe", () => {
+    const report = buildDomConfigReport(
+      capture([page("p1", [run("initial", profile({}))], "Visits \\| old")]),
+    );
+    const pageRow = renderDomConfigMarkdown(report)
+      .split("\n")
+      .find((line) => line.startsWith("| Visits"));
+    expect(gfmCells(pageRow!)).toHaveLength(4);
+    const rule = {
+      ...withAlternation.rules[0]!,
+      conditions: [
+        {
+          category: "Attribute Value" as const,
+          operator: "Regex" as const,
+          value: "^a\\|b$",
+        },
+      ],
+    };
+    expect(gfmCells(`| ${renderConditions(rule)} |`)).toHaveLength(1);
+  });
+
   it("escapes a pattern's | only as the table requires, so the pattern itself keeps a plain |", () => {
     const [rule] = withAlternation.rules;
     expect(rule!.conditions[1]!.value).toBe("^ui-(?:id-\\d+|tab-\\d+)$");
