@@ -356,6 +356,15 @@ describe("emails, URL userinfo and JWTs, against the regexes they replace", () =
     }
   });
 
+  it("ends URL userinfo where `[^/\\s@]` does, for every UTF-16 code unit", () => {
+    for (let code = 0; code <= 0xffff; code++) {
+      const text = `a://u${String.fromCharCode(code)}v@h`;
+      expect(unboundedPatternMatches(text), `U+${code.toString(16)}`).toEqual(
+        [...text.matchAll(URL_USERINFO)].map((match) => match[0]),
+      );
+    }
+  });
+
   it("redacts JWT-shaped text as replacing with that regex did, in every mode", () => {
     const JWT = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
     // As above, and with no `@`, `:` or `/` either.

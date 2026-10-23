@@ -301,7 +301,27 @@ function isSchemeChar(code: number): boolean {
   );
 }
 
-const USERINFO_AND_AT = /[^/\s@]+@/y;
+/** `\s` in a pattern without the `u` flag: a JavaScript white space or line terminator character. */
+function isRegExpSpace(code: number): boolean {
+  return (
+    (code >= 9 && code <= 13) ||
+    code === 32 ||
+    code === 0xa0 ||
+    code === 0x1680 ||
+    (code >= 0x2000 && code <= 0x200a) ||
+    code === 0x2028 ||
+    code === 0x2029 ||
+    code === 0x202f ||
+    code === 0x205f ||
+    code === 0x3000 ||
+    code === 0xfeff
+  );
+}
+
+/** `[^/\s@]`: a character of URL userinfo. */
+function isUserinfoChar(code: number): boolean {
+  return code !== 47 && code !== 64 && !isRegExpSpace(code);
+}
 
 /**
  * Each `scheme://userinfo@` in `text`, left to right without overlaps, with
@@ -335,9 +355,10 @@ function urlUserinfoMatches(
       start++;
     }
     if (start === colon) continue;
-    USERINFO_AND_AT.lastIndex = colon + 3;
-    if (!USERINFO_AND_AT.test(text)) continue;
-    from = USERINFO_AND_AT.lastIndex;
+    let at = colon + 3;
+    while (at < text.length && isUserinfoChar(text.charCodeAt(at))) at++;
+    if (at === colon + 3 || text.charCodeAt(at) !== 64) continue;
+    from = at + 1;
     matches.push({ start, schemeEnd: colon + 3, end: from });
   }
   return matches;
