@@ -208,6 +208,84 @@ describe("redactUrl", () => {
     const output = redactUrl("/relative/path?password=hunter2");
     expect(output).not.toContain("hunter2");
   });
+
+  it("keeps the first parameter of a sensitive name, masked, and drops the rest", () => {
+    expect(
+      redactUrl("https://h/p?token=a&page=1&Token=b&token=c&sig=d#f"),
+    ).toBe(
+      "https://h/p?token=%3CREDACTED%3E&page=1&Token=%3CREDACTED%3E&sig=%3CREDACTED%3E#f",
+    );
+  });
+
+  // Each sensitive name used to re-serialize the whole query: seconds here.
+  it("masks 5,000 sensitive parameters in under 500 ms", () => {
+    const url = `https://h/p?${Array.from({ length: 5000 }, (_, i) => `token${i}=v`).join("&")}`;
+    const started = performance.now();
+    const output = redactUrl(url);
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(output).not.toContain("=v");
+  });
+
+  it("redacts each URL as the per-name regex and `searchParams.set` did", () => {
+    const redactAsBefore = (url: string) => {
+      const parsed = new URL(url);
+      if (parsed.username || parsed.password) {
+        parsed.username = "<REDACTED>";
+        parsed.password = "";
+      }
+      for (const [key] of [...parsed.searchParams.entries()]) {
+        const fragmentMatch =
+          /[\w-]{0,64}(?:token|secret|password|passwd|pwd|api[_-]?key|auth|session|csrf|xsrf|jwt|credential|signature|private[_-]?key|otp|bearer)[\w-]{0,64}/i.test(
+            key,
+          );
+        const signedUrlMatch =
+          /^(?:x-amz-signature|x-amz-credential|x-amz-security-token|signature|awsaccesskeyid|sig|sv|se|sp|sr|skoid|sktid|skt|ske|sks|skv)$/.test(
+            key.toLowerCase(),
+          );
+        if (fragmentMatch || signedUrlMatch) {
+          parsed.searchParams.set(key, "<REDACTED>");
+        }
+      }
+      return parsed.toString();
+    };
+    const NAMES = [
+      "token",
+      "TOKEN",
+      "id_token",
+      "api-key",
+      "api__key",
+      "ApiKey",
+      "X-Amz-Signature",
+      "Sig",
+      "sv",
+      "skt",
+      "sigx",
+      "tok",
+      "page",
+      "",
+      "%74oken",
+      "my token",
+      "to+ken",
+      "api\u212Aey",
+      "\u017Fecret",
+      "s\u0435cret",
+      "\ud800",
+    ];
+    const VALUES = ["", "1", "a b", "a+b", "%2B", "x=y", "\u00e9", "%zz"];
+    let state = 13;
+    const rand = () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 2 ** 32;
+    };
+    const pick = <T>(list: T[]) => list[Math.floor(rand() * list.length)] as T;
+    for (let i = 0; i < 2000; i++) {
+      const query = Array.from({ length: Math.floor(rand() * 6) }, () =>
+        rand() < 0.8 ? `${pick(NAMES)}=${pick(VALUES)}` : pick(NAMES),
+      ).join(pick(["&", "&", ";", "&&"]));
+      const url = `${pick(["https://h", "http://u:p@h:8080", "foo://h", "wss://h"])}${pick(["", "/p", "/a b"])}?${query}${pick(["", "#f", "#a?token=1"])}`;
+      expect(redactUrl(url), JSON.stringify(url)).toBe(redactAsBefore(url));
+    }
+  });
 });
 
 describe("redactLogs", () => {
