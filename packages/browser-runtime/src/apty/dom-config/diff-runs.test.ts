@@ -261,4 +261,26 @@ describe("flattenRun", () => {
       name: null,
     });
   });
+
+  it("shapes a 100,000-character frame src from a pasted profile in linear time", () => {
+    const started = performance.now();
+    const flat = flattenRun(
+      run(
+        "initial",
+        profile(
+          {},
+          {
+            iframes: {
+              [`Cross Origin 1 (src: /${"!".repeat(100_000)})`]: {
+                isCrossOrigin: true,
+              },
+            },
+          },
+        ),
+      ),
+      noisePolicy(),
+    );
+    expect(flat.frames).toHaveLength(1);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });

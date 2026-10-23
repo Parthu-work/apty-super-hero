@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyUrlPolicy,
   applyValuePolicy,
+  ID_RUN,
   isEditableRole,
   MASKED_VALUE,
   prepareNodeForPolicy,
@@ -136,6 +137,55 @@ describe("applyUrlPolicy beyond absolute web URLs", () => {
       "chrome-extension://bpiondflhhdplemamgggcdajclmoeple/src/entrypoints/sidepanel/index.html",
     );
     expect(applyUrlPolicy("about:blank", "withhold")).toBe("about:blank");
+  });
+});
+
+describe("withheld paths", () => {
+  /** What withholding did before the email scan: one global replace, quadratic on a long run without an `@`. */
+  const globalReplace = (path: string) =>
+    path
+      .replace(/[^/@\s]+@[^/@\s]+\.[a-z]{2,}/gi, ":email")
+      .replace(ID_RUN, ":id");
+
+  it("replaces emails exactly as the global replace did", () => {
+    const pieces = [
+      "a",
+      "Z",
+      "1",
+      ".",
+      "@",
+      "/",
+      " ",
+      "\u00a0",
+      "É",
+      "-",
+      "co",
+      "x@y.org",
+    ];
+    let seed = 7;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed;
+    };
+    for (let i = 0; i < 5_000; i++) {
+      let path = "/p/";
+      for (let n = next() % 16; n > 0; n--) {
+        path += pieces[next() % pieces.length];
+      }
+      expect(applyUrlPolicy(path, "withhold")).toBe(globalReplace(path));
+    }
+  });
+
+  it("withholds a 100,000-character path in linear time", () => {
+    const started = performance.now();
+    for (const path of [
+      `/${"!".repeat(100_000)}`,
+      `/${"!".repeat(100_000)}@`,
+      `/a@${"b.".repeat(50_000)}`,
+    ]) {
+      applyUrlPolicy(path, "withhold");
+    }
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
 

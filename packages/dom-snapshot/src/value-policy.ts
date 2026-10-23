@@ -18,11 +18,57 @@ export const MASKED_VALUE = "[masked]";
 export const ID_RUN =
   /(?<![0-9a-z])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{5,})(?![0-9a-z])/gi;
 
-const PATH_EMAIL = /[^/@\s]+@[^/@\s]+\.[a-z]{2,}/gi;
+/** Characters an email in a path cannot contain. */
+const PATH_EMAIL_BOUNDARY = /[/@\s]/;
+const ASCII_LETTER = /[a-z]/i;
+
+function emailPartEnd(path: string, from: number): number {
+  let end = from;
+  while (end < path.length && !PATH_EMAIL_BOUNDARY.test(path[end]!)) end++;
+  return end;
+}
+
+/** Where an email starting at `start` ends: `local@domain`, the domain's last `.` followed by two or more letters; -1 for none. */
+function pathEmailEnd(path: string, start: number): number {
+  const at = emailPartEnd(path, start);
+  if (at === start || path[at] !== "@") return -1;
+  const domainEnd = emailPartEnd(path, at + 1);
+  for (let dot = domainEnd - 1; dot > at + 1; dot--) {
+    if (path[dot] !== ".") continue;
+    let end = dot + 1;
+    while (end < domainEnd && ASCII_LETTER.test(path[end]!)) end++;
+    if (end - dot > 2) return end;
+  }
+  return -1;
+}
+
+/**
+ * `path` with every email replaced, as a global replace of
+ * `/[^/@\s]+@[^/@\s]+\.[a-z]{2,}/gi` would, in linear time. That replace
+ * retries from every character, quadratic on a long run without an `@`. A
+ * leftmost match can only start where the previous one ended or right after
+ * a `/`, `@` or space (one starting inside a run could start a character
+ * earlier), so only those positions are tried.
+ */
+function replacePathEmails(path: string): string {
+  let out = "";
+  let copied = 0;
+  let start = 0;
+  while (start < path.length) {
+    const end = pathEmailEnd(path, start);
+    if (end === -1) {
+      start = emailPartEnd(path, start) + 1;
+      continue;
+    }
+    out += `${path.slice(copied, start)}:email`;
+    start = copied = end;
+  }
+  return out + path.slice(copied);
+}
 
 /** A URL path with record numbers, GUIDs, long hex ids and emails replaced. */
 function withholdPathIdentifiers(path: string): string {
-  return path.replace(PATH_EMAIL, ":email").replace(ID_RUN, ":id");
+  return replacePathEmails(path).replace(ID_RUN, ":id");
 }
 
 /** Roles whose value, and whose text children, are what a person entered. */
