@@ -274,6 +274,23 @@ describe("redactSensitiveText — ReDoS safety", () => {
     }
   });
 
+  // The credential-word key/value pass tried, from every start in runs like
+  // these, every place a credential word could sit in the key: about half a
+  // second to a second each.
+  it.each([
+    ["token-token-…", longRun("token-")],
+    ["tokentoken…", longRun("token")],
+    ["authauth…", longRun("auth")],
+    ["otpotp…", longRun("otp")],
+    ["jwtjwt…", longRun("jwt")],
+  ])("redacts 100,000 characters of %s in under 100 ms in each mode", (_label, text) => {
+    for (const mode of ["strict", "standard", "off"] as const) {
+      const started = performance.now();
+      redactSensitiveText(text, mode);
+      expect(performance.now() - started, mode).toBeLessThan(100);
+    }
+  });
+
   it("finds URL userinfo in 100,000 characters of a-a-a-… in under 500 ms", () => {
     const started = performance.now();
     expect(unboundedPatternMatches(longRun("a-"))).toEqual([]);
@@ -405,6 +422,115 @@ describe("emails, URL userinfo and JWTs, against the regexes they replace", () =
         expect(redactSensitiveText(text, mode), JSON.stringify(text)).toBe(
           expected,
         );
+      }
+    }
+  });
+});
+
+describe("the credential-word key/value pass, against the regex it replaces", () => {
+  const KEY_VALUE =
+    /(["']?[\w-]{0,64}(?:token|secret|password|passwd|pwd|api[_-]?key|auth|session|csrf|xsrf|jwt|credential|signature|private[_-]?key|otp|bearer)[\w-]{0,64}["']?\s*[:=]\s*)(?:"((?:[^"\\]|\\.)*)(?:"|$)|'((?:[^'\\]|\\.)*)(?:'|$)|(?!(?:Bearer|Basic|Digest)\b)([^;,&\s"'}]+))/gi;
+  const replaceWithRegex = (text: string) =>
+    text.replace(KEY_VALUE, (_match, prefix, dq, sq) => {
+      if (dq !== undefined) return `${prefix}"<REDACTED>"`;
+      if (sq !== undefined) return `${prefix}'<REDACTED>'`;
+      return `${prefix}<REDACTED>`;
+    });
+
+  // No other pass can match text made of these: no header name at a line
+  // start, signed-URL parameter, auth scheme followed by white space, token
+  // prefix, `@`, `/`, `{` or `[`.
+  const PIECES = [
+    "token",
+    "Auth",
+    "pwd",
+    "OTP",
+    "secret",
+    "api_key",
+    "APIKEY",
+    "Session",
+    "credential",
+    "Bearer-",
+    "BASIC.",
+    "digest1",
+    "q",
+    "a9",
+    "_",
+    "-",
+    "-",
+    ":",
+    ":",
+    "=",
+    "=",
+    '"',
+    "'",
+    "\\",
+    ";",
+    ",",
+    "&",
+    "}",
+    " ",
+    "\t",
+    "\n",
+    " ",
+    " ",
+  ];
+  let state = 11;
+  const rand = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 2 ** 32;
+  };
+  const key = (before: number, after: number) =>
+    `${"q".repeat(before)}token${"a".repeat(after)}`;
+  const texts = [
+    `${key(80, 64)}=v`,
+    `${key(80, 65)}=v`,
+    `${key(0, 64)}token${"a".repeat(64)}=v`,
+    `'${key(3, 3)}' : "a\\"b" c`,
+    `${key(1, 1)}="a\\\nb"`,
+    `${key(1, 1)}='a\\`,
+    `${key(1, 1)}="unterminated`,
+    `${key(1, 1)}= Bearer-x; ${key(1, 1)}=Bearerx`,
+    `${key(1, 1)}=digest.x ${key(1, 1)}=BASIC ${key(1, 1)}=Digest1`,
+    `${key(1, 1)} : v`,
+    `${key(1, 1)}::v ${key(1, 1)}==v`,
+    `${key(1, 1)}=}`,
+    ...Array.from({ length: 4000 }, () =>
+      Array.from(
+        { length: 1 + Math.floor(rand() * 30) },
+        () => PIECES[Math.floor(rand() * PIECES.length)],
+      ).join(""),
+    ),
+  ];
+
+  it("redacts each text as replacing with that regex did, in every mode", () => {
+    for (const text of texts) {
+      const expected = replaceWithRegex(text);
+      for (const mode of ["strict", "standard", "off"] as const) {
+        expect(redactSensitiveText(text, mode), JSON.stringify(text)).toBe(
+          expected,
+        );
+      }
+    }
+  });
+
+  it("reads the key and value as that regex did, for every UTF-16 code unit", () => {
+    const shapes = [
+      (char: string) => `q${char}token:v`,
+      (char: string) => `token${char}:v`,
+      (char: string) => `token=a${char}b`,
+    ];
+    // 1,024 code units to a text, one line each, to keep the calls few.
+    for (let first = 0; first <= 0xffff; first += 1024) {
+      const chars = Array.from({ length: 1024 }, (_, i) =>
+        String.fromCharCode(first + i),
+      );
+      for (const shape of shapes) {
+        const text = chars.map(shape).join("\n");
+        expect(
+          redactSensitiveText(text, "off"),
+          `U+${first.toString(16)} on, ${shape("…")}`,
+        ).toBe(replaceWithRegex(text));
       }
     }
   });
