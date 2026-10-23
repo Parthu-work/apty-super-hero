@@ -874,6 +874,22 @@ export function unboundedPatternMatches(text: string): string[] {
 }
 
 /**
+ * Whether a query parameter's value is masked by name: a signed-URL
+ * parameter, or a name holding a sensitive key fragment anywhere, in any
+ * ASCII case (what `/[\w-]{0,64}(?:FRAGMENT)[\w-]{0,64}/i.test(name)`
+ * answered, since both sides may be empty).
+ */
+function isSensitiveQueryName(name: string): boolean {
+  if (SIGNED_URL_PARAM_NAMES.has(name.toLowerCase())) return true;
+  for (let index = 0; index < name.length; index++) {
+    for (const spelling of SENSITIVE_KEY_SPELLINGS) {
+      if (spelledAt(name, index, spelling)) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Redact query-string parameters and userinfo in a URL specifically — for
  * call sites that only ever have a URL, not free text (network capture,
  * evidence records, peer responses). Delegates to the same passes as
@@ -887,15 +903,24 @@ export function redactUrl(url: string): string {
       parsed.username = "<REDACTED>";
       parsed.password = "";
     }
-    for (const [key] of [...parsed.searchParams.entries()]) {
-      const fragmentMatch = new RegExp(
-        `[\\w-]{0,64}(?:${SENSITIVE_KEY_FRAGMENT})[\\w-]{0,64}`,
-        "i",
-      ).test(key);
-      const signedUrlMatch = SIGNED_URL_PARAM_NAMES.has(key.toLowerCase());
-      if (fragmentMatch || signedUrlMatch) {
-        parsed.searchParams.set(key, "<REDACTED>");
+    const params = [...parsed.searchParams];
+    if (params.some(([name]) => isSensitiveQueryName(name))) {
+      // What calling `searchParams.set(name, "<REDACTED>")` for each
+      // sensitive name did, in one pass: the first parameter of that name
+      // keeps its place with the value masked, the others are dropped.
+      // Each `set` re-serialized the whole query, so that was quadratic in
+      // the number of parameters.
+      const masked = new URLSearchParams();
+      const maskedNames = new Set<string>();
+      for (const [name, value] of params) {
+        if (!isSensitiveQueryName(name)) {
+          masked.append(name, value);
+        } else if (!maskedNames.has(name)) {
+          maskedNames.add(name);
+          masked.append(name, "<REDACTED>");
+        }
       }
+      parsed.search = masked.toString();
     }
     return parsed.toString();
   } catch {
