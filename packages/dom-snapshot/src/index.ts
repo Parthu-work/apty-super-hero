@@ -23,6 +23,11 @@ export {
   toElementRef,
 } from "./element-ref.js";
 export {
+  DEFAULT_DES_CONFIG,
+  DEFAULT_IGNORE,
+  DEFAULT_PRIORITY,
+} from "./health-attribute-classification.js";
+export {
   AUDIT_DES_CONFIG,
   AUDIT_PROFILE_NAME,
   isUnstableAttributeName,
@@ -103,14 +108,18 @@ export {
   type VirtualizedListSummary,
 } from "./health-virtualized.js";
 export {
+  BROWSER_EXTENSION,
   DEFAULT_IGNORED_ROOTS,
   describeMatcher,
   type ExcludedRootSummary,
   findIgnoredRoots,
   type IgnoredRootMatcher,
+  type IgnoredRootTarget,
   ignoredRootPolicy,
   matchIgnoredRoot,
+  matchIgnoredRootTarget,
   mergeExcludedRoots,
+  PASSWORD_MANAGER,
   parseIgnoredRootMatcher,
 } from "./ignored-roots.js";
 export { buildTextSnapshot, formatSnapshot } from "./manager.js";

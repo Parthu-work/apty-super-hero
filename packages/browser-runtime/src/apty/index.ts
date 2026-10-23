@@ -37,6 +37,7 @@ export {
   setAptyIntegrationConfig,
   updateAptyIntegrationConfig,
 } from "./config.js";
+export * from "./dom-config/index.js";
 export type { DomHealthAuditOutcome } from "./dom-health.js";
 export { isUnsupportedPage, runDomHealthAudit } from "./dom-health.js";
 export type {
