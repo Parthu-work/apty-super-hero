@@ -121,8 +121,92 @@ const SENSITIVE_KEYVALUE_PATTERN = new RegExp(
 /** A raw `Bearer`/`Basic` credential, with or without a preceding key name (e.g. embedded directly in a log line). Runs BEFORE the generic key/value pass. */
 const AUTH_SCHEME_PATTERN = /\b(Bearer|Basic|Digest)\s+[A-Za-z0-9\-._~+/]+=*/g;
 
-/** JWT-shaped: three base64url segments, header segment starting `eyJ` (the base64url encoding of `{"`), anywhere in the text — not just after a recognized key name. */
-const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
+function isAsciiLetter(code: number): boolean {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+/** `\w` in a pattern without the `u` flag: an ASCII letter, digit or `_`. */
+function isWordChar(code: number): boolean {
+  return isAsciiLetter(code) || (code >= 48 && code <= 57) || code === 95;
+}
+
+/** Whether `\b` holds at `index`: a word character on one side only. */
+function isWordBoundary(text: string, index: number): boolean {
+  const before = index > 0 && isWordChar(text.charCodeAt(index - 1));
+  const after = index < text.length && isWordChar(text.charCodeAt(index));
+  return before !== after;
+}
+
+/** `[\w-]`, the same as `[A-Za-z0-9_-]`: a character of a JWT segment or of a domain label. */
+function isWordOrHyphen(code: number): boolean {
+  return isWordChar(code) || code === 45;
+}
+
+/**
+ * Where the longest run of `[A-Za-z0-9_-]` from `start` that ends at a word
+ * boundary ends, or -1: what `[A-Za-z0-9_-]+\b` matches there, the end
+ * stepping back from the longest run as the regex backtracks.
+ */
+function wordOrHyphenRunEnd(text: string, start: number): number {
+  let end = start;
+  while (isWordOrHyphen(text.charCodeAt(end))) end++;
+  for (; end > start; end--) {
+    if (isWordBoundary(text, end)) return end;
+  }
+  return -1;
+}
+
+/**
+ * Each JWT-shaped string in `text` (three base64url segments, the header
+ * starting `eyJ`, the base64url encoding of `{"`), left to right without
+ * overlaps, anywhere in the text — not just after a recognized key name:
+ * what `/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g` matches.
+ * That regex tries every `eyJ` at a word boundary and scans the run after
+ * it for a `.`, which is quadratic on a long run without one (`eyJ-eyJ-…`).
+ * Every start in one run reaches the same `.`, so this starts from each `.`
+ * and looks back for the leftmost `eyJ` the regex would start at.
+ */
+function jwtMatches(text: string): Array<[start: number, end: number]> {
+  const matches: Array<[number, number]> = [];
+  let from = 0;
+  for (
+    let dot = text.indexOf(".");
+    dot !== -1;
+    dot = text.indexOf(".", dot + 1)
+  ) {
+    if (dot < from) continue;
+    let start = dot;
+    while (start > from && isWordOrHyphen(text.charCodeAt(start - 1))) {
+      start--;
+    }
+    while (
+      start + 3 < dot &&
+      !(text.startsWith("eyJ", start) && isWordBoundary(text, start))
+    ) {
+      start++;
+    }
+    if (start + 3 >= dot) continue;
+    let secondDot = dot + 1;
+    while (isWordOrHyphen(text.charCodeAt(secondDot))) secondDot++;
+    if (secondDot === dot + 1 || text.charCodeAt(secondDot) !== 46) continue;
+    const end = wordOrHyphenRunEnd(text, secondDot + 1);
+    if (end === -1) continue;
+    matches.push([start, end]);
+    from = end;
+  }
+  return matches;
+}
+
+/** `text` with each JWT replaced. */
+function redactJwts(text: string): string {
+  let result = "";
+  let last = 0;
+  for (const [start, end] of jwtMatches(text)) {
+    result += `${text.slice(last, start)}<REDACTED>`;
+    last = end;
+  }
+  return result + text.slice(last);
+}
 
 const PEM_BEGIN = "-----BEGIN ";
 const PEM_END = "-----END ";
@@ -206,8 +290,90 @@ function redactPemBlocks(text: string): string {
   return result + text.slice(last);
 }
 
-/** `scheme://user:password@host` — the whole userinfo component, never just the password, since the username can itself be sensitive (an email, an account id). */
-const URL_USERINFO_PATTERN = /\b([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^/\s@]+)@/g;
+/** `[a-zA-Z0-9+.-]`: a character of a URL scheme. */
+function isSchemeChar(code: number): boolean {
+  return (
+    isAsciiLetter(code) ||
+    (code >= 48 && code <= 57) ||
+    code === 43 ||
+    code === 46 ||
+    code === 45
+  );
+}
+
+/** `\s` in a pattern without the `u` flag: a JavaScript white space or line terminator character. */
+function isRegExpSpace(code: number): boolean {
+  return (
+    (code >= 9 && code <= 13) ||
+    code === 32 ||
+    code === 0xa0 ||
+    code === 0x1680 ||
+    (code >= 0x2000 && code <= 0x200a) ||
+    code === 0x2028 ||
+    code === 0x2029 ||
+    code === 0x202f ||
+    code === 0x205f ||
+    code === 0x3000 ||
+    code === 0xfeff
+  );
+}
+
+/** `[^/\s@]`: a character of URL userinfo. */
+function isUserinfoChar(code: number): boolean {
+  return code !== 47 && code !== 64 && !isRegExpSpace(code);
+}
+
+/**
+ * Each `scheme://userinfo@` in `text`, left to right without overlaps, with
+ * where its `scheme://` ends: what
+ * `/\b([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^/\s@]+)@/g` matches. That regex
+ * tries every word boundary and scans the run of scheme characters after it
+ * for `://`, which is quadratic on a long run without one (`a-a-a-…`).
+ * Every match holds a `://`, so this starts from each one and looks back
+ * for the leftmost start the regex would take: a letter at a word boundary
+ * in the run of scheme characters right before it.
+ *
+ * The whole userinfo component is masked, never just the password, since
+ * the username can itself be sensitive (an email, an account id).
+ */
+function urlUserinfoMatches(
+  text: string,
+): Array<{ start: number; schemeEnd: number; end: number }> {
+  const matches: Array<{ start: number; schemeEnd: number; end: number }> = [];
+  let from = 0;
+  for (
+    let colon = text.indexOf("://");
+    colon !== -1;
+    colon = text.indexOf("://", colon + 1)
+  ) {
+    let start = colon;
+    while (start > from && isSchemeChar(text.charCodeAt(start - 1))) start--;
+    while (
+      start < colon &&
+      !(isAsciiLetter(text.charCodeAt(start)) && isWordBoundary(text, start))
+    ) {
+      start++;
+    }
+    if (start === colon) continue;
+    let at = colon + 3;
+    while (at < text.length && isUserinfoChar(text.charCodeAt(at))) at++;
+    if (at === colon + 3 || text.charCodeAt(at) !== 64) continue;
+    from = at + 1;
+    matches.push({ start, schemeEnd: colon + 3, end: from });
+  }
+  return matches;
+}
+
+/** `text` with the userinfo of each URL replaced, its scheme and `@` kept. */
+function redactUrlUserinfo(text: string): string {
+  let result = "";
+  let last = 0;
+  for (const { schemeEnd, end } of urlUserinfoMatches(text)) {
+    result += `${text.slice(last, schemeEnd)}<REDACTED>@`;
+    last = end;
+  }
+  return result + text.slice(last);
+}
 
 /**
  * Exact query-param names used by cloud-signed URLs (AWS SigV4, Azure SAS,
@@ -252,7 +418,78 @@ const SIGNED_URL_PARAM_PATTERN = new RegExp(
 const KNOWN_TOKEN_SHAPE_PATTERN =
   /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|AIza[0-9A-Za-z_-]{35}|sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,})\b/g;
 
-const EMAIL_PATTERN = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
+/** `[\w.+-]`: a character of an email's local part. */
+function isLocalPartChar(code: number): boolean {
+  return isWordChar(code) || code === 46 || code === 43 || code === 45;
+}
+
+/**
+ * Where the domain that starts at `start` ends, or -1: what
+ * `[\w-]+(?:\.[\w-]+)+\b` matches there. The first label is taken whole and
+ * then every `.label` after it; where `\b` does not hold at the end, the end
+ * steps back through the last label and then the ones before it, as the
+ * regex backtracks.
+ */
+function emailDomainEnd(text: string, start: number): number {
+  let index = start;
+  while (isWordOrHyphen(text.charCodeAt(index))) index++;
+  if (index === start) return -1;
+  const labels: Array<[shortestEnd: number, longestEnd: number]> = [];
+  while (
+    text.charCodeAt(index) === 46 &&
+    isWordOrHyphen(text.charCodeAt(index + 1))
+  ) {
+    const labelStart = index + 1;
+    index = labelStart + 1;
+    while (isWordOrHyphen(text.charCodeAt(index))) index++;
+    labels.push([labelStart + 1, index]);
+  }
+  for (let i = labels.length - 1; i >= 0; i--) {
+    const [shortestEnd, longestEnd] = labels[i] as [number, number];
+    for (let end = longestEnd; end >= shortestEnd; end--) {
+      if (isWordBoundary(text, end)) return end;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Each email address in `text`, left to right without overlaps: what
+ * `/\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g` matches. That regex tries every word
+ * boundary and scans the run after it for an `@`, which is quadratic on a
+ * long run without one (`a-a-a-…`). Every match holds exactly one `@`, so
+ * this starts from each `@` and looks back for the leftmost start the regex
+ * would take: a word boundary in the run of local-part characters right
+ * before it.
+ */
+function emailMatches(text: string): Array<[start: number, end: number]> {
+  const matches: Array<[number, number]> = [];
+  let from = 0;
+  for (let at = text.indexOf("@"); at !== -1; at = text.indexOf("@", at + 1)) {
+    let start = at;
+    while (start > from && isLocalPartChar(text.charCodeAt(start - 1))) {
+      start--;
+    }
+    while (start < at && !isWordBoundary(text, start)) start++;
+    if (start === at) continue;
+    const end = emailDomainEnd(text, at + 1);
+    if (end === -1) continue;
+    matches.push([start, end]);
+    from = end;
+  }
+  return matches;
+}
+
+/** `text` with each email address replaced. */
+function redactEmails(text: string): string {
+  let result = "";
+  let last = 0;
+  for (const [start, end] of emailMatches(text)) {
+    result += `${text.slice(last, start)}<REDACTED-EMAIL>`;
+    last = end;
+  }
+  return result + text.slice(last);
+}
 
 /**
  * A medical record number written out in text (`MRN 4815162342`,
@@ -376,13 +613,13 @@ function redactPatterns(text: string, mode: RedactionMode): string {
   result = redactPemBlocks(result);
   // 2. URL userinfo — before the email pattern, since `user:pass@host` reads
   //    like an email address once the scheme/userinfo separator is gone.
-  result = result.replace(URL_USERINFO_PATTERN, "$1<REDACTED>@");
+  result = redactUrlUserinfo(result);
   // 3. Signed-URL query params (by name, regardless of the generic key-fragment list).
   result = result.replace(SIGNED_URL_PARAM_PATTERN, "$1=<REDACTED>");
   // 4. Auth schemes — before the generic key/value pass, so "Authorization: Bearer x.y.z" is fully consumed here first (see SENSITIVE_KEYVALUE_PATTERN's doc comment for why order matters).
   result = result.replace(AUTH_SCHEME_PATTERN, "$1 <REDACTED>");
   // 5. Bare JWTs anywhere (whatever's left after the auth-scheme pass already ate any that followed "Bearer ").
-  result = result.replace(JWT_PATTERN, "<REDACTED>");
+  result = redactJwts(result);
   // 6. Well-known token shapes, independent of any key name.
   result = result.replace(KNOWN_TOKEN_SHAPE_PATTERN, "<REDACTED>");
   // 7. Generic sensitive key = value (JSON/query/header/cookie shaped).
@@ -393,7 +630,7 @@ function redactPatterns(text: string, mode: RedactionMode): string {
   }
   // 8. Emails, last (documented default-on constant).
   if (REDACT_EMAILS) {
-    result = result.replace(EMAIL_PATTERN, "<REDACTED-EMAIL>");
+    result = redactEmails(result);
   }
   return result;
 }
@@ -479,8 +716,8 @@ function redactJsonText(text: string, mode: RedactionMode): string | undefined {
 export function unboundedPatternMatches(text: string): string[] {
   const pem = pemBlocks(text).map(({ start, end }) => text.slice(start, end));
   const afterPem = redactPemBlocks(text);
-  const userinfo = [...afterPem.matchAll(URL_USERINFO_PATTERN)].map(
-    (m) => m[0],
+  const userinfo = urlUserinfoMatches(afterPem).map(({ start, end }) =>
+    afterPem.slice(start, end),
   );
   return [...pem, ...userinfo];
 }
