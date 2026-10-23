@@ -368,6 +368,30 @@ describe("redactSensitiveText — truncated JSON", () => {
       expect(redactSensitiveText(input, mode)).not.toContain(secret);
     }
   });
+
+  it("masks an object under a hyphenated sensitive key whole", () => {
+    for (const mode of ["strict", "standard"] as const) {
+      expect(
+        redactSensitiveText('{"X-Api-Key": {"v":"S6"}, "next": 1', mode),
+      ).toBe('{"X-Api-Key": "<REDACTED>", "next": 1');
+    }
+  });
+
+  // Masking the value whole would cut these matches short of the secret.
+  it.each([
+    [
+      '{"X-Api-Key": ["-----BEGIN KEY-----"], "x": "SECRETPEM-----END KEY-----"}, "t": 1',
+      "SECRETPEM",
+    ],
+    ['{"X-Api-Key": ["see http://x"],"user:SECRETPW@host"]', "SECRETPW"],
+    ['{"X-Api-Key": [token=abc]SECRETRUN, "n": 1', "SECRETRUN"],
+    ['{"X-Api-Key": [sig=abc]SECRETSIG, "n": 1', "SECRETSIG"],
+    ['{"X-Api-Key": [\nCookie: abc] SECRETLINE\n, "n": 1', "SECRETLINE"],
+  ])("still masks what a later pass matches across a hyphenated key's value: %j", (input, secret) => {
+    for (const mode of ["strict", "standard"] as const) {
+      expect(redactSensitiveText(input, mode)).not.toContain(secret);
+    }
+  });
 });
 
 describe("medical record numbers in free text", () => {
