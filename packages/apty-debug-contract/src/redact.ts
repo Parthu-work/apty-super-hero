@@ -76,48 +76,6 @@ const SENSITIVE_HEADER_LINE_PATTERN = new RegExp(
 const SENSITIVE_KEY_FRAGMENT =
   "token|secret|password|passwd|pwd|api[_-]?key|auth|session|csrf|xsrf|jwt|credential|signature|private[_-]?key|otp|bearer";
 
-/**
- * `key ":"|"=" (quoted-value | unquoted-value)` for any of the sensitive
- * key-name fragments above — covers JSON (`"password":"..."`), query
- * strings (`id_token=...&state=1`), headers (`csrf_token: ...`), and cookie
- * pairs (`sessionid=SECRET1; other=SECRET2`) in one pass, since the `g` flag
- * finds every independent occurrence regardless of surrounding structure.
- *
- * The key portion is deliberately `[\w-]{0,64}FRAGMENT[\w-]{0,64}`, NOT
- * `\bFRAGMENT\b` — a real word-boundary `\b` does not fire between two word
- * characters, so it can never match a fragment sitting inside a compound
- * identifier like `id_token` (the `_` is itself a word character) or
- * `sessionid` (no separator at all before the trailing "id"). The bounded
- * (never unbounded, for ReDoS safety) `[\w-]{0,64}` on each side allows the
- * fragment to appear ANYWHERE within a reasonable-length identifier —
- * substring matching, per spec, not whole-word matching. This deliberately
- * accepts some false positives (e.g. "author" contains "auth") — redacting
- * something that wasn't actually secret is the safe direction to err in.
- *
- * A quoted value with no closing quote (a truncated body) runs to the end
- * of the input and is redacted whole.
- *
- * The quoted-value branch handles escaped characters (so a value containing
- * `\"` doesn't end the match early) and arbitrary interior whitespace (the
- * `{"password":"my secret pass phrase"}` case). The unquoted-value branch
- * stops at the delimiters that actually separate fields in the formats this
- * targets (`;`, `,`, `&`, whitespace, a closing brace/quote) — never at an
- * open brace/bracket, so it doesn't run away into unrelated JSON structure.
- *
- * The negative lookahead before the unquoted branch excludes a bare
- * `Bearer`/`Basic`/`Digest` scheme name: those are handled by
- * `AUTH_SCHEME_PATTERN` below, which runs first and already consumes the
- * whole "scheme + credential" — without this exclusion, a header like
- * `Authorization: Bearer abc.def.ghi` would match here too (key
- * "authorization" contains "auth"), redacting only the word "Bearer" and
- * leaving the actual credential exposed right after it — the exact
- * regression this rewrite exists to fix.
- */
-const SENSITIVE_KEYVALUE_PATTERN = new RegExp(
-  `(["']?[\\w-]{0,64}(?:${SENSITIVE_KEY_FRAGMENT})[\\w-]{0,64}["']?\\s*[:=]\\s*)(?:"((?:[^"\\\\]|\\\\.)*)(?:"|$)|'((?:[^'\\\\]|\\\\.)*)(?:'|$)|(?!(?:Bearer|Basic|Digest)\\b)([^;,&\\s"'}]+))`,
-  "gi",
-);
-
 /** A raw `Bearer`/`Basic` credential, with or without a preceding key name (e.g. embedded directly in a log line). Runs BEFORE the generic key/value pass. */
 const AUTH_SCHEME_PATTERN = /\b(Bearer|Basic|Digest)\s+[A-Za-z0-9\-._~+/]+=*/g;
 
@@ -501,16 +459,209 @@ function redactEmails(text: string): string {
 const MRN_PATTERN =
   /\b(MRN|medical[\s_-]+record[\s_-]+(?:number|num|no\.?|#))(\s*[:#=]\s*|\s+|(?=\d))((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{3,})\b/gi;
 
+/**
+ * `key ":"|"=" (quoted-value | unquoted-value)` for any of the sensitive
+ * key-name fragments above — covers JSON (`"password":"..."`), query
+ * strings (`id_token=...&state=1`), headers (`csrf_token: ...`), and cookie
+ * pairs (`sessionid=SECRET1; other=SECRET2`) in one pass, finding every
+ * independent occurrence regardless of surrounding structure. Each value is
+ * replaced as replacing
+ * `/(["']?[\w-]{0,64}(?:FRAGMENT)[\w-]{0,64}["']?\s*[:=]\s*)(?:"((?:[^"\\]|\\.)*)(?:"|$)|'((?:[^'\\]|\\.)*)(?:'|$)|(?!(?:Bearer|Basic|Digest)\b)([^;,&\s"'}]+))/gi`
+ * does.
+ *
+ * The key is a run of `[\w-]` holding a fragment anywhere, NOT a whole word
+ * bounded by `\b` — `\b` does not fire between two word characters, so it
+ * could never match a fragment inside a compound identifier like `id_token`
+ * (the `_` is itself a word character) or `sessionid`. This deliberately
+ * accepts some false positives (e.g. "author" contains "auth") — redacting
+ * something that wasn't actually secret is the safe direction to err in.
+ * As in the regex, at most 64 characters of the key may follow the fragment.
+ *
+ * That regex tried every start in a long run of key characters and, for
+ * each, every place the fragment could sit, so it cost about 10 µs per
+ * character on a run full of fragments (`token-token-…`). Every match holds
+ * exactly one `:` or `=` after its key, so this starts from each one and
+ * looks back over the at most 64 + 11 key characters a fragment can sit in.
+ *
+ * A quoted value with no closing quote (a truncated body) runs to the end
+ * of the input and is redacted whole. A quoted value may hold escaped
+ * characters (so a value containing `\"` doesn't end the match early) and
+ * arbitrary interior whitespace (the `{"password":"my secret pass phrase"}`
+ * case). An unquoted value stops at the delimiters that actually separate
+ * fields in the formats this targets (`;`, `,`, `&`, whitespace, a closing
+ * brace/quote) — never at an open brace/bracket, so it doesn't run away
+ * into unrelated JSON structure.
+ *
+ * An unquoted value never starts with a bare `Bearer`/`Basic`/`Digest`
+ * scheme name: those are handled by `AUTH_SCHEME_PATTERN` below, which runs
+ * first and already consumes the whole "scheme + credential" — without this
+ * exclusion, a header like `Authorization: Bearer abc.def.ghi` would match
+ * here too (key "authorization" contains "auth"), redacting only the word
+ * "Bearer" and leaving the actual credential exposed right after it.
+ */
 function redactKeyValuePairs(text: string): string {
-  return text.replace(
-    SENSITIVE_KEYVALUE_PATTERN,
-    (_match, prefix, dq, sq, unquoted) => {
-      if (dq !== undefined) return `${prefix}"<REDACTED>"`;
-      if (sq !== undefined) return `${prefix}'<REDACTED>'`;
-      void unquoted;
-      return `${prefix}<REDACTED>`;
-    },
+  let result = "";
+  let last = 0;
+  for (const { valueStart, end, quote } of keyValueMatches(text)) {
+    const masked =
+      quote === undefined ? "<REDACTED>" : `${quote}<REDACTED>${quote}`;
+    result += `${text.slice(last, valueStart)}${masked}`;
+    last = end;
+  }
+  return result + text.slice(last);
+}
+
+/** Each spelling of the fragments in `SENSITIVE_KEY_FRAGMENT`, lowercase: `api[_-]?key` is `apikey`, `api_key` and `api-key`. */
+const SENSITIVE_KEY_SPELLINGS = [
+  ...new Set(
+    SENSITIVE_KEY_FRAGMENT.split("|").flatMap((fragment) =>
+      ["", "_", "-"].map((separator) => fragment.replace("[_-]?", separator)),
+    ),
+  ),
+];
+
+const LONGEST_SENSITIVE_KEY_SPELLING = Math.max(
+  ...SENSITIVE_KEY_SPELLINGS.map((spelling) => spelling.length),
+);
+
+/** How many key characters may follow the fragment. */
+const KEY_CHARS_AFTER_FRAGMENT = 64;
+
+/** Whether `spelling` (lowercase ASCII) is at `index`, in any case. */
+function spelledAt(text: string, index: number, spelling: string): boolean {
+  for (let i = 0; i < spelling.length; i++) {
+    let code = text.charCodeAt(index + i);
+    if (code >= 65 && code <= 90) code += 32;
+    if (code !== spelling.charCodeAt(i)) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether the `[\w-]` run ending at `keyEnd`, from `from` on, holds a
+ * fragment followed by at most 64 more key characters: whether some start
+ * from `from` on reads as a sensitive key ending there.
+ */
+function endsSensitiveKey(text: string, from: number, keyEnd: number): boolean {
+  const lowest = Math.max(
+    from,
+    keyEnd - KEY_CHARS_AFTER_FRAGMENT - LONGEST_SENSITIVE_KEY_SPELLING,
   );
+  for (
+    let index = keyEnd - 1;
+    index >= lowest && isWordOrHyphen(text.charCodeAt(index));
+    index--
+  ) {
+    for (const spelling of SENSITIVE_KEY_SPELLINGS) {
+      const fragmentEnd = index + spelling.length;
+      if (
+        fragmentEnd <= keyEnd &&
+        fragmentEnd >= keyEnd - KEY_CHARS_AFTER_FRAGMENT &&
+        spelledAt(text, index, spelling)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isQuote(code: number): boolean {
+  return code === 34 || code === 39;
+}
+
+/** A line terminator, the characters `.` does not match. */
+function isLineTerminator(code: number): boolean {
+  return code === 10 || code === 13 || code === 0x2028 || code === 0x2029;
+}
+
+/** `[;,&\s"'}]`: a character that ends an unquoted value. */
+function endsUnquotedValue(code: number): boolean {
+  return (
+    code === 59 ||
+    code === 44 ||
+    code === 38 ||
+    code === 125 ||
+    isQuote(code) ||
+    isRegExpSpace(code)
+  );
+}
+
+interface KeyValueMatch {
+  valueStart: number;
+  end: number;
+  /** The quote around the value, if it is quoted. */
+  quote?: string;
+}
+
+/**
+ * The value after the `:` or `=` before `afterSeparator`, or undefined
+ * when none can follow it there.
+ */
+function valueAfter(
+  text: string,
+  afterSeparator: number,
+): KeyValueMatch | undefined {
+  let valueStart = afterSeparator;
+  while (isRegExpSpace(text.charCodeAt(valueStart))) valueStart++;
+  const first = text.charCodeAt(valueStart);
+  if (isQuote(first)) {
+    let index = valueStart + 1;
+    while (index < text.length) {
+      const code = text.charCodeAt(index);
+      if (code === first) break;
+      if (code === 92) {
+        if (
+          index + 1 === text.length ||
+          isLineTerminator(text.charCodeAt(index + 1))
+        ) {
+          return undefined;
+        }
+        index += 2;
+      } else {
+        index++;
+      }
+    }
+    return {
+      valueStart,
+      end: Math.min(index + 1, text.length),
+      quote: String.fromCharCode(first),
+    };
+  }
+  if (valueStart === text.length || endsUnquotedValue(first)) return undefined;
+  for (const scheme of ["bearer", "basic", "digest"]) {
+    if (
+      spelledAt(text, valueStart, scheme) &&
+      isWordBoundary(text, valueStart + scheme.length)
+    ) {
+      return undefined;
+    }
+  }
+  let end = valueStart + 1;
+  while (end < text.length && !endsUnquotedValue(text.charCodeAt(end))) end++;
+  return { valueStart, end };
+}
+
+/** Each sensitive key's value in `text`, left to right without overlaps. */
+function keyValueMatches(text: string): KeyValueMatch[] {
+  const matches: KeyValueMatch[] = [];
+  let from = 0;
+  for (let separator = 0; separator < text.length; separator++) {
+    const code = text.charCodeAt(separator);
+    if (code !== 58 && code !== 61) continue;
+    let keyEnd = separator;
+    while (keyEnd > from && isRegExpSpace(text.charCodeAt(keyEnd - 1))) {
+      keyEnd--;
+    }
+    if (keyEnd > from && isQuote(text.charCodeAt(keyEnd - 1))) keyEnd--;
+    if (!endsSensitiveKey(text, from, keyEnd)) continue;
+    const value = valueAfter(text, separator + 1);
+    if (value === undefined) continue;
+    matches.push(value);
+    from = value.end;
+    separator = from - 1;
+  }
+  return matches;
 }
 
 /**
@@ -616,7 +767,7 @@ function redactPatterns(text: string, mode: RedactionMode): string {
   result = redactUrlUserinfo(result);
   // 3. Signed-URL query params (by name, regardless of the generic key-fragment list).
   result = result.replace(SIGNED_URL_PARAM_PATTERN, "$1=<REDACTED>");
-  // 4. Auth schemes — before the generic key/value pass, so "Authorization: Bearer x.y.z" is fully consumed here first (see SENSITIVE_KEYVALUE_PATTERN's doc comment for why order matters).
+  // 4. Auth schemes — before the generic key/value pass, so "Authorization: Bearer x.y.z" is fully consumed here first (see redactKeyValuePairs's doc comment for why order matters).
   result = result.replace(AUTH_SCHEME_PATTERN, "$1 <REDACTED>");
   // 5. Bare JWTs anywhere (whatever's left after the auth-scheme pass already ate any that followed "Bearer ").
   result = redactJwts(result);
