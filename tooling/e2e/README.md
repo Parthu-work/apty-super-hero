@@ -10,6 +10,8 @@ first (`npm run build`, which also builds the MCP bridge daemon).
 | `core-tools.e2e.test.mjs` | Everyday tools through the real agent: find and click an element, page metadata, scroll, highlight, screenshot, page console output, network and runtime diagnostics. |
 | `frames.e2e.test.mjs` | DOM Health in same-origin, cross-origin, `data:` and frameset frames, open and closed shadow roots, top-frame-only UI, responder injection, element capture in the top frame and in an iframe. |
 | `dom-health-routing.e2e.test.mjs` | The page's own `pushState` calls (including those made while it loads) counted through the MAIN-world hooks, and the developer route probe recording a real click: a new heading inside a shadow root, the first request path, the `pushState`. |
+| `dom-config-collector.e2e.test.mjs` | DOM Config's collector and behavior probe: every frame profiled by its own responder, cross-origin included, the console script's JSON shape, noise left out, mutation bursts. |
+| `dom-config-crawl.e2e.test.mjs` | DOM Config's crawl on a four-page fixture application: two runs per page, rules from what changed, Apty's defaults, z-index and iframes, the menu state left alone in safe mode and captured in deep mode, the same Markdown from the same capture. |
 | `ui.e2e.test.mjs` | The side panel's readiness chips (model, Apty Client, page), the "Set up" link landing on the AI provider settings, and Options tabs kept in the URL across Back and reload. |
 | `mcp.e2e.test.mjs` | The real MCP daemon: the Options page Connect button, the daemon's dangerous-tool block, and the approval prompt relayed from the service worker to the side panel. |
 

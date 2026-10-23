@@ -178,6 +178,20 @@ describe("generateRules", () => {
     ]);
   });
 
+  it("writes one rule when the same pattern is both observed changing and seen by shape", () => {
+    const { rules } = rulesFor([
+      { id: values("ui-id-2", "ui-id-3") },
+      { id: values("ui-id-3", "ui-id-4") },
+    ]);
+    expect(rules.map(conditions)).toEqual([
+      "Attribute Name Equals id AND Attribute Value Regex ^ui-id-\\d+$",
+    ]);
+    expect(rules[0]).toMatchObject({
+      evidence: "observed_change",
+      coveredValueCount: 3,
+    });
+  });
+
   it("puts record identifiers in their own off-by-default group", () => {
     const { rules } = rulesFor([
       { href: values("/patients/1234567/chart"), "data-row": values("abc") },
