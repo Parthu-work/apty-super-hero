@@ -314,9 +314,50 @@ export function redactSensitiveText(
   //    (e.g. `"cookie": {...}`) is redacted as a whole, balanced unit
   //    instead of the scalar-oriented regex below only partially consuming
   //    it and corrupting the surrounding JSON.
-  return (
-    redactPatterns(redactJsonAware(truncated, mode), mode) + truncationNotice
-  );
+  return redactKeyedText(truncated, mode) + truncationNotice;
+}
+
+/** What the passes write in place of what they mask. */
+const PLACEHOLDER_PATTERN = /<REDACTED(?:-EMAIL)?>/g;
+
+const WORD_PATTERN = /[\p{L}\p{N}]+/gu;
+
+/**
+ * Passes 0 to 8 over text that is not one JSON value. Pass 0 masks an
+ * object or array under a hyphenated sensitive key (`"X-Api-Key": {...}`)
+ * whole, which can cost a later pass a match that started inside that
+ * value and ran past it (a PEM block or URL userinfo split across members,
+ * a `token=` run past `]`). Where the result then shows some word more
+ * often than the result without hyphenated keys does, that one is used:
+ * this never shows more than redaction did before it matched them.
+ */
+function redactKeyedText(text: string, mode: RedactionMode): string {
+  const keyed = redactJsonAware(text, mode);
+  const redacted = redactPatterns(keyed, mode);
+  const keyedAsBefore = redactJsonAware(text, mode, undefined, {
+    hyphenatedKeys: false,
+  });
+  if (keyedAsBefore === keyed) return redacted;
+  const asBefore = redactPatterns(keyedAsBefore, mode);
+  return showsMoreThan(redacted, asBefore) ? asBefore : redacted;
+}
+
+/** Whether `candidate` shows some word more often than `reference` does, placeholders aside. */
+function showsMoreThan(candidate: string, reference: string): boolean {
+  const left = new Map<string, number>();
+  for (const [word] of reference
+    .replace(PLACEHOLDER_PATTERN, " ")
+    .matchAll(WORD_PATTERN)) {
+    left.set(word, (left.get(word) ?? 0) + 1);
+  }
+  for (const [word] of candidate
+    .replace(PLACEHOLDER_PATTERN, " ")
+    .matchAll(WORD_PATTERN)) {
+    const count = left.get(word) ?? 0;
+    if (count === 0) return true;
+    left.set(word, count - 1);
+  }
+  return false;
 }
 
 /** Passes 0.5 to 8 of `redactSensitiveText`: everything after the key-profile pass. */

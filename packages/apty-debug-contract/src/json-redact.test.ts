@@ -148,6 +148,54 @@ describe("redactJsonAware — truncated input", () => {
     }
   });
 
+  it.each([
+    [
+      '{"X-Api-Key": {"v":"S6"}, "next": 1',
+      '{"X-Api-Key": "<REDACTED>", "next": 1',
+    ],
+    [
+      '{"x-auth-token": ["a","b"], "next": 1',
+      '{"x-auth-token": "<REDACTED>", "next": 1',
+    ],
+    [
+      '{"Proxy-Authorization": {"k":"v"}',
+      '{"Proxy-Authorization": "<REDACTED>"',
+    ],
+    [
+      '{"a":{"X-Api-Key":{"inner":{"v":"S9"}}},"b":"cut',
+      '{"a":{"X-Api-Key":"<REDACTED>"},"b":"cut',
+    ],
+  ])("redacts an object or array under a hyphenated sensitive key whole: %s", (input, expected) => {
+    for (const mode of ["strict", "standard"] as const) {
+      expect(redactJsonAware(input, mode)).toBe(expected);
+    }
+  });
+
+  it("scans hostile key-like text in linear time", () => {
+    const hostile = [
+      `"${"a".repeat(200_000)}`,
+      `"${"a-".repeat(100_000)}`,
+      `"a-b"${" ".repeat(100_000)}x`,
+      '"x-request-id": {'.repeat(5_000),
+      `"X-Api-Key": ${"{".repeat(100_000)}`,
+    ].join("");
+    const started = Date.now();
+    for (const mode of ["strict", "standard"] as const) {
+      expect(redactJsonAware(hostile, mode)).toMatch(
+        /"X-Api-Key": "<REDACTED>"$/,
+      );
+    }
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it("leaves keys that are not on the list alone, whatever their value", () => {
+    const text =
+      '{"x-request-id": {"id":"r1"}, "token_count": {"n":5}, "tokenizer": ["cl100k"], "name": {"first":"Jane"}, "x-correlation-id": "c1"';
+    for (const mode of ["strict", "standard"] as const) {
+      expect(redactJsonAware(text, mode)).toBe(text);
+    }
+  });
+
   it("leaves an unclosed non-sensitive object alone", () => {
     expect(redactJsonAware('{"items":[{"name":"a"', "strict")).toBe(
       '{"items":[{"name":"a"',

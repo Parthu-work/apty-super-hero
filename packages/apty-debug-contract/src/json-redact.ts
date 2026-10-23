@@ -278,13 +278,18 @@ function redactKnownKeysInText(
   text: string,
   mode: RedactionMode,
   salt: string,
+  hyphenatedKeys: boolean,
 ): string {
   if (mode === "off" || ALL_KNOWN_KEYS.length === 0) return text;
 
-  // Matches "<any run of letters/digits/_>"\s*:\s* — then classifies the
-  // captured key name itself (rather than baking every known key into the
-  // alternation) so this stays correct if the known-key lists above grow.
-  const KEY_PATTERN = /"([A-Za-z][A-Za-z0-9_]*)"\s*:\s*/g;
+  // Matches "<a letter, then letters/digits/_, and - unless hyphenatedKeys
+  // is off>"\s*:\s* — then classifies the captured key name itself (rather
+  // than baking every known key into the alternation) so this stays correct
+  // if the known-key lists above grow. A hyphenated name (a header such as
+  // X-Api-Key) normalizes like any other.
+  const KEY_PATTERN = hyphenatedKeys
+    ? /"([A-Za-z][A-Za-z0-9_-]*)"\s*:\s*/g
+    : /"([A-Za-z][A-Za-z0-9_]*)"\s*:\s*/g;
 
   let result = "";
   let lastIndex = 0;
@@ -299,6 +304,15 @@ function redactKnownKeysInText(
 
     const valueStart = KEY_PATTERN.lastIndex;
     const nextChar = text[valueStart];
+    // A hyphenated name masks an object or array value only, and the scan
+    // goes on inside that value rather than past it, so every key this scan
+    // matched before it accepted hyphens is still matched and masked: it
+    // only adds masking. A string under a hyphenated name is left to the
+    // passes that follow, as before.
+    const hyphenated = key.includes("-");
+    // Inside a hyphenated name's value, which is already masked.
+    const covered = valueStart < lastIndex;
+    if (hyphenated && covered) continue;
     let valueEnd: number;
     let replacement: string;
 
@@ -306,17 +320,21 @@ function redactKnownKeysInText(
       const end = findBalancedEnd(text, valueStart);
       if (end === -1) {
         // Truncated input: the value runs to the end, so redact all of it.
-        result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        if (!covered) {
+          result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        }
         lastIndex = text.length;
         break;
       }
       valueEnd = end;
       replacement = category === "secret" ? '"<REDACTED>"' : '"<REDACTED>"';
-    } else if (nextChar === '"') {
+    } else if (nextChar === '"' && !hyphenated) {
       const end = findStringEnd(text, valueStart);
       if (end === -1) {
         // Truncated input: the value runs to the end, so redact all of it.
-        result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        if (!covered) {
+          result += `${text.slice(lastIndex, valueStart)}"<REDACTED>"`;
+        }
         lastIndex = text.length;
         break;
       }
@@ -335,9 +353,9 @@ function redactKnownKeysInText(
       continue;
     }
 
-    result += text.slice(lastIndex, valueStart) + replacement;
-    lastIndex = valueEnd;
-    KEY_PATTERN.lastIndex = valueEnd;
+    if (!covered) result += text.slice(lastIndex, valueStart) + replacement;
+    lastIndex = Math.max(lastIndex, valueEnd);
+    if (!hyphenated) KEY_PATTERN.lastIndex = valueEnd;
   }
   result += text.slice(lastIndex);
   return result;
@@ -355,6 +373,11 @@ function getInstallSalt(): string {
   return installSalt;
 }
 
+export interface RedactJsonAwareOptions {
+  /** Whether text that is not one JSON value has hyphenated names (`X-Api-Key`) matched too (default true). `redactSensitiveText` turns it off to check that its result shows no more than it did before they were. */
+  hyphenatedKeys?: boolean;
+}
+
 /**
  * Redact known-sensitive JSON keys anywhere in `text`, preserving JSON
  * validity when the whole input happens to already be valid JSON, and
@@ -366,6 +389,7 @@ export function redactJsonAware(
   text: string,
   mode: RedactionMode = "strict",
   salt: string = getInstallSalt(),
+  { hyphenatedKeys = true }: RedactJsonAwareOptions = {},
 ): string {
   if (mode === "off") return text;
 
@@ -384,5 +408,5 @@ export function redactJsonAware(
     }
   }
 
-  return redactKnownKeysInText(text, mode, salt);
+  return redactKnownKeysInText(text, mode, salt, hyphenatedKeys);
 }
