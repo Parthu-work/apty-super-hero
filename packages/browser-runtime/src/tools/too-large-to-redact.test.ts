@@ -419,3 +419,90 @@ describe("in Off, a Client JSON body is still masked as text, at any size", () =
     }
   });
 });
+
+describe("header-named and client credential keys in a Client JSON body", () => {
+  const CREDENTIAL_KEYS = [
+    "X-CSRF-Token",
+    "x-xsrf-token",
+    "X-Session-Id",
+    "X-Amz-Security-Token",
+    "client_secret",
+    "clientSecret",
+    "access-token",
+    "X-Auth-Token",
+    "X-Api-Key",
+    "Proxy-Authorization",
+    "set-cookie",
+    "authorization_token",
+    "private-token",
+    "x-access-token",
+  ];
+  const OTHER_KEYS = [
+    "session_start_time",
+    "time_spent",
+    "token_count",
+    "tokenizer",
+    "name",
+    "x-request-id",
+    "x-correlation-id",
+  ];
+  const KEYS = [...CREDENTIAL_KEYS, ...OTHER_KEYS];
+  const firstValue = (key: string) => `k${KEYS.indexOf(key)}v0x`;
+
+  function keysBody(minLength: number): string {
+    const records = [];
+    for (let i = 0; JSON.stringify(records).length < minLength; i++) {
+      records.push(
+        Object.fromEntries(KEYS.map((key, k) => [key, `k${k}v${i}x`])),
+      );
+    }
+    return JSON.stringify(records);
+  }
+
+  /** Record 0 of a body as get_evidence_json gives it to the model and to an MCP client, after inspect_extension_network recorded the body. */
+  async function firstRecordAsSent(body: string) {
+    clearEvidence(CONV);
+    state.body = body;
+    await inspect();
+    return asSent("get_evidence_json", {
+      evidenceId: getEvidence(CONV)[0]?.evidenceId,
+      path: "[0]",
+      limit: 10,
+      offset: 0,
+    });
+  }
+
+  it.each([
+    "strict",
+    "standard",
+    "off",
+  ] as const)("%s: each value is masked or sent alike whether the body was redacted whole or value by value", async (mode) => {
+    await setMode(mode);
+    const [whole, byValue] = [keysBody(5_000), keysBody(120_000)];
+    expect(whole.length).toBeLessThan(MAX_REDACT_INPUT_LENGTH);
+    expect(byValue.length).toBeGreaterThan(MAX_REDACT_INPUT_LENGTH);
+    const [wholeSent, byValueSent] = [
+      await firstRecordAsSent(whole),
+      await firstRecordAsSent(byValue),
+    ];
+    // Off masks a body's values by credential word only; set-cookie has none.
+    const masked =
+      mode === "off"
+        ? CREDENTIAL_KEYS.filter((key) => key !== "set-cookie")
+        : CREDENTIAL_KEYS;
+    for (const layer of ["chat", "mcp"] as const) {
+      const [wholeText, byValueText] = [wholeSent[layer], byValueSent[layer]];
+      for (const text of [wholeText, byValueText]) {
+        expect(text, layer).toContain(firstValue("x-request-id"));
+        for (const key of masked) {
+          expect(text, `${layer} ${key}`).not.toContain(firstValue(key));
+        }
+      }
+      for (const key of KEYS) {
+        expect(byValueText.includes(firstValue(key)), `${layer} ${key}`).toBe(
+          wholeText.includes(firstValue(key)),
+        );
+      }
+    }
+  });
+});
