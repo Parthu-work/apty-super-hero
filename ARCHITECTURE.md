@@ -246,6 +246,19 @@ returns `status: "not_configured"` — this is intentional and expected
 until Apty engineering wires up the corresponding side, not a bug to
 silently work around. **No provider fabricates data.**
 
+### DOM Config engine
+
+`packages/browser-runtime/src/apty/dom-config/` turns several DOM analysis
+runs per page into the values of Apty's DOM Settings screen: ignore
+conditions, attribute priority, Shadow DOM, debounce, max z-index, ignore
+DOM events. It is a pure, deterministic rule engine (no `chrome.*`, no DOM,
+no clock); every setting says whether it was measured, derived or is a
+default, and every rule carries its evidence. It shares the noise list with
+DOM Health (`DEFAULT_IGNORED_ROOTS`) and reads Apty's reconstructed
+defaults (`DEFAULT_IGNORE`, `DEFAULT_PRIORITY`) to report what Apty already
+covers. Capture (R2, R3) and the side panel (R4) come later; see
+[`docs/development/dom-config.md`](docs/development/dom-config.md).
+
 ### Service Worker diagnostics — evidence scope
 
 Apty's service worker (if/when Option A above is adopted) is a single

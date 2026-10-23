@@ -9,6 +9,7 @@ import {
   DEFAULT_IGNORED_ROOTS,
   findIgnoredRoots,
   ignoredRootPolicy,
+  matchIgnoredRootTarget,
   parseIgnoredRootMatcher,
 } from "../ignored-roots";
 import { loadErpFixture } from "./fixtures/erp/load-fixture";
@@ -59,6 +60,43 @@ describe("ignored roots (D-6)", () => {
         elementCount: 4,
       }),
     ]);
+  });
+
+  it("excludes Apty's widget elements and extension frames (D4), but never an element that only carries a password manager's attribute", () => {
+    document.body.innerHTML = `
+      <apty-content-items><span>Tip</span></apty-content-items>
+      <div class="apty-visibility-ignore-element"><p>Hidden</p></div>
+      <iframe src="chrome-extension://abcdefghijklmnop/login.html"></iframe>
+      <div id="jumpcloud_autofill_dialog"><button>Fill</button></div>
+      <input id="email" data-myki-field="1" data-form-preloader-id="7">`;
+
+    const { summary, excluded } = findIgnoredRoots(
+      document,
+      DEFAULT_IGNORED_ROOTS,
+    );
+
+    expect(summary.map((s) => [s.matcher, s.elementCount])).toEqual([
+      ["class:apty-", 2],
+      ["id:jumpcloud", 2],
+      ["src:chrome-extension://", 1],
+      ["tag:apty-content-items", 2],
+    ]);
+    expect(excluded.has(document.getElementById("email")!)).toBe(false);
+    expect(
+      matchIgnoredRootTarget(
+        { attributeNames: ["data-myki-field"] },
+        DEFAULT_IGNORED_ROOTS,
+      ),
+    ).toMatchObject({ kind: "attribute-prefix", owner: "Password manager" });
+    expect(
+      matchIgnoredRootTarget(
+        { attributeNames: ["data-apty-root"] },
+        DEFAULT_IGNORED_ROOTS,
+      ),
+    ).toMatchObject({
+      kind: "attribute-prefix",
+      owner: "Apty Widget / Studio",
+    });
   });
 
   it("adds Settings entries to the defaults and skips entries that are not matchers", async () => {

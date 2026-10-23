@@ -11,13 +11,21 @@
  * next customer will have a different overlay vendor.
  *
  * A matcher is a prefix of an element's `id`, a prefix of one of its class
- * tokens, or a tag name, compared case-insensitively. The outermost
- * matching element is the root; everything under it in the composed tree
- * goes with it.
+ * tokens, a tag name, or a prefix of its `src`, compared
+ * case-insensitively. The outermost matching element is the root;
+ * everything under it in the composed tree goes with it. An
+ * `attribute-prefix` matcher names an attribute another product writes onto
+ * the application's own elements: the attribute is not the application's,
+ * the element is, so it never makes a root.
  */
 import { composedParentElement, walkComposedTree } from "./composed-tree.js";
 
-export type IgnoredRootMatchKind = "id-prefix" | "class-prefix" | "tag";
+export type IgnoredRootMatchKind =
+  | "id-prefix"
+  | "class-prefix"
+  | "tag"
+  | "src-prefix"
+  | "attribute-prefix";
 
 export interface IgnoredRootMatcher {
   kind: IgnoredRootMatchKind;
@@ -42,6 +50,9 @@ function matcher(
   return { kind, value, owner, evidence };
 }
 
+export const PASSWORD_MANAGER = "Password manager";
+export const BROWSER_EXTENSION = "Browser extension";
+
 export const DEFAULT_IGNORED_ROOTS: readonly IgnoredRootMatcher[] = [
   /** The Agent's content script mounts `#apty-agent-content-root` and `#apty-agent-border-overlay` (`apps/browser-extension/src/entrypoints/content/index.tsx`). */
   matcher("id-prefix", "apty-agent-", "Apty Agent", "repository"),
@@ -49,6 +60,12 @@ export const DEFAULT_IGNORED_ROOTS: readonly IgnoredRootMatcher[] = [
   matcher("id-prefix", "apty-", "Apty Widget / Studio", "repository"),
   matcher("class-prefix", "apty-widget", "Apty Widget", "repository"),
   matcher("class-prefix", "apty-studio", "Apty Studio", "unverified"),
+  /** Confirmed in the pMD DOM analysis runs (DOM Config brief, D4 and Appendix C): `apty-widget`, `apty-content-items`, `apty-focus-footer` elements, `apty-visibility-ignore-element` classes and `data-apty-root`. */
+  matcher("class-prefix", "apty-", "Apty Widget / Studio", "measured"),
+  matcher("tag", "apty-widget", "Apty Widget", "measured"),
+  matcher("tag", "apty-content-items", "Apty Widget", "measured"),
+  matcher("tag", "apty-focus-footer", "Apty Widget", "measured"),
+  matcher("attribute-prefix", "data-apty-", "Apty Widget / Studio", "measured"),
   /** athenaOne Patient Registration export: `<button id="_pendo-badge_…" class="_pendo-badge _pendo-badge_">` wrapping `<img id="pendo-image-badge-…" class="_pendo-image …">`. */
   matcher("id-prefix", "_pendo-", "Pendo", "measured"),
   matcher("id-prefix", "pendo-", "Pendo", "measured"),
@@ -71,6 +88,20 @@ export const DEFAULT_IGNORED_ROOTS: readonly IgnoredRootMatcher[] = [
   matcher("id-prefix", "drift-", "Drift chat", "unverified"),
   matcher("id-prefix", "hubspot-messages", "HubSpot chat", "unverified"),
   matcher("class-prefix", "embeddedservice", "Salesforce chat", "unverified"),
+  /** Password managers and extensions confirmed in the pMD runs (D4): `jumpcloud_autofill_dialog`, `data-myki-*`, `data-form-preloader*`, `jcpwm-*`, and an extension page in an iframe. */
+  matcher("id-prefix", "jumpcloud", PASSWORD_MANAGER, "measured"),
+  matcher("class-prefix", "jumpcloud", PASSWORD_MANAGER, "measured"),
+  matcher("id-prefix", "jcpwm-", PASSWORD_MANAGER, "measured"),
+  matcher("class-prefix", "jcpwm-", PASSWORD_MANAGER, "measured"),
+  matcher("attribute-prefix", "jcpwm-", PASSWORD_MANAGER, "measured"),
+  matcher("attribute-prefix", "data-myki-", PASSWORD_MANAGER, "measured"),
+  matcher(
+    "attribute-prefix",
+    "data-form-preloader",
+    PASSWORD_MANAGER,
+    "measured",
+  ),
+  matcher("src-prefix", "chrome-extension://", BROWSER_EXTENSION, "measured"),
 ];
 /*
  * Datadog, also named in the brief, adds no page UI: what the athenaOne
@@ -86,6 +117,10 @@ export function describeMatcher(m: IgnoredRootMatcher): string {
       return `class:${m.value}`;
     case "tag":
       return `tag:${m.value}`;
+    case "src-prefix":
+      return `src:${m.value}`;
+    case "attribute-prefix":
+      return `attribute:${m.value}`;
   }
 }
 
@@ -118,29 +153,64 @@ export function ignoredRootPolicy(
   ];
 }
 
-/** The matcher `element` itself satisfies, or null. Ancestors are not consulted. */
+/** What a matcher is compared with: read off an element, or out of a DOM profile one value at a time. */
+export interface IgnoredRootTarget {
+  id?: string;
+  tag?: string;
+  classes?: readonly string[];
+  src?: string;
+  attributeNames?: readonly string[];
+}
+
+/** The first matcher in `policy` that `target` satisfies, or null. */
+export function matchIgnoredRootTarget(
+  target: IgnoredRootTarget,
+  policy: readonly IgnoredRootMatcher[],
+): IgnoredRootMatcher | null {
+  const id = target.id?.toLowerCase() ?? "";
+  const tag = target.tag?.toLowerCase() ?? "";
+  const src = target.src?.toLowerCase() ?? "";
+  const classes = (target.classes ?? []).map((token) => token.toLowerCase());
+  const names = (target.attributeNames ?? []).map((name) => name.toLowerCase());
+  for (const m of policy) {
+    const value = m.value.toLowerCase();
+    switch (m.kind) {
+      case "id-prefix":
+        if (id.startsWith(value)) return m;
+        break;
+      case "tag":
+        if (tag === value) return m;
+        break;
+      case "src-prefix":
+        if (src.startsWith(value)) return m;
+        break;
+      case "class-prefix":
+        if (classes.some((token) => token.startsWith(value))) return m;
+        break;
+      case "attribute-prefix":
+        if (names.some((name) => name.startsWith(value))) return m;
+        break;
+    }
+  }
+  return null;
+}
+
+/** The matcher `element` itself satisfies, or null. Ancestors are not consulted, and attribute markers never make a root. */
 export function matchIgnoredRoot(
   element: Element,
   policy: readonly IgnoredRootMatcher[],
 ): IgnoredRootMatcher | null {
-  const id = element.id.toLowerCase();
-  const tag = element.localName.toLowerCase();
-  const classes = (element.getAttribute("class") ?? "")
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
-  for (const m of policy) {
-    const value = m.value.toLowerCase();
-    if (m.kind === "id-prefix" && id.startsWith(value)) return m;
-    if (m.kind === "tag" && tag === value) return m;
-    if (
-      m.kind === "class-prefix" &&
-      classes.some((token) => token.startsWith(value))
-    ) {
-      return m;
-    }
-  }
-  return null;
+  return matchIgnoredRootTarget(
+    {
+      id: element.id,
+      tag: element.localName,
+      classes: (element.getAttribute("class") ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+      src: element.getAttribute("src") ?? "",
+    },
+    policy,
+  );
 }
 
 /** The outermost ignored root `element` sits in (itself included), across shadow boundaries, or null. */

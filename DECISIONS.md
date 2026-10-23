@@ -57,3 +57,4 @@ document they concern.
 | [Logger adopted; skills lose CDN imports; MCP token moves to the handshake](docs/archive/DECISIONS.md#logger-adopted-skills-lose-cdn-imports-mcp-token-moves-to-the-handshake) | 2026-10-08 | Accepted |
 | [Truncated JSON: an unterminated sensitive value is redacted to the end](docs/archive/DECISIONS.md#truncated-json-an-unterminated-sensitive-value-is-redacted-to-the-end) | 2026-10-15 | Accepted |
 | [No Agent-side webRequest recorder for the Apty Client's calls](docs/archive/DECISIONS.md#no-agent-side-webrequest-recorder-for-the-apty-clients-calls) | 2026-10-18 | Accepted |
+| [DOM Config: a deterministic engine turns DOM analysis runs into Apty DOM settings](docs/development/dom-config.md#decision-record) | 2026-10-23 | Accepted |
