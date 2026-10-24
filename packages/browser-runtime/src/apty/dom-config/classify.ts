@@ -118,7 +118,7 @@ const JQUERY_UI_STATE_CLASS = /^ui-state-/;
 const AG_GRID_STATE_CLASS =
   /^ag-(?:row|cell|column|header-cell)-(?:even|odd|first|last|focus|hover|selected|level-\d+|position-absolute|not-inline-editing|inline-editing|range-selected|value-changed)$/;
 
-export function isStateClass(token: string): boolean {
+function isStateClass(token: string): boolean {
   return (
     STATE_CLASS_WORDS.has(token.toLowerCase()) ||
     JQUERY_UI_STATE_CLASS.test(token) ||

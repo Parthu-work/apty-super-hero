@@ -42,7 +42,7 @@ export function valuesByName(flat: FlatRun): Map<string, Map<string, number>> {
   return all;
 }
 
-export function isNoiseValue(
+function isNoiseValue(
   name: string,
   value: string,
   policy: NoisePolicy,

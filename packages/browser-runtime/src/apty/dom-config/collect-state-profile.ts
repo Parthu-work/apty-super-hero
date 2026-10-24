@@ -166,9 +166,7 @@ function specialDocument(url: string): FrameRecord["reason"] | undefined {
  * each child under its parent's `iframes`, keyed by its URL shape; an
  * unread child keeps the script's `Cross Origin N (src: …)` key.
  */
-export function mergeStateProfile(
-  frames: CollectedFrame[],
-): StateProfileResult {
+function mergeStateProfile(frames: CollectedFrame[]): StateProfileResult {
   const sorted = [...frames].sort(
     (a, b) =>
       a.frame.depth - b.frame.depth || a.frame.frameId - b.frame.frameId,

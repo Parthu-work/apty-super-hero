@@ -101,7 +101,7 @@ const PII_TEXT: Record<PiiShape, string> = {
   digits: "a run of 5 or more digits",
 };
 
-export const SET_DIFF_CAVEAT =
+const SET_DIFF_CAVEAT =
   "This compares the sets of values each run had: it cannot tell an attribute that changed from data that changed, such as different rows.";
 
 const GROUP_ORDER: RuleGroup[] = ["main", "review", "record-specific"];

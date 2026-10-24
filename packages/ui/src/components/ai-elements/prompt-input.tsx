@@ -340,7 +340,7 @@ export function PromptInputAttachments({
   );
 }
 
-export type PromptInputActionAddAttachmentsProps = ComponentProps<
+type PromptInputActionAddAttachmentsProps = ComponentProps<
   typeof DropdownMenuItem
 > & {
   label?: string;
@@ -578,10 +578,7 @@ export type PromptInputMessage = {
   skills?: SkillItem[];
 };
 
-export type PromptInputProps = Omit<
-  HTMLAttributes<HTMLFormElement>,
-  "onSubmit"
-> & {
+type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit"> & {
   accept?: string; // e.g., "image/*" or leave undefined for any
   multiple?: boolean;
   // When true, accepts drops anywhere on document. Default false (opt-in).
@@ -931,7 +928,7 @@ export const PromptInput = ({
   );
 };
 
-export type PromptInputBodyProps = HTMLAttributes<HTMLDivElement>;
+type PromptInputBodyProps = HTMLAttributes<HTMLDivElement>;
 
 export const PromptInputBody = ({
   className,
@@ -940,7 +937,7 @@ export const PromptInputBody = ({
   <div className={cn(className, "flex flex-col")} {...props} />
 );
 
-export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
+type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
   /**
    * Enable typing animation for placeholder
    */
@@ -1555,7 +1552,7 @@ export const PromptInputTextarea = ({
   );
 };
 
-export type PromptInputToolbarProps = HTMLAttributes<HTMLDivElement>;
+type PromptInputToolbarProps = HTMLAttributes<HTMLDivElement>;
 
 export const PromptInputToolbar = ({
   className,
@@ -1567,7 +1564,7 @@ export const PromptInputToolbar = ({
   />
 );
 
-export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>;
+type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>;
 
 export const PromptInputTools = ({
   className,
@@ -1583,7 +1580,7 @@ export const PromptInputTools = ({
   />
 );
 
-export type PromptInputButtonProps = ComponentProps<typeof Button>;
+type PromptInputButtonProps = ComponentProps<typeof Button>;
 
 const PromptInputButton = ({
   variant = "ghost",
@@ -1610,14 +1607,12 @@ const PromptInputButton = ({
   );
 };
 
-export type PromptInputActionMenuProps = ComponentProps<typeof DropdownMenu>;
+type PromptInputActionMenuProps = ComponentProps<typeof DropdownMenu>;
 export const PromptInputActionMenu = (props: PromptInputActionMenuProps) => (
   <DropdownMenu {...props} />
 );
 
-export type PromptInputActionMenuTriggerProps = ComponentProps<
-  typeof Button
-> & {};
+type PromptInputActionMenuTriggerProps = ComponentProps<typeof Button> & {};
 export const PromptInputActionMenuTrigger = ({
   className,
   children,
@@ -1637,7 +1632,7 @@ export const PromptInputActionMenuTrigger = ({
   );
 };
 
-export type PromptInputActionMenuContentProps = ComponentProps<
+type PromptInputActionMenuContentProps = ComponentProps<
   typeof DropdownMenuContent
 >;
 export const PromptInputActionMenuContent = ({
@@ -1647,9 +1642,7 @@ export const PromptInputActionMenuContent = ({
   <DropdownMenuContent align="start" className={cn(className)} {...props} />
 );
 
-export type PromptInputActionMenuItemProps = ComponentProps<
-  typeof DropdownMenuItem
->;
+type PromptInputActionMenuItemProps = ComponentProps<typeof DropdownMenuItem>;
 const PromptInputActionMenuItem = ({
   className,
   ...props
@@ -1660,7 +1653,7 @@ const PromptInputActionMenuItem = ({
 // Note: Actions that perform side-effects (like opening a file dialog)
 // are provided in opt-in modules (e.g., prompt-input-attachments).
 
-export type PromptInputSubmitProps = ComponentProps<typeof Button> & {
+type PromptInputSubmitProps = ComponentProps<typeof Button> & {
   status?: ChatStatus;
 };
 
@@ -1701,15 +1694,13 @@ export const PromptInputSubmit = ({
   );
 };
 
-export type PromptInputModelSelectProps = ComponentProps<typeof Select>;
+type PromptInputModelSelectProps = ComponentProps<typeof Select>;
 
 export const PromptInputModelSelect = (props: PromptInputModelSelectProps) => (
   <Select {...props} />
 );
 
-export type PromptInputModelSelectTriggerProps = ComponentProps<
-  typeof SelectTrigger
->;
+type PromptInputModelSelectTriggerProps = ComponentProps<typeof SelectTrigger>;
 
 export const PromptInputModelSelectTrigger = ({
   className,
@@ -1725,9 +1716,7 @@ export const PromptInputModelSelectTrigger = ({
   />
 );
 
-export type PromptInputModelSelectContentProps = ComponentProps<
-  typeof SelectContent
->;
+type PromptInputModelSelectContentProps = ComponentProps<typeof SelectContent>;
 
 export const PromptInputModelSelectContent = ({
   className,
@@ -1736,7 +1725,7 @@ export const PromptInputModelSelectContent = ({
   <SelectContent className={cn(className)} {...props} />
 );
 
-export type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
+type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
 
 export const PromptInputModelSelectItem = ({
   className,
@@ -1745,9 +1734,7 @@ export const PromptInputModelSelectItem = ({
   <SelectItem className={cn(className)} {...props} />
 );
 
-export type PromptInputModelSelectValueProps = ComponentProps<
-  typeof SelectValue
->;
+type PromptInputModelSelectValueProps = ComponentProps<typeof SelectValue>;
 
 export const PromptInputModelSelectValue = ({
   className,
@@ -1756,17 +1743,13 @@ export const PromptInputModelSelectValue = ({
   <SelectValue className={cn(className)} {...props} />
 );
 
-export type PromptInputModelSelectGroupProps = ComponentProps<
-  typeof SelectGroup
->;
+type PromptInputModelSelectGroupProps = ComponentProps<typeof SelectGroup>;
 
 export const PromptInputModelSelectGroup = (
   props: PromptInputModelSelectGroupProps,
 ) => <SelectGroup {...props} />;
 
-export type PromptInputModelSelectLabelProps = ComponentProps<
-  typeof SelectLabel
->;
+type PromptInputModelSelectLabelProps = ComponentProps<typeof SelectLabel>;
 
 export const PromptInputModelSelectLabel = ({
   className,
@@ -1775,7 +1758,7 @@ export const PromptInputModelSelectLabel = ({
   <SelectLabel className={cn(className)} {...props} />
 );
 
-export type PromptInputModelSelectSeparatorProps = ComponentProps<
+type PromptInputModelSelectSeparatorProps = ComponentProps<
   typeof SelectSeparator
 >;
 

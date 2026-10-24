@@ -26,7 +26,7 @@ export interface NetworkCall extends AptyObservedResource {
   resourceName: string;
 }
 
-export type NetworkCallsFailure = NonNullable<AptyResourceList["failure"]>;
+type NetworkCallsFailure = NonNullable<AptyResourceList["failure"]>;
 
 export interface NetworkCallsUnavailable {
   failure: NetworkCallsFailure;

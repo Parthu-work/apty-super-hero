@@ -28,7 +28,7 @@ import {
 } from "../ui/collapsible";
 import { CodeBlock } from "./code-block";
 
-export type ToolProps = ComponentProps<typeof Collapsible>;
+type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
@@ -37,7 +37,7 @@ export const Tool = ({ className, ...props }: ToolProps) => (
   />
 );
 
-export type ToolHeaderProps = {
+type ToolHeaderProps = {
   /** Display label for the tool – either a raw `tool-${name}` key or a translated name */
   type: string;
   state: ToolUIPart["state"] | "executing";
@@ -103,7 +103,7 @@ export const ToolHeader = ({
   );
 };
 
-export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
+type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 
 export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   <CollapsibleContent
@@ -115,7 +115,7 @@ export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   />
 );
 
-export type ToolInputProps = ComponentProps<"div"> & {
+type ToolInputProps = ComponentProps<"div"> & {
   input: ToolUIPart["input"];
 };
 
@@ -133,7 +133,7 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
   );
 };
 
-export type ToolOutputProps = ComponentProps<"div"> & {
+type ToolOutputProps = ComponentProps<"div"> & {
   output: ToolUIPart["output"];
   errorText: ToolUIPart["errorText"];
 };
@@ -177,7 +177,7 @@ export const ToolOutput = ({
 
 // ============ Screenshot Display ============
 
-export type ToolScreenshotProps = ComponentProps<"div"> & {
+type ToolScreenshotProps = ComponentProps<"div"> & {
   /** Inline base64 screenshot data URL */
   screenshot?: string;
   /** UID referencing a screenshot stored in ScreenshotStorage (IndexedDB) */

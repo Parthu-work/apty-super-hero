@@ -16,7 +16,7 @@ import { CopyButton } from "./report-parts";
 type Translate = I18nContextValue["t"];
 type CoverageStatus = DomConfigReport["coverage"]["items"][number]["status"];
 
-export const COVERAGE_LABEL: Record<CoverageKey, TranslationKey> = {
+const COVERAGE_LABEL: Record<CoverageKey, TranslationKey> = {
   "entry-forms": "domConfig.coverage.key.entryForms",
   "detail-pages": "domConfig.coverage.key.detailPages",
   "list-grid-pages": "domConfig.coverage.key.listGridPages",

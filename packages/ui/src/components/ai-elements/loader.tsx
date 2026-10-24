@@ -83,7 +83,7 @@ const LoaderIcon = ({ size = 16 }: LoaderIconProps) => {
   );
 };
 
-export type LoaderProps = HTMLAttributes<HTMLDivElement> & {
+type LoaderProps = HTMLAttributes<HTMLDivElement> & {
   size?: number;
 };
 

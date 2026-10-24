@@ -70,7 +70,7 @@ import {
 // position and text content) is preserved per level.
 // ---------------------------------------------------------------------------
 
-export type AttributeSelectionType = "exact" | "prefix" | "suffix" | "partial";
+type AttributeSelectionType = "exact" | "prefix" | "suffix" | "partial";
 
 export interface PatternAttribute {
   name: string;

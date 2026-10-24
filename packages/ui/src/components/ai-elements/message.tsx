@@ -4,7 +4,7 @@ import type { ComponentProps, HTMLAttributes } from "react";
 import { cn } from "../../lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
-export type MessageProps = HTMLAttributes<HTMLDivElement> & {
+type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
 };
 
@@ -41,7 +41,7 @@ const messageContentVariants = cva(
   },
 );
 
-export type MessageContentProps = HTMLAttributes<HTMLDivElement> &
+type MessageContentProps = HTMLAttributes<HTMLDivElement> &
   VariantProps<typeof messageContentVariants>;
 
 export const MessageContent = ({
@@ -58,7 +58,7 @@ export const MessageContent = ({
   </div>
 );
 
-export type MessageAvatarProps = ComponentProps<typeof Avatar> & {
+type MessageAvatarProps = ComponentProps<typeof Avatar> & {
   src: string;
   name?: string;
 };

@@ -13,7 +13,7 @@ import {
 
 const log = createLogger("SkillRegistry");
 
-export interface SkillSummary {
+interface SkillSummary {
   name: string;
   description: string;
   enabled: boolean;

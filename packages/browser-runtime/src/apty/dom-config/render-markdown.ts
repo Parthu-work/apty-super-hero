@@ -51,7 +51,7 @@ function pagesText(report: DomConfigReport, ids: readonly string[]): string {
   return cell(more > 0 ? `${shown} and ${more} more` : shown);
 }
 
-export function renderCondition(condition: RuleCondition): string {
+function renderCondition(condition: RuleCondition): string {
   return `${condition.category} · ${condition.operator} · ${code(condition.value)}`;
 }
 

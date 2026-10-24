@@ -10,7 +10,7 @@ import {
   CollapsibleTrigger,
 } from "../ui/collapsible";
 
-export type SourcesProps = ComponentProps<"div">;
+type SourcesProps = ComponentProps<"div">;
 
 export const Sources = ({ className, ...props }: SourcesProps) => (
   <Collapsible
@@ -19,7 +19,7 @@ export const Sources = ({ className, ...props }: SourcesProps) => (
   />
 );
 
-export type SourcesTriggerProps = ComponentProps<typeof CollapsibleTrigger> & {
+type SourcesTriggerProps = ComponentProps<typeof CollapsibleTrigger> & {
   count: number;
 };
 
@@ -45,7 +45,7 @@ export const SourcesTrigger = ({
   );
 };
 
-export type SourcesContentProps = ComponentProps<typeof CollapsibleContent>;
+type SourcesContentProps = ComponentProps<typeof CollapsibleContent>;
 
 export const SourcesContent = ({
   className,
@@ -61,7 +61,7 @@ export const SourcesContent = ({
   />
 );
 
-export type SourceProps = ComponentProps<"a">;
+type SourceProps = ComponentProps<"a">;
 
 export const Source = ({ href, title, children, ...props }: SourceProps) => (
   <a

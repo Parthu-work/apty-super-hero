@@ -34,7 +34,7 @@ export interface ProfileImportError {
 }
 
 /** Sections the console script writes only once the page has something to put in them. */
-export type OptionalSection = "maxZIndex" | "shadowRoots" | "iframes";
+type OptionalSection = "maxZIndex" | "shadowRoots" | "iframes";
 
 export type ProfileImportResult =
   | {

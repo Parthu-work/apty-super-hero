@@ -404,7 +404,7 @@ function levenshtein(a: string, b: string): number {
   return d[rows - 1]![cols - 1]!;
 }
 
-export interface ResourceSuggestion {
+interface ResourceSuggestion {
   resourceName: string;
   count: number;
 }
@@ -440,10 +440,10 @@ function suggestClosestResourceNames(
 }
 
 /** The most resources `list_extension_network_resources` returns; `omittedResources` says how many more exist. */
-export const MAX_LISTED_RESOURCES = 200;
+const MAX_LISTED_RESOURCES = 200;
 
 /** One resource (method + URL without its query string) and what the Client reported about its calls. */
-export interface ListedResource {
+interface ListedResource {
   resourceName: string;
   method: string;
   /** As the current redaction mode shows it, without a query string. */

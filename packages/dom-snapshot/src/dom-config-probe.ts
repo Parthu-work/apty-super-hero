@@ -25,7 +25,7 @@ export const DEFAULT_PROBE_WINDOW_MS = 3_000;
 export const PROBE_BURST_GAP_MS = 100;
 
 /** Events counted, and only when they actually fire. */
-export const PROBED_EVENTS = [
+const PROBED_EVENTS = [
   "mousemove",
   "mouseover",
   "mouseout",

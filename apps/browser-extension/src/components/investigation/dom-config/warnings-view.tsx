@@ -10,7 +10,7 @@ import { Wrapped } from "./report-parts";
 type ReportWarning = DomConfigReport["warnings"][number];
 
 /** Warn-severity first, then by the engine's order. */
-export function sortedWarnings(report: DomConfigReport): ReportWarning[] {
+function sortedWarnings(report: DomConfigReport): ReportWarning[] {
   return [...report.warnings].sort(
     (a, b) => Number(b.severity === "warn") - Number(a.severity === "warn"),
   );

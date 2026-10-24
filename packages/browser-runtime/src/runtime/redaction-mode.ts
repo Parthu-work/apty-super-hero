@@ -124,7 +124,7 @@ export function redactJsonTextInMode(
 }
 
 /** The most JSON text `redactLargeJsonText` takes on; bounds the work. */
-export const MAX_LARGE_JSON_CHARS = 2_000_000;
+const MAX_LARGE_JSON_CHARS = 2_000_000;
 
 export type LargeJsonRedaction =
   | { ok: true; text: string }

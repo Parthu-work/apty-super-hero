@@ -10,7 +10,7 @@ import {
   selectForEviction,
 } from "@apty/agent-core";
 
-export interface ScreenshotData {
+interface ScreenshotData {
   uid: string;
   /** Complete data URL: data:image/png;base64,... */
   base64Data: string;
