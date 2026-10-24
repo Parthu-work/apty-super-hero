@@ -39,7 +39,6 @@ vi.stubGlobal("chrome", {
 
 import { getEditorValueTool } from "./element";
 import { getPageMetadataTool } from "./page";
-import { takeSnapshotTool } from "./snapshot";
 
 /** The tool's result as plain data, whether the SDK hands back an object or a JSON string. */
 async function run(tool: unknown, args: unknown = {}) {
@@ -110,19 +109,5 @@ describe("get_page_metadata under a value policy", () => {
     mockPolicy.mockReturnValue("show");
     const raw = await run(getPageMetadataTool);
     expect(raw.url).toBe("https://app.example.com/chart?mrn=123#t");
-  });
-});
-
-describe("take_snapshot under a value policy", () => {
-  it("caps the text and applies the policy to the URL", async () => {
-    mockPolicy.mockReturnValue("withhold");
-    mockCreateSnapshot.mockResolvedValue({ root: {} });
-    mockFormatSnapshot.mockReturnValue(
-      "a line of snapshot text\n".repeat(5000),
-    );
-    const raw = await run(takeSnapshotTool);
-    expect(raw.url).toBe("https://app.example.com/chart");
-    expect(raw.snapshot.length).toBeLessThan(4000 * 4 + 300);
-    expect(raw.snapshot).toMatch(/snapshot truncated/);
   });
 });

@@ -1,11 +1,6 @@
 import { MASKED_VALUE } from "@apty/dom-snapshot";
 import { describe, expect, it } from "vitest";
-import {
-  capSnapshotText,
-  describeEditorValue,
-  describePageMetadata,
-  SNAPSHOT_MAX_TOKENS,
-} from "./value-results";
+import { describeEditorValue, describePageMetadata } from "./value-results";
 
 describe("describeEditorValue", () => {
   it("returns the value and its length when showing", () => {
@@ -62,23 +57,5 @@ describe("describePageMetadata", () => {
   it("is unchanged when showing, and passes a missing page through", () => {
     expect(describePageMetadata(meta, "show")).toEqual(meta);
     expect(describePageMetadata(null, "withhold")).toBeNull();
-  });
-});
-
-describe("capSnapshotText", () => {
-  it("leaves a snapshot within the cap alone", () => {
-    const text = "line\n".repeat(100);
-    expect(capSnapshotText(text)).toBe(text);
-  });
-
-  it("cuts at a line boundary, says how much was cut and points to search_elements", () => {
-    const text = `${"a snapshot line of some length\n".repeat(2000)}`;
-    const capped = capSnapshotText(text);
-    expect(capped.length).toBeLessThan(SNAPSHOT_MAX_TOKENS * 4 + 300);
-    const body = capped.slice(0, capped.indexOf("\n[snapshot truncated"));
-    expect(body.endsWith("a snapshot line of some length")).toBe(true);
-    expect(capped).toMatch(
-      /\[snapshot truncated: .* of 2000 lines.*search_elements/,
-    );
   });
 });

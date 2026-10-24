@@ -7,9 +7,6 @@ import {
   MASKED_VALUE,
   type ValuePolicy,
 } from "@apty/dom-snapshot";
-import { CHARS_PER_TOKEN } from "../runtime/request-anatomy";
-
-export const SNAPSHOT_MAX_TOKENS = 4000;
 
 export type EditorValueResult =
   | { success: true; value: string; length: number }
@@ -55,13 +52,4 @@ export function describePageMetadata<T extends PageMetadata>(
     ogImage: applyUrlPolicy(meta.ogImage, policy),
     favicon: applyUrlPolicy(meta.favicon, policy),
   };
-}
-
-export function capSnapshotText(text: string): string {
-  const limit = SNAPSHOT_MAX_TOKENS * CHARS_PER_TOKEN;
-  if (text.length <= limit) return text;
-  const cut = text.lastIndexOf("\n", limit);
-  const kept = text.slice(0, cut > 0 ? cut : limit);
-  const total = text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
-  return `${kept}\n[snapshot truncated: showing the first ${kept.split("\n").length} of ${total} lines; use search_elements to find the rest]`;
 }

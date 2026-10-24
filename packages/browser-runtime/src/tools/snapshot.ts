@@ -1,38 +1,6 @@
 import { tool } from "@apty/agent-core";
-import { applyUrlPolicy } from "@apty/dom-snapshot";
 import { z } from "zod";
 import * as snapshotProvider from "../automation/snapshot-provider";
-import { currentValuePolicy } from "../runtime/value-policy";
-import { getActiveTab } from "./tab-utils";
-import { capSnapshotText } from "./value-results";
-
-export const takeSnapshotTool = tool({
-  name: "take_snapshot",
-  description:
-    "Take an accessibility snapshot of the current page. Returns a tree of interactive elements with UIDs for interaction.",
-  parameters: z.object({}),
-  execute: async () => {
-    const tab = await getActiveTab();
-
-    if (!tab.id) {
-      throw new Error("No active tab found");
-    }
-
-    const snapshot = await snapshotProvider.createSnapshot(tab.id);
-    if (!snapshot) {
-      throw new Error("Failed to create snapshot");
-    }
-    const snapshotText = snapshotProvider.formatSnapshot(snapshot);
-
-    return {
-      success: true,
-      tabId: tab.id,
-      title: tab.title || "",
-      url: applyUrlPolicy(tab.url, currentValuePolicy()) || "",
-      snapshot: capSnapshotText(snapshotText),
-    };
-  },
-});
 
 export const searchElementsTool = tool({
   name: "search_elements",

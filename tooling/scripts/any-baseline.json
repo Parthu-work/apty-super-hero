@@ -18,7 +18,6 @@
   "apps/browser-extension/src/lib/logging.test.ts": 1,
   "apps/browser-extension/src/lib/open-options.test.ts": 1,
   "apps/browser-extension/src/services/ai-provider.test.ts": 3,
-  "apps/browser-extension/src/services/ai-provider.ts": 1,
   "apps/browser-extension/src/services/message-adapter.test.ts": 18,
   "apps/browser-extension/src/services/optional-permissions.test.ts": 1,
   "apps/browser-extension/src/vitest.d.ts": 1,
