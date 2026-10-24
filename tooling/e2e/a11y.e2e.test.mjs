@@ -6,13 +6,15 @@
  * Side panel states: empty, the conversation history still loading, a chat
  * with a tool result, an approval prompt, an intervention card, the send
  * button idle, sending, streaming and after an error, the evidence viewers
- * (the investigation summary and the full response viewer), and a DOM
- * Health result with its export dialog at side-panel size. Options: every
- * tab. No axe rule is disabled.
+ * (the investigation summary and the full response viewer), a DOM
+ * Health result with its export dialog at side-panel size, and the DOM
+ * Config card idle, running (held on a page request), with its report and
+ * on a page it cannot analyze. Options: every tab. No axe rule is disabled.
  */
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
+import { startDomConfigApp } from "./fixtures/dom-config-app.mjs";
 import {
   AGENT_EXTENSION_ID,
   callToolThenReport,
@@ -40,9 +42,11 @@ const CLIENT_ID = unpackedExtensionId(clientDir);
 let browser;
 let model;
 let site;
+let domConfigApp;
 
 before(async () => {
   model = await startMockModel();
+  domConfigApp = await startDomConfigApp();
   site = await startPageServer({
     "/app.html": "<title>App</title><main><h1>App</h1></main>",
     "/form.html":
@@ -65,6 +69,7 @@ after(async () => {
   await browser?.close();
   model?.close();
   site?.close();
+  domConfigApp?.close();
 });
 
 async function setTheme(theme) {
@@ -340,6 +345,62 @@ for (const theme of ["light", "dark"]) {
       );
       await panel.close();
       await app.close();
+    });
+
+    it("side panel, the DOM Config card idle, running, with its report and on a page it cannot analyze", async () => {
+      const target = await browser.context.newPage();
+      await target.goto(`${domConfigApp.origin}/home`);
+      const panel = await openSidePanel(browser, model, target);
+      await panel.setViewportSize(SIDE_PANEL);
+      await panel.getByRole("button", HISTORY_LOADED).waitFor();
+      await assertThemeApplied(panel, theme);
+
+      await panel
+        .getByRole("button", { name: /Generate DOM config: capture/ })
+        .click();
+      const start = panel.getByRole("button", {
+        name: "Start generating the DOM config",
+      });
+      await start.waitFor();
+      await assertNoSeriousViolations(panel, `${theme} DOM Config idle`);
+
+      const held = domConfigApp.hold("/list");
+      await start.click();
+      await held.requested;
+      await panel.getByRole("list", { name: "Progress" }).waitFor();
+      await assertNoSeriousViolations(panel, `${theme} DOM Config running`);
+      held.release();
+
+      await panel
+        .getByRole("tablist", { name: "Report sections" })
+        .waitFor({ timeout: 170_000 });
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} DOM Config report, ignore conditions`,
+      );
+      await panel.getByRole("tab", { name: "Settings" }).click();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} DOM Config report, settings`,
+      );
+
+      await panel
+        .getByRole("button", { name: "Clear the DOM Config results" })
+        .click();
+      const options = await extensionPage(browser);
+      await options.bringToFront();
+      await panel
+        .getByText(
+          "This page cannot be analyzed: browser and extension pages do not allow content scripts.",
+        )
+        .waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} DOM Config on a page it cannot analyze`,
+      );
+      await options.close();
+      await panel.close();
+      await target.close();
     });
 
     it("side panel, a DOM Health result and its export dialog at side-panel size", async () => {

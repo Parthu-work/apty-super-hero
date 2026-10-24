@@ -42,6 +42,11 @@ import type { I18nContextValue, TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, Loader2Icon, ScanSearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  acquireTabLock,
+  releaseTabLock,
+  useTabLockHolder,
+} from "./dom-config/tab-lock";
 import { RouteProbePanel } from "./route-probe-panel";
 import type { StatusMeta } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
@@ -680,6 +685,7 @@ export function DomHealthCard({
   const [expanded, setExpanded] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [probeReport, setProbeReport] = useState<RouteProbeReport | null>(null);
+  const lockedByDomConfig = useTabLockHolder(target.tabId) === "dom-config";
   const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(
@@ -691,6 +697,8 @@ export function DomHealthCard({
 
   const runCheck = useCallback(async () => {
     if (!target.tabId) return;
+    const tabId = target.tabId;
+    if (!acquireTabLock(tabId, "dom-health")) return;
     setView("page");
     setIsLoading(true);
     setExpanded(true);
@@ -699,10 +707,10 @@ export function DomHealthCard({
       setStageIndex((i) => (i + 1) % LOADING_STAGES.length);
     }, 700);
 
-    const result = await runDomHealthAudit(target.tabId, {
+    const result = await runDomHealthAudit(tabId, {
       ignoredRoots,
       thresholdOverrides,
-    });
+    }).finally(() => releaseTabLock(tabId, "dom-health"));
 
     if (stageTimerRef.current) {
       clearInterval(stageTimerRef.current);
@@ -714,17 +722,19 @@ export function DomHealthCard({
 
   const runApplicationCheck = useCallback(async () => {
     if (!target.tabId) return;
+    const tabId = target.tabId;
+    if (!acquireTabLock(tabId, "dom-health")) return;
     setView("application");
     setIsAppLoading(true);
     setExpanded(true);
     setAppProgress(null);
 
-    const result = await runApplicationDomHealthAudit(target.tabId, {
+    const result = await runApplicationDomHealthAudit(tabId, {
       discoveryMode,
       ignoredRoots,
       thresholdOverrides,
       onProgress: (progress) => setAppProgress(progress),
-    });
+    }).finally(() => releaseTabLock(tabId, "dom-health"));
 
     setAppOutcome(result);
     setIsAppLoading(false);
@@ -842,7 +852,9 @@ export function DomHealthCard({
           <Button
             size="sm"
             variant={outcome ? "outline" : "default"}
-            disabled={isLoading || isAppLoading || !target.tabId}
+            disabled={
+              isLoading || isAppLoading || !target.tabId || lockedByDomConfig
+            }
             onClick={(e) => {
               e.stopPropagation();
               void runCheck();
@@ -870,7 +882,9 @@ export function DomHealthCard({
               setDiscoveryMode(e.target.value as ApplicationDiscoveryMode);
             }}
             onClick={(e) => e.stopPropagation()}
-            disabled={isLoading || isAppLoading || !target.tabId}
+            disabled={
+              isLoading || isAppLoading || !target.tabId || lockedByDomConfig
+            }
             aria-label={t("domHealth.discoveryModeAria")}
             title={t(DISCOVERY_MODE_DESCRIPTION[discoveryMode])}
             className="rounded-md border bg-background px-1.5 py-1 text-[11px] text-muted-foreground"
@@ -886,7 +900,9 @@ export function DomHealthCard({
           <Button
             size="sm"
             variant="outline"
-            disabled={isLoading || isAppLoading || !target.tabId}
+            disabled={
+              isLoading || isAppLoading || !target.tabId || lockedByDomConfig
+            }
             onClick={(e) => {
               e.stopPropagation();
               void runApplicationCheck();
@@ -908,6 +924,11 @@ export function DomHealthCard({
             )}
           </Button>
         </div>
+        {lockedByDomConfig && (
+          <p className="text-xs text-muted-foreground">
+            {t("domConfig.lockedByDomConfig")}
+          </p>
+        )}
       </div>
 
       {expanded && (

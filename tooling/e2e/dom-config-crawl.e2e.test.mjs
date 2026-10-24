@@ -1,80 +1,24 @@
 /**
- * DOM Config's automatic crawl in a real browser (R3): a small application
- * of four pages linked by anchors, crawled in safe and deep mode, two runs
- * per state, analyzed by the engine. Nothing in the extension calls the
- * crawl yet (the side panel card comes later), so the test bundles
- * `runDomConfigCapture` from source and runs it in an extension page,
- * with the extension's own permissions and content scripts.
+ * DOM Config's automatic crawl in a real browser (R3): the fixture
+ * application crawled in safe and deep mode, two runs per state, analyzed
+ * by the engine. The test bundles `runDomConfigCapture` from source and
+ * runs it in an extension page, with the extension's own permissions and
+ * content scripts, so the engine's outcome can be asserted whole; the
+ * side panel card is covered by `dom-config-ui.e2e.test.mjs`.
  */
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
+import { PAGES, startDomConfigApp, TITLE } from "./fixtures/dom-config-app.mjs";
 import {
   launchBrowser,
   extensionPage as openExtensionPage,
   ROOT,
-  startPageServer,
 } from "./harness.mjs";
 
-const PAGES = ["home", "list", "detail", "form"];
-const TITLE = "Clinic for Jane Example";
-
-let loads = 0;
-
-function appPage(name, crossOrigin) {
-  loads += 1;
-  const stamp = 1_700_000_000_000 + loads;
-  const nav = PAGES.map(
-    (p) => `<a href="/${p}?nocache=${stamp}">${p}</a>`,
-  ).join("");
-  const rows = Array.from(
-    { length: 8 },
-    (_, i) => `<tr class="RptTable"><td data-col="c${i}">${i}</td></tr>`,
-  ).join("");
-  const menu =
-    name === "home"
-      ? `<nav role="menu" aria-label="Sections"><div role="menuitem" id="m-reports">Reports</div></nav>`
-      : "";
-  const frames =
-    name === "home"
-      ? `<iframe id="notes" src="/frame.html"></iframe><iframe id="viewer" src="${crossOrigin}/frame.html"></iframe>`
-      : "";
-  return `<!doctype html><html lang="en"><head><title>${TITLE}</title></head><body>
-  <nav id="main-nav">${nav}</nav>
-  ${menu}
-  <main id="view"><h1>${name}</h1>
-    <div id="ui-id-${loads}" class="panel">a</div><div id="ui-id-${loads + 1}" class="panel">b</div>
-    <div id="provCheck_1009116120" class="check">c</div>
-    <input name="search" placeholder="Search">
-    <table id="grid">${rows}</table>
-    <x-card id="card"></x-card>
-  </main>
-  ${frames}
-  <img id="pm-icon" alt="" style="position: fixed; z-index: 999999; top: 0; left: 0">
-  <div id="toast" style="position: fixed; z-index: 9999"></div>
-  <apty-widget><div class="tip" data-apty-step="s${loads}">Apty tip</div></apty-widget>
-  <script>
-    document.getElementById("card").attachShadow({ mode: "open" }).innerHTML =
-      '<header class="title">Card</header><button class="card-action">Open</button>';
-    const item = document.getElementById("m-reports");
-    if (item) {
-      item.addEventListener("click", () => {
-        document.getElementById("view").innerHTML =
-          '<h1>Reports</h1><div id="report-panel" class="panel">r</div>';
-      });
-    }
-  </script>
-</body></html>`;
-}
-
-const FRAME_PAGE = `<!doctype html><html><head></head><body>
-  <form id="notes-form"><textarea name="note" placeholder="Note"></textarea></form>
-</body></html>`;
-
 let browser;
-let serverA;
-let serverB;
+let app;
 let bundle;
 
 async function bundleCrawl() {
@@ -100,29 +44,19 @@ async function bundleCrawl() {
 }
 
 before(async () => {
-  const pagesFor = (other) => ({
-    ...Object.fromEntries(
-      PAGES.map((name) => [`/${name}`, () => appPage(name, other())]),
-    ),
-    "/frame.html": FRAME_PAGE,
-  });
-  serverA = await startPageServer(
-    pagesFor(() => `http://localhost:${serverB.address().port}`),
-  );
-  serverB = await startPageServer(pagesFor(() => serverA.origin));
+  app = await startDomConfigApp();
   [browser, bundle] = await Promise.all([launchBrowser(), bundleCrawl()]);
 });
 
 after(async () => {
   await browser?.close();
-  serverA?.close();
-  serverB?.close();
+  app?.close();
 });
 
 /** Crawl the tab showing `/home` from an extension page and return the outcome. */
 async function crawl(options) {
   const page = await browser.context.newPage();
-  await page.goto(`${serverA.origin}/home`);
+  await page.goto(`${app.origin}/home`);
   await page.waitForLoadState("load");
   const ext = await openExtensionPage(browser);
   try {
@@ -162,7 +96,7 @@ describe("DOM Config crawl in Chromium", () => {
       PAGES.map((name) => [`/${name}`, "initial,after-reload", false]),
     );
     assert.deepEqual(
-      capture.pages.map((p) => p.pageId.slice(serverA.origin.length)),
+      capture.pages.map((p) => p.pageId.slice(app.origin.length)),
       ["/home", "/list?nocache", "/detail?nocache", "/form?nocache"],
       "one /home page; page ids keep query names only",
     );
@@ -170,8 +104,8 @@ describe("DOM Config crawl in Chromium", () => {
       inventory.some(
         (r) =>
           r.status === "skipped" &&
-          r.urlShape === `${serverA.origin}/home?nocache` &&
-          r.reason === `duplicate of ${serverA.origin}/home`,
+          r.urlShape === `${app.origin}/home?nocache` &&
+          r.reason === `duplicate of ${app.origin}/home`,
       ),
       JSON.stringify(inventory),
     );
@@ -217,10 +151,7 @@ describe("DOM Config crawl in Chromium", () => {
       JSON.stringify(report.maxZIndex),
     );
     const viewer = report.iframes.find((f) => f.crossOrigin);
-    assert.equal(
-      viewer?.src,
-      `http://localhost:${serverB.address().port}/frame.html`,
-    );
+    assert.equal(viewer?.src, `${app.crossOrigin}/frame.html`);
     assert.ok(report.warnings.some((w) => w.code === "weak-selectors"));
     assert.deepEqual(
       report.weakSelectors.find((w) => w.selector === ".RptTable")?.maxPerPage,

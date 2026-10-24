@@ -14,7 +14,8 @@ It is delivered in steps:
 | R1 | Pure engine: validate, diff, classify, generate rules, derive settings, warnings, Markdown; importer for the console script's JSON | Done |
 | R2 | In-page collector and behavior probe | Done (see [Collector and behavior probe](#collector-and-behavior-probe-r2)) |
 | R3 | Automatic crawl with several runs per state | Done (see [Automatic crawl](#automatic-crawl-r3)) |
-| R4 | Side panel card, progress, report, import and export | Not started |
+| R4a | Side panel card: start options, live progress, Stop, report (Ignore conditions, Settings), copy and export | Done (see [Side panel card](#side-panel-card-r4a)) |
+| R4b | Manual capture, import, page detail, Iframes and Coverage tabs | Not started |
 
 ## Where the code is
 
@@ -428,6 +429,51 @@ changed; a new one is returned.
   visit usually comes back `state-mismatch` (kept out of the rules). It
   also makes a deep crawl several times slower than a safe one.
 - Results live in memory only (D12); nothing is written to storage.
+
+## Side panel card (R4a)
+
+`apps/browser-extension/src/components/investigation/dom-config/`, mounted
+after the DOM Health card; the welcome screen's "Generate DOM config" tile
+opens it.
+
+- **Start options.** Scope: this page only (`maxPages: 1`, safe mode),
+  the whole application in safe mode (links only), or in deep mode (also
+  clicks menus and tabs; Start stays disabled until the SE confirms that it
+  clicks on the live application). Runs per page (2 to 4), the behavior
+  probe, and the page and time limits (engine defaults: 20 pages, 10
+  minutes). A safety line says the tab will navigate and load pages more
+  than once, and that unsaved input can be lost; another that results are
+  held in the panel only (D12).
+- **Running.** A four-step stepper (Discover, Capture, Analyze, Report), one
+  sentence for the current action in a polite live region, and one row per
+  page (its URL shape, never its title) with a chip per run. The run's
+  events carry no run failure or state mismatch, so those chips appear only
+  once the outcome arrives. Stop aborts through the `AbortSignal`; the
+  report built from what was captured says it is partial, as it does when
+  a limit was reached.
+- **Report.** Five tiles (attribute priority, debounce, max z-index, Shadow
+  DOM, ignore events), each with its basis as text and icon and a Copy
+  button; the rule counts; every warning, listed. Tabs: Ignore conditions
+  (IDs, classes, attributes by name and by value, each rule shown as
+  Apty's builder would hold it, ASSUMPTION D7; review rules excluded until
+  ticked; record-specific rules behind the "Guides target a specific
+  record" switch; collapsed lists of what Apty's defaults already cover,
+  what needs manual review and the rejected rules) and Settings (with the
+  attribute priority compared with Apty's default order, the debounce
+  marked a heuristic, both container score threshold values). "What was not
+  measured" and the open questions close the report.
+- **Copy and export.** Copy on each value, "Copy as table" per section
+  (tab-separated, for a spreadsheet), "Copy as tables", Markdown and JSON
+  export. All of them use `{...report, rules: includedRules}`, so an
+  excluded rule appears in no copy and no export. JSON is the engine
+  report, not a reference-config format. Re-run analysis calls
+  `buildReportFromCapture` on the held capture; it never captures again.
+- **Tab lock.** DOM Config and DOM Health take `tab-lock.ts`'s lock for the
+  tab they run on; the other card is disabled and says why. Tool runs the
+  chat agent starts are not covered.
+
+The Iframes and Coverage tabs, manual capture, import and the page detail
+come in R4b.
 
 ## Open questions
 

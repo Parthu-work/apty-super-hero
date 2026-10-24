@@ -46,6 +46,7 @@ import {
   AptyToolFooter,
 } from "./investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
+import { DomConfigCard } from "./investigation/dom-config/dom-config-card";
 import { DomHealthCard } from "./investigation/dom-health-card";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
 import { ReadinessCheck } from "./readiness-check";
@@ -279,6 +280,7 @@ function ChatApp() {
                       : undefined
                   }
                 />
+                <DomConfigCard ignoredRoots={settings.domHealthIgnoredRoots} />
                 <BrowserContextLoader />
               </>
             ),
