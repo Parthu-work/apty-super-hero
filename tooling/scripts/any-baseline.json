@@ -21,7 +21,6 @@
   "apps/browser-extension/src/services/ai-provider.ts": 1,
   "apps/browser-extension/src/services/message-adapter.test.ts": 18,
   "apps/browser-extension/src/services/optional-permissions.test.ts": 1,
-  "apps/browser-extension/src/services/replay-controller.test.ts": 1,
   "apps/browser-extension/src/vitest.d.ts": 1,
   "apps/mcp-bridge/src/daemon-server.test.ts": 1,
   "packages/agent-core/src/agent/apty-agent.test.ts": 7,
