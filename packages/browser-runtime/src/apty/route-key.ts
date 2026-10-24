@@ -181,6 +181,34 @@ export function buildRouteKey(entries: FrameSignatureEntry[]): RouteKey {
   };
 }
 
+function withoutPlaceholderParams(template: string): string {
+  const start = template.indexOf("?");
+  if (start < 0) return template;
+  const hash = template.indexOf("#", start);
+  const end = hash < 0 ? template.length : hash;
+  const kept = template
+    .slice(start + 1, end)
+    .split("&")
+    .filter((param) => !/=:[a-z]+$/.test(param));
+  return `${template.slice(0, start)}${kept.length ? `?${kept.join("&")}` : ""}${template.slice(end)}`;
+}
+
+/**
+ * `routeIdentity` without the query parameters whose value the template
+ * already replaced by a placeholder (`nocache=:id`): the same screen loaded
+ * again with a cache-busting or record parameter is the same page. A
+ * literal value (`page=visits`) still tells pages apart.
+ */
+export function pageIdentity(key: RouteKey): string {
+  return routeIdentity({
+    ...key,
+    urlTemplate: key.urlTemplate
+      .split(SEPARATOR)
+      .map(withoutPlaceholderParams)
+      .join(SEPARATOR),
+  });
+}
+
 /** True when the trail or the heading names the screen, so the structure is evidence only. */
 export function isNamedRoute(key: RouteKey): boolean {
   return key.navTrail.length > 0 || key.primaryHeading !== null;

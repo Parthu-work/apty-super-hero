@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyze, profile, run, values } from "./__tests__/fixtures";
 import { recordKindOf } from "./classify";
+import { generateRules } from "./generate-rules";
 
 function twoRuns(
   first: Record<string, Record<string, number>>,
@@ -122,5 +123,33 @@ describe("recordKindOf", () => {
     expect(recordKindOf("at=2026-10-23T10:15")).toBe("timestamp");
     expect(recordKindOf("doc-a1b2c3d4e5f6a7b8c9")).toBe("hex");
     expect(recordKindOf("/p/1234")).toBeNull();
+  });
+
+  it("does not read a port as a record number, and still finds one in the same URL", () => {
+    expect(recordKindOf("http://localhost:49321/frame.html")).toBeNull();
+    expect(recordKindOf("http://[::1]:49321/frame.html")).toBeNull();
+    expect(recordKindOf("open http://localhost:49321 first")).toBeNull();
+    expect(recordKindOf("https://docs.example.test:49321/viewer/1234567")).toBe(
+      "digits",
+    );
+    expect(recordKindOf("/patients/49321")).toBe("digits");
+  });
+});
+
+describe("a frame src with a port", () => {
+  it("is stable, not a record or a PII value, and gives no rule; a record id beside it still does", () => {
+    const page = twoRuns({
+      src: values("http://localhost:49321/frame.html"),
+      href: values("/patients/1234567/chart"),
+    });
+    expect(page.bucketOf("src", "http://localhost:49321/frame.html")).toBe(
+      "stable",
+    );
+    expect(page.classified.items.find((i) => i.name === "src")?.pii).toBeNull();
+    expect(page.bucketOf("href", "/patients/1234567/chart")).toBe(
+      "record-specific",
+    );
+    const { rules } = generateRules([page.classified]);
+    expect(rules.map((r) => r.conditions[0]?.value)).toEqual(["href"]);
   });
 });

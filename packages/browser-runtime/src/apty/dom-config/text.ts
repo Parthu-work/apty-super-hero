@@ -35,6 +35,35 @@ export function withoutQuery(value: string): string {
   return end === -1 ? value : value.slice(0, end);
 }
 
+const AUTHORITY_END = new Set(["/", "?", "#", " ", "\t", "\n", "\r", "\f"]);
+
+/** The value with the port of every `scheme://host:port` taken out: a port is not a record number or a PII digit run. */
+export function withoutUrlPorts(value: string): string {
+  let result = "";
+  let copied = 0;
+  for (
+    let at = value.indexOf("://");
+    at !== -1;
+    at = value.indexOf("://", at + 3)
+  ) {
+    let end = at + 3;
+    while (end < value.length && !AUTHORITY_END.has(value[end]!)) end++;
+    const authority = value.slice(at + 3, end);
+    const colon = authority.lastIndexOf(":");
+    const port = authority.slice(colon + 1);
+    if (
+      colon > authority.lastIndexOf("]") &&
+      colon > authority.lastIndexOf("@") &&
+      /^\d+$/.test(port)
+    ) {
+      result += value.slice(copied, at + 3 + colon);
+      copied = end;
+    }
+    at = end - 3;
+  }
+  return result + value.slice(copied);
+}
+
 const URL_ATTRIBUTES = new Set([
   "href",
   "src",

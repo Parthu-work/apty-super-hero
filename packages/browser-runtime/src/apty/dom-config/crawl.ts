@@ -18,6 +18,7 @@ import {
 import type { PageDiscoverySource } from "../application-scoring.js";
 import { isUnsupportedPage } from "../dom-health.js";
 import { navigateTab, waitForDomStable } from "../page-navigation.js";
+import { pageIdentity } from "../route-key.js";
 import { buildDomConfigReport } from "./build-report.js";
 import {
   captureBehaviorProbe,
@@ -258,6 +259,8 @@ export async function runDomConfigCapture(
   const probe = options.probe ?? true;
   const pages: PageCapture[] = [];
   const pageIds = new Set<string>();
+  /** Page identity (`pageIdentity`) of each captured state, to the URL shape it was captured under. */
+  const capturedPages = new Map<string, string>();
   const states: DomConfigStateVisit[] = [];
   const aborted = () => options.signal?.aborted === true;
   const progress = options.onProgress;
@@ -275,10 +278,13 @@ export async function runDomConfigCapture(
         progress?.({ phase: "restoring", urlShape: toUrlShape(p.targetUrl) });
       }
     },
-    visit: async ({ stateId, source, fingerprint, revisit }) => {
+    visit: async ({ stateId, source, fingerprint, routeKey, revisit }) => {
       const stateIndex = states.length + 1;
       const url = await liveUrl(tabId);
       const urlShape = toUrlShape(url);
+      const identity = routeKey ? pageIdentity(routeKey) : null;
+      const twin = identity ? capturedPages.get(identity) : undefined;
+      if (twin) return { available: false, duplicate: `duplicate of ${twin}` };
       const pageId = uniqueId(
         source === "safe-navigation-control"
           ? `${urlShape} [${stateId}]`
@@ -334,6 +340,9 @@ export async function runDomConfigCapture(
         if (i === 0) visit.frames = captured.frames;
       }
       pageIds.add(pageId);
+      if (identity && !capturedPages.has(identity)) {
+        capturedPages.set(identity, urlShape);
+      }
       pages.push({ pageId, label: pageId, runs: visit.runs, origin: "crawl" });
       states.push(visit);
       return { available: true, url, visit };
