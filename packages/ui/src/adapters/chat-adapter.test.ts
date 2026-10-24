@@ -1,4 +1,4 @@
-import type * as AIPexCore from "@apty/agent-core";
+import type * as AgentCore from "@apty/agent-core";
 import { AgentError, ErrorCode } from "@apty/agent-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "../types";
@@ -10,7 +10,7 @@ import {
 
 // Mock generateId to return predictable IDs
 vi.mock("@apty/agent-core", async (importOriginal) => {
-  const actual = await importOriginal<typeof AIPexCore>();
+  const actual = await importOriginal<typeof AgentCore>();
   let idCounter = 0;
   return {
     ...actual,

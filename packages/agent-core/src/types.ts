@@ -14,7 +14,7 @@ export type { FunctionTool, AiSdkModel, AgentInputItem, OpenAIAgent };
 // Agent Types
 // ============================================================================
 
-export interface AIPexOptions<
+export interface AptyAgentOptions<
   TTools extends readonly FunctionTool<any, any, any>[] = FunctionTool<
     any,
     any,
@@ -194,7 +194,7 @@ export interface ChatOptions {
   runContext?: unknown;
   /**
    * Override the tool set exposed to the model for this single turn only —
-   * the agent's own default tools (from `AIPexOptions.tools`) are
+   * the agent's own default tools (from `AptyAgentOptions.tools`) are
    * unaffected and used again on the next call unless overridden again.
    * Lets a runtime with a large tool registry keep every tool registered
    * while only sending the subset relevant to the current request in the
@@ -265,7 +265,7 @@ export interface MetricsPayload {
 }
 
 export interface AgentPluginContext {
-  agent: import("./agent/aipex.js").AIPex;
+  agent: import("./agent/apty-agent.js").AptyAgent;
 }
 
 export interface AgentPluginHooks {

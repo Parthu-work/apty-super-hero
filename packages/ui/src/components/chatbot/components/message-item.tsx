@@ -16,7 +16,10 @@ import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
 import { isLocalImageUrl } from "../../../lib/safe-media";
-import { transformScreenshotPlaceholders } from "../../../lib/screenshot-utils";
+import {
+  resolveScreenshotUrls,
+  transformScreenshotPlaceholders,
+} from "../../../lib/screenshot-utils";
 import { cn } from "../../../lib/utils";
 import type {
   MessageItemProps,
@@ -133,11 +136,10 @@ export function DefaultMessageItem({
                 processedText,
                 screenshotUidList,
               );
-              // Replace aipex-screenshot.invalid URLs with actual data
-              for (const [uid, data] of screenshotDataMap) {
-                const placeholder = `https://aipex-screenshot.invalid/${uid}`;
-                processedText = processedText.split(placeholder).join(data);
-              }
+              processedText = resolveScreenshotUrls(
+                processedText,
+                screenshotDataMap,
+              );
             }
             return (
               <Fragment key={key}>

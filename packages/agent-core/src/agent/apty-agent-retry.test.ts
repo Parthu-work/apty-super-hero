@@ -8,7 +8,7 @@ import { ConversationManager } from "../conversation/manager.js";
 import { SessionStorage } from "../conversation/storage.js";
 import { InMemoryStorage } from "../storage/memory.js";
 import type { AgentEvent } from "../types.js";
-import { AIPex } from "./aipex.js";
+import { AptyAgent } from "./apty-agent.js";
 
 function httpError(status: number, body = "request body with page data") {
   return Object.assign(new Error(`${status} ${body}`), { status });
@@ -54,12 +54,12 @@ function scriptedModel(failures: Array<Error | "stream-then-fail">) {
     },
   };
   return {
-    model: model as unknown as Parameters<typeof AIPex.create>[0]["model"],
+    model: model as unknown as Parameters<typeof AptyAgent.create>[0]["model"],
     calls: () => calls,
   };
 }
 
-async function collect(agent: AIPex, input: string) {
+async function collect(agent: AptyAgent, input: string) {
   const events: AgentEvent[] = [];
   for await (const event of agent.chat(input)) events.push(event);
   return events;
@@ -74,16 +74,16 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function run(agent: AIPex, input: string) {
+async function run(agent: AptyAgent, input: string) {
   const pending = collect(agent, input);
   await vi.runAllTimersAsync();
   return pending;
 }
 
-describe("AIPex LLM retry with the real run()", () => {
+describe("AptyAgent LLM retry with the real run()", () => {
   it("retries a 429 that happens before any output, and the user sees the reply", async () => {
     const { model, calls } = scriptedModel([httpError(429)]);
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "t",
       model,
       conversation: false,
@@ -101,7 +101,7 @@ describe("AIPex LLM retry with the real run()", () => {
   it("does not duplicate the user message in the session when it retries", async () => {
     const { model } = scriptedModel([httpError(500)]);
     const storage = new SessionStorage(new InMemoryStorage());
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "t",
       model,
       conversationManager: new ConversationManager(storage),
@@ -123,7 +123,7 @@ describe("AIPex LLM retry with the real run()", () => {
 
   it("never retries once output has reached the caller", async () => {
     const { model, calls } = scriptedModel(["stream-then-fail"]);
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "t",
       model,
       conversation: false,
@@ -137,7 +137,7 @@ describe("AIPex LLM retry with the real run()", () => {
 
   it("does not retry a 401", async () => {
     const { model, calls } = scriptedModel([httpError(401)]);
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "t",
       model,
       conversation: false,
@@ -152,7 +152,7 @@ describe("AIPex LLM retry with the real run()", () => {
   it("logs only the classified code and status, never the error", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { model } = scriptedModel([httpError(429, "SECRET-PAGE-TEXT")]);
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "t",
       model,
       conversation: false,

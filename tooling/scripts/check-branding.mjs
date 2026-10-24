@@ -2,14 +2,17 @@
 /**
  * Fails if a new, unreviewed "aipex"/"AIPex" reference shows up.
  *
- * The repo intentionally keeps a small, fixed set of "aipex"-branded
- * identifiers that are real data/behavior contracts, not cosmetic branding:
- * chrome.storage/IndexedDB keys and DB names, DOM attribute/class names,
- * cross-context message action strings, the AIPex class name in
- * @apty/agent-core, and two apps/mcp-bridge env var names kept as-is from
- * the upstream fork's raw CLI protocol. Renaming any of those would be a
- * behavior change, not a branding fix -- see DECISIONS.md and the git
- * history of this script's introduction for the reasoning.
+ * Every name a user, a customer page, a log line, a CLI user or a package
+ * consumer sees is an Apty name (R2, C1). What is left is listed below:
+ * the upstream fork's name where the README credits it and where the
+ * migration code says what it moves, data an earlier version stored under
+ * AIPex names (read once to move it, or removed by "Delete everything"),
+ * the upstream's conversation format names in the compatibility docs, the
+ * screenshot link host earlier versions wrote (still resolved), and two
+ * deprecated apps/mcp-bridge env var fallbacks. Tokens are matched whole
+ * and case-sensitively, so "[AIPex]" or "data-aipex-new" is caught even
+ * though "AIPex" (the fork's name) is allowed; CODE_USES catches the name
+ * used as code, which the allowed word would otherwise let through.
  *
  * apps/mcp-bridge's bin names, PID file and log prefixes used to be
  * allow-listed here too ("aipex-mcp-bridge" etc.) but were a real bug, not
@@ -18,12 +21,6 @@
  * different, unrelated package on the public npm registry. Fixed by
  * renaming the bins to "apty-*" and documenting a local-build install
  * instead -- see DECISIONS.md.
- *
- * Production readiness (R2) renamed the storage keys, the agent-session
- * database, every name injected into customer pages and the log prefix to
- * Apty names. What is left is listed below, matched as whole tokens and
- * case-sensitively, so "[AIPex]" or "data-aipex-new" is caught even though
- * "AIPex" (the class) is allowed.
  *
  * Usage: node tooling/scripts/check-branding.mjs [<root>] [--verbose]
  */
@@ -69,14 +66,13 @@ const SKIP_PATHS = [
   `tooling${sep}scripts${sep}`,
 ];
 
-/** Tokens allowed exactly as written. */
+/** Tokens allowed exactly as written, each with why it is still read. */
 const ALLOWED_TOKENS = new Set([
-  // The upstream fork, by name, and @apty/agent-core's kept class names.
+  // The upstream fork, by name: the README credit, comments in the
+  // migration code naming what it moves, and the upstream's first
+  // conversation format ("aipex") in conversation/COMPATIBILITY.md.
   "aipex",
   "AIPex",
-  "AIPexOptions",
-  "AIPexCore",
-  "AIPexSkills",
   // Storage written by earlier versions: read once by the R2 migration
   // (storage/legacy-storage.ts, storage/agent-session-store.ts) or removed by
   // "Delete everything" (stored-data.ts).
@@ -98,30 +94,36 @@ const ALLOWED_TOKENS = new Set([
   "aipex-conversations-migrated",
   "aipex-screenshots-db",
   "aipex-skills-fs",
-  // The chat's screenshot placeholder host (aipex-screenshot.invalid); never
-  // fetched, never on a page.
+  "AIPexSkills",
+  // The screenshot link host earlier versions wrote (aipex-screenshot.invalid),
+  // still resolved by @apty/ui's resolveScreenshotUrls; never fetched.
   "aipex-screenshot",
   // The upstream fork's second conversation-storage version, in
   // conversation/COMPATIBILITY.md and conversation/README.md.
   "new-aipex",
-  // Source and test files of the AIPex class (aipex.ts, aipex-retry.test.ts).
-  "aipex-retry",
-  // Messages between the Agent's own contexts; never visible to a page.
-  "aipex_open_omni",
-  "aipex_close_omni",
-  "aipex:collect-dom-snapshot",
-  // apps/mcp-bridge env vars kept from the upstream CLI protocol.
+  // apps/mcp-bridge's deprecated names for APTY_WS_URL and
+  // APTY_CONNECT_TIMEOUT, read for one release when the new name is unset.
   "AIPEX_WS_URL",
   "AIPEX_CONNECT_TIMEOUT",
 ]);
 
 /** Allowed anywhere inside a token (URLs and long identifiers). */
 const ALLOWED_PARTS = [
-  "AIPEX_SCREENSHOT_URL_PREFIX",
   // github.com/AIPexStudio/AIPex, the fork's origin.
   "AIPexStudio",
   // "never run this" warnings naming the wrong upstream npm package.
   "aipex-mcp-bridge",
+];
+
+/**
+ * The fork's name used as code (the class @apty/agent-core renamed to
+ * AptyAgent, or its log prefix), which "AIPex" being allowed would miss.
+ */
+const CODE_USES = [
+  /\bAIPex\s*\./,
+  /\b(?:class|new|extends|typeof|instanceof)\s+AIPex\b/,
+  /[:|<{,]\s*AIPex\b/,
+  /["'`]AIPex["'`]/,
 ];
 
 const TOKEN = /[\w$@:[\]'*-]*aipex[\w$@:[\]'*-]*/gi;
@@ -171,7 +173,7 @@ for (const file of walk(ROOT)) {
     const unknown = (line.match(TOKEN) ?? []).filter(
       (token) => !isAllowedToken(token),
     );
-    if (unknown.length > 0) {
+    if (unknown.length > 0 || CODE_USES.some((use) => use.test(line))) {
       findings.push({ file: path, line: idx + 1, text: line.trim() });
     }
   });

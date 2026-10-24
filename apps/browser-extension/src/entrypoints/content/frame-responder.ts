@@ -511,7 +511,7 @@ export function handleFrameMessage(
   sendResponse: SendResponse,
 ): boolean {
   if (
-    message?.type === "aipex:collect-dom-snapshot" ||
+    message?.type === "apty:collect-dom-snapshot" ||
     message?.request === "collect-dom-snapshot"
   ) {
     return respondAsync(sendResponse, "Failed to collect DOM snapshot", () =>

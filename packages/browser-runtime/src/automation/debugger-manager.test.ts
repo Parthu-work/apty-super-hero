@@ -11,7 +11,7 @@ import { DebuggerManager } from "./debugger-manager";
  * must not create the problem being diagnosed" failure mode this product
  * exists to avoid (e.g. it could delete Apty's own Widget iframe while
  * investigating "why isn't the widget showing"). It was undocumented,
- * untested, and inherited unchanged from the original AIPex import — no
+ * untested, and inherited unchanged from the original upstream import — no
  * evidence exists that it was ever actually required for a real attach
  * failure. Removed; these tests pin down that `executeScript` is never
  * invoked as part of attach/detach and that attach/detach still work.

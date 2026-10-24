@@ -1,7 +1,7 @@
 import type {
   AgentEvent,
   AgentMetrics,
-  AIPex,
+  AptyAgent,
   Context,
 } from "@apty/agent-core";
 import { AgentError, classifyLlmError } from "@apty/agent-core";
@@ -16,7 +16,7 @@ import type {
   UIMessage,
 } from "../types";
 
-/** Normalize any thrown value into an `AgentError`, classifying it the same way `AIPex`'s own internal chat loop does — so a failure in a caller-supplied `getRunContext`/`selectTools` hook (which runs OUTSIDE that loop, before `agent.chat()` is even called) is reported with the same specificity as one from inside it, not a generic swallowed exception. */
+/** Normalize any thrown value into an `AgentError`, classifying it the same way `AptyAgent`'s own internal chat loop does — so a failure in a caller-supplied `getRunContext`/`selectTools` hook (which runs OUTSIDE that loop, before `agent.chat()` is even called) is reported with the same specificity as one from inside it, not a generic swallowed exception. */
 function toAgentError(error: unknown): AgentError {
   if (error instanceof AgentError) return error;
   const classified = classifyLlmError(error);
@@ -74,7 +74,7 @@ export interface UseChatReturn {
 }
 
 /**
- * useChat - A headless hook for managing chat state with an AIPex agent
+ * useChat - A headless hook for managing chat state with an AptyAgent
  *
  * This hook provides all the state and actions needed to build a chat UI,
  * without any rendering logic. It uses the ChatAdapter to convert
@@ -82,7 +82,7 @@ export interface UseChatReturn {
  *
  * @example
  * ```tsx
- * const agent = AIPex.create({ model, tools });
+ * const agent = AptyAgent.create({ model, tools });
  *
  * function MyChatUI() {
  *   const {
@@ -103,7 +103,7 @@ export interface UseChatReturn {
  * ```
  */
 export function useChat(
-  agent: AIPex | undefined,
+  agent: AptyAgent | undefined,
   options: UseChatOptions = {},
 ): UseChatReturn {
   const { config, handlers } = options;
@@ -128,7 +128,7 @@ export function useChat(
   // the time its pre-steps (getRunContext, selectTools, rollback) resolve
   // was stopped while "submitted" and must not start.
   const turnRef = useRef(0);
-  const prevAgentRef = useRef<AIPex | undefined>(agent);
+  const prevAgentRef = useRef<AptyAgent | undefined>(agent);
 
   // A message sent while a turn is already in flight is queued (FIFO)
   // rather than starting a second concurrent `agent.chat()` call on the

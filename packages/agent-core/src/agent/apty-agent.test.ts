@@ -8,7 +8,7 @@ import type {
   AiSdkModel,
   SerializedSession,
 } from "../types.js";
-import { AIPex, DEFAULT_MAX_TURNS } from "./aipex.js";
+import { AptyAgent, DEFAULT_MAX_TURNS } from "./apty-agent.js";
 
 vi.mock("@openai/agents", () => ({
   Agent: vi.fn(),
@@ -61,7 +61,7 @@ function createMockRunResult(
   } as unknown as StreamedRunResult<unknown, any>;
 }
 
-describe("AIPex", () => {
+describe("AptyAgent", () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
@@ -84,7 +84,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test agent",
         model: mockModel,
       });
@@ -121,7 +121,7 @@ describe("AIPex", () => {
       const customStorage = new SessionStorage(
         new InMemoryStorage<SerializedSession>(),
       );
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         storage: customStorage,
@@ -148,7 +148,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         conversation: false,
@@ -169,7 +169,7 @@ describe("AIPex", () => {
       );
       const contextFormatter = vi.fn(() => "[tab: https://ehr.example.com]");
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         conversation: false,
@@ -209,7 +209,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         conversation: false,
@@ -242,7 +242,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         conversation: false,
@@ -272,7 +272,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -341,12 +341,14 @@ describe("AIPex", () => {
       }) => Promise<{ input: unknown[]; instructions?: string }>;
 
       async function inputFilterFor(
-        outboundFilters: Parameters<typeof AIPex.create>[0]["outboundFilters"],
+        outboundFilters: Parameters<
+          typeof AptyAgent.create
+        >[0]["outboundFilters"],
       ): Promise<InputFilter> {
         vi.mocked(run).mockResolvedValue(
           createMockRunResult({ finalOutput: "Reply" }),
         );
-        const agent = AIPex.create({
+        const agent = AptyAgent.create({
           instructions: "Test",
           model: mockModel,
           outboundFilters,
@@ -483,7 +485,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         modelId: "llama-3.3-70b-versatile",
@@ -543,7 +545,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         modelId: "openai/gpt-oss-20b",
@@ -621,7 +623,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         modelId: "deepseek-reasoner",
@@ -662,7 +664,10 @@ describe("AIPex", () => {
     it("should forward ChatOptions.runContext to run() as context, for both new and resumed sessions", async () => {
       vi.mocked(run).mockResolvedValue(createMockRunResult());
 
-      const agent = AIPex.create({ instructions: "Test", model: mockModel });
+      const agent = AptyAgent.create({
+        instructions: "Test",
+        model: mockModel,
+      });
 
       const runContext = { conversationId: "conv-1", tabId: 42 };
       for await (const _event of agent.chat("Hi", { runContext })) {
@@ -704,7 +709,7 @@ describe("AIPex", () => {
     it("should pass context: undefined to run() when no runContext is provided", async () => {
       vi.mocked(run).mockResolvedValue(createMockRunResult());
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         conversation: false,
@@ -736,7 +741,7 @@ describe("AIPex", () => {
       );
       const customManager = new ConversationManager(storage);
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         conversationManager: customManager,
@@ -764,7 +769,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Describe images",
         model: mockModel,
       });
@@ -809,7 +814,7 @@ describe("AIPex", () => {
         createMockRunResult({ finalOutput: "OK" }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -833,7 +838,7 @@ describe("AIPex", () => {
         createMockRunResult({ finalOutput: "Two images" }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -865,7 +870,7 @@ describe("AIPex", () => {
         createMockRunResult({ finalOutput: "Reply" }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -882,7 +887,7 @@ describe("AIPex", () => {
 
   describe("chat - continue conversation", () => {
     it("should throw error when conversation is disabled", async () => {
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         conversation: false,
@@ -896,7 +901,7 @@ describe("AIPex", () => {
     });
 
     it("should throw error for non-existent session", async () => {
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -921,7 +926,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -962,7 +967,7 @@ describe("AIPex", () => {
 
   describe("create", () => {
     it("should use default values when options not provided", () => {
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -972,7 +977,7 @@ describe("AIPex", () => {
     });
 
     it("should expose conversationManager via getConversationManager", () => {
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1000,7 +1005,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
         maxTurns: 5,
@@ -1027,7 +1032,10 @@ describe("AIPex", () => {
       vi.mocked(run).mockResolvedValue(
         createMockRunResult({ finalOutput: "Response" }) as any,
       );
-      const agent = AIPex.create({ instructions: "Test", model: mockModel });
+      const agent = AptyAgent.create({
+        instructions: "Test",
+        model: mockModel,
+      });
 
       for await (const _event of agent.chat("Test input")) {
         // drain
@@ -1051,7 +1059,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1087,7 +1095,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1127,7 +1135,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1172,7 +1180,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1206,7 +1214,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1276,7 +1284,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1331,7 +1339,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Test",
         model: mockModel,
       });
@@ -1375,7 +1383,10 @@ describe("AIPex", () => {
           createMockRunResult({ finalOutput: "Recovered" }),
         );
 
-      const agent = AIPex.create({ instructions: "Retry", model: mockModel });
+      const agent = AptyAgent.create({
+        instructions: "Retry",
+        model: mockModel,
+      });
 
       const events: AgentEvent[] = [];
       const runPromise = (async () => {
@@ -1401,7 +1412,10 @@ describe("AIPex", () => {
       });
       vi.mocked(run).mockRejectedValue(serverError);
 
-      const agent = AIPex.create({ instructions: "Retry", model: mockModel });
+      const agent = AptyAgent.create({
+        instructions: "Retry",
+        model: mockModel,
+      });
 
       const events: AgentEvent[] = [];
       const runPromise = (async () => {
@@ -1425,7 +1439,10 @@ describe("AIPex", () => {
       });
       vi.mocked(run).mockRejectedValue(authError);
 
-      const agent = AIPex.create({ instructions: "Retry", model: mockModel });
+      const agent = AptyAgent.create({
+        instructions: "Retry",
+        model: mockModel,
+      });
 
       const events: AgentEvent[] = [];
       for await (const event of agent.chat("auth fail")) {
@@ -1452,7 +1469,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1527,7 +1544,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1560,7 +1577,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1611,7 +1628,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1657,7 +1674,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1695,7 +1712,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1735,7 +1752,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1754,7 +1771,7 @@ describe("AIPex", () => {
     it("should emit error event when run fails", async () => {
       vi.mocked(run).mockRejectedValue(new Error("LLM failed"));
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Error",
         model: mockModel,
       });
@@ -1796,7 +1813,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1840,7 +1857,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1884,7 +1901,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });
@@ -1927,7 +1944,7 @@ describe("AIPex", () => {
         }),
       );
 
-      const agent = AIPex.create({
+      const agent = AptyAgent.create({
         instructions: "Tools",
         model: mockModel,
       });

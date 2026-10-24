@@ -1,5 +1,5 @@
 /**
- * useAgent - Generic hook for creating and managing AIPex agent instances
+ * useAgent - Generic hook for creating and managing AptyAgent instances
  *
  * This is a flexible, configurable hook that can be customized for different use cases.
  * For browser extensions, use the browser-specific wrapper that provides browser tools and providers.
@@ -7,7 +7,7 @@
 
 import type { AppSettings } from "@apty/agent-core";
 import {
-  AIPex,
+  AptyAgent,
   ContextManager,
   type ContextProvider,
   type FunctionTool,
@@ -44,12 +44,12 @@ export interface UseAgentOptions {
   maxTurns?: number;
 
   /** Additional agent options */
-  agentOptions?: Partial<Parameters<typeof AIPex.create>[0]>;
+  agentOptions?: Partial<Parameters<typeof AptyAgent.create>[0]>;
 }
 
 export interface UseAgentReturn {
   /** The created agent instance */
-  agent: AIPex | undefined;
+  agent: AptyAgent | undefined;
 
   /** Whether the agent is ready to use */
   isReady: boolean;
@@ -59,7 +59,7 @@ export interface UseAgentReturn {
 }
 
 /**
- * Create and manage an AIPex agent instance
+ * Create and manage an AptyAgent instance
  *
  * @example
  * ```typescript
@@ -91,7 +91,7 @@ export function useAgent({
   maxTurns = 30,
   agentOptions = {},
 }: UseAgentOptions): UseAgentReturn {
-  const [agent, setAgent] = useState<AIPex | undefined>(undefined);
+  const [agent, setAgent] = useState<AptyAgent | undefined>(undefined);
   const [error, setError] = useState<Error | undefined>(undefined);
 
   // Use refs for values that shouldn't trigger re-creation on every render
@@ -157,7 +157,7 @@ export function useAgent({
       }
 
       // Create the agent
-      const newAgent = AIPex.create({
+      const newAgent = AptyAgent.create({
         name,
         instructions: instructions ?? "You are a helpful AI assistant.",
         model,

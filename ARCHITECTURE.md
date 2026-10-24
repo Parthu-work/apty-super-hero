@@ -119,7 +119,7 @@ target tab via
 `resolveDiagnosticTab()` (`packages/browser-runtime/src/tools/tab-utils.ts`)
 instead of unconditionally querying "whichever tab is focused right now":
 
-1. `AIPex.chat()` accepts an opaque `runContext` (`ChatOptions.runContext`,
+1. `AptyAgent.chat()` accepts an opaque `runContext` (`ChatOptions.runContext`,
    `packages/agent-core/src/types.ts`) forwarded verbatim to `@openai/agents`'
    `run()` as its `context` option, and from there to every tool's
    `execute(input, context)` as `context.context` — no new plumbing, just
@@ -345,7 +345,7 @@ data and browser-internal events but only forward from attach time.
 `safeAttachDebugger()` used to run a content script before every attach
 that recursively searched the page (including into Shadow DOM) for any
 `<iframe src="chrome-extension://...">` and removed it — undocumented,
-untested, inherited unchanged from the original AIPex import, and not
+untested, inherited unchanged from the original upstream import, and not
 scoped to this extension's own id. Removed this session (see
 `docs/development/PROJECT_PROGRESS.md`'s "Debugger Attach No Longer Mutates the Page" and
 `docs/security/SECURITY_AUDIT.md` finding #8) — for a debugging product, deleting page
@@ -428,7 +428,7 @@ covering its permission surface.
 
 ## Iframes and Shadow DOM
 
-Inherited from AIPex's DOM-snapshot/locator system
+Inherited from the upstream fork's DOM-snapshot/locator system
 (`packages/browser-runtime/src/automation/iframe-manager.ts`,
 `dom-locator.ts`), which already represents frame boundaries. The Apty
 Studio debugging guidance in the system prompt explicitly instructs the
@@ -673,7 +673,7 @@ Testing Library coverage.
   project brief; Apty has a separate system for this.
 - **Generic browser automation / productivity features** — bookmark/history
   tool source files (`bookmark.ts`, `history.ts`) still exist from the
-  AIPex baseline but are not registered in `allBrowserTools` (verified
+  upstream baseline but are not registered in `allBrowserTools` (verified
   against `packages/browser-runtime/src/tools/index.ts`); tab-management
   tools (list/switch/create/close tabs) are registered and used for
   browser-debugging purposes, and the system prompt does not present any

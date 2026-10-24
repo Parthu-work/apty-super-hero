@@ -5,7 +5,7 @@
  * Used in stateless mode (conversation: false) so that the OpenAI Agents
  * runner still has a session to work with.  Screenshot shaping (strip base64
  * imageData, inject transient user image message) is handled by the
- * `callModelInputFilter` hook in AIPex, not by the session itself.
+ * `callModelInputFilter` hook in AptyAgent, not by the session itself.
  *
  * This class intentionally imports only from `../utils/` to avoid circular
  * dependencies with the persistence layer (session.ts, manager.ts, storage.ts).

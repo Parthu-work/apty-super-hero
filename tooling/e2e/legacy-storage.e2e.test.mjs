@@ -198,13 +198,27 @@ function renameDatabaseInPage(page, from, to) {
   );
 }
 
-/** Create database `name` with one store and these records, as an earlier version would have. */
-function createDatabaseInPage(page, name, storeName, keyPath, records) {
+/** Create database `name` with one store, its indexes and these records, as an earlier version would have. */
+function createDatabaseInPage(
+  page,
+  name,
+  storeName,
+  keyPath,
+  records,
+  indexes = [],
+) {
   return page.evaluate(
-    async ({ name, storeName, keyPath, records }) => {
+    async ({ name, storeName, keyPath, records, indexes }) => {
       const open = indexedDB.open(name, 1);
-      open.onupgradeneeded = () =>
-        open.result.createObjectStore(storeName, keyPath ? { keyPath } : {});
+      open.onupgradeneeded = () => {
+        const store = open.result.createObjectStore(
+          storeName,
+          keyPath ? { keyPath } : {},
+        );
+        for (const index of indexes) {
+          store.createIndex(index, index, { unique: false });
+        }
+      };
       const db = await new Promise((resolve, reject) => {
         open.onsuccess = () => resolve(open.result);
         open.onerror = () => reject(open.error);
@@ -220,7 +234,7 @@ function createDatabaseInPage(page, name, storeName, keyPath, records) {
       });
       db.close();
     },
-    { name, storeName, keyPath, records },
+    { name, storeName, keyPath, records, indexes },
   );
 }
 
@@ -234,7 +248,88 @@ async function poll(check, what, timeout = 15_000) {
   }
 }
 
+const LEGACY_SKILL = {
+  id: "legacy-skill",
+  name: "legacy-skill",
+  description: "A skill an earlier version listed",
+  version: "1.0.0",
+  uploadedAt: 1,
+  enabled: true,
+};
+
+/** The record, index names and version of `skills` in apty-skills-db, or null. */
+function readSkillsDb(page) {
+  return page.evaluate(async (id) => {
+    const names = (await indexedDB.databases()).map((db) => db.name);
+    if (!names.includes("apty-skills-db")) return null;
+    const open = indexedDB.open("apty-skills-db");
+    const db = await new Promise((resolve, reject) => {
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    const store = db.transaction("skills").objectStore("skills");
+    const record = await new Promise((resolve, reject) => {
+      const get = store.index("name").get(id);
+      get.onsuccess = () => resolve(get.result ?? null);
+      get.onerror = () => reject(get.error);
+    });
+    const result = {
+      record,
+      keyPath: store.keyPath,
+      indexes: Array.from(store.indexNames).sort(),
+      version: db.version,
+    };
+    db.close();
+    return result;
+  }, LEGACY_SKILL.id);
+}
+
 describe("data stored under the AIPex names (R2)", () => {
+  // Runs first: the next test's stand-in ZenFS record is not a real ZenFS
+  // file system, so skills can't load after it.
+  it("keeps the skills list after a restart, under apty-skills-db", async () => {
+    const probe = await extensionPage(browser);
+    await createDatabaseInPage(
+      probe,
+      "AIPexSkills",
+      "skills",
+      "id",
+      [{ value: LEGACY_SKILL }],
+      ["name", "enabled"],
+    );
+    await probe.close();
+
+    await restartAgent(browser, helperDir);
+
+    const after = await extensionPage(browser);
+    const skills = await poll(async () => {
+      const names = await after.evaluate(async () =>
+        (await indexedDB.databases()).map((db) => db.name),
+      );
+      if (names.includes("AIPexSkills")) return null;
+      const moved = await readSkillsDb(after);
+      return moved?.record ? moved : null;
+    }, "the skills to move");
+    assert.deepEqual(skills, {
+      record: LEGACY_SKILL,
+      keyPath: "id",
+      indexes: ["enabled", "name"],
+      version: 1,
+    });
+    await after.close();
+
+    const options = await extensionPage(
+      browser,
+      "src/entrypoints/options/index.html?tab=skills",
+    );
+    await options.getByText(LEGACY_SKILL.description).waitFor();
+    await options
+      .getByText(/extends the Apty Agent's capabilities/)
+      .first()
+      .waitFor();
+    await options.close();
+  });
+
   it("keeps settings, grants, conversations, agent sessions, screenshots and skill files after a restart, under the Apty names", async () => {
     const app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);

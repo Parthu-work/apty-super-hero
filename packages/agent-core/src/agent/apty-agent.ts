@@ -20,7 +20,7 @@ import type {
   AgentMetrics,
   AgentPlugin,
   AgentPluginContext,
-  AIPexOptions,
+  AptyAgentOptions,
   BeforeChatPayload,
   ChatOptions,
   MetricsPayload,
@@ -34,7 +34,7 @@ import { createLogger } from "../utils/logger.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
 
-const log = createLogger("AIPex");
+const log = createLogger("AptyAgent");
 
 /** Call-establishment retry for the LLM request only (before any stream
  * event has been yielded to the caller) — never mid-stream, where partial
@@ -115,7 +115,7 @@ function isRetryableLlmError(classified: {
 /** Same bound the UI's useAgent applies, so a caller that omits it can't run away. */
 export const DEFAULT_MAX_TURNS = 30;
 
-export class AIPex {
+export class AptyAgent {
   private agent: OpenAIAgent;
   private conversationManager?: ConversationManager;
   private contextManager?: ContextManager;
@@ -150,7 +150,7 @@ export class AIPex {
     this.initializePlugins();
   }
 
-  static create(options: AIPexOptions): AIPex {
+  static create(options: AptyAgentOptions): AptyAgent {
     const agent = new OpenAIAgent({
       name: options.name ?? "Assistant",
       instructions: options.instructions,
@@ -158,8 +158,8 @@ export class AIPex {
       tools: options.tools ?? [],
     });
 
-    const conversationManager = AIPex.buildConversationManager(options);
-    const instance = new AIPex(
+    const conversationManager = AptyAgent.buildConversationManager(options);
+    const instance = new AptyAgent(
       agent,
       conversationManager,
       options.contextManager,
@@ -176,7 +176,7 @@ export class AIPex {
   }
 
   private static buildConversationManager(
-    options: AIPexOptions,
+    options: AptyAgentOptions,
   ): ConversationManager | undefined {
     // If conversationManager is provided, use it directly
     if (options.conversationManager) {

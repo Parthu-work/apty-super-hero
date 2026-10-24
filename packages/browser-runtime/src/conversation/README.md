@@ -9,7 +9,7 @@ A robust conversation storage system for managing chat history with IndexedDB, L
 - 📦 **Auto Migration**: Seamlessly migrates from localStorage to IndexedDB
 - 🔒 **Type Safe**: Full TypeScript support
 - 🧪 **Well Tested**: Comprehensive unit and integration tests
-- 🎯 **Drop-in Replacement**: Compatible with aipex implementation
+- 🎯 **Reads earlier data**: Compatible with the conversation storage of the upstream fork (AIPex)
 
 ## Installation
 
@@ -195,7 +195,7 @@ const storage = new ConversationStorage({
 The storage automatically migrates data from localStorage on first use:
 
 - **Source**: `aipex-conversations` (localStorage)
-- **Target**: `aipex-conversations-db` (IndexedDB)
+- **Target**: `apty-conversations-db` (IndexedDB)
 - **Flag**: `aipex-conversations-migrated` (localStorage)
 - **Behavior**: Runs once, idempotent, automatic
 
@@ -246,6 +246,12 @@ npm test conversation
 - ✅ Error handling tests
 
 ## Compatibility
+
+"aipex" and "new-aipex" below are the upstream fork's (AIPex) two
+conversation storage formats. The Agent reads them only to carry
+conversations over from an earlier install, and writes neither: the
+upstream's `aipex-conversations-db` moves to `apty-conversations-db`
+(`storage/legacy-databases.ts`).
 
 This implementation is **100% compatible** with the aipex conversation storage:
 
@@ -374,4 +380,4 @@ const storage = new ConversationStorage({ maxConversations: 20 });
 
 ## License
 
-Part of the AIPex project.
+MIT — see the repository's [LICENSE](../../../../LICENSE).

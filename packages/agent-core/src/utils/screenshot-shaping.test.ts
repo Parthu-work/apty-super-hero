@@ -285,7 +285,6 @@ describe("shapeScreenshotItems", () => {
   });
 
   it("should handle data.data nesting (two levels)", () => {
-    // This matches the old aipex pattern: { data: { data: { imageData, ... } } }
     const output = {
       success: true,
       data: {

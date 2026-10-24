@@ -28,7 +28,7 @@ vi.hoisted(() => {
   };
 });
 
-import { AIPex, aisdk } from "@apty/agent-core";
+import { AptyAgent, aisdk } from "@apty/agent-core";
 import { allBrowserTools } from "@apty/browser-runtime/tools";
 import { createOutboundFilters } from "../hooks/outbound-filters";
 import { createAIProvider } from "./ai-provider";
@@ -66,7 +66,7 @@ async function requestBody(
     { ...settings, aiToken: "test", aiModel: "m" } as never,
     { fetch },
   );
-  const agent = AIPex.create({
+  const agent = AptyAgent.create({
     instructions: "Test",
     model: aisdk(provider("m")),
     tools: allBrowserTools,

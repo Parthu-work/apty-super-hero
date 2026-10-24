@@ -8,8 +8,6 @@
  * Instead, the imageData is:
  * 1. Stripped from the tool result (replaced with a placeholder string).
  * 2. Injected as a follow-up user message with `input_image` content.
- *
- * This matches the message flow used in the original aipex codebase.
  */
 
 import type { AgentInputItem } from "@openai/agents";
@@ -211,7 +209,7 @@ interface ExtractedImage {
 
 /**
  * Extract imageData from parsed tool output.
- * Handles nested structures matching the old aipex pattern:
+ * Handles each nesting the screenshot tools return:
  *   { success, imageData, sendToLLM, screenshotUid }           (flat)
  *   { success, data: { imageData, sendToLLM, screenshotUid } } (one level)
  *   { data: { data: { imageData, sendToLLM, screenshotUid } } } (two levels)
@@ -221,8 +219,6 @@ function extractImageData(
 ): ExtractedImage | null {
   if (!parsed.success) return null;
 
-  // Navigate possible nesting levels (mirrors old aipex:
-  //   middleLayer?.data || middleLayer || parsedContent)
   const actual = resolveActualData(parsed);
 
   // Must have sendToLLM === true
@@ -248,9 +244,6 @@ function extractImageData(
  *   - flat:       { success, imageData, ... }
  *   - one level:  { success, data: { imageData, ... } }
  *   - two levels: { data: { data: { imageData, ... } } }
- *
- * Mirrors the old aipex pattern:
- *   middleLayer?.data || middleLayer || parsedContent
  */
 function resolveActualData(
   parsed: Record<string, unknown>,
@@ -269,8 +262,8 @@ function resolveActualData(
 /**
  * Build the stripped tool output object (imageData replaced with placeholder).
  *
- * Always produces the `{ success: true, data: { ...actualData } }` envelope
- * to match the message format expected by the old aipex codebase.
+ * Always produces the `{ success: true, data: { ...actualData } }` envelope,
+ * whatever nesting the tool returned.
  */
 function buildStrippedOutput(
   parsed: Record<string, unknown>,
@@ -287,6 +280,5 @@ function buildStrippedOutput(
     stripped.screenshotUid = screenshotUid;
   }
 
-  // Always wrap in { success: true, data: { ... } } to match aipex convention
   return { success: true, data: stripped };
 }

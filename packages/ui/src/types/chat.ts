@@ -25,7 +25,7 @@ export interface ChatConfig {
   initialMessages?: UIMessage[];
   /**
    * Resolve the opaque per-conversation execution context forwarded to
-   * `AIPex.chat()` as `ChatOptions.runContext` before every send. Runtimes
+   * `AptyAgent.chat()` as `ChatOptions.runContext` before every send. Runtimes
    * that bind a conversation to a specific browser tab (e.g.
    * `@apty/browser-runtime`) use this to tell tool calls which tab
    * this conversation is actually about, keeping `@apty/ui` itself

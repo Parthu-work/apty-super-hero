@@ -10,11 +10,13 @@ const LEGACY_DATABASE_RENAMES: Readonly<Record<string, string>> = {
   "aipex-conversations-db": "apty-conversations-db",
   "aipex-screenshots-db": "apty-screenshots-db",
   "aipex-skills-fs": "apty-skills-fs",
+  AIPexSkills: "apty-skills-db",
 };
 
 export const CONVERSATIONS_DB = "apty-conversations-db";
 export const SCREENSHOTS_DB = "apty-screenshots-db";
 export const SKILLS_FS_DB = "apty-skills-fs";
+export const SKILLS_DB = "apty-skills-db";
 
 /** ZenFS names its one object store after the database, so the store is renamed too. */
 const STORE_RENAMES: Readonly<Record<string, string>> = {

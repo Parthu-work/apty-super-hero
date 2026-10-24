@@ -7,7 +7,7 @@ This package depends on `@apty/agent-core` only (no browser-specific runtime cod
 - **Chat UI**: `<Chatbot />` and related components, slots, and themes
 - **Headless primitives**: `useChat`, `ChatAdapter` (convert core `AgentEvent` streams into UI messages)
 - **Settings UI + persistence**: `<SettingsPage />`, `useChatConfig` (storage via `KeyValueStorage`)
-- **Extension building blocks**: `<ContentScript />`, `<Omni />`, intervention cards, fake mouse cursor
+- **Extension building blocks**: `<Omni />`, intervention cards, fake mouse cursor
 - **Optional submodules**: i18n provider and theme provider (via package subpath exports)
 
 ## Design notes
@@ -35,10 +35,10 @@ Peer dependencies:
 
 ```tsx
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk } from "@apty/agent-core";
+import { AptyAgent, aisdk } from "@apty/agent-core";
 import { Chatbot } from "@apty/ui";
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "You are a helpful assistant.",
   model: aisdk(google("gemini-2.5-flash")),
 });
@@ -168,44 +168,12 @@ export function App({ agent }: { agent: any }) {
 }
 ```
 
-### 6) Content script UI (`<ContentScript />`) and plugins
-
-`ContentScript` is an extensible component for browser extension content scripts. It:
-
-- mounts an Omni-like UI (default or custom)
-- hosts plugins with a shared state + event bus
-- integrates with `chrome.runtime`-like message passing (when available)
-
-```tsx
-import { ContentScript, type ContentScriptPlugin } from "@apty/ui";
-
-const loggerPlugin: ContentScriptPlugin = {
-  name: "logger",
-  setup: (ctx) => {
-    ctx.state.loggerReady = true;
-  },
-  onMessage: async (message, ctx) => {
-    console.log("[content-script message]", message);
-    ctx.emit("debug:message", message);
-  },
-  onEvent: (event, data) => {
-    if (event === "debug:message") {
-      console.log("[content-script event]", data);
-    }
-  },
-};
-
-export function InjectedUI() {
-  return <ContentScript plugins={[loggerPlugin]} initialOpen={false} />;
-}
-```
-
 ## API reference
 
 ### Chatbot components
 
 - `Chatbot(props)`
-  - `agent: AIPex | undefined`
+  - `agent: AptyAgent | undefined`
   - `config?: ChatConfig`
   - `handlers?: ChatbotEventHandlers`
   - `components?: ChatbotComponents`
@@ -269,24 +237,6 @@ Import from `@apty/ui/theme/context`:
 
 - `ThemeProvider({ storageAdapter, scope?, children })`
 - `useTheme()` → `{ theme, effectiveTheme, changeTheme }`
-
-### Content script + plugins
-
-- `ContentScript(props)`
-  - `initialOpen?: boolean`
-  - `onOpen?: () => void`
-  - `onClose?: () => void`
-  - `plugins?: ContentScriptPlugin[]`
-  - `messageHandlers?: MessageHandlers`
-  - `runtime?: RuntimeApi` (defaults to `chrome.runtime`-like global if available)
-  - `container?: HTMLElement`
-  - `shadowRoot?: ShadowRoot`
-- `initContentScript(props, options?)` → cleanup function
-
-Built-in runtime message actions handled by `ContentScript`:
-
-- `message.action === "aipex_open_omni"`
-- `message.action === "aipex_close_omni"`
 
 ### Misc components
 

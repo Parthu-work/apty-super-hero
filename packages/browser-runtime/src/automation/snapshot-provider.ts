@@ -62,7 +62,7 @@ export interface SerializedDomSnapshot {
 /**
  * Message protocol for DOM snapshot collection
  */
-export const DOM_SNAPSHOT_MESSAGE = "aipex:collect-dom-snapshot";
+export const DOM_SNAPSHOT_MESSAGE = "apty:collect-dom-snapshot";
 
 export interface DomSnapshotMessageRequest {
   type: typeof DOM_SNAPSHOT_MESSAGE;

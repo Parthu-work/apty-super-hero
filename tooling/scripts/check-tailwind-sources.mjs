@@ -2,7 +2,7 @@
 /**
  * Guards against the WP16 regression: apps/browser-extension/src/styles/
  * tailwind.css had `@source` lines pointing at directories that did not
- * exist (an old `aipex-react`/`core` layout), so Tailwind silently never
+ * exist (an old upstream `*-react`/`core` layout), so Tailwind silently never
  * scanned packages/ui/src for class names — 98% of the utility classes
  * used there were missing from the built stylesheet, with no build error.
  *

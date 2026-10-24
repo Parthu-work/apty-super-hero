@@ -198,3 +198,46 @@ describe("DefaultMessageItem — image file parts", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe(url);
   });
 });
+
+describe("DefaultMessageItem — screenshot links", () => {
+  const data = "data:image/png;base64,AAAA";
+
+  function screenshotMessage(text: string): UIMessage {
+    return {
+      id: "msg-shot",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool",
+          toolName: "capture_screenshot",
+          toolCallId: "call-1",
+          input: {},
+          state: "completed",
+          screenshotUid: "screenshot_1_x",
+          screenshot: data,
+        },
+        { type: "text", text },
+      ],
+      timestamp: Date.now(),
+    } as UIMessage;
+  }
+
+  it.each([
+    ["a screenshot placeholder", "see [[screenshot:1]]"],
+    [
+      "a link under the host earlier versions wrote",
+      "see ![](https://aipex-screenshot.invalid/screenshot_1_x)",
+    ],
+  ])("shows the screenshot for %s", async (_name, text) => {
+    const { container } = render(
+      <DefaultMessageItem message={screenshotMessage(text)} isLast={false} />,
+    );
+    await waitFor(() =>
+      expect(
+        Array.from(container.querySelectorAll("img")).map((img) =>
+          img.getAttribute("src"),
+        ),
+      ).toContain(data),
+    );
+  });
+});

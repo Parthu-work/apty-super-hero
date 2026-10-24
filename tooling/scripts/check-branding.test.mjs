@@ -25,11 +25,36 @@ describe("check-branding", () => {
   it("passes the names kept on purpose", () => {
     const result = scan({
       "src/migrate.ts":
-        'const LEGACY = { aipex_settings: "apty_settings" };\nexport class AIPex {}\n',
-      "src/db.ts": 'const DB = "aipex-conversations-db";\n',
+        'const LEGACY = { aipex_settings: "apty_settings" };\n// Moves what AIPex stored.\n',
+      "src/db.ts":
+        'const DB = { "aipex-conversations-db": 1, AIPexSkills: 2 };\n',
+      "src/env.ts": "const URL = env.AIPEX_WS_URL;\n",
+      "README.md":
+        "Forked from the AIPex project (AIPex's own backend removed).\n",
     });
     assert.equal(result.status, 0, result.stderr);
   });
+
+  for (const line of [
+    'export { AIPex } from "./aipex.js";',
+    "export type { AIPexOptions };",
+    'import type * as AIPexCore from "@apty/agent-core";',
+    "// see aipex-retry.test.ts",
+    'if (message.action === "aipex_open_omni") open();',
+    'if (message.action === "aipex_close_omni") close();',
+    'const DOM_SNAPSHOT_MESSAGE = "aipex:collect-dom-snapshot";',
+    'const AIPEX_SCREENSHOT_URL_PREFIX = "https://x.invalid/";',
+    "export class AIPex {}",
+    "const agent = AIPex.create({ model });",
+    "let agent: AIPex | undefined;",
+    'const log = createLogger("AIPex");',
+  ]) {
+    it(`flags a name C1 removed: ${line}`, () => {
+      const result = scan({ "src/back.ts": `${line}\n` });
+      assert.equal(result.status, 1, result.stdout);
+      assert.match(result.stderr, /src\/back\.ts:1/);
+    });
+  }
 
   it("flags an AIPex log prefix in a .js file", () => {
     const result = scan({

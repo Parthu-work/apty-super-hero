@@ -1,6 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 import {
-  AIPex,
+  AptyAgent,
   aisdk,
   ConversationManager,
   InMemoryStorage,
@@ -14,7 +14,7 @@ async function main() {
   const storage = new SessionStorage(new InMemoryStorage<SerializedSession>());
   const manager = new ConversationManager(storage);
 
-  const agent = AIPex.create({
+  const agent = AptyAgent.create({
     instructions: "You are a helpful assistant that remembers conversations.",
     model: aisdk(openai("gpt-4o")),
     conversationManager: manager,

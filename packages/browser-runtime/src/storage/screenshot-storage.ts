@@ -3,8 +3,8 @@
  * Stores screenshots with a uid for efficient reference and retrieval.
  * Keeps at most 50 screenshots, none older than DEFAULT_RETENTION_MS.
  *
- * Uses the same DB/store as the aipex ScreenshotStorage so both
- * can share screenshots during the migration period.
+ * @apty/ui's ScreenshotStorage reads the same database and store, so the
+ * chat shows the screenshots saved here.
  */
 
 import {

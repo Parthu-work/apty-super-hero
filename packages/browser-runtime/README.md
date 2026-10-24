@@ -127,10 +127,10 @@ Peer dependencies:
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk } from "@apty/agent-core";
+import { AptyAgent, aisdk } from "@apty/agent-core";
 import { allBrowserTools } from "@apty/browser-runtime";
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "You can control the current browser tab.",
   model: aisdk(google("gemini-2.5-flash")),
   tools: allBrowserTools,
