@@ -126,6 +126,32 @@ describe("everyday tools in a real browser", () => {
     await app.close();
   });
 
+  it("leaves only Apty names on a page the agent worked on", async () => {
+    const { app, results } = await runSteps(
+      "on the current tab, find the Save order button to click",
+      [
+        () => ({ tool: "get_current_tab", args: {} }),
+        ([tab]) => ({
+          tool: "search_elements",
+          args: {
+            tabId: tab.tab?.id ?? tab.id,
+            query: "Save order",
+            contextLevels: 0,
+          },
+        }),
+      ],
+    );
+
+    assert.ok(
+      findUid(results[1], "Save order"),
+      JSON.stringify(results[1]).slice(0, 500),
+    );
+    const html = await app.evaluate(() => document.documentElement.outerHTML);
+    assert.match(html, /data-apty-nodeid=/);
+    assert.doesNotMatch(html, /aipex/i);
+    await app.close();
+  });
+
   it("scrolls to and highlights an element, and takes a screenshot", async () => {
     const { app, results } = await runSteps(
       "scroll to the footer, highlight it and screenshot",
