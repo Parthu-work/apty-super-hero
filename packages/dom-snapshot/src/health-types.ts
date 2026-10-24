@@ -4,7 +4,7 @@
  * This is evidence produced by actually simulating Apty-style element
  * selection in-page (candidate generation, live `querySelectorAll`
  * verification, ignore/partial/contextual recovery, hit testing) — see
- * `health-selector-engine.ts` and `health-hit-test.ts`. The scoring engine
+ * `health-selector-engine.ts` and `health-hit-testing.ts`. The scoring engine
  * in `@apty/browser-runtime` only aggregates/weights numbers that
  * already exist here; it must never re-derive them from raw attribute
  * presence.

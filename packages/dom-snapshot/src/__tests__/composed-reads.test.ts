@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { querySelectorDeep } from "../composed-tree";
-import { hitTestElement } from "../health-hit-test";
+import { hitTestElement } from "../health-hit-testing";
 import { hasAccessibleName } from "../health-selector-engine";
 import { computeFrameStateSignature } from "../health-state-signature";
 import { loadErpFixture } from "./fixtures/erp/load-fixture";

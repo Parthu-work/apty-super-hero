@@ -96,7 +96,7 @@ export function validateHostUrl(url: string | undefined): string | undefined {
 }
 
 /**
- * Turn a provider/model connection-test failure into a short, actionable
+ * Turn a provider/model connection check failure into a short, actionable
  * message safe to show in the UI — never the raw error object, which for
  * some AI SDK providers can carry request/response bodies. Extracts a
  * status code when present (e.g. `401`, `404`) and redacts anything that

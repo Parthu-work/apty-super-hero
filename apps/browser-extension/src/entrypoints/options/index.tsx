@@ -17,7 +17,7 @@ import {
   OPTIONS_SECTIONS,
   type OptionsTab,
 } from "../../lib/open-options";
-import { testConnection } from "../../services/connection-test";
+import { testConnection } from "../../services/connection-check";
 import { fetchModelList } from "../../services/model-list";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
 import { AptyClientPanel, AptyStudioPanel } from "./apty-client-panel";

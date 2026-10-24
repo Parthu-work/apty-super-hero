@@ -75,7 +75,7 @@ export {
   looksDynamic,
   type UnstableClassKind,
 } from "./health-dynamic.js";
-export { hitTestElement } from "./health-hit-test.js";
+export { hitTestElement } from "./health-hit-testing.js";
 export {
   buildComposedDomPath,
   type CollectDiscoverableLinksOptions,

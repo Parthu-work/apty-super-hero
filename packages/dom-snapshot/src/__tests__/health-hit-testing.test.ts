@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { hitTestElement } from "../health-hit-test";
+import { hitTestElement } from "../health-hit-testing";
 
 function setHtml(html: string) {
   document.body.innerHTML = html;
