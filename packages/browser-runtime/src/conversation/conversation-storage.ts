@@ -8,11 +8,8 @@ import {
   deleteAgentSessions,
   deleteOrphanAgentSessions,
 } from "../storage/agent-session-store";
+import { CONVERSATIONS_DB } from "../storage/database-names";
 import { IndexedDBStorage } from "../storage/indexeddb-storage";
-import {
-  CONVERSATIONS_DB,
-  moveLegacyDatabases,
-} from "../storage/legacy-databases";
 import { LRUPolicy } from "./lru-policy";
 import { migrate } from "./migration";
 import type {
@@ -73,12 +70,6 @@ export class ConversationStorage {
    */
   private async performMigration(): Promise<void> {
     try {
-      // Conversations stored under the old AIPex database name move first (R2).
-      if (this.config.dbName === CONVERSATIONS_DB) {
-        await moveLegacyDatabases().catch(() => {
-          log.warn("legacy_database_move_failed");
-        });
-      }
       const result = await migrate(async (conversation) => {
         await this.storage.save(conversation.id, conversation);
       });
