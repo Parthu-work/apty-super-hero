@@ -48,7 +48,7 @@ interface ConversationEvidence {
 const evidenceByConversation = new Map<string, ConversationEvidence>();
 
 /** Budget for the persisted copy; `chrome.storage.session` allows 10 MB in total. */
-export const MAX_PERSISTED_EVIDENCE_CHARS = 4_000_000;
+const MAX_PERSISTED_EVIDENCE_CHARS = 4_000_000;
 
 type PersistedEvidence = Array<
   [string, { list: DiagnosticEvidence[]; dedupeKeys: string[] }]
@@ -66,6 +66,7 @@ function withoutBody(evidence: DiagnosticEvidence): DiagnosticEvidence {
  * `MAX_PERSISTED_EVIDENCE_CHARS`, response bodies are left out of the
  * oldest records first (flagged `bodyDropped`); the in-memory copy keeps
  * them.
+ * @internal
  */
 export function serializeEvidence(
   maxChars = MAX_PERSISTED_EVIDENCE_CHARS,

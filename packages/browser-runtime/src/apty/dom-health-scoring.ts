@@ -119,6 +119,7 @@ const MAX_UNSEEN_VIRTUALIZED_SHARE =
  * rows, so the result is partial coverage, never a clean pass. MEDIUM when
  * most declared rows were seen, LOW when most were not, MEDIUM when the
  * total is unknown.
+ * @internal
  */
 export function virtualizedListCap(
   virtualized: VirtualizedListSummary | undefined,

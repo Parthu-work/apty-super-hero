@@ -106,11 +106,7 @@ jobs:
         run: pnpm audit --prod --ignore-workspace
         working-directory: apps/mcp-bridge
 
-      # Informational only for now: ~100 pre-existing unused-export findings
-      # across the codebase (mostly packages/ui's re-exported component prop
-      # types) mean this isn't clean enough to gate the build on yet. Still
-      # runs on every CI build so the finding count is visible and doesn't
-      # silently grow unnoticed.
-      - name: Unused dependency/export check (informational)
+      # knip --strict: production code only. Exports kept for tests are
+      # tagged @internal (see knip.json).
+      - name: Unused dependency/export check
         run: npm run lint:dependencies
-        continue-on-error: true

@@ -230,8 +230,6 @@ export type BrowserToolGroupName = keyof typeof browserToolGroups;
 
 export type { BrowserFunctionTool };
 
-// Note: takeSnapshotTool is not included in allBrowserTools as it's called internally
-
 // Export intervention tools separately for optional registration
 export { interventionTools } from "./interventions/index.js";
 

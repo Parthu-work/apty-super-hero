@@ -1,14 +1,14 @@
 import type { ToolSchema } from "../tool-schemas.js";
 import { toolSchemas } from "../tool-schemas.js";
 
-export interface CommandArg {
+interface CommandArg {
   name: string;
   required: boolean;
   description: string;
   type?: string;
 }
 
-export interface CommandOption {
+interface CommandOption {
   flag: string;
   type: string;
   description: string;

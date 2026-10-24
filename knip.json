@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreWorkspaces": [],
+  // Exports tagged `@internal` in the source are kept for tests: --strict
+  // (production mode) skips them, and plain `npx knip` still reports one that
+  // no test imports any more.
   // `prek install` (root postinstall) sets up the git hooks in a development
   // checkout; prek comes from the root devDependency @j178/prek, which
   // `--strict` (production) mode does not count. No workspace is installed

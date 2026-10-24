@@ -70,10 +70,7 @@ export function buildElementRef(
   };
 }
 
-export type ElementRefHopOutcome =
-  | "resolved"
-  | "not-resolved"
-  | "no-shadow-root";
+type ElementRefHopOutcome = "resolved" | "not-resolved" | "no-shadow-root";
 
 export interface ElementRefHop {
   /** 0-based position in `hostChain`; the target is hop `hostChain.length`. */

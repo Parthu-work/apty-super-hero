@@ -59,7 +59,7 @@ export function collectIframes(pages: AnalyzedPage[]): IframeEntry[] {
   );
 }
 
-export const COVERAGE_KEYS: CoverageKey[] = [
+const COVERAGE_KEYS: CoverageKey[] = [
   "entry-forms",
   "detail-pages",
   "list-grid-pages",

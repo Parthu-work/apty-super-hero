@@ -1,9 +1,8 @@
 /**
  * Navigation + DOM-stabilization primitives for the application-wide DOM
- * Health audit (spec sections 5, 24). Modeled on the existing
- * `replay-controller.ts` navigate/wait-for-load pattern (chrome.tabs.update
- * + `chrome.tabs.onUpdated` "complete", with a timeout that resolves
- * rather than rejects) rather than introducing a second implementation.
+ * Health audit (spec sections 5, 24). Navigates with chrome.tabs.update and
+ * waits for `chrome.tabs.onUpdated` "complete", with a timeout that resolves
+ * rather than rejects.
  *
  * Deliberately does NOT use a fixed delay as the only stabilization
  * signal: `waitForDomStable` asks the content script to watch the DOM with
@@ -267,7 +266,10 @@ export interface NavigationModel {
   routingEvidenceReason?: string;
 }
 
-/** Why routing evidence is missing when the page-world hooks never announced themselves in the top frame. */
+/**
+ * Why routing evidence is missing when the page-world hooks never announced themselves in the top frame.
+ * @internal
+ */
 export const ROUTING_EVIDENCE_UNAVAILABLE =
   "Client-side routing could not be measured: the page-world script that counts pushState/replaceState calls does not run on this page (it is turned off, or this site is excluded, in Settings → Troubleshooting), so no routing is not evidence of no routing.";
 

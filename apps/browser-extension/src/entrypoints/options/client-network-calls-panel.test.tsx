@@ -20,7 +20,6 @@ import type { NetworkCall } from "@apty/browser-runtime/apty/client-network-call
 import { groupByResource } from "@apty/browser-runtime/apty/network-resource-groups";
 import {
   ClientNetworkCallsPanel,
-  filterNetworkCalls,
   filterResourceGroups,
 } from "./client-network-calls-panel";
 
@@ -62,26 +61,6 @@ const CALLS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe("filterNetworkCalls", () => {
-  it("filters by status class", () => {
-    const names = (s: Parameters<typeof filterNetworkCalls>[2]) =>
-      filterNetworkCalls(CALLS, "", s).map((c) => c.requestId);
-    expect(names("all")).toEqual(["r1", "r2", "r3", "r4"]);
-    expect(names("failed")).toEqual(["r4"]);
-    expect(names("4xx")).toEqual(["r2"]);
-    expect(names("5xx")).toEqual(["r3"]);
-  });
-
-  it("matches text in the name, URL or method, in any case, together with the class", () => {
-    expect(filterNetworkCalls(CALLS, "SEGMENTS", "all")).toHaveLength(1);
-    expect(filterNetworkCalls(CALLS, "post", "all")[0]?.requestId).toBe("r3");
-    expect(filterNetworkCalls(CALLS, "cdn.apty", "4xx")[0]?.requestId).toBe(
-      "r2",
-    );
-    expect(filterNetworkCalls(CALLS, "segments", "5xx")).toEqual([]);
-  });
 });
 
 function renderPanel() {

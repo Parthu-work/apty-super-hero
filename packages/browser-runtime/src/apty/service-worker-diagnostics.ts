@@ -118,10 +118,10 @@ export const MAX_RESOURCES_KEPT = 1000;
 
 export const LIST_RESOURCES_MESSAGE =
   "apty-debug-agent:list-observed-resources";
-export const RESOURCE_BODY_MESSAGE = "apty-debug-agent:get-resource-body";
+const RESOURCE_BODY_MESSAGE = "apty-debug-agent:get-resource-body";
 const MAX_BODY_CHARS_ACCEPTED = 200_000;
 
-export const observedResourceSchema = z.object({
+const observedResourceSchema = z.object({
   requestId: z.string().max(200),
   url: z.string().max(4000),
   method: z.string().max(20),
@@ -134,20 +134,21 @@ export const observedResourceSchema = z.object({
   hasBody: z.boolean().optional(),
 });
 
+/** @internal */
 export const resourcesResponseSchema = z.object({
   resources: z.array(observedResourceSchema).max(MAX_RESOURCES_ACCEPTED),
   /** How many times the Client failed to save its call history; a nonzero count means a restart may lose calls. */
   saveFailures: z.number().int().nonnegative().optional(),
 });
 
-export const BODY_MISSING_REASONS = [
+const BODY_MISSING_REASONS = [
   "too-large",
   "evicted",
   "unreadable",
   "none",
 ] as const;
-export type BodyMissingReason = (typeof BODY_MISSING_REASONS)[number];
 
+/** @internal */
 export const resourceBodyResponseSchema = z.object({
   found: z.boolean(),
   body: z.string().max(MAX_BODY_CHARS_ACCEPTED).optional(),

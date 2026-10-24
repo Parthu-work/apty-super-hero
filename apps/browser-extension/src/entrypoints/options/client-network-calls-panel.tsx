@@ -55,27 +55,11 @@ function inClass(call: NetworkCall, statusClass: StatusClass): boolean {
   }
 }
 
-/** Calls matching the text (in name, URL or method, any case) and the status class. */
-export function filterNetworkCalls(
-  calls: readonly NetworkCall[],
-  text: string,
-  statusClass: StatusClass,
-): NetworkCall[] {
-  const needle = text.trim().toLowerCase();
-  return calls.filter(
-    (call) =>
-      inClass(call, statusClass) &&
-      (!needle ||
-        [call.resourceName, call.url, call.method].some((field) =>
-          field.toLowerCase().includes(needle),
-        )),
-  );
-}
-
 /**
  * Resources matching the text (in any of their calls' name, URL or method)
  * and the status class: a resource matches a class when its latest call
  * does, or any of its failed calls does.
+ * @internal
  */
 export function filterResourceGroups(
   groups: readonly ResourceGroup<NetworkCall>[],

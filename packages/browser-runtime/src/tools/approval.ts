@@ -21,6 +21,7 @@ import { generateId, STORAGE_KEYS } from "@apty/agent-core";
 import { isOwnExtensionPage } from "../runtime/trusted-sender.js";
 import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 
+/** @internal */
 export const APPROVAL_TTL_MS = 5 * 60_000;
 /**
  * A request from outside a chat (an MCP client) expires well before the MCP
@@ -28,8 +29,10 @@ export const APPROVAL_TTL_MS = 5 * 60_000;
  * finish so the caller normally hears the real outcome. The timeout doesn't
  * cancel an action already running, so a slower one can still finish after
  * the caller was told it timed out.
+ * @internal
  */
 export const MCP_APPROVAL_TTL_MS = 40_000;
+/** @internal */
 export const GRANT_TTL_MS = 15 * 60_000;
 
 export const APPROVAL_REQUEST_MESSAGE = "apty-approval-request";
@@ -374,7 +377,10 @@ export async function gateRiskyAction<T>(
   return run();
 }
 
-/** Test-only helper: drop pending requests and persisted grants. */
+/**
+ * Test-only helper: drop pending requests and persisted grants.
+ * @internal
+ */
 export async function resetApprovalStateForTests(): Promise<void> {
   for (const entry of pending.values()) clearTimeout(entry.timer);
   pending.clear();

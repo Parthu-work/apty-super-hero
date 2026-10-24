@@ -5,7 +5,7 @@
  * DOM Health feature needs — real selector uniqueness, target identity,
  * cross-snapshot stability, and hit-testing — can only be produced against
  * a live DOM. This collector is where "measure" and "verify" happen (see
- * `health-selector-engine.ts` and `health-hit-test.ts`); the scoring engine
+ * `health-selector-engine.ts` and `health-hit-testing.ts`); the scoring engine
  * in `@apty/browser-runtime` only aggregates and weights numbers
  * that already exist on the snapshot it's given.
  *
@@ -60,7 +60,7 @@ import {
   now,
 } from "./collector-budget.js";
 import { type ElementPath, resetDesPerformanceCaches } from "./des-engine.js";
-import { hitTestElement } from "./health-hit-test.js";
+import { hitTestElement } from "./health-hit-testing.js";
 import {
   isInPrivateContainer,
   maskIdReference,

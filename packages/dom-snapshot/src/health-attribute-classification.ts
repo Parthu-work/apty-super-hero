@@ -22,8 +22,6 @@
  * ends with it.
  */
 
-export type AttributeSelectionType = "exact" | "prefix" | "suffix" | "partial";
-
 /** `defaultFn` is the built-in default for this same key, passed through so a configured function can call it and extend rather than fully replace the default (mirrors the real `addAttribute`'s `r(e,t,n,r)` fallback pattern). */
 export type IgnoreFn = (
   name: string,

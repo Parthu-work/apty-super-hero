@@ -36,6 +36,7 @@ export function isOptionsNavigateMessage(
   );
 }
 
+/** @internal */
 export function optionsUrl(
   target: { tab?: OptionsTab; section?: OptionsSection } = {},
 ): string {

@@ -14,7 +14,7 @@ import {
 } from "@apty/agent-core";
 import { moveLegacyDatabases, SCREENSHOTS_DB } from "./legacy-databases.js";
 
-export interface ScreenshotData {
+interface ScreenshotData {
   uid: string;
   /** Complete data URL: data:image/png;base64,... */
   base64Data: string;

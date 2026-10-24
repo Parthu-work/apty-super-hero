@@ -374,7 +374,7 @@ export interface CrawlVisitContext {
   revisit: () => Promise<CrawlRevisit>;
 }
 
-export type CrawlVisit<V> =
+type CrawlVisit<V> =
   | { available: true; url: string; visit: V }
   | { available: false; error: string }
   /** A state the visitor already holds: recorded `skipped-duplicate` with this reason, not counted against `maxPages`, not explored. */
@@ -391,7 +391,7 @@ export interface CrawlOptions<V> extends ApplicationAuditLimits {
   visit: (context: CrawlVisitContext) => Promise<CrawlVisit<V>>;
 }
 
-export interface CrawlResult<V> {
+interface CrawlResult<V> {
   seedUrl: string;
   rows: CrawlRow<V>[];
   graph: StateGraph;

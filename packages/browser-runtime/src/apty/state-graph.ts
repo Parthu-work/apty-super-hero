@@ -28,7 +28,7 @@ import { urlTemplate } from "./frame-identity.js";
 import type { AuditStateFingerprint } from "./state-fingerprint.js";
 import type { TransitionCorroboration } from "./traversal-strategy.js";
 
-export type TransitionTriggerKind = "seed" | "url-navigation" | "click";
+type TransitionTriggerKind = "seed" | "url-navigation" | "click";
 
 export interface TransitionTrigger {
   kind: TransitionTriggerKind;
@@ -63,27 +63,11 @@ export interface StateTransitionEdge {
   afterFingerprint: string;
   /** `historyApiCallCount` delta observed across this transition (pushState/replaceState/popstate/hashchange) — real evidence attached to the edge, not diagnostic-only telemetry it is discarded after logging. */
   historyEventDelta: number;
-  /** "confirmed": a live before/after fingerprint comparison actually differed. "restored": this edge was replayed during backtracking and its target fingerprint matched what was originally recorded (see `RestorationResult`). */
+  /** "confirmed": a live before/after fingerprint comparison actually differed. "restored": this edge was replayed during backtracking and its target fingerprint matched what was originally recorded. */
   confidence: "confirmed" | "restored";
   /** For a click: what besides the DOM showed that it navigated (`traversal-strategy.ts`). */
   corroboration?: TransitionCorroboration;
   createdAt: number;
-}
-
-export interface RestorationStepResult {
-  edge: StateTransitionEdge;
-  success: boolean;
-  /** The fingerprint actually observed after replaying this edge — compared against `edge.afterFingerprint` to decide `success`. */
-  observedFingerprint: string | null;
-  reason?: string;
-}
-
-export interface RestorationResult {
-  targetStateId: string;
-  success: boolean;
-  steps: RestorationStepResult[];
-  /** Set only on failure — the step (0-based) where replay diverged from the recorded path. */
-  failedAtStep?: number;
 }
 
 /**

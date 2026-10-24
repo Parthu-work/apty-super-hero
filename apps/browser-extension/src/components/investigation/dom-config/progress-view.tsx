@@ -74,10 +74,7 @@ const CHIP: Record<
   },
 };
 
-export const PAGE_STATUS: Record<
-  NonNullable<PageRow["status"]>,
-  TranslationKey
-> = {
+const PAGE_STATUS: Record<NonNullable<PageRow["status"]>, TranslationKey> = {
   stable: "domConfig.pageStatus.stable",
   changing: "domConfig.pageStatus.changing",
   unreliable: "domConfig.pageStatus.unreliable",
@@ -172,7 +169,7 @@ export function rowName(row: Pick<PageRow, "label" | "origin">): string {
   return row.origin === "crawl" ? pathOf(row.label) : row.label;
 }
 
-export function OriginBadge({ origin }: { origin: PageOrigin }) {
+function OriginBadge({ origin }: { origin: PageOrigin }) {
   const { t } = useTranslation();
   const meta = ORIGIN[origin];
   if (!meta) return null;

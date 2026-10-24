@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 
-export type ActionsProps = ComponentProps<"div">;
+type ActionsProps = ComponentProps<"div">;
 
 export const Actions = ({ className, children, ...props }: ActionsProps) => (
   <div className={cn("flex items-center gap-1", className)} {...props}>
@@ -18,7 +18,7 @@ export const Actions = ({ className, children, ...props }: ActionsProps) => (
   </div>
 );
 
-export type ActionProps = ComponentProps<typeof Button> & {
+type ActionProps = ComponentProps<typeof Button> & {
   tooltip?: string;
   label?: string;
 };

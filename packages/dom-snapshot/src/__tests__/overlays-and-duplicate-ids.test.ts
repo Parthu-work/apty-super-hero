@@ -3,7 +3,7 @@ import {
   __resetDomHealthRegistryForTests,
   collectDomHealthSnapshot,
 } from "../health-collector";
-import { hitTestElement } from "../health-hit-test";
+import { hitTestElement } from "../health-hit-testing";
 import { computeFrameStateSignature } from "../health-state-signature";
 import {
   DEFAULT_IGNORED_ROOTS,

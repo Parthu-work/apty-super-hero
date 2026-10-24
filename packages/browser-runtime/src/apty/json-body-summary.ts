@@ -4,11 +4,20 @@
  * model reads this first and pages the rest with `get_evidence_json`.
  */
 
-/** Keys listed per object; the count of all of them is reported alongside. */
+/**
+ * Keys listed per object; the count of all of them is reported alongside.
+ * @internal
+ */
 export const MAX_SUMMARY_KEYS = 30;
-/** Array items in the preview, at most. */
+/**
+ * Array items in the preview, at most.
+ * @internal
+ */
 export const MAX_PREVIEW_ITEMS = 5;
-/** The summary's own size limit, in characters of JSON. */
+/**
+ * The summary's own size limit, in characters of JSON.
+ * @internal
+ */
 export const MAX_SUMMARY_CHARS = 1_500;
 
 export interface JsonBodySummary {

@@ -31,9 +31,12 @@ export class SkillConflictError extends Error {
  * entry is decompressed and can report its *declared* `originalSize` —
  * this lets us reject oversized entries (and stop the whole import) without
  * ever decompressing them.
+ * @internal
  */
 export class SkillZipTooLargeError extends Error {}
+/** @internal */
 export class SkillZipTooManyEntriesError extends Error {}
+/** @internal */
 export class SkillZipUnsafePathError extends Error {}
 
 const MAX_ZIP_ENTRY_COUNT = 2000;

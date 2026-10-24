@@ -49,7 +49,10 @@ function downloadViaChromeApi(
   }
 }
 
-/** Strip path separators and control characters, and timestamp the name so repeated exports never silently overwrite each other. */
+/**
+ * Strip path separators and control characters, and timestamp the name so repeated exports never silently overwrite each other.
+ * @internal
+ */
 export function sanitizeFilename(name: string): string {
   const cleaned = name
     // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point

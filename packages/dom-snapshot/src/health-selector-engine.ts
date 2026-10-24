@@ -110,7 +110,7 @@ function escapeAttributeValue(value: string): string {
   return value.replace(/"/g, '\\"');
 }
 
-export interface LiveTestResult {
+interface LiveTestResult {
   /** -1 when the selector itself was invalid syntax. */
   matchCount: number;
   matchesTarget: boolean;

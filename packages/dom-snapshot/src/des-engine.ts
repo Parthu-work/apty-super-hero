@@ -70,7 +70,7 @@ import {
 // position and text content) is preserved per level.
 // ---------------------------------------------------------------------------
 
-export type AttributeSelectionType = "exact" | "prefix" | "suffix" | "partial";
+type AttributeSelectionType = "exact" | "prefix" | "suffix" | "partial";
 
 export interface PatternAttribute {
   name: string;
@@ -138,6 +138,7 @@ function isElementRendered(el: Element): boolean {
 // blocks recognizing the one visible real instance.
 // ---------------------------------------------------------------------------
 
+/** @internal */
 export function elementMatches(
   target: Element,
   matches: Element[],
@@ -212,6 +213,7 @@ function pseudoToSelector(pseudo: PatternPseudo[]): string {
     .join("");
 }
 
+/** @internal */
 export function patternToSelector(pattern: ElementPattern): string {
   const combinator = pattern.relates === "child" ? "> " : "";
   return (
@@ -473,6 +475,7 @@ function arrayDiffScore<T>(a: T[], b: T[], key: (item: T) => string): number {
 
 const EMPTY_PATTERN: ElementPattern = emptyPattern();
 
+/** @internal */
 export interface PatternDiffBreakdown {
   tagMatches: boolean;
   attributeScore: number;
@@ -481,6 +484,7 @@ export interface PatternDiffBreakdown {
   total: number;
 }
 
+/** @internal */
 export function patternDiffScore(
   a: ElementPattern,
   b: ElementPattern,
@@ -530,13 +534,17 @@ function ancestorSequenceScore(
   return scores.reduce((sum, s) => sum + 2 * s, 0) / total;
 }
 
+/** @internal */
 export interface DiffScoreBreakdown {
   ancestorScore: number;
   leaf: PatternDiffBreakdown;
   total: number;
 }
 
-/** Real `diffScore`: `(1 * ancestorSequenceScore(ancestors) + 3 * patternDiffScore(leaf)) / 4` — the leaf is weighted 3x an ancestor-chain score that itself never simply pairs index-for-index. */
+/**
+ * Real `diffScore`: `(1 * ancestorSequenceScore(ancestors) + 3 * patternDiffScore(leaf)) / 4` — the leaf is weighted 3x an ancestor-chain score that itself never simply pairs index-for-index.
+ * @internal
+ */
 export function diffScore(
   pathA: ElementPath,
   pathB: ElementPath,
@@ -887,6 +895,7 @@ export function findElement(
 // docs/development/des-engine.md's explicit scoping note on this.
 // ---------------------------------------------------------------------------
 
+/** @internal */
 export function getContainerSelectors(
   el: Element,
   config: DesConfig = DEFAULT_DES_CONFIG,
@@ -906,6 +915,7 @@ export function getContainerSelectors(
   );
 }
 
+/** @internal */
 export function checkContainersScore(
   containerSelectors: string[],
   root: ParentNode,

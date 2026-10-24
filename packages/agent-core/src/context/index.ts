@@ -4,11 +4,4 @@
  */
 
 export { ContextManager } from "./manager";
-export type {
-  Context,
-  ContextManagerOptions,
-  ContextProvider,
-  ContextProviderCapabilities,
-  ContextQuery,
-  ContextType,
-} from "./types";
+export type { Context } from "./types";

@@ -210,6 +210,7 @@ export interface FrameKey {
  * A frame `name` without its per-open counter and GUID:
  * `LN_44_<GUID>` → `LN`, `ft_45_<GUID>` → `ft` (Infor OS Portal). Null when
  * nothing stable is left.
+ * @internal
  */
 export function stableFrameName(name: string): string | null {
   const parts = name

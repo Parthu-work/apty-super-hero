@@ -156,6 +156,7 @@ function withoutNulls(
 
 /**
  * Request intervention execution
+ * @internal
  */
 export const requestInterventionTool = tool({
   name: "request_intervention",

@@ -134,11 +134,6 @@ export interface ChatbotStyleContextValue {
   style: Record<string, string>;
 }
 
-/**
- * @deprecated Use ChatbotStyleContextValue instead
- */
-export type ThemeContextValue = ChatbotStyleContextValue;
-
 const ChatbotStyleContext = createContext<ChatbotStyleContextValue>({
   theme: {},
   className: "",

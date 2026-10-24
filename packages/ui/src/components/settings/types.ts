@@ -1,5 +1,4 @@
 import type {
-  AIProviderKey,
   AppSettings,
   KeyValueStorage,
   RedactionModeSetting,
@@ -65,14 +64,6 @@ export interface ConnectionTestResult {
 export type ModelListOutcome =
   | { ok: true; models: string[] }
   | { ok: false; error: string };
-
-export interface ProviderConfig {
-  host: string;
-  token: string;
-  model: string;
-}
-
-export type ProviderConfigs = Record<AIProviderKey, ProviderConfig>;
 
 export type SettingsTab = "general" | "ai" | "skills" | "connection";
 

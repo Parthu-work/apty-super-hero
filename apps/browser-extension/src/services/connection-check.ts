@@ -9,7 +9,7 @@ import { createAIProvider, describeConnectionTestError } from "./ai-provider";
 import { englishTranslate, type Translate } from "./model-list";
 import { probeToolCalling } from "./tool-probe";
 
-export const TEST_CONNECTION_TIMEOUT_MS = 20_000;
+const TEST_CONNECTION_TIMEOUT_MS = 20_000;
 
 export interface ConnectionTestOutcome {
   /** How long the basic request took. */

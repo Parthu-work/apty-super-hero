@@ -26,7 +26,7 @@ export interface NetworkCall extends AptyObservedResource {
   resourceName: string;
 }
 
-export type NetworkCallsFailure = NonNullable<AptyResourceList["failure"]>;
+type NetworkCallsFailure = NonNullable<AptyResourceList["failure"]>;
 
 export interface NetworkCallsUnavailable {
   failure: NetworkCallsFailure;
@@ -128,7 +128,10 @@ export async function listClientNetworkCalls(
   };
 }
 
-/** One call's body, found again by `requestId` in a fresh list, so a call the Client has since dropped reads as `not_observed`. */
+/**
+ * One call's body, found again by `requestId` in a fresh list, so a call the Client has since dropped reads as `not_observed`.
+ * @internal
+ */
 export async function readClientNetworkCallBody(
   extensionId: string | undefined,
   requestId: string,

@@ -87,6 +87,7 @@ const HYPOTHESIS_STATUSES = [
   "inconclusive",
 ] as const;
 
+/** @internal */
 export const getInvestigationTimelineTool = tool({
   name: "get_investigation_timeline",
   description:
@@ -135,6 +136,7 @@ export const getInvestigationTimelineTool = tool({
   },
 });
 
+/** @internal */
 export const clearInvestigationEvidenceTool = tool({
   name: "clear_investigation_evidence",
   description:
@@ -149,6 +151,7 @@ export const clearInvestigationEvidenceTool = tool({
   },
 });
 
+/** @internal */
 export const startInvestigationTool = tool({
   name: "start_investigation",
   description:
@@ -190,6 +193,7 @@ export const startInvestigationTool = tool({
   },
 });
 
+/** @internal */
 export const getInvestigationPlanTool = tool({
   name: "get_investigation_plan",
   description:
@@ -225,6 +229,7 @@ export const getInvestigationPlanTool = tool({
   },
 });
 
+/** @internal */
 export const updateInvestigationTool = tool({
   name: "update_investigation",
   description:
@@ -305,6 +310,7 @@ export const updateInvestigationTool = tool({
   },
 });
 
+/** @internal */
 export const recordVerificationAttemptTool = tool({
   name: "record_verification_attempt",
   description:
@@ -342,6 +348,7 @@ export const recordVerificationAttemptTool = tool({
   },
 });
 
+/** @internal */
 export const stopInvestigationTool = tool({
   name: "stop_investigation",
   description:
@@ -363,6 +370,7 @@ export const stopInvestigationTool = tool({
   },
 });
 
+/** @internal */
 export const getInvestigationStatusTool = tool({
   name: "get_investigation_status",
   description:
@@ -385,6 +393,7 @@ export const getInvestigationStatusTool = tool({
   },
 });
 
+/** @internal */
 export const getNextInvestigationActionTool = tool({
   name: "get_next_investigation_action",
   description:

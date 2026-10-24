@@ -141,13 +141,22 @@ const activeByConversation = new Map<string, ActiveCapture>();
  */
 const HEARTBEAT_MS = 15000;
 
-/** Per-conversation cap on captured requests, oldest evicted first — mirrors evidence-store.ts's MAX_EVIDENCE_PER_CONVERSATION so an unbounded reproduction on a noisy page can't grow memory without limit. */
+/**
+ * Per-conversation cap on captured requests, oldest evicted first — mirrors evidence-store.ts's MAX_EVIDENCE_PER_CONVERSATION so an unbounded reproduction on a noisy page can't grow memory without limit.
+ * @internal
+ */
 export const MAX_CAPTURED_REQUESTS = 2000;
 
-/** Skip fetching a response body above this encoded size entirely (never even ask CDP for it) — a multi-MB response gets truncated down to MAX_INLINE_BODY_CHARS anyway, so pulling the whole thing into memory first buys nothing. Checked against `Network.loadingFinished`'s `encodedDataLength`, which is the compressed-over-the-wire size, not necessarily the decoded text length — an approximation, not an exact bound. */
+/**
+ * Skip fetching a response body above this encoded size entirely (never even ask CDP for it) — a multi-MB response gets truncated down to MAX_INLINE_BODY_CHARS anyway, so pulling the whole thing into memory first buys nothing. Checked against `Network.loadingFinished`'s `encodedDataLength`, which is the compressed-over-the-wire size, not necessarily the decoded text length — an approximation, not an exact bound.
+ * @internal
+ */
 export const MAX_BODY_FETCH_BYTES = 1_000_000;
 
-/** Same alarm-based keepalive mechanism and interval as ws-mcp-server.ts's `KEEPALIVE_ALARM_NAME`/`KEEPALIVE_INTERVAL_MINUTES` — a distinct alarm name since the two keepalives are independent (one WS-bridge-connection-shaped, one capture-shaped), but there is no reason for a second interval value; 0.4 min (~24s) is proven to keep the service worker from idling into MV3's ~30s suspension threshold. */
+/**
+ * Same alarm-based keepalive mechanism and interval as ws-mcp-server.ts's `KEEPALIVE_ALARM_NAME`/`KEEPALIVE_INTERVAL_MINUTES` — a distinct alarm name since the two keepalives are independent (one WS-bridge-connection-shaped, one capture-shaped), but there is no reason for a second interval value; 0.4 min (~24s) is proven to keep the service worker from idling into MV3's ~30s suspension threshold.
+ * @internal
+ */
 export const CAPTURE_KEEPALIVE_ALARM_NAME = "apty-network-capture-keepalive";
 const CAPTURE_KEEPALIVE_INTERVAL_MINUTES = 0.4;
 
@@ -560,7 +569,10 @@ export function getActiveCaptureCount(): number {
   return activeByConversation.size;
 }
 
-/** Test-only: simulate the forced-cleanup path a real chrome.tabs.onRemoved/chrome.debugger.onDetach event would trigger, without needing a real chrome global. */
+/**
+ * Test-only: simulate the forced-cleanup path a real chrome.tabs.onRemoved/chrome.debugger.onDetach event would trigger, without needing a real chrome global.
+ * @internal
+ */
 export function __simulateForcedCleanupForTab(tabId: number): void {
   forceCleanupForTab(tabId);
 }

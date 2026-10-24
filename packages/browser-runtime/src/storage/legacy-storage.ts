@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from "@apty/agent-core";
  * and the names that replaced them. The input-mode and ZenFS keys are owned by
  * `apps/browser-extension/src/state/input-mode-context.tsx` and
  * `vm/migration.ts`; the names here must match theirs.
+ * @internal
  */
 export const LEGACY_KEY_RENAMES: Readonly<Record<string, string>> = {
   aipex_theme: STORAGE_KEYS.THEME,
@@ -25,6 +26,7 @@ const OLD_KEY_BY_NEW = new Map(
   ]),
 );
 
+/** @internal */
 export function legacyKeyFor(key: string): string | undefined {
   return OLD_KEY_BY_NEW.get(key);
 }

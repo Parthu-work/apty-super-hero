@@ -31,13 +31,3 @@ export interface ParsedSkill {
   references: string[];
   assets: string[];
 }
-
-/**
- * Summary information about a skill (lighter than full metadata)
- */
-export interface SkillSummary {
-  name: string;
-  description: string;
-  version: string;
-  enabled: boolean;
-}

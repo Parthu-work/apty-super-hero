@@ -14,13 +14,6 @@ export interface FakeMouseScrollOptions {
   handle: ElementHandle;
 }
 
-export interface FakeMouseMoveOptions {
-  tabId: number;
-  x: number;
-  y: number;
-  duration?: number;
-}
-
 /**
  * Scroll element into view and move fake mouse to it
  * Returns the final bounding box of the element

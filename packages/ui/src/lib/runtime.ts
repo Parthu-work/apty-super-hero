@@ -1,6 +1,6 @@
-export type RuntimeMessageSender = Record<string, unknown>;
+type RuntimeMessageSender = Record<string, unknown>;
 
-export type RuntimeMessageHandler = (
+type RuntimeMessageHandler = (
   message: any,
   sender: RuntimeMessageSender,
   sendResponse: (response: any) => void,

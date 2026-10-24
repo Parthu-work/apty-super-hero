@@ -4,8 +4,8 @@
  * with the same command and working directory, and CI=true as GitHub sets
  * it. The steps are read from the workflow itself, so a step added to CI
  * runs here too. Like CI it stops at the first failing step, except that a
- * `continue-on-error: true` step (the informational dependency check) is
- * reported and the run goes on. `uses:` steps (checkout, pnpm and Node
+ * `continue-on-error: true` step (ci.yml has none today) is reported and the
+ * run goes on. `uses:` steps (checkout, pnpm and Node
  * setup) are not run: use the Node and pnpm versions CI uses.
  *
  * Usage: node tooling/scripts/ci-local.mjs [--list] [--workflow <file>] [--root <dir>]

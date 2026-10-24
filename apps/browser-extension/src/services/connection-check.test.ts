@@ -11,7 +11,7 @@ vi.mock("./tool-probe", () => ({
 }));
 
 import type { AppSettings } from "@apty/agent-core";
-import { testConnection } from "./connection-test";
+import { testConnection } from "./connection-check";
 
 const settings = { aiModel: "m", aiToken: "k" } as AppSettings;
 

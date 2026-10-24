@@ -1,6 +1,9 @@
 import type { RedactionModeSetting } from "@apty/agent-core";
 
-/** First line of a text export: which redaction mode its content went through. */
+/**
+ * First line of a text export: which redaction mode its content went through.
+ * @internal
+ */
 export function exportHeader(
   mode: RedactionModeSetting | undefined,
   now: Date = new Date(),

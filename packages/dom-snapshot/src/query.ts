@@ -105,6 +105,7 @@ function matchGlob(
 
 /**
  * Search options for snapshot text queries
+ * @internal
  */
 export interface SearchOptions {
   contextLevels?: number; // Default: 1 (lines around matches)
@@ -114,6 +115,7 @@ export interface SearchOptions {
 
 /**
  * Search result containing matched lines and context
+ * @internal
  */
 export interface SearchResult {
   matchedLines: number[]; // Line numbers of matched lines

@@ -49,11 +49,7 @@ import type {
   ZIndexSourceSummary,
 } from "./types.js";
 
-export const TEST_ATTRIBUTES = [
-  "data-automation-id",
-  "data-testid",
-  "data-test",
-];
+const TEST_ATTRIBUTES = ["data-automation-id", "data-testid", "data-test"];
 
 /** What a person typed or the server pre-filled; never identity (as in the audit profile). */
 const NEVER_PRIORITY = new Set(["value"]);

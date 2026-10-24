@@ -24,7 +24,9 @@ import { closestComposed, composedText } from "./composed-tree.js";
 import type { DomHealthElementAttributes } from "./health-types.js";
 import { ID_RUN } from "./value-policy.js";
 
+/** @internal */
 export const REDACTED_VALUE = "<redacted>";
+/** @internal */
 export const REDACTED_TEXT = "<redacted-text>";
 
 /**
@@ -168,7 +170,10 @@ export function maskIdReference(value: string): string {
   );
 }
 
-/** One attribute value as DOM Health may report it. */
+/**
+ * One attribute value as DOM Health may report it.
+ * @internal
+ */
 export function sanitizeAttributeValue(name: string, value: string): string {
   if (SENSITIVE_NAME.test(name) || looksLikeSecret(value)) {
     return REDACTED_VALUE;

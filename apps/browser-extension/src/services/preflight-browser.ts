@@ -11,7 +11,7 @@ import {
   pageHooksAllowedOn,
 } from "@apty/browser-runtime/runtime/page-hooks-registration";
 import { isInstalledAndEnabled } from "./apty-client-check";
-import { testConnection } from "./connection-test";
+import { testConnection } from "./connection-check";
 import type { FrameAnswer, PreflightDeps } from "./preflight";
 
 const client = (extensionId: string) =>

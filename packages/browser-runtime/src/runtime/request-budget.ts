@@ -20,13 +20,17 @@ import {
 } from "@apty/agent-core";
 import { CHARS_PER_TOKEN } from "./request-anatomy.js";
 
+/** @internal */
 export const MAX_TOOL_RESULT_TOKENS = 2000;
+/** @internal */
 export const FULL_RESULTS_KEPT = 4;
+/** @internal */
 export const STUB_PREVIEW_CHARS = 200;
 
 /**
  * Tools whose result is a report the model is told to relay exactly (DOM
  * Health), with a higher ceiling than the default cap.
+ * @internal
  */
 export const REPORT_RESULT_TOKENS: Readonly<Record<string, number>> = {
   run_dom_health_audit: 12_000,

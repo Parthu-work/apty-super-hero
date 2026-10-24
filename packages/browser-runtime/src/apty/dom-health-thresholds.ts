@@ -13,7 +13,7 @@ import {
   DEFAULT_VIRTUALIZATION_THRESHOLDS,
 } from "@apty/dom-snapshot";
 
-export interface ThresholdDefinition {
+interface ThresholdDefinition {
   default: number;
   min: number;
   max: number;

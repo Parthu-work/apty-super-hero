@@ -158,7 +158,10 @@ export function describeClickForApproval(
   return lines.join("\n");
 }
 
-/** Characters of path (after the first "/"), query and fragment above which a new tab's URL may be carrying data out. */
+/**
+ * Characters of path (after the first "/"), query and fragment above which a new tab's URL may be carrying data out.
+ * @internal
+ */
 export const NEW_TAB_MAX_QUERY_AND_FRAGMENT = 128;
 
 export type NewTabDecision =

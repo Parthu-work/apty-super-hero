@@ -29,6 +29,7 @@ import {
 
 const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
+/** @internal */
 export const startNetworkCaptureTool = tool({
   name: "start_network_capture",
   description:
@@ -58,6 +59,7 @@ export const startNetworkCaptureTool = tool({
   },
 });
 
+/** @internal */
 export const stopNetworkCaptureTool = tool({
   name: "stop_network_capture",
   description:
@@ -87,6 +89,7 @@ export const stopNetworkCaptureTool = tool({
   },
 });
 
+/** @internal */
 export const getNetworkCaptureStatusTool = tool({
   name: "get_network_capture_status",
   description:

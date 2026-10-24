@@ -53,6 +53,7 @@ async function userAuditSettings(): Promise<{
   };
 }
 
+/** @internal */
 export const runDomHealthAuditTool = tool({
   name: "run_dom_health_audit",
   description:
@@ -84,6 +85,7 @@ export const runDomHealthAuditTool = tool({
   },
 });
 
+/** @internal */
 export const runApplicationDomHealthAuditTool = tool({
   name: "run_application_dom_health_audit",
   description:

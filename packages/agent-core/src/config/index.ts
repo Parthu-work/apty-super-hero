@@ -1,4 +1,3 @@
-export type { ConversationConfig } from "../types.js";
 export {
   AI_PROVIDERS,
   type AIProviderConfig,
