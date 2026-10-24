@@ -1180,6 +1180,7 @@
     "removeContext": "移除上下文",
     "openSkillSettings": "点击打开技能设置",
     "removeSkill": "移除技能",
+    "scrollToBottom": "滚动到最新消息",
     "defaultPlaceholder": "您想了解什么？",
     "searchingFor": "正在搜索：",
     "found": "（找到 {{count}} 个）",

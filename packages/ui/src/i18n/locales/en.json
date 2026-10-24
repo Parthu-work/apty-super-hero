@@ -1180,6 +1180,7 @@
     "removeContext": "Remove context",
     "openSkillSettings": "Click to open skill settings",
     "removeSkill": "Remove skill",
+    "scrollToBottom": "Scroll to the latest message",
     "defaultPlaceholder": "What would you like to know?",
     "searchingFor": "Searching for:",
     "found": "({{count}} found)",
