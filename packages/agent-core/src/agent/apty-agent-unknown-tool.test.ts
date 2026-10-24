@@ -9,7 +9,7 @@ import { z } from "zod";
 import { tool } from "../tools/index.js";
 import type { AgentEvent, FunctionTool } from "../types.js";
 import { ErrorCode } from "../utils/errors.js";
-import { AIPex } from "./aipex.js";
+import { AptyAgent } from "./apty-agent.js";
 
 function done(id: string, output: unknown[]): StreamEvent {
   return {
@@ -62,7 +62,7 @@ function modelCallingMissingTool() {
     },
   };
   return {
-    model: model as unknown as Parameters<typeof AIPex.create>[0]["model"],
+    model: model as unknown as Parameters<typeof AptyAgent.create>[0]["model"],
     requests,
   };
 }
@@ -79,7 +79,11 @@ function namedTool(name: string, calls: string[]): FunctionTool {
   }) as unknown as FunctionTool;
 }
 
-async function collect(agent: AIPex, input: string, tools?: FunctionTool[]) {
+async function collect(
+  agent: AptyAgent,
+  input: string,
+  tools?: FunctionTool[],
+) {
   const events: AgentEvent[] = [];
   for await (const event of agent.chat(input, tools ? { tools } : undefined)) {
     events.push(event);
@@ -119,14 +123,14 @@ function modelCallingMissingToolSecond() {
       ]);
     },
   };
-  return model as unknown as Parameters<typeof AIPex.create>[0]["model"];
+  return model as unknown as Parameters<typeof AptyAgent.create>[0]["model"];
 }
 
 describe("a call to a tool that wasn't offered", () => {
   it("never runs the turn again once a tool has run, naming the tool instead", async () => {
     const ran: string[] = [];
     const offered = namedTool("offered_tool", ran);
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "Test",
       model: modelCallingMissingToolSecond(),
       tools: [offered, namedTool("missing_tool", ran)],
@@ -152,7 +156,7 @@ describe("a call to a tool that wasn't offered", () => {
     const { model, requests } = modelCallingMissingTool();
     const ran: string[] = [];
     const offered = namedTool("offered_tool", ran);
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "Test",
       model,
       tools: [offered, namedTool("missing_tool", ran)],
@@ -173,7 +177,7 @@ describe("a call to a tool that wasn't offered", () => {
   it("names a tool that doesn't exist at all, instead of reporting an API error", async () => {
     const { model } = modelCallingMissingTool();
     const ran: string[] = [];
-    const agent = AIPex.create({
+    const agent = AptyAgent.create({
       instructions: "Test",
       model,
       tools: [namedTool("offered_tool", ran)],

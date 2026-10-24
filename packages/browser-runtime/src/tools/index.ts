@@ -59,14 +59,14 @@ import { uploadFileToInputTool } from "./tools/upload-file";
  * rather than trusting this comment when auditing — it has gone stale
  * before (see docs/archive/PROJECT_PROGRESS.md's tool-registry audit).
  *
- * Disabled tools (per aipex):
- * - duplicate_tab (not in aipex)
+ * Disabled tools:
+ * - duplicate_tab
  * - wait (replaced by computer tool's wait action)
- * - capture_screenshot_to_clipboard (not enabled in aipex default bundle)
+ * - capture_screenshot_to_clipboard
  * - read_clipboard_image (P1 clipboard tool – not enabled by default; requires security review)
  * - get_clipboard_image_info (P1 clipboard tool – not enabled by default; requires security review)
- * - download_text_as_markdown (not enabled in aipex)
- * - download_current_chat_images (architecture issue, not enabled in aipex)
+ * - download_text_as_markdown
+ * - download_current_chat_images (architecture issue)
  * - organize_tabs (stub implementation, temporarily disabled until AI grouping is complete)
  */
 type BrowserFunctionTool = FunctionTool<
@@ -231,7 +231,6 @@ export type BrowserToolGroupName = keyof typeof browserToolGroups;
 export type { BrowserFunctionTool };
 
 // Note: takeSnapshotTool is not included in allBrowserTools as it's called internally
-// Skills tools are enabled to match aipex tool set
 
 // Export intervention tools separately for optional registration
 export { interventionTools } from "./interventions/index.js";

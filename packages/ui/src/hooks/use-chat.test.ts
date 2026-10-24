@@ -1,4 +1,4 @@
-import type { AgentEvent, AIPex } from "@apty/agent-core";
+import type { AgentEvent, AptyAgent } from "@apty/agent-core";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useChat } from "./use-chat";
@@ -130,7 +130,7 @@ function createStreamingGenerator(): AsyncGenerator<AgentEvent> & {
 }
 
 function setupMockAgent(): {
-  agent: AIPex;
+  agent: AptyAgent;
   conversationManager: { deleteSession: ReturnType<typeof vi.fn> };
 } {
   const conversationManager = {
@@ -140,7 +140,7 @@ function setupMockAgent(): {
   const agent = {
     chat: vi.fn(),
     getConversationManager: vi.fn(() => conversationManager),
-  } as unknown as AIPex;
+  } as unknown as AptyAgent;
 
   return { agent, conversationManager };
 }
@@ -161,7 +161,7 @@ function setupDefaultAgent() {
 
 describe("useChat", () => {
   async function renderUseChat(
-    agent: AIPex,
+    agent: AptyAgent,
     options?: Parameters<typeof useChat>[1],
   ) {
     return renderHook(() => useChat(agent, options));

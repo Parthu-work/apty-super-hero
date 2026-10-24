@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { transformScreenshotPlaceholders } from "./screenshot-utils";
+import {
+  resolveScreenshotUrls,
+  transformScreenshotPlaceholders,
+} from "./screenshot-utils";
 
-const PREFIX = "https://aipex-screenshot.invalid/";
+const PREFIX = "https://apty-screenshot.invalid/";
 
 describe("transformScreenshotPlaceholders", () => {
   it("links a screenshot by uid or by its 1-based index", () => {
@@ -33,5 +36,32 @@ describe("transformScreenshotPlaceholders", () => {
     const started = performance.now();
     expect(transformScreenshotPlaceholders(text, [])).toBe(text);
     expect(performance.now() - started).toBeLessThan(500);
+  });
+});
+
+describe("resolveScreenshotUrls", () => {
+  const data = new Map([["screenshot_1_x", "data:image/png;base64,AAAA"]]);
+
+  it("resolves a link written by transformScreenshotPlaceholders", () => {
+    const text = transformScreenshotPlaceholders("see [[screenshot:1]]", [
+      "screenshot_1_x",
+    ]);
+    expect(resolveScreenshotUrls(text, data)).toBe(
+      "see ![](data:image/png;base64,AAAA)",
+    );
+  });
+
+  it("still resolves a link under the host earlier versions wrote", () => {
+    expect(
+      resolveScreenshotUrls(
+        "see ![](https://aipex-screenshot.invalid/screenshot_1_x)",
+        data,
+      ),
+    ).toBe("see ![](data:image/png;base64,AAAA)");
+  });
+
+  it("leaves a link to a screenshot it has no data for", () => {
+    const text = `![](${PREFIX}screenshot_2_y)`;
+    expect(resolveScreenshotUrls(text, data)).toBe(text);
   });
 });

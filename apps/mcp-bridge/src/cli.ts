@@ -22,15 +22,10 @@ import {
   getTokenPath,
   rotateToken,
 } from "./lib/auth-token.js";
-import { loopbackWsUrl } from "./lib/ws-url.js";
+import { type CliEnv, readCliEnv } from "./lib/cli-env.js";
 import { toolSchemas } from "./tool-schemas.js";
 
-const DEFAULT_WS_URL = "ws://localhost:9223/cli";
 const CALL_TIMEOUT_MS = 60_000;
-const MAX_RETRY_TIMEOUT_MS = parseInt(
-  process.env.AIPEX_CONNECT_TIMEOUT ?? "60000",
-  10,
-);
 const INITIAL_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 5_000;
 
@@ -119,8 +114,8 @@ Examples:
   apty-cli capture_screenshot
 
 Environment:
-  AIPEX_WS_URL              Daemon WebSocket URL (default: ws://localhost:9223/cli)
-  AIPEX_CONNECT_TIMEOUT     Max ms to wait for daemon (default: 60000)
+  APTY_WS_URL               Daemon WebSocket URL (default: ws://localhost:9223/cli)
+  APTY_CONNECT_TIMEOUT      Max ms to wait for daemon (default: 60000)
 `);
 }
 
@@ -370,14 +365,15 @@ async function runTool(
   args: Record<string, unknown>,
 ): Promise<void> {
   const token = getOrCreateToken();
-  let wsUrl: string;
+  let env: CliEnv;
   try {
-    wsUrl = loopbackWsUrl(process.env.AIPEX_WS_URL ?? DEFAULT_WS_URL);
+    env = readCliEnv(process.env);
   } catch (error) {
     process.stderr.write(`${(error as Error).message}\n`);
     process.exit(1);
   }
-  const deadline = Date.now() + MAX_RETRY_TIMEOUT_MS;
+  const { wsUrl, connectTimeoutMs } = env;
+  const deadline = Date.now() + connectTimeoutMs;
   let backoff = INITIAL_BACKOFF_MS;
   let attempt = 0;
   let daemonSpawned = false;
@@ -393,7 +389,7 @@ async function runTool(
 
     if (Date.now() >= deadline) {
       process.stderr.write(
-        `Gave up after ${MAX_RETRY_TIMEOUT_MS / 1000}s — daemon not ready at ${wsUrl}\n`,
+        `Gave up after ${connectTimeoutMs / 1000}s — daemon not ready at ${wsUrl}\n`,
       );
       process.exit(1);
     }

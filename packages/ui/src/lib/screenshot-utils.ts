@@ -10,8 +10,11 @@ const SCREENSHOT_TOOL_NAMES = new Set([
   "capture_tab_screenshot",
 ]);
 
-/** URL prefix used in markdown for screenshot references */
-const AIPEX_SCREENSHOT_URL_PREFIX = "https://aipex-screenshot.invalid/";
+/** URL prefix used in markdown for screenshot references; never fetched */
+const SCREENSHOT_URL_PREFIX = "https://apty-screenshot.invalid/";
+
+/** The prefix earlier versions used, still resolved when a message contains it */
+const LEGACY_SCREENSHOT_URL_PREFIX = "https://aipex-screenshot.invalid/";
 
 /** Regex matching [[screenshot:...]] placeholders */
 const SCREENSHOT_PLACEHOLDER_REGEX = /\[\[screenshot:([^[\]]{1,100})\]\]/g;
@@ -143,10 +146,10 @@ function extractFromStructuredArray(
 
 /**
  * Transform [[screenshot:...]] placeholders in text into markdown images
- * with the special aipex-screenshot.invalid URL prefix.
+ * with the special apty-screenshot.invalid URL prefix.
  *
  * Supported formats:
- * - [[screenshot:screenshot_123_abc]]  → ![](https://aipex-screenshot.invalid/screenshot_123_abc)
+ * - [[screenshot:screenshot_123_abc]]  → ![](https://apty-screenshot.invalid/screenshot_123_abc)
  * - [[screenshot:1]]                   → 1-based index into screenshotUidList
  */
 export function transformScreenshotPlaceholders(
@@ -160,7 +163,7 @@ export function transformScreenshotPlaceholders(
 
       // Case 1: Direct uid
       if (isValidScreenshotUid(trimmed)) {
-        return `![](${AIPEX_SCREENSHOT_URL_PREFIX}${trimmed})`;
+        return `![](${SCREENSHOT_URL_PREFIX}${trimmed})`;
       }
 
       // Case 2: Numeric 1-based index
@@ -172,7 +175,7 @@ export function transformScreenshotPlaceholders(
       ) {
         const uid = screenshotUidList[index - 1];
         if (uid && isValidScreenshotUid(uid)) {
-          return `![](${AIPEX_SCREENSHOT_URL_PREFIX}${uid})`;
+          return `![](${SCREENSHOT_URL_PREFIX}${uid})`;
         }
       }
 
@@ -180,4 +183,24 @@ export function transformScreenshotPlaceholders(
       return match;
     },
   );
+}
+
+/**
+ * Replace each screenshot link (under either prefix) whose uid is in
+ * `dataByUid` with that screenshot's data URL.
+ */
+export function resolveScreenshotUrls(
+  text: string,
+  dataByUid: ReadonlyMap<string, string>,
+): string {
+  let resolved = text;
+  for (const [uid, data] of dataByUid) {
+    for (const prefix of [
+      SCREENSHOT_URL_PREFIX,
+      LEGACY_SCREENSHOT_URL_PREFIX,
+    ]) {
+      resolved = resolved.split(`${prefix}${uid}`).join(data);
+    }
+  }
+  return resolved;
 }

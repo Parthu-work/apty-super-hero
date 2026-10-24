@@ -1,7 +1,7 @@
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import {
-  AIPex,
+  AptyAgent,
   aisdk,
   ConversationCompressor,
   ConversationManager,
@@ -23,7 +23,7 @@ async function main() {
   console.log("User: What is 15 * 234?");
   console.log("Assistant: ");
 
-  const simpleAgent = AIPex.create({
+  const simpleAgent = AptyAgent.create({
     instructions: "You are a helpful assistant that can perform calculations.",
     model,
     tools: [calculatorTool],
@@ -47,7 +47,7 @@ async function main() {
   const storage = new SessionStorage(new InMemoryStorage<SerializedSession>());
   const manager = new ConversationManager(storage);
 
-  const agent = AIPex.create({
+  const agent = AptyAgent.create({
     instructions: "You are a helpful assistant with memory.",
     model,
     tools: [calculatorTool, httpFetchTool],
@@ -103,7 +103,7 @@ async function main() {
     },
   });
 
-  const weatherAgent = AIPex.create({
+  const weatherAgent = AptyAgent.create({
     instructions: "You are a weather assistant.",
     model,
     tools: [weatherTool],
@@ -135,7 +135,7 @@ async function main() {
     compressor,
   });
 
-  const compressAgent = AIPex.create({
+  const compressAgent = AptyAgent.create({
     instructions: "You are a helpful assistant.",
     model,
     conversationManager: compressManager,

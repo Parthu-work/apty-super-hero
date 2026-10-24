@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
-  "description": "Apty's AI browser agent - forked from AIPex, customized for Apty Studio/widget integration",
+  "description": "Apty Agent: an AI browser debugging agent, packaged as a Chrome extension, that diagnoses Apty Widget and Studio issues on a live page",
   "author": "Apty",
   "packageManager": "pnpm@10.33.0",
   "engines": {

@@ -16,7 +16,7 @@ export async function getActiveTab(): Promise<chrome.tabs.Tab> {
 }
 
 /**
- * Per-conversation execution context passed to `AIPex.chat()` as
+ * Per-conversation execution context passed to `AptyAgent.chat()` as
  * `ChatOptions.runContext` and forwarded by `@openai/agents` to every tool's
  * `execute(input, context)` as `context.context`.
  *

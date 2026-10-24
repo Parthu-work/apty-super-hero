@@ -190,7 +190,7 @@ export interface ChatbotProps extends Omit<ChatbotProviderProps, "children"> {
  *
  * @example
  * ```tsx
- * const agent = AIPex.create({ model, tools });
+ * const agent = AptyAgent.create({ model, tools });
  *
  * // Basic usage
  * <Chatbot agent={agent} />

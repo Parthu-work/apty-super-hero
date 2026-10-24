@@ -485,7 +485,7 @@ name. The defaults carry their evidence:
 
 - `measured`: Pendo, from `<button id="_pendo-badge_…">` in the athenaOne
   export.
-- `repository`: the Agent's own `aipex-` roots, and `apty-` /
+- `repository`: the Agent's own `apty-agent-` roots, and `apty-` /
   `apty-widget`, the detection `widget-diagnostics.ts` already uses.
 - `unverified`: WalkMe, Whatfix, Appcues, UserGuiding, consent banners and
   chat launchers, from general knowledge.

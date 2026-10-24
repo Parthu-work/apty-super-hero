@@ -23,7 +23,7 @@ useful for productizing agents:
 
 ### Agent + event stream
 
-`AIPex.chat()` returns an `AsyncGenerator<AgentEvent>`. Typical consumers:
+`AptyAgent.chat()` returns an `AsyncGenerator<AgentEvent>`. Typical consumers:
 
 - **CLI**: print `content_delta` as it streams
 - **UI**: render streaming text, show tool calls, attach contexts, show metrics
@@ -109,9 +109,9 @@ pnpm add @apty/agent-core
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk } from "@apty/agent-core";
+import { AptyAgent, aisdk } from "@apty/agent-core";
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "You are a helpful assistant.",
   model: aisdk(google("gemini-2.5-flash")),
 });
@@ -125,9 +125,9 @@ for await (const event of agent.chat("Say hello in one sentence.")) {
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk, calculatorTool, httpFetchTool } from "@apty/agent-core";
+import { AptyAgent, aisdk, calculatorTool, httpFetchTool } from "@apty/agent-core";
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "Use tools when appropriate.",
   model: aisdk(google("gemini-2.5-flash")),
   tools: [calculatorTool, httpFetchTool],
@@ -169,9 +169,9 @@ returned in the `session_created` event:
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk } from "@apty/agent-core";
+import { AptyAgent, aisdk } from "@apty/agent-core";
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "You remember things within a session.",
   model: aisdk(google("gemini-2.5-flash")),
 });
@@ -193,11 +193,11 @@ if (sessionId) {
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk } from "@apty/agent-core";
+import { AptyAgent, aisdk } from "@apty/agent-core";
 
 const model = aisdk(google("gemini-2.5-flash"));
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "You are a helpful assistant.",
   model,
   compression: {
@@ -213,11 +213,11 @@ const agent = AIPex.create({
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk, ContextManager, type Context } from "@apty/agent-core";
+import { AptyAgent, aisdk, ContextManager, type Context } from "@apty/agent-core";
 
 const contextManager = new ContextManager();
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "Use attached contexts when answering.",
   model: aisdk(google("gemini-2.5-flash")),
   contextManager,
@@ -241,7 +241,7 @@ for await (const event of agent.chat("Summarize the page.", { contexts: [pageCon
 
 ```ts
 import { google } from "@ai-sdk/google";
-import { AIPex, aisdk, type AgentPlugin } from "@apty/agent-core";
+import { AptyAgent, aisdk, type AgentPlugin } from "@apty/agent-core";
 
 const loggerPlugin: AgentPlugin = {
   id: "logger",
@@ -258,7 +258,7 @@ const loggerPlugin: AgentPlugin = {
   },
 };
 
-const agent = AIPex.create({
+const agent = AptyAgent.create({
   instructions: "You are a helpful assistant.",
   model: aisdk(google("gemini-2.5-flash")),
   plugins: [loggerPlugin],
@@ -286,9 +286,9 @@ console.log(result); // "echo:hello"
 
 ## API reference
 
-### `AIPex`
+### `AptyAgent`
 
-- `AIPex.create(options: AIPexOptions): AIPex`
+- `AptyAgent.create(options: AptyAgentOptions): AptyAgent`
 - `agent.chat(input: string, options?: ChatOptions): AsyncGenerator<AgentEvent>`
 - `agent.getConversationManager(): ConversationManager | undefined`
 - `agent.getContextManager(): ContextManager | undefined`
@@ -318,7 +318,7 @@ export type AgentEvent =
   | { type: "execution_complete"; finalOutput: string; metrics: AgentMetrics };
 ```
 
-### `AIPexOptions`
+### `AptyAgentOptions`
 
 Key fields:
 

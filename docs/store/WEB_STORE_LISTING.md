@@ -44,7 +44,7 @@ Apty Agent sends no telemetry and has no server of its own.
   `npm run build && node tooling/e2e/screenshot-harness.mjs --store`.
 - **Icons and promo tile: waiting for the owner's artwork** (owner
   decision D6). `apps/browser-extension/assets/icon*.png` are still the
-  upstream AIPex icons, each 512×512. With an SVG or a 512×512 PNG, run
+  upstream fork's icons, each 512×512. With an SVG or a 512×512 PNG, run
   `node tooling/scripts/rasterize-icons.mjs <artwork>` to write the 16,
   48 and 128 px icons, the store's 128 px icon (96 px artwork, 16 px margin)
   and the 440×280 promo tile into `docs/store/assets/`.

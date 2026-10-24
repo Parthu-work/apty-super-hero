@@ -128,3 +128,29 @@ describe("daemon.ts CLI — token commands", () => {
     expect(stderr).toContain("New token generated");
   }, 15_000);
 });
+
+describe("cli.ts usage", () => {
+  it("documents the APTY_ variables and never warns about the deprecated ones", async () => {
+    const stderr = await new Promise<string>((resolve, reject) => {
+      const child = spawn("npx", ["tsx", "src/cli.ts", "-h"], {
+        cwd: PACKAGE_ROOT,
+        env: {
+          ...process.env,
+          APTY_MCP_CONFIG_DIR: configDir,
+          AIPEX_WS_URL: "ws://localhost:9223/cli",
+          AIPEX_CONNECT_TIMEOUT: "1000",
+        },
+      });
+      let err = "";
+      child.stderr.on("data", (chunk) => {
+        err += chunk.toString();
+      });
+      child.on("error", reject);
+      child.on("close", () => resolve(err));
+    });
+    expect(stderr).toContain("APTY_WS_URL");
+    expect(stderr).toContain("APTY_CONNECT_TIMEOUT");
+    expect(stderr).not.toContain("AIPEX_WS_URL");
+    expect(stderr).not.toContain("AIPEX_CONNECT_TIMEOUT");
+  }, 15_000);
+});

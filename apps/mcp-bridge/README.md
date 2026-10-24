@@ -170,8 +170,10 @@ node dist/daemon.js [--port <port>] [--host <host>] [--extension-id <id>]
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `AIPEX_WS_URL` | `ws://localhost:9223/cli` | WebSocket URL for the raw CLI (`apty-cli`); must be `ws://127.0.0.1` or `ws://localhost` — kept as-is from the upstream fork this fork's CLI protocol descends from; not a reference to the unrelated `aipex-mcp-bridge` npm package |
-| `AIPEX_CONNECT_TIMEOUT` | `60000` | Max wait time for the raw CLI |
+| `APTY_WS_URL` | `ws://localhost:9223/cli` | WebSocket URL for the raw CLI (`apty-cli`); must be `ws://127.0.0.1` or `ws://localhost` |
+| `APTY_CONNECT_TIMEOUT` | `60000` | Max wait time for the raw CLI |
+| `AIPEX_WS_URL` | | Deprecated: the old name of `APTY_WS_URL`, still read for one release when `APTY_WS_URL` is unset (with a note on stderr) |
+| `AIPEX_CONNECT_TIMEOUT` | | Deprecated: the old name of `APTY_CONNECT_TIMEOUT`, read the same way |
 | `BROWSER_CLI_WS_URL` | `ws://127.0.0.1:9223/cli` | WebSocket URL for `browser-cli`; must be `ws://127.0.0.1` or `ws://localhost`, since the token travels in the handshake |
 | `BROWSER_CLI_CONNECT_TIMEOUT` | `60000` | Max wait time for `browser-cli` |
 | `APTY_MCP_CONFIG_DIR` | `~/.apty/mcp-daemon` | Where the auth token and pinned-extension-id config are stored — override for tests or an isolated install, never needed in normal use |

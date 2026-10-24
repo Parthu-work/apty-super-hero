@@ -1,7 +1,7 @@
 import type {
   AgentMetrics,
-  AIPex,
   AppSettings,
+  AptyAgent,
   KeyValueStorage,
 } from "@apty/agent-core";
 import { createContext, type ReactNode, useContext } from "react";
@@ -190,8 +190,8 @@ export { AgentContext };
 // ============ Provider Props ============
 
 export interface ChatbotProviderProps {
-  /** The AIPex instance from @apty/agent-core (undefined when not configured) */
-  agent: AIPex | undefined;
+  /** The AptyAgent instance from @apty/agent-core (undefined when not configured) */
+  agent: AptyAgent | undefined;
   /** Configuration error message */
   configError?: Error;
   /** Chat configuration */

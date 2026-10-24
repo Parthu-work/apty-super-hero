@@ -1,4 +1,8 @@
 import { createLogger } from "@apty/agent-core";
+import {
+  moveLegacyDatabases,
+  SKILLS_DB,
+} from "../../../storage/legacy-databases.js";
 import { zenfs } from "../../../vm/zenfs-manager";
 import type { ParsedSkill, SkillMetadata } from "../../skill/types.js";
 import {
@@ -151,7 +155,7 @@ class SimpleFileSystem {
 // Create a simple file system instance
 export const simpleFS = new SimpleFileSystem();
 
-const DB_NAME = "AIPexSkills";
+const DB_NAME = SKILLS_DB;
 const DB_VERSION = 1;
 const STORE_NAME = "skills";
 
@@ -169,6 +173,10 @@ class SkillStorage {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Skills stored under the old AIPex database name move first.
+    await moveLegacyDatabases().catch(() => {
+      log.warn("legacy_database_move_failed");
+    });
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 

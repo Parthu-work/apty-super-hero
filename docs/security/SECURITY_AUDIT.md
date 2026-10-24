@@ -70,7 +70,7 @@ the authoritative source; the Confluence page is a navigable summary of it.
 - **Severity**: Medium (was) → Fixed
 - **Affected component**: all tools in `packages/browser-runtime/src/tools/`
   that call `getActiveTab()` (`tab-utils.ts`) — `apty.ts`, `devtools.ts`,
-  and others; the agent invocation in `packages/agent-core/src/agent/aipex.ts`
+  and others; the agent invocation in `packages/agent-core/src/agent/apty-agent.ts`
 - **Risk**: every diagnostic tool operated on "whichever tab is currently
   active in the window," not a tab bound to a specific debugging
   conversation. If a user had two conversations open (different windows,
@@ -114,7 +114,7 @@ the authoritative source; the Confluence page is a navigable summary of it.
   this one's own id), and called `.remove()` on each one found. This ran
   on every use of `get_network_diagnostics`, `get_runtime_diagnostics`,
   `analyze_element_selectors`, and any other CDP-based tool. Inherited
-  unchanged from the original AIPex import, with no comment explaining
+  unchanged from the original upstream import, with no comment explaining
   why, no test, and no evidence in this codebase that it was ever actually
   required (nothing here injects such an iframe). For a product whose
   entire value proposition is "trust the live page as evidence," silently

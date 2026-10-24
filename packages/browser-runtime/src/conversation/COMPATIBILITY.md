@@ -1,5 +1,11 @@
 # Compatibility Verification: aipex vs new-aipex Conversation Storage
 
+"aipex" and "new-aipex" are the upstream fork's (AIPex) first and second
+conversation storage formats. The Agent reads them only to carry
+conversations over from an earlier install, and writes neither: its own
+database is `apty-conversations-db`, and the upstream's
+`aipex-conversations-db` moves there (`storage/legacy-databases.ts`).
+
 ## Data Structure Compatibility
 
 ### ✅ ConversationData Interface

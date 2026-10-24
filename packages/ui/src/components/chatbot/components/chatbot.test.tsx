@@ -1,4 +1,4 @@
-import type { AgentEvent, AIPex } from "@apty/agent-core";
+import type { AgentEvent, AptyAgent } from "@apty/agent-core";
 import {
   act,
   fireEvent,
@@ -35,7 +35,7 @@ function createExecutionCompleteEvent(): AgentEvent {
 }
 
 // Mock the Agent class
-function createMockAgent(): AIPex {
+function createMockAgent(): AptyAgent {
   const conversationManager = {
     deleteSession: vi.fn(),
   };
@@ -43,7 +43,7 @@ function createMockAgent(): AIPex {
   const mockAgent = {
     chat: vi.fn(),
     getConversationManager: vi.fn(() => conversationManager),
-  } as unknown as AIPex;
+  } as unknown as AptyAgent;
 
   return mockAgent;
 }
@@ -68,7 +68,7 @@ async function renderWithAct(
 }
 
 describe("Chatbot Component", () => {
-  let mockAgent: AIPex;
+  let mockAgent: AptyAgent;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -252,7 +252,7 @@ describe("Chatbot Component", () => {
 });
 
 describe("Chatbot needsAuth pre-flight (WP19)", () => {
-  let mockAgent: AIPex;
+  let mockAgent: AptyAgent;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -349,7 +349,7 @@ describe("Chatbot needsAuth pre-flight (WP19)", () => {
 });
 
 describe("ChatbotProvider", () => {
-  let mockAgent: AIPex;
+  let mockAgent: AptyAgent;
 
   beforeEach(() => {
     mockAgent = createMockAgent();
@@ -461,7 +461,7 @@ describe("ChatbotProvider", () => {
 });
 
 describe("Chatbot Accessibility", () => {
-  let mockAgent: AIPex;
+  let mockAgent: AptyAgent;
 
   beforeEach(() => {
     mockAgent = createMockAgent();
@@ -485,7 +485,7 @@ describe("Chatbot Accessibility", () => {
 });
 
 describe("Chatbot State Management", () => {
-  let mockAgent: AIPex;
+  let mockAgent: AptyAgent;
 
   beforeEach(() => {
     mockAgent = createMockAgent();
@@ -531,7 +531,7 @@ describe("Chatbot State Management", () => {
 });
 
 describe("Chatbot Event Handlers", () => {
-  let mockAgent: AIPex;
+  let mockAgent: AptyAgent;
 
   beforeEach(() => {
     mockAgent = createMockAgent();

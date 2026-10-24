@@ -615,7 +615,7 @@ export class SkillManager {
         id: skillName,
         name: skillName,
         description:
-          "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends AIPex's capabilities with specialized knowledge, workflows, or tool integrations.",
+          "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends the Apty Agent's capabilities with specialized knowledge, workflows, or tool integrations.",
         version: "1.0.0",
         uploadedAt: Date.now(),
         enabled: true,

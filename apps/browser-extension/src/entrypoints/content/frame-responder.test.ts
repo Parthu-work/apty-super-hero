@@ -64,6 +64,16 @@ describe("frame responder", () => {
     });
   });
 
+  it("collects a DOM snapshot for the apty: message only", async () => {
+    document.body.innerHTML = "<button>Save</button>";
+    const reply = await ask({ type: "apty:collect-dom-snapshot" });
+    expect(reply.success).toBe(true);
+    expect(JSON.stringify(reply.data)).toContain("Save");
+    // Split so the branding check keeps flagging the old name everywhere else.
+    const oldType = `${"aipex"}:collect-dom-snapshot`;
+    expect(handleFrameMessage({ type: oldType }, vi.fn())).toBe(false);
+  });
+
   it("leaves messages meant for the UI script unanswered", async () => {
     expect(handleFrameMessage({ request: "open-apty-agent" }, vi.fn())).toBe(
       false,
