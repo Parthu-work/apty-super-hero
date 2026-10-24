@@ -725,7 +725,7 @@
     "exportJsonAria": "导出 JSON：引擎报告，只包含已选的规则",
     "counts": {
       "rules": "{{count}} 条规则（{{proven}} 条由观测或模式证实，{{review}} 条需要审核）",
-      "warnings": "{{count}} 条警告",
+      "warnings": "{{count}} 条警告（{{warn}} 条需要处理）",
       "iframes": "{{count}} 个应用 iframe 需要处理",
       "notCaptured": "{{count}} 类页面尚未采集",
       "covered": "{{count}} 项已被 Apty 默认规则忽略"
@@ -734,7 +734,10 @@
     "tabs": {
       "label": "报告部分",
       "rules": "忽略条件",
-      "settings": "设置"
+      "settings": "设置",
+      "iframes": "Iframe",
+      "coverage": "覆盖范围",
+      "warnings": "警告"
     },
     "rules": {
       "assumption": "假设（D7）：每条规则按 Apty 条件构建器的方式显示，所有条件必须同时满足。ID 和 class 规则是否为“属性名”条件加“属性值”条件、正则表达式的语法以及 In 的分隔符均未确认。",
@@ -798,7 +801,146 @@
       "aptyDefault": "Apty 默认值，未测量"
     },
     "notMeasured": "未测量的内容：{{list}}",
-    "openQuestions": "待定问题（{{count}}）"
+    "openQuestions": "待定问题（{{count}}）",
+    "origin": {
+      "manual": "手动",
+      "import": "导入"
+    },
+    "addTitle": "添加到此次采集",
+    "addTitleEmpty": "或手动采集",
+    "newCrawl": "开始新的爬取",
+    "replace": {
+      "message": "开始后将替换已采集的 {{count}} 个页面，包括您手动采集或导入的页面。如需保留，请先导出报告。",
+      "confirm": "替换并开始",
+      "cancel": "保留采集结果"
+    },
+    "manual": {
+      "title": "采集当前状态",
+      "hint": "请先打开弹窗或表单，再进行采集。如需采集重新加载后的运行，请自行重新加载页面后再采集。不会点击、导航或重新加载页面上的任何内容。",
+      "pageName": "页面名称",
+      "pageNameHint": "为此状态输入名称，最多 {{max}} 个字符。名称不会从页面读取。使用相同名称会为该页面添加一次运行。",
+      "runLabel": "运行",
+      "probe": "测量页面行为（简短探测）",
+      "capture": "立即采集",
+      "captureAria": "立即采集：按当前标签页的现状添加一次运行",
+      "capturing": "正在采集当前标签页",
+      "captured": "已采集 {{page}} 的第 {{run}} 次运行。",
+      "duplicate": "此状态看起来与 {{pages}} 上已有的某次运行相同。请确认您打开的是要采集的状态。",
+      "failed": "未采集：{{error}}",
+      "noTab": "请在此窗口中打开一个网页以进行采集。"
+    },
+    "import": {
+      "title": "导入控制台脚本结果",
+      "hint": "在页面上运行控制台脚本，然后粘贴结果或选择保存的文件。每次运行都需要选择运行类型；下方的运行将组成一个页面。",
+      "script": "控制台脚本",
+      "copyScript": "复制控制台脚本",
+      "copyScriptAria": "复制控制台脚本，用于浏览器控制台",
+      "scriptLimits": "控制台脚本只记录最高的 z-index，不记录设置它的元素。它无法读取跨域 iframe，无法区分应用的元素与 Apty 或扩展的元素，输出可能被控制台截断，也不记录运行信息（例如运行的时间和位置）。在此面板中采集可以完成以上所有内容。",
+      "pageNameHint": "为页面输入名称。与已有页面同名时，这些运行会添加到该页面，每个页面最多 {{max}} 次运行。",
+      "run": "第 {{index}} 次运行",
+      "runKind": "运行类型",
+      "paste": "粘贴脚本的结果",
+      "fromFile": "来自文件 {{file}}",
+      "remove": "移除",
+      "removeAria": "移除第 {{index}} 次运行",
+      "addRun": "添加一次运行",
+      "chooseFiles": "选择文件",
+      "submit": "导入页面",
+      "imported": "已导入 {{page}} 的运行：{{count}} 次。",
+      "dropped": "未导入的有效运行：{{count}} 次。每个页面最多 {{max}} 次运行。",
+      "runError": "第 {{run}} 次运行：{{message}}",
+      "missing": "缺少：{{list}}"
+    },
+    "detail": {
+      "label": "{{page}} 的详情",
+      "runs": "运行",
+      "run": "第 {{index}} 次运行（{{label}}）",
+      "partial": "不完整",
+      "raw": "下载原始配置文件",
+      "rawAria": "下载原始配置文件：第 {{run}} 次运行",
+      "rawWarning": "此文件包含页面数据：采集时该运行的每个属性值，可能包括姓名、记录编号以及其他患者或客户数据。",
+      "rawConfirm": "下载",
+      "rawConfirmAria": "下载第 {{run}} 次运行的原始配置文件（包含页面数据）",
+      "cancel": "取消",
+      "changes": "运行之间的变化",
+      "oneRun": "只有一次运行：暂无可比较的内容。",
+      "pair": "{{from}} 到 {{to}}",
+      "noChange": "没有变化。",
+      "added": "新增",
+      "removed": "移除",
+      "countChanged": "数量变化",
+      "counts": "{{from}} 到 {{to}}",
+      "truncated": "此对比只列出了前面的差异。",
+      "noise": "Apty 和扩展造成的差异",
+      "maxZIndex": "最大 z-index：{{value}}",
+      "shadowHosts": "Shadow 宿主：{{hosts}}",
+      "iframes": "Iframe：{{count}}",
+      "none": "无"
+    },
+    "iframes": {
+      "application": "应用 iframe",
+      "extension": "扩展 iframe",
+      "overlay": "浮层 iframe",
+      "none": "在已采集的页面上未发现 iframe。",
+      "kind": "类型",
+      "src": "来源",
+      "crossOrigin": "跨域",
+      "analyzed": "已分析",
+      "needsHandling": "需要处理",
+      "facts": "跨域：{{crossOrigin}} · 已分析：{{analyzed}}",
+      "yes": "是",
+      "no": "否",
+      "unknown": "未知"
+    },
+    "coverage": {
+      "intro": "标记您已采集的内容。标记是您的声明，引擎不会核实。",
+      "state": "状态",
+      "statusHeader": "状态值",
+      "candidatesHeader": "建议的页面",
+      "candidates": "根据以下页面的标记建议：{{pages}}",
+      "noCandidates": "没有已采集的页面表明存在此类状态。",
+      "mark": "标记",
+      "markAria": "标记 {{state}}",
+      "unmarked": "未标记",
+      "status": {
+        "captured": "已采集",
+        "notApplicable": "不适用",
+        "planned": "已计划",
+        "notCaptured": "未采集"
+      },
+      "key": {
+        "entryForms": "录入表单",
+        "detailPages": "详情页面",
+        "listGridPages": "列表和表格页面",
+        "modalsDialogs": "弹窗和对话框",
+        "popups": "弹出层和菜单",
+        "dropdownPanels": "下拉面板",
+        "tooltips": "工具提示",
+        "sidePanels": "侧边面板",
+        "printReportViews": "打印和报表视图",
+        "embeddedDocuments": "嵌入的文档",
+        "clickOnlyStates": "只能通过点击到达的状态"
+      }
+    },
+    "warnings": {
+      "none": "没有警告。",
+      "warn": "需要处理",
+      "info": "仅供参考",
+      "count": "数量：{{count}}",
+      "toActOn": "需要处理的警告（{{count}}）",
+      "allInTab": "所有警告及其页面都在“警告”标签中。",
+      "weakSelectors": "弱选择器",
+      "weakSelectorsHint": "在一个页面上匹配多个元素的选择器；基于它们的指南可能会定位到错误的元素。",
+      "perPage": "单个页面最多 {{count}} 个",
+      "unready": "尚未就绪的页面",
+      "singleRunContribution": "只有一次运行的页面仍会为基于值形态的规则（模式规则）和基于记录编号的规则（记录特定规则）提供数据。它无法显示值的变化，因此不会产生观测变化规则；它的值也不会被视为未变化，因此不能否决规则。",
+      "reason": {
+        "singleRun": "只有一次运行：请再采集一次运行以检测变化的值",
+        "unreliable": "不可靠：部分运行被截断或显示了其他状态，因此未参与比较"
+      },
+      "captureAnother": "再采集一次运行",
+      "captureAnotherAria": "再采集一次运行：{{page}}"
+    }
   },
   "skillDetails": {
     "builtIn": "内置",

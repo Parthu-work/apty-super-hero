@@ -61,7 +61,7 @@ function cell(text: string): string {
 }
 
 /** Tab-separated rows, pasteable into a spreadsheet. */
-function tsv(header: string[], rows: string[][]): string {
+export function tsv(header: string[], rows: string[][]): string {
   return [header, ...rows].map((row) => row.map(cell).join("\t")).join("\n");
 }
 
@@ -118,10 +118,15 @@ export function download(
   URL.revokeObjectURL(url);
 }
 
+function slug(name: string, fallback: string): string {
+  return name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || fallback;
+}
+
 /** A file name from the application name: letters, digits and dashes only. */
 export function exportFileName(applicationName: string, extension: string) {
-  const base =
-    applicationName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") ||
-    "application";
-  return `apty-dom-config-${base}.${extension}`;
+  return `apty-dom-config-${slug(applicationName, "application")}.${extension}`;
+}
+
+export function profileFileName(pageLabel: string, run: number): string {
+  return `apty-dom-profile-${slug(pageLabel, "page")}-run-${run}.json`;
 }

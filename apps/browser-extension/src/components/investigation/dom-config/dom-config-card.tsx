@@ -14,15 +14,19 @@ import {
   LoaderCircleIcon,
   SlidersHorizontalIcon,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toneTextClass } from "../tone-classes";
 import { useCurrentTarget } from "../use-current-target";
 import {
   type DomConfigState,
   type DomConfigStore,
   domConfigStore,
+  holdsAddedPages,
   useDomConfigState,
 } from "./dom-config-store";
+import { ImportPanel } from "./import-panel";
+import { ManualCapture } from "./manual-capture";
+import { PageList } from "./page-detail";
 import { actionSentence, PageRows, Stepper } from "./progress-view";
 import { AnnouncerProvider } from "./report-parts";
 import { isPartial } from "./report-summary";
@@ -46,12 +50,29 @@ function useStatus(state: DomConfigState) {
     case "stopping":
       return t("domConfig.status.stopping");
     case "report":
-      return state.outcome && isPartial(state.outcome)
+      return isPartial(state.outcome)
         ? t("domConfig.status.partialReport")
         : t("domConfig.status.report");
     case "failed":
       return t("domConfig.status.failed");
   }
+}
+
+function NewCrawl({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+      className="rounded-md border px-2 py-1.5"
+    >
+      <summary className="cursor-pointer text-xs font-medium text-foreground">
+        {t("domConfig.newCrawl")}
+      </summary>
+      {open && children}
+    </details>
+  );
 }
 
 export function DomConfigCard({
@@ -86,10 +107,32 @@ export function DomConfigCard({
         : holder === "dom-health"
           ? t("domConfig.lockedByDomHealth")
           : null;
+  const captureBlocked =
+    target.tabId === null
+      ? t("domConfig.manual.noTab")
+      : support === "restricted"
+        ? t("domConfig.restricted")
+        : holder === "dom-health"
+          ? t("domConfig.lockedByDomHealth")
+          : null;
+  const replaceCount = holdsAddedPages(state.capture)
+    ? (state.capture?.pages.length ?? 0)
+    : 0;
 
-  const start = () => {
-    if (target.tabId !== null) void store.start(target.tabId, ignoredRoots);
+  const start = (replace: boolean) => {
+    if (target.tabId !== null) {
+      void store.start(target.tabId, ignoredRoots, { replace });
+    }
   };
+  const startPanel = (
+    <StartPanel
+      options={state.options}
+      onChange={(options) => store.setOptions(options)}
+      onStart={start}
+      disabledReason={disabledReason}
+      replaceCount={replaceCount}
+    />
+  );
 
   return (
     <div
@@ -185,14 +228,7 @@ export function DomConfigCard({
               </div>
             )}
 
-            {(state.phase === "idle" || state.phase === "failed") && (
-              <StartPanel
-                options={state.options}
-                onChange={(options) => store.setOptions(options)}
-                onStart={start}
-                disabledReason={disabledReason}
-              />
-            )}
+            {(state.phase === "idle" || state.phase === "failed") && startPanel}
 
             {running && (
               <div className="space-y-2 pt-1">
@@ -204,7 +240,7 @@ export function DomConfigCard({
               </div>
             )}
 
-            {state.phase === "report" && state.outcome && state.report && (
+            {state.phase === "report" && state.capture && state.report && (
               <div className="space-y-3">
                 <ReportView
                   outcome={state.outcome}
@@ -219,8 +255,57 @@ export function DomConfigCard({
                   }
                   onRerun={() => store.rerun(ignoredRoots)}
                   onClear={() => store.clear()}
+                  onMark={(key, mark) =>
+                    store.setCoverageMark(key, mark, ignoredRoots)
+                  }
+                  onCaptureAnother={(pageLabel) =>
+                    store.requestCapture(pageLabel)
+                  }
+                  canCapture={!captureBlocked && !state.capturing}
                 />
-                <PageRows rows={state.rows} />
+                <PageList
+                  rows={state.rows}
+                  report={state.report}
+                  capture={state.capture}
+                />
+              </div>
+            )}
+
+            {!running && (
+              <div className="mt-3 space-y-2">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t(
+                    state.capture
+                      ? "domConfig.addTitle"
+                      : "domConfig.addTitleEmpty",
+                  )}
+                </h4>
+                <ManualCapture
+                  state={state}
+                  disabledReason={captureBlocked}
+                  onRequestHandled={store.clearCaptureRequest}
+                  onCapture={(input) => {
+                    if (target.tabId !== null) {
+                      void store.captureCurrent(
+                        target.tabId,
+                        input,
+                        ignoredRoots,
+                      );
+                    }
+                  }}
+                />
+                <ImportPanel
+                  state={state}
+                  disabled={state.capturing}
+                  onImport={(input) =>
+                    store.importPage(
+                      input,
+                      ignoredRoots,
+                      target.hostname ?? undefined,
+                    )
+                  }
+                />
+                {state.phase === "report" && <NewCrawl>{startPanel}</NewCrawl>}
               </div>
             )}
           </div>

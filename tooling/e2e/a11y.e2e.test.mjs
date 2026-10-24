@@ -9,7 +9,9 @@
  * (the investigation summary and the full response viewer), a DOM
  * Health result with its export dialog at side-panel size, and the DOM
  * Config card idle, running (held on a page request), with its report and
- * on a page it cannot analyze. Options: every tab. No axe rule is disabled.
+ * on a page it cannot analyze, a manual capture with a duplicate warning,
+ * an import error, page detail and the Iframes, Coverage and Warnings
+ * tabs. Options: every tab. No axe rule is disabled.
  */
 import assert from "node:assert/strict";
 import { join } from "node:path";
@@ -399,6 +401,82 @@ for (const theme of ["light", "dark"]) {
         `${theme} DOM Config on a page it cannot analyze`,
       );
       await options.close();
+      await panel.close();
+      await target.close();
+    });
+
+    it("side panel, DOM Config manual capture, import, page detail and the Iframes, Coverage and Warnings tabs", async () => {
+      const target = await browser.context.newPage();
+      await target.goto(`${domConfigApp.origin}/home`);
+      const panel = await openSidePanel(browser, model, target);
+      await panel.setViewportSize(SIDE_PANEL);
+      await panel.getByRole("button", HISTORY_LOADED).waitFor();
+      await assertThemeApplied(panel, theme);
+      await panel
+        .getByRole("button", { name: /Generate DOM config: capture/ })
+        .click();
+
+      await panel
+        .locator("summary", { hasText: "Capture current state" })
+        .click();
+      const name = panel.getByLabel("Page name");
+      const capture = panel.getByRole("button", {
+        name: "Capture now: add a run of the current tab as it is",
+      });
+      await name.fill("Home by hand");
+      await capture.click();
+      await panel.getByText("Captured run 1 of Home by hand.").waitFor();
+      await name.fill("Home again");
+      await capture.click();
+      await panel
+        .getByText(
+          "This looks like the same state as a run already held on Home by hand. Check that you opened the state you meant to capture.",
+        )
+        .waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} DOM Config manual capture with a result and a duplicate warning`,
+      );
+
+      await panel
+        .locator("summary", { hasText: "Import console script results" })
+        .click();
+      const importPanel = panel.locator("details", {
+        has: panel.locator("summary", {
+          hasText: "Import console script results",
+        }),
+      });
+      await importPanel.getByLabel("Page name").fill("Pasted page");
+      await importPanel
+        .getByLabel("Paste the script's result")
+        .fill('{"tags":{"div":1}}');
+      await importPanel.getByRole("button", { name: "Import page" }).click();
+      await importPanel.getByText("Missing: attributes").waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} DOM Config import with an error`,
+      );
+
+      await panel
+        .getByRole("region", { name: "Pages" })
+        .getByRole("button", { name: /^Home by hand/ })
+        .click();
+      await panel
+        .getByRole("region", { name: "Details of Home by hand" })
+        .waitFor();
+      await assertNoSeriousViolations(panel, `${theme} DOM Config page detail`);
+
+      for (const tab of ["Iframes", "Coverage", "Warnings"]) {
+        await panel.getByRole("tab", { name: tab }).click();
+        await panel.getByRole("tab", { name: tab, selected: true }).waitFor();
+        await assertNoSeriousViolations(
+          panel,
+          `${theme} DOM Config ${tab} tab`,
+        );
+      }
+      await panel
+        .getByRole("button", { name: "Clear the DOM Config results" })
+        .click();
       await panel.close();
       await target.close();
     });

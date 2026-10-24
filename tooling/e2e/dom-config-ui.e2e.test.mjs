@@ -1,8 +1,10 @@
 /**
- * The DOM Config card in the real side panel (R4a): the welcome screen's
- * tile opens it, one Start crawls the fixture application, and the report
- * shows the five settings tiles and the expected ignore conditions. The
- * exported Markdown holds exactly the rules ticked on screen.
+ * The DOM Config card in the real side panel (R4a, R4b): the welcome
+ * screen's tile opens it, one Start crawls the fixture application, and the
+ * report shows the five settings tiles and the expected ignore conditions.
+ * The exported Markdown holds exactly the rules ticked on screen. A state
+ * safe mode never clicks (the fixture's menu) is then opened by hand and
+ * captured, and a pasted profile imported, into the same report.
  */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -38,6 +40,27 @@ const TILES = [
 
 function includeLabel(conditions) {
   return `Include the rule ${conditions.join(" AND ")}`;
+}
+
+const MANUAL = "Reports menu, opened by hand";
+const IMPORTED = "Pasted profile";
+
+function section(panel, title) {
+  return panel.locator("details", {
+    has: panel.locator("summary", { hasText: title }),
+  });
+}
+
+async function exportMarkdown(panel) {
+  const [download] = await Promise.all([
+    panel.waitForEvent("download"),
+    panel
+      .getByRole("button", {
+        name: "Export Markdown of the report, with the included rules only",
+      })
+      .click(),
+  ]);
+  return readFile(await download.path(), "utf8");
 }
 
 const CONDITION =
@@ -112,15 +135,7 @@ describe("DOM Config card in the side panel", () => {
       .getByRole("checkbox", { name: /^Include the rule / });
     if ((await reviewBoxes.count()) > 0) await reviewBoxes.first().check();
 
-    const [download] = await Promise.all([
-      panel.waitForEvent("download"),
-      panel
-        .getByRole("button", {
-          name: "Export Markdown of the report, with the included rules only",
-        })
-        .click(),
-    ]);
-    const markdown = await readFile(await download.path(), "utf8");
+    const markdown = await exportMarkdown(panel);
 
     const boxes = panel.getByRole("checkbox", { name: /^Include the rule / });
     const count = await boxes.count();
@@ -135,6 +150,46 @@ describe("DOM Config card in the side panel", () => {
       );
     }
     assert.equal(markdown.includes("Clinic for Jane Example"), false);
+
+    await target.getByRole("menuitem", { name: "Reports" }).click();
+    await target.getByRole("heading", { name: "Reports" }).waitFor();
+    const manual = section(panel, "Capture current state");
+    await manual.locator("summary").click();
+    await manual.getByLabel("Page name").fill(MANUAL);
+    await manual
+      .getByRole("button", {
+        name: "Capture now: add a run of the current tab as it is",
+      })
+      .click();
+    await manual.getByText(`Captured run 1 of ${MANUAL}.`).waitFor();
+    const pages = panel.getByRole("region", { name: "Pages" });
+    await pages
+      .getByRole("listitem")
+      .filter({ hasText: MANUAL })
+      .first()
+      .getByText("manual", { exact: true })
+      .waitFor();
+    assert.equal(target.url().startsWith(`${app.origin}/home`), true);
+    assert.ok((await exportMarkdown(panel)).includes(MANUAL));
+
+    const imported = section(panel, "Import console script results");
+    await imported.locator("summary").click();
+    await imported.getByLabel("Page name").fill(IMPORTED);
+    await imported.getByLabel("Paste the script's result").fill(
+      JSON.stringify({
+        tags: { div: 3, main: 1 },
+        attributes: { id: { "main-nav": 1, "ui-id-3": 1 } },
+      }),
+    );
+    await imported.getByRole("button", { name: "Import page" }).click();
+    await imported.getByText(`Runs imported into ${IMPORTED}: 1.`).waitFor();
+    await pages
+      .getByRole("listitem")
+      .filter({ hasText: IMPORTED })
+      .first()
+      .getByText("imported", { exact: true })
+      .waitFor();
+    assert.ok((await exportMarkdown(panel)).includes(IMPORTED));
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await target.close();

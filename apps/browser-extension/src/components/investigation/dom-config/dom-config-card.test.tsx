@@ -1,9 +1,7 @@
 import type {
-  DomConfigApplicationCapture,
   DomConfigCaptureOptions,
   DomConfigCaptureOutcome,
   DomConfigReport,
-  DomProfileV2,
 } from "@apty/browser-runtime/apty/dom-config/index";
 import {
   act,
@@ -54,97 +52,17 @@ vi.mock("@apty/browser-runtime", () => ({
   toShareableRouteProbeReport: vi.fn(),
 }));
 
-import { buildReportFromCapture } from "@apty/browser-runtime/apty/dom-config/index";
 import { DebuggingWelcomeScreen } from "../debugging-welcome-screen";
 import { DomHealthCard } from "../dom-health-card";
 import { DomConfigCard } from "./dom-config-card";
 import { createDomConfigStore, domConfigStore } from "./dom-config-store";
-
-const ORIGIN = "https://app.example.test";
-const TAB_ID = 5;
-
-function profile(attributes: DomProfileV2["attributes"]): DomProfileV2 {
-  return {
-    schema: 2,
-    tags: { html: 1, head: 1, body: 1, div: 4 },
-    attributes,
-    maxZIndex: 10,
-    zIndexSources: [],
-    frames: [],
-    shadow: [],
-    meta: {
-      elementCount: 7,
-      urlShape: `${ORIGIN}/home`,
-      aptyPresent: false,
-      extensionNoisePresent: false,
-    },
-  };
-}
-
-function runOf(
-  label: "initial" | "after-reload",
-  load: number,
-): DomConfigApplicationCapture["pages"][number]["runs"][number] {
-  return {
-    meta: {
-      label,
-      capturedAt: `2026-10-24T08:0${load}:00.000Z`,
-      urlShape: `${ORIGIN}/home`,
-      aptyPresent: false,
-      extensionNoisePresent: false,
-    },
-    profile: profile({
-      id: { [`ui-id-${load}`]: 1, [`ui-id-${load + 1}`]: 1, main: 1 },
-      href: { [`/a?nocache=${load}`]: 1 },
-      "data-row-id": { "98765": 1 },
-      "aria-expanded": { true: 1 },
-      name: { search: 1 },
-    }),
-  };
-}
-
-const CAPTURE: DomConfigApplicationCapture = {
-  applicationName: "app.example.test",
-  pages: [
-    {
-      pageId: `${ORIGIN}/home`,
-      label: `${ORIGIN}/home`,
-      runs: [runOf("initial", 1), runOf("after-reload", 3)],
-    },
-  ],
-};
-
-function outcome(
-  patch: Partial<Extract<DomConfigCaptureOutcome, { available: true }>> = {},
-): DomConfigCaptureOutcome {
-  return {
-    available: true,
-    capture: CAPTURE,
-    inventory: [],
-    states: [
-      {
-        pageId: `${ORIGIN}/home`,
-        runs: CAPTURE.pages[0]!.runs,
-        frames: [],
-        revisitIssue: null,
-        failedRuns: [],
-      },
-    ],
-    limitsReached: { maxPages: false, maxTotalMs: false },
-    aborted: false,
-    returnedToSeed: { success: true, reason: null },
-    ...buildReportFromCapture(CAPTURE),
-    ...patch,
-  };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
+import {
+  CAPTURE,
+  deferred,
+  ORIGIN,
+  outcome,
+  TAB_ID,
+} from "./dom-config-test-fixtures";
 
 let clipboard: string[];
 let downloads: Blob[];
@@ -418,6 +336,7 @@ describe("DomConfigCard", () => {
     );
     expect(mockBuildReportFromCapture).toHaveBeenCalledWith(CAPTURE, {
       ignoredRoots: [],
+      coverage: {},
     });
     expect(mockRunDomConfigCapture).toHaveBeenCalledTimes(1);
   });

@@ -633,8 +633,12 @@ Key pieces:
   Health card. Its run state lives in a plain-object store
   (`dom-config-store.ts`, read with `useSyncExternalStore`) outside React,
   so a run survives the card collapsing; it holds the tab fixed at Start,
-  the progress rows built from `runDomConfigCapture`'s `onProgress`, the
-  outcome and the SE's rule choices, in memory only. It imports the engine
+  the progress rows built from `runDomConfigCapture`'s `onProgress`, one
+  held capture (the crawl's pages plus the ones captured by hand with
+  `captureCurrentState` or imported with `buildPageCapture`), the crawl's
+  own result apart from it, the SE's rule choices and coverage marks, in
+  memory only; the report is always rebuilt from that capture. A new crawl
+  asks before it replaces manual or imported pages. It imports the engine
   from `@apty/browser-runtime/apty/dom-config/index` (a subpath without
   the barrel's module-level side effects). `tab-lock.ts` is one in-memory
   lock per tab taken by DOM Config's crawl and DOM Health's audits, so the
