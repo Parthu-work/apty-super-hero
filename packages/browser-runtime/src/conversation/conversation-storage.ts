@@ -11,7 +11,6 @@ import {
 import { CONVERSATIONS_DB } from "../storage/database-names";
 import { IndexedDBStorage } from "../storage/indexeddb-storage";
 import { LRUPolicy } from "./lru-policy";
-import { migrate } from "./migration";
 import type {
   ConversationData,
   ConversationStorageConfig,
@@ -37,7 +36,6 @@ export class ConversationStorage {
   private readonly deleteOrphanAgentSessions: (
     referenced: Set<string>,
   ) => Promise<string[]>;
-  private migrationPromise: Promise<void> | null = null;
 
   constructor(config: ConversationStorageConfig = {}) {
     this.config = {
@@ -60,36 +58,6 @@ export class ConversationStorage {
     });
 
     this.lruPolicy = new LRUPolicy(this.config.maxConversations);
-
-    // Trigger migration on initialization
-    this.migrationPromise = this.performMigration();
-  }
-
-  /**
-   * Perform migration from localStorage (only once)
-   */
-  private async performMigration(): Promise<void> {
-    try {
-      const result = await migrate(async (conversation) => {
-        await this.storage.save(conversation.id, conversation);
-      });
-
-      if (result.migratedCount > 0) {
-        // Apply LRU after migration
-        await this.applyLRU();
-      }
-    } catch (error) {
-      console.error("❌ [ConversationStorage] Migration error:", error);
-    }
-  }
-
-  /**
-   * Ensure migration is complete before operations
-   */
-  private async ensureMigrated(): Promise<void> {
-    if (this.migrationPromise) {
-      await this.migrationPromise;
-    }
   }
 
   /**
@@ -153,8 +121,6 @@ export class ConversationStorage {
     messages: UIMessage[],
     agentSessionId?: string,
   ): Promise<string> {
-    await this.ensureMigrated();
-
     if (messages.length === 0) {
       return "";
     }
@@ -195,8 +161,6 @@ export class ConversationStorage {
    * Get all conversations (sorted by updatedAt, most recent first)
    */
   async getAllConversations(): Promise<ConversationData[]> {
-    await this.ensureMigrated();
-
     try {
       await this.applyLRU();
       const conversations = await this.storage.listAll();
@@ -217,8 +181,6 @@ export class ConversationStorage {
   async getConversation(
     conversationId: string,
   ): Promise<ConversationData | null> {
-    await this.ensureMigrated();
-
     try {
       const conversation = await this.storage.load(conversationId);
       if (!conversation) {
@@ -253,8 +215,6 @@ export class ConversationStorage {
     messages: UIMessage[],
     agentSessionId?: string,
   ): Promise<void> {
-    await this.ensureMigrated();
-
     try {
       const conversation = await this.storage.load(conversationId);
       if (!conversation) {
@@ -286,8 +246,6 @@ export class ConversationStorage {
    * Delete a conversation
    */
   async deleteConversation(conversationId: string): Promise<void> {
-    await this.ensureMigrated();
-
     try {
       const conversation = await this.storage.load(conversationId);
       await this.storage.delete(conversationId);
@@ -305,8 +263,6 @@ export class ConversationStorage {
    * Clear all conversations
    */
   async clearAllConversations(): Promise<void> {
-    await this.ensureMigrated();
-
     try {
       await this.storage.clear();
       log.debug("🧹 All conversations cleared");

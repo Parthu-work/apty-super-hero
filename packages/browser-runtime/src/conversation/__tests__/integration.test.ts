@@ -14,40 +14,11 @@ vi.mock("../../storage/indexeddb-storage", () => ({
   },
 }));
 
-// Mock migration
-vi.mock("../migration", () => ({
-  migrate: vi.fn().mockResolvedValue({ migratedCount: 0, errors: [] }),
-}));
-
 // Import after mocks are set up
 import { ConversationStorage } from "../conversation-storage";
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value;
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-})();
-
-Object.defineProperty(global, "localStorage", {
-  value: localStorageMock,
-  writable: true,
-});
-
 describe("ConversationStorage Integration Tests", () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.clearAllMocks();
   });
 
@@ -71,7 +42,6 @@ describe("ConversationStorage Integration Tests", () => {
       const storage = new ConversationStorage();
 
       // Mock storage operations
-      vi.spyOn(storage as any, "ensureMigrated").mockResolvedValue(undefined);
       const mockSave = vi.fn().mockResolvedValue(undefined);
       const mockLoad = vi.fn();
       const mockDelete = vi.fn().mockResolvedValue(undefined);
@@ -141,7 +111,6 @@ describe("ConversationStorage Integration Tests", () => {
       const storage = new ConversationStorage({ maxConversations: 3 });
 
       // Mock storage operations
-      vi.spyOn(storage as any, "ensureMigrated").mockResolvedValue(undefined);
       const conversations: ConversationData[] = [];
 
       const internalStorage = (storage as any).storage;
@@ -173,78 +142,11 @@ describe("ConversationStorage Integration Tests", () => {
     });
   });
 
-  describe("Migration Integration", () => {
-    it("should migrate conversations from localStorage on first initialization", async () => {
-      // For this test, we need to use the real migrate function
-      // Reset the mock to use real implementation
-      const { migrate: realMigrate } =
-        await vi.importActual<typeof import("../migration")>("../migration");
-
-      // Setup old conversations in localStorage
-      const oldConversations: ConversationData[] = [
-        {
-          id: "old1",
-          title: "Old Conversation 1",
-          messages: createMockMessages("Old message 1"),
-          createdAt: Date.now() - 10000,
-          updatedAt: Date.now() - 10000,
-        },
-        {
-          id: "old2",
-          title: "Old Conversation 2",
-          messages: createMockMessages("Old message 2"),
-          createdAt: Date.now() - 5000,
-          updatedAt: Date.now() - 5000,
-        },
-      ];
-
-      localStorage.setItem(
-        "aipex-conversations",
-        JSON.stringify(oldConversations),
-      );
-
-      // Run the real migration
-      const mockSaveCallback = vi.fn().mockResolvedValue(undefined);
-      await realMigrate(mockSaveCallback);
-
-      // Verify migration flag is set
-      expect(localStorage.getItem("aipex-conversations-migrated")).toBe("true");
-
-      // Verify old data is removed
-      expect(localStorage.getItem("aipex-conversations")).toBeNull();
-
-      // Verify save was called for each conversation
-      expect(mockSaveCallback).toHaveBeenCalledTimes(2);
-    });
-
-    it("should not migrate if already migrated", async () => {
-      // Set migration flag
-      localStorage.setItem("aipex-conversations-migrated", "true");
-
-      // Setup old conversations (should be ignored)
-      localStorage.setItem(
-        "aipex-conversations",
-        JSON.stringify([{ id: "old1" }]),
-      );
-
-      const storage = new ConversationStorage();
-      const mockSave = vi.fn().mockResolvedValue(undefined);
-      vi.spyOn((storage as any).storage, "save").mockImplementation(mockSave);
-
-      // Manually trigger migration
-      await (storage as any).performMigration();
-
-      // Should not save anything
-      expect(mockSave).not.toHaveBeenCalled();
-    });
-  });
-
   describe("Concurrent Operations", () => {
     it("should handle multiple save operations concurrently", async () => {
       const storage = new ConversationStorage();
 
       // Mock storage operations
-      vi.spyOn(storage as any, "ensureMigrated").mockResolvedValue(undefined);
       const mockSave = vi.fn().mockResolvedValue(undefined);
       vi.spyOn((storage as any).storage, "save").mockImplementation(mockSave);
       vi.spyOn(storage as any, "applyLRU").mockResolvedValue(undefined);
@@ -268,7 +170,6 @@ describe("ConversationStorage Integration Tests", () => {
       const storage = new ConversationStorage();
 
       // Mock storage to throw error
-      vi.spyOn(storage as any, "ensureMigrated").mockResolvedValue(undefined);
       vi.spyOn((storage as any).storage, "save").mockRejectedValue(
         new Error("Save failed"),
       );
@@ -284,7 +185,6 @@ describe("ConversationStorage Integration Tests", () => {
       const storage = new ConversationStorage();
 
       // Mock storage to throw error
-      vi.spyOn(storage as any, "ensureMigrated").mockResolvedValue(undefined);
       vi.spyOn((storage as any).storage, "load").mockRejectedValue(
         new Error("Load failed"),
       );
