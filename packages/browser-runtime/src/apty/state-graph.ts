@@ -216,6 +216,11 @@ export class StateGraph {
     this.currentStateId = stateId;
   }
 
+  /** The live tab shows a state that could not be identified: the next action on a recorded state restores it first. */
+  forgetCurrentState(): void {
+    this.currentStateId = null;
+  }
+
   /**
    * The ordered list of edges needed to reach `targetStateId` from the
    * seed state — walks `discoveredViaEdgeId` back to the root. Empty when

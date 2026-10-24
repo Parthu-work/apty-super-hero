@@ -749,6 +749,22 @@ function compact(drafts: Draft[]): Draft[] {
   );
 }
 
+const rank = (d: Draft) =>
+  GROUP_ORDER.indexOf(d.group) * EVIDENCE_ORDER.length +
+  EVIDENCE_ORDER.indexOf(d.evidence);
+
+/** One rule per condition list: the same pattern found by observation on one page and by shape on another is written once, under the stronger evidence. */
+function mergeIdenticalConditions(drafts: Draft[]): Draft[] {
+  return mergeGroups(
+    drafts,
+    (d) => JSON.stringify([d.target, conditionsOf(d)]),
+    (group) => {
+      const best = group.reduce((a, b) => (rank(b) < rank(a) ? b : a));
+      return { ...best, sources: group.flatMap((d) => d.sources) };
+    },
+  );
+}
+
 function finalizeRule(draft: Draft, index: Index): Rule {
   const rule = provisionalRule(draft);
   const counted = new Set<string>();
@@ -811,7 +827,7 @@ export function generateRules(pages: ClassifiedPage[]): GeneratedRules {
     else if ("manual" in verdict) manual.push(verdict.manual);
     else rejectedRules.push(verdict.rejected);
   }
-  const all = compact(accepted)
+  const all = mergeIdenticalConditions(compact(accepted))
     .map((d) => finalizeRule(d, index))
     .sort(compareRules);
   const rules = all.slice(0, DOM_CONFIG_LIMITS.maxRules);

@@ -7942,7 +7942,7 @@ SOFTWARE.
 
 ========================================================================
 
-undici@6.29.0 (MIT)
+undici@6.29.1 (MIT)
 
 MIT License
 
@@ -8639,7 +8639,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ========================================================================
 
-zod@4.3.6 (MIT)
+zod@4.6.7 (MIT)
 
 MIT License
 

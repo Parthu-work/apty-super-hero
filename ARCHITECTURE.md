@@ -260,8 +260,13 @@ covers. The profiles come from `collectDomProfile` (`@apty/dom-snapshot`),
 run by the frame responder in each frame (`collect-dom-profile`), and
 `collectStateProfile` nests the frames of one state by frameId, cross-origin
 frames included; a behavior probe (`dom-config-probe-*`) measures mutation
-bursts for the debounce. The crawl (R3) and the side panel (R4) come later;
-see [`docs/development/dom-config.md`](docs/development/dom-config.md).
+bursts for the debounce. `runDomConfigCapture` crawls the application with
+the same driver as Audit Application (`apty/application-crawl.ts`,
+`crawlApplication`, which takes the per-state work as a visitor) and
+captures each state several times, the second after a fresh visit;
+`captureCurrentState` adds a run of the tab as it is, with no navigation.
+The side panel (R4) comes later; see
+[`docs/development/dom-config.md`](docs/development/dom-config.md).
 
 ### Service Worker diagnostics — evidence scope
 

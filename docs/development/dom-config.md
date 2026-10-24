@@ -13,7 +13,7 @@ It is delivered in steps:
 |---|---|---|
 | R1 | Pure engine: validate, diff, classify, generate rules, derive settings, warnings, Markdown; importer for the console script's JSON | Done |
 | R2 | In-page collector and behavior probe | Done (see [Collector and behavior probe](#collector-and-behavior-probe-r2)) |
-| R3 | Automatic crawl with several runs per state | Not started |
+| R3 | Automatic crawl with several runs per state | Done (see [Automatic crawl](#automatic-crawl-r3)) |
 | R4 | Side panel card, progress, report, import and export | Not started |
 
 ## Where the code is
@@ -324,6 +324,106 @@ second. An automatic capture has no human input, so event rates are
 usually zero and the report says "none measured" (D6). A shadow root
 attached after arming is not watched.
 
+## Automatic crawl (R3)
+
+### The shared driver (`apty/application-crawl.ts`)
+
+DOM Config reuses Audit Application's crawl rather than forking it. The
+traversal that used to live inside `runApplicationDomHealthAudit` (link and
+control discovery, the queue, the state graph, restoration by URL or by
+replay from the seed, the traversal strategy, the hard limits) moved, code
+unchanged, into `crawlApplication(tabId, { visit, ... })`. The only
+per-state work, which was `collectDomHealthAudit` at two sites, is now the
+`visit` callback. `runApplicationDomHealthAudit` is a thin caller whose
+visitor runs the DOM Health audit and the seed-path replay, and maps the
+crawl's rows back to `PageAuditRecord`s. The existing audit and scoring
+tests (48) and the DOM Health e2e files pass unchanged.
+
+The driver adds three things the audit does not use:
+
+- `signal` (an `AbortSignal`), checked between states; the result says
+  `aborted`.
+- `revisit()` on the visit context: a fresh visit to the state being
+  visited (D13). A state reached by URL is loaded again with `navigateTab`
+  (never `tabs.reload`, so no POST is resubmitted) and its fingerprint
+  compared with `compareStateFingerprints`. A state reached by a click is
+  restored by replaying its recorded path from the seed, with a
+  fingerprint check at every hop. Anything but `same` leaves the graph's
+  live state unknown (`StateGraph.forgetCurrentState`), so the next click
+  is restored first and no control on the wrong screen is attributed to
+  the state.
+- `unexplored`: the work still queued when a limit or the signal stopped
+  the crawl.
+
+A capture right after a load that misses a frame (comparison `uncertain`)
+or fails outright is taken once more after the DOM settles before a
+restoration hop, the seed check, a revisit or the capture before a click
+is judged; one late frame used to fail the restoration.
+
+### `runDomConfigCapture(tabId, options)` (`dom-config/crawl.ts`)
+
+| Option | Default |
+|---|---|
+| `discoveryMode` | `application-safe` (never silently deep); `page` captures only the seed state |
+| `maxPages` | 20 |
+| `maxTotalMs` | 600,000 |
+| `runsPerState` | 2, at most 4 |
+| `probe`, `probeWindowMs` | on, 3,000 ms |
+| `ignoredRoots` | Settings → Troubleshooting entries |
+
+Per state: run 1 `initial` as reached (after `waitForDomStable`), the
+behavior probe on run 1, run 2 `after-reload` after `revisit()`, runs 3 and
+4 `repeat` with no navigation. A run 2 whose fingerprint is not `same` is
+marked `stateMismatch` (it and the repeats after it), the page's
+inventory row says why, and the engine keeps those runs out of
+observed-change rules. A state whose first run fails is recorded `failed`
+and the crawl goes on; one that loses a later run is a single-run page.
+At the end the tab is navigated back to the seed URL and
+`returnedToSeed` says whether the seed state came back.
+
+Page ids are the URL shape (`toUrlShape`: the strict path policy, query
+names only, D11), plus `[state-N]` for a state reached by a click on the
+same URL; titles and control texts are not used. The outcome holds the
+capture, the inventory (`audited`, `failed`, `skipped`,
+`not-discovered`, `not-explored`, with reasons), the per-state frame
+inventory, the limits reached, and the engine's report and Markdown
+(`buildReportFromCapture`, also exported for re-running the analysis on
+the same capture). Progress phases: `discovering`, `capturing` (state
+index and run label), `probing`, `revisiting`, `restoring`, `analyzing`.
+
+Safety is the audit's, unchanged: safe mode follows only same-origin
+`<a href>` links that pass `isSafeToDiscover`, and lists menu, tab and
+tree controls as `not-discovered` without clicking them. Deep mode clicks
+only candidates that pass the allowlist and the content script's
+re-verification. Nothing submits a form or types.
+
+### `captureCurrentState(tabId, options)`
+
+For states only a person can open (a modal, an entry form, an opened side
+panel, a record): adds one run of the tab exactly as it is to the named
+page of the in-memory capture, creating the page (`origin: "manual"`) when
+needed. It never navigates, clicks or reloads; for `after-reload` the SE
+reloads the page first. The run records the state fingerprint, and a run
+whose fingerprint another page already holds returns a `duplicate-state`
+warning instead of silently making a second page of the same state. It
+shares the collector, the run model and the engine's caps with the crawl,
+and refuses a run beyond `maxRunsPerPage`. The input capture is not
+changed; a new one is returned.
+
+### Known limits
+
+- A seed URL without a query and the application's own links to the same
+  page with a cache-busting parameter (`/home` and `/home?nocache=…`) have
+  different URL templates, so the page is captured twice. This is the
+  audit's URL identity (`urlTemplate`), unchanged here.
+- In deep mode the nav anchors inside a `<nav>` are also click candidates,
+  as in the audit. A click on one starts a navigation that the crawl does
+  not wait for, so the fingerprint taken after it depends on timing: the
+  page it leads to can appear again as `<page> [state-N]`, and its fresh
+  visit usually comes back `state-mismatch` (kept out of the rules). It
+  also makes a deep crawl several times slower than a safe one.
+- Results live in memory only (D12); nothing is written to storage.
+
 ## Open questions
 
 The report lists them every time: how Apty's builder expresses id and class
@@ -347,3 +447,11 @@ into a rule. Results are held in memory only. Deviations from the brief, each
 explained above: the console script's lazily written sections are accepted
 as absent; `id` precedes `name` in the attribute priority, as in the worked
 example.
+
+**The crawl is Audit Application's, not a second one (R3).** The traversal
+was extracted from `application-audit.ts` into a driver that takes the
+per-state work as a visitor, rather than copied, so discovery, safety
+checks, restoration and limits stay one implementation. The audit's tests
+pass unchanged. Click-based discovery stays opt-in (`application-deep`),
+and a fresh visit is a navigation or a replay of recorded clicks, never a
+reload.

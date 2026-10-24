@@ -44,6 +44,8 @@ export interface PageCapture {
   pageId: string;
   label: string;
   runs: ProfileRun[];
+  /** How the page was captured; the engine does not read it. */
+  origin?: "crawl" | "manual" | "import";
 }
 
 export interface ApplicationCapture {

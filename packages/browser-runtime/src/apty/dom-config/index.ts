@@ -7,6 +7,25 @@ export {
   type StateProfileResult,
 } from "./collect-state-profile.js";
 export {
+  buildReportFromCapture,
+  type CaptureCurrentStateOptions,
+  type CaptureCurrentStateOutcome,
+  type CaptureCurrentStateWarning,
+  captureCurrentState,
+  DOM_CONFIG_DEFAULT_MAX_PAGES,
+  DOM_CONFIG_DEFAULT_MAX_TOTAL_MS,
+  DOM_CONFIG_DEFAULT_RUNS_PER_STATE,
+  DOM_CONFIG_MAX_RUNS_PER_STATE,
+  type DomConfigCaptureOptions,
+  type DomConfigCaptureOutcome,
+  type DomConfigCaptureProgress,
+  type DomConfigCaptureResult,
+  type DomConfigInventoryEntry,
+  type DomConfigInventoryStatus,
+  type DomConfigStateVisit,
+  runDomConfigCapture,
+} from "./crawl.js";
+export {
   buildPageCapture,
   type ImportedRunInput as DomConfigImportedRun,
   type PageImportInput as DomConfigPageImportInput,

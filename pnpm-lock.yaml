@@ -24,6 +24,7 @@ overrides:
   fflate: '>=0.8.3'
   '@babel/core': '>=7.29.6'
   '@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33': ^4.0.33
+  '@ai-sdk/provider-utils>undici': ^6.29.1
   undici@>=7.0.0 <7.29.1: ^7.29.1
 
 importers:
@@ -68,16 +69,16 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.66
-        version: 3.0.66(zod@4.3.6)
+        version: 3.0.66(zod@4.6.7)
       '@ai-sdk/google':
         specifier: ^3.0.52
-        version: 3.0.52(zod@4.3.6)
+        version: 3.0.52(zod@4.6.7)
       '@ai-sdk/openai':
         specifier: ^3.0.47
-        version: 3.0.47(zod@4.3.6)
+        version: 3.0.47(zod@4.6.7)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.37
-        version: 2.0.37(zod@4.3.6)
+        version: 2.0.37(zod@4.6.7)
       '@apty/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
@@ -95,7 +96,7 @@ importers:
         version: link:../../packages/ui
       ai:
         specifier: ^6.0.116
-        version: 6.0.116(zod@4.3.6)
+        version: 6.0.116(zod@4.6.7)
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.2.4)
@@ -168,29 +169,29 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.0
-        version: 3.0.66(zod@4.3.6)
+        version: 3.0.66(zod@4.6.7)
       '@openai/agents':
         specifier: ^0.20.0
-        version: 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
+        version: 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
       '@openai/agents-extensions':
         specifier: ^0.20.0
-        version: 0.20.0(@ai-sdk/provider@3.0.18)(@openai/agents@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6))(ai@6.0.116(zod@4.3.6))(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
+        version: 0.20.0(@ai-sdk/provider@3.0.18)(@openai/agents@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7))(ai@6.0.116(zod@4.6.7))(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
       '@openrouter/ai-sdk-provider':
         specifier: ^2.0.0
-        version: 2.1.1(ai@6.0.116(zod@4.3.6))(zod@4.3.6)
+        version: 2.1.1(ai@6.0.116(zod@4.6.7))(zod@4.6.7)
       lru-cache:
         specifier: ^11.2.7
         version: 11.2.7
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@ai-sdk/google':
         specifier: ^3.0.52
-        version: 3.0.52(zod@4.3.6)
+        version: 3.0.52(zod@4.6.7)
       '@ai-sdk/openai':
         specifier: ^3.0.47
-        version: 3.0.47(zod@4.3.6)
+        version: 3.0.47(zod@4.6.7)
       '@types/node':
         specifier: ^25.2.3
         version: 25.3.0
@@ -204,8 +205,8 @@ importers:
   packages/apty-debug-contract:
     dependencies:
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^25.2.3
@@ -253,8 +254,8 @@ importers:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.0
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@types/react':
         specifier: 19.2.14
@@ -312,7 +313,7 @@ importers:
         version: 1.2.2(@types/react@19.2.14)(react@19.2.4)
       ai:
         specifier: ^6.0.116
-        version: 6.0.116(zod@4.3.6)
+        version: 6.0.116(zod@4.6.7)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -4032,8 +4033,8 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@6.29.0:
-    resolution: {integrity: sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==}
+  undici@6.29.1:
+    resolution: {integrity: sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==}
     engines: {node: '>=18.17'}
 
   undici@7.30.1:
@@ -4300,8 +4301,8 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -4310,44 +4311,44 @@ snapshots:
 
   '@adobe/css-tools@4.4.4': {}
 
-  '@ai-sdk/anthropic@3.0.66(zod@4.3.6)':
+  '@ai-sdk/anthropic@3.0.66(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.57(zod@4.3.6)
-      zod: 4.3.6
+      '@ai-sdk/provider-utils': 4.0.57(zod@4.6.7)
+      zod: 4.6.7
 
-  '@ai-sdk/gateway@3.0.66(zod@4.3.6)':
+  '@ai-sdk/gateway@3.0.66(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.57(zod@4.3.6)
+      '@ai-sdk/provider-utils': 4.0.57(zod@4.6.7)
       '@vercel/oidc': 3.1.0
-      zod: 4.3.6
+      zod: 4.6.7
 
-  '@ai-sdk/google@3.0.52(zod@4.3.6)':
+  '@ai-sdk/google@3.0.52(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.57(zod@4.3.6)
-      zod: 4.3.6
+      '@ai-sdk/provider-utils': 4.0.57(zod@4.6.7)
+      zod: 4.6.7
 
-  '@ai-sdk/openai-compatible@2.0.37(zod@4.3.6)':
+  '@ai-sdk/openai-compatible@2.0.37(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.57(zod@4.3.6)
-      zod: 4.3.6
+      '@ai-sdk/provider-utils': 4.0.57(zod@4.6.7)
+      zod: 4.6.7
 
-  '@ai-sdk/openai@3.0.47(zod@4.3.6)':
+  '@ai-sdk/openai@3.0.47(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.57(zod@4.3.6)
-      zod: 4.3.6
+      '@ai-sdk/provider-utils': 4.0.57(zod@4.6.7)
+      zod: 4.6.7
 
-  '@ai-sdk/provider-utils@4.0.57(zod@4.3.6)':
+  '@ai-sdk/provider-utils@4.0.57(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 3.0.18
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.1
-      undici: 6.29.0
-      zod: 4.3.6
+      undici: 6.29.1
+      zod: 4.6.7
 
   '@ai-sdk/provider@3.0.18':
     dependencies:
@@ -4776,12 +4777,12 @@ snapshots:
       eventsource-parser: 3.1.1
       jose: 6.2.1
       pkce-challenge: 5.0.1
-      zod: 4.3.6
+      zod: 4.6.7
     optional: true
 
   '@modelcontextprotocol/core@2.3.1':
     dependencies:
-      zod: 4.3.6
+      zod: 4.6.7
     optional: true
 
   '@napi-rs/wasm-runtime@1.1.1':
@@ -4806,14 +4807,14 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.19.1
 
-  '@openai/agents-core@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)':
+  '@openai/agents-core@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       debug: 4.4.3
-      openai: 7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
+      openai: 7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
     optionalDependencies:
       '@modelcontextprotocol/client': 2.3.1
-      zod: 4.3.6
+      zod: 4.6.7
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
@@ -4822,16 +4823,16 @@ snapshots:
       - undici
       - ws
 
-  '@openai/agents-extensions@0.20.0(@ai-sdk/provider@3.0.18)(@openai/agents@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6))(ai@6.0.116(zod@4.3.6))(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)':
+  '@openai/agents-extensions@0.20.0(@ai-sdk/provider@3.0.18)(@openai/agents@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7))(ai@6.0.116(zod@4.6.7))(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
-      '@openai/agents': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
-      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
+      '@openai/agents': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
+      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
       '@types/ws': 8.18.1
       ws: 8.22.0
-      zod: 4.3.6
+      zod: 4.6.7
     optionalDependencies:
       '@ai-sdk/provider': 3.0.18
-      ai: 6.0.116(zod@4.3.6)
+      ai: 6.0.116(zod@4.6.7)
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
@@ -4839,11 +4840,11 @@ snapshots:
       - supports-color
       - undici
 
-  '@openai/agents-openai@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)':
+  '@openai/agents-openai@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
-      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
-      openai: 7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
-      zod: 4.3.6
+      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
+      openai: 7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
+      zod: 4.6.7
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
@@ -4852,12 +4853,12 @@ snapshots:
       - undici
       - ws
 
-  '@openai/agents-realtime@0.20.0(undici@7.30.1)(zod@4.3.6)':
+  '@openai/agents-realtime@0.20.0(undici@7.30.1)(zod@4.6.7)':
     dependencies:
-      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
+      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
       '@types/ws': 8.18.1
       ws: 8.22.0
-      zod: 4.3.6
+      zod: 4.6.7
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
@@ -4867,13 +4868,13 @@ snapshots:
       - undici
       - utf-8-validate
 
-  '@openai/agents@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)':
+  '@openai/agents@0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
-      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
-      '@openai/agents-openai': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
-      '@openai/agents-realtime': 0.20.0(undici@7.30.1)(zod@4.3.6)
-      openai: 7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6)
-      zod: 4.3.6
+      '@openai/agents-core': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
+      '@openai/agents-openai': 0.20.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
+      '@openai/agents-realtime': 0.20.0(undici@7.30.1)(zod@4.6.7)
+      openai: 7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7)
+      zod: 4.6.7
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
@@ -4884,10 +4885,10 @@ snapshots:
       - utf-8-validate
       - ws
 
-  '@openrouter/ai-sdk-provider@2.1.1(ai@6.0.116(zod@4.3.6))(zod@4.3.6)':
+  '@openrouter/ai-sdk-provider@2.1.1(ai@6.0.116(zod@4.6.7))(zod@4.6.7)':
     dependencies:
-      ai: 6.0.116(zod@4.3.6)
-      zod: 4.3.6
+      ai: 6.0.116(zod@4.6.7)
+      zod: 4.6.7
 
   '@opentelemetry/api@1.9.0': {}
 
@@ -5847,13 +5848,13 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@6.0.116(zod@4.3.6):
+  ai@6.0.116(zod@4.6.7):
     dependencies:
-      '@ai-sdk/gateway': 3.0.66(zod@4.3.6)
+      '@ai-sdk/gateway': 3.0.66(zod@4.6.7)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.57(zod@4.3.6)
+      '@ai-sdk/provider-utils': 4.0.57(zod@4.6.7)
       '@opentelemetry/api': 1.9.0
-      zod: 4.3.6
+      zod: 4.6.7
 
   ansi-regex@5.0.1: {}
 
@@ -6853,7 +6854,7 @@ snapshots:
       smol-toml: 1.5.2
       strip-json-comments: 5.0.3
       typescript: 5.9.3
-      zod: 4.3.6
+      zod: 4.6.7
 
   lightningcss-android-arm64@1.32.0:
     optional: true
@@ -7382,11 +7383,11 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.3.6):
+  openai@7.34.0(undici@7.30.1)(ws@8.22.0)(zod@4.6.7):
     optionalDependencies:
       undici: 7.30.1
       ws: 8.22.0
-      zod: 4.3.6
+      zod: 4.6.7
 
   oxc-resolver@11.16.4:
     optionalDependencies:
@@ -8150,7 +8151,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@6.29.0: {}
+  undici@6.29.1: {}
 
   undici@7.30.1: {}
 
@@ -8422,6 +8423,6 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zod@4.3.6: {}
+  zod@4.6.7: {}
 
   zwitch@2.0.4: {}

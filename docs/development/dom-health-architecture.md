@@ -392,7 +392,7 @@ discovered it, making the graph a spanning tree for restoration purposes
 even though later transitions between already-known states are also
 recorded as evidence.
 
-Before `application-audit.ts` acts on a queued click candidate, it checks
+Before the crawl (`application-crawl.ts`, shared with DOM Config) acts on a queued click candidate, it checks
 whether the live tab is already showing the state that candidate was found
 on (`graph.getCurrentStateId() === item.sourceStateId`). If not,
 `restoreToState` replays the exact path of transitions from the seed state
@@ -404,7 +404,12 @@ replaying each recorded click in order, verifying the resulting fingerprint
 against what was originally recorded at every hop. A hop that doesn't
 reproduce its recorded fingerprint fails the whole restoration immediately
 — the branch is recorded `not-discovered` with the reason, never silently
-skipped and never treated as if the state had been reached. Every
+skipped and never treated as if the state had been reached. A frame that
+does not answer right after a load makes the comparison `uncertain`, not
+`different`: in that case (and when the capture fails outright) the DOM is
+let settle and the state is read once more before the hop, the seed check
+or the pre-click capture is judged. Without this, one late frame failed a
+restoration that would have succeeded. Every
 restoration attempt (success or failure) is returned in
 `ApplicationAuditResult.restorations`; the full discovery tree is returned
 in `ApplicationAuditResult.stateGraph`.
