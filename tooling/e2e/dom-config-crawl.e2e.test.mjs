@@ -122,7 +122,7 @@ after(async () => {
 /** Crawl the tab showing `/home` from an extension page and return the outcome. */
 async function crawl(options) {
   const page = await browser.context.newPage();
-  await page.goto(`${serverA.origin}/home?nocache=1700000000000`);
+  await page.goto(`${serverA.origin}/home`);
   await page.waitForLoadState("load");
   const ext = await openExtensionPage(browser);
   try {
@@ -161,15 +161,30 @@ describe("DOM Config crawl in Chromium", () => {
       ]),
       PAGES.map((name) => [`/${name}`, "initial,after-reload", false]),
     );
+    assert.deepEqual(
+      capture.pages.map((p) => p.pageId.slice(serverA.origin.length)),
+      ["/home", "/list?nocache", "/detail?nocache", "/form?nocache"],
+      "one /home page; page ids keep query names only",
+    );
     assert.ok(
-      capture.pages.every((p) => p.pageId.endsWith("?nocache")),
-      "page ids keep query names only",
+      inventory.some(
+        (r) =>
+          r.status === "skipped" &&
+          r.urlShape === `${serverA.origin}/home?nocache` &&
+          r.reason === `duplicate of ${serverA.origin}/home`,
+      ),
+      JSON.stringify(inventory),
     );
     assert.equal(new URL(finalUrl).pathname, "/home");
     assert.deepEqual(outcome.returnedToSeed, { success: true, reason: null });
     assert.equal(JSON.stringify(outcome).includes(TITLE), false);
 
     const rules = report.rules.map(conditionText);
+    assert.equal(
+      rules.some((r) => r.startsWith("Attribute Name Equals src")),
+      false,
+      rules.join("\n"),
+    );
     assert.ok(
       rules.includes(
         "Attribute Name Equals href AND Attribute Value Contains nocache",

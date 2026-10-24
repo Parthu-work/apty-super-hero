@@ -33,6 +33,7 @@ import {
   navigateTab,
   waitForDomStable,
 } from "./page-navigation.js";
+import type { RouteKey } from "./route-key.js";
 import {
   type AuditStateFingerprint,
   compareStateFingerprints,
@@ -368,13 +369,16 @@ export interface CrawlVisitContext {
   source: PageDiscoverySource;
   /** The state's fingerprint, absent when it could not be captured. */
   fingerprint: string | undefined;
+  routeKey: RouteKey | undefined;
   /** Load this state again (D13). Discovery from it afterwards only follows links unless the comparison is "same". */
   revisit: () => Promise<CrawlRevisit>;
 }
 
 export type CrawlVisit<V> =
   | { available: true; url: string; visit: V }
-  | { available: false; error: string };
+  | { available: false; error: string }
+  /** A state the visitor already holds: recorded `skipped-duplicate` with this reason, not counted against `maxPages`, not explored. */
+  | { available: false; duplicate: string };
 
 export interface CrawlOptions<V> extends ApplicationAuditLimits {
   onProgress?: (progress: ApplicationAuditProgress) => void;
@@ -407,6 +411,14 @@ export interface CrawlResult<V> {
 export type CrawlOutcome<V> =
   | { available: true; result: CrawlResult<V> }
   | { available: false; error: string };
+
+function notVisited(
+  visited: Exclude<CrawlVisit<unknown>, { available: true }>,
+): Pick<PageAuditRecord, "status" | "failureReason"> {
+  return "duplicate" in visited
+    ? { status: "skipped-duplicate", failureReason: visited.duplicate }
+    : { status: "failed", failureReason: visited.error };
+}
 
 /**
  * Crawl the application from the tab's current state. Literal `<a href>`
@@ -507,14 +519,16 @@ export async function crawlApplication<V>(
     stateId: string,
     source: PageDiscoverySource,
   ): CrawlVisitContext {
-    const fingerprint = graph.getNode(stateId)?.fingerprint.fingerprint;
+    const captured = graph.getNode(stateId)?.fingerprint;
+    const known =
+      captured && captured.fingerprint !== unknownStateFingerprint().fingerprint
+        ? captured
+        : undefined;
     return {
       stateId,
       source,
-      fingerprint:
-        fingerprint === unknownStateFingerprint().fingerprint
-          ? undefined
-          : fingerprint,
+      fingerprint: known?.fingerprint,
+      routeKey: known?.routeKey,
       revisit: () => revisitState(stateId),
     };
   }
@@ -809,8 +823,7 @@ export async function crawlApplication<V>(
           url: next.url,
           title: null,
           discoverySource: next.source,
-          status: "failed",
-          failureReason: visited.error,
+          ...notVisited(visited),
         });
         continue;
       }
@@ -1004,8 +1017,7 @@ export async function crawlApplication<V>(
         url: `${next.fromUrl}#control:${next.domPath}`,
         title: next.candidateText,
         discoverySource: "safe-navigation-control",
-        status: "failed",
-        failureReason: visited.error,
+        ...notVisited(visited),
       });
       continue;
     }

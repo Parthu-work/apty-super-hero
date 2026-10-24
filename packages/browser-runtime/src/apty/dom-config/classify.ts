@@ -31,6 +31,7 @@ import {
   skeletonOf,
   sortedUnique,
   withoutQuery,
+  withoutUrlPorts,
 } from "./text.js";
 import type { DefaultIgnoreRule } from "./types.js";
 
@@ -134,7 +135,7 @@ const HEX_ID = /(?<![0-9a-z])[0-9a-f]{16,}(?![0-9a-z])/i;
 export function recordKindOf(value: string): RecordKind | null {
   if (GUID.test(value)) return "guid";
   if (ISO_TIMESTAMP.test(value)) return "timestamp";
-  if (LONG_DIGITS.test(value)) return "digits";
+  if (LONG_DIGITS.test(withoutUrlPorts(value))) return "digits";
   if (HEX_ID.test(value)) return "hex";
   return null;
 }
@@ -270,7 +271,7 @@ export function classifyPage(
         count: counts.get(value)!,
         verified:
           compared && eligibleValues.every((values) => values?.has(value)),
-        pii: piiShapeOf(value),
+        pii: piiShapeOf(withoutUrlPorts(value)),
         noise,
         defaultRule,
         recordKind: null,

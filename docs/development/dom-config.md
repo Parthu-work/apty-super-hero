@@ -137,7 +137,7 @@ bucket, first match wins:
 | 2 | Covered by defaults | `DEFAULT_IGNORE` | none; listed as already ignored |
 | 3 | Observed change | not in every eligible run | main, `observed_change` |
 | 4 | Pattern | two or more values on the page differing only in digit runs, or an attribute name with a generated number | main, `pattern` |
-| 5 | Record-specific | 5+ digits, a GUID, an ISO timestamp or a 16+ hex id, in a URL or a `data-*` value | record-specific group, off by default |
+| 5 | Record-specific | 5+ digits, a GUID, an ISO timestamp or a 16+ hex id, in a URL or a `data-*` value; the port of a `scheme://host:port` does not count (nor as a PII digit run) | record-specific group, off by default |
 | 6 | State-driven | `aria-*`, `tabindex`, `disabled`, `selected`, `style`, state classes | review, `heuristic` |
 | 7 | Layout-only | `width`, `height`, `align`, `valign`, `border`, `cellpadding`, `bgcolor`, `colspan`, `rowspan`, `nowrap` | review, `heuristic` |
 | 8 | PII-bearing | email, phone shape, 5+ digit run | main, `pii`, by shape only |
@@ -381,6 +381,15 @@ and the crawl goes on; one that loses a later run is a single-run page.
 At the end the tab is navigated back to the seed URL and
 `returnedToSeed` says whether the seed state came back.
 
+A state the crawl reaches that shows a page already captured under another
+URL is not captured again: `pageIdentity` (`route-key.ts`) is the state's
+route identity without the query parameters whose value the URL template
+turned into a placeholder, so `/home` and `/home?nocache=1700000000123`
+are one page while `?view=visits` and `?view=orders` stay two. Such a state
+is listed `skipped`, "duplicate of <URL shape>", is not counted against
+`maxPages` and is not explored further. The graph's own state fingerprint
+keeps the query, so Audit Application still treats them as two states.
+
 Page ids are the URL shape (`toUrlShape`: the strict path policy, query
 names only, D11), plus `[state-N]` for a state reached by a click on the
 same URL; titles and control texts are not used. The outcome holds the
@@ -412,10 +421,6 @@ changed; a new one is returned.
 
 ### Known limits
 
-- A seed URL without a query and the application's own links to the same
-  page with a cache-busting parameter (`/home` and `/home?nocache=…`) have
-  different URL templates, so the page is captured twice. This is the
-  audit's URL identity (`urlTemplate`), unchanged here.
 - In deep mode the nav anchors inside a `<nav>` are also click candidates,
   as in the audit. A click on one starts a navigation that the crawl does
   not wait for, so the fingerprint taken after it depends on timing: the

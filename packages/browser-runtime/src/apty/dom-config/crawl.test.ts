@@ -398,6 +398,37 @@ describe("runDomConfigCapture", () => {
     ]);
   });
 
+  it("captures the start page once when the application links back to it with a cache-busting parameter, without spending a page on it", async () => {
+    app.links = { "/home": ["/home?nocache=1700000000017", "/a"] };
+    const outcome = await run(
+      runDomConfigCapture(TAB_ID, { wait: noWait, maxPages: 2 }),
+    );
+    if (!outcome.available) throw new Error(outcome.error);
+    expect(outcome.capture.pages.map((p) => p.pageId)).toEqual([
+      `${ORIGIN}/home`,
+      `${ORIGIN}/a`,
+    ]);
+    expect(outcome.inventory).toContainEqual(
+      expect.objectContaining({
+        urlShape: `${ORIGIN}/home?nocache`,
+        status: "skipped",
+        reason: `duplicate of ${ORIGIN}/home`,
+        pageId: null,
+      }),
+    );
+    expect(outcome.limitsReached.maxPages).toBe(true);
+  });
+
+  it("keeps a page whose query names another screen", async () => {
+    app.links = { "/home": ["/home?view=visits"] };
+    const outcome = await run(runDomConfigCapture(TAB_ID, { wait: noWait }));
+    if (!outcome.available) throw new Error(outcome.error);
+    expect(outcome.capture.pages.map((p) => p.pageId)).toEqual([
+      `${ORIGIN}/home`,
+      `${ORIGIN}/home?view`,
+    ]);
+  });
+
   it("refuses a browser page without touching it", async () => {
     app.url = "chrome://settings/";
     const outcome = await run(runDomConfigCapture(TAB_ID, { wait: noWait }));
