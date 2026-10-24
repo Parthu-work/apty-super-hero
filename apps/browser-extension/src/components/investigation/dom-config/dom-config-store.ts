@@ -1,18 +1,28 @@
 /**
  * DOM Config's run state, outside React so a run survives the card
  * collapsing or re-mounting. Memory only (D12): nothing is written to
- * storage. The tab is fixed when a run starts; switching tabs never
- * redirects it.
+ * storage. One capture is held: the crawl's, and the manual and imported
+ * pages added to it; the report is always the analysis of that capture.
+ * The crawl's tab is fixed when it starts; switching tabs never redirects
+ * it.
  */
 import {
+  buildPageCapture,
   buildReportFromCapture,
+  captureCurrentState,
   DOM_CONFIG_DEFAULT_MAX_PAGES,
   DOM_CONFIG_DEFAULT_MAX_TOTAL_MS,
   DOM_CONFIG_DEFAULT_RUNS_PER_STATE,
+  DOM_CONFIG_LIMITS,
+  type DomConfigApplicationCapture,
   type DomConfigCaptureOutcome,
   type DomConfigCaptureProgress,
+  type DomConfigImportedRun,
   type DomConfigReport,
+  type DomConfigReportOptions,
+  type DomConfigRun,
   type DomConfigRunLabel,
+  type DomProfileImportError,
   runDomConfigCapture,
 } from "@apty/browser-runtime/apty/dom-config/index";
 import { useSyncExternalStore } from "react";
@@ -47,9 +57,13 @@ export type RunChipState =
   | "mismatch"
   | "failed";
 
+export type PageOrigin = "crawl" | "manual" | "import";
+
 export interface PageRow {
   key: string;
-  urlShape: string;
+  /** The URL shape for a crawled page, the SE's name otherwise. */
+  label: string;
+  origin: PageOrigin;
   runs: { label: DomConfigRunLabel; state: RunChipState }[];
   elementCount: number | null;
   status: DomConfigReport["pages"][number]["status"] | null;
@@ -59,6 +73,28 @@ export type CompletedCapture = Extract<
   DomConfigCaptureOutcome,
   { available: true }
 >;
+
+export type CoverageMarks = NonNullable<DomConfigReportOptions["coverage"]>;
+export type CoverageKey = DomConfigReport["coverage"]["items"][number]["key"];
+export type CoverageMark = NonNullable<CoverageMarks[CoverageKey]>;
+
+export type ManualCaptureResult =
+  | {
+      ok: true;
+      pageLabel: string;
+      runCount: number;
+      /** Other pages holding a run of the same state. */
+      duplicates: string[];
+    }
+  | { ok: false; error: string };
+
+export interface ImportResult {
+  pageLabel: string;
+  added: number;
+  /** Valid runs left out because the page reached the run limit. */
+  dropped: number;
+  errors: { run: number; error: DomProfileImportError }[];
+}
 
 export interface DomConfigState {
   phase: DomConfigPhase;
@@ -70,17 +106,26 @@ export interface DomConfigState {
   step: DomConfigStep;
   rows: PageRow[];
   current: DomConfigCaptureProgress | null;
+  /** The last crawl's own result; null when the capture holds no crawl. */
   outcome: CompletedCapture | null;
-  /** The analysis shown: the outcome's, or a re-run of it. */
+  capture: DomConfigApplicationCapture | null;
+  /** The SE's coverage statements; the engine does not verify them. */
+  coverageMarks: CoverageMarks;
   report: DomConfigReport | null;
   error: string | null;
+  /** A manual capture is reading the tab. */
+  capturing: boolean;
+  manualResult: ManualCaptureResult | null;
+  importResult: ImportResult | null;
+  /** Set by "Capture another run" until manual capture takes the page name. */
+  captureRequest: { pageName: string } | null;
   /** Explicit include/exclude choices, by rule id. */
   ruleChoices: Record<string, boolean>;
   includeReview: boolean;
   includeRecordSpecific: boolean;
 }
 
-type StartResult = "started" | "busy" | "locked";
+type StartResult = "started" | "busy" | "locked" | "confirm";
 
 const INITIAL: DomConfigState = {
   phase: "idle",
@@ -92,8 +137,14 @@ const INITIAL: DomConfigState = {
   rows: [],
   current: null,
   outcome: null,
+  capture: null,
+  coverageMarks: {},
   report: null,
   error: null,
+  capturing: false,
+  manualResult: null,
+  importResult: null,
+  captureRequest: null,
   ruleChoices: {},
   includeReview: false,
   includeRecordSpecific: false,
@@ -124,7 +175,8 @@ function progressRows(
   const labels = runLabelsFor(progress.runCount);
   next[index] = {
     key: String(progress.stateIndex),
-    urlShape: progress.urlShape,
+    label: progress.urlShape,
+    origin: "crawl",
     elementCount: null,
     status: null,
     runs: labels.map((label, i) => ({
@@ -151,31 +203,59 @@ function stepOf(
   return "capture";
 }
 
-/** Rows as the outcome knows them: visit order, a chip per run taken, mismatched and failed runs marked. */
-function outcomeRows(outcome: CompletedCapture): PageRow[] {
-  const summaries = new Map(outcome.report.pages.map((p) => [p.pageId, p]));
-  return outcome.states.map((state) => {
-    const summary = summaries.get(state.pageId);
+function chip(run: DomConfigRun): PageRow["runs"][number] {
+  return {
+    label: run.meta.label,
+    state: run.meta.stateMismatch ? "mismatch" : "done",
+  };
+}
+
+/** A row per held page. A crawled page keeps the crawl's chips, failed runs included; runs added later follow. */
+function pageRows(
+  capture: DomConfigApplicationCapture,
+  outcome: CompletedCapture | null,
+  report: DomConfigReport,
+): PageRow[] {
+  const summaries = new Map(report.pages.map((p) => [p.pageId, p]));
+  const visits = new Map(outcome?.states.map((v) => [v.pageId, v]));
+  return capture.pages.map((page) => {
+    const summary = summaries.get(page.pageId);
     const counts = (summary?.runs ?? []).map((r) => r.elementCount);
+    const visit = visits.get(page.pageId);
     return {
-      key: state.pageId,
-      urlShape: state.pageId,
+      key: page.pageId,
+      label: page.label,
+      origin: page.origin ?? "crawl",
       elementCount: counts.length ? Math.max(...counts) : null,
       status: summary?.status ?? null,
       runs: [
-        ...state.runs.map((run) => ({
-          label: run.meta.label,
-          state: run.meta.stateMismatch
-            ? ("mismatch" as const)
-            : ("done" as const),
-        })),
-        ...state.failedRuns.map((run) => ({
+        ...(visit?.runs.map(chip) ?? []),
+        ...(visit?.failedRuns.map((run) => ({
           label: run.runLabel,
           state: "failed" as const,
-        })),
+        })) ?? []),
+        ...page.runs.slice(visit?.runs.length ?? 0).map(chip),
       ],
     };
   });
+}
+
+/** Pages captured by hand or imported, which a new crawl would discard. */
+export function holdsAddedPages(
+  capture: DomConfigApplicationCapture | null,
+): boolean {
+  return Boolean(
+    capture?.pages.some(
+      (page) => page.origin === "manual" || page.origin === "import",
+    ),
+  );
+}
+
+function uniqueId(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base} (${n})`)) n++;
+  return `${base} (${n})`;
 }
 
 export function createDomConfigStore() {
@@ -186,6 +266,27 @@ export function createDomConfigStore() {
     state = { ...state, ...patch };
     for (const listener of listeners) listener();
   };
+  const busy = () =>
+    state.phase === "running" || state.phase === "stopping" || state.capturing;
+  const analyze = (
+    capture: DomConfigApplicationCapture,
+    ignoredRoots: readonly string[],
+    coverage: CoverageMarks = state.coverageMarks,
+  ) => buildReportFromCapture(capture, { ignoredRoots, coverage }).report;
+  const hold = (
+    capture: DomConfigApplicationCapture,
+    report: DomConfigReport,
+    outcome: CompletedCapture | null = state.outcome,
+  ): Partial<DomConfigState> => ({
+    phase: "report",
+    step: "report",
+    current: null,
+    error: null,
+    outcome,
+    capture,
+    report,
+    rows: pageRows(capture, outcome, report),
+  });
 
   return {
     getState: () => state,
@@ -204,13 +305,14 @@ export function createDomConfigStore() {
     setIncludeRecordSpecific: (includeRecordSpecific: boolean) =>
       set({ includeRecordSpecific }),
 
+    /** "confirm" when the capture holds manual or imported pages and `replace` was not given. */
     async start(
       tabId: number,
       ignoredRoots: readonly string[] = [],
+      { replace = false }: { replace?: boolean } = {},
     ): Promise<StartResult> {
-      if (state.phase === "running" || state.phase === "stopping") {
-        return "busy";
-      }
+      if (busy()) return "busy";
+      if (!replace && holdsAddedPages(state.capture)) return "confirm";
       if (!acquireTabLock(tabId, "dom-config")) return "locked";
       controller = new AbortController();
       const { options } = state;
@@ -253,14 +355,8 @@ export function createDomConfigStore() {
         releaseTabLock(tabId, "dom-config");
       }
       if (outcome.available) {
-        set({
-          phase: "report",
-          step: "report",
-          current: null,
-          outcome,
-          report: outcome.report,
-          rows: outcomeRows(outcome),
-        });
+        // The crawl analyzed its capture with these options and no marks.
+        set(hold(outcome.capture, outcome.report, outcome));
       } else {
         set({ phase: "failed", current: null, error: outcome.error });
       }
@@ -274,15 +370,133 @@ export function createDomConfigStore() {
     },
 
     rerun(ignoredRoots: readonly string[] = []) {
-      if (!state.outcome) return;
+      if (!state.capture) return;
+      set({ report: analyze(state.capture, ignoredRoots) });
+    },
+
+    /** Adds a run of the tab as it is now; never navigates, clicks or reloads. */
+    async captureCurrent(
+      tabId: number,
+      input: { pageName: string; runLabel: DomConfigRunLabel; probe: boolean },
+      ignoredRoots: readonly string[] = [],
+    ): Promise<"captured" | "failed" | "busy" | "locked"> {
+      if (busy()) return "busy";
+      if (!acquireTabLock(tabId, "dom-config")) return "locked";
+      set({ capturing: true, manualResult: null });
+      let outcome: Awaited<ReturnType<typeof captureCurrentState>>;
+      try {
+        outcome = await captureCurrentState(tabId, {
+          ...(state.capture ? { capture: state.capture } : {}),
+          pageName: input.pageName,
+          runLabel: input.runLabel,
+          probe: input.probe,
+          ignoredRoots,
+        });
+      } catch (error) {
+        outcome = {
+          available: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      } finally {
+        releaseTabLock(tabId, "dom-config");
+      }
+      if (!outcome.available) {
+        set({
+          capturing: false,
+          manualResult: { ok: false, error: outcome.error },
+        });
+        return "failed";
+      }
+      const { capture, pageId, warnings } = outcome;
+      const labels = new Map(capture.pages.map((p) => [p.pageId, p.label]));
+      const page = capture.pages.find((p) => p.pageId === pageId);
       set({
-        report: buildReportFromCapture(state.outcome.capture, { ignoredRoots })
-          .report,
+        ...hold(capture, analyze(capture, ignoredRoots)),
+        capturing: false,
+        manualResult: {
+          ok: true,
+          pageLabel: page?.label ?? pageId,
+          runCount: page?.runs.length ?? 0,
+          duplicates: warnings.flatMap((w) =>
+            w.pageIds.map((id) => labels.get(id) ?? id),
+          ),
+        },
+      });
+      return "captured";
+    },
+
+    /** Adds pasted or loaded profiles as runs of one page; a page of the same name gets them appended, up to the run limit. */
+    importPage(
+      input: { pageName: string; runs: DomConfigImportedRun[] },
+      ignoredRoots: readonly string[] = [],
+      applicationName = "application",
+    ): ImportResult | null {
+      const pageName = input.pageName.trim();
+      if (!pageName || busy()) return null;
+      const previous = state.capture ?? { applicationName, pages: [] };
+      const existing = previous.pages.find((p) => p.label === pageName);
+      const pageId =
+        existing?.pageId ??
+        uniqueId(pageName, new Set(previous.pages.map((p) => p.pageId)));
+      const built = buildPageCapture(
+        { pageId, label: pageName, runs: input.runs },
+        ignoredRoots,
+      );
+      const room =
+        DOM_CONFIG_LIMITS.maxRunsPerPage - (existing?.runs.length ?? 0);
+      const valid = built.page?.runs ?? [];
+      const runs = valid.slice(0, Math.max(0, room));
+      const result: ImportResult = {
+        pageLabel: pageName,
+        added: runs.length,
+        dropped: valid.length - runs.length,
+        errors: built.errors,
+      };
+      if (runs.length === 0) {
+        set({ importResult: result });
+        return result;
+      }
+      const page = existing
+        ? { ...existing, runs: [...existing.runs, ...runs] }
+        : { pageId, label: pageName, runs, origin: "import" as const };
+      const capture = {
+        ...previous,
+        pages: existing
+          ? previous.pages.map((p) => (p === existing ? page : p))
+          : [...previous.pages, page],
+      };
+      set({
+        ...hold(capture, analyze(capture, ignoredRoots)),
+        importResult: result,
+      });
+      return result;
+    },
+
+    setCoverageMark(
+      key: CoverageKey,
+      mark: CoverageMark | null,
+      ignoredRoots: readonly string[] = [],
+    ) {
+      const { [key]: _previous, ...rest } = state.coverageMarks;
+      const coverageMarks = mark ? { ...rest, [key]: mark } : rest;
+      set({
+        coverageMarks,
+        ...(state.capture
+          ? { report: analyze(state.capture, ignoredRoots, coverageMarks) }
+          : {}),
       });
     },
 
+    /** "Capture another run": opens manual capture with the page's name. */
+    requestCapture(pageName: string) {
+      set({ captureRequest: { pageName } });
+    },
+    clearCaptureRequest() {
+      if (state.captureRequest) set({ captureRequest: null });
+    },
+
     clear() {
-      if (state.phase === "running" || state.phase === "stopping") return;
+      if (busy()) return;
       set({
         ...INITIAL,
         expanded: state.expanded,

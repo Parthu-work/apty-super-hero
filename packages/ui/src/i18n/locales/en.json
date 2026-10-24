@@ -725,7 +725,7 @@
     "exportJsonAria": "Export JSON of the engine report, with the included rules only",
     "counts": {
       "rules": "{{count}} rules ({{proven}} proven by observation or pattern, {{review}} need review)",
-      "warnings": "{{count}} warnings",
+      "warnings": "{{count}} warnings ({{warn}} to act on)",
       "iframes": "{{count}} application iframes need handling",
       "notCaptured": "{{count}} kinds of page not captured",
       "covered": "{{count}} items already ignored by Apty's defaults"
@@ -734,7 +734,10 @@
     "tabs": {
       "label": "Report sections",
       "rules": "Ignore conditions",
-      "settings": "Settings"
+      "settings": "Settings",
+      "iframes": "Iframes",
+      "coverage": "Coverage",
+      "warnings": "Warnings"
     },
     "rules": {
       "assumption": "ASSUMPTION (D7): each rule is shown the way Apty's condition builder would hold it, every condition required. That ID and class rules are an Attribute Name condition plus an Attribute Value condition, the Regex flavor and the separator of In are not confirmed.",
@@ -798,7 +801,146 @@
       "aptyDefault": "Apty default, not measured"
     },
     "notMeasured": "What was not measured: {{list}}",
-    "openQuestions": "Open questions ({{count}})"
+    "openQuestions": "Open questions ({{count}})",
+    "origin": {
+      "manual": "manual",
+      "import": "imported"
+    },
+    "addTitle": "Add to this capture",
+    "addTitleEmpty": "Or capture by hand",
+    "newCrawl": "Start a new crawl",
+    "replace": {
+      "message": "Starting replaces the {{count}} pages already captured, including the ones you captured by hand or imported. Export the report first to keep them.",
+      "confirm": "Replace them and start",
+      "cancel": "Keep the capture"
+    },
+    "manual": {
+      "title": "Capture current state",
+      "hint": "Open the modal or form first, then capture. To capture a run after a reload, reload the page yourself, then capture. Nothing on the page is clicked, navigated or reloaded.",
+      "pageName": "Page name",
+      "pageNameHint": "Type a name for this state, up to {{max}} characters. It is never read from the page. The same name adds a run to that page.",
+      "runLabel": "Run",
+      "probe": "Measure page behavior (a short probe)",
+      "capture": "Capture now",
+      "captureAria": "Capture now: add a run of the current tab as it is",
+      "capturing": "Capturing the current tab",
+      "captured": "Captured run {{run}} of {{page}}.",
+      "duplicate": "This looks like the same state as a run already held on {{pages}}. Check that you opened the state you meant to capture.",
+      "failed": "Not captured: {{error}}",
+      "noTab": "Open a web page in this window to capture it."
+    },
+    "import": {
+      "title": "Import console script results",
+      "hint": "Run the console script on a page, then paste its result or choose the saved files. Each run needs a run kind; the runs below become one page.",
+      "script": "the console script",
+      "copyScript": "Copy console script",
+      "copyScriptAria": "Copy console script for the browser console",
+      "scriptLimits": "The console script records only the highest z-index, not the element that set it. It cannot read cross-origin iframes, cannot tell the application's elements from Apty's or an extension's, can be cut short by the console, and records no run details such as when or where it ran. Capturing from this panel does all of that.",
+      "pageNameHint": "Type a name for the page. The same name as a held page adds these runs to it, up to {{max}} runs a page.",
+      "run": "Run {{index}}",
+      "runKind": "Run kind",
+      "paste": "Paste the script's result",
+      "fromFile": "From the file {{file}}",
+      "remove": "Remove",
+      "removeAria": "Remove run {{index}}",
+      "addRun": "Add a run",
+      "chooseFiles": "Choose files",
+      "submit": "Import page",
+      "imported": "Runs imported into {{page}}: {{count}}.",
+      "dropped": "Valid runs left out: {{count}}. A page holds at most {{max}} runs.",
+      "runError": "Run {{run}}: {{message}}",
+      "missing": "Missing: {{list}}"
+    },
+    "detail": {
+      "label": "Details of {{page}}",
+      "runs": "Runs",
+      "run": "Run {{index}} ({{label}})",
+      "partial": "partial",
+      "raw": "Download raw profile",
+      "rawAria": "Download raw profile of run {{run}}",
+      "rawWarning": "This file contains page data: every attribute value of the run as it was captured, which can include names, record numbers and other patient or customer data.",
+      "rawConfirm": "Download",
+      "rawConfirmAria": "Download the raw profile of run {{run}}, page data included",
+      "cancel": "Cancel",
+      "changes": "What changed between runs",
+      "oneRun": "One run: there is nothing to compare yet.",
+      "pair": "{{from}} to {{to}}",
+      "noChange": "Nothing changed.",
+      "added": "added",
+      "removed": "removed",
+      "countChanged": "count changed",
+      "counts": "{{from}} to {{to}}",
+      "truncated": "Only the first differences of this pair are listed.",
+      "noise": "Apty and extension differences",
+      "maxZIndex": "Max z-index: {{value}}",
+      "shadowHosts": "Shadow hosts: {{hosts}}",
+      "iframes": "Iframes: {{count}}",
+      "none": "none"
+    },
+    "iframes": {
+      "application": "Application iframes",
+      "extension": "Extension iframes",
+      "overlay": "Overlay iframes",
+      "none": "No iframes were found on the captured pages.",
+      "kind": "Kind",
+      "src": "Source",
+      "crossOrigin": "Cross-origin",
+      "analyzed": "Analyzed",
+      "needsHandling": "Needs handling",
+      "facts": "Cross-origin: {{crossOrigin}} · Analyzed: {{analyzed}}",
+      "yes": "yes",
+      "no": "no",
+      "unknown": "unknown"
+    },
+    "coverage": {
+      "intro": "Mark what you captured. Marks are your statement; the engine does not check them.",
+      "state": "State",
+      "statusHeader": "Status",
+      "candidatesHeader": "Suggested pages",
+      "candidates": "Suggested by the markup of: {{pages}}",
+      "noCandidates": "No captured page suggests this kind of state.",
+      "mark": "Mark",
+      "markAria": "Mark {{state}}",
+      "unmarked": "Not marked",
+      "status": {
+        "captured": "Captured",
+        "notApplicable": "Not applicable",
+        "planned": "Planned",
+        "notCaptured": "Not captured"
+      },
+      "key": {
+        "entryForms": "Entry forms",
+        "detailPages": "Detail pages",
+        "listGridPages": "List and grid pages",
+        "modalsDialogs": "Modals and dialogs",
+        "popups": "Pop-ups and menus",
+        "dropdownPanels": "Dropdown panels",
+        "tooltips": "Tooltips",
+        "sidePanels": "Side panels",
+        "printReportViews": "Print and report views",
+        "embeddedDocuments": "Embedded documents",
+        "clickOnlyStates": "States reached only by clicking"
+      }
+    },
+    "warnings": {
+      "none": "No warnings.",
+      "warn": "Act on this",
+      "info": "For information",
+      "count": "Count: {{count}}",
+      "toActOn": "Warnings to act on ({{count}})",
+      "allInTab": "Every warning, with its pages, is in the Warnings tab.",
+      "weakSelectors": "Weak selectors",
+      "weakSelectorsHint": "Selectors that match more than one element on a page; a guide anchored on them can land on the wrong element.",
+      "perPage": "up to {{count}} on one page",
+      "unready": "Pages not ready",
+      "singleRunContribution": "A page with one run still feeds the rules found from value shapes (pattern rules) and from record numbers (record-specific rules). It shows no value changing, so it gives no observed-change rule, and its values never count as unchanged, so they cannot reject a rule.",
+      "reason": {
+        "singleRun": "one run: capture a second run to detect changing values",
+        "unreliable": "unreliable: some runs were cut short or showed another state, so they were not compared"
+      },
+      "captureAnother": "Capture another run",
+      "captureAnotherAria": "Capture another run of {{page}}"
+    }
   },
   "skillDetails": {
     "builtIn": "Built-in",

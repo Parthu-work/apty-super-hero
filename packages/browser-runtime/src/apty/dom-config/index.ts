@@ -6,6 +6,7 @@ export {
   type StateProfileOutcome,
   type StateProfileResult,
 } from "./collect-state-profile.js";
+export { DOM_CONFIG_CONSOLE_SCRIPT } from "./console-script.js";
 export {
   buildReportFromCapture,
   type CaptureCurrentStateOptions,
@@ -35,6 +36,7 @@ export {
   parseDomProfile,
 } from "./import-profile.js";
 export {
+  DOM_CONFIG_LIMITS,
   DOM_CONFIG_RULE_LIST_VERSION,
   DOM_CONFIG_TOOL_VERSION,
 } from "./limits.js";

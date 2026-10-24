@@ -18,8 +18,8 @@ There is no analytics, telemetry, crash reporting or advertising. Apty does
 not receive your conversations, keys or page data.
 
 Files you export yourself (a conversation, a response body, a route probe
-report, a DOM Health validation bundle) are saved or copied only when you
-click; nothing is uploaded. The validation bundle holds hostnames, URL
+report, a DOM Health validation bundle, a DOM Config report or raw profile)
+are saved or copied only when you click; nothing is uploaded. The validation bundle holds hostnames, URL
 templates without queries, counts, hashes and settings, never page text,
 input values, titles or record numbers, and you review it before saving.
 
@@ -162,6 +162,41 @@ data now** removes conversations, the agent's history and screenshots at
 once. Web pages and
 other extensions can't read any of this: storage is locked to the
 extension's own pages and service worker.
+
+## DOM Config
+
+DOM Config (the "Generate DOM config" card in the side panel) reads the
+pages you capture and proposes Apty DOM settings. All of it happens in the
+side panel:
+
+- **Held in memory only.** One capture: for each run of each page, the
+  attribute names and values with their counts, tag counts, the elements
+  behind high z-index values, each frame's `src`, shadow hosts and the
+  page's URL as a shape (record numbers and query values removed). The
+  report built from it, your include and exclude choices and your coverage
+  marks are held next to it. Nothing is written to storage; closing the
+  side panel or **Clear** removes it all, and a new crawl replaces it.
+- **Nothing leaves the browser.** DOM Config sends nothing to your AI
+  provider, the Apty Client, the MCP daemon or any server. Copies and
+  exports happen only when you click.
+- **Page names are typed by you.** A page you capture by hand or import is
+  named in a field you fill in; the name is never read from the page, and
+  page titles are never recorded. A crawled page is named by its URL
+  shape.
+- **Markdown and JSON exports, Copy.** The proposed rules (only the ones
+  you left included), settings, iframes, coverage and warnings. Example
+  values in a rule are page data, kept only when they are
+  identifier-shaped. Email addresses, phone numbers and digit runs are
+  hidden by the engine in the report, the page detail and every export
+  (`[PII value hidden]`). Person names have
+  no shape and are not detected: a name that changed between two runs can
+  appear in that page's list of differences, which the JSON export and the
+  page detail include; it never reaches a rule, an example, the Markdown
+  or Copy as tables.
+- **Download raw profile** (page detail, per run) saves the run exactly as
+  captured: every attribute value of the page, which can include names,
+  record numbers and other patient or customer data. The panel asks you to
+  confirm before it saves the file.
 
 ## Actions on your behalf
 

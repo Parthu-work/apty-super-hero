@@ -15,7 +15,7 @@ It is delivered in steps:
 | R2 | In-page collector and behavior probe | Done (see [Collector and behavior probe](#collector-and-behavior-probe-r2)) |
 | R3 | Automatic crawl with several runs per state | Done (see [Automatic crawl](#automatic-crawl-r3)) |
 | R4a | Side panel card: start options, live progress, Stop, report (Ignore conditions, Settings), copy and export | Done (see [Side panel card](#side-panel-card-r4a)) |
-| R4b | Manual capture, import, page detail, Iframes and Coverage tabs | Not started |
+| R4b | Manual capture, import, page detail, Iframes, Coverage and Warnings tabs | Done (see [Manual capture, import and the held capture](#manual-capture-import-and-the-held-capture-r4b)) |
 
 ## Where the code is
 
@@ -453,7 +453,8 @@ opens it.
   a limit was reached.
 - **Report.** Five tiles (attribute priority, debounce, max z-index, Shadow
   DOM, ignore events), each with its basis as text and icon and a Copy
-  button; the rule counts; every warning, listed. Tabs: Ignore conditions
+  button; the rule counts; the warn-severity warnings (every warning is in
+  the Warnings tab, R4b). Tabs: Ignore conditions
   (IDs, classes, attributes by name and by value, each rule shown as
   Apty's builder would hold it, ASSUMPTION D7; review rules excluded until
   ticked; record-specific rules behind the "Guides target a specific
@@ -472,8 +473,69 @@ opens it.
   tab they run on; the other card is disabled and says why. Tool runs the
   chat agent starts are not covered.
 
-The Iframes and Coverage tabs, manual capture, import and the page detail
-come in R4b.
+## Manual capture, import and the held capture (R4b)
+
+The SE's runbook is [`dom-config-runbook.md`](dom-config-runbook.md).
+
+- **One held capture.** The store holds one `ApplicationCapture`
+  (`capture`) and the SE's coverage marks (`coverageMarks`); the report is
+  always `buildReportFromCapture(capture, { ignoredRoots, coverage })`. The
+  crawl's own result (`outcome`: limits, Stop, return to the start page)
+  is kept apart as crawl metadata, and its banners show only when a crawl
+  is held. A crawl sets the capture; manual capture and import replace it
+  with the new capture the engine returns, which adds to it (the engine
+  never changes its input). The report phase starts as soon as the capture
+  holds a page, with or without a crawl. Manual capture and import are
+  offered when nothing runs, never during a crawl.
+- **Replace on Start.** A crawl starts from an empty capture. When the held
+  capture has a manual or imported page, Start first shows "Starting
+  replaces the N pages already captured" and runs only once the SE
+  confirms; a capture of crawled pages only is replaced without asking.
+  Clear is the explicit reset.
+- **Manual capture.** "Capture current state": a page name (typed by the
+  SE, at most 80 characters, never prefilled from the page), the run kind
+  and the probe. It captures the tab in front (`useCurrentTarget`), not the
+  crawl's tab, takes the tab lock for the time it reads, and calls
+  `captureCurrentState` with the held capture: it never navigates, clicks
+  or reloads. The result, the `duplicate-state` warning (naming the other
+  pages) and the engine's error (the 8-run limit included) are read out in
+  a polite live region. Without a tab, on a browser page or while DOM
+  Health holds the tab, it is disabled and says why. The only prefill is
+  "Capture another run" in the Warnings tab, which opens it with that
+  page's name.
+- **Import.** The console script (`DOM_CONFIG_CONSOLE_SCRIPT`, verbatim) is
+  one Copy away, with a note on what it cannot do. Runs are pasted or
+  loaded from files, each with its run kind, and become one page through
+  `buildPageCapture` with `origin: "import"`. Each failing run is listed by
+  position with the engine's message, the missing sections and what to do;
+  the valid runs of the same page are kept and only the failing ones stay
+  in the form. A page name already held appends the runs, up to 8 runs a
+  page; the rest are named as left out.
+- **Page detail.** A page row opens (a button with `aria-expanded`) to its
+  runs (kind, URL shape, element count, partial and different-state
+  marks), what changed between each pair of runs as the engine lists it
+  (PII-shaped values already hidden), Apty and extension differences in a
+  collapsed group, max z-index, shadow hosts and iframe count. "Download
+  raw profile" saves one run's profile JSON from the held capture, after
+  an inline "This file contains page data" confirmation.
+- **Tabs.** Ignore conditions, Settings, Iframes (by kind, application
+  iframes needing handling first), Coverage (each of the 11 kinds with its
+  status and suggested pages, and a mark: captured, not applicable or
+  planned; no mark is "not captured". A mark re-runs the analysis; the
+  engine does not check it) and Warnings (every warning, warn-severity
+  first, the weak selectors and the pages not ready). The summary keeps
+  the warn-severity warnings and the counts, so no warning sits only
+  behind a tab. Arrow keys, Home and End move across the five tabs.
+- **Pages with one run.** No "generate anyway" switch: such a page already
+  takes part. In the engine's terms, its values still feed pattern rules
+  (value shapes) and record-specific rules, but it shows no value
+  changing, so it gives no observed-change rule, and its values are never
+  `verified` stable, so they cannot reject a rule (`classify.ts`,
+  `generate-rules.ts`). The Warnings tab says so.
+- **Exports.** Markdown and JSON come from the engine report built with
+  the coverage marks, so the Coverage and Iframes sections of the Markdown
+  are the engine's own; Copy as tables adds the Iframes and Coverage
+  tables.
 
 ## Open questions
 

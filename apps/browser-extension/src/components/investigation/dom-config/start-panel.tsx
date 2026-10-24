@@ -1,7 +1,7 @@
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { DomConfigScope, DomConfigStartOptions } from "./dom-config-store";
 
 const SCOPES: { value: DomConfigScope; label: TranslationKey }[] = [
@@ -18,16 +18,25 @@ export function StartPanel({
   onChange,
   onStart,
   disabledReason,
+  replaceCount = 0,
 }: {
   options: DomConfigStartOptions;
   onChange: (options: Partial<DomConfigStartOptions>) => void;
-  onStart: () => void;
+  /** `replace` once the SE has confirmed that the held pages go. */
+  onStart: (replace: boolean) => void;
   /** Why Start is not available; null when it is. */
   disabledReason: string | null;
+  /** Pages held with manual or imported ones among them; Start asks before replacing them. */
+  replaceCount?: number;
 }) {
   const { t } = useTranslation();
   const id = useId();
   const [deepConfirmed, setDeepConfirmed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+  }, [confirming]);
   const deep = options.scope === "application-deep";
   const blocked = disabledReason ?? null;
 
@@ -141,14 +150,45 @@ export function StartPanel({
           {blocked}
         </p>
       )}
-      <Button
-        size="sm"
-        disabled={Boolean(blocked) || (deep && !deepConfirmed)}
-        onClick={onStart}
-        aria-label={t("domConfig.startAria")}
-      >
-        {t("domConfig.start")}
-      </Button>
+      {confirming ? (
+        <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-2">
+          <p id={`${id}-replace`} className="text-foreground">
+            {t("domConfig.replace.message", { count: replaceCount })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              ref={confirmRef}
+              size="sm"
+              aria-describedby={`${id}-replace`}
+              disabled={Boolean(blocked)}
+              onClick={() => {
+                setConfirming(false);
+                onStart(true);
+              }}
+            >
+              {t("domConfig.replace.confirm")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirming(false)}
+            >
+              {t("domConfig.replace.cancel")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          size="sm"
+          disabled={Boolean(blocked) || (deep && !deepConfirmed)}
+          onClick={() =>
+            replaceCount > 0 ? setConfirming(true) : onStart(false)
+          }
+          aria-label={t("domConfig.startAria")}
+        >
+          {t("domConfig.start")}
+        </Button>
+      )}
     </div>
   );
 }

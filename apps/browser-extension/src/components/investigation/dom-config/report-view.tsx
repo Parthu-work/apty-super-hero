@@ -16,14 +16,47 @@ import {
   isRuleIncluded,
   type RuleChoices,
 } from "./copy-format";
-import type { CompletedCapture } from "./dom-config-store";
+import { CoverageView, coverageTableText } from "./coverage-view";
+import type {
+  CompletedCapture,
+  CoverageKey,
+  CoverageMark,
+} from "./dom-config-store";
+import { IframesView, iframesTableText } from "./iframes-view";
 import { CopyButton } from "./report-parts";
 import { ReportSummary } from "./report-summary";
 import { RulesView, ruleTableText, TARGET_LABEL } from "./rules-view";
 import { SettingsView, settingsTableText } from "./settings-view";
+import { WarningsView } from "./warnings-view";
 
 type Translate = I18nContextValue["t"];
-type Tab = "rules" | "settings";
+
+const TABS = [
+  { key: "rules", label: "domConfig.tabs.rules" },
+  { key: "settings", label: "domConfig.tabs.settings" },
+  { key: "iframes", label: "domConfig.tabs.iframes" },
+  { key: "coverage", label: "domConfig.tabs.coverage" },
+  { key: "warnings", label: "domConfig.tabs.warnings" },
+] as const;
+
+type Tab = (typeof TABS)[number]["key"];
+
+/** The tab an arrow, Home or End key moves to; null for other keys. */
+function tabAfter(key: string, tab: Tab): Tab | null {
+  const index = TABS.findIndex((t) => t.key === tab);
+  const last = TABS.length - 1;
+  const next =
+    key === "ArrowRight"
+      ? (index + 1) % TABS.length
+      : key === "ArrowLeft"
+        ? (index + last) % TABS.length
+        : key === "Home"
+          ? 0
+          : key === "End"
+            ? last
+            : null;
+  return next === null ? null : TABS[next]!.key;
+}
 
 /** Every section of the report as tab-separated tables, included rules only. */
 function allTables(
@@ -55,6 +88,10 @@ function allTables(
       .filter(([, rules]) => rules.length > 0)
       .map(([title, rules]) => `${title}\n${ruleTableText(t, rules)}`),
     `${t("domConfig.settings.title")}\n${settingsTableText(t, report)}`,
+    ...(report.iframes.length
+      ? [`${t("domConfig.tabs.iframes")}\n${iframesTableText(t, report)}`]
+      : []),
+    `${t("domConfig.tabs.coverage")}\n${coverageTableText(t, report)}`,
   ].join("\n\n");
 }
 
@@ -67,8 +104,12 @@ export function ReportView({
   onIncludeRecordSpecific,
   onRerun,
   onClear,
+  onMark,
+  onCaptureAnother,
+  canCapture,
 }: {
-  outcome: CompletedCapture;
+  /** The last crawl's result; null when the capture holds no crawl. */
+  outcome: CompletedCapture | null;
   report: DomConfigReport;
   choices: RuleChoices;
   onChoice: (ruleId: string, included: boolean) => void;
@@ -76,22 +117,18 @@ export function ReportView({
   onIncludeRecordSpecific: (include: boolean) => void;
   onRerun: () => void;
   onClear: () => void;
+  onMark: (key: CoverageKey, mark: CoverageMark | null) => void;
+  onCaptureAnother: (pageLabel: string) => void;
+  canCapture: boolean;
 }) {
   const { t } = useTranslation();
   const id = useId();
   const [tab, setTab] = useState<Tab>("rules");
-  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({
-    rules: null,
-    settings: null,
-  });
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "rules", label: t("domConfig.tabs.rules") },
-    { key: "settings", label: t("domConfig.tabs.settings") },
-  ];
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
   const onTabKey = (event: KeyboardEvent) => {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    const next = tabAfter(event.key, tab);
+    if (!next) return;
     event.preventDefault();
-    const next: Tab = tab === "rules" ? "settings" : "rules";
     setTab(next);
     tabRefs.current[next]?.focus();
   };
@@ -165,9 +202,9 @@ export function ReportView({
       <div
         role="tablist"
         aria-label={t("domConfig.tabs.label")}
-        className="flex gap-1 border-b"
+        className="flex flex-wrap gap-x-1 border-b"
       >
-        {tabs.map(({ key, label }) => (
+        {TABS.map(({ key, label }) => (
           <button
             key={key}
             ref={(el) => {
@@ -182,13 +219,13 @@ export function ReportView({
             onClick={() => setTab(key)}
             onKeyDown={onTabKey}
             className={cn(
-              "-mb-px rounded-t-md border-b-2 px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "-mb-px whitespace-nowrap rounded-t-md border-b-2 px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               tab === key
                 ? "border-primary font-medium text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -197,7 +234,7 @@ export function ReportView({
         id={`${id}-${tab}-panel`}
         aria-labelledby={`${id}-${tab}-tab`}
       >
-        {tab === "rules" ? (
+        {tab === "rules" && (
           <RulesView
             report={report}
             choices={choices}
@@ -205,8 +242,16 @@ export function ReportView({
             onIncludeReview={onIncludeReview}
             onIncludeRecordSpecific={onIncludeRecordSpecific}
           />
-        ) : (
-          <SettingsView report={report} />
+        )}
+        {tab === "settings" && <SettingsView report={report} />}
+        {tab === "iframes" && <IframesView report={report} />}
+        {tab === "coverage" && <CoverageView report={report} onMark={onMark} />}
+        {tab === "warnings" && (
+          <WarningsView
+            report={report}
+            onCaptureAnother={onCaptureAnother}
+            canCapture={canCapture}
+          />
         )}
       </div>
 
