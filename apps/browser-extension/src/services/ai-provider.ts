@@ -10,23 +10,13 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import {
-  type AIProviderKey,
-  type AppSettings,
-  detectProviderFromHost,
-} from "@apty/agent-core";
+import { type AppSettings, detectProviderFromHost } from "@apty/agent-core";
 import {
   isIPv4,
   isPrivateIPv4,
   isPrivateIPv6,
 } from "@apty/browser-runtime/vm/url-guard";
 import { type LanguageModelMiddleware, wrapLanguageModel } from "ai";
-
-export interface ProviderConfig {
-  provider: AIProviderKey;
-  apiKey: string;
-  baseURL?: string;
-}
 
 const CLOUD_METADATA_HOSTNAMES = new Set([
   "metadata.google.internal",

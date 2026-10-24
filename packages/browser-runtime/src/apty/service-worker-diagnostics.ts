@@ -146,7 +146,6 @@ export const BODY_MISSING_REASONS = [
   "unreadable",
   "none",
 ] as const;
-export type BodyMissingReason = (typeof BODY_MISSING_REASONS)[number];
 
 export const resourceBodyResponseSchema = z.object({
   found: z.boolean(),

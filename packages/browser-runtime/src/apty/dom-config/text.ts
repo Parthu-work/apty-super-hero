@@ -18,7 +18,6 @@ export function sortedUnique(values: Iterable<string>): string[] {
 }
 
 export const PII_HIDDEN = "[PII value hidden]";
-export const VALUE_WITHHELD = "[value withheld]";
 const MAX_DISPLAY_LENGTH = 120;
 
 /** A value as the report may show it in a diff: never a PII shape, never longer than a line. */
