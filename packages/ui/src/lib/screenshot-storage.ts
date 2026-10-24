@@ -24,7 +24,7 @@ interface ScreenshotData {
   };
 }
 
-/** Same database as browser-runtime's screenshot store, which moves the one stored under the old AIPex name. */
+/** Same database as browser-runtime's screenshot store. */
 const DB_NAME = "apty-screenshots-db";
 const DB_VERSION = 1;
 const STORE_NAME = "screenshots";
