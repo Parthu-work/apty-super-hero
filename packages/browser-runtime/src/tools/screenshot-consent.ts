@@ -18,11 +18,15 @@ export interface ScreenshotRefusal {
   message: string;
 }
 
+/** @internal */
 export function parseScreenshotPolicy(value: unknown): ScreenshotPolicySetting {
   return value === "allow" || value === "never" ? value : "ask";
 }
 
-/** Read fresh on every call: a screenshot is rare, and a change in Settings must apply to the next one. */
+/**
+ * Read fresh on every call: a screenshot is rare, and a change in Settings must apply to the next one.
+ * @internal
+ */
 export async function getScreenshotPolicy(): Promise<ScreenshotPolicySetting> {
   try {
     const stored = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);

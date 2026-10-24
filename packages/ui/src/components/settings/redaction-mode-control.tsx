@@ -10,7 +10,10 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 
-/** Fake data shown by Preview: personal data, page context and secrets, none of it real. */
+/**
+ * Fake data shown by Preview: personal data, page context and secrets, none of it real.
+ * @internal
+ */
 export const REDACTION_PREVIEW_SAMPLE = JSON.stringify(
   {
     page_title: "Chart for Jane Testpatient (MRN 0000000)",

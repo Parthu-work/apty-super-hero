@@ -347,6 +347,7 @@ function sumField<K extends DomHealthMetricKey>(
  * screens, so any such state caps the audit at MEDIUM, and a majority of
  * them at LOW. The thresholds are unverified: "any" and "most" read
  * literally.
+ * @internal
  */
 export function routeConfidenceCaps(
   stateGraph: StateGraphSummary | undefined,

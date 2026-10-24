@@ -19,6 +19,7 @@ export type Translate = I18nContextValue["t"];
 
 export const englishTranslate: Translate = createTranslationFunction("en");
 
+/** @internal */
 export type ModelListKind = "openai-compatible" | "anthropic" | "google";
 
 export type ModelListResult =
@@ -31,12 +32,14 @@ const DEFAULT_BASE: Record<ModelListKind, string> = {
   google: "https://generativelanguage.googleapis.com/v1beta",
 };
 
+/** @internal */
 export const MODEL_LIST_CACHE_MS = 10 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_PAGES = 5;
 
 const cache = new Map<string, { at: number; models: string[] }>();
 
+/** @internal */
 export function clearModelListCache() {
   cache.clear();
 }
@@ -82,7 +85,10 @@ function pageUrl(kind: ModelListKind, base: string, cursor: string | null) {
   return url.toString();
 }
 
-/** One page of a provider's model list: its model ids and the cursor for the next page, if any. */
+/**
+ * One page of a provider's model list: its model ids and the cursor for the next page, if any.
+ * @internal
+ */
 export function parseModelPage(
   kind: ModelListKind,
   body: unknown,

@@ -14,6 +14,7 @@ import type {
 
 const log = createLogger("InterventionRegistry");
 
+/** @internal */
 export class InterventionRegistry {
   private static instance: InterventionRegistry;
   private interventions: Map<InterventionType, InterventionImplementation> =

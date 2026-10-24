@@ -6,6 +6,7 @@
 
 export const CHARS_PER_TOKEN = 4;
 
+/** @internal */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
@@ -45,6 +46,7 @@ function textOf(value: unknown): string {
   }
 }
 
+/** @internal */
 export function toolSchemaTokens(tools: readonly MeasurableTool[]): number {
   return tools.reduce(
     (sum, t) =>

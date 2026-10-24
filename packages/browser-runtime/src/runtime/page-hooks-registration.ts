@@ -42,6 +42,7 @@ function pageHooksEnabled(settings: PageHookSettingsRead): boolean {
  * its subdomains on every scheme and port; a full match pattern is used as
  * written. Anything else is skipped and returned in `invalid` (one invalid
  * pattern would make Chrome reject the whole registration).
+ * @internal
  */
 export function excludeMatchesFor(sites: readonly string[]): {
   patterns: string[];
@@ -89,6 +90,7 @@ export function pageHooksAllowedOn(
   });
 }
 
+/** @internal */
 export function desiredRegistration(
   settings: PageHookSettingsRead,
 ): chrome.scripting.RegisteredContentScript | null {
@@ -127,6 +129,7 @@ function sameRegistration(
   return norm(a) === norm(b);
 }
 
+/** @internal */
 export type PageHooksReconcileResult =
   | "registered"
   | "updated"
@@ -147,7 +150,10 @@ async function loadSettings(): Promise<
 
 let queue: Promise<PageHooksReconcileResult> = Promise.resolve("unchanged");
 
-/** Make the registered bridge match the settings. Calls are serialized. */
+/**
+ * Make the registered bridge match the settings. Calls are serialized.
+ * @internal
+ */
 export function reconcilePageHooks(
   settings?: PageHookSettingsRead,
 ): Promise<PageHooksReconcileResult> {

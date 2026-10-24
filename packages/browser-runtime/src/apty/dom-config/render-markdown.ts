@@ -55,6 +55,7 @@ function renderCondition(condition: RuleCondition): string {
   return `${condition.category} · ${condition.operator} · ${code(condition.value)}`;
 }
 
+/** @internal */
 export function renderConditions(rule: Rule): string {
   return rule.conditions.map(renderCondition).join(" AND ");
 }

@@ -105,6 +105,7 @@ interface CapturedRequest {
   timestamp: number;
 }
 
+/** @internal */
 export const getNetworkDiagnosticsTool = tool({
   name: "get_network_diagnostics",
   description:
@@ -243,6 +244,7 @@ interface CapturedRuntimeEvent {
   category: LogCategory;
 }
 
+/** @internal */
 export const getRuntimeDiagnosticsTool = tool({
   name: "get_runtime_diagnostics",
   description:
@@ -395,6 +397,7 @@ function serializeEvaluationResult(result?: EvaluationResult): string {
   );
 }
 
+/** @internal */
 export const runConsoleCommandTool = tool({
   name: "run_console_command",
   description:

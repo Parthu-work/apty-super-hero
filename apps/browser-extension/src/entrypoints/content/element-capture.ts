@@ -11,6 +11,7 @@ let isCapturing = false;
 let highlighted: Element | null = null;
 let cleanupListeners: (() => void) | null = null;
 
+/** @internal */
 export function generateCssSelector(element: Element): string {
   const path: string[] = [];
   let current: Element | null = element;

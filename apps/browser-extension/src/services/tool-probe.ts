@@ -8,6 +8,7 @@ import { generateText, jsonSchema, type LanguageModel, tool } from "ai";
 
 export type ToolCallingSupport = "yes" | "no" | "unknown";
 
+/** @internal */
 export const PROBE_TOOL_NAME = "report_probe";
 const PROBE_TIMEOUT_MS = 15_000;
 
@@ -18,7 +19,10 @@ export type ProbeAttempt =
   | { kind: "answered"; toolNames: string[] }
   | { kind: "failed"; status?: number; message: string; timedOut: boolean };
 
-/** What one attempt says about tool support; `null` when it says nothing (retry, then "unknown"). */
+/**
+ * What one attempt says about tool support; `null` when it says nothing (retry, then "unknown").
+ * @internal
+ */
 export function classifyProbeAttempt(
   attempt: ProbeAttempt,
 ): ToolCallingSupport | null {

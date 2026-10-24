@@ -22,6 +22,7 @@ async function isSkillExecutionEnabled(): Promise<boolean> {
   return settings?.skillExecutionEnabled === true;
 }
 
+/** @internal */
 export const loadSkillTool = tool({
   name: "load_skill",
   description:
@@ -80,6 +81,7 @@ function describeScriptForApproval(
   return `${code}\nArguments: ${shown}`;
 }
 
+/** @internal */
 export const executeSkillScriptTool = tool({
   name: "execute_skill_script",
   description:

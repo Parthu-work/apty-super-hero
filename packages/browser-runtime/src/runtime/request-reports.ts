@@ -13,7 +13,9 @@ import type {
 import type { RedactionMode } from "@apty/debug-contract";
 import { type MeasurableItem, measureRequest } from "./request-anatomy.js";
 
+/** @internal */
 export const REQUEST_REPORTS_KEY = "apty_request_reports";
+/** @internal */
 export const MAX_REQUEST_REPORTS = 5;
 
 let recent: RequestReport[] = [];
@@ -38,6 +40,7 @@ function imageCount(item: AgentInputItem): number {
     : 0;
 }
 
+/** @internal */
 export function buildRequestReport(
   items: AgentInputItem[],
   request: OutboundRequestContext,
@@ -135,7 +138,10 @@ export function watchRequestReports(
   return () => chrome.storage.onChanged.removeListener(onChanged);
 }
 
-/** Test-only: forget this context's reports. */
+/**
+ * Test-only: forget this context's reports.
+ * @internal
+ */
 export function resetRequestReportsForTests(): void {
   recent = [];
 }

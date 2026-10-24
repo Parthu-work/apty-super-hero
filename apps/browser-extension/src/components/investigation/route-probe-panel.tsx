@@ -108,7 +108,10 @@ function StepView({ step }: { step: RouteProbeStep }) {
   );
 }
 
-/** "2 (40/1000)": lists, rendered rows / declared rows ("?" when unknown); "—" when none or not read. */
+/**
+ * "2 (40/1000)": lists, rendered rows / declared rows ("?" when unknown); "—" when none or not read.
+ * @internal
+ */
 export function describeVirtualized(
   virtualized: RouteProbeFrameRecord["virtualized"] | undefined,
 ): string {

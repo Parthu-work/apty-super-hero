@@ -266,7 +266,10 @@ export interface NavigationModel {
   routingEvidenceReason?: string;
 }
 
-/** Why routing evidence is missing when the page-world hooks never announced themselves in the top frame. */
+/**
+ * Why routing evidence is missing when the page-world hooks never announced themselves in the top frame.
+ * @internal
+ */
 export const ROUTING_EVIDENCE_UNAVAILABLE =
   "Client-side routing could not be measured: the page-world script that counts pushState/replaceState calls does not run on this page (it is turned off, or this site is excluded, in Settings → Troubleshooting), so no routing is not evidence of no routing.";
 

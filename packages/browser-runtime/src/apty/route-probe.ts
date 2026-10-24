@@ -103,6 +103,7 @@ export type RouteProbeSignal =
   | "firstRequest"
   | "pushState";
 
+/** @internal */
 export interface RouteProbeSignalSummary {
   signal: RouteProbeSignal;
   /** Clicks after which this signal differed from the step before. */

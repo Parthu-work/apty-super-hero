@@ -111,6 +111,7 @@ export function isPrivateIPv6(rawHost: string): boolean {
   return false;
 }
 
+/** @internal */
 export class SsrfBlockedError extends Error {
   constructor(message: string) {
     super(message);

@@ -66,6 +66,7 @@ function withoutBody(evidence: DiagnosticEvidence): DiagnosticEvidence {
  * `MAX_PERSISTED_EVIDENCE_CHARS`, response bodies are left out of the
  * oldest records first (flagged `bodyDropped`); the in-memory copy keeps
  * them.
+ * @internal
  */
 export function serializeEvidence(
   maxChars = MAX_PERSISTED_EVIDENCE_CHARS,

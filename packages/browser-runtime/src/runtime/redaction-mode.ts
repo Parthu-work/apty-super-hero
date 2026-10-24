@@ -29,6 +29,7 @@ let cached: RedactionMode | null = null;
 let loading: Promise<RedactionMode> | null = null;
 let listening = false;
 
+/** @internal */
 export function parseRedactionMode(value: unknown): RedactionMode {
   return value === "standard" || value === "off" ? value : DEFAULT_MODE;
 }
@@ -126,6 +127,7 @@ export function redactJsonTextInMode(
 /** The most JSON text `redactLargeJsonText` takes on; bounds the work. */
 const MAX_LARGE_JSON_CHARS = 2_000_000;
 
+/** @internal */
 export type LargeJsonRedaction =
   | { ok: true; text: string }
   | {
@@ -296,6 +298,7 @@ function redactChildren(
  *
  * `containerLimit` splits containers longer than that (default: only those
  * too long to redact whole); tests lower it to split small bodies.
+ * @internal
  */
 export function redactLargeJsonText(
   text: string,
@@ -373,7 +376,10 @@ export function previewRedaction(
   return redactSensitiveText(text, mode);
 }
 
-/** Test-only: forget the cached mode and the change listener. */
+/**
+ * Test-only: forget the cached mode and the change listener.
+ * @internal
+ */
 export function resetRedactionModeForTests(): void {
   cached = null;
   loading = null;

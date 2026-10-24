@@ -57,6 +57,7 @@ async function resolveConfiguredExtensionId(): Promise<string | undefined> {
   return config.clientExtensionId;
 }
 
+/** @internal */
 export const connectAptyClientTool = tool({
   name: "connect_apty_client",
   description:
@@ -105,6 +106,7 @@ const getAptyClientConnectionStatusTool = tool({
   },
 });
 
+/** @internal */
 export const inspectExtensionNetworkTool = tool({
   name: "inspect_extension_network",
   description:
@@ -151,6 +153,7 @@ export const inspectExtensionNetworkTool = tool({
   },
 });
 
+/** @internal */
 export const listExtensionNetworkResourcesTool = tool({
   name: "list_extension_network_resources",
   description:
@@ -180,6 +183,7 @@ export const listExtensionNetworkResourcesTool = tool({
   },
 });
 
+/** @internal */
 export const getExtensionServiceWorkerLogsTool = tool({
   name: "get_extension_service_worker_logs",
   description:

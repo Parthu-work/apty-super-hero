@@ -18,7 +18,10 @@ export interface GroupableCall {
   hasBody?: boolean;
 }
 
-/** Calls of a resource tried for a body when the Client does not say which have one. */
+/**
+ * Calls of a resource tried for a body when the Client does not say which have one.
+ * @internal
+ */
 export const MAX_BODY_TRIES = 3;
 
 export function resourceKeyOf(method: string, url: string): string {

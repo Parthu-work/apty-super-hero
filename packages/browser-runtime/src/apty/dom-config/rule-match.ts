@@ -14,6 +14,7 @@ function listOf(value: string): string[] {
   return value.split(",").map((part) => part.trim());
 }
 
+/** @internal */
 export function conditionMatches(
   condition: RuleCondition,
   subject: string,

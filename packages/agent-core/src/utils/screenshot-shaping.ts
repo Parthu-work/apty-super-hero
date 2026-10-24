@@ -24,7 +24,10 @@ const SCREENSHOT_TOOL_NAMES = new Set([
 const IMAGE_DATA_PLACEHOLDER =
   "[Image data removed - see following user message]";
 
-/** Marker on transient user-image messages so they can be pruned */
+/**
+ * Marker on transient user-image messages so they can be pruned
+ * @internal
+ */
 export const TRANSIENT_SCREENSHOT_MARKER = "__transient_screenshot__";
 
 /**

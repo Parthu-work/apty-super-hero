@@ -59,6 +59,7 @@ function inClass(call: NetworkCall, statusClass: StatusClass): boolean {
  * Resources matching the text (in any of their calls' name, URL or method)
  * and the status class: a resource matches a class when its latest call
  * does, or any of its failed calls does.
+ * @internal
  */
 export function filterResourceGroups(
   groups: readonly ResourceGroup<NetworkCall>[],

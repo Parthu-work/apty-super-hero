@@ -69,7 +69,10 @@ export interface FlatRun {
 
 const LEGACY_CROSS_ORIGIN_KEY = /^Cross Origin \d+ \(src: ([\s\S]*)\)$/;
 
-/** D8: the console script names an unreadable frame `Cross Origin N (src: …)`; the `src` inside is real, the number is not. */
+/**
+ * D8: the console script names an unreadable frame `Cross Origin N (src: …)`; the `src` inside is real, the number is not.
+ * @internal
+ */
 export function parseLegacyFrameKey(key: string): {
   src: string | null;
   placeholder: boolean;

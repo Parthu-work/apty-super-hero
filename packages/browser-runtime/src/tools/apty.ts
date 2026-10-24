@@ -324,6 +324,7 @@ class TabResolutionError extends Error {
  * Must run in the MAIN world (not the default isolated content-script
  * world) because that's where the buffer lives — it's attached to the
  * page's own `window`, not the extension's isolated one.
+ * @internal
  */
 export const getAptyPageLogsTool = tool({
   name: "get_apty_page_logs",
@@ -733,6 +734,7 @@ async function serviceWorkerDiagnostics(
   };
 }
 
+/** @internal */
 export const getAptyStudioServiceWorkerDiagnosticsTool = tool({
   name: "get_apty_studio_service_worker_diagnostics",
   description:

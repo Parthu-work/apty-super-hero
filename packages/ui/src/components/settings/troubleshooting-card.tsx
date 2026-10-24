@@ -135,7 +135,10 @@ export function TroubleshootingCard({
 
 const LINES_SAVE_DELAY_MS = 500;
 
-/** `{"name": number, ...}`, or null when the text is anything else. Empty text is no overrides. */
+/**
+ * `{"name": number, ...}`, or null when the text is anything else. Empty text is no overrides.
+ * @internal
+ */
 export function parseThresholdOverrides(
   text: string,
 ): Record<string, number> | null {

@@ -134,6 +134,7 @@ const observedResourceSchema = z.object({
   hasBody: z.boolean().optional(),
 });
 
+/** @internal */
 export const resourcesResponseSchema = z.object({
   resources: z.array(observedResourceSchema).max(MAX_RESOURCES_ACCEPTED),
   /** How many times the Client failed to save its call history; a nonzero count means a restart may lose calls. */
@@ -147,6 +148,7 @@ const BODY_MISSING_REASONS = [
   "none",
 ] as const;
 
+/** @internal */
 export const resourceBodyResponseSchema = z.object({
   found: z.boolean(),
   body: z.string().max(MAX_BODY_CHARS_ACCEPTED).optional(),

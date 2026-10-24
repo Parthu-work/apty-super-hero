@@ -35,7 +35,10 @@ interface Row {
 const INSPECTABLE_PROTOCOLS = new Set(["http:", "https:", "file:"]);
 const STORE_HOSTS = new Set(["chromewebstore.google.com", "chrome.google.com"]);
 
-/** Whether Chrome lets an extension read and act on the page at `url`. */
+/**
+ * Whether Chrome lets an extension read and act on the page at `url`.
+ * @internal
+ */
 export function describePage(
   url: string | undefined,
   fileAccessAllowed = true,

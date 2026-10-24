@@ -12,6 +12,7 @@ const FUNCTION_COLOR = new RegExp(
 );
 const FONT_WEIGHT = /^(?:normal|bold|[1-9]00)$/;
 
+/** @internal */
 export function isSafeCssColor(value: string): boolean {
   return (
     NAMED_COLOR.test(value) ||
@@ -20,6 +21,7 @@ export function isSafeCssColor(value: string): boolean {
   );
 }
 
+/** @internal */
 export function isSafeFontWeight(value: string): boolean {
   return FONT_WEIGHT.test(value);
 }

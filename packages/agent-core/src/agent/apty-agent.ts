@@ -112,7 +112,10 @@ function isRetryableLlmError(classified: {
   );
 }
 
-/** Same bound the UI's useAgent applies, so a caller that omits it can't run away. */
+/**
+ * Same bound the UI's useAgent applies, so a caller that omits it can't run away.
+ * @internal
+ */
 export const DEFAULT_MAX_TURNS = 30;
 
 export class AptyAgent {

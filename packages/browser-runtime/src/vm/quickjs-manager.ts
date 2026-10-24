@@ -41,6 +41,7 @@ const BUILT_IN_MODULES = new Set(["fs", ...Object.keys(bundledModules)]);
  * Skills run only code that ships inside the skill: Chrome Web Store
  * policy forbids executing remotely hosted code, so third-party packages
  * must be bundled into the script rather than imported from a CDN.
+ * @internal
  */
 export function assertSupportedImports(code: string): void {
   const unsupported = extractImports(code).filter(

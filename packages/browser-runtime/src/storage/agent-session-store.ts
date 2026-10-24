@@ -9,7 +9,10 @@ export const AGENT_SESSION_DB = {
   storeName: "sessions",
 } as const;
 
-/** The same store under its upstream AIPex name, moved on first use. */
+/**
+ * The same store under its upstream AIPex name, moved on first use.
+ * @internal
+ */
 export const LEGACY_AGENT_SESSION_DB = {
   dbName: "aipex-sessions",
   storeName: "sessions",
@@ -54,6 +57,7 @@ function sessions(): IndexedDBStorage<StoredSession> {
  * Copy every session from the legacy database, read each one back, then drop
  * the legacy database. A session already in the new database wins.
  * Idempotent; returns how many sessions the legacy database held.
+ * @internal
  */
 export async function migrateLegacyAgentSessions(
   ops: SessionDbOps = browserDbOps,
