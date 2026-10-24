@@ -627,7 +627,20 @@ Key pieces:
   confidence, structured hypotheses rendered with their status badge).
 - **`debugging-welcome-screen.tsx`** — replaces the generic "how can I help
   you" empty state (`toolDisplay`/`emptyState` slots) with Apty-specific
-  example prompts.
+  example prompts, and a "Generate DOM config" tile that opens the DOM
+  Config card instead of sending a message.
+- **`dom-config/`** — the DOM Config card in `promptExtras`, after the DOM
+  Health card. Its run state lives in a plain-object store
+  (`dom-config-store.ts`, read with `useSyncExternalStore`) outside React,
+  so a run survives the card collapsing; it holds the tab fixed at Start,
+  the progress rows built from `runDomConfigCapture`'s `onProgress`, the
+  outcome and the SE's rule choices, in memory only. It imports the engine
+  from `@apty/browser-runtime/apty/dom-config/index` (a subpath without
+  the barrel's module-level side effects). `tab-lock.ts` is one in-memory
+  lock per tab taken by DOM Config's crawl and DOM Health's audits, so the
+  two never navigate the same tab at once; runs the chat agent starts
+  through its tools do not take it. Copy and export (`copy-format.ts`)
+  always use the rules left included.
 - **`apty-tool-display.tsx` / `selector-analysis-display.tsx`** — gives
   `analyze_element_selectors` a dedicated visual (recommended selector,
   ranked candidates, iframe/Shadow-DOM boundary note, copy-selector button)

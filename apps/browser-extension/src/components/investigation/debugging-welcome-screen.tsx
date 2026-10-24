@@ -17,10 +17,12 @@ import {
   CrosshairIcon,
   PuzzleIcon,
   SearchCodeIcon,
+  SlidersHorizontalIcon,
   WifiOffIcon,
   WorkflowIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { revealDomConfigCard } from "./dom-config/dom-config-store";
 
 type PromptTone = "danger" | "active" | "warning" | "success";
 
@@ -69,6 +71,46 @@ const DEBUG_PROMPTS: Array<{
   },
 ];
 
+function PromptTile({
+  category,
+  text,
+  icon: Icon,
+  tone,
+  onClick,
+}: (typeof DEBUG_PROMPTS)[number] & { onClick: (text: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <Suggestion
+      suggestion={t(text)}
+      onClick={onClick}
+      variant="outline"
+      size="lg"
+      className={cn(
+        "h-auto w-full items-center justify-start gap-2.5 rounded-lg border-border px-2.5 py-2 text-left transition-colors",
+        "hover:border-foreground/20 hover:bg-accent",
+      )}
+    >
+      <div
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-md",
+          TONE_ICON_CLASSES[tone],
+        )}
+      >
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {t(category)}
+        </div>
+        <div className="whitespace-normal break-words text-xs font-medium text-foreground">
+          {t(text)}
+        </div>
+      </div>
+      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/60" />
+    </Suggestion>
+  );
+}
+
 export function DebuggingWelcomeScreen({
   onSuggestionClick,
   className,
@@ -102,37 +144,20 @@ export function DebuggingWelcomeScreen({
           {t("investigation.welcome.start")}
         </p>
         <Suggestions className="grid w-full gap-2 sm:grid-cols-2">
-          {DEBUG_PROMPTS.map(({ category, text, icon: Icon, tone }) => (
-            <Suggestion
-              key={text}
-              suggestion={t(text)}
+          {DEBUG_PROMPTS.map((prompt) => (
+            <PromptTile
+              key={prompt.text}
+              {...prompt}
               onClick={onSuggestionClick}
-              variant="outline"
-              size="lg"
-              className={cn(
-                "h-auto w-full items-center justify-start gap-2.5 rounded-lg border-border px-2.5 py-2 text-left transition-colors",
-                "hover:border-foreground/20 hover:bg-accent",
-              )}
-            >
-              <div
-                className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-md",
-                  TONE_ICON_CLASSES[tone],
-                )}
-              >
-                <Icon className="size-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t(category)}
-                </div>
-                <div className="whitespace-normal break-words text-xs font-medium text-foreground">
-                  {t(text)}
-                </div>
-              </div>
-              <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/60" />
-            </Suggestion>
+            />
           ))}
+          <PromptTile
+            category="domConfig.welcome.category"
+            text="domConfig.welcome.tile"
+            icon={SlidersHorizontalIcon}
+            tone="active"
+            onClick={revealDomConfigCard}
+          />
         </Suggestions>
       </div>
     </div>
