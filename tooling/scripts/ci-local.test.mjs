@@ -40,7 +40,7 @@ describe("the steps read from ci.yml", () => {
     assert.ok(coverage < names.indexOf("Build"));
   });
 
-  it("keep each step's working directory and leave only the dependency check informational", () => {
+  it("keep each step's working directory and stop on any failing step", () => {
     const bridge = steps.filter(
       (s) => s.workingDirectory === "apps/mcp-bridge",
     );
@@ -53,7 +53,7 @@ describe("the steps read from ci.yml", () => {
     );
     assert.deepEqual(
       steps.filter((s) => s.continueOnError).map((s) => s.run),
-      ["npm run lint:dependencies"],
+      [],
     );
   });
 
