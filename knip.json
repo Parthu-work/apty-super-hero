@@ -1,6 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreWorkspaces": [],
+  // `prek install` (root postinstall) sets up the git hooks in a development
+  // checkout; prek comes from the root devDependency @j178/prek, which
+  // `--strict` (production) mode does not count. No workspace is installed
+  // as a dependency, so the postinstall never runs without devDependencies.
+  "ignoreBinaries": ["prek"],
+  // Entries and project files ending in "!" are production code: `--strict`
+  // implies production mode, which analyzes only those. Test files and the
+  // helpers only tests import are left out of it.
   "workspaces": {
     ".": {
       "entry": [
@@ -12,33 +20,41 @@
     },
     "apps/browser-extension": {
       "entry": [
-        "src/entrypoints/background/index.ts",
-        "src/entrypoints/content/index.tsx",
-        "src/entrypoints/content/frame-responder.ts",
-        "src/entrypoints/content/console-bridge.ts",
-        "src/entrypoints/content/page-hooks.ts",
-        "src/entrypoints/sidepanel/index.html",
-        "src/entrypoints/sidepanel/index.tsx",
-        "src/entrypoints/options/index.html",
-        "src/entrypoints/options/index.tsx",
+        "src/entrypoints/background/index.ts!",
+        "src/entrypoints/content/index.tsx!",
+        "src/entrypoints/content/frame-responder.ts!",
+        "src/entrypoints/content/console-bridge.ts!",
+        "src/entrypoints/content/page-hooks.ts!",
+        "src/entrypoints/sidepanel/index.html!",
+        "src/entrypoints/sidepanel/index.tsx!",
+        "src/entrypoints/options/index.html!",
+        "src/entrypoints/options/index.tsx!",
         "vite.config.ts",
         "**/*.test.{ts,tsx}"
       ],
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}!", "!src/**/*-test-fixtures.ts!"],
+      // Vitest's matcher types for the tests; vitest itself comes from the root.
+      "ignore": ["src/vitest.d.ts"],
+      // Imported by src/styles/tailwind.css (`@import`), which knip does not read.
+      "ignoreDependencies": ["tailwindcss", "tw-animate-css"]
     },
     "apps/mcp-bridge": {
       "entry": [
-        "src/bridge.ts",
-        "src/daemon.ts",
-        "src/cli.ts",
-        "src/browser-cli.ts",
+        "src/bridge.ts!",
+        "src/daemon.ts!",
+        "src/cli.ts!",
+        "src/browser-cli.ts!",
         "**/*.test.ts"
       ],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts!"]
     },
     "packages/*": {
-      "entry": ["src/index.ts", "**/*.test.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"]
+      "entry": ["src/index.ts!", "**/*.test.{ts,tsx}"],
+      "project": [
+        "src/**/*.{ts,tsx}!",
+        "!src/**/__tests__/**!",
+        "!src/**/*-test-utils.ts!"
+      ]
     }
   }
 }

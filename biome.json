@@ -51,6 +51,14 @@
       }
     },
     {
+      "includes": ["knip.json"],
+      "json": {
+        "parser": {
+          "allowComments": true
+        }
+      }
+    },
+    {
       "includes": ["**/*.d.ts"],
       "linter": {
         "rules": {
