@@ -5,8 +5,6 @@
 
 import { createLogger, migrateSettings, STORAGE_KEYS } from "@apty/agent-core";
 import { seedAptyIntegrationConfigDefaults } from "@apty/browser-runtime";
-import { ensureAgentSessionsMigrated } from "@apty/browser-runtime/storage/agent-session-store";
-import { moveLegacyDatabases } from "@apty/browser-runtime/storage/legacy-databases";
 
 const log = createLogger("Lifecycle");
 
@@ -32,24 +30,6 @@ export function seedAptyIntegrationConfig(): void {
   });
 }
 
-let legacyStorageMove: Promise<void> | null = null;
-
-/**
- * Moves data stored under the upstream AIPex names to the Apty ones. Calls
- * made while a move runs share it, so start-up and onInstalled never race.
- */
-export function migrateLegacyStorage(): Promise<void> {
-  legacyStorageMove ??= Promise.all([
-    ensureAgentSessionsMigrated(),
-    moveLegacyDatabases(),
-  ])
-    .then(() => undefined)
-    .finally(() => {
-      legacyStorageMove = null;
-    });
-  return legacyStorageMove;
-}
-
 /** Writes stored settings back in the current schema, once per update. */
 async function upgradeStoredSettings(): Promise<void> {
   const key = STORAGE_KEYS.SETTINGS;
@@ -72,11 +52,9 @@ export function registerInstallHandler(): void {
         "Apty Agent extension updated to version",
         chrome.runtime.getManifest().version,
       );
-      migrateLegacyStorage()
-        .then(upgradeStoredSettings)
-        .catch(() => {
-          console.warn("[Background] settings_upgrade_failed");
-        });
+      upgradeStoredSettings().catch(() => {
+        console.warn("[Background] settings_upgrade_failed");
+      });
     }
   });
 }
