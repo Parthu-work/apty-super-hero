@@ -214,7 +214,7 @@ export function ReportView({
         {t("domConfig.notMeasured", {
           list: report.notMeasured
             .map((entry) => `${entry.item}: ${entry.text}`)
-            .join("; "),
+            .join(" "),
         })}
       </p>
       <details className="rounded-md border px-2 py-1.5 text-[11px]">
