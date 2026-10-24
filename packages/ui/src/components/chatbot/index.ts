@@ -84,8 +84,7 @@ export {
   MessageActionsWithFeedback,
   MinimalToolDisplay,
 } from "./components/slots";
-// Re-export constants for backwards compatibility
-export { models, SYSTEM_PROMPT } from "./constants";
+export { SYSTEM_PROMPT } from "./constants";
 // Context exports
 export {
   AgentContext,

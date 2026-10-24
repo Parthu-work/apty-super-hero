@@ -84,5 +84,3 @@ export function Omni({
     </CommandDialog>
   );
 }
-
-export default Omni;
