@@ -5,17 +5,6 @@
 
 // Re-export storage adapter (no React dependency)
 export { chromeStorageAdapter } from "@apty/browser-runtime";
-// Re-export types only (no runtime React dependency)
-export type {
-  ChatbotEventHandlers,
-  Theme,
-  UseAgentOptions,
-  UseAgentReturn,
-  UseChatConfigOptions,
-  UseChatConfigReturn,
-  UseChatOptions,
-  UseChatReturn,
-} from "@apty/ui";
 
 /**
  * React hooks should be imported directly from their sources:

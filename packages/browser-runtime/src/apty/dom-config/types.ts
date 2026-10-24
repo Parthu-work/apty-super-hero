@@ -10,12 +10,6 @@ export type {
   DomProfileFrame,
   DomProfileNode,
   DomProfileV2,
-  ElementFingerprintRecord,
-  FrameRecord,
-  FrameUnreadableReason,
-  MutationBurst,
-  ProfileMeta,
-  ShadowHostRecord,
   ZIndexSource,
 } from "@apty/dom-snapshot";
 

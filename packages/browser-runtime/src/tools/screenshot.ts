@@ -12,12 +12,6 @@ import { getActiveTab, type ToolRunContext } from "./tab-utils";
 
 const log = createLogger("Screenshot");
 
-// Re-export the shared helper types/function so existing consumers aren't broken
-export type {
-  CaptureWithElementCropOptions,
-  CaptureWithElementCropResult,
-} from "./screenshot-helpers.js";
-
 /**
  * Wraps a capture tool's `execute` so a screenshot that would be sent to the
  * model first passes the consent gate; one kept on the device does not.
