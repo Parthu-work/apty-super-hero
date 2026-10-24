@@ -1,17 +1,17 @@
 /**
  * Accessibility (C3): axe-core on the real side panel and Options page, in
- * light and dark themes. Fails on any `serious` or `critical` violation
- * (the intervention card on `critical` ones only, until its hint text's
- * contrast is fixed).
+ * light and dark themes. Fails on any `serious` or `critical` violation.
  * Side panel states: empty, the conversation history still loading, a chat
- * with a tool result, an approval prompt, an intervention card, the send
- * button idle, sending, streaming and after an error, the evidence viewers
- * (the investigation summary and the full response viewer), a DOM
- * Health result with its export dialog at side-panel size, and the DOM
- * Config card idle, running (held on a page request), with its report and
- * on a page it cannot analyze, a manual capture with a duplicate warning,
- * an import error, page detail and the Iframes, Coverage and Warnings
- * tabs. Options: every tab. No axe rule is disabled.
+ * with a tool result, a long chat scrolled up with its scroll-to-bottom
+ * button, an approval prompt, an intervention card before and after an
+ * option is chosen, the send button idle, sending, streaming and after an
+ * error, the evidence viewers (the investigation summary and the full
+ * response viewer), a DOM Health result with its export dialog at
+ * side-panel size, and the DOM Config card idle, running (held on a page
+ * request), with its report and on a page it cannot analyze, a manual
+ * capture with a duplicate warning, an import error, page detail and the
+ * Iframes, Coverage and Warnings tabs. Options: every tab. No axe rule is
+ * disabled.
  */
 import assert from "node:assert/strict";
 import { join } from "node:path";
@@ -105,10 +105,8 @@ async function assertInViewport(locator) {
   );
 }
 
-async function assertNoSeriousViolations(page, where, { criticalOnly } = {}) {
-  const violations = (await runAxe(page)).filter(
-    (v) => !criticalOnly || v.impact === "critical",
-  );
+async function assertNoSeriousViolations(page, where) {
+  const violations = await runAxe(page);
   assert.deepEqual(
     violations.map((v) => v.id),
     [],
@@ -243,13 +241,18 @@ for (const theme of ["light", "dark"]) {
           await panel
             .getByRole("button", { name: /Order 1001/ })
             .waitFor({ timeout: 30_000 });
-          // The card's hint text fails colour contrast in the light theme
-          // (a serious violation, not a naming one); this state is held to
-          // critical violations only until that is fixed.
           await assertNoSeriousViolations(
             panel,
             `${theme} side panel, intervention card`,
-            { criticalOnly: true },
+          );
+          await panel.getByRole("button", { name: /Order 1001/ }).click();
+          const confirm = panel.getByRole("button", {
+            name: "Confirm Selection",
+          });
+          assert.equal(await confirm.isEnabled(), true);
+          await assertNoSeriousViolations(
+            panel,
+            `${theme} side panel, intervention card with an option chosen`,
           );
           checked = true;
           await panel
@@ -303,6 +306,33 @@ for (const theme of ["light", "dark"]) {
         panel,
         `${theme} send button, after an error`,
       );
+      await panel.close();
+      await app.close();
+    });
+
+    it("side panel, a long chat scrolled up, with its scroll-to-bottom button", async () => {
+      const { app, panel } = await openPanel(theme);
+      const lines = Array.from(
+        { length: 60 },
+        (_, i) => `Line ${i + 1} of a long answer.`,
+      );
+      model.script(() => ({ text: lines.join("\n\n") }));
+      await sendChat(panel, "give me a long answer");
+      await panel.getByText(lines.at(-1)).waitFor();
+      await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
+
+      await panel.getByRole("log").hover();
+      await panel.mouse.wheel(0, -5000);
+      const scrollDown = panel.getByRole("button", {
+        name: "Scroll to the latest message",
+      });
+      await scrollDown.waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} side panel, long chat scrolled up`,
+      );
+      await scrollDown.click();
+      await scrollDown.waitFor({ state: "detached" });
       await panel.close();
       await app.close();
     });

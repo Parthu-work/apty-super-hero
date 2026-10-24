@@ -325,7 +325,7 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
           </div>
 
           {/* Hint information */}
-          <div className="text-xs text-center text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg py-2.5 px-3">
+          <div className="text-xs text-center text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg py-2.5 px-3">
             {mode === "single"
               ? `💡 ${t("interventions.selection.promptSingle" as TranslationKey)}`
               : `💡 ${t("interventions.selection.promptMultiple" as TranslationKey)}`}
@@ -336,7 +336,7 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
             type="button"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed h-11 rounded-xl"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed h-11 rounded-xl"
           >
             <CheckIcon className="w-4 h-4 mr-2" strokeWidth={2.5} />
             {t("interventions.selection.confirmButton" as TranslationKey)}
