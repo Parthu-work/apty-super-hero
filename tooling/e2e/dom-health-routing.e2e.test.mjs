@@ -73,14 +73,31 @@ after(async () => {
   model?.close();
 });
 
-/** Send `message` to frame 0 of the tab showing `page`, from an extension page. */
+/**
+ * Send `message` to frame 0 of the tab showing `page`, from an extension
+ * page, once that frame's responder answers. The declared responder is a
+ * loader that imports its module, so it starts listening a few milliseconds
+ * after the page's load event; until then the browser reports no receiver
+ * and nothing was delivered. The product's frame messages recover from the
+ * same error in `sendFrameMessage` (browser-runtime `frame-tree.ts`).
+ */
 async function askTopFrame(ext, message, page = "spa.html") {
   return ext.evaluate(
     async ({ message, page }) => {
       const [tab] = await chrome.tabs.query({
         url: `http://127.0.0.1/*${page}*`,
       });
-      return chrome.tabs.sendMessage(tab.id, message, { frameId: 0 });
+      const deadline = Date.now() + 10_000;
+      for (;;) {
+        try {
+          return await chrome.tabs.sendMessage(tab.id, message, {
+            frameId: 0,
+          });
+        } catch (error) {
+          const noReceiver = /Receiving end does not exist/.test(error.message);
+          if (!noReceiver || Date.now() > deadline) throw error;
+        }
+      }
     },
     { message, page },
   );
