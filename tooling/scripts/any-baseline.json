@@ -56,7 +56,7 @@
   "packages/browser-runtime/src/automation/types.ts": 2,
   "packages/browser-runtime/src/context/optional-permission-providers.test.ts": 1,
   "packages/browser-runtime/src/conversation/__tests__/conversation-storage.test.ts": 20,
-  "packages/browser-runtime/src/conversation/__tests__/integration.test.ts": 16,
+  "packages/browser-runtime/src/conversation/__tests__/integration.test.ts": 9,
   "packages/browser-runtime/src/interventions/intervention-registry.test.ts": 4,
   "packages/browser-runtime/src/runtime/page-hooks-registration.test.ts": 1,
   "packages/browser-runtime/src/runtime/redaction-mode.test.ts": 1,

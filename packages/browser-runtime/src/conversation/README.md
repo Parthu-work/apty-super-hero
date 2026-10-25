@@ -1,15 +1,13 @@
 # Conversation Storage
 
-A robust conversation storage system for managing chat history with IndexedDB, LRU policy, and automatic migration from localStorage.
+A robust conversation storage system for managing chat history with IndexedDB and an LRU policy.
 
 ## Features
 
 - 🗄️ **IndexedDB Storage**: Persistent storage with IndexedDB
 - 🔄 **LRU Policy**: Automatically manages conversation limit (default: 5)
-- 📦 **Auto Migration**: Seamlessly migrates from localStorage to IndexedDB
 - 🔒 **Type Safe**: Full TypeScript support
 - 🧪 **Well Tested**: Comprehensive unit and integration tests
-- 🎯 **Reads earlier data**: Compatible with the conversation storage of the upstream fork (AIPex)
 
 ## Installation
 
@@ -190,39 +188,18 @@ const storage = new ConversationStorage({
 });
 ```
 
-## Migration
-
-The storage automatically migrates data from localStorage on first use:
-
-- **Source**: `aipex-conversations` (localStorage)
-- **Target**: `apty-conversations-db` (IndexedDB)
-- **Flag**: `aipex-conversations-migrated` (localStorage)
-- **Behavior**: Runs once, idempotent, automatic
-
-### Migration Process
-
-1. Check if migration flag is set
-2. If not migrated, read old conversations from localStorage
-3. Save each conversation to IndexedDB
-4. Apply LRU policy
-5. Set migration flag
-6. Remove old localStorage data
-
 ## Architecture
 
 ```
 conversation/
 ├── types.ts                    # Type definitions
 ├── lru-policy.ts              # LRU policy implementation
-├── migration.ts               # Migration logic
 ├── conversation-storage.ts    # Main storage class
 ├── index.ts                   # Public exports
 ├── __tests__/                 # Tests
 │   ├── lru-policy.test.ts
-│   ├── migration.test.ts
 │   ├── conversation-storage.test.ts
 │   └── integration.test.ts
-├── COMPATIBILITY.md           # Compatibility verification
 └── README.md                  # This file
 ```
 
@@ -237,59 +214,16 @@ npm test conversation
 ### Test Coverage
 
 - ✅ Unit tests for LRU policy
-- ✅ Unit tests for migration logic
 - ✅ Unit tests for conversation storage
 - ✅ Integration tests for full workflow
 - ✅ Integration tests for LRU behavior
-- ✅ Integration tests for migration
 - ✅ Concurrent operation tests
 - ✅ Error handling tests
-
-## Compatibility
-
-"aipex" and "new-aipex" below are the upstream fork's (AIPex) two
-conversation storage formats. The Agent reads them only to carry
-conversations over from an earlier install, and writes neither: the
-upstream's `aipex-conversations-db` moves to `apty-conversations-db`
-(`storage/legacy-databases.ts`).
-
-This implementation is **100% compatible** with the aipex conversation storage:
-
-- ✅ Same data structures
-- ✅ Same database schema
-- ✅ Same LRU behavior
-- ✅ Same migration logic
-- ✅ Drop-in replacement
-
-See [COMPATIBILITY.md](./COMPATIBILITY.md) for detailed verification.
-
-## Migration from aipex
-
-### Before (aipex)
-
-```typescript
-import { ConversationStorage } from '~/lib/components/chatbot/conversation-storage';
-
-const id = await ConversationStorage.saveConversation(messages);
-const conversations = await ConversationStorage.getAllConversations();
-```
-
-### After (new-aipex)
-
-```typescript
-import { conversationStorage } from '@apty/browser-runtime';
-
-const id = await conversationStorage.saveConversation(messages);
-const conversations = await conversationStorage.getAllConversations();
-```
-
-**That's it!** Just change the import. Data migrates automatically.
 
 ## Performance
 
 - **IndexedDB**: Asynchronous, non-blocking
 - **LRU**: O(n log n) for sorting, O(n) for deletion
-- **Migration**: One-time cost, runs in background
 - **Memory**: Minimal (only active conversation in memory)
 
 ## Best Practices
@@ -349,17 +283,6 @@ async function saveWithRetry(messages, maxRetries = 3) {
 ```
 
 ## Troubleshooting
-
-### "Migration already completed" but no conversations
-
-The migration flag is set but IndexedDB is empty. This can happen if:
-- Migration completed but conversations were deleted
-- Database was manually cleared
-
-**Solution**: Clear the migration flag to re-run migration:
-```typescript
-localStorage.removeItem('aipex-conversations-migrated');
-```
 
 ### Conversations not persisting
 

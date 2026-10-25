@@ -95,28 +95,4 @@ describe("registerInstallHandler", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(set).toHaveBeenCalledOnce();
   });
-
-  it("moves settings and grants from their AIPex names on update, then versions the settings", async () => {
-    const grants = [{ tool: "click", origin: "https://a.example" }];
-    const store: Record<string, unknown> = {
-      aipex_settings: { aiToken: "kept" },
-      aipex_risky_origin_grants: grants,
-    };
-    const { update } = stubUpdate(store);
-
-    update();
-    await vi.waitFor(() =>
-      expect(store[STORAGE_KEYS.SETTINGS]).toMatchObject({
-        settingsVersion: SETTINGS_VERSION,
-      }),
-    );
-
-    expect(store).toEqual({
-      [STORAGE_KEYS.SETTINGS]: {
-        aiToken: "kept",
-        settingsVersion: SETTINGS_VERSION,
-      },
-      [STORAGE_KEYS.RISKY_ORIGIN_GRANTS]: grants,
-    });
-  });
 });

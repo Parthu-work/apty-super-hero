@@ -3,13 +3,11 @@
  * Fails if a new, unreviewed "aipex"/"AIPex" reference shows up.
  *
  * Every name a user, a customer page, a log line, a CLI user or a package
- * consumer sees is an Apty name (R2, C1). What is left is listed below:
- * the upstream fork's name where the README credits it and where the
- * migration code says what it moves, data an earlier version stored under
- * AIPex names (read once to move it, or removed by "Delete everything"),
- * the upstream's conversation format names in the compatibility docs, the
- * screenshot link host earlier versions wrote (still resolved), and two
- * deprecated apps/mcp-bridge env var fallbacks. Tokens are matched whole
+ * consumer sees is an Apty name (R2, C1), and data stored under AIPex names
+ * is no longer migrated (Part A). What is left is listed below: the
+ * upstream fork's name where the README credits it, the screenshot link
+ * host earlier versions wrote (still resolved), and two deprecated
+ * apps/mcp-bridge env var fallbacks. Tokens are matched whole
  * and case-sensitively, so "[AIPex]" or "data-aipex-new" is caught even
  * though "AIPex" (the fork's name) is allowed; CODE_USES catches the name
  * used as code, which the allowed word would otherwise let through.
@@ -68,39 +66,13 @@ const SKIP_PATHS = [
 
 /** Tokens allowed exactly as written, each with why it is still read. */
 const ALLOWED_TOKENS = new Set([
-  // The upstream fork, by name: the README credit, comments in the
-  // migration code naming what it moves, and the upstream's first
-  // conversation format ("aipex") in conversation/COMPATIBILITY.md.
+  // The upstream fork, by name: the README credit, and tests that check an
+  // old name is gone or refused.
   "aipex",
   "AIPex",
-  // Storage written by earlier versions: read once by the R2 migration
-  // (storage/legacy-storage.ts, storage/agent-session-store.ts) or removed by
-  // "Delete everything" (stored-data.ts).
-  "aipex_theme",
-  "aipex_language",
-  "aipex_settings",
-  "aipex_host_access_config",
-  "aipex_automation_mode",
-  "aipex_risky_origin_grants",
-  "aipex_zenfs_migration_status",
-  "aipex_zenfs_migration_v2_status",
-  "aipex-input-mode",
-  "aipex-sessions",
-  "aipex_last_capture_event",
-  // Databases an earlier version created, moved by storage/legacy-databases.ts,
-  // and the localStorage keys the first conversation-storage migration reads.
-  "aipex-conversations",
-  "aipex-conversations-db",
-  "aipex-conversations-migrated",
-  "aipex-screenshots-db",
-  "aipex-skills-fs",
-  "AIPexSkills",
   // The screenshot link host earlier versions wrote (aipex-screenshot.invalid),
   // still resolved by @apty/ui's resolveScreenshotUrls; never fetched.
   "aipex-screenshot",
-  // The upstream fork's second conversation-storage version, in
-  // conversation/COMPATIBILITY.md and conversation/README.md.
-  "new-aipex",
   // apps/mcp-bridge's deprecated names for APTY_WS_URL and
   // APTY_CONNECT_TIMEOUT, read for one release when the new name is unset.
   "AIPEX_WS_URL",

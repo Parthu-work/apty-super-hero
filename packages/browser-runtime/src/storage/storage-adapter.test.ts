@@ -29,19 +29,7 @@ function stubLocalArea(data: Record<string, unknown>) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("ChromeStorageAdapter.load", () => {
-  it("moves a value still stored under its old AIPex name on first read", async () => {
-    const data: Record<string, unknown> = { aipex_theme: "dark" };
-    stubLocalArea(data);
-
-    const theme = await new ChromeStorageAdapter<string>().load(
-      STORAGE_KEYS.THEME,
-    );
-
-    expect(theme).toBe("dark");
-    expect(data).toEqual({ apty_theme: "dark" });
-  });
-
-  it("returns null for a key that is stored under neither name", async () => {
+  it("returns null for a key that is not stored", async () => {
     const data: Record<string, unknown> = {};
     stubLocalArea(data);
 

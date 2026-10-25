@@ -22,18 +22,49 @@ function scan(files) {
 }
 
 describe("check-branding", () => {
-  it("passes the names kept on purpose", () => {
-    const result = scan({
-      "src/migrate.ts":
-        'const LEGACY = { aipex_settings: "apty_settings" };\n// Moves what AIPex stored.\n',
-      "src/db.ts":
-        'const DB = { "aipex-conversations-db": 1, AIPexSkills: 2 };\n',
-      "src/env.ts": "const URL = env.AIPEX_WS_URL;\n",
-      "README.md":
-        "Forked from the AIPex project (AIPex's own backend removed).\n",
+  for (const [name, line] of [
+    ["the fork's name", "// Forked from AIPex; aipex names are gone."],
+    [
+      "the legacy screenshot host",
+      'const OLD = "https://aipex-screenshot.invalid/";',
+    ],
+    ["AIPEX_WS_URL", "const url = env.AIPEX_WS_URL;"],
+    ["AIPEX_CONNECT_TIMEOUT", "const ms = env.AIPEX_CONNECT_TIMEOUT;"],
+    ["the fork's origin", "// github.com/AIPexStudio/AIPex"],
+    ["the wrong npm package", "// never run npx -y aipex-mcp-bridge"],
+  ]) {
+    it(`passes ${name}, kept on purpose`, () => {
+      const result = scan({ "src/kept.ts": `${line}\n` });
+      assert.equal(result.status, 0, result.stderr);
     });
-    assert.equal(result.status, 0, result.stderr);
-  });
+  }
+
+  for (const token of [
+    "aipex_theme",
+    "aipex_language",
+    "aipex_settings",
+    "aipex_host_access_config",
+    "aipex_automation_mode",
+    "aipex_risky_origin_grants",
+    "aipex_zenfs_migration_status",
+    "aipex_zenfs_migration_v2_status",
+    "aipex-input-mode",
+    "aipex-sessions",
+    "aipex_last_capture_event",
+    "aipex-conversations",
+    "aipex-conversations-db",
+    "aipex-conversations-migrated",
+    "aipex-screenshots-db",
+    "aipex-skills-fs",
+    "AIPexSkills",
+    "new-aipex",
+  ]) {
+    it(`flags a name the AIPex-data migration used: ${token}`, () => {
+      const result = scan({ "src/old.ts": `const NAME = "${token}";\n` });
+      assert.equal(result.status, 1, result.stdout);
+      assert.match(result.stderr, /src\/old\.ts:1/);
+    });
+  }
 
   for (const line of [
     'export { AIPex } from "./aipex.js";',
