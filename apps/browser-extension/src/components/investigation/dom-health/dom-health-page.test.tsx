@@ -139,7 +139,7 @@ describe("DomHealthPage", () => {
   });
 
   it("shows a loading state while the audit is running, then the result", async () => {
-    const pending = deferred<any>();
+    const pending = deferred<unknown>();
     mockRunDomHealthAudit.mockReturnValue(pending.promise);
 
     render(<DomHealthPage store={store} />);
@@ -191,7 +191,7 @@ describe("DomHealthPage", () => {
         domVolatility: 100,
         accessibilitySignal: 90,
       },
-      metricDetails: {} as any,
+      metricDetails: {} as never,
       summary:
         "The score is 88/100 because 18 of 20 analyzed elements were resolved to the intended element by a simulated automatic strategy.",
       strengths: ["90% of analyzed elements can be resolved automatically."],
@@ -312,7 +312,7 @@ describe("DomHealthPage", () => {
         domVolatility: 90,
         accessibilitySignal: 80,
       },
-      metricDetails: {} as any,
+      metricDetails: {} as never,
       summary: "The score is 52/100 because many elements needed recovery.",
       strengths: ["90% of visible controls passed hit testing."],
       risks: [
@@ -458,7 +458,7 @@ describe("DomHealthPage", () => {
         domVolatility: 90,
         accessibilitySignal: 80,
       },
-      metricDetails: {} as any,
+      metricDetails: {} as never,
       summary: "The score is 52/100 because many elements needed recovery.",
       strengths: ["90% of visible controls passed hit testing."],
       risks: [
@@ -588,7 +588,7 @@ describe("DomHealthPage", () => {
         domVolatility: 100,
         accessibilitySignal: 100,
       },
-      metricDetails: {} as any,
+      metricDetails: {} as never,
       summary: "No interactive elements were found to analyze on this page.",
       strengths: [],
       risks: [],
@@ -675,7 +675,7 @@ describe("DomHealthPage", () => {
         domVolatility: 80,
         accessibilitySignal: 80,
       },
-      metricDetails: {} as any,
+      metricDetails: {} as never,
       summary: "The application score is 65/100.",
       strengths: [],
       risks: [
@@ -840,7 +840,7 @@ describe("DomHealthPage", () => {
           notTargetable: 6,
         },
         accessibilitySignal: { totalInteractive: 7, missingAccessibleName: 7 },
-      } as any,
+      } as never,
       selectorConfiguration: {
         source: "default",
         detail: "Default/reconstructed DES configuration.",
@@ -867,7 +867,7 @@ describe("DomHealthPage", () => {
           result: {
             score: 91,
             grade: "EXCELLENT",
-            metricDetails: {} as any,
+            metricDetails: {} as never,
             metadata: { elementsAnalyzed: 7 },
           },
         },
