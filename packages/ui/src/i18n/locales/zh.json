@@ -1194,8 +1194,7 @@
     "screenshotLoadFailed": "加载截图失败",
     "screenshot": "截图",
     "loadingScreenshot": "正在加载截图...",
-    "queuedOne": "{{count}} 条消息排队中",
-    "queuedMany": "{{count}} 条消息排队中",
+    "queued": "{{count}} 条排队中",
     "hostedModels": "托管模型",
     "byokModels": "自带密钥（BYOK）模型",
     "noModels": "没有可用的模型",
@@ -1555,8 +1554,6 @@
     "failed": "删除存储的数据失败。请重试。"
   },
   "ui": {
-    "loader": "加载图标",
-    "loading": "加载中",
     "virtualCursor": "虚拟光标",
     "previousSlide": "上一张",
     "nextSlide": "下一张"

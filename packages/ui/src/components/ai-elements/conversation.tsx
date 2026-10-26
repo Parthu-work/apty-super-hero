@@ -82,13 +82,13 @@ export const ConversationScrollButton = ({
       <Button
         aria-label={t("chat.scrollToBottom")}
         className={cn(
-          "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full",
+          "absolute bottom-4 left-[50%] translate-x-[-50%] shadow-sm",
           className,
         )}
         onClick={handleScrollToBottom}
-        size="icon"
+        size="icon-sm"
         type="button"
-        variant="outline"
+        variant="secondary"
         {...props}
       >
         <ArrowDownIcon aria-hidden="true" className="size-4" />

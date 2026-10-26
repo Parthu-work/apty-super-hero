@@ -1,4 +1,4 @@
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { BrainIcon, ChevronDownIcon, Loader2Icon } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { cn } from "../../../lib/utils";
@@ -8,7 +8,6 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "../../ai-elements/conversation";
-import { Loader } from "../../ai-elements/loader";
 import {
   Collapsible,
   CollapsibleContent,
@@ -69,6 +68,11 @@ export function DefaultMessageList({
   const { slots } = useComponentsContext();
   const { t } = useTranslation();
 
+  const running =
+    status === "submitted" ||
+    status === "streaming" ||
+    status === "executing_tools";
+
   // Filter out system messages for display
   const displayMessages = messages.filter((m) => m.role !== "system");
 
@@ -108,7 +112,7 @@ export function DefaultMessageList({
                       key={turn.userMessage.id}
                       message={turn.userMessage}
                       isLast={turn.userMessage.id === lastMessageId}
-                      isStreaming={status === "streaming"}
+                      isStreaming={running}
                       onRegenerate={onRegenerate}
                       onCopy={onCopy}
                       formatExport={formatExport}
@@ -159,7 +163,7 @@ export function DefaultMessageList({
                               key={finalMsg.id}
                               message={finalMsg}
                               isLast={finalMsg.id === lastMessageId}
-                              isStreaming={status === "streaming"}
+                              isStreaming={running}
                               onRegenerate={onRegenerate}
                               onCopy={onCopy}
                               formatExport={formatExport}
@@ -174,7 +178,7 @@ export function DefaultMessageList({
                           key={msg.id}
                           message={msg}
                           isLast={msg.id === lastMessageId}
-                          isStreaming={status === "streaming"}
+                          isStreaming={running}
                           onRegenerate={onRegenerate}
                           onCopy={onCopy}
                           formatExport={formatExport}
@@ -185,16 +189,20 @@ export function DefaultMessageList({
               );
             })
           )}
-          {/* Loading indicator */}
-          {status === "submitted" &&
+          {/* Running: after the last message until the turn ends */}
+          {running &&
             (slots.loadingIndicator ? (
               slots.loadingIndicator()
             ) : (
-              <div className="flex w-full justify-end py-2">
-                <div className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">
-                  <Loader size={14} />
-                  <span>{t("common.processing")}</span>
-                </div>
+              <div
+                role="status"
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+              >
+                <Loader2Icon
+                  aria-hidden="true"
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                />
+                <span>{t("common.processing")}</span>
               </div>
             ))}
           {/* After messages slot - for platform-specific content */}

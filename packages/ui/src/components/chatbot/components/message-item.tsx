@@ -276,7 +276,7 @@ export function DefaultMessageItem({
           onOpenSettings={onOpenProviderSettings}
         />
       )}
-      {message.role === "assistant" && text && (
+      {message.role === "assistant" && text && !(isLast && isStreaming) && (
         <div
           className={cn(
             !isLast &&

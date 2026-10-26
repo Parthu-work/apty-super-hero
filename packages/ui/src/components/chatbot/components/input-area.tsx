@@ -1,5 +1,5 @@
 import type { ChatStatus } from "ai";
-import { ClockIcon } from "lucide-react";
+
 import {
   type ReactNode,
   useCallback,
@@ -38,6 +38,7 @@ import {
   PromptInputTools,
 } from "../../ai-elements/prompt-input";
 import type { SlashCommandGroup } from "../../ai-elements/slash-commands";
+import { StatusBadge } from "../../ui/badge";
 import { DEFAULT_MODELS } from "../constants";
 import { useComponentsContext, useConfigContext } from "../context";
 
@@ -248,18 +249,6 @@ export function DefaultInputArea({
             value={value}
             disabled={disabled}
           />
-
-          {/* Queue indicator */}
-          {queueCount > 0 && (
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-info/20 bg-info-muted px-3 py-2 text-xs font-medium text-info">
-              <ClockIcon className="size-3.5" />
-              <span>
-                {t(queueCount > 1 ? "chat.queuedMany" : "chat.queuedOne", {
-                  count: queueCount,
-                })}
-              </span>
-            </div>
-          )}
         </PromptInputBody>
 
         <PromptInputToolbar>
@@ -337,6 +326,11 @@ export function DefaultInputArea({
                     )}
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>
+            )}
+            {queueCount > 0 && (
+              <StatusBadge tone="neutral" role="status">
+                {t("chat.queued", { count: queueCount })}
+              </StatusBadge>
             )}
           </PromptInputTools>
 

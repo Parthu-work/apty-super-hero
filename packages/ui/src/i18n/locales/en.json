@@ -1194,8 +1194,7 @@
     "screenshotLoadFailed": "Failed to load screenshot",
     "screenshot": "Screenshot",
     "loadingScreenshot": "Loading screenshot...",
-    "queuedOne": "{{count}} message queued",
-    "queuedMany": "{{count}} messages queued",
+    "queued": "{{count}} queued",
     "hostedModels": "Hosted Models",
     "byokModels": "BYOK Models",
     "noModels": "No models available",
@@ -1555,8 +1554,6 @@
     "failed": "Deleting stored data failed. Try again."
   },
   "ui": {
-    "loader": "Loader",
-    "loading": "Loading",
     "virtualCursor": "Virtual cursor",
     "previousSlide": "Previous slide",
     "nextSlide": "Next slide"
