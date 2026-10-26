@@ -37,7 +37,7 @@ describe("ErrorBoundary", () => {
     );
 
     expect(screen.getByText("Something went wrong")).toBeTruthy();
-    expect(screen.getByText("Try Again")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
   it("shows error details in expandable section", () => {
@@ -47,8 +47,30 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText("View technical details")).toBeTruthy();
-    expect(screen.getByText(/Test rendering error/)).toBeTruthy();
+    expect(screen.getByText("Details")).toBeTruthy();
+    expect(screen.getByText("Test rendering error")).toBeTruthy();
+  });
+
+  it("shows the error's message only, never its stack, and masks a key it echoes", () => {
+    function LeakyComponent(): never {
+      const error = new Error(
+        "Request failed: Authorization: Bearer sk-live-0123456789abcdef and key sk-ant-api03-abcdefghijklmnop",
+      );
+      error.stack = `${error.message}\n    at LeakyComponent (/home/dev/src/leaky.tsx:3:9)`;
+      throw error;
+    }
+    render(
+      <ErrorBoundary>
+        <LeakyComponent />
+      </ErrorBoundary>,
+    );
+
+    const details = screen.getByText("Details").closest("details");
+    expect(details?.querySelector("pre")?.textContent).toBe(
+      "Request failed: Authorization: [REDACTED] and key [REDACTED]",
+    );
+    expect(document.body.textContent).not.toContain("sk-");
+    expect(document.body.textContent).not.toContain("leaky.tsx");
   });
 
   it("resets error state when Try Again is clicked", () => {
@@ -69,7 +91,7 @@ describe("ErrorBoundary", () => {
 
     // Stop throwing before clicking retry
     shouldThrow = false;
-    fireEvent.click(screen.getByText("Try Again"));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(screen.getByText("Recovered")).toBeTruthy();
   });

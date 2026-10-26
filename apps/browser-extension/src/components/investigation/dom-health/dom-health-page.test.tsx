@@ -117,6 +117,9 @@ beforeEach(() => {
     tabId: 5,
     title: "Test App",
     hostname: "example.com",
+    inspectable: true,
+    detail: "Ready to inspect example.com.",
+    checking: false,
   });
 });
 
@@ -962,11 +965,14 @@ describe("DomHealthPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables the check button when there is no target tab", () => {
+  it("disables the check button when there is no target tab, and says why", () => {
     mockUseCurrentTarget.mockReturnValue({
       tabId: null,
       title: null,
       hostname: null,
+      inspectable: false,
+      detail: "No page is open in this window.",
+      checking: false,
     });
 
     render(<DomHealthPage store={store} />);
@@ -974,10 +980,40 @@ describe("DomHealthPage", () => {
     expect(
       screen.getByRole("button", { name: "Check this page" }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Check this page" }),
+    ).toHaveAccessibleDescription(
+      "No page selected No page is open in this window.",
+    );
     chooseWholeApplication();
     expect(
       screen.getByRole("button", { name: "Audit application" }),
     ).toBeDisabled();
+  });
+
+  it("names why Chrome won't let it inspect the page, with the fix, and never starts", () => {
+    mockUseCurrentTarget.mockReturnValue({
+      tabId: 5,
+      title: "Extensions",
+      hostname: "extensions",
+      inspectable: false,
+      detail:
+        "Chrome doesn't let extensions inspect chrome: pages. Open the page you want to investigate.",
+      checking: false,
+    });
+
+    render(<DomHealthPage store={store} />);
+
+    expect(
+      screen.getByText("Can't inspect").closest("[data-slot=notice]"),
+    ).toHaveAttribute("data-tone", "warning");
+    const check = screen.getByRole("button", { name: "Check this page" });
+    expect(check).toBeDisabled();
+    expect(check).toHaveAccessibleDescription(
+      "Can't inspect Chrome doesn't let extensions inspect chrome: pages. Open the page you want to investigate.",
+    );
+    fireEvent.click(check);
+    expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
   });
 
   it("offers Stop for the whole-application audit only, and stops it between pages", async () => {

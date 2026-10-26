@@ -35,7 +35,7 @@ const STACK_LINE = /^\s*at\s/;
 const MAX_MESSAGE = 1000;
 
 /** Keys and auth headers a provider can echo back, masked as Options masks its connection errors. */
-function maskSecrets(message: string): string {
+export function maskSecrets(message: string): string {
   return message
     .replace(
       /Authorization:\s*(Bearer\s+)?[^\s,}"\]]+/gi,

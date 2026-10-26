@@ -109,6 +109,9 @@ beforeEach(() => {
     tabId: TAB_ID,
     title: "App",
     hostname: "app.example.test",
+    inspectable: true,
+    detail: "Ready to inspect.",
+    checking: false,
   });
   Object.assign(chrome.tabs, {
     get: vi.fn(async () => ({ id: TAB_ID, url: tabUrl })),
@@ -437,11 +440,14 @@ describe("DomConfigPage", () => {
       tabId: null,
       title: null,
       hostname: null,
+      inspectable: false,
+      detail: "No page is open in this window.",
+      checking: false,
     });
     renderPage();
     expect(startButton()).toBeDisabled();
     expect(startButton()).toHaveAccessibleDescription(
-      "Open a web page in this window to generate its DOM config.",
+      "No page selected Open a web page in this window to generate its DOM config.",
     );
   });
 
@@ -450,7 +456,7 @@ describe("DomConfigPage", () => {
     renderPage();
     await waitFor(() =>
       expect(startButton()).toHaveAccessibleDescription(
-        "This page cannot be analyzed: browser and extension pages do not allow content scripts.",
+        "Can't inspect This page cannot be analyzed: browser and extension pages do not allow content scripts.",
       ),
     );
     expect(startButton()).toBeDisabled();

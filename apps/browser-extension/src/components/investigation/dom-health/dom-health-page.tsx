@@ -18,6 +18,7 @@ import {
   navigationStore,
   useNavigation,
 } from "../../../state/navigation-store";
+import { PageAccessNotice } from "../../connections/page-access-notice";
 import { relativeTime } from "../../shell/relative-time";
 import { ToolPageShell } from "../../shell/tool-page-shell";
 import { useTabLockHolder } from "../dom-config/tab-lock";
@@ -157,6 +158,10 @@ export function DomHealthPage({
   const stage = useStage(state.running === "page");
   const locked = useTabLockHolder(target.tabId) === "dom-config";
   const lockedId = useId();
+  const pageId = useId();
+  const pageBlocked = !target.checking && !target.inspectable;
+  const cannotStart = !target.tabId || locked || pageBlocked;
+  const blockedBy = pageBlocked ? pageId : locked ? lockedId : undefined;
   const outcome =
     state.scope === "application" ? state.appOutcome : state.pageOutcome;
   const sources = {
@@ -215,10 +220,24 @@ export function DomHealthPage({
   }
 
   const exportAction = <ValidationBundleExport {...sources} />;
-  const lockedNotice = locked && (
-    <Notice id={lockedId} tone="info" className="mb-4">
-      {t("domConfig.lockedByDomConfig")}
-    </Notice>
+  const blockedNotices = (
+    <>
+      {pageBlocked && (
+        <PageAccessNotice
+          id={pageId}
+          title={t(
+            target.tabId === null ? "shell.noPage" : "shell.cantInspect",
+          )}
+        >
+          {target.detail}
+        </PageAccessNotice>
+      )}
+      {locked && (
+        <Notice id={lockedId} tone="info" className="mb-4">
+          {t("domConfig.lockedByDomConfig")}
+        </Notice>
+      )}
+    </>
   );
 
   if (state.running) {
@@ -292,8 +311,8 @@ export function DomHealthPage({
             <Button
               variant="secondary"
               className="w-full"
-              disabled={!target.tabId || locked}
-              aria-describedby={locked ? lockedId : undefined}
+              disabled={cannotStart}
+              aria-describedby={blockedBy}
               onClick={start}
             >
               {t("domHealth.page.checkAgain")}
@@ -301,7 +320,7 @@ export function DomHealthPage({
           </div>
         }
       >
-        {lockedNotice}
+        {blockedNotices}
         <div className="flex items-center gap-4">
           <ScoreRing
             state={outcome.score === null ? "empty" : "value"}
@@ -390,18 +409,21 @@ export function DomHealthPage({
         <Button
           size="lg"
           className="w-full"
-          disabled={!target.tabId || locked}
-          aria-describedby={locked ? lockedId : undefined}
+          disabled={cannotStart}
+          aria-describedby={blockedBy}
           onClick={start}
         >
           {t(
-            state.scope === "application"
-              ? "domHealth.page.auditApplication"
-              : "domHealth.page.checkThisPage",
+            outcome && !outcome.available
+              ? "domHealth.page.checkAgain"
+              : state.scope === "application"
+                ? "domHealth.page.auditApplication"
+                : "domHealth.page.checkThisPage",
           )}
         </Button>
       }
     >
+      {blockedNotices}
       <div className="flex flex-col items-center gap-2 py-4 text-center">
         <ScoreRing state="empty" label={t("domHealth.notCheckedYet")} />
         <h3 className="text-title font-semibold text-foreground">
@@ -424,7 +446,6 @@ export function DomHealthPage({
           {outcome.error}
         </Notice>
       )}
-      {lockedNotice}
       <WhatToCheck store={store} disabled={false} />
       {developerTools && target.tabId && (
         <div className="mt-6">

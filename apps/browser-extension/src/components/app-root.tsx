@@ -53,6 +53,7 @@ import { InvestigationSummaryBar } from "./investigation/investigation-summary-b
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
 import { PageLayer } from "./shell/page-layer";
+import { PanelSkeleton } from "./shell/panel-skeleton";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
@@ -215,11 +216,7 @@ function ChatApp() {
   }, []);
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground">{t("common.loading")}</div>
-      </div>
-    );
+    return <PanelSkeleton />;
   }
 
   return (

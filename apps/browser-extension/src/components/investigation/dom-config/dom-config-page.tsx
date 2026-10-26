@@ -16,6 +16,7 @@ import {
   navigationStore,
   useNavigation,
 } from "../../../state/navigation-store";
+import { PageAccessNotice } from "../../connections/page-access-notice";
 import { ToolPageShell } from "../../shell/tool-page-shell";
 import { useCurrentTarget } from "../use-current-target";
 import { domConfigHandoff } from "./ask-about-results";
@@ -118,11 +119,21 @@ export function DomConfigPage({
     </AnnouncerProvider>
   );
 
-  const blockedNotice = startBlocked && (
-    <Notice id={blockedId} tone="info" className="mb-4">
-      {startBlocked}
-    </Notice>
-  );
+  const pageBlocked = target.tabId === null || support === "restricted";
+  const blockedNotice =
+    startBlocked &&
+    (pageBlocked ? (
+      <PageAccessNotice
+        id={blockedId}
+        title={t(target.tabId === null ? "shell.noPage" : "shell.cantInspect")}
+      >
+        {startBlocked}
+      </PageAccessNotice>
+    ) : (
+      <Notice id={blockedId} tone="info" className="mb-4">
+        {startBlocked}
+      </Notice>
+    ));
 
   const setup = (byHand: boolean, before?: ReactNode) => (
     <>

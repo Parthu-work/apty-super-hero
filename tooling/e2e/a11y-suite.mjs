@@ -5,9 +5,13 @@
  * `a11y-<surface>-<theme>.e2e.test.mjs` file runs one group in one theme
  * in its own browser, so no file comes near the 180 s limit:
  *
- * - `panel-home`: the side panel empty, Home with every suggestion and the
- *   "/" list, the menu with its recent chats loading and loaded, Home with
- *   no AI provider and the Connections page with an ID error.
+ * - `panel-home`: the side panel empty and while its settings load, Home
+ *   with every suggestion and the "/" list, the menu with its recent chats
+ *   loading, loaded (with a chat's site, and its delete confirmation:
+ *   Cancel keeps the chat, Delete removes it) and failing to load, Home with
+ *   no AI provider and the Connections page with an ID error, and a page the
+ *   extension can't inspect (the bar, DOM health and DOM config say why and
+ *   their start buttons point at the notice).
  * - `panel-chat`: an approval prompt, an intervention card before and after
  *   an option is chosen, the send button idle, sending, streaming and after
  *   an error, a long chat scrolled up with its scroll-to-bottom button, a
@@ -157,6 +161,31 @@ function holdConversationHistory() {
   };
 }
 
+/** Runs in the panel before its own scripts: the conversations database can't be opened, so the menu can't load its recent chats. */
+function failConversationHistory() {
+  const open = IDBFactory.prototype.open;
+  IDBFactory.prototype.open = function (name, ...rest) {
+    if (name !== "apty-conversations-db") return open.call(this, name, ...rest);
+    throw new DOMException("Blocked by the test", "UnknownError");
+  };
+}
+
+/** Runs in the panel before its own scripts: its settings never load, so it stays on its boot skeleton. */
+function holdSettings() {
+  const get = chrome.storage.local.get.bind(chrome.storage.local);
+  chrome.storage.local.get = (keys, ...rest) => {
+    const wanted =
+      typeof keys === "string"
+        ? [keys]
+        : Array.isArray(keys)
+          ? keys
+          : Object.keys(keys ?? {});
+    return wanted.includes("apty_settings")
+      ? new Promise(() => {})
+      : get(keys, ...rest);
+  };
+}
+
 const MENU = { name: "Menu", exact: true };
 
 function deferred() {
@@ -261,7 +290,14 @@ const SURFACES = {
       const menu = panel.getByRole("dialog", { name: "Menu" });
       await menu.getByRole("button", { name: "New chat" }).waitFor();
       await panel.waitForFunction(() => globalThis.__conversationHistoryHeld);
-      assert.equal(await menu.getByText("Recent chats").count(), 0);
+      await menu.getByText("Recent chats").waitFor();
+      assert.equal(
+        await menu
+          .getByRole("status")
+          .filter({ hasText: "Loading..." })
+          .count(),
+        1,
+      );
       await assertNoSeriousViolations(
         panel,
         `${theme} menu, recent chats still loading`,
@@ -285,6 +321,109 @@ const SURFACES = {
         .first()
         .waitFor();
       await assertNoSeriousViolations(panel, `${theme} menu, a recent chat`);
+
+      const menu = panel.getByRole("dialog", { name: "Menu" });
+      const row = menu
+        .getByRole("button", { name: /^is the widget loaded\?/ })
+        .first();
+      assert.match(await row.innerText(), /127\.0\.0\.1 · Just now/);
+      const remove = menu
+        .getByRole("button", {
+          name: "Delete conversation: is the widget loaded?",
+        })
+        .first();
+      await remove.focus();
+      await remove.press("Enter");
+      const confirm = panel.getByRole("alertdialog", {
+        name: "Delete this chat?",
+      });
+      await confirm.waitFor();
+      assert.equal(
+        await confirm
+          .getByRole("button", { name: "Cancel" })
+          .evaluate((el) => el === document.activeElement),
+        true,
+      );
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} menu, the delete confirmation`,
+      );
+      await panel.keyboard.press("Escape");
+      await confirm.waitFor({ state: "detached" });
+      await row.waitFor();
+      await remove.focus();
+      await remove.press("Enter");
+      await confirm.getByRole("button", { name: "Delete" }).click();
+      await confirm.waitFor({ state: "detached" });
+      await row.waitFor({ state: "detached" });
+      await panel.close();
+      await app.close();
+    },
+    "side panel, the menu when its recent chats can't be loaded": async (
+      theme,
+    ) => {
+      const { app, panel } = await openPanel(theme);
+      await panel.addInitScript(failConversationHistory);
+      await panel.reload();
+      await panel.getByRole("button", MENU).click();
+      const menu = panel.getByRole("dialog", { name: "Menu" });
+      const failure = menu
+        .getByRole("alert")
+        .filter({ hasText: "Couldn't load recent chats." });
+      await failure.waitFor();
+      await failure.getByRole("button", { name: "Retry" }).waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} menu, recent chats failed to load`,
+      );
+      await panel.close();
+      await app.close();
+    },
+    "side panel on a page it can't inspect: the bar, DOM health and DOM config say why":
+      async (theme) => {
+        const blank = await browser.context.newPage();
+        await blank.goto("about:blank");
+        const panel = await openSidePanel(browser, model, blank);
+        await assertThemeApplied(panel, theme);
+        await panel.getByText("This page", { exact: true }).first().waitFor();
+        await assertNoSeriousViolations(panel, `${theme} Home, a blank page`);
+        for (const tool of ["DOM health", "DOM config"]) {
+          await openToolPage(panel, tool);
+          const page = panel.getByRole("region", { name: tool, exact: true });
+          const notice = page
+            .locator('[data-slot="notice"][data-tone="warning"]')
+            .first();
+          await notice.waitFor();
+          const start = page.getByRole("button", {
+            name: tool === "DOM health" ? "Check this page" : /^Start capture/,
+          });
+          assert.equal(await start.isDisabled(), true, `${tool} can start`);
+          assert.equal(
+            await start.getAttribute("aria-describedby"),
+            await notice.getAttribute("id"),
+          );
+          await assertNoSeriousViolations(
+            panel,
+            `${theme} ${tool}, a page it can't inspect`,
+          );
+          // Opened from the menu, so Back returns there first.
+          await panel.getByRole("button", { name: "Back" }).click();
+          await panel.getByRole("dialog", { name: "Menu" }).waitFor();
+          await panel.keyboard.press("Escape");
+        }
+        await panel.close();
+        await blank.close();
+      },
+    "side panel while its settings load": async (theme) => {
+      const { app, panel } = await openPanel(theme);
+      await panel.addInitScript(holdSettings);
+      await panel.reload();
+      await panel
+        .getByRole("status")
+        .filter({ hasText: "Loading..." })
+        .waitFor();
+      assert.equal(await panel.locator("textarea").count(), 0);
+      await assertNoSeriousViolations(panel, `${theme} side panel, booting`);
       await panel.close();
       await app.close();
     },

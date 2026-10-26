@@ -4,10 +4,12 @@
  * instead of an unrecoverable white screen.
  */
 
-import { AlertTriangleIcon, RotateCcwIcon } from "lucide-react";
+import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
 import React from "react";
 import { useTranslation } from "../../i18n/context";
+import { maskSecrets } from "../../lib/chat-error";
 import { Button } from "../ui/button";
+import { EmptyState } from "../ui/empty-state";
 
 export interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -30,37 +32,32 @@ function ErrorFallback({
   onRetry: () => void;
 }) {
   const { t } = useTranslation();
+  const message = error ? maskSecrets(error.message).trim() : "";
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-y-auto bg-background p-6 text-center text-foreground">
-      <div
-        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-destructive-muted"
-        aria-hidden="true"
-      >
-        <AlertTriangleIcon className="size-6 text-destructive" />
-      </div>
-
-      <div className="max-w-xs space-y-2">
-        <h2 className="text-title font-semibold">{t("errorBoundary.title")}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t("errorBoundary.description")}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {t("errorBoundary.hint")}
-        </p>
-      </div>
-
-      <Button type="button" size="sm" onClick={onRetry}>
-        <RotateCcwIcon className="size-4" aria-hidden="true" />
-        {t("errorBoundary.retry")}
-      </Button>
-
-      {error && (
-        <details className="w-full max-w-xs text-left">
-          <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+    <div className="flex h-full w-full flex-col items-center justify-center overflow-y-auto bg-background p-4 text-foreground">
+      <EmptyState
+        role="alert"
+        icon={<CircleAlertIcon className="text-destructive" />}
+        title={t("errorBoundary.title")}
+        description={
+          <>
+            {t("errorBoundary.description")} {t("errorBoundary.hint")}
+          </>
+        }
+        action={
+          <Button type="button" onClick={onRetry}>
+            <RotateCcwIcon aria-hidden="true" />
+            {t("errorBoundary.retry")}
+          </Button>
+        }
+      />
+      {message && (
+        <details className="w-full max-w-80 text-left">
+          <summary className="cursor-pointer rounded-sm text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t("errorBoundary.details")}
           </summary>
-          <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-2 text-left font-mono text-xs text-muted-foreground">
-            {error.stack ?? `${error.name}: ${error.message}`}
+          <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-3 font-mono text-xs leading-4 text-muted-foreground">
+            {message}
           </pre>
         </details>
       )}

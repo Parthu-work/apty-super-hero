@@ -164,6 +164,9 @@ beforeEach(() => {
     tabId: TAB_ID,
     title: "Clinic for Jane Example",
     hostname: "app.example.test",
+    inspectable: true,
+    detail: "Ready to inspect.",
+    checking: false,
   });
   Object.assign(chrome, {
     webNavigation: {
@@ -371,6 +374,9 @@ describe("manual capture, continued", () => {
       tabId: OTHER_TAB,
       title: "Other",
       hostname: "app.example.test",
+      inspectable: true,
+      detail: "Ready to inspect.",
+      checking: false,
     });
     view.rerender(
       <>
@@ -455,6 +461,9 @@ describe("manual capture, continued", () => {
       tabId: null,
       title: null,
       hostname: null,
+      inspectable: false,
+      detail: "No page is open in this window.",
+      checking: false,
     });
     const view = renderPage();
     await openSection("Capture current state");
@@ -477,6 +486,9 @@ describe("manual capture, continued", () => {
       tabId: TAB_ID,
       title: "Settings",
       hostname: "settings",
+      inspectable: true,
+      detail: "Ready to inspect.",
+      checking: false,
     });
     tab.url = "chrome://settings/";
     const restricted = renderPage();
