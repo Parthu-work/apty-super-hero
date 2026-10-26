@@ -17,6 +17,11 @@
  *   a chat with a tool result and the evidence viewers (the investigation
  *   summary and the full response viewer, opened again from a second
  *   inspection that returns the stored evidence).
+ * - `investigation`: an investigation made by the real tools in the summary
+ *   bar, collapsed and expanded (plan, components, timeline with a likely
+ *   related incident, diagnosis), its evidence and probes open, the
+ *   composer still in view at 400x500, 400x640 and 400x800, Esc back to
+ *   the toggle, and the diagnosis at every confidence.
  * - `dom-config-run`: the DOM Config page idle, running (held on a page
  *   request), with its results and on a page it cannot analyze.
  * - `dom-config-views`: a manual capture with a duplicate warning, an
@@ -35,6 +40,12 @@ import { after, before, describe, it } from "node:test";
 import { CONVERSATION_STATES } from "./fixtures/conversation-states.mjs";
 import { startDomConfigApp } from "./fixtures/dom-config-app.mjs";
 import {
+  confidenceSteps,
+  INVESTIGATION_PAGE,
+  INVESTIGATION_PROMPT,
+  INVESTIGATION_STEPS,
+} from "./fixtures/investigation.mjs";
+import {
   AGENT_EXTENSION_ID,
   callToolThenReport,
   chatAndWait,
@@ -49,6 +60,7 @@ import {
   startMockModel,
   startPageServer,
   tempDir,
+  toolResults,
   unpackedExtensionId,
   writeFakeClient,
 } from "./harness.mjs";
@@ -72,6 +84,7 @@ async function setUp({ connectClient }) {
     "/app.html": "<title>App</title><main><h1>App</h1></main>",
     "/form.html":
       '<title>Form</title><main><h1>Orders</h1><form><input name="order" aria-label="Order"><button type="button">Find</button></form></main>',
+    "/investigation.html": INVESTIGATION_PAGE,
   });
   browser = await launchBrowser({ extraExtensions: [clientDir] });
   if (!connectClient) return;
@@ -167,6 +180,51 @@ async function openPanel(theme) {
 // Inspected twice: the second inspection returns the evidence stored by
 // the first, and the viewer must still open it.
 const VIEWED = { query: "segments.json", shown: "Array(206)" };
+
+/** Sends `prompt` and answers with `steps`' tool calls in order, then "RESULT: done". */
+async function scriptedTurn(panel, prompt, steps) {
+  model.script(async (request) => {
+    const results = toolResults(request);
+    const step = await steps[results.length]?.(results);
+    if (!step) return { text: "RESULT: done" };
+    const offered = (request.tools ?? []).map((t) => t.function.name);
+    if (!offered.includes(step.tool)) {
+      return { text: `RESULT: ${step.tool} was not offered` };
+    }
+    return step;
+  });
+  const reply = await chatAndWait(panel, prompt, { timeout: 120_000 });
+  assert.equal(reply, "RESULT: done");
+}
+
+/** With the summary expanded, the Send button and 96 px of the chat still fit, once the layout has settled. */
+async function assertComposerFits(panel, height) {
+  await panel.setViewportSize({ width: 400, height });
+  const send = panel.getByRole("button", { name: "Send", exact: true });
+  const log = panel.getByRole("log");
+  const measure = async () => {
+    const button = await send.boundingBox();
+    const chat = await log.boundingBox();
+    return {
+      ok: Boolean(
+        button &&
+          chat &&
+          button.y >= 0 &&
+          button.y + button.height <= height &&
+          chat.height >= 96,
+      ),
+      button,
+      chat,
+    };
+  };
+  const deadline = Date.now() + 5_000;
+  let last = await measure();
+  while (!last.ok && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    last = await measure();
+  }
+  assert.ok(last.ok, `at 400x${height}: ${JSON.stringify(last)}`);
+}
 
 /** Each surface's tests, by name; every test takes the theme it runs in. */
 const SURFACES = {
@@ -479,9 +537,9 @@ const SURFACES = {
         `${theme} side panel, chat with a tool result`,
       );
 
-      const summary = panel.getByRole("button", {
-        name: /^Investigation status/,
-      });
+      const summary = panel
+        .getByRole("region", { name: "Investigation", exact: true })
+        .getByRole("button", { name: "Expand" });
       if (await summary.count()) {
         await summary.first().click();
         await assertNoSeriousViolations(
@@ -739,6 +797,86 @@ const SURFACES = {
         await app.close();
       },
   },
+  investigation: {
+    "side panel, an investigation in the summary bar, collapsed and expanded, at every confidence":
+      async (theme) => {
+        const app = await browser.context.newPage();
+        await app.goto(`${site.origin}/investigation.html`);
+        const panel = await openSidePanel(browser, model, app);
+        await assertThemeApplied(panel, theme);
+        await scriptedTurn(panel, "hello", []);
+        await scriptedTurn(panel, INVESTIGATION_PROMPT, INVESTIGATION_STEPS);
+
+        const bar = panel.getByRole("region", {
+          name: "Investigation",
+          exact: true,
+        });
+        await bar.getByText("Likely", { exact: true }).waitFor();
+        assert.match(await bar.innerText(), /Analyzing · 1 of \d+ steps/);
+        await assertNoSeriousViolations(
+          panel,
+          `${theme} investigation, collapsed`,
+        );
+
+        const expand = bar.getByRole("button", { name: "Expand" });
+        await expand.click();
+        const details = bar.getByRole("region", {
+          name: "Investigation details",
+        });
+        assert.deepEqual(
+          await details.getByRole("heading", { level: 3 }).allInnerTexts(),
+          ["Plan", "Components", "Timeline", "Diagnosis"],
+        );
+        assert.ok(
+          (await details.getByText("Likely related incident").count()) >= 1,
+          await details.innerText(),
+        );
+        await assertNoSeriousViolations(
+          panel,
+          `${theme} investigation, expanded`,
+        );
+        for (const height of [500, 640, 800]) {
+          await assertComposerFits(panel, height);
+        }
+
+        const views = details.getByRole("button", { name: /^View details/ });
+        while (await views.count()) await views.first().click();
+        await details
+          .getByRole("button", { name: /^Apty Client \/ Widget \/ Player/ })
+          .click();
+        await assertNoSeriousViolations(
+          panel,
+          `${theme} investigation, evidence and probes open`,
+        );
+
+        await details.getByRole("button", { name: "Verify diagnosis" }).focus();
+        await panel.keyboard.press("Escape");
+        await details.waitFor({ state: "detached" });
+        assert.equal(
+          await expand.evaluate((el) => el === document.activeElement),
+          true,
+        );
+
+        for (const [confidence, word] of [
+          ["possible", "Possible"],
+          ["unknown", "Unknown"],
+          ["confirmed", "Confirmed"],
+        ]) {
+          await scriptedTurn(
+            panel,
+            `investigate again and set the diagnosis confidence to ${confidence}`,
+            confidenceSteps(confidence),
+          );
+          await bar.getByText(word, { exact: true }).waitFor();
+          await assertNoSeriousViolations(
+            panel,
+            `${theme} investigation, ${confidence}`,
+          );
+        }
+        await panel.close();
+        await app.close();
+      },
+  },
   options: {
     "every Options tab": async (theme) => {
       const options = await extensionPage(browser);
@@ -777,7 +915,12 @@ const SURFACES = {
 };
 
 /** The Apty Client is connected first for the surfaces that show or read it. */
-const CONNECTS_CLIENT = new Set(["panel-home", "panel-chat", "options"]);
+const CONNECTS_CLIENT = new Set([
+  "panel-home",
+  "panel-chat",
+  "investigation",
+  "options",
+]);
 
 /** Runs one surface's tests in one theme, in a browser of their own. */
 export function a11ySuite(surface, theme) {
