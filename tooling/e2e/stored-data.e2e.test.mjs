@@ -132,6 +132,10 @@ describe("deleting stored data", () => {
     await menu
       .getByRole("button", { name: "Delete conversation: alpha topic" })
       .click();
+    await beta.panel
+      .getByRole("alertdialog", { name: "Delete this chat?" })
+      .getByRole("button", { name: "Delete" })
+      .click();
 
     await waitFor(
       async () => !(await sessionIds(beta.panel)).includes(alphaSession),

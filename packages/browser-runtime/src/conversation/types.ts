@@ -48,6 +48,12 @@ export interface ConversationData {
    * (which would leak one conversation's agent state into another).
    */
   agentSessionId?: string;
+  /**
+   * The hostname of the http(s) page the panel was on when the chat was
+   * first saved (`siteHostOf`), never its URL. Absent for other pages and
+   * for chats saved before it was recorded; an update never changes it.
+   */
+  siteHost?: string;
 }
 
 /**

@@ -8,6 +8,7 @@
  * (query strings/paths can carry sensitive data — see redaction guidance
  * elsewhere in this codebase).
  */
+import { siteHostOf } from "@apty/browser-runtime";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { useEffect, useState } from "react";
 import { peekConversationTabBinding } from "../../services/conversation-tab-binding";
@@ -18,6 +19,8 @@ export interface CurrentTarget {
   title: string | null;
   /** Hostname only (e.g. "company.salesforce.com") — never the full URL. */
   hostname: string | null;
+  /** The hostname of an http(s) page only (`siteHostOf`), as a saved chat records it. */
+  siteHost?: string;
   /** Whether Chrome lets the extension inspect the page (describePage). */
   inspectable: boolean;
   /** describePage's sentence: why it can or can't be inspected. */
@@ -132,6 +135,7 @@ export function useCurrentTarget(sessionId: string | null): CurrentTarget {
     tabId: read?.tabId ?? null,
     title: read?.title ?? null,
     hostname: hostnameOf(read?.url),
+    siteHost: siteHostOf(read?.url),
     inspectable: access.inspectable,
     detail: access.detail,
     checking: read === null,

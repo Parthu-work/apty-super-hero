@@ -154,7 +154,7 @@ must not reach your AI provider.
 | Data | Where | How long |
 |---|---|---|
 | Settings and API keys | `chrome.storage.local`, readable only by the extension's own pages | Until you remove them or the extension |
-| Conversations | The extension's IndexedDB | Deleted after 7 days without use; at most 5 are kept |
+| Conversations, each with the hostname of the http(s) page the panel was on when it was first saved (never its URL, path, query or title; none for other pages or for chats saved before it was recorded), shown in the menu's recent chats | The extension's IndexedDB | Deleted after 7 days without use; at most 5 are kept |
 | The agent's history of each conversation (including raw tool results, before masking) | The extension's IndexedDB | Deleted with its conversation: by age, by the 5-conversation limit, when you delete the conversation from the menu's recent chats, or by "New chat". History with no saved conversation (a side panel closed mid-chat) is deleted after a day |
 | Screenshots | The extension's IndexedDB | Deleted after 7 days without use; at most 50 are kept |
 | Evidence and investigations from the current session | `chrome.storage.session` | Cleared when the browser closes |

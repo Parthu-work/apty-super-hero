@@ -1,7 +1,3 @@
-import {
-  type ConversationData,
-  conversationStorage,
-} from "@apty/browser-runtime";
 import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
@@ -19,10 +15,9 @@ import {
   SettingsIcon,
   SlidersHorizontalIcon,
   SquarePenIcon,
-  Trash2Icon,
   XIcon,
 } from "lucide-react";
-import { type RefObject, useCallback, useEffect, useState } from "react";
+import type { RefObject } from "react";
 import {
   navigationStore,
   type ToolPage,
@@ -35,10 +30,7 @@ import {
 } from "../investigation/dom-config/dom-config-store";
 import { useDomHealthState } from "../investigation/dom-health-store";
 import { domConfigStatus, domHealthStatus, type JobStatus } from "./job-status";
-import { relativeTime } from "./relative-time";
-
-/** Chats the menu lists before "View all" (the store keeps five). */
-const RECENT_LIMIT = 5;
+import { RecentChats } from "./recent-chats";
 
 export interface MenuDrawerProps {
   /** Focus goes back here when the menu closes. */
@@ -88,21 +80,6 @@ export function MenuDrawer({
   const { drawerOpen, page } = useNavigation();
   const health = useDomHealthState();
   const config = useDomConfigState();
-  const [conversations, setConversations] = useState<ConversationData[]>([]);
-  const [showAll, setShowAll] = useState(false);
-
-  const loadConversations = useCallback(async () => {
-    try {
-      setConversations(await conversationStorage.getAllConversations());
-    } catch (error) {
-      console.error("❌ Failed to load conversations:", error);
-      setConversations([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (drawerOpen) void loadConversations();
-  }, [drawerOpen, loadConversations]);
 
   const close = () => navigationStore.closeDrawer();
   const openTool = (tool: ToolPage) => navigationStore.openPage(tool, "menu");
@@ -110,18 +87,6 @@ export function MenuDrawer({
     close();
     action();
   };
-
-  const handleDelete = async (conversationId: string) => {
-    try {
-      await conversationStorage.deleteConversation(conversationId);
-      await loadConversations();
-      onConversationDeleted(conversationId);
-    } catch (error) {
-      console.error("❌ Failed to delete conversation:", error);
-    }
-  };
-
-  const shown = showAll ? conversations : conversations.slice(0, RECENT_LIMIT);
 
   return (
     <Dialog
@@ -188,55 +153,16 @@ export function MenuDrawer({
             )}
           />
 
-          {conversations.length > 0 && (
-            <>
-              <div className="flex items-center justify-between pr-1">
-                <Caption>{t("shell.recentChats")}</Caption>
-                {shown.length < conversations.length && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => setShowAll(true)}
-                  >
-                    {t("shell.viewAll")}
-                  </Button>
-                )}
-              </div>
-              <ul className="space-y-0.5">
-                {shown.map((conversation) => (
-                  <li key={conversation.id} className="group relative">
-                    <button
-                      type="button"
-                      aria-current={
-                        conversation.id === currentConversationId
-                          ? "page"
-                          : undefined
-                      }
-                      className="flex w-full min-w-0 cursor-pointer flex-col items-start rounded-md px-3 py-2 pr-11 text-left outline-none transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring aria-[current=page]:bg-accent motion-reduce:transition-none"
-                      onClick={run(() => onSelectConversation(conversation.id))}
-                    >
-                      <span className="w-full truncate text-sm font-medium text-foreground">
-                        {conversation.title}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {relativeTime(conversation.updatedAt, t)}
-                      </span>
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`${t("conversationHistory.deleteConversation")}: ${conversation.title}`}
-                      className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
-                      onClick={() => void handleDelete(conversation.id)}
-                    >
-                      <Trash2Icon />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <RecentChats
+            open={drawerOpen}
+            currentConversationId={currentConversationId}
+            caption={(text) => <Caption>{text}</Caption>}
+            onSelect={(conversationId) => {
+              close();
+              onSelectConversation(conversationId);
+            }}
+            onDeleted={onConversationDeleted}
+          />
 
           <div className="mt-auto space-y-0.5 border-t border-border pt-2">
             <ListRow

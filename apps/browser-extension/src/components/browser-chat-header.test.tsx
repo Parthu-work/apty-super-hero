@@ -40,7 +40,7 @@ vi.mock("./investigation/investigation-context-bar", () => ({
 }));
 
 vi.mock("./connections/use-readiness", () => ({
-  useReadiness: () => ({ setupCount: 2 }),
+  useReadiness: () => ({ setupCount: 2, target: {} }),
 }));
 
 import { BrowserChatHeader } from "./browser-chat-header";

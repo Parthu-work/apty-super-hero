@@ -29,6 +29,7 @@ vi.mock("../../storage/indexeddb-storage", () => ({
 
 // Import after mocks are set up
 import { ConversationStorage } from "../conversation-storage";
+import { siteHostOf } from "../site-host";
 
 describe("ConversationStorage", () => {
   beforeEach(() => {
@@ -234,6 +235,72 @@ describe("ConversationStorage", () => {
       const storage = new ConversationStorage({ maxAgeMs: DAY });
 
       expect(await storage.getAllConversations()).toEqual([]);
+    });
+  });
+
+  describe("siteHost", () => {
+    it("keeps the host the chat was first saved on, and an update never changes it", async () => {
+      const storage = new ConversationStorage();
+      const id = await storage.saveConversation(
+        createMockMessages(2),
+        undefined,
+        siteHostOf("https://app.example.com/orders/42?token=abc#x"),
+      );
+
+      expect(mockDb[id]?.siteHost).toBe("app.example.com");
+
+      await storage.updateConversation(id, createMockMessages(4));
+      expect(mockDb[id]?.siteHost).toBe("app.example.com");
+    });
+
+    it("is absent for a page that is not http(s), and on a chat saved before it existed", async () => {
+      const storage = new ConversationStorage();
+      const id = await storage.saveConversation(
+        createMockMessages(2),
+        undefined,
+        siteHostOf("chrome://extensions/"),
+      );
+      mockDb.old = { ...mockDb[id]!, id: "old" };
+      delete mockDb.old.siteHost;
+      await storage.updateConversation("old", createMockMessages(4));
+
+      expect(mockDb[id]).not.toHaveProperty("siteHost");
+      expect(mockDb.old).not.toHaveProperty("siteHost");
+    });
+
+    it("never stores anything but a bare hostname", async () => {
+      const storage = new ConversationStorage();
+      for (const host of [
+        "app.example.com/orders",
+        "app.example.com?q=1",
+        "https://app.example.com",
+        "user@app.example.com",
+      ]) {
+        const id = await storage.saveConversation(
+          createMockMessages(2),
+          undefined,
+          host,
+        );
+        expect(mockDb[id]).not.toHaveProperty("siteHost");
+      }
+    });
+  });
+
+  describe("getAllConversations", () => {
+    it("rejects when the stored chats can't be read", async () => {
+      const storage = new ConversationStorage();
+      const listAll = vi
+        .spyOn(
+          (storage as unknown as { storage: { listAll: () => unknown } })
+            .storage,
+          "listAll",
+        )
+        .mockRejectedValue(new Error("database closed"));
+
+      await expect(storage.getAllConversations()).rejects.toThrow(
+        "database closed",
+      );
+      listAll.mockRestore();
     });
   });
 
