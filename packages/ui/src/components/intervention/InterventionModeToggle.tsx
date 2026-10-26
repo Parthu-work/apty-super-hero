@@ -32,13 +32,13 @@ interface InterventionModeToggleProps {
 const MODE_BASE_CONFIG = {
   disabled: {
     icon: "🚫",
-    color: "text-gray-600",
-    bgColor: "bg-gray-100 hover:bg-gray-200",
+    color: "text-muted-foreground",
+    bgColor: "bg-muted hover:bg-accent",
   },
   passive: {
     icon: "🤝",
-    color: "text-blue-600",
-    bgColor: "bg-blue-100 hover:bg-blue-200",
+    color: "text-info",
+    bgColor: "bg-info-muted hover:bg-info-muted/80",
   },
 };
 
@@ -101,20 +101,20 @@ export const InterventionModeToggle: React.FC<InterventionModeToggleProps> = ({
               <DropdownMenuItem
                 key={modeKey}
                 onClick={() => handleModeChange(modeKey)}
-                className={`cursor-pointer ${isSelected ? "bg-gray-100" : ""}`}
+                className={`cursor-pointer ${isSelected ? "bg-accent" : ""}`}
               >
                 <div className="flex items-start gap-2 py-1">
-                  <span className="text-lg mt-0.5">{baseConfig.icon}</span>
+                  <span className="text-title mt-0.5">{baseConfig.icon}</span>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">
                         {getModeLabel(modeKey)}
                       </span>
                       {isSelected && (
-                        <span className="text-xs text-blue-600">✓</span>
+                        <span className="text-xs text-info">✓</span>
                       )}
                     </div>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-muted-foreground">
                       {getModeDescription(modeKey)}
                     </span>
                   </div>

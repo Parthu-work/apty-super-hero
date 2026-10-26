@@ -155,8 +155,8 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
           w-full text-left p-4 rounded-xl transition-all duration-200
           ${
             isSelected
-              ? "bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400"
-              : "bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-blue-300 dark:hover:ring-blue-700"
+              ? "bg-info-muted ring-2 ring-info"
+              : "bg-card ring-1 ring-border hover:ring-info/60"
           }
           ${!isActive ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:shadow-sm"}
         `}
@@ -168,31 +168,23 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
               <div
                 className={`
                 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all
-                ${
-                  isSelected
-                    ? "border-blue-500 bg-blue-500"
-                    : "border-gray-300 dark:border-gray-600"
-                }
+                ${isSelected ? "border-info bg-info" : "border-input"}
               `}
               >
                 {isSelected && (
-                  <div className="w-2 h-2 rounded-full bg-white" />
+                  <div className="w-2 h-2 rounded-full bg-info-foreground" />
                 )}
               </div>
             ) : (
               <div
                 className={`
                 w-5 h-5 rounded border-2 flex items-center justify-center transition-all
-                ${
-                  isSelected
-                    ? "border-blue-500 bg-blue-500"
-                    : "border-gray-300 dark:border-gray-600"
-                }
+                ${isSelected ? "border-info bg-info" : "border-input"}
               `}
               >
                 {isSelected && (
                   <CheckIcon
-                    className="w-3.5 h-3.5 text-white"
+                    className="w-3.5 h-3.5 text-info-foreground"
                     strokeWidth={3}
                   />
                 )}
@@ -202,11 +194,9 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
 
           {/* Option content */}
           <div className="flex-1 min-w-0">
-            <div className="font-medium text-gray-900 dark:text-gray-100">
-              {optionLabel}
-            </div>
+            <div className="font-medium text-foreground">{optionLabel}</div>
             {option.description && (
-              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+              <div className="text-sm text-muted-foreground mt-1 leading-relaxed">
                 {option.description}
               </div>
             )}
@@ -228,7 +218,7 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
         <div className="space-y-4">
           {/* Question */}
           {question && (
-            <div className="text-base font-medium text-gray-900 dark:text-gray-100 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-xl border border-blue-200 dark:border-blue-800">
+            <div className="text-sm font-medium text-foreground bg-info-muted px-4 py-3 rounded-xl border border-info/40">
               {question}
             </div>
           )}
@@ -250,8 +240,8 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
                     w-full text-left p-4 rounded-xl transition-all duration-200
                     ${
                       otherSelected
-                        ? "bg-purple-50 dark:bg-purple-900/20 ring-2 ring-purple-400"
-                        : "bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-purple-300 dark:hover:ring-purple-700"
+                        ? "bg-info-muted ring-2 ring-info"
+                        : "bg-card ring-1 ring-border hover:ring-info/60"
                     }
                     ${!isActive ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:shadow-sm"}
                   `}
@@ -264,13 +254,13 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
                           w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all
                           ${
                             otherSelected
-                              ? "border-purple-500 bg-purple-500"
-                              : "border-gray-300 dark:border-gray-600"
+                              ? "border-info bg-info"
+                              : "border-input"
                           }
                         `}
                         >
                           {otherSelected && (
-                            <div className="w-2 h-2 rounded-full bg-white" />
+                            <div className="w-2 h-2 rounded-full bg-info-foreground" />
                           )}
                         </div>
                       ) : (
@@ -279,14 +269,14 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
                           w-5 h-5 rounded border-2 flex items-center justify-center transition-all
                           ${
                             otherSelected
-                              ? "border-purple-500 bg-purple-500"
-                              : "border-gray-300 dark:border-gray-600"
+                              ? "border-info bg-info"
+                              : "border-input"
                           }
                         `}
                         >
                           {otherSelected && (
                             <CheckIcon
-                              className="w-3.5 h-3.5 text-white"
+                              className="w-3.5 h-3.5 text-info-foreground"
                               strokeWidth={3}
                             />
                           )}
@@ -294,10 +284,10 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
                       )}
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                      <div className="font-medium text-foreground">
                         {t("interventions.selection.other" as TranslationKey)}
                       </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                      <div className="text-sm text-muted-foreground mt-0.5">
                         {t(
                           "interventions.selection.otherDescription" as TranslationKey,
                         )}
@@ -315,7 +305,7 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
                       placeholder={t(
                         "interventions.selection.otherPlaceholder" as TranslationKey,
                       )}
-                      className="w-full bg-white dark:bg-gray-800"
+                      className="w-full bg-card"
                       disabled={!isActive}
                     />
                   </div>
@@ -325,7 +315,7 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
           </div>
 
           {/* Hint information */}
-          <div className="text-xs text-center text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg py-2.5 px-3">
+          <div className="text-xs text-center text-muted-foreground bg-muted rounded-lg py-2.5 px-3">
             {mode === "single"
               ? `💡 ${t("interventions.selection.promptSingle" as TranslationKey)}`
               : `💡 ${t("interventions.selection.promptMultiple" as TranslationKey)}`}
@@ -336,7 +326,7 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
             type="button"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed h-11 rounded-xl"
+            className="w-full font-medium disabled:opacity-50 disabled:cursor-not-allowed h-11 rounded-xl"
           >
             <CheckIcon className="w-4 h-4 mr-2" strokeWidth={2.5} />
             {t("interventions.selection.confirmButton" as TranslationKey)}
@@ -346,23 +336,23 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
 
       {isCompleted && selectedResult && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+          <div className="flex items-center gap-2 text-sm text-success font-medium">
             <CheckIcon className="w-4 h-4" strokeWidth={2.5} />
             {t("interventions.selection.completed" as TranslationKey)}
           </div>
-          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 space-y-2.5">
+          <div className="bg-success-muted border border-success/40 rounded-xl p-4 space-y-2.5">
             {selectedResult.selectedOptions.map((option) => (
               <div
                 key={option.id}
                 className="flex items-center gap-2.5 text-sm"
               >
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                  <span className="font-medium text-foreground">
                     {option.label}
                   </span>
                   {option.description && (
-                    <span className="text-gray-600 dark:text-gray-400 ml-1.5">
+                    <span className="text-muted-foreground ml-1.5">
                       · {option.description}
                     </span>
                   )}
@@ -371,12 +361,12 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
             ))}
             {selectedResult.otherText && (
               <div className="flex items-center gap-2.5 text-sm">
-                <div className="w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-info flex-shrink-0" />
                 <div className="flex-1">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                  <span className="font-medium text-foreground">
                     {t("interventions.selection.other" as TranslationKey)}:{" "}
                   </span>
-                  <span className="text-gray-700 dark:text-gray-300 italic">
+                  <span className="text-foreground italic">
                     {selectedResult.otherText}
                   </span>
                 </div>
@@ -387,19 +377,19 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
       )}
 
       {status === "cancelled" && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">
+        <div className="text-sm text-muted-foreground text-center py-4">
           {t("interventions.selection.cancelled" as TranslationKey)}
         </div>
       )}
 
       {status === "timeout" && (
-        <div className="text-sm text-orange-600 dark:text-orange-400 text-center py-4">
+        <div className="text-sm text-warning text-center py-4">
           {t("interventions.selection.timeout" as TranslationKey)}
         </div>
       )}
 
       {status === "error" && (
-        <div className="text-sm text-rose-600 dark:text-rose-400 text-center py-4">
+        <div className="text-sm text-destructive text-center py-4">
           {t("interventions.selection.error" as TranslationKey)}
         </div>
       )}

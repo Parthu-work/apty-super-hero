@@ -5,11 +5,7 @@
     "apps/browser-extension/src/components/skill/SkillDetails.tsx": 4,
     "apps/browser-extension/src/entrypoints/options/client-network-calls-panel.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/file-components/FileItem.tsx": 2,
-    "apps/browser-extension/src/entrypoints/options/preflight-panel.tsx": 3,
-    "packages/ui/src/components/intervention/InterventionCard.tsx": 51,
-    "packages/ui/src/components/intervention/InterventionModeToggle.tsx": 9,
-    "packages/ui/src/components/intervention/MonitorCard.tsx": 32,
-    "packages/ui/src/components/intervention/SelectionCard.tsx": 75
+    "apps/browser-extension/src/entrypoints/options/preflight-panel.tsx": 3
   },
   "arbitrary-text-size": {
     "apps/browser-extension/src/components/browser-chat-header.tsx": 1,
@@ -43,10 +39,7 @@
     "apps/browser-extension/src/entrypoints/options/apty-client-panel.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/file-components/FileItem.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/file-explorer-wrapper.tsx": 1,
-    "apps/browser-extension/src/entrypoints/options/mcp-bridge-panel.tsx": 1,
-    "packages/ui/src/components/intervention/InterventionCard.tsx": 1,
-    "packages/ui/src/components/intervention/InterventionModeToggle.tsx": 1,
-    "packages/ui/src/components/intervention/SelectionCard.tsx": 1
+    "apps/browser-extension/src/entrypoints/options/mcp-bridge-panel.tsx": 1
   },
   "heavy-weight": {
     "apps/browser-extension/src/components/investigation/component-health-panel.tsx": 2,
