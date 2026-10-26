@@ -25,6 +25,8 @@ export interface UIMessage {
   role: "user" | "assistant" | "system";
   parts: MessagePart[];
   timestamp?: number;
+  /** A failed turn: what kind of failure, and the provider's message. */
+  error?: { kind: string; message: string; retryAfterMs?: number };
 }
 
 /**

@@ -82,6 +82,17 @@ export function chatErrorInfo(
   };
 }
 
+/** A stored failure the notice can show: a known kind and a message. */
+export function isChatErrorInfo(value: unknown): value is ChatErrorInfo {
+  if (!value || typeof value !== "object") return false;
+  const { kind, message } = value as Record<string, unknown>;
+  return (
+    typeof kind === "string" &&
+    Object.hasOwn(CHAT_ERROR_TEXT, kind) &&
+    typeof message === "string"
+  );
+}
+
 export const CHAT_ERROR_TEXT: Record<ChatErrorKind, TranslationKey> = {
   badKey: "chatErrors.badKey",
   rateLimit: "chatErrors.rateLimit",
