@@ -137,5 +137,5 @@ only with the measured page size in the commit message.
 Add a redacted fixture of the new shape under
 `packages/dom-snapshot/src/__tests__/fixtures/erp/`, with its measured
 values in `values.ts`. Add the tests that fail without your change, and
-an end-to-end stand-in in `tooling/e2e/dom-health-apps.e2e.test.mjs` if
+an end-to-end stand-in in `tooling/e2e/dom-health-apps-suite.mjs` if
 the application has a new shape.

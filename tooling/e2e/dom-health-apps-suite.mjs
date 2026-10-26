@@ -7,6 +7,14 @@
  * Chromium. The pages are small stand-ins of those shapes, built from the
  * values measured in the Infor LN and athenaOne exports; they are not the
  * real applications.
+ *
+ * The tests run in three files, each in its own browser so none comes near
+ * the 180 s limit: `dom-health-apps-shapes` (the audits),
+ * `dom-health-apps-bundle-ask` ("Ask about this result" and the bundle
+ * export of the deep shadow-DOM and frameset pages) and
+ * `dom-health-apps-bundle-shapes` (the bundle export of the portal, the
+ * SPA, the click-only page and the overlay). This module is not a test
+ * file itself.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -142,7 +150,7 @@ let model;
 let site;
 let other;
 
-before(async () => {
+async function setUp() {
   model = await startMockModel();
   other = await startPageServer({ "/ln.html": LN_PAGE });
   site = await startPageServer({
@@ -163,14 +171,14 @@ before(async () => {
       LN_PORTAL_SEED(`http://localhost:${other.address().port}`),
   });
   browser = await launchBrowser();
-});
+}
 
-after(async () => {
+async function tearDown() {
   await browser?.close();
   model?.close();
   site?.close();
   other?.close();
-});
+}
 
 /** Open `path`, run `tool` through the side panel, and return the tool result the model received. */
 async function audit(path, tool, args = {}) {
@@ -205,7 +213,7 @@ function frame(result, key) {
   return result.frames.find((f) => f.key === key);
 }
 
-describe("DOM Health on six application shapes", () => {
+function shapeTests() {
   it("deep shadow DOM: finds and resolves controls three shadow roots down", async () => {
     const result = await audit("/deep.html", "run_dom_health_audit");
 
@@ -399,74 +407,76 @@ describe("DOM Health on six application shapes", () => {
     await panel.close();
     await page.close();
   });
+}
 
-  describe("validation bundle export from the DOM health page (B2)", () => {
-    const OVERRIDES = { sameUrlRatioForClickFirst: 0.4 };
-    const SHAPES = [
-      { path: "/deep.html", text: ["Sales Orders", ">Deep<"] },
-      {
-        path: "/frameset.html",
-        text: ["Contact Details", "Legal sex", "Frameset"],
-      },
-      {
-        path: "/portal.html",
-        text: [
-          "Sales Orders",
-          "FAKETENANT000000_TRN",
-          "inforSessionId",
-          "LN_44_",
-        ],
-      },
-      {
-        path: "/spa/orders",
-        text: ["Open orders", "Customers<"],
-        application: true,
-      },
-      { path: "/click.html", text: ["Edit Orders", "Home"] },
-      { path: "/overlay.html", text: ["Registration", "Chat"] },
-    ];
+function bundleTests({ paths, withAsk }) {
+  const OVERRIDES = { sameUrlRatioForClickFirst: 0.4 };
+  const SHAPES = [
+    { path: "/deep.html", text: ["Sales Orders", ">Deep<"] },
+    {
+      path: "/frameset.html",
+      text: ["Contact Details", "Legal sex", "Frameset"],
+    },
+    {
+      path: "/portal.html",
+      text: [
+        "Sales Orders",
+        "FAKETENANT000000_TRN",
+        "inforSessionId",
+        "LN_44_",
+      ],
+    },
+    {
+      path: "/spa/orders",
+      text: ["Open orders", "Customers<"],
+      application: true,
+    },
+    { path: "/click.html", text: ["Edit Orders", "Home"] },
+    { path: "/overlay.html", text: ["Registration", "Chat"] },
+  ];
 
-    /** Starts a check from the page and waits for its result. */
-    async function runCheck(panel, { application }) {
-      if (application) {
-        await panel.getByRole("radio", { name: /^Whole application/ }).check();
-      }
-      await panel
-        .getByRole("button", {
-          name: application ? "Audit application" : "Check this page",
-        })
-        .click();
-      await panel
-        .getByRole("button", { name: "Full breakdown" })
-        .waitFor({ timeout: 150_000 });
+  /** Starts a check from the page and waits for its result. */
+  async function runCheck(panel, { application }) {
+    if (application) {
+      await panel.getByRole("radio", { name: /^Whole application/ }).check();
     }
+    await panel
+      .getByRole("button", {
+        name: application ? "Audit application" : "Check this page",
+      })
+      .click();
+    await panel
+      .getByRole("button", { name: "Full breakdown" })
+      .waitFor({ timeout: 150_000 });
+  }
 
-    async function exportBundle({ path, application }) {
-      const page = await browser.context.newPage();
-      await page.goto(`${site.origin}${path}`);
-      await page.waitForLoadState("load");
-      const panel = await openSidePanel(browser, model, page, {
-        developerTools: true,
-        domHealthThresholdOverrides: OVERRIDES,
-      });
-      await openToolPage(panel, "DOM health");
-      await runCheck(panel, { application });
-      await panel
-        .getByRole("button", { name: "Export validation bundle" })
-        .click();
-      await panel.getByText("Review before sharing").waitFor();
-      const json = await panel
-        .getByRole("region", { name: "Validation bundle" })
-        .textContent();
-      const version = await panel.evaluate(
-        () => chrome.runtime.getManifest().version,
-      );
-      await panel.getByRole("button", { name: "Cancel" }).click();
-      await panel.close();
-      await page.close();
-      return { json, version };
-    }
+  async function exportBundle({ path, application }) {
+    const page = await browser.context.newPage();
+    await page.goto(`${site.origin}${path}`);
+    await page.waitForLoadState("load");
+    const panel = await openSidePanel(browser, model, page, {
+      developerTools: true,
+      domHealthThresholdOverrides: OVERRIDES,
+    });
+    await openToolPage(panel, "DOM health");
+    await runCheck(panel, { application });
+    await panel
+      .getByRole("button", { name: "Export validation bundle" })
+      .click();
+    await panel.getByText("Review before sharing").waitFor();
+    const json = await panel
+      .getByRole("region", { name: "Validation bundle" })
+      .textContent();
+    const version = await panel.evaluate(
+      () => chrome.runtime.getManifest().version,
+    );
+    await panel.getByRole("button", { name: "Cancel" }).click();
+    await panel.close();
+    await page.close();
+    return { json, version };
+  }
 
+  if (withAsk)
     it("asks about a result in a new chat: the bundle as a chip beside a draft, sent only on Send, with no page text", async () => {
       const shape = SHAPES.find((s) => s.path === "/portal.html");
       const page = await browser.context.newPage();
@@ -507,44 +517,66 @@ describe("DOM Health on six application shapes", () => {
       await page.close();
     });
 
-    for (const shape of SHAPES) {
-      it(`${shape.path}: exports the schema with no page text, titles, queries or tenant ids`, async () => {
-        const { json, version } = await exportBundle(shape);
-        const bundle = JSON.parse(json);
+  for (const shape of SHAPES.filter((s) => paths.includes(s.path))) {
+    it(`${shape.path}: exports the schema with no page text, titles, queries or tenant ids`, async () => {
+      const { json, version } = await exportBundle(shape);
+      const bundle = JSON.parse(json);
 
-        assert.equal(bundle.schema, "apty-dom-health-validation/1");
-        assert.equal(bundle.versions.extension, version);
-        assert.match(bundle.versions.chrome, /^\d+\.\d+\.\d+\.\d+$/);
-        assert.ok(bundle.hosts.includes(new URL(site.origin).hostname), json);
-        assert.deepEqual(bundle.thresholdOverrides.active, [
-          { name: "sameUrlRatioForClickFirst", value: 0.4, default: 0.5 },
-        ]);
-        const audit = shape.application ? bundle.application : bundle.page;
-        assert.ok(audit, json.slice(0, 400));
-        assert.ok(Array.isArray(audit.desEvidence?.steps), json.slice(0, 400));
-        assert.ok(
-          audit.desEvidence.steps.every(
-            (s) => typeof s.step === "string" && s.elements > 0 && !s.meaning,
-          ),
-          JSON.stringify(audit.desEvidence),
-        );
-        if (shape.application) {
-          assert.equal(bundle.application.coverage.pagesAudited, 2, json);
-        } else {
-          assert.ok(bundle.page.frames.length >= 1, json);
-        }
-        for (const text of shape.text) {
-          assert.ok(!json.includes(text), `${text} leaked: ${json}`);
-        }
-        const templates = [...json.matchAll(/"urlTemplate": "([^"]*)"/g)].map(
-          (m) => m[1],
-        );
-        assert.ok(templates.length > 0, json);
-        assert.ok(
-          templates.every((t) => !t.includes("?")),
-          templates.join(),
-        );
-      });
-    }
-  });
-});
+      assert.equal(bundle.schema, "apty-dom-health-validation/1");
+      assert.equal(bundle.versions.extension, version);
+      assert.match(bundle.versions.chrome, /^\d+\.\d+\.\d+\.\d+$/);
+      assert.ok(bundle.hosts.includes(new URL(site.origin).hostname), json);
+      assert.deepEqual(bundle.thresholdOverrides.active, [
+        { name: "sameUrlRatioForClickFirst", value: 0.4, default: 0.5 },
+      ]);
+      const audit = shape.application ? bundle.application : bundle.page;
+      assert.ok(audit, json.slice(0, 400));
+      assert.ok(Array.isArray(audit.desEvidence?.steps), json.slice(0, 400));
+      assert.ok(
+        audit.desEvidence.steps.every(
+          (s) => typeof s.step === "string" && s.elements > 0 && !s.meaning,
+        ),
+        JSON.stringify(audit.desEvidence),
+      );
+      if (shape.application) {
+        assert.equal(bundle.application.coverage.pagesAudited, 2, json);
+      } else {
+        assert.ok(bundle.page.frames.length >= 1, json);
+      }
+      for (const text of shape.text) {
+        assert.ok(!json.includes(text), `${text} leaked: ${json}`);
+      }
+      const templates = [...json.matchAll(/"urlTemplate": "([^"]*)"/g)].map(
+        (m) => m[1],
+      );
+      assert.ok(templates.length > 0, json);
+      assert.ok(
+        templates.every((t) => !t.includes("?")),
+        templates.join(),
+      );
+    });
+  }
+}
+
+/** Which bundle exports each file runs, and whether it asks about a result. */
+const BUNDLE_PARTS = {
+  "bundle-ask": { paths: ["/deep.html", "/frameset.html"], withAsk: true },
+  "bundle-shapes": {
+    paths: ["/portal.html", "/spa/orders", "/click.html", "/overlay.html"],
+    withAsk: false,
+  },
+};
+
+/** Runs one part of the suite: "shapes", "bundle-ask" or "bundle-shapes". */
+export function domHealthAppsSuite(part) {
+  before(setUp);
+  after(tearDown);
+  if (part === "shapes") {
+    describe("DOM Health on six application shapes", shapeTests);
+    return;
+  }
+  const bundle = BUNDLE_PARTS[part];
+  assert.ok(bundle, `no DOM health apps part ${part}`);
+  describe("validation bundle export from the DOM health page (B2)", () =>
+    bundleTests(bundle));
+}

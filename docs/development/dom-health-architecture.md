@@ -706,7 +706,8 @@ in each root):
 
 ## End-to-end coverage
 
-`tooling/e2e/dom-health-apps.e2e.test.mjs` runs the real audit through the
+`tooling/e2e/dom-health-apps-suite.mjs` (run by the three
+`dom-health-apps-*.e2e.test.mjs` files) runs the real audit through the
 side panel and agent loop, with a scripted model, on stand-ins of six
 application shapes built from the measured values:
 

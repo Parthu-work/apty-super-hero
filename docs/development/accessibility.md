@@ -1,8 +1,11 @@
-# Accessibility
-
-`tooling/e2e/a11y.e2e.test.mjs` runs [axe-core](https://github.com/dequelabs/axe-core)
+`tooling/e2e/a11y-suite.mjs` runs [axe-core](https://github.com/dequelabs/axe-core)
 on the built extension in Chromium, in the light and the dark theme, and
-fails on any violation of impact `serious` or `critical`:
+fails on any violation of impact `serious` or `critical`. Its tests are
+grouped by surface (`panel-home`, `panel-chat`, `dom-config-run`,
+`dom-config-views`, `dom-health`, `options`; the module's header lists what
+each one opens), and each `tooling/e2e/a11y-<surface>-<theme>.e2e.test.mjs`
+runs one surface in one theme in its own browser, so every file stays well
+under the 180 s limit of `npm run test:e2e`. They cover, among others:
 
 - the side panel: empty; with an approval prompt; after a tool result
   (thinking details open); with the investigation summary expanded; with
@@ -29,7 +32,8 @@ failure message lists each node's markup and axe's reason.
 
 ## Adding a screen
 
-Open it in the test, bring it to the state a user sees, then
+Add it to its surface in `a11y-suite.mjs` (or add a surface and its two
+theme files), bring it to the state a user sees, then
 `assertNoSeriousViolations(page, "<where>")`. If a rule must be disabled,
 pass it to `runAxe(page, { disableRules: [...] })` with a comment in the
 test saying why, and list it in `REVIEW.md`.
