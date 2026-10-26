@@ -271,6 +271,20 @@
  * exist anywhere in the built stylesheet.
  */
 @layer utilities {
+  /* ProgressBar's indeterminate sweep; off under prefers-reduced-motion. */
+  @keyframes progress-indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
+  .animate-progress-indeterminate {
+    animation: progress-indeterminate 1.2s ease-in-out infinite;
+  }
+
   @keyframes mode-pulse {
     0%,
     100% {
