@@ -1,47 +1,53 @@
 import { useTranslation } from "../../../../i18n/context";
 import { translatedToolName } from "../../../../i18n/tool-names";
 import type { ToolDisplaySlotProps } from "../../../../types";
-import { Response } from "../../../ai-elements/response";
 import {
   Tool,
+  ToolBlock,
   ToolContent,
+  ToolError,
   ToolHeader,
-  ToolInput,
-  ToolOutput,
   ToolScreenshot,
 } from "../../../ai-elements/tool";
-import { formatToolOutput, mapToolState } from "../../tools";
+import { mapToolState } from "../../tools";
+
+function asText(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
 
 /**
- * Default tool display slot component
- * Opens by default when there's an error so users can see the failure reason
+ * A tool call as a collapsed card: name and status. Opened, it shows the
+ * parameters, the result or the error, and any screenshot.
  */
 export function DefaultToolDisplay({ tool }: ToolDisplaySlotProps) {
   const { t } = useTranslation();
   const displayName = translatedToolName(t, tool.toolName);
-  // Expand by default when in error state to make failure reasons visible
-  const shouldExpandByDefault = tool.state === "error";
 
   return (
-    <Tool defaultOpen={shouldExpandByDefault}>
+    <Tool>
       <ToolHeader type={displayName} state={mapToolState(tool.state)} />
       <ToolContent>
         {displayName !== tool.toolName && (
-          <p className="px-4 pt-3 text-xs text-muted-foreground">
-            {t("chat.toolLabel")} <code>{tool.toolName}</code>
+          <p className="text-xs text-muted-foreground">
+            {t("chat.toolLabel")}{" "}
+            <code className="font-mono">{tool.toolName}</code>
             {typeof tool.duration === "number" &&
               ` · ${t("chat.durationMs", { duration: tool.duration })}`}
           </p>
         )}
-        <ToolInput input={tool.input} />
-        <ToolOutput
-          output={
-            tool.output ? (
-              <Response>{formatToolOutput(tool.output)}</Response>
-            ) : undefined
-          }
-          errorText={tool.errorText}
+        <ToolBlock
+          caption={t("chat.parameters")}
+          copyLabel={t("chat.copyParameters")}
+          text={asText(tool.input)}
         />
+        {tool.errorText && <ToolError errorText={tool.errorText} />}
+        {Boolean(tool.output) && (
+          <ToolBlock
+            caption={t("chat.result")}
+            copyLabel={t("chat.copyResult")}
+            text={asText(tool.output)}
+          />
+        )}
         <ToolScreenshot
           screenshot={tool.screenshot}
           screenshotUid={tool.screenshotUid}

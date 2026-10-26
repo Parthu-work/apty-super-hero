@@ -1180,14 +1180,16 @@
     "toolStatus": {
       "pending": "Pending",
       "running": "Running",
-      "approvalRequested": "Approval Requested",
+      "approvalRequested": "Needs approval",
       "approved": "Approved",
       "completed": "Completed",
       "error": "Error",
       "denied": "Denied"
     },
     "parameters": "Parameters",
+    "copyParameters": "Copy parameters",
     "result": "Result",
+    "copyResult": "Copy result",
     "screenshotNotFound": "Screenshot not found",
     "screenshotLoadFailed": "Failed to load screenshot",
     "screenshot": "Screenshot",

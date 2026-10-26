@@ -127,15 +127,21 @@ export function DefaultMessageList({
                           <>
                             {/* Intermediate messages – collapsed by default */}
                             <Collapsible defaultOpen={false} className="mb-2">
-                              <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-muted bg-muted/30 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
-                                <BrainIcon className="size-4" />
+                              <CollapsibleTrigger className="group flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                                <BrainIcon
+                                  aria-hidden="true"
+                                  className="size-4"
+                                />
                                 <span className="flex-1 text-left">
                                   {t("common.showThinkingDetails")}
                                 </span>
-                                <ChevronDownIcon className="size-4 transition-transform [[data-state=open]>&]:rotate-180" />
+                                <ChevronDownIcon
+                                  aria-hidden="true"
+                                  className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                                />
                               </CollapsibleTrigger>
                               <CollapsibleContent className="mt-2">
-                                <div className="rounded-md border border-muted/50 bg-muted/10 p-3 space-y-2">
+                                <div className="space-y-2 rounded-md border border-border bg-card p-3">
                                   {turn.assistantMessages
                                     .slice(0, -1)
                                     .map((msg) => (

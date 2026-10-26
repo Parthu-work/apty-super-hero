@@ -1180,14 +1180,16 @@
     "toolStatus": {
       "pending": "等待中",
       "running": "运行中",
-      "approvalRequested": "等待批准",
+      "approvalRequested": "需要批准",
       "approved": "已批准",
       "completed": "已完成",
       "error": "错误",
       "denied": "已拒绝"
     },
     "parameters": "参数",
+    "copyParameters": "复制参数",
     "result": "结果",
+    "copyResult": "复制结果",
     "screenshotNotFound": "未找到截图",
     "screenshotLoadFailed": "加载截图失败",
     "screenshot": "截图",
