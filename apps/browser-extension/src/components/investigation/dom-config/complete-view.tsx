@@ -43,15 +43,21 @@ function summaryLine(state: DomConfigState, t: Translate): string {
   return parts.join(" · ");
 }
 
+/** The five settings after ignore conditions; code values are mono. */
 const SETTING_ROWS: {
   key: keyof ReturnType<typeof settingValues>;
   label: TranslationKey;
+  mono: boolean;
 }[] = [
-  { key: "attributePriority", label: "domConfig.tiles.attributePriority" },
-  { key: "debounce", label: "domConfig.tiles.debounce" },
-  { key: "maxZIndex", label: "domConfig.tiles.maxZIndex" },
-  { key: "shadowDom", label: "domConfig.tiles.shadowDom" },
-  { key: "ignoreEvents", label: "domConfig.tiles.ignoreEvents" },
+  {
+    key: "attributePriority",
+    label: "domConfig.tiles.attributePriority",
+    mono: true,
+  },
+  { key: "debounce", label: "domConfig.tiles.debounce", mono: true },
+  { key: "maxZIndex", label: "domConfig.tiles.maxZIndex", mono: true },
+  { key: "shadowDom", label: "domConfig.tiles.shadowDom", mono: false },
+  { key: "ignoreEvents", label: "domConfig.tiles.ignoreEvents", mono: true },
 ];
 
 function Caption({ children }: { children: string }) {
@@ -161,7 +167,11 @@ export function CompleteView({
           <ListRow
             key={row.key}
             label={t(row.label)}
-            description={<span className="font-mono">{values[row.key]}</span>}
+            description={
+              <span className={row.mono ? "font-mono" : undefined}>
+                {values[row.key]}
+              </span>
+            }
             chevron
             onClick={() => navigationStore.openSubView("proposed")}
           />
