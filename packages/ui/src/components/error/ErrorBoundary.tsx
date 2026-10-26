@@ -40,7 +40,7 @@ function ErrorFallback({
       </div>
 
       <div className="max-w-xs space-y-2">
-        <h2 className="text-base font-semibold">{t("errorBoundary.title")}</h2>
+        <h2 className="text-title font-semibold">{t("errorBoundary.title")}</h2>
         <p className="text-sm text-muted-foreground">
           {t("errorBoundary.description")}
         </p>
@@ -59,7 +59,7 @@ function ErrorFallback({
           <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
             {t("errorBoundary.details")}
           </summary>
-          <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-2 text-left text-[11px] leading-relaxed text-muted-foreground">
+          <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-2 text-left font-mono text-xs text-muted-foreground">
             {error.stack ?? `${error.name}: ${error.message}`}
           </pre>
         </details>

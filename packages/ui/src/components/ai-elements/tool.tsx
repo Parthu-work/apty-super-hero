@@ -63,11 +63,11 @@ const getStatusBadge = (
     "input-streaming": <CircleIcon className="size-4" />,
     "input-available": <ClockIcon className="size-4 animate-pulse" />,
     executing: <ClockIcon className="size-4 animate-spin" />,
-    "approval-requested": <ClockIcon className="size-4 text-yellow-600" />,
-    "approval-responded": <CheckCircleIcon className="size-4 text-blue-600" />,
-    "output-available": <CheckCircleIcon className="size-4 text-green-600" />,
-    "output-error": <XCircleIcon className="size-4 text-red-600" />,
-    "output-denied": <XCircleIcon className="size-4 text-orange-600" />,
+    "approval-requested": <ClockIcon className="size-4 text-warning" />,
+    "approval-responded": <CheckCircleIcon className="size-4 text-info" />,
+    "output-available": <CheckCircleIcon className="size-4 text-success" />,
+    "output-error": <XCircleIcon className="size-4 text-destructive" />,
+    "output-denied": <XCircleIcon className="size-4 text-warning" />,
   } as const;
 
   return (
@@ -123,7 +123,7 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
   const { t } = useTranslation();
   return (
     <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+      <h4 className="font-medium text-muted-foreground text-xs">
         {t("chat.parameters")}
       </h4>
       <div className="rounded-md bg-muted/50">
@@ -157,7 +157,7 @@ export const ToolOutput = ({
 
   return (
     <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+      <h4 className="font-medium text-muted-foreground text-xs">
         {t(errorText ? "chat.toolStatus.error" : "chat.result")}
       </h4>
       <div
@@ -228,7 +228,7 @@ export const ToolScreenshot = ({
 
   return (
     <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+      <h4 className="font-medium text-muted-foreground text-xs">
         {t("chat.screenshot")}
       </h4>
       {loading ? (

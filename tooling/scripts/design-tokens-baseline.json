@@ -6,20 +6,10 @@
     "apps/browser-extension/src/entrypoints/options/client-network-calls-panel.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/file-components/FileItem.tsx": 2,
     "apps/browser-extension/src/entrypoints/options/preflight-panel.tsx": 3,
-    "packages/ui/src/components/ai-elements/tool.tsx": 5,
     "packages/ui/src/components/intervention/InterventionCard.tsx": 51,
     "packages/ui/src/components/intervention/InterventionModeToggle.tsx": 9,
     "packages/ui/src/components/intervention/MonitorCard.tsx": 32,
-    "packages/ui/src/components/intervention/SelectionCard.tsx": 75,
-    "packages/ui/src/components/settings/index.tsx": 4,
-    "packages/ui/src/components/ui/switch.tsx": 1
-  },
-  "hex": {
-    "packages/ui/src/components/ui/switch.tsx": 3
-  },
-  "rgb-hsl": {
-    "packages/ui/src/components/ai-elements/code-block.tsx": 6,
-    "packages/ui/src/components/ui/switch.tsx": 2
+    "packages/ui/src/components/intervention/SelectionCard.tsx": 75
   },
   "arbitrary-text-size": {
     "apps/browser-extension/src/components/browser-chat-header.tsx": 1,
@@ -43,9 +33,7 @@
     "apps/browser-extension/src/components/investigation/plan-checklist.tsx": 1,
     "apps/browser-extension/src/components/investigation/route-probe-panel.tsx": 3,
     "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 1,
-    "apps/browser-extension/src/components/investigation/validation-bundle-export.tsx": 2,
-    "packages/ui/src/components/error/ErrorBoundary.tsx": 1,
-    "packages/ui/src/components/settings/redaction-mode-control.tsx": 2
+    "apps/browser-extension/src/components/investigation/validation-bundle-export.tsx": 2
   },
   "large-text-size": {
     "apps/browser-extension/src/components/investigation/debugging-welcome-screen.tsx": 1,
@@ -56,18 +44,13 @@
     "apps/browser-extension/src/entrypoints/options/file-components/FileItem.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/file-explorer-wrapper.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/mcp-bridge-panel.tsx": 1,
-    "packages/ui/src/components/error/ErrorBoundary.tsx": 1,
-    "packages/ui/src/components/file-manager/FileExplorer.tsx": 1,
     "packages/ui/src/components/intervention/InterventionCard.tsx": 1,
     "packages/ui/src/components/intervention/InterventionModeToggle.tsx": 1,
-    "packages/ui/src/components/intervention/SelectionCard.tsx": 1,
-    "packages/ui/src/components/settings/index.tsx": 6,
-    "packages/ui/src/components/ui/card.tsx": 1
+    "packages/ui/src/components/intervention/SelectionCard.tsx": 1
   },
   "heavy-weight": {
     "apps/browser-extension/src/components/investigation/component-health-panel.tsx": 2,
-    "apps/browser-extension/src/components/skill/SkillCard.tsx": 1,
-    "packages/ui/src/components/settings/index.tsx": 1
+    "apps/browser-extension/src/components/skill/SkillCard.tsx": 1
   },
   "uppercase": {
     "apps/browser-extension/src/components/investigation/component-health-panel.tsx": 1,
@@ -80,8 +63,7 @@
     "apps/browser-extension/src/components/investigation/evidence-timeline.tsx": 3,
     "apps/browser-extension/src/components/investigation/investigation-context-bar.tsx": 1,
     "apps/browser-extension/src/components/investigation/investigation-summary-bar.tsx": 1,
-    "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 3,
-    "packages/ui/src/components/ai-elements/tool.tsx": 3
+    "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 3
   },
   "tracking": {
     "apps/browser-extension/src/components/browser-chat-header.tsx": 1,
@@ -95,10 +77,6 @@
     "apps/browser-extension/src/components/investigation/evidence-timeline.tsx": 3,
     "apps/browser-extension/src/components/investigation/investigation-context-bar.tsx": 1,
     "apps/browser-extension/src/components/investigation/investigation-summary-bar.tsx": 1,
-    "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 3,
-    "packages/ui/src/components/ai-elements/tool.tsx": 3,
-    "packages/ui/src/components/ui/card.tsx": 1,
-    "packages/ui/src/components/ui/command.tsx": 1,
-    "packages/ui/src/components/ui/dropdown-menu.tsx": 1
+    "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 3
   }
 }

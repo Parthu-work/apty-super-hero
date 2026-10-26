@@ -167,7 +167,7 @@ export function RedactionModeControl({
                   <figcaption className="text-xs font-medium">
                     {zh ? "之前（示例数据）" : "Before (sample data)"}
                   </figcaption>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 text-[11px]">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 font-mono text-xs">
                     {REDACTION_PREVIEW_SAMPLE}
                   </pre>
                 </figure>
@@ -175,7 +175,7 @@ export function RedactionModeControl({
                   <figcaption className="text-xs font-medium">
                     {zh ? "之后" : "After"}: {option.label}
                   </figcaption>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 text-[11px]">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 font-mono text-xs">
                     {preview(REDACTION_PREVIEW_SAMPLE, option.value)}
                   </pre>
                 </figure>

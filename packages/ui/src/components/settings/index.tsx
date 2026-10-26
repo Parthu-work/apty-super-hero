@@ -993,7 +993,9 @@ export function SettingsPage({
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Settings className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">{t("settings.title")}</h1>
+            <h1 className="text-display font-semibold">
+              {t("settings.title")}
+            </h1>
           </div>
           <p className="text-muted-foreground">
             {t("settings.extensionSubtitle")}
@@ -1100,7 +1102,7 @@ export function SettingsPage({
                         onClick={() => changeLanguage(lang)}
                         className="h-auto p-4 flex flex-col items-center gap-2"
                       >
-                        <span className="text-lg">
+                        <span className="text-title">
                           {lang === "en" ? "🇺🇸" : "🇨🇳"}
                         </span>
                         <span className="font-medium">
@@ -1133,7 +1135,7 @@ export function SettingsPage({
                           onClick={() => changeTheme(themeOption)}
                           className="h-auto p-4 flex flex-col items-center gap-2"
                         >
-                          <span className="text-2xl">
+                          <span className="text-display">
                             {themeOption === "light" && "☀️"}
                             {themeOption === "dark" && "🌙"}
                             {themeOption === "system" && "💻"}
@@ -1331,7 +1333,7 @@ export function SettingsPage({
                   {sttApiKey && (
                     <Alert>
                       <AlertDescription className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <CheckCircle className="h-4 w-4 text-success" />
                         <span className="text-sm">
                           {t("settings.sttKeyConfigured")}
                         </span>
@@ -1503,7 +1505,7 @@ export function SettingsPage({
                               <div className="flex items-center w-full gap-3">
                                 <div
                                   className={cn(
-                                    "w-8 h-8 rounded-lg flex items-center justify-center text-lg",
+                                    "w-8 h-8 rounded-lg flex items-center justify-center text-title",
                                     isSelected ? "bg-primary/10" : "bg-muted",
                                   )}
                                 >
@@ -1553,11 +1555,11 @@ export function SettingsPage({
                       {selectedModel ? (
                         <>
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-3xl">
+                            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-display">
                               {selectedProviderMeta.icon}
                             </div>
                             <div>
-                              <h3 className="text-xl font-semibold">
+                              <h3 className="text-title font-semibold">
                                 {selectedModel.name?.trim() ||
                                   selectedModel.aiModel ||
                                   t("settings.aiModel")}
@@ -1569,7 +1571,7 @@ export function SettingsPage({
                                 selectedProviderMeta.experimental && (
                                   <p
                                     role="note"
-                                    className="text-xs text-destructive dark:text-red-400"
+                                    className="text-xs text-destructive"
                                   >
                                     {t("settings.experimental")}{" "}
                                     {selectedProviderMeta.experimental}
@@ -1578,10 +1580,7 @@ export function SettingsPage({
                               {!PHI_APPROVED_PROVIDERS.has(
                                 selectedProviderKey,
                               ) && (
-                                <p
-                                  role="note"
-                                  className="text-xs text-amber-700 dark:text-amber-400"
-                                >
+                                <p role="note" className="text-xs text-warning">
                                   {t("settings.phiProviderWarning")}
                                 </p>
                               )}
