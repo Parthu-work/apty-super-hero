@@ -82,6 +82,19 @@ describe("chatErrorInfo", () => {
     expect(info.message).toBe("Bad request");
   });
 
+  it("masks a key or token the provider echoed back", () => {
+    const info = chatErrorInfo(
+      new AgentError(
+        "Incorrect API key provided: sk-proj-abcdefghijklmnop. Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
+        ErrorCode.LLM_AUTH_ERROR,
+      ),
+      true,
+    );
+    expect(info.message).toBe(
+      "Incorrect API key provided: [REDACTED]. Authorization: [REDACTED]",
+    );
+  });
+
   it("carries a positive retry-after and leaves out anything else", () => {
     const withRetry = new AgentError("x", ErrorCode.LLM_RATE_LIMIT, true, {
       retryAfterMs: 12_000,

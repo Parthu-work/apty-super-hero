@@ -17,7 +17,7 @@ export type ChatErrorKind =
 /** A failed chat turn as the transcript keeps it: what kind of failure, and the provider's own words. */
 export interface ChatErrorInfo {
   kind: ChatErrorKind;
-  /** The error's message without any stack lines, for the Details disclosure. */
+  /** The error's message for the Details disclosure: no stack lines, no echoed keys. */
   message: string;
   retryAfterMs?: number;
 }
@@ -32,6 +32,21 @@ const MODEL_NOT_FOUND =
   /\bmodels?\b[^.\n]{0,80}\b(not found|does not exist|not exist)|no such model|unknown model/i;
 
 const STACK_LINE = /^\s*at\s/;
+const MAX_MESSAGE = 1000;
+
+/** Keys and auth headers a provider can echo back, masked as Options masks its connection errors. */
+function maskSecrets(message: string): string {
+  return message
+    .replace(
+      /Authorization:\s*(Bearer\s+)?[^\s,}"\]]+/gi,
+      "Authorization: [REDACTED]",
+    )
+    .replace(/(bearer\s+)[a-zA-Z0-9._-]{10,}/gi, "$1[REDACTED]")
+    .replace(
+      /\b(sk-ant-|sk-or-v1-|sk-|gsk_|AIza)[a-zA-Z0-9_-]{8,}\b/g,
+      "[REDACTED]",
+    );
+}
 
 function statusCodeOf(error: AgentError): number | undefined {
   const value = error.context?.statusCode;
@@ -71,11 +86,13 @@ export function chatErrorInfo(
   const retryAfterMs = error.context?.retryAfterMs;
   return {
     kind: kindOf(error, online),
-    message: error.message
-      .split("\n")
-      .filter((line) => !STACK_LINE.test(line))
-      .join("\n")
-      .trim(),
+    message: maskSecrets(
+      error.message
+        .split("\n")
+        .filter((line) => !STACK_LINE.test(line))
+        .join("\n")
+        .trim(),
+    ).slice(0, MAX_MESSAGE),
     ...(typeof retryAfterMs === "number" && retryAfterMs > 0
       ? { retryAfterMs }
       : {}),
