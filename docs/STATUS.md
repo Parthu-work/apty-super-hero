@@ -45,14 +45,14 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   the Client is never asked for the body. A JSON body comes with a structural summary
   (B3): item count, the union of item keys with their types, and how many
   whole items the preview holds, under 1,500 characters.
-- Settings → AI Configuration (C1): "Fetch models" reads the provider's
+- Settings → AI (C1): "Fetch models" reads the provider's
   live model list (OpenAI-compatible, Anthropic and Gemini endpoints),
   with named errors and manual entry as the fallback; Test Connection also
   probes tool calling and flags a model that does not call tools. Presets
   audited: the Anthropic host now reaches the API, unverifiable model
   names were removed, Replicate and Perplexity are marked experimental.
   Tested against a mock provider, not real ones.
-- Preflight (C2): Options → Apty Integration → Preflight (`#preflight`)
+- Preflight (C2): Options → Connection → Preflight (`#preflight`)
   runs every demo dependency check with its exact fix and a copy button,
   exports redacted JSON and resets demo data; `pnpm demo:check` runs it
   end to end. Demo script: [`docs/demo/DEMO.md`](demo/DEMO.md).
@@ -84,7 +84,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   same locally. Branded Chrome and Edge are checked by hand
   ([`SMOKE_TEST.md`](release/SMOKE_TEST.md)).
 
-- Widget network calls (Settings → Apty Integration → Apty Client): the
+- Widget network calls (Settings → Connection → Apty Client): the
   Client's own network calls, listed, filtered, downloaded and read body by
   body, with no AI model involved and only on click. URLs get the chat
   tools' URL policy and bodies the deny list and redaction; every failure

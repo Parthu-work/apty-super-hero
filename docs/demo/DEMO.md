@@ -26,14 +26,14 @@ data only.
 
 1. Open the Agent's Options page (right-click the toolbar icon → Options),
    or go straight to `…/options/index.html#preflight`.
-2. Settings → AI Configuration: choose the provider, paste the API key,
+2. Settings → AI: choose the provider, paste the API key,
    click **Fetch models** and pick a model, click **Test Connection**.
    Expected: "Connection test successful · Tool calling: yes". Click
    **Save Settings**.
-3. Settings → Apty Integration → Apty Client: **Detect** (or paste the
+3. Settings → Connection → Apty Client: **Detect** (or paste the
    Client's ID) → **Connect**. Expected: "Answering".
 4. Click into the application tab once, then back in Options →
-   Apty Integration → Preflight → **Run all checks**.
+   Connection → Preflight → **Run all checks**.
    Expected: "All checks passed." Each failing row says exactly what to
    change and has a Copy button. **Export results (redacted JSON)** saves
    them for a support ticket.
@@ -84,7 +84,7 @@ Application** was run.
 
 | Code (tool result) | Preflight says | What to do |
 |---|---|---|
-| `invalid_extension_id` | — | The ID in Apty Integration is not 32 letters a–p; copy it from chrome://extensions. |
+| `invalid_extension_id` | — | The ID in Settings → Connection is not 32 letters a–p; copy it from chrome://extensions. |
 | `extension_not_found` | "No enabled extension has the ID …" | Install or enable the Client, or correct the ID. |
 | `not_allowlisted` | "The Apty Client does not let this extension in" | Add this Agent's ID (Preflight → This extension's ID → Copy) to the Client's `externally_connectable.ids`, reload the Client. |
 | `bridge_missing` | "The Apty Client answers but has no Agent bridge" | Install the Agent bridge module in the Client's service worker. |
@@ -97,7 +97,7 @@ Application** was run.
 
 ## Reset
 
-Options → Apty Integration → Preflight → **Reset demo data** → **Delete
+Options → Connection → Preflight → **Reset demo data** → **Delete
 conversations and screenshots**. This deletes stored conversations and
 screenshots (the same as General → Stored conversations); settings, the
 API key and the Client connection stay. To forget remembered approvals:

@@ -10,7 +10,7 @@ Studio's `manifest.json` declares `externally_connectable` with web
 `matches` only and no `ids`. Chrome then refuses every message from
 another extension, including the Agent. The Agent reports this as
 `not_allowlisted` (Chrome: "Could not establish connection. Receiving end
-does not exist.") and shows the fix below in Settings → Apty Integration →
+does not exist.") and shows the fix below in Settings → Connection →
 Apty Studio Extension.
 
 ## What Studio needs
@@ -63,7 +63,7 @@ stays optional.
 
 ## How to check it
 
-1. Load Studio and the Agent. In the Agent: Settings → Apty Integration →
+1. Load Studio and the Agent. In the Agent: Settings → Connection →
    **Apty Studio Extension** → **Detect** (or paste Studio's ID) →
    **Connect**.
 2. **Expected:** "Answering". Otherwise the card names the problem:

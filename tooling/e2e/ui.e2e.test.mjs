@@ -72,7 +72,7 @@ describe("Connections, the setup badge and settings links", () => {
 
     assert.match(options.url(), /\?tab=ai#ai-provider$/);
     await options
-      .getByRole("tab", { name: "AI Configuration", selected: true })
+      .getByRole("tab", { name: "AI", exact: true, selected: true })
       .waitFor();
     await options.locator("#ai-provider").waitFor();
     await options.close();
@@ -129,7 +129,7 @@ describe("Connections, the setup badge and settings links", () => {
       .click();
 
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
     await options.locator("#apty-client").waitFor();
     assert.match(options.url(), /\?tab=connection#apty-client$/);
@@ -170,7 +170,7 @@ describe("Connections, the setup badge and settings links", () => {
     );
     await options.locator("#apty-client").waitFor();
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
 
     await options.getByRole("tab", { name: "General" }).click();
@@ -178,12 +178,12 @@ describe("Connections, the setup badge and settings links", () => {
 
     await options.goBack();
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
 
     await options.reload();
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
     await options.close();
   });

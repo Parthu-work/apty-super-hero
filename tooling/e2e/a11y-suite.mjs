@@ -32,8 +32,10 @@
  *   import error, page detail and the Iframes, Coverage and Warnings views.
  * - `dom-health`: a DOM Health result, its breakdown and settings, and its
  *   export dialog at side-panel size.
- * - `options`: every Options tab, and the widget network calls with a body
- *   open.
+ * - `options`: every Options tab at 1280 px, every tab again at 375 px (no
+ *   sideways scroll, the tabs stay at the top while the page scrolls, arrow
+ *   keys and End move between them), and the widget network calls with a
+ *   body open.
  *
  * This module is not a test file itself (its name does not end in
  * `.e2e.test.mjs`).
@@ -93,7 +95,7 @@ async function setUp({ connectClient }) {
   browser = await launchBrowser({ extraExtensions: [clientDir] });
   if (!connectClient) return;
   const options = await extensionPage(browser);
-  await options.getByRole("tab", { name: "Apty Integration" }).click();
+  await options.getByRole("tab", { name: "Connection" }).click();
   await options.getByLabel("Extension ID").fill(CLIENT_ID);
   await options
     .getByLabel("Extension ID")
@@ -1019,22 +1021,84 @@ const SURFACES = {
   options: {
     "every Options tab": async (theme) => {
       const options = await extensionPage(browser);
+      await options.setViewportSize({ width: 1280, height: 800 });
       await assertThemeApplied(options, theme);
       // Options shows a spinner, not its tabs, until settings have loaded.
       await options.getByRole("tab").nth(2).waitFor();
       const tabs = await options.getByRole("tab").allInnerTexts();
-      assert.ok(tabs.length >= 3, tabs.join());
+      assert.deepEqual(tabs, ["General", "AI", "Skills", "Connection"]);
       for (const name of tabs) {
-        await options.getByRole("tab", { name }).first().click();
+        await options.getByRole("tab", { name, exact: true }).click();
         await options.waitForLoadState("networkidle");
         await assertNoSeriousViolations(options, `${theme} Options, ${name}`);
       }
       await options.close();
     },
+    "every Options tab at 375 px: nothing scrolls sideways, the tabs stay in view and take the arrow keys":
+      async (theme) => {
+        const options = await extensionPage(browser);
+        await options.setViewportSize({ width: 375, height: 800 });
+        await assertThemeApplied(options, theme);
+        const general = options.getByRole("tab", {
+          name: "General",
+          exact: true,
+        });
+        await general.waitFor();
+        for (const name of ["General", "AI", "Skills", "Connection"]) {
+          const tab = options.getByRole("tab", { name, exact: true });
+          await tab.click();
+          await options.waitForLoadState("networkidle");
+          const overflow = await options.evaluate(() => ({
+            scroll: document.documentElement.scrollWidth,
+            client: document.documentElement.clientWidth,
+          }));
+          assert.ok(
+            overflow.scroll <= overflow.client,
+            `${name} scrolls sideways at 375 px: ${JSON.stringify(overflow)}`,
+          );
+          await assertNoSeriousViolations(
+            options,
+            `${theme} Options, ${name}, 375 px`,
+          );
+          const sticky = await options.evaluate(() => {
+            window.scrollTo(0, document.documentElement.scrollHeight);
+            const header = document.querySelector("header")?.offsetHeight ?? 0;
+            const top = document
+              .querySelector('[role="tablist"]')
+              ?.getBoundingClientRect().top;
+            const scrolled = window.scrollY;
+            window.scrollTo(0, 0);
+            return { header, top, scrolled };
+          });
+          assert.ok(
+            sticky.top !== undefined &&
+              Math.abs(
+                sticky.top - Math.max(0, sticky.header - sticky.scrolled),
+              ) <= 1,
+            `${name}: the tabs scrolled away: ${JSON.stringify(sticky)}`,
+          );
+        }
+
+        await general.click();
+        await general.focus();
+        await options.keyboard.press("ArrowRight");
+        await options
+          .getByRole("tab", { name: "AI", exact: true, selected: true })
+          .waitFor();
+        await options.keyboard.press("End");
+        await options
+          .getByRole("tab", { name: "Connection", exact: true, selected: true })
+          .waitFor();
+        await options.keyboard.press("ArrowRight");
+        await options
+          .getByRole("tab", { name: "General", exact: true, selected: true })
+          .waitFor();
+        await options.close();
+      },
     "Options, widget network calls with a body open": async (theme) => {
       const options = await extensionPage(browser);
       await assertThemeApplied(options, theme);
-      await options.getByRole("tab", { name: "Apty Integration" }).click();
+      await options.getByRole("tab", { name: "Connection" }).click();
       const section = options.getByRole("region", {
         name: "Widget network calls",
       });
