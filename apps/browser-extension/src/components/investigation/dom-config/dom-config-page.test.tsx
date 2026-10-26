@@ -78,6 +78,7 @@ vi.mock("../../shell/tool-page-shell", () => ({
   ),
 }));
 
+import { chatHandoff } from "../../../state/chat-handoff";
 import { navigationStore } from "../../../state/navigation-store";
 import { DomHealthPage } from "../dom-health/dom-health-page";
 import { createDomHealthStore } from "../dom-health-store";
@@ -654,6 +655,28 @@ describe("DomConfigPage", () => {
 
     exportAs("JSON");
     expect(store.getState().exportedAt).not.toBeNull();
+  });
+
+  it("asks about the results in a new chat: a draft beside the Markdown export as a chip, nothing sent", async () => {
+    await showReport();
+    const requested = vi.fn();
+    const unsubscribe = chatHandoff.subscribe(requested);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about these" }));
+    unsubscribe();
+
+    expect(requested).toHaveBeenCalledTimes(1);
+    const draft = chatHandoff.take();
+    expect(draft?.text).toBe(
+      "What do these proposed DOM settings mean, and which should we apply first?",
+    );
+    expect(draft?.contexts).toEqual([
+      expect.objectContaining({
+        type: "custom",
+        label: "DOM config results",
+        value: expect.stringMatching(/^# DOM configuration: /),
+      }),
+    ]);
+    expect(store.getState().exportedAt).toBeNull();
   });
 
   it("shows both container score threshold values, the basis of every setting and what was not measured", async () => {

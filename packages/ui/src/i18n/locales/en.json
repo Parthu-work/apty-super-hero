@@ -907,7 +907,10 @@
       "markdown": "Markdown",
       "json": "JSON",
       "copyAll": "Copy all",
-      "copiedAll": "Copied every section as tables"
+      "copiedAll": "Copied every section as tables",
+      "ask": "Ask about these",
+      "askDraft": "What do these proposed DOM settings mean, and which should we apply first?",
+      "askChip": "DOM config results"
     }
   },
   "skillDetails": {

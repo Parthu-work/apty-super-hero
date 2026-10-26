@@ -15,8 +15,10 @@ import {
   navigationStore,
   useNavigation,
 } from "../../../state/navigation-store";
+import { chatHandoff } from "../../../state/chat-handoff";
 import { ToolPageShell } from "../../shell/tool-page-shell";
 import { useCurrentTarget } from "../use-current-target";
+import { domConfigHandoff } from "./ask-about-results";
 import { CompleteView } from "./complete-view";
 import { CoverageView } from "./coverage-view";
 import {
@@ -294,13 +296,22 @@ export function DomConfigPage({
               choices={state}
               onExported={() => store.markExported()}
             />
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() => navigationStore.openSubView("setup")}
-            >
-              {t("domConfig.page.runAgain")}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  chatHandoff.request(domConfigHandoff(report, state, t))
+                }
+              >
+                {t("domConfig.page.ask")}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => navigationStore.openSubView("setup")}
+              >
+                {t("domConfig.page.runAgain")}
+              </Button>
+            </div>
           </div>
         ),
       },

@@ -907,7 +907,10 @@
       "markdown": "Markdown",
       "json": "JSON",
       "copyAll": "全部复制",
-      "copiedAll": "已将所有部分复制为表格"
+      "copiedAll": "已将所有部分复制为表格",
+      "ask": "就这些结果提问",
+      "askDraft": "这些建议的 DOM 设置意味着什么？应该先应用哪些？",
+      "askChip": "DOM 配置结果"
     }
   },
   "skillDetails": {

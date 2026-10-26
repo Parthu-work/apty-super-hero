@@ -198,6 +198,29 @@ describe("DOM Config page in the side panel", () => {
       .waitFor();
     await back(panel);
     assert.ok((await exportMarkdown(panel)).includes(IMPORTED));
+
+    // "Ask about these": the Markdown export as a chip in a new chat, sent
+    // only on Send, and never the page's title.
+    model.script(() => ({ text: "RESULT: read the settings" }));
+    await panel.getByRole("button", { name: "Ask about these" }).click();
+    await panel
+      .getByRole("region", { name: "DOM config", exact: true })
+      .waitFor({ state: "hidden" });
+    await panel.getByText("DOM config results", { exact: true }).waitFor();
+    assert.equal(
+      await composer.inputValue(),
+      "What do these proposed DOM settings mean, and which should we apply first?",
+    );
+    assert.equal(model.requests.length, 0, "sent before Send");
+    await composer.press("Enter");
+    await panel.getByText("RESULT: read the settings").waitFor();
+    const asked = JSON.stringify(
+      model.requests[0].messages.filter((m) => m.role === "user").at(-1)
+        .content,
+    );
+    assert.ok(asked.includes("# DOM configuration"), asked.slice(0, 300));
+    assert.ok(asked.includes(MANUAL), asked.slice(0, 300));
+    assert.equal(asked.includes("Clinic for Jane Example"), false);
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await target.close();
