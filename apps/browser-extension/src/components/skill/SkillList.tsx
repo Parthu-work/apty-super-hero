@@ -269,7 +269,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8 text-center">
             <Filter className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
+            <h3 className="text-title font-semibold mb-2">
               {t("skills.list.none")}
             </h3>
             <p className="text-muted-foreground">

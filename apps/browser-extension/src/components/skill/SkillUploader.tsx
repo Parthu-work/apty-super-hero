@@ -196,7 +196,7 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
 
             <div className="space-y-2">
               <FileArchive className="h-12 w-12 mx-auto text-muted-foreground" />
-              <div className="text-lg font-medium">
+              <div className="text-title font-medium">
                 {t(
                   isUploading
                     ? "skills.uploader.uploading"

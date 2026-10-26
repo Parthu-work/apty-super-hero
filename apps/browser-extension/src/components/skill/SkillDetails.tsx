@@ -358,10 +358,7 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
             <FileText className="h-5 w-5" />
             {skill.name}
             {isBuiltin && (
-              <Badge
-                variant="outline"
-                className="text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400"
-              >
+              <Badge variant="outline" className="text-info border-info">
                 {t("skillDetails.builtIn")}
               </Badge>
             )}

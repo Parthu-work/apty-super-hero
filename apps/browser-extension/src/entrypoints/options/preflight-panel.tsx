@@ -47,12 +47,12 @@ const STATUS: Record<
   warn: {
     label: "preflight.status.warn",
     icon: AlertTriangle,
-    className: "text-amber-700 dark:text-amber-400",
+    className: "text-warning",
   },
   fail: {
     label: "preflight.status.fail",
     icon: XCircle,
-    className: "text-destructive dark:text-red-400",
+    className: "text-destructive",
   },
 };
 

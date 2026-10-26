@@ -125,7 +125,7 @@ export function McpBridgePanel() {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               <Cable className="h-4 w-4 text-muted-foreground" />
               {t("mcpBridge.title")}
             </CardTitle>

@@ -91,17 +91,14 @@ export const SkillCard: React.FC<SkillCardProps> = ({
     <Card className="w-full">
       <CardHeader className="pb-3">
         <div className="text-center">
-          <CardTitle className="text-xl font-bold">{skill.name}</CardTitle>
+          <CardTitle>{skill.name}</CardTitle>
           <CardDescription className="mt-2 text-sm leading-relaxed">
             {skill.description}
           </CardDescription>
         </div>
         <div className="flex items-center justify-center gap-2 mt-3">
           {isBuiltin && (
-            <Badge
-              variant="outline"
-              className="text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400"
-            >
+            <Badge variant="outline" className="text-info border-info">
               {t("skillDetails.builtIn")}
             </Badge>
           )}

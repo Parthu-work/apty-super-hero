@@ -210,7 +210,7 @@ export function BrowserChatHeader({
               <ArrowLeftIcon className="size-4" />
             </Button>
           )}
-          <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-foreground">
+          <span className="min-w-0 truncate text-title font-semibold text-foreground">
             {title}
           </span>
         </div>
