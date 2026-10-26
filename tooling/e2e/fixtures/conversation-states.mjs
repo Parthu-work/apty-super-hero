@@ -39,8 +39,6 @@ const call = (id, name) => ({
 export const CONVERSATION_STATES = {
   id: "conv_e2e_states",
   title: "Why can't I click Submit order?",
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
   messages: [
     {
       id: "u1",

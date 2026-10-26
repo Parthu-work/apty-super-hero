@@ -379,7 +379,8 @@ export async function openSidePanel(browser, model, targetPage, settings = {}) {
 
 /**
  * Stores `conversation` (a `ConversationData`) where the panel keeps its
- * chats, then opens it from the menu's recent chats.
+ * chats, as the most recent one, then opens it from the menu's recent
+ * chats.
  */
 export async function openStoredConversation(panel, conversation) {
   await panel.evaluate(
@@ -394,7 +395,13 @@ export async function openStoredConversation(panel, conversation) {
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const tx = open.result.transaction("conversations", "readwrite");
-          tx.objectStore("conversations").put(conversation);
+          // Just used, so the five-chat limit keeps it over earlier tests' chats.
+          const now = Date.now();
+          tx.objectStore("conversations").put({
+            ...conversation,
+            createdAt: now,
+            updatedAt: now,
+          });
           tx.oncomplete = () => {
             open.result.close();
             resolve();
