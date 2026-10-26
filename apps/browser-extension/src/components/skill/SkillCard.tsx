@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@apty/ui/components/ui/card";
+import { ConfirmDialog } from "@apty/ui/components/ui/confirm-dialog";
 import { Switch } from "@apty/ui/components/ui/switch";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { Download, Eye, Settings, Trash2 } from "lucide-react";
@@ -47,15 +48,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
     onToggleEnabled(skill.id, checked);
   };
 
-  const handleDelete = () => {
-    if (isBuiltin) {
-      alert(t("skills.card.cannotDeleteBuiltIn"));
-      return;
-    }
-    if (confirm(t("skills.card.confirmDelete", { name: skill.name }))) {
-      onDelete(skill.id);
-    }
-  };
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString();
@@ -89,7 +82,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
 
   return (
     <Card className="w-full">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 sm:pb-3">
         <div className="text-center">
           <CardTitle>{skill.name}</CardTitle>
           <CardDescription className="mt-2 text-sm leading-relaxed">
@@ -191,15 +184,25 @@ export const SkillCard: React.FC<SkillCardProps> = ({
           </Button>
 
           <Button
-            variant="outline"
+            variant="danger"
             size="sm"
-            onClick={handleDelete}
+            onClick={() => setConfirmingDelete(true)}
             disabled={isBuiltin}
             aria-label={t("skills.card.delete", { name: skill.name })}
-            className="text-destructive hover:text-destructive"
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 aria-hidden="true" className="size-3" />
           </Button>
+          <ConfirmDialog
+            open={confirmingDelete}
+            onOpenChange={setConfirmingDelete}
+            title={t("skills.card.confirmDelete", { name: skill.name })}
+            description={t("fileManager.cannotUndo")}
+            confirmLabel={t("common.delete")}
+            onConfirm={() => {
+              setConfirmingDelete(false);
+              onDelete(skill.id);
+            }}
+          />
         </div>
       </CardContent>
     </Card>

@@ -31,7 +31,7 @@ import {
   peerExtensionIdPatch,
 } from "@apty/browser-runtime/apty/peers";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
-import { Badge } from "@apty/ui/components/ui/badge";
+import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   Card,
@@ -44,7 +44,6 @@ import { Input } from "@apty/ui/components/ui/input";
 import { Label } from "@apty/ui/components/ui/label";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
-import { cn } from "@apty/ui/lib/utils";
 import { CheckCircle2, Info, Loader2, Plug, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -250,20 +249,11 @@ function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
             </CardTitle>
             <CardDescription>{t(copy.description)}</CardDescription>
           </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              "shrink-0 gap-1.5 border",
-              isConnected
-                ? "border-success/30 bg-success-muted text-success"
-                : "border-border bg-muted text-muted-foreground",
-            )}
+          <StatusBadge
+            tone={isConnected ? "success" : "neutral"}
+            icon={isConnected ? CheckCircle2 : XCircle}
+            indicator="icon"
           >
-            {isConnected ? (
-              <CheckCircle2 className="h-3.5 w-3.5" />
-            ) : (
-              <XCircle className="h-3.5 w-3.5" />
-            )}
             {t(
               check.status === "ok"
                 ? "aptyPeer.answering"
@@ -271,7 +261,7 @@ function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
                   ? "aptyPeer.configuredBadge"
                   : "aptyPeer.notConnectedBadge",
             )}
-          </Badge>
+          </StatusBadge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

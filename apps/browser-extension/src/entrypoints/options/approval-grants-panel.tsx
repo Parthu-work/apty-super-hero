@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@apty/ui/components/ui/card";
+import { ConfirmDialog } from "@apty/ui/components/ui/confirm-dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { KeyRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -24,6 +25,7 @@ function minutesLeft(grant: ApprovalGrant): number {
 export function ApprovalGrantsPanel() {
   const { t } = useTranslation();
   const [grants, setGrants] = useState<ApprovalGrant[]>([]);
+  const [confirmingRevokeAll, setConfirmingRevokeAll] = useState(false);
 
   const refresh = useCallback(async () => {
     setGrants(await listApprovalGrants());
@@ -53,10 +55,12 @@ export function ApprovalGrantsPanel() {
               {grants.map((grant) => (
                 <li
                   key={`${grant.toolName}@${grant.origin}@${grant.requester}`}
-                  className="flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+                  className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
                 >
                   <span className="min-w-0 break-all">
-                    <span className="font-medium">{grant.toolName}</span>{" "}
+                    <span className="font-mono font-medium">
+                      {grant.toolName}
+                    </span>{" "}
                     {t("approvalGrants.onOrigin", {
                       origin: grant.origin,
                       requester: t(
@@ -92,14 +96,22 @@ export function ApprovalGrantsPanel() {
             <Button
               type="button"
               size="sm"
-              variant="ghost"
-              onClick={async () => {
-                await revokeAllApprovalGrants();
-                await refresh();
-              }}
+              variant="danger"
+              onClick={() => setConfirmingRevokeAll(true)}
             >
               {t("approvalGrants.revokeAll")}
             </Button>
+            <ConfirmDialog
+              open={confirmingRevokeAll}
+              onOpenChange={setConfirmingRevokeAll}
+              title={t("approvalGrants.revokeAllTitle")}
+              description={t("approvalGrants.revokeAllDescription")}
+              confirmLabel={t("approvalGrants.revokeAll")}
+              onConfirm={() => {
+                setConfirmingRevokeAll(false);
+                void revokeAllApprovalGrants().then(refresh);
+              }}
+            />
           </>
         )}
       </CardContent>

@@ -7,6 +7,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@apty/ui/components/ui/card";
+import { ConfirmDialog } from "@apty/ui/components/ui/confirm-dialog";
+import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -35,7 +37,7 @@ export function StoredDataPanel() {
     <Card id="stored-data" className="scroll-mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Trash2 className="h-5 w-5" />
+          <Trash2 aria-hidden="true" className="size-5" />
           {t("storedData.title")}
         </CardTitle>
         <CardDescription>
@@ -43,44 +45,30 @@ export function StoredDataPanel() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {state === "confirming" ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm">{t("storedData.confirm")}</span>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              onClick={purge}
-            >
-              {t("storedData.deleteEverything")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setState("idle")}
-            >
-              {t("common.cancel")}
-            </Button>
-          </div>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={state === "deleting"}
-            onClick={() => setState("confirming")}
-          >
-            {t("storedData.deleteNow")}
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="danger"
+          disabled={state === "deleting"}
+          onClick={() => setState("confirming")}
+        >
+          {t("storedData.deleteNow")}
+        </Button>
+        <ConfirmDialog
+          open={state === "confirming" || state === "deleting"}
+          onOpenChange={(open) => {
+            if (!open) setState("idle");
+          }}
+          title={t("storedData.confirm")}
+          description={t("storedData.description", { days: RETENTION_DAYS })}
+          confirmLabel={t("storedData.deleteEverything")}
+          onConfirm={() => void purge()}
+          pending={state === "deleting"}
+        />
         {state === "done" && (
-          <p className="text-sm text-muted-foreground">
-            {t("storedData.done")}
-          </p>
+          <Notice tone="success">{t("storedData.done")}</Notice>
         )}
         {state === "failed" && (
-          <p className="text-sm text-destructive">{t("storedData.failed")}</p>
+          <Notice tone="error">{t("storedData.failed")}</Notice>
         )}
       </CardContent>
     </Card>
