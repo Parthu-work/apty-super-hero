@@ -12,7 +12,9 @@ under the 180 s limit of `npm run test:e2e`. They cover, among others:
   the full response viewer open;
 - every tab of the Options page, with an Apty Client connected.
 
-It is part of `npm run test:e2e`, so CI runs it. No axe rule is disabled.
+`tooling/e2e/keyboard.e2e.test.mjs` runs every flow by keyboard alone and
+checks the names of the main controls. Both are part of `npm run test:e2e`,
+so CI runs them. No axe rule is disabled.
 `runAxe(page)` in `tooling/e2e/harness.mjs` waits for CSS transitions to
 finish first, so contrast is measured on the final colours, and the
 failure message lists each node's markup and axe's reason.

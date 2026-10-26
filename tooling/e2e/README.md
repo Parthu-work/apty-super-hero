@@ -15,6 +15,7 @@ first (`npm run build`, which also builds the MCP bridge daemon).
 | `ui.e2e.test.mjs` | The side panel's Connections page (model, Apty Client, page), the setup badge and the composer's "Set up AI provider" chip landing on the AI provider settings, a refused API key explained in the chat with "Open AI provider settings" landing there too, and Options tabs kept in the URL across Back and reload. |
 | `a11y-<surface>-<theme>.e2e.test.mjs` | axe-core on the side panel, the tool pages and Options, one surface in one theme per file; the tests and the shared setup are in `a11y-suite.mjs`, which `node --test` does not pick up as a test file. |
 | `dom-health-apps-<part>.e2e.test.mjs` | DOM Health on six application shapes (deep shadow DOM, frameset, cross-origin portal, pushState SPA, click-only, third-party overlay), "Ask about this result" and the validation bundle export, in three files; the pages and the shared setup are in `dom-health-apps-suite.mjs`. |
+| `keyboard.e2e.test.mjs` | Every flow by keyboard alone (open the menu and a tool, start and stop a DOM config capture, check a page and ask about the result, delete a chat through its confirmation, the Options tabs by arrow keys), and the names of the panel's and Options' main controls. |
 | `mcp.e2e.test.mjs` | The real MCP daemon: the Options page Connect button, the daemon's dangerous-tool block, and the approval prompt relayed from the service worker to the side panel. |
 
 `E2E_EXTENSION_DIR` runs the suite against another build, e.g. `main`'s, to
