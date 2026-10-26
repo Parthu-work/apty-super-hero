@@ -40,13 +40,6 @@
   font-display: swap;
   src: url("../../assets/fonts/inter-latin-600-normal.woff2") format("woff2");
 }
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("../../assets/fonts/inter-latin-700-normal.woff2") format("woff2");
-}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -257,6 +250,12 @@
   html,
   body {
     @apply h-full bg-background text-foreground;
+  }
+  /* The design uses weights 400, 500 and 600 only; browsers make these 700. */
+  b,
+  strong,
+  th {
+    font-weight: 600;
   }
   #root {
     @apply h-full;
