@@ -1,6 +1,12 @@
 import type { ChatStatus } from "ai";
 import { ClockIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "../../../i18n/context";
 import { cn } from "../../../lib/utils";
 import type { ContextItem, InputAreaProps } from "../../../types";
@@ -50,6 +56,8 @@ export interface ExtendedInputAreaProps extends InputAreaProps {
   showServerModels?: boolean;
   /** Groups the "/" list shows before the skills (tools, investigations). */
   slashCommands?: SlashCommandGroup[];
+  /** Shown in place of the model selector, e.g. a setup chip while no provider is configured. */
+  modelControl?: ReactNode;
 }
 
 /**
@@ -69,6 +77,7 @@ export function DefaultInputArea({
   className,
   showServerModels = true,
   slashCommands,
+  modelControl,
   ...props
 }: ExtendedInputAreaProps) {
   const { t } = useTranslation();
@@ -260,7 +269,9 @@ export function DefaultInputArea({
             </PromptInputActionMenu>
 
             {/* Model Selector */}
-            {slots.modelSelector ? (
+            {modelControl ? (
+              modelControl
+            ) : slots.modelSelector ? (
               slots.modelSelector({
                 value: selectedModel,
                 onChange: handleModelChange,

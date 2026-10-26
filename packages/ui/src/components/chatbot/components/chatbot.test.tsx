@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WelcomeScreenProps } from "../../../types";
+import type { InputAreaProps, WelcomeScreenProps } from "../../../types";
 import {
   useChatContext,
   useComponentsContext,
@@ -16,6 +16,7 @@ import {
   useThemeContext,
 } from "../context";
 import { Chatbot, ChatbotProvider } from "./chatbot";
+import { DefaultInputArea } from "./input-area";
 
 const baseMetrics = {
   tokensUsed: 0,
@@ -123,6 +124,27 @@ describe("Chatbot Component", () => {
   });
 
   describe("component customization", () => {
+    it("shows the app's model control in place of the model selector", async () => {
+      const model = { name: /model/i };
+      const { unmount } = await renderWithAct(<Chatbot agent={mockAgent} />);
+      expect(screen.getByRole("combobox", model)).toBeInTheDocument();
+      unmount();
+
+      const InputArea = (props: InputAreaProps) => (
+        <DefaultInputArea
+          {...props}
+          modelControl={<button type="button">Set up AI provider</button>}
+        />
+      );
+      await renderWithAct(
+        <Chatbot agent={mockAgent} components={{ InputArea }} />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Set up AI provider" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("combobox", model)).toBeNull();
+    });
+
     it("should render custom Header component", async () => {
       const CustomHeader = () => <div data-testid="custom-header">Custom</div>;
 

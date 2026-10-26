@@ -9,7 +9,7 @@
  */
 
 import type { SlashCommandGroup } from "@apty/ui/components/ai-elements/slash-commands";
-import { useChatContext } from "@apty/ui/components/chatbot";
+import { useChatContext, useConfigContext } from "@apty/ui/components/chatbot";
 import {
   DefaultInputArea,
   type ExtendedInputAreaProps,
@@ -23,7 +23,9 @@ import {
   SlidersHorizontalIcon,
 } from "lucide-react";
 import { useMemo } from "react";
+import { isProviderConfigured } from "../services/ai-provider";
 import { navigationStore } from "../state/navigation-store";
+import { ProviderSetupChip } from "./connections/setup-badge";
 import { revealDomConfigCard } from "./investigation/dom-config/dom-config-store";
 import { INVESTIGATION_PROMPTS } from "./shell/investigation-prompts";
 
@@ -95,6 +97,7 @@ function useSlashCommands(): SlashCommandGroup[] {
 export function BrowserChatInputArea(props: InputAreaProps) {
   const { t } = useTranslation();
   const slashCommands = useSlashCommands();
+  const { settings } = useConfigContext();
   return (
     <div className="shrink-0">
       <DefaultInputArea
@@ -103,6 +106,9 @@ export function BrowserChatInputArea(props: InputAreaProps) {
         showServerModels={false}
         placeholder={props.placeholder ?? DEBUGGING_PLACEHOLDER_TEXTS[0]}
         slashCommands={slashCommands}
+        modelControl={
+          isProviderConfigured(settings) ? undefined : <ProviderSetupChip />
+        }
         className="pb-1"
       />
       <p className="px-4 pb-2 text-center text-small text-subtle-foreground">
