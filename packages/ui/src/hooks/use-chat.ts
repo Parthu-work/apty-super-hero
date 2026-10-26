@@ -7,7 +7,6 @@ import type {
 import { AgentError, classifyLlmError } from "@apty/agent-core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatAdapter } from "../adapters/chat-adapter";
-import { useTranslation } from "../i18n/context";
 import type {
   ChatbotEventHandlers,
   ChatConfig,
@@ -154,14 +153,9 @@ export function useChat(
     prevAgentRef.current = agent;
   }, [agent]);
 
-  const { t } = useTranslation();
-  const translateRef = useRef(t);
-  translateRef.current = t;
-
   // Create adapter with callbacks
   const adapter = useMemo(() => {
     return new ChatAdapter({
-      translate: (key) => translateRef.current(key),
       onMessagesUpdate: (newMessages) => {
         setMessages(newMessages);
         // Find the last assistant message for the callback

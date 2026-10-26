@@ -13,6 +13,4 @@ export interface ChatAdapterOptions {
   onMessagesUpdate?: (messages: UIMessage[]) => void;
   /** Called when status changes */
   onStatusChange?: (status: ChatStatus) => void;
-  /** Wording for the messages that have translations (network and offline errors). */
-  translate?: (key: "chatErrors.network" | "chatErrors.offline") => string;
 }

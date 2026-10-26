@@ -1,5 +1,6 @@
 import type { ContextType } from "@apty/agent-core";
 import type { ReactNode } from "react";
+import type { ChatErrorInfo } from "../lib/chat-error";
 
 // ============ Chat Status ============
 
@@ -74,6 +75,8 @@ export interface UIMessageMetadata {
   currentCredits?: number;
   requiredCredits?: number;
   errorCode?: string;
+  /** Set when the turn failed: the message item shows it as an error notice. */
+  error?: ChatErrorInfo;
 }
 
 export interface UIMessage {

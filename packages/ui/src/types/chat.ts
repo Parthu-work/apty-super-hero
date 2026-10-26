@@ -53,6 +53,8 @@ export interface MessageListProps
   onCopy?: (text: string) => void | Promise<boolean>;
   /** Prepares a message's text for Download (adds the export header). */
   formatExport?: (text: string) => string;
+  /** Opens the AI provider settings, offered under failures they can fix. */
+  onOpenProviderSettings?: () => void;
 }
 
 export interface MessageItemProps
@@ -65,6 +67,8 @@ export interface MessageItemProps
   onCopy?: (text: string) => void | Promise<boolean>;
   /** Prepares a message's text for Download (adds the export header). */
   formatExport?: (text: string) => string;
+  /** Opens the AI provider settings, offered under failures they can fix. */
+  onOpenProviderSettings?: () => void;
 }
 
 export interface InputAreaProps
@@ -262,6 +266,8 @@ export interface ChatbotEventHandlers {
    * of injecting messages into the chat history.
    */
   onNeedsAuth?: (draftText: string) => void;
+  /** Opens the AI provider settings, from a failed turn whose cause they can fix. */
+  onOpenProviderSettings?: () => void;
 }
 
 // Re-export AgentMetrics for convenience

@@ -42,6 +42,7 @@ import {
   SourcesTrigger,
 } from "../../ai-elements/sources";
 import { useComponentsContext } from "../context";
+import { ChatErrorNotice } from "./chat-error-notice";
 import { DefaultToolDisplay } from "./slots/tool-display";
 
 /**
@@ -68,6 +69,7 @@ export function DefaultMessageItem({
   onRegenerate,
   onCopy,
   formatExport,
+  onOpenProviderSettings,
   className,
   ...props
 }: MessageItemProps) {
@@ -310,6 +312,13 @@ export function DefaultMessageItem({
             return null;
         }
       })}
+      {message.metadata?.error && (
+        <ChatErrorNotice
+          error={message.metadata.error}
+          onRetry={isLast ? onRegenerate : undefined}
+          onOpenSettings={onOpenProviderSettings}
+        />
+      )}
     </div>
   );
 }

@@ -59,6 +59,7 @@ export function DefaultMessageList({
   onRegenerate,
   onCopy,
   formatExport,
+  onOpenProviderSettings,
   onSuggestionClick,
   className,
   ...props
@@ -111,6 +112,7 @@ export function DefaultMessageList({
                       onRegenerate={onRegenerate}
                       onCopy={onCopy}
                       formatExport={formatExport}
+                      onOpenProviderSettings={onOpenProviderSettings}
                     />
                   )}
 
@@ -155,6 +157,7 @@ export function DefaultMessageList({
                               onRegenerate={onRegenerate}
                               onCopy={onCopy}
                               formatExport={formatExport}
+                              onOpenProviderSettings={onOpenProviderSettings}
                             />
                           </>
                         );
@@ -169,6 +172,7 @@ export function DefaultMessageList({
                           onRegenerate={onRegenerate}
                           onCopy={onCopy}
                           formatExport={formatExport}
+                          onOpenProviderSettings={onOpenProviderSettings}
                         />
                       ))}
                 </div>

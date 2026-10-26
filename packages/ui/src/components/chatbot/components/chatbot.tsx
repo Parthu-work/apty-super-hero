@@ -127,8 +127,9 @@ export function ChatbotProvider({
       regenerate: chatState.regenerate,
       setMessages: chatState.setMessages,
       bindSession: chatState.bindSession,
+      openProviderSettings: handlers?.onOpenProviderSettings,
     }),
-    [chatState, wrappedSendMessage],
+    [chatState, wrappedSendMessage, handlers?.onOpenProviderSettings],
   );
 
   const configContextValue = useMemo(
@@ -269,6 +270,7 @@ function ChatbotContent({
     reset,
     regenerate,
     queueCount,
+    openProviderSettings,
   } = chatCtx || {};
 
   const [input, setInput] = useState(initialInputProp ?? "");
@@ -328,6 +330,7 @@ function ChatbotContent({
         onRegenerate={regenerate}
         onCopy={handleCopy}
         formatExport={formatExport}
+        onOpenProviderSettings={openProviderSettings}
         onSuggestionClick={handleSuggestion}
       />
 

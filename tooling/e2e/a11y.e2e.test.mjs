@@ -349,7 +349,13 @@ for (const theme of ["light", "dark"]) {
         error: { status: 400, message: "The mock model refused" },
       }));
       await sendChat(panel, "this one fails");
-      await panel.getByText(/The mock model refused/).waitFor();
+      const failure = panel.getByRole("alert").filter({
+        hasText: "Couldn't get an answer",
+      });
+      await failure.waitFor();
+      await failure.getByText("Details").click();
+      await failure.getByText(/The mock model refused/).waitFor();
+      await failure.getByRole("button", { name: "Retry" }).waitFor();
       assert.equal(
         await named("Send").count(),
         1,

@@ -169,7 +169,7 @@ function ChatApp() {
   const handleNeedsAuth = useCallback((draftText: string) => {
     setAuthDraft(draftText);
   }, []);
-  const handleOpenSettingsFromSetupCard = useCallback(() => {
+  const handleOpenProviderSettings = useCallback(() => {
     void openOptions({ section: "ai-provider" });
   }, []);
   useEffect(() => {
@@ -241,6 +241,7 @@ function ChatApp() {
             onStatusChange: handleStatusChange,
             checkAuthBeforeSend: handleCheckAuth,
             onNeedsAuth: handleNeedsAuth,
+            onOpenProviderSettings: handleOpenProviderSettings,
           }}
           components={{
             Header: BrowserChatHeader,
@@ -252,7 +253,7 @@ function ChatApp() {
               authDraft !== null ? (
                 <SetupNeededCard
                   draftText={authDraft}
-                  onOpenSettings={handleOpenSettingsFromSetupCard}
+                  onOpenSettings={handleOpenProviderSettings}
                   onDismiss={() => setAuthDraft(null)}
                 />
               ) : null,
