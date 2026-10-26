@@ -53,6 +53,7 @@ vi.mock("@apty/browser-runtime", () => ({
 }));
 
 import { DomHealthCard } from "../dom-health-card";
+import { createDomHealthStore } from "../dom-health-store";
 import { DomConfigCard } from "./dom-config-card";
 import { createDomConfigStore } from "./dom-config-store";
 import {
@@ -526,7 +527,7 @@ describe("tab lock", () => {
     mockRunDomConfigCapture.mockReturnValue(pending.promise);
     render(
       <>
-        <DomHealthCard />
+        <DomHealthCard store={createDomHealthStore()} />
         <DomConfigCard store={store} />
       </>,
     );
@@ -562,7 +563,7 @@ describe("tab lock", () => {
     mockRunApplicationDomHealthAudit.mockReturnValue(pending.promise);
     render(
       <>
-        <DomHealthCard />
+        <DomHealthCard store={createDomHealthStore()} />
         <DomConfigCard store={store} />
       </>,
     );

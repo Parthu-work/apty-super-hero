@@ -23,6 +23,9 @@ vi.mock("@apty/browser-runtime", () => ({
 
 import { I18nProvider } from "@apty/ui/i18n/context";
 import { DomHealthCard } from "./dom-health-card";
+import { createDomHealthStore, type DomHealthStore } from "./dom-health-store";
+
+let store: DomHealthStore;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -34,6 +37,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  store = createDomHealthStore();
   mockUseChatContext.mockReturnValue({ sessionId: "session-1" });
   mockUseCurrentTarget.mockReturnValue({
     tabId: 5,
@@ -44,17 +48,17 @@ beforeEach(() => {
 
 describe("DomHealthCard", () => {
   it("shows the route probe only with developer tools turned on", () => {
-    const { rerender } = render(<DomHealthCard />);
+    const { rerender } = render(<DomHealthCard store={store} />);
     expect(screen.queryByRole("region", { name: "Route probe" })).toBeNull();
 
-    rerender(<DomHealthCard developerTools />);
+    rerender(<DomHealthCard store={store} developerTools />);
     expect(
       screen.getByRole("region", { name: "Route probe" }),
     ).toBeInTheDocument();
   });
 
   it("shows 'Not checked yet' and never runs an audit automatically", () => {
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
 
     expect(screen.getByText("Not checked yet")).toBeInTheDocument();
     expect(mockRunDomHealthAudit).not.toHaveBeenCalled();
@@ -64,7 +68,7 @@ describe("DomHealthCard", () => {
     const pending = deferred<any>();
     mockRunDomHealthAudit.mockReturnValue(pending.promise);
 
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
     fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
 
     expect(mockRunDomHealthAudit).toHaveBeenCalledWith(5, { ignoredRoots: [] });
@@ -139,7 +143,7 @@ describe("DomHealthCard", () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByText("88/100 · GOOD")).toBeInTheDocument(),
+      expect(screen.getByText("88/100 · Good")).toBeInTheDocument(),
     );
     expect(
       screen.getByText(
@@ -151,13 +155,28 @@ describe("DomHealthCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps a check running when its page is left, and shows the outcome on return", async () => {
+    const pending = deferred<unknown>();
+    mockRunDomHealthAudit.mockReturnValue(pending.promise);
+    const { unmount } = render(<DomHealthCard store={store} />);
+    fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
+
+    unmount();
+    pending.resolve({ available: false, error: "The tab was closed." });
+    await waitFor(() => expect(store.getState().running).toBeNull());
+
+    render(<DomHealthCard store={store} />);
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(mockRunDomHealthAudit).toHaveBeenCalledTimes(1);
+  });
+
   it("renders an honest error state without a score when the audit is unavailable", async () => {
     mockRunDomHealthAudit.mockResolvedValue({
       available: false,
       error: "This page does not allow DOM inspection.",
     });
 
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
     fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
 
     expect(
@@ -276,7 +295,7 @@ describe("DomHealthCard", () => {
       },
     });
 
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
     fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
 
     expect(await screen.findByText("40%")).toBeInTheDocument();
@@ -418,7 +437,9 @@ describe("DomHealthCard", () => {
       ],
     });
 
-    render(<DomHealthCard ignoredRoots={["tag:support-widget"]} />);
+    render(
+      <DomHealthCard store={store} ignoredRoots={["tag:support-widget"]} />,
+    );
     fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
 
     expect(mockRunDomHealthAudit).toHaveBeenCalledWith(5, {
@@ -435,7 +456,7 @@ describe("DomHealthCard", () => {
     expect(screen.getByText(/Left out Pendo/)).toBeInTheDocument();
   });
 
-  it("never shows a healthy-looking score badge when evidence is NO_EVIDENCE — shows NOT ASSESSED instead", async () => {
+  it("never shows a healthy-looking score badge when evidence is NO_EVIDENCE — shows Not assessed instead", async () => {
     mockRunDomHealthAudit.mockResolvedValue({
       available: true,
       auditId: "a3",
@@ -499,10 +520,10 @@ describe("DomHealthCard", () => {
       },
     });
 
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
     fireEvent.click(screen.getByRole("button", { name: /check dom health/i }));
 
-    expect(await screen.findByText("NOT ASSESSED")).toBeInTheDocument();
+    expect(await screen.findByText("Not assessed")).toBeInTheDocument();
     // Never a numeric score paired with this evidence state.
     expect(screen.queryByText(/\/100/)).not.toBeInTheDocument();
     expect(
@@ -603,7 +624,7 @@ describe("DomHealthCard", () => {
       },
     });
 
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
     fireEvent.click(screen.getByRole("button", { name: /audit application/i }));
 
     expect(mockRunApplicationDomHealthAudit).toHaveBeenCalledWith(
@@ -614,7 +635,7 @@ describe("DomHealthCard", () => {
     expect(
       screen.getByText(/0 distinct link target\(s\) and 2 navigation control/),
     ).toBeInTheDocument();
-    expect(await screen.findByText("65/100 · FAIR")).toBeInTheDocument();
+    expect(await screen.findByText("65/100 · Fair")).toBeInTheDocument();
     expect(
       screen.getByText("Application discovery/audit coverage is incomplete"),
     ).toBeInTheDocument();
@@ -733,7 +754,7 @@ describe("DomHealthCard", () => {
       methodology: [],
     });
 
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
 
     fireEvent.change(
       screen.getByRole("combobox", { name: /application discovery mode/i }),
@@ -777,7 +798,7 @@ describe("DomHealthCard", () => {
       error: "y",
     });
 
-    render(<DomHealthCard thresholdOverrides={overrides} />);
+    render(<DomHealthCard store={store} thresholdOverrides={overrides} />);
     expect(
       screen.queryByRole("button", { name: "Export validation bundle" }),
     ).toBeNull();
@@ -808,7 +829,7 @@ describe("DomHealthCard", () => {
       hostname: null,
     });
 
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
 
     expect(
       screen.getByRole("button", { name: /check dom health/i }),
@@ -819,7 +840,7 @@ describe("DomHealthCard", () => {
   });
 
   it("puts the title toggle and the action buttons on separate rows (not one unbreakable row that squeezes the title at narrow widths)", () => {
-    render(<DomHealthCard />);
+    render(<DomHealthCard store={store} />);
 
     const titleToggle = screen.getByRole("button", { name: /dom health:/i });
     const checkButton = screen.getByRole("button", {
@@ -849,7 +870,7 @@ describe("DomHealthCard", () => {
     };
     render(
       <I18nProvider storageAdapter={languageStorage as never}>
-        <DomHealthCard />
+        <DomHealthCard store={store} />
       </I18nProvider>,
     );
 

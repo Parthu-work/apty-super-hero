@@ -383,12 +383,12 @@
       "building": "Building report..."
     },
     "grade": {
-      "excellent": "EXCELLENT",
-      "good": "GOOD",
-      "fair": "FAIR",
-      "needsAttention": "NEEDS ATTENTION",
-      "highRisk": "HIGH RISK",
-      "notAssessed": "NOT ASSESSED"
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "needsAttention": "Needs attention",
+      "highRisk": "High risk",
+      "notAssessed": "Not assessed"
     },
     "evidenceState": {
       "healthy": "Full evidence",

@@ -16,24 +16,19 @@
  * always report the same deterministic result either way.
  */
 
-import {
-  type ApplicationAuditOutcome,
-  type ApplicationAuditProgress,
-  type ApplicationDiscoveryMode,
-  type DesEvidence,
-  type DomHealthAuditOutcome,
-  type DomHealthAuditResult,
-  type DomHealthConfidence,
-  type DomHealthGrade,
-  type DomHealthMetricDetails,
-  type DomHealthMetricKey,
-  type DomHealthMetrics,
-  type DomHealthRecommendation,
-  type DomHealthRisk,
-  type PageAuditRecord,
-  type RouteProbeReport,
-  runApplicationDomHealthAudit,
-  runDomHealthAudit,
+import type {
+  ApplicationDiscoveryMode,
+  DesEvidence,
+  DomHealthAuditResult,
+  DomHealthConfidence,
+  DomHealthGrade,
+  DomHealthMetricDetails,
+  DomHealthMetricKey,
+  DomHealthMetrics,
+  DomHealthRecommendation,
+  DomHealthRisk,
+  PageAuditRecord,
+  RouteProbeReport,
 } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
@@ -41,12 +36,13 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import type { I18nContextValue, TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon, Loader2Icon, ScanSearchIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useTabLockHolder } from "./dom-config/tab-lock";
 import {
-  acquireTabLock,
-  releaseTabLock,
-  useTabLockHolder,
-} from "./dom-config/tab-lock";
+  type DomHealthStore,
+  domHealthStore,
+  useDomHealthState,
+} from "./dom-health-store";
 import { RouteProbePanel } from "./route-probe-panel";
 import type { StatusMeta } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
@@ -660,6 +656,7 @@ export function DomHealthCard({
   developerTools = false,
   ignoredRoots = [],
   thresholdOverrides,
+  store = domHealthStore,
 }: {
   /** Settings → Troubleshooting → Developer tools: shows the route probe. */
   developerTools?: boolean;
@@ -667,79 +664,46 @@ export function DomHealthCard({
   ignoredRoots?: readonly string[];
   /** Developer tools: threshold overrides for real-tenant validation. */
   thresholdOverrides?: Record<string, number>;
+  store?: DomHealthStore;
 }) {
   const { t } = useTranslation();
   const { sessionId } = useChatContext();
   const target = useCurrentTarget(sessionId);
-  const [isLoading, setIsLoading] = useState(false);
-  const [outcome, setOutcome] = useState<DomHealthAuditOutcome | null>(null);
-  const [isAppLoading, setIsAppLoading] = useState(false);
-  const [appOutcome, setAppOutcome] = useState<ApplicationAuditOutcome | null>(
-    null,
-  );
-  const [appProgress, setAppProgress] =
-    useState<ApplicationAuditProgress | null>(null);
-  const [view, setView] = useState<"page" | "application">("page");
-  const [discoveryMode, setDiscoveryMode] =
-    useState<ApplicationDiscoveryMode>("application-safe");
+  const {
+    scope: view,
+    discoveryMode,
+    running,
+    progress: appProgress,
+    pageOutcome: outcome,
+    appOutcome,
+  } = useDomHealthState(store);
+  const isLoading = running === "page";
+  const isAppLoading = running === "application";
   const [expanded, setExpanded] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [probeReport, setProbeReport] = useState<RouteProbeReport | null>(null);
   const lockedByDomConfig = useTabLockHolder(target.tabId) === "dom-config";
-  const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(
-    () => () => {
-      if (stageTimerRef.current) clearInterval(stageTimerRef.current);
-    },
-    [],
-  );
-
-  const runCheck = useCallback(async () => {
-    if (!target.tabId) return;
-    const tabId = target.tabId;
-    if (!acquireTabLock(tabId, "dom-health")) return;
-    setView("page");
-    setIsLoading(true);
-    setExpanded(true);
+  useEffect(() => {
+    if (!isLoading) return;
     setStageIndex(0);
-    stageTimerRef.current = setInterval(() => {
+    const timer = setInterval(() => {
       setStageIndex((i) => (i + 1) % LOADING_STAGES.length);
     }, 700);
+    return () => clearInterval(timer);
+  }, [isLoading]);
 
-    const result = await runDomHealthAudit(tabId, {
-      ignoredRoots,
-      thresholdOverrides,
-    }).finally(() => releaseTabLock(tabId, "dom-health"));
-
-    if (stageTimerRef.current) {
-      clearInterval(stageTimerRef.current);
-      stageTimerRef.current = null;
-    }
-    setOutcome(result);
-    setIsLoading(false);
-  }, [target.tabId, ignoredRoots, thresholdOverrides]);
-
-  const runApplicationCheck = useCallback(async () => {
+  const runCheck = () => {
     if (!target.tabId) return;
-    const tabId = target.tabId;
-    if (!acquireTabLock(tabId, "dom-health")) return;
-    setView("application");
-    setIsAppLoading(true);
-    setExpanded(true);
-    setAppProgress(null);
+    const options = { tabId: target.tabId, ignoredRoots, thresholdOverrides };
+    if (store.checkPage(options) === "started") setExpanded(true);
+  };
 
-    const result = await runApplicationDomHealthAudit(tabId, {
-      discoveryMode,
-      ignoredRoots,
-      thresholdOverrides,
-      onProgress: (progress) => setAppProgress(progress),
-    }).finally(() => releaseTabLock(tabId, "dom-health"));
-
-    setAppOutcome(result);
-    setIsAppLoading(false);
-    setAppProgress(null);
-  }, [target.tabId, discoveryMode, ignoredRoots, thresholdOverrides]);
+  const runApplicationCheck = () => {
+    if (!target.tabId) return;
+    const options = { tabId: target.tabId, ignoredRoots, thresholdOverrides };
+    if (store.auditApplication(options) === "started") setExpanded(true);
+  };
 
   const hasResult = outcome !== null || appOutcome !== null;
   const active = view === "application" ? appOutcome : outcome;
@@ -879,7 +843,9 @@ export function DomHealthCard({
             value={discoveryMode}
             onChange={(e) => {
               e.stopPropagation();
-              setDiscoveryMode(e.target.value as ApplicationDiscoveryMode);
+              store.setDiscoveryMode(
+                e.target.value as ApplicationDiscoveryMode,
+              );
             }}
             onClick={(e) => e.stopPropagation()}
             disabled={
@@ -937,7 +903,7 @@ export function DomHealthCard({
             <div className="mb-2 flex gap-1.5 text-xs">
               <button
                 type="button"
-                onClick={() => setView("page")}
+                onClick={() => store.setScope("page")}
                 className={cn(
                   "rounded px-2 py-0.5",
                   view === "page"
@@ -950,7 +916,7 @@ export function DomHealthCard({
               </button>
               <button
                 type="button"
-                onClick={() => setView("application")}
+                onClick={() => store.setScope("application")}
                 className={cn(
                   "rounded px-2 py-0.5",
                   view === "application"
