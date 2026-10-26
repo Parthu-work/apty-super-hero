@@ -56,7 +56,7 @@
     "followTwitter": "Follow on Twitter",
     "feedback": "Feedback",
     "general": "General",
-    "aiConfiguration": "AI Configuration",
+    "aiConfiguration": "AI",
     "skills": "Skills",
     "skillsTab": "Skills",
     "selectProvider": "Select AI Provider",
@@ -78,7 +78,7 @@
     "importedModels": "Imported {{count}} model config(s) (disabled — save to persist, then enable).",
     "resetDone": "Settings reset, remember to save",
     "extensionSubtitle": "Configure your Apty Agent extension",
-    "aptyIntegration": "Apty Integration",
+    "aptyIntegration": "Connection",
     "languageHint": "Choose your preferred language",
     "themeHint": "Choose your preferred theme",
     "privacyNotice": "No analytics or telemetry are collected. Your messages and tool results go only to the AI provider you configure below, using your own API key.",
@@ -1378,10 +1378,9 @@
   "skills": {
     "card": {
       "cannotDisableBuiltIn": "Cannot disable built-in skill-creator. This skill is required for the system to function.",
-      "cannotDeleteBuiltIn": "Cannot delete built-in skill-creator. This skill is required for the system to function.",
-      "confirmDelete": "Are you sure you want to delete the skill \"{{name}}\"?",
+      "confirmDelete": "Delete the skill \"{{name}}\"?",
       "enable": "Enable {{name}}",
-      "fileStatistics": "File Statistics",
+      "fileStatistics": "File statistics",
       "scripts": "{{count}} scripts",
       "references": "{{count}} references",
       "assets": "{{count}} assets",
@@ -1391,7 +1390,7 @@
       "status": "Status: {{status}}",
       "active": "Active",
       "inactive": "Inactive",
-      "viewDetails": "View Details",
+      "viewDetails": "View details",
       "export": "Export {{name}}",
       "delete": "Delete {{name}}"
     },
@@ -1447,7 +1446,9 @@
     "chat": "(chat)",
     "minutesLeft": "{{count}} min left",
     "revoke": "Revoke",
-    "revokeAll": "Revoke all"
+    "revokeAll": "Revoke all",
+    "revokeAllTitle": "Revoke all remembered approvals?",
+    "revokeAllDescription": "You'll be asked again before each of these actions."
   },
   "aptyPeer": {
     "client": {
@@ -1473,7 +1474,7 @@
     "invalidId": "Invalid Chrome extension ID. Please provide a valid {{name}} extension ID (32 lowercase a-p characters).",
     "answering": "Answering",
     "configuredBadge": "Configured",
-    "notConnectedBadge": "Not Connected",
+    "notConnectedBadge": "Not connected",
     "configured": "{{name}} configured",
     "answered": "The {{name}} answered the Agent's handshake.",
     "savedTest": "Saved. Use Test connection to confirm the {{name}} answers.",
@@ -1532,10 +1533,10 @@
   },
   "mcpBridge": {
     "status": {
-      "disconnected": "Not Connected",
+      "disconnected": "Not connected",
       "connecting": "Connecting…",
       "connected": "Connected",
-      "error": "Connection Error"
+      "error": "Connection error"
     },
     "connectionFailed": "Connection failed",
     "title": "MCP WebSocket Bridge",

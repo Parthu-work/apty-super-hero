@@ -56,7 +56,7 @@
     "followTwitter": "关注 Twitter",
     "feedback": "反馈",
     "general": "常规设置",
-    "aiConfiguration": "AI 配置",
+    "aiConfiguration": "AI",
     "skills": "技能管理",
     "skillsTab": "技能管理",
     "selectProvider": "选择 AI 提供商",
@@ -78,7 +78,7 @@
     "importedModels": "已导入 {{count}} 个模型配置（已禁用，保存后生效）。",
     "resetDone": "设置已重置，请记得保存",
     "extensionSubtitle": "配置你的 Apty Agent 扩展",
-    "aptyIntegration": "Apty 集成",
+    "aptyIntegration": "连接",
     "languageHint": "选择您的首选语言",
     "themeHint": "选择您喜欢的主题",
     "privacyNotice": "不会收集任何分析或遥测数据。您的消息和工具结果只会发送给您在下方配置的 AI 服务商，使用您自己的 API 密钥。",
@@ -1378,8 +1378,7 @@
   "skills": {
     "card": {
       "cannotDisableBuiltIn": "无法禁用内置的 skill-creator。系统运行需要此技能。",
-      "cannotDeleteBuiltIn": "无法删除内置的 skill-creator。系统运行需要此技能。",
-      "confirmDelete": "确定要删除技能“{{name}}”吗？",
+      "confirmDelete": "删除技能“{{name}}”？",
       "enable": "启用 {{name}}",
       "fileStatistics": "文件统计",
       "scripts": "{{count}} 个脚本",
@@ -1447,7 +1446,9 @@
     "chat": "（对话）",
     "minutesLeft": "剩余 {{count}} 分钟",
     "revoke": "撤销",
-    "revokeAll": "全部撤销"
+    "revokeAll": "全部撤销",
+    "revokeAllTitle": "撤销所有已记住的批准？",
+    "revokeAllDescription": "之后执行这些操作前都会再次询问你。"
   },
   "aptyPeer": {
     "client": {

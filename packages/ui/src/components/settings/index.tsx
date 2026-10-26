@@ -13,6 +13,7 @@ import {
   withSettingsDefaults,
 } from "@apty/agent-core";
 import {
+  Activity,
   Bot,
   CheckCircle,
   Download,
@@ -30,7 +31,7 @@ import {
   Settings,
   Trash2,
   Upload,
-  XCircle,
+  X,
 } from "lucide-react";
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -52,6 +53,7 @@ import {
 } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Notice } from "../ui/notice";
 import {
   Select,
   SelectContent,
@@ -59,6 +61,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { SettingRow } from "../ui/setting-row";
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { DataHandlingCard } from "./data-handling-card";
@@ -975,7 +978,7 @@ export function SettingsPage({
         )}
       >
         <Card className="w-80">
-          <CardContent className="pt-6">
+          <CardContent className="pt-4 sm:pt-6">
             <div className="text-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto" />
               <p className="text-muted-foreground">{t("common.processing")}</p>
@@ -988,100 +991,96 @@ export function SettingsPage({
 
   return (
     <div className={cn("min-h-screen bg-background", className)}>
-      <div className="max-w-6xl mx-auto py-8 px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Settings className="h-8 w-8 text-primary" />
-            <h1 className="text-display font-semibold">
-              {t("settings.title")}
-            </h1>
-          </div>
-          <p className="text-muted-foreground">
+      <header className="border-b border-border">
+        <div className="mx-auto flex max-w-180 items-center gap-2 px-4 pt-4 sm:px-6">
+          <span
+            aria-hidden="true"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground"
+          >
+            <Activity className="size-4" />
+          </span>
+          <span className="text-sm font-medium text-muted-foreground">
+            {t("shell.appName")}
+          </span>
+        </div>
+        <div className="mx-auto max-w-180 px-4 pt-2 pb-4 sm:px-6">
+          <h1 className="text-display font-semibold text-foreground">
+            {t("settings.title")}
+          </h1>
+          <p className="text-sm text-muted-foreground">
             {t("settings.extensionSubtitle")}
           </p>
         </div>
+      </header>
 
-        {/* Status Message */}
-        {saveStatus.message && (
-          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 min-w-[300px] max-w-md">
-            <Alert
-              variant={saveStatus.type === "error" ? "destructive" : "default"}
-              className="animate-in slide-in-from-top"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  {saveStatus.type === "success" && (
-                    <CheckCircle className="h-4 w-4" />
-                  )}
-                  {saveStatus.type === "error" && (
-                    <XCircle className="h-4 w-4" />
-                  )}
-                  {saveStatus.type === "info" && <Info className="h-4 w-4" />}
-                  <AlertDescription className="font-medium">
-                    {saveStatus.message}
-                  </AlertDescription>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSaveStatus({ type: "", message: "" })}
-                  className="h-6 w-6 p-0"
-                >
-                  <XCircle className="h-4 w-4" />
-                </Button>
-              </div>
-            </Alert>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <Tabs
-          value={activeTab}
-          onValueChange={(value: string) => {
-            setActiveTab(value as SettingsTab);
-            onTabChange?.(value as SettingsTab);
-          }}
-          className="w-full"
-        >
-          <TabsList
-            className={cn(
-              "grid w-full mb-6",
-              skillsContent && connectionContent
-                ? "grid-cols-4"
-                : skillsContent || connectionContent
-                  ? "grid-cols-3"
-                  : "grid-cols-2",
-            )}
+      {saveStatus.message && (
+        <div className="fixed top-4 left-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2">
+          <Notice
+            tone={
+              saveStatus.type === "error"
+                ? "error"
+                : saveStatus.type === "success"
+                  ? "success"
+                  : "info"
+            }
+            className="animate-in fade-in slide-in-from-top-2 shadow-lg duration-200 motion-reduce:animate-none"
           >
-            <TabsTrigger value="general" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
+            <div className="flex items-start justify-between gap-3">
+              <span className="font-medium">{saveStatus.message}</span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("common.dismiss")}
+                onClick={() => setSaveStatus({ type: "", message: "" })}
+                className="-mt-1 -mr-1 shrink-0"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </div>
+          </Notice>
+        </div>
+      )}
+
+      <Tabs
+        value={activeTab}
+        onValueChange={(value: string) => {
+          setActiveTab(value as SettingsTab);
+          onTabChange?.(value as SettingsTab);
+        }}
+        className="w-full"
+      >
+        <div className="sticky top-0 z-40 border-b border-border bg-background">
+          <TabsList
+            variant="underline"
+            className="mx-auto max-w-180 border-b-0 px-2 sm:px-4"
+          >
+            <TabsTrigger variant="underline" value="general">
+              <Settings aria-hidden="true" className="size-4" />
               {t("settings.general")}
             </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center gap-2">
-              <Bot className="h-4 w-4" />
+            <TabsTrigger variant="underline" value="ai">
+              <Bot aria-hidden="true" className="size-4" />
               {t("settings.aiConfiguration")}
             </TabsTrigger>
             {skillsContent && (
-              <TabsTrigger value="skills" className="flex items-center gap-2">
-                <Package className="h-4 w-4" />
+              <TabsTrigger variant="underline" value="skills">
+                <Package aria-hidden="true" className="size-4" />
                 {t("settings.skillsTab")}
               </TabsTrigger>
             )}
             {connectionContent && (
-              <TabsTrigger
-                value="connection"
-                className="flex items-center gap-2"
-              >
-                <Plug className="h-4 w-4" />
+              <TabsTrigger variant="underline" value="connection">
+                <Plug aria-hidden="true" className="size-4" />
                 {t("settings.aptyIntegration")}
               </TabsTrigger>
             )}
           </TabsList>
+        </div>
 
+        <div className="mx-auto max-w-180 px-4 py-6 sm:px-6">
           {/* General Tab */}
-          <TabsContent value="general" className="space-y-6">
-            <div className="grid gap-6 sm:grid-cols-2">
+          <TabsContent value="general" className="mt-0 space-y-4">
+            <div className="grid gap-4">
               {/* Language Selection */}
               <Card>
                 <CardHeader>
@@ -1199,23 +1198,21 @@ export function SettingsPage({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {t("settings.enableSkillExecution")}
-                  </span>
-                  <Switch
-                    aria-label={t("settings.enableSkillExecution")}
-                    checked={settings.skillExecutionEnabled === true}
-                    onCheckedChange={(checked) =>
-                      saveGeneralSetting({ skillExecutionEnabled: checked })
-                    }
-                  />
-                </div>
-                <Alert variant="destructive">
-                  <AlertDescription className="text-sm leading-relaxed">
-                    {t("settings.skillExecutionWarning")}
-                  </AlertDescription>
-                </Alert>
+                <SettingRow
+                  label={t("settings.enableSkillExecution")}
+                  control={
+                    <Switch
+                      aria-label={t("settings.enableSkillExecution")}
+                      checked={settings.skillExecutionEnabled === true}
+                      onCheckedChange={(checked) =>
+                        saveGeneralSetting({ skillExecutionEnabled: checked })
+                      }
+                    />
+                  }
+                />
+                <Notice tone="warning">
+                  {t("settings.skillExecutionWarning")}
+                </Notice>
               </CardContent>
             </Card>
 
@@ -1246,7 +1243,7 @@ export function SettingsPage({
                         value={sttApiKey}
                         onChange={(e) => setSttApiKey(e.target.value)}
                         placeholder="xi-..."
-                        className="pr-10"
+                        className="font-mono pr-10"
                       />
                       <Button
                         type="button"
@@ -1288,6 +1285,7 @@ export function SettingsPage({
                     </Label>
                     <Input
                       id="sttModelId"
+                      className="font-mono"
                       type="text"
                       value={sttModelId}
                       onChange={(e) => setSttModelId(e.target.value)}
@@ -1348,8 +1346,8 @@ export function SettingsPage({
           {/* AI Configuration Tab — this product is BYOK-only (there is no
               login or proxy fallback), so the fields are always shown; there
               is no gate toggle to enable them first. */}
-          <TabsContent value="ai" className="space-y-6">
-            <div className="grid gap-6">
+          <TabsContent value="ai" className="mt-0 space-y-4">
+            <div className="grid gap-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1442,16 +1440,16 @@ export function SettingsPage({
                         onChange={handleImportFileSelected}
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {t("settings.includeKeysOnExport")}
-                      </span>
-                      <Switch
-                        aria-label={t("settings.includeKeysOnExport")}
-                        checked={includeKeysOnExport}
-                        onCheckedChange={setIncludeKeysOnExport}
-                      />
-                    </div>
+                    <SettingRow
+                      label={t("settings.includeKeysOnExport")}
+                      control={
+                        <Switch
+                          aria-label={t("settings.includeKeysOnExport")}
+                          checked={includeKeysOnExport}
+                          onCheckedChange={setIncludeKeysOnExport}
+                        />
+                      }
+                    />
                     {importError && (
                       <Alert variant="destructive">
                         <AlertDescription className="text-xs">
@@ -1672,6 +1670,7 @@ export function SettingsPage({
                           <Label htmlFor="aiHost">{t("settings.aiHost")}</Label>
                           <Input
                             id="aiHost"
+                            className="font-mono"
                             type="url"
                             value={selectedModel.aiHost || ""}
                             onChange={(e) =>
@@ -1712,7 +1711,7 @@ export function SettingsPage({
                               placeholder={
                                 selectedProviderMeta.tokenPlaceholder
                               }
-                              className="pr-10"
+                              className="font-mono pr-10"
                             />
                             <Button
                               type="button"
@@ -1743,6 +1742,7 @@ export function SettingsPage({
                             </Label>
                             <Input
                               id="aiWorkspaceId"
+                              className="font-mono"
                               value={selectedModel.aiWorkspaceId || ""}
                               onChange={(e) =>
                                 handleModelFieldChange(
@@ -1777,6 +1777,7 @@ export function SettingsPage({
                           <div className="flex gap-2">
                             <Input
                               id="aiModel"
+                              className="font-mono"
                               type="text"
                               list={`aiModel-suggestions-${selectedModel.id}`}
                               value={selectedModel.aiModel || ""}
@@ -1923,19 +1924,19 @@ export function SettingsPage({
 
           {/* Skills Tab */}
           {skillsContent && (
-            <TabsContent value="skills" className="space-y-6">
+            <TabsContent value="skills" className="mt-0 space-y-4">
               {skillsContent}
             </TabsContent>
           )}
 
           {/* Connection Tab */}
           {connectionContent && (
-            <TabsContent value="connection" className="space-y-6">
+            <TabsContent value="connection" className="mt-0 space-y-4">
               {connectionContent}
             </TabsContent>
           )}
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </div>
   );
 }

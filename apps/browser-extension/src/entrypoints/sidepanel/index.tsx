@@ -3,12 +3,14 @@ import { createLogger, STORAGE_KEYS } from "@apty/agent-core";
 import { ChromeStorageAdapter, zenfs } from "@apty/browser-runtime";
 import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { quickjs } from "@apty/browser-runtime/vm/quickjs-manager";
+import { applyRememberedTheme } from "@apty/ui/theme/index";
 import { renderChatApp } from "../../components/app-root";
 import { initLogging } from "../../lib/logging";
 
 const log = createLogger("Sidepanel");
 
 initLogging();
+applyRememberedTheme();
 // Read the redaction mode now, so the first tool result is redacted in it.
 void getRedactionMode();
 

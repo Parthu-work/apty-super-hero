@@ -158,7 +158,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
   if (loading) {
     return (
       <Card className="w-full">
-        <CardContent className="flex items-center justify-center py-8">
+        <CardContent className="flex items-center justify-center py-8 sm:py-8">
           <RefreshCw className="h-6 w-6 animate-spin mr-2" />
           {t("fileManager.loadingSystem")}
         </CardContent>
@@ -205,7 +205,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
 
       {/* Search and Actions */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4 sm:pt-6">
           <div className="flex gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
