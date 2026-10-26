@@ -1,6 +1,5 @@
 import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useChat, useChatConfig } from "../../../hooks";
-import { useTranslation } from "../../../i18n/context";
 import { copyText } from "../../../lib/clipboard";
 import { withExportHeader } from "../../../lib/export-header";
 import { cn } from "../../../lib/utils";
@@ -17,10 +16,6 @@ import {
 import { Header } from "./header";
 import { InputArea } from "./input-area";
 import { MessageList } from "./message-list";
-import {
-  type UxAuditFormData,
-  UxAuditGoalDialog,
-} from "./ux-audit-goal-dialog";
 
 /**
  * Convert theme variables to CSS style object
@@ -271,10 +266,8 @@ function ChatbotContent({
     queueCount,
   } = chatCtx || {};
 
-  const { t } = useTranslation();
   const [input, setInput] = useState(initialInputProp ?? "");
   const [inputResetCount, setInputResetCount] = useState(0);
-  const [isUxAuditDialogOpen, setIsUxAuditDialogOpen] = useState(false);
 
   const handleSubmit = useCallback(
     (text: string, files?: File[], contexts?: ContextItem[]) => {
@@ -289,28 +282,6 @@ function ChatbotContent({
       void sendMessage?.(text);
     },
     [sendMessage],
-  );
-
-  const handleUxAuditClick = useCallback(() => {
-    setIsUxAuditDialogOpen(true);
-  }, []);
-
-  const handleUxAuditSubmit = useCallback(
-    (formData: UxAuditFormData) => {
-      const platformDisplay = t(`uxAuditGoal.platform.${formData.platform}`);
-      const targetUsersLine = formData.targetUsers
-        ? `\n**Target Users:** ${formData.targetUsers}`
-        : "";
-
-      const messageText = t("uxAuditGoal.messageTemplate")
-        .replace("{{url}}", formData.targetLink)
-        .replace("{{platform}}", platformDisplay)
-        .replace("{{jtbd}}", formData.jtbd)
-        .replace("{{targetUsersLine}}", targetUsersLine);
-
-      void sendMessage?.(messageText);
-    },
-    [t, sendMessage],
   );
 
   const redactionMode = useContext(ConfigContext)?.settings.redactionMode;
@@ -348,7 +319,6 @@ function ChatbotContent({
         onCopy={handleCopy}
         formatExport={formatExport}
         onSuggestionClick={handleSuggestion}
-        onUxAuditClick={handleUxAuditClick}
       />
 
       {/* Input Area - always shown */}
@@ -362,13 +332,6 @@ function ChatbotContent({
         queueCount={queueCount ?? 0}
         models={models}
         placeholderTexts={placeholderTexts}
-      />
-
-      {/* UX Audit Goal Dialog */}
-      <UxAuditGoalDialog
-        open={isUxAuditDialogOpen}
-        onOpenChange={setIsUxAuditDialogOpen}
-        onSubmit={handleUxAuditSubmit}
       />
     </div>
   );

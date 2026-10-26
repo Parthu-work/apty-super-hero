@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WelcomeScreenProps } from "../../../types";
 import {
   useChatContext,
   useComponentsContext,
@@ -67,6 +68,16 @@ async function renderWithAct(
   return renderResult!;
 }
 
+/** The app's welcome screen, as the extension provides one through the emptyState slot. */
+const START_PROMPT = "Please organize my open tabs by topic and purpose";
+const welcome = {
+  emptyState: ({ onSuggestionClick }: WelcomeScreenProps) => (
+    <button type="button" onClick={() => onSuggestionClick(START_PROMPT)}>
+      Start an investigation
+    </button>
+  ),
+};
+
 describe("Chatbot Component", () => {
   let mockAgent: AptyAgent;
 
@@ -101,10 +112,13 @@ describe("Chatbot Component", () => {
       expect(screen.getByText("My Chat")).toBeInTheDocument();
     });
 
-    it("should render welcome screen when no messages", async () => {
+    it("shows no built-in welcome screen when the app gives none", async () => {
       await renderWithAct(<Chatbot agent={mockAgent} />);
 
-      expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /investigation/ }),
+      ).toBeNull();
+      expect(screen.getByRole("textbox")).toBeInTheDocument();
     });
   });
 
@@ -227,25 +241,25 @@ describe("Chatbot Component", () => {
     });
 
     it("should call reset when new chat button is clicked", async () => {
-      await renderWithAct(<Chatbot agent={mockAgent} />);
+      await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
       const newChatButton = screen.getByText("New Chat");
       fireEvent.click(newChatButton);
 
       // Verify the chat was reset (no messages)
-      expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+      expect(screen.getByText("Start an investigation")).toBeInTheDocument();
     });
 
-    it("should send suggestion text when welcome suggestion is clicked", async () => {
-      await renderWithAct(<Chatbot agent={mockAgent} />);
+    it("sends the suggestion the welcome screen picks", async () => {
+      await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
-      const suggestion = screen.getByText(
-        "Please organize my open tabs by topic and purpose",
-      );
-      fireEvent.click(suggestion);
+      fireEvent.click(screen.getByText("Start an investigation"));
 
       await waitFor(() => {
-        expect(mockAgent.chat).toHaveBeenCalled();
+        expect(mockAgent.chat).toHaveBeenCalledWith(
+          START_PROMPT,
+          expect.anything(),
+        );
       });
     });
   });
@@ -502,10 +516,10 @@ describe("Chatbot State Management", () => {
       createEventGenerator(events),
     );
 
-    await renderWithAct(<Chatbot agent={mockAgent} />);
+    await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
     // Initially should show welcome screen
-    expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+    expect(screen.getByText("Start an investigation")).toBeInTheDocument();
   });
 
   it("should preserve state across re-renders", async () => {
@@ -518,15 +532,17 @@ describe("Chatbot State Management", () => {
       createEventGenerator(events),
     );
 
-    const { rerender } = await renderWithAct(<Chatbot agent={mockAgent} />);
+    const { rerender } = await renderWithAct(
+      <Chatbot agent={mockAgent} slots={welcome} />,
+    );
 
     // Re-render with same props
     await act(async () => {
-      rerender(<Chatbot agent={mockAgent} />);
+      rerender(<Chatbot agent={mockAgent} slots={welcome} />);
     });
 
     // Should still show the same content
-    expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+    expect(screen.getByText("Start an investigation")).toBeInTheDocument();
   });
 });
 
@@ -546,13 +562,11 @@ describe("Chatbot Event Handlers", () => {
   // The Settings button is covered by "should open options page when
   // settings button is clicked" above; Chatbot has no onSettingsOpen prop.
   it("New Chat clears the conversation and deletes its agent session", async () => {
-    await renderWithAct(<Chatbot agent={mockAgent} />);
+    await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
-    fireEvent.click(
-      screen.getByText("Please organize my open tabs by topic and purpose"),
-    );
+    fireEvent.click(screen.getByText("Start an investigation"));
     await waitFor(() => {
-      expect(screen.queryByText("Apty AI Agent")).toBeNull();
+      expect(screen.queryByText("Start an investigation")).toBeNull();
     });
     await act(async () => {});
 
@@ -561,6 +575,6 @@ describe("Chatbot Event Handlers", () => {
     expect(
       mockAgent.getConversationManager()?.deleteSession,
     ).toHaveBeenCalledWith("session-1");
-    expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+    expect(screen.getByText("Start an investigation")).toBeInTheDocument();
   });
 });

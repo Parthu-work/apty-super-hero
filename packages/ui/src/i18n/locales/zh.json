@@ -162,53 +162,6 @@
     "placeholder2": "尝试使用 @标签 提及页面",
     "placeholder3": "整理您的标签页"
   },
-  "welcome": {
-    "title": "Apty AI Agent",
-    "subtitle": "选择一个快捷操作或询问任何问题来开始",
-    "analyzePage": "总结此页面",
-    "organizeTabs": "请按主题和用途整理我的打开标签页",
-    "research": "请使用 Google 研究主题 'MCP'",
-    "screenRecording": "开始创建用户操作手册",
-    "uxAuditGoal": "深度审计您的 UX 目标"
-  },
-  "uxAuditGoal": {
-    "dialog": {
-      "title": "深度审查你的UX目标",
-      "description": "请提供您想要审查的界面详情"
-    },
-    "fields": {
-      "targetLink": "目标链接",
-      "targetLinkPlaceholder": "输入想要测试的目标链接",
-      "platform": "运行平台",
-      "platformHint": "选择此次审查的平台",
-      "jtbd": "任务描述(JTBD)",
-      "jtbdPlaceholder": "举例: 用户想要预定明天早上的会议...",
-      "jtbdHint": "简单概括你想要测试的flow",
-      "targetUsers": "目标用户",
-      "targetUsersPlaceholder": "例如：首次用户、高级用户、老年人...",
-      "targetUsersHint": "可选：描述您的目标受众"
-    },
-    "platform": {
-      "desktop": "桌面端",
-      "mobile": "移动端",
-      "web": "网页端"
-    },
-    "actions": {
-      "start": "开始测试",
-      "cancel": "取消"
-    },
-    "validation": {
-      "required": "此字段为必填项",
-      "invalidUrl": "请输入有效的URL（http:// 或 https://）"
-    },
-    "messageTemplate": "请对以下目标进行UX审查走查：\n\n**目标URL：** {{url}}\n**平台：** {{platform}}\n**任务(JTBD)：** {{jtbd}}{{targetUsersLine}}\n\n请使用 ux-audit-walkthrough 技能进行全面的UX评估。"
-  },
-  "config": {
-    "title": "需要配置",
-    "description": "使用 Apty Agent 前，请先配置您的 AI 设置。",
-    "apiTokenRequired": "需要 API 令牌来连接 AI 服务。",
-    "openSettings": "打开设置"
-  },
   "tools": {
     "get_all_tabs": "获取所有标签页",
     "get_current_tab": "获取当前标签页",
@@ -1596,19 +1549,6 @@
     "virtualCursor": "虚拟光标",
     "previousSlide": "上一张",
     "nextSlide": "下一张"
-  },
-  "modelChangePrompt": {
-    "noMatchingModels": "没有匹配的模型",
-    "contactSupport": "请求的模型均不可用。请联系支持人员。",
-    "title": "模型选择",
-    "description": "请求的模型不可用。请选择其他模型：",
-    "clickToSwitch": "点击模型即可切换",
-    "loading": "正在加载可用模型...",
-    "priceLevel": {
-      "cheap": "经济",
-      "normal": "标准",
-      "expensive": "高级"
-    }
   },
   "errorBoundary": {
     "title": "出错了",

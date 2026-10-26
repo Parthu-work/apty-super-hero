@@ -60,12 +60,10 @@ export function DefaultMessageList({
   onCopy,
   formatExport,
   onSuggestionClick,
-  onUxAuditClick,
   className,
   ...props
 }: MessageListProps & {
   onSuggestionClick?: (text: string) => void;
-  onUxAuditClick?: () => void;
 }) {
   const { slots } = useComponentsContext();
   const { t } = useTranslation();
@@ -94,7 +92,6 @@ export function DefaultMessageList({
               onSuggestionClick={(text) => {
                 onSuggestionClick?.(text);
               }}
-              onUxAuditClick={onUxAuditClick}
             />
           ) : (
             turns.map((turn) => {
@@ -205,7 +202,6 @@ export function DefaultMessageList({
 export function MessageList(
   props: MessageListProps & {
     onSuggestionClick?: (text: string) => void;
-    onUxAuditClick?: () => void;
   },
 ) {
   const { components } = useComponentsContext();

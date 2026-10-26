@@ -41,5 +41,4 @@ export type {
   UITextPart,
   UIToolPart,
   UIToolState,
-  WelcomeSuggestion,
 } from "./ui";

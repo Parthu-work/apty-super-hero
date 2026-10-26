@@ -1,12 +1,6 @@
 import type { AgentMetrics, FunctionTool } from "@apty/agent-core";
 import type { ComponentType, HTMLAttributes, ReactNode } from "react";
-import type {
-  ChatStatus,
-  ContextItem,
-  UIMessage,
-  UIToolPart,
-  WelcomeSuggestion,
-} from "./ui";
+import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "./ui";
 
 // ============ Chat Configuration ============
 
@@ -86,9 +80,6 @@ export interface InputAreaProps
 
 export interface WelcomeScreenProps extends HTMLAttributes<HTMLDivElement> {
   onSuggestionClick: (text: string) => void;
-  /** Handler for the UX audit suggestion; when provided, clicking that suggestion opens the audit dialog instead of sending the text directly. */
-  onUxAuditClick?: () => void;
-  suggestions?: WelcomeSuggestion[];
 }
 
 export interface HeaderProps extends HTMLAttributes<HTMLDivElement> {
@@ -160,8 +151,6 @@ export interface ChatbotSlots {
   afterMessages?: () => ReactNode;
   /** Extra content rendered inside PromptInput (e.g., context/skill loaders) */
   promptExtras?: () => ReactNode;
-  /** Handler called when user clicks Login in a LoginPrompt inside a message */
-  onLogin?: () => void;
 }
 
 // ============ Components Configuration ============

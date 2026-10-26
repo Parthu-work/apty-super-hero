@@ -7,11 +7,6 @@
     "apps/browser-extension/src/entrypoints/options/file-components/FileItem.tsx": 2,
     "apps/browser-extension/src/entrypoints/options/preflight-panel.tsx": 3,
     "packages/ui/src/components/ai-elements/tool.tsx": 5,
-    "packages/ui/src/components/chatbot/components/mode-indicator.tsx": 5,
-    "packages/ui/src/components/chatbot/components/model-change-prompt.tsx": 29,
-    "packages/ui/src/components/chatbot/components/slots/tool-display.tsx": 14,
-    "packages/ui/src/components/chatbot/components/ux-audit-goal-dialog.tsx": 8,
-    "packages/ui/src/components/chatbot/components/welcome-screen.tsx": 23,
     "packages/ui/src/components/intervention/InterventionCard.tsx": 51,
     "packages/ui/src/components/intervention/InterventionModeToggle.tsx": 9,
     "packages/ui/src/components/intervention/MonitorCard.tsx": 32,
@@ -27,7 +22,6 @@
   },
   "rgb-hsl": {
     "packages/ui/src/components/ai-elements/code-block.tsx": 6,
-    "packages/ui/src/components/chatbot/themes.ts": 52,
     "packages/ui/src/components/fake-mouse/fake-mouse.tsx": 7,
     "packages/ui/src/components/fake-mouse/types.ts": 2,
     "packages/ui/src/components/ui/switch.tsx": 2
@@ -67,8 +61,6 @@
     "apps/browser-extension/src/entrypoints/options/file-components/FileItem.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/file-explorer-wrapper.tsx": 1,
     "apps/browser-extension/src/entrypoints/options/mcp-bridge-panel.tsx": 1,
-    "packages/ui/src/components/chatbot/components/configuration-guide.tsx": 1,
-    "packages/ui/src/components/chatbot/components/welcome-screen.tsx": 1,
     "packages/ui/src/components/error/ErrorBoundary.tsx": 1,
     "packages/ui/src/components/file-manager/FileExplorer.tsx": 1,
     "packages/ui/src/components/intervention/InterventionCard.tsx": 1,

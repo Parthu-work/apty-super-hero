@@ -263,13 +263,6 @@
   }
 }
 
-/*
- * Mode-indicator animations (used by
- * packages/ui/src/components/chatbot/components/mode-indicator.tsx). These
- * were previously left as a code comment ("add this to your global
- * stylesheet") rather than real CSS, so the classes it referenced did not
- * exist anywhere in the built stylesheet.
- */
 @layer utilities {
   /* ProgressBar's indeterminate sweep; off under prefers-reduced-motion. */
   @keyframes progress-indeterminate {
@@ -283,52 +276,5 @@
 
   .animate-progress-indeterminate {
     animation: progress-indeterminate 1.2s ease-in-out infinite;
-  }
-
-  @keyframes mode-pulse {
-    0%,
-    100% {
-      box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-    }
-    50% {
-      box-shadow: 0 0 30px rgba(59, 130, 246, 0.8);
-    }
-  }
-
-  @keyframes transition-enter-immersive {
-    0% {
-      transform: scale(0.9);
-      opacity: 0.5;
-    }
-    50% {
-      transform: scale(1.1);
-    }
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-  }
-
-  @keyframes transition-enter-background {
-    0% {
-      transform: scale(1.05);
-      opacity: 1;
-    }
-    100% {
-      transform: scale(1);
-      opacity: 0.7;
-    }
-  }
-
-  .animate-mode-pulse {
-    animation: mode-pulse 2s ease-in-out infinite;
-  }
-
-  .animate-transition-enter-immersive {
-    animation: transition-enter-immersive 0.6s ease-out;
-  }
-
-  .animate-transition-enter-background {
-    animation: transition-enter-background 0.4s ease-out;
   }
 }
