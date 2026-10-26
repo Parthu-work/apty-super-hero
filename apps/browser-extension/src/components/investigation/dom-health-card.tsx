@@ -74,15 +74,15 @@ const GRADE_META: Record<
   },
   GOOD: {
     label: "domHealth.grade.good",
-    badgeClassName: "border-transparent bg-success/20 text-success",
+    badgeClassName: "border-transparent bg-success-muted text-success",
   },
   FAIR: {
     label: "domHealth.grade.fair",
-    badgeClassName: "border-warning/40 bg-transparent text-warning",
+    badgeClassName: "border-warning-border bg-transparent text-warning",
   },
   NEEDS_ATTENTION: {
     label: "domHealth.grade.needsAttention",
-    badgeClassName: "border-transparent bg-warning/20 text-warning",
+    badgeClassName: "border-transparent bg-warning-muted text-warning",
   },
   HIGH_RISK: {
     label: "domHealth.grade.highRisk",

@@ -163,7 +163,7 @@ export function ManualCapture({
               </p>
             )}
             {result?.ok && result.duplicates.length > 0 && (
-              <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 p-1.5 text-foreground">
+              <p className="flex items-start gap-1.5 rounded-md border border-warning-border bg-warning-muted p-1.5 text-foreground">
                 <TriangleAlertIcon
                   className={cn(
                     "mt-0.5 size-3 shrink-0",

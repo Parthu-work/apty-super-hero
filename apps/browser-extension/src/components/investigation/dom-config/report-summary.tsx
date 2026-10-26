@@ -89,7 +89,7 @@ export function ReportSummary({
   return (
     <div className="space-y-2">
       {outcome && isPartial(outcome) && (
-        <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-foreground">
+        <p className="flex items-start gap-1.5 rounded-md border border-warning-border bg-warning-muted p-2 text-xs text-foreground">
           <TriangleAlertIcon
             className={cn("mt-0.5 size-3.5 shrink-0", toneTextClass("warning"))}
             aria-hidden="true"

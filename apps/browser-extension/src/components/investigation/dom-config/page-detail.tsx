@@ -95,7 +95,7 @@ function RawProfileDownload({ page, run }: { page: HeldPage; run: number }) {
     );
   }
   return (
-    <div className="mt-1 w-full space-y-1 rounded-md border border-warning/40 bg-warning/10 p-1.5">
+    <div className="mt-1 w-full space-y-1 rounded-md border border-warning-border bg-warning-muted p-1.5">
       <p className="text-foreground">{t("domConfig.detail.rawWarning")}</p>
       <div className="flex flex-wrap gap-1.5">
         <Button

@@ -27,10 +27,10 @@ import { revealDomConfigCard } from "./dom-config/dom-config-store";
 type PromptTone = "danger" | "active" | "warning" | "success";
 
 const TONE_ICON_CLASSES: Record<PromptTone, string> = {
-  danger: "bg-destructive/10 text-destructive",
-  active: "bg-info/10 text-info",
-  warning: "bg-warning/10 text-warning",
-  success: "bg-success/10 text-success",
+  danger: "bg-destructive-muted text-destructive",
+  active: "bg-info-muted text-info",
+  warning: "bg-warning-muted text-warning",
+  success: "bg-success-muted text-success",
 };
 
 const DEBUG_PROMPTS: Array<{

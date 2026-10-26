@@ -33,7 +33,7 @@ function ErrorFallback({
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-y-auto bg-background p-6 text-center text-foreground">
       <div
-        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-destructive/10"
+        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-destructive-muted"
         aria-hidden="true"
       >
         <AlertTriangleIcon className="size-6 text-destructive" />

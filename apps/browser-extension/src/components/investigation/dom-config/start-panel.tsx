@@ -68,7 +68,7 @@ export function StartPanel({
         ))}
       </fieldset>
       {deep && (
-        <label className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-foreground">
+        <label className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-muted p-2 text-foreground">
           <input
             type="checkbox"
             checked={deepConfirmed}
@@ -137,7 +137,7 @@ export function StartPanel({
           />
         </label>
       </div>
-      <p className="rounded-md border border-warning/40 bg-warning/10 p-2 text-foreground">
+      <p className="rounded-md border border-warning-border bg-warning-muted p-2 text-foreground">
         {t(
           options.scope === "page"
             ? "domConfig.safetyPage"
@@ -151,7 +151,7 @@ export function StartPanel({
         </p>
       )}
       {confirming ? (
-        <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-2">
+        <div className="space-y-2 rounded-md border border-warning-border bg-warning-muted p-2">
           <p id={`${id}-replace`} className="text-foreground">
             {t("domConfig.replace.message", { count: replaceCount })}
           </p>

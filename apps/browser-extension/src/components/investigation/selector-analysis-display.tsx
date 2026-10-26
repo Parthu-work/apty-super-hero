@@ -139,7 +139,7 @@ function RecommendedCandidate({
   const { copied, handleCopy } = useCopySelector(candidate.selector);
 
   return (
-    <div className="rounded-lg border border-success/30 bg-success/5 p-3">
+    <div className="rounded-lg border border-success/30 bg-success-muted p-3">
       <div className="mb-2 flex items-center gap-1.5">
         <CheckCircle2Icon
           className={cn("size-4 shrink-0", toneTextClass("success"))}
@@ -310,7 +310,7 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
           className={cn(
             "flex items-start gap-2 rounded-md p-2 text-xs",
             toneTextClass("warning"),
-            "bg-warning/10",
+            "bg-warning-muted",
           )}
         >
           <LayersIcon className="mt-0.5 size-3.5 shrink-0" />

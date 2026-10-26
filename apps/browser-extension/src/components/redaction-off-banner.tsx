@@ -15,7 +15,7 @@ export function RedactionOffBanner({
   return (
     <div
       role="status"
-      className="mb-2 flex items-center gap-2 rounded-md border border-destructive/60 bg-destructive/10 px-3 py-2 text-xs"
+      className="mb-2 flex items-center gap-2 rounded-md border border-destructive/60 bg-destructive-muted px-3 py-2 text-xs"
     >
       <ShieldOffIcon className="size-4 shrink-0" aria-hidden="true" />
       <p className="flex-1">

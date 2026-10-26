@@ -36,13 +36,13 @@ export function toneDotClass(tone: StatusMeta["tone"]): string {
 export function toneBadgeClass(tone: StatusMeta["tone"]): string {
   switch (tone) {
     case "success":
-      return "bg-success/10 text-success border-success/20";
+      return "bg-success-muted text-success border-success/20";
     case "warning":
-      return "bg-warning/10 text-warning border-warning/20";
+      return "bg-warning-muted text-warning border-warning-border";
     case "danger":
-      return "bg-destructive/10 text-destructive border-destructive/20 dark:text-red-400";
+      return "bg-destructive-muted text-destructive border-destructive/20 dark:text-red-400";
     case "active":
-      return "bg-info/10 text-info border-info/20";
+      return "bg-info-muted text-info border-info/20";
     default:
       return "bg-muted text-muted-foreground border-border";
   }

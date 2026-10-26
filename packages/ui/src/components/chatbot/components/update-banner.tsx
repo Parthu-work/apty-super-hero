@@ -227,13 +227,13 @@ export function UpdateBanner({
       <div
         className={cn(
           "relative flex items-center justify-between gap-3 px-4 py-3",
-          "bg-info/10 border-b border-info/30",
+          "bg-info-muted border-b border-info/30",
           "animate-in slide-in-from-top duration-300",
           className,
         )}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="flex-shrink-0 p-1.5 rounded-full bg-info/15">
+          <div className="flex-shrink-0 p-1.5 rounded-full bg-info-muted">
             <ArrowUpCircleIcon
               className="size-4 text-info"
               aria-hidden="true"

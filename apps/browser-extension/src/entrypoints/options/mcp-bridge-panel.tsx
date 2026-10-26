@@ -35,9 +35,9 @@ const STATUS_LABEL: Record<ConnectionStatus, TranslationKey> = {
 
 const STATUS_BADGE_CLASSES: Record<ConnectionStatus, string> = {
   disconnected: "border-border bg-muted text-muted-foreground",
-  connecting: "border-warning/30 bg-warning/10 text-warning",
-  connected: "border-success/30 bg-success/10 text-success",
-  error: "border-destructive/30 bg-destructive/10 text-destructive",
+  connecting: "border-warning-border bg-warning-muted text-warning",
+  connected: "border-success/30 bg-success-muted text-success",
+  error: "border-destructive/30 bg-destructive-muted text-destructive",
 };
 
 // Same storage keys @apty/browser-runtime's WsMcpServer persists to —

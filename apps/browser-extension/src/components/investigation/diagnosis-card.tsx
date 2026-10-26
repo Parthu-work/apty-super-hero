@@ -51,13 +51,13 @@ const CONFIDENCE_META: Record<
   likely: {
     label: "investigation.diagnosis.likely",
     description: "investigation.diagnosis.likelyDescription",
-    badgeClassName: "border-transparent bg-warning/20 text-warning",
+    badgeClassName: "border-transparent bg-warning-muted text-warning",
     Icon: TriangleAlertIcon,
   },
   possible: {
     label: "investigation.diagnosis.possible",
     description: "investigation.diagnosis.possibleDescription",
-    badgeClassName: "border-warning/40 bg-transparent text-warning",
+    badgeClassName: "border-warning-border bg-transparent text-warning",
     Icon: CircleHelpIcon,
   },
   unknown: {

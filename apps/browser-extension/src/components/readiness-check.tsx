@@ -283,7 +283,7 @@ export function ReadinessCheck({ settings }: { settings: AppSettings }) {
           const chipClass = cn(
             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs",
             row.state === "warning"
-              ? "border-warning/40 bg-warning/10 text-foreground"
+              ? "border-warning-border bg-warning-muted text-foreground"
               : "bg-card text-muted-foreground",
           );
           return (

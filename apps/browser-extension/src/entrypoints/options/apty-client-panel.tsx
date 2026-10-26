@@ -253,7 +253,7 @@ function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
             className={cn(
               "shrink-0 gap-1.5 border",
               isConnected
-                ? "border-success/30 bg-success/10 text-success"
+                ? "border-success/30 bg-success-muted text-success"
                 : "border-border bg-muted text-muted-foreground",
             )}
           >
@@ -274,7 +274,7 @@ function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {isConnected ? (
-          <Alert className="border-success/30 bg-success/5">
+          <Alert className="border-success/30 bg-success-muted">
             <CheckCircle2 className="h-4 w-4 text-success" />
             <AlertDescription>
               <p className="text-foreground">
