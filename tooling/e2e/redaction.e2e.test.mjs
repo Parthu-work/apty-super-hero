@@ -120,7 +120,9 @@ describe("redaction mode (A3)", () => {
         await options
           .getByRole("radio", { name: "Off (development only)" })
           .click();
-        const dialog = options.getByRole("dialog");
+        const dialog = options.getByRole("alertdialog", {
+          name: "Turn redaction off?",
+        });
         await dialog
           .getByText(/credential header lines, are still masked\./)
           .waitFor();

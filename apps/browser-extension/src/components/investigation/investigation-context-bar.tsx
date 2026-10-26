@@ -11,14 +11,7 @@
 import { stopInvestigation } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@apty/ui/components/ui/dialog";
+import { ConfirmDialog } from "@apty/ui/components/ui/confirm-dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
@@ -89,7 +82,10 @@ export function InvestigationContextBar() {
           )}
         </span>
         <span className="min-w-0 truncate text-sm font-medium text-foreground">
-          {target.hostname ?? (target.checking ? "" : t("shell.noPage"))}
+          {target.hostname ??
+            (target.checking
+              ? ""
+              : t(target.tabId === null ? "shell.noPage" : "shell.thisPage"))}
         </span>
         {target.title && (
           <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
@@ -146,7 +142,7 @@ export function InvestigationContextBar() {
         </div>
         <Button
           size="sm"
-          variant="outline"
+          variant="secondary"
           className="shrink-0"
           onClick={() => setConfirmOpen(true)}
         >
@@ -154,24 +150,14 @@ export function InvestigationContextBar() {
         </Button>
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("investigation.stopTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("investigation.stopDescription")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={() => void handleStop()}>
-              {t("common.stop")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t("investigation.stopTitle")}
+        description={t("investigation.stopDescription")}
+        confirmLabel={t("common.stop")}
+        onConfirm={() => void handleStop()}
+      />
     </div>
   );
 }

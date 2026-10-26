@@ -1,9 +1,10 @@
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
-import { Badge } from "@apty/ui/components/ui/badge";
+import { Badge, StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
@@ -352,22 +353,26 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-w-full max-h-[90vh] w-[90vw] overflow-hidden flex flex-col">
+      <DialogContent
+        size="preview"
+        className="flex max-h-[90vh] flex-col overflow-hidden"
+      >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            {skill.name}
+          <DialogTitle className="flex min-w-0 flex-wrap items-center gap-2">
+            <FileText aria-hidden="true" className="size-5 shrink-0" />
+            <span className="min-w-0 break-words">{skill.name}</span>
             {isBuiltin && (
-              <Badge variant="outline" className="text-info border-info">
-                {t("skillDetails.builtIn")}
-              </Badge>
+              <Badge variant="info">{t("skillDetails.builtIn")}</Badge>
             )}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {skill.description}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 overflow-hidden flex flex-col flex-1 min-h-0">
           {/* Skill Info */}
-          <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+          <div className="grid gap-4 rounded-lg bg-muted p-4 sm:grid-cols-2">
             <div>
               <div className="text-sm font-medium text-muted-foreground">
                 {t("skillDetails.description")}
@@ -391,13 +396,13 @@ export const SkillDetails: React.FC<SkillDetailsProps> = ({
                 <div className="text-sm font-medium text-muted-foreground">
                   {t("skillDetails.status")}
                 </div>
-                <Badge variant={skill.enabled ? "default" : "secondary"}>
+                <StatusBadge tone={skill.enabled ? "success" : "neutral"}>
                   {t(
                     skill.enabled
                       ? "skillDetails.enabled"
                       : "skillDetails.disabled",
                   )}
-                </Badge>
+                </StatusBadge>
               </div>
               {onEditInFileManager && (
                 <Button

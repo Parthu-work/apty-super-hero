@@ -1,14 +1,5 @@
-import { Button } from "@apty/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@apty/ui/components/ui/dialog";
+import { ConfirmDialog } from "@apty/ui/components/ui/confirm-dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { AlertTriangle } from "lucide-react";
 import type React from "react";
 
 interface DeleteConfirmDialogProps {
@@ -27,44 +18,29 @@ export const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
   fileType,
 }) => {
   const { t } = useTranslation();
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange(false);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            {t("fileManager.confirmDelete")}
-          </DialogTitle>
-          <DialogDescription className="space-y-2">
-            <p>
-              {t("fileManager.deletePrompt")}{" "}
-              <span className="font-semibold">{fileName}</span>
-              {t("fileManager.deletePromptEnd")}
-            </p>
-            {fileType === "directory" && (
-              <p className="text-destructive">
-                {t("fileManager.deleteFolderWarning")}
-              </p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              {t("fileManager.cannotUndo")}
-            </p>
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button variant="destructive" onClick={handleConfirm}>
-            {t("common.delete")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("fileManager.confirmDelete")}
+      description={
+        <>
+          {t("fileManager.deletePrompt")}{" "}
+          <span className="font-mono text-foreground">{fileName}</span>
+          {t("fileManager.deletePromptEnd")} {t("fileManager.cannotUndo")}
+        </>
+      }
+      confirmLabel={t("common.delete")}
+      onConfirm={() => {
+        onConfirm();
+        onOpenChange(false);
+      }}
+    >
+      {fileType === "directory" && (
+        <p className="text-sm text-destructive">
+          {t("fileManager.deleteFolderWarning")}
+        </p>
+      )}
+    </ConfirmDialog>
   );
 };

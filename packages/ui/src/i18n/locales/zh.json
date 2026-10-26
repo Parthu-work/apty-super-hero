@@ -1581,7 +1581,7 @@
     "description": "由于发生意外错误，无法显示此界面。可能是暂时性故障、最近的更新或异常的页面状态导致的。",
     "hint": "请点击下方重试；如果问题持续出现，请关闭并重新打开面板。",
     "retry": "重试",
-    "details": "查看技术详情"
+    "details": "详细信息"
   },
   "networkCalls": {
     "title": "小部件网络请求",
@@ -1667,7 +1667,12 @@
       "seeAll": "查看全部",
       "showFewer": "收起"
     },
-    "composerHint": "输入 / 使用工具。AI 可能出错，请核实结果。"
+    "composerHint": "输入 / 使用工具。AI 可能出错，请核实结果。",
+    "retry": "重试",
+    "recentChatsFailed": "无法加载最近的对话。",
+    "deleteChatTitle": "删除此对话？",
+    "deleteChatDescription": "“{{title}}”将从此浏览器中删除。此操作无法撤销。",
+    "thisPage": "此页面"
   },
   "slash": {
     "tools": "工具",

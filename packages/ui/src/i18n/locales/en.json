@@ -1580,8 +1580,8 @@
     "title": "Something went wrong",
     "description": "This screen couldn't be displayed because of an unexpected error. It may have been caused by a temporary glitch, a recent update, or an unusual page state.",
     "hint": "Try again below, or close and reopen the panel if the problem keeps happening.",
-    "retry": "Try Again",
-    "details": "View technical details"
+    "retry": "Try again",
+    "details": "Details"
   },
   "networkCalls": {
     "title": "Widget network calls",
@@ -1667,7 +1667,12 @@
       "seeAll": "See all",
       "showFewer": "Show fewer"
     },
-    "composerHint": "Type / for tools. AI can make mistakes, so verify results."
+    "composerHint": "Type / for tools. AI can make mistakes, so verify results.",
+    "retry": "Retry",
+    "recentChatsFailed": "Couldn't load recent chats.",
+    "deleteChatTitle": "Delete this chat?",
+    "deleteChatDescription": "\"{{title}}\" will be removed from this browser. This can't be undone.",
+    "thisPage": "This page"
   },
   "slash": {
     "tools": "Tools",

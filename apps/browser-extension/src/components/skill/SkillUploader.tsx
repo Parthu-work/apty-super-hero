@@ -1,5 +1,4 @@
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
-import { Button } from "@apty/ui/components/ui/button";
 import {
   Card,
   CardContent,
@@ -7,14 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@apty/ui/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@apty/ui/components/ui/dialog";
+import { ConfirmDialog } from "@apty/ui/components/ui/confirm-dialog";
 import { Progress } from "@apty/ui/components/ui/progress";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { AlertCircle, CheckCircle, FileArchive, Upload } from "lucide-react";
@@ -246,26 +238,19 @@ export const SkillUploader: React.FC<SkillUploaderProps> = ({
       </CardContent>
 
       {/* Conflict Dialog */}
-      <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("skills.uploader.conflictTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("skills.uploader.conflictDescription", {
-                name: conflictingSkillName,
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelReplace}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={handleConfirmReplace}>
-              {t("skills.uploader.replace")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={conflictDialogOpen}
+        onOpenChange={(open) => {
+          if (open) setConflictDialogOpen(true);
+          else handleCancelReplace();
+        }}
+        title={t("skills.uploader.conflictTitle")}
+        description={t("skills.uploader.conflictDescription", {
+          name: conflictingSkillName,
+        })}
+        confirmLabel={t("skills.uploader.replace")}
+        onConfirm={() => void handleConfirmReplace()}
+      />
     </Card>
   );
 };
