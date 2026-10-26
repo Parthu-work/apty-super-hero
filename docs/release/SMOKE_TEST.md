@@ -19,7 +19,7 @@ Use a fresh browser profile. About 15 minutes per browser.
 | 4 | Settings → AI Configuration: provider, API key, **Fetch models**, pick a model, **Test Connection**, **Save Settings** | "Connection test successful · Tool calling: yes" |
 | 5 | Open `https://example.com`, side panel: "what is the title of this page?" | An answer that names the page title, after a visible tool call (the thinking section lists it) |
 | 6 | Same tab: "open a new tab at https://www.wikipedia.org" | An approval prompt "Allow create_new_tab?" with the full URL; **Deny** → no tab opens; ask again, **Allow once** → the tab opens |
-| 7 | Open a page with frames (for example an internal app or `https://www.w3schools.com/html/tryit.asp?filename=tryhtml_iframe`), open **DOM health** from the side panel's menu and click **Check DOM Health** | A result with a frames section listing every frame with a role; no "none of the frames responded" |
+| 7 | Open a page with frames (for example an internal app or `https://www.w3schools.com/html/tryit.asp?filename=tryhtml_iframe`), open **DOM health** from the side panel's menu and click **Check this page** | A result whose **Full breakdown** has a frames section listing every frame with a role; no "none of the frames responded" |
 | 8 | Settings → Apty Integration → Apty Client: Detect or paste the Client's ID → **Connect** | "Answering" (needs a Client build that allow-lists the ID in step 2; otherwise the exact fix is shown) |
 | 9 | Settings → Apty Integration → Preflight → **Run all checks** | Every row pass, or a fail with its fix; note any warning |
 | 10 | Side panel Connections page (menu → **Connections**) after steps 4 and 8 | AI provider ready; Apty Client connected |

@@ -18,7 +18,8 @@ selector engine and the audit profile are in `des-engine.md`.
 ## 1. Probe the routing signals
 
 Turn on **Settings → Troubleshooting → Developer tools**, open the
-application, and use the **Route probe** in the DOM Health card. Click
+application, and use the **Route probe** on the DOM health page (side panel
+menu → **DOM health**). Click
 through about ten screens. For each click the probe records, per frame:
 
 - the URL;

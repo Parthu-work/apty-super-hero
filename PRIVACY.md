@@ -22,6 +22,9 @@ report, a DOM Health validation bundle, a DOM Config report or raw profile)
 are saved or copied only when you click; nothing is uploaded. The validation bundle holds hostnames, URL
 templates without queries, counts, hashes and settings, never page text,
 input values, titles or record numbers, and you review it before saving.
+"Ask about this result" on the DOM health page puts the same bundle in a new
+chat as a chip you can remove; it goes to your AI provider only when you
+press Send.
 
 ## What your AI provider keeps
 

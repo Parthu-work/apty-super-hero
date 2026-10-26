@@ -303,7 +303,8 @@ previous isolated-world patch.
 ## Route probe (developer tool)
 
 **Settings → Troubleshooting → Developer tools** adds a route probe to the
-DOM Health card (`route-probe.ts`, `health-route-probe.ts`). The developer
+DOM health page, before a check and in its Full breakdown (`route-probe.ts`,
+`health-route-probe.ts`). The developer
 clicks through the application. After each trusted click, once the page
 settles, the probe records for every frame:
 
@@ -428,8 +429,8 @@ affect the DOM Health score itself, only the discovery decision.
 Brief sections 4.5 and 4.6. The audit decides from what it observes, never
 from which application it is, and reports the decision as
 `result.traversal` (`mode`, `reason`, `clicksAllowed`, the `evidence` counts
-and the `history` of every change). The DOM Health card shows the mode and
-the reason.
+and the `history` of every change). DOM health's Full breakdown shows the
+mode and the reason.
 
 | Rule (strongest first) | Mode | Measured basis |
 | --- | --- | --- |

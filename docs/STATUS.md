@@ -27,7 +27,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   the attributes left out as dynamic, the hit-test reason and a fix; each
   result counts elements per step and hit-test failures per reason.
 - DOM Health validation bundle (B2): "Export validation bundle" in the DOM
-  Health card builds an allow-listed, strictly redacted JSON (frame tree,
+  health page's header builds an allow-listed, strictly redacted JSON (frame tree,
   counts, overlays, thresholds, timings, route probe hashes, versions) and
   shows it for review before Download or Copy. Exported on all six
   application shapes in Chromium. Developer tools can override the
