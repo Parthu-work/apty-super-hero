@@ -361,3 +361,61 @@ describe("DefaultMessageItem — the user's message", () => {
     expect(container.querySelector(".bg-primary")).toBeNull();
   });
 });
+
+describe("DefaultMessageItem — actions on every answer", () => {
+  it("shows the last answer's actions, Retry among them", () => {
+    const { container } = render(
+      <DefaultMessageItem
+        message={assistantMessage("latest")}
+        isLast
+        onRegenerate={vi.fn()}
+        onCopy={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(container.querySelector(".opacity-0")).toBeNull();
+  });
+
+  it("keeps an earlier answer's Copy until hover or focus, and offers no Retry there", () => {
+    const { container } = render(
+      <DefaultMessageItem
+        message={assistantMessage("earlier")}
+        isLast={false}
+        onRegenerate={vi.fn()}
+        onCopy={vi.fn()}
+      />,
+    );
+
+    const copy = screen.getByRole("button", { name: /^copy$/i });
+    expect(copy.closest(".opacity-0")).not.toBeNull();
+    expect(
+      container
+        .querySelector(".opacity-0")
+        ?.className.includes("group-focus-within/message:opacity-100"),
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("copies the whole answer once, not once per paragraph part", async () => {
+    const onCopy = vi.fn().mockResolvedValue(true);
+    render(
+      <DefaultMessageItem
+        message={{
+          id: "msg-2",
+          role: "assistant",
+          parts: [
+            { type: "text", text: "first" },
+            { type: "text", text: "second" },
+          ],
+        }}
+        isLast
+        onCopy={onCopy}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /^copy$/i })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: /^copy$/i }));
+    await waitFor(() => expect(onCopy).toHaveBeenCalledWith("first\nsecond"));
+  });
+});

@@ -109,6 +109,9 @@ export interface FooterProps extends HTMLAttributes<HTMLDivElement> {
 
 export interface MessageActionsSlotProps {
   message: UIMessage;
+  /** The last message's actions are always shown; the others on hover or focus. */
+  isLast?: boolean;
+  /** Only on the last message: regenerating replaces the last answer. */
   onRegenerate?: () => void;
   // biome-ignore lint/suspicious/noConfusingVoidType: void must stay to accept existing (text: string) => void consumer implementations
   onCopy?: (text: string) => void | Promise<boolean>;

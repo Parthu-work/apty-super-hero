@@ -1,5 +1,5 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "../../i18n/context";
 import { copyText } from "../../lib/clipboard";
 import { cn } from "../../lib/utils";
@@ -7,6 +7,19 @@ import { Button } from "./button";
 
 /** How long the check mark replaces the copy icon after a copy. */
 const COPIED_MS = 1500;
+
+/** `copied` turns true on `flash()` and back to false 1.5 s later. */
+export function useCopiedFlag(): [copied: boolean, flash: () => void] {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const flash = useCallback(() => {
+    setCopied(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), COPIED_MS);
+  }, []);
+  return [copied, flash];
+}
 
 /**
  * A compact icon button that copies `text`. After a successful copy its
@@ -23,9 +36,7 @@ export function CopyButton({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const [copied, flash] = useCopiedFlag();
 
   return (
     <Button
@@ -35,10 +46,7 @@ export function CopyButton({
       aria-label={copied ? t("common.copied") : (label ?? t("common.copy"))}
       className={cn("text-muted-foreground hover:text-foreground", className)}
       onClick={async () => {
-        if (!(await copyText(text))) return;
-        setCopied(true);
-        clearTimeout(timer.current);
-        timer.current = setTimeout(() => setCopied(false), COPIED_MS);
+        if (await copyText(text)) flash();
       }}
     >
       {copied ? (

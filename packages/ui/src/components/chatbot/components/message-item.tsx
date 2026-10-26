@@ -11,7 +11,7 @@ import {
   RefreshCcwIcon,
   WrenchIcon,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
@@ -41,6 +41,7 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "../../ai-elements/sources";
+import { useCopiedFlag } from "../../ui/copy-button";
 import { useComponentsContext } from "../context";
 import { ChatErrorNotice } from "./chat-error-notice";
 import { DefaultToolDisplay } from "./slots/tool-display";
@@ -76,11 +77,7 @@ export function DefaultMessageItem({
   const { slots } = useComponentsContext();
   const { t } = useTranslation();
 
-  // Tracks which part's Copy button most recently succeeded, so the icon
-  // can briefly swap to a checkmark — the only previous feedback for a
-  // copy was none at all (handleCopy was fire-and-forget with no
-  // indication of success, failure, or even that anything happened).
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copied, flashCopied] = useCopiedFlag();
 
   // Collect screenshot data from tool parts for placeholder resolution
   const { screenshotUidList, screenshotDataMap } = useMemo(() => {
@@ -107,6 +104,10 @@ export function DefaultMessageItem({
     (part): part is UISourceUrlPart => part.type === "source-url",
   );
 
+  const text = message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n");
+
   // The user's chips and attachments sit under their words.
   const parts =
     message.role === "user"
@@ -117,7 +118,7 @@ export function DefaultMessageItem({
       : message.parts;
 
   return (
-    <div className={cn("space-y-2", className)} {...props}>
+    <div className={cn("group/message space-y-2", className)} {...props}>
       {/* Sources */}
       {message.role === "assistant" && sourceUrls.length > 0 && (
         <Sources>
@@ -151,70 +152,14 @@ export function DefaultMessageItem({
               );
             }
             return (
-              <Fragment key={key}>
-                <Message from={message.role as "user" | "assistant" | "system"}>
-                  <MessageContent>
-                    <Response>{processedText}</Response>
-                  </MessageContent>
-                </Message>
-                {/* Actions for last assistant message */}
-                {message.role === "assistant" &&
-                  isLast &&
-                  (slots.messageActions ? (
-                    slots.messageActions({
-                      message,
-                      onRegenerate,
-                      onCopy: () => onCopy?.(part.text),
-                    })
-                  ) : (
-                    <Actions className="mt-2">
-                      {onRegenerate && (
-                        <Action onClick={onRegenerate} label={t("chat.retry")}>
-                          <RefreshCcwIcon className="size-3" />
-                        </Action>
-                      )}
-                      {onCopy && (
-                        <Action
-                          onClick={async () => {
-                            const result = await onCopy(part.text);
-                            const succeeded = result === undefined || result;
-                            if (succeeded) {
-                              setCopiedKey(key);
-                              setTimeout(
-                                () =>
-                                  setCopiedKey((current) =>
-                                    current === key ? null : current,
-                                  ),
-                                2000,
-                              );
-                            }
-                          }}
-                          label={t(
-                            copiedKey === key ? "common.copied" : "common.copy",
-                          )}
-                        >
-                          {copiedKey === key ? (
-                            <CheckIcon className="size-3" />
-                          ) : (
-                            <CopyIcon className="size-3" />
-                          )}
-                        </Action>
-                      )}
-                      <Action
-                        onClick={() =>
-                          downloadText(
-                            timestampedFilename("message", "md"),
-                            formatExport ? formatExport(part.text) : part.text,
-                            "text/markdown",
-                          )
-                        }
-                        label={t("common.download")}
-                      >
-                        <DownloadIcon className="size-3" />
-                      </Action>
-                    </Actions>
-                  ))}
-              </Fragment>
+              <Message
+                key={key}
+                from={message.role as "user" | "assistant" | "system"}
+              >
+                <MessageContent>
+                  <Response>{processedText}</Response>
+                </MessageContent>
+              </Message>
             );
           }
 
@@ -330,6 +275,58 @@ export function DefaultMessageItem({
           onRetry={isLast ? onRegenerate : undefined}
           onOpenSettings={onOpenProviderSettings}
         />
+      )}
+      {message.role === "assistant" && text && (
+        <div
+          className={cn(
+            !isLast &&
+              "opacity-0 transition-opacity duration-200 group-focus-within/message:opacity-100 group-hover/message:opacity-100 motion-reduce:transition-none",
+          )}
+        >
+          {slots.messageActions ? (
+            slots.messageActions({
+              message,
+              isLast,
+              onRegenerate: isLast ? onRegenerate : undefined,
+              onCopy,
+            })
+          ) : (
+            <Actions>
+              {isLast && onRegenerate && (
+                <Action onClick={onRegenerate} tooltip={t("chat.retry")}>
+                  <RefreshCcwIcon aria-hidden="true" />
+                </Action>
+              )}
+              {onCopy && (
+                <Action
+                  onClick={async () => {
+                    const result = await onCopy(text);
+                    if (result === undefined || result) flashCopied();
+                  }}
+                  tooltip={t(copied ? "common.copied" : "common.copy")}
+                >
+                  {copied ? (
+                    <CheckIcon aria-hidden="true" />
+                  ) : (
+                    <CopyIcon aria-hidden="true" />
+                  )}
+                </Action>
+              )}
+              <Action
+                onClick={() =>
+                  downloadText(
+                    timestampedFilename("message", "md"),
+                    formatExport ? formatExport(text) : text,
+                    "text/markdown",
+                  )
+                }
+                tooltip={t("common.download")}
+              >
+                <DownloadIcon aria-hidden="true" />
+              </Action>
+            </Actions>
+          )}
+        </div>
       )}
     </div>
   );
