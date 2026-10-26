@@ -67,6 +67,22 @@ describe("DefaultToolDisplay", () => {
     expect(screen.queryByText("Result")).toBeNull();
   });
 
+  it("does not repeat an error as the result when a reopened chat stored it as both", () => {
+    render(
+      <DefaultToolDisplay
+        tool={tool({
+          state: "error",
+          errorText: "Tab 7 was closed",
+          output: "Tab 7 was closed",
+        })}
+      />,
+    );
+    fireEvent.click(header());
+
+    expect(screen.getAllByText("Tab 7 was closed")).toHaveLength(1);
+    expect(screen.queryByText("Result")).toBeNull();
+  });
+
   it("shows a text result as it is, not as JSON", () => {
     render(<DefaultToolDisplay tool={tool({ output: "plain answer" })} />);
     fireEvent.click(header());

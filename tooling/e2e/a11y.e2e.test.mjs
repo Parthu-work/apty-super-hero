@@ -4,6 +4,9 @@
  * Side panel states: empty, Home with every suggestion, the "/" list, the
  * menu with its recent chats loading and loaded, Home with a running job,
  * Home with no AI provider and the Connections page with an ID error, a
+ * stored chat in every conversation state (Markdown with a table and code,
+ * tool cards pending, failed and completed and then opened, a refused turn
+ * with its details open) under the redaction-off banner, a
  * chat with a tool result, a long chat scrolled up with its
  * scroll-to-bottom button, an approval prompt, an intervention card before
  * and after an option is chosen, the send button idle, sending, streaming
@@ -18,6 +21,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
+import { CONVERSATION_STATES } from "./fixtures/conversation-states.mjs";
 import { startDomConfigApp } from "./fixtures/dom-config-app.mjs";
 import {
   AGENT_EXTENSION_ID,
@@ -27,6 +31,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  openStoredConversation,
   openToolPage,
   runAxe,
   sendChat,
@@ -392,6 +397,45 @@ for (const theme of ["light", "dark"]) {
       );
       await scrollDown.click();
       await scrollDown.waitFor({ state: "detached" });
+      await panel.close();
+      await app.close();
+    });
+
+    it("side panel, a stored chat in every conversation state, with redaction off", async () => {
+      const app = await browser.context.newPage();
+      await app.goto(`${site.origin}/app.html`);
+      const panel = await openSidePanel(browser, model, app, {
+        redactionMode: "off",
+      });
+      await assertThemeApplied(panel, theme);
+      await openStoredConversation(panel, CONVERSATION_STATES);
+      const failure = panel
+        .getByRole("alert")
+        .filter({ hasText: "Couldn't get an answer" });
+      await failure.waitFor();
+      await panel.getByText("Redaction is OFF").waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} stored chat, every state`,
+      );
+
+      const closed = panel.locator(
+        '[role="log"] [data-slot="collapsible-trigger"][aria-expanded="false"]',
+      );
+      while (await closed.count()) await closed.first().click();
+      await panel
+        .getByText("Tab 7 was closed before the analysis finished.")
+        .waitFor();
+      await failure.getByText("Details").click();
+      await failure.getByText(/Incorrect API key/).waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} stored chat, tool cards and the error's details open`,
+      );
+      assert.deepEqual(await failure.getByRole("button").allTextContents(), [
+        "Retry",
+        "Open AI provider settings",
+      ]);
       await panel.close();
       await app.close();
     });

@@ -10,6 +10,7 @@ import {
   launchBrowser,
   openSidePanel,
   openToolPage,
+  sendChat,
   startMockModel,
   startPageServer,
 } from "./harness.mjs";
@@ -73,6 +74,35 @@ describe("Connections, the setup badge and settings links", () => {
     await options
       .getByRole("tab", { name: "AI Configuration", selected: true })
       .waitFor();
+    await options.locator("#ai-provider").waitFor();
+    await options.close();
+    await panel.close();
+    await app.close();
+  });
+
+  it("explains a refused API key in the chat and opens the AI provider settings from there", async () => {
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    for (const page of optionsTabs()) await page.close();
+    model.script(() => ({
+      error: { status: 401, message: "Incorrect API key provided: sk-e2e" },
+    }));
+
+    await sendChat(panel, "is the widget loaded?");
+    const failure = panel
+      .getByRole("alert")
+      .filter({ hasText: "Couldn't get an answer" });
+    await failure.getByText(/rejected the request/).waitFor();
+    assert.equal(await panel.getByRole("button", { name: "Send" }).count(), 1);
+    const opened = browser.context.waitForEvent("page");
+    await failure
+      .getByRole("button", { name: "Open AI provider settings" })
+      .click();
+    const options = await opened;
+    await options.waitForLoadState();
+
+    assert.match(options.url(), /\?tab=ai#ai-provider$/);
     await options.locator("#ai-provider").waitFor();
     await options.close();
     await panel.close();

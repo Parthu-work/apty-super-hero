@@ -41,7 +41,7 @@ export function DefaultToolDisplay({ tool }: ToolDisplaySlotProps) {
           text={asText(tool.input)}
         />
         {tool.errorText && <ToolError errorText={tool.errorText} />}
-        {Boolean(tool.output) && (
+        {Boolean(tool.output) && tool.output !== tool.errorText && (
           <ToolBlock
             caption={t("chat.result")}
             copyLabel={t("chat.copyResult")}
