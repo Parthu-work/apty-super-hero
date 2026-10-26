@@ -1,26 +1,14 @@
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { Loader2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
 import { navigationStore } from "../../state/navigation-store";
 import {
-  revealDomConfigCard,
+  openDomConfigPage,
   useDomConfigState,
 } from "../investigation/dom-config/dom-config-store";
 import { useDomHealthState } from "../investigation/dom-health-store";
 import { domConfigStatus, domHealthStatus, elapsedLabel } from "./job-status";
-
-/** The current time, ticking each second while `active`. */
-function useNow(active: boolean): number {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!active) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [active]);
-  return now;
-}
+import { useNow } from "./use-now";
 
 interface Job {
   id: "dom-health" | "dom-config";
@@ -54,7 +42,7 @@ export function JobBar() {
       tool: t("shell.domConfig"),
       detail: domConfigStatus(config, t).label,
       startedAt: config.startedAt,
-      view: () => revealDomConfigCard(),
+      view: () => openDomConfigPage(),
     });
   }
   const now = useNow(jobs.length > 0);

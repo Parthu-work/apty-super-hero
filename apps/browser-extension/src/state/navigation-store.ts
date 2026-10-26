@@ -6,7 +6,18 @@ export type ToolPage = "dom-health" | "dom-config" | "connections";
 export type NavigationOrigin = "home" | "menu";
 
 /** A view inside a page, such as DOM health's full breakdown. */
-type SubView = "breakdown" | "settings";
+type SubView =
+  | "breakdown"
+  | "settings"
+  | "setup"
+  | "rules"
+  | "proposed"
+  | "pages"
+  | "iframes"
+  | "coverage"
+  | "warnings"
+  | "capture"
+  | "import";
 
 export interface NavigationState {
   drawerOpen: boolean;

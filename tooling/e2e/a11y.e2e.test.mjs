@@ -432,7 +432,7 @@ for (const theme of ["light", "dark"]) {
       await app.close();
     });
 
-    it("side panel, the DOM Config card idle, running, with its report and on a page it cannot analyze", async () => {
+    it("side panel, the DOM Config page idle, running, with its results and on a page it cannot analyze", async () => {
       const target = await browser.context.newPage();
       await target.goto(`${domConfigApp.origin}/home`);
       const panel = await openSidePanel(browser, model, target);
@@ -441,16 +441,19 @@ for (const theme of ["light", "dark"]) {
       await assertThemeApplied(panel, theme);
 
       await openToolPage(panel, "DOM config");
-      const start = panel.getByRole("button", {
-        name: "Start generating the DOM config",
-      });
+      const start = panel.getByRole("button", { name: "Start capture" });
       await start.waitFor();
-      await assertNoSeriousViolations(panel, `${theme} DOM Config idle`);
+      await panel.getByRole("button", { name: /^Advanced options/ }).click();
+      await panel.getByLabel("Runs per page").waitFor();
+      await assertNoSeriousViolations(panel, `${theme} DOM Config setup`);
 
       const held = domConfigApp.hold("/list");
       await start.click();
       await held.requested;
-      await panel.getByRole("list", { name: "Progress" }).waitFor();
+      const navigating = panel.getByText(
+        "This tab is navigating through your application.",
+      );
+      await navigating.waitFor();
       await assertNoSeriousViolations(panel, `${theme} DOM Config running`);
       // The page was opened from the menu, so Back returns there first.
       await panel.getByRole("button", { name: "Back" }).click();
@@ -460,25 +463,27 @@ for (const theme of ["light", "dark"]) {
       await jobs.waitFor();
       await assertNoSeriousViolations(panel, `${theme} Home, a running job`);
       await jobs.getByRole("button", { name: "View: DOM config" }).click();
-      await panel.getByRole("list", { name: "Progress" }).waitFor();
+      await navigating.waitFor();
       held.release();
 
       await panel
-        .getByRole("tablist", { name: "Report sections" })
+        .getByText("Capture complete", { exact: true })
         .waitFor({ timeout: 170_000 });
-      await assertNoSeriousViolations(
-        panel,
-        `${theme} DOM Config report, ignore conditions`,
-      );
-      await panel.getByRole("tab", { name: "Settings" }).click();
-      await assertNoSeriousViolations(
-        panel,
-        `${theme} DOM Config report, settings`,
-      );
+      await assertNoSeriousViolations(panel, `${theme} DOM Config results`);
+      await panel.getByRole("button", { name: "Export results" }).click();
+      await panel.getByRole("menuitem", { name: "Markdown" }).waitFor();
+      await assertNoSeriousViolations(panel, `${theme} DOM Config export menu`);
+      await panel.keyboard.press("Escape");
+      for (const [row, view] of [
+        [/^Ignore conditions/, "ignore conditions"],
+        [/^DOM change debounce/, "proposed settings"],
+      ]) {
+        await panel.getByRole("button", { name: row }).click();
+        await assertNoSeriousViolations(panel, `${theme} DOM Config ${view}`);
+        await panel.getByRole("button", { name: "Back", exact: true }).click();
+      }
 
-      await panel
-        .getByRole("button", { name: "Clear the DOM Config results" })
-        .click();
+      await panel.getByRole("button", { name: /^Clear results/ }).click();
       const options = await extensionPage(browser);
       await options.bringToFront();
       await panel
@@ -495,7 +500,7 @@ for (const theme of ["light", "dark"]) {
       await target.close();
     });
 
-    it("side panel, DOM Config manual capture, import, page detail and the Iframes, Coverage and Warnings tabs", async () => {
+    it("side panel, DOM Config manual capture, import, page detail and the Iframes, Coverage and Warnings details", async () => {
       const target = await browser.context.newPage();
       await target.goto(`${domConfigApp.origin}/home`);
       const panel = await openSidePanel(browser, model, target);
@@ -507,8 +512,10 @@ for (const theme of ["light", "dark"]) {
         .getByRole("button", { name: /Generate DOM config: capture/ })
         .click();
 
+      const back = () =>
+        panel.getByRole("button", { name: "Back", exact: true }).click();
       await panel
-        .locator("summary", { hasText: "Capture current state" })
+        .getByRole("button", { name: /^Capture current state/ })
         .click();
       const name = panel.getByLabel("Page name");
       const capture = panel.getByRole("button", {
@@ -529,25 +536,21 @@ for (const theme of ["light", "dark"]) {
         `${theme} DOM Config manual capture with a result and a duplicate warning`,
       );
 
+      await back();
+      await panel.getByRole("button", { name: /^Import runs/ }).click();
+      await panel.getByLabel("Page name").fill("Pasted page");
       await panel
-        .locator("summary", { hasText: "Import console script results" })
-        .click();
-      const importPanel = panel.locator("details", {
-        has: panel.locator("summary", {
-          hasText: "Import console script results",
-        }),
-      });
-      await importPanel.getByLabel("Page name").fill("Pasted page");
-      await importPanel
         .getByLabel("Paste the script's result")
         .fill('{"tags":{"div":1}}');
-      await importPanel.getByRole("button", { name: "Import page" }).click();
-      await importPanel.getByText("Missing: attributes").waitFor();
+      await panel.getByRole("button", { name: "Import page" }).click();
+      await panel.getByText("Missing: attributes").waitFor();
       await assertNoSeriousViolations(
         panel,
         `${theme} DOM Config import with an error`,
       );
 
+      await back();
+      await panel.getByRole("button", { name: /^Pages/ }).click();
       await panel
         .getByRole("region", { name: "Pages" })
         .getByRole("button", { name: /^Home by hand/ })
@@ -557,17 +560,19 @@ for (const theme of ["light", "dark"]) {
         .waitFor();
       await assertNoSeriousViolations(panel, `${theme} DOM Config page detail`);
 
-      for (const tab of ["Iframes", "Coverage", "Warnings"]) {
-        await panel.getByRole("tab", { name: tab }).click();
-        await panel.getByRole("tab", { name: tab, selected: true }).waitFor();
-        await assertNoSeriousViolations(
-          panel,
-          `${theme} DOM Config ${tab} tab`,
-        );
+      await back();
+      for (const detail of ["Iframes", "Coverage", "Warnings"]) {
+        await panel
+          .getByRole("button", { name: new RegExp(`^${detail}`) })
+          .click();
+        await panel
+          .getByRole("heading", { name: detail, exact: true })
+          .first()
+          .waitFor();
+        await assertNoSeriousViolations(panel, `${theme} DOM Config ${detail}`);
+        await back();
       }
-      await panel
-        .getByRole("button", { name: "Clear the DOM Config results" })
-        .click();
+      await panel.getByRole("button", { name: /^Clear results/ }).click();
       await panel.close();
       await target.close();
     });

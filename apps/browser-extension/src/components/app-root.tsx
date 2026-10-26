@@ -47,13 +47,12 @@ import {
   AptyToolFooter,
 } from "./investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
-import { DomConfigCard } from "./investigation/dom-config/dom-config-card";
+import { DomConfigPage } from "./investigation/dom-config/dom-config-page";
 import { DomHealthPage } from "./investigation/dom-health/dom-health-page";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
 import { PageLayer } from "./shell/page-layer";
-import { ToolPageShell } from "./shell/tool-page-shell";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
@@ -298,11 +297,9 @@ function ChatApp() {
                     id: "dom-config",
                     label: t("shell.domConfig"),
                     content: (
-                      <ToolPageShell title={t("shell.domConfig")}>
-                        <DomConfigCard
-                          ignoredRoots={settings.domHealthIgnoredRoots}
-                        />
-                      </ToolPageShell>
+                      <DomConfigPage
+                        ignoredRoots={settings.domHealthIgnoredRoots}
+                      />
                     ),
                   },
                   {

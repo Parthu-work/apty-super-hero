@@ -16,7 +16,7 @@ function sortedWarnings(report: DomConfigReport): ReportWarning[] {
   );
 }
 
-export function WarningIcon({ warning }: { warning: ReportWarning }) {
+function WarningIcon({ warning }: { warning: ReportWarning }) {
   return warning.severity === "warn" ? (
     <TriangleAlertIcon
       className={cn("mt-0.5 size-3 shrink-0", toneTextClass("warning"))}

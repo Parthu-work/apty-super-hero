@@ -30,7 +30,7 @@ import {
 } from "../../state/navigation-store";
 import { SetupBadge } from "../connections/setup-badge";
 import {
-  revealDomConfigCard,
+  openDomConfigPage,
   useDomConfigState,
 } from "../investigation/dom-config/dom-config-store";
 import { useDomHealthState } from "../investigation/dom-health-store";
@@ -171,7 +171,7 @@ export function MenuDrawer({
             label={t("shell.domConfig")}
             trailing={<JobStatusBadge status={domConfigStatus(config, t)} />}
             aria-current={page === "dom-config" ? "page" : undefined}
-            onClick={() => revealDomConfigCard("menu")}
+            onClick={() => openDomConfigPage("menu")}
           />
           <ListRow
             icon={<CrosshairIcon />}

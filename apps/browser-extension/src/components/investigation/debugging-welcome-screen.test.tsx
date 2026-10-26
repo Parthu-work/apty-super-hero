@@ -2,7 +2,6 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { navigationStore } from "../../state/navigation-store";
 import { DebuggingWelcomeScreen } from "./debugging-welcome-screen";
-import { domConfigStore } from "./dom-config/dom-config-store";
 
 function suggestions() {
   return within(
@@ -12,7 +11,6 @@ function suggestions() {
 
 beforeEach(() => {
   navigationStore.back();
-  domConfigStore.setExpanded(false);
 });
 
 describe("Home", () => {
@@ -63,7 +61,6 @@ describe("Home", () => {
       }),
     );
     expect(navigationStore.getState().page).toBe("dom-config");
-    expect(domConfigStore.getState().expanded).toBe(true);
     expect(onSuggestionClick).not.toHaveBeenCalled();
   });
 });

@@ -22,7 +22,7 @@ vi.mock(
       typeof import("../investigation/dom-config/dom-config-store")
     >()),
     useDomConfigState: mocks.config,
-    revealDomConfigCard: mocks.reveal,
+    openDomConfigPage: mocks.reveal,
   }),
 );
 

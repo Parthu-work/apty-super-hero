@@ -26,7 +26,7 @@ import { useMemo } from "react";
 import { isProviderConfigured } from "../services/ai-provider";
 import { navigationStore } from "../state/navigation-store";
 import { ProviderSetupChip } from "./connections/setup-badge";
-import { revealDomConfigCard } from "./investigation/dom-config/dom-config-store";
+import { openDomConfigPage } from "./investigation/dom-config/dom-config-store";
 import { INVESTIGATION_PROMPTS } from "./shell/investigation-prompts";
 
 const DEBUGGING_PLACEHOLDER_TEXTS = [
@@ -58,7 +58,7 @@ function useSlashCommands(): SlashCommandGroup[] {
             label: t("shell.domConfig"),
             description: t("slash.domConfig"),
             icon: <SlidersHorizontalIcon />,
-            onSelect: () => revealDomConfigCard(),
+            onSelect: () => openDomConfigPage(),
           },
           {
             id: "selector-checker",

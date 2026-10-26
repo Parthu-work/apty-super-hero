@@ -47,7 +47,7 @@ export function AnnouncerProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function useAnnounce() {
+export function useAnnounce() {
   return useContext(AnnounceContext);
 }
 

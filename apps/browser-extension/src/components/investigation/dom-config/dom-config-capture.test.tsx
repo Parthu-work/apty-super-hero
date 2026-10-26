@@ -55,19 +55,23 @@ vi.mock("@apty/browser-runtime", () => ({
   toShareableRouteProbeReport: vi.fn(),
 }));
 
-// DOM health's page frame (header, context bar) is tested on its own.
+// The page frame (header, context bar) is tested on its own; the title
+// tells the page's views apart.
 vi.mock("../../shell/tool-page-shell", () => ({
   ToolPageShell: ({
+    title,
     children,
     footer,
   }: {
+    title: string;
     children: ReactNode;
     footer?: ReactNode;
   }) => (
-    <>
+    <div>
+      <h2>{title}</h2>
       {children}
       {footer}
-    </>
+    </div>
   ),
 }));
 
@@ -75,9 +79,10 @@ import {
   buildReportFromCapture,
   DOM_CONFIG_CONSOLE_SCRIPT,
 } from "@apty/browser-runtime/apty/dom-config/index";
+import { navigationStore } from "../../../state/navigation-store";
 import { DomHealthPage } from "../dom-health/dom-health-page";
 import { createDomHealthStore } from "../dom-health-store";
-import { DomConfigCard } from "./dom-config-card";
+import { DomConfigPage } from "./dom-config-page";
 import { createDomConfigStore } from "./dom-config-store";
 import {
   CAPTURE,
@@ -144,6 +149,7 @@ function respond(message: { request: string }): unknown {
 beforeEach(() => {
   vi.clearAllMocks();
   store = createDomConfigStore();
+  act(() => navigationStore.openPage("dom-config"));
   requests = [];
   clipboard = [];
   downloads = [];
@@ -211,15 +217,47 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderCard() {
-  act(() => store.setExpanded(true));
-  return render(<DomConfigCard store={store} />);
+function renderPage() {
+  return render(<DomConfigPage store={store} />);
 }
 
-async function openSection(name: string) {
-  const summary = screen.getByText(name, { selector: "summary" });
-  fireEvent.click(summary);
-  await waitFor(() => expect(summary.parentElement).toHaveAttribute("open"));
+/** Opens one of the page's "by hand" views from its row. */
+async function openSection(name: "Capture current state" | "Import runs") {
+  mainView();
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${name}`) }));
+  await screen.findByRole("heading", { name });
+}
+
+/** Back to the page's main view, whatever view is open. */
+function mainView() {
+  act(() => navigationStore.openPage("dom-config"));
+}
+
+function openRow(name: RegExp) {
+  fireEvent.click(screen.getByRole("button", { name }));
+}
+
+/** The held pages, from the results' Pages row. */
+function pagesRegion(): HTMLElement {
+  mainView();
+  openRow(/^Pages/);
+  return screen.getByRole("region", { name: "Pages" });
+}
+
+/** "Run again" opens setup; resolves once Start is there. */
+async function runAgain() {
+  mainView();
+  fireEvent.click(screen.getByRole("button", { name: "Run again" }));
+  await screen.findByRole("button", { name: "Start capture" });
+}
+
+/** "Export results" opens a menu; Radix opens it from the keyboard in jsdom. */
+function exportAs(name: "Markdown" | "JSON" | "Copy all") {
+  mainView();
+  fireEvent.keyDown(screen.getByRole("button", { name: "Export results" }), {
+    key: "Enter",
+  });
+  fireEvent.click(screen.getByRole("menuitem", { name }));
 }
 
 async function captureByHand(pageName: string) {
@@ -239,7 +277,7 @@ async function captureByHand(pageName: string) {
 
 describe("manual capture", () => {
   it("captures the current tab as it is, never navigating, reloading or clicking", async () => {
-    renderCard();
+    renderPage();
     await openSection("Capture current state");
     expect(screen.getByLabelText("Page name")).toHaveValue("");
 
@@ -262,35 +300,35 @@ describe("manual capture", () => {
     expect(tabsReload).not.toHaveBeenCalled();
     expect(requests).not.toContain("click-safe-navigation-candidate");
     expect(mockRunDomConfigCapture).not.toHaveBeenCalled();
-    const pages = screen.getByRole("region", { name: "Pages" });
-    expect(within(pages).getByText("manual")).toBeInTheDocument();
-    expect(screen.getByText("Report ready")).toBeInTheDocument();
+    mainView();
+    expect(screen.getByText("Capture complete")).toBeInTheDocument();
     expect(screen.queryByText(/^Partial report/)).not.toBeInTheDocument();
+    expect(within(pagesRegion()).getByText("manual")).toBeInTheDocument();
   });
 });
 
-async function showCrawlReport() {
-  mockRunDomConfigCapture.mockResolvedValue(outcome());
-  const view = renderCard();
-  const start = screen.getByRole("button", {
-    name: "Start generating the DOM config",
-  });
+/** Starts a crawl from setup and waits for its results. */
+async function startCrawl() {
+  const start = screen.getByRole("button", { name: "Start capture" });
   await waitFor(() => expect(start).toBeEnabled());
   fireEvent.click(start);
-  await screen.findByRole("tablist", { name: "Report sections" });
+  await screen.findByText("Capture complete");
+}
+
+async function showCrawlReport() {
+  mockRunDomConfigCapture.mockResolvedValue(outcome());
+  const view = renderPage();
+  await startCrawl();
   return view;
 }
 
+/** A view of the page, by its title. */
 function section(name: string): HTMLElement {
-  return screen.getByText(name, { selector: "summary" }).parentElement!;
+  return screen.getByRole("heading", { name }).parentElement!;
 }
 
 async function exportedMarkdown(): Promise<string> {
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Export Markdown of the report, with the included rules only",
-    }),
-  );
+  exportAs("Markdown");
   return downloads.at(-1)!.text();
 }
 
@@ -324,20 +362,10 @@ describe("manual capture, continued", () => {
     const view = render(
       <>
         <DomHealthPage store={health} />
-        <DomConfigCard store={store} />
+        <DomConfigPage store={store} />
       </>,
     );
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Generate DOM config for this application",
-      }),
-    );
-    const start = screen.getByRole("button", {
-      name: "Start generating the DOM config",
-    });
-    await waitFor(() => expect(start).toBeEnabled());
-    fireEvent.click(start);
-    await screen.findByRole("tablist", { name: "Report sections" });
+    await startCrawl();
 
     mockUseCurrentTarget.mockReturnValue({
       tabId: OTHER_TAB,
@@ -347,7 +375,7 @@ describe("manual capture, continued", () => {
     view.rerender(
       <>
         <DomHealthPage store={health} />
-        <DomConfigCard store={store} />
+        <DomConfigPage store={store} />
       </>,
     );
     const pending = deferred<{ available: false; error: string }>();
@@ -381,7 +409,7 @@ describe("manual capture, continued", () => {
     await showCrawlReport();
     await captureByHand("Reports modal");
 
-    const pages = screen.getByRole("region", { name: "Pages" });
+    const pages = pagesRegion();
     expect(within(pages).getByText("/home")).toBeInTheDocument();
     expect(within(pages).getByText("Reports modal")).toBeInTheDocument();
     expect(store.getState().capture?.pages.map((p) => p.label)).toEqual([
@@ -398,7 +426,7 @@ describe("manual capture, continued", () => {
   });
 
   it("warns when the state was already captured under another name", async () => {
-    renderCard();
+    renderPage();
     await captureByHand("Patient list");
     await captureByHand("Patient list again");
     expect(
@@ -410,7 +438,7 @@ describe("manual capture, continued", () => {
 
   it("announces the engine's error, the run limit included", async () => {
     importRuns("Full", 8);
-    renderCard();
+    renderPage();
     await captureByHand("Full");
     const error = await screen.findByText(
       "Not captured: This page already holds 8 runs, the most the analysis keeps.",
@@ -428,7 +456,7 @@ describe("manual capture, continued", () => {
       title: null,
       hostname: null,
     });
-    const view = renderCard();
+    const view = renderPage();
     await openSection("Capture current state");
     fireEvent.change(screen.getByLabelText("Page name"), {
       target: { value: "Anything" },
@@ -451,7 +479,7 @@ describe("manual capture, continued", () => {
       hostname: "settings",
     });
     tab.url = "chrome://settings/";
-    const restricted = renderCard();
+    const restricted = renderPage();
     await openSection("Capture current state");
     expect(
       await within(section("Capture current state")).findByText(
@@ -467,15 +495,10 @@ describe("manual capture, continued", () => {
     render(
       <>
         <DomHealthPage store={health} />
-        <DomConfigCard store={store} />
+        <DomConfigPage store={store} />
       </>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Audit application" }));
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Generate DOM config for this application",
-      }),
-    );
     await openSection("Capture current state");
     fireEvent.change(screen.getByLabelText("Page name"), {
       target: { value: "Anything" },
@@ -496,7 +519,7 @@ describe("manual capture, continued", () => {
 describe("one held capture", () => {
   it("asks before a new crawl replaces pages captured by hand, and replaces a crawl without asking", async () => {
     mockRunDomConfigCapture.mockResolvedValue(outcome());
-    renderCard();
+    renderPage();
     await captureByHand("Patient modal");
 
     let result: string | undefined;
@@ -507,9 +530,8 @@ describe("one held capture", () => {
     expect(mockRunDomConfigCapture).not.toHaveBeenCalled();
     expect(store.getState().capture?.pages).toHaveLength(1);
 
-    await openSection("Start a new crawl");
-    const start = () =>
-      screen.getByRole("button", { name: "Start generating the DOM config" });
+    await runAgain();
+    const start = () => screen.getByRole("button", { name: "Start capture" });
     await waitFor(() => expect(start()).toBeEnabled());
     fireEvent.click(start());
     expect(
@@ -535,12 +557,8 @@ describe("one held capture", () => {
     );
     expect(mockRunDomConfigCapture).toHaveBeenCalledTimes(1);
 
-    await openSection("Start a new crawl");
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Start generating the DOM config",
-      }),
-    );
+    await runAgain();
+    fireEvent.click(screen.getByRole("button", { name: "Start capture" }));
     await waitFor(() =>
       expect(mockRunDomConfigCapture).toHaveBeenCalledTimes(2),
     );
@@ -549,17 +567,15 @@ describe("one held capture", () => {
 
 describe("import", () => {
   async function openImport(pageName: string) {
-    await openSection("Import console script results");
+    await openSection("Import runs");
     fireEvent.change(
-      within(section("Import console script results")).getByLabelText(
-        "Page name",
-      ),
+      within(section("Import runs")).getByLabelText("Page name"),
       { target: { value: pageName } },
     );
   }
 
   it("keeps the valid runs, lists each failing one with what is missing and what to do, and marks the page imported", async () => {
-    renderCard();
+    renderPage();
     await openImport("Imported list");
     fireEvent.change(screen.getByLabelText("Paste the script's result"), {
       target: { value: consoleProfile({ "ui-id-1": 1 }) },
@@ -595,16 +611,12 @@ describe("import", () => {
     const page = store.getState().capture?.pages[0];
     expect(page).toMatchObject({ label: "Imported list", origin: "import" });
     expect(page?.runs.map((r) => r.meta.label)).toEqual(["initial"]);
-    expect(
-      within(screen.getByRole("region", { name: "Pages" })).getByText(
-        "imported",
-      ),
-    ).toBeInTheDocument();
+    expect(within(pagesRegion()).getByText("imported")).toBeInTheDocument();
   });
 
   it("adds runs to a page of the same name up to the run limit", async () => {
     importRuns("Full", 7);
-    renderCard();
+    renderPage();
     await openImport("Full");
     fireEvent.change(screen.getByLabelText("Paste the script's result"), {
       target: { value: consoleProfile({ a: 1 }) },
@@ -626,7 +638,7 @@ describe("import", () => {
   });
 
   it("takes runs from chosen files, one run per file in order", async () => {
-    renderCard();
+    renderPage();
     await openImport("From files");
     const files = [
       new File([consoleProfile({ "ui-id-1": 1 })], "first.json"),
@@ -656,8 +668,8 @@ describe("import", () => {
   });
 
   it("copies the console script and says what it cannot do", async () => {
-    renderCard();
-    await openSection("Import console script results");
+    renderPage();
+    await openSection("Import runs");
     fireEvent.click(
       screen.getByRole("button", {
         name: "Copy console script for the browser console",
@@ -675,6 +687,7 @@ describe("import", () => {
 describe("page detail", () => {
   it("opens a page to its runs, what changed between them and its facts", async () => {
     await showCrawlReport();
+    openRow(/^Pages/);
     const row = screen.getByRole("button", { name: /^\/home/ });
     expect(row).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(row);
@@ -701,6 +714,7 @@ describe("page detail", () => {
 
   it("downloads a run's raw profile only after the page-data warning, and nothing else", async () => {
     await showCrawlReport();
+    openRow(/^Pages/);
     fireEvent.click(screen.getByRole("button", { name: /^\/home/ }));
     fireEvent.click(
       screen.getByRole("button", { name: "Download raw profile of run 2" }),
@@ -724,38 +738,7 @@ describe("page detail", () => {
   });
 });
 
-describe("report tabs", () => {
-  it("moves across the five tabs with the arrow keys, Home and End", async () => {
-    await showCrawlReport();
-    const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual([
-      "Ignore conditions",
-      "Settings",
-      "Iframes",
-      "Coverage",
-      "Warnings",
-    ]);
-    const selected = () =>
-      screen.getByRole("tab", { selected: true }).textContent;
-    tabs[0]!.focus();
-    fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
-    expect(selected()).toBe("Warnings");
-    expect(document.activeElement).toHaveTextContent("Warnings");
-    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
-    expect(selected()).toBe("Ignore conditions");
-    fireEvent.keyDown(document.activeElement!, { key: "End" });
-    expect(selected()).toBe("Warnings");
-    fireEvent.keyDown(document.activeElement!, { key: "Home" });
-    expect(selected()).toBe("Ignore conditions");
-    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
-    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
-    expect(selected()).toBe("Iframes");
-    expect(screen.getByRole("tabpanel")).toHaveAttribute(
-      "aria-labelledby",
-      document.activeElement!.id,
-    );
-  });
-
+describe("result details", () => {
   it("lists iframes by kind, application ones needing handling first, and copies them with every table", async () => {
     const framed: DomConfigApplicationCapture = {
       ...CAPTURE,
@@ -786,14 +769,9 @@ describe("report tabs", () => {
     mockRunDomConfigCapture.mockResolvedValue(
       outcome({ capture: framed, ...buildReportFromCapture(framed) }),
     );
-    renderCard();
-    const start = screen.getByRole("button", {
-      name: "Start generating the DOM config",
-    });
-    await waitFor(() => expect(start).toBeEnabled());
-    fireEvent.click(start);
-    await screen.findByRole("tablist", { name: "Report sections" });
-    fireEvent.click(screen.getByRole("tab", { name: "Iframes" }));
+    renderPage();
+    await startCrawl();
+    openRow(/^Iframes/);
     const app = screen.getByRole("region", { name: "Application iframes" });
     expect(
       within(app).getByText("https://viewer.example.test/doc"),
@@ -810,11 +788,7 @@ describe("report tabs", () => {
         .map((r) => r.getAttribute("aria-label")),
     ).toEqual(["Application iframes", "Extension iframes"]);
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Copy as tables: every section, with the included rules only",
-      }),
-    );
+    exportAs("Copy all");
     await waitFor(() => expect(clipboard).toHaveLength(1));
     expect(clipboard[0]).toContain(
       "Iframes\nKind\tSource\tCross-origin\tAnalyzed\tNeeds handling\tReason\tPages\nApplication iframes\thttps://viewer.example.test/doc\tyes\tno\tyes",
@@ -824,7 +798,7 @@ describe("report tabs", () => {
 
   it("re-runs the analysis with a coverage mark and exports it", async () => {
     await showCrawlReport();
-    fireEvent.click(screen.getByRole("tab", { name: "Coverage" }));
+    openRow(/^Coverage/);
     expect(
       screen.getByText(
         "Mark what you captured. Marks are your statement; the engine does not check them.",
@@ -846,33 +820,40 @@ describe("report tabs", () => {
       /\| modals-dialogs \| captured \|/,
     );
 
+    openRow(/^Coverage/);
+    const again = screen.getByText("Modals and dialogs").closest("li")!;
     fireEvent.change(
-      within(item).getByRole("combobox", { name: "Mark Modals and dialogs" }),
+      within(again).getByRole("combobox", { name: "Mark Modals and dialogs" }),
       { target: { value: "" } },
     );
     expect(mockBuildReportFromCapture).toHaveBeenLastCalledWith(CAPTURE, {
       ignoredRoots: [],
       coverage: {},
     });
-    expect(within(item).getByText("Not captured")).toBeInTheDocument();
+    expect(within(again).getByText("Not captured")).toBeInTheDocument();
   });
 
   it("lists warnings worst first, explains single-run pages and prefills another run's page name", async () => {
-    renderCard();
+    renderPage();
     await captureByHand("Patient modal");
-    const summary = screen.getByRole("region", {
-      name: /^Warnings to act on/,
-    });
-    expect(within(summary).getByText("single-run-pages")).toBeInTheDocument();
-
     fireEvent.change(screen.getByLabelText("Page name"), {
       target: { value: "something else" },
     });
-    fireEvent.click(screen.getByRole("tab", { name: "Warnings" }));
-    const warnings = within(screen.getByRole("tabpanel")).getAllByRole(
-      "listitem",
+    mainView();
+    expect(screen.getByRole("button", { name: /^Warnings/ })).toHaveTextContent(
+      /\(\d+ to act on\)/,
     );
+
+    openRow(/^Warnings/);
+    const warnings = within(
+      screen.getByRole("region", { name: "Warnings" }),
+    ).getAllByRole("listitem");
     expect(warnings[0]).toHaveTextContent(/^Act on this: /);
+    expect(
+      within(screen.getByRole("region", { name: "Warnings" })).getByText(
+        "single-run-pages",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /^A page with one run still feeds the rules found from value shapes/,
@@ -946,13 +927,9 @@ describe("privacy of the exports", () => {
     mockRunDomConfigCapture.mockResolvedValue(
       outcome({ capture: pii, states: [], ...buildReportFromCapture(pii) }),
     );
-    renderCard();
-    const start = screen.getByRole("button", {
-      name: "Start generating the DOM config",
-    });
-    await waitFor(() => expect(start).toBeEnabled());
-    fireEvent.click(start);
-    await screen.findByRole("tablist", { name: "Report sections" });
+    renderPage();
+    await startCrawl();
+    openRow(/^Ignore conditions/);
     fireEvent.click(
       screen.getByRole("switch", { name: "Guides target a specific record" }),
     );
@@ -964,17 +941,9 @@ describe("privacy of the exports", () => {
     );
 
     const markdown = await exportedMarkdown();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Export JSON of the engine report, with the included rules only",
-      }),
-    );
+    exportAs("JSON");
     const json = await downloads.at(-1)!.text();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Copy as tables: every section, with the included rules only",
-      }),
-    );
+    exportAs("Copy all");
     await waitFor(() => expect(clipboard).toHaveLength(1));
     for (const value of PII) {
       expect(markdown).not.toContain(value);

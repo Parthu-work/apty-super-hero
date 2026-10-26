@@ -1,7 +1,7 @@
 /**
- * DOM Config's run state, outside React so a run survives the card
- * collapsing or re-mounting. Memory only (D12): nothing is written to
- * storage. One capture is held: the crawl's, and the manual and imported
+ * DOM Config's run state, outside React so a run survives leaving its
+ * page. Memory only (D12): nothing is written to storage. One capture is
+ * held: the crawl's, and the manual and imported
  * pages added to it; the report is always the analysis of that capture.
  * The crawl's tab is fixed when it starts; switching tabs never redirects
  * it.
@@ -51,8 +51,6 @@ const DEFAULT_START_OPTIONS: DomConfigStartOptions = {
 };
 
 type DomConfigPhase = "idle" | "running" | "stopping" | "report" | "failed";
-
-export type DomConfigStep = "discover" | "capture" | "analyze" | "report";
 
 export type RunChipState =
   | "pending"
@@ -107,12 +105,8 @@ export interface ImportResult {
 
 export interface DomConfigState {
   phase: DomConfigPhase;
-  expanded: boolean;
-  /** Bumped when something outside the card asks to show it. */
-  revealRequest: number;
   tabId: number | null;
   options: DomConfigStartOptions;
-  step: DomConfigStep;
   rows: PageRow[];
   current: DomConfigCaptureProgress | null;
   /** The last crawl's own result; null when the capture holds no crawl. */
@@ -138,6 +132,8 @@ export interface DomConfigState {
   lastCapture: CapturingProgress | null;
   /** How long the held crawl took; null when the capture holds no crawl. */
   crawlMs: number | null;
+  /** The options the held crawl ran with; null when the capture holds no crawl. */
+  crawlOptions: DomConfigStartOptions | null;
   /** The last Export or Copy all of the results held now; null until one. */
   exportedAt: number | null;
 }
@@ -146,11 +142,8 @@ type StartResult = "started" | "busy" | "locked" | "confirm";
 
 const INITIAL: DomConfigState = {
   phase: "idle",
-  expanded: false,
-  revealRequest: 0,
   tabId: null,
   options: DEFAULT_START_OPTIONS,
-  step: "discover",
   rows: [],
   current: null,
   outcome: null,
@@ -168,6 +161,7 @@ const INITIAL: DomConfigState = {
   startedAt: null,
   lastCapture: null,
   crawlMs: null,
+  crawlOptions: null,
   exportedAt: null,
 };
 
@@ -211,17 +205,6 @@ function progressRows(
     })),
   };
   return next;
-}
-
-function stepOf(
-  step: DomConfigStep,
-  progress: DomConfigCaptureProgress,
-): DomConfigStep {
-  if (progress.phase === "analyzing") return "analyze";
-  if (progress.phase === "discovering") {
-    return step === "discover" ? "discover" : step;
-  }
-  return "capture";
 }
 
 function chip(run: DomConfigRun): PageRow["runs"][number] {
@@ -300,7 +283,6 @@ export function createDomConfigStore() {
     outcome: CompletedCapture | null = state.outcome,
   ): Partial<DomConfigState> => ({
     phase: "report",
-    step: "report",
     current: null,
     error: null,
     startedAt: null,
@@ -318,9 +300,6 @@ export function createDomConfigStore() {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    setExpanded: (expanded: boolean) => set({ expanded }),
-    reveal: () =>
-      set({ expanded: true, revealRequest: state.revealRequest + 1 }),
     setOptions: (options: Partial<DomConfigStartOptions>) =>
       set({ options: { ...state.options, ...options } }),
     setRuleChoice: (ruleId: string, included: boolean) =>
@@ -342,8 +321,6 @@ export function createDomConfigStore() {
       const { options } = state;
       set({
         ...INITIAL,
-        expanded: true,
-        revealRequest: state.revealRequest,
         options,
         phase: "running",
         tabId,
@@ -369,7 +346,6 @@ export function createDomConfigStore() {
               ...(progress.phase === "capturing"
                 ? { lastCapture: progress }
                 : {}),
-              step: stepOf(state.step, progress),
               rows: progressRows(state.rows, progress),
             }),
         });
@@ -385,7 +361,11 @@ export function createDomConfigStore() {
       const crawlMs = Date.now() - (state.startedAt ?? Date.now());
       if (outcome.available) {
         // The crawl analyzed its capture with these options and no marks.
-        set({ ...hold(outcome.capture, outcome.report, outcome), crawlMs });
+        set({
+          ...hold(outcome.capture, outcome.report, outcome),
+          crawlMs,
+          crawlOptions: options,
+        });
       } else {
         set({
           phase: "failed",
@@ -539,8 +519,6 @@ export function createDomConfigStore() {
       if (busy()) return;
       set({
         ...INITIAL,
-        expanded: state.expanded,
-        revealRequest: state.revealRequest,
         options: state.options,
       });
     },
@@ -557,8 +535,7 @@ export function useDomConfigState(
   return useSyncExternalStore(store.subscribe, store.getState);
 }
 
-/** Opens the DOM config page with its card expanded. */
-export function revealDomConfigCard(origin?: NavigationOrigin): void {
-  domConfigStore.reveal();
+/** Opens the DOM config page. */
+export function openDomConfigPage(origin?: NavigationOrigin): void {
   navigationStore.openPage("dom-config", origin);
 }

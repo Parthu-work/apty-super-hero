@@ -10,7 +10,6 @@ import {
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { navigationStore } from "../../state/navigation-store";
-import { domConfigStore } from "../investigation/dom-config/dom-config-store";
 
 const storage = vi.hoisted(() => ({
   getAllConversations: vi.fn(),
@@ -84,16 +83,14 @@ describe("MenuDrawer", () => {
     });
   });
 
-  it("opens the DOM config page with its card expanded", async () => {
+  it("opens the DOM config page", async () => {
     setup();
-    act(() => domConfigStore.setExpanded(false));
     const menu = await openMenu();
     fireEvent.click(within(menu).getByRole("button", { name: /^DOM config/ }));
     expect(navigationStore.getState()).toMatchObject({
       page: "dom-config",
       origin: "menu",
     });
-    expect(domConfigStore.getState().expanded).toBe(true);
   });
 
   it("shows each tool's status on its row", async () => {

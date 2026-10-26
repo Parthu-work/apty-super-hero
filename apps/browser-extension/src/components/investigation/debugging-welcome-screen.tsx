@@ -10,7 +10,7 @@ import type { WelcomeScreenProps } from "@apty/ui/types";
 import { ActivityIcon, SlidersHorizontalIcon } from "lucide-react";
 import { useState } from "react";
 import { INVESTIGATION_PROMPTS } from "../shell/investigation-prompts";
-import { revealDomConfigCard } from "./dom-config/dom-config-store";
+import { openDomConfigPage } from "./dom-config/dom-config-store";
 
 const HOME_COUNT = 3;
 
@@ -122,7 +122,7 @@ export function DebuggingWelcomeScreen({
               icon={SlidersHorizontalIcon}
               category={t("domConfig.welcome.category")}
               question={t("domConfig.welcome.tile")}
-              onClick={revealDomConfigCard}
+              onClick={openDomConfigPage}
             />
           )}
         </ul>

@@ -5,7 +5,6 @@ import { cn } from "@apty/ui/lib/utils";
 import {
   CircleAlertIcon,
   CircleCheckIcon,
-  CircleDotIcon,
   CircleIcon,
   CircleXIcon,
   FileInputIcon,
@@ -14,21 +13,9 @@ import {
 } from "lucide-react";
 import { toneBadgeClass, toneTextClass } from "../tone-classes";
 import { pathOf } from "./copy-format";
-import type {
-  DomConfigStep,
-  PageOrigin,
-  PageRow,
-  RunChipState,
-} from "./dom-config-store";
+import type { PageOrigin, PageRow, RunChipState } from "./dom-config-store";
 
 type Translate = I18nContextValue["t"];
-
-const STEPS: { step: DomConfigStep; label: TranslationKey }[] = [
-  { step: "discover", label: "domConfig.steps.discover" },
-  { step: "capture", label: "domConfig.steps.capture" },
-  { step: "analyze", label: "domConfig.steps.analyze" },
-  { step: "report", label: "domConfig.steps.report" },
-];
 
 export const RUN_LABEL: Record<
   PageRow["runs"][number]["label"],
@@ -122,41 +109,6 @@ export function actionSentence(
   }
 }
 
-export function Stepper({ step }: { step: DomConfigStep }) {
-  const { t } = useTranslation();
-  const current = STEPS.findIndex((s) => s.step === step);
-  return (
-    <ol
-      aria-label={t("domConfig.steps.label")}
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
-    >
-      {STEPS.map((s, i) => {
-        const Icon =
-          i < current
-            ? CircleCheckIcon
-            : i === current
-              ? CircleDotIcon
-              : CircleIcon;
-        return (
-          <li
-            key={s.step}
-            aria-current={i === current ? "step" : undefined}
-            className={cn(
-              "flex items-center gap-1",
-              i === current
-                ? "font-semibold text-foreground"
-                : "text-muted-foreground",
-            )}
-          >
-            <Icon className="size-3" aria-hidden="true" />
-            {t(s.label)}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 const ORIGIN: Partial<
   Record<PageOrigin, { label: TranslationKey; icon: typeof HandIcon }>
 > = {
@@ -245,25 +197,5 @@ export function RunChips({ runs }: { runs: PageRow["runs"] }) {
         );
       })}
     </ul>
-  );
-}
-
-export function PageRows({ rows }: { rows: PageRow[] }) {
-  const { t } = useTranslation();
-  if (rows.length === 0) return null;
-  return (
-    <section aria-label={t("domConfig.pagesTitle")} className="space-y-1.5">
-      <h4 className="text-xs font-semibold text-muted-foreground">
-        {t("domConfig.pagesTitle")}
-      </h4>
-      <ul className="space-y-1.5">
-        {rows.map((row) => (
-          <li key={row.key} className="rounded-md border px-2 py-1.5">
-            <RowSummary row={row} />
-            <RunChips runs={row.runs} />
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
