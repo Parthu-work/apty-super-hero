@@ -2,6 +2,7 @@ import {
   type ConversationData,
   conversationStorage,
 } from "@apty/browser-runtime";
+import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   Dialog,
@@ -28,7 +29,12 @@ import {
   useNavigation,
 } from "../../state/navigation-store";
 import { SetupBadge } from "../connections/setup-badge";
-import { revealDomConfigCard } from "../investigation/dom-config/dom-config-store";
+import {
+  revealDomConfigCard,
+  useDomConfigState,
+} from "../investigation/dom-config/dom-config-store";
+import { useDomHealthState } from "../investigation/dom-health-store";
+import { domConfigStatus, domHealthStatus, type JobStatus } from "./job-status";
 import { relativeTime } from "./relative-time";
 
 /** Chats the menu lists before "View all" (the store keeps five). */
@@ -47,6 +53,17 @@ export interface MenuDrawerProps {
   onOpenSettings: () => void;
   /** Warnings the Connections row's badge counts. */
   setupCount: number;
+}
+
+function JobStatusBadge({ status }: { status: JobStatus }) {
+  return (
+    <StatusBadge
+      tone={status.tone}
+      indicator={status.running ? "spinner" : undefined}
+    >
+      {status.label}
+    </StatusBadge>
+  );
 }
 
 function Caption({ children }: { children: string }) {
@@ -69,6 +86,8 @@ export function MenuDrawer({
 }: MenuDrawerProps) {
   const { t } = useTranslation();
   const { drawerOpen, page } = useNavigation();
+  const health = useDomHealthState();
+  const config = useDomConfigState();
   const [conversations, setConversations] = useState<ConversationData[]>([]);
   const [showAll, setShowAll] = useState(false);
 
@@ -143,12 +162,14 @@ export function MenuDrawer({
           <ListRow
             icon={<ScanSearchIcon />}
             label={t("shell.domHealth")}
+            trailing={<JobStatusBadge status={domHealthStatus(health, t)} />}
             aria-current={page === "dom-health" ? "page" : undefined}
             onClick={() => openTool("dom-health")}
           />
           <ListRow
             icon={<SlidersHorizontalIcon />}
             label={t("shell.domConfig")}
+            trailing={<JobStatusBadge status={domConfigStatus(config, t)} />}
             aria-current={page === "dom-config" ? "page" : undefined}
             onClick={() => revealDomConfigCard("menu")}
           />

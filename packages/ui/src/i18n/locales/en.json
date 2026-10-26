@@ -1658,5 +1658,20 @@
     "copyId": "Copy ID",
     "siteTitle": "This site",
     "openAll": "Open all connection settings"
+  },
+  "jobs": {
+    "label": "Running jobs",
+    "line": "{{tool}} · {{detail}} · {{elapsed}}",
+    "view": "View",
+    "running": "Running",
+    "stopping": "Stopping",
+    "page": "Page {{page}}",
+    "pageOf": "Page {{page}} of {{of}}",
+    "notChecked": "Not checked",
+    "notGenerated": "Not generated",
+    "couldntFinish": "Couldn't finish",
+    "notExported": "Not exported",
+    "exported": "Exported",
+    "scoreGrade": "{{score}} · {{grade}}"
   }
 }

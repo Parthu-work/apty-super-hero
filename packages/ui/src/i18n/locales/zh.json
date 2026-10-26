@@ -1658,5 +1658,20 @@
     "copyId": "复制 ID",
     "siteTitle": "此站点",
     "openAll": "打开全部连接设置"
+  },
+  "jobs": {
+    "label": "运行中的任务",
+    "line": "{{tool}} · {{detail}} · {{elapsed}}",
+    "view": "查看",
+    "running": "运行中",
+    "stopping": "正在停止",
+    "page": "第 {{page}} 页",
+    "pageOf": "第 {{page}} 页，共 {{of}} 页",
+    "notChecked": "未检查",
+    "notGenerated": "未生成",
+    "couldntFinish": "未能完成",
+    "notExported": "未导出",
+    "exported": "已导出",
+    "scoreGrade": "{{score}} · {{grade}}"
   }
 }

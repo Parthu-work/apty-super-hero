@@ -22,6 +22,7 @@ import {
 import { navigationStore, useNavigation } from "../state/navigation-store";
 import { useReadiness } from "./connections/use-readiness";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
+import { JobBar } from "./shell/job-bar";
 import { MenuDrawer } from "./shell/menu-drawer";
 
 const log = createLogger("BrowserChatHeader");
@@ -228,6 +229,7 @@ export function BrowserChatHeader({
       </div>
 
       <InvestigationContextBar />
+      <JobBar />
 
       {children}
 

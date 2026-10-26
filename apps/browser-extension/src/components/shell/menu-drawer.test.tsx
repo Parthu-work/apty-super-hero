@@ -76,7 +76,7 @@ describe("MenuDrawer", () => {
   it("opens a tool page from the menu, which then closes", async () => {
     setup();
     const menu = await openMenu();
-    fireEvent.click(within(menu).getByRole("button", { name: "DOM health" }));
+    fireEvent.click(within(menu).getByRole("button", { name: /^DOM health/ }));
     expect(navigationStore.getState()).toMatchObject({
       page: "dom-health",
       origin: "menu",
@@ -88,12 +88,23 @@ describe("MenuDrawer", () => {
     setup();
     act(() => domConfigStore.setExpanded(false));
     const menu = await openMenu();
-    fireEvent.click(within(menu).getByRole("button", { name: "DOM config" }));
+    fireEvent.click(within(menu).getByRole("button", { name: /^DOM config/ }));
     expect(navigationStore.getState()).toMatchObject({
       page: "dom-config",
       origin: "menu",
     });
     expect(domConfigStore.getState().expanded).toBe(true);
+  });
+
+  it("shows each tool's status on its row", async () => {
+    setup();
+    const menu = await openMenu();
+    expect(
+      within(menu).getByRole("button", { name: /^DOM health/ }),
+    ).toHaveTextContent("Not checked");
+    expect(
+      within(menu).getByRole("button", { name: /^DOM config/ }),
+    ).toHaveTextContent("Not generated");
   });
 
   it("sends the guided prompts for the selector checker and the network inspector", async () => {
@@ -198,7 +209,7 @@ describe("MenuDrawer", () => {
     act(() => navigationStore.openPage("dom-config", "menu"));
     const menu = await openMenu();
     expect(
-      within(menu).getByRole("button", { name: "DOM config" }),
+      within(menu).getByRole("button", { name: /^DOM config/ }),
     ).toHaveAttribute("aria-current", "page");
   });
 });

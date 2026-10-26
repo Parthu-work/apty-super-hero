@@ -2,12 +2,13 @@
  * Accessibility (C3): axe-core on the real side panel and Options page, in
  * light and dark themes. Fails on any `serious` or `critical` violation.
  * Side panel states: empty, Home with every suggestion, the "/" list, the
- * menu with its recent chats loading and loaded, Home with no AI provider
- * and the Connections page with an ID error, a chat with a tool result, a long chat scrolled up with its scroll-to-bottom
- * button, an approval prompt, an intervention card before and after an
- * option is chosen, the send button idle, sending, streaming and after an
- * error, the evidence viewers (the investigation summary and the full
- * response viewer), a DOM Health result with its export dialog at
+ * menu with its recent chats loading and loaded, Home with a running job,
+ * Home with no AI provider and the Connections page with an ID error, a
+ * chat with a tool result, a long chat scrolled up with its
+ * scroll-to-bottom button, an approval prompt, an intervention card before
+ * and after an option is chosen, the send button idle, sending, streaming
+ * and after an error, the evidence viewers (the investigation summary and
+ * the full response viewer), a DOM Health result with its export dialog at
  * side-panel size, and the DOM Config page idle, running (held on a page
  * request), with its report and on a page it cannot analyze, a manual
  * capture with a duplicate warning, an import error, page detail and the
@@ -451,6 +452,12 @@ for (const theme of ["light", "dark"]) {
       await held.requested;
       await panel.getByRole("list", { name: "Progress" }).waitFor();
       await assertNoSeriousViolations(panel, `${theme} DOM Config running`);
+      await panel.getByRole("button", { name: "Back" }).click();
+      const jobs = panel.getByRole("region", { name: "Running jobs" });
+      await jobs.waitFor();
+      await assertNoSeriousViolations(panel, `${theme} Home, a running job`);
+      await jobs.getByRole("button", { name: "View: DOM config" }).click();
+      await panel.getByRole("list", { name: "Progress" }).waitFor();
       held.release();
 
       await panel
