@@ -610,7 +610,8 @@ Key pieces:
   wins into one row per component with `subComponents` for drill-down —
   `not_checked` when no such evidence exists yet, never a guessed status.
 - **`investigation-context-bar.tsx`** — rendered inside `BrowserChatHeader`,
-  below the title row: a quiet "debugging `<hostname>`" line normally, or a
+  below the title row, and on every tool page: the page's hostname and title
+  with whether the extension can inspect it (icon and word) normally, or a
   prominent "LIVE INVESTIGATION" banner with a real Stop action (calls
   `stopInvestigation()` directly, plus `interrupt()`) while a session is
   actually in progress.
@@ -627,10 +628,17 @@ Key pieces:
   confidence, structured hypotheses rendered with their status badge).
 - **`debugging-welcome-screen.tsx`** — replaces the generic "how can I help
   you" empty state (`toolDisplay`/`emptyState` slots) with Apty-specific
-  example prompts, and a "Generate DOM config" tile that opens the DOM
-  Config card instead of sending a message.
-- **`dom-config/`** — the DOM Config card in `promptExtras`, after the DOM
-  Health card. Its run state lives in a plain-object store
+  example prompts; "See all" adds the rest and a DOM config row that opens
+  the DOM config page instead of sending a message.
+- **`shell/`** and **`state/navigation-store.ts`** — the header's menu
+  drawer (New chat, the tools, recent chats, Connections, Settings) and the
+  tool pages. DOM health and DOM config render in ChatBot's `overlay` slot
+  as full-panel pages (`page-layer.tsx`), each mounted at all times and
+  hidden and inert when not shown, with the chat inert underneath while one
+  is open. A plain-object store (`useSyncExternalStore`) holds the drawer,
+  the open page and where Back returns to.
+- **`dom-config/`** — the DOM Config card, shown on the DOM config page.
+  Its run state lives in a plain-object store
   (`dom-config-store.ts`, read with `useSyncExternalStore`) outside React,
   so a run survives the card collapsing; it holds the tab fixed at Start,
   the progress rows built from `runDomConfigCapture`'s `onProgress`, one
@@ -659,9 +667,10 @@ Not yet built: a dedicated "start investigation" form/component tab
 (section 11 of the product brief) — the model infers investigation intent
 from natural language and the debugging-loop system prompt, per the
 brief's own "don't force a form before every question" guidance, so no
-separate lifecycle form UI exists yet. No automated component tests cover
-the header/summary-bar components directly (they depend on `useChatContext`
-and `chrome.tabs`); the pure logic they call
+separate lifecycle form UI exists yet. The header, menu and pages have
+component tests (`browser-chat-header.test.tsx`, `shell/*.test.tsx`); the
+summary bar has none of its own (it depends on `useChatContext` and
+`chrome.tabs`); the pure logic they call
 (`component-health.ts`, `investigation-session.ts`,
 `evidence-correlation.ts`) is fully unit-tested, and the presentational
 leaf components (`ComponentHealthPanel`, `DiagnosisCard`) have React

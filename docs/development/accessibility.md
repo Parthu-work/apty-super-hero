@@ -22,7 +22,7 @@ failure message lists each node's markup and axe's reason.
 | Light `--success` text at 2.87:1 on its own tint | Green-800 `oklch(0.448 0.119 151.328)` |
 | Dark destructive alert text at 1.97:1 | `dark:text-red-400` in the destructive `Alert` variant |
 | Dark "Built-in" skill badge (`text-blue-600`) | `dark:text-blue-400` |
-| Icon-only buttons with no name: show/hide API key, delete model, export/delete skill, reload skills, automation mode, conversation history, the input's "+" menu | `aria-label` (and `aria-pressed` on the show/hide toggles); the delete-model button also shows on keyboard focus |
+| Icon-only buttons with no name: show/hide API key, delete model, export/delete skill, reload skills, automation mode, the header's Menu and New chat, a recent chat's delete, the input's "+" menu | `aria-label` (and `aria-pressed` on the show/hide toggles); the delete-model button also shows on keyboard focus |
 | Selects with no name: default model, provider type, the input's model picker | `aria-label`, or a `Label` bound with `htmlFor` |
 | The approval prompt's `alertdialog` had no name | `aria-labelledby` its title |
 | Skill upload: a `role="button"` wrapper around a file input (nested interactive), the input named only by `title` | The file input is the control, with an `aria-label`; the wrapper only takes drops and shows focus with `focus-within` |

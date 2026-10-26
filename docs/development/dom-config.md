@@ -432,9 +432,9 @@ changed; a new one is returned.
 
 ## Side panel card (R4a)
 
-`apps/browser-extension/src/components/investigation/dom-config/`, mounted
-after the DOM Health card; the welcome screen's "Generate DOM config" tile
-opens it.
+`apps/browser-extension/src/components/investigation/dom-config/`, shown on
+the DOM config page, which the menu, the composer's "/" list and the start
+screen's "See all" open.
 
 - **Start options.** Scope: this page only (`maxPages: 1`, safe mode),
   the whole application in safe mode (links only), or in deep mode (also

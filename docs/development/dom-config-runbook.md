@@ -1,15 +1,16 @@
 # DOM Config: SE runbook
 
 A short guide for generating an application's Apty DOM settings with the
-DOM Config card. How it works is in [`dom-config.md`](dom-config.md).
+DOM config page. How it works is in [`dom-config.md`](dom-config.md).
 Everything stays in the side panel's memory: export before you close it.
 
 ## 1. Generate
 
 1. Open the application on its usual start page, signed in as a user who
    sees the screens the guides will cover.
-2. In the side panel, choose **Generate DOM config** (the start screen's
-   tile or the card under DOM Health).
+2. In the side panel, open **DOM config** (from the menu, by typing "/" in
+   the composer, or with **See all** on the start screen), then choose
+   **Generate DOM config**.
 3. Pick a scope:
    - **This page only** for one screen;
    - **Whole application: safe** to follow the application's links;
