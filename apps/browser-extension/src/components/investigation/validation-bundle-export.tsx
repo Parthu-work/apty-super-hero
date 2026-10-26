@@ -83,7 +83,7 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
       <Button
         size="sm"
         variant="link"
-        className="h-auto p-0 text-[11px]"
+        className="h-auto p-0 text-xs"
         disabled={!hasEvidence}
         onClick={() => {
           setCopied(false);
@@ -110,7 +110,7 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
             <pre
               // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region must be reachable by keyboard (axe scrollable-region-focusable).
               tabIndex={0}
-              className="min-h-24 flex-1 overflow-auto rounded border bg-muted/40 p-2 text-[10px]"
+              className="min-h-24 flex-1 overflow-auto rounded border bg-muted/40 p-2 text-xs"
             >
               {json}
             </pre>

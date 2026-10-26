@@ -274,9 +274,9 @@ function DesStepsSection({ evidence }: { evidence: DesEvidence }) {
   return (
     <section
       aria-label={t("domHealth.desTitle")}
-      className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]"
+      className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs"
     >
-      <div className="mb-1 font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="mb-1 font-medium text-muted-foreground">
         {t("domHealth.desTitle")}
       </div>
       <ul className="space-y-1">
@@ -344,7 +344,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
           aggregate score (spec sections 9-11). */}
       {auto && auto.totalAnalyzed > 0 && (
         <div className="rounded-md border bg-muted/30 px-2.5 py-2">
-          <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="mb-1 text-xs font-medium text-muted-foreground">
             {t("domHealth.autoBreakdown")}
           </div>
           <div className="grid grid-cols-3 gap-x-2 text-center">
@@ -357,7 +357,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
               >
                 {auto.directSuccessRate}%
               </div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 {t("domHealth.breakdownDirect")}
               </div>
             </div>
@@ -370,7 +370,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
               >
                 {auto.recoveredSuccessRate}%
               </div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 {t("domHealth.breakdownRecovered")}
               </div>
             </div>
@@ -385,7 +385,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
               >
                 {auto.manualDependencyRate}%
               </div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 {t("domHealth.breakdownManual")}
               </div>
             </div>
@@ -415,7 +415,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
             </span>
           </div>
           {hitTest.hidden > 0 && (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {t("domHealth.hiddenNotCounted", { count: hitTest.hidden })}
             </p>
           )}
@@ -426,7 +426,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
         (result.desEvidence?.hitTestReasons.length ?? 0) > 0 && (
           <ul
             aria-label={t("domHealth.whyHitTestsFailed")}
-            className="-mt-1 space-y-0.5 px-2.5 text-[11px] text-muted-foreground"
+            className="-mt-1 space-y-0.5 px-2.5 text-xs text-muted-foreground"
           >
             {result.desEvidence?.hitTestReasons.map((row) => (
               <li key={row.reason}>
@@ -463,7 +463,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
 
       <div className="rounded-md border bg-muted/30 px-2.5 py-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             {t("domHealth.manualSelectorDependency")}
           </span>
           <span
@@ -485,7 +485,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
 
       {result.desEvidence && <DesStepsSection evidence={result.desEvidence} />}
 
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {t("domHealth.selectorConfiguration", {
           source: t(
             result.selectorConfiguration?.source === "customer"
@@ -498,7 +498,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
       </p>
 
       <div>
-        <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">
           {t("domHealth.metrics")}
         </h4>
         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
@@ -528,7 +528,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
 
       {result.strengths.length > 0 && (
         <div>
-          <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">
             {t("domHealth.strengths")}
           </h4>
           <ul className="space-y-1 text-xs text-foreground">
@@ -544,7 +544,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
 
       {result.risks.length > 0 && (
         <div>
-          <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">
             {t("domHealth.risks")}
           </h4>
           <ul className="space-y-1.5">
@@ -571,7 +571,7 @@ function SharedEvidenceSections({ result }: { result: SharedEvidence }) {
 
       {result.recommendations.length > 0 && (
         <div>
-          <h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">
             {t("domHealth.recommendations")}
           </h4>
           <ul className="space-y-1.5">
@@ -615,7 +615,7 @@ function FramesAndExclusions({
   return (
     <>
       {caps.length > 0 && (
-        <ul className={cn("space-y-0.5 text-[11px]", toneTextClass("warning"))}>
+        <ul className={cn("space-y-0.5 text-xs", toneTextClass("warning"))}>
           {caps.map((reason) => (
             <li key={reason}>{t("domHealth.confidenceCapped", { reason })}</li>
           ))}
@@ -629,7 +629,7 @@ function FramesAndExclusions({
               excluded: excluded.length,
             })}
           </summary>
-          <ul className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+          <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
             {frames.map((frame) => (
               <li key={frame.frameId}>
                 <span className="font-mono">{frame.key}</span> — {frame.role},{" "}
@@ -777,13 +777,13 @@ export function DomHealthCard({
             className="size-3.5 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <span className="shrink-0 text-xs font-semibold text-muted-foreground">
             {t("domHealth.title")}
           </span>
           {active?.available && (
             <span
               className={cn(
-                "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+                "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
                 GRADE_META[active.grade].badgeClassName,
               )}
             >
@@ -795,7 +795,7 @@ export function DomHealthCard({
           {active && !active.available && (
             <span
               className={cn(
-                "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+                "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
                 toneBadgeClass("danger"),
               )}
             >
@@ -887,7 +887,7 @@ export function DomHealthCard({
             }
             aria-label={t("domHealth.discoveryModeAria")}
             title={t(DISCOVERY_MODE_DESCRIPTION[discoveryMode])}
-            className="rounded-md border bg-background px-1.5 py-1 text-[11px] text-muted-foreground"
+            className="rounded-md border bg-background px-1.5 py-1 text-xs text-muted-foreground"
           >
             <option value="page">{t(DISCOVERY_MODE_LABEL.page)}</option>
             <option value="application-safe">
@@ -934,7 +934,7 @@ export function DomHealthCard({
       {expanded && (
         <div className="animate-in fade-in slide-in-from-top-1 max-h-[60vh] overflow-y-auto border-t px-3 pb-3 pt-2 duration-200">
           {hasResult && (
-            <div className="mb-2 flex gap-1.5 text-[11px]">
+            <div className="mb-2 flex gap-1.5 text-xs">
               <button
                 type="button"
                 onClick={() => setView("page")}
@@ -997,7 +997,7 @@ export function DomHealthCard({
 
           {view === "page" && outcome?.available && (
             <div className="space-y-3 pt-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>{t(CONFIDENCE_LABEL[outcome.confidence])}</span>
                 <span>·</span>
                 <span>
@@ -1045,7 +1045,7 @@ export function DomHealthCard({
                     })}
                   </summary>
                   <div className="mt-1.5 max-h-64 overflow-y-auto rounded-md border">
-                    <table className="w-full text-left text-[11px]">
+                    <table className="w-full text-left text-xs">
                       <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
                         <tr>
                           <th className="px-1.5 py-1 font-medium">
@@ -1162,7 +1162,7 @@ export function DomHealthCard({
                 </dl>
               </details>
 
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {t("domHealth.lastChecked", {
                   time: new Date(outcome.timestamp).toLocaleTimeString(),
                 })}
@@ -1172,7 +1172,7 @@ export function DomHealthCard({
 
           {view === "application" && appOutcome?.available && (
             <div className="space-y-3 pt-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>{t(CONFIDENCE_LABEL[appOutcome.confidence])}</span>
                 <span>·</span>
                 <span>
@@ -1225,7 +1225,7 @@ export function DomHealthCard({
                   },
                 )}
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {t("domHealth.coverageNote", {
                   method: labelOrRaw(
                     t,
@@ -1235,7 +1235,7 @@ export function DomHealthCard({
                 })}
               </p>
               {appOutcome.traversal && (
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {t("domHealth.traversal")}{" "}
                   <span className="font-medium text-foreground">
                     {t(
@@ -1250,8 +1250,8 @@ export function DomHealthCard({
 
               {appOutcome.crossStateEvidence &&
                 appOutcome.crossStateEvidence.attempted > 0 && (
-                  <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]">
-                    <div className="mb-1 font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+                    <div className="mb-1 font-medium text-muted-foreground">
                       {t(
                         appOutcome.crossStateEvidence.statesTested === 1
                           ? "domHealth.crossStateTitleOne"
@@ -1318,7 +1318,7 @@ export function DomHealthCard({
                       })}
                   </summary>
                   <div className="mt-1.5 max-h-96 overflow-y-auto rounded-md border">
-                    <table className="w-full text-left text-[11px]">
+                    <table className="w-full text-left text-xs">
                       <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
                         <tr>
                           <th className="px-1.5 py-1 font-medium">
@@ -1430,7 +1430,7 @@ export function DomHealthCard({
                 </details>
               )}
 
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {t("domHealth.lastChecked", {
                   time: new Date(appOutcome.timestamp).toLocaleTimeString(),
                 })}

@@ -71,7 +71,7 @@ function RuleItem({
           aria-label={t("domConfig.rules.include", { rule: text })}
           className="mt-1 shrink-0"
         />
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-[11px]">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs">
           {rule.conditions.map((condition, i) => (
             <span
               key={`${condition.category}-${condition.operator}-${condition.value}`}
@@ -100,7 +100,7 @@ function RuleItem({
         </div>
         <CopyButton text={text} what={t("domConfig.rules.rule")} />
       </div>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-5 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-5 text-xs text-muted-foreground">
         <EvidenceBadge evidence={rule.evidence} />
         <span>
           {t("domConfig.rules.valuesCovered", {
@@ -108,10 +108,10 @@ function RuleItem({
           })}
         </span>
       </div>
-      <p className="pl-5 text-[11px] text-foreground">
+      <p className="pl-5 text-xs text-foreground">
         <Wrapped>{rule.reason}</Wrapped>
       </p>
-      <p className="pl-5 text-[11px] text-muted-foreground">
+      <p className="pl-5 text-xs text-muted-foreground">
         <Wrapped>
           {t("domConfig.rules.pages", {
             pages: rule.pages.map(pathOf).join(", "),
@@ -134,7 +134,7 @@ function RuleList({
   const { t } = useTranslation();
   if (rules.length === 0) {
     return (
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {t("domConfig.rules.none")}
       </p>
     );
@@ -202,7 +202,7 @@ export function RulesView({
 
   return (
     <div className="space-y-3 text-xs">
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {t("domConfig.rules.assumption")}
       </p>
       {(Object.keys(TARGET_LABEL) as DomConfigRule["target"][]).map(
@@ -225,7 +225,7 @@ export function RulesView({
           {t("domConfig.rules.review", { count: review.length })}
         </summary>
         <div className="mt-1.5 space-y-1.5">
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {t("domConfig.rules.reviewHint")}
           </p>
           <label className="flex items-center gap-2 text-foreground">
@@ -273,7 +273,7 @@ export function RulesView({
             />
           </button>
         </div>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {t("domConfig.rules.recordHint")}{" "}
           {t("domConfig.rules.recordCount", { count: record.length })}
         </p>
@@ -293,14 +293,14 @@ export function RulesView({
             count: report.coveredByDefaults.length,
           })}
         </summary>
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           {t("domConfig.rules.coveredAssumption")}
         </p>
         <ul className="mt-1 space-y-1">
           {report.coveredByDefaults.map((item) => (
             <li
               key={`${item.target}-${item.name}-${item.generalized ?? ""}`}
-              className="text-[11px] text-foreground"
+              className="text-xs text-foreground"
             >
               <code className="font-mono [overflow-wrap:anywhere]">
                 {item.name}
@@ -323,7 +323,7 @@ export function RulesView({
           {report.manualReview.map((item) => (
             <li
               key={`${item.target}-${item.name}-${item.reason}`}
-              className="text-[11px] text-foreground"
+              className="text-xs text-foreground"
             >
               <code className="font-mono [overflow-wrap:anywhere]">
                 {item.name}
@@ -343,7 +343,7 @@ export function RulesView({
         </summary>
         <ul className="mt-1 space-y-1">
           {report.rejectedRules.map((item) => (
-            <li key={item.rule.id} className="text-[11px] text-foreground">
+            <li key={item.rule.id} className="text-xs text-foreground">
               <code className="font-mono [overflow-wrap:anywhere]">
                 {conditionText(item.rule, t("domConfig.rules.and"))}
               </code>{" "}

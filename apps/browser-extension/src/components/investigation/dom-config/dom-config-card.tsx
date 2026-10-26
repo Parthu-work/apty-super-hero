@@ -157,7 +157,7 @@ export function DomConfigCard({
               className="size-3.5 shrink-0 text-muted-foreground"
               aria-hidden="true"
             />
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="shrink-0 text-xs font-semibold text-muted-foreground">
               {t("domConfig.title")}
             </span>
             <span className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
@@ -273,7 +273,7 @@ export function DomConfigCard({
 
             {!running && (
               <div className="mt-3 space-y-2">
-                <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <h4 className="text-xs font-semibold text-muted-foreground">
                   {t(
                     state.capture
                       ? "domConfig.addTitle"

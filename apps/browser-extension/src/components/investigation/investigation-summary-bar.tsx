@@ -85,12 +85,12 @@ export function InvestigationSummaryBar() {
           )}
           aria-hidden="true"
         />
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="shrink-0 text-xs font-semibold text-muted-foreground">
           {t("investigation.summary.title")}
         </span>
         <span
           className={cn(
-            "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+            "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
             toneBadgeClass(meta.tone),
           )}
         >
@@ -102,7 +102,7 @@ export function InvestigationSummaryBar() {
         {warningCount > 0 && (
           <span
             className={cn(
-              "ml-auto shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+              "ml-auto shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
               toneBadgeClass("warning"),
             )}
           >

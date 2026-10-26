@@ -120,7 +120,7 @@ export function ReportSummary({
             className="flex min-w-0 flex-col gap-1 rounded-md border bg-background p-2"
           >
             <div className="flex items-center justify-between gap-1">
-              <span className="text-[11px] font-medium text-muted-foreground">
+              <span className="text-xs font-medium text-muted-foreground">
                 {t(tile.label)}
               </span>
               <CopyButton text={tile.value} what={t(tile.label)} />

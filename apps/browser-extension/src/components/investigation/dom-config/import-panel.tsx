@@ -216,7 +216,7 @@ export function ImportPanel({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-6 gap-1 px-1.5 text-[11px]"
+                        className="h-6 gap-1 px-1.5 text-xs"
                         aria-label={t("domConfig.import.removeAria", {
                           index: i + 1,
                         })}
@@ -255,13 +255,13 @@ export function ImportPanel({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 gap-1 px-2 text-[11px]"
+              className="h-7 gap-1 px-2 text-xs"
               onClick={() => setRuns((all) => [...all, newRun(all.length)])}
             >
               <PlusIcon className="size-3" aria-hidden="true" />
               {t("domConfig.import.addRun")}
             </Button>
-            <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-foreground focus-within:ring-2 focus-within:ring-ring">
+            <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs text-foreground focus-within:ring-2 focus-within:ring-ring">
               <FileUpIcon className="size-3" aria-hidden="true" />
               {t("domConfig.import.chooseFiles")}
               <input

@@ -144,12 +144,7 @@ function RecommendedCandidate({
         <CheckCircle2Icon
           className={cn("size-4 shrink-0", toneTextClass("success"))}
         />
-        <span
-          className={cn(
-            "text-xs font-semibold uppercase tracking-wide",
-            toneTextClass("success"),
-          )}
-        >
+        <span className={cn("text-xs font-semibold", toneTextClass("success"))}>
           {t("investigation.selector.recommendedSelector")}
         </span>
       </div>
@@ -230,10 +225,7 @@ function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <ReliabilityMeter risk={candidate.staticRisk} />
             <span
-              className={cn(
-                "text-[11px] font-medium",
-                toneTextClass(meta.tone),
-              )}
+              className={cn("text-xs font-medium", toneTextClass(meta.tone))}
             >
               {t(meta.label)}
             </span>
@@ -299,7 +291,7 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
   return (
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {t("investigation.selector.title")}
         </span>
         {output.tagName && <Badge variant="outline">{output.tagName}</Badge>}
@@ -330,7 +322,7 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
 
       {others.length > 0 && (
         <div>
-          <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <h4 className="mb-1 text-xs font-medium text-muted-foreground">
             {t("investigation.selector.others")}
           </h4>
           <ul className="space-y-1.5">

@@ -146,7 +146,7 @@ export function ReportView({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="h-7 gap-1 px-2 text-xs"
           aria-label={t("domConfig.exportMarkdownAria")}
           onClick={() =>
             download(
@@ -162,7 +162,7 @@ export function ReportView({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="h-7 gap-1 px-2 text-xs"
           aria-label={t("domConfig.exportJsonAria")}
           onClick={() =>
             download(
@@ -178,7 +178,7 @@ export function ReportView({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="h-7 gap-1 px-2 text-xs"
           aria-label={t("domConfig.rerunAria")}
           onClick={onRerun}
         >
@@ -188,7 +188,7 @@ export function ReportView({
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="h-7 gap-1 px-2 text-xs"
           aria-label={t("domConfig.clearAria")}
           onClick={onClear}
         >
@@ -255,14 +255,14 @@ export function ReportView({
         )}
       </div>
 
-      <p className="text-[11px] text-foreground">
+      <p className="text-xs text-foreground">
         {t("domConfig.notMeasured", {
           list: report.notMeasured
             .map((entry) => `${entry.item}: ${entry.text}`)
             .join(" "),
         })}
       </p>
-      <details className="rounded-md border px-2 py-1.5 text-[11px]">
+      <details className="rounded-md border px-2 py-1.5 text-xs">
         <summary className="cursor-pointer font-medium text-foreground">
           {t("domConfig.openQuestions", { count: report.openQuestions.length })}
         </summary>

@@ -37,7 +37,7 @@ export function ComponentHealthPanel({
               <CollapsibleTrigger className="group flex w-full items-start gap-2 px-2 py-1.5 text-left text-sm hover:bg-muted/40">
                 <span
                   className={cn(
-                    "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition-colors duration-300",
+                    "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors duration-300",
                     toneBadgeClass(meta.tone),
                   )}
                   aria-hidden="true"
@@ -49,7 +49,7 @@ export function ComponentHealthPanel({
                     <span className="font-medium">{component.label}</span>
                     <span
                       className={cn(
-                        "shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors duration-300",
+                        "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-semibold transition-colors duration-300",
                         toneBadgeClass(meta.tone),
                       )}
                     >
@@ -73,7 +73,7 @@ export function ComponentHealthPanel({
                       <span className="flex items-center gap-1.5">
                         <span
                           className={cn(
-                            "flex size-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold",
+                            "flex size-4 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
                             toneBadgeClass(subMeta.tone),
                           )}
                           aria-hidden="true"

@@ -8,7 +8,7 @@ export function toneTextClass(tone: StatusMeta["tone"]): string {
     case "warning":
       return "text-warning";
     case "danger":
-      return "text-destructive dark:text-red-400";
+      return "text-destructive";
     case "active":
       return "text-info";
     default:
@@ -40,7 +40,7 @@ export function toneBadgeClass(tone: StatusMeta["tone"]): string {
     case "warning":
       return "bg-warning-muted text-warning border-warning-border";
     case "danger":
-      return "bg-destructive-muted text-destructive border-destructive/20 dark:text-red-400";
+      return "bg-destructive-muted text-destructive border-destructive/20";
     case "active":
       return "bg-info-muted text-info border-info/20";
     default:

@@ -71,7 +71,7 @@ const CONFIDENCE_META: Record<
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <h4 className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <h4 className="mb-1 text-xs font-medium text-muted-foreground">
       {children}
     </h4>
   );
@@ -149,7 +149,7 @@ export function DiagnosisCard({
                     </span>
                   </div>
                   {(supporting > 0 || contradicting > 0) && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {t("investigation.diagnosis.evidenceSupporting", {
                         count: supporting,
                       })}

@@ -70,7 +70,7 @@ export function PlanChecklist({
             >
               <span
                 className={cn(
-                  "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors duration-300",
+                  "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors duration-300",
                   marker.className,
                 )}
                 aria-hidden="true"

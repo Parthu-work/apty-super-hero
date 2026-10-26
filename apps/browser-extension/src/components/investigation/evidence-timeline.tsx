@@ -89,7 +89,7 @@ function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1 pb-1 pl-8 pr-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="text-xs font-medium text-muted-foreground">
           {t("investigation.timeline.rawData")}
         </p>
         <CodeBlock code={JSON.stringify(item.data, null, 2)} language="json" />
@@ -104,7 +104,7 @@ function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
     <li className="overflow-hidden rounded-md border bg-card">
       <div className="space-y-1 p-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             {t("investigation.timeline.observation", {
               time: formatClockTime(cluster.startTimestamp),
             })}
@@ -122,7 +122,7 @@ function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
         <p className="text-sm font-medium leading-snug">{cluster.summary}</p>
       </div>
       <div className="border-t px-2 py-1.5">
-        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">
           {t("investigation.timeline.evidence", {
             count: cluster.evidence.length,
           })}

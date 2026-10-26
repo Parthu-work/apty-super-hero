@@ -1,6 +1,5 @@
 {
   "palette": {
-    "apps/browser-extension/src/components/investigation/tone-classes.ts": 2,
     "apps/browser-extension/src/components/skill/SkillCard.tsx": 4,
     "apps/browser-extension/src/components/skill/SkillDetails.tsx": 4,
     "apps/browser-extension/src/entrypoints/options/client-network-calls-panel.tsx": 1,
@@ -8,31 +7,9 @@
     "apps/browser-extension/src/entrypoints/options/preflight-panel.tsx": 3
   },
   "arbitrary-text-size": {
-    "apps/browser-extension/src/components/browser-chat-header.tsx": 1,
-    "apps/browser-extension/src/components/investigation/component-health-panel.tsx": 3,
-    "apps/browser-extension/src/components/investigation/debugging-welcome-screen.tsx": 1,
-    "apps/browser-extension/src/components/investigation/diagnosis-card.tsx": 2,
-    "apps/browser-extension/src/components/investigation/dom-config/dom-config-card.tsx": 2,
-    "apps/browser-extension/src/components/investigation/dom-config/import-panel.tsx": 3,
-    "apps/browser-extension/src/components/investigation/dom-config/page-detail.tsx": 5,
-    "apps/browser-extension/src/components/investigation/dom-config/progress-view.tsx": 7,
-    "apps/browser-extension/src/components/investigation/dom-config/report-parts.tsx": 3,
-    "apps/browser-extension/src/components/investigation/dom-config/report-summary.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-config/report-view.tsx": 6,
-    "apps/browser-extension/src/components/investigation/dom-config/rules-view.tsx": 12,
-    "apps/browser-extension/src/components/investigation/dom-config/settings-view.tsx": 6,
-    "apps/browser-extension/src/components/investigation/dom-config/warnings-view.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-health-card.tsx": 29,
-    "apps/browser-extension/src/components/investigation/evidence-timeline.tsx": 3,
-    "apps/browser-extension/src/components/investigation/investigation-context-bar.tsx": 1,
-    "apps/browser-extension/src/components/investigation/investigation-summary-bar.tsx": 3,
-    "apps/browser-extension/src/components/investigation/plan-checklist.tsx": 1,
-    "apps/browser-extension/src/components/investigation/route-probe-panel.tsx": 3,
-    "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 1,
-    "apps/browser-extension/src/components/investigation/validation-bundle-export.tsx": 2
+    "apps/browser-extension/src/components/browser-chat-header.tsx": 1
   },
   "large-text-size": {
-    "apps/browser-extension/src/components/investigation/debugging-welcome-screen.tsx": 1,
     "apps/browser-extension/src/components/skill/SkillCard.tsx": 1,
     "apps/browser-extension/src/components/skill/SkillList.tsx": 1,
     "apps/browser-extension/src/components/skill/SkillUploader.tsx": 1,
@@ -42,34 +19,9 @@
     "apps/browser-extension/src/entrypoints/options/mcp-bridge-panel.tsx": 1
   },
   "heavy-weight": {
-    "apps/browser-extension/src/components/investigation/component-health-panel.tsx": 2,
     "apps/browser-extension/src/components/skill/SkillCard.tsx": 1
   },
-  "uppercase": {
-    "apps/browser-extension/src/components/investigation/component-health-panel.tsx": 1,
-    "apps/browser-extension/src/components/investigation/debugging-welcome-screen.tsx": 2,
-    "apps/browser-extension/src/components/investigation/diagnosis-card.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-config/dom-config-card.tsx": 2,
-    "apps/browser-extension/src/components/investigation/dom-config/page-detail.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-config/progress-view.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-health-card.tsx": 9,
-    "apps/browser-extension/src/components/investigation/evidence-timeline.tsx": 3,
-    "apps/browser-extension/src/components/investigation/investigation-context-bar.tsx": 1,
-    "apps/browser-extension/src/components/investigation/investigation-summary-bar.tsx": 1,
-    "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 3
-  },
   "tracking": {
-    "apps/browser-extension/src/components/browser-chat-header.tsx": 1,
-    "apps/browser-extension/src/components/investigation/component-health-panel.tsx": 1,
-    "apps/browser-extension/src/components/investigation/debugging-welcome-screen.tsx": 3,
-    "apps/browser-extension/src/components/investigation/diagnosis-card.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-config/dom-config-card.tsx": 2,
-    "apps/browser-extension/src/components/investigation/dom-config/page-detail.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-config/progress-view.tsx": 1,
-    "apps/browser-extension/src/components/investigation/dom-health-card.tsx": 9,
-    "apps/browser-extension/src/components/investigation/evidence-timeline.tsx": 3,
-    "apps/browser-extension/src/components/investigation/investigation-context-bar.tsx": 1,
-    "apps/browser-extension/src/components/investigation/investigation-summary-bar.tsx": 1,
-    "apps/browser-extension/src/components/investigation/selector-analysis-display.tsx": 3
+    "apps/browser-extension/src/components/browser-chat-header.tsx": 1
   }
 }

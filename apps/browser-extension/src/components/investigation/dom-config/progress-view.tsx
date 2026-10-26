@@ -128,7 +128,7 @@ export function Stepper({ step }: { step: DomConfigStep }) {
   return (
     <ol
       aria-label={t("domConfig.steps.label")}
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
     >
       {STEPS.map((s, i) => {
         const Icon =
@@ -177,7 +177,7 @@ function OriginBadge({ origin }: { origin: PageOrigin }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
         toneBadgeClass("active"),
       )}
     >
@@ -192,17 +192,17 @@ export function RowSummary({ row }: { row: PageRow }) {
   const { t } = useTranslation();
   return (
     <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-      <span className="min-w-0 font-mono text-[11px] text-foreground [overflow-wrap:anywhere]">
+      <span className="min-w-0 font-mono text-xs text-foreground [overflow-wrap:anywhere]">
         {rowName(row)}
       </span>
       <OriginBadge origin={row.origin} />
       {row.status && (
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {t(PAGE_STATUS[row.status])}
         </span>
       )}
       {row.elementCount !== null && (
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {t("domConfig.elements", { count: row.elementCount })}
         </span>
       )}
@@ -221,7 +221,7 @@ export function RunChips({ runs }: { runs: PageRow["runs"] }) {
           <li
             // biome-ignore lint/suspicious/noArrayIndexKey: runs are positional
             key={i}
-            className="inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px]"
+            className="inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs"
           >
             <Icon
               className={cn(
@@ -253,7 +253,7 @@ export function PageRows({ rows }: { rows: PageRow[] }) {
   if (rows.length === 0) return null;
   return (
     <section aria-label={t("domConfig.pagesTitle")} className="space-y-1.5">
-      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h4 className="text-xs font-semibold text-muted-foreground">
         {t("domConfig.pagesTitle")}
       </h4>
       <ul className="space-y-1.5">

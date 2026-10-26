@@ -152,7 +152,7 @@ export function WarningsView({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-6 gap-1 px-1.5 text-[11px]"
+                className="h-6 gap-1 px-1.5 text-xs"
                 disabled={!canCapture}
                 aria-label={t("domConfig.warnings.captureAnotherAria", {
                   page: pathOf(page.label),

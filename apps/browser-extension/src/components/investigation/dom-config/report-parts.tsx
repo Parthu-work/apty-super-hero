@@ -73,7 +73,7 @@ export function CopyButton({
       type="button"
       size="sm"
       variant="ghost"
-      className="h-6 shrink-0 gap-1 px-1.5 text-[11px]"
+      className="h-6 shrink-0 gap-1 px-1.5 text-xs"
       aria-label={ariaLabel ?? t("domConfig.copyAria", { what })}
       onClick={() => {
         void navigator.clipboard
@@ -132,7 +132,7 @@ export function BasisBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
         toneBadgeClass(meta.tone),
       )}
     >
@@ -200,7 +200,7 @@ export function EvidenceBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
         toneBadgeClass(meta.tone),
       )}
     >

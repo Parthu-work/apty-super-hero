@@ -99,7 +99,7 @@ function PromptTile({
         <Icon className="size-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="text-xs font-semibold text-muted-foreground">
           {t(category)}
         </div>
         <div className="whitespace-normal break-words text-xs font-medium text-foreground">
@@ -127,7 +127,7 @@ export function DebuggingWelcomeScreen({
       {...props}
     >
       <div className="mb-3 text-center">
-        <h3 className="mb-1.5 text-lg font-semibold tracking-tight text-foreground">
+        <h3 className="mb-1.5 text-title font-semibold text-foreground">
           {t("investigation.welcome.title")}
         </h3>
         <p className="text-sm text-muted-foreground">
@@ -140,7 +140,7 @@ export function DebuggingWelcomeScreen({
       )}
 
       <div className="w-full max-w-2xl">
-        <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">
           {t("investigation.welcome.start")}
         </p>
         <Suggestions className="grid w-full gap-2 sm:grid-cols-2">

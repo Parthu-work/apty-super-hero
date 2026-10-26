@@ -91,7 +91,7 @@ export function InvestigationContextBar() {
             />
             <span
               className={cn(
-                "rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                "rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
                 toneBadgeClass(meta.tone),
               )}
             >
