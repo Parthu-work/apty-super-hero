@@ -9,8 +9,9 @@ got here is in [`CHANGELOG.md`](../CHANGELOG.md) and
 `npm run test:e2e` runs each of these in Chromium against the built
 extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 
-- Chat with your own AI provider; a readiness check shows the model, the
-  Apty Client connection and whether the page can be inspected.
+- Chat with your own AI provider; the Connections page (Menu › Connections,
+  or the "N to set up" badge) shows the model, the Apty Client and Studio
+  connections and whether the page can be inspected.
 - Risky actions wait for a click in the side panel and are refused if the
   tab moved to another site meanwhile; "Allow on this site for 15 min" is
   per tool and origin and can be revoked. Since A1 this covers clicks on

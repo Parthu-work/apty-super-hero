@@ -75,9 +75,10 @@ bridge yet: an expected result, not proof the Widget is broken.
 
 ## 4. DOM Health (optional, 2 minutes)
 
-Click **Check DOM Health** in the side panel. Expected: a score with its
-confidence, frames and excluded overlays. Do not quote a score as
-application-wide unless **Audit Application** was run.
+Open **DOM health** from the side panel's menu and click **Check DOM
+Health**. Expected: a score with its confidence, frames and excluded
+overlays. Do not quote a score as application-wide unless **Audit
+Application** was run.
 
 ## Troubleshooting by failure code
 

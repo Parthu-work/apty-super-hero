@@ -37,8 +37,8 @@ a threshold; tuning happens after bundles come back.
 
 On each screen:
 
-1. Click **Check DOM Health** in the DOM Health card and wait for the
-   result.
+1. Click **Check DOM Health** in the DOM Health card (menu → **DOM
+   health**) and wait for the result.
 2. On the last screen of each application also run **Audit Application**
    (Safe link discovery first; Deep state discovery only on a test tenant).
 3. Start the **route probe**, click through two or three menu entries

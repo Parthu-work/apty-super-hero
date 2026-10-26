@@ -1,9 +1,10 @@
 # Troubleshooting
 
-Start with the side panel's readiness chips, above the suggested
-investigations. Each one shows the model in use, the Apty Client's
-connection and whether Chrome lets the extension inspect the current page.
-A chip that needs attention says why and links to the setting that fixes it.
+Start with the side panel's Connections page (Menu › Connections, or the
+"N to set up" badge under the header). It shows the model in use, the Apty
+Client's and Studio's connections and whether Chrome lets the extension
+inspect the current page. A card that needs attention says why and has the
+action that fixes it.
 
 When reporting a problem, turn on **Settings → General → Troubleshooting →
 Verbose logging**, reproduce it, and copy the logs from the side panel's

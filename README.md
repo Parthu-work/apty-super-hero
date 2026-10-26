@@ -45,7 +45,7 @@ pnpm dev     # or: watch mode with HMR
 
 Load `apps/browser-extension/dist` as an unpacked extension via `chrome://extensions` → Developer mode → Load unpacked.
 
-On first use, open the side panel: its readiness check links to the AI provider settings, where you add your own API key and model (BYOK) — there is no login/proxy fallback.
+On first use, open the side panel: the composer's "Set up AI provider" chip and the Connections page (Menu › Connections) link to the AI provider settings, where you add your own API key and model (BYOK) — there is no login/proxy fallback.
 
 ## Configuring Apty Studio/Widget/Client/Service-Worker integration
 
