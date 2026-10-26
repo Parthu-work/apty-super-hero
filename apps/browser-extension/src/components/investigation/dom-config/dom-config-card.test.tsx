@@ -11,6 +11,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUseChatContext = vi.hoisted(() => vi.fn());
@@ -52,7 +53,23 @@ vi.mock("@apty/browser-runtime", () => ({
   toShareableRouteProbeReport: vi.fn(),
 }));
 
-import { DomHealthCard } from "../dom-health-card";
+// DOM health's page frame (header, context bar) is tested on its own.
+vi.mock("../../shell/tool-page-shell", () => ({
+  ToolPageShell: ({
+    children,
+    footer,
+  }: {
+    children: ReactNode;
+    footer?: ReactNode;
+  }) => (
+    <>
+      {children}
+      {footer}
+    </>
+  ),
+}));
+
+import { DomHealthPage } from "../dom-health/dom-health-page";
 import { createDomHealthStore } from "../dom-health-store";
 import { DomConfigCard } from "./dom-config-card";
 import { createDomConfigStore } from "./dom-config-store";
@@ -551,13 +568,20 @@ describe("DomConfigCard", () => {
   });
 });
 
+/** A DOM health store set to audit the whole application. */
+function applicationHealthStore() {
+  const health = createDomHealthStore();
+  health.setScope("application");
+  return health;
+}
+
 describe("tab lock", () => {
   it("disables DOM Health while DOM Config crawls the tab", async () => {
     const pending = deferred<DomConfigCaptureOutcome>();
     mockRunDomConfigCapture.mockReturnValue(pending.promise);
     render(
       <>
-        <DomHealthCard store={createDomHealthStore()} />
+        <DomHealthPage store={applicationHealthStore()} />
         <DomConfigCard store={store} />
       </>,
     );
@@ -593,7 +617,7 @@ describe("tab lock", () => {
     mockRunApplicationDomHealthAudit.mockReturnValue(pending.promise);
     render(
       <>
-        <DomHealthCard store={createDomHealthStore()} />
+        <DomHealthPage store={applicationHealthStore()} />
         <DomConfigCard store={store} />
       </>,
     );

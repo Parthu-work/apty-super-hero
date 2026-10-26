@@ -1,7 +1,7 @@
-import type { DomHealthGrade } from "@apty/browser-runtime";
 import type { StatusTone } from "@apty/ui/components/ui/badge";
-import type { I18nContextValue, TranslationKey } from "@apty/ui/i18n/types";
+import type { I18nContextValue } from "@apty/ui/i18n/types";
 import type { DomConfigState } from "../investigation/dom-config/dom-config-store";
+import { GRADE } from "../investigation/dom-health/dom-health-labels";
 import {
   type DomHealthState,
   domHealthPhase,
@@ -21,18 +21,6 @@ interface JobProgress {
   page: number;
   of: number | null;
 }
-
-const GRADE: Record<
-  DomHealthGrade,
-  { label: TranslationKey; tone: StatusTone }
-> = {
-  EXCELLENT: { label: "domHealth.grade.excellent", tone: "success" },
-  GOOD: { label: "domHealth.grade.good", tone: "success" },
-  FAIR: { label: "domHealth.grade.fair", tone: "warning" },
-  NEEDS_ATTENTION: { label: "domHealth.grade.needsAttention", tone: "warning" },
-  HIGH_RISK: { label: "domHealth.grade.highRisk", tone: "danger" },
-  NOT_ASSESSED: { label: "domHealth.grade.notAssessed", tone: "neutral" },
-};
 
 function domHealthProgress(state: DomHealthState): JobProgress | null {
   return state.running === "application" && state.progress?.phase === "auditing"

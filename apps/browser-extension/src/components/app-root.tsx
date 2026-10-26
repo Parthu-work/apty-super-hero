@@ -48,7 +48,7 @@ import {
 } from "./investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
 import { DomConfigCard } from "./investigation/dom-config/dom-config-card";
-import { DomHealthCard } from "./investigation/dom-health-card";
+import { DomHealthPage } from "./investigation/dom-health/dom-health-page";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
@@ -283,17 +283,15 @@ function ChatApp() {
                     id: "dom-health",
                     label: t("shell.domHealth"),
                     content: (
-                      <ToolPageShell title={t("shell.domHealth")}>
-                        <DomHealthCard
-                          developerTools={settings.developerTools === true}
-                          ignoredRoots={settings.domHealthIgnoredRoots}
-                          thresholdOverrides={
-                            settings.developerTools === true
-                              ? settings.domHealthThresholdOverrides
-                              : undefined
-                          }
-                        />
-                      </ToolPageShell>
+                      <DomHealthPage
+                        developerTools={settings.developerTools === true}
+                        ignoredRoots={settings.domHealthIgnoredRoots}
+                        thresholdOverrides={
+                          settings.developerTools === true
+                            ? settings.domHealthThresholdOverrides
+                            : undefined
+                        }
+                      />
                     ),
                   },
                   {

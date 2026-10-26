@@ -400,7 +400,7 @@ describe("DOM Health on six application shapes", () => {
     await page.close();
   });
 
-  describe("validation bundle export from the DOM Health card (B2)", () => {
+  describe("validation bundle export from the DOM health page (B2)", () => {
     const OVERRIDES = { sameUrlRatioForClickFirst: 0.4 };
     const SHAPES = [
       { path: "/deep.html", text: ["Sales Orders", ">Deep<"] },
@@ -426,6 +426,21 @@ describe("DOM Health on six application shapes", () => {
       { path: "/overlay.html", text: ["Registration", "Chat"] },
     ];
 
+    /** Starts a check from the page and waits for its result. */
+    async function runCheck(panel, { application }) {
+      if (application) {
+        await panel.getByRole("radio", { name: /^Whole application/ }).check();
+      }
+      await panel
+        .getByRole("button", {
+          name: application ? "Audit application" : "Check this page",
+        })
+        .click();
+      await panel
+        .getByRole("button", { name: "Full breakdown" })
+        .waitFor({ timeout: 150_000 });
+    }
+
     async function exportBundle({ path, application }) {
       const page = await browser.context.newPage();
       await page.goto(`${site.origin}${path}`);
@@ -435,19 +450,14 @@ describe("DOM Health on six application shapes", () => {
         domHealthThresholdOverrides: OVERRIDES,
       });
       await openToolPage(panel, "DOM health");
-      const run = application ? /audit application/i : /check dom health/i;
-      await panel.getByRole("button", { name: run }).click();
-      const exportButton = panel.getByRole("button", {
-        name: "Export validation bundle",
-      });
-      await exportButton.waitFor();
+      await runCheck(panel, { application });
       await panel
-        .locator("text=/Last checked/")
-        .first()
-        .waitFor({ timeout: 150_000 });
-      await exportButton.click();
+        .getByRole("button", { name: "Export validation bundle" })
+        .click();
       await panel.getByText("Review before sharing").waitFor();
-      const json = await panel.getByLabel("Validation bundle").textContent();
+      const json = await panel
+        .getByRole("region", { name: "Validation bundle" })
+        .textContent();
       const version = await panel.evaluate(
         () => chrome.runtime.getManifest().version,
       );

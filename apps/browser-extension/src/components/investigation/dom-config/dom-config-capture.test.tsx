@@ -10,6 +10,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUseChatContext = vi.hoisted(() => vi.fn());
@@ -54,11 +55,28 @@ vi.mock("@apty/browser-runtime", () => ({
   toShareableRouteProbeReport: vi.fn(),
 }));
 
+// DOM health's page frame (header, context bar) is tested on its own.
+vi.mock("../../shell/tool-page-shell", () => ({
+  ToolPageShell: ({
+    children,
+    footer,
+  }: {
+    children: ReactNode;
+    footer?: ReactNode;
+  }) => (
+    <>
+      {children}
+      {footer}
+    </>
+  ),
+}));
+
 import {
   buildReportFromCapture,
   DOM_CONFIG_CONSOLE_SCRIPT,
 } from "@apty/browser-runtime/apty/dom-config/index";
-import { DomHealthCard } from "../dom-health-card";
+import { DomHealthPage } from "../dom-health/dom-health-page";
+import { createDomHealthStore } from "../dom-health-store";
 import { DomConfigCard } from "./dom-config-card";
 import { createDomConfigStore } from "./dom-config-store";
 import {
@@ -292,12 +310,20 @@ function importRuns(pageName: string, count: number) {
   });
 }
 
+/** A DOM health store set to audit the whole application. */
+function applicationHealthStore() {
+  const health = createDomHealthStore();
+  health.setScope("application");
+  return health;
+}
+
 describe("manual capture, continued", () => {
   it("reads the tab in front, not the crawl's, and holds the tab lock while it reads", async () => {
     mockRunDomConfigCapture.mockResolvedValue(outcome());
+    const health = applicationHealthStore();
     const view = render(
       <>
-        <DomHealthCard />
+        <DomHealthPage store={health} />
         <DomConfigCard store={store} />
       </>,
     );
@@ -320,7 +346,7 @@ describe("manual capture, continued", () => {
     });
     view.rerender(
       <>
-        <DomHealthCard />
+        <DomHealthPage store={health} />
         <DomConfigCard store={store} />
       </>,
     );
@@ -437,9 +463,10 @@ describe("manual capture, continued", () => {
     tab.url = `${ORIGIN}/patients`;
     const audit = deferred<unknown>();
     mockRunApplicationDomHealthAudit.mockReturnValue(audit.promise);
+    const health = applicationHealthStore();
     render(
       <>
-        <DomHealthCard />
+        <DomHealthPage store={health} />
         <DomConfigCard store={store} />
       </>,
     );

@@ -18,6 +18,8 @@ export interface DomHealthState {
   discoveryMode: ApplicationDiscoveryMode;
   /** The check in progress, if any. */
   running: DomHealthScope | null;
+  /** Stop was pressed; the audit ends after the page it is on. */
+  stopping: boolean;
   tabId: number | null;
   startedAt: number | null;
   /** The application audit's progress; null for a single page. */
@@ -38,6 +40,7 @@ const INITIAL: DomHealthState = {
   scope: "page",
   discoveryMode: "application-safe",
   running: null,
+  stopping: false,
   tabId: null,
   startedAt: null,
   progress: null,
@@ -90,7 +93,13 @@ export function createDomHealthStore(
   function finish(tabId: number, patch: Partial<DomHealthState>) {
     releaseTabLock(tabId, "dom-health");
     controller = null;
-    set({ ...patch, running: null, startedAt: null, progress: null });
+    set({
+      ...patch,
+      running: null,
+      stopping: false,
+      startedAt: null,
+      progress: null,
+    });
   }
 
   return {
@@ -149,7 +158,11 @@ export function createDomHealthStore(
     },
 
     /** Stops the application audit after the page it is on. */
-    stop: () => controller?.abort(),
+    stop() {
+      if (!controller) return;
+      controller.abort();
+      set({ stopping: true });
+    },
   };
 }
 

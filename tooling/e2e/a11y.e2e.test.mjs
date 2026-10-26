@@ -581,18 +581,29 @@ for (const theme of ["light", "dark"]) {
       await assertThemeApplied(panel, theme);
       await panel.setViewportSize(SIDE_PANEL);
       await openToolPage(panel, "DOM health");
-      await panel.getByRole("button", { name: /check dom health/i }).click();
-      await panel
-        .locator("text=/Last checked/")
-        .first()
-        .waitFor({ timeout: 150_000 });
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} DOM health, not checked`,
+      );
+      await panel.getByRole("button", { name: "Check this page" }).click();
+      const breakdown = panel.getByRole("button", { name: "Full breakdown" });
+      await breakdown.waitFor({ timeout: 150_000 });
+      await assertNoSeriousViolations(panel, `${theme} DOM Health result`);
+
+      await breakdown.click();
+      await panel.locator("text=/Last checked/").first().waitFor();
       await panel
         .getByRole("region", {
           name: "How Apty's DES would find these elements",
         })
         .getByText("checkInitialPath")
         .waitFor();
-      await assertNoSeriousViolations(panel, `${theme} DOM Health result`);
+      await assertNoSeriousViolations(panel, `${theme} DOM health breakdown`);
+      await panel.getByRole("button", { name: "Back" }).click();
+      await panel.getByRole("button", { name: /^Settings/ }).click();
+      await panel.getByText("Threshold overrides").waitFor();
+      await assertNoSeriousViolations(panel, `${theme} DOM health settings`);
+      await panel.getByRole("button", { name: "Back" }).click();
 
       await panel
         .getByRole("button", { name: "Export validation bundle" })

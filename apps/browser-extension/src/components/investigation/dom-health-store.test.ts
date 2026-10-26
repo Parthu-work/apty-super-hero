@@ -114,12 +114,16 @@ describe("DOM health store", () => {
 
     store.stop();
     expect(options()?.signal?.aborted).toBe(true);
-    expect(store.getState().running).toBe("application");
+    expect(store.getState()).toMatchObject({
+      running: "application",
+      stopping: true,
+    });
 
     app.resolve({ available: true, stopped: true, score: 70 } as never);
     await settled();
     expect(store.getState()).toMatchObject({
       running: null,
+      stopping: false,
       progress: null,
       scope: "application",
       appOutcome: { stopped: true, score: 70 },

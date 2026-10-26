@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
+import { DownloadIcon } from "lucide-react";
 import { useState } from "react";
 
 export interface ValidationBundleSources {
@@ -69,6 +70,7 @@ function download(json: string) {
   URL.revokeObjectURL(url);
 }
 
+/** The download icon in the DOM health page's header; the engineer reviews the JSON before it leaves. */
 export function ValidationBundleExport(sources: ValidationBundleSources) {
   const { t } = useTranslation();
   const [json, setJson] = useState<string | null>(null);
@@ -81,16 +83,17 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
   return (
     <>
       <Button
-        size="sm"
-        variant="link"
-        className="h-auto p-0 text-xs"
+        size="icon"
+        variant="ghost"
         disabled={!hasEvidence}
+        aria-label={t("investigation.bundle.export")}
+        title={t("investigation.bundle.export")}
         onClick={() => {
           setCopied(false);
           setJson(validationBundleJson(sources));
         }}
       >
-        {t("investigation.bundle.export")}
+        <DownloadIcon />
       </Button>
       <Dialog
         open={json !== null}

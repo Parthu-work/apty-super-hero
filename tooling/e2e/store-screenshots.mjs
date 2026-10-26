@@ -171,14 +171,13 @@ export async function captureStoreScreenshots() {
     );
     await panel.close();
 
-    // 3. A DOM Health audit of the page.
+    // 3. A DOM health check of the page.
     panel = await openSidePanel(browser, model, app);
     await openToolPage(panel, "DOM health");
+    await panel.getByRole("button", { name: "Check this page" }).click();
     await panel
-      .getByRole("button", { name: /check dom health/i })
-      .first()
-      .click();
-    await panel.getByText(/score/i).first().waitFor({ timeout: 60_000 });
+      .getByRole("button", { name: "Full breakdown" })
+      .waitFor({ timeout: 60_000 });
     await panel.waitForTimeout(1000);
     await compose(
       browser,
