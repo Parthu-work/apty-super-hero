@@ -37,3 +37,18 @@ describe("Notice", () => {
     );
   });
 });
+
+describe("Notice — its own icon", () => {
+  it("draws the icon it is given in place of the tone's", () => {
+    const Shield = (props: { className?: string }) => (
+      <svg data-testid="shield" {...props} />
+    );
+    render(
+      <Notice tone="warning" icon={Shield}>
+        Allow fill_form?
+      </Notice>,
+    );
+
+    expect(screen.getByTestId("shield")).toHaveAttribute("aria-hidden", "true");
+  });
+});

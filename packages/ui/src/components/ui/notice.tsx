@@ -44,6 +44,7 @@ function Notice({
   tone,
   title,
   action,
+  icon: CustomIcon,
   className,
   children,
   ...props
@@ -51,8 +52,11 @@ function Notice({
   tone: NoticeTone;
   title?: React.ReactNode;
   action?: React.ReactNode;
+  /** In place of the tone's own icon, such as a shield for an approval. */
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
-  const { box, icon, Icon } = TONES[tone];
+  const { box, icon, Icon: ToneIcon } = TONES[tone];
+  const Icon = CustomIcon ?? ToneIcon;
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
