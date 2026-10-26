@@ -1656,5 +1656,29 @@
     "close": "Close",
     "escapeKey": "Esc",
     "label": "Tools, investigations and skills"
+  },
+  "connections": {
+    "setupCount": "{{count}} to set up",
+    "providerFirst": "Set up the AI provider first to start chatting.",
+    "needsSetup": "Needs setup",
+    "ready": "Ready",
+    "providerBody": "Bring your own API key to use the chat.",
+    "change": "Change",
+    "notConnected": "Not connected",
+    "connected": "Connected",
+    "notAnswering": "Not answering",
+    "clientBody": "Lets the agent read the widget's network calls and logs.",
+    "clientPlaceholder": "Paste the Client's extension ID",
+    "clientAllowList": "Add this panel's ID to the Client's allow-list",
+    "clientConnect": "Connect Apty Client",
+    "studioTitle": "Apty Studio",
+    "studioBody": "Lets the agent read Apty Studio's service-worker status and logs.",
+    "studioPlaceholder": "Paste Studio's extension ID",
+    "studioAllowList": "Add this panel's ID to Studio's allow-list",
+    "studioConnect": "Connect Apty Studio",
+    "invalidId": "Enter the full ID.",
+    "copyId": "Copy ID",
+    "siteTitle": "This site",
+    "openAll": "Open all connection settings"
   }
 }

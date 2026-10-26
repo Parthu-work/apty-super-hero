@@ -21,28 +21,25 @@ import {
 } from "@apty/ui/components/ui/dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
-import { CheckIcon, TriangleAlertIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import { useState } from "react";
+import { navigationStore, useNavigation } from "../../state/navigation-store";
+import { SetupBadge } from "../connections/setup-badge";
+import { useReadiness } from "../connections/use-readiness";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
-import { useCurrentTarget } from "./use-current-target";
 import { useInvestigationData } from "./use-investigation-data";
 
-/**
- * `trailing` sits at the right end of the quiet bar (the setup badge).
- */
-export function InvestigationContextBar({
-  trailing,
-}: {
-  trailing?: ReactNode;
-} = {}) {
+/** The quiet bar ends with the setup badge, which opens Connections (whose own header shows the count). */
+export function InvestigationContextBar() {
   const { sessionId, status, interrupt } = useChatContext();
   const { t } = useTranslation();
   const isActive =
     status === "streaming" ||
     status === "submitted" ||
     status === "executing_tools";
-  const target = useCurrentTarget(sessionId);
+  const { target, setupCount } = useReadiness();
+  const { page } = useNavigation();
   const { investigation } = useInvestigationData(sessionId, isActive);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [, forceRerender] = useState(0);
@@ -64,28 +61,49 @@ export function InvestigationContextBar({
   };
 
   if (!isLive) {
-    const StateIcon = target.inspectable ? CheckIcon : TriangleAlertIcon;
+    const StateIcon = target.checking
+      ? LoaderIcon
+      : target.inspectable
+        ? CheckIcon
+        : TriangleAlertIcon;
     return (
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
         <StateIcon
           aria-hidden="true"
           className={cn(
             "size-4 shrink-0",
-            target.inspectable ? "text-success" : "text-warning",
+            target.checking
+              ? "text-muted-foreground"
+              : target.inspectable
+                ? "text-success"
+                : "text-warning",
           )}
         />
         <span className="sr-only">
-          {t(target.inspectable ? "shell.canInspect" : "shell.cantInspect")}
+          {t(
+            target.checking
+              ? "readiness.state.checking"
+              : target.inspectable
+                ? "shell.canInspect"
+                : "shell.cantInspect",
+          )}
         </span>
-        <span className="shrink-0 truncate text-sm font-medium text-foreground">
-          {target.hostname ?? t("shell.noPage")}
+        <span className="min-w-0 truncate text-sm font-medium text-foreground">
+          {target.hostname ?? (target.checking ? "" : t("shell.noPage"))}
         </span>
         {target.title && (
           <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
             {target.title}
           </span>
         )}
-        {trailing && <span className="ml-auto shrink-0">{trailing}</span>}
+        {setupCount > 0 && page !== "connections" && (
+          <span className="ml-auto shrink-0">
+            <SetupBadge
+              count={setupCount}
+              onClick={() => navigationStore.openPage("connections")}
+            />
+          </span>
+        )}
       </div>
     );
   }

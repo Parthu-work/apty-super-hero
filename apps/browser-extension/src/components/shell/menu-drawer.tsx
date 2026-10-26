@@ -27,6 +27,7 @@ import {
   type ToolPage,
   useNavigation,
 } from "../../state/navigation-store";
+import { SetupBadge } from "../connections/setup-badge";
 import { revealDomConfigCard } from "../investigation/dom-config/dom-config-store";
 import { relativeTime } from "./relative-time";
 
@@ -43,8 +44,9 @@ export interface MenuDrawerProps {
   onConversationDeleted: (conversationId: string) => void;
   /** Sends a guided prompt, as the welcome screen's suggestions do. */
   onSendPrompt: (text: string) => void;
-  onOpenConnections: () => void;
   onOpenSettings: () => void;
+  /** Warnings the Connections row's badge counts. */
+  setupCount: number;
 }
 
 function Caption({ children }: { children: string }) {
@@ -62,8 +64,8 @@ export function MenuDrawer({
   onSelectConversation,
   onConversationDeleted,
   onSendPrompt,
-  onOpenConnections,
   onOpenSettings,
+  setupCount,
 }: MenuDrawerProps) {
   const { t } = useTranslation();
   const { drawerOpen, page } = useNavigation();
@@ -219,8 +221,9 @@ export function MenuDrawer({
             <ListRow
               icon={<PlugIcon />}
               label={t("shell.connections")}
+              trailing={<SetupBadge count={setupCount} />}
               aria-current={page === "connections" ? "page" : undefined}
-              onClick={run(onOpenConnections)}
+              onClick={() => openTool("connections")}
             />
             <ListRow
               icon={<SettingsIcon />}

@@ -1656,5 +1656,29 @@
     "close": "关闭",
     "escapeKey": "Esc",
     "label": "工具、调查和技能"
+  },
+  "connections": {
+    "setupCount": "{{count}} 项待设置",
+    "providerFirst": "请先设置 AI 服务商，然后开始对话。",
+    "needsSetup": "需要设置",
+    "ready": "就绪",
+    "providerBody": "使用您自己的 API 密钥来使用对话。",
+    "change": "更改",
+    "notConnected": "未连接",
+    "connected": "已连接",
+    "notAnswering": "无响应",
+    "clientBody": "让助手读取 Widget 的网络调用和日志。",
+    "clientPlaceholder": "粘贴 Client 的扩展 ID",
+    "clientAllowList": "将此面板的 ID 添加到 Client 的允许列表",
+    "clientConnect": "连接 Apty Client",
+    "studioTitle": "Apty Studio",
+    "studioBody": "让助手读取 Apty Studio 的 Service Worker 状态和日志。",
+    "studioPlaceholder": "粘贴 Studio 的扩展 ID",
+    "studioAllowList": "将此面板的 ID 添加到 Studio 的允许列表",
+    "studioConnect": "连接 Apty Studio",
+    "invalidId": "请输入完整的 ID。",
+    "copyId": "复制 ID",
+    "siteTitle": "此站点",
+    "openAll": "打开全部连接设置"
   }
 }

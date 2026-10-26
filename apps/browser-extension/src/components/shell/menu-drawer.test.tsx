@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -30,8 +31,8 @@ function setup(overrides: Partial<MenuDrawerProps> = {}) {
     onSelectConversation: vi.fn(),
     onConversationDeleted: vi.fn(),
     onSendPrompt: vi.fn(),
-    onOpenConnections: vi.fn(),
     onOpenSettings: vi.fn(),
+    setupCount: 0,
     ...overrides,
   };
   render(
@@ -168,6 +169,28 @@ describe("MenuDrawer", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Menu" })).toHaveFocus(),
     );
+  });
+
+  it("opens Connections as a page, with the setup badge only when something needs setting up", async () => {
+    setup({ setupCount: 2 });
+    let menu = await openMenu();
+    const connections = within(menu).getByRole("button", {
+      name: /^Connections/,
+    });
+    expect(connections).toHaveTextContent("2 to set up");
+    fireEvent.click(connections);
+    expect(navigationStore.getState()).toMatchObject({
+      page: "connections",
+      origin: "menu",
+      drawerOpen: false,
+    });
+
+    cleanup();
+    setup({ setupCount: 0 });
+    menu = await openMenu();
+    expect(
+      within(menu).getByRole("button", { name: /^Connections/ }),
+    ).not.toHaveTextContent("to set up");
   });
 
   it("marks the open tool page as current", async () => {

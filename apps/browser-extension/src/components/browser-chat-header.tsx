@@ -20,6 +20,7 @@ import {
   toStorageFormat,
 } from "../services/message-adapter";
 import { navigationStore, useNavigation } from "../state/navigation-store";
+import { useReadiness } from "./connections/use-readiness";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
 import { MenuDrawer } from "./shell/menu-drawer";
 
@@ -44,6 +45,7 @@ export function BrowserChatHeader({
     sendMessage,
   } = useChatContext();
   const { page, drawerOpen } = useNavigation();
+  const { setupCount } = useReadiness();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const [currentConversationId, setCurrentConversationId] = useState<
@@ -238,8 +240,8 @@ export function BrowserChatHeader({
           if (id === currentConversationId) startFreshChat();
         }}
         onSendPrompt={(text) => void sendMessage(text)}
-        onOpenConnections={() => void openOptions({ tab: "connection" })}
         onOpenSettings={() => void openOptions()}
+        setupCount={setupCount}
       />
     </div>
   );

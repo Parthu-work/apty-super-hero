@@ -38,6 +38,10 @@ vi.mock("./investigation/investigation-context-bar", () => ({
   InvestigationContextBar: () => null,
 }));
 
+vi.mock("./connections/use-readiness", () => ({
+  useReadiness: () => ({ setupCount: 2 }),
+}));
+
 import { BrowserChatHeader } from "./browser-chat-header";
 
 function userMessage(id: string) {
@@ -163,5 +167,11 @@ describe("BrowserChatHeader — Menu", () => {
 
     expect(navigationStore.getState().drawerOpen).toBe(true);
     expect(menu).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("gives the menu the setup count for its Connections badge", () => {
+    chat("idle");
+    render(<BrowserChatHeader />);
+    expect(menuDrawerProps.current).toMatchObject({ setupCount: 2 });
   });
 });

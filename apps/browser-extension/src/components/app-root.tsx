@@ -40,6 +40,7 @@ import { BrowserContextLoader } from "./browser-context-loader";
 import { BrowserMessageActions } from "./browser-message-actions";
 import { BrowserMessageList } from "./browser-message-list";
 import { ChatImagesListener } from "./chat-images-listener";
+import { ConnectionsPage } from "./connections/connections-page";
 import { InterventionUI } from "./intervention-ui";
 import {
   AptyToolDisplay,
@@ -306,6 +307,11 @@ function ChatApp() {
                         />
                       </ToolPageShell>
                     ),
+                  },
+                  {
+                    id: "connections",
+                    label: t("shell.connections"),
+                    content: <ConnectionsPage />,
                   },
                 ]}
               />
