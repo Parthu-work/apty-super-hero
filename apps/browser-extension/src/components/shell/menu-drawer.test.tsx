@@ -244,7 +244,7 @@ describe("MenuDrawer", () => {
         name: /^Why isn't my Apty Widget showing\?/,
       }),
     ).toHaveTextContent(
-      /^AWhy isn't my Apty Widget showing\?app\.example\.com · 12 min ago$/,
+      /^Why isn't my Apty Widget showing\?aapp\.example\.com · 12 min ago$/,
     );
     expect(
       within(menu).getByRole("button", { name: /^Is this selector reliable/ }),
