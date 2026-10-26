@@ -64,6 +64,18 @@ export async function setAptyIntegrationConfig(
   await enqueue(() => chrome.storage.local.set({ [STORAGE_KEY]: config }));
 }
 
+/** Calls `listener` whenever the stored config changes, from any extension page; returns the unsubscribe. */
+export function watchAptyIntegrationConfig(listener: () => void): () => void {
+  const onChanged = (
+    changes: Record<string, chrome.storage.StorageChange>,
+    area: string,
+  ) => {
+    if (area === "local" && STORAGE_KEY in changes) listener();
+  };
+  chrome.storage.onChanged.addListener(onChanged);
+  return () => chrome.storage.onChanged.removeListener(onChanged);
+}
+
 /**
  * Merge `patch` into the current stored config and return the result.
  * A key explicitly set to `undefined` in `patch` clears that key (e.g. the

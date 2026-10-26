@@ -1,7 +1,12 @@
 import {
+  getAptyIntegrationConfig,
+  updateAptyIntegrationConfig,
+} from "@apty/browser-runtime";
+import {
   type AptyPeer,
   allowListFix,
   PEER_NAMES,
+  peerExtensionIdPatch,
 } from "@apty/browser-runtime/apty/peers";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "@apty/browser-runtime/apty/service-worker-diagnostics";
 
@@ -50,4 +55,22 @@ export async function checkPeer(
 
 export function checkClient(id: string): Promise<ClientCheck> {
   return checkPeer("client", id);
+}
+
+/**
+ * Checks the peer at `id`, then saves the ID unless no such extension is
+ * installed (a peer that does not answer yet is saved, so it can be fixed
+ * on its side). Options and the side panel's Connections page both use it.
+ */
+export async function connectPeer(
+  peer: AptyPeer,
+  id: string,
+): Promise<ClientCheck> {
+  const result = await checkPeer(peer, id);
+  if (result.status !== "error") {
+    await updateAptyIntegrationConfig(
+      peerExtensionIdPatch(await getAptyIntegrationConfig(), peer, id),
+    );
+  }
+  return result;
 }

@@ -47,7 +47,11 @@ import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import { CheckCircle2, Info, Loader2, Plug, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { type ClientCheck, checkPeer } from "../../services/apty-client-check";
+import {
+  type ClientCheck,
+  checkPeer,
+  connectPeer,
+} from "../../services/apty-client-check";
 import { requestOptionalPermission } from "../../services/optional-permissions";
 import { ClientNetworkCallsPanel } from "./client-network-calls-panel";
 
@@ -209,12 +213,10 @@ function AptyPeerPanel({ peer }: { peer: AptyPeer }) {
       });
       return;
     }
-    const result = await runCheck(id);
-    if (result.status === "error") return;
-    await updateAptyIntegrationConfig(
-      peerExtensionIdPatch(await getAptyIntegrationConfig(), peer, id),
-    );
-    setSaved(id);
+    setCheck({ status: "checking" });
+    const result = await connectPeer(peer, id);
+    setCheck(result);
+    if (result.status !== "error") setSaved(id);
   };
 
   const handleDetect = async () => {

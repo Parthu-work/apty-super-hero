@@ -36,6 +36,7 @@ export {
   seedAptyIntegrationConfigDefaults,
   setAptyIntegrationConfig,
   updateAptyIntegrationConfig,
+  watchAptyIntegrationConfig,
 } from "./config.js";
 export * from "./dom-config/index.js";
 export type { DomHealthAuditOutcome } from "./dom-health.js";
@@ -100,7 +101,6 @@ export {
   getActiveExtensionConnectionCount,
   getExtensionConnectionStatus,
   inspectResource,
-  isValidExtensionId,
   listObservedResources,
   listServiceWorkerLogs,
   MAX_INLINE_BODY_CHARS,
@@ -191,6 +191,7 @@ export {
 export {
   type AptyPeer,
   allowListFix,
+  isValidExtensionId,
   PEER_NAMES,
   peerExtensionId,
   peerExtensionIdPatch,
