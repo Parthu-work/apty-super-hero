@@ -107,8 +107,17 @@ export function DefaultMessageItem({
     (part): part is UISourceUrlPart => part.type === "source-url",
   );
 
+  // The user's chips and attachments sit under their words.
+  const parts =
+    message.role === "user"
+      ? [
+          ...message.parts.filter((part) => part.type === "text"),
+          ...message.parts.filter((part) => part.type !== "text"),
+        ]
+      : message.parts;
+
   return (
-    <div className={className} {...props}>
+    <div className={cn("space-y-2", className)} {...props}>
       {/* Sources */}
       {message.role === "assistant" && sourceUrls.length > 0 && (
         <Sources>
@@ -122,7 +131,7 @@ export function DefaultMessageItem({
       )}
 
       {/* Message parts */}
-      {message.parts.map((part, i) => {
+      {parts.map((part, i) => {
         const key = `${message.id}-${i}`;
 
         switch (part.type) {
@@ -211,40 +220,44 @@ export function DefaultMessageItem({
 
           case "file":
             return (
-              <Message
+              <div
                 key={key}
-                from={message.role as "user" | "assistant" | "system"}
+                className={cn(
+                  "flex w-full",
+                  message.role === "user" ? "justify-end" : "justify-start",
+                )}
               >
-                <MessageContent>
-                  {part.mediaType.startsWith("image/") &&
-                  isLocalImageUrl(part.url) ? (
-                    <div className="max-w-md">
-                      <img
-                        src={part.url}
-                        alt={part.filename || t("chat.attachedImage")}
-                        className="rounded-lg border border-border"
-                      />
-                      {part.filename && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {part.filename}
-                        </p>
-                      )}
+                {part.mediaType.startsWith("image/") &&
+                isLocalImageUrl(part.url) ? (
+                  <figure className="max-w-[85%]">
+                    <img
+                      src={part.url}
+                      alt={part.filename || t("chat.attachedImage")}
+                      className="rounded-md border border-border"
+                    />
+                    {part.filename && (
+                      <figcaption className="mt-1 text-xs text-muted-foreground">
+                        {part.filename}
+                      </figcaption>
+                    )}
+                  </figure>
+                ) : (
+                  <div className="flex max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+                    <PaperclipIcon
+                      aria-hidden="true"
+                      className="size-4 shrink-0 text-muted-foreground"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">
+                        {part.filename || t("chat.attachedFile")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {part.mediaType}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-lg border border-border p-3">
-                      <PaperclipIcon className="size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0">
-                        <p className="text-sm truncate">
-                          {part.filename || t("chat.attachedFile")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {part.mediaType}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </MessageContent>
-              </Message>
+                  </div>
+                )}
+              </div>
             );
 
           case "tool":
@@ -278,25 +291,24 @@ export function DefaultMessageItem({
               <div
                 key={key}
                 className={cn(
-                  "flex w-full items-end gap-2 py-2",
-                  message.role === "user"
-                    ? "justify-end"
-                    : "flex-row-reverse justify-end",
+                  "flex w-full",
+                  message.role === "user" ? "justify-end" : "justify-start",
                 )}
               >
-                <div className="flex items-center gap-2 max-w-[80%] px-3 py-1.5 text-sm rounded-md bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-colors">
-                  <ContextIcon className="size-3.5 shrink-0 text-primary" />
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="font-medium text-foreground truncate">
-                      {part.label}
+                <div className="flex min-w-0 max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-small">
+                  <ContextIcon
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                  />
+                  <span className="truncate font-medium text-foreground">
+                    {part.label}
+                  </span>
+                  {Boolean(part.metadata?.["url"]) && (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {String(part.metadata?.["url"])}
                     </span>
-                    {Boolean(part.metadata?.["url"]) && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {String(part.metadata?.["url"])}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground bg-background/50 px-1.5 py-0.5 rounded flex-shrink-0">
+                  )}
+                  <span className="shrink-0 rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">
                     {part.contextType}
                   </span>
                 </div>

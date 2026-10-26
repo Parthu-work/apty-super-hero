@@ -331,3 +331,33 @@ describe("DefaultMessageItem — a failed turn", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("DefaultMessageItem — the user's message", () => {
+  it("puts the words in a quiet bubble and the context chips under it, in the order sent", () => {
+    const { container } = render(
+      <DefaultMessageItem
+        message={{
+          id: "msg-user",
+          role: "user",
+          parts: [
+            {
+              type: "context",
+              contextType: "custom",
+              label: "DOM health result",
+              value: "{}",
+            },
+            { type: "text", text: "What should we fix first?" },
+          ],
+        }}
+      />,
+    );
+
+    const words = screen.getByText("What should we fix first?");
+    const chip = screen.getByText("DOM health result");
+    expect(
+      words.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(container.querySelector(".is-user")).not.toBeNull();
+    expect(container.querySelector(".bg-primary")).toBeNull();
+  });
+});

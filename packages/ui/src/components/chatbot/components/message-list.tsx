@@ -85,7 +85,7 @@ export function DefaultMessageList({
   return (
     <div className={cn("min-w-0 flex-1 overflow-hidden", className)} {...props}>
       <Conversation className="h-full">
-        <ConversationContent>
+        <ConversationContent className="space-y-4">
           {/* Before messages slot - for banners, announcements */}
           {slots.beforeMessages?.()}
           {displayMessages.length === 0 ? (
@@ -101,7 +101,7 @@ export function DefaultMessageList({
                 ? turn.userMessage.id
                 : (turn.assistantMessages[0]?.id ?? "");
               return (
-                <div key={turnKey}>
+                <div key={turnKey} className="space-y-2">
                   {/* Render user message */}
                   {turn.userMessage && (
                     <MessageItem
@@ -126,7 +126,7 @@ export function DefaultMessageList({
                         return (
                           <>
                             {/* Intermediate messages – collapsed by default */}
-                            <Collapsible defaultOpen={false} className="mb-2">
+                            <Collapsible defaultOpen={false}>
                               <CollapsibleTrigger className="group flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                                 <BrainIcon
                                   aria-hidden="true"

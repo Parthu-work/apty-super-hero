@@ -160,3 +160,21 @@ describe("Response — model output never loads a remote resource", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 });
+
+describe("Response — boxes that scroll sideways", () => {
+  it("lets the keyboard reach a table's scroller", async () => {
+    const { container } = render(
+      <Response>
+        {"| Selector | Matches |\n| --- | --- |\n| `#submit` | 1 |"}
+      </Response>,
+    );
+
+    await vi.waitFor(() => {
+      const scroller = container.querySelector(
+        '[data-streamdown="table-wrapper"] > div:last-child',
+      );
+      expect(scroller?.querySelector("table")).not.toBeNull();
+      expect(scroller).toHaveAttribute("tabindex", "0");
+    });
+  });
+});

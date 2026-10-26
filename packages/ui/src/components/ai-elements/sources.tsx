@@ -14,7 +14,7 @@ type SourcesProps = ComponentProps<"div">;
 
 export const Sources = ({ className, ...props }: SourcesProps) => (
   <Collapsible
-    className={cn("not-prose mb-4 text-primary text-xs", className)}
+    className={cn("not-prose text-sm text-info", className)}
     {...props}
   />
 );
@@ -32,13 +32,21 @@ export const SourcesTrigger = ({
   const { t } = useTranslation();
   return (
     <CollapsibleTrigger
-      className={cn("flex items-center gap-2", className)}
+      className={cn(
+        "group flex items-center gap-2 rounded-sm outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        className,
+      )}
       {...props}
     >
       {children ?? (
         <>
-          <p className="font-medium">{t("chat.usedSources", { count })}</p>
-          <ChevronDownIcon className="h-4 w-4" />
+          <span className="font-medium">
+            {t("chat.usedSources", { count })}
+          </span>
+          <ChevronDownIcon
+            aria-hidden="true"
+            className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+          />
         </>
       )}
     </CollapsibleTrigger>
@@ -52,11 +60,7 @@ export const SourcesContent = ({
   ...props
 }: SourcesContentProps) => (
   <CollapsibleContent
-    className={cn(
-      "mt-3 flex w-fit flex-col gap-2",
-      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-      className,
-    )}
+    className={cn("mt-2 flex w-fit flex-col gap-2", className)}
     {...props}
   />
 );
@@ -65,7 +69,7 @@ type SourceProps = ComponentProps<"a">;
 
 export const Source = ({ href, title, children, ...props }: SourceProps) => (
   <a
-    className="flex items-center gap-2"
+    className="flex items-center gap-2 rounded-sm text-info underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     href={href}
     rel="noreferrer"
     target="_blank"
@@ -73,8 +77,8 @@ export const Source = ({ href, title, children, ...props }: SourceProps) => (
   >
     {children ?? (
       <>
-        <BookIcon className="h-4 w-4" />
-        <span className="block font-medium">{title}</span>
+        <BookIcon aria-hidden="true" className="size-4 shrink-0" />
+        <span className="block break-all">{title}</span>
       </>
     )}
   </a>
