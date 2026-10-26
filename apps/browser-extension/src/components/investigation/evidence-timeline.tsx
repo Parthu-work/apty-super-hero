@@ -6,38 +6,66 @@
  * the "likely related incident" badge only ever reflects
  * `cluster.likelySameIncident`.
  *
- * Visual hierarchy: each cluster surfaces its plain-language `summary` as
- * the headline "Observation" — the thing a non-developer reads first — with
- * the underlying `evidence` records available underneath as the "Evidence"
- * that backs it, collapsed by default behind an explicit "View details"
- * affordance.
+ * Each cluster is a node on a vertical line: its time, the icons of its
+ * sources, and a card whose headline is the cluster's plain-language
+ * `summary`. The evidence that backs it sits behind one "View details".
  */
 
 import type {
   CorrelationCluster,
   DiagnosticEvidence,
 } from "@apty/browser-runtime";
-import { CodeBlock } from "@apty/ui/components/ai-elements/code-block";
-import { Badge } from "@apty/ui/components/ui/badge";
+import { StatusBadge } from "@apty/ui/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@apty/ui/components/ui/collapsible";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { cn } from "@apty/ui/lib/utils";
-import { ChevronDownIcon, TriangleAlertIcon } from "lucide-react";
-import { toneBadgeClass, toneTextClass } from "./tone-classes";
+import type { TranslationKey } from "@apty/ui/i18n/types";
+import {
+  BoxIcon,
+  ChevronDownIcon,
+  CircleAlertIcon,
+  CodeXmlIcon,
+  CogIcon,
+  CpuIcon,
+  GlobeIcon,
+  LinkIcon,
+  MousePointerClickIcon,
+  PuzzleIcon,
+  TerminalIcon,
+} from "lucide-react";
+import type { ComponentType } from "react";
+import { JsonTree } from "./json-tree";
 
-const SOURCE_ICON: Record<DiagnosticEvidence["source"], string> = {
-  dom: "🧱",
-  console: "🖥",
-  network: "🌐",
-  runtime: "🖥",
-  "apty-client": "🧠",
-  "apty-widget": "🧩",
-  "apty-studio": "🎯",
-  "service-worker": "⚙️",
+const SOURCE_META: Record<
+  DiagnosticEvidence["source"],
+  { Icon: ComponentType<{ className?: string }>; label: TranslationKey }
+> = {
+  dom: { Icon: CodeXmlIcon, label: "investigation.timeline.source.dom" },
+  console: {
+    Icon: TerminalIcon,
+    label: "investigation.timeline.source.console",
+  },
+  network: { Icon: GlobeIcon, label: "investigation.timeline.source.network" },
+  runtime: { Icon: CpuIcon, label: "investigation.timeline.source.runtime" },
+  "apty-client": {
+    Icon: BoxIcon,
+    label: "investigation.timeline.source.aptyClient",
+  },
+  "apty-widget": {
+    Icon: PuzzleIcon,
+    label: "investigation.timeline.source.aptyWidget",
+  },
+  "apty-studio": {
+    Icon: MousePointerClickIcon,
+    label: "investigation.timeline.source.aptyStudio",
+  },
+  "service-worker": {
+    Icon: CogIcon,
+    label: "investigation.timeline.source.serviceWorker",
+  },
 };
 
 function formatClockTime(timestampMs: number): string {
@@ -54,84 +82,94 @@ function isFailure(type: string): boolean {
   return /error|fail|exception|reject/i.test(type);
 }
 
-function EvidenceRow({ item }: { item: DiagnosticEvidence }) {
+function EvidenceItem({ item }: { item: DiagnosticEvidence }) {
   const { t } = useTranslation();
+  const source = SOURCE_META[item.source];
+  const failed = isFailure(item.type);
   return (
-    <Collapsible>
-      <CollapsibleTrigger className="group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted/40">
-        <span aria-hidden="true">{SOURCE_ICON[item.source] ?? "•"}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className={cn(
-                "truncate font-medium",
-                isFailure(item.type) && toneTextClass("danger"),
-              )}
-            >
-              {item.type}
+    <li className="space-y-1 py-2">
+      <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+        {failed && (
+          <>
+            <CircleAlertIcon
+              aria-hidden="true"
+              className="size-3.5 shrink-0 text-destructive"
+            />
+            <span className="font-medium text-destructive">
+              {t("investigation.timeline.failure")}
             </span>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {formatClockTime(item.timestamp)}
-            </span>
-          </div>
-          {item.url && (
-            <p className="truncate text-xs text-muted-foreground">{item.url}</p>
-          )}
-        </div>
-        <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
-          <span className="hidden group-data-[state=closed]:inline">
-            {t("investigation.timeline.viewDetails")}
-          </span>
-          <span className="hidden group-data-[state=open]:inline">
-            {t("investigation.timeline.hide")}
-          </span>
-          <ChevronDownIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-180" />
-        </span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-1 pb-1 pl-8 pr-2">
-        <p className="text-xs font-medium text-muted-foreground">
-          {t("investigation.timeline.rawData")}
+            <span aria-hidden="true">·</span>
+          </>
+        )}
+        <span>{source ? t(source.label) : item.source}</span>
+        <span aria-hidden="true">·</span>
+        <span className="font-mono">{item.type}</span>
+        <span aria-hidden="true">·</span>
+        <time className="font-mono">{formatClockTime(item.timestamp)}</time>
+      </p>
+      {item.url && (
+        <p className="break-all font-mono text-xs text-muted-foreground">
+          {item.url}
         </p>
-        <CodeBlock code={JSON.stringify(item.data, null, 2)} language="json" />
-      </CollapsibleContent>
-    </Collapsible>
+      )}
+      <JsonTree value={item.data} />
+    </li>
   );
 }
 
 function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
   const { t } = useTranslation();
+  const sources = [...new Set(cluster.evidence.map((e) => e.source))];
   return (
-    <li className="overflow-hidden rounded-md border bg-card">
-      <div className="space-y-1 p-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t("investigation.timeline.observation", {
-              time: formatClockTime(cluster.startTimestamp),
-            })}
-          </span>
-          {cluster.likelySameIncident && (
-            <Badge
-              className={cn("gap-1", toneBadgeClass("warning"))}
-              variant="outline"
-            >
-              <TriangleAlertIcon className="size-3" />
-              {t("investigation.timeline.likelyRelated")}
-            </Badge>
-          )}
-        </div>
-        <p className="text-sm font-medium leading-snug">{cluster.summary}</p>
-      </div>
-      <div className="border-t px-2 py-1.5">
-        <p className="mb-1 text-xs font-medium text-muted-foreground">
-          {t("investigation.timeline.evidence", {
-            count: cluster.evidence.length,
-          })}
-        </p>
-        <div className="divide-y divide-border/60">
-          {cluster.evidence.map((item) => (
-            <EvidenceRow key={item.evidenceId} item={item} />
-          ))}
-        </div>
+    <li className="relative space-y-1.5">
+      <span
+        aria-hidden="true"
+        className="absolute top-0.5 -left-5 size-3 rounded-full border-2 border-input bg-background"
+      />
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <time className="font-mono">
+          {formatClockTime(cluster.startTimestamp)}
+        </time>
+        {sources.map((source) => {
+          const Icon = SOURCE_META[source]?.Icon ?? LinkIcon;
+          return <Icon key={source} aria-hidden="true" className="size-3.5" />;
+        })}
+      </p>
+      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+        <h4 className="text-sm font-medium text-foreground">
+          {cluster.summary}
+        </h4>
+        {cluster.likelySameIncident && (
+          <StatusBadge tone="info" icon={LinkIcon}>
+            {t("investigation.timeline.likelyRelated")}
+          </StatusBadge>
+        )}
+        <Collapsible>
+          <CollapsibleTrigger className="group flex items-center gap-1 rounded-sm text-xs font-medium text-info outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            <span className="group-data-[state=open]:hidden">
+              {t("investigation.timeline.viewDetails")}
+            </span>
+            <span className="hidden group-data-[state=open]:inline">
+              {t("investigation.timeline.hide")}
+            </span>
+            <span className="text-muted-foreground">
+              {t("investigation.timeline.evidence", {
+                count: cluster.evidence.length,
+              })}
+            </span>
+            <ChevronDownIcon
+              aria-hidden="true"
+              className="size-3.5 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="divide-y divide-border">
+              {cluster.evidence.map((item) => (
+                <EvidenceItem key={item.evidenceId} item={item} />
+              ))}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </li>
   );
@@ -145,14 +183,17 @@ export function EvidenceTimeline({
   const { t } = useTranslation();
   if (clusters.length === 0) {
     return (
-      <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+      <p className="py-2 text-sm text-muted-foreground">
         {t("investigation.timeline.none")}
       </p>
     );
   }
 
   return (
-    <ol className="space-y-2" aria-label={t("investigation.timeline.label")}>
+    <ol
+      className="relative space-y-4 pl-5 before:absolute before:top-2 before:bottom-2 before:left-1.5 before:w-px before:bg-border"
+      aria-label={t("investigation.timeline.label")}
+    >
       {clusters.map((cluster) => (
         <TimelineCluster key={cluster.clusterId} cluster={cluster} />
       ))}

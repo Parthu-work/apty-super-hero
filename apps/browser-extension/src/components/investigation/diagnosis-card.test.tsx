@@ -41,10 +41,66 @@ describe("DiagnosisCard", () => {
       />,
     );
 
-    expect(screen.getByText("LIKELY")).toBeInTheDocument();
-    expect(screen.queryByText("CONFIRMED")).not.toBeInTheDocument();
+    expect(screen.getByText("Likely")).toBeInTheDocument();
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
     expect(
       screen.getByText("Widget init request returned HTTP 500"),
+    ).toBeInTheDocument();
+  });
+
+  it("gives each confidence its own weight, icon and word", () => {
+    const levels = ["confirmed", "likely", "possible", "unknown"] as const;
+    const badges = levels.map((confidence) => {
+      const { container, unmount } = render(
+        <DiagnosisCard
+          investigation={baseInvestigation({
+            diagnosis: "Widget init request returned HTTP 500",
+            confidence,
+          })}
+          onVerify={vi.fn()}
+        />,
+      );
+      const badge = container.querySelector("[data-weight]");
+      const shown = {
+        weight: badge?.getAttribute("data-weight"),
+        icon: badge?.querySelector("svg")?.getAttribute("class"),
+        word: badge?.textContent,
+      };
+      unmount();
+      return shown;
+    });
+
+    expect(badges.map((b) => b.weight)).toEqual([
+      "solid",
+      "tinted",
+      "outlined",
+      "dashed",
+    ]);
+    expect(badges.map((b) => b.word)).toEqual([
+      "Confirmed",
+      "Likely",
+      "Possible",
+      "Unknown",
+    ]);
+    expect(new Set(badges.map((b) => b.icon)).size).toBe(4);
+  });
+
+  it("shows a diagnosis recorded without a confidence as unknown, never higher", () => {
+    render(
+      <DiagnosisCard
+        investigation={baseInvestigation({
+          diagnosis: "Widget init request returned HTTP 500",
+        })}
+        onVerify={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Unknown")).toHaveAttribute(
+      "data-weight",
+      "dashed",
+    );
+    expect(
+      screen.getByText("Not enough evidence yet to point to a cause."),
     ).toBeInTheDocument();
   });
 

@@ -4,7 +4,17 @@
  * have to invent a label/color for a status themselves.
  */
 import type { InvestigationStatus } from "@apty/browser-runtime";
+import type { StatusTone } from "@apty/ui/components/ui/badge";
 import type { I18nContextValue, TranslationKey } from "@apty/ui/i18n/types";
+import {
+  CircleCheckIcon,
+  CircleDashedIcon,
+  CircleHelpIcon,
+  CircleMinusIcon,
+  CircleXIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import type { ComponentHealthState } from "./component-health";
 
 type Translate = I18nContextValue["t"];
@@ -69,6 +79,11 @@ const STATUS_META: Record<
   },
 };
 
+/** The `StatusBadge` tone for a status tone. */
+export function badgeTone(tone: StatusMeta["tone"]): StatusTone {
+  return tone === "active" ? "info" : tone;
+}
+
 export function describeInvestigationStatus(
   status: DisplayStatus,
   t: Translate,
@@ -83,37 +98,41 @@ export function isTerminalStatus(status: InvestigationStatus): boolean {
 
 const COMPONENT_HEALTH_META: Record<
   ComponentHealthState,
-  { label: TranslationKey; tone: StatusMeta["tone"]; symbol: string }
+  {
+    label: TranslationKey;
+    tone: StatusMeta["tone"];
+    Icon: ComponentType<{ className?: string }>;
+  }
 > = {
   healthy: {
     label: "statusMeta.componentHealth.healthy",
     tone: "success",
-    symbol: "✓",
+    Icon: CircleCheckIcon,
   },
   warning: {
     label: "statusMeta.componentHealth.warning",
     tone: "warning",
-    symbol: "⚠",
+    Icon: TriangleAlertIcon,
   },
   error: {
     label: "statusMeta.componentHealth.error",
     tone: "danger",
-    symbol: "✕",
+    Icon: CircleXIcon,
   },
   not_configured: {
     label: "statusMeta.componentHealth.notConfigured",
     tone: "neutral",
-    symbol: "?",
+    Icon: CircleMinusIcon,
   },
   not_detected: {
     label: "statusMeta.componentHealth.notDetected",
     tone: "neutral",
-    symbol: "?",
+    Icon: CircleHelpIcon,
   },
   not_checked: {
     label: "statusMeta.componentHealth.notChecked",
     tone: "neutral",
-    symbol: "·",
+    Icon: CircleDashedIcon,
   },
 };
 

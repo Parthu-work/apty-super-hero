@@ -1227,13 +1227,13 @@
       "networkPrompt": "What caused this network failure?"
     },
     "diagnosis": {
-      "confirmed": "CONFIRMED",
+      "confirmed": "Confirmed",
       "confirmedDescription": "Confirmed by a successful verification check.",
-      "likely": "LIKELY",
+      "likely": "Likely",
       "likelyDescription": "Strong evidence points here, but it hasn't been independently verified.",
-      "possible": "POSSIBLE",
+      "possible": "Possible",
       "possibleDescription": "One plausible explanation among others — treat as a lead, not a conclusion.",
-      "unknown": "UNKNOWN",
+      "unknown": "Unknown",
       "unknownDescription": "Not enough evidence yet to point to a cause.",
       "none": "No diagnosis yet. The agent records one here once it reaches a conclusion backed by evidence.",
       "whatHappened": "What happened",
@@ -1250,21 +1250,28 @@
     "timeline": {
       "viewDetails": "View details",
       "hide": "Hide",
-      "rawData": "Raw evidence data",
-      "observation": "Observation · {{time}}",
       "likelyRelated": "Likely related incident",
       "evidence": "Evidence ({{count}})",
       "none": "No evidence collected yet. Evidence appears here as the agent inspects the page, console, network, and Apty components.",
-      "label": "Investigation timeline"
+      "label": "Investigation timeline",
+      "failure": "Failure",
+      "source": {
+        "dom": "Page DOM",
+        "console": "Console",
+        "network": "Network",
+        "runtime": "Runtime",
+        "aptyClient": "Apty Client",
+        "aptyWidget": "Apty Widget",
+        "aptyStudio": "Apty Studio",
+        "serviceWorker": "Service worker"
+      }
     },
     "live": "Live investigation",
     "stopTitle": "Stop investigation?",
     "stopDescription": "Evidence collected so far will remain available in this conversation.",
     "summary": {
-      "statusLabel": "Investigation status: {{status}}. {{count}} evidence items collected{{warnings}}. Click to {{action}}.",
-      "componentWarnings": ", {{count}} component warnings",
-      "collapse": "collapse",
-      "expand": "expand",
+      "collapse": "Collapse",
+      "expand": "Expand",
       "title": "Investigation",
       "evidence": "{{count}} evidence",
       "needsAttentionOne": "{{count}} needs attention",
@@ -1273,12 +1280,28 @@
       "plan": "Plan",
       "timeline": "Timeline",
       "components": "Components",
-      "diagnosis": "Diagnosis"
+      "diagnosis": "Diagnosis",
+      "steps": "{{done}} of {{total}} steps",
+      "details": "Investigation details"
     },
     "jsonShowMore": "Show {{count}} more of {{total}}",
     "plan": {
       "none": "No plan generated for this investigation.",
-      "stepsDone": "{{done}}/{{total}} steps done"
+      "stepsDone": "{{done}} of {{total}} steps done",
+      "state": {
+        "pending": "pending",
+        "done": "done",
+        "skipped": "skipped"
+      },
+      "category": {
+        "generic": "General checklist",
+        "retrieveResourceData": "Retrieve resource data",
+        "tooltipNotShowing": "Tooltip not showing",
+        "studioCannotSelect": "Studio can't select an element",
+        "studioVsProduction": "Works in Studio, not in production",
+        "workflowNotTriggering": "Workflow not triggering",
+        "widgetNotLoading": "Widget not loading"
+      }
     },
     "response": {
       "unavailable": "The full response is no longer available in this session.",
@@ -1286,7 +1309,8 @@
       "view": "View full response",
       "size": "{{count}} characters · redaction {{mode}}",
       "copy": "Copy full response",
-      "download": "Download full response"
+      "download": "Download full response",
+      "body": "Full response"
     },
     "selector": {
       "recommended": "Recommended",

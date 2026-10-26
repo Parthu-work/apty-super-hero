@@ -144,7 +144,6 @@
     "framer-motion": "^12.35.1",
     "lucide-react": "^0.577.0",
     "nanoid": "^5.1.7",
-    "react-syntax-highlighter": "^16.1.1",
     "streamdown": "^2.3.0",
     "tailwind-merge": "^3.5.0",
     "use-stick-to-bottom": "^1.1.4"
@@ -160,7 +159,6 @@
     "@types/chrome": "0.1.38",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@types/react-syntax-highlighter": "^15.5.13",
     "@types/three": "^0.177.0",
     "ai": "^6.0.116",
     "axe-core": "4.13.0",

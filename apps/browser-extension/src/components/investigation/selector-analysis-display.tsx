@@ -6,24 +6,18 @@
  * to the default tool display for every other tool, in-flight states, and
  * errors, so nothing here can hide a real failure.
  *
- * The recommended selector is rendered as a visually dominant card (larger
- * type, tinted background, its full reasoning spelled out); every other
- * candidate gets a compact row with the same reliability meter so the whole
- * ranked list stays easy to scan at a glance.
+ * The recommended selector is a card with its reasoning spelled out; every
+ * other candidate gets a compact row with the same reliability meter so the
+ * whole ranked list stays easy to scan at a glance.
  */
-import { Badge } from "@apty/ui/components/ui/badge";
-import { Button } from "@apty/ui/components/ui/button";
+import { Badge, StatusBadge } from "@apty/ui/components/ui/badge";
+import { CopyButton } from "@apty/ui/components/ui/copy-button";
+import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
-import {
-  CheckCircle2Icon,
-  CopyIcon,
-  LayersIcon,
-  XCircleIcon,
-} from "lucide-react";
-import { useState } from "react";
+import { CircleXIcon, LayersIcon } from "lucide-react";
 import { toneDotClass, toneTextClass } from "./tone-classes";
 
 interface RankedSelectorCandidate {
@@ -83,6 +77,7 @@ const RISK_META: Record<
   high: { label: "investigation.selector.weak", bars: 1, tone: "danger" },
 };
 
+/** Three segments filled by the static risk, and the word for it. No number: the analysis has none. */
 function ReliabilityMeter({
   risk,
 }: {
@@ -91,43 +86,47 @@ function ReliabilityMeter({
   const { t } = useTranslation();
   const meta = RISK_META[risk];
   return (
-    <span
-      className="inline-flex items-center gap-1.5"
-      title={t("investigation.selector.reliability", {
-        level: t(meta.label).toLowerCase(),
-      })}
-    >
-      <span className="flex items-end gap-0.5" aria-hidden="true">
-        {[1, 2, 3].map((bar) => (
+    <span className="inline-flex items-center gap-2" data-risk={risk}>
+      <span className="flex gap-0.5" aria-hidden="true">
+        {[1, 2, 3].map((segment) => (
           <span
-            key={bar}
+            key={segment}
+            data-filled={segment <= meta.bars || undefined}
             className={cn(
-              "w-1 rounded-sm",
-              bar === 1 ? "h-1.5" : bar === 2 ? "h-2.5" : "h-3.5",
-              bar <= meta.bars ? toneDotClass(meta.tone) : "bg-muted",
+              "h-1.5 w-4 rounded-full",
+              segment <= meta.bars ? toneDotClass(meta.tone) : "bg-muted",
             )}
           />
         ))}
       </span>
-      <span className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
+      <span
+        aria-hidden="true"
+        className={cn("text-xs font-medium", toneTextClass(meta.tone))}
+      >
         {t(meta.label)}
+      </span>
+      <span className="sr-only">
+        {t("investigation.selector.reliability", {
+          level: t(meta.label).toLowerCase(),
+        })}
       </span>
     </span>
   );
 }
 
-function useCopySelector(selector: string) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(selector);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard access can be denied — the selector is still visible to copy manually.
-    }
-  };
-  return { copied, handleCopy };
+function MatchCount({ live }: { live: RankedSelectorCandidate["live"] }) {
+  const { t } = useTranslation();
+  if (!live) return null;
+  return (
+    <span className="text-xs text-muted-foreground">
+      {t(
+        live.matchCount === 1
+          ? "investigation.selector.matchesOne"
+          : "investigation.selector.matchesMany",
+        { count: live.matchCount },
+      )}
+    </span>
+  );
 }
 
 function RecommendedCandidate({
@@ -136,131 +135,72 @@ function RecommendedCandidate({
   candidate: RankedSelectorCandidate;
 }) {
   const { t } = useTranslation();
-  const { copied, handleCopy } = useCopySelector(candidate.selector);
-
   return (
-    <div className="rounded-lg border border-success/30 bg-success-muted p-3">
-      <div className="mb-2 flex items-center gap-1.5">
-        <CheckCircle2Icon
-          className={cn("size-4 shrink-0", toneTextClass("success"))}
-        />
-        <span className={cn("text-xs font-semibold", toneTextClass("success"))}>
+    <section
+      aria-label={t("investigation.selector.recommendedSelector")}
+      className="space-y-3 rounded-lg border border-border bg-card p-3"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-sm font-medium text-foreground">
           {t("investigation.selector.recommendedSelector")}
-        </span>
+        </h4>
+        <StatusBadge tone="success">
+          {t("investigation.selector.recommended")}
+        </StatusBadge>
       </div>
-      <div className="flex items-start gap-2">
-        <code className="block min-w-0 flex-1 break-all rounded-sm bg-background/80 px-2 py-1.5 text-sm font-medium">
+      <div className="flex items-start gap-1 rounded-md border border-border bg-muted py-1 pl-3 pr-1">
+        <code className="min-w-0 flex-1 break-all py-1.5 font-mono text-xs leading-4 text-foreground">
           {candidate.selector}
         </code>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-7 shrink-0"
-          onClick={() => void handleCopy()}
-          aria-label={t("investigation.selector.copy", {
+        <CopyButton
+          text={candidate.selector}
+          label={t("investigation.selector.copy", {
             selector: candidate.selector,
           })}
-        >
-          <CopyIcon className="size-3.5" />
-        </Button>
+        />
       </div>
-      {copied && (
-        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>
-          {t("common.copied")}
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <ReliabilityMeter risk={candidate.staticRisk} />
-        {candidate.live && (
-          <span className="text-xs text-muted-foreground">
-            {t(
-              candidate.live.matchCount === 1
-                ? "investigation.selector.matchesOne"
-                : "investigation.selector.matchesMany",
-              { count: candidate.live.matchCount },
-            )}
-          </span>
-        )}
+        <MatchCount live={candidate.live} />
       </div>
       {candidate.reasons.length > 0 && (
-        <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {candidate.reasons.map((reason) => (
-            <li key={reason} className="flex gap-1.5">
-              <span aria-hidden="true">·</span>
-              <span>{reason}</span>
-            </li>
+            <li key={reason}>{reason}</li>
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
 
 function CandidateRow({ candidate }: { candidate: RankedSelectorCandidate }) {
   const { t } = useTranslation();
   const meta = VERDICT_META[candidate.verdict];
-  const { copied, handleCopy } = useCopySelector(candidate.selector);
-
   return (
-    <li className="rounded-md border p-2">
-      <div className="flex items-start gap-2">
-        {candidate.verdict === "broken" ? (
-          <XCircleIcon
-            className={cn("mt-0.5 size-3.5 shrink-0", toneTextClass(meta.tone))}
-            aria-hidden="true"
-          />
-        ) : (
-          <span
-            className={cn(
-              "mt-0.5 shrink-0 font-semibold",
-              toneTextClass(meta.tone),
-            )}
-            aria-hidden="true"
-          >
-            ⚠
-          </span>
-        )}
-        <div className="min-w-0 flex-1 space-y-1">
-          <code className="block break-all text-xs">{candidate.selector}</code>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ReliabilityMeter risk={candidate.staticRisk} />
-            <span
-              className={cn("text-xs font-medium", toneTextClass(meta.tone))}
-            >
-              {t(meta.label)}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {candidate.verdictReason}
-          </p>
-          {candidate.live && (
-            <p className="text-xs text-muted-foreground">
-              {t(
-                candidate.live.matchCount === 1
-                  ? "investigation.selector.matchesOne"
-                  : "investigation.selector.matchesMany",
-                { count: candidate.live.matchCount },
-              )}
-            </p>
-          )}
-        </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-6 shrink-0"
-          onClick={() => void handleCopy()}
-          aria-label={t("investigation.selector.copy", {
+    <li className="space-y-1 py-2">
+      <div className="flex items-start gap-1">
+        <code className="min-w-0 flex-1 break-all py-1.5 font-mono text-xs leading-4 text-foreground">
+          {candidate.selector}
+        </code>
+        <CopyButton
+          text={candidate.selector}
+          label={t("investigation.selector.copy", {
             selector: candidate.selector,
           })}
-        >
-          <CopyIcon className="size-3.5" />
-        </Button>
+        />
       </div>
-      {copied && (
-        <p className={cn("mt-1 text-xs", toneTextClass("success"))}>
-          {t("common.copied")}
-        </p>
-      )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <StatusBadge
+          tone={meta.tone}
+          icon={candidate.verdict === "broken" ? CircleXIcon : undefined}
+        >
+          {t(meta.label)}
+        </StatusBadge>
+        <ReliabilityMeter risk={candidate.staticRisk} />
+        <MatchCount live={candidate.live} />
+      </div>
+      <p className="text-xs text-muted-foreground">{candidate.verdictReason}</p>
     </li>
   );
 }
@@ -273,14 +213,13 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
 
   if (!output || !output.available) {
     return (
-      <div className="rounded-md border p-3 text-sm">
-        <p className="font-medium">{t("investigation.selector.unable")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
+      <Notice tone="info" title={t("investigation.selector.unable")}>
+        <p className="text-muted-foreground">
           {output?.message ??
             tool.errorText ??
             t("investigation.selector.unavailable")}
         </p>
-      </div>
+      </Notice>
     );
   }
 
@@ -289,43 +228,38 @@ export function SelectorAnalysisDisplay({ tool }: ToolDisplaySlotProps) {
   const others = candidates.filter((c) => c !== recommended);
 
   return (
-    <div className="space-y-3 rounded-md border p-3">
+    <div className="space-y-3 rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">
+        <h3 className="text-sm font-medium text-foreground">
           {t("investigation.selector.title")}
-        </span>
-        {output.tagName && <Badge variant="outline">{output.tagName}</Badge>}
+        </h3>
+        {output.tagName && (
+          <Badge variant="neutral" className="font-mono">
+            {output.tagName}
+          </Badge>
+        )}
       </div>
 
       {(output.inIframe || output.inShadowDom) && (
-        <div
-          className={cn(
-            "flex items-start gap-2 rounded-md p-2 text-xs",
-            toneTextClass("warning"),
-            "bg-warning-muted",
+        <Notice tone="info" icon={LayersIcon}>
+          {t(
+            output.inIframe && output.inShadowDom
+              ? "investigation.selector.insideBoth"
+              : output.inIframe
+                ? "investigation.selector.insideIframe"
+                : "investigation.selector.insideShadow",
           )}
-        >
-          <LayersIcon className="mt-0.5 size-3.5 shrink-0" />
-          <span>
-            {t(
-              output.inIframe && output.inShadowDom
-                ? "investigation.selector.insideBoth"
-                : output.inIframe
-                  ? "investigation.selector.insideIframe"
-                  : "investigation.selector.insideShadow",
-            )}
-          </span>
-        </div>
+        </Notice>
       )}
 
       {recommended && <RecommendedCandidate candidate={recommended} />}
 
       {others.length > 0 && (
         <div>
-          <h4 className="mb-1 text-xs font-medium text-muted-foreground">
+          <h4 className="text-xs font-medium text-muted-foreground">
             {t("investigation.selector.others")}
           </h4>
-          <ul className="space-y-1.5">
+          <ul className="divide-y divide-border">
             {others.map((candidate) => (
               <CandidateRow key={candidate.selector} candidate={candidate} />
             ))}
