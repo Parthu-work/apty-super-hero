@@ -637,10 +637,11 @@ Key pieces:
   hidden and inert when not shown, with the chat inert underneath while one
   is open. A plain-object store (`useSyncExternalStore`) holds the drawer,
   the open page and where Back returns to.
-- **`dom-config/`** — the DOM Config card, shown on the DOM config page.
-  Its run state lives in a plain-object store
+- **`dom-config/`** — the DOM config page (`dom-config-page.tsx`: setup,
+  running, results and the views behind them). Its run state lives in a
+  plain-object store
   (`dom-config-store.ts`, read with `useSyncExternalStore`) outside React,
-  so a run survives the card collapsing; it holds the tab fixed at Start,
+  so a run survives leaving the page; it holds the tab fixed at Start,
   the progress rows built from `runDomConfigCapture`'s `onProgress`, one
   held capture (the crawl's pages plus the ones captured by hand with
   `captureCurrentState` or imported with `buildPageCapture`), the crawl's

@@ -45,7 +45,7 @@ Read the analysis:
 
 ## 2. Frame identity
 
-Run a single-page audit and open **Frames** in the card. Every frame
+Run a single-page check and open **Frames** in its **Full breakdown**. Every frame
 should have a stable key; `keySource: "position"` means none was found.
 
 - An application that marks its frames with an attribute of its own (as
@@ -101,7 +101,7 @@ selectors built on generated values.
 
 ## 6. Overlays
 
-Open **Frames and excluded content** in the card. Content that is not the
+Open **Frames and excluded content** in **Full breakdown**. Content that is not the
 application (a guidance tool, chat, consent banner) must be listed as
 excluded.
 

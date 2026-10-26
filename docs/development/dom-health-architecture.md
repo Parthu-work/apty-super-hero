@@ -495,7 +495,7 @@ Datadog adds no page UI, only an inline loader script. Settings →
 Troubleshooting adds matchers (`id:`, `class:`, `tag:`), which reach the
 content scripts with every request. Each snapshot reports
 `excludedRoots: [{ matcher, owner, evidence, roots, elementCount }]`, and
-the card lists them. Hit testing looks past an ignored overlay (through
+DOM health's Full breakdown lists them. Hit testing looks past an ignored overlay (through
 `elementsFromPoint`) instead of calling the control occluded. A frame
 element inside an ignored root gets the `overlay` role.
 

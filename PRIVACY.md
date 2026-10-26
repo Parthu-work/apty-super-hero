@@ -178,10 +178,14 @@ side panel:
   page's URL as a shape (record numbers and query values removed). The
   report built from it, your include and exclude choices and your coverage
   marks are held next to it. Nothing is written to storage; closing the
-  side panel or **Clear** removes it all, and a new crawl replaces it.
-- **Nothing leaves the browser.** DOM Config sends nothing to your AI
-  provider, the Apty Client, the MCP daemon or any server. Copies and
-  exports happen only when you click.
+  side panel or **Clear results** removes it all, and a new crawl replaces it.
+- **Nothing leaves the browser unless you send it.** DOM Config sends
+  nothing to your AI provider, the Apty Client, the MCP daemon or any
+  server on its own. **Ask about these** puts the Markdown export (the
+  rules you left included, redacted as a tool result is in your
+  redaction mode) in a new chat as a chip you can remove; it goes to your
+  AI provider only when you press Send. Copies and exports happen only
+  when you click.
 - **Page names are typed by you.** A page you capture by hand or import is
   named in a field you fill in; the name is never read from the page, and
   page titles are never recorded. A crawled page is named by its URL
@@ -195,7 +199,7 @@ side panel:
   no shape and are not detected: a name that changed between two runs can
   appear in that page's list of differences, which the JSON export and the
   page detail include; it never reaches a rule, an example, the Markdown
-  or Copy as tables.
+  or Copy all.
 - **Download raw profile** (page detail, per run) saves the run exactly as
   captured: every attribute value of the page, which can include names,
   record numbers and other patient or customer data. The panel asks you to
