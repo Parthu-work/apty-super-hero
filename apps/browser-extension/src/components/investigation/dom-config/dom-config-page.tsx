@@ -11,11 +11,11 @@ import { Button } from "@apty/ui/components/ui/button";
 import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { type ReactNode, useId } from "react";
+import { chatHandoff } from "../../../state/chat-handoff";
 import {
   navigationStore,
   useNavigation,
 } from "../../../state/navigation-store";
-import { chatHandoff } from "../../../state/chat-handoff";
 import { ToolPageShell } from "../../shell/tool-page-shell";
 import { useCurrentTarget } from "../use-current-target";
 import { domConfigHandoff } from "./ask-about-results";
