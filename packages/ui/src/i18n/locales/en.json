@@ -2,7 +2,7 @@
   "common": {
     "title": "AI Chat",
     "settings": "Settings",
-    "newChat": "New Chat",
+    "newChat": "New chat",
     "back": "Back",
     "close": "Close",
     "save": "Save Settings",
@@ -124,7 +124,7 @@
   },
   "tooltip": {
     "back": "Back to Welcome",
-    "newChat": "New Chat",
+    "newChat": "New chat",
     "settings": "Settings",
     "close": "Close",
     "stopResponse": "Stop AI response",
@@ -1616,5 +1616,45 @@
     "bodyKept": "body kept",
     "showCallsOf": "Show the calls of {{name}}",
     "hideCallsOf": "Hide the calls of {{name}}"
+  },
+  "shell": {
+    "appName": "Apty Live Debugging",
+    "menu": "Menu",
+    "closeMenu": "Close menu",
+    "back": "Back",
+    "newChat": "New chat",
+    "tools": "Tools",
+    "recentChats": "Recent chats",
+    "viewAll": "View all",
+    "connections": "Connections",
+    "settings": "Settings",
+    "domHealth": "DOM health",
+    "domConfig": "DOM config",
+    "selectorChecker": "Selector checker",
+    "networkInspector": "Network inspector",
+    "canInspect": "Can inspect",
+    "cantInspect": "Can't inspect",
+    "noPage": "No page selected",
+    "newChatConfirm": "A response is still in progress. Stop it and start a new chat?",
+    "home": {
+      "heading": "What are we debugging?",
+      "seeAll": "See all",
+      "showFewer": "Show fewer"
+    },
+    "composerHint": "Type / for tools. AI can make mistakes, so verify results."
+  },
+  "slash": {
+    "tools": "Tools",
+    "investigations": "Investigations",
+    "skills": "Skills",
+    "domHealth": "Check this page or audit the application",
+    "domConfig": "Propose Apty DOM settings",
+    "selectorChecker": "Test whether a selector is reliable",
+    "networkInspector": "Find what caused a network failure",
+    "move": "Move",
+    "open": "Open",
+    "close": "Close",
+    "escapeKey": "Esc",
+    "label": "Tools, investigations and skills"
   }
 }

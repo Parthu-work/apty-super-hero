@@ -150,6 +150,20 @@ describe("Chatbot Component", () => {
   });
 
   describe("slot customization", () => {
+    it("renders the overlay slot last, over the chat, inside the chat context", async () => {
+      function Overlay() {
+        const { status } = useChatContext();
+        return <div data-testid="overlay">{status}</div>;
+      }
+      const { container } = await renderWithAct(
+        <Chatbot agent={mockAgent} slots={{ overlay: () => <Overlay /> }} />,
+      );
+
+      const overlay = screen.getByTestId("overlay");
+      expect(overlay).toHaveTextContent("idle");
+      expect(container.firstElementChild?.lastElementChild).toBe(overlay);
+    });
+
     it("should render custom emptyState slot", async () => {
       const customEmptyState = () => (
         <div data-testid="custom-empty">No messages yet</div>
@@ -243,7 +257,7 @@ describe("Chatbot Component", () => {
     it("should call reset when new chat button is clicked", async () => {
       await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
-      const newChatButton = screen.getByText("New Chat");
+      const newChatButton = screen.getByText("New chat");
       fireEvent.click(newChatButton);
 
       // Verify the chat was reset (no messages)
@@ -491,7 +505,7 @@ describe("Chatbot Accessibility", () => {
     await renderWithAct(<Chatbot agent={mockAgent} />);
 
     const settingsButton = screen.getByText("Settings");
-    const newChatButton = screen.getByText("New Chat");
+    const newChatButton = screen.getByText("New chat");
 
     expect(settingsButton).toBeInTheDocument();
     expect(newChatButton).toBeInTheDocument();
@@ -570,7 +584,7 @@ describe("Chatbot Event Handlers", () => {
     });
     await act(async () => {});
 
-    fireEvent.click(screen.getByText("New Chat"));
+    fireEvent.click(screen.getByText("New chat"));
 
     expect(
       mockAgent.getConversationManager()?.deleteSession,

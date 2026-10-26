@@ -55,6 +55,32 @@ const DIALOG_WIDTH = {
  * Focus returns to the element that had it when the dialog opened, also
  * when it was opened by a plain button rather than a DialogTrigger.
  */
+function useOpenerFocus({
+  onOpenAutoFocus,
+  onCloseAutoFocus,
+}: Pick<
+  React.ComponentProps<typeof DialogPrimitive.Content>,
+  "onOpenAutoFocus" | "onCloseAutoFocus"
+>) {
+  const opener = React.useRef<HTMLElement | null>(null);
+  return {
+    onOpenAutoFocus(event: Event) {
+      const active = document.activeElement;
+      opener.current =
+        active instanceof HTMLElement && active !== document.body
+          ? active
+          : null;
+      onOpenAutoFocus?.(event);
+    },
+    onCloseAutoFocus(event: Event) {
+      onCloseAutoFocus?.(event);
+      if (event.defaultPrevented || !opener.current?.isConnected) return;
+      event.preventDefault();
+      opener.current.focus();
+    },
+  };
+}
+
 function DialogContent({
   className,
   children,
@@ -68,7 +94,7 @@ function DialogContent({
   size?: keyof typeof DIALOG_WIDTH;
 }) {
   const { t } = useTranslation();
-  const opener = React.useRef<HTMLElement | null>(null);
+  const focus = useOpenerFocus({ onOpenAutoFocus, onCloseAutoFocus });
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -79,20 +105,7 @@ function DialogContent({
           DIALOG_WIDTH[size],
           className,
         )}
-        onOpenAutoFocus={(event) => {
-          const active = document.activeElement;
-          opener.current =
-            active instanceof HTMLElement && active !== document.body
-              ? active
-              : null;
-          onOpenAutoFocus?.(event);
-        }}
-        onCloseAutoFocus={(event) => {
-          onCloseAutoFocus?.(event);
-          if (event.defaultPrevented || !opener.current?.isConnected) return;
-          event.preventDefault();
-          opener.current.focus();
-        }}
+        {...focus}
         {...props}
       >
         {children}
@@ -105,6 +118,33 @@ function DialogContent({
             <span className="sr-only">{t("common.close")}</span>
           </DialogPrimitive.Close>
         )}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+}
+
+/** A panel that slides in from the left over a scrim: a menu drawer. */
+function DrawerContent({
+  className,
+  children,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+  const focus = useOpenerFocus({ onOpenAutoFocus, onCloseAutoFocus });
+  return (
+    <DialogPortal data-slot="dialog-portal">
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        data-slot="drawer-content"
+        className={cn(
+          "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left motion-reduce:animate-none fixed inset-y-0 left-0 z-50 flex w-[min(320px,85%)] flex-col overflow-y-auto border-r border-border shadow-lg duration-200 outline-none",
+          className,
+        )}
+        {...focus}
+        {...props}
+      >
+        {children}
       </DialogPrimitive.Content>
     </DialogPortal>
   );
@@ -159,6 +199,7 @@ function DialogDescription({
 export {
   Dialog,
   DialogContent,
+  DrawerContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,

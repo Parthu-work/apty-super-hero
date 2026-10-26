@@ -254,6 +254,7 @@ function ChatbotContent({
 }) {
   const themeCtx = useContext(ThemeContext);
   const chatCtx = useContext(ChatContext);
+  const { slots } = useContext(ComponentsContext);
 
   const { className, style } = themeCtx;
   const {
@@ -303,7 +304,7 @@ function ChatbotContent({
   return (
     <div
       className={cn(
-        "flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background",
+        "relative flex h-full w-full flex-col overflow-hidden bg-background",
         className,
       )}
       style={style}
@@ -333,6 +334,8 @@ function ChatbotContent({
         models={models}
         placeholderTexts={placeholderTexts}
       />
+
+      {slots.overlay?.()}
     </div>
   );
 }

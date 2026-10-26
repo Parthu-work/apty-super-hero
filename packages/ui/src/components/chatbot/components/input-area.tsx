@@ -31,6 +31,7 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "../../ai-elements/prompt-input";
+import type { SlashCommandGroup } from "../../ai-elements/slash-commands";
 import { DEFAULT_MODELS } from "../constants";
 import { useComponentsContext, useConfigContext } from "../context";
 
@@ -47,6 +48,8 @@ export interface ExtendedInputAreaProps extends InputAreaProps {
    * extension) sets this to `false`.
    */
   showServerModels?: boolean;
+  /** Groups the "/" list shows before the skills (tools, investigations). */
+  slashCommands?: SlashCommandGroup[];
 }
 
 /**
@@ -65,6 +68,7 @@ export function DefaultInputArea({
   queueCount = 0,
   className,
   showServerModels = true,
+  slashCommands,
   ...props
 }: ExtendedInputAreaProps) {
   const { t } = useTranslation();
@@ -196,11 +200,13 @@ export function DefaultInputArea({
     status === "idle" ? undefined : (status as ChatStatus);
 
   return (
-    <div
-      className={cn("border-t border-border bg-background p-3", className)}
-      {...props}
-    >
-      <PromptInput onSubmit={handleSubmit} globalDrop multiple>
+    <div className={cn("bg-background px-4 pt-2 pb-3", className)} {...props}>
+      <PromptInput
+        onSubmit={handleSubmit}
+        globalDrop
+        multiple
+        slashCommands={slashCommands}
+      >
         <PromptInputBody>
           {/* Context Tags */}
           <PromptInputContextTags>

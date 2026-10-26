@@ -151,6 +151,8 @@ export interface ChatbotSlots {
   afterMessages?: () => ReactNode;
   /** Extra content rendered inside PromptInput (e.g., context/skill loaders) */
   promptExtras?: () => ReactNode;
+  /** Layers over the whole chat (menus, full-panel pages), rendered last inside the root */
+  overlay?: () => ReactNode;
 }
 
 // ============ Components Configuration ============

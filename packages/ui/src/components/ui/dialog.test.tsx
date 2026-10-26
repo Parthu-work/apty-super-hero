@@ -9,6 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DrawerContent,
 } from "./dialog";
 
 function DeleteChat() {
@@ -47,6 +48,37 @@ describe("Dialog", () => {
     opener.focus();
     fireEvent.click(opener);
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+});
+
+describe("DrawerContent", () => {
+  function Menu() {
+    const [open, setOpen] = useState(false);
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <Button variant="ghost" onClick={() => setOpen(true)}>
+          Menu
+        </Button>
+        <DrawerContent aria-describedby={undefined}>
+          <DialogTitle>Menu</DialogTitle>
+          <Button>New chat</Button>
+        </DrawerContent>
+      </Dialog>
+    );
+  }
+
+  it("opens as a named dialog that Escape closes, returning focus to its opener", async () => {
+    render(<Menu />);
+    const opener = screen.getByRole("button", { name: "Menu" });
+    opener.focus();
+    fireEvent.click(opener);
+    const drawer = screen.getByRole("dialog", { name: "Menu" });
+    expect(drawer).toContainElement(
+      screen.getByRole("button", { name: "New chat" }),
+    );
+    fireEvent.keyDown(drawer, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(opener).toHaveFocus());
   });
