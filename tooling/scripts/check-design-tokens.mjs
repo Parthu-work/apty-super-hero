@@ -132,6 +132,16 @@ function total(counts) {
     .reduce((a, b) => a + b, 0);
 }
 
+/** The stored baseline, or null when there is none; read once, so a write never follows a separate existence check. */
+function readBaseline(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 function option(name) {
   const at = process.argv.indexOf(name);
   return at === -1 ? undefined : process.argv[at + 1];
@@ -149,10 +159,8 @@ if (
       join(root, "tooling/scripts/design-tokens-baseline.json"),
   );
   const counts = scan(root);
-  const baseline = existsSync(baselinePath)
-    ? JSON.parse(readFileSync(baselinePath, "utf8"))
-    : {};
-  const over = overBaseline(counts, baseline);
+  const stored = readBaseline(baselinePath);
+  const over = overBaseline(counts, stored ?? {});
 
   if (over.length > 0) {
     console.error(
@@ -162,7 +170,7 @@ if (
       console.error(`  ${rule}: ${file}: ${count} (allowed ${allowed})`);
     }
     process.exitCode = 1;
-  } else if (process.argv.includes("--update") && existsSync(baselinePath)) {
+  } else if (process.argv.includes("--update") && stored !== null) {
     writeFileSync(baselinePath, `${JSON.stringify(counts, null, 2)}\n`);
     console.log(
       `✓ design-tokens-baseline.json updated: ${total(counts)} hard-coded colours and sizes`,
