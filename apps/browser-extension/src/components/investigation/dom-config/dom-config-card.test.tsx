@@ -509,6 +509,36 @@ describe("DomConfigCard", () => {
     expect(clipboard.at(-1)).toContain("Setting\tValue\tBasis\tReason");
   });
 
+  it("reads as exported only after Copy all or an export, until new results arrive", async () => {
+    await showReport();
+    expect(store.getState().exportedAt).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy Attribute priority" }),
+    );
+    await waitFor(() => expect(clipboard).toHaveLength(1));
+    expect(store.getState().exportedAt).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Copy as tables: every section, with the included rules only",
+      }),
+    );
+    await waitFor(() => expect(store.getState().exportedAt).not.toBeNull());
+
+    await act(async () => {
+      await store.start(TAB_ID, [], { replace: true });
+    });
+    expect(store.getState().exportedAt).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Export JSON of the engine report, with the included rules only",
+      }),
+    );
+    expect(store.getState().exportedAt).not.toBeNull();
+  });
+
   it("shows both container score threshold values and the basis of every setting", async () => {
     await showReport();
     fireEvent.click(screen.getByRole("tab", { name: "Settings" }));

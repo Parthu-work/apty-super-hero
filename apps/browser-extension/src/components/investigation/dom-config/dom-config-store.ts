@@ -127,6 +127,10 @@ export interface DomConfigState {
   ruleChoices: Record<string, boolean>;
   includeReview: boolean;
   includeRecordSpecific: boolean;
+  /** When the crawl started, while it runs. */
+  startedAt: number | null;
+  /** The last Export or Copy all of the results held now; null until one. */
+  exportedAt: number | null;
 }
 
 type StartResult = "started" | "busy" | "locked" | "confirm";
@@ -152,6 +156,8 @@ const INITIAL: DomConfigState = {
   ruleChoices: {},
   includeReview: false,
   includeRecordSpecific: false,
+  startedAt: null,
+  exportedAt: null,
 };
 
 function runLabelsFor(count: number): DomConfigRunLabel[] {
@@ -286,6 +292,8 @@ export function createDomConfigStore() {
     step: "report",
     current: null,
     error: null,
+    startedAt: null,
+    exportedAt: null,
     outcome,
     capture,
     report,
@@ -327,6 +335,7 @@ export function createDomConfigStore() {
         options,
         phase: "running",
         tabId,
+        startedAt: Date.now(),
       });
       let outcome: DomConfigCaptureOutcome;
       try {
@@ -362,7 +371,12 @@ export function createDomConfigStore() {
         // The crawl analyzed its capture with these options and no marks.
         set(hold(outcome.capture, outcome.report, outcome));
       } else {
-        set({ phase: "failed", current: null, error: outcome.error });
+        set({
+          phase: "failed",
+          current: null,
+          startedAt: null,
+          error: outcome.error,
+        });
       }
       return "started";
     },
@@ -492,6 +506,11 @@ export function createDomConfigStore() {
     },
 
     /** "Capture another run": opens manual capture with the page's name. */
+    /** After a successful Export or Copy all. */
+    markExported() {
+      if (state.report) set({ exportedAt: Date.now() });
+    },
+
     requestCapture(pageName: string) {
       set({ captureRequest: { pageName } });
     },

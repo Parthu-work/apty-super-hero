@@ -107,6 +107,7 @@ export function ReportView({
   onMark,
   onCaptureAnother,
   canCapture,
+  onExported,
 }: {
   /** The last crawl's result; null when the capture holds no crawl. */
   outcome: CompletedCapture | null;
@@ -120,6 +121,8 @@ export function ReportView({
   onMark: (key: CoverageKey, mark: CoverageMark | null) => void;
   onCaptureAnother: (pageLabel: string) => void;
   canCapture: boolean;
+  /** After Copy all or an export, so the results read as exported. */
+  onExported: () => void;
 }) {
   const { t } = useTranslation();
   const id = useId();
@@ -142,19 +145,21 @@ export function ReportView({
           what={t("domConfig.copyAll")}
           label={t("domConfig.copyAll")}
           ariaLabel={t("domConfig.copyAllAria")}
+          onCopied={onExported}
         />
         <Button
           size="sm"
           variant="outline"
           className="h-7 gap-1 px-2 text-xs"
           aria-label={t("domConfig.exportMarkdownAria")}
-          onClick={() =>
+          onClick={() => {
             download(
               renderDomConfigMarkdown(exported()),
               exportFileName(report.applicationName, "md"),
               "text/markdown",
-            )
-          }
+            );
+            onExported();
+          }}
         >
           <DownloadIcon className="size-3" aria-hidden="true" />
           {t("domConfig.exportMarkdown")}
@@ -164,13 +169,14 @@ export function ReportView({
           variant="outline"
           className="h-7 gap-1 px-2 text-xs"
           aria-label={t("domConfig.exportJsonAria")}
-          onClick={() =>
+          onClick={() => {
             download(
               JSON.stringify(exported(), null, 2),
               exportFileName(report.applicationName, "json"),
               "application/json",
-            )
-          }
+            );
+            onExported();
+          }}
         >
           <DownloadIcon className="size-3" aria-hidden="true" />
           {t("domConfig.exportJson")}

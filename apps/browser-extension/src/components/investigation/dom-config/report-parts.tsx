@@ -56,6 +56,7 @@ export function CopyButton({
   what,
   label,
   ariaLabel,
+  onCopied,
 }: {
   text: string;
   /** Names the copied thing for the accessible name and the announcement. */
@@ -64,6 +65,7 @@ export function CopyButton({
   label?: string;
   /** Replaces "Copy {what}" as the accessible name; it must contain `label`. */
   ariaLabel?: string;
+  onCopied?: () => void;
 }) {
   const { t } = useTranslation();
   const announce = useAnnounce();
@@ -80,6 +82,7 @@ export function CopyButton({
           ?.writeText(text)
           .then(() => {
             setCopied(true);
+            onCopied?.();
             announce(t("domConfig.copied", { what }));
             setTimeout(() => setCopied(false), 1500);
           })

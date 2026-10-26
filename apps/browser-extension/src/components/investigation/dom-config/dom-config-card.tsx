@@ -262,6 +262,7 @@ export function DomConfigCard({
                     store.requestCapture(pageLabel)
                   }
                   canCapture={!captureBlocked && !state.capturing}
+                  onExported={() => store.markExported()}
                 />
                 <PageList
                   rows={state.rows}
