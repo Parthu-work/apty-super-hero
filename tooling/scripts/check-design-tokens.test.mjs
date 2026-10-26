@@ -91,15 +91,30 @@ describe("check-design-tokens", () => {
     );
   });
 
-  it("ignores tests and the content script's host-page overlay", () => {
+  it("ignores tests and what is drawn outside the extension's stylesheet", () => {
+    const literal =
+      'const color = "rgba(59, 130, 246, 0.4)"; // #3b82f6\nconst c = "#22c55e";\n';
     const result = run({
       "packages/ui/src/components/widget.test.tsx": '"text-red-600"\n',
-      "apps/browser-extension/src/entrypoints/content/index.tsx":
-        'const glow = "rgba(59, 130, 246, 0.4)";\n',
+      "apps/browser-extension/src/entrypoints/content/index.tsx": literal,
+      "apps/browser-extension/src/entrypoints/content/element-capture.ts":
+        literal,
+      "packages/ui/src/components/fake-mouse/fake-mouse.tsx": literal,
+      "packages/ui/src/components/fake-mouse/types.ts": literal,
+      "apps/browser-extension/src/entrypoints/background/mcp-bridge.ts":
+        literal,
       [UI]: '<p className="text-sm" />\n',
     });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /no hard-coded colours or sizes/);
+  });
+
+  it("still checks the rest of the content script", () => {
+    const result = run({
+      "apps/browser-extension/src/entrypoints/content/frame-responder.ts":
+        'const c = "#22c55e";\n',
+    });
+    assert.equal(result.status, 1);
   });
 
   it("allows what the baseline allows, per rule and file, and no more", () => {

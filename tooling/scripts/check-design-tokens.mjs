@@ -10,8 +10,8 @@
  * excluded, and fails when a count is above tooling/scripts/
  * design-tokens-baseline.json. Without a baseline file nothing is allowed.
  * `--update` lowers an existing baseline to the current counts; it never
- * raises a count and never creates the file. The content script's glow overlay is exempt: it is drawn into the
- * host page, where the extension's CSS variables do not exist.
+ * raises a count and never creates the file. Files drawn outside the
+ * extension's stylesheet are exempt (EXEMPT).
  *
  * Usage: node tooling/scripts/check-design-tokens.mjs
  *          [--root <dir>] [--baseline <file>] [--update]
@@ -21,8 +21,18 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCANNED = ["apps/browser-extension/src", "packages/ui/src"];
+/**
+ * Drawn where the extension's stylesheet and CSS variables do not exist:
+ * the content script's overlay, the fake mouse it renders and the capture
+ * outline it injects all live in the host page, and Chrome draws the
+ * toolbar badge from a colour string.
+ */
 const EXEMPT = new Set([
   "apps/browser-extension/src/entrypoints/content/index.tsx",
+  "apps/browser-extension/src/entrypoints/content/element-capture.ts",
+  "packages/ui/src/components/fake-mouse/fake-mouse.tsx",
+  "packages/ui/src/components/fake-mouse/types.ts",
+  "apps/browser-extension/src/entrypoints/background/mcp-bridge.ts",
 ]);
 
 const PALETTE =

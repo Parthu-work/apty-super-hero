@@ -15,15 +15,10 @@
     "packages/ui/src/components/ui/switch.tsx": 1
   },
   "hex": {
-    "apps/browser-extension/src/entrypoints/background/mcp-bridge.ts": 1,
-    "apps/browser-extension/src/entrypoints/content/element-capture.ts": 1,
-    "packages/ui/src/components/fake-mouse/types.ts": 2,
     "packages/ui/src/components/ui/switch.tsx": 3
   },
   "rgb-hsl": {
     "packages/ui/src/components/ai-elements/code-block.tsx": 6,
-    "packages/ui/src/components/fake-mouse/fake-mouse.tsx": 7,
-    "packages/ui/src/components/fake-mouse/types.ts": 2,
     "packages/ui/src/components/ui/switch.tsx": 2
   },
   "arbitrary-text-size": {
