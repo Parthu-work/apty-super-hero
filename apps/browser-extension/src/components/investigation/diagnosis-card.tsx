@@ -118,7 +118,7 @@ export function DiagnosisCard({
             <span>{`${t("investigation.diagnosis.suspected")} `}</span>
             <span>
               {investigation.suspectedComponents
-                .map((c) => describeAptyComponent(c))
+                .map((c) => describeAptyComponent(c, t))
                 .join(", ")}
             </span>
           </p>
@@ -130,7 +130,7 @@ export function DiagnosisCard({
           <SectionLabel>{t("investigation.diagnosis.why")}</SectionLabel>
           <ul className="space-y-1.5">
             {investigation.hypotheses.map((hypothesis) => {
-              const statusMeta = describeHypothesisStatus(hypothesis.status);
+              const statusMeta = describeHypothesisStatus(hypothesis.status, t);
               const supporting = hypothesis.supportingEvidenceIds.length;
               const contradicting = hypothesis.contradictingEvidenceIds.length;
               return (

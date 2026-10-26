@@ -108,7 +108,7 @@ export function InvestigationContextBar() {
     );
   }
 
-  const meta = describeInvestigationStatus(investigation.status);
+  const meta = describeInvestigationStatus(investigation.status, t);
 
   return (
     <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-200 motion-reduce:animate-none">

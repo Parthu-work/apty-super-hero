@@ -48,7 +48,7 @@ export function InvestigationSummaryBar() {
     return null;
   }
 
-  const meta = describeInvestigationStatus(investigation?.status ?? "idle");
+  const meta = describeInvestigationStatus(investigation?.status ?? "idle", t);
   const warningCount = componentHealth.filter(
     (c) => c.state === "warning" || c.state === "error",
   ).length;

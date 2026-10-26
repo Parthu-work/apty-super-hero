@@ -1659,6 +1659,39 @@
     "siteTitle": "此站点",
     "openAll": "打开全部连接设置"
   },
+  "statusMeta": {
+    "investigation": {
+      "idle": "空闲",
+      "starting": "正在开始调查",
+      "investigating": "调查中",
+      "collectingEvidence": "正在收集证据",
+      "analyzing": "分析中",
+      "verifying": "正在验证诊断",
+      "resolved": "已解决",
+      "failed": "调查失败",
+      "stopped": "已停止"
+    },
+    "componentHealth": {
+      "healthy": "正常",
+      "warning": "警告",
+      "error": "错误",
+      "notConfigured": "未配置",
+      "notDetected": "未检测到",
+      "notChecked": "尚未检查"
+    },
+    "aptyComponent": {
+      "clientWidgetPlayer": "Apty Client / Widget / Player",
+      "studio": "Apty Studio"
+    },
+    "hypothesis": {
+      "open": "待定",
+      "testing": "测试中",
+      "supported": "有支持证据",
+      "rejected": "已排除",
+      "confirmed": "已确认",
+      "inconclusive": "无定论"
+    }
+  },
   "jobs": {
     "label": "运行中的任务",
     "line": "{{tool}} · {{detail}} · {{elapsed}}",

@@ -1659,6 +1659,39 @@
     "siteTitle": "This site",
     "openAll": "Open all connection settings"
   },
+  "statusMeta": {
+    "investigation": {
+      "idle": "Idle",
+      "starting": "Starting investigation",
+      "investigating": "Investigating",
+      "collectingEvidence": "Collecting evidence",
+      "analyzing": "Analyzing",
+      "verifying": "Verifying diagnosis",
+      "resolved": "Resolved",
+      "failed": "Investigation failed",
+      "stopped": "Stopped"
+    },
+    "componentHealth": {
+      "healthy": "Healthy",
+      "warning": "Warning",
+      "error": "Error",
+      "notConfigured": "Not configured",
+      "notDetected": "Not detected",
+      "notChecked": "Not checked yet"
+    },
+    "aptyComponent": {
+      "clientWidgetPlayer": "Apty Client / Widget / Player",
+      "studio": "Apty Studio"
+    },
+    "hypothesis": {
+      "open": "Open",
+      "testing": "Testing",
+      "supported": "Supported",
+      "rejected": "Rejected",
+      "confirmed": "Confirmed",
+      "inconclusive": "Inconclusive"
+    }
+  },
   "jobs": {
     "label": "Running jobs",
     "line": "{{tool}} · {{detail}} · {{elapsed}}",

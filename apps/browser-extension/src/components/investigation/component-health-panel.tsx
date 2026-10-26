@@ -27,7 +27,7 @@ export function ComponentHealthPanel({
   return (
     <ul className="space-y-1.5" aria-label={t("investigation.componentHealth")}>
       {components.map((component) => {
-        const meta = describeComponentHealth(component.state);
+        const meta = describeComponentHealth(component.state, t);
         return (
           <li
             key={component.kind}
@@ -64,7 +64,7 @@ export function ComponentHealthPanel({
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1 border-t px-2 py-1.5 pl-8">
                 {component.subComponents.map((sub) => {
-                  const subMeta = describeComponentHealth(sub.state);
+                  const subMeta = describeComponentHealth(sub.state, t);
                   return (
                     <div
                       key={sub.key}
