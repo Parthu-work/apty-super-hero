@@ -58,9 +58,9 @@ describe("JobBar", () => {
       ...idleConfig,
       phase: "running",
       startedAt: NOW - 192_000,
-      current: {
+      lastCapture: {
         phase: "capturing",
-        stateIndex: 3,
+        stateIndex: 4,
         maxStates: 20,
         urlShape: "/orders",
         runIndex: 1,

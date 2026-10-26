@@ -73,6 +73,11 @@ export interface PageRow {
   status: DomConfigReport["pages"][number]["status"] | null;
 }
 
+type CapturingProgress = Extract<
+  DomConfigCaptureProgress,
+  { phase: "capturing" }
+>;
+
 export type CompletedCapture = Extract<
   DomConfigCaptureOutcome,
   { available: true }
@@ -129,6 +134,10 @@ export interface DomConfigState {
   includeRecordSpecific: boolean;
   /** When the crawl started, while it runs. */
   startedAt: number | null;
+  /** The last page the crawl captured, kept while it discovers or revisits between pages. */
+  lastCapture: CapturingProgress | null;
+  /** How long the held crawl took; null when the capture holds no crawl. */
+  crawlMs: number | null;
   /** The last Export or Copy all of the results held now; null until one. */
   exportedAt: number | null;
 }
@@ -157,6 +166,8 @@ const INITIAL: DomConfigState = {
   includeReview: false,
   includeRecordSpecific: false,
   startedAt: null,
+  lastCapture: null,
+  crawlMs: null,
   exportedAt: null,
 };
 
@@ -293,6 +304,7 @@ export function createDomConfigStore() {
     current: null,
     error: null,
     startedAt: null,
+    lastCapture: null,
     exportedAt: null,
     outcome,
     capture,
@@ -354,6 +366,9 @@ export function createDomConfigStore() {
           onProgress: (progress) =>
             set({
               current: progress,
+              ...(progress.phase === "capturing"
+                ? { lastCapture: progress }
+                : {}),
               step: stepOf(state.step, progress),
               rows: progressRows(state.rows, progress),
             }),
@@ -367,14 +382,16 @@ export function createDomConfigStore() {
         controller = null;
         releaseTabLock(tabId, "dom-config");
       }
+      const crawlMs = Date.now() - (state.startedAt ?? Date.now());
       if (outcome.available) {
         // The crawl analyzed its capture with these options and no marks.
-        set(hold(outcome.capture, outcome.report, outcome));
+        set({ ...hold(outcome.capture, outcome.report, outcome), crawlMs });
       } else {
         set({
           phase: "failed",
           current: null,
           startedAt: null,
+          lastCapture: null,
           error: outcome.error,
         });
       }
@@ -505,12 +522,12 @@ export function createDomConfigStore() {
       });
     },
 
-    /** "Capture another run": opens manual capture with the page's name. */
     /** After a successful Export or Copy all. */
     markExported() {
       if (state.report) set({ exportedAt: Date.now() });
     },
 
+    /** "Capture another run": opens manual capture with the page's name. */
     requestCapture(pageName: string) {
       set({ captureRequest: { pageName } });
     },

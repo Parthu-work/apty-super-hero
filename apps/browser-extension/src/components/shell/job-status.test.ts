@@ -86,6 +86,16 @@ describe("domHealthStatus", () => {
 
 describe("domConfigStatus", () => {
   const report = {} as DomConfigState["report"];
+  // The crawl numbers its pages from 1.
+  const capturing = {
+    phase: "capturing" as const,
+    stateIndex: 4,
+    maxStates: 20,
+    urlShape: "/orders",
+    runIndex: 1,
+    runCount: 2,
+    runLabel: "after-reload" as const,
+  };
   it.each([
     ["not generated", config({}), ["neutral", "Not generated", false]],
     [
@@ -97,15 +107,17 @@ describe("domConfigStatus", () => {
       "capturing page 4 of 20",
       config({
         phase: "running",
-        current: {
-          phase: "capturing",
-          stateIndex: 3,
-          maxStates: 20,
-          urlShape: "/orders",
-          runIndex: 1,
-          runCount: 2,
-          runLabel: "after-reload",
-        },
+        current: capturing,
+        lastCapture: capturing,
+      }),
+      ["info", "Page 4 of 20", true],
+    ],
+    [
+      "discovering links after page 4, still on page 4",
+      config({
+        phase: "running",
+        current: { phase: "discovering", urlShape: "/orders" },
+        lastCapture: capturing,
       }),
       ["info", "Page 4 of 20", true],
     ],

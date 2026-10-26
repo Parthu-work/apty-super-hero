@@ -28,10 +28,10 @@ function domHealthProgress(state: DomHealthState): JobProgress | null {
     : null;
 }
 
+/** Between pages (discovering, revisiting) the crawl keeps its last page. */
 function domConfigProgress(state: DomConfigState): JobProgress | null {
-  return state.current?.phase === "capturing"
-    ? { page: state.current.stateIndex + 1, of: state.current.maxStates }
-    : null;
+  const last = state.lastCapture;
+  return last ? { page: last.stateIndex, of: last.maxStates } : null;
 }
 
 function progressLabel(progress: JobProgress, t: Translate): string {
