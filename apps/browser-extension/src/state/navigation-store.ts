@@ -5,9 +5,13 @@ export type ToolPage = "dom-health" | "dom-config" | "connections";
 
 export type NavigationOrigin = "home" | "menu";
 
+/** A view inside a page, such as DOM health's full breakdown. */
+type SubView = "breakdown" | "settings";
+
 export interface NavigationState {
   drawerOpen: boolean;
   page: ToolPage | null;
+  subView: SubView | null;
   /** Where Back returns to: the menu reopens if it opened the page. */
   origin: NavigationOrigin;
 }
@@ -15,6 +19,7 @@ export interface NavigationState {
 const INITIAL: NavigationState = {
   drawerOpen: false,
   page: null,
+  subView: null,
   origin: "home",
 };
 
@@ -42,11 +47,19 @@ export function createNavigationStore() {
     closeDrawer: () => set({ drawerOpen: false }),
     /** Opens a page and closes the menu; Back returns to `origin`. */
     openPage: (page: ToolPage, origin: NavigationOrigin = "home") =>
-      set({ page, origin, drawerOpen: false }),
-    back() {
-      if (state.page === null) return;
-      set({ page: null, drawerOpen: state.origin === "menu" });
+      set({ page, origin, subView: null, drawerOpen: false }),
+    /** Opens a view inside the current page; Back returns to the page. */
+    openSubView: (subView: SubView) => {
+      if (state.page !== null) set({ subView });
     },
+    back() {
+      if (state.subView !== null) set({ subView: null });
+      else if (state.page !== null) {
+        set({ page: null, drawerOpen: state.origin === "menu" });
+      }
+    },
+    /** Leaves the page for the chat, whatever opened it. */
+    closePage: () => set({ page: null, subView: null, drawerOpen: false }),
   };
 }
 

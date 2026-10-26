@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { chatHandoff } from "../state/chat-handoff";
 import { navigationStore } from "../state/navigation-store";
 
 // New chat (header icon and menu row) must save the conversation at once,
@@ -128,6 +129,50 @@ describe("BrowserChatHeader — New chat", () => {
 
     await vi.waitFor(() => expect(onNewChat).toHaveBeenCalled());
     expect(mockSaveConversation).toHaveBeenCalled();
+  });
+});
+
+describe("BrowserChatHeader — Ask about this result", () => {
+  const draft = {
+    text: "What does this mean?",
+    contexts: [
+      { id: "c1", type: "custom" as const, label: "Evidence", value: "{}" },
+    ],
+  };
+
+  it("starts a new chat with the draft and its chip through the same path, then closes the page", async () => {
+    const onNewChat = vi.fn();
+    const interrupt = vi.fn().mockResolvedValue(undefined);
+    chat("streaming", interrupt);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    navigationStore.openPage("dom-health");
+
+    render(<BrowserChatHeader onNewChat={onNewChat} />);
+    act(() => chatHandoff.request(draft));
+
+    await vi.waitFor(() => expect(onNewChat).toHaveBeenCalledWith(draft));
+    expect(interrupt.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSaveConversation.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(mockSaveConversation.mock.invocationCallOrder[0]).toBeLessThan(
+      onNewChat.mock.invocationCallOrder[0] ?? 0,
+    );
+    await vi.waitFor(() => expect(navigationStore.getState().page).toBeNull());
+  });
+
+  it("keeps the chat and the page when the user cancels stopping a running reply", async () => {
+    const onNewChat = vi.fn();
+    chat("streaming");
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    navigationStore.openPage("dom-health");
+
+    render(<BrowserChatHeader onNewChat={onNewChat} />);
+    act(() => chatHandoff.request(draft));
+
+    await vi.waitFor(() => expect(window.confirm).toHaveBeenCalled());
+    expect(onNewChat).not.toHaveBeenCalled();
+    expect(navigationStore.getState().page).toBe("dom-health");
+    expect(chatHandoff.take()).toBeNull();
   });
 });
 

@@ -8,6 +8,7 @@ describe("navigation store", () => {
     expect(nav.getState()).toEqual({
       drawerOpen: false,
       page: "dom-health",
+      subView: null,
       origin: "home",
     });
     nav.back();
@@ -32,6 +33,39 @@ describe("navigation store", () => {
     nav.openPage("connections", "home");
     nav.back();
     expect(nav.getState()).toMatchObject({ page: null, drawerOpen: false });
+  });
+
+  it("goes back from a view inside a page to the page, then to where it came from", () => {
+    const nav = createNavigationStore();
+    nav.openPage("dom-health", "menu");
+    nav.openSubView("breakdown");
+    expect(nav.getState()).toMatchObject({
+      page: "dom-health",
+      subView: "breakdown",
+    });
+    nav.back();
+    expect(nav.getState()).toMatchObject({
+      page: "dom-health",
+      subView: null,
+      drawerOpen: false,
+    });
+    nav.back();
+    expect(nav.getState()).toMatchObject({ page: null, drawerOpen: true });
+  });
+
+  it("opens no view without a page, and leaves for the chat without the menu", () => {
+    const nav = createNavigationStore();
+    nav.openSubView("settings");
+    expect(nav.getState().subView).toBeNull();
+
+    nav.openPage("dom-health", "menu");
+    nav.openSubView("settings");
+    nav.closePage();
+    expect(nav.getState()).toMatchObject({
+      page: null,
+      subView: null,
+      drawerOpen: false,
+    });
   });
 
   it("ignores Back with no page open", () => {

@@ -10,7 +10,7 @@ import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
-import type { HeaderProps } from "@apty/ui/types";
+import type { ChatDraft, HeaderProps } from "@apty/ui/types";
 import { ActivityIcon, MenuIcon, SquarePenIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openOptions } from "../lib/open-options";
@@ -19,6 +19,7 @@ import {
   fromStorageFormat,
   toStorageFormat,
 } from "../services/message-adapter";
+import { chatHandoff } from "../state/chat-handoff";
 import { navigationStore, useNavigation } from "../state/navigation-store";
 import { useReadiness } from "./connections/use-readiness";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
@@ -151,34 +152,55 @@ export function BrowserChatHeader({
     }
   };
 
-  const startFreshChat = useCallback(() => {
-    // Clear current conversation ID so next save creates new conversation
-    setCurrentConversationId(undefined);
+  const startFreshChat = useCallback(
+    (draft?: ChatDraft) => {
+      // Clear current conversation ID so next save creates new conversation
+      setCurrentConversationId(undefined);
 
-    // Release the outgoing session's tab binding (onNewChat below deletes
-    // the session itself via useChat's reset()).
-    if (sessionId) {
-      releaseConversationTabBinding(sessionId);
-    }
+      // Release the outgoing session's tab binding (onNewChat below deletes
+      // the session itself via useChat's reset()).
+      if (sessionId) {
+        releaseConversationTabBinding(sessionId);
+      }
 
-    // Call the passed onNewChat (resets messages and clears input)
-    onNewChat?.();
-  }, [onNewChat, sessionId]);
+      // Call the passed onNewChat (resets messages and sets the input)
+      onNewChat?.(draft);
+    },
+    [onNewChat, sessionId],
+  );
 
   const hasConversation =
     messages.filter((msg) => msg.role !== "system").length > 0;
 
   // New chat: confirm if a response is still running, interrupt it, save
-  // the conversation now (never racing the debounce), then start fresh.
-  const newChat = useCallback(async () => {
-    const isRunning = status === "streaming" || status === "submitted";
-    if (isRunning) {
-      if (!window.confirm(t("shell.newChatConfirm"))) return;
-      await interrupt();
-    }
-    await saveNowRef.current();
-    startFreshChat();
-  }, [status, interrupt, startFreshChat, t]);
+  // the conversation now (never racing the debounce), then start fresh,
+  // with a draft when one was handed over. False when the user cancels.
+  const newChat = useCallback(
+    async (draft?: ChatDraft): Promise<boolean> => {
+      const isRunning = status === "streaming" || status === "submitted";
+      if (isRunning) {
+        if (!window.confirm(t("shell.newChatConfirm"))) return false;
+        await interrupt();
+      }
+      await saveNowRef.current();
+      startFreshChat(draft);
+      return true;
+    },
+    [status, interrupt, startFreshChat, t],
+  );
+
+  // A page's "Ask about this result" starts a new chat the same way.
+  useEffect(
+    () =>
+      chatHandoff.subscribe(() => {
+        const handoff = chatHandoff.take();
+        if (!handoff) return;
+        void newChat(handoff).then((started) => {
+          if (started) navigationStore.closePage();
+        });
+      }),
+    [newChat],
+  );
 
   // Alt+Left: back one page when a tool page is open, else a new chat.
   useEffect(() => {
