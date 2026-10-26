@@ -1,22 +1,18 @@
 #!/usr/bin/env node
 /**
- * A ratchet on hard-coded colours and sizes in the extension's and
+ * A guard against hard-coded colours and sizes in the extension's and
  * @apty/ui's source: Tailwind palette classes (text-green-600), hex,
  * rgb()/hsl() literals, arbitrary text sizes (text-[11px]), text-base and
  * larger, font-bold/extrabold/black, uppercase and tracking-*. Screens use
  * the design tokens and the type scale instead (tailwind.css).
  *
  * Counts each rule per file in non-test .ts and .tsx files, comments
- * excluded, and fails when a count is above tooling/scripts/
- * design-tokens-baseline.json. Without a baseline file nothing is allowed.
- * `--update` lowers an existing baseline to the current counts; it never
- * raises a count and never creates the file. Files drawn outside the
- * extension's stylesheet are exempt (EXEMPT).
+ * excluded, and fails on any of them: nothing is tolerated. Files drawn
+ * outside the extension's stylesheet are exempt (EXEMPT).
  *
- * Usage: node tooling/scripts/check-design-tokens.mjs
- *          [--root <dir>] [--baseline <file>] [--update]
+ * Usage: node tooling/scripts/check-design-tokens.mjs [--root <dir>]
  */
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -114,34 +110,6 @@ export function scan(root) {
   );
 }
 
-/** Every (rule, file) whose count is above what the baseline allows. */
-export function overBaseline(counts, baseline) {
-  const over = [];
-  for (const [rule, files] of Object.entries(counts)) {
-    for (const [file, count] of Object.entries(files)) {
-      const allowed = baseline[rule]?.[file] ?? 0;
-      if (count > allowed) over.push({ rule, file, count, allowed });
-    }
-  }
-  return over;
-}
-
-function total(counts) {
-  return Object.values(counts)
-    .flatMap((files) => Object.values(files))
-    .reduce((a, b) => a + b, 0);
-}
-
-/** The stored baseline, or null when there is none; read once, so a write never follows a separate existence check. */
-function readBaseline(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
 function option(name) {
   const at = process.argv.indexOf(name);
   return at === -1 ? undefined : process.argv[at + 1];
@@ -154,32 +122,19 @@ if (
   const root = resolve(
     option("--root") ?? fileURLToPath(new URL("../..", import.meta.url)),
   );
-  const baselinePath = resolve(
-    option("--baseline") ??
-      join(root, "tooling/scripts/design-tokens-baseline.json"),
+  const found = Object.entries(scan(root)).flatMap(([rule, files]) =>
+    Object.entries(files).map(([file, count]) => ({ rule, file, count })),
   );
-  const counts = scan(root);
-  const stored = readBaseline(baselinePath);
-  const over = overBaseline(counts, stored ?? {});
 
-  if (over.length > 0) {
+  if (found.length > 0) {
     console.error(
-      "Hard-coded colours or sizes above the baseline. Use the design tokens and the type scale (apps/browser-extension/src/styles/tailwind.css):",
+      "Hard-coded colours or sizes. Use the design tokens and the type scale (apps/browser-extension/src/styles/tailwind.css):",
     );
-    for (const { rule, file, count, allowed } of over) {
-      console.error(`  ${rule}: ${file}: ${count} (allowed ${allowed})`);
+    for (const { rule, file, count } of found) {
+      console.error(`  ${rule}: ${file}: ${count}`);
     }
     process.exitCode = 1;
-  } else if (process.argv.includes("--update") && stored !== null) {
-    writeFileSync(baselinePath, `${JSON.stringify(counts, null, 2)}\n`);
-    console.log(
-      `✓ design-tokens-baseline.json updated: ${total(counts)} hard-coded colours and sizes`,
-    );
-  } else if (total(counts) === 0) {
-    console.log("✓ no hard-coded colours or sizes");
   } else {
-    console.log(
-      `✓ ${total(counts)} hard-coded colours and sizes, none above the baseline`,
-    );
+    console.log("✓ no hard-coded colours or sizes");
   }
 }
