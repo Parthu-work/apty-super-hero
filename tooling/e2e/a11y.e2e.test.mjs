@@ -452,7 +452,10 @@ for (const theme of ["light", "dark"]) {
       await held.requested;
       await panel.getByRole("list", { name: "Progress" }).waitFor();
       await assertNoSeriousViolations(panel, `${theme} DOM Config running`);
+      // The page was opened from the menu, so Back returns there first.
       await panel.getByRole("button", { name: "Back" }).click();
+      await panel.getByRole("dialog", { name: "Menu" }).waitFor();
+      await panel.keyboard.press("Escape");
       const jobs = panel.getByRole("region", { name: "Running jobs" });
       await jobs.waitFor();
       await assertNoSeriousViolations(panel, `${theme} Home, a running job`);
