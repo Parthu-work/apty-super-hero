@@ -37,7 +37,11 @@ function readStore(page, dbName, storeName) {
     ({ dbName, storeName }) =>
       new Promise((resolve, reject) => {
         const open = indexedDB.open(dbName);
-        open.onerror = () => reject(open.error);
+        // Reading must not create the database: the app creates it, with
+        // its stores, when it first saves.
+        open.onupgradeneeded = () => open.transaction.abort();
+        open.onerror = () =>
+          open.error?.name === "AbortError" ? resolve([]) : reject(open.error);
         open.onsuccess = () => {
           const db = open.result;
           if (!db.objectStoreNames.contains(storeName)) {
@@ -122,14 +126,12 @@ describe("deleting stored data", () => {
     assert.notEqual(alphaSession, betaSession);
     assert.ok((await sessionIds(beta.panel)).includes(alphaSession));
 
-    await beta.panel
-      .getByRole("button", { name: "Conversation History" })
+    await beta.panel.getByRole("button", { name: "Menu", exact: true }).click();
+    const menu = beta.panel.getByRole("dialog", { name: "Menu" });
+    await menu.getByRole("button", { name: /^alpha topic/ }).hover();
+    await menu
+      .getByRole("button", { name: "Delete conversation: alpha topic" })
       .click();
-    const alphaItem = beta.panel
-      .getByRole("menuitem")
-      .filter({ hasText: "alpha topic" });
-    await alphaItem.hover();
-    await alphaItem.locator("button").click();
 
     await waitFor(
       async () => !(await sessionIds(beta.panel)).includes(alphaSession),

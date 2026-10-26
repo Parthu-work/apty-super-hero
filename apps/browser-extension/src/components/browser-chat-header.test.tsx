@@ -1,38 +1,37 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { navigationStore } from "../state/navigation-store";
 
-// WP17: a Back control should appear once a conversation exists, save the
-// conversation immediately (not racing the 1s debounce) before clearing
-// it, and confirm before discarding an in-progress run.
+// New chat (header icon and menu row) must save the conversation at once,
+// not racing the 1 s debounce, and confirm before stopping a running reply.
 
 const mockUseChatContext = vi.hoisted(() => vi.fn());
-const mockUseTranslation = vi.hoisted(() => vi.fn());
-const mockGetRuntime = vi.hoisted(() => vi.fn());
-const mockUpdateConversation = vi.hoisted(() => vi.fn());
 const mockSaveConversation = vi.hoisted(() => vi.fn());
+const menuDrawerProps = vi.hoisted(() => ({ current: null as unknown }));
 
 vi.mock("@apty/ui/components/chatbot", () => ({
   useChatContext: mockUseChatContext,
 }));
 
 vi.mock("@apty/ui/i18n/context", () => ({
-  useTranslation: mockUseTranslation,
-}));
-
-vi.mock("@apty/ui/lib/runtime", () => ({
-  getRuntime: mockGetRuntime,
+  useTranslation: () => ({ t: (key: string) => key, language: "en" }),
 }));
 
 vi.mock("@apty/browser-runtime", () => ({
   conversationStorage: {
-    updateConversation: mockUpdateConversation,
+    updateConversation: vi.fn(),
     saveConversation: mockSaveConversation,
     getConversation: vi.fn(),
   },
 }));
 
-vi.mock("./conversation-history", () => ({
-  ConversationHistory: () => <div data-testid="conversation-history" />,
+vi.mock("../lib/open-options", () => ({ openOptions: vi.fn() }));
+
+vi.mock("./shell/menu-drawer", () => ({
+  MenuDrawer: (props: unknown) => {
+    menuDrawerProps.current = props;
+    return null;
+  },
 }));
 
 vi.mock("./investigation/investigation-context-bar", () => ({
@@ -49,13 +48,22 @@ function userMessage(id: string) {
   };
 }
 
+function chat(status: string, interrupt = vi.fn()) {
+  mockUseChatContext.mockReturnValue({
+    messages: [userMessage("1"), userMessage("2")],
+    status,
+    setMessages: vi.fn(),
+    interrupt,
+    sessionId: "session-1",
+    bindSession: vi.fn(),
+    sendMessage: vi.fn(),
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockUseTranslation.mockReturnValue({
-    t: (key: string) => key,
-    language: "en",
-  });
-  mockGetRuntime.mockReturnValue(undefined);
+  navigationStore.back();
+  navigationStore.closeDrawer();
   mockSaveConversation.mockResolvedValue("conv-1");
 });
 
@@ -63,107 +71,97 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("BrowserChatHeader — Back control", () => {
-  it("is not rendered when the conversation is empty", () => {
-    mockUseChatContext.mockReturnValue({
-      messages: [],
-      status: "idle",
-      setMessages: vi.fn(),
-      interrupt: vi.fn(),
-      sessionId: null,
-      bindSession: vi.fn(),
-    });
-
-    render(<BrowserChatHeader />);
-
-    expect(screen.queryByRole("button", { name: "tooltip.back" })).toBeNull();
-  });
-
-  it("saves the conversation immediately and calls onNewChat when idle", async () => {
+describe("BrowserChatHeader — New chat", () => {
+  it("saves the conversation immediately, then starts a new chat", async () => {
     const onNewChat = vi.fn();
-    mockUseChatContext.mockReturnValue({
-      messages: [userMessage("1"), userMessage("2")],
-      status: "idle",
-      setMessages: vi.fn(),
-      interrupt: vi.fn(),
-      sessionId: "session-1",
-      bindSession: vi.fn(),
-    });
+    chat("idle");
 
     render(<BrowserChatHeader onNewChat={onNewChat} />);
+    fireEvent.click(screen.getByRole("button", { name: "shell.newChat" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "tooltip.back" }));
-
-    await vi.waitFor(() => {
-      expect(mockSaveConversation).toHaveBeenCalled();
-    });
-    await vi.waitFor(() => {
-      expect(onNewChat).toHaveBeenCalled();
-    });
+    await vi.waitFor(() => expect(onNewChat).toHaveBeenCalled());
+    expect(mockSaveConversation).toHaveBeenCalled();
+    expect(mockSaveConversation.mock.invocationCallOrder[0]).toBeLessThan(
+      onNewChat.mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
-  it("confirms before discarding an in-progress run, and does nothing on cancel", async () => {
+  it("does nothing when the user cancels stopping a running reply", () => {
     const onNewChat = vi.fn();
     const interrupt = vi.fn();
-    mockUseChatContext.mockReturnValue({
-      messages: [userMessage("1"), userMessage("2")],
-      status: "streaming",
-      setMessages: vi.fn(),
-      interrupt,
-      sessionId: "session-1",
-      bindSession: vi.fn(),
-    });
+    chat("streaming", interrupt);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 
     render(<BrowserChatHeader onNewChat={onNewChat} />);
-    fireEvent.click(screen.getByRole("button", { name: "tooltip.back" }));
+    fireEvent.click(screen.getByRole("button", { name: "shell.newChat" }));
 
-    expect(confirmSpy).toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalledWith("shell.newChatConfirm");
     expect(interrupt).not.toHaveBeenCalled();
     expect(onNewChat).not.toHaveBeenCalled();
   });
 
-  it("interrupts and goes back when the user confirms leaving an in-progress run", async () => {
+  it("interrupts the running reply, saves, then starts a new chat when confirmed", async () => {
     const onNewChat = vi.fn();
     const interrupt = vi.fn().mockResolvedValue(undefined);
-    mockUseChatContext.mockReturnValue({
-      messages: [userMessage("1"), userMessage("2")],
-      status: "streaming",
-      setMessages: vi.fn(),
-      interrupt,
-      sessionId: "session-1",
-      bindSession: vi.fn(),
-    });
+    chat("streaming", interrupt);
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<BrowserChatHeader onNewChat={onNewChat} />);
-    fireEvent.click(screen.getByRole("button", { name: "tooltip.back" }));
+    fireEvent.click(screen.getByRole("button", { name: "shell.newChat" }));
 
-    await vi.waitFor(() => {
-      expect(interrupt).toHaveBeenCalled();
-    });
-    await vi.waitFor(() => {
-      expect(onNewChat).toHaveBeenCalled();
-    });
+    await vi.waitFor(() => expect(onNewChat).toHaveBeenCalled());
+    expect(interrupt.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSaveConversation.mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
-  it("responds to the Alt+Left keyboard shortcut", async () => {
+  it("gives the menu's New chat row the same path", async () => {
     const onNewChat = vi.fn();
-    mockUseChatContext.mockReturnValue({
-      messages: [userMessage("1"), userMessage("2")],
-      status: "idle",
-      setMessages: vi.fn(),
-      interrupt: vi.fn(),
-      sessionId: "session-1",
-      bindSession: vi.fn(),
-    });
+    chat("idle");
 
     render(<BrowserChatHeader onNewChat={onNewChat} />);
+    (menuDrawerProps.current as { onNewChat: () => void }).onNewChat();
 
+    await vi.waitFor(() => expect(onNewChat).toHaveBeenCalled());
+    expect(mockSaveConversation).toHaveBeenCalled();
+  });
+});
+
+describe("BrowserChatHeader — Alt+Left", () => {
+  it("goes back one page when a tool page is open, keeping the chat", () => {
+    const onNewChat = vi.fn();
+    chat("idle");
+    navigationStore.openPage("dom-health");
+
+    render(<BrowserChatHeader onNewChat={onNewChat} />);
     fireEvent.keyDown(window, { key: "ArrowLeft", altKey: true });
 
-    await vi.waitFor(() => {
-      expect(onNewChat).toHaveBeenCalled();
-    });
+    expect(navigationStore.getState().page).toBeNull();
+    expect(onNewChat).not.toHaveBeenCalled();
+  });
+
+  it("starts a new chat when no page is open", async () => {
+    const onNewChat = vi.fn();
+    chat("idle");
+
+    render(<BrowserChatHeader onNewChat={onNewChat} />);
+    fireEvent.keyDown(window, { key: "ArrowLeft", altKey: true });
+
+    await vi.waitFor(() => expect(onNewChat).toHaveBeenCalled());
+  });
+});
+
+describe("BrowserChatHeader — Menu", () => {
+  it("opens the menu and reports it as expanded", () => {
+    chat("idle");
+    const { rerender } = render(<BrowserChatHeader />);
+    const menu = screen.getByRole("button", { name: "shell.menu" });
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(menu);
+    rerender(<BrowserChatHeader />);
+
+    expect(navigationStore.getState().drawerOpen).toBe(true);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
   });
 });

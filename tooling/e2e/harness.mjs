@@ -377,6 +377,16 @@ export async function openSidePanel(browser, model, targetPage, settings = {}) {
   return panel;
 }
 
+/** Opens a tool page (DOM health, DOM config) from the side panel's menu. */
+export async function openToolPage(panel, name) {
+  await panel.getByRole("button", { name: "Menu", exact: true }).click();
+  await panel
+    .getByRole("dialog", { name: "Menu" })
+    .getByRole("button", { name, exact: true })
+    .click();
+  await panel.getByRole("region", { name, exact: true }).waitFor();
+}
+
 export async function sendChat(panel, text) {
   const box = panel.locator("textarea").first();
   await box.fill(text);

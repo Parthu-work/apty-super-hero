@@ -21,13 +21,21 @@ import {
 } from "@apty/ui/components/ui/dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
-import { useState } from "react";
+import { CheckIcon, TriangleAlertIcon } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useCurrentTarget } from "./use-current-target";
 import { useInvestigationData } from "./use-investigation-data";
 
-export function InvestigationContextBar() {
+/**
+ * `trailing` sits at the right end of the quiet bar (the setup badge).
+ */
+export function InvestigationContextBar({
+  trailing,
+}: {
+  trailing?: ReactNode;
+} = {}) {
   const { sessionId, status, interrupt } = useChatContext();
   const { t } = useTranslation();
   const isActive =
@@ -55,21 +63,29 @@ export function InvestigationContextBar() {
     forceRerender((n) => n + 1);
   };
 
-  if (!target.hostname && !isLive) {
-    return null;
-  }
-
   if (!isLive) {
+    const StateIcon = target.inspectable ? CheckIcon : TriangleAlertIcon;
     return (
-      <div className="flex items-center gap-1.5 border-b bg-muted/10 px-4 py-1.5 text-xs text-muted-foreground">
-        <span
-          className={cn("size-1.5 rounded-full", toneDotClass("neutral"))}
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
+        <StateIcon
           aria-hidden="true"
+          className={cn(
+            "size-4 shrink-0",
+            target.inspectable ? "text-success" : "text-warning",
+          )}
         />
-        <span className="truncate">
-          {target.hostname}
-          {target.title ? ` — ${target.title}` : ""}
+        <span className="sr-only">
+          {t(target.inspectable ? "shell.canInspect" : "shell.cantInspect")}
         </span>
+        <span className="shrink-0 truncate text-sm font-medium text-foreground">
+          {target.hostname ?? t("shell.noPage")}
+        </span>
+        {target.title && (
+          <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
+            {target.title}
+          </span>
+        )}
+        {trailing && <span className="ml-auto shrink-0">{trailing}</span>}
       </div>
     );
   }
@@ -77,7 +93,7 @@ export function InvestigationContextBar() {
   const meta = describeInvestigationStatus(investigation.status);
 
   return (
-    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-300">
+    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-200 motion-reduce:animate-none">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-1.5">
@@ -85,7 +101,7 @@ export function InvestigationContextBar() {
               className={cn(
                 "size-2 shrink-0 rounded-full",
                 toneDotClass(meta.tone),
-                meta.inProgress && "animate-pulse",
+                meta.inProgress && "animate-pulse motion-reduce:animate-none",
               )}
               aria-hidden="true"
             />

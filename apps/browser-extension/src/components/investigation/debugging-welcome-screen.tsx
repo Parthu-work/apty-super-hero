@@ -1,113 +1,53 @@
 /**
- * Investigation-first empty state (product spec section 22). Apty's start
- * screen for the debugging agent — every prompt here is a real diagnostic
- * entry point into a live Apty Widget/Client/Studio/Service Worker issue,
- * not an open-ended "how can I help you today" AI-assistant greeting.
+ * Home: the investigation-first empty state. Every suggestion is a real
+ * diagnostic entry point into a live Apty Widget/Client/Studio/Service
+ * Worker issue, not an open-ended "how can I help you today" greeting.
  */
-import {
-  Suggestion,
-  Suggestions,
-} from "@apty/ui/components/ai-elements/suggestion";
+import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
-import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import type { WelcomeScreenProps } from "@apty/ui/types";
-import {
-  ChevronRightIcon,
-  CrosshairIcon,
-  PuzzleIcon,
-  SearchCodeIcon,
-  SlidersHorizontalIcon,
-  WifiOffIcon,
-  WorkflowIcon,
-} from "lucide-react";
-import type { ReactNode } from "react";
+import { ActivityIcon, SlidersHorizontalIcon } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { INVESTIGATION_PROMPTS } from "../shell/investigation-prompts";
 import { revealDomConfigCard } from "./dom-config/dom-config-store";
 
-type PromptTone = "danger" | "active" | "warning" | "success";
+const HOME_COUNT = 3;
 
-const TONE_ICON_CLASSES: Record<PromptTone, string> = {
-  danger: "bg-destructive-muted text-destructive",
-  active: "bg-info-muted text-info",
-  warning: "bg-warning-muted text-warning",
-  success: "bg-success-muted text-success",
-};
-
-const DEBUG_PROMPTS: Array<{
-  category: TranslationKey;
-  text: TranslationKey;
-  icon: typeof PuzzleIcon;
-  tone: PromptTone;
-}> = [
-  {
-    category: "investigation.welcome.widget",
-    text: "investigation.welcome.widgetPrompt",
-    icon: PuzzleIcon,
-    tone: "danger",
-  },
-  {
-    category: "investigation.welcome.studio",
-    text: "investigation.welcome.studioPrompt",
-    icon: CrosshairIcon,
-    tone: "active",
-  },
-  {
-    category: "investigation.welcome.workflow",
-    text: "investigation.welcome.workflowPrompt",
-    icon: WorkflowIcon,
-    tone: "warning",
-  },
-  {
-    category: "investigation.welcome.selectors",
-    text: "investigation.welcome.selectorsPrompt",
-    icon: SearchCodeIcon,
-    tone: "success",
-  },
-  {
-    category: "investigation.welcome.network",
-    text: "investigation.welcome.networkPrompt",
-    icon: WifiOffIcon,
-    tone: "danger",
-  },
-];
-
-function PromptTile({
-  category,
-  text,
+function SuggestionRow({
   icon: Icon,
-  tone,
+  category,
+  question,
   onClick,
-}: (typeof DEBUG_PROMPTS)[number] & { onClick: (text: string) => void }) {
-  const { t } = useTranslation();
+}: {
+  icon: typeof ActivityIcon;
+  category: string;
+  question: string;
+  onClick: () => void;
+}) {
   return (
-    <Suggestion
-      suggestion={t(text)}
-      onClick={onClick}
-      variant="outline"
-      size="lg"
-      className={cn(
-        "h-auto w-full items-center justify-start gap-2.5 rounded-lg border-border px-2.5 py-2 text-left transition-colors",
-        "hover:border-foreground/20 hover:bg-accent",
-      )}
-    >
-      <div
-        className={cn(
-          "flex size-7 shrink-0 items-center justify-center rounded-md",
-          TONE_ICON_CLASSES[tone],
-        )}
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-h-15 w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring motion-reduce:transition-none"
       >
-        <Icon className="size-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold text-muted-foreground">
-          {t(category)}
-        </div>
-        <div className="whitespace-normal break-words text-xs font-medium text-foreground">
-          {t(text)}
-        </div>
-      </div>
-      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/60" />
-    </Suggestion>
+        <span
+          aria-hidden="true"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground"
+        >
+          <Icon className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs text-muted-foreground">
+            {category}
+          </span>
+          <span className="block break-words text-sm font-medium text-foreground">
+            {question}
+          </span>
+        </span>
+      </button>
+    </li>
   );
 }
 
@@ -118,47 +58,76 @@ export function DebuggingWelcomeScreen({
   ...props
 }: WelcomeScreenProps & { readiness?: ReactNode }) {
   const { t } = useTranslation();
+  const [showAll, setShowAll] = useState(false);
+  const prompts = showAll
+    ? INVESTIGATION_PROMPTS
+    : INVESTIGATION_PROMPTS.slice(0, HOME_COUNT);
+
   return (
     <div
       className={cn(
-        "flex min-h-full flex-col items-center justify-center-safe p-4",
+        "flex min-h-full flex-col justify-between gap-6 p-4",
         className,
       )}
       {...props}
     >
-      <div className="mb-3 text-center">
-        <h3 className="mb-1.5 text-title font-semibold text-foreground">
-          {t("investigation.welcome.title")}
-        </h3>
-        <p className="text-sm text-muted-foreground">
+      <div>
+        <span
+          aria-hidden="true"
+          className="mb-4 flex size-12 items-center justify-center rounded-lg border border-border bg-card text-foreground"
+        >
+          <ActivityIcon className="size-5" />
+        </span>
+        <h2 className="text-display font-semibold text-foreground">
+          {t("shell.home.heading")}
+        </h2>
+        <p className="mt-1 max-w-80 text-sm text-muted-foreground">
           {t("investigation.welcome.subtitle")}
         </p>
+        {readiness && <div className="mt-4">{readiness}</div>}
       </div>
 
-      {readiness && (
-        <div className="mb-3 flex w-full justify-center">{readiness}</div>
-      )}
-
-      <div className="w-full max-w-2xl">
-        <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">
-          {t("investigation.welcome.start")}
-        </p>
-        <Suggestions className="grid w-full gap-2 sm:grid-cols-2">
-          {DEBUG_PROMPTS.map((prompt) => (
-            <PromptTile
-              key={prompt.text}
-              {...prompt}
-              onClick={onSuggestionClick}
+      <div>
+        <div className="flex items-center justify-between pl-2">
+          <h3
+            id="home-suggestions"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            {t("investigation.welcome.start")}
+          </h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={showAll}
+            aria-controls="home-suggestion-list"
+            onClick={() => setShowAll((all) => !all)}
+          >
+            {t(showAll ? "shell.home.showFewer" : "shell.home.seeAll")}
+          </Button>
+        </div>
+        <ul
+          id="home-suggestion-list"
+          aria-labelledby="home-suggestions"
+          className="mt-1 space-y-0.5"
+        >
+          {prompts.map((prompt) => (
+            <SuggestionRow
+              key={prompt.id}
+              icon={prompt.icon}
+              category={t(prompt.category)}
+              question={t(prompt.text)}
+              onClick={() => onSuggestionClick(t(prompt.text))}
             />
           ))}
-          <PromptTile
-            category="domConfig.welcome.category"
-            text="domConfig.welcome.tile"
-            icon={SlidersHorizontalIcon}
-            tone="active"
-            onClick={revealDomConfigCard}
-          />
-        </Suggestions>
+          {showAll && (
+            <SuggestionRow
+              icon={SlidersHorizontalIcon}
+              category={t("domConfig.welcome.category")}
+              question={t("domConfig.welcome.tile")}
+              onClick={revealDomConfigCard}
+            />
+          )}
+        </ul>
       </div>
     </div>
   );

@@ -1,13 +1,13 @@
 /**
  * Accessibility (C3): axe-core on the real side panel and Options page, in
  * light and dark themes. Fails on any `serious` or `critical` violation.
- * Side panel states: empty, the conversation history still loading, a chat
- * with a tool result, a long chat scrolled up with its scroll-to-bottom
+ * Side panel states: empty, Home with every suggestion, the "/" list, the
+ * menu with its recent chats loading and loaded, a chat with a tool result, a long chat scrolled up with its scroll-to-bottom
  * button, an approval prompt, an intervention card before and after an
  * option is chosen, the send button idle, sending, streaming and after an
  * error, the evidence viewers (the investigation summary and the full
  * response viewer), a DOM Health result with its export dialog at
- * side-panel size, and the DOM Config card idle, running (held on a page
+ * side-panel size, and the DOM Config page idle, running (held on a page
  * request), with its report and on a page it cannot analyze, a manual
  * capture with a duplicate warning, an import error, page detail and the
  * Iframes, Coverage and Warnings tabs. Options: every tab. No axe rule is
@@ -25,6 +25,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  openToolPage,
   runAxe,
   sendChat,
   startMockModel,
@@ -114,7 +115,7 @@ async function assertNoSeriousViolations(page, where) {
   );
 }
 
-/** Runs in the panel before its own scripts: the conversations database never opens, so the history stays in its loading state. */
+/** Runs in the panel before its own scripts: the conversations database never opens, so the menu's recent chats stay loading. */
 function holdConversationHistory() {
   const open = IDBFactory.prototype.open;
   IDBFactory.prototype.open = function (name, ...rest) {
@@ -124,7 +125,7 @@ function holdConversationHistory() {
   };
 }
 
-const HISTORY_LOADED = { name: "Conversation History", exact: true };
+const MENU = { name: "Menu", exact: true };
 
 function deferred() {
   let resolve;
@@ -134,26 +135,12 @@ function deferred() {
   return { promise, resolve };
 }
 
-/**
- * The side panel once its conversation history has loaded, or, with
- * `holdHistory`, while it is still loading: the history control is
- * scanned in one state or the other, never whichever a race leaves.
- */
-async function openPanel(theme, { holdHistory = false } = {}) {
+/** The side panel on Home, in `theme`. */
+async function openPanel(theme) {
   const app = await browser.context.newPage();
   await app.goto(`${site.origin}/app.html`);
   const panel = await openSidePanel(browser, model, app);
-  if (holdHistory) {
-    await panel.addInitScript(holdConversationHistory);
-    await panel.reload();
-    await panel
-      .getByRole("button", { name: "Settings", exact: true })
-      .waitFor();
-    await panel.waitForFunction(() => globalThis.__conversationHistoryHeld);
-    assert.equal(await panel.getByRole("button", HISTORY_LOADED).count(), 0);
-  } else {
-    await panel.getByRole("button", HISTORY_LOADED).waitFor();
-  }
+  await panel.getByRole("button", MENU).waitFor();
   await assertThemeApplied(panel, theme);
   return { app, panel };
 }
@@ -173,18 +160,56 @@ for (const theme of ["light", "dark"]) {
       await app.close();
     });
 
-    it("side panel, conversation history still loading", async () => {
-      const { app, panel } = await openPanel(theme, { holdHistory: true });
+    it("side panel, Home with every suggestion and the / list", async () => {
+      const { app, panel } = await openPanel(theme);
+      await panel.getByRole("button", { name: "See all" }).click();
+      await panel
+        .getByRole("button", { name: /Generate DOM config: capture/ })
+        .waitFor();
+      await assertNoSeriousViolations(panel, `${theme} Home, every suggestion`);
+
+      await panel.locator("textarea").first().fill("/");
+      await panel
+        .getByRole("listbox", { name: "Tools, investigations and skills" })
+        .waitFor();
+      await assertNoSeriousViolations(panel, `${theme} the / list`);
+      await panel.close();
+      await app.close();
+    });
+
+    it("side panel, the menu while its recent chats are still loading", async () => {
+      const { app, panel } = await openPanel(theme);
+      await panel.addInitScript(holdConversationHistory);
+      await panel.reload();
+      await panel.getByRole("button", MENU).click();
+      const menu = panel.getByRole("dialog", { name: "Menu" });
+      await menu.getByRole("button", { name: "New chat" }).waitFor();
+      await panel.waitForFunction(() => globalThis.__conversationHistoryHeld);
+      assert.equal(await menu.getByText("Recent chats").count(), 0);
       await assertNoSeriousViolations(
         panel,
-        `${theme} side panel, conversation history still loading`,
+        `${theme} menu, recent chats still loading`,
       );
-      assert.equal(
-        await panel
-          .getByRole("button", { name: "Loading...", exact: true })
-          .isDisabled(),
-        true,
-      );
+      await panel.close();
+      await app.close();
+    });
+
+    it("side panel, the menu with a recent chat", async () => {
+      const { app, panel } = await openPanel(theme);
+      model.script(() => ({ text: "RESULT: the widget is loaded" }));
+      await chatAndWait(panel, "is the widget loaded?");
+      // New chat saves the conversation before it clears the panel.
+      await panel.getByRole("button", { name: "New chat" }).click();
+      await panel
+        .getByRole("heading", { name: "What are we debugging?" })
+        .waitFor();
+      await panel.getByRole("button", MENU).click();
+      await panel
+        .getByRole("dialog", { name: "Menu" })
+        .getByRole("button", { name: /^is the widget loaded\?/ })
+        .first()
+        .waitFor();
+      await assertNoSeriousViolations(panel, `${theme} menu, a recent chat`);
       await panel.close();
       await app.close();
     });
@@ -384,12 +409,10 @@ for (const theme of ["light", "dark"]) {
       await target.goto(`${domConfigApp.origin}/home`);
       const panel = await openSidePanel(browser, model, target);
       await panel.setViewportSize(SIDE_PANEL);
-      await panel.getByRole("button", HISTORY_LOADED).waitFor();
+      await panel.getByRole("button", MENU).waitFor();
       await assertThemeApplied(panel, theme);
 
-      await panel
-        .getByRole("button", { name: /Generate DOM config: capture/ })
-        .click();
+      await openToolPage(panel, "DOM config");
       const start = panel.getByRole("button", {
         name: "Start generating the DOM config",
       });
@@ -440,8 +463,9 @@ for (const theme of ["light", "dark"]) {
       await target.goto(`${domConfigApp.origin}/home`);
       const panel = await openSidePanel(browser, model, target);
       await panel.setViewportSize(SIDE_PANEL);
-      await panel.getByRole("button", HISTORY_LOADED).waitFor();
+      await panel.getByRole("button", MENU).waitFor();
       await assertThemeApplied(panel, theme);
+      await panel.getByRole("button", { name: "See all" }).click();
       await panel
         .getByRole("button", { name: /Generate DOM config: capture/ })
         .click();
@@ -519,6 +543,7 @@ for (const theme of ["light", "dark"]) {
       });
       await assertThemeApplied(panel, theme);
       await panel.setViewportSize(SIDE_PANEL);
+      await openToolPage(panel, "DOM health");
       await panel.getByRole("button", { name: /check dom health/i }).click();
       await panel
         .locator("text=/Last checked/")

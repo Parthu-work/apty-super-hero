@@ -52,10 +52,9 @@ vi.mock("@apty/browser-runtime", () => ({
   toShareableRouteProbeReport: vi.fn(),
 }));
 
-import { DebuggingWelcomeScreen } from "../debugging-welcome-screen";
 import { DomHealthCard } from "../dom-health-card";
 import { DomConfigCard } from "./dom-config-card";
-import { createDomConfigStore, domConfigStore } from "./dom-config-store";
+import { createDomConfigStore } from "./dom-config-store";
 import {
   CAPTURE,
   deferred,
@@ -590,20 +589,5 @@ describe("tab lock", () => {
       ).toBeEnabled(),
     );
     expect(mockRunDomConfigCapture).not.toHaveBeenCalled();
-  });
-});
-
-describe("welcome screen tile", () => {
-  it("opens the DOM Config card instead of sending a message", () => {
-    const onSuggestionClick = vi.fn();
-    domConfigStore.setExpanded(false);
-    render(<DebuggingWelcomeScreen onSuggestionClick={onSuggestionClick} />);
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /Generate DOM config: capture this application's pages/,
-      }),
-    );
-    expect(domConfigStore.getState().expanded).toBe(true);
-    expect(onSuggestionClick).not.toHaveBeenCalled();
   });
 });

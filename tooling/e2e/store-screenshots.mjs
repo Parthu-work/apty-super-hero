@@ -14,6 +14,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  openToolPage,
   startMockModel,
   startPageServer,
   toolResults,
@@ -172,6 +173,7 @@ export async function captureStoreScreenshots() {
 
     // 3. A DOM Health audit of the page.
     panel = await openSidePanel(browser, model, app);
+    await openToolPage(panel, "DOM health");
     await panel
       .getByRole("button", { name: /check dom health/i })
       .first()

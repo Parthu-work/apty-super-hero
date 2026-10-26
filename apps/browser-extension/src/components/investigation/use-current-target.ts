@@ -10,19 +10,31 @@
  */
 import { useEffect, useState } from "react";
 import { peekConversationTabBinding } from "../../services/conversation-tab-binding";
+import { describePage } from "../../services/page-access";
 
 export interface CurrentTarget {
   tabId: number | null;
   title: string | null;
   /** Hostname only (e.g. "company.salesforce.com") — never the full URL. */
   hostname: string | null;
+  /** Whether Chrome lets the extension inspect the page (describePage). */
+  inspectable: boolean;
 }
 
 const EMPTY_TARGET: CurrentTarget = {
   tabId: null,
   title: null,
   hostname: null,
+  inspectable: false,
 };
+
+async function fileAccessAllowed(): Promise<boolean> {
+  try {
+    return (await chrome.extension?.isAllowedFileSchemeAccess?.()) ?? true;
+  } catch {
+    return true;
+  }
+}
 
 function hostnameOf(url: string | undefined): string | null {
   if (!url) return null;
@@ -61,10 +73,13 @@ export function useCurrentTarget(sessionId: string | null): CurrentTarget {
           setTarget(EMPTY_TARGET);
           return;
         }
+        const fileAccess = await fileAccessAllowed();
+        if (cancelled) return;
         setTarget({
           tabId: tab.id ?? null,
           title: tab.title ?? null,
           hostname: hostnameOf(tab.url),
+          inspectable: describePage(tab.url, fileAccess).inspectable,
         });
       } catch {
         if (!cancelled) setTarget(EMPTY_TARGET);

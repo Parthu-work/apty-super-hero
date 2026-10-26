@@ -1,6 +1,6 @@
 /**
- * The DOM Config card in the real side panel (R4a, R4b): the welcome
- * screen's tile opens it, one Start crawls the fixture application, and the
+ * The DOM Config page in the real side panel (R4a, R4b): the composer's "/"
+ * list opens it, one Start crawls the fixture application, and the
  * report shows the five settings tiles and the expected ignore conditions.
  * The exported Markdown holds exactly the rules ticked on screen. A state
  * safe mode never clicks (the fixture's menu) is then opened by hand and
@@ -79,17 +79,18 @@ function markdownConditions(label) {
 }
 
 describe("DOM Config card in the side panel", () => {
-  it("generates the report from the welcome tile and exports what is ticked", async () => {
+  it("generates the report from the / list and exports what is ticked", async () => {
     const target = await browser.context.newPage();
     await target.goto(`${app.origin}/home`);
     const panel = await openSidePanel(browser, model, target);
+    const composer = panel.locator("textarea").first();
+    await composer.fill("/config");
     await panel
-      .getByRole("button", { name: "Conversation History", exact: true })
+      .getByRole("option", { name: /^DOM config/, selected: true })
       .waitFor();
-
-    await panel
-      .getByRole("button", { name: /Generate DOM config: capture/ })
-      .click();
+    await composer.press("Enter");
+    await panel.getByRole("region", { name: "DOM config" }).waitFor();
+    assert.equal(await composer.inputValue(), "");
     await panel
       .getByRole("button", { name: "Start generating the DOM config" })
       .click();

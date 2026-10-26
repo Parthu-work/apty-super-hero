@@ -52,6 +52,8 @@ import { InvestigationSummaryBar } from "./investigation/investigation-summary-b
 import { ReadinessCheck } from "./readiness-check";
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
+import { PageLayer } from "./shell/page-layer";
+import { ToolPageShell } from "./shell/tool-page-shell";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
@@ -271,18 +273,42 @@ function ChatApp() {
                 <RedactionOffBanner mode={settings.redactionMode} />
                 <ApprovalPrompt />
                 <InvestigationSummaryBar />
-                <DomHealthCard
-                  developerTools={settings.developerTools === true}
-                  ignoredRoots={settings.domHealthIgnoredRoots}
-                  thresholdOverrides={
-                    settings.developerTools === true
-                      ? settings.domHealthThresholdOverrides
-                      : undefined
-                  }
-                />
-                <DomConfigCard ignoredRoots={settings.domHealthIgnoredRoots} />
                 <BrowserContextLoader />
               </>
+            ),
+            overlay: () => (
+              <PageLayer
+                pages={[
+                  {
+                    id: "dom-health",
+                    label: t("shell.domHealth"),
+                    content: (
+                      <ToolPageShell title={t("shell.domHealth")}>
+                        <DomHealthCard
+                          developerTools={settings.developerTools === true}
+                          ignoredRoots={settings.domHealthIgnoredRoots}
+                          thresholdOverrides={
+                            settings.developerTools === true
+                              ? settings.domHealthThresholdOverrides
+                              : undefined
+                          }
+                        />
+                      </ToolPageShell>
+                    ),
+                  },
+                  {
+                    id: "dom-config",
+                    label: t("shell.domConfig"),
+                    content: (
+                      <ToolPageShell title={t("shell.domConfig")}>
+                        <DomConfigCard
+                          ignoredRoots={settings.domHealthIgnoredRoots}
+                        />
+                      </ToolPageShell>
+                    ),
+                  },
+                ]}
+              />
             ),
             emptyState: (props) => (
               <DebuggingWelcomeScreen

@@ -26,6 +26,10 @@ import {
   runDomConfigCapture,
 } from "@apty/browser-runtime/apty/dom-config/index";
 import { useSyncExternalStore } from "react";
+import {
+  type NavigationOrigin,
+  navigationStore,
+} from "../../../state/navigation-store";
 import { acquireTabLock, releaseTabLock } from "./tab-lock";
 
 export type DomConfigScope = "page" | "application-safe" | "application-deep";
@@ -517,7 +521,8 @@ export function useDomConfigState(
   return useSyncExternalStore(store.subscribe, store.getState);
 }
 
-/** Opens the DOM Config card, from the welcome screen's tile. */
-export function revealDomConfigCard(): void {
+/** Opens the DOM config page with its card expanded. */
+export function revealDomConfigCard(origin?: NavigationOrigin): void {
   domConfigStore.reveal();
+  navigationStore.openPage("dom-config", origin);
 }

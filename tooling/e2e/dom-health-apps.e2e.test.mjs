@@ -15,6 +15,7 @@ import {
   chatAndWait,
   launchBrowser,
   openSidePanel,
+  openToolPage,
   startMockModel,
   startPageServer,
   toolResults,
@@ -433,6 +434,7 @@ describe("DOM Health on six application shapes", () => {
         developerTools: true,
         domHealthThresholdOverrides: OVERRIDES,
       });
+      await openToolPage(panel, "DOM health");
       const run = application ? /audit application/i : /check dom health/i;
       await panel.getByRole("button", { name: run }).click();
       const exportButton = panel.getByRole("button", {
