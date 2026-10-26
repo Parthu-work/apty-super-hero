@@ -228,7 +228,7 @@ Import from `@apty/ui/theme/context`:
 
 - `Omni` (command palette)
 - `FakeMouse` (+ controller/types)
-- Intervention components: `InterventionCard`, `SelectionCard`, `MonitorCard`, `VoiceCard`, `InterventionModeToggle`
+- Intervention components: `InterventionCard`, `SelectionCard`, `MonitorCard`
 
 ## Development (monorepo)
 
