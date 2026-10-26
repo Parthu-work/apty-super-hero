@@ -561,7 +561,11 @@
       "settingsValue": "{{scope}} · {{discovery}}",
       "thresholds": "阈值覆盖",
       "thresholdsNone": "无。可在选项的开发者工具中设置。",
-      "checkAgain": "再次检查"
+      "ask": "就此结果提问",
+      "checkAgain": "再次检查",
+      "askHint": "将此结果作为证据添加到新对话中。",
+      "askDraft": "这个 DOM 健康结果意味着什么？应该先修复什么？",
+      "askChip": "DOM 健康结果"
     }
   },
   "domConfig": {

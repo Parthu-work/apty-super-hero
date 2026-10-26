@@ -467,6 +467,46 @@ describe("DOM Health on six application shapes", () => {
       return { json, version };
     }
 
+    it("asks about a result in a new chat: the bundle as a chip beside a draft, sent only on Send, with no page text", async () => {
+      const shape = SHAPES.find((s) => s.path === "/portal.html");
+      const page = await browser.context.newPage();
+      await page.goto(`${site.origin}${shape.path}`);
+      await page.waitForLoadState("load");
+      const panel = await openSidePanel(browser, model, page);
+      await openToolPage(panel, "DOM health");
+      await runCheck(panel, { application: false });
+
+      // Scripting the reply also clears the model's request log.
+      model.script(() => ({ text: "RESULT: read the bundle" }));
+      await panel
+        .getByRole("button", { name: "Ask about this result" })
+        .click();
+      await panel
+        .getByRole("region", { name: "DOM health", exact: true })
+        .waitFor({ state: "detached" });
+      const box = panel.locator("textarea").first();
+      assert.equal(
+        await box.inputValue(),
+        "What does this DOM health result mean, and what should we fix first?",
+      );
+      await panel.getByText("DOM health result", { exact: true }).waitFor();
+      assert.equal(model.requests.length, 0, "sent before Send");
+
+      await box.press("Enter");
+      await panel.getByText("RESULT: read the bundle").waitFor();
+      const asked = model.requests[0].messages
+        .filter((m) => m.role === "user")
+        .at(-1);
+      const text = JSON.stringify(asked.content);
+      assert.ok(text.includes("apty-dom-health-validation/1"), text);
+      assert.ok(text.includes("what should we fix first?"), text);
+      for (const leak of shape.text) {
+        assert.ok(!text.includes(leak), `${leak} reached the model: ${text}`);
+      }
+      await panel.close();
+      await page.close();
+    });
+
     for (const shape of SHAPES) {
       it(`${shape.path}: exports the schema with no page text, titles, queries or tenant ids`, async () => {
         const { json, version } = await exportBundle(shape);

@@ -561,7 +561,11 @@
       "settingsValue": "{{scope}} · {{discovery}}",
       "thresholds": "Threshold overrides",
       "thresholdsNone": "None. Developer tools in Options can set them.",
-      "checkAgain": "Check again"
+      "ask": "Ask about this result",
+      "checkAgain": "Check again",
+      "askHint": "Adds this result to a new chat as evidence.",
+      "askDraft": "What does this DOM health result mean, and what should we fix first?",
+      "askChip": "DOM health result"
     }
   },
   "domConfig": {

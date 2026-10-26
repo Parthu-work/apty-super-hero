@@ -40,7 +40,8 @@ function extensionVersion(): string {
   }
 }
 
-function validationBundleJson({
+/** The bundle as reviewed JSON; "Ask about this result" sends the same summary. */
+export function validationBundleJson({
   page,
   application,
   probe,

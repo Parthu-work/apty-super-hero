@@ -50,6 +50,10 @@ vi.mock("@apty/browser-runtime", () => ({
   runApplicationDomHealthAudit: mockRunApplicationDomHealthAudit,
   startRouteProbe: vi.fn(),
   toShareableRouteProbeReport: vi.fn(),
+  // The bundle's own redaction is tested in ask-about-result.test.ts.
+  buildValidationBundle: () => ({ schema: "apty-dom-health-validation/1" }),
+  resolveThresholds: () => ({}),
+  chromeVersionFrom: () => null,
 }));
 
 import type {
@@ -57,6 +61,7 @@ import type {
   DomHealthAuditOutcome,
 } from "@apty/browser-runtime";
 import { I18nProvider } from "@apty/ui/i18n/context";
+import { chatHandoff } from "../../../state/chat-handoff";
 import { navigationStore } from "../../../state/navigation-store";
 import { acquireTabLock, releaseTabLock } from "../dom-config/tab-lock";
 import { createDomHealthStore, type DomHealthStore } from "../dom-health-store";
@@ -1037,6 +1042,39 @@ describe("DomHealthPage", () => {
         "5 states were not reached, so the score may change. Treat 70 as a first read.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("asks about the result in a new chat: a draft beside the evidence chip, nothing sent", async () => {
+    mockRunDomHealthAudit.mockResolvedValue(scoredPage(72));
+    const requested = vi.fn();
+    const unsubscribe = chatHandoff.subscribe(requested);
+    render(<DomHealthPage store={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Check this page" }));
+
+    expect(
+      await screen.findByText("Adds this result to a new chat as evidence."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ask about this result" }),
+    );
+    unsubscribe();
+
+    expect(requested).toHaveBeenCalledTimes(1);
+    expect(chatHandoff.take()).toEqual({
+      text: "What does this DOM health result mean, and what should we fix first?",
+      contexts: [
+        expect.objectContaining({
+          type: "custom",
+          label: "DOM health result",
+          value: JSON.stringify(
+            { schema: "apty-dom-health-validation/1" },
+            null,
+            2,
+          ),
+        }),
+      ],
+    });
+    expect(chatHandoff.take()).toBeNull();
   });
 
   it("says why Check again is unavailable while DOM config crawls the tab", async () => {

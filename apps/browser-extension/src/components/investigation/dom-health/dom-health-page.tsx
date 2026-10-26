@@ -13,6 +13,7 @@ import { ScoreRing } from "@apty/ui/components/ui/score-ring";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { I18nContextValue } from "@apty/ui/i18n/types";
 import { useEffect, useId, useState } from "react";
+import { chatHandoff } from "../../../state/chat-handoff";
 import {
   navigationStore,
   useNavigation,
@@ -29,6 +30,7 @@ import {
 import { RouteProbePanel } from "../route-probe-panel";
 import { useCurrentTarget } from "../use-current-target";
 import { ValidationBundleExport } from "../validation-bundle-export";
+import { domHealthHandoff } from "./ask-about-result";
 import { DomHealthBreakdown } from "./dom-health-breakdown";
 import {
   CONFIDENCE_LABEL,
@@ -137,7 +139,8 @@ function useStage(running: boolean): number {
 /**
  * DOM health as a page, on the store: set up and start a check, follow it
  * (and stop an application audit), read the result, open its full
- * breakdown and settings, or export the validation bundle.
+ * breakdown and settings, export the validation bundle, or ask about the
+ * result in a new chat.
  */
 export function DomHealthPage({
   developerTools = false,
@@ -272,16 +275,30 @@ export function DomHealthPage({
       <ToolPageShell
         title={t("shell.domHealth")}
         trailing={exportAction}
+        hint={t("domHealth.page.askHint")}
         footer={
-          <Button
-            variant="secondary"
-            className="w-full"
-            disabled={!target.tabId || locked}
-            aria-describedby={locked ? lockedId : undefined}
-            onClick={start}
-          >
-            {t("domHealth.page.checkAgain")}
-          </Button>
+          <div className="space-y-2">
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={() =>
+                chatHandoff.request(
+                  domHealthHandoff({ scope: state.scope, ...sources }, t),
+                )
+              }
+            >
+              {t("domHealth.page.ask")}
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={!target.tabId || locked}
+              aria-describedby={locked ? lockedId : undefined}
+              onClick={start}
+            >
+              {t("domHealth.page.checkAgain")}
+            </Button>
+          </div>
         }
       >
         {lockedNotice}
