@@ -292,15 +292,15 @@ for (const theme of ["light", "dark"]) {
       await chatAndWait(panel, "ask me which order to open", {
         whileWaiting: async () => {
           await panel
-            .getByRole("button", { name: /Order 1001/ })
+            .getByRole("radio", { name: /Order 1001/ })
             .waitFor({ timeout: 30_000 });
           await assertNoSeriousViolations(
             panel,
             `${theme} side panel, intervention card`,
           );
-          await panel.getByRole("button", { name: /Order 1001/ }).click();
+          await panel.getByRole("radio", { name: /Order 1001/ }).check();
           const confirm = panel.getByRole("button", {
-            name: "Confirm Selection",
+            name: "Confirm selection",
           });
           assert.equal(await confirm.isEnabled(), true);
           await assertNoSeriousViolations(

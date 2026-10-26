@@ -332,12 +332,6 @@
     }
   },
   "interventions": {
-    "mode": {
-      "disabled": "禁止介入",
-      "disabledDescription": "AI 无法请求任何介入",
-      "passive": "被动介入",
-      "passiveDescription": "AI 可以根据需要请求介入"
-    },
     "status": {
       "pending": "等待中",
       "active": "进行中",

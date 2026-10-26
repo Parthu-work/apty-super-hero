@@ -5,11 +5,13 @@ import { cn } from "../../lib/utils";
 /**
  * A radio card. It is a native radio inside its label, so arrow keys move
  * between the cards of one group and Space selects, as in any radio group.
+ * As a checkbox card, Space toggles it.
  */
 function OptionCard({
   title,
   description,
   badge,
+  type = "radio",
   className,
   disabled,
   ...input
@@ -17,6 +19,7 @@ function OptionCard({
   title: React.ReactNode;
   description?: React.ReactNode;
   badge?: React.ReactNode;
+  type?: "radio" | "checkbox";
 }) {
   return (
     <label
@@ -30,9 +33,14 @@ function OptionCard({
       )}
     >
       <input
-        type="radio"
+        type={type}
         disabled={disabled}
-        className="mt-0.5 size-4 shrink-0 cursor-[inherit] appearance-none rounded-full border border-input bg-background outline-none checked:border-[5px] checked:border-info"
+        className={cn(
+          "mt-0.5 size-4 shrink-0 cursor-[inherit] outline-none",
+          type === "radio"
+            ? "appearance-none rounded-full border border-input bg-background checked:border-[5px] checked:border-info"
+            : "accent-info",
+        )}
         {...input}
       />
       <span className="min-w-0 flex-1">

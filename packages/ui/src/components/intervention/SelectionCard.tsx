@@ -6,11 +6,13 @@
 
 import { CheckIcon } from "lucide-react";
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "../../i18n/hooks.js";
 import type { TranslationKey } from "../../i18n/types.js";
 import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
+import { Notice } from "../ui/notice.js";
+import { OptionCard } from "../ui/option-card.js";
 import type { InterventionStatus } from "./InterventionCard.js";
 import { InterventionCard } from "./InterventionCard.js";
 
@@ -51,6 +53,7 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
   onCancel,
 }) => {
   const { t } = useTranslation();
+  const groupId = useId();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [otherSelected, setOtherSelected] = useState(false);
   const [otherText, setOtherText] = useState("");
@@ -139,72 +142,25 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
     onConfirm(result);
   };
 
-  // Render option
-  const renderOption = (option: SelectionOption, _index: number) => {
-    const optionId = option.id;
-    const optionLabel = option.label;
-    const isSelected = selectedIds.has(optionId);
-
-    return (
-      <button
-        key={optionId}
-        type="button"
-        onClick={() => handleOptionClick(optionId)}
-        disabled={!isActive}
-        className={`
-          w-full text-left p-4 rounded-xl transition-all duration-200
-          ${
-            isSelected
-              ? "bg-info-muted ring-2 ring-info"
-              : "bg-card ring-1 ring-border hover:ring-info/60"
-          }
-          ${!isActive ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:shadow-sm"}
-        `}
-      >
-        <div className="flex items-start gap-3">
-          {/* Radio/Checkbox indicator */}
-          <div className="flex-shrink-0 mt-0.5">
-            {mode === "single" ? (
-              <div
-                className={`
-                w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all
-                ${isSelected ? "border-info bg-info" : "border-input"}
-              `}
-              >
-                {isSelected && (
-                  <div className="w-2 h-2 rounded-full bg-info-foreground" />
-                )}
-              </div>
-            ) : (
-              <div
-                className={`
-                w-5 h-5 rounded border-2 flex items-center justify-center transition-all
-                ${isSelected ? "border-info bg-info" : "border-input"}
-              `}
-              >
-                {isSelected && (
-                  <CheckIcon
-                    className="w-3.5 h-3.5 text-info-foreground"
-                    strokeWidth={3}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Option content */}
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-foreground">{optionLabel}</div>
-            {option.description && (
-              <div className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                {option.description}
-              </div>
-            )}
-          </div>
-        </div>
-      </button>
-    );
-  };
+  const optionCard = (
+    id: string,
+    title: string,
+    description: string | undefined,
+    checked: boolean,
+    onToggle: () => void,
+  ) => (
+    <OptionCard
+      key={id}
+      type={mode === "single" ? "radio" : "checkbox"}
+      name={`${groupId}-option`}
+      value={id}
+      checked={checked}
+      onChange={onToggle}
+      disabled={!isActive}
+      title={title}
+      description={description}
+    />
+  );
 
   return (
     <InterventionCard
@@ -216,182 +172,115 @@ export const SelectionCard: React.FC<SelectionCardProps> = ({
     >
       {isActive && (
         <div className="space-y-4">
-          {/* Question */}
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium text-foreground">
+              {question ||
+                t(
+                  mode === "single"
+                    ? "interventions.selection.promptSingle"
+                    : ("interventions.selection.promptMultiple" as TranslationKey),
+                )}
+            </legend>
+            {normalizedOptions.map((option) =>
+              optionCard(
+                option.id,
+                option.label,
+                option.description,
+                selectedIds.has(option.id),
+                () => handleOptionClick(option.id),
+              ),
+            )}
+            {allowOther &&
+              optionCard(
+                `${groupId}-other`,
+                t("interventions.selection.other" as TranslationKey),
+                t("interventions.selection.otherDescription" as TranslationKey),
+                otherSelected,
+                handleOtherClick,
+              )}
+            {allowOther && otherSelected && (
+              <Input
+                value={otherText}
+                onChange={(e) => setOtherText(e.target.value)}
+                placeholder={t(
+                  "interventions.selection.otherPlaceholder" as TranslationKey,
+                )}
+                aria-label={t(
+                  "interventions.selection.other" as TranslationKey,
+                )}
+                disabled={!isActive}
+              />
+            )}
+          </fieldset>
+
           {question && (
-            <div className="text-sm font-medium text-foreground bg-info-muted px-4 py-3 rounded-xl border border-info/40">
-              {question}
-            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                mode === "single"
+                  ? "interventions.selection.promptSingle"
+                  : ("interventions.selection.promptMultiple" as TranslationKey),
+              )}
+            </p>
           )}
 
-          {/* Option list */}
-          <div className="space-y-2.5">
-            {normalizedOptions.map((option, index) =>
-              renderOption(option, index),
-            )}
-
-            {/* "Other" option */}
-            {allowOther && (
-              <div className="space-y-2.5">
-                <button
-                  type="button"
-                  onClick={handleOtherClick}
-                  disabled={!isActive}
-                  className={`
-                    w-full text-left p-4 rounded-xl transition-all duration-200
-                    ${
-                      otherSelected
-                        ? "bg-info-muted ring-2 ring-info"
-                        : "bg-card ring-1 ring-border hover:ring-info/60"
-                    }
-                    ${!isActive ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:shadow-sm"}
-                  `}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {mode === "single" ? (
-                        <div
-                          className={`
-                          w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all
-                          ${
-                            otherSelected
-                              ? "border-info bg-info"
-                              : "border-input"
-                          }
-                        `}
-                        >
-                          {otherSelected && (
-                            <div className="w-2 h-2 rounded-full bg-info-foreground" />
-                          )}
-                        </div>
-                      ) : (
-                        <div
-                          className={`
-                          w-5 h-5 rounded border-2 flex items-center justify-center transition-all
-                          ${
-                            otherSelected
-                              ? "border-info bg-info"
-                              : "border-input"
-                          }
-                        `}
-                        >
-                          {otherSelected && (
-                            <CheckIcon
-                              className="w-3.5 h-3.5 text-info-foreground"
-                              strokeWidth={3}
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-foreground">
-                        {t("interventions.selection.other" as TranslationKey)}
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-0.5">
-                        {t(
-                          "interventions.selection.otherDescription" as TranslationKey,
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                {/* "Other" text input */}
-                {otherSelected && (
-                  <div className="animate-in slide-in-from-top-2 duration-200">
-                    <Input
-                      value={otherText}
-                      onChange={(e) => setOtherText(e.target.value)}
-                      placeholder={t(
-                        "interventions.selection.otherPlaceholder" as TranslationKey,
-                      )}
-                      className="w-full bg-card"
-                      disabled={!isActive}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Hint information */}
-          <div className="text-xs text-center text-muted-foreground bg-muted rounded-lg py-2.5 px-3">
-            {mode === "single"
-              ? `💡 ${t("interventions.selection.promptSingle" as TranslationKey)}`
-              : `💡 ${t("interventions.selection.promptMultiple" as TranslationKey)}`}
-          </div>
-
-          {/* Confirm button */}
           <Button
             type="button"
+            size="lg"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className="w-full font-medium disabled:opacity-50 disabled:cursor-not-allowed h-11 rounded-xl"
+            className="w-full"
           >
-            <CheckIcon className="w-4 h-4 mr-2" strokeWidth={2.5} />
+            <CheckIcon aria-hidden="true" />
             {t("interventions.selection.confirmButton" as TranslationKey)}
           </Button>
         </div>
       )}
 
       {isCompleted && selectedResult && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-success font-medium">
-            <CheckIcon className="w-4 h-4" strokeWidth={2.5} />
-            {t("interventions.selection.completed" as TranslationKey)}
-          </div>
-          <div className="bg-success-muted border border-success/40 rounded-xl p-4 space-y-2.5">
+        <Notice
+          tone="success"
+          title={t("interventions.selection.completed" as TranslationKey)}
+        >
+          <ul className="mt-1 space-y-1">
             {selectedResult.selectedOptions.map((option) => (
-              <div
-                key={option.id}
-                className="flex items-center gap-2.5 text-sm"
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium text-foreground">
-                    {option.label}
+              <li key={option.id}>
+                <span className="font-medium">{option.label}</span>
+                {option.description && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {option.description}
                   </span>
-                  {option.description && (
-                    <span className="text-muted-foreground ml-1.5">
-                      · {option.description}
-                    </span>
-                  )}
-                </div>
-              </div>
+                )}
+              </li>
             ))}
             {selectedResult.otherText && (
-              <div className="flex items-center gap-2.5 text-sm">
-                <div className="w-1.5 h-1.5 rounded-full bg-info flex-shrink-0" />
-                <div className="flex-1">
-                  <span className="font-medium text-foreground">
-                    {t("interventions.selection.other" as TranslationKey)}:{" "}
-                  </span>
-                  <span className="text-foreground italic">
-                    {selectedResult.otherText}
-                  </span>
-                </div>
-              </div>
+              <li>
+                <span className="font-medium">
+                  {t("interventions.selection.other" as TranslationKey)}:{" "}
+                </span>
+                {selectedResult.otherText}
+              </li>
             )}
-          </div>
-        </div>
+          </ul>
+        </Notice>
       )}
 
       {status === "cancelled" && (
-        <div className="text-sm text-muted-foreground text-center py-4">
+        <p className="text-sm text-muted-foreground">
           {t("interventions.selection.cancelled" as TranslationKey)}
-        </div>
+        </p>
       )}
 
       {status === "timeout" && (
-        <div className="text-sm text-warning text-center py-4">
+        <Notice tone="warning">
           {t("interventions.selection.timeout" as TranslationKey)}
-        </div>
+        </Notice>
       )}
 
       {status === "error" && (
-        <div className="text-sm text-destructive text-center py-4">
+        <Notice tone="error">
           {t("interventions.selection.error" as TranslationKey)}
-        </div>
+        </Notice>
       )}
     </InterventionCard>
   );

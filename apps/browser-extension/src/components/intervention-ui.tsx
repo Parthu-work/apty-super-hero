@@ -14,7 +14,6 @@ import {
 } from "@apty/browser-runtime";
 import {
   type InterventionMode,
-  InterventionModeToggle,
   MonitorCard,
   SelectionCard,
   type SelectionOption,
@@ -26,7 +25,6 @@ const log = createLogger("InterventionUI");
 
 interface InterventionUIProps {
   mode: InterventionMode;
-  onModeChange: (mode: InterventionMode) => void;
 }
 
 export function InterventionUI({ mode }: InterventionUIProps) {
@@ -142,7 +140,7 @@ export function InterventionUI({ mode }: InterventionUIProps) {
   }
 
   return (
-    <div className="px-4 py-3">
+    <div>
       {currentIntervention.request.type === "monitor-operation" ? (
         <MonitorCard
           status={currentIntervention.status}
@@ -194,16 +192,4 @@ export function InterventionUI({ mode }: InterventionUIProps) {
       ) : null}
     </div>
   );
-}
-
-function InterventionModeToggleHeader({
-  mode,
-  onModeChange,
-}: InterventionUIProps) {
-  const handleModeChange = (newMode: InterventionMode) => {
-    interventionManager.setConversationMode(newMode);
-    onModeChange(newMode);
-  };
-
-  return <InterventionModeToggle mode={mode} onChange={handleModeChange} />;
 }

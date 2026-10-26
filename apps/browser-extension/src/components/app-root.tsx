@@ -259,10 +259,7 @@ function ChatApp() {
               ) : null,
             afterMessages: () => (
               <>
-                <InterventionUI
-                  mode={interventionMode}
-                  onModeChange={setInterventionMode}
-                />
+                <InterventionUI mode={interventionMode} />
                 <ChatImagesListener />
               </>
             ),

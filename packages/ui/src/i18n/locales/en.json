@@ -332,12 +332,6 @@
     }
   },
   "interventions": {
-    "mode": {
-      "disabled": "Disabled",
-      "disabledDescription": "AI cannot request any intervention",
-      "passive": "Passive",
-      "passiveDescription": "AI can request intervention as needed"
-    },
     "status": {
       "pending": "Pending",
       "active": "Active",
@@ -351,7 +345,7 @@
       "timeoutUnit": "seconds"
     },
     "monitor": {
-      "title": "Monitor Operation",
+      "title": "Monitor operation",
       "clickPrompt": "Please click on the element you want to interact with",
       "captureInfo": "Element information will be captured and sent to AI",
       "captured": "Element Captured",
@@ -373,13 +367,13 @@
       "error": "An error occurred during recording"
     },
     "selection": {
-      "title": "User Selection",
+      "title": "User selection",
       "promptSingle": "Please select one option",
       "promptMultiple": "You can select multiple options",
       "other": "Other",
       "otherDescription": "Enter custom text",
       "otherPlaceholder": "Please enter your choice",
-      "confirmButton": "Confirm Selection",
+      "confirmButton": "Confirm selection",
       "completed": "Selection Completed",
       "cancelled": "Selection cancelled",
       "timeout": "Selection timed out",
