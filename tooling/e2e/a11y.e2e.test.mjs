@@ -2,7 +2,8 @@
  * Accessibility (C3): axe-core on the real side panel and Options page, in
  * light and dark themes. Fails on any `serious` or `critical` violation.
  * Side panel states: empty, Home with every suggestion, the "/" list, the
- * menu with its recent chats loading and loaded, a chat with a tool result, a long chat scrolled up with its scroll-to-bottom
+ * menu with its recent chats loading and loaded, Home with no AI provider
+ * and the Connections page with an ID error, a chat with a tool result, a long chat scrolled up with its scroll-to-bottom
  * button, an approval prompt, an intervention card before and after an
  * option is chosen, the send button idle, sending, streaming and after an
  * error, the evidence viewers (the investigation summary and the full
@@ -210,6 +211,32 @@ for (const theme of ["light", "dark"]) {
         .first()
         .waitFor();
       await assertNoSeriousViolations(panel, `${theme} menu, a recent chat`);
+      await panel.close();
+      await app.close();
+    });
+
+    it("side panel, Home with no AI provider and the Connections page with an ID error", async () => {
+      const app = await browser.context.newPage();
+      await app.goto(`${site.origin}/app.html`);
+      const panel = await openSidePanel(browser, model, app, { aiToken: "" });
+      await assertThemeApplied(panel, theme);
+      await panel.getByRole("button", { name: "Set up AI provider" }).waitFor();
+      await assertNoSeriousViolations(panel, `${theme} Home, no AI provider`);
+
+      await panel.getByRole("button", { name: "1 to set up" }).click();
+      const page = panel.getByRole("region", { name: "Connections" });
+      const studio = page.getByRole("region", { name: "Apty Studio" });
+      await studio.getByLabel("Extension ID").fill("not-an-id");
+      await studio.getByRole("button", { name: "Connect Apty Studio" }).click();
+      await studio.getByText("Enter the full ID.").waitFor();
+      await page
+        .getByRole("region", { name: "Apty Client" })
+        .getByText("Connected", { exact: true })
+        .waitFor();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} Connections, an ID error`,
+      );
       await panel.close();
       await app.close();
     });

@@ -1,7 +1,7 @@
 /**
- * The side panel's readiness check and the Options page's links: what the
- * user sees before an investigation starts, and where each "fix it" link
- * lands.
+ * The side panel's Connections page, setup badge and provider chip, and the
+ * Options page's links: what the user sees before an investigation starts,
+ * and where each "fix it" link lands.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -9,6 +9,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  openToolPage,
   startMockModel,
   startPageServer,
 } from "./harness.mjs";
@@ -37,16 +38,21 @@ function optionsTabs() {
     .filter((p) => p.url().includes("/src/entrypoints/options/index.html"));
 }
 
-describe("readiness check and settings links", () => {
-  it("shows the model, the Client and the page before a chat starts", async () => {
+describe("Connections, the setup badge and settings links", () => {
+  it("shows the provider, the Client and the page on the Connections page", async () => {
     const app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);
     const panel = await openSidePanel(browser, model, app);
 
-    const readiness = panel.getByRole("region", { name: "Readiness check" });
-    await readiness.getByText("mock-model").waitFor();
-    await readiness.getByText("Apty Client not connected").waitFor();
-    await readiness.getByText("127.0.0.1").waitFor();
+    await openToolPage(panel, "Connections");
+    const page = panel.getByRole("region", { name: "Connections" });
+    const card = (name) => page.getByRole("region", { name });
+    await card("AI provider").getByText("Ready").waitFor();
+    await card("AI provider").getByText("Using mock-model.").waitFor();
+    await card("Apty Client").getByText("Not connected").waitFor();
+    await card("This site").getByText("127.0.0.1", { exact: true }).waitFor();
+    await card("This site").getByText("Can inspect").waitFor();
+    assert.equal(await panel.getByText(/to set up$/).count(), 0);
     await panel.close();
     await app.close();
   });
@@ -57,12 +63,9 @@ describe("readiness check and settings links", () => {
     const panel = await openSidePanel(browser, model, app, { aiToken: "" });
     for (const page of optionsTabs()) await page.close();
 
-    const readiness = panel.getByRole("region", { name: "Readiness check" });
-    await readiness.getByText("Add your own API key").waitFor();
+    await panel.getByRole("button", { name: "1 to set up" }).waitFor();
     const opened = browser.context.waitForEvent("page");
-    await readiness
-      .getByRole("button", { name: "Set up", exact: true })
-      .click();
+    await panel.getByRole("button", { name: "Set up AI provider" }).click();
     const options = await opened;
     await options.waitForLoadState();
 
@@ -90,9 +93,9 @@ describe("readiness check and settings links", () => {
       window.__notReloaded = true;
     });
 
+    await openToolPage(panel, "Connections");
     await panel
-      .getByRole("region", { name: "Readiness check" })
-      .getByRole("button", { name: /Apty Client not connected/ })
+      .getByRole("button", { name: "Open all connection settings" })
       .click();
 
     await options

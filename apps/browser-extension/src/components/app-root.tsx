@@ -50,7 +50,6 @@ import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen
 import { DomConfigCard } from "./investigation/dom-config/dom-config-card";
 import { DomHealthCard } from "./investigation/dom-health-card";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
-import { ReadinessCheck } from "./readiness-check";
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
 import { PageLayer } from "./shell/page-layer";
@@ -316,12 +315,7 @@ function ChatApp() {
                 ]}
               />
             ),
-            emptyState: (props) => (
-              <DebuggingWelcomeScreen
-                {...props}
-                readiness={<ReadinessCheck settings={settings} />}
-              />
-            ),
+            emptyState: (props) => <DebuggingWelcomeScreen {...props} />,
             toolDisplay: (props) => <AptyToolDisplay {...props} />,
             toolFooter: (props) => <AptyToolFooter {...props} />,
           }}

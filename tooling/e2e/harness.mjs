@@ -377,12 +377,13 @@ export async function openSidePanel(browser, model, targetPage, settings = {}) {
   return panel;
 }
 
-/** Opens a tool page (DOM health, DOM config) from the side panel's menu. */
+/** Opens a tool page (DOM health, DOM config, Connections) from the side panel's menu. */
 export async function openToolPage(panel, name) {
   await panel.getByRole("button", { name: "Menu", exact: true }).click();
+  // A row's name ends with its status badge, if it has one.
   await panel
     .getByRole("dialog", { name: "Menu" })
-    .getByRole("button", { name, exact: true })
+    .getByRole("button", { name: new RegExp(`^${name}`) })
     .click();
   await panel.getByRole("region", { name, exact: true }).waitFor();
 }

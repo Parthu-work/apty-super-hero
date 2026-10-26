@@ -1296,44 +1296,22 @@
     "off": "关闭"
   },
   "readiness": {
-    "label": "就绪检查",
     "noPage": "此窗口中没有打开的页面。",
     "unreadableAddress": "无法读取此页面的地址。",
     "notInspectable": "Chrome 不允许扩展检查 {{kind}} 页面。请打开您要调查的页面。",
     "localFileReady": "可以检查此本地文件。",
     "fileAccessOff": "请在 chrome://extensions 中为 Apty Agent 开启“允许访问文件网址”，以检查本地文件。",
     "ready": "可以检查 {{host}}。",
-    "localFile": "本地文件",
-    "fix": "修复",
     "client": {
       "label": "Apty Client",
-      "checking": "正在检查连接…",
-      "notConnected": "Apty Client 未连接",
-      "notConnectedDetail": "未连接。仅在读取 Client 的 service worker 日志和请求时需要。",
-      "connect": "连接",
-      "connected": "Apty Client 已连接",
-      "connectedDetail": "已连接。",
-      "notAnswering": "Apty Client 无应答",
-      "notChecked": "Apty Client 未检查",
       "notCheckedDetail": "无法检查连接。"
     },
     "state": {
-      "ok": "就绪",
-      "warning": "需要关注",
-      "info": "可选",
       "checking": "检查中"
     },
     "provider": {
       "label": "AI 服务商",
-      "using": "正在使用 {{model}}。",
-      "setUpSummary": "设置 AI 服务商",
-      "setUpDetail": "添加您自己的 API 密钥并选择模型即可开始。",
-      "setUp": "设置"
-    },
-    "page": {
-      "label": "此页面",
-      "checking": "检查中…",
-      "notInspectable": "无法检查此页面"
+      "using": "正在使用 {{model}}。"
     }
   },
   "redactionBanner": {

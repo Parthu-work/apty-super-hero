@@ -53,10 +53,6 @@ export async function checkPeer(
   };
 }
 
-export function checkClient(id: string): Promise<ClientCheck> {
-  return checkPeer("client", id);
-}
-
 /**
  * Checks the peer at `id`, then saves the ID unless no such extension is
  * installed (a peer that does not answer yet is saved, so it can be fixed

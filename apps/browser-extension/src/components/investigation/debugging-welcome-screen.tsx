@@ -8,7 +8,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
 import type { WelcomeScreenProps } from "@apty/ui/types";
 import { ActivityIcon, SlidersHorizontalIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { INVESTIGATION_PROMPTS } from "../shell/investigation-prompts";
 import { revealDomConfigCard } from "./dom-config/dom-config-store";
 
@@ -54,9 +54,8 @@ function SuggestionRow({
 export function DebuggingWelcomeScreen({
   onSuggestionClick,
   className,
-  readiness,
   ...props
-}: WelcomeScreenProps & { readiness?: ReactNode }) {
+}: WelcomeScreenProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
   const prompts = showAll
@@ -84,7 +83,6 @@ export function DebuggingWelcomeScreen({
         <p className="mt-1 max-w-80 text-sm text-muted-foreground">
           {t("investigation.welcome.subtitle")}
         </p>
-        {readiness && <div className="mt-4">{readiness}</div>}
       </div>
 
       <div>

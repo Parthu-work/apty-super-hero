@@ -1296,44 +1296,22 @@
     "off": "off"
   },
   "readiness": {
-    "label": "Readiness check",
     "noPage": "No page is open in this window.",
     "unreadableAddress": "This page's address can't be read.",
     "notInspectable": "Chrome doesn't let extensions inspect {{kind}} pages. Open the page you want to investigate.",
     "localFileReady": "Ready to inspect this local file.",
     "fileAccessOff": "Turn on \"Allow access to file URLs\" for Apty Agent in chrome://extensions to inspect local files.",
     "ready": "Ready to inspect {{host}}.",
-    "localFile": "local file",
-    "fix": "Fix",
     "client": {
       "label": "Apty Client",
-      "checking": "Checking the connection…",
-      "notConnected": "Apty Client not connected",
-      "notConnectedDetail": "Not connected. Only needed to read the Client's service-worker logs and requests.",
-      "connect": "Connect",
-      "connected": "Apty Client connected",
-      "connectedDetail": "Connected.",
-      "notAnswering": "Apty Client not answering",
-      "notChecked": "Apty Client not checked",
       "notCheckedDetail": "The connection couldn't be checked."
     },
     "state": {
-      "ok": "Ready",
-      "warning": "Needs attention",
-      "info": "Optional",
       "checking": "Checking"
     },
     "provider": {
       "label": "AI provider",
-      "using": "Using {{model}}.",
-      "setUpSummary": "Set up an AI provider",
-      "setUpDetail": "Add your own API key and choose a model to start.",
-      "setUp": "Set up"
-    },
-    "page": {
-      "label": "This page",
-      "checking": "Checking…",
-      "notInspectable": "Page can't be inspected"
+      "using": "Using {{model}}."
     }
   },
   "redactionBanner": {
