@@ -78,6 +78,7 @@ export function DefaultInputArea({
   showServerModels = true,
   slashCommands,
   modelControl,
+  initialContexts,
   ...props
 }: ExtendedInputAreaProps) {
   const { t } = useTranslation();
@@ -215,6 +216,9 @@ export function DefaultInputArea({
         globalDrop
         multiple
         slashCommands={slashCommands}
+        initialContexts={
+          initialContexts as PromptInputMessage["contexts"] | undefined
+        }
       >
         <PromptInputBody>
           {/* Context Tags */}

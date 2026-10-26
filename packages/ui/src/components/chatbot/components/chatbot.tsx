@@ -3,7 +3,11 @@ import { useChat, useChatConfig } from "../../../hooks";
 import { copyText } from "../../../lib/clipboard";
 import { withExportHeader } from "../../../lib/export-header";
 import { cn } from "../../../lib/utils";
-import type { ChatbotThemeVariables, ContextItem } from "../../../types";
+import type {
+  ChatbotThemeVariables,
+  ChatDraft,
+  ContextItem,
+} from "../../../types";
 import { DEFAULT_MODELS } from "../constants";
 import {
   AgentContext,
@@ -268,6 +272,7 @@ function ChatbotContent({
   } = chatCtx || {};
 
   const [input, setInput] = useState(initialInputProp ?? "");
+  const [draftContexts, setDraftContexts] = useState<ContextItem[]>();
   const [inputResetCount, setInputResetCount] = useState(0);
 
   const handleSubmit = useCallback(
@@ -295,11 +300,15 @@ function ChatbotContent({
     [formatExport],
   );
 
-  const handleNewChat = useCallback(() => {
-    reset?.();
-    setInput("");
-    setInputResetCount((count) => count + 1);
-  }, [reset]);
+  const handleNewChat = useCallback(
+    (draft?: ChatDraft) => {
+      reset?.();
+      setInput(draft?.text ?? "");
+      setDraftContexts(draft?.contexts);
+      setInputResetCount((count) => count + 1);
+    },
+    [reset],
+  );
 
   return (
     <div
@@ -333,6 +342,7 @@ function ChatbotContent({
         queueCount={queueCount ?? 0}
         models={models}
         placeholderTexts={placeholderTexts}
+        initialContexts={draftContexts}
       />
 
       {slots.overlay?.()}

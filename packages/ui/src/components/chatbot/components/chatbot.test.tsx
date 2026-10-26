@@ -8,7 +8,11 @@ import {
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { InputAreaProps, WelcomeScreenProps } from "../../../types";
+import type {
+  HeaderProps,
+  InputAreaProps,
+  WelcomeScreenProps,
+} from "../../../types";
 import {
   useChatContext,
   useComponentsContext,
@@ -124,6 +128,42 @@ describe("Chatbot Component", () => {
   });
 
   describe("component customization", () => {
+    it("starts a new chat with a draft and its chips, and sends nothing", async () => {
+      const Header = ({ onNewChat }: HeaderProps) => (
+        <button
+          type="button"
+          onClick={() =>
+            onNewChat?.({
+              text: "What should we fix first?",
+              contexts: [
+                {
+                  id: "evidence-1",
+                  type: "custom",
+                  label: "DOM health result",
+                  value: "{}",
+                },
+              ],
+            })
+          }
+        >
+          Ask
+        </button>
+      );
+      await renderWithAct(
+        <Chatbot agent={mockAgent} components={{ Header }} />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+      expect(screen.getByRole("textbox")).toHaveValue(
+        "What should we fix first?",
+      );
+      expect(screen.getByText("DOM health result")).toBeInTheDocument();
+      expect(mockAgent.chat).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Remove context" }));
+      expect(screen.queryByText("DOM health result")).toBeNull();
+    });
+
     it("shows the app's model control in place of the model selector", async () => {
       const model = { name: /model/i };
       const { unmount } = await renderWithAct(<Chatbot agent={mockAgent} />);

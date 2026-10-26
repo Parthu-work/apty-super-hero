@@ -11,6 +11,7 @@ export type {
   ChatbotTheme,
   ChatbotThemeVariables,
   ChatConfig,
+  ChatDraft,
   ChatStatus,
   ContextItem,
   ContextItemType,

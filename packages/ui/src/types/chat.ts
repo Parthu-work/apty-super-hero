@@ -76,6 +76,14 @@ export interface InputAreaProps
   status: ChatStatus;
   placeholder?: string;
   disabled?: boolean;
+  /** Context chips the composer starts with: a new chat's draft. */
+  initialContexts?: ContextItem[];
+}
+
+/** What a new chat's composer starts with. Nothing is sent until Send. */
+export interface ChatDraft {
+  text: string;
+  contexts?: ContextItem[];
 }
 
 export interface WelcomeScreenProps extends HTMLAttributes<HTMLDivElement> {
@@ -85,7 +93,8 @@ export interface WelcomeScreenProps extends HTMLAttributes<HTMLDivElement> {
 export interface HeaderProps extends HTMLAttributes<HTMLDivElement> {
   title?: string;
   onSettingsClick?: () => void;
-  onNewChat?: () => void;
+  /** Starts a new chat, its composer holding `draft` when one is given. */
+  onNewChat?: (draft?: ChatDraft) => void;
 }
 
 export interface FooterProps extends HTMLAttributes<HTMLDivElement> {

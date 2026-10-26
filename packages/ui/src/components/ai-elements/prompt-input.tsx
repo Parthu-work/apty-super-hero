@@ -613,6 +613,8 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit"> & {
   ) => void;
   /** Groups the "/" list shows before the skills. */
   slashCommands?: SlashCommandGroup[];
+  /** Context chips to start with; read once, when the input mounts. */
+  initialContexts?: ContextItem[];
 };
 
 export const PromptInput = ({
@@ -626,11 +628,14 @@ export const PromptInput = ({
   onError,
   onSubmit,
   slashCommands,
+  initialContexts,
   children,
   ...props
 }: PromptInputProps) => {
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
-  const [contextItems, setContextItems] = useState<ContextItem[]>([]);
+  const [contextItems, setContextItems] = useState<ContextItem[]>(
+    initialContexts ?? [],
+  );
   const [availableContexts, setAvailableContexts] = useState<ContextItem[]>([]);
   const [skillItems, setSkillItems] = useState<SkillItem[]>([]);
   const [availableSkills, setAvailableSkills] = useState<SkillItem[]>([]);

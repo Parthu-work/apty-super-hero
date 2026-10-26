@@ -14,6 +14,7 @@ export type {
   ChatbotTheme,
   ChatbotThemeVariables,
   ChatConfig,
+  ChatDraft,
   ContextTagsSlotProps,
   FooterProps,
   HeaderProps,
