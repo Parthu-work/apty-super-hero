@@ -615,17 +615,20 @@ Key pieces:
   prominent "LIVE INVESTIGATION" banner with a real Stop action (calls
   `stopInvestigation()` directly, plus `interrupt()`) while a session is
   actually in progress.
-- **`investigation-summary-bar.tsx`** — a collapsed-by-default bar in the
-  `promptExtras` slot (just above the input) that expands into four tabs:
+- **`investigation-summary-bar.tsx`** — a collapsed-by-default 44 px row in
+  the `promptExtras` slot (just above the input): the status, the real plan
+  count and the diagnosis confidence. It expands into one scrolling panel,
+  capped so the composer and 96 px of the chat stay in view, that stacks
   Plan (`plan-checklist.tsx`, rendering the investigation's
-  `InvestigationPlan` as a real pending/done/skipped checklist), Timeline
+  `InvestigationPlan` as a real pending/done/skipped checklist), Components
+  (`component-health-panel.tsx`, the two grouped rows described above),
+  Timeline
   (`evidence-timeline.tsx`, rendering `CorrelationCluster[]` exactly as
   computed — the "likely related incident" badge only ever reflects
-  `cluster.likelySameIncident`), Components (`component-health-panel.tsx`,
-  the two grouped rows described above), and Diagnosis
-  (`diagnosis-card.tsx`, confidence badge styled to match CONFIRMED/
-  LIKELY/POSSIBLE/UNKNOWN without ever visually upgrading a lower
-  confidence, structured hypotheses rendered with their status badge).
+  `cluster.likelySameIncident`) and Diagnosis (`diagnosis-card.tsx`, the
+  confidence badge in a visual weight per level, solid for confirmed down
+  to dashed for unknown, never upgrading a lower confidence, structured
+  hypotheses rendered with their status badge).
 - **`debugging-welcome-screen.tsx`** — replaces the generic "how can I help
   you" empty state (`toolDisplay`/`emptyState` slots) with Apty-specific
   example prompts; "See all" adds the rest and a DOM config row that opens
