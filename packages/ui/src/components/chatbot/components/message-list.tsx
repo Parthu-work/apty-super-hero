@@ -1,4 +1,4 @@
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { BrainIcon, ChevronDownIcon, Loader2Icon } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { cn } from "../../../lib/utils";
@@ -8,7 +8,6 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "../../ai-elements/conversation";
-import { Loader } from "../../ai-elements/loader";
 import {
   Collapsible,
   CollapsibleContent,
@@ -59,16 +58,20 @@ export function DefaultMessageList({
   onRegenerate,
   onCopy,
   formatExport,
+  onOpenProviderSettings,
   onSuggestionClick,
-  onUxAuditClick,
   className,
   ...props
 }: MessageListProps & {
   onSuggestionClick?: (text: string) => void;
-  onUxAuditClick?: () => void;
 }) {
   const { slots } = useComponentsContext();
   const { t } = useTranslation();
+
+  const running =
+    status === "submitted" ||
+    status === "streaming" ||
+    status === "executing_tools";
 
   // Filter out system messages for display
   const displayMessages = messages.filter((m) => m.role !== "system");
@@ -86,7 +89,7 @@ export function DefaultMessageList({
   return (
     <div className={cn("min-w-0 flex-1 overflow-hidden", className)} {...props}>
       <Conversation className="h-full">
-        <ConversationContent>
+        <ConversationContent className="space-y-4">
           {/* Before messages slot - for banners, announcements */}
           {slots.beforeMessages?.()}
           {displayMessages.length === 0 ? (
@@ -94,7 +97,6 @@ export function DefaultMessageList({
               onSuggestionClick={(text) => {
                 onSuggestionClick?.(text);
               }}
-              onUxAuditClick={onUxAuditClick}
             />
           ) : (
             turns.map((turn) => {
@@ -103,17 +105,18 @@ export function DefaultMessageList({
                 ? turn.userMessage.id
                 : (turn.assistantMessages[0]?.id ?? "");
               return (
-                <div key={turnKey}>
+                <div key={turnKey} className="space-y-2">
                   {/* Render user message */}
                   {turn.userMessage && (
                     <MessageItem
                       key={turn.userMessage.id}
                       message={turn.userMessage}
                       isLast={turn.userMessage.id === lastMessageId}
-                      isStreaming={status === "streaming"}
+                      isStreaming={running}
                       onRegenerate={onRegenerate}
                       onCopy={onCopy}
                       formatExport={formatExport}
+                      onOpenProviderSettings={onOpenProviderSettings}
                     />
                   )}
 
@@ -127,16 +130,22 @@ export function DefaultMessageList({
                         return (
                           <>
                             {/* Intermediate messages – collapsed by default */}
-                            <Collapsible defaultOpen={false} className="mb-2">
-                              <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-muted bg-muted/30 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
-                                <BrainIcon className="size-4" />
+                            <Collapsible defaultOpen={false}>
+                              <CollapsibleTrigger className="group flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                                <BrainIcon
+                                  aria-hidden="true"
+                                  className="size-4"
+                                />
                                 <span className="flex-1 text-left">
                                   {t("common.showThinkingDetails")}
                                 </span>
-                                <ChevronDownIcon className="size-4 transition-transform [[data-state=open]>&]:rotate-180" />
+                                <ChevronDownIcon
+                                  aria-hidden="true"
+                                  className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                                />
                               </CollapsibleTrigger>
                               <CollapsibleContent className="mt-2">
-                                <div className="rounded-md border border-muted/50 bg-muted/10 p-3 space-y-2">
+                                <div className="space-y-2 rounded-md border border-border bg-card p-3">
                                   {turn.assistantMessages
                                     .slice(0, -1)
                                     .map((msg) => (
@@ -154,10 +163,11 @@ export function DefaultMessageList({
                               key={finalMsg.id}
                               message={finalMsg}
                               isLast={finalMsg.id === lastMessageId}
-                              isStreaming={status === "streaming"}
+                              isStreaming={running}
                               onRegenerate={onRegenerate}
                               onCopy={onCopy}
                               formatExport={formatExport}
+                              onOpenProviderSettings={onOpenProviderSettings}
                             />
                           </>
                         );
@@ -168,26 +178,31 @@ export function DefaultMessageList({
                           key={msg.id}
                           message={msg}
                           isLast={msg.id === lastMessageId}
-                          isStreaming={status === "streaming"}
+                          isStreaming={running}
                           onRegenerate={onRegenerate}
                           onCopy={onCopy}
                           formatExport={formatExport}
+                          onOpenProviderSettings={onOpenProviderSettings}
                         />
                       ))}
                 </div>
               );
             })
           )}
-          {/* Loading indicator */}
-          {status === "submitted" &&
+          {/* Running: after the last message until the turn ends */}
+          {running &&
             (slots.loadingIndicator ? (
               slots.loadingIndicator()
             ) : (
-              <div className="flex w-full justify-end py-2">
-                <div className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">
-                  <Loader size={14} />
-                  <span>{t("common.processing")}</span>
-                </div>
+              <div
+                role="status"
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+              >
+                <Loader2Icon
+                  aria-hidden="true"
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                />
+                <span>{t("common.processing")}</span>
               </div>
             ))}
           {/* After messages slot - for platform-specific content */}
@@ -205,7 +220,6 @@ export function DefaultMessageList({
 export function MessageList(
   props: MessageListProps & {
     onSuggestionClick?: (text: string) => void;
-    onUxAuditClick?: () => void;
   },
 ) {
   const { components } = useComponentsContext();

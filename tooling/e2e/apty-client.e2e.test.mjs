@@ -60,7 +60,7 @@ function aptyRow(options) {
 
 async function connectInOptions(clientId) {
   const options = await extensionPage(browser);
-  await options.getByRole("tab", { name: "Apty Integration" }).click();
+  await options.getByRole("tab", { name: "Connection" }).click();
   if (await savedPeerId(options, "client")) {
     await aptyRow(options).getByRole("button", { name: "Disconnect" }).click();
   }
@@ -86,7 +86,7 @@ async function disconnectInOptions(options) {
 describe("Apty Client integration in a real browser", () => {
   it("shows the Agent's own id for the Client team", async () => {
     const options = await extensionPage(browser);
-    await options.getByRole("tab", { name: "Apty Integration" }).click();
+    await options.getByRole("tab", { name: "Connection" }).click();
     await options.getByText(AGENT_EXTENSION_ID).waitFor();
     await options.close();
   });

@@ -4,6 +4,7 @@
  */
 
 import type { UIMessage as RuntimeUIMessage } from "@apty/browser-runtime";
+import { isChatErrorInfo } from "@apty/ui/lib/chat-error";
 import type { UIMessage as ReactUIMessage } from "@apty/ui/types";
 
 /** Tool names whose results may include screenshot image data */
@@ -163,6 +164,7 @@ export function toStorageFormat(
       },
     ),
     timestamp: msg.timestamp,
+    ...(msg.metadata?.error ? { error: msg.metadata.error } : {}),
   })) as RuntimeUIMessage[];
 }
 
@@ -382,6 +384,7 @@ export function fromStorageFormat(
       role: msg.role as ReactUIMessage["role"],
       parts: mergedParts,
       timestamp: msg.timestamp,
+      ...(isChatErrorInfo(msg.error) ? { metadata: { error: msg.error } } : {}),
     };
   }) as ReactUIMessage[];
 }

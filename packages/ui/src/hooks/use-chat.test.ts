@@ -620,10 +620,7 @@ describe("useChat", () => {
 
     const last = result.current.messages[result.current.messages.length - 1];
     expect(last?.role).toBe("assistant");
-    const textPart = last?.parts.find((p) => p.type === "text");
-    expect(textPart && "text" in textPart ? textPart.text : "").toContain(
-      "boom",
-    );
+    expect(last?.metadata?.error).toEqual({ kind: "unknown", message: "boom" });
   });
 
   it("recovers from a failed send — the next message still works (never stuck for good)", async () => {

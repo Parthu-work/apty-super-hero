@@ -8,6 +8,11 @@ import {
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  HeaderProps,
+  InputAreaProps,
+  WelcomeScreenProps,
+} from "../../../types";
 import {
   useChatContext,
   useComponentsContext,
@@ -15,6 +20,7 @@ import {
   useThemeContext,
 } from "../context";
 import { Chatbot, ChatbotProvider } from "./chatbot";
+import { DefaultInputArea } from "./input-area";
 
 const baseMetrics = {
   tokensUsed: 0,
@@ -67,6 +73,16 @@ async function renderWithAct(
   return renderResult!;
 }
 
+/** The app's welcome screen, as the extension provides one through the emptyState slot. */
+const START_PROMPT = "Please organize my open tabs by topic and purpose";
+const welcome = {
+  emptyState: ({ onSuggestionClick }: WelcomeScreenProps) => (
+    <button type="button" onClick={() => onSuggestionClick(START_PROMPT)}>
+      Start an investigation
+    </button>
+  ),
+};
+
 describe("Chatbot Component", () => {
   let mockAgent: AptyAgent;
 
@@ -101,14 +117,74 @@ describe("Chatbot Component", () => {
       expect(screen.getByText("My Chat")).toBeInTheDocument();
     });
 
-    it("should render welcome screen when no messages", async () => {
+    it("shows no built-in welcome screen when the app gives none", async () => {
       await renderWithAct(<Chatbot agent={mockAgent} />);
 
-      expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /investigation/ }),
+      ).toBeNull();
+      expect(screen.getByRole("textbox")).toBeInTheDocument();
     });
   });
 
   describe("component customization", () => {
+    it("starts a new chat with a draft and its chips, and sends nothing", async () => {
+      const Header = ({ onNewChat }: HeaderProps) => (
+        <button
+          type="button"
+          onClick={() =>
+            onNewChat?.({
+              text: "What should we fix first?",
+              contexts: [
+                {
+                  id: "evidence-1",
+                  type: "custom",
+                  label: "DOM health result",
+                  value: "{}",
+                },
+              ],
+            })
+          }
+        >
+          Ask
+        </button>
+      );
+      await renderWithAct(
+        <Chatbot agent={mockAgent} components={{ Header }} />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+      expect(screen.getByRole("textbox")).toHaveValue(
+        "What should we fix first?",
+      );
+      expect(screen.getByText("DOM health result")).toBeInTheDocument();
+      expect(mockAgent.chat).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Remove context" }));
+      expect(screen.queryByText("DOM health result")).toBeNull();
+    });
+
+    it("shows the app's model control in place of the model selector", async () => {
+      const model = { name: /model/i };
+      const { unmount } = await renderWithAct(<Chatbot agent={mockAgent} />);
+      expect(screen.getByRole("combobox", model)).toBeInTheDocument();
+      unmount();
+
+      const InputArea = (props: InputAreaProps) => (
+        <DefaultInputArea
+          {...props}
+          modelControl={<button type="button">Set up AI provider</button>}
+        />
+      );
+      await renderWithAct(
+        <Chatbot agent={mockAgent} components={{ InputArea }} />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Set up AI provider" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("combobox", model)).toBeNull();
+    });
+
     it("should render custom Header component", async () => {
       const CustomHeader = () => <div data-testid="custom-header">Custom</div>;
 
@@ -136,6 +212,20 @@ describe("Chatbot Component", () => {
   });
 
   describe("slot customization", () => {
+    it("renders the overlay slot last, over the chat, inside the chat context", async () => {
+      function Overlay() {
+        const { status } = useChatContext();
+        return <div data-testid="overlay">{status}</div>;
+      }
+      const { container } = await renderWithAct(
+        <Chatbot agent={mockAgent} slots={{ overlay: () => <Overlay /> }} />,
+      );
+
+      const overlay = screen.getByTestId("overlay");
+      expect(overlay).toHaveTextContent("idle");
+      expect(container.firstElementChild?.lastElementChild).toBe(overlay);
+    });
+
     it("should render custom emptyState slot", async () => {
       const customEmptyState = () => (
         <div data-testid="custom-empty">No messages yet</div>
@@ -227,25 +317,25 @@ describe("Chatbot Component", () => {
     });
 
     it("should call reset when new chat button is clicked", async () => {
-      await renderWithAct(<Chatbot agent={mockAgent} />);
+      await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
-      const newChatButton = screen.getByText("New Chat");
+      const newChatButton = screen.getByText("New chat");
       fireEvent.click(newChatButton);
 
       // Verify the chat was reset (no messages)
-      expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+      expect(screen.getByText("Start an investigation")).toBeInTheDocument();
     });
 
-    it("should send suggestion text when welcome suggestion is clicked", async () => {
-      await renderWithAct(<Chatbot agent={mockAgent} />);
+    it("sends the suggestion the welcome screen picks", async () => {
+      await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
-      const suggestion = screen.getByText(
-        "Please organize my open tabs by topic and purpose",
-      );
-      fireEvent.click(suggestion);
+      fireEvent.click(screen.getByText("Start an investigation"));
 
       await waitFor(() => {
-        expect(mockAgent.chat).toHaveBeenCalled();
+        expect(mockAgent.chat).toHaveBeenCalledWith(
+          START_PROMPT,
+          expect.anything(),
+        );
       });
     });
   });
@@ -477,7 +567,7 @@ describe("Chatbot Accessibility", () => {
     await renderWithAct(<Chatbot agent={mockAgent} />);
 
     const settingsButton = screen.getByText("Settings");
-    const newChatButton = screen.getByText("New Chat");
+    const newChatButton = screen.getByText("New chat");
 
     expect(settingsButton).toBeInTheDocument();
     expect(newChatButton).toBeInTheDocument();
@@ -502,10 +592,10 @@ describe("Chatbot State Management", () => {
       createEventGenerator(events),
     );
 
-    await renderWithAct(<Chatbot agent={mockAgent} />);
+    await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
     // Initially should show welcome screen
-    expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+    expect(screen.getByText("Start an investigation")).toBeInTheDocument();
   });
 
   it("should preserve state across re-renders", async () => {
@@ -518,15 +608,17 @@ describe("Chatbot State Management", () => {
       createEventGenerator(events),
     );
 
-    const { rerender } = await renderWithAct(<Chatbot agent={mockAgent} />);
+    const { rerender } = await renderWithAct(
+      <Chatbot agent={mockAgent} slots={welcome} />,
+    );
 
     // Re-render with same props
     await act(async () => {
-      rerender(<Chatbot agent={mockAgent} />);
+      rerender(<Chatbot agent={mockAgent} slots={welcome} />);
     });
 
     // Should still show the same content
-    expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+    expect(screen.getByText("Start an investigation")).toBeInTheDocument();
   });
 });
 
@@ -546,21 +638,19 @@ describe("Chatbot Event Handlers", () => {
   // The Settings button is covered by "should open options page when
   // settings button is clicked" above; Chatbot has no onSettingsOpen prop.
   it("New Chat clears the conversation and deletes its agent session", async () => {
-    await renderWithAct(<Chatbot agent={mockAgent} />);
+    await renderWithAct(<Chatbot agent={mockAgent} slots={welcome} />);
 
-    fireEvent.click(
-      screen.getByText("Please organize my open tabs by topic and purpose"),
-    );
+    fireEvent.click(screen.getByText("Start an investigation"));
     await waitFor(() => {
-      expect(screen.queryByText("Apty AI Agent")).toBeNull();
+      expect(screen.queryByText("Start an investigation")).toBeNull();
     });
     await act(async () => {});
 
-    fireEvent.click(screen.getByText("New Chat"));
+    fireEvent.click(screen.getByText("New chat"));
 
     expect(
       mockAgent.getConversationManager()?.deleteSession,
     ).toHaveBeenCalledWith("session-1");
-    expect(screen.getByText("Apty AI Agent")).toBeInTheDocument();
+    expect(screen.getByText("Start an investigation")).toBeInTheDocument();
   });
 });

@@ -34,7 +34,6 @@ import {
   MoonIcon,
   SendIcon,
   SquareIcon,
-  XIcon,
 } from "lucide-react";
 import { useMemo } from "react";
 
@@ -63,8 +62,6 @@ export function AutomationModeInputToolbar({
     submitIcon = <Loader2Icon className="size-4 animate-spin" />;
   } else if (status === "streaming") {
     submitIcon = <SquareIcon className="size-4" />;
-  } else if (status === "error") {
-    submitIcon = <XIcon className="size-4" />;
   }
 
   return (

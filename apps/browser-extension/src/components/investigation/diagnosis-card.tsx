@@ -4,76 +4,131 @@
  * `update_investigation`. Never upgrades a "likely" diagnosis to look
  * confirmed, and never fabricates a diagnosis when none has been recorded.
  *
- * Laid out as a short narrative — what happened, why, what backs it, what to
- * do next — using only fields the investigation session already carries
+ * Laid out as a short narrative — what happened, why, what to do next —
+ * using only fields the investigation session already carries
  * (`diagnosis`, `suspectedComponents`, `hypotheses` with their evidence id
- * counts, `verificationAttempts`). Confidence is rendered with visibly
- * different weight per level (a solid, filled badge for CONFIRMED down to a
- * dashed, muted one for UNKNOWN) so the verdict can never read as more
- * certain than the data actually states.
+ * counts, `verificationAttempts`). Confidence differs by visual weight, not
+ * colour alone: a solid badge for confirmed, tinted for likely, outlined for
+ * possible and dashed for unknown, each with its own icon and word, so the
+ * verdict can never read as more certain than the data states.
  */
 
 import type {
   DiagnosisConfidence,
   InvestigationSession,
 } from "@apty/browser-runtime";
-import { Badge } from "@apty/ui/components/ui/badge";
+import { Badge, StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
 import {
-  CheckCircle2Icon,
+  CircleCheckIcon,
   CircleHelpIcon,
-  ShieldCheckIcon,
+  CircleXIcon,
   ShieldQuestionIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import type { ComponentType } from "react";
-import { describeAptyComponent, describeHypothesisStatus } from "./status-meta";
-import { toneTextClass } from "./tone-classes";
+import type { ComponentType, ReactNode } from "react";
+import {
+  badgeTone,
+  describeAptyComponent,
+  describeHypothesisStatus,
+} from "./status-meta";
+
+type Weight = "solid" | "tinted" | "outlined" | "dashed";
 
 const CONFIDENCE_META: Record<
   DiagnosisConfidence,
   {
     label: TranslationKey;
     description: TranslationKey;
-    badgeClassName: string;
+    weight: Weight;
+    className: string;
     Icon: ComponentType<{ className?: string }>;
   }
 > = {
   confirmed: {
     label: "investigation.diagnosis.confirmed",
     description: "investigation.diagnosis.confirmedDescription",
-    badgeClassName: "border-transparent bg-success text-success-foreground",
-    Icon: CheckCircle2Icon,
+    weight: "solid",
+    className: "border-transparent bg-success text-success-foreground",
+    Icon: CircleCheckIcon,
   },
   likely: {
     label: "investigation.diagnosis.likely",
     description: "investigation.diagnosis.likelyDescription",
-    badgeClassName: "border-transparent bg-warning/20 text-warning",
+    weight: "tinted",
+    className: "border-transparent bg-warning-muted text-warning",
     Icon: TriangleAlertIcon,
   },
   possible: {
     label: "investigation.diagnosis.possible",
     description: "investigation.diagnosis.possibleDescription",
-    badgeClassName: "border-warning/40 bg-transparent text-warning",
+    weight: "outlined",
+    className: "border-warning bg-transparent text-warning",
     Icon: CircleHelpIcon,
   },
   unknown: {
     label: "investigation.diagnosis.unknown",
     description: "investigation.diagnosis.unknownDescription",
-    badgeClassName:
-      "border-dashed border-muted-foreground/40 bg-transparent text-muted-foreground",
+    weight: "dashed",
+    className:
+      "border-dashed border-input bg-transparent text-muted-foreground",
     Icon: ShieldQuestionIcon,
   },
 };
 
-function SectionLabel({ children }: { children: string }) {
+/** The confidence as the agent recorded it, in its own visual weight. */
+export function ConfidenceBadge({
+  confidence,
+}: {
+  confidence: DiagnosisConfidence;
+}) {
+  const { t } = useTranslation();
+  const meta = CONFIDENCE_META[confidence];
   return (
-    <h4 className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <Badge
+      data-weight={meta.weight}
+      className={cn("h-6 gap-1.5 rounded-full px-2.5", meta.className)}
+    >
+      <meta.Icon aria-hidden="true" />
+      {t(meta.label)}
+    </Badge>
+  );
+}
+
+const OUTCOME_META: Record<
+  "confirmed" | "not_confirmed" | "inconclusive",
+  {
+    label: TranslationKey;
+    className: string;
+    Icon: ComponentType<{ className?: string }>;
+  }
+> = {
+  confirmed: {
+    label: "investigation.diagnosis.outcomeConfirmed",
+    className: "text-success",
+    Icon: CircleCheckIcon,
+  },
+  not_confirmed: {
+    label: "investigation.diagnosis.outcomeNotConfirmed",
+    className: "text-destructive",
+    Icon: CircleXIcon,
+  },
+  inconclusive: {
+    label: "investigation.diagnosis.outcomeInconclusive",
+    className: "text-muted-foreground",
+    Icon: CircleHelpIcon,
+  },
+};
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-2 border-t border-border pt-3">
+      <h4 className="text-sm font-medium text-foreground">{title}</h4>
       {children}
-    </h4>
+    </section>
   );
 }
 
@@ -87,38 +142,39 @@ export function DiagnosisCard({
   const { t } = useTranslation();
   if (!investigation?.diagnosis) {
     return (
-      <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+      <p className="py-2 text-sm text-muted-foreground">
         {t("investigation.diagnosis.none")}
       </p>
     );
   }
 
   const confidence = investigation.confidence ?? "unknown";
-  const meta = CONFIDENCE_META[confidence];
   const attempts = investigation.verificationAttempts;
   const lastAttempt = attempts[attempts.length - 1];
+  const outcome = lastAttempt ? OUTCOME_META[lastAttempt.outcome] : undefined;
 
   return (
-    <div className="space-y-3 rounded-md border p-2">
-      <div className="flex items-start gap-2">
-        <Badge className={cn("gap-1 shrink-0", meta.badgeClassName)}>
-          <meta.Icon className="size-3" />
-          {t(meta.label)}
-        </Badge>
-        <p className="text-xs text-muted-foreground">{t(meta.description)}</p>
+    <article className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <div className="space-y-1">
+        <ConfidenceBadge confidence={confidence} />
+        <p className="text-xs text-muted-foreground">
+          {t(CONFIDENCE_META[confidence].description)}
+        </p>
       </div>
 
-      <div>
-        <SectionLabel>{t("investigation.diagnosis.whatHappened")}</SectionLabel>
-        <p className="text-sm font-medium leading-snug">
+      <div className="space-y-1">
+        <h4 className="text-xs text-muted-foreground">
+          {t("investigation.diagnosis.whatHappened")}
+        </h4>
+        <p className="text-title font-semibold text-foreground">
           {investigation.diagnosis}
         </p>
         {investigation.suspectedComponents.length > 0 && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            <span>{`${t("investigation.diagnosis.suspected")} `}</span>
+          <p className="text-xs text-muted-foreground">
+            {`${t("investigation.diagnosis.suspected")} `}
             <span>
               {investigation.suspectedComponents
-                .map((c) => describeAptyComponent(c))
+                .map((c) => describeAptyComponent(c, t))
                 .join(", ")}
             </span>
           </p>
@@ -126,30 +182,24 @@ export function DiagnosisCard({
       </div>
 
       {investigation.hypotheses.length > 0 && (
-        <div>
-          <SectionLabel>{t("investigation.diagnosis.why")}</SectionLabel>
-          <ul className="space-y-1.5">
+        <Section title={t("investigation.diagnosis.why")}>
+          <ul className="space-y-3">
             {investigation.hypotheses.map((hypothesis) => {
-              const statusMeta = describeHypothesisStatus(hypothesis.status);
+              const statusMeta = describeHypothesisStatus(hypothesis.status, t);
               const supporting = hypothesis.supportingEvidenceIds.length;
               const contradicting = hypothesis.contradictingEvidenceIds.length;
               return (
-                <li key={hypothesis.id} className="text-sm">
+                <li key={hypothesis.id} className="space-y-1">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-muted-foreground">
+                    <span className="min-w-0 text-sm text-foreground">
                       {hypothesis.statement}
                     </span>
-                    <span
-                      className={cn(
-                        "shrink-0 text-xs font-medium",
-                        toneTextClass(statusMeta.tone),
-                      )}
-                    >
+                    <StatusBadge tone={badgeTone(statusMeta.tone)}>
                       {statusMeta.label}
-                    </span>
+                    </StatusBadge>
                   </div>
                   {(supporting > 0 || contradicting > 0) && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {t("investigation.diagnosis.evidenceSupporting", {
                         count: supporting,
                       })}
@@ -163,41 +213,25 @@ export function DiagnosisCard({
               );
             })}
           </ul>
-        </div>
+        </Section>
       )}
 
-      <div className="space-y-1.5 border-t pt-2">
-        <SectionLabel>{t("investigation.diagnosis.next")}</SectionLabel>
-        {lastAttempt && (
-          <div className="flex items-center gap-1.5 text-xs">
-            <ShieldCheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            <span
-              className={
-                lastAttempt.outcome === "confirmed"
-                  ? toneTextClass("success")
-                  : lastAttempt.outcome === "not_confirmed"
-                    ? toneTextClass("danger")
-                    : toneTextClass("neutral")
-              }
-            >
-              {lastAttempt.outcome === "confirmed" &&
-                t("investigation.diagnosis.outcomeConfirmed")}
-              {lastAttempt.outcome === "not_confirmed" &&
-                t("investigation.diagnosis.outcomeNotConfirmed")}
-              {lastAttempt.outcome === "inconclusive" &&
-                t("investigation.diagnosis.outcomeInconclusive")}
-            </span>
-          </div>
+      <Section title={t("investigation.diagnosis.next")}>
+        {outcome && (
+          <p
+            className={cn(
+              "flex items-center gap-1.5 text-sm",
+              outcome.className,
+            )}
+          >
+            <outcome.Icon aria-hidden="true" className="size-4 shrink-0" />
+            {t(outcome.label)}
+          </p>
         )}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onVerify}
-          className="w-full"
-        >
+        <Button variant="secondary" onClick={onVerify} className="w-full">
           {t("investigation.diagnosis.verify")}
         </Button>
-      </div>
-    </div>
+      </Section>
+    </article>
   );
 }

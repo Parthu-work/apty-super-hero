@@ -1,7 +1,8 @@
 /**
  * Intervention Card
  *
- * Modern intervention card container
+ * The frame every intervention shares: an icon, the title and its status,
+ * the reason, the body, and the time limit while it waits.
  */
 
 import {
@@ -13,6 +14,8 @@ import {
 import type React from "react";
 import { useTranslation } from "../../i18n/hooks.js";
 import type { TranslationKey } from "../../i18n/types.js";
+import { cn } from "../../lib/utils.js";
+import { StatusBadge, type StatusTone } from "../ui/badge.js";
 import { Button } from "../ui/button.js";
 
 export type InterventionStatus =
@@ -23,6 +26,8 @@ export type InterventionStatus =
   | "timeout"
   | "error";
 
+export type InterventionMode = "disabled" | "passive";
+
 interface InterventionCardProps {
   status: InterventionStatus;
   title: string;
@@ -32,54 +37,35 @@ interface InterventionCardProps {
   children?: React.ReactNode;
 }
 
-const STATUS_BASE_CONFIG = {
-  pending: {
-    icon: ClockIcon,
-    accentColor: "bg-amber-400",
-    iconBg: "bg-amber-50",
-    iconColor: "text-amber-600",
-    badgeBg: "bg-amber-100",
-    badgeText: "text-amber-700",
-  },
-  active: {
-    icon: ClockIcon,
-    accentColor: "bg-blue-400",
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
-    badgeBg: "bg-blue-100",
-    badgeText: "text-blue-700",
-  },
+const STATUS: Record<
+  InterventionStatus,
+  {
+    tone: StatusTone;
+    Icon: React.ComponentType<{ className?: string }>;
+    iconClass: string;
+  }
+> = {
+  pending: { tone: "warning", Icon: ClockIcon, iconClass: "text-warning" },
+  active: { tone: "info", Icon: ClockIcon, iconClass: "text-info" },
   completed: {
-    icon: CheckCircleIcon,
-    accentColor: "bg-emerald-400",
-    iconBg: "bg-emerald-50",
-    iconColor: "text-emerald-600",
-    badgeBg: "bg-emerald-100",
-    badgeText: "text-emerald-700",
+    tone: "success",
+    Icon: CheckCircleIcon,
+    iconClass: "text-success",
   },
   cancelled: {
-    icon: XIcon,
-    accentColor: "bg-gray-400",
-    iconBg: "bg-gray-50",
-    iconColor: "text-gray-600",
-    badgeBg: "bg-gray-100",
-    badgeText: "text-gray-700",
+    tone: "neutral",
+    Icon: XIcon,
+    iconClass: "text-muted-foreground",
   },
   timeout: {
-    icon: AlertCircleIcon,
-    accentColor: "bg-orange-400",
-    iconBg: "bg-orange-50",
-    iconColor: "text-orange-600",
-    badgeBg: "bg-orange-100",
-    badgeText: "text-orange-700",
+    tone: "warning",
+    Icon: AlertCircleIcon,
+    iconClass: "text-warning",
   },
   error: {
-    icon: AlertCircleIcon,
-    accentColor: "bg-rose-400",
-    iconBg: "bg-rose-50",
-    iconColor: "text-rose-600",
-    badgeBg: "bg-rose-100",
-    badgeText: "text-rose-700",
+    tone: "danger",
+    Icon: AlertCircleIcon,
+    iconClass: "text-destructive",
   },
 };
 
@@ -92,87 +78,59 @@ export const InterventionCard: React.FC<InterventionCardProps> = ({
   children,
 }) => {
   const { t } = useTranslation();
-  const config = STATUS_BASE_CONFIG[status];
-  const Icon = config.icon;
+  const { tone, Icon, iconClass } = STATUS[status];
   const isActive = status === "active" || status === "pending";
 
-  const getStatusLabel = () => {
-    return t(`interventions.status.${status}` as TranslationKey);
-  };
-
   return (
-    <div
-      className={`
-        relative overflow-hidden rounded-2xl
-        bg-white dark:bg-gray-900
-        border border-gray-200 dark:border-gray-800
-        shadow-sm hover:shadow-md transition-all duration-200
-        ${isActive ? "animate-in slide-in-from-bottom-4" : ""}
-      `}
+    <section
+      aria-label={title}
+      className="overflow-hidden rounded-lg border border-border bg-card"
     >
-      {/* Colorful accent bar */}
-      <div className={`h-1 ${config.accentColor}`} />
-
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 flex-1">
-            <div className={`p-2 rounded-xl ${config.iconBg}`}>
-              <Icon className={`w-5 h-5 ${config.iconColor}`} />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  {title}
-                </h3>
-                <span
-                  className={`
-                  text-xs font-medium px-2.5 py-1 rounded-full
-                  ${config.badgeBg} ${config.badgeText}
-                `}
-                >
-                  {getStatusLabel()}
-                </span>
-              </div>
-              {reason && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5 leading-relaxed">
-                  {reason}
-                </p>
-              )}
-            </div>
-          </div>
-          {isActive && onCancel && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-              aria-label={t("common.cancel")}
-              className="ml-2 h-8 w-8 p-0 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+      <div className="flex items-start gap-3 p-4">
+        <Icon
+          aria-hidden="true"
+          className={cn("mt-0.5 size-5 shrink-0", iconClass)}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-title font-semibold text-foreground">
+              {title}
+            </h3>
+            <StatusBadge
+              tone={tone}
+              indicator={status === "active" ? "spinner" : undefined}
             >
-              <XIcon className="w-4 h-4" />
-            </Button>
+              {t(`interventions.status.${status}` as TranslationKey)}
+            </StatusBadge>
+          </div>
+          {reason && (
+            <p className="mt-1 text-sm text-muted-foreground">{reason}</p>
           )}
         </div>
+        {isActive && onCancel && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onCancel}
+            aria-label={t("common.cancel")}
+            className="shrink-0"
+          >
+            <XIcon aria-hidden="true" />
+          </Button>
+        )}
       </div>
 
-      {/* Content */}
-      <div className="px-5 py-4 bg-gray-50/50 dark:bg-gray-900/50">
-        {children}
-      </div>
+      <div className="border-t border-border p-4">{children}</div>
 
-      {/* Footer - Timeout indicator */}
       {isActive && timeout && (
-        <div className="px-5 py-3 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <ClockIcon className="w-3.5 h-3.5" />
-            <span>
-              {t("interventions.common.timeoutLabel" as TranslationKey)}:{" "}
-              {timeout}{" "}
-              {t("interventions.common.timeoutUnit" as TranslationKey)}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground">
+          <ClockIcon aria-hidden="true" className="size-3.5" />
+          <span>
+            {t("interventions.common.timeoutLabel" as TranslationKey)}:{" "}
+            {timeout} {t("interventions.common.timeoutUnit" as TranslationKey)}
+          </span>
         </div>
       )}
-    </div>
+    </section>
   );
 };

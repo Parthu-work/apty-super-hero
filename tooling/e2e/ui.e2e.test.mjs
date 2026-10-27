@@ -1,7 +1,7 @@
 /**
- * The side panel's readiness check and the Options page's links: what the
- * user sees before an investigation starts, and where each "fix it" link
- * lands.
+ * The side panel's Connections page, setup badge and provider chip, and the
+ * Options page's links: what the user sees before an investigation starts,
+ * and where each "fix it" link lands.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -9,6 +9,8 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  openToolPage,
+  sendChat,
   startMockModel,
   startPageServer,
 } from "./harness.mjs";
@@ -37,16 +39,21 @@ function optionsTabs() {
     .filter((p) => p.url().includes("/src/entrypoints/options/index.html"));
 }
 
-describe("readiness check and settings links", () => {
-  it("shows the model, the Client and the page before a chat starts", async () => {
+describe("Connections, the setup badge and settings links", () => {
+  it("shows the provider, the Client and the page on the Connections page", async () => {
     const app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);
     const panel = await openSidePanel(browser, model, app);
 
-    const readiness = panel.getByRole("region", { name: "Readiness check" });
-    await readiness.getByText("mock-model").waitFor();
-    await readiness.getByText("Apty Client not connected").waitFor();
-    await readiness.getByText("127.0.0.1").waitFor();
+    await openToolPage(panel, "Connections");
+    const page = panel.getByRole("region", { name: "Connections" });
+    const card = (name) => page.getByRole("region", { name });
+    await card("AI provider").getByText("Ready").waitFor();
+    await card("AI provider").getByText("Using mock-model.").waitFor();
+    await card("Apty Client").getByText("Not connected").waitFor();
+    await card("This site").getByText("127.0.0.1", { exact: true }).waitFor();
+    await card("This site").getByText("Can inspect").waitFor();
+    assert.equal(await panel.getByText(/to set up$/).count(), 0);
     await panel.close();
     await app.close();
   });
@@ -57,19 +64,45 @@ describe("readiness check and settings links", () => {
     const panel = await openSidePanel(browser, model, app, { aiToken: "" });
     for (const page of optionsTabs()) await page.close();
 
-    const readiness = panel.getByRole("region", { name: "Readiness check" });
-    await readiness.getByText("Add your own API key").waitFor();
+    await panel.getByRole("button", { name: "1 to set up" }).waitFor();
     const opened = browser.context.waitForEvent("page");
-    await readiness
-      .getByRole("button", { name: "Set up", exact: true })
-      .click();
+    await panel.getByRole("button", { name: "Set up AI provider" }).click();
     const options = await opened;
     await options.waitForLoadState();
 
     assert.match(options.url(), /\?tab=ai#ai-provider$/);
     await options
-      .getByRole("tab", { name: "AI Configuration", selected: true })
+      .getByRole("tab", { name: "AI", exact: true, selected: true })
       .waitFor();
+    await options.locator("#ai-provider").waitFor();
+    await options.close();
+    await panel.close();
+    await app.close();
+  });
+
+  it("explains a refused API key in the chat and opens the AI provider settings from there", async () => {
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    for (const page of optionsTabs()) await page.close();
+    model.script(() => ({
+      error: { status: 401, message: "Incorrect API key provided: sk-e2e" },
+    }));
+
+    await sendChat(panel, "is the widget loaded?");
+    const failure = panel
+      .getByRole("alert")
+      .filter({ hasText: "Couldn't get an answer" });
+    await failure.getByText(/rejected the request/).waitFor();
+    assert.equal(await panel.getByRole("button", { name: "Send" }).count(), 1);
+    const opened = browser.context.waitForEvent("page");
+    await failure
+      .getByRole("button", { name: "Open AI provider settings" })
+      .click();
+    const options = await opened;
+    await options.waitForLoadState();
+
+    assert.match(options.url(), /\?tab=ai#ai-provider$/);
     await options.locator("#ai-provider").waitFor();
     await options.close();
     await panel.close();
@@ -90,13 +123,13 @@ describe("readiness check and settings links", () => {
       window.__notReloaded = true;
     });
 
+    await openToolPage(panel, "Connections");
     await panel
-      .getByRole("region", { name: "Readiness check" })
-      .getByRole("button", { name: /Apty Client not connected/ })
+      .getByRole("button", { name: "Open all connection settings" })
       .click();
 
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
     await options.locator("#apty-client").waitFor();
     assert.match(options.url(), /\?tab=connection#apty-client$/);
@@ -137,7 +170,7 @@ describe("readiness check and settings links", () => {
     );
     await options.locator("#apty-client").waitFor();
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
 
     await options.getByRole("tab", { name: "General" }).click();
@@ -145,12 +178,12 @@ describe("readiness check and settings links", () => {
 
     await options.goBack();
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
 
     await options.reload();
     await options
-      .getByRole("tab", { name: "Apty Integration", selected: true })
+      .getByRole("tab", { name: "Connection", selected: true })
       .waitFor();
     await options.close();
   });

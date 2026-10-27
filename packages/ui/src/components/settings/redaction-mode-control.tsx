@@ -1,14 +1,7 @@
 import type { RedactionModeSetting } from "@apty/agent-core";
 import { useState } from "react";
 import { Button } from "../ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../ui/dialog";
+import { ConfirmDialog } from "../ui/confirm-dialog";
 
 /**
  * Fake data shown by Preview: personal data, page context and secrets, none of it real.
@@ -167,7 +160,7 @@ export function RedactionModeControl({
                   <figcaption className="text-xs font-medium">
                     {zh ? "之前（示例数据）" : "Before (sample data)"}
                   </figcaption>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 text-[11px]">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 font-mono text-xs">
                     {REDACTION_PREVIEW_SAMPLE}
                   </pre>
                 </figure>
@@ -175,7 +168,7 @@ export function RedactionModeControl({
                   <figcaption className="text-xs font-medium">
                     {zh ? "之后" : "After"}: {option.label}
                   </figcaption>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 text-[11px]">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 font-mono text-xs">
                     {preview(REDACTION_PREVIEW_SAMPLE, option.value)}
                   </pre>
                 </figure>
@@ -185,39 +178,22 @@ export function RedactionModeControl({
         );
       })}
 
-      <Dialog open={confirmingOff} onOpenChange={setConfirmingOff}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {zh ? "关闭脱敏？" : "Turn redaction off?"}
-            </DialogTitle>
-            <DialogDescription>
-              {zh
-                ? "仅用于测试数据的开发工作。个人数据、页面标题和路径将不经屏蔽地发送给您的 AI 服务商并出现在导出中。工具结果中的密码或令牌值也可能发送给您的 AI 服务商。看起来像令牌、API 密钥、JWT、Bearer 凭据或邮箱的值，以及凭据请求头行，仍会被屏蔽。"
-                : "Off is for development with test data only. Personal data, page titles and paths will reach your AI provider, the side panel and exports unmasked. Password or token values in a tool result can reach your AI provider too. Values that look like tokens, API keys, JWTs, bearer credentials or emails, and credential header lines, are still masked."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmingOff(false)}
-            >
-              {zh ? "保持当前模式" : "Keep current mode"}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                setConfirmingOff(false);
-                onChange("off");
-              }}
-            >
-              {zh ? "关闭脱敏" : "Turn redaction off"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmingOff}
+        onOpenChange={setConfirmingOff}
+        title={zh ? "关闭脱敏？" : "Turn redaction off?"}
+        description={
+          zh
+            ? "仅用于测试数据的开发工作。个人数据、页面标题和路径将不经屏蔽地发送给您的 AI 服务商并出现在导出中。工具结果中的密码或令牌值也可能发送给您的 AI 服务商。看起来像令牌、API 密钥、JWT、Bearer 凭据或邮箱的值，以及凭据请求头行，仍会被屏蔽。"
+            : "Off is for development with test data only. Personal data, page titles and paths will reach your AI provider, the side panel and exports unmasked. Password or token values in a tool result can reach your AI provider too. Values that look like tokens, API keys, JWTs, bearer credentials or emails, and credential header lines, are still masked."
+        }
+        cancelLabel={zh ? "保持当前模式" : "Keep current mode"}
+        confirmLabel={zh ? "关闭脱敏" : "Turn redaction off"}
+        onConfirm={() => {
+          setConfirmingOff(false);
+          onChange("off");
+        }}
+      />
     </fieldset>
   );
 }

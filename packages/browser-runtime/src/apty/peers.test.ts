@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allowListFix,
+  isValidExtensionId,
   peerExtensionId,
   peerExtensionIdPatch,
   peerFailureMessage,
@@ -67,5 +68,20 @@ describe("peer failure messages", () => {
     expect(allowListFix("studio", "agent-id")).toBe(
       'Apty Studio\'s manifest must list this Agent ID in externally_connectable.ids: "agent-id"',
     );
+  });
+});
+
+describe("isValidExtensionId", () => {
+  it("accepts a well-formed 32-char a-p extension id", () => {
+    expect(isValidExtensionId("abcdefghijklmnopabcdefghijklmnop")).toBe(true);
+  });
+
+  it.each([
+    "short",
+    "ABCDEFGHIJKLMNOPABCDEFGHIJKLMNOP",
+    "abcdefghijklmnopabcdefghijklmno1",
+    "",
+  ])("rejects %s", (id) => {
+    expect(isValidExtensionId(id)).toBe(false);
   });
 });

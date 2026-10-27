@@ -67,12 +67,12 @@ export const FileItem: React.FC<FileItemProps> = ({
         <div className="flex-shrink-0">
           {isDirectory ? (
             isExpanded ? (
-              <FolderOpen className="h-4 w-4 text-blue-500" />
+              <FolderOpen className="h-4 w-4 text-info" />
             ) : (
-              <Folder className="h-4 w-4 text-blue-500" />
+              <Folder className="h-4 w-4 text-info" />
             )
           ) : (
-            <span className="text-base" title={node.name}>
+            <span className="text-sm" title={node.name}>
               {getFileIcon(node.name)}
             </span>
           )}

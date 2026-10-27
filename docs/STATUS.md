@@ -9,8 +9,9 @@ got here is in [`CHANGELOG.md`](../CHANGELOG.md) and
 `npm run test:e2e` runs each of these in Chromium against the built
 extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 
-- Chat with your own AI provider; a readiness check shows the model, the
-  Apty Client connection and whether the page can be inspected.
+- Chat with your own AI provider; the Connections page (Menu › Connections,
+  or the "N to set up" badge) shows the model, the Apty Client and Studio
+  connections and whether the page can be inspected.
 - Risky actions wait for a click in the side panel and are refused if the
   tab moved to another site meanwhile; "Allow on this site for 15 min" is
   per tool and origin and can be revoked. Since A1 this covers clicks on
@@ -26,7 +27,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   the attributes left out as dynamic, the hit-test reason and a fix; each
   result counts elements per step and hit-test failures per reason.
 - DOM Health validation bundle (B2): "Export validation bundle" in the DOM
-  Health card builds an allow-listed, strictly redacted JSON (frame tree,
+  health page's header builds an allow-listed, strictly redacted JSON (frame tree,
   counts, overlays, thresholds, timings, route probe hashes, versions) and
   shows it for review before Download or Copy. Exported on all six
   application shapes in Chromium. Developer tools can override the
@@ -44,14 +45,14 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   the Client is never asked for the body. A JSON body comes with a structural summary
   (B3): item count, the union of item keys with their types, and how many
   whole items the preview holds, under 1,500 characters.
-- Settings → AI Configuration (C1): "Fetch models" reads the provider's
+- Settings → AI (C1): "Fetch models" reads the provider's
   live model list (OpenAI-compatible, Anthropic and Gemini endpoints),
   with named errors and manual entry as the fallback; Test Connection also
   probes tool calling and flags a model that does not call tools. Presets
   audited: the Anthropic host now reaches the API, unverifiable model
   names were removed, Replicate and Perplexity are marked experimental.
   Tested against a mock provider, not real ones.
-- Preflight (C2): Options → Apty Integration → Preflight (`#preflight`)
+- Preflight (C2): Options → Connection → Preflight (`#preflight`)
   runs every demo dependency check with its exact fix and a copy button,
   exports redacted JSON and resets demo data; `pnpm demo:check` runs it
   end to end. Demo script: [`docs/demo/DEMO.md`](demo/DEMO.md).
@@ -63,9 +64,12 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   shows a side-panel banner. Every caller goes through
   `runtime/redaction-mode.ts`, and a unit test fails on a direct call.
 
-- Accessibility (C3): axe-core runs on the side panel (empty, approval
-  prompt, tool result, evidence viewers) and every Options tab in light and
-  dark themes and fails on serious or critical violations; none remain
+- Accessibility (C3, UI redesign): axe-core runs on every side panel
+  surface (Home, the menu and its recent chats, Connections, every
+  conversation state, the investigation summary, DOM health, DOM config, a
+  page it can't inspect, boot) and every Options tab at 1280 and 375 px, in
+  light and dark themes, and fails on serious or critical violations; none
+  remain. Every flow also runs by keyboard alone
   ([`accessibility.md`](development/accessibility.md)).
 - Every package has a coverage gate (C5): package-wide ratchets one point
   below the measured value, plus the stricter groups for approvals, sender
@@ -83,7 +87,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   same locally. Branded Chrome and Edge are checked by hand
   ([`SMOKE_TEST.md`](release/SMOKE_TEST.md)).
 
-- Widget network calls (Settings → Apty Integration → Apty Client): the
+- Widget network calls (Settings → Connection → Apty Client): the
   Client's own network calls, listed, filtered, downloaded and read body by
   body, with no AI model involved and only on click. URLs get the chat
   tools' URL policy and bodies the deny list and redaction; every failure

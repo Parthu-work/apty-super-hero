@@ -40,6 +40,13 @@ describe("the steps read from ci.yml", () => {
     assert.ok(coverage < names.indexOf("Build"));
   });
 
+  it("include the design-token guard, right after the branding check", () => {
+    const names = steps.map((step) => step.name);
+    const guard = names.indexOf("No hard-coded colours or sizes");
+    assert.equal(steps[guard]?.run, "npm run audit:design-tokens");
+    assert.equal(guard, names.indexOf("Branding check") + 1);
+  });
+
   it("keep each step's working directory and stop on any failing step", () => {
     const bridge = steps.filter(
       (s) => s.workingDirectory === "apps/mcp-bridge",

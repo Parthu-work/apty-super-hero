@@ -120,7 +120,7 @@ function Row({
       <Wrapped className="block font-mono text-xs text-foreground">
         {value}
       </Wrapped>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         <Wrapped>{reason}</Wrapped>
       </p>
       {children}
@@ -155,12 +155,12 @@ export function SettingsView({ report }: { report: DomConfigReport }) {
           basis={priority.basis}
           reason={priority.reason}
         >
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {t("domConfig.settings.defaultOrder", {
               order: priority.defaultPriority.join(","),
             })}
           </p>
-          <ul className="space-y-0.5 text-[11px] text-foreground">
+          <ul className="space-y-0.5 text-xs text-foreground">
             {priority.diff.map((entry) => (
               <li key={entry.name}>
                 {t("domConfig.settings.priorityDiff", {
@@ -179,7 +179,7 @@ export function SettingsView({ report }: { report: DomConfigReport }) {
           reason={report.debounce.reason}
         >
           {report.debounce.basis === "derived" && (
-            <p className="text-[11px] text-foreground">
+            <p className="text-xs text-foreground">
               {t("domConfig.settings.heuristic")}
             </p>
           )}
@@ -203,7 +203,7 @@ export function SettingsView({ report }: { report: DomConfigReport }) {
           reason={report.maxZIndex.reason}
         >
           {report.maxZIndex.appMax !== null && (
-            <p className="text-[11px] text-foreground">
+            <p className="text-xs text-foreground">
               {t("domConfig.settings.appMax", {
                 value: report.maxZIndex.appMax,
               })}{" "}
@@ -212,7 +212,7 @@ export function SettingsView({ report }: { report: DomConfigReport }) {
               })}
             </p>
           )}
-          <ul className="space-y-0.5 text-[11px] text-foreground">
+          <ul className="space-y-0.5 text-xs text-foreground">
             {report.maxZIndex.excluded.map((entry) => (
               <li key={`${entry.value}-${entry.source}`}>
                 {t("domConfig.settings.excludedZIndex", {

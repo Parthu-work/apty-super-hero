@@ -5,7 +5,6 @@ import { cn } from "@apty/ui/lib/utils";
 import {
   CircleAlertIcon,
   CircleCheckIcon,
-  CircleDotIcon,
   CircleIcon,
   CircleXIcon,
   FileInputIcon,
@@ -14,21 +13,9 @@ import {
 } from "lucide-react";
 import { toneBadgeClass, toneTextClass } from "../tone-classes";
 import { pathOf } from "./copy-format";
-import type {
-  DomConfigStep,
-  PageOrigin,
-  PageRow,
-  RunChipState,
-} from "./dom-config-store";
+import type { PageOrigin, PageRow, RunChipState } from "./dom-config-store";
 
 type Translate = I18nContextValue["t"];
-
-const STEPS: { step: DomConfigStep; label: TranslationKey }[] = [
-  { step: "discover", label: "domConfig.steps.discover" },
-  { step: "capture", label: "domConfig.steps.capture" },
-  { step: "analyze", label: "domConfig.steps.analyze" },
-  { step: "report", label: "domConfig.steps.report" },
-];
 
 export const RUN_LABEL: Record<
   PageRow["runs"][number]["label"],
@@ -122,41 +109,6 @@ export function actionSentence(
   }
 }
 
-export function Stepper({ step }: { step: DomConfigStep }) {
-  const { t } = useTranslation();
-  const current = STEPS.findIndex((s) => s.step === step);
-  return (
-    <ol
-      aria-label={t("domConfig.steps.label")}
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]"
-    >
-      {STEPS.map((s, i) => {
-        const Icon =
-          i < current
-            ? CircleCheckIcon
-            : i === current
-              ? CircleDotIcon
-              : CircleIcon;
-        return (
-          <li
-            key={s.step}
-            aria-current={i === current ? "step" : undefined}
-            className={cn(
-              "flex items-center gap-1",
-              i === current
-                ? "font-semibold text-foreground"
-                : "text-muted-foreground",
-            )}
-          >
-            <Icon className="size-3" aria-hidden="true" />
-            {t(s.label)}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 const ORIGIN: Partial<
   Record<PageOrigin, { label: TranslationKey; icon: typeof HandIcon }>
 > = {
@@ -177,7 +129,7 @@ function OriginBadge({ origin }: { origin: PageOrigin }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
         toneBadgeClass("active"),
       )}
     >
@@ -192,17 +144,17 @@ export function RowSummary({ row }: { row: PageRow }) {
   const { t } = useTranslation();
   return (
     <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-      <span className="min-w-0 font-mono text-[11px] text-foreground [overflow-wrap:anywhere]">
+      <span className="min-w-0 font-mono text-xs text-foreground [overflow-wrap:anywhere]">
         {rowName(row)}
       </span>
       <OriginBadge origin={row.origin} />
       {row.status && (
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {t(PAGE_STATUS[row.status])}
         </span>
       )}
       {row.elementCount !== null && (
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {t("domConfig.elements", { count: row.elementCount })}
         </span>
       )}
@@ -221,7 +173,7 @@ export function RunChips({ runs }: { runs: PageRow["runs"] }) {
           <li
             // biome-ignore lint/suspicious/noArrayIndexKey: runs are positional
             key={i}
-            className="inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px]"
+            className="inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs"
           >
             <Icon
               className={cn(
@@ -245,25 +197,5 @@ export function RunChips({ runs }: { runs: PageRow["runs"] }) {
         );
       })}
     </ul>
-  );
-}
-
-export function PageRows({ rows }: { rows: PageRow[] }) {
-  const { t } = useTranslation();
-  if (rows.length === 0) return null;
-  return (
-    <section aria-label={t("domConfig.pagesTitle")} className="space-y-1.5">
-      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("domConfig.pagesTitle")}
-      </h4>
-      <ul className="space-y-1.5">
-        {rows.map((row) => (
-          <li key={row.key} className="rounded-md border px-2 py-1.5">
-            <RowSummary row={row} />
-            <RunChips runs={row.runs} />
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

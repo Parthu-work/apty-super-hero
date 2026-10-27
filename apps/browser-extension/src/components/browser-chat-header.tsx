@@ -1,6 +1,7 @@
 /**
  * BrowserChatHeader
- * Custom header with conversation persistence and history dropdown
+ * The side panel header (Menu, app mark, title, New chat), the context bar,
+ * conversation persistence and the menu drawer with the recent chats.
  */
 
 import { createLogger } from "@apty/agent-core";
@@ -8,33 +9,48 @@ import { conversationStorage } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { getRuntime } from "@apty/ui/lib/runtime";
 import { cn } from "@apty/ui/lib/utils";
-import type { HeaderProps } from "@apty/ui/types";
-import { ArrowLeftIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import type { ChatDraft, HeaderProps } from "@apty/ui/types";
+import { ActivityIcon, MenuIcon, SquarePenIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { openOptions } from "../lib/open-options";
 import { releaseConversationTabBinding } from "../services/conversation-tab-binding";
 import {
   fromStorageFormat,
   toStorageFormat,
 } from "../services/message-adapter";
-import { ConversationHistory } from "./conversation-history";
+import { chatHandoff } from "../state/chat-handoff";
+import { navigationStore, useNavigation } from "../state/navigation-store";
+import { useReadiness } from "./connections/use-readiness";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
+import { JobBar } from "./shell/job-bar";
+import { MenuDrawer } from "./shell/menu-drawer";
 
 const log = createLogger("BrowserChatHeader");
 
 export function BrowserChatHeader({
-  title = "Apty Live Debugging",
-  onSettingsClick,
+  title: _title,
+  onSettingsClick: _onSettingsClick,
   onNewChat,
   className,
   children,
   ...props
 }: HeaderProps) {
-  const { t, language } = useTranslation();
-  const runtime = getRuntime();
-  const { messages, status, setMessages, interrupt, sessionId, bindSession } =
-    useChatContext();
+  const { t } = useTranslation();
+  const {
+    messages,
+    status,
+    setMessages,
+    interrupt,
+    sessionId,
+    bindSession,
+    sendMessage,
+  } = useChatContext();
+  const { page, drawerOpen } = useNavigation();
+  const { setupCount, target } = useReadiness();
+  const siteHost = useRef(target.siteHost);
+  siteHost.current = target.siteHost;
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const [currentConversationId, setCurrentConversationId] = useState<
     string | undefined
@@ -65,6 +81,7 @@ export function BrowserChatHeader({
           const conversationId = await conversationStorage.saveConversation(
             toStorageFormat(messages),
             sessionId ?? undefined,
+            siteHost.current,
           );
           if (conversationId) {
             setCurrentConversationId(conversationId);
@@ -91,14 +108,6 @@ export function BrowserChatHeader({
       }
     };
   }, [messages, currentConversationId, sessionId]);
-
-  const handleOpenOptions = useCallback(() => {
-    if (onSettingsClick) {
-      onSettingsClick();
-    } else if (runtime?.openOptionsPage) {
-      runtime.openOptionsPage();
-    }
-  }, [onSettingsClick, runtime]);
 
   const handleConversationSelect = async (conversationId: string) => {
     try {
@@ -146,114 +155,121 @@ export function BrowserChatHeader({
     }
   };
 
-  const handleNewChat = useCallback(() => {
-    // Clear current conversation ID so next save creates new conversation
-    setCurrentConversationId(undefined);
+  const startFreshChat = useCallback(
+    (draft?: ChatDraft) => {
+      // Clear current conversation ID so next save creates new conversation
+      setCurrentConversationId(undefined);
 
-    // Release the outgoing session's tab binding (onNewChat below deletes
-    // the session itself via useChat's reset()).
-    if (sessionId) {
-      releaseConversationTabBinding(sessionId);
-    }
+      // Release the outgoing session's tab binding (onNewChat below deletes
+      // the session itself via useChat's reset()).
+      if (sessionId) {
+        releaseConversationTabBinding(sessionId);
+      }
 
-    // Call the passed onNewChat (resets messages and clears input)
-    onNewChat?.();
-  }, [onNewChat, sessionId]);
+      // Call the passed onNewChat (resets messages and sets the input)
+      onNewChat?.(draft);
+    },
+    [onNewChat, sessionId],
+  );
 
   const hasConversation =
     messages.filter((msg) => msg.role !== "system").length > 0;
 
-  const handleBack = useCallback(async () => {
-    const isRunning = status === "streaming" || status === "submitted";
-    if (isRunning) {
-      const confirmed = window.confirm(
-        language === "zh"
-          ? "对话仍在进行中。停止并返回欢迎页？"
-          : "A response is still in progress. Stop it and go back?",
-      );
-      if (!confirmed) return;
-      await interrupt();
-    }
+  // New chat: confirm if a response is still running, interrupt it, save
+  // the conversation now (never racing the debounce), then start fresh,
+  // with a draft when one was handed over. False when the user cancels.
+  const newChat = useCallback(
+    async (draft?: ChatDraft): Promise<boolean> => {
+      const isRunning = status === "streaming" || status === "submitted";
+      if (isRunning) {
+        if (!window.confirm(t("shell.newChatConfirm"))) return false;
+        await interrupt();
+      }
+      await saveNowRef.current();
+      startFreshChat(draft);
+      return true;
+    },
+    [status, interrupt, startFreshChat, t],
+  );
 
-    // Flush the pending debounced save immediately so leaving never races
-    // it — the conversation must already be in History before we clear it.
-    await saveNowRef.current();
+  // A page's "Ask about this result" starts a new chat the same way.
+  useEffect(
+    () =>
+      chatHandoff.subscribe(() => {
+        const handoff = chatHandoff.take();
+        if (!handoff) return;
+        void newChat(handoff).then((started) => {
+          if (started) navigationStore.closePage();
+        });
+      }),
+    [newChat],
+  );
 
-    handleNewChat();
-  }, [status, interrupt, handleNewChat, language]);
-
+  // Alt+Left: back one page when a tool page is open, else a new chat.
   useEffect(() => {
-    if (!hasConversation) return;
+    if (page === null && !hasConversation) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.altKey && event.key === "ArrowLeft") {
         event.preventDefault();
-        void handleBack();
+        if (page !== null) navigationStore.back();
+        else void newChat();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hasConversation, handleBack]);
+  }, [page, hasConversation, newChat]);
 
   return (
-    <div className={cn("flex flex-col", className)} {...props}>
-      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-1.5">
-          {hasConversation && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleBack}
-              title={t("tooltip.back")}
-              aria-label={t("tooltip.back")}
-              className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeftIcon className="size-4" />
-            </Button>
-          )}
-          <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-foreground">
-            {title}
-          </span>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleOpenOptions}
-            title={t("tooltip.settings")}
-            className="size-8 text-muted-foreground hover:text-foreground"
-          >
-            <SettingsIcon className="size-4" />
-          </Button>
-
-          {/* Conversation History */}
-          <ConversationHistory
-            currentConversationId={currentConversationId}
-            onConversationSelect={handleConversationSelect}
-            onNewConversation={handleNewChat}
-            className="size-8 p-0 text-muted-foreground hover:text-foreground"
-          />
-
-          <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNewChat}
-            title={t("tooltip.newChat")}
-            className="gap-1.5"
-          >
-            <PlusIcon className="size-3.5" />
-            <span className="hidden min-[360px]:inline">
-              {t("common.newChat")}
-            </span>
-          </Button>
-        </div>
+    <div className={cn("flex shrink-0 flex-col", className)} {...props}>
+      <div className="flex h-14 items-center gap-2 border-b border-border px-2">
+        <Button
+          ref={menuButtonRef}
+          variant="ghost"
+          size="icon"
+          aria-label={t("shell.menu")}
+          aria-haspopup="dialog"
+          aria-expanded={drawerOpen}
+          onClick={() => navigationStore.openDrawer()}
+        >
+          <MenuIcon />
+        </Button>
+        <span
+          aria-hidden="true"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground"
+        >
+          <ActivityIcon className="size-4" />
+        </span>
+        <h1 className="min-w-0 flex-1 truncate text-title font-semibold text-foreground">
+          {t("shell.appName")}
+        </h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("shell.newChat")}
+          title={t("shell.newChat")}
+          onClick={() => void newChat()}
+        >
+          <SquarePenIcon />
+        </Button>
       </div>
 
       <InvestigationContextBar />
+      <JobBar />
 
       {children}
+
+      <MenuDrawer
+        menuButtonRef={menuButtonRef}
+        currentConversationId={currentConversationId}
+        onNewChat={() => void newChat()}
+        onSelectConversation={(id) => void handleConversationSelect(id)}
+        onConversationDeleted={(id) => {
+          if (id === currentConversationId) startFreshChat();
+        }}
+        onSendPrompt={(text) => void sendMessage(text)}
+        onOpenSettings={() => void openOptions()}
+        setupCount={setupCount}
+      />
     </div>
   );
 }

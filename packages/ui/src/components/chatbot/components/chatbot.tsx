@@ -1,10 +1,13 @@
 import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useChat, useChatConfig } from "../../../hooks";
-import { useTranslation } from "../../../i18n/context";
 import { copyText } from "../../../lib/clipboard";
 import { withExportHeader } from "../../../lib/export-header";
 import { cn } from "../../../lib/utils";
-import type { ChatbotThemeVariables, ContextItem } from "../../../types";
+import type {
+  ChatbotThemeVariables,
+  ChatDraft,
+  ContextItem,
+} from "../../../types";
 import { DEFAULT_MODELS } from "../constants";
 import {
   AgentContext,
@@ -17,10 +20,6 @@ import {
 import { Header } from "./header";
 import { InputArea } from "./input-area";
 import { MessageList } from "./message-list";
-import {
-  type UxAuditFormData,
-  UxAuditGoalDialog,
-} from "./ux-audit-goal-dialog";
 
 /**
  * Convert theme variables to CSS style object
@@ -128,8 +127,9 @@ export function ChatbotProvider({
       regenerate: chatState.regenerate,
       setMessages: chatState.setMessages,
       bindSession: chatState.bindSession,
+      openProviderSettings: handlers?.onOpenProviderSettings,
     }),
-    [chatState, wrappedSendMessage],
+    [chatState, wrappedSendMessage, handlers?.onOpenProviderSettings],
   );
 
   const configContextValue = useMemo(
@@ -259,6 +259,7 @@ function ChatbotContent({
 }) {
   const themeCtx = useContext(ThemeContext);
   const chatCtx = useContext(ChatContext);
+  const { slots } = useContext(ComponentsContext);
 
   const { className, style } = themeCtx;
   const {
@@ -269,12 +270,12 @@ function ChatbotContent({
     reset,
     regenerate,
     queueCount,
+    openProviderSettings,
   } = chatCtx || {};
 
-  const { t } = useTranslation();
   const [input, setInput] = useState(initialInputProp ?? "");
+  const [draftContexts, setDraftContexts] = useState<ContextItem[]>();
   const [inputResetCount, setInputResetCount] = useState(0);
-  const [isUxAuditDialogOpen, setIsUxAuditDialogOpen] = useState(false);
 
   const handleSubmit = useCallback(
     (text: string, files?: File[], contexts?: ContextItem[]) => {
@@ -291,28 +292,6 @@ function ChatbotContent({
     [sendMessage],
   );
 
-  const handleUxAuditClick = useCallback(() => {
-    setIsUxAuditDialogOpen(true);
-  }, []);
-
-  const handleUxAuditSubmit = useCallback(
-    (formData: UxAuditFormData) => {
-      const platformDisplay = t(`uxAuditGoal.platform.${formData.platform}`);
-      const targetUsersLine = formData.targetUsers
-        ? `\n**Target Users:** ${formData.targetUsers}`
-        : "";
-
-      const messageText = t("uxAuditGoal.messageTemplate")
-        .replace("{{url}}", formData.targetLink)
-        .replace("{{platform}}", platformDisplay)
-        .replace("{{jtbd}}", formData.jtbd)
-        .replace("{{targetUsersLine}}", targetUsersLine);
-
-      void sendMessage?.(messageText);
-    },
-    [t, sendMessage],
-  );
-
   const redactionMode = useContext(ConfigContext)?.settings.redactionMode;
   const formatExport = useCallback(
     (text: string) => withExportHeader(text, redactionMode),
@@ -323,16 +302,20 @@ function ChatbotContent({
     [formatExport],
   );
 
-  const handleNewChat = useCallback(() => {
-    reset?.();
-    setInput("");
-    setInputResetCount((count) => count + 1);
-  }, [reset]);
+  const handleNewChat = useCallback(
+    (draft?: ChatDraft) => {
+      reset?.();
+      setInput(draft?.text ?? "");
+      setDraftContexts(draft?.contexts);
+      setInputResetCount((count) => count + 1);
+    },
+    [reset],
+  );
 
   return (
     <div
       className={cn(
-        "flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background",
+        "relative flex h-full w-full flex-col overflow-hidden bg-background",
         className,
       )}
       style={style}
@@ -347,8 +330,8 @@ function ChatbotContent({
         onRegenerate={regenerate}
         onCopy={handleCopy}
         formatExport={formatExport}
+        onOpenProviderSettings={openProviderSettings}
         onSuggestionClick={handleSuggestion}
-        onUxAuditClick={handleUxAuditClick}
       />
 
       {/* Input Area - always shown */}
@@ -362,14 +345,10 @@ function ChatbotContent({
         queueCount={queueCount ?? 0}
         models={models}
         placeholderTexts={placeholderTexts}
+        initialContexts={draftContexts}
       />
 
-      {/* UX Audit Goal Dialog */}
-      <UxAuditGoalDialog
-        open={isUxAuditDialogOpen}
-        onOpenChange={setIsUxAuditDialogOpen}
-        onSubmit={handleUxAuditSubmit}
-      />
+      {slots.overlay?.()}
     </div>
   );
 }

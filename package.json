@@ -34,6 +34,7 @@
     "build:mcp-bridge": "npm --prefix apps/mcp-bridge run build",
     "report:request-size": "node tooling/scripts/request-anatomy.mjs",
     "audit:branding": "node tooling/scripts/check-branding.mjs",
+    "audit:design-tokens": "node tooling/scripts/check-design-tokens.mjs",
     "audit:architecture": "node tooling/scripts/check-architecture.mjs",
     "audit:tools": "node tooling/scripts/audit-tools.mjs",
     "audit:test-skips": "node tooling/scripts/check-test-skips.mjs",

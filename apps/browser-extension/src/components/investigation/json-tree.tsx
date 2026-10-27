@@ -15,8 +15,8 @@ function Primitive({ value }: { value: unknown }) {
     return <span className="text-success">"{value}"</span>;
   }
   if (value === null)
-    return <span className="text-muted-foreground">null</span>;
-  return <span className="text-primary">{String(value)}</span>;
+    return <span className="text-subtle-foreground">null</span>;
+  return <span className="text-info">{String(value)}</span>;
 }
 
 interface JsonNodeProps {
@@ -31,7 +31,7 @@ function JsonNode({ name, value, depth }: JsonNodeProps) {
   const [open, setOpen] = useState(depth < 1);
   const [shown, setShown] = useState(CHILDREN_PAGE);
   const label = name !== undefined && (
-    <span className="text-foreground">{name}: </span>
+    <span className="text-muted-foreground">{name}: </span>
   );
 
   if (!isContainer) {
@@ -50,7 +50,7 @@ function JsonNode({ name, value, depth }: JsonNodeProps) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-0.5 text-left hover:bg-muted/50"
+        className="flex items-center gap-0.5 rounded-sm text-left outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
       >
         {open ? (
           <ChevronDownIcon className="h-3 w-3 shrink-0" />
@@ -58,17 +58,17 @@ function JsonNode({ name, value, depth }: JsonNodeProps) {
           <ChevronRightIcon className="h-3 w-3 shrink-0" />
         )}
         {label}
-        <span className="text-muted-foreground">{summarize(value)}</span>
+        <span className="text-subtle-foreground">{summarize(value)}</span>
       </button>
       {open && (
-        <div className="ml-1.5 border-l pl-1.5">
+        <div className="ml-1.5 border-l border-border pl-1.5">
           {entries.slice(0, shown).map(([key, child]) => (
             <JsonNode key={key} name={key} value={child} depth={depth + 1} />
           ))}
           {entries.length > shown && (
             <button
               type="button"
-              className="pl-4 text-primary hover:underline"
+              className="ml-4 rounded-sm text-info outline-none hover:underline focus-visible:outline-2 focus-visible:outline-ring"
               onClick={() => setShown(shown + CHILDREN_PAGE)}
             >
               {t("investigation.jsonShowMore", {
@@ -92,7 +92,7 @@ export function JsonTree({
   className?: string;
 }) {
   return (
-    <div className={cn("font-mono text-xs leading-5", className)}>
+    <div className={cn("font-mono text-xs leading-4", className)}>
       <JsonNode value={value} depth={0} />
     </div>
   );

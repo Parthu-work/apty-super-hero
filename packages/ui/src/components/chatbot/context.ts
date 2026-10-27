@@ -52,6 +52,8 @@ export interface ChatContextValue {
    * leaking into/out of whatever session was previously active.
    */
   bindSession: (sessionId: string | null) => void;
+  /** The host's way to open the AI provider settings, when it has one. */
+  openProviderSettings?: () => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);

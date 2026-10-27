@@ -1,7 +1,7 @@
 /**
- * The DOM Config card in the real side panel (R4a, R4b): the welcome
- * screen's tile opens it, one Start crawls the fixture application, and the
- * report shows the five settings tiles and the expected ignore conditions.
+ * The DOM Config page in the real side panel (R4a, R4b): the composer's "/"
+ * list opens it, one Start crawls the fixture application, and the
+ * results show the proposed settings and the expected ignore conditions.
  * The exported Markdown holds exactly the rules ticked on screen. A state
  * safe mode never clicks (the fixture's menu) is then opened by hand and
  * captured, and a pasted profile imported, into the same report.
@@ -30,7 +30,7 @@ after(async () => {
   app?.close();
 });
 
-const TILES = [
+const SETTINGS = [
   "Attribute priority",
   "DOM change debounce",
   "Max z-index",
@@ -45,20 +45,21 @@ function includeLabel(conditions) {
 const MANUAL = "Reports menu, opened by hand";
 const IMPORTED = "Pasted profile";
 
-function section(panel, title) {
-  return panel.locator("details", {
-    has: panel.locator("summary", { hasText: title }),
-  });
+/** Opens a row of the page (a proposed setting, a detail, a way to capture by hand). */
+async function openRow(panel, name) {
+  await panel.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+  await panel.getByRole("heading", { name, exact: true }).first().waitFor();
+}
+
+async function back(panel) {
+  await panel.getByRole("button", { name: "Back", exact: true }).click();
 }
 
 async function exportMarkdown(panel) {
+  await panel.getByRole("button", { name: "Export results" }).click();
   const [download] = await Promise.all([
     panel.waitForEvent("download"),
-    panel
-      .getByRole("button", {
-        name: "Export Markdown of the report, with the included rules only",
-      })
-      .click(),
+    panel.getByRole("menuitem", { name: "Markdown" }).click(),
   ]);
   return readFile(await download.path(), "utf8");
 }
@@ -78,40 +79,39 @@ function markdownConditions(label) {
     .join(" AND ");
 }
 
-describe("DOM Config card in the side panel", () => {
-  it("generates the report from the welcome tile and exports what is ticked", async () => {
+describe("DOM Config page in the side panel", () => {
+  it("generates the report from the / list and exports what is ticked", async () => {
     const target = await browser.context.newPage();
     await target.goto(`${app.origin}/home`);
     const panel = await openSidePanel(browser, model, target);
+    const composer = panel.locator("textarea").first();
+    await composer.fill("/config");
     await panel
-      .getByRole("button", { name: "Conversation History", exact: true })
+      .getByRole("option", { name: /^DOM config/, selected: true })
       .waitFor();
-
+    await composer.press("Enter");
+    await panel.getByRole("region", { name: "DOM config" }).waitFor();
+    assert.equal(await composer.inputValue(), "");
+    await panel.getByRole("button", { name: "Start capture" }).click();
     await panel
-      .getByRole("button", { name: /Generate DOM config: capture/ })
-      .click();
-    await panel
-      .getByRole("button", { name: "Start generating the DOM config" })
-      .click();
-    await panel
-      .getByRole("tablist", { name: "Report sections" })
+      .getByText("Capture complete", { exact: true })
       .waitFor({ timeout: 170_000 });
-    assert.equal(await panel.getByText("Report ready").count(), 1);
 
-    for (const tile of TILES) {
-      await panel
-        .getByRole("button", { name: `Copy ${tile}`, exact: true })
+    const proposed = panel.getByRole("region", { name: "Proposed settings" });
+    for (const setting of SETTINGS) {
+      await proposed
+        .getByRole("button", { name: new RegExp(`^${setting}`) })
         .waitFor();
     }
     assert.equal(
-      await panel
-        .getByRole("listitem")
-        .filter({ hasText: /^Max z-index/ })
+      await proposed
+        .getByRole("button", { name: /^Max z-index/ })
         .getByText("2147483646", { exact: true })
         .count(),
       1,
     );
 
+    await openRow(panel, "Ignore conditions");
     const uiId = panel.getByRole("checkbox", {
       name: includeLabel([
         "Attribute Name Equals id",
@@ -134,9 +134,12 @@ describe("DOM Config card in the side panel", () => {
       .locator("details", { has: reviewSummary })
       .getByRole("checkbox", { name: /^Include the rule / });
     if ((await reviewBoxes.count()) > 0) await reviewBoxes.first().check();
+    await back(panel);
 
     const markdown = await exportMarkdown(panel);
 
+    await openRow(panel, "Ignore conditions");
+    await reviewSummary.click();
     const boxes = panel.getByRole("checkbox", { name: /^Include the rule / });
     const count = await boxes.count();
     assert.ok(count >= 2, `${count} rules on screen`);
@@ -150,18 +153,20 @@ describe("DOM Config card in the side panel", () => {
       );
     }
     assert.equal(markdown.includes("Clinic for Jane Example"), false);
+    await back(panel);
 
     await target.getByRole("menuitem", { name: "Reports" }).click();
     await target.getByRole("heading", { name: "Reports" }).waitFor();
-    const manual = section(panel, "Capture current state");
-    await manual.locator("summary").click();
-    await manual.getByLabel("Page name").fill(MANUAL);
-    await manual
+    await openRow(panel, "Capture current state");
+    await panel.getByLabel("Page name").fill(MANUAL);
+    await panel
       .getByRole("button", {
         name: "Capture now: add a run of the current tab as it is",
       })
       .click();
-    await manual.getByText(`Captured run 1 of ${MANUAL}.`).waitFor();
+    await panel.getByText(`Captured run 1 of ${MANUAL}.`).waitFor();
+    await back(panel);
+    await openRow(panel, "Pages");
     const pages = panel.getByRole("region", { name: "Pages" });
     await pages
       .getByRole("listitem")
@@ -170,26 +175,52 @@ describe("DOM Config card in the side panel", () => {
       .getByText("manual", { exact: true })
       .waitFor();
     assert.equal(target.url().startsWith(`${app.origin}/home`), true);
+    await back(panel);
     assert.ok((await exportMarkdown(panel)).includes(MANUAL));
 
-    const imported = section(panel, "Import console script results");
-    await imported.locator("summary").click();
-    await imported.getByLabel("Page name").fill(IMPORTED);
-    await imported.getByLabel("Paste the script's result").fill(
+    await openRow(panel, "Import runs");
+    await panel.getByLabel("Page name").fill(IMPORTED);
+    await panel.getByLabel("Paste the script's result").fill(
       JSON.stringify({
         tags: { div: 3, main: 1 },
         attributes: { id: { "main-nav": 1, "ui-id-3": 1 } },
       }),
     );
-    await imported.getByRole("button", { name: "Import page" }).click();
-    await imported.getByText(`Runs imported into ${IMPORTED}: 1.`).waitFor();
+    await panel.getByRole("button", { name: "Import page" }).click();
+    await panel.getByText(`Runs imported into ${IMPORTED}: 1.`).waitFor();
+    await back(panel);
+    await openRow(panel, "Pages");
     await pages
       .getByRole("listitem")
       .filter({ hasText: IMPORTED })
       .first()
       .getByText("imported", { exact: true })
       .waitFor();
+    await back(panel);
     assert.ok((await exportMarkdown(panel)).includes(IMPORTED));
+
+    // "Ask about these": the Markdown export as a chip in a new chat, sent
+    // only on Send, and never the page's title.
+    model.script(() => ({ text: "RESULT: read the settings" }));
+    await panel.getByRole("button", { name: "Ask about these" }).click();
+    await panel
+      .getByRole("region", { name: "DOM config", exact: true })
+      .waitFor({ state: "hidden" });
+    await panel.getByText("DOM config results", { exact: true }).waitFor();
+    assert.equal(
+      await composer.inputValue(),
+      "What do these proposed DOM settings mean, and which should we apply first?",
+    );
+    assert.equal(model.requests.length, 0, "sent before Send");
+    await composer.press("Enter");
+    await panel.getByText("RESULT: read the settings").waitFor();
+    const asked = JSON.stringify(
+      model.requests[0].messages.filter((m) => m.role === "user").at(-1)
+        .content,
+    );
+    assert.ok(asked.includes("# DOM configuration"), asked.slice(0, 300));
+    assert.ok(asked.includes(MANUAL), asked.slice(0, 300));
+    assert.equal(asked.includes("Clinic for Jane Example"), false);
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await target.close();

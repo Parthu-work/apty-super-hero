@@ -83,7 +83,7 @@ before(async () => {
     "src/entrypoints/options/index.html?tab=ai",
   );
   await options
-    .getByRole("tab", { name: "AI Configuration" })
+    .getByRole("tab", { name: "AI", exact: true })
     .click()
     .catch(() => {});
   // Settings load asynchronously and then select a provider; pick Anthropic after that.

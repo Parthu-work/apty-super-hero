@@ -43,4 +43,30 @@ export function applyTheme(
   } else {
     root.classList.remove("dark");
   }
+  root.style.colorScheme = effectiveTheme;
+  try {
+    localStorage.setItem(REMEMBERED_THEME_KEY, effectiveTheme);
+  } catch {
+    // Storage can be unavailable; the stored setting still applies once loaded.
+  }
+}
+
+const REMEMBERED_THEME_KEY = "apty_effective_theme";
+
+/**
+ * Applies the theme the page last showed, read synchronously, before the
+ * saved setting (asynchronous chrome.storage) has loaded, so a page in the
+ * dark theme does not first paint light.
+ */
+export function applyRememberedTheme(): void {
+  try {
+    const remembered = localStorage.getItem(REMEMBERED_THEME_KEY);
+    applyTheme(
+      remembered === "dark" || remembered === "light"
+        ? remembered
+        : getSystemTheme(),
+    );
+  } catch {
+    applyTheme(getSystemTheme());
+  }
 }

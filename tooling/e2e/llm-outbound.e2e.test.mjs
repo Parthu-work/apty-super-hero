@@ -352,7 +352,7 @@ describe("what was sent (O5)", () => {
       /tool results [\d,]+ \(1 results/,
     );
 
-    await options.getByRole("tab", { name: "Apty Integration" }).click();
+    await options.getByRole("tab", { name: "Connection" }).click();
     const preflight = options
       .locator("#preflight")
       .getByRole("list", { name: "Recent requests" });

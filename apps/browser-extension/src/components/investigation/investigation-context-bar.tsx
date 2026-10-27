@@ -11,22 +11,19 @@
 import { stopInvestigation } from "@apty/browser-runtime";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@apty/ui/components/ui/dialog";
+import { ConfirmDialog } from "@apty/ui/components/ui/confirm-dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
+import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
+import { navigationStore, useNavigation } from "../../state/navigation-store";
+import { SetupBadge } from "../connections/setup-badge";
+import { useReadiness } from "../connections/use-readiness";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
-import { useCurrentTarget } from "./use-current-target";
 import { useInvestigationData } from "./use-investigation-data";
 
+/** The quiet bar ends with the setup badge, which opens Connections (whose own header shows the count). */
 export function InvestigationContextBar() {
   const { sessionId, status, interrupt } = useChatContext();
   const { t } = useTranslation();
@@ -34,7 +31,8 @@ export function InvestigationContextBar() {
     status === "streaming" ||
     status === "submitted" ||
     status === "executing_tools";
-  const target = useCurrentTarget(sessionId);
+  const { target, setupCount } = useReadiness();
+  const { page } = useNavigation();
   const { investigation } = useInvestigationData(sessionId, isActive);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [, forceRerender] = useState(0);
@@ -55,29 +53,61 @@ export function InvestigationContextBar() {
     forceRerender((n) => n + 1);
   };
 
-  if (!target.hostname && !isLive) {
-    return null;
-  }
-
   if (!isLive) {
+    const StateIcon = target.checking
+      ? LoaderIcon
+      : target.inspectable
+        ? CheckIcon
+        : TriangleAlertIcon;
     return (
-      <div className="flex items-center gap-1.5 border-b bg-muted/10 px-4 py-1.5 text-xs text-muted-foreground">
-        <span
-          className={cn("size-1.5 rounded-full", toneDotClass("neutral"))}
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
+        <StateIcon
           aria-hidden="true"
+          className={cn(
+            "size-4 shrink-0",
+            target.checking
+              ? "text-muted-foreground"
+              : target.inspectable
+                ? "text-success"
+                : "text-warning",
+          )}
         />
-        <span className="truncate">
-          {target.hostname}
-          {target.title ? ` — ${target.title}` : ""}
+        <span className="sr-only">
+          {t(
+            target.checking
+              ? "readiness.state.checking"
+              : target.inspectable
+                ? "shell.canInspect"
+                : "shell.cantInspect",
+          )}
         </span>
+        <span className="min-w-0 truncate text-sm font-medium text-foreground">
+          {target.hostname ??
+            (target.checking
+              ? ""
+              : t(target.tabId === null ? "shell.noPage" : "shell.thisPage"))}
+        </span>
+        {target.title && (
+          <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
+            {target.title}
+          </span>
+        )}
+        {setupCount > 0 && page !== "connections" && (
+          <span className="ml-auto shrink-0">
+            <SetupBadge
+              count={setupCount}
+              onClick={() => navigationStore.openPage("connections")}
+            />
+          </span>
+        )}
       </div>
     );
   }
 
-  const meta = describeInvestigationStatus(investigation.status);
+  const meta = describeInvestigationStatus(investigation.status, t);
 
   return (
-    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-300">
+    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-200 motion-reduce:animate-none">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-1.5">
@@ -85,13 +115,13 @@ export function InvestigationContextBar() {
               className={cn(
                 "size-2 shrink-0 rounded-full",
                 toneDotClass(meta.tone),
-                meta.inProgress && "animate-pulse",
+                meta.inProgress && "animate-pulse motion-reduce:animate-none",
               )}
               aria-hidden="true"
             />
             <span
               className={cn(
-                "rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                "rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
                 toneBadgeClass(meta.tone),
               )}
             >
@@ -112,7 +142,7 @@ export function InvestigationContextBar() {
         </div>
         <Button
           size="sm"
-          variant="outline"
+          variant="secondary"
           className="shrink-0"
           onClick={() => setConfirmOpen(true)}
         >
@@ -120,24 +150,14 @@ export function InvestigationContextBar() {
         </Button>
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("investigation.stopTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("investigation.stopDescription")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={() => void handleStop()}>
-              {t("common.stop")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t("investigation.stopTitle")}
+        description={t("investigation.stopDescription")}
+        confirmLabel={t("common.stop")}
+        onConfirm={() => void handleStop()}
+      />
     </div>
   );
 }

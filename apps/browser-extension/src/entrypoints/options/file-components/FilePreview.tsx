@@ -395,35 +395,43 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent size="preview" className="max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            {fileInfo?.name || t("fileManager.preview")}
+          <DialogTitle className="flex min-w-0 items-center gap-2">
+            <FileText aria-hidden="true" className="size-5 shrink-0" />
+            <span className="truncate">
+              {fileInfo?.name || t("fileManager.preview")}
+            </span>
           </DialogTitle>
-          <DialogDescription>
-            {fileInfo && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                <Badge variant="outline">{fileInfo.type}</Badge>
-                <Badge variant="outline">{formatBytes(fileInfo.size)}</Badge>
-                <Badge variant="outline">
-                  {t("fileManager.modifiedValue", {
-                    date: formatDate(fileInfo.mtime),
-                  })}
-                </Badge>
-              </div>
-            )}
+          <DialogDescription asChild>
+            <div className="flex flex-wrap gap-2">
+              {fileInfo ? (
+                <>
+                  <Badge variant="neutral">{fileInfo.type}</Badge>
+                  <Badge variant="neutral" className="font-mono">
+                    {formatBytes(fileInfo.size)}
+                  </Badge>
+                  <Badge variant="neutral">
+                    {t("fileManager.modifiedValue", {
+                      date: formatDate(fileInfo.mtime),
+                    })}
+                  </Badge>
+                </>
+              ) : (
+                t("fileManager.preview")
+              )}
+            </div>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-4">{renderContent()}</div>
+        <div>{renderContent()}</div>
 
         {fileInfo && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div>
+          <div className="border-t border-border pt-4">
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <div className="break-all">
                 <span className="font-semibold">{t("fileManager.path")}</span>{" "}
-                {fileInfo.path}
+                <span className="font-mono">{fileInfo.path}</span>
               </div>
               <div>
                 <span className="font-semibold">{t("fileManager.size")}</span>{" "}

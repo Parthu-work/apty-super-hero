@@ -106,10 +106,16 @@ export interface RunApplicationAuditOptions extends ApplicationAuditLimits {
   ignoredRoots?: readonly string[];
   /** Developer tools' `domHealthThresholdOverrides`; validated by `resolveThresholds`. */
   thresholdOverrides?: unknown;
+  /** Checked between states: the audit stops and scores the states it reached. */
+  signal?: AbortSignal;
 }
 
 export type ApplicationAuditOutcome =
-  | ({ available: true } & ApplicationAuditResult)
+  | ({
+      available: true;
+      /** Stopped by `signal` before the crawl finished; the result covers what it reached. */
+      stopped?: true;
+    } & ApplicationAuditResult)
   | { available: false; error: string };
 
 let auditSequence = 0;
@@ -312,6 +318,13 @@ export async function runApplicationDomHealthAudit(
     },
   });
   return redactDomHealthOutput(
-    withThresholdOverrides({ available: true as const, ...result }, thresholds),
+    withThresholdOverrides(
+      {
+        available: true as const,
+        ...result,
+        ...(crawl.result.aborted ? { stopped: true as const } : {}),
+      },
+      thresholds,
+    ),
   );
 }

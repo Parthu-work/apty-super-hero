@@ -43,7 +43,7 @@ The Apty Client and Apty Studio must list **both** IDs in
 `externally_connectable.ids`: the first now, the store's as soon as the
 first upload assigns it. Record the store's ID here when it exists. Each
 build shows the ID it is running under, with a Copy button, in Settings →
-Apty Integration.
+Connection.
 
 ## Why a reference file instead of just prose
 

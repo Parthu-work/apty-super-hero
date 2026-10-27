@@ -14,7 +14,7 @@ It is delivered in steps:
 | R1 | Pure engine: validate, diff, classify, generate rules, derive settings, warnings, Markdown; importer for the console script's JSON | Done |
 | R2 | In-page collector and behavior probe | Done (see [Collector and behavior probe](#collector-and-behavior-probe-r2)) |
 | R3 | Automatic crawl with several runs per state | Done (see [Automatic crawl](#automatic-crawl-r3)) |
-| R4a | Side panel card: start options, live progress, Stop, report (Ignore conditions, Settings), copy and export | Done (see [Side panel card](#side-panel-card-r4a)) |
+| R4a | Side panel card: start options, live progress, Stop, report (Ignore conditions, Settings), copy and export | Done; a page since the UI redesign (see [Side panel page](#side-panel-page-r4a)) |
 | R4b | Manual capture, import, page detail, Iframes, Coverage and Warnings tabs | Done (see [Manual capture, import and the held capture](#manual-capture-import-and-the-held-capture-r4b)) |
 
 ## Where the code is
@@ -430,48 +430,57 @@ changed; a new one is returned.
   also makes a deep crawl several times slower than a safe one.
 - Results live in memory only (D12); nothing is written to storage.
 
-## Side panel card (R4a)
+## Side panel page (R4a)
 
-`apps/browser-extension/src/components/investigation/dom-config/`, mounted
-after the DOM Health card; the welcome screen's "Generate DOM config" tile
-opens it.
+`apps/browser-extension/src/components/investigation/dom-config/`, the DOM
+config page (`dom-config-page.tsx`), which the menu, the composer's "/"
+list and the start screen's "See all" open.
 
-- **Start options.** Scope: this page only (`maxPages: 1`, safe mode),
-  the whole application in safe mode (links only), or in deep mode (also
-  clicks menus and tabs; Start stays disabled until the SE confirms that it
-  clicks on the live application). Runs per page (2 to 4), the behavior
-  probe, and the page and time limits (engine defaults: 20 pages, 10
-  minutes). A safety line says the tab will navigate and load pages more
-  than once, and that unsaved input can be lost; another that results are
-  held in the panel only (D12).
-- **Running.** A four-step stepper (Discover, Capture, Analyze, Report), one
-  sentence for the current action in a polite live region, and one row per
-  page (its URL shape, never its title) with a chip per run. The run's
-  events carry no run failure or state mismatch, so those chips appear only
-  once the outcome arrives. Stop aborts through the `AbortSignal`; the
-  report built from what was captured says it is partial, as it does when
-  a limit was reached.
-- **Report.** Five tiles (attribute priority, debounce, max z-index, Shadow
-  DOM, ignore events), each with its basis as text and icon and a Copy
-  button; the rule counts; the warn-severity warnings (every warning is in
-  the Warnings tab, R4b). Tabs: Ignore conditions
-  (IDs, classes, attributes by name and by value, each rule shown as
-  Apty's builder would hold it, ASSUMPTION D7; review rules excluded until
-  ticked; record-specific rules behind the "Guides target a specific
-  record" switch; collapsed lists of what Apty's defaults already cover,
-  what needs manual review and the rejected rules) and Settings (with the
-  attribute priority compared with Apty's default order, the debounce
-  marked a heuristic, both container score threshold values). "What was not
-  measured" and the open questions close the report.
+- **Setup.** Scope as option cards: this page only (`maxPages: 1`, safe
+  mode), the whole application in safe mode (links only, the default) or
+  in deep mode (also clicks menus and tabs; Start stays disabled until the
+  SE confirms that it clicks on the live application). "Advanced options"
+  shows a summary of the current values and opens runs per page (2 to 4),
+  the page and time limits (engine defaults: 20 pages, 10 minutes) and the
+  behavior probe. A notice says the tab will navigate and load pages more
+  than once and that unsaved input can be lost; the hint that results are
+  held in the panel only (D12) is under Start.
+- **Running.** "Capturing page n of m" (the last capturing progress, kept
+  while the crawl discovers or revisits), the current URL shape, one
+  sentence for the current action in a polite live region, a progress bar,
+  the run and the elapsed time against the time limit, and one row per
+  page (its URL shape, never its title) with its runs; a chip per run
+  shows only for a failed run or a different state. The run's events carry
+  no run failure or state mismatch, so those appear only once the outcome
+  arrives. "Stop capture" aborts through the `AbortSignal`; the results
+  built from what was captured say they are partial, as they do when a
+  limit was reached.
+- **Results.** Whether they were exported (a warning until Copy all or an
+  export), the partial and return-to-start notices, a summary (pages, runs
+  each, the crawl's time and scope), "Proposed settings" (ignore
+  conditions and the five settings, each opening its existing view) and
+  "Details" (Pages, Iframes, Coverage, Warnings with their counts). The
+  ignore-conditions view shows IDs, classes, attributes by name and by
+  value, each rule shown as Apty's builder would hold it (ASSUMPTION D7);
+  review rules excluded until ticked; record-specific rules behind the
+  "Guides target a specific record" switch; collapsed lists of what Apty's
+  defaults already cover, what needs manual review and the rejected rules.
+  The settings view shows each value with its basis as text and icon and a
+  Copy button, the attribute priority compared with Apty's default order,
+  the debounce marked a heuristic, both container score threshold values,
+  then "What was not measured" and the open questions.
 - **Copy and export.** Copy on each value, "Copy as table" per section
-  (tab-separated, for a spreadsheet), "Copy as tables", Markdown and JSON
-  export. All of them use `{...report, rules: includedRules}`, so an
+  (tab-separated, for a spreadsheet), and "Export results": Markdown, JSON
+  or "Copy all". All of them use `{...report, rules: includedRules}`, so an
   excluded rule appears in no copy and no export. JSON is the engine
   report, not a reference-config format. Re-run analysis calls
   `buildReportFromCapture` on the held capture; it never captures again.
+- **Ask about these.** A new chat with a draft question and the Markdown
+  export as a removable chip, redacted as a tool result is in the current
+  mode (`redactToolOutput`); nothing is sent until Send.
 - **Tab lock.** DOM Config and DOM Health take `tab-lock.ts`'s lock for the
-  tab they run on; the other card is disabled and says why. Tool runs the
-  chat agent starts are not covered.
+  tab they run on; the other page's Start is disabled and says why. Tool
+  runs the chat agent starts are not covered.
 
 ## Manual capture, import and the held capture (R4b)
 
@@ -491,7 +500,7 @@ The SE's runbook is [`dom-config-runbook.md`](dom-config-runbook.md).
   capture has a manual or imported page, Start first shows "Starting
   replaces the N pages already captured" and runs only once the SE
   confirms; a capture of crawled pages only is replaced without asking.
-  Clear is the explicit reset.
+  Clear results is the explicit reset; Run again opens setup.
 - **Manual capture.** "Capture current state": a page name (typed by the
   SE, at most 80 characters, never prefilled from the page), the run kind
   and the probe. It captures the tab in front (`useCurrentTarget`), not the
@@ -501,7 +510,7 @@ The SE's runbook is [`dom-config-runbook.md`](dom-config-runbook.md).
   pages) and the engine's error (the 8-run limit included) are read out in
   a polite live region. Without a tab, on a browser page or while DOM
   Health holds the tab, it is disabled and says why. The only prefill is
-  "Capture another run" in the Warnings tab, which opens it with that
+  "Capture another run" in the Warnings view, which opens it with that
   page's name.
 - **Import.** The console script (`DOM_CONFIG_CONSOLE_SCRIPT`, verbatim) is
   one Copy away, with a note on what it cannot do. Runs are pasted or
@@ -518,24 +527,22 @@ The SE's runbook is [`dom-config-runbook.md`](dom-config-runbook.md).
   collapsed group, max z-index, shadow hosts and iframe count. "Download
   raw profile" saves one run's profile JSON from the held capture, after
   an inline "This file contains page data" confirmation.
-- **Tabs.** Ignore conditions, Settings, Iframes (by kind, application
-  iframes needing handling first), Coverage (each of the 11 kinds with its
-  status and suggested pages, and a mark: captured, not applicable or
-  planned; no mark is "not captured". A mark re-runs the analysis; the
-  engine does not check it) and Warnings (every warning, warn-severity
-  first, the weak selectors and the pages not ready). The summary keeps
-  the warn-severity warnings and the counts, so no warning sits only
-  behind a tab. Arrow keys, Home and End move across the five tabs.
+- **Details.** Iframes (by kind, application iframes needing handling
+  first), Coverage (each of the 11 kinds with its status and suggested
+  pages, and a mark: captured, not applicable or planned; no mark is "not
+  captured". A mark re-runs the analysis; the engine does not check it)
+  and Warnings (every warning, warn-severity first, the weak selectors and
+  the pages not ready). Each row's description gives its count, the
+  Warnings row the number to act on.
 - **Pages with one run.** No "generate anyway" switch: such a page already
   takes part. In the engine's terms, its values still feed pattern rules
   (value shapes) and record-specific rules, but it shows no value
   changing, so it gives no observed-change rule, and its values are never
   `verified` stable, so they cannot reject a rule (`classify.ts`,
-  `generate-rules.ts`). The Warnings tab says so.
+  `generate-rules.ts`). The Warnings view says so.
 - **Exports.** Markdown and JSON come from the engine report built with
   the coverage marks, so the Coverage and Iframes sections of the Markdown
-  are the engine's own; Copy as tables adds the Iframes and Coverage
-  tables.
+  are the engine's own; Copy all adds the Iframes and Coverage tables.
 
 ## Open questions
 

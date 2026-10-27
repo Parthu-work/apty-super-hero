@@ -286,6 +286,21 @@ describe("SettingsPage", () => {
       );
     });
 
+    it("announces the save as a status that a named button dismisses", async () => {
+      renderWith({});
+      await typeKey("sk-test");
+      typeModel("gpt-4o-mini");
+
+      fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+
+      const saved = await screen.findByText("Settings saved successfully!");
+      expect(saved.closest('[role="status"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+      expect(
+        screen.queryByText("Settings saved successfully!"),
+      ).not.toBeInTheDocument();
+    });
+
     it("tests the connection with the typed key and model and reports failure and errors", async () => {
       const onTestConnection = vi
         .fn()

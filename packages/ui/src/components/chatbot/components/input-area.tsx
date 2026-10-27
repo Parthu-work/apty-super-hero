@@ -1,6 +1,12 @@
 import type { ChatStatus } from "ai";
-import { ClockIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "../../../i18n/context";
 import { cn } from "../../../lib/utils";
 import type { ContextItem, InputAreaProps } from "../../../types";
@@ -31,6 +37,8 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "../../ai-elements/prompt-input";
+import type { SlashCommandGroup } from "../../ai-elements/slash-commands";
+import { StatusBadge } from "../../ui/badge";
 import { DEFAULT_MODELS } from "../constants";
 import { useComponentsContext, useConfigContext } from "../context";
 
@@ -47,6 +55,10 @@ export interface ExtendedInputAreaProps extends InputAreaProps {
    * extension) sets this to `false`.
    */
   showServerModels?: boolean;
+  /** Groups the "/" list shows before the skills (tools, investigations). */
+  slashCommands?: SlashCommandGroup[];
+  /** Shown in place of the model selector, e.g. a setup chip while no provider is configured. */
+  modelControl?: ReactNode;
 }
 
 /**
@@ -65,6 +77,9 @@ export function DefaultInputArea({
   queueCount = 0,
   className,
   showServerModels = true,
+  slashCommands,
+  modelControl,
+  initialContexts,
   ...props
 }: ExtendedInputAreaProps) {
   const { t } = useTranslation();
@@ -196,11 +211,16 @@ export function DefaultInputArea({
     status === "idle" ? undefined : (status as ChatStatus);
 
   return (
-    <div
-      className={cn("border-t border-border bg-background p-3", className)}
-      {...props}
-    >
-      <PromptInput onSubmit={handleSubmit} globalDrop multiple>
+    <div className={cn("bg-background px-4 pt-2 pb-3", className)} {...props}>
+      <PromptInput
+        onSubmit={handleSubmit}
+        globalDrop
+        multiple
+        slashCommands={slashCommands}
+        initialContexts={
+          initialContexts as PromptInputMessage["contexts"] | undefined
+        }
+      >
         <PromptInputBody>
           {/* Context Tags */}
           <PromptInputContextTags>
@@ -229,18 +249,6 @@ export function DefaultInputArea({
             value={value}
             disabled={disabled}
           />
-
-          {/* Queue indicator */}
-          {queueCount > 0 && (
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-info/20 bg-info/10 px-3 py-2 text-xs font-medium text-info">
-              <ClockIcon className="size-3.5" />
-              <span>
-                {t(queueCount > 1 ? "chat.queuedMany" : "chat.queuedOne", {
-                  count: queueCount,
-                })}
-              </span>
-            </div>
-          )}
         </PromptInputBody>
 
         <PromptInputToolbar>
@@ -254,7 +262,9 @@ export function DefaultInputArea({
             </PromptInputActionMenu>
 
             {/* Model Selector */}
-            {slots.modelSelector ? (
+            {modelControl ? (
+              modelControl
+            ) : slots.modelSelector ? (
               slots.modelSelector({
                 value: selectedModel,
                 onChange: handleModelChange,
@@ -316,6 +326,11 @@ export function DefaultInputArea({
                     )}
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>
+            )}
+            {queueCount > 0 && (
+              <StatusBadge tone="neutral" role="status">
+                {t("chat.queued", { count: queueCount })}
+              </StatusBadge>
             )}
           </PromptInputTools>
 

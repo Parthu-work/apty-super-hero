@@ -11,6 +11,7 @@ import {
 import { CONVERSATIONS_DB } from "../storage/database-names";
 import { IndexedDBStorage } from "../storage/indexeddb-storage";
 import { LRUPolicy } from "./lru-policy";
+import { siteHostOf } from "./site-host";
 import type {
   ConversationData,
   ConversationStorageConfig,
@@ -115,11 +116,13 @@ export class ConversationStorage {
 
   /**
    * Save a new conversation
-   * Returns the conversation ID
+   * Returns the conversation ID. `siteHost` (from `siteHostOf`) is kept
+   * only when it is a bare hostname.
    */
   async saveConversation(
     messages: UIMessage[],
     agentSessionId?: string,
+    siteHost?: string,
   ): Promise<string> {
     if (messages.length === 0) {
       return "";
@@ -142,6 +145,9 @@ export class ConversationStorage {
       updatedAt: now,
       agentSessionId,
     };
+    if (siteHost && siteHostOf(`https://${siteHost}/`) === siteHost) {
+      conversation.siteHost = siteHost;
+    }
 
     try {
       await this.storage.save(conversationId, conversation);
@@ -160,18 +166,11 @@ export class ConversationStorage {
   /**
    * Get all conversations (sorted by updatedAt, most recent first)
    */
+  /** Rejects when the stored chats can't be read, so the menu can say so. */
   async getAllConversations(): Promise<ConversationData[]> {
-    try {
-      await this.applyLRU();
-      const conversations = await this.storage.listAll();
-      return this.lruPolicy.sortByTimestamp(conversations);
-    } catch (error) {
-      console.error(
-        "❌ [ConversationStorage] Failed to get all conversations:",
-        error,
-      );
-      return [];
-    }
+    await this.applyLRU();
+    const conversations = await this.storage.listAll();
+    return this.lruPolicy.sortByTimestamp(conversations);
   }
 
   /**
