@@ -377,6 +377,65 @@ export async function openSidePanel(browser, model, targetPage, settings = {}) {
   return panel;
 }
 
+/**
+ * Stores `conversation` (a `ConversationData`) where the panel keeps its
+ * chats, as the most recent one, then opens it from the menu's recent
+ * chats.
+ */
+export async function openStoredConversation(panel, conversation) {
+  await panel.evaluate(
+    (conversation) =>
+      new Promise((resolve, reject) => {
+        const open = indexedDB.open("apty-conversations-db", 1);
+        open.onupgradeneeded = () => {
+          open.result
+            .createObjectStore("conversations", { keyPath: "id" })
+            .createIndex("updatedAt", "updatedAt", { unique: false });
+        };
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const tx = open.result.transaction("conversations", "readwrite");
+          // Just used, so the five-chat limit keeps it over earlier tests' chats.
+          const now = Date.now();
+          tx.objectStore("conversations").put({
+            ...conversation,
+            createdAt: now,
+            updatedAt: now,
+          });
+          tx.oncomplete = () => {
+            open.result.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+    conversation,
+  );
+  await panel.getByRole("button", { name: "Menu", exact: true }).click();
+  const menu = panel.getByRole("dialog", { name: "Menu" });
+  await menu
+    .getByRole("button", {
+      name: new RegExp(`^${escapeRegExp(conversation.title)}`),
+    })
+    .click();
+  await menu.waitFor({ state: "hidden" });
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Opens a tool page (DOM health, DOM config, Connections) from the side panel's menu. */
+export async function openToolPage(panel, name) {
+  await panel.getByRole("button", { name: "Menu", exact: true }).click();
+  // A row's name ends with its status badge, if it has one.
+  await panel
+    .getByRole("dialog", { name: "Menu" })
+    .getByRole("button", { name: new RegExp(`^${name}`) })
+    .click();
+  await panel.getByRole("region", { name, exact: true }).waitFor();
+}
+
 export async function sendChat(panel, text) {
   const box = panel.locator("textarea").first();
   await box.fill(text);

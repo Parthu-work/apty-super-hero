@@ -18,7 +18,8 @@ selector engine and the audit profile are in `des-engine.md`.
 ## 1. Probe the routing signals
 
 Turn on **Settings → Troubleshooting → Developer tools**, open the
-application, and use the **Route probe** in the DOM Health card. Click
+application, and use the **Route probe** on the DOM health page (side panel
+menu → **DOM health**). Click
 through about ten screens. For each click the probe records, per frame:
 
 - the URL;
@@ -44,7 +45,7 @@ Read the analysis:
 
 ## 2. Frame identity
 
-Run a single-page audit and open **Frames** in the card. Every frame
+Run a single-page check and open **Frames** in its **Full breakdown**. Every frame
 should have a stable key; `keySource: "position"` means none was found.
 
 - An application that marks its frames with an attribute of its own (as
@@ -100,7 +101,7 @@ selectors built on generated values.
 
 ## 6. Overlays
 
-Open **Frames and excluded content** in the card. Content that is not the
+Open **Frames and excluded content** in **Full breakdown**. Content that is not the
 application (a guidance tool, chat, consent banner) must be listed as
 excluded.
 
@@ -136,5 +137,5 @@ only with the measured page size in the commit message.
 Add a redacted fixture of the new shape under
 `packages/dom-snapshot/src/__tests__/fixtures/erp/`, with its measured
 values in `values.ts`. Add the tests that fail without your change, and
-an end-to-end stand-in in `tooling/e2e/dom-health-apps.e2e.test.mjs` if
+an end-to-end stand-in in `tooling/e2e/dom-health-apps-suite.mjs` if
 the application has a new shape.

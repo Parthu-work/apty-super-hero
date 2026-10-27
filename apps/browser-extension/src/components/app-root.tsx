@@ -40,18 +40,20 @@ import { BrowserContextLoader } from "./browser-context-loader";
 import { BrowserMessageActions } from "./browser-message-actions";
 import { BrowserMessageList } from "./browser-message-list";
 import { ChatImagesListener } from "./chat-images-listener";
+import { ConnectionsPage } from "./connections/connections-page";
 import { InterventionUI } from "./intervention-ui";
 import {
   AptyToolDisplay,
   AptyToolFooter,
 } from "./investigation/apty-tool-display";
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
-import { DomConfigCard } from "./investigation/dom-config/dom-config-card";
-import { DomHealthCard } from "./investigation/dom-health-card";
+import { DomConfigPage } from "./investigation/dom-config/dom-config-page";
+import { DomHealthPage } from "./investigation/dom-health/dom-health-page";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
-import { ReadinessCheck } from "./readiness-check";
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
+import { PageLayer } from "./shell/page-layer";
+import { PanelSkeleton } from "./shell/panel-skeleton";
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
@@ -168,7 +170,7 @@ function ChatApp() {
   const handleNeedsAuth = useCallback((draftText: string) => {
     setAuthDraft(draftText);
   }, []);
-  const handleOpenSettingsFromSetupCard = useCallback(() => {
+  const handleOpenProviderSettings = useCallback(() => {
     void openOptions({ section: "ai-provider" });
   }, []);
   useEffect(() => {
@@ -214,11 +216,7 @@ function ChatApp() {
   }, []);
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground">{t("common.loading")}</div>
-      </div>
-    );
+    return <PanelSkeleton />;
   }
 
   return (
@@ -240,6 +238,7 @@ function ChatApp() {
             onStatusChange: handleStatusChange,
             checkAuthBeforeSend: handleCheckAuth,
             onNeedsAuth: handleNeedsAuth,
+            onOpenProviderSettings: handleOpenProviderSettings,
           }}
           components={{
             Header: BrowserChatHeader,
@@ -251,16 +250,13 @@ function ChatApp() {
               authDraft !== null ? (
                 <SetupNeededCard
                   draftText={authDraft}
-                  onOpenSettings={handleOpenSettingsFromSetupCard}
+                  onOpenSettings={handleOpenProviderSettings}
                   onDismiss={() => setAuthDraft(null)}
                 />
               ) : null,
             afterMessages: () => (
               <>
-                <InterventionUI
-                  mode={interventionMode}
-                  onModeChange={setInterventionMode}
-                />
+                <InterventionUI mode={interventionMode} />
                 <ChatImagesListener />
               </>
             ),
@@ -271,25 +267,45 @@ function ChatApp() {
                 <RedactionOffBanner mode={settings.redactionMode} />
                 <ApprovalPrompt />
                 <InvestigationSummaryBar />
-                <DomHealthCard
-                  developerTools={settings.developerTools === true}
-                  ignoredRoots={settings.domHealthIgnoredRoots}
-                  thresholdOverrides={
-                    settings.developerTools === true
-                      ? settings.domHealthThresholdOverrides
-                      : undefined
-                  }
-                />
-                <DomConfigCard ignoredRoots={settings.domHealthIgnoredRoots} />
                 <BrowserContextLoader />
               </>
             ),
-            emptyState: (props) => (
-              <DebuggingWelcomeScreen
-                {...props}
-                readiness={<ReadinessCheck settings={settings} />}
+            overlay: () => (
+              <PageLayer
+                pages={[
+                  {
+                    id: "dom-health",
+                    label: t("shell.domHealth"),
+                    content: (
+                      <DomHealthPage
+                        developerTools={settings.developerTools === true}
+                        ignoredRoots={settings.domHealthIgnoredRoots}
+                        thresholdOverrides={
+                          settings.developerTools === true
+                            ? settings.domHealthThresholdOverrides
+                            : undefined
+                        }
+                      />
+                    ),
+                  },
+                  {
+                    id: "dom-config",
+                    label: t("shell.domConfig"),
+                    content: (
+                      <DomConfigPage
+                        ignoredRoots={settings.domHealthIgnoredRoots}
+                      />
+                    ),
+                  },
+                  {
+                    id: "connections",
+                    label: t("shell.connections"),
+                    content: <ConnectionsPage />,
+                  },
+                ]}
               />
             ),
+            emptyState: (props) => <DebuggingWelcomeScreen {...props} />,
             toolDisplay: (props) => <AptyToolDisplay {...props} />,
             toolFooter: (props) => <AptyToolFooter {...props} />,
           }}

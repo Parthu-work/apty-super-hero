@@ -303,7 +303,8 @@ previous isolated-world patch.
 ## Route probe (developer tool)
 
 **Settings → Troubleshooting → Developer tools** adds a route probe to the
-DOM Health card (`route-probe.ts`, `health-route-probe.ts`). The developer
+DOM health page, before a check and in its Full breakdown (`route-probe.ts`,
+`health-route-probe.ts`). The developer
 clicks through the application. After each trusted click, once the page
 settles, the probe records for every frame:
 
@@ -428,8 +429,8 @@ affect the DOM Health score itself, only the discovery decision.
 Brief sections 4.5 and 4.6. The audit decides from what it observes, never
 from which application it is, and reports the decision as
 `result.traversal` (`mode`, `reason`, `clicksAllowed`, the `evidence` counts
-and the `history` of every change). The DOM Health card shows the mode and
-the reason.
+and the `history` of every change). DOM health's Full breakdown shows the
+mode and the reason.
 
 | Rule (strongest first) | Mode | Measured basis |
 | --- | --- | --- |
@@ -494,7 +495,7 @@ Datadog adds no page UI, only an inline loader script. Settings →
 Troubleshooting adds matchers (`id:`, `class:`, `tag:`), which reach the
 content scripts with every request. Each snapshot reports
 `excludedRoots: [{ matcher, owner, evidence, roots, elementCount }]`, and
-the card lists them. Hit testing looks past an ignored overlay (through
+DOM health's Full breakdown lists them. Hit testing looks past an ignored overlay (through
 `elementsFromPoint`) instead of calling the control occluded. A frame
 element inside an ignored root gets the `overlay` role.
 
@@ -705,7 +706,8 @@ in each root):
 
 ## End-to-end coverage
 
-`tooling/e2e/dom-health-apps.e2e.test.mjs` runs the real audit through the
+`tooling/e2e/dom-health-apps-suite.mjs` (run by the three
+`dom-health-apps-*.e2e.test.mjs` files) runs the real audit through the
 side panel and agent loop, with a scripted model, on stand-ins of six
 application shapes built from the measured values:
 

@@ -8,21 +8,49 @@
  * (query strings/paths can carry sensitive data — see redaction guidance
  * elsewhere in this codebase).
  */
+import { siteHostOf } from "@apty/browser-runtime";
+import { useTranslation } from "@apty/ui/i18n/context";
 import { useEffect, useState } from "react";
 import { peekConversationTabBinding } from "../../services/conversation-tab-binding";
+import { describePage } from "../../services/page-access";
 
 export interface CurrentTarget {
   tabId: number | null;
   title: string | null;
   /** Hostname only (e.g. "company.salesforce.com") — never the full URL. */
   hostname: string | null;
+  /** The hostname of an http(s) page only (`siteHostOf`), as a saved chat records it. */
+  siteHost?: string;
+  /** Whether Chrome lets the extension inspect the page (describePage). */
+  inspectable: boolean;
+  /** describePage's sentence: why it can or can't be inspected. */
+  detail: string;
+  /** True until the tab has been read once. */
+  checking: boolean;
 }
 
-const EMPTY_TARGET: CurrentTarget = {
+/** The tab as read; the URL stays inside this hook. */
+interface TabRead {
+  tabId: number | null;
+  title: string | null;
+  url: string | undefined;
+  fileAccess: boolean;
+}
+
+const NO_TAB: TabRead = {
   tabId: null,
   title: null,
-  hostname: null,
+  url: undefined,
+  fileAccess: true,
 };
+
+async function fileAccessAllowed(): Promise<boolean> {
+  try {
+    return (await chrome.extension?.isAllowedFileSchemeAccess?.()) ?? true;
+  } catch {
+    return true;
+  }
+}
 
 function hostnameOf(url: string | undefined): string | null {
   if (!url) return null;
@@ -41,7 +69,8 @@ function hostnameOf(url: string | undefined): string | null {
  * against on its first message.
  */
 export function useCurrentTarget(sessionId: string | null): CurrentTarget {
-  const [target, setTarget] = useState<CurrentTarget>(EMPTY_TARGET);
+  const { t } = useTranslation();
+  const [read, setRead] = useState<TabRead | null>(null);
   const boundTabId = peekConversationTabBinding(sessionId);
 
   useEffect(() => {
@@ -58,16 +87,19 @@ export function useCurrentTarget(sessionId: string | null): CurrentTarget {
 
         if (cancelled) return;
         if (!tab) {
-          setTarget(EMPTY_TARGET);
+          setRead(NO_TAB);
           return;
         }
-        setTarget({
+        const fileAccess = await fileAccessAllowed();
+        if (cancelled) return;
+        setRead({
           tabId: tab.id ?? null,
           title: tab.title ?? null,
-          hostname: hostnameOf(tab.url),
+          url: tab.url,
+          fileAccess,
         });
       } catch {
-        if (!cancelled) setTarget(EMPTY_TARGET);
+        if (!cancelled) setRead(NO_TAB);
       }
     }
 
@@ -98,5 +130,14 @@ export function useCurrentTarget(sessionId: string | null): CurrentTarget {
     };
   }, [boundTabId]);
 
-  return target;
+  const access = describePage(read?.url, read?.fileAccess, t);
+  return {
+    tabId: read?.tabId ?? null,
+    title: read?.title ?? null,
+    hostname: hostnameOf(read?.url),
+    siteHost: siteHostOf(read?.url),
+    inspectable: access.inspectable,
+    detail: access.detail,
+    checking: read === null,
+  };
 }

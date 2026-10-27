@@ -173,7 +173,7 @@ export const SkillList: React.FC<SkillListProps> = ({
   if (loading) {
     return (
       <Card className="w-full">
-        <CardContent className="flex items-center justify-center py-8">
+        <CardContent className="flex items-center justify-center py-8 sm:py-8">
           <RefreshCw className="h-6 w-6 animate-spin mr-2" />
           {t("skills.list.loading")}
         </CardContent>
@@ -208,7 +208,7 @@ export const SkillList: React.FC<SkillListProps> = ({
 
       {/* Search and Filter */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4 sm:pt-6">
           <div className="flex gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -267,9 +267,9 @@ export const SkillList: React.FC<SkillListProps> = ({
       {/* Skills Grid */}
       {filteredSkills.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <CardContent className="flex flex-col items-center justify-center py-8 text-center sm:py-8">
             <Filter className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
+            <h3 className="text-title font-semibold mb-2">
               {t("skills.list.none")}
             </h3>
             <p className="text-muted-foreground">

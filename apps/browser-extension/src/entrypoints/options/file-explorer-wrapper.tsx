@@ -158,7 +158,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
   if (loading) {
     return (
       <Card className="w-full">
-        <CardContent className="flex items-center justify-center py-8">
+        <CardContent className="flex items-center justify-center py-8 sm:py-8">
           <RefreshCw className="h-6 w-6 animate-spin mr-2" />
           {t("fileManager.loadingSystem")}
         </CardContent>
@@ -205,7 +205,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
 
       {/* Search and Actions */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4 sm:pt-6">
           <div className="flex gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -278,7 +278,7 @@ export const FileExplorerWrapper: React.FC<FileExplorerProps> = ({
           {filteredTree.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
+              <h3 className="text-title font-semibold mb-2">
                 {t("fileManager.none")}
               </h3>
               <p className="text-muted-foreground">

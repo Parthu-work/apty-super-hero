@@ -5,7 +5,7 @@
 
 import type { WsMcpServerState } from "@apty/browser-runtime";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
-import { Badge } from "@apty/ui/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import {
   Card,
@@ -18,7 +18,6 @@ import { Input } from "@apty/ui/components/ui/input";
 import { Label } from "@apty/ui/components/ui/label";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
-import { cn } from "@apty/ui/lib/utils";
 import { Cable, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -33,11 +32,11 @@ const STATUS_LABEL: Record<ConnectionStatus, TranslationKey> = {
   error: "mcpBridge.status.error",
 };
 
-const STATUS_BADGE_CLASSES: Record<ConnectionStatus, string> = {
-  disconnected: "border-border bg-muted text-muted-foreground",
-  connecting: "border-warning/30 bg-warning/10 text-warning",
-  connected: "border-success/30 bg-success/10 text-success",
-  error: "border-destructive/30 bg-destructive/10 text-destructive",
+const STATUS_TONE: Record<ConnectionStatus, StatusTone> = {
+  disconnected: "neutral",
+  connecting: "warning",
+  connected: "success",
+  error: "danger",
 };
 
 // Same storage keys @apty/browser-runtime's WsMcpServer persists to —
@@ -125,24 +124,18 @@ export function McpBridgePanel() {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               <Cable className="h-4 w-4 text-muted-foreground" />
               {t("mcpBridge.title")}
             </CardTitle>
             <CardDescription>{t("mcpBridge.description")}</CardDescription>
           </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              "shrink-0 gap-1.5 border",
-              STATUS_BADGE_CLASSES[status],
-            )}
+          <StatusBadge
+            tone={STATUS_TONE[status]}
+            indicator={status === "connecting" ? "spinner" : undefined}
           >
-            {status === "connecting" && (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            )}
             {t(STATUS_LABEL[status])}
-          </Badge>
+          </StatusBadge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

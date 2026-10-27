@@ -1,9 +1,10 @@
 # Troubleshooting
 
-Start with the side panel's readiness chips, above the suggested
-investigations. Each one shows the model in use, the Apty Client's
-connection and whether Chrome lets the extension inspect the current page.
-A chip that needs attention says why and links to the setting that fixes it.
+Start with the side panel's Connections page (Menu › Connections, or the
+"N to set up" badge under the header). It shows the model in use, the Apty
+Client's and Studio's connections and whether Chrome lets the extension
+inspect the current page. A card that needs attention says why and has the
+action that fixes it.
 
 When reporting a problem, turn on **Settings → General → Troubleshooting →
 Verbose logging**, reproduce it, and copy the logs from the side panel's
@@ -21,7 +22,7 @@ afterwards.
 | "Connection test timed out" | The AI Host field points at a website, not an API endpoint, or the host is unreachable | Clear AI Host to use the provider's default, or enter its API base URL. |
 | Every reply fails with an authentication error | The key is wrong, expired or for another provider | Paste a fresh key and click **Test Connection**. |
 | Anthropic: "401: CORS requests must set 'anthropic-dangerous-direct-browser-access' header" | A build before this fix did not send the header Anthropic requires from a browser or extension page | Update the extension; every Anthropic request now sends it. |
-| Anthropic: "This API key is not scoped to a workspace … anthropic-workspace-id" | The key can run in several workspaces, so each request must name one | Copy the workspace ID (`wrkspc_…`) from Claude Console → Settings → Workspaces into Settings → AI Configuration → **Workspace ID**, or create a key for a single workspace. |
+| Anthropic: "This API key is not scoped to a workspace … anthropic-workspace-id" | The key can run in several workspaces, so each request must name one | Copy the workspace ID (`wrkspc_…`) from Claude Console → Settings → Workspaces into Settings → AI → **Workspace ID**, or create a key for a single workspace. |
 
 ## The current page can't be inspected
 
@@ -31,7 +32,7 @@ you want to investigate; the "This page" chip turns green.
 
 ## Apty Client
 
-Connect it under **Settings → Apty Integration → Apty Client Extension**:
+Connect it under **Settings → Connection → Apty Client Extension**:
 paste its 32-character ID (or use **Detect**, which needs the optional
 "Manage extensions" permission) and click **Connect**. The panel shows this
 Agent's own ID, which the Client must allow-list.

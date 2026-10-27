@@ -100,7 +100,6 @@ export function ImportPanel({
     text,
     fileName,
   });
-  const [open, setOpen] = useState(false);
   const [pageName, setPageName] = useState("");
   const [runs, setRuns] = useState<DraftRun[]>(() => [
     { key: 0, label: "initial", text: "", fileName: null },
@@ -143,154 +142,136 @@ export function ImportPanel({
   };
 
   return (
-    <details
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-      className="rounded-md border px-2 py-1.5"
-    >
-      <summary className="cursor-pointer text-xs font-medium text-foreground">
-        {t("domConfig.import.title")}
-      </summary>
-      {open && (
-        <div className="mt-2 space-y-2">
-          <p className="text-foreground">{t("domConfig.import.hint")}</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <CopyButton
-              text={DOM_CONFIG_CONSOLE_SCRIPT}
-              what={t("domConfig.import.script")}
-              label={t("domConfig.import.copyScript")}
-              ariaLabel={t("domConfig.import.copyScriptAria")}
-            />
-          </div>
-          <p className="text-muted-foreground">
-            {t("domConfig.import.scriptLimits")}
-          </p>
+    <div className="space-y-2 text-xs">
+      <p className="text-foreground">{t("domConfig.import.hint")}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <CopyButton
+          text={DOM_CONFIG_CONSOLE_SCRIPT}
+          what={t("domConfig.import.script")}
+          label={t("domConfig.import.copyScript")}
+          ariaLabel={t("domConfig.import.copyScriptAria")}
+        />
+      </div>
+      <p className="text-muted-foreground">
+        {t("domConfig.import.scriptLimits")}
+      </p>
 
-          <label className="block text-foreground" htmlFor={`${id}-name`}>
-            {t("domConfig.manual.pageName")}
-          </label>
-          <input
-            id={`${id}-name`}
-            type="text"
-            required
-            maxLength={PAGE_NAME_MAX}
-            autoComplete="off"
-            value={pageName}
-            onChange={(e) => setPageName(e.target.value)}
-            aria-describedby={`${id}-name-hint`}
-            className={INPUT}
-          />
-          <p id={`${id}-name-hint`} className="text-muted-foreground">
-            {t("domConfig.import.pageNameHint", {
-              max: DOM_CONFIG_LIMITS.maxRunsPerPage,
-            })}
-          </p>
+      <label className="block text-foreground" htmlFor={`${id}-name`}>
+        {t("domConfig.manual.pageName")}
+      </label>
+      <input
+        id={`${id}-name`}
+        type="text"
+        required
+        maxLength={PAGE_NAME_MAX}
+        autoComplete="off"
+        value={pageName}
+        onChange={(e) => setPageName(e.target.value)}
+        aria-describedby={`${id}-name-hint`}
+        className={INPUT}
+      />
+      <p id={`${id}-name-hint`} className="text-muted-foreground">
+        {t("domConfig.import.pageNameHint", {
+          max: DOM_CONFIG_LIMITS.maxRunsPerPage,
+        })}
+      </p>
 
-          <ol className="space-y-2">
-            {runs.map((run, i) => (
-              <li key={run.key}>
-                <fieldset className="space-y-1 rounded-md border p-1.5">
-                  <legend className="px-1 font-medium text-foreground">
-                    {t("domConfig.import.run", { index: i + 1 })}
-                  </legend>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="flex items-center gap-2 text-foreground">
-                      <span>{t("domConfig.import.runKind")}</span>
-                      <select
-                        value={run.label}
-                        onChange={(e) =>
-                          update(run.key, {
-                            label: e.target.value as DomConfigRunLabel,
-                          })
-                        }
-                        className="rounded-md border bg-background px-1.5 py-1 text-xs text-foreground"
-                      >
-                        {RUN_LABELS.map((label) => (
-                          <option key={label} value={label}>
-                            {t(RUN_LABEL[label])}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {runs.length > 1 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 gap-1 px-1.5 text-[11px]"
-                        aria-label={t("domConfig.import.removeAria", {
-                          index: i + 1,
-                        })}
-                        onClick={() =>
-                          setRuns((all) => all.filter((r) => r.key !== run.key))
-                        }
-                      >
-                        <Trash2Icon className="size-3" aria-hidden="true" />
-                        {t("domConfig.import.remove")}
-                      </Button>
-                    )}
-                  </div>
-                  <label
-                    className="block text-foreground"
-                    htmlFor={`${id}-run-${run.key}`}
-                  >
-                    {run.fileName
-                      ? t("domConfig.import.fromFile", { file: run.fileName })
-                      : t("domConfig.import.paste")}
-                  </label>
-                  <textarea
-                    id={`${id}-run-${run.key}`}
-                    rows={3}
-                    spellCheck={false}
-                    value={run.text}
+      <ol className="space-y-2">
+        {runs.map((run, i) => (
+          <li key={run.key}>
+            <fieldset className="space-y-1 rounded-md border p-1.5">
+              <legend className="px-1 font-medium text-foreground">
+                {t("domConfig.import.run", { index: i + 1 })}
+              </legend>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-foreground">
+                  <span>{t("domConfig.import.runKind")}</span>
+                  <select
+                    value={run.label}
                     onChange={(e) =>
-                      update(run.key, { text: e.target.value, fileName: null })
+                      update(run.key, {
+                        label: e.target.value as DomConfigRunLabel,
+                      })
                     }
-                    className={`${INPUT} font-mono`}
-                  />
-                </fieldset>
-              </li>
-            ))}
-          </ol>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 gap-1 px-2 text-[11px]"
-              onClick={() => setRuns((all) => [...all, newRun(all.length)])}
-            >
-              <PlusIcon className="size-3" aria-hidden="true" />
-              {t("domConfig.import.addRun")}
-            </Button>
-            <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-foreground focus-within:ring-2 focus-within:ring-ring">
-              <FileUpIcon className="size-3" aria-hidden="true" />
-              {t("domConfig.import.chooseFiles")}
-              <input
-                type="file"
-                multiple
-                accept=".json,.txt,application/json,text/plain"
-                className="sr-only"
-                onChange={(e) => {
-                  void addFiles(e.target.files);
-                  e.target.value = "";
-                }}
+                    className="rounded-md border bg-background px-1.5 py-1 text-xs text-foreground"
+                  >
+                    {RUN_LABELS.map((label) => (
+                      <option key={label} value={label}>
+                        {t(RUN_LABEL[label])}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {runs.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-1.5 text-xs"
+                    aria-label={t("domConfig.import.removeAria", {
+                      index: i + 1,
+                    })}
+                    onClick={() =>
+                      setRuns((all) => all.filter((r) => r.key !== run.key))
+                    }
+                  >
+                    <Trash2Icon className="size-3" aria-hidden="true" />
+                    {t("domConfig.import.remove")}
+                  </Button>
+                )}
+              </div>
+              <label
+                className="block text-foreground"
+                htmlFor={`${id}-run-${run.key}`}
+              >
+                {run.fileName
+                  ? t("domConfig.import.fromFile", { file: run.fileName })
+                  : t("domConfig.import.paste")}
+              </label>
+              <textarea
+                id={`${id}-run-${run.key}`}
+                rows={3}
+                spellCheck={false}
+                value={run.text}
+                onChange={(e) =>
+                  update(run.key, { text: e.target.value, fileName: null })
+                }
+                className={`${INPUT} font-mono`}
               />
-            </label>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!ready}
-            onClick={submit}
-          >
-            {t("domConfig.import.submit")}
-          </Button>
-          <div role="status" aria-live="polite">
-            {state.importResult && (
-              <ImportOutcome result={state.importResult} />
-            )}
-          </div>
-        </div>
-      )}
-    </details>
+            </fieldset>
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1 px-2 text-xs"
+          onClick={() => setRuns((all) => [...all, newRun(all.length)])}
+        >
+          <PlusIcon className="size-3" aria-hidden="true" />
+          {t("domConfig.import.addRun")}
+        </Button>
+        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs text-foreground focus-within:ring-2 focus-within:ring-ring">
+          <FileUpIcon className="size-3" aria-hidden="true" />
+          {t("domConfig.import.chooseFiles")}
+          <input
+            type="file"
+            multiple
+            accept=".json,.txt,application/json,text/plain"
+            className="sr-only"
+            onChange={(e) => {
+              void addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      </div>
+      <Button size="sm" variant="outline" disabled={!ready} onClick={submit}>
+        {t("domConfig.import.submit")}
+      </Button>
+      <div role="status" aria-live="polite">
+        {state.importResult && <ImportOutcome result={state.importResult} />}
+      </div>
+    </div>
   );
 }

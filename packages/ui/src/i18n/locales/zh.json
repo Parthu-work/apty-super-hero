@@ -56,7 +56,7 @@
     "followTwitter": "关注 Twitter",
     "feedback": "反馈",
     "general": "常规设置",
-    "aiConfiguration": "AI 配置",
+    "aiConfiguration": "AI",
     "skills": "技能管理",
     "skillsTab": "技能管理",
     "selectProvider": "选择 AI 提供商",
@@ -78,7 +78,7 @@
     "importedModels": "已导入 {{count}} 个模型配置（已禁用，保存后生效）。",
     "resetDone": "设置已重置，请记得保存",
     "extensionSubtitle": "配置你的 Apty Agent 扩展",
-    "aptyIntegration": "Apty 集成",
+    "aptyIntegration": "连接",
     "languageHint": "选择您的首选语言",
     "themeHint": "选择您喜欢的主题",
     "privacyNotice": "不会收集任何分析或遥测数据。您的消息和工具结果只会发送给您在下方配置的 AI 服务商，使用您自己的 API 密钥。",
@@ -161,53 +161,6 @@
     "placeholder1": "搜索或询问任何内容",
     "placeholder2": "尝试使用 @标签 提及页面",
     "placeholder3": "整理您的标签页"
-  },
-  "welcome": {
-    "title": "Apty AI Agent",
-    "subtitle": "选择一个快捷操作或询问任何问题来开始",
-    "analyzePage": "总结此页面",
-    "organizeTabs": "请按主题和用途整理我的打开标签页",
-    "research": "请使用 Google 研究主题 'MCP'",
-    "screenRecording": "开始创建用户操作手册",
-    "uxAuditGoal": "深度审计您的 UX 目标"
-  },
-  "uxAuditGoal": {
-    "dialog": {
-      "title": "深度审查你的UX目标",
-      "description": "请提供您想要审查的界面详情"
-    },
-    "fields": {
-      "targetLink": "目标链接",
-      "targetLinkPlaceholder": "输入想要测试的目标链接",
-      "platform": "运行平台",
-      "platformHint": "选择此次审查的平台",
-      "jtbd": "任务描述(JTBD)",
-      "jtbdPlaceholder": "举例: 用户想要预定明天早上的会议...",
-      "jtbdHint": "简单概括你想要测试的flow",
-      "targetUsers": "目标用户",
-      "targetUsersPlaceholder": "例如：首次用户、高级用户、老年人...",
-      "targetUsersHint": "可选：描述您的目标受众"
-    },
-    "platform": {
-      "desktop": "桌面端",
-      "mobile": "移动端",
-      "web": "网页端"
-    },
-    "actions": {
-      "start": "开始测试",
-      "cancel": "取消"
-    },
-    "validation": {
-      "required": "此字段为必填项",
-      "invalidUrl": "请输入有效的URL（http:// 或 https://）"
-    },
-    "messageTemplate": "请对以下目标进行UX审查走查：\n\n**目标URL：** {{url}}\n**平台：** {{platform}}\n**任务(JTBD)：** {{jtbd}}{{targetUsersLine}}\n\n请使用 ux-audit-walkthrough 技能进行全面的UX评估。"
-  },
-  "config": {
-    "title": "需要配置",
-    "description": "使用 Apty Agent 前，请先配置您的 AI 设置。",
-    "apiTokenRequired": "需要 API 令牌来连接 AI 服务。",
-    "openSettings": "打开设置"
   },
   "tools": {
     "get_all_tabs": "获取所有标签页",
@@ -345,8 +298,21 @@
     "get_investigation_status": "📋 检查调查状态"
   },
   "chatErrors": {
-    "network": "⚠️ 无法连接到 AI 服务提供方。请检查网络连接或设置中的 AI 主机地址，然后重试。",
-    "offline": "⚠️ 您似乎已离线。请重新连接后再试。"
+    "title": "无法获取回答",
+    "badKey": "AI 服务提供方拒绝了请求。请检查设置中的 API 密钥。",
+    "rateLimit": "AI 服务提供方当前正在限制请求频率。",
+    "rateLimitRetry": "AI 服务提供方当前正在限制请求频率。请在约 {{seconds}} 秒后重试。",
+    "offline": "您似乎已离线。请重新连接后再试。",
+    "network": "无法连接到 AI 服务提供方。请检查网络连接或设置中的 AI 主机地址，然后重试。",
+    "notFound": "AI 服务提供方找不到该端点或模型。请检查设置中的主机地址和模型。",
+    "toolCalling": "该模型不支持工具调用，而智能体需要此功能。请在设置中选择其他模型。",
+    "contextTooLong": "此对话对该模型来说过长。请开始新对话，或选择上下文更大的模型。",
+    "timeout": "对 AI 服务提供方的请求已超时。",
+    "cancelled": "请求在完成前已被取消。",
+    "stepLimit": "本轮在完成前已达到步骤上限。",
+    "unknown": "请求出现了问题。",
+    "details": "详细信息",
+    "openSettings": "打开 AI 服务提供方设置"
   },
   "conversationHistory": {
     "title": "对话历史",
@@ -366,12 +332,6 @@
     }
   },
   "interventions": {
-    "mode": {
-      "disabled": "禁止介入",
-      "disabledDescription": "AI 无法请求任何介入",
-      "passive": "被动介入",
-      "passiveDescription": "AI 可以根据需要请求介入"
-    },
     "status": {
       "pending": "等待中",
       "active": "进行中",
@@ -523,44 +483,19 @@
     "notScored": "不计分",
     "excludedPrefix": "已排除 {{owner}}（",
     "excludedSuffix": "）：{{roots}} 个根节点，{{count}} 个元素",
-    "toggleLabel": "DOM 健康度：{{status}}。点击{{action}}。",
-    "statusScore": "{{score}} 分（满分 100），{{grade}}",
-    "statusNotAssessed": "未评估 — {{state}}",
-    "statusUnavailable": "不可用",
-    "statusNotChecked": "尚未检查",
-    "collapse": "收起",
-    "expand": "展开",
-    "title": "DOM 健康度",
-    "unavailable": "不可用",
     "notCheckedYet": "尚未检查",
     "auditingPage": "正在审计第 {{index}} 个页面...",
     "discoveringPages": "正在发现页面...",
     "startingAppAudit": "正在启动应用审计...",
-    "checkingAria": "正在检查 DOM 健康度...",
-    "recheckAria": "重新检查 DOM 健康度",
-    "checkAria": "检查 DOM 健康度",
-    "checking": "检查中...",
-    "recheck": "重新检查",
-    "check": "检查",
-    "discoveryModeAria": "应用发现模式",
-    "auditingAppAria": "正在审计应用...",
-    "reauditAppAria": "重新审计应用",
-    "auditAppAria": "审计应用",
-    "auditing": "审计中...",
-    "reaudit": "重新审计",
-    "auditApp": "审计应用",
     "currentPage": "当前页面",
     "application": "应用",
-    "intro": "评估 Apty 式元素选择能多可靠地定位此页面或应用：真实的选择器生成、实时的唯一性/稳定性验证以及命中测试 — 而不是通用的 DOM 统计。在您点击“检查 DOM 健康度”或“审计应用”之前，不会运行任何内容。",
-    "loadingPage": "正在几秒内拍摄三个 DOM 快照，并在页面上实时验证选择器 — 这需要几秒钟。",
-    "loadingApp": "正在从页面上已有的真实链接中发现同源页面（从不点击任何内容），然后依次审计每个页面 — 这可能需要几分钟，并会让此标签页依次导航到多个页面。",
     "unableToAuditPage": "无法审计此页面。",
     "unableToAuditApp": "无法运行应用审计。",
     "scope": "范围：{{scope}}",
     "snapshots": "{{count}} 个快照",
     "elementsAnalyzedCount": "已分析 {{count}} 个元素",
     "analysisCapped": "分析已达上限",
-    "observedPageNote": "观察到的当前页面 DOM 健康度：{{score}} — 单个页面绝不代表整个应用的健康度。要评估整个应用，请使用“审计应用”。",
+    "observedPageNote": "观察到的当前页面 DOM 健康度：{{score}} — 单个页面绝不代表整个应用的健康度。要评估整个应用，请在“设置”中选择“整个应用”。",
     "notEnoughEvidence": "证据不足",
     "elementDetails": "元素级详情（{{count}}）",
     "colElement": "元素",
@@ -600,65 +535,70 @@
     "colRates": "直接/已恢复/手动",
     "colHitTestFail": "命中测试失败",
     "colScore": "分数",
-    "stateOccurrence": "（状态 {{count}}）"
+    "stateOccurrence": "（状态 {{count}}）",
+    "page": {
+      "checkThisPage": "检查此页面",
+      "auditApplication": "审核整个应用",
+      "notCheckedBody": "查看 Apty 在此页面上查找元素的可靠程度。",
+      "whatToCheck": "检查范围",
+      "thisPage": "此页面",
+      "thisPageBody": "检查当前所在的页面。",
+      "wholeApp": "整个应用",
+      "wholeAppBody": "访问链接的页面，并对整个应用评分。",
+      "linkDiscovery": "链接发现",
+      "linkDiscoveryHelp": "用于检查整个应用时。",
+      "checking": "正在检查此页面…",
+      "auditing": "正在审核整个应用…",
+      "keepTabOpen": "检查结束前请保持此标签页打开。",
+      "stop": "停止检查",
+      "scoreLabel": "分数 {{score}}，满分 100",
+      "noScore": "无分数",
+      "outOf100": "满分 100",
+      "when": "{{scope}} · {{time}}",
+      "coverage": "覆盖范围",
+      "statesReached": "已覆盖 {{reached}}/{{discovered}} 个状态 · {{elements}} 个元素",
+      "elementsAnalyzed": "已分析 {{analyzed}}/{{found}} 个元素",
+      "notReachedNote": "有 {{count}} 个状态未覆盖，分数可能会变化。请将 {{score}} 视为初步结果。",
+      "notReachedNoteOne": "有 1 个状态未覆盖，分数可能会变化。请将 {{score}} 视为初步结果。",
+      "cappedNote": "并非所有元素都已分析，分数可能会变化。请将 {{score}} 视为初步结果。",
+      "confidenceNote": "{{confidence}}，请将 {{score}} 视为初步结果。",
+      "stoppedNote": "审核在完成前已停止。分数仅涵盖已覆盖的 {{count}} 个状态。",
+      "breakdown": "完整明细",
+      "settings": "设置",
+      "settingsValue": "{{scope}} · {{discovery}}",
+      "thresholds": "阈值覆盖",
+      "thresholdsNone": "无。可在选项的开发者工具中设置。",
+      "ask": "就此结果提问",
+      "checkAgain": "再次检查",
+      "askHint": "将此结果作为证据添加到新对话中。",
+      "askDraft": "这个 DOM 健康结果意味着什么？应该先修复什么？",
+      "askChip": "DOM 健康结果"
+    }
   },
   "domConfig": {
-    "title": "DOM 配置",
-    "toggleLabel": "DOM 配置：{{status}}。{{action}}",
-    "expand": "显示详情",
-    "collapse": "隐藏详情",
     "status": {
-      "idle": "尚未生成",
-      "running": "运行中",
-      "runningPage": "正在采集第 {{index}} 个页面，最多 {{max}} 个",
-      "stopping": "正在停止",
-      "report": "报告已就绪",
-      "partialReport": "部分报告已就绪",
-      "failed": "失败"
+      "running": "运行中"
     },
-    "generate": "生成 DOM 配置",
-    "generateAria": "生成 DOM 配置（此应用）",
     "welcome": {
       "category": "DOM 配置",
       "tile": "生成 DOM 配置：采集此应用的页面并建议 Apty DOM 设置"
     },
-    "intro": "对每个页面采集多次，比较各次结果，并建议 Apty DOM 设置：忽略条件、属性优先级、DOM 变化防抖、最大 z-index、Shadow DOM 以及忽略的 DOM 事件。",
     "options": {
-      "title": "开始之前",
       "scope": "范围",
-      "page": "仅此页面",
-      "applicationSafe": "整个应用：安全（仅链接）",
-      "applicationDeep": "整个应用：深度（也会点击菜单和标签页）",
       "deepConfirm": "我了解深度模式会在正在运行的应用上点击菜单、标签页和树形项目。",
       "runsPerPage": "每个页面的采集次数",
-      "probe": "测量页面行为（在每个页面上进行一次短时探测）",
       "maxPages": "页面上限",
       "maxMinutes": "时间上限（分钟）"
     },
     "safety": "此标签页将依次导航到多个页面，并多次加载每个页面。这些页面上未保存的输入可能会丢失。",
     "safetyPage": "此标签页会为第二次采集重新加载此页面。页面上未保存的输入可能会丢失。",
     "memoryOnly": "结果只保存在此面板中。除非导出，否则关闭面板后结果会丢失。",
-    "start": "开始",
-    "startAria": "开始生成 DOM 配置",
-    "stop": "停止",
-    "stopAria": "停止，并根据已采集的内容生成报告",
-    "stopping": "正在停止",
     "rerun": "重新分析",
-    "rerunAria": "重新分析已采集的结果，不重新采集",
-    "clear": "清除",
-    "clearAria": "清除 DOM 配置结果",
     "noTab": "在此窗口中打开一个网页，以生成它的 DOM 配置。",
     "restricted": "无法分析此页面：浏览器页面和扩展页面不允许运行内容脚本。",
     "lockedByDomHealth": "DOM 健康检查正在审计此标签页，请等待其完成。",
     "lockedByDomConfig": "DOM 配置正在遍历此标签页，请等待其完成或将其停止。",
     "failed": "无法生成 DOM 配置。",
-    "steps": {
-      "label": "进度",
-      "discover": "发现",
-      "capture": "采集",
-      "analyze": "分析",
-      "report": "报告"
-    },
     "action": {
       "starting": "从当前页面开始",
       "discovering": "正在查找 {{page}} 链接到的页面",
@@ -712,29 +652,18 @@
     "off": "关闭",
     "noneMeasured": "未测到",
     "milliseconds": "{{value}} 毫秒",
-    "copy": "复制",
     "copyAria": "复制{{what}}",
     "copied": "已复制{{what}}",
     "copyTable": "复制为表格",
     "copyTableAria": "复制为表格：{{section}}",
-    "copyAll": "全部复制为表格",
-    "copyAllAria": "全部复制为表格：每个部分，只包含已选的规则",
-    "exportMarkdown": "导出 Markdown",
-    "exportMarkdownAria": "导出 Markdown：报告，只包含已选的规则",
-    "exportJson": "导出 JSON",
-    "exportJsonAria": "导出 JSON：引擎报告，只包含已选的规则",
     "counts": {
-      "rules": "{{count}} 条规则（{{proven}} 条由观测或模式证实，{{review}} 条需要审核）",
       "warnings": "{{count}} 条警告（{{warn}} 条需要处理）",
       "iframes": "{{count}} 个应用 iframe 需要处理",
-      "notCaptured": "{{count}} 类页面尚未采集",
-      "covered": "{{count}} 项已被 Apty 默认规则忽略"
+      "notCaptured": "{{count}} 类页面尚未采集"
     },
     "warningsTitle": "警告",
     "tabs": {
-      "label": "报告部分",
       "rules": "忽略条件",
-      "settings": "设置",
       "iframes": "Iframe",
       "coverage": "覆盖范围",
       "warnings": "警告"
@@ -808,7 +737,6 @@
     },
     "addTitle": "添加到此次采集",
     "addTitleEmpty": "或手动采集",
-    "newCrawl": "开始新的爬取",
     "replace": {
       "message": "开始后将替换已采集的 {{count}} 个页面，包括您手动采集或导入的页面。如需保留，请先导出报告。",
       "confirm": "替换并开始",
@@ -830,7 +758,6 @@
       "noTab": "请在此窗口中打开一个网页以进行采集。"
     },
     "import": {
-      "title": "导入控制台脚本结果",
       "hint": "在页面上运行控制台脚本，然后粘贴结果或选择保存的文件。每次运行都需要选择运行类型；下方的运行将组成一个页面。",
       "script": "控制台脚本",
       "copyScript": "复制控制台脚本",
@@ -927,8 +854,6 @@
       "warn": "需要处理",
       "info": "仅供参考",
       "count": "数量：{{count}}",
-      "toActOn": "需要处理的警告（{{count}}）",
-      "allInTab": "所有警告及其页面都在“警告”标签中。",
       "weakSelectors": "弱选择器",
       "weakSelectorsHint": "在一个页面上匹配多个元素的选择器；基于它们的指南可能会定位到错误的元素。",
       "perPage": "单个页面最多 {{count}} 个",
@@ -940,6 +865,59 @@
       },
       "captureAnother": "再采集一次运行",
       "captureAnotherAria": "再采集一次运行：{{page}}"
+    },
+    "page": {
+      "intro": "对每个页面采集多次，比较各次结果，并建议 Apty DOM 设置。",
+      "whatItProposes": "会建议哪些设置",
+      "proposes": "忽略条件、属性优先级、DOM 变化防抖、最大 z-index、Shadow DOM 以及忽略的 DOM 事件。",
+      "scopePage": "仅此页面",
+      "scopePageBody": "最快。采集当前所在的页面。",
+      "scopeSafe": "整个应用：安全",
+      "scopeSafeBody": "只跟随链接。",
+      "scopeDeep": "整个应用：深入",
+      "scopeDeepBody": "还会点击菜单和标签页，因此能覆盖更多页面。",
+      "recommended": "推荐",
+      "advanced": "高级选项",
+      "runsPerPage": "每页 {{count}} 次",
+      "minutes": "{{count}} 分钟",
+      "probeOn": "探测开启",
+      "probeOff": "探测关闭",
+      "probeLabel": "测量页面行为",
+      "probeBody": "在每个页面上进行一次短时探测。",
+      "importRuns": "导入运行结果",
+      "start": "开始采集",
+      "runAgain": "重新运行",
+      "capturingTitle": "正在采集第 {{page}} 页，共 {{of}} 页",
+      "progress": "采集进度",
+      "runOf": "第 {{run}} 次，共 {{runs}} 次",
+      "runsDone": "已完成 {{done}}/{{total}} 次",
+      "timeOf": "{{elapsed}} / {{limit}} 分钟",
+      "capturedSoFar": "已采集",
+      "navigating": "此标签页正在浏览你的应用。",
+      "stopCapture": "停止采集",
+      "leaveHint": "你可以离开此页面，采集会继续进行。",
+      "complete": "已完成",
+      "notExported": "尚未导出。结果只保存在此面板中，关闭面板后将丢失，除非先导出。",
+      "exported": "已导出。关闭面板前，结果仍保留在此面板中。",
+      "completeTitle": "采集完成",
+      "minSec": "{{min}} 分 {{sec}} 秒",
+      "sec": "{{sec}} 秒",
+      "pageCount": "{{count}} 个页面",
+      "pageCountOne": "1 个页面",
+      "runsEach": "每页 {{count}} 次",
+      "proposedSettings": "建议的设置",
+      "rulesIncluded": "已包含 {{included}}/{{total}} 条规则",
+      "details": "详情",
+      "rerunBody": "重新分析已采集的结果，不会重新采集。",
+      "clearResults": "清除结果",
+      "exportResults": "导出结果",
+      "markdown": "Markdown",
+      "json": "JSON",
+      "copyAll": "全部复制",
+      "copiedAll": "已将所有部分复制为表格",
+      "ask": "就这些结果提问",
+      "askDraft": "这些建议的 DOM 设置意味着什么？应该先应用哪些？",
+      "askChip": "DOM 配置结果"
     }
   },
   "skillDetails": {
@@ -1196,20 +1174,21 @@
     "toolStatus": {
       "pending": "等待中",
       "running": "运行中",
-      "approvalRequested": "等待批准",
+      "approvalRequested": "需要批准",
       "approved": "已批准",
       "completed": "已完成",
       "error": "错误",
       "denied": "已拒绝"
     },
     "parameters": "参数",
+    "copyParameters": "复制参数",
     "result": "结果",
+    "copyResult": "复制结果",
     "screenshotNotFound": "未找到截图",
     "screenshotLoadFailed": "加载截图失败",
     "screenshot": "截图",
     "loadingScreenshot": "正在加载截图...",
-    "queuedOne": "{{count}} 条消息排队中",
-    "queuedMany": "{{count}} 条消息排队中",
+    "queued": "{{count}} 条排队中",
     "hostedModels": "托管模型",
     "byokModels": "自带密钥（BYOK）模型",
     "noModels": "没有可用的模型",
@@ -1271,19 +1250,26 @@
     "timeline": {
       "viewDetails": "查看详情",
       "hide": "隐藏",
-      "rawData": "原始证据数据",
-      "observation": "观察 · {{time}}",
       "likelyRelated": "可能是相关事件",
       "evidence": "证据（{{count}}）",
       "none": "尚未收集到证据。Agent 检查页面、控制台、网络和 Apty 组件时，证据会显示在这里。",
-      "label": "调查时间线"
+      "label": "调查时间线",
+      "failure": "失败",
+      "source": {
+        "dom": "页面 DOM",
+        "console": "控制台",
+        "network": "网络",
+        "runtime": "运行时",
+        "aptyClient": "Apty Client",
+        "aptyWidget": "Apty Widget",
+        "aptyStudio": "Apty Studio",
+        "serviceWorker": "Service Worker"
+      }
     },
     "live": "实时调查",
     "stopTitle": "停止调查？",
     "stopDescription": "目前收集到的证据仍会保留在此对话中。",
     "summary": {
-      "statusLabel": "调查状态：{{status}}。已收集 {{count}} 条证据{{warnings}}。点击{{action}}。",
-      "componentWarnings": "，{{count}} 个组件警告",
       "collapse": "收起",
       "expand": "展开",
       "title": "调查",
@@ -1294,12 +1280,28 @@
       "plan": "计划",
       "timeline": "时间线",
       "components": "组件",
-      "diagnosis": "诊断"
+      "diagnosis": "诊断",
+      "steps": "{{done}}/{{total}} 步",
+      "details": "调查详情"
     },
     "jsonShowMore": "再显示 {{count}} 项（共 {{total}} 项）",
     "plan": {
       "none": "此调查未生成计划。",
-      "stepsDone": "已完成 {{done}}/{{total}} 步"
+      "stepsDone": "已完成 {{done}}/{{total}} 步",
+      "state": {
+        "pending": "待处理",
+        "done": "已完成",
+        "skipped": "已跳过"
+      },
+      "category": {
+        "generic": "通用检查清单",
+        "retrieveResourceData": "获取资源数据",
+        "tooltipNotShowing": "提示未显示",
+        "studioCannotSelect": "Studio 无法选择元素",
+        "studioVsProduction": "在 Studio 中正常，在生产环境中不正常",
+        "workflowNotTriggering": "工作流未触发",
+        "widgetNotLoading": "Widget 未加载"
+      }
     },
     "response": {
       "unavailable": "此会话中已无法获取完整响应。",
@@ -1307,7 +1309,8 @@
       "view": "查看完整响应",
       "size": "{{count}} 个字符 · 脱敏：{{mode}}",
       "copy": "复制完整响应",
-      "download": "下载完整响应"
+      "download": "下载完整响应",
+      "body": "完整响应"
     },
     "selector": {
       "recommended": "推荐",
@@ -1343,44 +1346,22 @@
     "off": "关闭"
   },
   "readiness": {
-    "label": "就绪检查",
     "noPage": "此窗口中没有打开的页面。",
     "unreadableAddress": "无法读取此页面的地址。",
     "notInspectable": "Chrome 不允许扩展检查 {{kind}} 页面。请打开您要调查的页面。",
     "localFileReady": "可以检查此本地文件。",
     "fileAccessOff": "请在 chrome://extensions 中为 Apty Agent 开启“允许访问文件网址”，以检查本地文件。",
     "ready": "可以检查 {{host}}。",
-    "localFile": "本地文件",
-    "fix": "修复",
     "client": {
       "label": "Apty Client",
-      "checking": "正在检查连接…",
-      "notConnected": "Apty Client 未连接",
-      "notConnectedDetail": "未连接。仅在读取 Client 的 service worker 日志和请求时需要。",
-      "connect": "连接",
-      "connected": "Apty Client 已连接",
-      "connectedDetail": "已连接。",
-      "notAnswering": "Apty Client 无应答",
-      "notChecked": "Apty Client 未检查",
       "notCheckedDetail": "无法检查连接。"
     },
     "state": {
-      "ok": "就绪",
-      "warning": "需要关注",
-      "info": "可选",
       "checking": "检查中"
     },
     "provider": {
       "label": "AI 服务商",
-      "using": "正在使用 {{model}}。",
-      "setUpSummary": "设置 AI 服务商",
-      "setUpDetail": "添加您自己的 API 密钥并选择模型即可开始。",
-      "setUp": "设置"
-    },
-    "page": {
-      "label": "此页面",
-      "checking": "检查中…",
-      "notInspectable": "无法检查此页面"
+      "using": "正在使用 {{model}}。"
     }
   },
   "redactionBanner": {
@@ -1397,8 +1378,7 @@
   "skills": {
     "card": {
       "cannotDisableBuiltIn": "无法禁用内置的 skill-creator。系统运行需要此技能。",
-      "cannotDeleteBuiltIn": "无法删除内置的 skill-creator。系统运行需要此技能。",
-      "confirmDelete": "确定要删除技能“{{name}}”吗？",
+      "confirmDelete": "删除技能“{{name}}”？",
       "enable": "启用 {{name}}",
       "fileStatistics": "文件统计",
       "scripts": "{{count}} 个脚本",
@@ -1466,7 +1446,9 @@
     "chat": "（对话）",
     "minutesLeft": "剩余 {{count}} 分钟",
     "revoke": "撤销",
-    "revokeAll": "全部撤销"
+    "revokeAll": "全部撤销",
+    "revokeAllTitle": "撤销所有已记住的批准？",
+    "revokeAllDescription": "之后执行这些操作前都会再次询问你。"
   },
   "aptyPeer": {
     "client": {
@@ -1591,31 +1573,16 @@
     "failed": "删除存储的数据失败。请重试。"
   },
   "ui": {
-    "loader": "加载图标",
-    "loading": "加载中",
     "virtualCursor": "虚拟光标",
     "previousSlide": "上一张",
     "nextSlide": "下一张"
-  },
-  "modelChangePrompt": {
-    "noMatchingModels": "没有匹配的模型",
-    "contactSupport": "请求的模型均不可用。请联系支持人员。",
-    "title": "模型选择",
-    "description": "请求的模型不可用。请选择其他模型：",
-    "clickToSwitch": "点击模型即可切换",
-    "loading": "正在加载可用模型...",
-    "priceLevel": {
-      "cheap": "经济",
-      "normal": "标准",
-      "expensive": "高级"
-    }
   },
   "errorBoundary": {
     "title": "出错了",
     "description": "由于发生意外错误，无法显示此界面。可能是暂时性故障、最近的更新或异常的页面状态导致的。",
     "hint": "请点击下方重试；如果问题持续出现，请关闭并重新打开面板。",
     "retry": "重试",
-    "details": "查看技术详情"
+    "details": "详细信息"
   },
   "networkCalls": {
     "title": "小部件网络请求",
@@ -1676,5 +1643,122 @@
     "bodyKept": "已保留正文",
     "showCallsOf": "显示 {{name}} 的各次调用",
     "hideCallsOf": "隐藏 {{name}} 的各次调用"
+  },
+  "shell": {
+    "appName": "Apty 实时调试",
+    "menu": "菜单",
+    "closeMenu": "关闭菜单",
+    "back": "返回",
+    "newChat": "新对话",
+    "tools": "工具",
+    "recentChats": "最近的对话",
+    "viewAll": "查看全部",
+    "connections": "连接",
+    "settings": "设置",
+    "domHealth": "DOM 健康",
+    "domConfig": "DOM 配置",
+    "selectorChecker": "选择器检查",
+    "networkInspector": "网络检查",
+    "canInspect": "可以检查",
+    "cantInspect": "无法检查",
+    "noPage": "未选择页面",
+    "newChatConfirm": "仍有回复在生成中。要停止并开始新对话吗？",
+    "home": {
+      "heading": "要调试什么？",
+      "seeAll": "查看全部",
+      "showFewer": "收起"
+    },
+    "composerHint": "输入 / 使用工具。AI 可能出错，请核实结果。",
+    "retry": "重试",
+    "recentChatsFailed": "无法加载最近的对话。",
+    "deleteChatTitle": "删除此对话？",
+    "deleteChatDescription": "“{{title}}”将从此浏览器中删除。此操作无法撤销。",
+    "thisPage": "此页面"
+  },
+  "slash": {
+    "tools": "工具",
+    "investigations": "调查",
+    "skills": "技能",
+    "domHealth": "检查此页面或审核整个应用",
+    "domConfig": "推荐 Apty DOM 设置",
+    "selectorChecker": "测试选择器是否可靠",
+    "networkInspector": "查找网络故障的原因",
+    "move": "移动",
+    "open": "打开",
+    "close": "关闭",
+    "escapeKey": "Esc",
+    "label": "工具、调查和技能"
+  },
+  "connections": {
+    "setupCount": "{{count}} 项待设置",
+    "providerFirst": "请先设置 AI 服务商，然后开始对话。",
+    "needsSetup": "需要设置",
+    "ready": "就绪",
+    "providerBody": "使用您自己的 API 密钥来使用对话。",
+    "change": "更改",
+    "notConnected": "未连接",
+    "connected": "已连接",
+    "notAnswering": "无响应",
+    "clientBody": "让助手读取 Widget 的网络调用和日志。",
+    "clientPlaceholder": "粘贴 Client 的扩展 ID",
+    "clientAllowList": "将此面板的 ID 添加到 Client 的允许列表",
+    "clientConnect": "连接 Apty Client",
+    "studioTitle": "Apty Studio",
+    "studioBody": "让助手读取 Apty Studio 的 Service Worker 状态和日志。",
+    "studioPlaceholder": "粘贴 Studio 的扩展 ID",
+    "studioAllowList": "将此面板的 ID 添加到 Studio 的允许列表",
+    "studioConnect": "连接 Apty Studio",
+    "invalidId": "请输入完整的 ID。",
+    "copyId": "复制 ID",
+    "siteTitle": "此站点",
+    "openAll": "打开全部连接设置"
+  },
+  "statusMeta": {
+    "investigation": {
+      "idle": "空闲",
+      "starting": "正在开始调查",
+      "investigating": "调查中",
+      "collectingEvidence": "正在收集证据",
+      "analyzing": "分析中",
+      "verifying": "正在验证诊断",
+      "resolved": "已解决",
+      "failed": "调查失败",
+      "stopped": "已停止"
+    },
+    "componentHealth": {
+      "healthy": "正常",
+      "warning": "警告",
+      "error": "错误",
+      "notConfigured": "未配置",
+      "notDetected": "未检测到",
+      "notChecked": "尚未检查"
+    },
+    "aptyComponent": {
+      "clientWidgetPlayer": "Apty Client / Widget / Player",
+      "studio": "Apty Studio"
+    },
+    "hypothesis": {
+      "open": "待定",
+      "testing": "测试中",
+      "supported": "有支持证据",
+      "rejected": "已排除",
+      "confirmed": "已确认",
+      "inconclusive": "无定论"
+    }
+  },
+  "jobs": {
+    "label": "运行中的任务",
+    "line": "{{tool}} · {{detail}} · {{elapsed}}",
+    "view": "查看",
+    "running": "运行中",
+    "stopping": "正在停止",
+    "page": "第 {{page}} 页",
+    "pageOf": "第 {{page}} 页，共 {{of}} 页",
+    "notChecked": "未检查",
+    "notGenerated": "未生成",
+    "couldntFinish": "未能完成",
+    "notExported": "未导出",
+    "exported": "已导出",
+    "scoreGrade": "{{score}} · {{grade}}"
   }
 }

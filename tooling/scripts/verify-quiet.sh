@@ -64,6 +64,7 @@ for step in "${requested[@]}"; do
         npm run validate:extension
         npm run audit:architecture
         npm run audit:branding
+        npm run audit:design-tokens
         npm run audit:tools
         npm run check:mcp-bridge-docs
         npm run audit:notices

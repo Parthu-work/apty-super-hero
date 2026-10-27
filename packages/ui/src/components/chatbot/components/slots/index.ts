@@ -17,8 +17,4 @@ export {
 export { CompactModelSelector, DefaultModelSelector } from "./model-selector";
 
 // Tool Display
-export {
-  CompactToolDisplay,
-  DefaultToolDisplay,
-  MinimalToolDisplay,
-} from "./tool-display";
+export { DefaultToolDisplay } from "./tool-display";

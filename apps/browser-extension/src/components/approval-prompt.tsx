@@ -8,12 +8,8 @@ import {
   resolveApproval,
   subscribeApprovalRequests,
 } from "@apty/browser-runtime/tools/approval";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@apty/ui/components/ui/alert";
 import { Button } from "@apty/ui/components/ui/button";
+import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { ShieldAlertIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -112,39 +108,24 @@ export function ApprovalPrompt() {
   if (requests.length === 0) return null;
 
   return (
-    <div className="mb-3 flex flex-col gap-2">
+    <div className="mb-3 flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
       {requests.map((request) => (
-        <Alert
+        <Notice
           key={request.approvalId}
-          variant="warning"
+          tone="warning"
+          icon={ShieldAlertIcon}
           role="alertdialog"
           aria-labelledby={`approval-title-${request.approvalId}`}
-        >
-          <ShieldAlertIcon aria-hidden="true" />
-          <AlertTitle id={`approval-title-${request.approvalId}`}>
-            {t("approval.title", { tool: request.toolName })}
-          </AlertTitle>
-          <AlertDescription>
-            <p className="mb-1 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
-              <span>
-                {request.origin ?? t("approval.noOrigin")}
-                {request.conversationId
-                  ? ""
-                  : ` · ${t("approval.fromMcpClient")}`}
-              </span>
-              <span role="timer" aria-label={t("approval.timeLeft")}>
-                {t("approval.expiresIn", {
-                  time: formatRemaining(request.expiresAt - now),
-                })}
-              </span>
-            </p>
-            <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded border bg-muted/40 px-2 py-1.5 text-xs">
-              {request.summary}
-            </pre>
+          className="shrink-0"
+          title={
+            <span id={`approval-title-${request.approvalId}`}>
+              {t("approval.title", { tool: request.toolName })}
+            </span>
+          }
+          action={
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                size="sm"
                 onClick={() => decide(request, { approved: true })}
               >
                 {t("approval.allowOnce")}
@@ -152,8 +133,7 @@ export function ApprovalPrompt() {
               {request.origin && request.rememberable !== false && (
                 <Button
                   type="button"
-                  size="sm"
-                  variant="outline"
+                  variant="secondary"
                   onClick={() =>
                     decide(request, { approved: true, remember: true })
                   }
@@ -163,15 +143,39 @@ export function ApprovalPrompt() {
               )}
               <Button
                 type="button"
-                size="sm"
                 variant="ghost"
                 onClick={() => decide(request, { approved: false })}
               >
                 {t("approval.deny")}
               </Button>
             </div>
-          </AlertDescription>
-        </Alert>
+          }
+        >
+          <p className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+            <span className="min-w-0 break-all">
+              {request.origin ?? t("approval.noOrigin")}
+              {request.conversationId
+                ? ""
+                : ` · ${t("approval.fromMcpClient")}`}
+            </span>
+            <span
+              role="timer"
+              aria-label={t("approval.timeLeft")}
+              className="font-mono"
+            >
+              {t("approval.expiresIn", {
+                time: formatRemaining(request.expiresAt - now),
+              })}
+            </span>
+          </p>
+          <pre
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: the summary scrolls inside, so the keyboard must reach it
+            tabIndex={0}
+            className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-card px-2 py-1.5 font-mono text-small text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {request.summary}
+          </pre>
+        </Notice>
       ))}
     </div>
   );

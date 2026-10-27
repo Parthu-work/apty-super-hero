@@ -25,7 +25,6 @@ import {
   getActiveExtensionConnectionCount,
   getExtensionConnectionStatus,
   inspectResource,
-  isValidExtensionId,
   listObservedResources,
   listServiceWorkerLogs,
   matchResources,
@@ -66,21 +65,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   clearEvidence("conv-a");
-});
-
-describe("isValidExtensionId", () => {
-  it("accepts a well-formed 32-char a-p extension id", () => {
-    expect(isValidExtensionId(EXT_ID)).toBe(true);
-  });
-
-  it.each([
-    "short",
-    "ABCDEFGHIJKLMNOPABCDEFGHIJKLMNOP",
-    "abcdefghijklmnopabcdefghijklmno1",
-    "",
-  ])("rejects %s", (id) => {
-    expect(isValidExtensionId(id)).toBe(false);
-  });
 });
 
 describe("connectExtensionClient", () => {

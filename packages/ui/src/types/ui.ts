@@ -1,5 +1,6 @@
 import type { ContextType } from "@apty/agent-core";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
+import type { ChatErrorInfo } from "../lib/chat-error";
 
 // ============ Chat Status ============
 
@@ -70,13 +71,12 @@ export type UIPart =
   | UIContextPart;
 
 export interface UIMessageMetadata {
-  needLogin?: boolean;
   needBuyToken?: boolean;
-  needChangeModel?: boolean;
-  supportedModels?: string[];
   currentCredits?: number;
   requiredCredits?: number;
   errorCode?: string;
+  /** Set when the turn failed: the message item shows it as an error notice. */
+  error?: ChatErrorInfo;
 }
 
 export interface UIMessage {
@@ -102,15 +102,4 @@ export interface ContextItem {
   value: string;
   icon?: ReactNode;
   metadata?: Record<string, unknown>;
-}
-
-// ============ Welcome Suggestion ============
-
-export interface WelcomeSuggestion {
-  icon?: ComponentType<{ className?: string }>;
-  text: string;
-  iconColor?: string;
-  bgColor?: string;
-  /** When true, clicking this suggestion triggers the UX audit dialog instead of sending the text directly. */
-  isUxAudit?: boolean;
 }

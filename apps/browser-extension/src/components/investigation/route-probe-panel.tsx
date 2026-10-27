@@ -62,7 +62,7 @@ function StepView({ step }: { step: RouteProbeStep }) {
             })}
       </p>
       {step.error && <p className="text-destructive">{step.error}</p>}
-      <table className="mt-1 w-full table-fixed text-[10px]">
+      <table className="mt-1 w-full table-fixed text-xs">
         <thead className="text-left text-muted-foreground">
           <tr>
             <th className="w-16">{t("routeProbe.colFrame")}</th>
@@ -176,7 +176,7 @@ export function RouteProbePanel({
   return (
     <section
       aria-label={t("routeProbe.title")}
-      className="border-t px-3 py-2 text-[11px] text-muted-foreground"
+      className="border-t px-3 py-2 text-xs text-muted-foreground"
     >
       <div className="flex items-center justify-between gap-2">
         <p>
@@ -224,7 +224,7 @@ export function RouteProbePanel({
           <Button
             size="sm"
             variant="link"
-            className="h-auto p-0 text-[11px]"
+            className="h-auto p-0 text-xs"
             onClick={() => saveReport(report)}
           >
             {t("routeProbe.saveReport")}

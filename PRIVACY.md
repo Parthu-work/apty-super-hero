@@ -22,6 +22,9 @@ report, a DOM Health validation bundle, a DOM Config report or raw profile)
 are saved or copied only when you click; nothing is uploaded. The validation bundle holds hostnames, URL
 templates without queries, counts, hashes and settings, never page text,
 input values, titles or record numbers, and you review it before saving.
+"Ask about this result" on the DOM health page puts the same bundle in a new
+chat as a chip you can remove; it goes to your AI provider only when you
+press Send.
 
 ## What your AI provider keeps
 
@@ -151,8 +154,8 @@ must not reach your AI provider.
 | Data | Where | How long |
 |---|---|---|
 | Settings and API keys | `chrome.storage.local`, readable only by the extension's own pages | Until you remove them or the extension |
-| Conversations | The extension's IndexedDB | Deleted after 7 days without use; at most 5 are kept |
-| The agent's history of each conversation (including raw tool results, before masking) | The extension's IndexedDB | Deleted with its conversation: by age, by the 5-conversation limit, when you delete the conversation from history, or by "New chat". History with no saved conversation (a side panel closed mid-chat) is deleted after a day |
+| Conversations, each with the hostname of the http(s) page the panel was on when it was first saved (never its URL, path, query or title; none for other pages or for chats saved before it was recorded), shown in the menu's recent chats | The extension's IndexedDB | Deleted after 7 days without use; at most 5 are kept |
+| The agent's history of each conversation (including raw tool results, before masking) | The extension's IndexedDB | Deleted with its conversation: by age, by the 5-conversation limit, when you delete the conversation from the menu's recent chats, or by "New chat". History with no saved conversation (a side panel closed mid-chat) is deleted after a day |
 | Screenshots | The extension's IndexedDB | Deleted after 7 days without use; at most 50 are kept |
 | Evidence and investigations from the current session | `chrome.storage.session` | Cleared when the browser closes |
 | Remembered approvals ("Allow on this site for 15 min") | `chrome.storage.local` | 15 minutes, or until revoked |
@@ -165,7 +168,7 @@ extension's own pages and service worker.
 
 ## DOM Config
 
-DOM Config (the "Generate DOM config" card in the side panel) reads the
+DOM Config (the DOM config page in the side panel) reads the
 pages you capture and proposes Apty DOM settings. All of it happens in the
 side panel:
 
@@ -175,10 +178,14 @@ side panel:
   page's URL as a shape (record numbers and query values removed). The
   report built from it, your include and exclude choices and your coverage
   marks are held next to it. Nothing is written to storage; closing the
-  side panel or **Clear** removes it all, and a new crawl replaces it.
-- **Nothing leaves the browser.** DOM Config sends nothing to your AI
-  provider, the Apty Client, the MCP daemon or any server. Copies and
-  exports happen only when you click.
+  side panel or **Clear results** removes it all, and a new crawl replaces it.
+- **Nothing leaves the browser unless you send it.** DOM Config sends
+  nothing to your AI provider, the Apty Client, the MCP daemon or any
+  server on its own. **Ask about these** puts the Markdown export (the
+  rules you left included, redacted as a tool result is in your
+  redaction mode) in a new chat as a chip you can remove; it goes to your
+  AI provider only when you press Send. Copies and exports happen only
+  when you click.
 - **Page names are typed by you.** A page you capture by hand or import is
   named in a field you fill in; the name is never read from the page, and
   page titles are never recorded. A crawled page is named by its URL
@@ -192,7 +199,7 @@ side panel:
   no shape and are not detected: a name that changed between two runs can
   appear in that page's list of differences, which the JSON export and the
   page detail include; it never reaches a rule, an example, the Markdown
-  or Copy as tables.
+  or Copy all.
 - **Download raw profile** (page detail, per run) saves the run exactly as
   captured: every attribute value of the page, which can include names,
   record numbers and other patient or customer data. The panel asks you to

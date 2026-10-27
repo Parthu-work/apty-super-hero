@@ -57,7 +57,12 @@ export function DefaultHeader({
       )}
 
       {/* Right side - New Chat */}
-      <Button variant="ghost" size="sm" onClick={onNewChat} className="gap-2">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onNewChat?.()}
+        className="gap-2"
+      >
         <PlusIcon className="size-4" />
         {t("common.newChat")}
       </Button>

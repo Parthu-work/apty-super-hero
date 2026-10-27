@@ -2,178 +2,176 @@
 
 import type { ToolUIPart } from "ai";
 import {
-  CheckCircleIcon,
+  BanIcon,
+  CheckIcon,
   ChevronDownIcon,
-  CircleIcon,
   ClockIcon,
+  ShieldAlertIcon,
   WrenchIcon,
-  XCircleIcon,
 } from "lucide-react";
-import {
-  type ComponentProps,
-  type ReactNode,
-  useEffect,
-  useState,
-} from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { useTranslation } from "../../i18n/context";
-import type { I18nContextValue } from "../../i18n/types";
+import type { TranslationKey } from "../../i18n/types";
 import { isLocalImageUrl } from "../../lib/safe-media";
 import { ScreenshotStorage } from "../../lib/screenshot-storage";
 import { cn } from "../../lib/utils";
-import { Badge } from "../ui/badge";
+import { StatusBadge, type StatusTone } from "../ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
-import { CodeBlock } from "./code-block";
+import { CopyButton } from "../ui/copy-button";
+import { Notice } from "../ui/notice";
+
+type ToolState = ToolUIPart["state"] | "executing";
+
+/** Each state's badge: never colour alone, always an indicator and a word. */
+const TOOL_STATUS: Record<
+  ToolState,
+  {
+    tone: StatusTone;
+    indicator: "dot" | "spinner" | "icon";
+    icon?: ComponentProps<typeof StatusBadge>["icon"];
+    label: TranslationKey;
+  }
+> = {
+  "input-streaming": {
+    tone: "neutral",
+    indicator: "dot",
+    label: "chat.toolStatus.pending",
+  },
+  "input-available": {
+    tone: "info",
+    indicator: "spinner",
+    label: "chat.toolStatus.running",
+  },
+  executing: {
+    tone: "info",
+    indicator: "spinner",
+    label: "chat.toolStatus.running",
+  },
+  "approval-requested": {
+    tone: "warning",
+    indicator: "icon",
+    icon: ShieldAlertIcon,
+    label: "chat.toolStatus.approvalRequested",
+  },
+  "approval-responded": {
+    tone: "info",
+    indicator: "icon",
+    icon: CheckIcon,
+    label: "chat.toolStatus.approved",
+  },
+  "output-available": {
+    tone: "success",
+    indicator: "icon",
+    label: "chat.toolStatus.completed",
+  },
+  "output-error": {
+    tone: "danger",
+    indicator: "icon",
+    label: "chat.toolStatus.error",
+  },
+  "output-denied": {
+    tone: "warning",
+    indicator: "icon",
+    icon: BanIcon,
+    label: "chat.toolStatus.denied",
+  },
+};
 
 type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
-    className={cn("not-prose mb-4 w-full rounded-md border", className)}
-    {...props}
-  />
-);
-
-type ToolHeaderProps = {
-  /** Display label for the tool – either a raw `tool-${name}` key or a translated name */
-  type: string;
-  state: ToolUIPart["state"] | "executing";
-  className?: string;
-};
-
-const getStatusBadge = (
-  t: I18nContextValue["t"],
-  status: ToolUIPart["state"] | "executing",
-) => {
-  const labels = {
-    "input-streaming": "chat.toolStatus.pending",
-    "input-available": "chat.toolStatus.running",
-    executing: "chat.toolStatus.running",
-    "approval-requested": "chat.toolStatus.approvalRequested",
-    "approval-responded": "chat.toolStatus.approved",
-    "output-available": "chat.toolStatus.completed",
-    "output-error": "chat.toolStatus.error",
-    "output-denied": "chat.toolStatus.denied",
-  } as const;
-
-  const icons = {
-    "input-streaming": <CircleIcon className="size-4" />,
-    "input-available": <ClockIcon className="size-4 animate-pulse" />,
-    executing: <ClockIcon className="size-4 animate-spin" />,
-    "approval-requested": <ClockIcon className="size-4 text-yellow-600" />,
-    "approval-responded": <CheckCircleIcon className="size-4 text-blue-600" />,
-    "output-available": <CheckCircleIcon className="size-4 text-green-600" />,
-    "output-error": <XCircleIcon className="size-4 text-red-600" />,
-    "output-denied": <XCircleIcon className="size-4 text-orange-600" />,
-  } as const;
-
-  return (
-    <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
-      {icons[status]}
-      {t(labels[status])}
-    </Badge>
-  );
-};
-
-export const ToolHeader = ({
-  className,
-  type,
-  state,
-  ...props
-}: ToolHeaderProps) => {
-  const { t } = useTranslation();
-  return (
-    <CollapsibleTrigger
-      className={cn(
-        "flex w-full items-center justify-between gap-4 p-3",
-        className,
-      )}
-      {...props}
-    >
-      <div className="flex items-center gap-2">
-        <WrenchIcon className="size-4 text-muted-foreground" />
-        <span className="font-medium text-sm">{type}</span>
-        {getStatusBadge(t, state)}
-      </div>
-      <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-    </CollapsibleTrigger>
-  );
-};
-
-type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
-
-export const ToolContent = ({ className, ...props }: ToolContentProps) => (
-  <CollapsibleContent
     className={cn(
-      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+      "not-prose w-full rounded-md border border-border bg-card",
       className,
     )}
     {...props}
   />
 );
 
-type ToolInputProps = ComponentProps<"div"> & {
-  input: ToolUIPart["input"];
+type ToolHeaderProps = {
+  /** The tool's translated name. */
+  type: string;
+  state: ToolState;
+  className?: string;
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+export const ToolHeader = ({ className, type, state }: ToolHeaderProps) => {
   const { t } = useTranslation();
+  const status = TOOL_STATUS[state];
   return (
-    <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {t("chat.parameters")}
-      </h4>
-      <div className="rounded-md bg-muted/50">
-        <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
-      </div>
-    </div>
-  );
-};
-
-type ToolOutputProps = ComponentProps<"div"> & {
-  output: ToolUIPart["output"];
-  errorText: ToolUIPart["errorText"];
-};
-
-export const ToolOutput = ({
-  className,
-  output,
-  errorText,
-  ...props
-}: ToolOutputProps) => {
-  const { t } = useTranslation();
-  if (!(output || errorText)) {
-    return null;
-  }
-
-  let Output = <div>{output as ReactNode}</div>;
-
-  if (typeof output === "string") {
-    Output = <CodeBlock code={output} language="json" />;
-  }
-
-  return (
-    <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {t(errorText ? "chat.toolStatus.error" : "chat.result")}
-      </h4>
-      <div
-        className={cn(
-          "overflow-x-auto rounded-md text-xs [&_table]:w-full",
-          errorText
-            ? "bg-destructive/10 text-destructive"
-            : "bg-muted/50 text-foreground",
-        )}
+    <CollapsibleTrigger
+      className={cn(
+        "group flex h-10 w-full items-center gap-2 rounded-md px-3 text-left outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        className,
+      )}
+    >
+      <WrenchIcon
+        aria-hidden="true"
+        className="size-4 shrink-0 text-muted-foreground"
+      />
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+        {type}
+      </span>
+      <StatusBadge
+        tone={status.tone}
+        indicator={status.indicator}
+        icon={status.icon}
       >
-        {errorText && <div>{errorText}</div>}
-        {Output}
-      </div>
-    </div>
+        {t(status.label)}
+      </StatusBadge>
+      <ChevronDownIcon
+        aria-hidden="true"
+        className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+      />
+    </CollapsibleTrigger>
   );
 };
+
+export const ToolContent = ({
+  className,
+  ...props
+}: ComponentProps<typeof CollapsibleContent>) => (
+  <CollapsibleContent
+    className={cn("space-y-3 border-t border-border p-3", className)}
+    {...props}
+  />
+);
+
+/** A caption over a mono block of at most 240 px that scrolls inside, with its own Copy. */
+export const ToolBlock = ({
+  caption,
+  copyLabel,
+  text,
+}: {
+  caption: string;
+  copyLabel: string;
+  text: string;
+}) => (
+  <div className="space-y-1">
+    <div className="flex items-center justify-between gap-2">
+      <h4 className="text-xs font-medium text-muted-foreground">{caption}</h4>
+      <CopyButton text={text} label={copyLabel} />
+    </div>
+    <pre
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: a block that scrolls must be reachable by keyboard
+      tabIndex={0}
+      className="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted px-3 py-2 font-mono text-small text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      {text}
+    </pre>
+  </div>
+);
+
+export const ToolError = ({ errorText }: { errorText: string }) => (
+  <Notice tone="error" className="whitespace-pre-wrap">
+    {errorText}
+  </Notice>
+);
 
 // ============ Screenshot Display ============
 
@@ -227,22 +225,22 @@ export const ToolScreenshot = ({
   if (!screenshot && !screenshotUid) return null;
 
   return (
-    <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+    <div className={cn("space-y-1", className)} {...props}>
+      <h4 className="text-xs font-medium text-muted-foreground">
         {t("chat.screenshot")}
       </h4>
       {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <ClockIcon className="size-4 animate-spin" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ClockIcon aria-hidden="true" className="size-4" />
           <span>{t("chat.loadingScreenshot")}</span>
         </div>
       ) : error ? (
-        <div className="text-destructive text-sm">{error}</div>
+        <Notice tone="error">{error}</Notice>
       ) : isLocalImageUrl(imageData) ? (
         <img
           src={imageData}
           alt={t("chat.screenshot")}
-          className="cursor-pointer rounded-md max-w-full"
+          className="max-w-full rounded-md border border-border"
         />
       ) : null}
     </div>

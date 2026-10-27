@@ -47,7 +47,7 @@ export function AnnouncerProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function useAnnounce() {
+export function useAnnounce() {
   return useContext(AnnounceContext);
 }
 
@@ -56,6 +56,7 @@ export function CopyButton({
   what,
   label,
   ariaLabel,
+  onCopied,
 }: {
   text: string;
   /** Names the copied thing for the accessible name and the announcement. */
@@ -64,6 +65,7 @@ export function CopyButton({
   label?: string;
   /** Replaces "Copy {what}" as the accessible name; it must contain `label`. */
   ariaLabel?: string;
+  onCopied?: () => void;
 }) {
   const { t } = useTranslation();
   const announce = useAnnounce();
@@ -73,13 +75,14 @@ export function CopyButton({
       type="button"
       size="sm"
       variant="ghost"
-      className="h-6 shrink-0 gap-1 px-1.5 text-[11px]"
+      className="h-6 shrink-0 gap-1 px-1.5 text-xs"
       aria-label={ariaLabel ?? t("domConfig.copyAria", { what })}
       onClick={() => {
         void navigator.clipboard
           ?.writeText(text)
           .then(() => {
             setCopied(true);
+            onCopied?.();
             announce(t("domConfig.copied", { what }));
             setTimeout(() => setCopied(false), 1500);
           })
@@ -132,7 +135,7 @@ export function BasisBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
         toneBadgeClass(meta.tone),
       )}
     >
@@ -200,7 +203,7 @@ export function EvidenceBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium",
         toneBadgeClass(meta.tone),
       )}
     >

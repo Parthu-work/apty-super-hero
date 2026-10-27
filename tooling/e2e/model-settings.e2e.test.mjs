@@ -51,7 +51,7 @@ before(async () => {
     "src/entrypoints/options/index.html?tab=ai",
   );
   await options
-    .getByRole("tab", { name: "AI Configuration" })
+    .getByRole("tab", { name: "AI", exact: true })
     .click()
     .catch(() => {});
   await options.getByLabel("AI Host").fill(model.baseUrl);

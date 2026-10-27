@@ -7,14 +7,6 @@ type ToolComponentState =
   | "output-available"
   | "output-error";
 
-export function formatToolOutput(output: unknown): string {
-  return `
-\`\`\`${typeof output === "string" ? "text" : "json"}
-${typeof output === "string" ? output : JSON.stringify(output, null, 2)}
-\`\`\`
-`;
-}
-
 export function mapToolState(state: UIToolPart["state"]): ToolComponentState {
   switch (state) {
     case "pending":

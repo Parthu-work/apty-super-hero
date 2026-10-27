@@ -610,29 +610,41 @@ Key pieces:
   wins into one row per component with `subComponents` for drill-down —
   `not_checked` when no such evidence exists yet, never a guessed status.
 - **`investigation-context-bar.tsx`** — rendered inside `BrowserChatHeader`,
-  below the title row: a quiet "debugging `<hostname>`" line normally, or a
+  below the title row, and on every tool page: the page's hostname and title
+  with whether the extension can inspect it (icon and word) normally, or a
   prominent "LIVE INVESTIGATION" banner with a real Stop action (calls
   `stopInvestigation()` directly, plus `interrupt()`) while a session is
   actually in progress.
-- **`investigation-summary-bar.tsx`** — a collapsed-by-default bar in the
-  `promptExtras` slot (just above the input) that expands into four tabs:
+- **`investigation-summary-bar.tsx`** — a collapsed-by-default 44 px row in
+  the `promptExtras` slot (just above the input): the status, the real plan
+  count and the diagnosis confidence. It expands into one scrolling panel,
+  capped so the composer and 96 px of the chat stay in view, that stacks
   Plan (`plan-checklist.tsx`, rendering the investigation's
-  `InvestigationPlan` as a real pending/done/skipped checklist), Timeline
+  `InvestigationPlan` as a real pending/done/skipped checklist), Components
+  (`component-health-panel.tsx`, the two grouped rows described above),
+  Timeline
   (`evidence-timeline.tsx`, rendering `CorrelationCluster[]` exactly as
   computed — the "likely related incident" badge only ever reflects
-  `cluster.likelySameIncident`), Components (`component-health-panel.tsx`,
-  the two grouped rows described above), and Diagnosis
-  (`diagnosis-card.tsx`, confidence badge styled to match CONFIRMED/
-  LIKELY/POSSIBLE/UNKNOWN without ever visually upgrading a lower
-  confidence, structured hypotheses rendered with their status badge).
+  `cluster.likelySameIncident`) and Diagnosis (`diagnosis-card.tsx`, the
+  confidence badge in a visual weight per level, solid for confirmed down
+  to dashed for unknown, never upgrading a lower confidence, structured
+  hypotheses rendered with their status badge).
 - **`debugging-welcome-screen.tsx`** — replaces the generic "how can I help
   you" empty state (`toolDisplay`/`emptyState` slots) with Apty-specific
-  example prompts, and a "Generate DOM config" tile that opens the DOM
-  Config card instead of sending a message.
-- **`dom-config/`** — the DOM Config card in `promptExtras`, after the DOM
-  Health card. Its run state lives in a plain-object store
+  example prompts; "See all" adds the rest and a DOM config row that opens
+  the DOM config page instead of sending a message.
+- **`shell/`** and **`state/navigation-store.ts`** — the header's menu
+  drawer (New chat, the tools, recent chats, Connections, Settings) and the
+  tool pages. DOM health and DOM config render in ChatBot's `overlay` slot
+  as full-panel pages (`page-layer.tsx`), each mounted at all times and
+  hidden and inert when not shown, with the chat inert underneath while one
+  is open. A plain-object store (`useSyncExternalStore`) holds the drawer,
+  the open page and where Back returns to.
+- **`dom-config/`** — the DOM config page (`dom-config-page.tsx`: setup,
+  running, results and the views behind them). Its run state lives in a
+  plain-object store
   (`dom-config-store.ts`, read with `useSyncExternalStore`) outside React,
-  so a run survives the card collapsing; it holds the tab fixed at Start,
+  so a run survives leaving the page; it holds the tab fixed at Start,
   the progress rows built from `runDomConfigCapture`'s `onProgress`, one
   held capture (the crawl's pages plus the ones captured by hand with
   `captureCurrentState` or imported with `buildPageCapture`), the crawl's
@@ -659,9 +671,10 @@ Not yet built: a dedicated "start investigation" form/component tab
 (section 11 of the product brief) — the model infers investigation intent
 from natural language and the debugging-loop system prompt, per the
 brief's own "don't force a form before every question" guidance, so no
-separate lifecycle form UI exists yet. No automated component tests cover
-the header/summary-bar components directly (they depend on `useChatContext`
-and `chrome.tabs`); the pure logic they call
+separate lifecycle form UI exists yet. The header, menu and pages have
+component tests (`browser-chat-header.test.tsx`, `shell/*.test.tsx`); the
+summary bar has none of its own (it depends on `useChatContext` and
+`chrome.tabs`); the pure logic they call
 (`component-health.ts`, `investigation-session.ts`,
 `evidence-correlation.ts`) is fully unit-tested, and the presentational
 leaf components (`ComponentHealthPanel`, `DiagnosisCard`) have React

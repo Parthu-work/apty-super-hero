@@ -6,17 +6,26 @@
  * channel) actually produced the result.
  */
 
+import { StatusBadge } from "@apty/ui/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@apty/ui/components/ui/collapsible";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { cn } from "@apty/ui/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
-import type { ComponentHealth } from "./component-health";
-import { describeComponentHealth } from "./status-meta";
-import { toneBadgeClass } from "./tone-classes";
+import type { ComponentHealth, ComponentHealthState } from "./component-health";
+import { badgeTone, describeComponentHealth } from "./status-meta";
+
+function HealthBadge({ state }: { state: ComponentHealthState }) {
+  const { t } = useTranslation();
+  const meta = describeComponentHealth(state, t);
+  return (
+    <StatusBadge tone={badgeTone(meta.tone)} indicator="icon" icon={meta.Icon}>
+      {meta.label}
+    </StatusBadge>
+  );
+}
 
 export function ComponentHealthPanel({
   components,
@@ -25,74 +34,49 @@ export function ComponentHealthPanel({
 }) {
   const { t } = useTranslation();
   return (
-    <ul className="space-y-1.5" aria-label={t("investigation.componentHealth")}>
-      {components.map((component) => {
-        const meta = describeComponentHealth(component.state);
-        return (
-          <li
-            key={component.kind}
-            className="overflow-hidden rounded-md border transition-colors duration-300"
-          >
-            <Collapsible>
-              <CollapsibleTrigger className="group flex w-full items-start gap-2 px-2 py-1.5 text-left text-sm hover:bg-muted/40">
-                <span
-                  className={cn(
-                    "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition-colors duration-300",
-                    toneBadgeClass(meta.tone),
-                  )}
-                  aria-hidden="true"
-                >
-                  {meta.symbol}
+    <ul
+      className="divide-y divide-border overflow-hidden rounded-lg border border-border"
+      aria-label={t("investigation.componentHealth")}
+    >
+      {components.map((component) => (
+        <li key={component.kind}>
+          <Collapsible>
+            <CollapsibleTrigger className="group flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-foreground">
+                  {component.label}
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{component.label}</span>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors duration-300",
-                        toneBadgeClass(meta.tone),
-                      )}
-                    >
-                      {meta.label}
+                <span className="block truncate text-xs text-muted-foreground">
+                  {component.detail}
+                </span>
+              </span>
+              <HealthBadge state={component.state} />
+              <ChevronDownIcon
+                aria-hidden="true"
+                className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <ul className="space-y-2 border-t border-border px-3 py-2">
+                {component.subComponents.map((sub) => (
+                  <li
+                    key={sub.key}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"
+                  >
+                    <span className="font-medium text-foreground">
+                      {sub.label}
                     </span>
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {component.detail}
-                  </p>
-                </div>
-                <ChevronDownIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1 border-t px-2 py-1.5 pl-8">
-                {component.subComponents.map((sub) => {
-                  const subMeta = describeComponentHealth(sub.state);
-                  return (
-                    <div
-                      key={sub.key}
-                      className="flex items-center justify-between gap-2 text-xs"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "flex size-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold",
-                            toneBadgeClass(subMeta.tone),
-                          )}
-                          aria-hidden="true"
-                        >
-                          {subMeta.symbol}
-                        </span>
-                        {sub.label}
-                      </span>
-                      <span className="truncate text-muted-foreground">
-                        {sub.detail}
-                      </span>
-                    </div>
-                  );
-                })}
-              </CollapsibleContent>
-            </Collapsible>
-          </li>
-        );
-      })}
+                    <HealthBadge state={sub.state} />
+                    <span className="min-w-0 basis-full text-muted-foreground">
+                      {sub.detail}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        </li>
+      ))}
     </ul>
   );
 }

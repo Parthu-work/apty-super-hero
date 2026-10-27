@@ -14,6 +14,13 @@ export const PEER_NAMES: Record<AptyPeer, { full: string; short: string }> = {
   studio: { full: "Apty Studio", short: "Studio" },
 };
 
+const EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
+
+/** A Chrome extension ID: 32 letters from a to p. */
+export function isValidExtensionId(id: string): boolean {
+  return typeof id === "string" && EXTENSION_ID_PATTERN.test(id);
+}
+
 /** The client keeps its original `clientExtensionId` field; Studio's ID lives at `peers.studio.extensionId` (an older `studioExtensionId` is still read). */
 export function peerExtensionId(
   config: AptyIntegrationConfig,

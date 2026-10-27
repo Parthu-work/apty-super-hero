@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import * as downloadLib from "../../../lib/download";
 import type { UIMessage } from "../../../types";
@@ -239,5 +245,177 @@ describe("DefaultMessageItem — screenshot links", () => {
         ),
       ).toContain(data),
     );
+  });
+});
+
+describe("DefaultMessageItem — a failed turn", () => {
+  function failed(
+    kind: "badKey" | "rateLimit" | "timeout",
+    extra: { retryAfterMs?: number; text?: string } = {},
+  ): UIMessage {
+    return {
+      id: "msg-err",
+      role: "assistant",
+      parts: extra.text ? [{ type: "text", text: extra.text }] : [],
+      metadata: {
+        errorCode: "LLM_API_ERROR",
+        error: {
+          kind,
+          message: "401 Incorrect API key provided",
+          ...(extra.retryAfterMs ? { retryAfterMs: extra.retryAfterMs } : {}),
+        },
+      },
+    };
+  }
+
+  it("shows an alert after what streamed, with the cause, the provider's words under Details, Retry and the provider settings", () => {
+    const onRegenerate = vi.fn();
+    const onOpenProviderSettings = vi.fn();
+    render(
+      <DefaultMessageItem
+        message={failed("badKey", { text: "partial answer" })}
+        isLast
+        onRegenerate={onRegenerate}
+        onOpenProviderSettings={onOpenProviderSettings}
+      />,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(screen.getByText("partial answer")).toBeInTheDocument();
+    expect(alert).toHaveTextContent("Couldn't get an answer");
+    expect(alert).toHaveTextContent(/rejected the request/i);
+    const details = screen.getByText("Details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    expect(details).toHaveTextContent("401 Incorrect API key provided");
+
+    const actions = within(alert).getAllByRole("button");
+    expect(actions.map((b) => b.textContent)).toEqual([
+      "Retry",
+      "Open AI provider settings",
+    ]);
+    fireEvent.click(actions[0]!);
+    fireEvent.click(actions[1]!);
+    expect(onRegenerate).toHaveBeenCalledOnce();
+    expect(onOpenProviderSettings).toHaveBeenCalledOnce();
+  });
+
+  it("offers no provider settings for a failure they cannot fix, and says when to retry", () => {
+    render(
+      <DefaultMessageItem
+        message={failed("rateLimit", { retryAfterMs: 12_000 })}
+        isLast
+        onRegenerate={vi.fn()}
+        onOpenProviderSettings={vi.fn()}
+      />,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(/retry in about 12 s/i);
+    expect(
+      within(alert).queryByRole("button", { name: /provider settings/i }),
+    ).not.toBeInTheDocument();
+    expect(within(alert).getByRole("button", { name: "Retry" })).toBeVisible();
+  });
+
+  it("offers no Retry on an earlier failure, since Retry regenerates the last answer", () => {
+    render(
+      <DefaultMessageItem
+        message={failed("timeout")}
+        isLast={false}
+        onRegenerate={vi.fn()}
+      />,
+    );
+
+    expect(
+      within(screen.getByRole("alert")).queryByRole("button"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("DefaultMessageItem — the user's message", () => {
+  it("puts the words in a quiet bubble and the context chips under it, in the order sent", () => {
+    const { container } = render(
+      <DefaultMessageItem
+        message={{
+          id: "msg-user",
+          role: "user",
+          parts: [
+            {
+              type: "context",
+              contextType: "custom",
+              label: "DOM health result",
+              value: "{}",
+            },
+            { type: "text", text: "What should we fix first?" },
+          ],
+        }}
+      />,
+    );
+
+    const words = screen.getByText("What should we fix first?");
+    const chip = screen.getByText("DOM health result");
+    expect(
+      words.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(container.querySelector(".is-user")).not.toBeNull();
+    expect(container.querySelector(".bg-primary")).toBeNull();
+  });
+});
+
+describe("DefaultMessageItem — actions on every answer", () => {
+  it("shows the last answer's actions, Retry among them", () => {
+    const { container } = render(
+      <DefaultMessageItem
+        message={assistantMessage("latest")}
+        isLast
+        onRegenerate={vi.fn()}
+        onCopy={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(container.querySelector(".opacity-0")).toBeNull();
+  });
+
+  it("keeps an earlier answer's Copy until hover or focus, and offers no Retry there", () => {
+    const { container } = render(
+      <DefaultMessageItem
+        message={assistantMessage("earlier")}
+        isLast={false}
+        onRegenerate={vi.fn()}
+        onCopy={vi.fn()}
+      />,
+    );
+
+    const copy = screen.getByRole("button", { name: /^copy$/i });
+    expect(copy.closest(".opacity-0")).not.toBeNull();
+    expect(
+      container
+        .querySelector(".opacity-0")
+        ?.className.includes("group-focus-within/message:opacity-100"),
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("copies the whole answer once, not once per paragraph part", async () => {
+    const onCopy = vi.fn().mockResolvedValue(true);
+    render(
+      <DefaultMessageItem
+        message={{
+          id: "msg-2",
+          role: "assistant",
+          parts: [
+            { type: "text", text: "first" },
+            { type: "text", text: "second" },
+          ],
+        }}
+        isLast
+        onCopy={onCopy}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /^copy$/i })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: /^copy$/i }));
+    await waitFor(() => expect(onCopy).toHaveBeenCalledWith("first\nsecond"));
   });
 });

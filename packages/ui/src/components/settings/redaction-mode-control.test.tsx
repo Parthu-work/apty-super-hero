@@ -54,7 +54,12 @@ describe("RedactionModeControl", () => {
     render(<RedactionModeControl mode="strict" onChange={onChange} />);
 
     fireEvent.click(screen.getByLabelText("Off (development only)"));
-    const dialog = screen.getByRole("dialog");
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Turn redaction off?",
+    });
+    expect(
+      within(dialog).getByRole("button", { name: "Keep current mode" }),
+    ).toHaveFocus();
     expect(dialog).toHaveTextContent(
       "Password or token values in a tool result can reach your AI provider too. Values that look like tokens, API keys, JWTs, bearer credentials or emails, and credential header lines, are still masked.",
     );
@@ -66,7 +71,7 @@ describe("RedactionModeControl", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Keep current mode" }),
     );
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByLabelText("Off (development only)"));

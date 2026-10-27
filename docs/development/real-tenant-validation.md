@@ -13,7 +13,7 @@ a threshold; tuning happens after bundles come back.
   allow-list and strictly redacted, but the screens you open still show
   their data to you and to the AI provider if you chat while testing.
 - Load the extension build under test. In Settings → Troubleshooting turn
-  on **Developer tools**. That shows the route probe in the DOM Health card
+  on **Developer tools**. That shows the route probe on the DOM health page
   and the threshold-overrides field.
 - Leave **DOM Health: threshold overrides** empty unless the Apty
   engineering team asks you to try a value. Every override in effect, and
@@ -37,13 +37,16 @@ a threshold; tuning happens after bundles come back.
 
 On each screen:
 
-1. Click **Check DOM Health** in the DOM Health card and wait for the
-   result.
-2. On the last screen of each application also run **Audit Application**
-   (Safe link discovery first; Deep state discovery only on a test tenant).
+1. Open **DOM health** from the side panel's menu, click **Check this
+   page** and wait for the result.
+2. On the last screen of each application also choose **Whole
+   application** (under **Settings** once a result shows) and click **Audit
+   application** (Link discovery: Safe link discovery first; Deep state
+   discovery only on a test tenant).
 3. Start the **route probe**, click through two or three menu entries
    yourself, then stop it.
-4. Click **Export validation bundle**. Read the JSON in "Review before
+4. Click **Export validation bundle** (the download icon in the page's
+   header). Read the JSON in "Review before
    sharing", then **Download**. Name the file after the screen.
 
 ## Checks
@@ -76,8 +79,8 @@ it; no one has yet.
    redaction Strict.
 3. Screens: the two LN screens above, plus the screen where the first
    bundle showed hidden menu items.
-4. On each screen, the four steps above (Check DOM Health, Audit
-   Application on the last screen with Deep state discovery, route probe,
+4. On each screen, the four steps above (Check this page, Audit
+   application on the last screen with Deep state discovery, route probe,
    export the bundle).
 
 Record, per change, pass or fail and the bundle field:
@@ -86,8 +89,8 @@ Record, per change, pass or fail and the bundle field:
 |---|---|---|
 | A click that opens nothing is explored, not a failure | Its page has `status: explored-no-new-state`; `pagesExploredNoNewState` is at least 1 and `pagesNotDiscovered` is 0 | Bundle: `application.pages[]`, `application.coverage` |
 | An empty `about:blank` frame is a placeholder | `framesPlaceholder` is at least 1 and that frame is not counted in `framesFailed` | Bundle: `page.frameAccessibility` |
-| Duplicate ids appear as a risk in the application view | The risks list names duplicate ids | DOM Health card, application result (not in the bundle) |
-| Hidden menu items are left out of hit testing | They are counted as hidden, and none of them as not targetable | DOM Health card, hit-test details (not in the bundle) |
+| Duplicate ids appear as a risk in the application view | The risks list names duplicate ids | DOM health's Full breakdown, application result (not in the bundle) |
+| Hidden menu items are left out of hit testing | They are counted as hidden, and none of them as not targetable | DOM health's Full breakdown, hit-test details (not in the bundle) |
 
 Also record the six checks in "Checks" above.
 

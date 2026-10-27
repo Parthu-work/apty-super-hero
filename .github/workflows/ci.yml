@@ -78,6 +78,9 @@ jobs:
       - name: Branding check
         run: npm run audit:branding
 
+      - name: No hard-coded colours or sizes
+        run: npm run audit:design-tokens
+
       - name: Tool registry audit
         run: npm run audit:tools
 

@@ -1,19 +1,12 @@
 /**
- * Replaces the old first-run dead end: two stacked messages (a raw
- * "Authentication Required... login" text bubble the product has no login
- * to satisfy, plus a separate "AI Provider Not Configured" card) saved
- * permanently into the conversation. This is a single, non-persisted setup
- * surface: nothing was actually sent, so nothing is added to chat history.
+ * Send pressed with no AI provider configured: nothing was sent or saved,
+ * so this in-chat warning carries the unsent draft, a way to set up the
+ * provider and Dismiss. It is never added to the conversation.
  */
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@apty/ui/components/ui/alert";
 import { Button } from "@apty/ui/components/ui/button";
+import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { SettingsIcon, XIcon } from "lucide-react";
 
 export interface SetupNeededCardProps {
   /** The message the user typed before the send was blocked. */
@@ -32,31 +25,27 @@ export function SetupNeededCard({
   const preview = trimmed.length > 160 ? `${trimmed.slice(0, 160)}…` : trimmed;
 
   return (
-    <Alert variant="warning" className="relative mb-4">
-      <SettingsIcon aria-hidden="true" />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={onDismiss}
-        aria-label={t("common.dismiss")}
-        className="absolute right-2 top-2 h-6 w-6"
-      >
-        <XIcon className="h-4 w-4" />
-      </Button>
-      <AlertTitle>{t("setupNeeded.title")}</AlertTitle>
-      <AlertDescription>
-        <p className="mb-2">{t("setupNeeded.description")}</p>
-        {preview && (
-          <p className="mb-3 rounded border bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
-            {t("setupNeeded.notSent", { preview })}
-          </p>
-        )}
-        <Button type="button" size="sm" onClick={onOpenSettings}>
-          <SettingsIcon aria-hidden="true" />
-          {t("setupNeeded.setUp")}
-        </Button>
-      </AlertDescription>
-    </Alert>
+    <Notice
+      tone="warning"
+      className="mb-4"
+      title={t("setupNeeded.title")}
+      action={
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" onClick={onOpenSettings}>
+            {t("setupNeeded.setUp")}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onDismiss}>
+            {t("common.dismiss")}
+          </Button>
+        </div>
+      }
+    >
+      <p>{t("setupNeeded.description")}</p>
+      {preview && (
+        <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-small text-muted-foreground">
+          {t("setupNeeded.notSent", { preview })}
+        </p>
+      )}
+    </Notice>
   );
 }

@@ -1,5 +1,6 @@
 import type { AgentError, AgentEvent } from "@apty/agent-core";
 import { generateId } from "@apty/agent-core";
+import { chatErrorInfo } from "../lib/chat-error";
 import { ScreenshotStorage } from "../lib/screenshot-storage";
 import {
   extractScreenshotFromToolResult,
@@ -200,22 +201,19 @@ export class ChatAdapter {
   }
 
   /**
-   * Make a chat failure visible in the transcript instead of only flipping
-   * `status` to "error" — previously the ONLY user-visible sign of a
-   * provider failure was the submit button's icon changing to an X, with no
-   * indication of what went wrong or whether trying again might help. This
-   * appends a plain-language line (reusing whatever text/tool-call content
-   * already streamed before the failure, if any) tagged with the error's
-   * code in `metadata.errorCode` — existing message-level Retry/Copy actions
-   * apply to it exactly like any other last assistant message.
+   * Make a chat failure visible in the transcript, after whatever text or
+   * tool calls already streamed: the message carries the failure's kind and
+   * the provider's words, which the message item renders as an error notice.
    */
   private showErrorInChat(error: AgentError): void {
     this.ensureAssistantMessage();
-    const text = formatAgentErrorForDisplay(error, this.options.translate);
     this.updateCurrentAssistantMessage((message) => ({
       ...message,
-      parts: [...message.parts, { type: "text", text } as UITextPart],
-      metadata: { ...message.metadata, errorCode: error.code },
+      metadata: {
+        ...message.metadata,
+        errorCode: error.code,
+        error: chatErrorInfo(error),
+      },
     }));
   }
 
@@ -635,49 +633,4 @@ export function createChatAdapter(
   options: ChatAdapterOptions = {},
 ): ChatAdapter {
   return new ChatAdapter(options);
-}
-
-const NETWORK_FAILURE =
-  /failed to fetch|networkerror|network request failed|load failed|err_internet_disconnected|err_network_changed|err_name_not_resolved|err_connection_(refused|reset|closed)/i;
-
-const NETWORK_ERROR_TEXT = {
-  "chatErrors.network":
-    "⚠️ Could not reach the AI provider. Check your connection, or the AI host in Settings, and try again.",
-  "chatErrors.offline": "⚠️ You appear to be offline. Reconnect and try again.",
-} as const;
-
-type NetworkErrorKey = keyof typeof NETWORK_ERROR_TEXT;
-
-/** A short, human-readable explanation of an `AgentError` for display in the chat transcript — never just the raw error code or a bare "Error". */
-export function formatAgentErrorForDisplay(
-  error: AgentError,
-  translate: (key: NetworkErrorKey) => string = (key) =>
-    NETWORK_ERROR_TEXT[key],
-): string {
-  const offline =
-    typeof navigator !== "undefined" && navigator.onLine === false;
-  if (offline || NETWORK_FAILURE.test(error.message)) {
-    return translate(offline ? "chatErrors.offline" : "chatErrors.network");
-  }
-
-  const retryAfterMs = error.context?.retryAfterMs;
-  const retryNote =
-    typeof retryAfterMs === "number" && retryAfterMs > 0
-      ? ` Retry in about ${Math.ceil(retryAfterMs / 1000)}s.`
-      : "";
-
-  switch (error.code) {
-    case "LLM_RATE_LIMIT":
-      return `⚠️ The AI provider is rate-limiting requests right now.${retryNote}`;
-    case "LLM_AUTH_ERROR":
-      return "⚠️ The AI provider rejected the request — check the API key in Settings.";
-    case "LLM_TIMEOUT":
-      return "⚠️ The request to the AI provider timed out.";
-    case "TURN_CANCELLED":
-      return "⚠️ The request was cancelled before it finished.";
-    case "MAX_TURNS_REACHED":
-      return "⚠️ Reached the step limit for this turn before finishing.";
-    default:
-      return `⚠️ Something went wrong: ${error.message || "an unknown error occurred"}.`;
-  }
 }

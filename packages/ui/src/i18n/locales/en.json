@@ -2,7 +2,7 @@
   "common": {
     "title": "AI Chat",
     "settings": "Settings",
-    "newChat": "New Chat",
+    "newChat": "New chat",
     "back": "Back",
     "close": "Close",
     "save": "Save Settings",
@@ -56,7 +56,7 @@
     "followTwitter": "Follow on Twitter",
     "feedback": "Feedback",
     "general": "General",
-    "aiConfiguration": "AI Configuration",
+    "aiConfiguration": "AI",
     "skills": "Skills",
     "skillsTab": "Skills",
     "selectProvider": "Select AI Provider",
@@ -78,7 +78,7 @@
     "importedModels": "Imported {{count}} model config(s) (disabled — save to persist, then enable).",
     "resetDone": "Settings reset, remember to save",
     "extensionSubtitle": "Configure your Apty Agent extension",
-    "aptyIntegration": "Apty Integration",
+    "aptyIntegration": "Connection",
     "languageHint": "Choose your preferred language",
     "themeHint": "Choose your preferred theme",
     "privacyNotice": "No analytics or telemetry are collected. Your messages and tool results go only to the AI provider you configure below, using your own API key.",
@@ -124,7 +124,7 @@
   },
   "tooltip": {
     "back": "Back to Welcome",
-    "newChat": "New Chat",
+    "newChat": "New chat",
     "settings": "Settings",
     "close": "Close",
     "stopResponse": "Stop AI response",
@@ -161,53 +161,6 @@
     "placeholder1": "Search or Ask anything",
     "placeholder2": "Try mention a tab with @tab",
     "placeholder3": "Organize your tabs"
-  },
-  "welcome": {
-    "title": "Apty AI Agent",
-    "subtitle": "Choose a quick action or ask anything to get started",
-    "analyzePage": "Summarize this page",
-    "organizeTabs": "Please organize my open tabs by topic and purpose",
-    "research": "Please use Google to research topic 'MCP'",
-    "screenRecording": "Start User Manual Guide creation",
-    "uxAuditGoal": "Deep audit your UX goals"
-  },
-  "uxAuditGoal": {
-    "dialog": {
-      "title": "Deep Audit Your UX Goals",
-      "description": "Provide details about the interface you want to audit"
-    },
-    "fields": {
-      "targetLink": "Target Link",
-      "targetLinkPlaceholder": "Enter the URL you want to audit",
-      "platform": "Platform",
-      "platformHint": "Select the platform for this audit",
-      "jtbd": "Task Description (JTBD)",
-      "jtbdPlaceholder": "e.g., A Zoom user wants to schedule a meeting for tomorrow morning...",
-      "jtbdHint": "Briefly describe the flow you want to test",
-      "targetUsers": "Target Users",
-      "targetUsersPlaceholder": "e.g., First-time users, power users, elderly...",
-      "targetUsersHint": "Optional: Describe your target audience"
-    },
-    "platform": {
-      "desktop": "Desktop",
-      "mobile": "Mobile",
-      "web": "Web"
-    },
-    "actions": {
-      "start": "Start Audit",
-      "cancel": "Cancel"
-    },
-    "validation": {
-      "required": "This field is required",
-      "invalidUrl": "Please enter a valid URL (http:// or https://)"
-    },
-    "messageTemplate": "Please perform a UX audit walkthrough on the following target:\n\n**Target URL:** {{url}}\n**Platform:** {{platform}}\n**Task (JTBD):** {{jtbd}}{{targetUsersLine}}\n\nPlease use the ux-audit-walkthrough skill to conduct a thorough UX evaluation."
-  },
-  "config": {
-    "title": "Setup Required",
-    "description": "To start using Apty Agent, please configure your AI settings.",
-    "apiTokenRequired": "API token is required to connect to the AI service.",
-    "openSettings": "Open Settings"
   },
   "tools": {
     "get_all_tabs": "Get All Tabs",
@@ -345,8 +298,21 @@
     "get_investigation_status": "📋 Checking investigation status"
   },
   "chatErrors": {
-    "network": "⚠️ Could not reach the AI provider. Check your connection, or the AI host in Settings, and try again.",
-    "offline": "⚠️ You appear to be offline. Reconnect and try again."
+    "title": "Couldn't get an answer",
+    "badKey": "The AI provider rejected the request. Check the API key in Settings.",
+    "rateLimit": "The AI provider is rate-limiting requests right now.",
+    "rateLimitRetry": "The AI provider is rate-limiting requests right now. Retry in about {{seconds}} s.",
+    "offline": "You appear to be offline. Reconnect and try again.",
+    "network": "Could not reach the AI provider. Check your connection, or the AI host in Settings, and try again.",
+    "notFound": "The AI provider couldn't find the endpoint or the model. Check the host and model in Settings.",
+    "toolCalling": "This model doesn't support tool calling, which the agent needs. Choose another model in Settings.",
+    "contextTooLong": "This conversation is too long for the model. Start a new chat, or choose a model with a larger context.",
+    "timeout": "The request to the AI provider timed out.",
+    "cancelled": "The request was cancelled before it finished.",
+    "stepLimit": "Reached the step limit for this turn before finishing.",
+    "unknown": "Something went wrong with the request.",
+    "details": "Details",
+    "openSettings": "Open AI provider settings"
   },
   "conversationHistory": {
     "title": "Conversation History",
@@ -366,12 +332,6 @@
     }
   },
   "interventions": {
-    "mode": {
-      "disabled": "Disabled",
-      "disabledDescription": "AI cannot request any intervention",
-      "passive": "Passive",
-      "passiveDescription": "AI can request intervention as needed"
-    },
     "status": {
       "pending": "Pending",
       "active": "Active",
@@ -385,7 +345,7 @@
       "timeoutUnit": "seconds"
     },
     "monitor": {
-      "title": "Monitor Operation",
+      "title": "Monitor operation",
       "clickPrompt": "Please click on the element you want to interact with",
       "captureInfo": "Element information will be captured and sent to AI",
       "captured": "Element Captured",
@@ -407,13 +367,13 @@
       "error": "An error occurred during recording"
     },
     "selection": {
-      "title": "User Selection",
+      "title": "User selection",
       "promptSingle": "Please select one option",
       "promptMultiple": "You can select multiple options",
       "other": "Other",
       "otherDescription": "Enter custom text",
       "otherPlaceholder": "Please enter your choice",
-      "confirmButton": "Confirm Selection",
+      "confirmButton": "Confirm selection",
       "completed": "Selection Completed",
       "cancelled": "Selection cancelled",
       "timeout": "Selection timed out",
@@ -430,12 +390,12 @@
       "building": "Building report..."
     },
     "grade": {
-      "excellent": "EXCELLENT",
-      "good": "GOOD",
-      "fair": "FAIR",
-      "needsAttention": "NEEDS ATTENTION",
-      "highRisk": "HIGH RISK",
-      "notAssessed": "NOT ASSESSED"
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "needsAttention": "Needs attention",
+      "highRisk": "High risk",
+      "notAssessed": "Not assessed"
     },
     "evidenceState": {
       "healthy": "Full evidence",
@@ -452,14 +412,14 @@
       "low": "Low confidence"
     },
     "metric": {
-      "automaticSelection": "Automatic Selection",
-      "selectorStability": "Selector Stability",
-      "recoveryEfficacy": "Recovery Efficacy",
-      "selectorComplexity": "Selector Complexity",
-      "ambiguityRisk": "Ambiguity/Wrong-Target Risk",
-      "hitTestTargetability": "Hit-Test Targetability",
-      "domVolatility": "DOM Volatility",
-      "accessibilitySignal": "Accessibility Signal"
+      "automaticSelection": "Automatic selection",
+      "selectorStability": "Selector stability",
+      "recoveryEfficacy": "Recovery efficacy",
+      "selectorComplexity": "Selector complexity",
+      "ambiguityRisk": "Ambiguity/wrong-target risk",
+      "hitTestTargetability": "Hit-test targetability",
+      "domVolatility": "DOM volatility",
+      "accessibilitySignal": "Accessibility signal"
     },
     "outcome": {
       "direct": "Direct",
@@ -500,16 +460,16 @@
     "dynamicLeftOut": "Left out as dynamic (Ignore Selector): {{list}}.",
     "dynamicLeftOutItem": "{{attribute}} on {{count}} element(s)",
     "evidence": "Evidence: {{state}}",
-    "autoBreakdown": "Automatic Selection Breakdown",
+    "autoBreakdown": "Automatic selection breakdown",
     "breakdownDirect": "Direct",
     "breakdownRecovered": "Recovered",
     "breakdownManual": "Manual",
-    "hitTestFailures": "Hit-Test Failures (visible elements)",
+    "hitTestFailures": "Hit-test failures (visible elements)",
     "hiddenNotCounted": "{{count}} hidden when sampled (closed menus, inactive tabs), not counted.",
     "whyHitTestsFailed": "Why hit tests failed",
-    "missingAccessibleNames": "Missing Accessible Names",
-    "manualSelectorDependency": "Manual Selector Dependency",
-    "selectorConfiguration": "Selector Configuration: {{source}}",
+    "missingAccessibleNames": "Missing accessible names",
+    "manualSelectorDependency": "Manual selector dependency",
+    "selectorConfiguration": "Selector configuration: {{source}}",
     "selectorConfigurationCustomer": "Customer Apty DES configuration",
     "selectorConfigurationDefault": "Default/reconstructed DES configuration",
     "auditProfile": "+ audit profile {{profile}}",
@@ -523,51 +483,26 @@
     "notScored": "not scored",
     "excludedPrefix": "Left out {{owner}} (",
     "excludedSuffix": "): {{roots}} root(s), {{count}} element(s)",
-    "toggleLabel": "DOM Health: {{status}}. Click to {{action}}.",
-    "statusScore": "{{score}} out of 100, {{grade}}",
-    "statusNotAssessed": "not assessed — {{state}}",
-    "statusUnavailable": "unavailable",
-    "statusNotChecked": "not checked yet",
-    "collapse": "collapse",
-    "expand": "expand",
-    "title": "DOM Health",
-    "unavailable": "Unavailable",
     "notCheckedYet": "Not checked yet",
     "auditingPage": "Auditing page {{index}}...",
     "discoveringPages": "Discovering pages...",
     "startingAppAudit": "Starting application audit...",
-    "checkingAria": "Checking DOM Health...",
-    "recheckAria": "Recheck DOM Health",
-    "checkAria": "Check DOM Health",
-    "checking": "Checking...",
-    "recheck": "Recheck",
-    "check": "Check",
-    "discoveryModeAria": "Application discovery mode",
-    "auditingAppAria": "Auditing application...",
-    "reauditAppAria": "Re-audit application",
-    "auditAppAria": "Audit application",
-    "auditing": "Auditing...",
-    "reaudit": "Re-audit",
-    "auditApp": "Audit app",
-    "currentPage": "Current Page",
+    "currentPage": "Current page",
     "application": "Application",
-    "intro": "Assess how reliably Apty-style element selection could target this page or application: real selector generation, live uniqueness/stability verification, and hit testing — not a generic DOM statistic. Nothing runs until you click \"Check DOM Health\" or \"Audit Application\".",
-    "loadingPage": "Taking three DOM snapshots over a few seconds and verifying selectors live against the page — this takes a few seconds.",
-    "loadingApp": "Discovering same-origin pages from real links already on the page (never by clicking anything), then auditing each one in turn — this can take up to a few minutes and will navigate this tab through several pages.",
     "unableToAuditPage": "Unable to audit this page.",
     "unableToAuditApp": "Unable to run the application audit.",
     "scope": "Scope: {{scope}}",
     "snapshots": "{{count}} snapshots",
     "elementsAnalyzedCount": "{{count}} elements analyzed",
     "analysisCapped": "analysis capped",
-    "observedPageNote": "Observed current-page DOM health: {{score}} — never application-wide health from a single page. For the whole application, use \"Audit Application\".",
+    "observedPageNote": "Observed current-page DOM health: {{score}} — never application-wide health from a single page. For the whole application, choose \"Whole application\" in Settings.",
     "notEnoughEvidence": "NOT ENOUGH EVIDENCE",
     "elementDetails": "Element-level details ({{count}})",
     "colElement": "Element",
     "colSelector": "Selector",
     "colResult": "Result",
     "colStability": "Stability",
-    "colHitTest": "Hit Test",
+    "colHitTest": "Hit test",
     "fix": "Fix:",
     "technicalDetails": "View technical details",
     "elementsAnalyzed": "Elements analyzed",
@@ -584,81 +519,86 @@
     "traversal": "Traversal:",
     "traversalClickFirst": "click-first",
     "traversalUrlFirst": "URL-first",
-    "crossStateTitleOne": "Cross-State Selector Replay ({{count}} other state tested)",
-    "crossStateTitleMany": "Cross-State Selector Replay ({{count}} other states tested)",
+    "crossStateTitleOne": "Cross-state selector replay ({{count}} other state tested)",
+    "crossStateTitleMany": "Cross-state selector replay ({{count}} other states tested)",
     "crossStateIntro": "Of {{attempted}} element path(s) captured at the seed state and replayed against other discovered states: {{resolved}} still resolved correctly,",
     "crossStateWrong": "{{count}} resolved to the wrong element",
     "crossStateNothing": ", and {{count}} resolved to nothing.",
     "crossStateHostChain": "{{count}} of those stopped at a shadow host before reaching the element.",
     "hostChainBreak": "Frame {{frame}}, host {{host}}:",
-    "pagesSummary": "Pages/States ({{count}}) — {{audited}} audited, {{failed}} failed, {{skipped}} skipped, {{notExplored}} not explored",
+    "pagesSummary": "Pages/states ({{count}}) — {{audited}} audited, {{failed}} failed, {{skipped}} skipped, {{notExplored}} not explored",
     "pagesClickedNoNewState": ", {{count}} clicked with no new state",
-    "colPageState": "Page/State",
+    "colPageState": "Page/state",
     "colDiscovery": "Discovery",
     "colStatus": "Status",
     "colElements": "Elements",
-    "colRates": "Direct/Recovered/Manual",
-    "colHitTestFail": "Hit-Test Fail",
+    "colRates": "Direct/recovered/manual",
+    "colHitTestFail": "Hit-test fail",
     "colScore": "Score",
-    "stateOccurrence": "(state {{count}})"
+    "stateOccurrence": "(state {{count}})",
+    "page": {
+      "checkThisPage": "Check this page",
+      "auditApplication": "Audit application",
+      "notCheckedBody": "See how reliably Apty can find elements on this page.",
+      "whatToCheck": "What to check",
+      "thisPage": "This page",
+      "thisPageBody": "Checks the page you're on.",
+      "wholeApp": "Whole application",
+      "wholeAppBody": "Visits linked pages and scores the application as a whole.",
+      "linkDiscovery": "Link discovery",
+      "linkDiscoveryHelp": "Used when you check the whole application.",
+      "checking": "Checking this page…",
+      "auditing": "Auditing the application…",
+      "keepTabOpen": "Keep this tab open until the check ends.",
+      "stop": "Stop check",
+      "scoreLabel": "Score {{score}} out of 100",
+      "noScore": "No score",
+      "outOf100": "out of 100",
+      "when": "{{scope}} · {{time}}",
+      "coverage": "Coverage",
+      "statesReached": "{{reached}} of {{discovered}} states reached · {{elements}} elements",
+      "elementsAnalyzed": "{{analyzed}} of {{found}} elements analyzed",
+      "notReachedNote": "{{count}} states were not reached, so the score may change. Treat {{score}} as a first read.",
+      "notReachedNoteOne": "1 state was not reached, so the score may change. Treat {{score}} as a first read.",
+      "cappedNote": "Not every element was analyzed, so the score may change. Treat {{score}} as a first read.",
+      "confidenceNote": "{{confidence}}, so treat {{score}} as a first read.",
+      "stoppedNote": "Stopped before the audit finished. The score covers the {{count}} states it reached.",
+      "breakdown": "Full breakdown",
+      "settings": "Settings",
+      "settingsValue": "{{scope}} · {{discovery}}",
+      "thresholds": "Threshold overrides",
+      "thresholdsNone": "None. Developer tools in Options can set them.",
+      "ask": "Ask about this result",
+      "checkAgain": "Check again",
+      "askHint": "Adds this result to a new chat as evidence.",
+      "askDraft": "What does this DOM health result mean, and what should we fix first?",
+      "askChip": "DOM health result"
+    }
   },
   "domConfig": {
-    "title": "DOM Config",
-    "toggleLabel": "DOM Config: {{status}}. {{action}}",
-    "expand": "Show details",
-    "collapse": "Hide details",
     "status": {
-      "idle": "Not generated yet",
-      "running": "Running",
-      "runningPage": "Capturing page {{index}} of up to {{max}}",
-      "stopping": "Stopping",
-      "report": "Report ready",
-      "partialReport": "Partial report ready",
-      "failed": "Failed"
+      "running": "Running"
     },
-    "generate": "Generate DOM config",
-    "generateAria": "Generate DOM config for this application",
     "welcome": {
-      "category": "DOM Config",
+      "category": "DOM config",
       "tile": "Generate DOM config: capture this application's pages and propose Apty DOM settings"
     },
-    "intro": "Captures each page more than once, compares the runs and proposes Apty DOM Settings: ignore conditions, attribute priority, DOM change debounce, max z-index, Shadow DOM and ignored DOM events.",
     "options": {
-      "title": "Before you start",
       "scope": "Scope",
-      "page": "This page only",
-      "applicationSafe": "Whole application: safe (links only)",
-      "applicationDeep": "Whole application: deep (also clicks menus and tabs)",
       "deepConfirm": "I understand that deep mode clicks menus, tabs and tree items on the live application.",
       "runsPerPage": "Runs per page",
-      "probe": "Measure page behavior (a short probe on each page)",
       "maxPages": "Page limit",
-      "maxMinutes": "Time limit in minutes"
+      "maxMinutes": "Time limit (min)"
     },
     "safety": "This tab will navigate through several pages and load each of them more than once. Unsaved input on those pages can be lost.",
     "safetyPage": "This tab will load this page again for the second run. Unsaved input on it can be lost.",
     "memoryOnly": "Results are kept in this panel only. Closing the panel loses them unless you export them.",
-    "start": "Start",
-    "startAria": "Start generating the DOM config",
-    "stop": "Stop",
-    "stopAria": "Stop and build a report from what was captured",
-    "stopping": "Stopping",
     "rerun": "Re-run analysis",
-    "rerunAria": "Re-run analysis on the captured runs, without capturing again",
-    "clear": "Clear",
-    "clearAria": "Clear the DOM Config results",
     "noTab": "Open a web page in this window to generate its DOM config.",
     "restricted": "This page cannot be analyzed: browser and extension pages do not allow content scripts.",
     "lockedByDomHealth": "DOM Health is auditing this tab. Wait for it to finish.",
     "lockedByDomConfig": "DOM Config is crawling this tab. Wait for it to finish, or stop it.",
     "failed": "The DOM config could not be generated.",
-    "steps": {
-      "label": "Progress",
-      "discover": "Discover",
-      "capture": "Capture",
-      "analyze": "Analyze",
-      "report": "Report"
-    },
     "action": {
       "starting": "Starting on the current page",
       "discovering": "Looking for pages linked from {{page}}",
@@ -712,29 +652,18 @@
     "off": "Off",
     "noneMeasured": "none measured",
     "milliseconds": "{{value}} ms",
-    "copy": "Copy",
     "copyAria": "Copy {{what}}",
     "copied": "Copied {{what}}",
     "copyTable": "Copy as table",
     "copyTableAria": "Copy as table: {{section}}",
-    "copyAll": "Copy as tables",
-    "copyAllAria": "Copy as tables: every section, with the included rules only",
-    "exportMarkdown": "Export Markdown",
-    "exportMarkdownAria": "Export Markdown of the report, with the included rules only",
-    "exportJson": "Export JSON",
-    "exportJsonAria": "Export JSON of the engine report, with the included rules only",
     "counts": {
-      "rules": "{{count}} rules ({{proven}} proven by observation or pattern, {{review}} need review)",
       "warnings": "{{count}} warnings ({{warn}} to act on)",
       "iframes": "{{count}} application iframes need handling",
-      "notCaptured": "{{count}} kinds of page not captured",
-      "covered": "{{count}} items already ignored by Apty's defaults"
+      "notCaptured": "{{count}} kinds of page not captured"
     },
     "warningsTitle": "Warnings",
     "tabs": {
-      "label": "Report sections",
       "rules": "Ignore conditions",
-      "settings": "Settings",
       "iframes": "Iframes",
       "coverage": "Coverage",
       "warnings": "Warnings"
@@ -808,7 +737,6 @@
     },
     "addTitle": "Add to this capture",
     "addTitleEmpty": "Or capture by hand",
-    "newCrawl": "Start a new crawl",
     "replace": {
       "message": "Starting replaces the {{count}} pages already captured, including the ones you captured by hand or imported. Export the report first to keep them.",
       "confirm": "Replace them and start",
@@ -830,7 +758,6 @@
       "noTab": "Open a web page in this window to capture it."
     },
     "import": {
-      "title": "Import console script results",
       "hint": "Run the console script on a page, then paste its result or choose the saved files. Each run needs a run kind; the runs below become one page.",
       "script": "the console script",
       "copyScript": "Copy console script",
@@ -927,8 +854,6 @@
       "warn": "Act on this",
       "info": "For information",
       "count": "Count: {{count}}",
-      "toActOn": "Warnings to act on ({{count}})",
-      "allInTab": "Every warning, with its pages, is in the Warnings tab.",
       "weakSelectors": "Weak selectors",
       "weakSelectorsHint": "Selectors that match more than one element on a page; a guide anchored on them can land on the wrong element.",
       "perPage": "up to {{count}} on one page",
@@ -940,6 +865,59 @@
       },
       "captureAnother": "Capture another run",
       "captureAnotherAria": "Capture another run of {{page}}"
+    },
+    "page": {
+      "intro": "Captures each page more than once, compares the runs and proposes Apty DOM settings.",
+      "whatItProposes": "What it proposes",
+      "proposes": "Ignore conditions, attribute priority, DOM change debounce, max z-index, Shadow DOM and ignored DOM events.",
+      "scopePage": "This page only",
+      "scopePageBody": "Quickest. Captures the page you're on.",
+      "scopeSafe": "Whole application: safe",
+      "scopeSafeBody": "Follows links only.",
+      "scopeDeep": "Whole application: deep",
+      "scopeDeepBody": "Also clicks menus and tabs, so it reaches more pages.",
+      "recommended": "Recommended",
+      "advanced": "Advanced options",
+      "runsPerPage": "{{count}} runs per page",
+      "minutes": "{{count}} min",
+      "probeOn": "probe on",
+      "probeOff": "probe off",
+      "probeLabel": "Measure page behavior",
+      "probeBody": "Runs a short probe on each page.",
+      "importRuns": "Import runs",
+      "start": "Start capture",
+      "runAgain": "Run again",
+      "capturingTitle": "Capturing page {{page}} of {{of}}",
+      "progress": "Capture progress",
+      "runOf": "Run {{run}} of {{runs}}",
+      "runsDone": "{{done}} of {{total}} runs",
+      "timeOf": "{{elapsed}} of {{limit}} min",
+      "capturedSoFar": "Captured so far",
+      "navigating": "This tab is navigating through your application.",
+      "stopCapture": "Stop capture",
+      "leaveHint": "You can leave this page. The capture keeps running.",
+      "complete": "Complete",
+      "notExported": "Not exported yet. Results are kept in this panel only. Closing the panel loses them unless you export them.",
+      "exported": "Exported. The results stay in this panel until you close it.",
+      "completeTitle": "Capture complete",
+      "minSec": "{{min}} min {{sec}} s",
+      "sec": "{{sec}} s",
+      "pageCount": "{{count}} pages",
+      "pageCountOne": "1 page",
+      "runsEach": "{{count}} runs each",
+      "proposedSettings": "Proposed settings",
+      "rulesIncluded": "{{included}} of {{total}} rules included",
+      "details": "Details",
+      "rerunBody": "Analyzes the captured runs again, without capturing.",
+      "clearResults": "Clear results",
+      "exportResults": "Export results",
+      "markdown": "Markdown",
+      "json": "JSON",
+      "copyAll": "Copy all",
+      "copiedAll": "Copied every section as tables",
+      "ask": "Ask about these",
+      "askDraft": "What do these proposed DOM settings mean, and which should we apply first?",
+      "askChip": "DOM config results"
     }
   },
   "skillDetails": {
@@ -1173,7 +1151,7 @@
   },
   "chat": {
     "copy": "Copy",
-    "saveAsSkill": "Save as Skill",
+    "saveAsSkill": "Save as skill",
     "retry": "Retry",
     "removeAttachment": "Remove attachment",
     "addFiles": "Add photos or files",
@@ -1196,20 +1174,21 @@
     "toolStatus": {
       "pending": "Pending",
       "running": "Running",
-      "approvalRequested": "Approval Requested",
+      "approvalRequested": "Needs approval",
       "approved": "Approved",
       "completed": "Completed",
       "error": "Error",
       "denied": "Denied"
     },
     "parameters": "Parameters",
+    "copyParameters": "Copy parameters",
     "result": "Result",
+    "copyResult": "Copy result",
     "screenshotNotFound": "Screenshot not found",
     "screenshotLoadFailed": "Failed to load screenshot",
     "screenshot": "Screenshot",
     "loadingScreenshot": "Loading screenshot...",
-    "queuedOne": "{{count}} message queued",
-    "queuedMany": "{{count}} messages queued",
+    "queued": "{{count}} queued",
     "hostedModels": "Hosted Models",
     "byokModels": "BYOK Models",
     "noModels": "No models available",
@@ -1248,13 +1227,13 @@
       "networkPrompt": "What caused this network failure?"
     },
     "diagnosis": {
-      "confirmed": "CONFIRMED",
+      "confirmed": "Confirmed",
       "confirmedDescription": "Confirmed by a successful verification check.",
-      "likely": "LIKELY",
+      "likely": "Likely",
       "likelyDescription": "Strong evidence points here, but it hasn't been independently verified.",
-      "possible": "POSSIBLE",
+      "possible": "Possible",
       "possibleDescription": "One plausible explanation among others — treat as a lead, not a conclusion.",
-      "unknown": "UNKNOWN",
+      "unknown": "Unknown",
       "unknownDescription": "Not enough evidence yet to point to a cause.",
       "none": "No diagnosis yet. The agent records one here once it reaches a conclusion backed by evidence.",
       "whatHappened": "What happened",
@@ -1271,21 +1250,28 @@
     "timeline": {
       "viewDetails": "View details",
       "hide": "Hide",
-      "rawData": "Raw evidence data",
-      "observation": "Observation · {{time}}",
       "likelyRelated": "Likely related incident",
       "evidence": "Evidence ({{count}})",
       "none": "No evidence collected yet. Evidence appears here as the agent inspects the page, console, network, and Apty components.",
-      "label": "Investigation timeline"
+      "label": "Investigation timeline",
+      "failure": "Failure",
+      "source": {
+        "dom": "Page DOM",
+        "console": "Console",
+        "network": "Network",
+        "runtime": "Runtime",
+        "aptyClient": "Apty Client",
+        "aptyWidget": "Apty Widget",
+        "aptyStudio": "Apty Studio",
+        "serviceWorker": "Service worker"
+      }
     },
     "live": "Live investigation",
     "stopTitle": "Stop investigation?",
     "stopDescription": "Evidence collected so far will remain available in this conversation.",
     "summary": {
-      "statusLabel": "Investigation status: {{status}}. {{count}} evidence items collected{{warnings}}. Click to {{action}}.",
-      "componentWarnings": ", {{count}} component warnings",
-      "collapse": "collapse",
-      "expand": "expand",
+      "collapse": "Collapse",
+      "expand": "Expand",
       "title": "Investigation",
       "evidence": "{{count}} evidence",
       "needsAttentionOne": "{{count}} needs attention",
@@ -1294,12 +1280,28 @@
       "plan": "Plan",
       "timeline": "Timeline",
       "components": "Components",
-      "diagnosis": "Diagnosis"
+      "diagnosis": "Diagnosis",
+      "steps": "{{done}} of {{total}} steps",
+      "details": "Investigation details"
     },
     "jsonShowMore": "Show {{count}} more of {{total}}",
     "plan": {
       "none": "No plan generated for this investigation.",
-      "stepsDone": "{{done}}/{{total}} steps done"
+      "stepsDone": "{{done}} of {{total}} steps done",
+      "state": {
+        "pending": "pending",
+        "done": "done",
+        "skipped": "skipped"
+      },
+      "category": {
+        "generic": "General checklist",
+        "retrieveResourceData": "Retrieve resource data",
+        "tooltipNotShowing": "Tooltip not showing",
+        "studioCannotSelect": "Studio can't select an element",
+        "studioVsProduction": "Works in Studio, not in production",
+        "workflowNotTriggering": "Workflow not triggering",
+        "widgetNotLoading": "Widget not loading"
+      }
     },
     "response": {
       "unavailable": "The full response is no longer available in this session.",
@@ -1307,7 +1309,8 @@
       "view": "View full response",
       "size": "{{count}} characters · redaction {{mode}}",
       "copy": "Copy full response",
-      "download": "Download full response"
+      "download": "Download full response",
+      "body": "Full response"
     },
     "selector": {
       "recommended": "Recommended",
@@ -1343,44 +1346,22 @@
     "off": "off"
   },
   "readiness": {
-    "label": "Readiness check",
     "noPage": "No page is open in this window.",
     "unreadableAddress": "This page's address can't be read.",
     "notInspectable": "Chrome doesn't let extensions inspect {{kind}} pages. Open the page you want to investigate.",
     "localFileReady": "Ready to inspect this local file.",
     "fileAccessOff": "Turn on \"Allow access to file URLs\" for Apty Agent in chrome://extensions to inspect local files.",
     "ready": "Ready to inspect {{host}}.",
-    "localFile": "local file",
-    "fix": "Fix",
     "client": {
       "label": "Apty Client",
-      "checking": "Checking the connection…",
-      "notConnected": "Apty Client not connected",
-      "notConnectedDetail": "Not connected. Only needed to read the Client's service-worker logs and requests.",
-      "connect": "Connect",
-      "connected": "Apty Client connected",
-      "connectedDetail": "Connected.",
-      "notAnswering": "Apty Client not answering",
-      "notChecked": "Apty Client not checked",
       "notCheckedDetail": "The connection couldn't be checked."
     },
     "state": {
-      "ok": "Ready",
-      "warning": "Needs attention",
-      "info": "Optional",
       "checking": "Checking"
     },
     "provider": {
       "label": "AI provider",
-      "using": "Using {{model}}.",
-      "setUpSummary": "Set up an AI provider",
-      "setUpDetail": "Add your own API key and choose a model to start.",
-      "setUp": "Set up"
-    },
-    "page": {
-      "label": "This page",
-      "checking": "Checking…",
-      "notInspectable": "Page can't be inspected"
+      "using": "Using {{model}}."
     }
   },
   "redactionBanner": {
@@ -1397,10 +1378,9 @@
   "skills": {
     "card": {
       "cannotDisableBuiltIn": "Cannot disable built-in skill-creator. This skill is required for the system to function.",
-      "cannotDeleteBuiltIn": "Cannot delete built-in skill-creator. This skill is required for the system to function.",
-      "confirmDelete": "Are you sure you want to delete the skill \"{{name}}\"?",
+      "confirmDelete": "Delete the skill \"{{name}}\"?",
       "enable": "Enable {{name}}",
-      "fileStatistics": "File Statistics",
+      "fileStatistics": "File statistics",
       "scripts": "{{count}} scripts",
       "references": "{{count}} references",
       "assets": "{{count}} assets",
@@ -1410,7 +1390,7 @@
       "status": "Status: {{status}}",
       "active": "Active",
       "inactive": "Inactive",
-      "viewDetails": "View Details",
+      "viewDetails": "View details",
       "export": "Export {{name}}",
       "delete": "Delete {{name}}"
     },
@@ -1466,7 +1446,9 @@
     "chat": "(chat)",
     "minutesLeft": "{{count}} min left",
     "revoke": "Revoke",
-    "revokeAll": "Revoke all"
+    "revokeAll": "Revoke all",
+    "revokeAllTitle": "Revoke all remembered approvals?",
+    "revokeAllDescription": "You'll be asked again before each of these actions."
   },
   "aptyPeer": {
     "client": {
@@ -1492,7 +1474,7 @@
     "invalidId": "Invalid Chrome extension ID. Please provide a valid {{name}} extension ID (32 lowercase a-p characters).",
     "answering": "Answering",
     "configuredBadge": "Configured",
-    "notConnectedBadge": "Not Connected",
+    "notConnectedBadge": "Not connected",
     "configured": "{{name}} configured",
     "answered": "The {{name}} answered the Agent's handshake.",
     "savedTest": "Saved. Use Test connection to confirm the {{name}} answers.",
@@ -1551,10 +1533,10 @@
   },
   "mcpBridge": {
     "status": {
-      "disconnected": "Not Connected",
+      "disconnected": "Not connected",
       "connecting": "Connecting…",
       "connected": "Connected",
-      "error": "Connection Error"
+      "error": "Connection error"
     },
     "connectionFailed": "Connection failed",
     "title": "MCP WebSocket Bridge",
@@ -1591,31 +1573,16 @@
     "failed": "Deleting stored data failed. Try again."
   },
   "ui": {
-    "loader": "Loader",
-    "loading": "Loading",
     "virtualCursor": "Virtual cursor",
     "previousSlide": "Previous slide",
     "nextSlide": "Next slide"
-  },
-  "modelChangePrompt": {
-    "noMatchingModels": "No Matching Models",
-    "contactSupport": "None of the requested models are available. Please contact support.",
-    "title": "Model Selection",
-    "description": "The requested model is not available. Please select an alternative:",
-    "clickToSwitch": "Click on a model to switch",
-    "loading": "Loading available models...",
-    "priceLevel": {
-      "cheap": "Economy",
-      "normal": "Standard",
-      "expensive": "Premium"
-    }
   },
   "errorBoundary": {
     "title": "Something went wrong",
     "description": "This screen couldn't be displayed because of an unexpected error. It may have been caused by a temporary glitch, a recent update, or an unusual page state.",
     "hint": "Try again below, or close and reopen the panel if the problem keeps happening.",
-    "retry": "Try Again",
-    "details": "View technical details"
+    "retry": "Try again",
+    "details": "Details"
   },
   "networkCalls": {
     "title": "Widget network calls",
@@ -1676,5 +1643,122 @@
     "bodyKept": "body kept",
     "showCallsOf": "Show the calls of {{name}}",
     "hideCallsOf": "Hide the calls of {{name}}"
+  },
+  "shell": {
+    "appName": "Apty Live Debugging",
+    "menu": "Menu",
+    "closeMenu": "Close menu",
+    "back": "Back",
+    "newChat": "New chat",
+    "tools": "Tools",
+    "recentChats": "Recent chats",
+    "viewAll": "View all",
+    "connections": "Connections",
+    "settings": "Settings",
+    "domHealth": "DOM health",
+    "domConfig": "DOM config",
+    "selectorChecker": "Selector checker",
+    "networkInspector": "Network inspector",
+    "canInspect": "Can inspect",
+    "cantInspect": "Can't inspect",
+    "noPage": "No page selected",
+    "newChatConfirm": "A response is still in progress. Stop it and start a new chat?",
+    "home": {
+      "heading": "What are we debugging?",
+      "seeAll": "See all",
+      "showFewer": "Show fewer"
+    },
+    "composerHint": "Type / for tools. AI can make mistakes, so verify results.",
+    "retry": "Retry",
+    "recentChatsFailed": "Couldn't load recent chats.",
+    "deleteChatTitle": "Delete this chat?",
+    "deleteChatDescription": "\"{{title}}\" will be removed from this browser. This can't be undone.",
+    "thisPage": "This page"
+  },
+  "slash": {
+    "tools": "Tools",
+    "investigations": "Investigations",
+    "skills": "Skills",
+    "domHealth": "Check this page or audit the application",
+    "domConfig": "Propose Apty DOM settings",
+    "selectorChecker": "Test whether a selector is reliable",
+    "networkInspector": "Find what caused a network failure",
+    "move": "Move",
+    "open": "Open",
+    "close": "Close",
+    "escapeKey": "Esc",
+    "label": "Tools, investigations and skills"
+  },
+  "connections": {
+    "setupCount": "{{count}} to set up",
+    "providerFirst": "Set up the AI provider first to start chatting.",
+    "needsSetup": "Needs setup",
+    "ready": "Ready",
+    "providerBody": "Bring your own API key to use the chat.",
+    "change": "Change",
+    "notConnected": "Not connected",
+    "connected": "Connected",
+    "notAnswering": "Not answering",
+    "clientBody": "Lets the agent read the widget's network calls and logs.",
+    "clientPlaceholder": "Paste the Client's extension ID",
+    "clientAllowList": "Add this panel's ID to the Client's allow-list",
+    "clientConnect": "Connect Apty Client",
+    "studioTitle": "Apty Studio",
+    "studioBody": "Lets the agent read Apty Studio's service-worker status and logs.",
+    "studioPlaceholder": "Paste Studio's extension ID",
+    "studioAllowList": "Add this panel's ID to Studio's allow-list",
+    "studioConnect": "Connect Apty Studio",
+    "invalidId": "Enter the full ID.",
+    "copyId": "Copy ID",
+    "siteTitle": "This site",
+    "openAll": "Open all connection settings"
+  },
+  "statusMeta": {
+    "investigation": {
+      "idle": "Idle",
+      "starting": "Starting investigation",
+      "investigating": "Investigating",
+      "collectingEvidence": "Collecting evidence",
+      "analyzing": "Analyzing",
+      "verifying": "Verifying diagnosis",
+      "resolved": "Resolved",
+      "failed": "Investigation failed",
+      "stopped": "Stopped"
+    },
+    "componentHealth": {
+      "healthy": "Healthy",
+      "warning": "Warning",
+      "error": "Error",
+      "notConfigured": "Not configured",
+      "notDetected": "Not detected",
+      "notChecked": "Not checked yet"
+    },
+    "aptyComponent": {
+      "clientWidgetPlayer": "Apty Client / Widget / Player",
+      "studio": "Apty Studio"
+    },
+    "hypothesis": {
+      "open": "Open",
+      "testing": "Testing",
+      "supported": "Supported",
+      "rejected": "Rejected",
+      "confirmed": "Confirmed",
+      "inconclusive": "Inconclusive"
+    }
+  },
+  "jobs": {
+    "label": "Running jobs",
+    "line": "{{tool}} · {{detail}} · {{elapsed}}",
+    "view": "View",
+    "running": "Running",
+    "stopping": "Stopping",
+    "page": "Page {{page}}",
+    "pageOf": "Page {{page}} of {{of}}",
+    "notChecked": "Not checked",
+    "notGenerated": "Not generated",
+    "couldntFinish": "Couldn't finish",
+    "notExported": "Not exported",
+    "exported": "Exported",
+    "scoreGrade": "{{score}} · {{grade}}"
   }
 }

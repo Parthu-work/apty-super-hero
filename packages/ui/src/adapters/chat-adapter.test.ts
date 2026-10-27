@@ -1,12 +1,8 @@
 import type * as AgentCore from "@apty/agent-core";
 import { AgentError, ErrorCode } from "@apty/agent-core";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "../types";
-import {
-  ChatAdapter,
-  createChatAdapter,
-  formatAgentErrorForDisplay,
-} from "./chat-adapter";
+import { ChatAdapter, createChatAdapter } from "./chat-adapter";
 
 // Mock generateId to return predictable IDs
 vi.mock("@apty/agent-core", async (importOriginal) => {
@@ -318,7 +314,7 @@ describe("ChatAdapter", () => {
       expect(adapter.getStatus()).toBe("error");
     });
 
-    it("makes the failure visible in the transcript, not just a status flip — the cause was previously silently swallowed", () => {
+    it("records the failure's kind and the provider's words on the last assistant message", () => {
       adapter.processEvent({
         type: "error",
         error: new AgentError("boom", ErrorCode.LLM_RATE_LIMIT, true, {
@@ -330,13 +326,15 @@ describe("ChatAdapter", () => {
       const last = messages[messages.length - 1];
       expect(last?.role).toBe("assistant");
       expect(last?.metadata?.errorCode).toBe(ErrorCode.LLM_RATE_LIMIT);
-      const textPart = last?.parts.find((p) => p.type === "text");
-      expect(textPart && "text" in textPart ? textPart.text : "").toMatch(
-        /rate-limiting/i,
-      );
+      expect(last?.metadata?.error).toEqual({
+        kind: "rateLimit",
+        message: "boom",
+        retryAfterMs: 5000,
+      });
+      expect(last?.parts).toEqual([]);
     });
 
-    it("appends the error notice to already-streamed content instead of discarding it", () => {
+    it("keeps already-streamed content beside the failure instead of discarding it", () => {
       adapter.processEvent({ type: "content_delta", delta: "partial answer" });
       adapter.processEvent({
         type: "error",
@@ -345,13 +343,10 @@ describe("ChatAdapter", () => {
 
       const messages = adapter.getMessages();
       const last = messages[messages.length - 1];
-      const texts = last?.parts
-        .filter(
-          (p): p is Extract<typeof p, { type: "text" }> => p.type === "text",
-        )
-        .map((p) => p.text);
-      expect(texts).toContain("partial answer");
-      expect(texts?.some((t) => /timed out/i.test(t))).toBe(true);
+      expect(last?.parts).toEqual([
+        expect.objectContaining({ type: "text", text: "partial answer" }),
+      ]);
+      expect(last?.metadata?.error?.kind).toBe("timeout");
     });
 
     it("should not duplicate status notifications", () => {
@@ -822,73 +817,5 @@ describe("ChatAdapter", () => {
 
       expect(onStatusChange).toHaveBeenCalledWith("idle");
     });
-  });
-});
-
-describe("formatAgentErrorForDisplay", () => {
-  it("never returns a bare 'Error' — every known code gets a specific, actionable message", () => {
-    const codes: Array<[ErrorCode, RegExp]> = [
-      [ErrorCode.LLM_RATE_LIMIT, /rate-limiting/i],
-      [ErrorCode.LLM_AUTH_ERROR, /api key/i],
-      [ErrorCode.LLM_TIMEOUT, /timed out/i],
-      [ErrorCode.TURN_CANCELLED, /cancelled/i],
-      [ErrorCode.MAX_TURNS_REACHED, /step limit/i],
-    ];
-    for (const [code, expected] of codes) {
-      const text = formatAgentErrorForDisplay(new AgentError("x", code, true));
-      expect(text).toMatch(expected);
-      expect(text).not.toBe("Error");
-    }
-  });
-
-  it("includes a retry-after estimate when the error carries one", () => {
-    const error = new AgentError("x", ErrorCode.LLM_RATE_LIMIT, true, {
-      retryAfterMs: 12_000,
-    });
-    expect(formatAgentErrorForDisplay(error)).toMatch(/retry in about 12s/i);
-  });
-
-  it("falls back to the raw message for an unrecognized code, never a blank string", () => {
-    const text = formatAgentErrorForDisplay(
-      new AgentError("connection reset", ErrorCode.TOOL_EXECUTION_ERROR, false),
-    );
-    expect(text).toContain("connection reset");
-  });
-});
-
-describe("formatAgentErrorForDisplay — network failures", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it.each([
-    "Failed to fetch",
-    "NetworkError when attempting to fetch resource.",
-    "Load failed",
-    "net::ERR_INTERNET_DISCONNECTED",
-  ])("explains %s as an unreachable provider, not a raw message", (message) => {
-    const text = formatAgentErrorForDisplay(
-      new AgentError(message, ErrorCode.LLM_API_ERROR, true),
-    );
-    expect(text).toMatch(/could not reach the AI provider/i);
-    expect(text).not.toContain(message);
-  });
-
-  it("says the browser is offline when it is", () => {
-    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    const text = formatAgentErrorForDisplay(
-      new AgentError("Failed to fetch", ErrorCode.LLM_API_ERROR, true),
-    );
-    expect(text).toMatch(/offline/i);
-  });
-
-  it("uses the translation it is given", () => {
-    const translate = vi.fn((key: string) => `T:${key}`);
-    expect(
-      formatAgentErrorForDisplay(
-        new AgentError("Failed to fetch", ErrorCode.LLM_API_ERROR, true),
-        translate,
-      ),
-    ).toBe("T:chatErrors.network");
   });
 });

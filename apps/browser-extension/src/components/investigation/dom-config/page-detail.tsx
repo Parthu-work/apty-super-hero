@@ -85,7 +85,7 @@ function RawProfileDownload({ page, run }: { page: HeldPage; run: number }) {
       <Button
         size="sm"
         variant="ghost"
-        className="h-6 gap-1 px-1.5 text-[11px]"
+        className="h-6 gap-1 px-1.5 text-xs"
         aria-label={t("domConfig.detail.rawAria", { run: run + 1 })}
         onClick={() => setConfirming(true)}
       >
@@ -95,13 +95,13 @@ function RawProfileDownload({ page, run }: { page: HeldPage; run: number }) {
     );
   }
   return (
-    <div className="mt-1 w-full space-y-1 rounded-md border border-warning/40 bg-warning/10 p-1.5">
+    <div className="mt-1 w-full space-y-1 rounded-md border border-warning-border bg-warning-muted p-1.5">
       <p className="text-foreground">{t("domConfig.detail.rawWarning")}</p>
       <div className="flex flex-wrap gap-1.5">
         <Button
           size="sm"
           variant="outline"
-          className="h-6 px-2 text-[11px]"
+          className="h-6 px-2 text-xs"
           aria-label={t("domConfig.detail.rawConfirmAria", { run: run + 1 })}
           onClick={() => {
             download(
@@ -117,7 +117,7 @@ function RawProfileDownload({ page, run }: { page: HeldPage; run: number }) {
         <Button
           size="sm"
           variant="ghost"
-          className="h-6 px-2 text-[11px]"
+          className="h-6 px-2 text-xs"
           onClick={() => setConfirming(false)}
         >
           {t("domConfig.detail.cancel")}
@@ -144,7 +144,7 @@ function PageDetail({
       label: t(RUN_LABEL[summary.runs[i]?.label ?? "repeat"]),
     });
   return (
-    <div className="mt-1.5 space-y-2 border-t pt-1.5 text-[11px]">
+    <div className="mt-1.5 space-y-2 border-t pt-1.5 text-xs">
       <section aria-label={t("domConfig.detail.runs")} className="space-y-1">
         <h5 className="font-medium text-foreground">
           {t("domConfig.detail.runs")}
@@ -276,7 +276,7 @@ export function PageList({
   const pages = new Map(capture.pages.map((p) => [p.pageId, p]));
   return (
     <section aria-label={t("domConfig.pagesTitle")} className="space-y-1.5">
-      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h4 className="text-xs font-semibold text-muted-foreground">
         {t("domConfig.pagesTitle")}
       </h4>
       <ul className="space-y-1.5">

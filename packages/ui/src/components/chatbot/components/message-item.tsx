@@ -11,7 +11,7 @@ import {
   RefreshCcwIcon,
   WrenchIcon,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
@@ -41,9 +41,9 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "../../ai-elements/sources";
+import { useCopiedFlag } from "../../ui/copy-button";
 import { useComponentsContext } from "../context";
-import { LoginPrompt } from "./login-prompt";
-import { ModelChangePrompt } from "./model-change-prompt";
+import { ChatErrorNotice } from "./chat-error-notice";
 import { DefaultToolDisplay } from "./slots/tool-display";
 
 /**
@@ -70,17 +70,14 @@ export function DefaultMessageItem({
   onRegenerate,
   onCopy,
   formatExport,
+  onOpenProviderSettings,
   className,
   ...props
 }: MessageItemProps) {
   const { slots } = useComponentsContext();
   const { t } = useTranslation();
 
-  // Tracks which part's Copy button most recently succeeded, so the icon
-  // can briefly swap to a checkmark — the only previous feedback for a
-  // copy was none at all (handleCopy was fire-and-forget with no
-  // indication of success, failure, or even that anything happened).
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copied, flashCopied] = useCopiedFlag();
 
   // Collect screenshot data from tool parts for placeholder resolution
   const { screenshotUidList, screenshotDataMap } = useMemo(() => {
@@ -107,8 +104,21 @@ export function DefaultMessageItem({
     (part): part is UISourceUrlPart => part.type === "source-url",
   );
 
+  const text = message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n");
+
+  // The user's chips and attachments sit under their words.
+  const parts =
+    message.role === "user"
+      ? [
+          ...message.parts.filter((part) => part.type === "text"),
+          ...message.parts.filter((part) => part.type !== "text"),
+        ]
+      : message.parts;
+
   return (
-    <div className={className} {...props}>
+    <div className={cn("group/message space-y-2", className)} {...props}>
       {/* Sources */}
       {message.role === "assistant" && sourceUrls.length > 0 && (
         <Sources>
@@ -122,7 +132,7 @@ export function DefaultMessageItem({
       )}
 
       {/* Message parts */}
-      {message.parts.map((part, i) => {
+      {parts.map((part, i) => {
         const key = `${message.id}-${i}`;
 
         switch (part.type) {
@@ -142,109 +152,57 @@ export function DefaultMessageItem({
               );
             }
             return (
-              <Fragment key={key}>
-                <Message from={message.role as "user" | "assistant" | "system"}>
-                  <MessageContent>
-                    <Response>{processedText}</Response>
-                  </MessageContent>
-                </Message>
-                {/* Actions for last assistant message */}
-                {message.role === "assistant" &&
-                  isLast &&
-                  (slots.messageActions ? (
-                    slots.messageActions({
-                      message,
-                      onRegenerate,
-                      onCopy: () => onCopy?.(part.text),
-                    })
-                  ) : (
-                    <Actions className="mt-2">
-                      {onRegenerate && (
-                        <Action onClick={onRegenerate} label={t("chat.retry")}>
-                          <RefreshCcwIcon className="size-3" />
-                        </Action>
-                      )}
-                      {onCopy && (
-                        <Action
-                          onClick={async () => {
-                            const result = await onCopy(part.text);
-                            const succeeded = result === undefined || result;
-                            if (succeeded) {
-                              setCopiedKey(key);
-                              setTimeout(
-                                () =>
-                                  setCopiedKey((current) =>
-                                    current === key ? null : current,
-                                  ),
-                                2000,
-                              );
-                            }
-                          }}
-                          label={t(
-                            copiedKey === key ? "common.copied" : "common.copy",
-                          )}
-                        >
-                          {copiedKey === key ? (
-                            <CheckIcon className="size-3" />
-                          ) : (
-                            <CopyIcon className="size-3" />
-                          )}
-                        </Action>
-                      )}
-                      <Action
-                        onClick={() =>
-                          downloadText(
-                            timestampedFilename("message", "md"),
-                            formatExport ? formatExport(part.text) : part.text,
-                            "text/markdown",
-                          )
-                        }
-                        label={t("common.download")}
-                      >
-                        <DownloadIcon className="size-3" />
-                      </Action>
-                    </Actions>
-                  ))}
-              </Fragment>
-            );
-          }
-
-          case "file":
-            return (
               <Message
                 key={key}
                 from={message.role as "user" | "assistant" | "system"}
               >
                 <MessageContent>
-                  {part.mediaType.startsWith("image/") &&
-                  isLocalImageUrl(part.url) ? (
-                    <div className="max-w-md">
-                      <img
-                        src={part.url}
-                        alt={part.filename || t("chat.attachedImage")}
-                        className="rounded-lg border border-border"
-                      />
-                      {part.filename && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {part.filename}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-lg border border-border p-3">
-                      <PaperclipIcon className="size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0">
-                        <p className="text-sm truncate">
-                          {part.filename || t("chat.attachedFile")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {part.mediaType}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  <Response>{processedText}</Response>
                 </MessageContent>
               </Message>
+            );
+          }
+
+          case "file":
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "flex w-full",
+                  message.role === "user" ? "justify-end" : "justify-start",
+                )}
+              >
+                {part.mediaType.startsWith("image/") &&
+                isLocalImageUrl(part.url) ? (
+                  <figure className="max-w-[85%]">
+                    <img
+                      src={part.url}
+                      alt={part.filename || t("chat.attachedImage")}
+                      className="rounded-md border border-border"
+                    />
+                    {part.filename && (
+                      <figcaption className="mt-1 text-xs text-muted-foreground">
+                        {part.filename}
+                      </figcaption>
+                    )}
+                  </figure>
+                ) : (
+                  <div className="flex max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+                    <PaperclipIcon
+                      aria-hidden="true"
+                      className="size-4 shrink-0 text-muted-foreground"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">
+                        {part.filename || t("chat.attachedFile")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {part.mediaType}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             );
 
           case "tool":
@@ -278,25 +236,24 @@ export function DefaultMessageItem({
               <div
                 key={key}
                 className={cn(
-                  "flex w-full items-end gap-2 py-2",
-                  message.role === "user"
-                    ? "justify-end"
-                    : "flex-row-reverse justify-end",
+                  "flex w-full",
+                  message.role === "user" ? "justify-end" : "justify-start",
                 )}
               >
-                <div className="flex items-center gap-2 max-w-[80%] px-3 py-1.5 text-sm rounded-md bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-colors">
-                  <ContextIcon className="size-3.5 shrink-0 text-primary" />
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="font-medium text-foreground truncate">
-                      {part.label}
+                <div className="flex min-w-0 max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-small">
+                  <ContextIcon
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                  />
+                  <span className="truncate font-medium text-foreground">
+                    {part.label}
+                  </span>
+                  {Boolean(part.metadata?.["url"]) && (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {String(part.metadata?.["url"])}
                     </span>
-                    {Boolean(part.metadata?.["url"]) && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {String(part.metadata?.["url"])}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground bg-background/50 px-1.5 py-0.5 rounded flex-shrink-0">
+                  )}
+                  <span className="shrink-0 rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">
                     {part.contextType}
                   </span>
                 </div>
@@ -312,24 +269,64 @@ export function DefaultMessageItem({
             return null;
         }
       })}
-
-      {/* Metadata-driven prompts for assistant error messages */}
-      {message.role === "assistant" && message.metadata && (
-        <>
-          {message.metadata.needLogin && (
-            <LoginPrompt
-              onOpenSettings={() => chrome.runtime?.openOptionsPage?.()}
-            />
+      {message.metadata?.error && (
+        <ChatErrorNotice
+          error={message.metadata.error}
+          onRetry={isLast ? onRegenerate : undefined}
+          onOpenSettings={onOpenProviderSettings}
+        />
+      )}
+      {message.role === "assistant" && text && !(isLast && isStreaming) && (
+        <div
+          className={cn(
+            !isLast &&
+              "opacity-0 transition-opacity duration-200 group-focus-within/message:opacity-100 group-hover/message:opacity-100 motion-reduce:transition-none",
           )}
-          {message.metadata.needChangeModel && (
-            <ModelChangePrompt
-              supportedModels={message.metadata.supportedModels || []}
-              onModelChange={(modelId) => {
-                chrome.storage?.local?.set?.({ aiModel: modelId });
-              }}
-            />
+        >
+          {slots.messageActions ? (
+            slots.messageActions({
+              message,
+              isLast,
+              onRegenerate: isLast ? onRegenerate : undefined,
+              onCopy,
+            })
+          ) : (
+            <Actions>
+              {isLast && onRegenerate && (
+                <Action onClick={onRegenerate} tooltip={t("chat.retry")}>
+                  <RefreshCcwIcon aria-hidden="true" />
+                </Action>
+              )}
+              {onCopy && (
+                <Action
+                  onClick={async () => {
+                    const result = await onCopy(text);
+                    if (result === undefined || result) flashCopied();
+                  }}
+                  tooltip={t(copied ? "common.copied" : "common.copy")}
+                >
+                  {copied ? (
+                    <CheckIcon aria-hidden="true" />
+                  ) : (
+                    <CopyIcon aria-hidden="true" />
+                  )}
+                </Action>
+              )}
+              <Action
+                onClick={() =>
+                  downloadText(
+                    timestampedFilename("message", "md"),
+                    formatExport ? formatExport(text) : text,
+                    "text/markdown",
+                  )
+                }
+                tooltip={t("common.download")}
+              >
+                <DownloadIcon aria-hidden="true" />
+              </Action>
+            </Actions>
           )}
-        </>
+        </div>
       )}
     </div>
   );

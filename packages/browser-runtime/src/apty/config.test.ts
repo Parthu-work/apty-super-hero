@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let store: Record<string, unknown>;
 
@@ -19,14 +19,25 @@ function makeFakeStorage() {
   };
 }
 
+const changeListeners = new Set<
+  (changes: Record<string, unknown>, area: string) => void
+>();
+
 (global as any).chrome = {
-  storage: { local: makeFakeStorage() },
+  storage: {
+    local: makeFakeStorage(),
+    onChanged: {
+      addListener: (listener: never) => changeListeners.add(listener),
+      removeListener: (listener: never) => changeListeners.delete(listener),
+    },
+  },
 };
 
 import {
   getAptyIntegrationConfig,
   seedAptyIntegrationConfigDefaults,
   updateAptyIntegrationConfig,
+  watchAptyIntegrationConfig,
 } from "./config";
 
 beforeEach(() => {
@@ -130,5 +141,26 @@ describe("Apty integration config", () => {
     const final = await getAptyIntegrationConfig();
     expect(final.clientExtensionId).toBe("buildtime-default");
     expect(final.studioExtensionId).toBe("studio-id");
+  });
+});
+
+describe("watchAptyIntegrationConfig", () => {
+  const change = (key: string, area = "local") => {
+    for (const listener of changeListeners) listener({ [key]: {} }, area);
+  };
+
+  it("calls back for a change to the config in local storage only, until unsubscribed", () => {
+    const listener = vi.fn();
+    const unwatch = watchAptyIntegrationConfig(listener);
+
+    change("apty-integration-config");
+    change("apty_settings");
+    change("apty-integration-config", "session");
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unwatch();
+    change("apty-integration-config");
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(changeListeners.size).toBe(0);
   });
 });

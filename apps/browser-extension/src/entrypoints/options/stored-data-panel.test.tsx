@@ -41,6 +41,12 @@ describe("StoredDataPanel", () => {
       screen.getByRole("button", { name: "Delete stored data now" }),
     );
     expect(mockClearConversations).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Delete every stored conversation and screenshot?",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: "Delete everything" }));
 

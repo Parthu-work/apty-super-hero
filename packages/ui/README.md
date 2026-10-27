@@ -76,25 +76,17 @@ export function MyChat({ agent }: { agent: any }) {
 ### 2) Themes (Chatbot CSS variables)
 
 The Chatbot uses CSS variables to keep theming predictable and framework-friendly.
-Built-in themes:
-
-- `defaultTheme`
-- `darkTheme`
-- `minimalTheme`
-- `colorfulTheme`
-
-You can also build your own theme:
+Pass a `theme` with a class name and the variables to set:
 
 ```tsx
-import { Chatbot, createTheme } from "@apty/ui";
+import { Chatbot, type ChatbotTheme } from "@apty/ui";
 
-const myTheme = createTheme({
+const myTheme: ChatbotTheme = {
   className: "my-chat",
   variables: {
-    "--chatbot-primary": "hsl(262 83% 58%)",
     "--chatbot-radius": "12px",
   },
-});
+};
 
 export function App({ agent }: { agent: any }) {
   return <Chatbot agent={agent} theme={myTheme} />;
@@ -218,12 +210,6 @@ Customize specific parts of the Chatbot UI:
   - `onSave?: (settings: AppSettings) => void`
   - `onTestConnection?: (settings: AppSettings) => Promise<boolean>`
 
-### Chatbot themes
-
-- Presets: `defaultTheme`, `darkTheme`, `minimalTheme`, `colorfulTheme`
-- Variables: `defaultThemeVariables`, `darkThemeVariables`
-- Helpers: `createTheme(overrides)`, `mergeThemes(base, overrides)`
-
 ### i18n (subpath exports)
 
 Import from `@apty/ui/i18n/context`:
@@ -242,7 +228,7 @@ Import from `@apty/ui/theme/context`:
 
 - `Omni` (command palette)
 - `FakeMouse` (+ controller/types)
-- Intervention components: `InterventionCard`, `SelectionCard`, `MonitorCard`, `VoiceCard`, `InterventionModeToggle`
+- Intervention components: `InterventionCard`, `SelectionCard`, `MonitorCard`
 
 ## Development (monorepo)
 

@@ -63,6 +63,7 @@ import {
   groupByResource,
   resourceKeyOf,
 } from "./network-resource-groups.js";
+import { isValidExtensionId } from "./peers.js";
 import {
   decodeBase64Utf8,
   isTextualMime,
@@ -96,12 +97,6 @@ export interface ExtensionLogEntry {
   text: string;
   timestamp: number;
   category: LogCategory;
-}
-
-const EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
-
-export function isValidExtensionId(id: string): boolean {
-  return typeof id === "string" && EXTENSION_ID_PATTERN.test(id);
 }
 
 function chromeApi(): typeof chrome | undefined {

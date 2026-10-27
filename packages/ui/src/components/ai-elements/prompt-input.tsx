@@ -62,6 +62,17 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Textarea } from "../ui/textarea";
+import {
+  SLASH_MENU_ID,
+  SlashCommandMenu,
+  slashOptionId,
+} from "./slash-command-menu";
+import {
+  filterSlashGroups,
+  type SlashCommand,
+  type SlashCommandGroup,
+  slashQueryAt,
+} from "./slash-commands";
 
 // ============ Context Types ============
 
@@ -235,6 +246,10 @@ type SkillItemsContext = {
 };
 
 const SkillItemsContext = createContext<SkillItemsContext | null>(null);
+
+/** The app's "/" groups (tools, investigations); skills are added after them. */
+const EMPTY_GROUPS: SlashCommandGroup[] = [];
+const SlashCommandsContext = createContext<SlashCommandGroup[]>(EMPTY_GROUPS);
 
 export const usePromptInputSkills = () => {
   const context = useContext(SkillItemsContext);
@@ -596,6 +611,10 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit"> & {
     message: PromptInputMessage,
     event: FormEvent<HTMLFormElement>,
   ) => void;
+  /** Groups the "/" list shows before the skills. */
+  slashCommands?: SlashCommandGroup[];
+  /** Context chips to start with; read once, when the input mounts. */
+  initialContexts?: ContextItem[];
 };
 
 export const PromptInput = ({
@@ -608,11 +627,15 @@ export const PromptInput = ({
   maxFileSize,
   onError,
   onSubmit,
+  slashCommands,
+  initialContexts,
   children,
   ...props
 }: PromptInputProps) => {
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
-  const [contextItems, setContextItems] = useState<ContextItem[]>([]);
+  const [contextItems, setContextItems] = useState<ContextItem[]>(
+    initialContexts ?? [],
+  );
   const [availableContexts, setAvailableContexts] = useState<ContextItem[]>([]);
   const [skillItems, setSkillItems] = useState<SkillItem[]>([]);
   const [availableSkills, setAvailableSkills] = useState<SkillItem[]>([]);
@@ -903,25 +926,27 @@ export const PromptInput = ({
     <AttachmentsContext.Provider value={ctx}>
       <ContextItemsContext.Provider value={contextsCtx}>
         <SkillItemsContext.Provider value={skillsCtx}>
-          <span aria-hidden="true" className="hidden" ref={anchorRef} />
-          <input
-            accept={accept}
-            className="hidden"
-            multiple={multiple}
-            onChange={handleChange}
-            ref={inputRef}
-            type="file"
-          />
-          <form
-            className={cn(
-              "w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm",
-              className,
-            )}
-            onSubmit={handleSubmit}
-            {...props}
-          >
-            {children}
-          </form>
+          <SlashCommandsContext.Provider value={slashCommands ?? EMPTY_GROUPS}>
+            <span aria-hidden="true" className="hidden" ref={anchorRef} />
+            <input
+              accept={accept}
+              className="hidden"
+              multiple={multiple}
+              onChange={handleChange}
+              ref={inputRef}
+              type="file"
+            />
+            <form
+              className={cn(
+                "w-full overflow-hidden rounded-xl border border-border bg-card",
+                className,
+              )}
+              onSubmit={handleSubmit}
+              {...props}
+            >
+              {children}
+            </form>
+          </SlashCommandsContext.Provider>
         </SkillItemsContext.Provider>
       </ContextItemsContext.Provider>
     </AttachmentsContext.Provider>
@@ -986,12 +1011,12 @@ export const PromptInputTextarea = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const selectedItemRef = useRef<HTMLButtonElement>(null);
 
-  // Skill slash command state
-  const [showSkillMenu, setShowSkillMenu] = useState(false);
+  // "/" list: the app's groups, then the skills
+  const appSlashGroups = useContext(SlashCommandsContext);
   const [slashSearchQuery, setSlashSearchQuery] = useState("");
   const [slashPosition, setSlashPosition] = useState<number | null>(null);
-  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
-  const selectedSkillItemRef = useRef<HTMLButtonElement>(null);
+  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+  const slashOpen = slashPosition !== null;
 
   // Sync hasValue with external value prop (for controlled components)
   useEffect(() => {
@@ -1017,36 +1042,31 @@ export const PromptInputTextarea = ({
       : placeholder;
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
-    // Handle skill menu navigation
-    if (showSkillMenu && filteredSkills.length > 0) {
+    // "/" list navigation
+    if (slashOpen && e.key === "Escape") {
+      e.preventDefault();
+      closeSlashMenu();
+      return;
+    }
+    if (slashOpen && slashCommands.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedSkillIndex((prev) => (prev + 1) % filteredSkills.length);
+        setSelectedSlashIndex((prev) => (prev + 1) % slashCommands.length);
         return;
       }
 
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedSkillIndex(
-          (prev) => (prev - 1 + filteredSkills.length) % filteredSkills.length,
+        setSelectedSlashIndex(
+          (prev) => (prev - 1 + slashCommands.length) % slashCommands.length,
         );
         return;
       }
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        const selectedSkill = filteredSkills[selectedSkillIndex];
-        if (selectedSkill) {
-          handleSkillSelect(selectedSkill);
-        }
-        return;
-      }
-
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setShowSkillMenu(false);
-        setSlashSearchQuery("");
-        setSlashPosition(null);
+        const command = slashCommands[selectedSlashIndex];
+        if (command) handleSlashSelect(command);
         return;
       }
     }
@@ -1148,17 +1168,15 @@ export const PromptInputTextarea = ({
     [atPosition, contexts, props.value, onChange],
   );
 
-  // Handle skill selection
-  const handleSkillSelect = useCallback(
-    (skill: SkillItem) => {
-      if (!textareaRef.current || slashPosition === null) return;
+  const closeSlashMenu = () => {
+    setSlashSearchQuery("");
+    setSlashPosition(null);
+  };
 
-      // Add skill to the skills context
-      skills.add({
-        id: skill.id,
-        name: skill.name,
-        description: skill.description,
-      });
+  // Choosing a row removes the typed "/..." and then runs the command.
+  const handleSlashSelect = useCallback(
+    (command: SlashCommand) => {
+      if (!textareaRef.current || slashPosition === null) return;
 
       // Remove /xxx from textarea (similar to @ handling)
       const currentValue = String(props.value || "");
@@ -1175,8 +1193,6 @@ export const PromptInputTextarea = ({
       } as ChangeEvent<HTMLTextAreaElement>;
       onChange?.(syntheticEvent);
 
-      // Close menu
-      setShowSkillMenu(false);
       setSlashSearchQuery("");
       setSlashPosition(null);
 
@@ -1188,8 +1204,10 @@ export const PromptInputTextarea = ({
           textareaRef.current.selectionEnd = beforeSlash.length;
         }
       }, 0);
+
+      command.onSelect();
     },
-    [slashPosition, skills, props.value, onChange],
+    [slashPosition, props.value, onChange],
   );
 
   const handlePaste: ClipboardEventHandler<HTMLTextAreaElement> = (event) => {
@@ -1239,18 +1257,11 @@ export const PromptInputTextarea = ({
       setAtPosition(null);
     }
 
-    // Detect / command for skills
-    const slashMatch = beforeCursor.match(/\/([^\s]*)$/);
-    if (slashMatch) {
-      const slashQuery = slashMatch[1]; // Text after /
-      setSlashPosition(beforeCursor.lastIndexOf("/"));
-      setSlashSearchQuery(slashQuery ?? "");
-      setShowSkillMenu(true);
-    } else {
-      setShowSkillMenu(false);
-      setSlashSearchQuery("");
-      setSlashPosition(null);
-    }
+    // Detect a "/" that starts a word (not one inside a URL or a path)
+    const slash = slashQueryAt(beforeCursor);
+    setSlashPosition(slash ? slash.position : null);
+    setSlashSearchQuery(slash ? slash.query : "");
+    setSelectedSlashIndex(0);
 
     onChange?.(e);
   };
@@ -1299,42 +1310,44 @@ export const PromptInputTextarea = ({
     });
   }, [contexts.availableContexts, searchQuery]);
 
-  // Filter skills based on search query with fuzzy matching
-  const filteredSkills = useMemo(() => {
-    if (!slashSearchQuery) return skills.availableSkills;
+  const slashGroups = useMemo(() => {
+    const skillGroup: SlashCommandGroup[] = skills.availableSkills.length
+      ? [
+          {
+            id: "skills",
+            label: t("slash.skills"),
+            commands: skills.availableSkills.map((skill) => ({
+              id: `skill-${skill.id}`,
+              label: skill.name,
+              description: skill.description,
+              onSelect: () =>
+                skills.add({
+                  id: skill.id,
+                  name: skill.name,
+                  description: skill.description,
+                }),
+            })),
+          },
+        ]
+      : [];
+    return filterSlashGroups(
+      [...appSlashGroups, ...skillGroup],
+      slashSearchQuery,
+    );
+  }, [appSlashGroups, skills, slashSearchQuery, t]);
 
-    const query = slashSearchQuery.toLowerCase();
-
-    return skills.availableSkills.filter((skill) => {
-      // Match against name
-      if (skill.name.toLowerCase().includes(query)) return true;
-
-      // Match against description
-      if (skill.description?.toLowerCase().includes(query)) return true;
-
-      // Fuzzy match: check if query characters appear in order in name
-      const nameLower = skill.name.toLowerCase();
-      let queryIndex = 0;
-      for (let i = 0; i < nameLower.length && queryIndex < query.length; i++) {
-        if (nameLower[i] === query[queryIndex]) {
-          queryIndex++;
-        }
-      }
-      if (queryIndex === query.length) return true;
-
-      return false;
-    });
-  }, [skills.availableSkills, slashSearchQuery]);
+  const slashCommands = useMemo(
+    () => slashGroups.flatMap((group) => group.commands),
+    [slashGroups],
+  );
+  const highlightedSlashCommand = slashOpen
+    ? slashCommands[selectedSlashIndex]
+    : undefined;
 
   // Reset selected index when filtered contexts change
   useEffect(() => {
     setSelectedIndex(filteredContexts.length ? 0 : -1);
   }, [filteredContexts]);
-
-  // Reset selected skill index when filtered skills change
-  useEffect(() => {
-    setSelectedSkillIndex(0);
-  }, []);
 
   // Auto-scroll to selected item when navigating with keyboard
   useEffect(() => {
@@ -1350,20 +1363,10 @@ export const PromptInputTextarea = ({
     }
   }, [selectedIndex]);
 
-  // Auto-scroll to selected skill item when navigating with keyboard
-  useEffect(() => {
-    if (selectedSkillItemRef.current) {
-      selectedSkillItemRef.current.scrollIntoView({
-        block: "nearest",
-        behavior: "smooth",
-      });
-    }
-  }, []);
-
   // Calculate menu position when showing context menu or skill menu
   useEffect(() => {
     const updatePosition = () => {
-      if ((showContextMenu || showSkillMenu) && textareaRef.current) {
+      if ((showContextMenu || slashOpen) && textareaRef.current) {
         const rect = textareaRef.current.getBoundingClientRect();
         const windowHeight = window.innerHeight;
         setMenuPosition({
@@ -1377,7 +1380,7 @@ export const PromptInputTextarea = ({
     updatePosition();
 
     // Update position on scroll and resize
-    if (!showContextMenu && !showSkillMenu) {
+    if (!showContextMenu && !slashOpen) {
       return;
     }
 
@@ -1388,7 +1391,7 @@ export const PromptInputTextarea = ({
       window.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("resize", updatePosition);
     };
-  }, [showContextMenu, showSkillMenu]);
+  }, [showContextMenu, slashOpen]);
 
   return (
     <div className="relative">
@@ -1408,6 +1411,12 @@ export const PromptInputTextarea = ({
         onFocus={handleFocus}
         onBlur={handleBlur}
         placeholder={displayPlaceholder}
+        aria-controls={highlightedSlashCommand ? SLASH_MENU_ID : undefined}
+        aria-activedescendant={
+          highlightedSlashCommand
+            ? slashOptionId(highlightedSlashCommand)
+            : undefined
+        }
         {...props}
       />
 
@@ -1475,79 +1484,17 @@ export const PromptInputTextarea = ({
           document.body,
         )}
 
-      {/* Skill Command Menu - Portal Implementation */}
-      {showSkillMenu &&
-        filteredSkills.length > 0 &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            className="fixed z-[9999] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2"
-            style={{
-              bottom: `${menuPosition.bottom}px`,
-              left: `${menuPosition.left}px`,
-              width: `${menuPosition.width}px`,
-            }}
-          >
-            <div className="bg-popover border rounded-lg shadow-xl max-h-[400px] overflow-hidden mb-2">
-              {/* Search hint */}
-              <div className="px-3 py-2 text-xs text-muted-foreground border-b bg-muted/50">
-                {slashSearchQuery ? (
-                  <>
-                    {`${t("chat.searchingSkills")} `}
-                    <span className="font-medium">/{slashSearchQuery}</span>
-                    {filteredSkills.length > 0 && (
-                      <span className="ml-2">
-                        {t("chat.found", { count: filteredSkills.length })}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span>
-                    {t("chat.skillsAvailable", {
-                      count: filteredSkills.length,
-                    })}
-                  </span>
-                )}
-              </div>
-
-              {/* Skills Results */}
-              <div className="max-h-[350px] overflow-y-auto">
-                {filteredSkills.map((skill, index) => (
-                  <button
-                    key={skill.id}
-                    ref={
-                      index === selectedSkillIndex ? selectedSkillItemRef : null
-                    }
-                    type="button"
-                    className={cn(
-                      "w-full flex flex-col gap-1 px-3 py-2 text-sm transition-colors text-left min-w-0 border-b last:border-b-0",
-                      index === selectedSkillIndex
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent/50",
-                    )}
-                    onClick={() => handleSkillSelect(skill)}
-                    onMouseEnter={() => setSelectedSkillIndex(index)}
-                  >
-                    <div className="flex items-center gap-2 w-full">
-                      <span className="font-medium truncate flex-1 min-w-0">
-                        {skill.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-background/50">
-                        {t("chat.skillBadge")}
-                      </span>
-                    </div>
-                    {skill.description && (
-                      <span className="text-xs text-muted-foreground line-clamp-2">
-                        {skill.description}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {highlightedSlashCommand && (
+        <SlashCommandMenu
+          groups={slashGroups}
+          highlighted={highlightedSlashCommand}
+          position={menuPosition}
+          onSelect={handleSlashSelect}
+          onHighlight={(command) =>
+            setSelectedSlashIndex(slashCommands.indexOf(command))
+          }
+        />
+      )}
     </div>
   );
 };
@@ -1672,8 +1619,6 @@ export const PromptInputSubmit = ({
     Icon = <Loader2Icon className="size-4 animate-spin" />;
   } else if (status === "streaming") {
     Icon = <SquareIcon className="size-4" />;
-  } else if (status === "error") {
-    Icon = <XIcon className="size-4" />;
   }
 
   return (

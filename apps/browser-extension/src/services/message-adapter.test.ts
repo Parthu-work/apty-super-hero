@@ -255,3 +255,35 @@ describe("message-adapter", () => {
     });
   });
 });
+
+describe("message-adapter – a failed turn", () => {
+  const failed = {
+    id: "a3",
+    role: "assistant" as const,
+    parts: [],
+    metadata: {
+      errorCode: "LLM_AUTH_ERROR",
+      error: { kind: "badKey" as const, message: "401 Incorrect API key" },
+    },
+  };
+
+  it("keeps the failure through storage, so a reopened chat shows its notice", () => {
+    const [stored] = toStorageFormat([failed]);
+    expect(stored?.error).toEqual(failed.metadata.error);
+
+    const [restored] = fromStorageFormat([stored!]);
+    expect(restored?.metadata?.error).toEqual(failed.metadata.error);
+  });
+
+  it("drops a stored failure of a kind the notice does not know", () => {
+    const [restored] = fromStorageFormat([
+      {
+        id: "a4",
+        role: "assistant",
+        parts: [],
+        error: { kind: "x", message: "?" },
+      },
+    ]);
+    expect(restored?.metadata).toBeUndefined();
+  });
+});

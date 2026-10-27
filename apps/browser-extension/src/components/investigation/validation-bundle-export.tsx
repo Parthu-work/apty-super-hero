@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@apty/ui/components/ui/dialog";
 import { useTranslation } from "@apty/ui/i18n/context";
+import { DownloadIcon } from "lucide-react";
 import { useState } from "react";
 
 export interface ValidationBundleSources {
@@ -39,7 +40,8 @@ function extensionVersion(): string {
   }
 }
 
-function validationBundleJson({
+/** The bundle as reviewed JSON; "Ask about this result" sends the same summary. */
+export function validationBundleJson({
   page,
   application,
   probe,
@@ -69,6 +71,7 @@ function download(json: string) {
   URL.revokeObjectURL(url);
 }
 
+/** The download icon in the DOM health page's header; the engineer reviews the JSON before it leaves. */
 export function ValidationBundleExport(sources: ValidationBundleSources) {
   const { t } = useTranslation();
   const [json, setJson] = useState<string | null>(null);
@@ -81,22 +84,26 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
   return (
     <>
       <Button
-        size="sm"
-        variant="link"
-        className="h-auto p-0 text-[11px]"
+        size="icon"
+        variant="ghost"
         disabled={!hasEvidence}
+        aria-label={t("investigation.bundle.export")}
+        title={t("investigation.bundle.export")}
         onClick={() => {
           setCopied(false);
           setJson(validationBundleJson(sources));
         }}
       >
-        {t("investigation.bundle.export")}
+        <DownloadIcon />
       </Button>
       <Dialog
         open={json !== null}
         onOpenChange={(open) => !open && setJson(null)}
       >
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col overflow-hidden">
+        <DialogContent
+          size="wide"
+          className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden"
+        >
           <DialogHeader>
             <DialogTitle>{t("investigation.bundle.review")}</DialogTitle>
             <DialogDescription>
@@ -110,22 +117,22 @@ export function ValidationBundleExport(sources: ValidationBundleSources) {
             <pre
               // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region must be reachable by keyboard (axe scrollable-region-focusable).
               tabIndex={0}
-              className="min-h-24 flex-1 overflow-auto rounded border bg-muted/40 p-2 text-[10px]"
+              className="min-h-24 flex-1 overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs leading-4 text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               {json}
             </pre>
           </section>
-          <DialogFooter className="shrink-0 flex-row flex-wrap justify-end">
+          <DialogFooter className="shrink-0">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => setJson(null)}
             >
               {t("common.cancel")}
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => {
                 if (json === null) return;
                 void navigator.clipboard

@@ -1,4 +1,4 @@
-import { Loader2Icon, SendIcon, SquareIcon, XIcon } from "lucide-react";
+import { Loader2Icon, SendIcon, SquareIcon } from "lucide-react";
 import type { InputToolbarSlotProps } from "../../../../types";
 import { Button } from "../../../ui/button";
 
@@ -19,9 +19,6 @@ export function DefaultInputToolbar({
   } else if (status === "streaming") {
     Icon = <SquareIcon className="size-4" />;
     label = "Stop";
-  } else if (status === "error") {
-    Icon = <XIcon className="size-4" />;
-    label = "Error";
   }
 
   const handleClick = () => {
@@ -63,9 +60,6 @@ export function InputToolbarWithLabel({
   } else if (status === "streaming") {
     Icon = <SquareIcon className="size-4" />;
     label = "Stop";
-  } else if (status === "error") {
-    Icon = <XIcon className="size-4" />;
-    label = "Error";
   }
 
   const handleClick = () => {

@@ -684,6 +684,10 @@ describe("approval for clicks and new tabs (A1)", () => {
     const options = await extensionPage(browser);
     await options.getByText(/click/).first().waitFor();
     await options.getByRole("button", { name: "Revoke all" }).click();
+    await options
+      .getByRole("alertdialog", { name: "Revoke all remembered approvals?" })
+      .getByRole("button", { name: "Revoke all" })
+      .click();
     await options.getByText("No active approvals.").waitFor();
     await options.close();
 

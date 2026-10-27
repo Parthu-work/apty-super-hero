@@ -14,6 +14,7 @@ export type {
   ChatbotTheme,
   ChatbotThemeVariables,
   ChatConfig,
+  ChatDraft,
   ContextTagsSlotProps,
   FooterProps,
   HeaderProps,
@@ -41,5 +42,4 @@ export type {
   UITextPart,
   UIToolPart,
   UIToolState,
-  WelcomeSuggestion,
 } from "./ui";

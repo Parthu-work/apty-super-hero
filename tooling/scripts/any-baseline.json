@@ -1,7 +1,5 @@
 {
   "apps/browser-extension/src/components/approval-prompt.test.tsx": 1,
-  "apps/browser-extension/src/components/investigation/dom-health-card.test.tsx": 8,
-  "apps/browser-extension/src/components/readiness-check.test.tsx": 1,
   "apps/browser-extension/src/entrypoints/background/mcp-bridge.test.ts": 8,
   "apps/browser-extension/src/entrypoints/background/message-router.test.ts": 25,
   "apps/browser-extension/src/entrypoints/background/storage-lockdown.test.ts": 1,

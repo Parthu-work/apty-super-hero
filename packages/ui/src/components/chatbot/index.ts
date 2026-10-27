@@ -11,6 +11,7 @@ export type {
   ChatbotTheme,
   ChatbotThemeVariables,
   ChatConfig,
+  ChatDraft,
   ChatStatus,
   ContextItem,
   ContextItemType,
@@ -35,31 +36,20 @@ export type {
   UIToolPart,
   UIToolState,
   WelcomeScreenProps,
-  WelcomeSuggestion,
 } from "../../types";
 // Individual component exports
 export {
-  type AutomationModeValue,
-  ConfigurationGuide,
-  type ConfigurationGuideProps,
   DefaultHeader,
   DefaultInputArea,
   DefaultMessageItem,
   DefaultMessageList,
-  DefaultWelcomeScreen,
   type ExtendedInputAreaProps,
   Header,
   InputArea,
-  LoginPrompt,
   MessageItem,
   MessageList,
-  ModeIndicator,
-  ModelChangePrompt,
-  type ModelInfo,
   TokenUsageIndicator,
   type TokenUsageIndicatorProps,
-  UpdateBanner,
-  type VersionCheckResult,
   WelcomeScreen,
 } from "./components";
 // Default export for backward compatibility
@@ -73,7 +63,6 @@ export {
 export {
   CompactContextTags,
   CompactModelSelector,
-  CompactToolDisplay,
   ContextTag,
   DefaultContextTags,
   DefaultInputToolbar,
@@ -82,7 +71,6 @@ export {
   DefaultToolDisplay,
   InputToolbarWithLabel,
   MessageActionsWithFeedback,
-  MinimalToolDisplay,
 } from "./components/slots";
 export { SYSTEM_PROMPT } from "./constants";
 // Context exports
@@ -105,14 +93,3 @@ export {
   useConfigContext,
   useThemeContext,
 } from "./context";
-// Theme exports
-export {
-  colorfulTheme,
-  createTheme,
-  darkTheme,
-  darkThemeVariables,
-  defaultTheme,
-  defaultThemeVariables,
-  mergeThemes,
-  minimalTheme,
-} from "./themes";

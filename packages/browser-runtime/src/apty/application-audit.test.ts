@@ -595,6 +595,45 @@ describe("runApplicationDomHealthAudit", () => {
     }
   });
 
+  it("stops between pages when aborted and scores the pages it reached, marked stopped", async () => {
+    linksByUrl.set("https://app.example.com/home", [
+      link({ absoluteUrl: "https://app.example.com/a" }),
+      link({ absoluteUrl: "https://app.example.com/b" }),
+      link({ absoluteUrl: "https://app.example.com/c" }),
+    ]);
+    const controller = new AbortController();
+
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      signal: controller.signal,
+      onProgress: (progress) => {
+        if (progress.phase === "auditing" && progress.pageIndex === 1) {
+          controller.abort();
+        }
+      },
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.stopped).toBe(true);
+      expect(result.coverage.pagesAudited).toBe(2);
+    }
+    expect(mockTabsUpdate).not.toHaveBeenCalledWith(
+      TAB_ID,
+      expect.objectContaining({ url: "https://app.example.com/b" }),
+    );
+  });
+
+  it("does not mark a run that finished as stopped", async () => {
+    const promise = runApplicationDomHealthAudit(TAB_ID, {
+      signal: new AbortController().signal,
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    expect(result.available && result.stopped).toBeFalsy();
+  });
+
   it("rejects unsupported browser-internal pages without attempting to audit", async () => {
     currentUrl = "chrome://extensions";
     mockTabsGet.mockResolvedValue({ id: TAB_ID, url: "chrome://extensions" });

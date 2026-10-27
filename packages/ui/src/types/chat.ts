@@ -1,12 +1,6 @@
 import type { AgentMetrics, FunctionTool } from "@apty/agent-core";
 import type { ComponentType, HTMLAttributes, ReactNode } from "react";
-import type {
-  ChatStatus,
-  ContextItem,
-  UIMessage,
-  UIToolPart,
-  WelcomeSuggestion,
-} from "./ui";
+import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "./ui";
 
 // ============ Chat Configuration ============
 
@@ -59,6 +53,8 @@ export interface MessageListProps
   onCopy?: (text: string) => void | Promise<boolean>;
   /** Prepares a message's text for Download (adds the export header). */
   formatExport?: (text: string) => string;
+  /** Opens the AI provider settings, offered under failures they can fix. */
+  onOpenProviderSettings?: () => void;
 }
 
 export interface MessageItemProps
@@ -71,6 +67,8 @@ export interface MessageItemProps
   onCopy?: (text: string) => void | Promise<boolean>;
   /** Prepares a message's text for Download (adds the export header). */
   formatExport?: (text: string) => string;
+  /** Opens the AI provider settings, offered under failures they can fix. */
+  onOpenProviderSettings?: () => void;
 }
 
 export interface InputAreaProps
@@ -82,19 +80,25 @@ export interface InputAreaProps
   status: ChatStatus;
   placeholder?: string;
   disabled?: boolean;
+  /** Context chips the composer starts with: a new chat's draft. */
+  initialContexts?: ContextItem[];
+}
+
+/** What a new chat's composer starts with. Nothing is sent until Send. */
+export interface ChatDraft {
+  text: string;
+  contexts?: ContextItem[];
 }
 
 export interface WelcomeScreenProps extends HTMLAttributes<HTMLDivElement> {
   onSuggestionClick: (text: string) => void;
-  /** Handler for the UX audit suggestion; when provided, clicking that suggestion opens the audit dialog instead of sending the text directly. */
-  onUxAuditClick?: () => void;
-  suggestions?: WelcomeSuggestion[];
 }
 
 export interface HeaderProps extends HTMLAttributes<HTMLDivElement> {
   title?: string;
   onSettingsClick?: () => void;
-  onNewChat?: () => void;
+  /** Starts a new chat, its composer holding `draft` when one is given. */
+  onNewChat?: (draft?: ChatDraft) => void;
 }
 
 export interface FooterProps extends HTMLAttributes<HTMLDivElement> {
@@ -105,6 +109,9 @@ export interface FooterProps extends HTMLAttributes<HTMLDivElement> {
 
 export interface MessageActionsSlotProps {
   message: UIMessage;
+  /** The last message's actions are always shown; the others on hover or focus. */
+  isLast?: boolean;
+  /** Only on the last message: regenerating replaces the last answer. */
   onRegenerate?: () => void;
   // biome-ignore lint/suspicious/noConfusingVoidType: void must stay to accept existing (text: string) => void consumer implementations
   onCopy?: (text: string) => void | Promise<boolean>;
@@ -160,8 +167,8 @@ export interface ChatbotSlots {
   afterMessages?: () => ReactNode;
   /** Extra content rendered inside PromptInput (e.g., context/skill loaders) */
   promptExtras?: () => ReactNode;
-  /** Handler called when user clicks Login in a LoginPrompt inside a message */
-  onLogin?: () => void;
+  /** Layers over the whole chat (menus, full-panel pages), rendered last inside the root */
+  overlay?: () => ReactNode;
 }
 
 // ============ Components Configuration ============
@@ -262,6 +269,8 @@ export interface ChatbotEventHandlers {
    * of injecting messages into the chat history.
    */
   onNeedsAuth?: (draftText: string) => void;
+  /** Opens the AI provider settings, from a failed turn whose cause they can fix. */
+  onOpenProviderSettings?: () => void;
 }
 
 // Re-export AgentMetrics for convenience

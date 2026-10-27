@@ -6,6 +6,7 @@ import { SettingsPage } from "@apty/ui";
 import { I18nProvider, useTranslation } from "@apty/ui/i18n/context";
 import type { Language } from "@apty/ui/i18n/types";
 import { ThemeProvider } from "@apty/ui/theme/context";
+import { applyRememberedTheme } from "@apty/ui/theme/index";
 import type { Theme } from "@apty/ui/theme/types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
@@ -103,6 +104,7 @@ function parseUrlParams() {
 import "../../styles/tailwind.css";
 
 initLogging();
+applyRememberedTheme();
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();

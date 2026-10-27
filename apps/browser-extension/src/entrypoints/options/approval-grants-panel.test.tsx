@@ -1,5 +1,11 @@
 import { STORAGE_KEYS } from "@apty/agent-core";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
 
@@ -64,11 +70,22 @@ describe("ApprovalGrantsPanel", () => {
     expect(screen.getByText(/https:\/\/b\.test/)).toBeInTheDocument();
   });
 
-  it("revokes everything", async () => {
+  it("revokes everything after a confirmation that opens on Cancel", async () => {
     render(<ApprovalGrantsPanel />);
     await screen.findByText(/https:\/\/a\.test/);
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke all" }));
+    const confirm = screen.getByRole("alertdialog", {
+      name: "Revoke all remembered approvals?",
+    });
+    expect(
+      within(confirm).getByRole("button", { name: "Cancel" }),
+    ).toHaveFocus();
+    expect(storageStore[STORAGE_KEYS.RISKY_ORIGIN_GRANTS]).not.toEqual([]);
+
+    fireEvent.click(
+      within(confirm).getByRole("button", { name: "Revoke all" }),
+    );
 
     expect(await screen.findByText("No active approvals.")).toBeInTheDocument();
     expect(storageStore[STORAGE_KEYS.RISKY_ORIGIN_GRANTS]).toEqual([]);
