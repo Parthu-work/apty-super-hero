@@ -355,16 +355,15 @@ for (const theme of ["light", "dark"]) {
         `${theme} side panel, chat with a tool result`,
       );
 
+      // The first turn of a new chat: its evidence is the chat's own.
       const summary = panel.getByRole("button", {
         name: /^Investigation status/,
       });
-      if (await summary.count()) {
-        await summary.first().click();
-        await assertNoSeriousViolations(
-          panel,
-          `${theme} side panel, investigation summary`,
-        );
-      }
+      await summary.click();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} side panel, investigation summary`,
+      );
 
       await panel
         .getByRole("button", { name: "View full response" })
