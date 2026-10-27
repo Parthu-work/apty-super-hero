@@ -663,6 +663,27 @@ describe("DomConfigPage", () => {
     expect(store.getState().exportedAt).not.toBeNull();
   });
 
+  it("reads as not exported again once the export would no longer match", async () => {
+    await showReport();
+    const ruleId = report().rules[0]!.id;
+    for (const change of [
+      () => store.setRuleChoice(ruleId, false),
+      () => store.setIncludeReview(true),
+      () => store.setIncludeRecordSpecific(true),
+      () => store.rerun(),
+    ]) {
+      exportAs("JSON");
+      expect(store.getState().exportedAt).not.toBeNull();
+      act(change);
+      expect(store.getState().exportedAt).toBeNull();
+    }
+    expect(
+      screen.getByText(
+        "Not exported yet. Results are kept in this panel only. Closing the panel loses them unless you export them.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("asks about the results in a new chat: a draft beside the Markdown export as a chip, nothing sent", async () => {
     await showReport();
     const requested = vi.fn();

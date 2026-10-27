@@ -303,10 +303,14 @@ export function createDomConfigStore() {
     setOptions: (options: Partial<DomConfigStartOptions>) =>
       set({ options: { ...state.options, ...options } }),
     setRuleChoice: (ruleId: string, included: boolean) =>
-      set({ ruleChoices: { ...state.ruleChoices, [ruleId]: included } }),
-    setIncludeReview: (includeReview: boolean) => set({ includeReview }),
+      set({
+        ruleChoices: { ...state.ruleChoices, [ruleId]: included },
+        exportedAt: null,
+      }),
+    setIncludeReview: (includeReview: boolean) =>
+      set({ includeReview, exportedAt: null }),
     setIncludeRecordSpecific: (includeRecordSpecific: boolean) =>
-      set({ includeRecordSpecific }),
+      set({ includeRecordSpecific, exportedAt: null }),
 
     /** "confirm" when the capture holds manual or imported pages and `replace` was not given. */
     async start(
@@ -386,7 +390,7 @@ export function createDomConfigStore() {
 
     rerun(ignoredRoots: readonly string[] = []) {
       if (!state.capture) return;
-      set({ report: analyze(state.capture, ignoredRoots) });
+      set({ report: analyze(state.capture, ignoredRoots), exportedAt: null });
     },
 
     /** Adds a run of the tab as it is now; never navigates, clicks or reloads. */
@@ -496,6 +500,7 @@ export function createDomConfigStore() {
       const coverageMarks = mark ? { ...rest, [key]: mark } : rest;
       set({
         coverageMarks,
+        exportedAt: null,
         ...(state.capture
           ? { report: analyze(state.capture, ignoredRoots, coverageMarks) }
           : {}),

@@ -114,7 +114,7 @@ export function createPeerStore(
   },
 ) {
   let state = CHECKING;
-  let run = 0;
+  const runs: Record<AptyPeer, number> = { client: 0, studio: 0 };
   let unwatch: (() => void) | null = null;
   const listeners = new Set<() => void>();
   const set = (peer: AptyPeer, status: PeerStatus) => {
@@ -123,7 +123,7 @@ export function createPeerStore(
   };
 
   async function refresh(): Promise<void> {
-    const current = ++run;
+    const current = { client: ++runs.client, studio: ++runs.studio };
     const config = await deps.getConfig();
     await Promise.all(
       PEERS.map(async (peer) => {
@@ -136,7 +136,7 @@ export function createPeerStore(
                 .catch((): ClientCheck => ({ status: "error", message: "" })),
             )
           : { kind: "not-configured" };
-        if (current === run) set(peer, status);
+        if (current[peer] === runs[peer]) set(peer, status);
       }),
     );
   }
@@ -160,9 +160,14 @@ export function createPeerStore(
     refresh,
     /** Saves and checks `id` for `peer`; the result is the check's. */
     async connect(peer: AptyPeer, id: string): Promise<ClientCheck> {
-      run++;
+      runs[peer]++;
       set(peer, { kind: "checking" });
-      const result = await deps.connect(peer, id);
+      const result = await deps.connect(peer, id).catch(
+        (error): ClientCheck => ({
+          status: "error",
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
       if (result.status === "error") await refresh();
       else set(peer, statusOf(id, result));
       return result;

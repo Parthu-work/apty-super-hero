@@ -12,6 +12,7 @@ import {
 } from "@apty/ui/components/ui/dropdown-menu";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { I18nContextValue } from "@apty/ui/i18n/types";
+import { copyText } from "@apty/ui/lib/clipboard";
 import {
   ChevronDownIcon,
   CopyIcon,
@@ -125,14 +126,11 @@ export function ExportMenu({
           {t("domConfig.page.json")}
         </DropdownMenuItem>
         <DropdownMenuItem
-          onSelect={() => {
-            void navigator.clipboard
-              ?.writeText(allTables(t, report, choices))
-              .then(() => {
-                onExported();
-                announce(t("domConfig.page.copiedAll"));
-              })
-              .catch(() => {});
+          onSelect={async () => {
+            if (await copyText(allTables(t, report, choices))) {
+              onExported();
+              announce(t("domConfig.page.copiedAll"));
+            }
           }}
         >
           <CopyIcon aria-hidden="true" />

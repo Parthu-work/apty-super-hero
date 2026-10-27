@@ -4,11 +4,11 @@ import {
 } from "@apty/browser-runtime/apty/peers";
 import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
+import { CopyButton } from "@apty/ui/components/ui/copy-button";
 import { Input } from "@apty/ui/components/ui/input";
 import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
-import { CheckIcon, CopyIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
 import { openOptions } from "../../lib/open-options";
 import type { ClientCheck } from "../../services/apty-client-check";
@@ -133,25 +133,6 @@ function PeerBadge({ status }: { status: PeerStatus }) {
   }
 }
 
-function CopyIdButton({ value }: { value: string }) {
-  const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      aria-label={t(copied ? "common.copied" : "connections.copyId")}
-      title={t("connections.copyId")}
-      onClick={() => {
-        void navigator.clipboard?.writeText(value).then(() => setCopied(true));
-      }}
-    >
-      {copied ? <CheckIcon /> : <CopyIcon />}
-    </Button>
-  );
-}
-
 function PeerCard({ peer, status }: { peer: AptyPeer; status: PeerStatus }) {
   const { t } = useTranslation();
   const copy = PEER_COPY[peer];
@@ -243,7 +224,7 @@ function PeerCard({ peer, status }: { peer: AptyPeer; status: PeerStatus }) {
               className="font-mono text-xs"
               onFocus={(event) => event.currentTarget.select()}
             />
-            <CopyIdButton value={ownId} />
+            <CopyButton text={ownId} label={t("connections.copyId")} />
           </div>
         </div>
         {failure && <Notice tone={failure.tone}>{failure.text}</Notice>}

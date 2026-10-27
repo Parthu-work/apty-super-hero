@@ -188,4 +188,42 @@ describe("peer store", () => {
 
     expect(store.getState().studio).toEqual({ kind: "not-configured" });
   });
+  it("reports a connect that throws and goes back to what is stored", async () => {
+    const { store, deps } = harness({ clientExtensionId: CLIENT_ID });
+    deps.check.mockResolvedValue({ status: "ok" });
+    deps.connect.mockRejectedValue(new Error("QUOTA_BYTES quota exceeded"));
+
+    await expect(store.connect("client", STUDIO_ID)).resolves.toEqual({
+      status: "error",
+      message: "QUOTA_BYTES quota exceeded",
+    });
+    expect(store.getState().client).toEqual({
+      kind: "connected",
+      extensionId: CLIENT_ID,
+    });
+  });
+
+  it("keeps the other peer's check when one peer connects meanwhile", async () => {
+    const { store, deps } = harness({
+      peers: { studio: { extensionId: STUDIO_ID } },
+    });
+    let answerStudio: (check: ClientCheck) => void = () => {};
+    deps.check.mockReturnValue(
+      new Promise((resolve) => {
+        answerStudio = resolve;
+      }),
+    );
+    deps.connect.mockResolvedValue({ status: "ok" });
+
+    store.subscribe(() => {});
+    await settled();
+    await store.connect("client", CLIENT_ID);
+    answerStudio({ status: "ok" });
+    await settled();
+
+    expect(store.getState()).toEqual({
+      client: { kind: "connected", extensionId: CLIENT_ID },
+      studio: { kind: "connected", extensionId: STUDIO_ID },
+    });
+  });
 });

@@ -9,6 +9,10 @@ import { navigationStore } from "../state/navigation-store";
 const mockUseChatContext = vi.hoisted(() => vi.fn());
 const mockSaveConversation = vi.hoisted(() => vi.fn());
 const menuDrawerProps = vi.hoisted(() => ({ current: null as unknown }));
+const mockUpdateConversation = vi.hoisted(() => vi.fn());
+const readinessTarget = vi.hoisted(() => ({
+  current: {} as { siteHost?: string },
+}));
 
 vi.mock("@apty/ui/components/chatbot", () => ({
   useChatContext: mockUseChatContext,
@@ -20,7 +24,7 @@ vi.mock("@apty/ui/i18n/context", () => ({
 
 vi.mock("@apty/browser-runtime", () => ({
   conversationStorage: {
-    updateConversation: vi.fn(),
+    updateConversation: mockUpdateConversation,
     saveConversation: mockSaveConversation,
     getConversation: vi.fn(),
   },
@@ -40,7 +44,7 @@ vi.mock("./investigation/investigation-context-bar", () => ({
 }));
 
 vi.mock("./connections/use-readiness", () => ({
-  useReadiness: () => ({ setupCount: 2, target: {} }),
+  useReadiness: () => ({ setupCount: 2, target: readinessTarget.current }),
 }));
 
 import { BrowserChatHeader } from "./browser-chat-header";
@@ -70,6 +74,7 @@ beforeEach(() => {
   navigationStore.back();
   navigationStore.closeDrawer();
   mockSaveConversation.mockResolvedValue("conv-1");
+  readinessTarget.current = {};
 });
 
 afterEach(() => {
@@ -129,6 +134,33 @@ describe("BrowserChatHeader — New chat", () => {
 
     await vi.waitFor(() => expect(onNewChat).toHaveBeenCalled());
     expect(mockSaveConversation).toHaveBeenCalled();
+  });
+});
+
+describe("BrowserChatHeader — saving", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("saves the chat with its site, and does not save it again when the tab's site changes", async () => {
+    vi.useFakeTimers();
+    chat("idle");
+    readinessTarget.current = { siteHost: "app.example.com" };
+
+    const { rerender } = render(<BrowserChatHeader onNewChat={vi.fn()} />);
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(mockSaveConversation).toHaveBeenCalledWith(
+      expect.any(Array),
+      "session-1",
+      "app.example.com",
+    );
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    mockUpdateConversation.mockClear();
+
+    readinessTarget.current = { siteHost: "other.example.com" };
+    rerender(<BrowserChatHeader onNewChat={vi.fn()} />);
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(mockUpdateConversation).not.toHaveBeenCalled();
   });
 });
 

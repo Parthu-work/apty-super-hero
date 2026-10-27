@@ -48,7 +48,8 @@ export function BrowserChatHeader({
   } = useChatContext();
   const { page, drawerOpen } = useNavigation();
   const { setupCount, target } = useReadiness();
-  const siteHost = target.siteHost;
+  const siteHost = useRef(target.siteHost);
+  siteHost.current = target.siteHost;
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const [currentConversationId, setCurrentConversationId] = useState<
@@ -80,7 +81,7 @@ export function BrowserChatHeader({
           const conversationId = await conversationStorage.saveConversation(
             toStorageFormat(messages),
             sessionId ?? undefined,
-            siteHost,
+            siteHost.current,
           );
           if (conversationId) {
             setCurrentConversationId(conversationId);
@@ -106,7 +107,7 @@ export function BrowserChatHeader({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [messages, currentConversationId, sessionId, siteHost]);
+  }, [messages, currentConversationId, sessionId]);
 
   const handleConversationSelect = async (conversationId: string) => {
     try {

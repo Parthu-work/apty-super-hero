@@ -122,7 +122,7 @@ export function DebuggingWelcomeScreen({
               icon={SlidersHorizontalIcon}
               category={t("domConfig.welcome.category")}
               question={t("domConfig.welcome.tile")}
-              onClick={openDomConfigPage}
+              onClick={() => openDomConfigPage()}
             />
           )}
         </ul>
