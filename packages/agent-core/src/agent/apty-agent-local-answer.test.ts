@@ -111,7 +111,7 @@ describe("AptyAgent local answers", () => {
     ).toBe(0);
   });
 
-  it("keeps the user's words and the transcript, so the next model turn reads them", async () => {
+  it("keeps the turn as a tool call and its result, so the next model turn reads them", async () => {
     let answered = false;
     const { agent, requests, conversationManager } = agentWith(() => {
       if (answered) return undefined;
@@ -125,18 +125,38 @@ describe("AptyAgent local answers", () => {
       created?.type === "session_created" ? created.sessionId : "";
     await collect(agent.chat("how do I fix it?", { sessionId }));
 
-    const items = await (
+    const items = (await (
       await conversationManager.getSession(sessionId)
-    )?.getItems();
-    expect(JSON.stringify(items?.slice(0, 2))).toContain(
-      "my workflow is not visible",
-    );
-    expect(JSON.stringify(items?.slice(0, 2))).toContain("CNV-03");
+    )?.getItems()) as Array<Record<string, unknown>>;
+    const [user, call, result, closing] = items;
+    expect(user).toMatchObject({
+      role: "user",
+      content: "my workflow is not visible",
+    });
+    expect(call).toMatchObject({
+      type: "function_call",
+      name: "run_diagnosis",
+      arguments: JSON.stringify(ANSWER.params),
+    });
+    expect(result).toMatchObject({
+      type: "function_call_result",
+      callId: call?.callId,
+      name: "run_diagnosis",
+      output: { type: "text", text: ANSWER.transcript },
+    });
+    expect(closing).toMatchObject({ type: "message", role: "assistant" });
+
     expect(requests).toHaveLength(1);
-    const sent = JSON.stringify(requests[0]?.input);
-    expect(sent).toContain("my workflow is not visible");
-    expect(sent).toContain("CNV-03");
-    expect(sent).toContain("how do I fix it?");
+    const sent = requests[0]?.input as Array<Record<string, unknown>>;
+    expect(sent.map((item) => item.type ?? "message")).toEqual([
+      "message",
+      "function_call",
+      "function_call_result",
+      "message",
+      "message",
+    ]);
+    expect(JSON.stringify(sent)).toContain("CNV-03");
+    expect(JSON.stringify(sent.at(-1))).toContain("how do I fix it?");
   });
 
   it("sends the message to the model when the responder has no answer", async () => {

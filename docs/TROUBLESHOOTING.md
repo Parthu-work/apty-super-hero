@@ -58,7 +58,9 @@ calls. **View body** reads the newest call of that request that has a body
 and says when it is an older one. It asks the Client only when you click.
 The chat's `list_extension_network_resources` gives the model the same
 unique list, and `inspect_extension_network` falls back to an older call's
-body the same way.
+body the same way. A message that only asks for one file ("get
+segments.json") runs `inspect_extension_network` without the model; add
+anything else to the message to have the model read it.
 
 | What you see | Cause | Fix |
 |---|---|---|

@@ -122,7 +122,8 @@ export interface AptyAgentOptions<
    * Answers a message without calling the model when the runtime can decide
    * it deterministically. Returning undefined sends the message to the model
    * as usual. The answer is shown as a completed tool call and kept in the
-   * session as text, so a follow-up question sees it.
+   * session as one, so a follow-up question sees it and the outbound filters
+   * treat it as any other tool result.
    */
   localResponder?: LocalResponder;
 }
@@ -133,7 +134,7 @@ export interface LocalAnswer {
   toolName: string;
   params: unknown;
   result: unknown;
-  /** What the session keeps for the model to read on later turns. */
+  /** The tool output the session keeps for the model to read on later turns. */
   transcript: string;
 }
 

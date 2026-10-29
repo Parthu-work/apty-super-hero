@@ -149,6 +149,12 @@ describe("visibility check, end to end", () => {
     assert.match(sent, /Take a tour/);
     assert.match(sent, /CNV-03/);
     assert.match(sent, /How do I fix that\?/);
+    assert.ok(
+      model.requests[0].messages.some((m) =>
+        m.tool_calls?.some((c) => c.function?.name === "run_diagnosis"),
+      ),
+      "the check reaches the model as a tool call and its result",
+    );
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await app.close();

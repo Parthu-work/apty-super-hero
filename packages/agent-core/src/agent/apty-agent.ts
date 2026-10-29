@@ -31,12 +31,17 @@ import type {
   ToolEventPayload,
 } from "../types.js";
 import { AgentError, classifyLlmError, ErrorCode } from "../utils/errors.js";
+import { generateId } from "../utils/id-generator.js";
 import { safeJsonParse } from "../utils/json.js";
 import { createLogger } from "../utils/logger.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
 
 const log = createLogger("AptyAgent");
+
+/** Closes a locally answered turn, so every provider sees a well-formed exchange. */
+const LOCAL_ANSWER_NOTE =
+  "Answered without a model call; the user saw the tool result above.";
 
 /** Call-establishment retry for the LLM request only (before any stream
  * event has been yielded to the caller) — never mid-stream, where partial
@@ -717,13 +722,28 @@ export class AptyAgent {
     }
 
     if (session) {
+      const callId = `local-${generateId()}`;
       await session.addItems([
         { type: "message", role: "user", content: input },
+        {
+          type: "function_call",
+          callId,
+          name: answer.toolName,
+          arguments: JSON.stringify(answer.params ?? {}),
+          status: "completed",
+        },
+        {
+          type: "function_call_result",
+          callId,
+          name: answer.toolName,
+          status: "completed",
+          output: { type: "text", text: answer.transcript },
+        },
         {
           type: "message",
           role: "assistant",
           status: "completed",
-          content: [{ type: "output_text", text: answer.transcript }],
+          content: [{ type: "output_text", text: LOCAL_ANSWER_NOTE }],
         },
       ]);
       metrics.itemCount = session.getItemCount();

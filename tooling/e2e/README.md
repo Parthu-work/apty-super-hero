@@ -6,7 +6,7 @@ first (`npm run build`, which also builds the MCP bridge daemon).
 | File | Covers |
 |---|---|
 | `agent.e2e.test.mjs` | The real side panel and agent loop against a scripted OpenAI-compatible model: the approval prompt (Allow, Deny, "Allow on this site", revoke), response-body opt-in and deny-list, a clean console, and DOM Health on a tab whose content scripts were orphaned by an extension restart. |
-| `apty-client.e2e.test.mjs` | Fake Apty Client extensions (working, not allow-listed, bridge missing): the Options handshake and its messages, and the agent reading a 206-item body and a 403 body, with the full-response viewer. |
+| `apty-client.e2e.test.mjs` | Fake Apty Client extensions (working, not allow-listed, bridge missing): the Options handshake and its messages, the agent reading a 206-item body and a 403 body, with the full-response viewer, and a bare "get segments.json" answered with no model request (the deny list included) whose evidence the model pages on a follow-up. |
 | `visibility-check.e2e.test.mjs` | A fake Apty Client serving synthetic 5.x content files: "not visible in the widget" answered with the check card and no model request (no Client saved, a hidden workflow, the scan of every workflow, a segment that is turned off in dark mode), axe on the card, and a follow-up reaching the model with the check in its history. |
 | `core-tools.e2e.test.mjs` | Everyday tools through the real agent: find and click an element, page metadata, scroll, highlight, screenshot, page console output, network and runtime diagnostics. |
 | `frames.e2e.test.mjs` | DOM Health in same-origin, cross-origin, `data:` and frameset frames, open and closed shadow roots, top-frame-only UI, responder injection, element capture in the top frame and in an iframe. |

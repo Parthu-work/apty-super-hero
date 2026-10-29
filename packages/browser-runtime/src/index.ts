@@ -30,6 +30,7 @@ export * from "./skills/index.js";
 export * from "./storage/index.js";
 // Screenshot Storage (IndexedDB)
 export { RuntimeScreenshotStorage } from "./storage/screenshot-storage.js";
+export { createFileFetchResponder } from "./tools/file-fetch-responder.js";
 // Tools
 export * from "./tools/index.js";
 export { selectRelevantTools } from "./tools/tool-relevance.js";

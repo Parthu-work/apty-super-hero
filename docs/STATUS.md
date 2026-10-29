@@ -116,6 +116,11 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   `run_diagnosis`. Tested against the e2e fake Client in Chromium (both
   themes, axe-clean, no model request); not yet run against the real
   Client, which does not answer these messages yet (below).
+- A bare file request ("get segments.json") is answered the same way,
+  through the `inspect_extension_network` tool and the full-response
+  viewer with no model request; a follow-up pages that evidence through the
+  model. Tested against the e2e fake Client in Chromium, the deny list
+  included.
 
 ## Open
 

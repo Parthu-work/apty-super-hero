@@ -1,8 +1,9 @@
 /**
  * The Apty Client integration against real fake-Client extensions loaded
  * next to the Agent: the options-page handshake for a working Client, one
- * that doesn't allow-list the Agent and one without the bridge, and the
- * chat agent pulling a large segments body plus a 403 body from the Client.
+ * that doesn't allow-list the Agent and one without the bridge, the chat
+ * agent pulling a large segments body plus a 403 body from the Client, and
+ * a bare "get segments.json" answered from the Client with no model call.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -16,6 +17,7 @@ import {
   launchBrowser,
   openSidePanel,
   savedPeerId,
+  sendChat,
   startMockModel,
   startPageServer,
   tempDir,
@@ -76,6 +78,21 @@ async function useWorkingClient() {
   const options = await connectInOptions(clients.working.id);
   await options.getByText("Answering").waitFor({ timeout: 30_000 });
   await options.close();
+}
+
+/** Every tool result in a request, earlier turns included, parsed when it is JSON. */
+function allToolResults(request) {
+  return (request.messages ?? [])
+    .filter((m) => m.role === "tool")
+    .map((m) => {
+      const text =
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    });
 }
 
 async function disconnectInOptions(options) {
@@ -145,7 +162,7 @@ describe("Apty Client integration in a real browser", () => {
 
     await chatAndWait(
       panel,
-      "get the data from segments.json in the apty client",
+      "get the data from segments.json in the apty client and summarize it",
     );
 
     const result = toolResults(model.requests.at(-1)).at(-1);
@@ -190,7 +207,10 @@ describe("Apty Client integration in a real browser", () => {
       }),
     );
 
-    await chatAndWait(panel, "get segments.json from the apty client again");
+    await chatAndWait(
+      panel,
+      "get segments.json from the apty client again and summarize it",
+    );
 
     const result = toolResults(model.requests.at(-1)).at(-1);
     assert.ok(result.response.evidenceId);
@@ -212,7 +232,10 @@ describe("Apty Client integration in a real browser", () => {
       }),
     );
 
-    await chatAndWait(panel, "show me themes.json from the apty client");
+    await chatAndWait(
+      panel,
+      "show me themes.json from the apty client and summarize it",
+    );
 
     const result = toolResults(model.requests.at(-1)).at(-1);
     assert.equal(
@@ -272,7 +295,7 @@ describe("Apty Client integration in a real browser", () => {
 
     const denied = await ask(
       "4815162342.json",
-      "get 4815162342.json from the apty client",
+      "get 4815162342.json from the apty client and summarize it",
     );
     assert.equal(denied.status, "body_denied", JSON.stringify(denied));
     assert.equal(denied.deniedBy, "/users/");
@@ -282,7 +305,7 @@ describe("Apty Client integration in a real browser", () => {
 
     const allowed = await ask(
       "segments.json",
-      "get the data from segments.json in the apty client",
+      "get the data from segments.json in the apty client and summarize it",
     );
     assert.equal(allowed.found, true);
     assert.ok(allowed.response.fullLength > 80_000);
@@ -301,10 +324,110 @@ describe("Apty Client integration in a real browser", () => {
     });
     const restored = await ask(
       "4815162342.json",
-      "get 4815162342.json from the apty client again",
+      "get 4815162342.json from the apty client again and summarize it",
     );
     assert.equal(restored.status, "ok", JSON.stringify(restored));
     assert.match(restored.response.bodyPreview, /en-GB/);
+    await panel.close();
+    await app.close();
+  });
+
+  it("answers a bare file request with no model request, and the model can page that evidence on a follow-up (B2)", async () => {
+    await useWorkingClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    model.script(() => ({ text: "No script set." }));
+
+    await sendChat(panel, "get segments.json");
+    await panel
+      .getByRole("button", { name: "View full response" })
+      .click({ timeout: 30_000 });
+    await panel.getByText("Array(206)").waitFor();
+    assert.equal(
+      model.requests.length,
+      0,
+      "the file was read without the model",
+    );
+
+    model.script((request) => {
+      const results = toolResults(request);
+      if (results.length > 0) {
+        return {
+          text: `RESULT: ${JSON.stringify(results.at(-1)).slice(0, 400)}`,
+        };
+      }
+      const fetched = allToolResults(request).find(
+        (r) => r?.response?.evidenceId,
+      );
+      return {
+        tool: "get_evidence_json",
+        args: {
+          evidenceId: fetched?.response?.evidenceId ?? "missing",
+          path: "",
+          limit: 1,
+          offset: 205,
+        },
+      };
+    });
+    await chatAndWait(
+      panel,
+      "show the last entry of that segments.json from the apty client",
+    );
+
+    const fetched = allToolResults(model.requests[0])[0];
+    assert.equal(fetched.found, true, JSON.stringify(fetched).slice(0, 500));
+    assert.ok(
+      fetched.response.truncated,
+      "the model gets the same bounded preview as when it calls the tool",
+    );
+    assert.ok(fetched.response.fullLength > 80_000);
+    const page = toolResults(model.requests.at(-1)).at(-1);
+    assert.equal(page.found, true, JSON.stringify(page).slice(0, 500));
+    assert.equal(page.total, 206);
+    assert.equal(page.value.length, 1);
+    assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+
+  it("withholds a body on the deny list on the fast path too, without asking the Client for it (B2)", async () => {
+    await useWorkingClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app, {
+      networkBodyCaptureDenyList: ["/users/"],
+      redactionMode: "standard",
+    });
+    const client = await waitForWorker(browser.context, (url) =>
+      url.startsWith(`chrome-extension://${clients.working.id}/`),
+    );
+    await client.evaluate(() => {
+      globalThis.bodyRequests = [];
+    });
+    model.script(() => ({ text: "RESULT: noted" }));
+
+    await sendChat(panel, "get 4815162342.json");
+    await panel
+      .getByText("Completed", { exact: true })
+      .waitFor({ timeout: 30_000 });
+    assert.equal(
+      model.requests.length,
+      0,
+      "the file was read without the model",
+    );
+    assert.deepEqual(
+      await client.evaluate(() => globalThis.bodyRequests),
+      [],
+      "the Client was never asked for the denied body",
+    );
+
+    await chatAndWait(panel, "what does that mean?");
+    const denied = allToolResults(model.requests[0])[0];
+    assert.equal(denied.status, "body_denied", JSON.stringify(denied));
+    assert.equal(denied.deniedBy, "/users/");
+    assert.equal(denied.response, undefined);
+    assert.ok(!JSON.stringify(model.requests[0]).includes("en-GB"));
     await panel.close();
     await app.close();
   });
