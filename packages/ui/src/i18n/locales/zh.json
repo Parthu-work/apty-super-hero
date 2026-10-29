@@ -1803,6 +1803,7 @@
     "titleScan": "可见性检查：所有{{kind}}",
     "titleGeneric": "可见性检查",
     "titleWidget": "小组件为何可能不可见",
+    "titleLogs": "错误与日志",
     "kind": {
       "workflow": "工作流",
       "tooltip": "工具提示",
@@ -1811,7 +1812,8 @@
       "validation": "验证",
       "checklist": "清单",
       "knowledgeContent": "知识内容",
-      "widget": "小组件"
+      "widget": "小组件",
+      "logs": "日志"
     },
     "status": {
       "cause_found": "已找到原因",
@@ -1838,7 +1840,10 @@
       "language": "语言",
       "page": "此页面",
       "environment-match": "此页面的环境",
-      "restriction": "限制模式"
+      "restriction": "限制模式",
+      "client-logs": "Apty Client 日志",
+      "client-calls": "Apty Client 请求",
+      "page-console": "页面控制台"
     },
     "gateStatus": {
       "pass": "通过",
@@ -1892,7 +1897,23 @@
       "widgetOtherUsers": "面向所选分段，也面向不在任何活动分段中的用户",
       "widgetNoActiveSegment": "小组件的分段在此永远不会生效：{{segments}}",
       "widgetSegmentsMissing": "小组件的分段并非都在此处的 segment.json 中：{{segments}}",
-      "restrictionPatterns": "设置了 {{count}} 个限制模式；它们可能隐藏整个小组件"
+      "restrictionPatterns": "设置了 {{count}} 个限制模式；它们可能隐藏整个小组件",
+      "logsUnavailable": "无法读取 Apty Client 的日志：{{message}}",
+      "pageConsoleUnavailable": "无法读取页面控制台：{{message}}",
+      "noPageConsole": "此标签页未打开网页，因此未读取其控制台",
+      "noKnownMessage": "{{where}}：{{count}} 行，没有错误，也没有知识库卡片列出的消息",
+      "errorsLogged": "{{where}}：{{count}} 个错误，都不是知识库卡片列出的消息",
+      "noActiveApplication": "{{where}}：没有环境匹配此页面（“No active application found”）",
+      "fetchOrParseError": "{{where}}：某个内容文件加载失败或未通过架构检查",
+      "noMatchingVersion": "{{where}}：注入的加载器找不到此 URL 的环境",
+      "callsOk": "Apty Client 的 {{count}} 个请求都没有失败",
+      "contentCallsFailed": "Apty Client 请求 {{files}} 失败",
+      "otherCallsFailed": "Apty Client 的另外 {{count}} 个请求失败",
+      "no404FromApty": "Apty Client 的请求都没有返回 404：在归咎于 Apty 之前先做移除测试",
+      "apty404s": "Apty Client 自己的请求中有 {{count}} 个返回 404",
+      "cspBlockedApty": "页面的 CSP 阻止了来自 Apty 主机的 {{count}} 次加载（{{directives}}）",
+      "cspBlockedOther": "页面的 CSP 阻止了 {{count}} 次加载，都不是 Apty Client 使用的主机",
+      "aptyResourceFailed": "来自 Apty 主机的 {{count}} 个资源在页面中加载失败"
     },
     "rule": {
       "CNV-02": {
@@ -1938,6 +1959,30 @@
       "WNV-07": {
         "summary": "小组件仅限于在此永远不会生效的分段（{{segments}}），且“其他用户”选项已关闭：没有人能看到它。",
         "fix": "在 Admin 的“TARGET AUDIENCE”下，开启小组件的某个分段或修复其规则，或为所有用户启用小组件。发布并重新加载。"
+      },
+      "LOG-01": {
+        "summary": "Apty 找不到 URL 模式匹配此页面的环境，因此那里不加载任何内容。",
+        "fix": "在该页面的标签页中询问“the widget is not appearing”，查看哪个模式未覆盖它，然后在 Admin 中将页面主机添加到正确的环境并发布。"
+      },
+      "LOG-02": {
+        "summary": "某个内容文件加载失败或未通过架构检查，Apty 随后将其视为空。",
+        "fix": "接下来查看该文件的状态码；如果某个条目格式错误，请在 Admin 中修复并发布。"
+      },
+      "LOG-03": {
+        "summary": "注入的加载器找不到此 URL 的环境：这是 URL 匹配问题，不是白名单问题。",
+        "fix": "检查各环境的 URL 模式（在这里询问“the widget is not appearing”），并确认匹配的环境在注入模式下有客户端版本。"
+      },
+      "LOG-04": {
+        "summary": "页面的内容安全策略阻止了来自 Apty 主机的 {{count}} 次加载（{{directives}}）。",
+        "fix": "在应用的 CSP 中将 Apty 域名加入白名单。如果控制台文本提到 nonce，播放器需要支持 nonce 的版本：请联系支持团队。"
+      },
+      "LOG-05": {
+        "summary": "Apty Client 请求 {{files}} 失败，因此其中的内容无法到达播放器。",
+        "fix": "先修复失败的请求：401 或 403 表示访问问题，404 表示内容未发布到此环境，net:: 错误表示网络问题或域名被阻止。"
+      },
+      "LOG-06": {
+        "summary": "来自 Apty 主机的 {{count}} 个资源在页面中加载失败。",
+        "fix": "请客户在其网络或 CSP 策略中将 Apty CDN 域名加入白名单，然后重新加载。"
       }
     },
     "ruleLabel": "规则 {{ruleId}}",
@@ -1957,13 +2002,17 @@
       "openItems": "然后查看下面待确认的检查；文件无法判断这些项。",
       "sendSupport": "向支持团队提供 Apty 版本、环境、sourceId、打开的小组件截图以及精简后的条目。",
       "openAppPage": "在此标签页中打开缺少小组件的应用页面，然后再问一次。",
-      "comparePatterns": "在 Admin 中比较匹配此页面的各环境 URL 模式；把不应优先的那个改得更具体。"
+      "comparePatterns": "在 Admin 中比较匹配此页面的各环境 URL 模式；把不应优先的那个改得更具体。",
+      "removalTest": "停用或移除 Apty 后重复完全相同的流程：如果仍出现相同的 404，则不是 Apty 造成的。",
+      "readConsoleText": "阅读控制台中的完整 CSP 文本：提到 nonce 表示需要支持 nonce 的播放器版本，普通阻止表示需要加入白名单。"
     },
     "notChecked": {
       "title": "未从文件中检查",
       "membership": "此用户是否匹配某个分段的规则",
       "runtime-rules": "可见性规则、延后规则和重复规则",
-      "widget-css": "页面的 CSS 是否隐藏了小组件容器"
+      "widget-css": "页面的 CSS 是否隐藏了小组件容器",
+      "extension-page-console": "扩展模式下 Apty 在页面中记录的内容（运行在代理无法读取的环境中）",
+      "cors": "CORS 阻止（浏览器不会向页面报告）"
     },
     "blocker": {
       "hidden": "在小组件中隐藏",

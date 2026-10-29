@@ -23,6 +23,7 @@
 
 import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
+import type { LogEvidence } from "../apty/diagnosis/types.js";
 import {
   type AptyServiceWorkerDiagnosticsProvider,
   ConfiguredServiceWorkerDiagnosticsProvider,
@@ -365,62 +366,9 @@ export const getAptyPageLogsTool = tool({
     const tab = resolution.tab;
     const tabId = tab.id as number;
 
-    if (isRestrictedUrl(tab.url)) {
-      return pageLogsFailure({
-        code: "restricted_page",
-        message: `Cannot read console logs on this page (${tab.url ?? "unknown URL"}) — Chrome does not allow script injection into internal pages, the Chrome Web Store, or PDF viewer tabs.`,
-        nextSteps: [
-          "Navigate to the actual web app tab you want to debug, then retry.",
-        ],
-      });
-    }
-
-    const {
-      frames: frameResults,
-      errorCode,
-      errorMessage,
-    } = await readFrameConsoleLogs(
-      tabId,
-      pageHooksAllowedOn(
-        tab.url,
-        await settingsStorage
-          .load(STORAGE_KEYS.SETTINGS)
-          .catch(() => SETTINGS_UNREADABLE),
-      ),
-    );
-    if (errorCode) {
-      return pageLogsFailure({
-        code: errorCode,
-        message: errorMessage ?? "Could not read console logs from this tab.",
-        nextSteps:
-          errorCode === "restricted_page"
-            ? [
-                "Navigate to the actual web app tab you want to debug, then retry.",
-              ]
-            : ["Reload the tab, then retry."],
-      });
-    }
-
-    const relevantFrames =
-      frames === "top"
-        ? frameResults.filter((f) => f.frameId === 0)
-        : frameResults;
-
-    const merged: MergedAptyConsoleEntry[] = [];
-    for (const frame of relevantFrames) {
-      if (frame.coverage === "unavailable" || frame.coverage === "disabled") {
-        continue;
-      }
-      for (const entry of frame.entries) {
-        merged.push({
-          ...entry,
-          frameId: frame.frameId,
-          frameUrl: frame.url,
-          coverage: frame.coverage,
-        });
-      }
-    }
-    merged.sort((a, b) => a.timestamp - b.timestamp || a.seq - b.seq);
+    const read = await readTabConsole(tabId, tab.url, frames);
+    if (!read.ok) return pageLogsFailure(read.failure);
+    const { frameResults, relevantFrames, merged } = read;
 
     const minIndex = LEVEL_SEVERITY[minLevel];
     const filtered = redactLogEntries(
@@ -475,6 +423,122 @@ export const getAptyPageLogsTool = tool({
     };
   },
 });
+
+/**
+ * The console output the bridge buffered in every frame of a tab (or only
+ * the top frame), merged oldest first and not yet redacted, with what each
+ * frame could give. Shared by `get_apty_page_logs` and the logs check pack.
+ */
+async function readTabConsole(
+  tabId: number,
+  url: string | undefined,
+  frames: "all" | "top" = "all",
+): Promise<
+  | {
+      ok: true;
+      frameResults: FrameReadResult[];
+      relevantFrames: FrameReadResult[];
+      merged: MergedAptyConsoleEntry[];
+    }
+  | { ok: false; failure: PageLogsFailure }
+> {
+  const failure = (f: PageLogsFailure) => ({ ok: false as const, failure: f });
+  if (isRestrictedUrl(url)) {
+    return failure({
+      code: "restricted_page",
+      message: `Cannot read console logs on this page (${url ?? "unknown URL"}) — Chrome does not allow script injection into internal pages, the Chrome Web Store, or PDF viewer tabs.`,
+      nextSteps: [
+        "Navigate to the actual web app tab you want to debug, then retry.",
+      ],
+    });
+  }
+
+  const {
+    frames: frameResults,
+    errorCode,
+    errorMessage,
+  } = await readFrameConsoleLogs(
+    tabId,
+    pageHooksAllowedOn(
+      url,
+      await settingsStorage
+        .load(STORAGE_KEYS.SETTINGS)
+        .catch(() => SETTINGS_UNREADABLE),
+    ),
+  );
+  if (errorCode) {
+    return failure({
+      code: errorCode,
+      message: errorMessage ?? "Could not read console logs from this tab.",
+      nextSteps:
+        errorCode === "restricted_page"
+          ? [
+              "Navigate to the actual web app tab you want to debug, then retry.",
+            ]
+          : ["Reload the tab, then retry."],
+    });
+  }
+
+  const relevantFrames =
+    frames === "top"
+      ? frameResults.filter((f) => f.frameId === 0)
+      : frameResults;
+
+  const merged: MergedAptyConsoleEntry[] = [];
+  for (const frame of relevantFrames) {
+    if (frame.coverage === "unavailable" || frame.coverage === "disabled") {
+      continue;
+    }
+    for (const entry of frame.entries) {
+      merged.push({
+        ...entry,
+        frameId: frame.frameId,
+        frameUrl: frame.url,
+        coverage: frame.coverage,
+      });
+    }
+  }
+  merged.sort((a, b) => a.timestamp - b.timestamp || a.seq - b.seq);
+
+  return { ok: true, frameResults, relevantFrames, merged };
+}
+
+/**
+ * The console of the conversation's tab for the logs check pack, redacted;
+ * undefined when no web page is open there.
+ */
+export async function tabConsoleOf(
+  runContext: unknown,
+): Promise<LogEvidence["page"]> {
+  const tabId = (runContext as { tabId?: unknown } | undefined)?.tabId;
+  if (typeof tabId !== "number") return undefined;
+  let url: string | undefined;
+  try {
+    url = (await chrome.tabs.get(tabId)).url;
+  } catch {
+    return undefined;
+  }
+  if (!url || !/^https?:\/\//.test(url)) return undefined;
+  const read = await readTabConsole(tabId, url);
+  if (!read.ok) {
+    return {
+      ok: false,
+      code: read.failure.code,
+      message: read.failure.message,
+    };
+  }
+  return {
+    ok: true,
+    lines: redactLogEntries(read.merged).map(({ level, message, source }) => ({
+      level,
+      message,
+      ...(source ? { source } : {}),
+    })),
+    framesRead: read.relevantFrames.length,
+    framesDisabled: read.frameResults.filter((f) => f.coverage === "disabled")
+      .length,
+  };
+}
 
 function pageLogsFailure(status: PageLogsFailure): {
   available: false;

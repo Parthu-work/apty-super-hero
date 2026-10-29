@@ -1803,6 +1803,7 @@
     "titleScan": "Visibility check: every {{kind}}",
     "titleGeneric": "Visibility check",
     "titleWidget": "Why the widget may not be visible",
+    "titleLogs": "Errors and logs",
     "kind": {
       "workflow": "workflow",
       "tooltip": "tooltip",
@@ -1811,7 +1812,8 @@
       "validation": "validation",
       "checklist": "checklist",
       "knowledgeContent": "knowledge content item",
-      "widget": "widget"
+      "widget": "widget",
+      "logs": "logs"
     },
     "status": {
       "cause_found": "Cause found",
@@ -1838,7 +1840,10 @@
       "language": "Language",
       "page": "This page",
       "environment-match": "Environment for this page",
-      "restriction": "Restriction patterns"
+      "restriction": "Restriction patterns",
+      "client-logs": "Apty Client logs",
+      "client-calls": "Apty Client calls",
+      "page-console": "Page console"
     },
     "gateStatus": {
       "pass": "Passed",
@@ -1892,7 +1897,23 @@
       "widgetOtherUsers": "For selected segments, and for users in no active segment too",
       "widgetNoActiveSegment": "The widget's segments can never be active here: {{segments}}",
       "widgetSegmentsMissing": "Not all of the widget's segments are in segment.json here: {{segments}}",
-      "restrictionPatterns": "{{count}} restriction pattern(s) set; they can hide the whole widget"
+      "restrictionPatterns": "{{count}} restriction pattern(s) set; they can hide the whole widget",
+      "logsUnavailable": "The Apty Client's logs could not be read: {{message}}",
+      "pageConsoleUnavailable": "The page's console could not be read: {{message}}",
+      "noPageConsole": "No web page is open in this tab, so its console was not read",
+      "noKnownMessage": "{{where}}: {{count}} line(s), no error and no message the KB cards name",
+      "errorsLogged": "{{where}}: {{count}} error(s), none a message the KB cards name",
+      "noActiveApplication": "{{where}}: no environment matches the page (“No active application found”)",
+      "fetchOrParseError": "{{where}}: a content file failed to load or failed its schema check",
+      "noMatchingVersion": "{{where}}: the injected loader found no environment for this URL",
+      "callsOk": "None of the Apty Client's {{count}} call(s) failed",
+      "contentCallsFailed": "The Apty Client's request for {{files}} failed",
+      "otherCallsFailed": "{{count}} other call(s) of the Apty Client failed",
+      "no404FromApty": "None of the Apty Client's calls returned 404: do the removal test before blaming Apty",
+      "apty404s": "{{count}} of the Apty Client's own calls returned 404",
+      "cspBlockedApty": "The page's CSP blocked {{count}} load(s) from Apty's hosts ({{directives}})",
+      "cspBlockedOther": "The page's CSP blocked {{count}} load(s), none from a host the Apty Client uses",
+      "aptyResourceFailed": "{{count}} resource(s) from Apty's hosts failed to load in the page"
     },
     "rule": {
       "CNV-02": {
@@ -1938,6 +1959,30 @@
       "WNV-07": {
         "summary": "The widget is limited to segments that can never be active here ({{segments}}), and the option for other users is off: nobody sees it.",
         "fix": "In Admin, under “TARGET AUDIENCE”, turn one of the widget's segments on or fix its rule, or enable the widget for all users. Publish and reload."
+      },
+      "LOG-01": {
+        "summary": "Apty found no environment whose URL pattern matches the page, so nothing loads there.",
+        "fix": "Ask “the widget is not appearing” in the tab of that page to see which pattern misses it, then add the page's host to the right environment in Admin and publish."
+      },
+      "LOG-02": {
+        "summary": "A content file failed to load or failed its schema check, and Apty then treats it as empty.",
+        "fix": "Read that file's status code next; if one entry is malformed, fix it in Admin and publish."
+      },
+      "LOG-03": {
+        "summary": "The injected loader found no environment for this URL: this is URL matching, not whitelisting.",
+        "fix": "Check the environments' URL patterns (ask “the widget is not appearing” here), and that the matching environment has a client version for Injected mode."
+      },
+      "LOG-04": {
+        "summary": "The page's Content Security Policy blocked {{count}} load(s) from Apty's hosts ({{directives}}).",
+        "fix": "Whitelist the Apty domains in the application's CSP. If the Console text mentions a nonce, the player needs a version with nonce support: contact support."
+      },
+      "LOG-05": {
+        "summary": "The Apty Client's request for {{files}} failed, so the content in it does not reach the player.",
+        "fix": "Fix the failing request first: a 401 or 403 points to access, a 404 to content not published to this environment, a net:: error to the network or a blocked domain."
+      },
+      "LOG-06": {
+        "summary": "{{count}} resource(s) from Apty's hosts failed to load in the page.",
+        "fix": "Ask the customer to whitelist the Apty CDN domains in their network or CSP policy, then reload."
       }
     },
     "ruleLabel": "Rule {{ruleId}}",
@@ -1957,13 +2002,17 @@
       "openItems": "Then look at the open checks below; the files cannot decide them.",
       "sendSupport": "Send support the Apty version, the environment, the sourceId, a screenshot of the open widget and the trimmed entry.",
       "openAppPage": "Open the application page where the widget is missing in this tab, then ask again.",
-      "comparePatterns": "Compare the URL patterns of the environments that match this page in Admin; make the one that should not win more specific."
+      "comparePatterns": "Compare the URL patterns of the environments that match this page in Admin; make the one that should not win more specific.",
+      "removalTest": "Disable or remove Apty and repeat the exact flow: if the same 404s still occur, they are not Apty's.",
+      "readConsoleText": "Read the exact CSP text in the Console: a nonce means a player version with nonce support, a plain block means whitelisting."
     },
     "notChecked": {
       "title": "Not checked from the files",
       "membership": "Whether this user matches a segment's rule",
       "runtime-rules": "The visibility, later and recurrence rules",
-      "widget-css": "Whether the page's CSS hides the widget container"
+      "widget-css": "Whether the page's CSS hides the widget container",
+      "extension-page-console": "What Apty logs in the page in Extension mode, which runs where the agent cannot read",
+      "cors": "CORS blocks, which the browser does not report to the page"
     },
     "blocker": {
       "hidden": "Hidden from the widget",

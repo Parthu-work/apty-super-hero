@@ -29,7 +29,11 @@ import {
 } from "lucide-react";
 
 const KB_PAGE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
-const PACKS = new Set(["content-not-visible", "widget-not-visible"]);
+const PACKS = new Set([
+  "content-not-visible",
+  "widget-not-visible",
+  "logs-and-errors",
+]);
 
 function isDiagnosisResult(value: unknown): value is DiagnosisResult {
   const candidate = value as Partial<DiagnosisResult> | null;
@@ -103,6 +107,30 @@ const CAUSE_TEXT: Partial<
   "WNV-07": {
     summary: "checkPack.rule.WNV-07.summary",
     fix: "checkPack.rule.WNV-07.fix",
+  },
+  "LOG-01": {
+    summary: "checkPack.rule.LOG-01.summary",
+    fix: "checkPack.rule.LOG-01.fix",
+  },
+  "LOG-02": {
+    summary: "checkPack.rule.LOG-02.summary",
+    fix: "checkPack.rule.LOG-02.fix",
+  },
+  "LOG-03": {
+    summary: "checkPack.rule.LOG-03.summary",
+    fix: "checkPack.rule.LOG-03.fix",
+  },
+  "LOG-04": {
+    summary: "checkPack.rule.LOG-04.summary",
+    fix: "checkPack.rule.LOG-04.fix",
+  },
+  "LOG-05": {
+    summary: "checkPack.rule.LOG-05.summary",
+    fix: "checkPack.rule.LOG-05.fix",
+  },
+  "LOG-06": {
+    summary: "checkPack.rule.LOG-06.summary",
+    fix: "checkPack.rule.LOG-06.fix",
   },
 };
 
@@ -235,15 +263,17 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
   const { verdict, subject, scan } = result;
   const kind = t(`checkPack.kind.${subject.kind}`);
   const title =
-    subject.kind === "widget"
-      ? t("checkPack.titleWidget")
-      : scan
-        ? t("checkPack.titleScan", { kind })
-        : subject.query
-          ? t("checkPack.titleItem", {
-              name: subject.name ?? subject.query,
-            })
-          : t("checkPack.titleGeneric");
+    subject.kind === "logs"
+      ? t("checkPack.titleLogs")
+      : subject.kind === "widget"
+        ? t("checkPack.titleWidget")
+        : scan
+          ? t("checkPack.titleScan", { kind })
+          : subject.query
+            ? t("checkPack.titleItem", {
+                name: subject.name ?? subject.query,
+              })
+            : t("checkPack.titleGeneric");
   const blockedRows = scan?.rows.filter((r) => r.blockers.length > 0) ?? [];
   const several = subject.matched.length > 1;
 

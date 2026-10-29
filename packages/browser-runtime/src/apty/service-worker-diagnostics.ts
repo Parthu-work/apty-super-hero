@@ -44,6 +44,7 @@ import {
 import { type AptyPeer, PEER_NAMES, peerFailureMessage } from "./peers.js";
 import type {
   AptyLog,
+  AptyLogRead,
   AptyObservedResource,
   AptyResourceBody,
   AptyResourceList,
@@ -306,6 +307,39 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
     }
 
     return [];
+  }
+
+  /** The peer's logs, or why they could not be read; `getLogs` answers [] for both. */
+  async readLogs(): Promise<AptyLogRead> {
+    if (!this.config.extensionId) {
+      return {
+        ok: false,
+        logs: [],
+        failure: "not_configured",
+        error: "No Apty Client extension ID is saved.",
+      };
+    }
+    const outcome = await sendWithRetryDetailed(this.config.extensionId, {
+      type: "apty-debug-agent:get-service-worker-logs",
+    });
+    if (!outcome.ok) {
+      return {
+        ok: false,
+        logs: [],
+        failure: outcome.failure,
+        error: peerFailureMessage(this.peer, outcome.failure),
+      };
+    }
+    const result = validate(logsResponseSchema, outcome.response);
+    if (!result.ok) {
+      return {
+        ok: false,
+        logs: [],
+        failure: "malformed_response",
+        error: `The ${PEER_NAMES[this.peer].full} answered the logs request with an unexpected shape (${result.reason}).`,
+      };
+    }
+    return { ok: true, logs: redactLogEntries(result.value.logs ?? []) };
   }
 
   async listResources(): Promise<AptyResourceList> {

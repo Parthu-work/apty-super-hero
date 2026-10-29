@@ -139,6 +139,17 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   agrees with the earlier count (12 of 15 workflows hidden). Tested
   against the e2e fake Client in Chromium; not yet on a real tenant with
   a known failing case.
+- Logs check (partial): a message that quotes a Console text the KB cards
+  name, or asks about CSP, CORS, Apty's 404s or the errors in the logs, is
+  answered with no model call from the Client's service-worker logs, its
+  own calls and the console the page-world bridge buffered in the tab:
+  "No active application found", "Error fetching data" or "Error parsing
+  response", "[Apty] No matching version found", a failed content request,
+  a CSP block or a failed load from a host the Client uses, and whether any
+  of the Client's calls returned 404. Each source it cannot read is named.
+  It cannot see what Apty logs in the page in Extension mode or CORS
+  blocks, and says so. Tested against the e2e fake Client and a page that
+  logs one of those texts, in Chromium.
 - A bare file request ("get segments.json") is answered the same way,
   through the `inspect_extension_network` tool and the full-response
   viewer with no model request; a follow-up pages that evidence through the

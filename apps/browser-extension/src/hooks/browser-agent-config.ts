@@ -26,6 +26,7 @@ import {
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
 import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-store";
+import { tabConsoleOf } from "@apty/browser-runtime/tools/apty";
 import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo } from "react";
 import {
@@ -151,10 +152,13 @@ export function useOutboundFilters(): OutboundFilter[] {
   return useMemo(createOutboundFilters, []);
 }
 
-/** Answers a recognised visibility question or a bare request for one of the Apty Client's files, with no model call. Stable across renders. */
+/** Answers a recognised visibility or logs question, or a bare request for one of the Apty Client's files, with no model call. Stable across renders. */
 export function useLocalResponder(): LocalResponder {
   return useMemo(() => {
-    const responders = [createDiagnosisResponder(), createFileFetchResponder()];
+    const responders = [
+      createDiagnosisResponder(undefined, undefined, tabConsoleOf),
+      createFileFetchResponder(),
+    ];
     return async (input, context) => {
       for (const respond of responders) {
         const answer = await respond(input, context);

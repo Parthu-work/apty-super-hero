@@ -14,23 +14,24 @@ import {
 } from "../apty/diagnosis/responder.js";
 import { type ContentKind, KINDS } from "../apty/diagnosis/types.js";
 import { recordToolCall } from "../apty/index.js";
+import { tabConsoleOf } from "./apty.js";
 import type { ToolRunContext } from "./tab-utils";
 
-const KIND_NAMES: [ContentKind | "widget", ...ContentKind[]] = [
-  "widget",
-  ...(Object.keys(KINDS) as ContentKind[]),
-];
+const KIND_NAMES: [
+  ContentKind | "widget" | "logs",
+  ...Array<ContentKind | "logs">,
+] = ["widget", "logs", ...(Object.keys(KINDS) as ContentKind[])];
 
 /** @internal */
 export const runDiagnosisTool = tool({
   name: "run_diagnosis",
   description:
-    "Find why Apty content, or the widget itself (kind 'widget'), is not visible, from the Apty Client's own files: whether it is published in this environment, hidden from the widget, nameless or unnamed in the user's language, in a segment that cannot match, outside the widget's audience, or on a page no environment's URL pattern covers. Deterministic and read-only; each finding cites its KB card. Without a name it lists every item of the kind with the blockers the files show. Call this before other diagnostics for a 'not visible' question.",
+    "Find why Apty content, or the widget itself (kind 'widget'), is not visible, or read the errors in the Apty Client's logs and calls and the page's console (kind 'logs'), from the Apty Client's own files: whether it is published in this environment, hidden from the widget, nameless or unnamed in the user's language, in a segment that cannot match, outside the widget's audience, or on a page no environment's URL pattern covers. Deterministic and read-only; each finding cites its KB card. Without a name it lists every item of the kind with the blockers the files show. Call this before other diagnostics for a 'not visible' question.",
   parameters: z.object({
     kind: z
       .enum(KIND_NAMES)
       .describe(
-        "The kind of content that is missing, or 'widget' for the widget itself.",
+        "The kind of content that is missing, 'widget' for the widget itself, or 'logs' for the errors in the logs and the page's console.",
       ),
     name: z
       .string()
@@ -51,14 +52,19 @@ export const runDiagnosisTool = tool({
     return runPack(
       kind === "widget"
         ? { packId: "widget-not-visible" }
-        : {
-            packId: "content-not-visible",
-            kind,
-            ...(name ? { query: name } : {}),
-            ...(language ? { language } : {}),
-          },
+        : kind === "logs"
+          ? { packId: "logs-and-errors" }
+          : {
+              packId: "content-not-visible",
+              kind,
+              ...(name ? { query: name } : {}),
+              ...(language ? { language } : {}),
+            },
       config.clientExtensionId,
-      () => tabUrlOf(runContext),
+      {
+        pageUrl: () => tabUrlOf(runContext),
+        pageConsole: () => tabConsoleOf(runContext),
+      },
     );
   },
 });

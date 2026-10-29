@@ -3,8 +3,15 @@ import { getAptyIntegrationConfig } from "../config.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import { languageName } from "./languages.js";
 import { loadClientEvidence } from "./loader.js";
+import { loadLogEvidence } from "./log-loader.js";
+import { diagnoseLogsAndErrors } from "./logs-and-errors.js";
 import { type Route, routeSymptom } from "./router.js";
-import type { DiagnosisResult, NextCheck, NotChecked } from "./types.js";
+import type {
+  DiagnosisResult,
+  LogEvidence,
+  NextCheck,
+  NotChecked,
+} from "./types.js";
 import {
   diagnoseWidgetNotVisible,
   WIDGET_FILES,
@@ -36,6 +43,10 @@ const NEXT_CHECK_TEXT: Record<NextCheck, string> = {
     "Open the application page where the widget is missing in this tab, then ask again.",
   comparePatterns:
     "Compare the URL patterns of the environments that match this page in Admin; make the one that should not win more specific.",
+  removalTest:
+    "Disable or remove Apty and repeat the exact flow: if the same 404s still occur, they are not Apty's.",
+  readConsoleText:
+    "Read the exact CSP text in the Console: a nonce means a player version with nonce support, a plain block means whitelisting.",
   openItems: "Then check the open items, which the files cannot decide.",
   sendSupport:
     "Send support the Apty version, the environment name, the sourceId, a screenshot of the open widget and the trimmed entry with its request URL and status.",
@@ -45,11 +56,15 @@ const NOT_CHECKED_TEXT: Record<NotChecked, string> = {
   membership: "whether this user matches a segment's rule",
   "runtime-rules": "the visibility, later and recurrence rules",
   "widget-css": "whether the page's CSS hides the widget container",
+  "extension-page-console":
+    "what Apty logs in the page in Extension mode, which runs where the agent cannot read",
+  cors: "CORS blocks, which the browser does not report to the page",
 };
 
 function subjectLine(result: DiagnosisResult): string {
   const { subject } = result;
   if (subject.kind === "widget") return "Widget visibility check";
+  if (subject.kind === "logs") return "Logs and errors check";
   const language = subject.language
     ? ` for ${languageName(subject.language)} users`
     : "";
@@ -99,12 +114,22 @@ export async function tabUrlOf(
   }
 }
 
-/** Runs the routed pack on the Client's files. */
+/** Where the packs read the user's page: its URL, and its console. */
+export interface PageSources {
+  pageUrl: () => Promise<string | undefined>;
+  pageConsole: () => Promise<LogEvidence["page"]>;
+}
+
+/** Runs the routed pack on the Client's files, logs and calls, and the page. */
 export async function runPack(
   route: Route,
   clientExtensionId: string | undefined,
-  pageUrl: () => Promise<string | undefined>,
+  { pageUrl, pageConsole }: PageSources,
 ): Promise<DiagnosisResult> {
+  if (route.packId === "logs-and-errors") {
+    const evidence = await loadLogEvidence(clientExtensionId, pageConsole);
+    return diagnoseLogsAndErrors(evidence, route.about404);
+  }
   if (route.packId === "widget-not-visible") {
     const evidence = await loadClientEvidence(clientExtensionId, WIDGET_FILES);
     return diagnoseWidgetNotVisible(evidence, await pageUrl());
@@ -123,6 +148,9 @@ export async function runPack(
 
 function paramsOf(route: Route) {
   if (route.packId === "widget-not-visible") return { kind: "widget" };
+  if (route.packId === "logs-and-errors") {
+    return { kind: "logs", ...(route.about404 ? { about404: true } : {}) };
+  }
   return {
     kind: route.kind,
     ...(route.query ? { name: route.query } : {}),
@@ -139,13 +167,17 @@ export function createDiagnosisResponder(
   clientExtensionId: () => Promise<string | undefined> = async () =>
     (await getAptyIntegrationConfig()).clientExtensionId,
   pageUrlOf: (runContext: unknown) => Promise<string | undefined> = tabUrlOf,
+  pageConsoleOf: (
+    runContext: unknown,
+  ) => Promise<LogEvidence["page"]> = async () => undefined,
 ): LocalResponder {
   return async (input, { runContext }) => {
     const route = routeSymptom(input);
     if (!route) return undefined;
-    const result = await runPack(route, await clientExtensionId(), () =>
-      pageUrlOf(runContext),
-    );
+    const result = await runPack(route, await clientExtensionId(), {
+      pageUrl: () => pageUrlOf(runContext),
+      pageConsole: () => pageConsoleOf(runContext),
+    });
     return {
       toolName: RUN_DIAGNOSIS,
       params: paramsOf(route),

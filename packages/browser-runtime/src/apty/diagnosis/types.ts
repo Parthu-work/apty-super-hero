@@ -111,7 +111,15 @@ export type RuleId =
   | "WNV-04"
   | "WNV-05"
   | "WNV-06"
-  | "WNV-07";
+  | "WNV-07"
+  | "LOG-00"
+  | "LOG-01"
+  | "LOG-02"
+  | "LOG-03"
+  | "LOG-04"
+  | "LOG-05"
+  | "LOG-06"
+  | "LOG-07";
 
 export type GateId =
   | "data"
@@ -126,7 +134,10 @@ export type GateId =
   | "language"
   | "page"
   | "environment-match"
-  | "restriction";
+  | "restriction"
+  | "client-logs"
+  | "client-calls"
+  | "page-console";
 
 export type GateStatus = "pass" | "fail" | "unknown" | "info";
 
@@ -176,7 +187,23 @@ export type GateReason =
   | "widgetOtherUsers"
   | "widgetNoActiveSegment"
   | "widgetSegmentsMissing"
-  | "restrictionPatterns";
+  | "restrictionPatterns"
+  | "logsUnavailable"
+  | "pageConsoleUnavailable"
+  | "noPageConsole"
+  | "noKnownMessage"
+  | "noActiveApplication"
+  | "fetchOrParseError"
+  | "noMatchingVersion"
+  | "errorsLogged"
+  | "callsOk"
+  | "contentCallsFailed"
+  | "otherCallsFailed"
+  | "no404FromApty"
+  | "apty404s"
+  | "cspBlockedApty"
+  | "cspBlockedOther"
+  | "aptyResourceFailed";
 
 export type NextCheck =
   | "fixConnection"
@@ -193,12 +220,50 @@ export type NextCheck =
   | "testAsMember"
   | "openAppPage"
   | "comparePatterns"
+  | "removalTest"
+  | "readConsoleText"
   | "openItems"
   | "sendSupport";
 
-export type NotChecked = "membership" | "runtime-rules" | "widget-css";
+export type NotChecked =
+  | "membership"
+  | "runtime-rules"
+  | "widget-css"
+  | "extension-page-console"
+  | "cors";
 
-export type PackId = "content-not-visible" | "widget-not-visible";
+export type PackId =
+  | "content-not-visible"
+  | "widget-not-visible"
+  | "logs-and-errors";
+
+/** One console or log line, already redacted. */
+export interface LogLine {
+  level: string;
+  message: string;
+  /** For page lines, what the bridge saw: console, csp-violation, resource-error. */
+  source?: string;
+}
+
+/** What the logs pack reads: the Client's logs and calls, and the page's console. */
+export interface LogEvidence {
+  connection: ClientEvidence["connection"];
+  clientLogs:
+    | { ok: true; lines: LogLine[] }
+    | { ok: false; failure: string; message: string };
+  /** The Client's calls by file name, with no URL: only the host is kept, to tell its own from others. */
+  calls: Array<{
+    name: string;
+    host: string;
+    status?: number;
+    failed?: boolean;
+    errorText?: string;
+  }>;
+  /** Undefined when no web page is open in the conversation's tab. */
+  page?:
+    | { ok: true; lines: LogLine[]; framesRead: number; framesDisabled: number }
+    | { ok: false; code: string; message: string };
+}
 
 export type Params = Record<string, string | number>;
 
@@ -251,7 +316,7 @@ export interface DiagnosisResult {
   verifiedOn: string;
   /** `name` is the item's own name when the query resolved to exactly one. */
   subject: {
-    kind: ContentKind | "widget";
+    kind: ContentKind | "widget" | "logs";
     query?: string;
     /** The language the message named, as a code ("fr"), for the language gate. */
     language?: string;

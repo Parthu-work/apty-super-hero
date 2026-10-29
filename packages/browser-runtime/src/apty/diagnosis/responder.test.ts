@@ -111,6 +111,34 @@ describe("createDiagnosisResponder", () => {
     expect(JSON.stringify(answer)).not.toContain("intranet.other.example");
   });
 
+  it("answers a logs question from the Client and the page console of the conversation's tab", async () => {
+    const pageConsoleOf = vi.fn(async () => ({
+      ok: true as const,
+      lines: [{ level: "debug", message: "No active application found" }],
+      framesRead: 1,
+      framesDisabled: 0,
+    }));
+    const respond = createDiagnosisResponder(
+      undefined,
+      undefined,
+      pageConsoleOf,
+    );
+
+    const answer = await respond("any errors in the console?", {
+      runContext: { conversationId: "s-3", tabId: 6 },
+    });
+
+    expect(pageConsoleOf).toHaveBeenCalledWith({
+      conversationId: "s-3",
+      tabId: 6,
+    });
+    expect(answer?.params).toEqual({ kind: "logs" });
+    const result = answer?.result as DiagnosisResult;
+    expect(result.packId).toBe("logs-and-errors");
+    expect(result.verdict.causes[0]?.ruleId).toBe("LOG-01");
+    expect(answer?.transcript).toMatch(/^Logs and errors check from/);
+  });
+
   it("passes the language the message named to the check", async () => {
     const answer = await createDiagnosisResponder()(
       "the Create a lead workflow is not showing for French users",

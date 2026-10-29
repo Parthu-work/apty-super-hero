@@ -56,11 +56,23 @@ before(async () => {
   site = await startPageServer({
     "/app.html": "<title>CRM</title><h1>Leads</h1>",
     "/other.html": "<title>CRM</title><h1>Accounts</h1>",
+    "/app-logs.html":
+      '<title>CRM</title><h1>Leads</h1><script>console.debug("[Apty] No matching version found for the current URL: x")</script>',
   });
-  writeContentClient(clientDir, AGENT_EXTENSION_ID, {
-    ...files,
-    "app-urls.json": appUrlsFor(site.origin),
-  });
+  writeContentClient(
+    clientDir,
+    AGENT_EXTENSION_ID,
+    { ...files, "app-urls.json": appUrlsFor(site.origin) },
+    {
+      logs: [
+        {
+          level: "debug",
+          message: "Error registering IoC: No active application found",
+          timestamp: 1,
+        },
+      ],
+    },
+  );
   browser = await launchBrowser({ extraExtensions: [clientDir] });
 });
 
@@ -272,6 +284,34 @@ describe("visibility check, end to end", () => {
       })
       .waitFor();
     assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+  it("reads the Client's logs and the page's own console for a logs question, with no model request", async () => {
+    await connectClient();
+    const { app, panel } = await panelOnApp("/app-logs.html");
+    const before = model.requests.length;
+
+    await sendChat(panel, "any errors in the console?");
+
+    const card = panel.getByRole("region", { name: "Errors and logs" });
+    await card.waitFor({ timeout: 30_000 });
+    await card.getByText("Cause found").waitFor();
+    await card
+      .getByText('Apty Client logs: "Error registering IoC" (1×)')
+      .waitFor();
+    await card
+      .getByText(
+        'page console: "No matching version found for the current URL" (1×)',
+      )
+      .waitFor();
+    await card
+      .getByRole("link", { name: /KB card 1496678479/ })
+      .first()
+      .waitFor();
+    assert.equal(model.requests.length, before, "the model was not asked");
+    const violations = await runAxe(panel);
+    assert.deepEqual(violations, [], describeViolations(violations));
     await panel.close();
     await app.close();
   });

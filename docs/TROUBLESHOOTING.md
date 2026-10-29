@@ -102,6 +102,20 @@ widget" is checked from these same calls, with no AI model involved.
 | "No web page is open in this tab" | The widget check matches the page in the conversation's tab | Open the application page there, then ask again. |
 | Preflight: "The body deny list entry … hides …" | A deny-list entry, often a bare host, covers the Client's content files | Remove it in Settings → Data handling, or narrow it to the paths you mean. |
 
+A message that quotes a Console text the KB cards name ("No active
+application found", "Error parsing response", "No matching version
+found…"), or asks about CSP, CORS, Apty's 404s or the errors in the logs,
+runs the logs check instead. It reads the Client's service-worker logs, the
+Client's own calls and the console the page-world bridge buffered in this
+tab, and names each one it could not read:
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "The Apty Client's logs could not be read" | The Client answers the network messages but not `apty-debug-agent:get-service-worker-logs` | The Widget team adds the logs handler from the reference ([`docs/integrations/apty`](integrations/apty/README.md)). |
+| "No web page is open in this tab, so its console was not read" | The check reads the console of the conversation's tab | Open the application page there, then ask again. |
+| "The page's CSP blocked … none from a host the Apty Client uses" | A CSP block that the agent cannot attribute to Apty | Read the Console text: a nonce means a player version with nonce support, a plain block means whitelisting. |
+| A CORS problem the check does not show | The browser does not report CORS blocks to the page | Read the Console and the Network tab yourself; the card lists this under "Not checked". |
+
 A message that names no content kind but says the widget is missing, works
 in one environment only, or works on some pages only runs the widget check
 instead. A message that names a language ("…for French users") also checks

@@ -107,6 +107,46 @@ describe("routeSymptom", () => {
     ).not.toHaveProperty("language");
   });
 
+  const logs: Array<[string, boolean]> = [
+    ["the console says No active application found", false],
+    ["I see Error registering IoC in the logs", false],
+    ["is a CSP rule blocking Apty?", false],
+    ["the widget fails with a CORS error", false],
+    [
+      "my workflow doesn't load and the console shows Error parsing response",
+      false,
+    ],
+    ["check the apty client logs", false],
+    ["any errors in the console?", false],
+    ["show me the failed requests", false],
+    ["is Apty causing the 404 errors in our app?", true],
+    ["we get 404s since Apty was installed", true],
+  ];
+  for (const [message, about404] of logs) {
+    it(`routes "${message}" to the logs check`, () => {
+      expect(routeSymptom(message)).toEqual({
+        packId: "logs-and-errors",
+        ...(about404 ? { about404 } : {}),
+      });
+    });
+  }
+
+  it("keeps a content or widget question ahead of a passing mention of errors", () => {
+    expect(
+      routeSymptom("my workflow is not visible in the widget")?.packId,
+    ).toBe("content-not-visible");
+    expect(routeSymptom("the widget is not showing")?.packId).toBe(
+      "widget-not-visible",
+    );
+    for (const message of [
+      "how do I read the service worker logs?",
+      "run a console command and check the network request",
+      "what is a CSP?",
+    ]) {
+      expect(routeSymptom(message)).toBeUndefined();
+    }
+  });
+
   it("does not read an apostrophe as the start of a name", () => {
     expect(
       routeSymptom("the user's workflow isn't showing in the widget")?.query,

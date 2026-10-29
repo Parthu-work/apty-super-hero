@@ -3,6 +3,7 @@ import {
   capture,
   evidenceFrom,
 } from "@apty/browser-runtime/apty/diagnosis/diagnosis-test-utils";
+import { diagnoseLogsAndErrors } from "@apty/browser-runtime/apty/diagnosis/logs-and-errors";
 import type { ClientEvidence } from "@apty/browser-runtime/apty/diagnosis/types";
 import { diagnoseWidgetNotVisible } from "@apty/browser-runtime/apty/diagnosis/widget-not-visible";
 import { I18nProvider } from "@apty/ui/i18n/context";
@@ -243,6 +244,67 @@ describe("CheckResultCard", () => {
         "“Create a lead”没有法语（fr）名称，因此小组件不会向法语用户显示它。",
       ),
     ).toHaveLength(2);
+  });
+
+  const logsResult = () =>
+    diagnoseLogsAndErrors({
+      connection: { ok: true },
+      clientLogs: {
+        ok: true,
+        lines: [{ level: "debug", message: "No active application found" }],
+      },
+      calls: [
+        { name: "segment.json", host: "client.apty.example", status: 403 },
+      ],
+      page: undefined,
+    });
+
+  it("shows the logs check: each message the cards name, a failed content request, and what it could not read", () => {
+    render(<CheckResultCard tool={tool(logsResult())} />);
+
+    const card = screen.getByRole("region", { name: "Errors and logs" });
+    expect(within(card).getByText("Cause found")).toBeInTheDocument();
+    expect(
+      within(card).getAllByText(
+        "Apty found no environment whose URL pattern matches the page, so nothing loads there.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(card).getByText("segment.json: HTTP 403"),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "No web page is open in this tab, so its console was not read",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "CORS blocks, which the browser does not report to the page",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the logs check in Chinese", async () => {
+    const languageStorage = {
+      load: vi.fn().mockResolvedValue("zh"),
+      save: vi.fn(),
+      watch: vi.fn(() => () => {}),
+    };
+    render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <CheckResultCard tool={tool(logsResult())} />
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByRole("region", { name: "错误与日志" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "Apty Client 请求 segment.json 失败，因此其中的内容无法到达播放器。",
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("falls back to the default display for an output it does not recognise", () => {

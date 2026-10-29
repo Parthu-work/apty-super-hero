@@ -22,7 +22,7 @@ import type { ClientEvidence, LoadedFile } from "./types.js";
 
 const ENV_IN_PATH = /\/(env-[^/?#]+)\//;
 
-function connectionFailure(list: AptyResourceList): ClientEvidence {
+export function connectionFailure(list: AptyResourceList): ClientEvidence {
   const failure = list.failure ?? "no_response";
   const message =
     failure === "not_configured"

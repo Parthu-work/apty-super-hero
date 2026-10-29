@@ -3,7 +3,9 @@
  * `tool-relevance.ts` picks tool groups: a message that names a content kind
  * and says it is not visible is a content check; one that says the widget
  * itself is missing, or works in one environment or on some pages only, is a
- * widget check; a how-to question or anything else is left to the model.
+ * widget check; one that quotes a message the KB cards name, or asks about
+ * CSP, CORS, Apty's 404s or the errors in the logs, is a logs check; a
+ * how-to question or anything else is left to the model.
  */
 import { LANGUAGE_CODES } from "./languages.js";
 import type { ContentKind } from "./types.js";
@@ -17,7 +19,12 @@ export type Route =
       /** The language the message names, as a code ("fr"). */
       language?: string;
     }
-  | { packId: "widget-not-visible" };
+  | { packId: "widget-not-visible" }
+  | {
+      packId: "logs-and-errors";
+      /** The message suspects Apty of the application's 404s (JA 1496645781). */
+      about404?: boolean;
+    };
 
 const KIND_WORDS: Array<[ContentKind, RegExp]> = [
   ["workflow", /\b(work)?flows?\b/],
@@ -85,20 +92,34 @@ function languageOf(lower: string): string | undefined {
   return name ? LANGUAGE_CODES[name] : undefined;
 }
 
+const LOG_EVIDENCE =
+  /\b(?:no active (?:application|environment) found|error registering ioc|error fetching data|error parsing response|no matching version found|failed to load widget snippet|csp|content security policy|cors|nonce)\b/;
+const APTY_404 = /\b404s?\b[^.?!]*\bapty\b|\bapty\b[^.?!]*\b404s?\b/;
+const LOGS_GENERIC =
+  /\b(?:console|logs?|service worker)\b[^.?!]{0,30}\b(?:errors?|warnings?)\b|\b(?:errors?|warnings?)\b[^.?!]{0,20}\b(?:in|from) the (?:console|logs?|service worker)\b|\b(?:check|read|show) (?:me )?(?:the )?(?:apty )?(?:client )?(?:logs?|console)\b|\b(?:failed|failing) (?:requests?|calls?)\b|\bnetwork errors?\b/;
+
 /** The pack, kind and item a message asks about, or undefined to leave it to the model. */
 export function routeSymptom(message: string): Route | undefined {
   const lower = message.toLowerCase();
   if (HOW_TO.test(lower)) return undefined;
+  if (APTY_404.test(lower))
+    return { packId: "logs-and-errors", about404: true };
+  if (LOG_EVIDENCE.test(lower)) return { packId: "logs-and-errors" };
   const kind = KIND_WORDS.find(([, pattern]) => pattern.test(lower))?.[0];
   if (!kind) {
     const widgetMissing = WIDGET.test(lower) && NOT_VISIBLE.test(lower);
-    return widgetMissing ||
+    if (
+      widgetMissing ||
       ONE_ENVIRONMENT_ONLY.test(lower) ||
       SOME_PAGES_ONLY.test(lower)
-      ? { packId: "widget-not-visible" }
-      : undefined;
+    ) {
+      return { packId: "widget-not-visible" };
+    }
+    return LOGS_GENERIC.test(lower) ? { packId: "logs-and-errors" } : undefined;
   }
-  if (!NOT_VISIBLE.test(lower)) return undefined;
+  if (!NOT_VISIBLE.test(lower)) {
+    return LOGS_GENERIC.test(lower) ? { packId: "logs-and-errors" } : undefined;
+  }
   const query = itemName(message);
   const language = languageOf(lower);
   return {
