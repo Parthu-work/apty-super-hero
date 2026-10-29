@@ -23,6 +23,7 @@ const settings = vi.hoisted(() => ({
 };
 
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
+import { MAX_BODY_CHARS_ACCEPTED } from "../service-worker-diagnostics";
 import {
   capture,
   resourcesFor,
@@ -156,12 +157,7 @@ describe("loadClientEvidence", () => {
   });
 
   it("reports a body the Client did not keep, such as one over its size limit", async () => {
-    const big = JSON.stringify(
-      Array.from({ length: 2000 }, (_, i) => ({
-        name: `w${i}`,
-        pad: "x".repeat(100),
-      })),
-    );
+    const big = JSON.stringify([{ pad: "x".repeat(MAX_BODY_CHARS_ACCEPTED) }]);
     serve([{ name: "workflow.json", body: big }]);
 
     const evidence = await loadClientEvidence(EXT_ID, ["workflow.json"]);
