@@ -69,8 +69,8 @@ body the same way.
 | "The Client could not save its call history N times…" | The Client's `chrome.storage.session` write failed (usually its quota), so a Client reload may lose calls | Ask the Widget team to lower the body budget or check the quota. |
 | "Not fetched: its URL matches … in the body deny list" | Settings → Data handling's body deny list covers this URL | Remove that entry to read this body. |
 | "The body is N characters. Redaction takes at most 100,000 characters of text at once…" | The body is over 100,000 characters and could not be redacted value by value: it is not JSON, one value is over 100,000 characters, or text runs from one value into the next. It is withheld rather than shown partly redacted | Nothing to change in the Agent; ask the Client team whether the resource can be split or served smaller. |
-| "The Client observed this call but didn't provide its body." | The Client sent no reason (an older Client), or it keeps bodies per request (the latest success and the latest failure) and none over 200,000 characters | Reproduce the call and read it right away. |
-| "…over its size limit, so it did not keep it." | The Client read the body but it is over its 200,000-character limit | Nothing to change here; the Client doesn't serve it. |
+| "The Client observed this call but didn't provide its body." | The Client sent no reason (an older Client), or it keeps bodies per request (the latest success and the latest failure) and none over 1,000,000 characters | Reproduce the call and read it right away. |
+| "…over its size limit, so it did not keep it." | The Client read the body but it is over its 1,000,000-character limit | Nothing to change here; the Client doesn't serve it. |
 | "The Client no longer has this body: a newer call … or its memory limit, replaced it." | A newer call of the same request replaced it, or the Client's total body budget evicted it | Reproduce the call and read it right away. |
 | "The Client could not read this response's body." | The Client could not read the stream | Reproduce the call. |
 | "This call has no body." | The call failed before a response, or returned nothing | Nothing to read. |

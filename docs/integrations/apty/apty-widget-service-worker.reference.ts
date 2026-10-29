@@ -95,7 +95,7 @@
  *    resource, so a later success does not erase the error body and the
  *    other way round. All kept bodies together stay under
  *    MAX_KEPT_BODY_CHARS; over it, the oldest resources' successful bodies
- *    go first and failed bodies last. A response body over 200,000
+ *    go first and failed bodies last. A response body over 1,000,000
  *    characters (MAX_BODY_CHARS, the Agent's own limit) is not served; the
  *    Agent hears found: false, reason: "too-large". Non-text bodies are
  *    kept base64-encoded. The state is written once the calls pause for
@@ -293,7 +293,7 @@ const MAX_NETWORK_ENTRIES = 1000;
 const MAX_KEPT_BODY_CHARS = 2_000_000;
 // The Agent rejects a longer body, so a longer one is not kept at all
 // rather than cut into something that is no longer valid JSON.
-const MAX_BODY_CHARS = 200_000;
+const MAX_BODY_CHARS = 1_000_000;
 
 // Matches AptyObservedResource in packages/browser-runtime/src/apty/types.ts,
 // with the Agent's own bounds on each field.

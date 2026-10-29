@@ -78,7 +78,7 @@ and build tooling, not something to drop in unmodified.
    call and, separately, of the latest failed call (status 400 or more)
    of each resource, within a total of 2,000,000 characters
    (`MAX_KEPT_BODY_CHARS`; oldest resources' successful bodies go first,
-   failed bodies last). A response body over 200,000 characters is not
+   failed bodies last). A response body over 1,000,000 characters is not
    served; the Agent hears `found: false, reason: "too-large"`. The list
    answer says `hasBody` per call, and a body request that finds nothing
    says why in `reason` (`too-large`, `evicted`, `unreadable`, `none`);
@@ -89,7 +89,7 @@ and build tooling, not something to drop in unmodified.
    [`CLIENT-PATCH.md`](CLIENT-PATCH.md).
    `observedFetch` returns the Response as soon
    as `fetch` does: the body is read afterwards from a clone (reading
-   stops at 200,000 characters), recording errors never reach the
+   stops at 1,000,000 characters), recording errors never reach the
    Widget's code, a relative URL is recorded as `fetch` resolves it in
    the service worker, and the calls are written to storage once they
    pause rather than on every call.
