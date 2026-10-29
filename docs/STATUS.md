@@ -99,7 +99,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   shows empty); a Client list of up to 5,000 calls is read and the newest
   1,000 kept; an older body answer never replaces a newer one. The
   reference `observedFetch` returns the Widget's Response before reading
-  the body, and a response body over 200,000 characters is not served (the
+  the body, and a response body over 1,000,000 characters is not served (the
   Agent hears `found: false`); a contract test with a mocked `chrome` checks
   this, not the real Widget.
 

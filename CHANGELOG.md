@@ -6,6 +6,8 @@ full commit-level history.
 
 ## Unreleased
 
+- **A Client response body of up to 1,000,000 characters is served (was 200,000)**: the Client's `themes.json` (about 600,000 characters) was never kept, so the Agent could not read it (`too-large`). The Agent now accepts a body answer of up to 1,000,000 characters (`MAX_BODY_CHARS_ACCEPTED`) and the reference service worker keeps bodies up to the same size (`MAX_BODY_CHARS`); the two must change together. The 2,000,000-character total for all kept bodies and the redaction ceiling are unchanged. A Client still running the 200,000 limit keeps working, but still reports `too-large` for that file. The contract test covers a 700,000-character body kept, served and read through the panel.
+- **The Widget reference exports `handleNetworkMessage` for hosts that already have an `onMessageExternal` listener**: the reference registered its own listener, while `CLIENT-PATCH.md` said not to add a second one, so a host following the README ended up with two listeners answering one message. The two network verbs are now one exported function the host calls at the end of its own listener, after its sender check and status and logs branches; the reference's listener calls the same function. `CLIENT-PATCH.md` and the README say to leave the reference's listener out in that case, and the contract test covers the function on its own.
 - **DOM Health and DOM Config checked against Apty's own source**:
   both features now follow `lib-client-element-identification` and
   `lib-client-utilities` instead of a reconstruction of Studio build 63.

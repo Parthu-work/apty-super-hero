@@ -7,6 +7,7 @@
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  MAX_BODY_CHARS_ACCEPTED,
   resourceBodyResponseSchema,
   resourcesResponseSchema,
 } from "./service-worker-diagnostics";
@@ -74,6 +75,10 @@ type Reference = {
     init?: RequestInit,
   ) => Promise<Response>;
   DEBUG_AGENT_EXTENSION_IDS: readonly string[];
+  handleNetworkMessage: (
+    message: { type?: unknown; requestId?: unknown },
+    sendResponse: (response: unknown) => void,
+  ) => boolean;
 };
 
 const SEGMENTS = Array.from({ length: 206 }, (_, i) => ({
@@ -95,7 +100,7 @@ function serve(fullUrl: string): Response {
     });
   }
   if (url.endsWith("/huge.json")) {
-    return new Response(`"${"x".repeat(200_001)}"`, {
+    return new Response(`"${"x".repeat(MAX_BODY_CHARS_ACCEPTED + 1)}"`, {
       headers: { "content-type": "application/json" },
     });
   }
@@ -277,6 +282,71 @@ describe("the Widget reference service worker", () => {
     expect(await ask({ type: "something-else" })).toBe("no answer");
   });
 
+  it("serves the network verbs to a host's own listener through handleNetworkMessage, and leaves other messages to it", async () => {
+    const reference = await loadReference();
+    await reference.observedFetch("https://cdn.apty.example/segments.json");
+    await saved((state) => state.calls.length === 1 && answered(state));
+
+    const sendResponse = vi.fn();
+    expect(
+      reference.handleNetworkMessage(
+        { type: "apty-debug-agent:list-observed-resources" },
+        sendResponse,
+      ),
+    ).toBe(true);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledTimes(1));
+    expect(
+      resourcesResponseSchema.parse(sendResponse.mock.calls[0]?.[0]).resources,
+    ).toHaveLength(1);
+
+    for (const message of [
+      { type: "apty-debug-agent:get-service-worker-status" },
+      { type: "apty-debug-agent:get-resource-body" },
+    ]) {
+      expect(reference.handleNetworkMessage(message, vi.fn())).toBe(false);
+    }
+  });
+
+  it("keeps a JSON body of about 700,000 characters, as large as the Client's themes.json, and the panel reads it whole", async () => {
+    const themes = Array.from({ length: 6000 }, (_, i) => ({
+      id: i,
+      name: `theme-${i}`,
+      css: "x".repeat(80),
+    }));
+    const text = JSON.stringify(themes);
+    expect(text.length).toBeGreaterThan(600_000);
+    expect(text.length).toBeLessThan(MAX_BODY_CHARS_ACCEPTED);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(text, {
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    const reference = await loadReference();
+    await reference.observedFetch("https://cdn.apty.example/themes.json");
+    await saved(
+      (state) =>
+        state.calls.length === 1 &&
+        answered(state) &&
+        Object.keys(state.bodies).length === 1,
+    );
+
+    const [call] = resourcesResponseSchema.parse(await list()).resources;
+    expect(
+      resourceBodyResponseSchema.parse(await body(call!.requestId)).body,
+    ).toHaveLength(text.length);
+
+    const { readClientNetworkCallBody } = await import(
+      "./client-network-calls"
+    );
+    const read = await readClientNetworkCallBody(WIDGET_ID, call!.requestId);
+    expect(read).toMatchObject({ status: "ok", body: { isBinary: false } });
+    expect("body" in read && read.body?.fullLength).toBe(text.length);
+  });
+
   it("keeps at most 1000 calls, one body for one resource, in session storage only, across a restart", async () => {
     const reference = await loadReference();
     for (let i = 0; i < 1005; i++) {
@@ -407,12 +477,14 @@ describe("observedFetch never slows or changes the Widget's own fetch", () => {
     expect(await response.json()).toEqual({ partial: true });
   });
 
-  it("stops reading a body at 200,000 characters and does not keep the cut body", async () => {
+  it("stops reading a body at the Agent's limit and does not keep the cut body", async () => {
     const reference = await loadReference();
     const held = heldResponse();
     fetchReturns(held.response);
     const cancel = vi.spyOn(ReadableStreamDefaultReader.prototype, "cancel");
-    for (let i = 0; i < 5; i++) held.send("x".repeat(50_000));
+    for (let i = 0; i < 5; i++) {
+      held.send("x".repeat(MAX_BODY_CHARS_ACCEPTED / 4));
+    }
 
     const response = await reference.observedFetch(
       "https://cdn.apty.example/endless.json",
@@ -430,7 +502,9 @@ describe("observedFetch never slows or changes the Widget's own fetch", () => {
     // Only the clone was cancelled: the Widget still reads its whole body.
     expect(held.cancelled).not.toHaveBeenCalled();
     held.end();
-    expect(await response.text()).toHaveLength(250_000);
+    expect(await response.text()).toHaveLength(
+      (MAX_BODY_CHARS_ACCEPTED / 4) * 5,
+    );
   });
 
   it("records a relative URL as fetch resolves it in the service worker, and the panel masks it", async () => {
@@ -644,7 +718,7 @@ describe("bodies are kept per resource", () => {
   it("says why a body is missing: too-large, unreadable, evicted or none", async () => {
     const reference = await loadReference();
     serveInOrder(
-      new Response(`"${"x".repeat(200_001)}"`, {
+      new Response(`"${"x".repeat(MAX_BODY_CHARS_ACCEPTED + 1)}"`, {
         headers: { "content-type": "application/json" },
       }),
     );

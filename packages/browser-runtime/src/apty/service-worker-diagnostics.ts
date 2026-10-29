@@ -119,7 +119,13 @@ export const MAX_RESOURCES_KEPT = 1000;
 export const LIST_RESOURCES_MESSAGE =
   "apty-debug-agent:list-observed-resources";
 const RESOURCE_BODY_MESSAGE = "apty-debug-agent:get-resource-body";
-const MAX_BODY_CHARS_ACCEPTED = 200_000;
+/**
+ * Longest body answer accepted, in characters. Sized for the Client's largest
+ * content file (`themes.json`, about 600,000); the reference service worker's
+ * `MAX_BODY_CHARS` is the same number.
+ * @internal
+ */
+export const MAX_BODY_CHARS_ACCEPTED = 1_000_000;
 
 const observedResourceSchema = z.object({
   requestId: z.string().max(200),
