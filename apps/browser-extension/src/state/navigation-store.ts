@@ -11,6 +11,7 @@ type SubView =
   | "settings"
   | "setup"
   | "rules"
+  | "partial"
   | "proposed"
   | "pages"
   | "iframes"

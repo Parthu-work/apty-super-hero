@@ -160,6 +160,16 @@ export function SettingsView({ report }: { report: DomConfigReport }) {
               order: priority.defaultPriority.join(","),
             })}
           </p>
+          <ul className="space-y-0.5 text-xs text-muted-foreground">
+            {priority.typePresets.map((preset) => (
+              <li key={preset.type}>
+                {t("domConfig.settings.typePreset", {
+                  type: preset.type,
+                  order: preset.priority.join(","),
+                })}
+              </li>
+            ))}
+          </ul>
           <ul className="space-y-0.5 text-xs text-foreground">
             {priority.diff.map((entry) => (
               <li key={entry.name}>
@@ -189,7 +199,27 @@ export function SettingsView({ report }: { report: DomConfigReport }) {
           value={values.ignoreEvents}
           basis={report.ignoreEvents.basis}
           reason={report.ignoreEvents.reason}
-        />
+        >
+          <ul className="space-y-0.5 text-xs text-foreground">
+            {report.ignoreEvents.rules.map((rule) => (
+              <li key={rule.id}>
+                <Wrapped>{rule.reason}</Wrapped>
+              </li>
+            ))}
+          </ul>
+          {report.ignoreEvents.notProposed.length > 0 && (
+            <ul className="space-y-0.5 text-xs text-muted-foreground">
+              {report.ignoreEvents.notProposed.map((entry) => (
+                <li key={`${entry.tag}-${entry.reason}`}>
+                  {t("domConfig.settings.notProposed", {
+                    tag: entry.tag,
+                    reason: entry.reason,
+                  })}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Row>
         <Row
           label={t("domConfig.tiles.shadowDom")}
           value={values.shadowDom}

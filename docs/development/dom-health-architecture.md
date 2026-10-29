@@ -601,33 +601,43 @@ against other real application states must not be diluted back up to
 "excellent" just because everything else about it — hit testing, DOM
 volatility, accessible names — happens to be clean.
 
-## Cross-STATE selector-stability validation (real DES replay, never a re-query)
+## Cross-STATE selector-stability validation (the player's lookup, never a regeneration)
 
-`health-collector.ts`'s stability tracking stores, per logical
-(fingerprint-correlated) element, the real Apty-style `ElementPath`
-captured for it at the previous state (`RegistryEntry.path`) — not a
-selector string. On the next state, `health-selector-engine.ts`'s
-`verifyStoredElementPath` REPLAYS that exact stored path through the
-unmodified, real DES `findElement` recovery pipeline (`checkInitialPath`
-then the four real relaxation strategies) against the new live DOM, then
-verifies the result's logical fingerprint matches what was originally
-captured. This is deliberately never "regenerate a fresh selector at the
-new state and compare it to the old one" — two independently-generated
-selectors can differ for reasons that have nothing to do with whether the
-original element is still findable; replaying the same stored path is the
-only way to answer "is Apty's own selection actually reliable across the
-states a user really moves through."
+The collector keeps, for each logical (fingerprint-correlated) element,
+the selection Apty Studio would have stored at the previous state
+(`RegistryEntry.selection`): the CSS selector its picker generates
+(`captureSelector`, Apty's `match` + `optimize`) and one selector per
+shadow host.
 
-The resulting `StabilityVerdict` is intentionally more granular than a
-binary stable/broken: `DIRECT_STABLE` (resolved via `checkInitialPath`
-alone), `RECOVERED_STABLE` (needed a real attribute-level relaxation
-strategy), `POSITIONAL_STABLE` (only the last-resort, most
-position-dependent relaxation strategy found it — never treated as
-equivalent to an attribute-anchored match), `WRONG_TARGET` (resolved to
-some element, but not the right one — always a failure, never folded into
-"stable"), `NOT_RESOLVED`, `DETACHED`, `AMBIGUOUS`, `INACCESSIBLE`, plus
-the pre-existing `NEW`/`UNKNOWN` for elements with no prior-state evidence
-yet.
+On the next state, `verifyStoredSelection` replays that selection the way
+the Apty 5.x player looks it up:
+
+1. Open each shadow host with its selector's first match.
+2. Query the element's selector.
+3. Take the first rendered match, else the first.
+
+It then checks that the element found carries the logical fingerprint
+captured with the selection.
+
+The check never regenerates a selector at the new state to compare it
+with the old one. It also does not run DES path recovery: the 5.x player
+keeps that fallback off (see `des-engine.md`).
+
+The resulting `StabilityVerdict`:
+
+| Verdict | When |
+| --- | --- |
+| `DIRECT_STABLE` | The right element was found, with no condition below |
+| `RECOVERED_STABLE` | The selector matched several elements, and only Apty's rendered preference picked the right one |
+| `POSITIONAL_STABLE` | The selector depends on position, so a reorder breaks it |
+| `WRONG_TARGET` | Another element was found; always a failure |
+| `NOT_RESOLVED` | Nothing was found |
+| `HOST_NOT_RESOLVED` | A shadow host has no open root; folded into `NOT_RESOLVED` in the counts |
+| `AMBIGUOUS` | The right element came first among several rendered matches |
+| `NEW`, `UNKNOWN` | There is no evidence from an earlier state yet |
+
+Samples stored as `ElementRef` version 1, before selections were
+recorded, are still replayed through their DES paths.
 
 ### Shadow DOM: `ElementRef` (`element-ref.ts`)
 

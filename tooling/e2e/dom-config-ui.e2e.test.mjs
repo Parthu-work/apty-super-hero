@@ -39,7 +39,7 @@ const SETTINGS = [
 ];
 
 function includeLabel(conditions) {
-  return `Include the rule ${conditions.join(" AND ")}`;
+  return `Include the rule ${conditions.join(" OR ")}`;
 }
 
 const MANUAL = "Reports menu, opened by hand";
@@ -65,18 +65,20 @@ async function exportMarkdown(panel) {
 }
 
 const CONDITION =
-  /^(Attribute Name|Attribute Value) (Equals|Not equals|Contains|Does not contain|In|Not in|Regex) (.*)$/;
+  /^(Attribute Name|Attribute Value (\S+)) (Equals|Not equals|Contains|Does not contain|In|Not in|Regex) (.*)$/;
 
 /** The rule's conditions as the Markdown export writes them. */
 function markdownConditions(label) {
   return label
     .replace(/^Include the rule /, "")
-    .split(" AND ")
+    .split(" OR ")
     .map((condition) => {
-      const [, category, operator, value] = CONDITION.exec(condition);
-      return `${category} · ${operator} · \`${value}\``;
+      const [, mode, attribute, operator, value] = CONDITION.exec(condition);
+      const category = attribute ? "Attribute Value" : mode;
+      const named = attribute ? ` · \`${attribute}\`` : "";
+      return `${category}${named} · ${operator} · \`${value}\``;
     })
-    .join(" AND ");
+    .join(" OR ");
 }
 
 describe("DOM Config page in the side panel", () => {
@@ -113,16 +115,10 @@ describe("DOM Config page in the side panel", () => {
 
     await openRow(panel, "Ignore conditions");
     const uiId = panel.getByRole("checkbox", {
-      name: includeLabel([
-        "Attribute Name Equals id",
-        "Attribute Value Regex ^ui-id-\\d+$",
-      ]),
+      name: includeLabel(["Attribute Value id Regex ^ui-id-\\d+$"]),
     });
     const nocache = panel.getByRole("checkbox", {
-      name: includeLabel([
-        "Attribute Name Equals href",
-        "Attribute Value Contains nocache",
-      ]),
+      name: includeLabel(["Attribute Value href Contains nocache"]),
     });
     assert.equal(await uiId.isChecked(), true);
     assert.equal(await nocache.isChecked(), true);

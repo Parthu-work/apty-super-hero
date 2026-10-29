@@ -1,394 +1,277 @@
-# Apty Dynamic Element Selection (DES) engine
+# Apty element selection, DES and hit testing in DOM Health
 
-This documents `packages/dom-snapshot/src/des-engine.ts` — the single,
-authoritative algorithm behind DOM Health's "automatic selection accuracy"
-metric.
+DOM Health scores how reliably Apty can find and use the elements of an
+application. To do that it runs Apty's own algorithms, ported from the
+Apty DAP source (`lib-client-element-identification`,
+`lib-client-utilities`). An earlier version reconstructed them from the
+minified Studio build 63. Every behavior below has now been checked
+against the source, and the port follows the source where the two
+disagreed.
 
-## This is a reverse-engineered reconstruction, not an invention
+| What | Apty source | Port |
+| --- | --- | --- |
+| Selector generation (capture) | `selector.ts`, `match.ts`, `optimize.ts`, `pattern.ts`, `css.ts` | `apty-selector.ts` `captureSelector` |
+| Lookup (playback) | `element-identification.ts` `getIdentifiedElement`, `containers.ts` `selectElementRoot` | `apty-selector.ts` `playSelection` |
+| Ignore / Partial / Priority defaults | `options.ts`, `pattern.ts` | `health-attribute-classification.ts` |
+| Dynamic Element Selection (DES) | `path.ts`, `find.ts`, `strategies.ts`, `diff.ts` | `des-engine.ts` |
+| Hit test | `element-visibility.service.ts` | `health-hit-testing.ts` |
 
-An earlier session built a from-scratch DES engine (Jaccard similarity
-across 6 weighted axes, 5 named strategies, a 70-point threshold with a
-5-point ambiguity gap, flat `{attribute: string}` Ignore/Partial rule
-lists, a `data-testid`-first default attribute priority) without access to
-any real Apty source. That engine was internally consistent and
-well-tested, but a side-by-side comparison against the real Apty Studio
-extension (`studio-extension_63`'s `workflowPreview.js`/`main.bundle.js`
-webpack bundles — property and function names are unmangled there, not
-invented here) showed it diverged from the real product in nearly every
-load-bearing detail. This file replaces it with a faithful reconstruction
-of the real algorithm, recovered by reading the actual shipped bundle.
-Every constant, function name, and behavior below is cited to the real
-module it came from; anywhere the real bundle's exact per-branch behavior
-could not be recovered with confidence, that is stated explicitly rather
-than guessed at.
+## What the Apty 5.x player actually does
 
-**What is confirmed, byte-level-faithful:** attribute/class capture and
-classification (`initAttributes`/`addAttribute`, module 65913), the
-default Ignore heuristic and default Attribute Priority (`defaultIgnore`/
-`initOptions`, module 92317), selector string generation
-(`patternToSelector`/`pathToSelector`, module 5757), the runtime recovery
-search (`find()`/`checkInitialPath`/`strategies`, modules 15906/81948),
-and the scoring model (`diffScore`/`patternDiffScore`/`arrayDiffScore`,
-module 17851).
+Studio stores, per step, the CSS selector its picker generated
+(`pickedSelector`), one selector per shadow host above the element
+(`shadowRootSelectors`) and one per frame level (`iframesPath`). The
+player queries the stored selector and takes **the first rendered match,
+else the first match**. It does not search for the element again.
 
-**What is an honestly-labeled best-effort reconstruction, not a byte-exact
-port:** the minimal-selector-generation algorithm's exact per-level trim
-ordering (real `match()`/`optimize()`, modules 39842/59772) — the real
-code has a live 1-second-per-step timing budget and a dual attribute/
-text-content-first-node special case whose exact interaction could not be
-fully disambiguated from the minified bundle alone. `generateMinimalSelector`
-in this file preserves the documented *intent* (grow attributes in
-priority order until the selector-so-far is live-unique; fall back to a
-bare tag match, then to `nth-child`; climb one ancestor level and repeat)
-without claiming to reproduce every real quirk.
+DES, the scored path matching in `find.ts`, is a fallback the player
+keeps off. The application mapper hard-codes
+`useDynamicElementSelectionAsFallback: false`, and 5.x steps store no
+path. DOM Health therefore scores the stored selector and its lookup.
+DES is kept to say what that fallback would do.
 
-**What is DOM Health's own addition, not part of the real algorithm at
-all:** classifying a resolved element against known ground truth into
-`WRONG_TARGET`/`NOT_RESOLVED`/an honest `AMBIGUOUS` risk flag. Real Apty's
-own `find()` has no such categories — it is a single ranked candidate pool
-with a top-1 pick above a score floor, full stop. See "DOM Health's
-evidence layer" below.
+## Capture: `captureSelector` (`match` + `optimize`)
 
-## Two distinct real algorithms
+`match` walks up from the element to the root:
 
-Real Apty runs two different algorithms for two different jobs, and this
-file reconstructs both:
+1. **Global**: add the element's attributes one at a time in priority
+   order (`checkAttributes`). As soon as the tag plus the attributes so
+   far is unique under the root, the walk ends there. Otherwise, if the
+   tag alone is unique (`checkTag`), it ends there.
+2. **Local**: otherwise, make this level unique within its parent, trying
+   in turn:
+   - its attributes;
+   - its tag;
+   - for the target only, a descendant: `:has(> a[data-uid="…"])`, with
+     descendants that carry a priority attribute tried first, at most 200,
+     and none that is positional;
+   - finally its position, `> :nth-child(n)`.
 
-1. **Capture** (`buildElementPattern`/`buildElementPath`) — builds a FULL
-   descriptive pattern per DOM level (every non-ignored attribute, class,
-   and pseudo-fact), never early-exiting. This is what a stored
-   `ElementPath` actually contains (real `createPath`, module 61503), and
-   what candidate patterns are diffed against during recovery.
-   `generateMinimalSelector` separately builds the MINIMAL unique CSS
-   selector a Studio user would actually see (real `match()`/`optimize()`)
-   — a different, early-exiting algorithm from the same underlying
-   attribute/priority machinery.
-2. **Recovery** (`findElement`) — given a captured `ElementPath` (live or
-   stored) and a root to search, finds the best-matching live element,
-   faithfully reproducing real `find()`'s exact strategy order and
-   acceptance thresholds.
+   Then the walk moves to the parent.
 
-## Pattern / Path shape
+"Unique" is `elementMatches`: one match, or exactly one *rendered* match
+when not strict. Frame selectors use strict uniqueness.
 
-`ElementPattern` (real `createPattern`, module 65913) is deliberately not
-tag+id+class:
+`optimize` then drops every level the selector does not need, and tidies
+the first and last levels. The tidy-up steps, in order:
 
-```ts
-interface ElementPattern {
-  relates?: "child";       // combinator to the parent level
-  tag: string;
-  attributes: PatternAttribute[];  // { name, value?, selectionType? }
-  classes: PatternClass[];         // { class, selectionType, length }
-  pseudo: PatternPseudo[];         // { name, value? } — nth-child, contains, ...
-}
-```
+- reduce attributes to presence (`[id]`), except attributes the
+  application declared as identity, meaning its configured priority and
+  partial-selector attributes;
+- remove attributes;
+- turn `>` into a descendant combinator;
+- trim `:has`;
+- turn `nth-child` into `nth-of-type`;
+- drop the longest classes.
 
-`selectionType` is `"exact" | "prefix" | "suffix" | "partial"` — set
-whenever a configured Partial Selector function anchors on a substring of
-the original value rather than the value itself (classified by whether the
-original starts/ends with the returned substring).
+Two consequences matter for scores:
 
-**Order is baked into every pattern, not a separate concept.** Real
-`initNthChild` (module 65913) pushes a `{name: "nth-child", value: <1-based
-index among ALL sibling elements>}` pseudo entry onto every captured
-pattern, unconditionally — CSS `:nth-child`, not per-tag `:nth-of-type`.
-This has a real, confirmed consequence: **the literal captured path always
-has positional information available as an implicit tiebreaker**, even
-when no attribute distinguishes an element from its siblings. `find()`'s
-own first strategy (`checkInitialPath`) can therefore succeed trivially via
-embedded position alone — this is genuine real-algorithm behavior, not an
-artifact of this reconstruction (see "A confirmed, reportable real-world
-finding" below).
+- The only element of its tag reduces to the bare tag. On a page with
+  one button, the stored selector is `button`.
+- Studio captures against `document`, and `document.querySelectorAll`
+  cannot see into a shadow root. Inside a shadow root no level is ever
+  globally unique and nothing is optimized away. The selector is the full
+  chain of locally unique levels up to the shadow root, e.g.
+  `div button[name="go"]`.
 
-`ElementPath` is `ElementPattern[]`, root-to-leaf order (outermost
-ancestor first, target element last) — matching real `createPath`'s
-`unshift`-while-walking-up construction.
+The optimizer's 1-second-per-query bailout is not ported, so results do
+not depend on timing.
 
-## Attribute classification — Ignore Selector, Partial Selector, Attribute Priority
+## Playback: `playSelection`
 
-Reconstructed from real `initAttributes`/`addAttribute` (module 65913) and
-`defaultIgnore`/`initOptions` (module 92317) in
-`health-attribute-classification.ts`.
+The player looks the element up in this order:
 
-**Shape**: Ignore Selector and Partial Selector are **functions keyed by
-attribute name**, never a flat rule list:
+1. Open each shadow host in turn, taking the **first** match of its
+   selector, through `host.shadowRoot`.
+2. A missing host, or a closed root (`shadowRoot` is `null`), makes Apty
+   fall back to the document.
+3. Query the element's selector and take the first rendered match, else
+   the first.
 
-```ts
-type IgnoreFn = (name: string, value?: string, defaultFn?: IgnoreFn) => boolean;
-type PartialFn = (name: string, value: string) => string | string[] | undefined;
-```
+## Attribute classification
 
-**Precedence** (real `addAttribute`): for a given attribute, the **Partial
-function is checked first**; only when it returns nothing does the Ignore
-function get consulted at all. A Partial function returns the STABLE
-SUBSTRING(S) to anchor on — not a boolean — and the engine classifies each
-returned substring's relationship to the original value as prefix/suffix/
-partial by whether the original starts/ends with it.
+The defaults (`options.ts` `defaultIgnore`) are deliberately coarse:
 
-**Real default Ignore heuristic** — far coarser than "looks
-machine-generated":
+- the attributes `style`, `data-reactid`, `data-react-checksum` and
+  `tabindex`, which an application re-enables by listing them in its
+  priority (`OVERRIDABLE_IGNORED_ATTRIBUTES`);
+- always: `apty-observer-added`, `data-apty-qa` and `data-apty-qa-state`;
+- `id` and `for` values with two or more consecutive digits;
+- names starting `xmlns:` or containing `lnid`;
+- class tokens starting `tether`.
 
-- A small attribute-name blocklist: `style`, `data-reactid`,
-  `data-react-checksum`, `tabindex`, `apty-observer-added`.
-- `id`/`for` values containing **2+ consecutive digits anywhere** — not a
-  UUID/hex-run/all-numeric heuristic, just a bare digit-run check.
-- Any attribute name containing `lnid` or `apty`, or prefixed `xmlns:`.
-- Classes literally prefixed `tether` (a popup-positioning library Apty
-  special-cases) — **nothing else about a class is excluded by default**.
+Corrections against the build-63 reconstruction:
 
-Nothing else is excluded by default: an arbitrary `data-*` attribute, a
-non-id/for attribute containing digits, or a class token that merely
-*looks* generated is **included** by default unless Studio configuration
-adds a rule for it.
+- Names containing `apty` are **not** ignored.
+- Classes take two passes. The attribute ignore sees the whole `class`
+  value, and a hit drops every class on the element. Then each token goes
+  through the class ignore. The reconstruction passed the whole value to
+  the class ignore and never applied `tether*` per token.
+- A partial selector part that keeps the start or end of a class value is
+  rendered `[class^="…"]` / `[class$="…"]`, never `.part`.
+- With no priority configured, the library's default is
+  `['id', 'class', 'href', 'src']`. Application-type presets replace it:
+  - Generic and Oracle: `aria-label,title,href,id`;
+  - Salesforce: `href,title,id`;
+  - Workday: `data-automation-id,id,href`.
 
-**Real default Attribute Priority**: `["id", "class", "href", "src"]` —
-**no built-in preference for `data-testid`/`aria-label`/`name`/`role` at
-all**. Those only get tried before everything else when Studio
-configuration adds them via `partialSelectorAttributes`, which always goes
-first regardless of the priority list's own order (real `initAttributes`).
+A Partial Selector is checked first for each attribute. A non-empty
+result bypasses every ignore rule. Each returned part becomes `^=`, `$=`
+or `*=` by where it sat in the value. The suffix check runs before the
+prefix check, and a part equal to the whole value stays exact.
 
-**A confirmed, reportable real-world finding**: because there is no
-automation-hook preference by default, an incidentally-unique
-framework-hashed class (e.g. styled-components' `sc-htpNat`) will be
-selected over a `data-testid` automation attribute unless the customer's
-Apty Studio configuration explicitly prioritizes it. `des-engine.golden-fixtures.test.ts`
-has a test demonstrating exactly this on a synthetic Autodesk-style
-fixture, plus the paired test showing the correct selector once
-`partialSelectorAttributes: ["data-testid"]` is configured.
+### The Agent's audit profile (`health-audit-profile.ts`)
 
-## The Agent's audit profile (`health-audit-profile.ts`)
+DOM Health audits with `AUDIT_DES_CONFIG`, Apty's defaults extended
+through Apty's own hooks:
 
-DOM Health audits with `AUDIT_DES_CONFIG`, not with the bare Studio
-defaults above. Those defaults stay exactly as reconstructed. The profile
-adds rules for values that real enterprise DOMs regenerate per build, render,
-interaction, browser, OS or theme (DOM Health brief, section 2.3). It goes
-through Studio's own hooks: the ignore functions call the `defaultFn` they
-are handed and only add to it.
+- Angular build-numbered and version attributes are ignored.
+- Generated ids (`looksDynamic`) are ignored.
+- Private attributes (`value`, secret-shaped values) are never used.
+- Duplicate ids are not used for the elements that share them.
+- State, environment, build and generated class tokens are dropped. This
+  now goes through the per-token class hook, so the remaining tokens stay
+  `.token` classes. The port hands the hook the whole class value, so it
+  can recognise a styled-components partner next to its `sc-` id.
 
-- **Attribute names.** `_ngcontent-ng-c<n>` / `_nghost-ng-c<n>` (Angular
-  view encapsulation; 508 occurrences in the Infor LN export) and
-  version-carrying names (`ng-version`, `data-sohoxi-version`,
-  `data-app-version-info`) are ignored. For identity,
-  `normalizeAttributeName` collapses the Angular names to `_ngcontent-*`.
-- **Generated ids.** An `id` that `looksDynamic` flags is ignored. That
-  covers react-aria (`react-aria<n>-:r0:`), Pendo, SVG `clip`/`paint` ids
-  and Emotion `fe-c-*`, as well as the earlier UUID, numeric and suffix
-  rules.
-- **Class tokens.** Tokens that `classifyUnstableClass` rejects are dropped:
-  - state: `fe_is-disabled`, `selected`, `--is-*`;
-  - environment: `is-chrome`, `theme-*`, `standards`, `safari`;
-  - build: `forge--17_1_0`;
-  - generated: `fe-c-*`, `ng-tns-c*`, a styled-components partner next to
-    its `sc-` id.
+Reports name the profile.
 
-  Dropping goes through the class partial hook, because the engine passes
-  the class ignore hook the whole `class` value. So the remaining tokens
-  count as partial matches, as with a Studio-configured partial selector. A
-  class value made only of rejected tokens is ignored.
+## DES: `findElement` (the dynamic fallback)
 
-- **Private attributes.** `value` is never part of a path: it is what
-  the user typed or the server pre-filled. Neither is an attribute with a
-  secret-like name or a token-shaped value, nor an `href`/`src` carrying a
-  secret parameter (`isPrivateAttribute`, `health-privacy.ts`). Such values
-  also change per session.
-- **Duplicate ids.** `withDuplicateIdsIgnored` ignores `id` for every value
-  shared by two elements in the same root. An id is unique per root, and
-  the LN export has 9 values duplicated within a root (15 page-wide). The
-  collector passes each root's duplicates through
-  `ResolveElementOptions.duplicateIdsFor`.
+The fallback works in three steps:
 
-The profile never invents a substring anchor. `extractStablePrefix` and
-`extractStableSuffix` find the stable parts of react-select ids
-(`react-select-` … `-input`) and Emotion labels (`-indicatorContainer`), but
-matching on part of a value is left to explicit Studio configuration.
-Reports name the profile (`selectorConfiguration.profile`).
+1. **Fingerprint**: `buildElementPath` follows `createPath`. Each level,
+   up to `<body>` or a scope root, records its tag, every non-ignored
+   attribute and class, and its `nth-child`.
+2. **Exact path**: `findElement` first queries the path unchanged. A
+   single rendered hit is returned.
+3. **Strategies**, run in order:
+   1. `checkSimplifyDynamic`: drop the values `isValueDynamic` flags (all
+      digits, three digits in a row, or more than half digits);
+   2. `checkSimplifyNth`: drop the nth pseudo-classes;
+   3. `checkContainers`: remove one ancestor at a time;
+   4. `checkDirectElement`: the last pattern alone, unmodified first, then
+      minus every subset of one or two of its fields.
 
-## The runtime recovery heuristic (`isValueDynamic`) is separate from Ignore
+   After each strategy, the first rendered candidate scoring at least
+   0.92 is accepted. Once the strategies are exhausted, or 50 candidates
+   are held, the result is the first rendered candidate scoring at least
+   0.90, else the best such candidate, else none.
 
-Used only during recovery (`findElement`'s first relaxation strategy),
-never at capture time: `isValueDynamic(value)` is real Apty's cruder,
-different check (module 81948) — a bare digit string, any run of 3+
-consecutive digits, or more than half the characters being digits. This
-means a value can be captured normally (not excluded by `DEFAULT_IGNORE`)
-and still get relaxed away later if the literal captured selector fails to
-resolve.
-
-## Selector generation
-
-`patternToSelector`/`pathToSelector` (real module 5757) always render the
-**tag together with its attributes** — there is no special-casing that
-drops the tag when an `id` alone would be unique. A real Apty selector for
-`<button id="save-button">` is `button[id="save-button"]`, never a bare
-`#save-button`. `pathToSelector` also explicitly clears the **first**
-node's `relates` combinator before joining (every captured node carries
-`relates: "child"` unconditionally; only selector generation later decides
-whether a node ends up needing a leading `> `).
-
-## Recovery — `findElement` (real `find()`, module 15906)
-
-1. **`checkInitialPath`**: build one selector from the entire captured path
-   as-is, `querySelectorAll`, cap at 50. If exactly one match and it is
-   rendered, accept immediately — no scoring needed.
-2. Otherwise, score every candidate via `diffScore` (below), then run
-   exactly **four** relaxation strategies in order, re-scoring and
-   re-ranking after each:
-   - **`dropDynamicValues`** — drop attribute/class values `isValueDynamic`
-     flags, at every level of the path.
-   - **`dropPositionalPseudo`** — drop `nth-child`/`nth-of-type` pseudo
-     entries at every level.
-   - **`dropOneAncestor`** — drop exactly **one** ancestor level at a time
-     (never cumulative), stripping combinator/pseudo info from the rest,
-     unioning matches across every single-drop attempt.
-   - **`leafFieldCombinations`** — leaf only, no ancestor context; every
-     size-≤2 combination of dropped attribute/class/pseudo fields.
-   After each strategy, the first RENDERED candidate scoring **≥0.92**
-   is accepted immediately.
-3. Once every strategy is exhausted or the pool hits the 50-candidate
-   ceiling: take the best-scoring RENDERED candidate if it clears **0.90**;
-   else the single best-scoring candidate overall if it clears 0.90; else
-   `null`.
-
-**There is no `AMBIGUOUS`/`WRONG_TARGET` state in the real algorithm** — a
-unique top-scorer above the floor simply wins, full stop.
-
-**A confirmed, reportable real-world finding**: `find()` explicitly prefers
-a *rendered* candidate over an unrendered one at equal or higher score.
-This means a hidden true target can lose to a visible, structurally
-identical twin — `des-engine.test.ts` has an invariant test proving this
-exact scenario is real, faithfully-reproduced algorithm behavior, not a
-bug in this port.
-
-## Scoring — `diffScore`/`patternDiffScore`/`arrayDiffScore` (real module 17851)
-
-A **Dice-coefficient-style diff ratio** (`2 × exact-match-intersection /
-(|a| + |b|)`), **never Jaccard**:
+Scores, from `diff.ts`:
 
 ```
-arrayDiffScore(a, b) = 2 × |exact-equality intersection of a and b| / (|a| + |b|)
-
-patternDiffScore(A, B) = (7×tagMatch + 1×attrScore + 1×classScore + 1×pseudoScore) / 10
-  — tag weighted 7x; attributes/classes/pseudo each weighted 1x.
-  — pseudo carries BOTH order (nth-child) and text-content (:contains)
-    signals at the same weight as any other pseudo fact — there is no
-    separate "order" or "accessibility" axis.
-
-diffScore(pathA, pathB) = (1×ancestorSequenceScore + 3×patternDiffScore(leaf)) / 4
-  — the leaf is weighted 3x the whole ancestor chain.
+arrayDiffScore(a, b)   = 2 × |intersection| / (|a| + |b|)    (1 when both are empty)
+patternDiffScore(A, B) = (7 × tag + attributes + classes + pseudo) / 10
+diffScore(pathA, pathB) = (containers + 3 × element) / 4
 ```
 
-`ancestorSequenceScore` is a **greedy sequential best-match alignment**
-(each ancestor from the shorter chain matched to its best-scoring
-remaining candidate further along the longer chain, consuming forward —
-never backward), not a naive index-paired comparison. This is what lets an
-inserted or removed ancestor wrapper degrade the score gracefully instead
-of catastrophically.
+Containers are aligned greedily. `containerMaxScore` reports a best match
+after the first one position early, so the next ancestor may match the
+same container again. The port keeps that, because the score has to be
+the one Apty computes. Fidelity fixes made against the source:
+
+- `checkDirectElement` tries the unmodified leaf first;
+- the container index follows the source;
+- `getScopeRootForElement` uses `closest()`, the element itself included.
+
+`checkContainersScore` uses Apty's threshold of 75, which Studio reads as
+0.75. 5.x steps store no containers, so it never fails in practice.
+
+## Hit test (`ElementVisibilityService`)
+
+The hit test runs in this order:
+
+1. `checkVisibility` with opacity. A transparent element is hidden here,
+   though selection's rendered check ignores opacity.
+2. Nothing is sampled when the rectangle lies entirely outside the
+   viewport.
+3. A 3x3 grid is sampled at the cell centres: 1/6, 1/2 and 5/6 of the
+   width and height.
+4. Each point uses `elementsFromPoint` of the element's **own** root.
+   `document.elementsFromPoint` stops at a shadow host.
+5. `apty-studio-extension`, `apty-content-items` and `apty-widget` are
+   looked through.
+6. A point passes when:
+   - nothing is there;
+   - the top hit is `apty-visibility-ignore-element` content;
+   - the top hit is the element, or inside it;
+   - the top hit is anywhere inside the element's parent. Composite
+     fields overlay their own trigger icons.
+7. The element is visible at 6 of 9 points (`2 / 3`).
+
+DOM Health adds two things. Overlays from the ignored-root policy are
+looked through, and a rendered element with no width or height is
+`zero-size`.
+
+The classifications follow the point count:
+
+| Points | Classification | Apty's verdict |
+| --- | --- | --- |
+| 9 | fully targetable | visible |
+| 6–8 | partially targetable | visible |
+| 1–5 | mostly occluded | not visible |
+| 0 | fully occluded | not visible |
+
+The previous version sampled 25/50/75%, passed any ancestor of the
+element, failed points with no hit, treated `aria-hidden` as hidden and
+passed at 5 of 9.
 
 ## DOM Health's evidence layer (`health-selector-engine.ts`)
 
-`resolveElement` combines two real algorithms, each answering a different
-question, then adds one evidence layer DOM Health needs that the real
-product doesn't expose:
+`resolveElement` captures the selector as Studio would, then looks it up
+in the element's own root as the player would:
 
-- **`findElement`** answers "does this resolve to the correct live element
-  at all" — `WRONG_TARGET` (the real algorithm's actual pick differs from
-  the known live target), `NOT_RESOLVED` (real `find()` returned `null`),
-  and this package's own **`AMBIGUOUS`** risk flag (the top two
-  above-floor candidates score within 0.03 of each other — a deliberately
-  thin margin chosen to flag genuine fragility, not every ordinary
-  multi-candidate search) all come from it.
-- **`generateMinimalSelector`** answers "how was it identified" —
-  `DIRECT_SUCCESS`/`RECOVERED_BY_PARTIAL`/`RECOVERED_BY_IGNORE`/
-  `RECOVERED_BY_CONTEXT`/`POSITIONAL_ONLY` come from it, because real
-  Apty's own `checkInitialPath` always has `nth-child` baked into its
-  literal path (see above), so "which raw `find()` strategy technically
-  produced the winning candidate" does NOT cleanly separate "identified by
-  a stable attribute" from "identified only by position."
-  `generateMinimalSelector` — which tries non-positional identification
-  first and only falls back to `nth-child` when nothing else works — is
-  the correct instrument for that distinction:
-  - No ancestor climb, single attribute, exact match → `DIRECT_SUCCESS`.
-  - No ancestor climb, single attribute, non-exact (`selectionType !==
-    "exact"`, i.e. a configured Partial Selector function actually fired)
-    → `RECOVERED_BY_PARTIAL`.
-  - No ancestor climb, multiple attributes combined (none alone was
-    unique) → `RECOVERED_BY_IGNORE`.
-  - Every level's own disambiguation was purely positional (no attribute
-    EVER contributed at any level, even after climbing) → `POSITIONAL_ONLY`
-    — checked *before* the ancestor-climb check, since a climb whose every
-    level fell back to `nth-child` is still purely positional, not
-    "context recovery".
-  - An ancestor climb where some level's own attribute genuinely helped →
-    `RECOVERED_BY_CONTEXT`.
+| Lookup result | Outcome |
+| --- | --- |
+| nothing | `NOT_RESOLVED` |
+| another element | `WRONG_TARGET` |
+| the element, first among several rendered matches | `AMBIGUOUS` |
+| the element, selector positional anywhere | `POSITIONAL_ONLY` |
+| the element, a partial selector part | `RECOVERED_BY_PARTIAL` |
+| the element, an ancestor level or a `:has()` descendant | `RECOVERED_BY_CONTEXT` |
+| the element, several conditions on its own level | `RECOVERED_BY_IGNORE` |
+| the element, one condition or the tag | `DIRECT_SUCCESS` |
 
-This mapping is DOM Health's own reporting taxonomy, not literally Apty's
-internal state — it is derived honestly from the real algorithm's actual,
-observable decisions (which attribute/level actually carried the
-disambiguation), never invented independently of it.
+`resolveInComposedTree` handles elements inside shadow roots:
 
-### Explaining each element in DES terms (`element-explanation.ts`)
+- It grades the element by its weakest hop.
+- It replays the whole selection from the top of the document, because
+  hosts are opened by their first match.
+- An element inside a closed shadow root is `INACCESSIBLE`. Apty's picker
+  stops at the host, and its lookup cannot open the root.
 
-Reports name the steps the way Apty's own DES documentation does. The
-port's names map one to one:
+### Cross-state replay
 
-| Report name | Port (`des-engine.ts`) | Outcome it explains |
-| --- | --- | --- |
-| checkInitialPath | checkInitialPath | `DIRECT_SUCCESS` |
-| Partial Selector | partial hook at capture | `RECOVERED_BY_PARTIAL` |
-| checkSimplifyDynamic | dropDynamicValues | `RECOVERED_BY_IGNORE` |
-| checkContainers | dropOneAncestor | `RECOVERED_BY_CONTEXT` |
-| checkSimplifyNth, then checkDirectElement | dropPositionalPseudo, leafFieldCombinations | `POSITIONAL_ONLY` |
+Each element's stored selection is replayed at later snapshots and
+application states, through `ElementRef` v2 `selection`, with
+`verifyStoredSelection`. The lookup is the player's. The element it
+returns must carry the same logical fingerprint. Verdicts:
 
-`AMBIGUOUS`, `WRONG_TARGET`, `NOT_RESOLVED` and `INACCESSIBLE` keep plain
-names. Each element sample carries an `explanation` (how DES finds it, the
-attribute names left out as dynamic, shadow depth, the hit-test reason,
-the cross-state result and a fix), and each result carries `desEvidence`:
-counts per step, the attribute names most often left out as dynamic, and
-hit-test failures by reason. Attribute names only, never values.
+| Verdict | When |
+| --- | --- |
+| `HOST_NOT_RESOLVED` | A host has no open root |
+| `NOT_RESOLVED` | The lookup returns nothing |
+| `WRONG_TARGET` | The lookup returns another element |
+| `AMBIGUOUS` | The element came first among several rendered matches |
+| `POSITIONAL_STABLE` | The selector depends on position |
+| `RECOVERED_STABLE` | Only the rendered preference picked the element out of several matches |
+| `DIRECT_STABLE` | None of the above |
 
-## Frame and Shadow DOM boundaries
+A version 1 ref, with DES paths only, is still replayed through
+`findElement`.
 
-`root.querySelectorAll` cannot see into another `Document` or into a shadow
-root, so every resolution is given the root the element lives in. A
-shadow root is just another `ParentNode`. Closed roots are reached from the
-extension's content script through `chrome.dom.openOrClosedShadowRoot`
-(`shadowRootOf`). Where even that cannot reach (a page outside the content
-script), callers pass `ResolveElementOptions.inaccessibleReason` and the
-result is `INACCESSIBLE`, never a silent failure.
+### Frame selectors
 
-The engine itself never crosses a boundary. `ElementRef` (`element-ref.ts`)
-does it around the engine. A stored reference is the `ElementPath` of each
-shadow host from the document down (`hostChain`), plus the element's own
-path in the innermost root. `resolveElementRef` runs the unmodified
-`findElement` once per hop, in that hop's root. `resolveInComposedTree`
-grades a shadow element by its weakest hop, and a replay that breaks at a
-host reports `HOST_NOT_RESOLVED` with the hop and the host's selector. A
-stored sample from before `ElementRef` (a bare path) is migrated as a
-document-rooted ref and flagged `legacy`.
+The collector also generates the strict frame selector Studio stores for
+each `<iframe>` and `<frame>` of a document (`iframesPath`). It counts
+those that depend on position or on `src`, and the score reports them as
+the `frame-selectors` risk.
 
-## Known limitations and explicit scoping decisions
+## Performance
 
-- **`generateMinimalSelector`'s exact trim ordering is a best-effort
-  reconstruction**, not a byte-exact port — see above.
-- **`checkContainersScore`/`getContainerSelectors`** (real module 74456 —
-  a runtime "is a previously-resolved selector still contextually sound"
-  gate, checking whether enough originally-captured ancestor-container
-  selectors still resolve to something) are implemented and tested, but
-  **not yet wired into `health-collector.ts`'s per-round resolution flow**
-  — each round currently re-resolves fresh via `findElement` rather than
-  verifying a stored round-1 selector+containers snapshot against round 2/3.
-  Wiring that in is a real, valuable extension (closer to how Apty
-  actually re-checks a target at runtime) that was not in scope for this
-  pass.
-- **No live tenant has been audited.** The Infor LN and athenaOne evidence
-  is from exported DOMs (redacted fixtures in
-  `src/__tests__/fixtures/erp/`), measured in jsdom with their declarative
-  shadow roots attached. The end-to-end tests run in Chromium on small
-  stand-ins of those shapes, not on the applications. The golden fixtures in
-  `des-engine.golden-fixtures.test.ts` remain synthetic.
-- **The real Apty Studio/Client extensions expose no cross-extension API**
-  for a third-party tool to pull live selector configuration from — see
-  `docs/integrations/apty/README.md` and `DECISIONS.md` for the confirmed,
-  Apty-side-only fix this requires. DOM Health's `ResolveElementOptions.desConfig`
-  is the clean adapter boundary for when that configuration becomes
-  available (from a real Studio export, a future integration, or manual
-  entry) — it is real, tested plumbing, not a placeholder.
+Capture runs many uniqueness queries per element. `isElementRendered` is
+cached per collection round (`resetDesPerformanceCaches`), and replay
+clears the cache first. jsdom evaluates positional selectors tens of
+times slower than Chrome, so unit tests that only check coverage avoid
+positional fallbacks.

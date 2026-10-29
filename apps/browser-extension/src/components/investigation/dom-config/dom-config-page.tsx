@@ -33,6 +33,7 @@ import { IframesView } from "./iframes-view";
 import { ImportPanel } from "./import-panel";
 import { ManualCapture } from "./manual-capture";
 import { PageList } from "./page-detail";
+import { PartialSelectorsView } from "./partial-selectors-view";
 import { AnnouncerProvider } from "./report-parts";
 import { RulesView } from "./rules-view";
 import { RunningView } from "./running-view";
@@ -214,6 +215,11 @@ export function DomConfigPage({
               store.setIncludeRecordSpecific(include)
             }
           />,
+        );
+      case "partial":
+        return shell(
+          t("domConfig.partial.title"),
+          <PartialSelectorsView report={report} />,
         );
       case "proposed":
         return shell(

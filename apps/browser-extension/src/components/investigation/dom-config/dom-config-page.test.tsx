@@ -1,4 +1,5 @@
 import type {
+  AptyDomConfig,
   DomConfigCaptureOptions,
   DomConfigCaptureOutcome,
   DomConfigReport,
@@ -82,6 +83,7 @@ import { chatHandoff } from "../../../state/chat-handoff";
 import { navigationStore } from "../../../state/navigation-store";
 import { DomHealthPage } from "../dom-health/dom-health-page";
 import { createDomHealthStore } from "../dom-health-store";
+import { conditionLabel } from "./copy-format";
 import { DomConfigPage } from "./dom-config-page";
 import { createDomConfigStore } from "./dom-config-store";
 import {
@@ -164,7 +166,9 @@ function back() {
 }
 
 /** "Export results" opens a menu; Radix opens it from the keyboard in jsdom. */
-function exportAs(name: "Markdown" | "JSON" | "Copy all") {
+function exportAs(
+  name: "Markdown" | "JSON" | "Apty DOM config (JSON)" | "Copy all",
+) {
   fireEvent.keyDown(screen.getByRole("button", { name: "Export results" }), {
     key: "Enter",
   });
@@ -187,7 +191,7 @@ describe("DomConfigPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "What it proposes" }));
     expect(
       screen.getByText(
-        "Ignore conditions, attribute priority, DOM change debounce, max z-index, Shadow DOM and ignored DOM events.",
+        "Ignore conditions, partial selector conditions, attribute priority, DOM change debounce, max z-index, Shadow DOM and ignored DOM events.",
       ),
     ).toBeInTheDocument();
     const advanced = screen.getByRole("button", { name: /^Advanced options/ });
@@ -371,7 +375,7 @@ describe("DomConfigPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("sums up the capture and lists the six proposed settings and the details", async () => {
+  it("sums up the capture and lists the proposed settings and the details", async () => {
     let now = 1_000_000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
     mockRunDomConfigCapture.mockImplementation(async () => {
@@ -393,6 +397,7 @@ describe("DomConfigPage", () => {
       .map((row) => row.textContent);
     expect(rows).toEqual([
       expect.stringMatching(/^Ignore conditions\d+ of \d+ rules included$/),
+      expect.stringMatching(/^Partial selector conditions\d+ conditions$/),
       `Attribute priority${report().attributePriority.value}`,
       `DOM change debounce${report().debounce.value} ms`,
       `Max z-index${report().maxZIndex.value}`,
@@ -530,7 +535,7 @@ describe("DomConfigPage", () => {
     openRow(/^Ignore conditions/);
     fireEvent.click(screen.getByText(/^Need review/, { selector: "summary" }));
     const reviewBox = screen.getByLabelText(
-      `Include the rule ${reviewRule.conditions.map((c) => `${c.category} ${c.operator} ${c.value}`).join(" AND ")}`,
+      `Include the rule ${reviewRule.conditions.map(conditionLabel).join(" OR ")}`,
     );
     expect(reviewBox).not.toBeChecked();
     fireEvent.click(reviewBox);
@@ -539,7 +544,7 @@ describe("DomConfigPage", () => {
     );
     fireEvent.click(
       screen.getByLabelText(
-        `Include the rule ${main.conditions.map((c) => `${c.category} ${c.operator} ${c.value}`).join(" AND ")}`,
+        `Include the rule ${main.conditions.map(conditionLabel).join(" OR ")}`,
       ),
     );
     const ticked = new Set(
@@ -553,17 +558,20 @@ describe("DomConfigPage", () => {
     exportAs("Markdown");
     const markdown = await downloads.at(-1)!.text();
     for (const rule of rules) {
-      const shown = `Include the rule ${rule.conditions.map((c) => `${c.category} ${c.operator} ${c.value}`).join(" AND ")}`;
+      const shown = `Include the rule ${rule.conditions.map(conditionLabel).join(" OR ")}`;
       const inMarkdown = markdown.includes(
         rule.conditions
-          .map((c) => `${c.category} · ${c.operator} · \`${c.value}\``)
-          .join(" AND "),
+          .map(
+            (c) =>
+              `${c.category}${c.attribute ? ` · \`${c.attribute}\`` : ""} · ${c.operator} · \`${c.value}\``,
+          )
+          .join(" OR "),
       );
       expect(inMarkdown, shown).toBe(ticked.has(shown));
     }
     expect(
       ticked.has(
-        `Include the rule ${main.conditions.map((c) => `${c.category} ${c.operator} ${c.value}`).join(" AND ")}`,
+        `Include the rule ${main.conditions.map(conditionLabel).join(" OR ")}`,
       ),
     ).toBe(false);
     expect(
@@ -582,6 +590,17 @@ describe("DomConfigPage", () => {
           .filter((r) => r.group === "main" && r.id !== main.id)
           .map((r) => r.id),
       ].sort(),
+    );
+
+    exportAs("Apty DOM config (JSON)");
+    const apty = JSON.parse(await downloads.at(-1)!.text()) as AptyDomConfig;
+    const exportedConditions = json.rules.flatMap((r) => r.conditions);
+    const tree = apty.ignoreElementSelectionConditions;
+    expect(tree?.type === "group" ? tree.children.length : tree ? 1 : 0).toBe(
+      exportedConditions.length,
+    );
+    expect(apty.attributePriority.join(",")).toBe(
+      report().attributePriority.value,
     );
   });
 
@@ -613,9 +632,7 @@ describe("DomConfigPage", () => {
       report().rules.filter((r) => r.group === "main" && r.target === "id")
         .length,
     );
-    expect(rows[0]!.split("\t")[0]).toMatch(
-      /^Attribute Name Equals id AND Attribute Value Regex /,
-    );
+    expect(rows[0]!.split("\t")[0]).toMatch(/^Attribute Value id Regex /);
     expect(rows[0]!.split("\t")[3]).toBe("/home");
     back();
 
@@ -706,12 +723,12 @@ describe("DomConfigPage", () => {
     expect(store.getState().exportedAt).toBeNull();
   });
 
-  it("shows both container score threshold values, the basis of every setting and what was not measured", async () => {
+  it("shows the fixed container score threshold, the basis of every setting and what was not measured", async () => {
     await showReport();
     openRow(/^DOM change debounce/);
     expect(
       screen.getAllByText(
-        "75 in the reference configurations, 0.5 in the reconstructed model. The units may differ (open question).",
+        "75, fixed by Apty (0.75 of a step's stored containers)",
       ).length,
     ).toBeGreaterThan(0);
     expect(screen.getByText(/^What was not measured: /)).toBeInTheDocument();
