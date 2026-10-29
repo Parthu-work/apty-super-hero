@@ -150,6 +150,6 @@ describe("a frame src with a port", () => {
       "record-specific",
     );
     const { rules } = generateRules([page.classified]);
-    expect(rules.map((r) => r.conditions[0]?.value)).toEqual(["href"]);
+    expect(rules.map((r) => r.conditions[0]?.attribute)).toEqual(["href"]);
   });
 });

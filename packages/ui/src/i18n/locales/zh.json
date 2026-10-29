@@ -457,7 +457,7 @@
     },
     "framesWithContentReached": "已访问 {{reached}}/{{withContent}} 个有内容的框架，跳过 {{placeholders}} 个空占位框架",
     "framesReachedCount": "已访问 {{reached}}/{{total}} 个框架",
-    "desTitle": "Apty 的 DES 如何找到这些元素",
+    "desTitle": "Apty 将如何找到这些元素",
     "dynamicLeftOut": "作为动态值排除（Ignore Selector）：{{list}}。",
     "dynamicLeftOutItem": "{{count}} 个元素上的 {{attribute}}",
     "evidence": "证据：{{state}}",
@@ -471,8 +471,8 @@
     "missingAccessibleNames": "缺少无障碍名称",
     "manualSelectorDependency": "手动选择器依赖",
     "selectorConfiguration": "选择器配置：{{source}}",
-    "selectorConfigurationCustomer": "客户的 Apty DES 配置",
-    "selectorConfigurationDefault": "默认/重建的 DES 配置",
+    "selectorConfigurationCustomer": "客户的 Apty 元素选择配置",
+    "selectorConfigurationDefault": "Apty 默认元素选择配置",
     "auditProfile": "+ 审计配置 {{profile}}",
     "metrics": "指标",
     "strengths": "做得好的地方",
@@ -670,13 +670,12 @@
       "warnings": "警告"
     },
     "rules": {
-      "assumption": "假设（D7）：每条规则按 Apty 条件构建器的方式显示，所有条件必须同时满足。ID 和 class 规则是否为“属性名”条件加“属性值”条件、正则表达式的语法以及 In 的分隔符均未确认。",
+      "assumption": "每条规则按 Apty DOM 设置编辑器的保存方式显示：“属性名”行检查属性名称，“属性值”行检查所指定属性的值；任意一行匹配时 Apty 即忽略该值。正则表达式和“包含”均为 JavaScript 正则表达式；class 行检查元素完整的 class 值。",
       "id": "ID",
       "class": "Class",
       "attributeName": "按名称的属性",
       "attributeValue": "按值的属性",
       "none": "此部分没有规则。",
-      "and": "且",
       "include": "包含规则 {{rule}}",
       "evidence": {
         "observedChange": "观测到变化",
@@ -697,11 +696,12 @@
       "recordHint": "针对记录编号的规则。只有当引导为某一条记录编写时才开启。",
       "recordCount": "{{count}} 条特定记录规则",
       "coveredByDefaults": "已被 Apty 默认规则忽略（{{count}}）",
-      "coveredAssumption": "假设：根据 Apty Studio 第 63 版重建。假定 DOM 设置界面是在这些默认规则之上添加，而不是替换它们。",
+      "coveredAssumption": "来自 Apty 元素识别库。DOM 设置中的条件会叠加在这些默认规则和应用类型预设之上。",
       "defaultRule": "默认规则：{{rule}}",
       "manualReview": "需要人工审核（{{count}}）",
       "rejected": "被拒绝的规则（{{count}}）",
-      "valueCount": "{{count}} 个值"
+      "valueCount": "{{count}} 个值",
+      "or": "或"
     },
     "table": {
       "conditions": "条件",
@@ -726,9 +726,11 @@
       "unknownSource": "未知元素",
       "excludedZIndex": "已排除：{{value}}，来自 {{source}}",
       "containerScoreThreshold": "容器得分阈值",
-      "containerValues": "参考配置中为 {{reference}}，重建模型中为 {{model}}。两者的单位可能不同（待定问题）。",
+      "containerValues": "{{reference}}，由 Apty 固定（步骤所存容器的 {{model}}）",
       "clickAdvance": "点击推进",
-      "aptyDefault": "Apty 默认值，未测量"
+      "aptyDefault": "Apty 默认值，未测量",
+      "notProposed": "未建议：{{tag}}。{{reason}}",
+      "typePreset": "{{type}} 预设：{{order}}"
     },
     "notMeasured": "未测量的内容：{{list}}",
     "openQuestions": "待定问题（{{count}}）",
@@ -870,7 +872,7 @@
     "page": {
       "intro": "对每个页面采集多次，比较各次结果，并建议 Apty DOM 设置。",
       "whatItProposes": "会建议哪些设置",
-      "proposes": "忽略条件、属性优先级、DOM 变化防抖、最大 z-index、Shadow DOM 以及忽略的 DOM 事件。",
+      "proposes": "忽略条件、部分选择器条件、属性优先级、DOM 变化防抖、最大 z-index、Shadow DOM 以及忽略的 DOM 事件。",
       "scopePage": "仅此页面",
       "scopePageBody": "最快。采集当前所在的页面。",
       "scopeSafe": "整个应用：安全",
@@ -918,7 +920,24 @@
       "copiedAll": "已将所有部分复制为表格",
       "ask": "就这些结果提问",
       "askDraft": "这些建议的 DOM 设置意味着什么？应该先应用哪些？",
-      "askChip": "DOM 配置结果"
+      "askChip": "DOM 配置结果",
+      "aptyJson": "Apty DOM 配置（JSON）"
+    },
+    "partial": {
+      "title": "部分选择器条件",
+      "count": "{{count}} 个条件",
+      "hint": "适用于每次加载时只有一部分会变化的属性值。Apty 保留括号中的部分并以此匹配该值；请按属性和正则表达式逐行输入。",
+      "none": "没有属性以部分选择器可保留其稳定部分的方式变化。",
+      "attribute": "属性",
+      "regex": "正则表达式",
+      "kept": "保留部分示例",
+      "elements": "元素",
+      "regexOf": "{{attribute}} 的正则表达式",
+      "keepsStart": "保留值的开头（^=）。",
+      "keepsEnd": "保留值的结尾（$=）。",
+      "keepsMiddle": "保留值的中间部分（*=）。",
+      "elementCount": "可区分 {{count}} 个元素。",
+      "examples": "保留：{{parts}}。"
     }
   },
   "skillDetails": {

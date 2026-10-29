@@ -1,56 +1,28 @@
 /**
- * Apty Dynamic Element Selection (DES) engine — a faithful reconstruction
- * of the REAL Apty Studio algorithm, recovered by reverse-engineering the
- * actual shipped `studio-extension_63` build (`workflowPreview.js`'s
- * webpack modules; property/function names below are unmangled in that
- * bundle and are quoted here, not invented). This replaces an earlier
- * from-scratch engine (Jaccard similarity, 5 named strategies, a 70/±5
- * threshold, flat ignore/partial rule lists) that a prior session built
- * without access to real Apty source and that, on comparison, diverged
- * from the real product in nearly every load-bearing detail. See
- * `docs/development/des-engine.md` for the full reverse-engineering notes,
- * including exactly what was recovered with confidence and what is an
- * honestly-labeled best-effort reconstruction.
+ * Apty Dynamic Element Selection (DES): the path-matching recovery in
+ * Apty's `lib-client-element-identification` (`path.ts`, `find.ts`,
+ * `strategies.ts`, `diff.ts`). First reconstructed from the minified
+ * Studio build 63, then checked against the library's source.
  *
- * Two distinct real algorithms are reconstructed here:
+ * DES is a fallback. The Apty 5.x player resolves an element with the
+ * selector Studio stored (`apty-selector.ts`); its application mapper
+ * hard-codes `useDynamicElementSelectionAsFallback: false`, and no path is
+ * stored with a step. DOM Health therefore scores what the player does,
+ * and keeps this engine to say whether the dynamic fallback could recover
+ * an element the stored selector loses.
  *
- *  1. CAPTURE — `buildElementPattern`/`buildElementPath` build a FULL
- *     descriptive pattern per DOM level (every non-ignored attribute,
- *     class, and pseudo-fact — module 61503's `createPath`, which never
- *     early-exits). This is what a stored `ElementPath` actually contains,
- *     and what candidate patterns are compared against during recovery.
- *     `generateMinimalSelector` separately builds the MINIMAL unique CSS
- *     selector a Studio user would see (module 39842/59772's
- *     `match`/`optimize` — early-exits as soon as one attribute makes the
- *     selector-so-far unique, then trims). This second algorithm's exact
- *     trim ordering could not be recovered with full confidence from the
- *     minified bundle (see the doc comment on `generateMinimalSelector`);
- *     it is a faithful-intent reconstruction, not a byte-identical port,
- *     and is labeled as such.
+ *  1. CAPTURE: `buildElementPattern`/`buildElementPath` build the full
+ *     descriptive pattern per level (`createPath`: every non-ignored
+ *     attribute and class, the tag and `nth-child`).
+ *  2. RECOVERY: `findElement` is `find()`: the exact path first, then the
+ *     four strategies in order (`checkSimplifyDynamic`,
+ *     `checkSimplifyNth`, `checkContainers`, `checkDirectElement`),
+ *     accepting the first rendered candidate scoring 0.92 or more; once
+ *     they are exhausted or 50 candidates are held, the first rendered
+ *     candidate scoring 0.90 or more, else the best such candidate.
  *
- *  2. RECOVERY — `findElement` is a faithful, byte-level port of module
- *     15906's `find()`: seed candidates from the literal captured path,
- *     score every candidate via `diffScore`, then run exactly four
- *     relaxation strategies (module 81948's `strategies` array) in order,
- *     early-accepting the first RENDERED candidate scoring >=0.92 as soon
- *     as one appears; once every strategy is exhausted or the candidate
- *     pool hits the 50-candidate ceiling, fall back to the best-scoring
- *     rendered candidate if it clears 0.90, else the single best-scoring
- *     candidate overall if it clears 0.90, else `null`. There is no
- *     discrete "ambiguous"/"wrong target" state in the real algorithm at
- *     all — it is a single ranked candidate pool with a top-1 pick above a
- *     floor. `runDes` in `health-selector-engine.ts` adds an evidence
- *     layer on top (comparing the real algorithm's actual pick against
- *     ground truth, and flagging a thin score margin as a stability risk)
- *     — that evidence layer is this package's own addition for DOM Health
- *     reporting purposes, never presented as part of Apty's own runtime
- *     decision.
- *
- * Ground rules preserved from this package's original design (never
- * relaxed to inflate a score): a selector is never "successful" merely
- * because `querySelectorAll` returned something; nothing here calls an
- * LLM or is tuned per fixture; every constant quoted above is a real,
- * confirmed Apty value, not an invented one.
+ * The `AMBIGUOUS`/`WRONG_TARGET` classification layered on top of it is
+ * DOM Health's own evidence, never part of Apty's decision.
  */
 import {
   DEFAULT_DES_CONFIG,
@@ -98,6 +70,8 @@ export interface ElementPattern {
   attributes: PatternAttribute[];
   classes: PatternClass[];
   pseudo: PatternPseudo[];
+  /** Descendant paths rendered as `:has(...)` clauses (`match.ts` `checkRecursiveDescendants`). */
+  descendants?: ElementPath[];
 }
 
 /** Root-to-leaf order (outermost ancestor first, target element last) — matches real `createPath`'s `unshift`-while-walking-up construction. */
@@ -107,7 +81,23 @@ export type ElementPath = ElementPattern[];
 // Rendered / visibility check (module 92516's `isElementRendered`).
 // ---------------------------------------------------------------------------
 
-function isElementRendered(el: Element): boolean {
+/**
+ * Uniqueness checks ask the same few elements again and again (every
+ * selector tried while capturing one element matches its siblings), and
+ * computed style is the expensive part. Cached for one collection round;
+ * `resetDesPerformanceCaches` clears it.
+ */
+let renderedCache = new WeakMap<Element, boolean>();
+
+export function isElementRendered(el: Element): boolean {
+  const cached = renderedCache.get(el);
+  if (cached !== undefined) return cached;
+  const rendered = computeRendered(el);
+  renderedCache.set(el, rendered);
+  return rendered;
+}
+
+function computeRendered(el: Element): boolean {
   const withCheckVisibility = el as Element & {
     checkVisibility?: (opts: {
       visibilityProperty: boolean;
@@ -120,14 +110,29 @@ function isElementRendered(el: Element): boolean {
       checkVisibilityCSS: true,
     });
   }
-  // Fallback for environments without `checkVisibility` (older browsers,
-  // and jsdom — which has no layout engine at all, so `getClientRects()`
-  // is always empty and cannot be used as a signal here). Computed
-  // `display`/`visibility` is the real check's own first-order signal.
+  // Without `checkVisibility` (jsdom, which has no layout, so
+  // `getClientRects()` is always empty): `visibility` inherits, `display`
+  // has to be read up the composed tree.
   const view = el.ownerDocument?.defaultView;
   if (!view) return true;
-  const style = view.getComputedStyle(el);
-  return style.display !== "none" && style.visibility !== "hidden";
+  if (view.getComputedStyle(el).visibility === "hidden") return false;
+  return isDisplayed(el, view);
+}
+
+let displayedCache = new WeakMap<Element, boolean>();
+
+function isDisplayed(el: Element, view: Window): boolean {
+  const cached = displayedCache.get(el);
+  if (cached !== undefined) return cached;
+  const parent =
+    el.parentElement ??
+    ((el.parentNode as ShadowRoot | null)?.host as Element | undefined) ??
+    null;
+  const displayed =
+    view.getComputedStyle(el).display !== "none" &&
+    (parent === null || isDisplayed(parent, view));
+  displayedCache.set(el, displayed);
+  return displayed;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,15 +195,26 @@ function attributesToSelector(attributes: PatternAttribute[]): string {
     .join("");
 }
 
+/** A partial part was located within the whole `class` value, so it matches as an attribute value, never as a class name (`css.ts`). */
 function classesToSelector(classes: PatternClass[]): string {
   if (classes.length === 0) return "";
-  return classes
+  const filled = classes.filter((c) => c.class);
+  if (filled.length === 0) return "[class]";
+  return filled
     .map(({ class: className, selectionType }) => {
+      if (
+        selectionType === "partial" ||
+        selectionType === "prefix" ||
+        selectionType === "suffix"
+      ) {
+        return attributesToSelector([
+          { name: "class", value: className, selectionType },
+        ]);
+      }
       const escaped = escapeSelectorValue(className);
-      if (!isValidIdentifier(escaped)) return `[class~="${escaped}"]`;
-      return selectionType === "partial"
-        ? `[class*="${escaped}"]`
-        : `.${escaped}`;
+      return isValidIdentifier(escaped)
+        ? `.${escaped}`
+        : `[class~="${escaped}"]`;
     })
     .join("");
 }
@@ -213,6 +229,13 @@ function pseudoToSelector(pseudo: PatternPseudo[]): string {
     .join("");
 }
 
+/** Every step is rendered, the first included: inside `:has()` a leading `>` restricts the clause to the element's own children. */
+function descendantsToSelector(descendants?: ElementPath[]): string {
+  return (descendants ?? [])
+    .map((path) => `:has(${path.map(patternToSelector).join(" ")})`)
+    .join("");
+}
+
 /** @internal */
 export function patternToSelector(pattern: ElementPattern): string {
   const combinator = pattern.relates === "child" ? "> " : "";
@@ -221,7 +244,8 @@ export function patternToSelector(pattern: ElementPattern): string {
     (pattern.tag ?? "") +
     attributesToSelector(pattern.attributes) +
     classesToSelector(pattern.classes) +
-    pseudoToSelector(pattern.pseudo)
+    pseudoToSelector(pattern.pseudo) +
+    descendantsToSelector(pattern.descendants)
   );
 }
 
@@ -260,7 +284,7 @@ function classifyRelation(
 
 const VALID_ATTR_NAME = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
 
-/** Real `addAttribute` (module 65913) — Partial Selector checked first, Ignore Selector only consulted when Partial returns nothing. */
+/** `pattern.ts` `addAttribute`: Partial Selector first; Ignore Selector only when Partial returns nothing. */
 function addAttribute(
   name: string,
   value: string,
@@ -285,13 +309,17 @@ function addAttribute(
       }
       return out.classes.length > 0;
     }
-    if (ignoreFnForClass(config)(name, value)) return false;
-    const tokens = value.trim().split(/\s+/).filter(Boolean);
-    out.classes = tokens.map((t) => ({
-      class: t,
-      selectionType: "exact" as const,
-      length: t.length,
-    }));
+    if (ignoreFnForAttribute(config, "class")(name, value)) return false;
+    const classIgnore = ignoreFnForClass(config);
+    out.classes = value
+      .trim()
+      .split(/\s+/)
+      .filter((token) => !token.includes("\n") && !classIgnore(token, value))
+      .map((token) => ({
+        class: token,
+        selectionType: "exact" as const,
+        length: token.length,
+      }));
     return out.classes.length > 0;
   }
 
@@ -322,8 +350,8 @@ function addAttribute(
   return true;
 }
 
-/** Real `initAttributes` (module 65913) — priority-ordered attribute names, `partialSelectorAttributes` always first, with an optional early-exit `stopCallback` (used only by `generateMinimalSelector`; full descriptive capture never passes one). */
-function initAttributes(
+/** `pattern.ts` `initAttributes`: priority-ordered attribute names, `partialSelectorAttributes` always first, with an optional early-exit `stopCallback` (selector generation passes one; full descriptive capture never does). */
+export function initAttributes(
   el: Element,
   out: ElementPattern,
   config: DesConfig,
@@ -344,10 +372,15 @@ function initAttributes(
       if (stopCallback?.(out)) return true;
     }
   }
-  return addedAny;
+  // With a callback, only reaching an optimal pattern counts (`pattern.ts`).
+  return stopCallback ? false : addedAny;
 }
 
-function initTag(el: Element, out: ElementPattern, config: DesConfig): boolean {
+export function initTag(
+  el: Element,
+  out: ElementPattern,
+  config: DesConfig,
+): boolean {
   const tag = el.tagName.toLowerCase();
   if (ignoreFnForTag(config)("tag", tag)) return false;
   out.tag = tag;
@@ -370,10 +403,12 @@ let nthChildCache = new WeakMap<Element, number>();
 
 export function resetDesPerformanceCaches(): void {
   nthChildCache = new WeakMap();
+  renderedCache = new WeakMap();
+  displayedCache = new WeakMap();
 }
 
 /** Real `initNthChild` (module 65913) — 1-based index among ALL sibling elements (CSS `:nth-child`), not per-tag `:nth-of-type`. */
-function initNthChild(el: Element): PatternPseudo | null {
+export function initNthChild(el: Element): PatternPseudo | null {
   const cached = nthChildCache.get(el);
   if (cached !== undefined) return { name: "nth-child", value: String(cached) };
   const parent = el.parentElement;
@@ -388,7 +423,7 @@ function initNthChild(el: Element): PatternPseudo | null {
     : { name: "nth-child", value: String(index) };
 }
 
-function emptyPattern(relates?: "child"): ElementPattern {
+export function emptyPattern(relates?: "child"): ElementPattern {
   return { relates, tag: "", attributes: [], classes: [], pseudo: [] };
 }
 
@@ -405,22 +440,28 @@ export function buildElementPattern(
   return pattern;
 }
 
+/** `scope.ts` `getScopeRootForElement`: the nearest element, itself included, matching any configured scope selector; a malformed selector is skipped rather than losing the others. */
+export function scopeRootFor(el: Element, config: DesConfig): Element | null {
+  const selectors = config.scopeRootSelectors;
+  if (!selectors?.length) return null;
+  try {
+    return el.closest(selectors.join(","));
+  } catch {
+    for (const selector of selectors) {
+      try {
+        const matched = el.closest(selector);
+        if (matched) return matched;
+      } catch {
+        // tenant configuration: skip the invalid selector
+      }
+    }
+    return null;
+  }
+}
+
 function resolveScopeRoot(el: Element, config: DesConfig): Element | Document {
   const doc = el.ownerDocument;
-  if (config.scopeRootSelectors?.length) {
-    let cur: Element | null = el.parentElement;
-    while (cur) {
-      for (const sel of config.scopeRootSelectors) {
-        try {
-          if (cur.matches(sel)) return cur;
-        } catch {
-          // invalid selector in config — ignore, keep climbing
-        }
-      }
-      cur = cur.parentElement;
-    }
-  }
-  return doc.body ?? doc;
+  return scopeRootFor(el, config) ?? doc.body ?? doc;
 }
 
 /** Full descriptive ElementPath: walk from `el` up to the scope root (or document body), root-to-leaf order — real `createPath`. */
@@ -521,11 +562,18 @@ function ancestorSequenceScore(
     const next = shorterCopy.shift()!;
     let bestScore = 0;
     let bestIndex = -1;
+    // `diff.ts` `containerMaxScore` reduces over `scores.slice(1)` and keeps
+    // the slice's own index, so a best match after the first is reported
+    // one position early and the next ancestor may match it again. Kept,
+    // because the score has to be the one Apty computes.
     remainingLonger.forEach((candidate, idx) => {
       const score = patternDiffScore(next, candidate).total;
-      if (idx === 0 || score > bestScore) {
+      if (idx === 0) {
         bestScore = score;
-        bestIndex = idx;
+        bestIndex = 0;
+      } else if (score > bestScore) {
+        bestScore = score;
+        bestIndex = idx - 1;
       }
     });
     scores.push(bestScore);
@@ -650,7 +698,7 @@ function dropOneAncestorAtATime(
   let collected: Element[] = [];
   for (
     let dropIndex = 0;
-    dropIndex < ancestors.length && collected.length <= limit;
+    dropIndex < ancestors.length && collected.length < limit;
     dropIndex++
   ) {
     const kept = ancestors.filter((_, i) => i !== dropIndex);
@@ -693,7 +741,7 @@ function leafFieldCombinations(
     ...leaf.classes.map((c) => ({ kind: "class" as const, name: c.class })),
     ...leaf.pseudo.map((p) => ({ kind: "pseudo" as const, name: p.name })),
   ].reverse();
-  const drops = combinationsUpToSize(fields, 2);
+  const drops: LeafField[][] = [[], ...combinationsUpToSize(fields, 2)];
   let collected: Element[] = [];
   for (let i = 0; i < drops.length && collected.length <= limit; i++) {
     const dropped = drops[i]!;
@@ -930,157 +978,4 @@ export function checkContainersScore(
     }
   }
   return false;
-}
-
-// ---------------------------------------------------------------------------
-// Minimal selector generation — faithful-intent reconstruction of real
-// `match()`/`optimize()` (modules 39842/59772). The real algorithm's exact
-// per-branch trim ordering (a live 1-second-per-step timing budget, a
-// dual attribute/text-content-first-node special case) could not be
-// recovered with full confidence from the minified bundle; this
-// reconstruction preserves the documented INTENT (try one attribute in
-// priority order that alone makes the selector-so-far unique via the same
-// non-strict `elementMatches`; else fall back to `nth-child`; climb one
-// ancestor level and repeat until unique or the scope root is reached)
-// without claiming byte-identical behavior.
-// ---------------------------------------------------------------------------
-
-export interface MinimalSelectorResult {
-  selector: string;
-  /** Attribute names actually used to build the winning selector, root-to-leaf. */
-  attributesUsed: string[];
-  ancestorLevelsUsed: number;
-  usesPositionalSelector: boolean;
-  /** The leaf (target) level's own final pattern — exposed so a caller can tell an exact-match attribute from one a Partial Selector function anchored on a substring (`selectionType !== "exact"`), without re-deriving it. */
-  leafPattern: ElementPattern;
-}
-
-/**
- * Build one level's pattern by growing it ONE attribute at a time, in
- * priority order (real `u()`'s `initAttributes(..., stopCallback)`):
- * after each attribute is added, re-check whether the FULL selector so
- * far (every already-fixed outer level, plus this level's growing
- * pattern) already uniquely resolves to `el` within `root`. Only when no
- * combination of this level's attributes achieves that does it fall back
- * to a bare tag match, and finally to `nth-child` (real `d()`/`f()`).
- * This is what lets a single level's Attribute Priority walk combine
- * MULTIPLE attributes (e.g. `.btn` + `[name="submit"]` together) when
- * neither alone is unique — never just "the first attribute added".
- */
-function buildLevelWithLiveUniquenessCheck(
-  /** The element THIS level's pattern describes — an ancestor of `target` on every iteration after the first. */
-  levelElement: Element,
-  /** The ORIGINAL element `generateMinimalSelector` is building a selector for — uniqueness is always checked against THIS, never against `levelElement` (which trivially "matches itself" and would make every level look falsely unique). */
-  target: Element,
-  config: DesConfig,
-  relates: "child" | undefined,
-  /** Already-fixed INNER levels (closer to the leaf; built by an earlier iteration of `generateMinimalSelector`'s climb) — the new pattern built here is an ANCESTOR of these, so it must be prepended, never appended, when composing a root-to-leaf selector. */
-  innerLevels: ElementPattern[],
-  root: ParentNode,
-): { pattern: ElementPattern; usedAttributes: string[] } {
-  const pattern = emptyPattern(relates);
-  initTag(levelElement, pattern, config);
-  const usedAttributes: string[] = [];
-
-  const attrs = Array.from(levelElement.attributes);
-  const order = resolveAttributeOrder(
-    attrs.map((a) => a.name),
-    config,
-  );
-  let achievedUnique = false;
-  for (const name of order) {
-    const attr = attrs.find((a) => a.name === name);
-    if (!attr) continue;
-    if (!addAttribute(name, attr.value, pattern, config)) continue;
-    usedAttributes.push(name);
-    const candidateSelector = pathToSelector([pattern, ...innerLevels]);
-    if (
-      elementMatches(
-        target,
-        safeQueryAll(root, candidateSelector, 2),
-        config.strictUniqueness,
-      )
-    ) {
-      achievedUnique = true;
-      break;
-    }
-  }
-
-  if (!achievedUnique) {
-    // Real `d()`: bare tag alone, no attributes.
-    const tagOnly = emptyPattern(relates);
-    initTag(levelElement, tagOnly, config);
-    const tagSelector = pathToSelector([tagOnly, ...innerLevels]);
-    if (
-      elementMatches(
-        target,
-        safeQueryAll(root, tagSelector, 2),
-        config.strictUniqueness,
-      )
-    ) {
-      pattern.attributes = [];
-      pattern.classes = [];
-      usedAttributes.length = 0;
-      achievedUnique = true;
-    }
-  }
-
-  if (!achievedUnique) {
-    // Real `f()`: nth-child fallback — the level's only remaining lever.
-    const nthChild = initNthChild(levelElement);
-    pattern.attributes = [];
-    pattern.classes = [];
-    pattern.pseudo = nthChild ? [nthChild] : [];
-    usedAttributes.length = 0;
-  }
-
-  return { pattern, usedAttributes };
-}
-
-export function generateMinimalSelector(
-  el: Element,
-  root: ParentNode,
-  config: DesConfig = DEFAULT_DES_CONFIG,
-): MinimalSelectorResult | null {
-  const scopeRoot = resolveScopeRoot(el, config);
-  const levels: ElementPattern[] = [];
-  const usedAttributesPerLevel: string[][] = [];
-  let cur: Element | null = el;
-  let ancestorLevelsUsed = 0;
-
-  while (cur && cur !== scopeRoot && cur.nodeType === 1) {
-    const relates: "child" | undefined = cur === el ? undefined : "child";
-    const { pattern, usedAttributes } = buildLevelWithLiveUniquenessCheck(
-      cur,
-      el,
-      config,
-      relates,
-      levels,
-      root,
-    );
-    levels.unshift(pattern);
-    usedAttributesPerLevel.unshift(usedAttributes);
-
-    const selector = pathToSelector(levels);
-    if (
-      elementMatches(
-        el,
-        safeQueryAll(root, selector, 2),
-        config.strictUniqueness,
-      )
-    ) {
-      return {
-        selector,
-        attributesUsed: usedAttributesPerLevel.flat(),
-        ancestorLevelsUsed,
-        usesPositionalSelector: usedAttributesPerLevel.every(
-          (names) => names.length === 0,
-        ),
-        leafPattern: levels[levels.length - 1]!,
-      };
-    }
-    cur = cur.parentElement;
-    ancestorLevelsUsed++;
-  }
-  return null;
 }

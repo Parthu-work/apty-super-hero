@@ -641,6 +641,7 @@ export function aggregateFrameSnapshots(
   const accessibility = { totalInteractive: 0, missingAccessibleName: 0 };
   let iframeTotal = 0;
   const iframeByTag = { iframe: 0, frame: 0 };
+  const frameSelectors = { analyzed: 0, positional: 0, onSrc: 0 };
   let shadowRoots = 0;
   let shadowElements = 0;
   let maxZIndex = 0;
@@ -764,6 +765,9 @@ export function aggregateFrameSnapshots(
     iframeTotal += s.iframes.total;
     iframeByTag.iframe += s.iframes.byTag.iframe;
     iframeByTag.frame += s.iframes.byTag.frame;
+    frameSelectors.analyzed += s.iframes.selectors?.analyzed ?? 0;
+    frameSelectors.positional += s.iframes.selectors?.positional ?? 0;
+    frameSelectors.onSrc += s.iframes.selectors?.onSrc ?? 0;
     shadowRoots += s.shadowDom.roots;
     shadowElements += s.shadowDom.elements;
     maxZIndex = Math.max(maxZIndex, s.zIndex.maxZIndex);
@@ -824,6 +828,7 @@ export function aggregateFrameSnapshots(
       accessible: 0,
       crossOrigin: 0,
       byTag: iframeByTag,
+      selectors: frameSelectors,
     },
     shadowDom: { roots: shadowRoots, elements: shadowElements },
     zIndex: { maxZIndex, highZIndexElementCount },

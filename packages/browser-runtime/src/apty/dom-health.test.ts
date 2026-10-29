@@ -420,10 +420,10 @@ describe("runDomHealthAudit", () => {
       "LN",
     );
     expect(result.elementSamples[0]?.explanation.howFound).toMatch(
-      /^checkInitialPath/,
+      /^checkAttributes/,
     );
     expect(result.desEvidence.steps.map((s) => s.step)).toContain(
-      "checkInitialPath",
+      "checkAttributes",
     );
     expect(typeof result.score).toBe("number");
   });

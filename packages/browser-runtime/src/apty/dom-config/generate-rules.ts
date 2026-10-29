@@ -1,6 +1,6 @@
 /**
- * Ignore rules from classified items (R1.5, D7). Every rule is a list of
- * conditions combined with ALL; a literal taken from page data must pass
+ * Ignore rules from classified items (R1.5, D7), written as Apty's DOM
+ * Settings editor holds them (`rule-match.ts`). A literal taken from page data must pass
  * the D3 check or the rule is not emitted and the attribute goes to manual
  * review without its values. A rule that would also match a value seen
  * unchanged in every run of a page is rejected, with the reason. Rules are
@@ -35,6 +35,7 @@ import type {
   RuleConfidence,
   RuleEvidence,
   RuleGroup,
+  RuleOperator,
   RuleTarget,
 } from "./types.js";
 
@@ -54,12 +55,19 @@ type DraftKind =
   | { kind: "layout" }
   | { kind: "noise"; owner: string };
 
+interface ValueTest {
+  operator: RuleOperator;
+  value: string;
+  items?: string[];
+}
+
 interface Draft {
   target: RuleTarget;
   names: string[];
   /** Replaces the name list with a pattern (a noise prefix). */
   nameRegex: string | null;
-  value: RuleCondition | null;
+  /** The test on each named attribute's value; none ignores the attributes by name. */
+  value: ValueTest | null;
   evidence: RuleEvidence;
   confidence: RuleConfidence;
   group: RuleGroup;
@@ -124,11 +132,12 @@ function targetOf(name: string): RuleTarget {
   return name === "id" ? "id" : name === "class" ? "class" : "attribute-value";
 }
 
-function valueCondition(
-  operator: RuleCondition["operator"],
-  value: string,
-): RuleCondition {
-  return { category: "Attribute Value", operator, value };
+function valueCondition(operator: RuleOperator, value: string): ValueTest {
+  return { operator, value };
+}
+
+function listCondition(items: string[]): ValueTest {
+  return { operator: "In", value: items.join(", "), items };
 }
 
 function nameCondition(draft: Draft): RuleCondition {
@@ -141,17 +150,47 @@ function nameCondition(draft: Draft): RuleCondition {
   }
   return draft.names.length === 1
     ? { category: "Attribute Name", operator: "Equals", value: draft.names[0]! }
-    : {
-        category: "Attribute Name",
-        operator: "In",
-        value: draft.names.join(","),
-      };
+    : { category: "Attribute Name", ...listCondition(draft.names) };
 }
 
+function unanchored(pattern: string): string {
+  return pattern.replace(/^\^/, "").replace(/\$$/, "");
+}
+
+/**
+ * A class test as Apty needs it: it tests the whole class value, so the
+ * token is bounded by whitespace, and a template's `.*` stays within one
+ * token.
+ */
+function classTokenPattern(test: ValueTest): string {
+  const body =
+    test.operator === "Regex"
+      ? unanchored(test.value).replace(/\.\*/g, "\\S*")
+      : (test.items ?? [test.value]).map(escapeRegexLiteral).join("|");
+  return `(?:^|\\s)(?:${body})(?:\\s|$)`;
+}
+
+function valueConditionFor(
+  attribute: string,
+  target: RuleTarget,
+  test: ValueTest,
+): RuleCondition {
+  if (target === "class") {
+    return {
+      category: "Attribute Value",
+      attribute: "class",
+      operator: "Regex",
+      value: classTokenPattern(test),
+    };
+  }
+  return { category: "Attribute Value", attribute, ...test };
+}
+
+/** One condition per attribute: Apty's value conditions each name one. */
 function conditionsOf(draft: Draft): RuleCondition[] {
-  return draft.value
-    ? [nameCondition(draft), draft.value]
-    : [nameCondition(draft)];
+  const test = draft.value;
+  if (!test) return [nameCondition(draft)];
+  return draft.names.map((name) => valueConditionFor(name, draft.target, test));
 }
 
 function draftKey(draft: Draft): string {
@@ -206,6 +245,8 @@ interface Index {
   byName: Map<string, Array<{ page: string; item: ClassifiedItem }>>;
   /** Values seen unchanged in every compared run of some page. */
   verifiedStable: Map<string, Set<string>>;
+  /** Whole class values, as Apty tests them. */
+  classValues: Set<string>;
 }
 
 function buildIndex(pages: ClassifiedPage[]): Index {
@@ -214,7 +255,9 @@ function buildIndex(pages: ClassifiedPage[]): Index {
     Array<{ page: string; item: ClassifiedItem }>
   >();
   const verifiedStable = new Map<string, Set<string>>();
+  const classValues = new Set<string>();
   for (const page of pages) {
+    for (const value of page.classValues) classValues.add(value);
     for (const item of page.items) {
       const list = byName.get(item.name) ?? [];
       list.push({ page: page.pageId, item });
@@ -226,7 +269,7 @@ function buildIndex(pages: ClassifiedPage[]): Index {
       }
     }
   }
-  return { byName, verifiedStable };
+  return { byName, verifiedStable, classValues };
 }
 
 function draft(
@@ -297,8 +340,10 @@ function collect(pages: ClassifiedPage[]): Collected {
       switch (item.bucket) {
         case "noise": {
           const matcher = item.noise?.matcher ?? "";
+          // Apty's own markup is Apty's to handle, not the application's.
           if (
             !matcher.startsWith("attribute:") ||
+            item.noise?.source === "apty" ||
             DEFAULT_IGNORE.attribute(item.name)
           ) {
             break;
@@ -372,7 +417,10 @@ function collect(pages: ClassifiedPage[]): Collected {
                 draft(
                   {
                     ...common,
-                    value: valueCondition("Contains", param),
+                    value: valueCondition(
+                      "Contains",
+                      escapeRegexLiteral(param),
+                    ),
                     kind: { kind: "param", param },
                   },
                   source,
@@ -704,10 +752,7 @@ function compact(drafts: Draft[]): Draft[] {
         : null,
     (group) => ({
       ...group[0]!,
-      value: valueCondition(
-        "In",
-        sortedUnique(group.map((d) => d.value!.value)).join(","),
-      ),
+      value: listCondition(sortedUnique(group.map((d) => d.value!.value))),
       sources: group.flatMap((d) => d.sources),
     }),
   );
@@ -765,6 +810,22 @@ function mergeIdenticalConditions(drafts: Draft[]): Draft[] {
   );
 }
 
+/** Stable class tokens on the elements whose whole class value `rule` matches. */
+function collateralTokens(rule: Rule, index: Index): number {
+  const stable = index.verifiedStable.get("class");
+  if (!stable?.size) return 0;
+  const lost = new Set<string>();
+  for (const whole of index.classValues) {
+    if (!ruleMatches(rule, "class", whole)) continue;
+    for (const token of whole.split(/\s+/)) {
+      if (stable.has(token) && !ruleMatches(rule, "class", token)) {
+        lost.add(token);
+      }
+    }
+  }
+  return lost.size;
+}
+
 function finalizeRule(draft: Draft, index: Index): Rule {
   const rule = provisionalRule(draft);
   const counted = new Set<string>();
@@ -777,10 +838,16 @@ function finalizeRule(draft: Draft, index: Index): Rule {
       }
     }
   }
+  const collateral =
+    rule.target === "class" ? collateralTokens(rule, index) : 0;
+  const reason = collateral
+    ? `${reasonOf(draft)} Apty tests the whole class value and then uses none of the element's classes, which also leaves out ${collateral} class token(s) seen stable on the same elements.`
+    : reasonOf(draft);
   return {
     ...rule,
+    ...(collateral ? { collateralClassTokens: collateral } : {}),
     id: `r-${fnv1a(JSON.stringify([rule.conditions, rule.evidence, rule.group]))}`,
-    reason: reasonOf(draft),
+    reason,
     pages: sortedUnique(draft.sources.map((s) => s.page)),
     coveredValueCount: counted.size,
     exampleValues: draft.evidence === "noise" ? [] : examplesOf(draft.sources),

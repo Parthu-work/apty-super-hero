@@ -77,8 +77,10 @@ async function crawl(options) {
 
 function conditionText(rule) {
   return rule.conditions
-    .map((c) => `${c.category} ${c.operator} ${c.value}`)
-    .join(" AND ");
+    .map((c) =>
+      [c.category, c.attribute, c.operator, c.value].filter(Boolean).join(" "),
+    )
+    .join(" OR ");
 }
 
 describe("DOM Config crawl in Chromium", () => {
@@ -115,18 +117,16 @@ describe("DOM Config crawl in Chromium", () => {
 
     const rules = report.rules.map(conditionText);
     assert.equal(
-      rules.some((r) => r.startsWith("Attribute Name Equals src")),
+      rules.some((r) => r.startsWith("Attribute Value src")),
       false,
       rules.join("\n"),
     );
     assert.ok(
-      rules.includes(
-        "Attribute Name Equals href AND Attribute Value Contains nocache",
-      ),
+      rules.includes("Attribute Value href Contains nocache"),
       rules.join("\n"),
     );
     const nocache = report.rules.find(
-      (r) => r.conditions[1]?.value === "nocache",
+      (r) => r.conditions[0]?.value === "nocache",
     );
     assert.equal(nocache.evidence, "observed_change");
     assert.equal(nocache.confidence, "set-diff");
@@ -143,6 +143,13 @@ describe("DOM Config crawl in Chromium", () => {
       JSON.stringify(report.coveredByDefaults).includes("provCheck_"),
       JSON.stringify(report.coveredByDefaults),
     );
+    const toolbar = report.partialSelectors.find((p) => p.attribute === "id");
+    assert.equal(
+      toolbar?.pattern,
+      "^win\\d+(.+)$",
+      JSON.stringify(report.partialSelectors),
+    );
+    assert.deepEqual(toolbar.exampleParts, ["-close-button", "-save-button"]);
 
     assert.equal(report.maxZIndex.appMax, 9999);
     assert.equal(report.maxZIndex.value, 2147483646);

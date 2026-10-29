@@ -18,6 +18,8 @@
  * attributes are generated still goes through `findElement`'s normal
  * recovery. `path` is the element itself, inside the innermost root.
  */
+
+import type { AptySelection } from "./apty-selector.js";
 import {
   buildElementPath,
   type ElementPath,
@@ -29,11 +31,18 @@ import type { DesConfig } from "./health-attribute-classification.js";
 import { AUDIT_DES_CONFIG } from "./health-audit-profile.js";
 import { shadowRootOf } from "./shadow-roots.js";
 
-/** Bumped whenever the stored shape changes; a sample without it predates `ElementRef` (see `toElementRef`). */
-export const ELEMENT_REF_VERSION = 1;
+/** Bumped whenever the stored shape changes; a sample without it predates `ElementRef` (see `toElementRef`). Version 2 adds `selection`; a version 1 ref is replayed through its DES paths. */
+export const ELEMENT_REF_VERSION = 2;
+
+/** The selection Studio would store, and whether any of its selectors depends on position. */
+export interface StoredSelection extends AptySelection {
+  positional: boolean;
+}
 
 export interface ElementRef {
-  version: typeof ELEMENT_REF_VERSION;
+  version: 1 | typeof ELEMENT_REF_VERSION;
+  /** What the player replays; absent in a version 1 ref. */
+  selection?: StoredSelection;
   /** Shadow hosts from the document down to the root that owns `path`; empty when `path` is rooted in the document. */
   hostChain: ElementPath[];
   path: ElementPath;
@@ -177,7 +186,7 @@ function isElementRef(value: unknown): value is ElementRef {
   return (
     ref !== null &&
     typeof ref === "object" &&
-    ref.version === ELEMENT_REF_VERSION &&
+    (ref.version === 1 || ref.version === ELEMENT_REF_VERSION) &&
     Array.isArray(ref.hostChain) &&
     Array.isArray(ref.path)
   );

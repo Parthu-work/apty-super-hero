@@ -14,11 +14,8 @@
  * here, not a bug, when that is genuinely what the real algorithm does.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  buildElementPath,
-  findElement,
-  generateMinimalSelector,
-} from "../des-engine";
+import { captureSelector } from "../apty-selector";
+import { buildElementPath, findElement } from "../des-engine";
 import { DEFAULT_DES_CONFIG } from "../health-attribute-classification";
 import { resolveElement } from "../health-selector-engine";
 
@@ -131,6 +128,7 @@ describe("synthetic enterprise fixture: Autodesk-style dynamic SPA wrapper", () 
     setHtml(`
       <div class="sc-bdVaJa hEcuXe">
         <button class="sc-htpNat jrIVkE" data-testid="publish-model-button">Publish</button>
+        <button class="sc-htpNat kQwErT" data-testid="discard-button">Discard</button>
       </div>
     `);
     const button = document.querySelector(
@@ -140,7 +138,7 @@ describe("synthetic enterprise fixture: Autodesk-style dynamic SPA wrapper", () 
       ...DEFAULT_DES_CONFIG,
       partialSelectorAttributes: ["data-testid"],
     };
-    const minimal = generateMinimalSelector(button, document, config);
+    const minimal = captureSelector(button, config);
     expect(minimal?.selector).toContain("publish-model-button");
     expect(minimal?.selector).not.toContain("sc-htpNat");
   });

@@ -12,21 +12,20 @@
  * the stable part of a value. Audit results are therefore "selectable with
  * this configuration", and the report names the profile.
  *
- * The engine calls the class ignore hook with the whole `class` value, so
- * single tokens are dropped through the class partial hook instead: it
- * returns the stable tokens, and the engine records them as partial class
- * matches, as it would for a Studio-configured partial selector. The
- * profile only removes what is unstable; it never invents a substring
- * anchor (a react-select or Emotion stem from `extractStablePrefix` /
- * `extractStableSuffix`), because a partial selector on part of a value is
- * a choice Studio leaves to explicit configuration.
+ * Class tokens go through the class ignore hook one at a time, as Apty's
+ * `ignoreSelectorClassFunction` does; this port also hands the hook the
+ * whole `class` value, so a styled-components partner can be recognised
+ * next to its `sc-` id. The profile only removes what is unstable; it
+ * never invents a substring anchor (a react-select or Emotion stem from
+ * `extractStablePrefix` / `extractStableSuffix`), because a partial
+ * selector on part of a value is a choice Studio leaves to explicit
+ * configuration.
  */
 
 import {
   DEFAULT_DES_CONFIG,
   type DesConfig,
   type IgnoreFn,
-  type PartialFn,
 } from "./health-attribute-classification.js";
 import { classifyUnstableClass, looksDynamic } from "./health-dynamic.js";
 import { isPrivateAttribute } from "./health-privacy.js";
@@ -92,16 +91,10 @@ const auditIgnoreAttribute: IgnoreFn = (name, value, defaultFn) => {
   return name === "id" && Boolean(value) && looksDynamic(value ?? "");
 };
 
-const auditIgnoreClass: IgnoreFn = (name, value, defaultFn) => {
-  if (defaultFn?.(name, value)) return true;
-  return stableClassTokens(value ?? "").length === 0;
-};
-
-/** The stable class tokens, when at least one token was unstable; otherwise nothing, so the engine keeps Studio's own exact-token handling. */
-const auditPartialClass: PartialFn = (_name, value) => {
-  const stable = stableClassTokens(value);
-  if (stable.length === 0) return undefined;
-  return stable.length === splitClasses(value).length ? undefined : stable;
+const auditIgnoreClass: IgnoreFn = (token, classValue, defaultFn) => {
+  if (defaultFn?.(token, undefined)) return true;
+  const tokens = splitClasses(classValue ?? token);
+  return classifyUnstableClass(token, tokens) !== null;
 };
 
 export const AUDIT_PROFILE_NAME = "apty-agent-audit-v1";
@@ -111,9 +104,6 @@ export const AUDIT_DES_CONFIG: DesConfig = {
   ignore: {
     attribute: auditIgnoreAttribute,
     class: auditIgnoreClass,
-  },
-  partialSelectors: {
-    class: auditPartialClass,
   },
 };
 

@@ -138,7 +138,7 @@ describe("ignored roots (D-6)", () => {
 
   it("looks past an overlay covering a control when hit testing", () => {
     document.body.innerHTML =
-      '<button id="save">Save</button><button id="_pendo-badge_1">?</button>';
+      '<div><button id="save">Save</button></div><button id="_pendo-badge_1">?</button>';
     const [save, badge] = Array.from(document.querySelectorAll("button"));
     vi.spyOn(save!, "getBoundingClientRect").mockReturnValue({
       left: 10,
@@ -200,19 +200,23 @@ describe("duplicate ids, scoped per root (D-8)", () => {
 
   it("keeps using an id that repeats only across roots, since each root's ids are separate", async () => {
     document.body.innerHTML =
-      '<button id="save">Save</button><x-panel></x-panel>';
+      '<button id="save">Save</button><button id="close">Close</button><x-panel></x-panel>';
     document
       .querySelector("x-panel")!
       .attachShadow({ mode: "open" }).innerHTML =
-      '<button id="save">Save</button>';
+      '<button id="save">Save</button><button id="close">Close</button>';
 
     const snapshot = await collectDomHealthSnapshot(document);
 
     expect(snapshot.duplicateIds).toMatchObject({
       valuesDuplicatedWithinARoot: 0,
-      valuesDuplicatedPageWide: 1,
+      valuesDuplicatedPageWide: 2,
     });
-    for (const report of snapshot.elementReports) {
+    const saves = snapshot.elementReports.filter(
+      (report) => report.attributes.id === "save",
+    );
+    expect(saves).toHaveLength(2);
+    for (const report of saves) {
       expect(report.bestSelector).toMatch(/\[id="save"\]$/);
     }
   });

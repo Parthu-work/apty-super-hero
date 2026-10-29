@@ -2,6 +2,7 @@
  * The DOM Config fixture application, shared by the crawl, UI and
  * accessibility e2e files: four same-origin pages linked by anchors whose
  * `?nocache=` changes on every load, ids `ui-id-N` that change per load,
+ * toolbar ids carrying a window counter that changes per load,
  * Apty's default-ignored `provCheck_` id, a long `RptTable` class run, an
  * open shadow root, a same-origin and a cross-origin iframe, an
  * extension-like icon at z-index 999999, Apty-like noise and, on /home, a
@@ -45,6 +46,7 @@ export async function startDomConfigApp() {
   <main id="view"><h1>${name}</h1>
     <div id="ui-id-${loads}" class="panel">a</div><div id="ui-id-${loads + 1}" class="panel">b</div>
     <div id="provCheck_1009116120" class="check">c</div>
+    <div id="toolbar"><button id="win${loads}-save-button">Save</button><button id="win${loads}-close-button">Close</button></div>
     <input name="search" placeholder="Search">
     <table id="grid">${rows}</table>
     <x-card id="card"></x-card>

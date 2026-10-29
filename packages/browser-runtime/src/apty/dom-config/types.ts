@@ -47,8 +47,15 @@ export interface ApplicationCapture {
   pages: PageCapture[];
 }
 
+/**
+ * The two modes of a condition in Apty's DOM Settings editor: "Attribute
+ * Name" tests the attribute's name (stored as key `selection`);
+ * "Attribute Value" tests the value of the attribute named in `attribute`
+ * (stored as that key).
+ */
 export type RuleCategory = "Attribute Name" | "Attribute Value";
 
+/** The editor's operator labels; `aptyOperator` gives the stored names. */
 export type RuleOperator =
   | "Equals"
   | "Not equals"
@@ -60,8 +67,13 @@ export type RuleOperator =
 
 export interface RuleCondition {
   category: RuleCategory;
+  /** The attribute whose value an "Attribute Value" condition tests. */
+  attribute?: string;
   operator: RuleOperator;
+  /** As typed in the editor; for In and Not in, the items joined by ", ". */
   value: string;
+  /** In and Not in: the list Apty stores. */
+  items?: string[];
 }
 
 export type RuleTarget = "id" | "class" | "attribute-name" | "attribute-value";
@@ -85,7 +97,7 @@ export type RuleGroup = "main" | "review" | "record-specific";
 export interface Rule {
   id: string;
   target: RuleTarget;
-  /** Combined with ALL. */
+  /** Combined with ANY: Apty ORs the conditions of its ignore list. */
   conditions: RuleCondition[];
   evidence: RuleEvidence;
   confidence: RuleConfidence;
@@ -94,6 +106,30 @@ export interface Rule {
   coveredValueCount: number;
   exampleValues: string[];
   group: RuleGroup;
+  /**
+   * A class condition: Apty tests the element's whole class value and,
+   * on a hit, uses none of its classes. These are the class tokens seen
+   * stable on some page that sit on the same elements and would go too.
+   */
+  collateralClassTokens?: number;
+}
+
+/** One Partial Selector condition: Apty keeps capture group 1 of `pattern` from the attribute's value. */
+export interface PartialSelectorRule {
+  id: string;
+  attribute: string;
+  pattern: string;
+  /** Where the kept part sits in the value, which decides `^=`, `$=` or `*=`. */
+  keeps: "start" | "end" | "middle";
+  reason: string;
+  pages: string[];
+  coveredValueCount: number;
+  /** Distinct parts kept: one per element it tells apart. */
+  elementCount: number;
+  exampleValues: string[];
+  exampleParts: string[];
+  /** Values seen unchanged that the pattern also fits. */
+  stableMatches: number;
 }
 
 export interface RejectedRule {
@@ -151,8 +187,34 @@ export interface PriorityDiffEntry {
 
 export interface AttributePriority extends Setting<string> {
   entries: AttributePriorityEntry[];
+  /** The library's order when neither the application nor its type sets one. */
   defaultPriority: string[];
+  /** Apty's application-type presets, for comparison. */
+  typePresets: Array<{ type: string; priority: string[] }>;
   diff: PriorityDiffEntry[];
+}
+
+/** One Ignore DOM events condition and the source it was derived from. */
+export interface DomEventRule {
+  id: string;
+  condition: RuleCondition;
+  tag: string;
+  /** The highest rate seen, in observer callbacks per second. */
+  callbacksPerSecond: number;
+  reason: string;
+  pages: string[];
+}
+
+/** A continuously changing element that is listed, never proposed. */
+export interface NotProposedSource {
+  tag: string;
+  reason: string;
+  pages: string[];
+}
+
+export interface IgnoreDomEventsSetting extends Setting<RuleCondition[]> {
+  rules: DomEventRule[];
+  notProposed: NotProposedSource[];
 }
 
 export interface ZIndexSourceSummary {
@@ -363,13 +425,14 @@ export interface DomConfigReport {
   captureDates: string[];
   pages: PageSummary[];
   rules: Rule[];
+  partialSelectors: PartialSelectorRule[];
   rejectedRules: RejectedRule[];
   manualReview: ManualReviewItem[];
   coveredByDefaults: CoveredByDefaultsItem[];
   attributePriority: AttributePriority;
   shadowDom: Setting<boolean>;
   debounce: Setting<number>;
-  ignoreEvents: Setting<string[]>;
+  ignoreEvents: IgnoreDomEventsSetting;
   maxZIndex: MaxZIndexSetting;
   containerScoreThreshold: ContainerScoreThreshold;
   clickAdvance: Setting<null>;

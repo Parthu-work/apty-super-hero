@@ -7,6 +7,7 @@
  */
 import type {
   DomConfigReport,
+  PartialSelectorRule,
   Rule,
   RuleCondition,
   RuleGroup,
@@ -41,6 +42,12 @@ function table(header: string[], rows: string[][]): string[] {
 
 const MAX_LISTED_PAGES = 5;
 
+const KEEPS_TEXT: Record<PartialSelectorRule["keeps"], string> = {
+  start: "the start (`^=`)",
+  end: "the end (`$=`)",
+  middle: "a middle part (`*=`)",
+};
+
 function pagesText(report: DomConfigReport, ids: readonly string[]): string {
   const order = new Map(report.pages.map((p, i) => [p.pageId, i]));
   const names = [...ids]
@@ -51,13 +58,17 @@ function pagesText(report: DomConfigReport, ids: readonly string[]): string {
   return cell(more > 0 ? `${shown} and ${more} more` : shown);
 }
 
+/** As the editor shows a row: the mode, the attribute for an Attribute Value row, the operator and the value. */
 function renderCondition(condition: RuleCondition): string {
-  return `${condition.category} · ${condition.operator} · ${code(condition.value)}`;
+  const attribute = condition.attribute
+    ? ` · ${code(condition.attribute)}`
+    : "";
+  return `${condition.category}${attribute} · ${condition.operator} · ${code(condition.value)}`;
 }
 
 /** @internal */
 export function renderConditions(rule: Rule): string {
-  return rule.conditions.map(renderCondition).join(" AND ");
+  return rule.conditions.map(renderCondition).join(" OR ");
 }
 
 function ruleRows(
@@ -175,6 +186,20 @@ export function renderDomConfigMarkdown(report: DomConfigReport): string {
       ),
     );
   }
+  out("## Partial selector conditions", "");
+  out(
+    ...table(
+      ["Attribute", "Regex", "Keeps", "Elements", "Pages", "Reason"],
+      report.partialSelectors.map((p) => [
+        code(p.attribute),
+        code(p.pattern),
+        KEEPS_TEXT[p.keeps],
+        String(p.elementCount),
+        pagesText(report, p.pages),
+        cell(p.reason),
+      ]),
+    ),
+  );
   out(
     "### Already ignored by Apty's defaults",
     "",
@@ -245,6 +270,16 @@ export function renderDomConfigMarkdown(report: DomConfigReport): string {
       ]),
     ),
   );
+  out("### Application type presets", "");
+  out(
+    ...table(
+      ["Application type", "Attribute priority"],
+      priority.typePresets.map((p) => [
+        cell(p.type),
+        code(p.priority.join(",")),
+      ]),
+    ),
+  );
   out(
     `### Compared with Apty's default priority (${code(priority.defaultPriority.join(","))})`,
     "",
@@ -264,17 +299,32 @@ export function renderDomConfigMarkdown(report: DomConfigReport): string {
     ),
   );
 
-  out("## Ignore DOM events", "");
+  out(
+    "## Ignore DOM events",
+    "",
+    cell(`${report.ignoreEvents.basis}: ${report.ignoreEvents.reason}`),
+    "",
+  );
   out(
     ...table(
-      ["Events", "Basis", "Reason"],
-      [
-        [
-          report.ignoreEvents.value.map(code).join(", ") || "none measured",
-          report.ignoreEvents.basis,
-          cell(report.ignoreEvents.reason),
-        ],
-      ],
+      ["Condition", "Changes per second", "Pages", "Reason"],
+      report.ignoreEvents.rules.map((rule) => [
+        renderCondition(rule.condition),
+        String(rule.callbacksPerSecond),
+        pagesText(report, rule.pages),
+        cell(rule.reason),
+      ]),
+    ),
+  );
+  out("### Changing continuously, not proposed", "");
+  out(
+    ...table(
+      ["Element", "Reason", "Pages"],
+      report.ignoreEvents.notProposed.map((n) => [
+        code(n.tag),
+        cell(n.reason),
+        pagesText(report, n.pages),
+      ]),
     ),
   );
 
@@ -298,7 +348,7 @@ export function renderDomConfigMarkdown(report: DomConfigReport): string {
         settingRow("Max z-index", String(z.value), z),
         settingRow(
           "Container score threshold",
-          `${threshold.referenceConfigValue} (reference configurations) / ${threshold.reconstructedModelValue} (reconstructed model)`,
+          `${threshold.referenceConfigValue} (fixed by Apty: ${threshold.reconstructedModelValue} of the containers)`,
           threshold,
         ),
         settingRow("Click-advance", "keep Apty's value", report.clickAdvance),
