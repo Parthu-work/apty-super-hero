@@ -53,7 +53,7 @@ const APTY_IGNORED_ATTRIBUTE_CHANGES = new Set([
 
 const APTY_IGNORED_CLASS = "apty-player-ignored-element";
 
-export const PROBE_LIMITS = {
+const PROBE_LIMITS = {
   maxSources: 40,
   maxSourceClasses: 5,
   maxSourceText: 80,

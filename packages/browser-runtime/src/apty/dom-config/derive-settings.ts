@@ -65,7 +65,7 @@ const TEST_ATTRIBUTES = ["data-automation-id", "data-testid", "data-test"];
 const SELECTABLE_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
 
 /** Attribute priority of Apty's application-type presets (`init-data.sql`); a non-empty application list replaces the preset's. */
-export const APPLICATION_TYPE_PRIORITIES: AttributePriority["typePresets"] = [
+const APPLICATION_TYPE_PRIORITIES: AttributePriority["typePresets"] = [
   { type: "Generic", priority: ["aria-label", "title", "href", "id"] },
   { type: "Oracle", priority: ["aria-label", "title", "href", "id"] },
   { type: "Salesforce", priority: ["href", "title", "id"] },

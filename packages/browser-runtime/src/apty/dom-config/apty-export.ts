@@ -12,7 +12,7 @@ import type {
   RuleOperator,
 } from "./types.js";
 
-export type AptyOperator =
+type AptyOperator =
   | "eq"
   | "neq"
   | "contains"
@@ -31,14 +31,14 @@ const OPERATORS: Record<RuleOperator, AptyOperator> = {
   Regex: "regex",
 };
 
-export interface AptyRuleCondition {
+interface AptyRuleCondition {
   type: "condition";
   operator: AptyOperator;
   left: { kind: "var"; source: "attribute"; key: string };
   right: { kind: "literal"; value: string | string[] };
 }
 
-export interface AptyRuleGroup {
+interface AptyRuleGroup {
   type: "group";
   operator: "AND" | "OR";
   children: AptyRuleNode[];
@@ -65,7 +65,10 @@ export interface AptyDomConfig {
   maxZIndex: number | null;
 }
 
-/** "Attribute Name" rows are stored under the key `selection`. */
+/**
+ * "Attribute Name" rows are stored under the key `selection`.
+ * @internal
+ */
 export function toAptyCondition(condition: RuleCondition): AptyRuleCondition {
   const key =
     condition.category === "Attribute Name"
@@ -92,7 +95,7 @@ export function toRuleNode(
   };
 }
 
-export function toPartialSelectorRows(
+function toPartialSelectorRows(
   rules: readonly PartialSelectorRule[],
 ): AptyPartialSelectorCondition[] {
   return rules.map((rule, i) => ({

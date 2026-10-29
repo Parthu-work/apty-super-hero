@@ -285,7 +285,7 @@ function classifyRelation(
 const VALID_ATTR_NAME = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
 
 /** `pattern.ts` `addAttribute`: Partial Selector first; Ignore Selector only when Partial returns nothing. */
-export function addAttribute(
+function addAttribute(
   name: string,
   value: string,
   out: ElementPattern,
@@ -614,7 +614,7 @@ export function diffScore(
 // `checkInitialPath`/`strategies`.
 // ---------------------------------------------------------------------------
 
-export function safeQueryAll(
+function safeQueryAll(
   root: ParentNode,
   selector: string,
   limit: number,

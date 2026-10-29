@@ -91,7 +91,7 @@ function select(selector: string, parent: ParentNode): Element[] {
 }
 
 /** `utilities.ts` `elementMatches`: one match, or exactly one rendered match unless strict. */
-export function aptyElementMatches(
+function aptyElementMatches(
   element: Element,
   matches: Element[],
   strict: boolean,

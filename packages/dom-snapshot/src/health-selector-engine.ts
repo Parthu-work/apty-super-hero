@@ -147,7 +147,7 @@ function leafAttributeNames(pattern: ElementPattern): {
  * recovery by context; several conditions on the element's own level,
  * recovery by combining attributes; one condition or the tag alone, direct.
  */
-export function classifySelectorFacts(facts: AptySelectorFacts): {
+function classifySelectorFacts(facts: AptySelectorFacts): {
   outcome: SelectorResolutionOutcome;
   strategy: SelectorStrategy;
   winningAttribute: string | null;

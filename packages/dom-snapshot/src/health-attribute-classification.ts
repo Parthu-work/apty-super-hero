@@ -47,7 +47,7 @@ export type PartialConfig = Record<string, PartialFn | undefined>;
  * `OVERRIDABLE_IGNORED_ATTRIBUTES`). Apty-internal attributes and the
  * digit heuristic always apply.
  */
-export const OVERRIDABLE_IGNORED_ATTRIBUTES: readonly string[] = [
+const OVERRIDABLE_IGNORED_ATTRIBUTES: readonly string[] = [
   "style",
   "data-reactid",
   "data-react-checksum",

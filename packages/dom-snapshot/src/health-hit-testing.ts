@@ -35,7 +35,7 @@ import { shadowRootOf } from "./shadow-roots.js";
 const SAMPLE_FRACTIONS = [1 / 6, 1 / 2, 5 / 6];
 
 /** `ElementVisibilityService`: 6 of 9 points. */
-export const APTY_VISIBLE_POINTS = 6;
+const APTY_VISIBLE_POINTS = 6;
 
 const APTY_LAYER_TAGS = new Set([
   "APTY-STUDIO-EXTENSION",
