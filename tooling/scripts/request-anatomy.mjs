@@ -66,6 +66,25 @@ console.log("As built, before the outbound filters (raw):\n");
 console.log(render(data.raw));
 console.log("\nAs sent, after the outbound filters:\n");
 console.log(render(data.sent));
+if (data.budgeted) {
+  const budgets = Object.keys(data.budgeted[0] ?? {}).filter((k) =>
+    k.startsWith("budget"),
+  );
+  const head = ["scenario", "sent", ...budgets.map((k) => `at ${k.slice(6)}`)];
+  const table = data.budgeted.map((row) => [
+    row.scenario,
+    String(data.sent.find((s) => s.scenario === row.scenario)?.totalTokens),
+    ...budgets.map((k) => String(row[k])),
+  ]);
+  const widths = head.map((h, i) =>
+    Math.max(h.length, ...table.map((r) => r[i].length)),
+  );
+  const line = (cells) => cells.map((c, i) => c.padEnd(widths[i])).join("  ");
+  console.log(
+    "\nWith a request budget (Settings → AI), total sent or stopped:\n",
+  );
+  console.log([line(head), ...table.map(line)].join("\n"));
+}
 console.log(
   `\nregistry: ${data.registry.toolCount} tools, ${data.registry.toolSchemaTokens} schema tokens, system prompt ${data.registry.systemPromptTokens} tokens`,
 );

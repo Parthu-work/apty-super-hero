@@ -27,7 +27,10 @@ import {
   useOutboundFilters,
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
-import { formatContextsPrivately } from "../hooks/outbound-filters";
+import {
+  formatContextsPrivately,
+  maxOutputTokens,
+} from "../hooks/outbound-filters";
 import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
@@ -154,6 +157,7 @@ function ChatApp() {
       outboundFilters,
       contextFormatter: formatContextsPrivately,
       localResponder,
+      maxOutputTokens,
     },
     ...BROWSER_AGENT_CONFIG,
   });

@@ -9,6 +9,7 @@ export type ChatErrorKind =
   | "notFound"
   | "toolCalling"
   | "contextTooLong"
+  | "overBudget"
   | "timeout"
   | "cancelled"
   | "stepLimit"
@@ -68,6 +69,8 @@ function kindOf(error: AgentError, online: boolean): ChatErrorKind {
       return "cancelled";
     case "MAX_TURNS_REACHED":
       return "stepLimit";
+    case "REQUEST_OVER_BUDGET":
+      return "overBudget";
   }
   const status = statusCodeOf(error);
   if (status === 413 || CONTEXT_TOO_LONG.test(message)) {
@@ -118,6 +121,7 @@ export const CHAT_ERROR_TEXT: Record<ChatErrorKind, TranslationKey> = {
   notFound: "chatErrors.notFound",
   toolCalling: "chatErrors.toolCalling",
   contextTooLong: "chatErrors.contextTooLong",
+  overBudget: "chatErrors.overBudget",
   timeout: "chatErrors.timeout",
   cancelled: "chatErrors.cancelled",
   stepLimit: "chatErrors.stepLimit",
@@ -130,6 +134,7 @@ export function settingsCanFix(kind: ChatErrorKind): boolean {
     kind === "badKey" ||
     kind === "network" ||
     kind === "notFound" ||
-    kind === "toolCalling"
+    kind === "toolCalling" ||
+    kind === "overBudget"
   );
 }

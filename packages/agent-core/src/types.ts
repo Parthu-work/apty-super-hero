@@ -126,6 +126,12 @@ export interface AptyAgentOptions<
    * treat it as any other tool result.
    */
   localResponder?: LocalResponder;
+  /**
+   * The most tokens one model response may use, read before every turn so a
+   * changed setting applies to the next message. Undefined leaves the
+   * provider's default.
+   */
+  maxOutputTokens?: () => number | undefined | Promise<number | undefined>;
 }
 
 /** A turn the runtime answered itself, with no model call. */

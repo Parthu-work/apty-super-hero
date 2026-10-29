@@ -19,6 +19,7 @@ describe("chatErrorInfo", () => {
     [ErrorCode.LLM_TIMEOUT, "timeout"],
     [ErrorCode.TURN_CANCELLED, "cancelled"],
     [ErrorCode.MAX_TURNS_REACHED, "stepLimit"],
+    [ErrorCode.REQUEST_OVER_BUDGET, "overBudget"],
   ])("maps %s to %s", (code, expected) => {
     expect(kind("x", code)).toBe(expected);
   });
@@ -118,12 +119,19 @@ describe("settingsCanFix", () => {
         "notFound",
         "toolCalling",
         "contextTooLong",
+        "overBudget",
         "timeout",
         "cancelled",
         "stepLimit",
         "unknown",
       ] as const
     ).filter(settingsCanFix);
-    expect(fixable).toEqual(["badKey", "network", "notFound", "toolCalling"]);
+    expect(fixable).toEqual([
+      "badKey",
+      "network",
+      "notFound",
+      "toolCalling",
+      "overBudget",
+    ]);
   });
 });

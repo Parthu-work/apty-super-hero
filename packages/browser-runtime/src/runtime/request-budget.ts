@@ -45,7 +45,7 @@ const TRUNCATION_NOTE_PATTERN =
   /\n\[truncated: first \d+ of \d+ characters sent\]$/;
 const EVIDENCE_ID_PATTERN = /"evidenceId"\s*:\s*"([^"]+)"/;
 
-function textOf(output: unknown): string | undefined {
+export function textOf(output: unknown): string | undefined {
   if (typeof output === "string") return output;
   if (typeof output === "object" && output !== null) {
     const record = output as { type?: unknown; text?: unknown };
@@ -56,11 +56,11 @@ function textOf(output: unknown): string | undefined {
   return undefined;
 }
 
-function withText(output: unknown, text: string): unknown {
+export function withText(output: unknown, text: string): unknown {
   return typeof output === "string" ? text : { ...(output as object), text };
 }
 
-function isUserTurnStart(item: AgentInputItem): boolean {
+export function isUserTurnStart(item: AgentInputItem): boolean {
   const role = (item as { role?: string }).role;
   return (
     (item.type === "message" || item.type === undefined) &&
@@ -69,7 +69,7 @@ function isUserTurnStart(item: AgentInputItem): boolean {
   );
 }
 
-function isStub(text: string): boolean {
+export function isStub(text: string): boolean {
   return text.startsWith('{"stubbed":true');
 }
 
@@ -180,7 +180,7 @@ function capped(text: string, name: string | undefined): string {
   );
 }
 
-function stubOf(name: string | undefined, text: string): string {
+export function stubOf(name: string | undefined, text: string): string {
   const evidenceId = EVIDENCE_ID_PATTERN.exec(text)?.[1];
   return JSON.stringify({
     stubbed: true,

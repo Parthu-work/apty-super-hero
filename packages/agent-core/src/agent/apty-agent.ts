@@ -138,6 +138,10 @@ export class AptyAgent {
   private contextFormatter: (contexts: Context[]) => string =
     formatContextsForPrompt;
   private localResponder?: LocalResponder;
+  private maxOutputTokens?: () =>
+    | number
+    | undefined
+    | Promise<number | undefined>;
 
   private constructor(
     agent: OpenAIAgent,
@@ -184,6 +188,7 @@ export class AptyAgent {
       instance.contextFormatter = options.contextFormatter;
     }
     instance.localResponder = options.localResponder;
+    instance.maxOutputTokens = options.maxOutputTokens;
     return instance;
   }
 
@@ -252,7 +257,22 @@ export class AptyAgent {
     // are untouched — every tool still exists, only what's exposed to the
     // model for this specific request changes.
     let offeredTools = tools;
-    let runAgent = tools ? this.agent.clone({ tools }) : this.agent;
+    const outputCap = await this.maxOutputTokens?.();
+    const agentFor = (offered?: FunctionTool[]) =>
+      offered || outputCap
+        ? this.agent.clone({
+            ...(offered ? { tools: offered } : {}),
+            ...(outputCap
+              ? {
+                  modelSettings: {
+                    ...this.agent.modelSettings,
+                    maxTokens: outputCap,
+                  },
+                }
+              : {}),
+          })
+        : this.agent;
+    let runAgent = agentFor(tools);
 
     // Track tool-call argument streaming during a single model response.
     // This is best-effort and provider-dependent (e.g. OpenAI ChatCompletions tool_calls deltas).
@@ -452,7 +472,7 @@ export class AptyAgent {
               );
             }
             offeredTools = [...offeredTools, registered];
-            runAgent = this.agent.clone({ tools: offeredTools });
+            runAgent = agentFor(offeredTools);
             await rollbackSession(runSession, sessionLength);
             toolArgsStreamByIndex.clear();
             streamedOutput = "";

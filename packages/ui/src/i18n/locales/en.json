@@ -115,7 +115,17 @@
     "modelTip": "Tip: Pick a suggestion or type any model id.",
     "selectOrCreateModelLeft": "Select or create a model on the left to configure",
     "hideApiKey": "Hide API key",
-    "showApiKey": "Show API key"
+    "showApiKey": "Show API key",
+    "requestLimits": {
+      "title": "Request size",
+      "description": "Limits on what each request to the AI provider may use. Leave a field empty for no limit. Sizes are estimates: characters divided by 4.",
+      "budgetLabel": "Request budget (tokens)",
+      "budgetHint": "The largest request to send. Older turns are left out to fit, and a message that still cannot fit stops with a message instead of reaching the provider. Set it under your provider's per-request or per-minute token limit; the system prompt and tool descriptions alone can be about 8,000.",
+      "outputLabel": "Answer length cap (tokens)",
+      "outputHint": "The most tokens one answer may use. A lower cap keeps answers shorter, but a long report can be cut off.",
+      "unset": "No limit",
+      "outOfRange": "Enter a whole number from {{min}} to {{max}}, or leave it empty."
+    }
   },
   "theme": {
     "light": "Light",
@@ -308,6 +318,7 @@
     "notFound": "The AI provider couldn't find the endpoint or the model. Check the host and model in Settings.",
     "toolCalling": "This model doesn't support tool calling, which the agent needs. Choose another model in Settings.",
     "contextTooLong": "This conversation is too long for the model. Start a new chat, or choose a model with a larger context.",
+    "overBudget": "This message is larger than the request budget in Settings, even with the earlier turns left out. Raise the budget, or ask for less at once.",
     "timeout": "The request to the AI provider timed out.",
     "cancelled": "The request was cancelled before it finished.",
     "stepLimit": "Reached the step limit for this turn before finishing.",

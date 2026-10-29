@@ -65,6 +65,7 @@ import { SettingRow } from "../ui/setting-row";
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { DataHandlingCard } from "./data-handling-card";
+import { RequestLimitsCard } from "./request-limits-card";
 import { TroubleshootingCard } from "./troubleshooting-card";
 import type { SaveStatus, SettingsPageProps, SettingsTab } from "./types";
 
@@ -1920,6 +1921,11 @@ export function SettingsPage({
                 </div>
               </div>
             </Card>
+
+            <RequestLimitsCard
+              settings={settings}
+              onChange={saveGeneralSetting}
+            />
           </TabsContent>
 
           {/* Skills Tab */}

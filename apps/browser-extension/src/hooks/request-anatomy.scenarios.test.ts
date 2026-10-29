@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentInputItem } from "@apty/agent-core";
+import { AgentError, type AgentInputItem, ErrorCode } from "@apty/agent-core";
+import { createContextBudgetFilter } from "@apty/browser-runtime/runtime/context-budget";
 import {
   type MeasurableItem,
   type MeasurableTool,
@@ -130,6 +131,50 @@ const sent = await Promise.all(
     ...(await measure(s, true)),
   })),
 );
+/** Request budgets to report: Groq's free tier allows about 8,000 tokens a minute. */
+const BUDGETS = [8_000, 12_000] as const;
+
+/** The total sent under `budget`, or "stopped" when the request cannot fit it. */
+async function measureWithBudget(
+  scenario: Scenario,
+  budget: number,
+): Promise<number | "stopped"> {
+  const tools = selectRelevantTools(scenario.message) as MeasurableTool[];
+  let input = [...scenario.history, user(scenario.message)] as AgentInputItem[];
+  const filters = [
+    ...createOutboundFilters(),
+    createContextBudgetFilter({ getBudget: () => budget }),
+  ];
+  try {
+    for (const filter of filters) {
+      input = await filter(input, { instructions: SYSTEM_PROMPT, tools });
+    }
+  } catch (error) {
+    if (
+      error instanceof AgentError &&
+      error.code === ErrorCode.REQUEST_OVER_BUDGET
+    ) {
+      return "stopped";
+    }
+    throw error;
+  }
+  return measureRequest({
+    instructions: SYSTEM_PROMPT,
+    tools,
+    input: input as unknown as MeasurableItem[],
+  }).totalTokens;
+}
+
+const budgeted = await Promise.all(
+  SCENARIOS.map(async (s) => {
+    const row: Record<string, string | number> = { scenario: s.name };
+    for (const budget of BUDGETS) {
+      row[`budget${budget}`] = await measureWithBudget(s, budget);
+    }
+    return row;
+  }),
+);
+
 const byName = (list: typeof rows, name: string) =>
   list.find((r) => r.scenario === name) as (typeof rows)[number];
 
@@ -166,6 +211,22 @@ describe("request anatomy scenarios", () => {
     }
   });
 
+  it("a request budget sends at most the budget, or stops the request", () => {
+    for (const row of budgeted) {
+      const sentTotal = byName(sent, row.scenario as string).totalTokens;
+      for (const budget of BUDGETS) {
+        const total = row[`budget${budget}`];
+        if (total === "stopped") {
+          expect(sentTotal).toBeGreaterThan(budget);
+        } else {
+          expect(total).toBeLessThanOrEqual(Math.max(budget, 0));
+          expect(total).toBeLessThanOrEqual(sentTotal);
+          if (sentTotal <= budget) expect(total).toBe(sentTotal);
+        }
+      }
+    }
+  });
+
   it("reports the whole registry size for reference", () => {
     const all = measureRequest({
       instructions: SYSTEM_PROMPT,
@@ -178,7 +239,7 @@ describe("request anatomy scenarios", () => {
       mkdirSync(dirname(out), { recursive: true });
       writeFileSync(
         out,
-        JSON.stringify({ registry: all, raw: rows, sent }, null, 2),
+        JSON.stringify({ registry: all, raw: rows, sent, budgeted }, null, 2),
       );
     }
   });

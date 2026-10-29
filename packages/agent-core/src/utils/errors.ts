@@ -21,6 +21,8 @@ export enum ErrorCode {
   MAX_TURNS_REACHED = "MAX_TURNS_REACHED",
   LOOP_DETECTED = "LOOP_DETECTED",
   TURN_CANCELLED = "TURN_CANCELLED",
+  /** The request would not fit the request budget even with the older history left out. */
+  REQUEST_OVER_BUDGET = "REQUEST_OVER_BUDGET",
 }
 
 export class AgentError extends Error {
