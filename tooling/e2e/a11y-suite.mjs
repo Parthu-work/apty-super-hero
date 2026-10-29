@@ -669,7 +669,7 @@ const SURFACES = {
       );
       await chatAndWait(
         panel,
-        `get the data from ${VIEWED.query} in the apty client`,
+        `get the data from ${VIEWED.query} in the apty client and summarize it`,
       );
 
       await panel.getByText("Show thinking details").last().click();
@@ -698,7 +698,10 @@ const SURFACES = {
         `${theme} side panel, full response viewer`,
       );
 
-      await chatAndWait(panel, `get the data from ${VIEWED.query} again`);
+      await chatAndWait(
+        panel,
+        `get the data from ${VIEWED.query} again and summarize it`,
+      );
       await panel.getByText("Show thinking details").last().click();
       await panel
         .getByRole("button", { name: "View full response" })

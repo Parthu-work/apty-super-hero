@@ -22,6 +22,8 @@ afterwards.
 | "Connection test timed out" | The AI Host field points at a website, not an API endpoint, or the host is unreachable | Clear AI Host to use the provider's default, or enter its API base URL. |
 | Every reply fails with an authentication error | The key is wrong, expired or for another provider | Paste a fresh key and click **Test Connection**. |
 | Anthropic: "401: CORS requests must set 'anthropic-dangerous-direct-browser-access' header" | A build before this fix did not send the header Anthropic requires from a browser or extension page | Update the extension; every Anthropic request now sends it. |
+| "The AI provider is rate-limiting requests right now" on a provider with a small per-minute token limit (Groq's free tier allows about 8,000) | One request, or a few close together, is over the provider's limit | In Settings → AI → **Request size**, set **Request budget** under the limit and, if answers are long, an **Answer length cap**. The system prompt and tool descriptions alone can be about 8,000 tokens, so a budget well under that stops most investigations; a provider or plan with a higher limit is the real fix. |
+| "This message is larger than the request budget in Settings, even with the earlier turns left out" | The request budget is smaller than the system prompt, the tools offered and the current message together; nothing was sent | Raise **Request budget** in Settings → AI → **Request size**, or ask for less at once. **Details** gives the sizes. |
 | Anthropic: "This API key is not scoped to a workspace … anthropic-workspace-id" | The key can run in several workspaces, so each request must name one | Copy the workspace ID (`wrkspc_…`) from Claude Console → Settings → Workspaces into Settings → AI → **Workspace ID**, or create a key for a single workspace. |
 
 ## The current page can't be inspected
@@ -58,7 +60,9 @@ calls. **View body** reads the newest call of that request that has a body
 and says when it is an older one. It asks the Client only when you click.
 The chat's `list_extension_network_resources` gives the model the same
 unique list, and `inspect_extension_network` falls back to an older call's
-body the same way.
+body the same way. A message that only asks for one file ("get
+segments.json") runs `inspect_extension_network` without the model; add
+anything else to the message to have the model read it.
 
 | What you see | Cause | Fix |
 |---|---|---|
@@ -78,6 +82,20 @@ body the same way.
 
 The Agent can't watch the Client's requests itself: Chrome doesn't show one
 extension's requests to another (see `DECISIONS.md`).
+
+### Visibility check
+
+A chat message such as "my workflow 'Create a lead' is not visible in the
+widget" is checked from these same calls, with no AI model involved.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "No data to check" with "No Apty Client extension ID is saved." | No Client is connected | Connect it above, then ask again. |
+| "No data to check" with a connection failure | The Client didn't answer | Fix it with the table above; the check says nothing about the content until then. |
+| "The Apty Client did not report loading workflow.json" | The widget hasn't requested that file since the Client started | Reload the application with the widget, then ask again. |
+| "Not covered" with "This tenant uses 4.x content files…" | The Client served 4.x files (`flow.json`, `segments.json`) | The check covers 5.x only; use the manual paste path. |
+| "Needs a check in the browser" | The files show no blocker; whether this user matches a segment's rule is decided in the browser | Test as a user known to match the segment, as the card says. |
+| A cause you know is wrong | The files are older than the last publish | Reload the application so the Client fetches them again, then ask again. |
 
 ## Response bodies are missing from a network capture
 

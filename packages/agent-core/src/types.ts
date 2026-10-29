@@ -118,7 +118,36 @@ export interface AptyAgentOptions<
    * privacy policy to page and tab contexts.
    */
   contextFormatter?: (contexts: Context[]) => string;
+  /**
+   * Answers a message without calling the model when the runtime can decide
+   * it deterministically. Returning undefined sends the message to the model
+   * as usual. The answer is shown as a completed tool call and kept in the
+   * session as one, so a follow-up question sees it and the outbound filters
+   * treat it as any other tool result.
+   */
+  localResponder?: LocalResponder;
+  /**
+   * The most tokens one model response may use, read before every turn so a
+   * changed setting applies to the next message. Undefined leaves the
+   * provider's default.
+   */
+  maxOutputTokens?: () => number | undefined | Promise<number | undefined>;
 }
+
+/** A turn the runtime answered itself, with no model call. */
+export interface LocalAnswer {
+  /** The chat renders `result` as a completed call of this tool. */
+  toolName: string;
+  params: unknown;
+  result: unknown;
+  /** The tool output the session keeps for the model to read on later turns. */
+  transcript: string;
+}
+
+export type LocalResponder = (
+  input: string,
+  context: { runContext?: unknown; sessionId?: string },
+) => LocalAnswer | undefined | Promise<LocalAnswer | undefined>;
 
 /** What a call sends besides its input items. */
 export interface OutboundRequestContext {

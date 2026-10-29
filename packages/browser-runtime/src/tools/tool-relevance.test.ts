@@ -85,6 +85,27 @@ describe("selectRelevantTools", () => {
     }
   });
 
+  it("offers no investigation tools for a request that only fetches a file", () => {
+    const investigationNames = new Set(
+      names(browserToolGroups.investigation as { name: string }[]),
+    );
+    for (const message of [
+      "get config.json",
+      "Please show segments.json from the Apty Client",
+      "can you read app.json",
+    ]) {
+      const offered = names(selectRelevantTools(message));
+      expect(offered.filter((n) => investigationNames.has(n))).toEqual([]);
+    }
+
+    const debugging = names(
+      selectRelevantTools("get config.json and investigate why it fails"),
+    );
+    expect(debugging.some((n) => investigationNames.has(n))).toBe(true);
+    const question = names(selectRelevantTools("why is segments.json empty"));
+    expect(question.some((n) => investigationNames.has(n))).toBe(true);
+  });
+
   it("falls back to a minimal grounding set for an ambiguous non-casual message", () => {
     const result = selectRelevantTools(
       "can you help me understand what is happening right now",

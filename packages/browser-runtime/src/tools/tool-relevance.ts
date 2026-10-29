@@ -154,6 +154,23 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
     "resource loaded",
     "resources loaded",
   ],
+  diagnosis: [
+    "not visible",
+    "isn't visible",
+    "not showing",
+    "isn't showing",
+    "not appearing",
+    "doesn't appear",
+    "does not appear",
+    "doesn't show",
+    "does not show",
+    "missing from the widget",
+    "missing in the widget",
+    "hidden from the widget",
+    "not in the widget",
+    "can't see",
+    "cannot see",
+  ],
   extensionNetwork: [
     "segments.json",
     "app.json",
@@ -186,6 +203,12 @@ const GROUPS_THAT_IMPLY_INVESTIGATION: BrowserToolGroupName[] = [
   "networkCapture",
   "extensionNetwork",
 ];
+
+// "get config.json" asks for a file, not an investigation: offering the
+// investigation group's schemas with it cost thousands of tokens a turn
+// and pushed small-limit providers over their per-minute budget.
+const RETRIEVAL_REQUEST =
+  /^(?:please\s+|can you\s+|could you\s+)?(?:get|show|read|fetch|open|list|view|display|print|give me)\b/;
 
 const CASUAL_PATTERNS: RegExp[] = [
   /^(hi|hello|hey|yo)\b/,
@@ -226,7 +249,10 @@ export function selectRelevantTools(userMessage: string): FunctionTool[] {
     }
   }
 
-  if (GROUPS_THAT_IMPLY_INVESTIGATION.some((g) => matchedGroups.has(g))) {
+  if (
+    !RETRIEVAL_REQUEST.test(text.trim()) &&
+    GROUPS_THAT_IMPLY_INVESTIGATION.some((g) => matchedGroups.has(g))
+  ) {
     matchedGroups.add("investigation");
   }
 

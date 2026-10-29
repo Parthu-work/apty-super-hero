@@ -6,6 +6,7 @@
 import type {
   AppSettings,
   FunctionTool,
+  LocalResponder,
   OutboundFilter,
 } from "@apty/agent-core";
 import {
@@ -18,6 +19,8 @@ import {
 import {
   allBrowserProviders,
   allBrowserTools,
+  createDiagnosisResponder,
+  createFileFetchResponder,
   IndexedDBStorage,
   selectRelevantTools,
 } from "@apty/browser-runtime";
@@ -146,6 +149,20 @@ export function useSelectRelevantTools() {
 /** Stable across renders: the agent reads it once when it is created. */
 export function useOutboundFilters(): OutboundFilter[] {
   return useMemo(createOutboundFilters, []);
+}
+
+/** Answers a recognised visibility question or a bare request for one of the Apty Client's files, with no model call. Stable across renders. */
+export function useLocalResponder(): LocalResponder {
+  return useMemo(() => {
+    const responders = [createDiagnosisResponder(), createFileFetchResponder()];
+    return async (input, context) => {
+      for (const respond of responders) {
+        const answer = await respond(input, context);
+        if (answer) return answer;
+      }
+      return undefined;
+    };
+  }, []);
 }
 
 /**

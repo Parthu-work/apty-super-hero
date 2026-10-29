@@ -111,7 +111,23 @@ export interface AppSettings {
   redactionMode?: RedactionModeSetting;
   /** Whether a screenshot may be sent to the AI provider; missing or unknown means "ask". */
   screenshotPolicy?: ScreenshotPolicySetting;
+  /**
+   * The largest request to send, in estimated tokens (characters / 4):
+   * older history is left out to fit, and a message that cannot fit stops
+   * with a message. Missing means no budget.
+   */
+  requestTokenBudget?: number;
+  /** The most tokens one answer may use. Missing leaves the provider's default. */
+  maxOutputTokens?: number;
 }
+
+/** What Settings accepts for `requestTokenBudget`; a stored value outside it counts as unset. */
+export const REQUEST_TOKEN_BUDGET_RANGE = {
+  min: 2_000,
+  max: 2_000_000,
+} as const;
+/** What Settings accepts for `maxOutputTokens`; a stored value outside it counts as unset. */
+export const MAX_OUTPUT_TOKENS_RANGE = { min: 256, max: 1_000_000 } as const;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   aiProvider: "openai",

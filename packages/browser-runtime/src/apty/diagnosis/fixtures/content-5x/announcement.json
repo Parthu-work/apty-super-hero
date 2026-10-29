@@ -1,0 +1,24 @@
+[
+  {
+    "id": "09000000-0000-7000-8000-000000000002",
+    "sourceId": "0f000000-0000-7000-8000-000000000002",
+    "segmentIds": ["05000000-0000-7000-8000-000000000002"],
+    "tagIds": [],
+    "processIds": [],
+    "visibilityRuleId": null,
+    "visibilityRuleAction": null,
+    "versionNumber": 2,
+    "isAiRecommended": false,
+    "createdAt": "2026-09-01T10:00:00.000Z",
+    "updatedAt": "2026-09-15T10:00:00.000Z",
+    "createdBy": "Content Author",
+    "updatedBy": "Content Author",
+    "name": "Quarter close reminder",
+    "locales": [
+      {
+        "contentHTML": "<p>Help text</p>",
+        "locale": "en"
+      }
+    ]
+  }
+]

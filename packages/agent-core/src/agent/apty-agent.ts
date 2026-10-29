@@ -23,18 +23,25 @@ import type {
   AptyAgentOptions,
   BeforeChatPayload,
   ChatOptions,
+  LocalAnswer,
+  LocalResponder,
   MetricsPayload,
   OutboundFilter,
   SessionStorageAdapter,
   ToolEventPayload,
 } from "../types.js";
 import { AgentError, classifyLlmError, ErrorCode } from "../utils/errors.js";
+import { generateId } from "../utils/id-generator.js";
 import { safeJsonParse } from "../utils/json.js";
 import { createLogger } from "../utils/logger.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
 
 const log = createLogger("AptyAgent");
+
+/** Closes a locally answered turn, so every provider sees a well-formed exchange. */
+const LOCAL_ANSWER_NOTE =
+  "Answered without a model call; the user saw the tool result above.";
 
 /** Call-establishment retry for the LLM request only (before any stream
  * event has been yielded to the caller) — never mid-stream, where partial
@@ -130,6 +137,11 @@ export class AptyAgent {
   private outboundFilters: OutboundFilter[];
   private contextFormatter: (contexts: Context[]) => string =
     formatContextsForPrompt;
+  private localResponder?: LocalResponder;
+  private maxOutputTokens?: () =>
+    | number
+    | undefined
+    | Promise<number | undefined>;
 
   private constructor(
     agent: OpenAIAgent,
@@ -175,6 +187,8 @@ export class AptyAgent {
     if (options.contextFormatter) {
       instance.contextFormatter = options.contextFormatter;
     }
+    instance.localResponder = options.localResponder;
+    instance.maxOutputTokens = options.maxOutputTokens;
     return instance;
   }
 
@@ -243,7 +257,22 @@ export class AptyAgent {
     // are untouched — every tool still exists, only what's exposed to the
     // model for this specific request changes.
     let offeredTools = tools;
-    let runAgent = tools ? this.agent.clone({ tools }) : this.agent;
+    const outputCap = await this.maxOutputTokens?.();
+    const agentFor = (offered?: FunctionTool[]) =>
+      offered || outputCap
+        ? this.agent.clone({
+            ...(offered ? { tools: offered } : {}),
+            ...(outputCap
+              ? {
+                  modelSettings: {
+                    ...this.agent.modelSettings,
+                    maxTokens: outputCap,
+                  },
+                }
+              : {}),
+          })
+        : this.agent;
+    let runAgent = agentFor(tools);
 
     // Track tool-call argument streaming during a single model response.
     // This is best-effort and provider-dependent (e.g. OpenAI ChatCompletions tool_calls deltas).
@@ -443,7 +472,7 @@ export class AptyAgent {
               );
             }
             offeredTools = [...offeredTools, registered];
-            runAgent = this.agent.clone({ tools: offeredTools });
+            runAgent = agentFor(offeredTools);
             await rollbackSession(runSession, sessionLength);
             toolArgsStreamByIndex.clear();
             streamedOutput = "";
@@ -624,6 +653,19 @@ export class AptyAgent {
       ] as AgentInputItem[];
     }
 
+    let local: LocalAnswer | undefined;
+    if (typeof input === "string" && !chatOptions?.images?.length) {
+      try {
+        local = await this.localResponder?.(input, {
+          runContext: chatOptions?.runContext,
+          sessionId: chatOptions?.sessionId,
+        });
+      } catch (error) {
+        yield { type: "error", error: this.normalizeError(error) };
+        return;
+      }
+    }
+
     // If sessionId is provided, continue existing conversation
     if (chatOptions?.sessionId) {
       if (!this.conversationManager) {
@@ -645,12 +687,14 @@ export class AptyAgent {
         itemCount: session.getItemCount(),
       };
 
-      yield* this.runExecution(
-        finalInput,
-        session,
-        chatOptions?.runContext,
-        chatOptions?.tools,
-      );
+      yield* local
+        ? this.runLocalAnswer(input, local, session)
+        : this.runExecution(
+            finalInput,
+            session,
+            chatOptions?.runContext,
+            chatOptions?.tools,
+          );
       return;
     }
 
@@ -662,12 +706,99 @@ export class AptyAgent {
       yield { type: "session_created", sessionId: session.id };
     }
 
-    yield* this.runExecution(
-      finalInput,
-      session,
-      chatOptions?.runContext,
-      chatOptions?.tools,
-    );
+    yield* local
+      ? this.runLocalAnswer(input, local, session)
+      : this.runExecution(
+          finalInput,
+          session,
+          chatOptions?.runContext,
+          chatOptions?.tools,
+        );
+  }
+
+  /** A turn answered by the local responder: the same events a tool call yields, and the session keeps the user's words and the transcript. */
+  private async *runLocalAnswer(
+    input: string,
+    answer: LocalAnswer,
+    session: Session | null,
+  ): AsyncGenerator<AgentEvent> {
+    const startTime = Date.now();
+    const metrics = this.initMetrics(startTime, session);
+    const events: AgentEvent[] = [
+      {
+        type: "tool_call_start",
+        toolName: answer.toolName,
+        params: answer.params,
+      },
+      {
+        type: "tool_call_complete",
+        toolName: answer.toolName,
+        result: answer.result,
+      },
+    ];
+    for (const event of events) {
+      await this.emitToolEventHooks({ event });
+      yield event;
+    }
+
+    if (session) {
+      const callId = `local-${generateId()}`;
+      await session.addItems([
+        { type: "message", role: "user", content: input },
+        {
+          type: "function_call",
+          callId,
+          name: answer.toolName,
+          arguments: JSON.stringify(answer.params ?? {}),
+          status: "completed",
+        },
+        {
+          type: "function_call_result",
+          callId,
+          name: answer.toolName,
+          status: "completed",
+          output: { type: "text", text: answer.transcript },
+        },
+        {
+          type: "message",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: LOCAL_ANSWER_NOTE }],
+        },
+      ]);
+      metrics.itemCount = session.getItemCount();
+    }
+    metrics.duration = Date.now() - startTime;
+
+    const metricsSnapshot = { ...metrics };
+    await this.emitMetricsHooks({
+      metrics: metricsSnapshot,
+      sessionId: session?.id ?? undefined,
+    });
+    yield {
+      type: "metrics_update",
+      metrics: metricsSnapshot,
+      sessionId: session?.id,
+    };
+
+    if (session) {
+      session.addMetrics(metrics);
+      if (this.conversationManager) {
+        await this.conversationManager.saveSession(session);
+      }
+    }
+
+    await this.runAfterResponseHooks({
+      input,
+      finalOutput: answer.transcript,
+      metrics: { ...metrics },
+      sessionId: session?.id ?? undefined,
+    });
+    yield {
+      type: "execution_complete",
+      finalOutput: answer.transcript,
+      metrics,
+    };
   }
 
   /**

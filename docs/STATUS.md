@@ -102,6 +102,33 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   the body, and a response body over 1,000,000 characters is not served (the
   Agent hears `found: false`); a contract test with a mocked `chrome` checks
   this, not the real Widget.
+- Visibility check (partial): "my workflow 'X' is not visible in the
+  widget" (and the same for tooltips, launchers, announcements,
+  validations, checklists and knowledge content) is answered in the chat
+  with no AI model call. The agent reads the Client's 5.x content files
+  through the deny list and redaction, runs the KB card's gates
+  (published in this environment, hidden, nameless, segments, the
+  widget's audience, the visibility rule) and shows a card with each
+  cause, its evidence, fix and KB card, or the next check when the files
+  show no blocker. With no name it lists every item with a blocker. 4.x
+  content is named as out of scope. Follow-up questions go to the model
+  with the check in the chat's history; the model can also run it as
+  `run_diagnosis`. Tested against the e2e fake Client in Chromium (both
+  themes, axe-clean, no model request); not yet run against the real
+  Client, which does not answer these messages yet (below).
+- Request size (Settings → AI): with a request budget set, older tool
+  results become stubs, long earlier messages are shortened and the oldest
+  turns are left out (the first message sent says how many) until the
+  request fits; a message that still cannot fit stops with a named error
+  and is never sent. The answer length cap goes to the provider as
+  `max_tokens` and applies from the next message. Both are off unless set.
+  Tested in Chromium against the mock provider; sizes are estimates
+  (characters / 4), not a provider's token count.
+- A bare file request ("get segments.json") is answered the same way,
+  through the `inspect_extension_network` tool and the full-response
+  viewer with no model request; a follow-up pages that evidence through the
+  model. Tested against the e2e fake Client in Chromium, the deny list
+  included.
 
 ## Open
 
@@ -112,9 +139,10 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Studio integration | The Agent side is done (D2: Settings row, handshake, `get_apty_studio_service_worker_diagnostics`, fixture e2e); Studio must allow-list the Agent and answer two messages ([`STUDIO.md`](integrations/apty/STUDIO.md)) |
 | Validate DOM Health on a real athenaOne and Infor LN tenant, then tune thresholds | Both bundles returned. athenaOne works; LN's bundle led to four owner-approved rule changes (no-change clicks explored, placeholder frames, duplicate-id risk in the application view, hidden elements out of hit testing). Re-run LN with this build; thresholds stay untuned ([`real-tenant-validation.md`](development/real-tenant-validation.md)) |
 | Remove the remaining explicit `any` | 588 in `tooling/scripts/any-baseline.json`; the rule warns and the baseline only goes down (D4) |
-| LLM request safety and size | Phase A (O1-O5) is on `main`; Phases B and C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
+| LLM request safety and size | Phase A (O1-O5) is on `main`. Phase B: P4, the context budget, is built as the request budget (Settings → AI → Request size), with an answer length cap; P1, P2, P3 and P5 are not started, and P2 (a smaller system prompt) is what would let a budget under about 8,000 tokens work. Phase C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
 | Production readiness | Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | Widget network calls from the real Apty Client (partial) | The Widget team adopts the reference handlers and `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)) and lists both Agent IDs. Open question: which Widget context makes calls such as `segments.json`; a content script would need a relay. Until then the panel names the Client's failure instead of listing calls |
+| Visibility check on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Known limitations
