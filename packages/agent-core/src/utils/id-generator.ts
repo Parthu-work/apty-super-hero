@@ -1,12 +1,8 @@
 /**
- * Generate a unique ID using the native crypto.randomUUID() API
- * Works in both browser and Node.js 18+
+ * Generate a unique ID with the native crypto.randomUUID() API, which every
+ * supported runtime has (browsers in a secure context, Node.js 19+). There
+ * is no Math.random fallback: these IDs name sessions.
  */
 export function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-
-  // Fallback for environments without crypto.randomUUID
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  return crypto.randomUUID();
 }
