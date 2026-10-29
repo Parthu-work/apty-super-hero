@@ -77,7 +77,7 @@ const texts = (value: unknown): string[] =>
 const short = (id: string) => id.slice(0, 8);
 
 /** The names an item shows, from its own `name` and each locale's `name`. */
-export function namesOf(item: Rec): string[] {
+function namesOf(item: Rec): string[] {
   const own = text(item.name);
   const localized = records(item.locales).flatMap((l) => {
     const name = text(l.name);

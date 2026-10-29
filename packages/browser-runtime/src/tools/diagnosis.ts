@@ -19,6 +19,7 @@ import type { ToolRunContext } from "./tab-utils";
 
 const KIND_NAMES = Object.keys(KINDS) as [ContentKind, ...ContentKind[]];
 
+/** @internal */
 export const runDiagnosisTool = tool({
   name: "run_diagnosis",
   description:
