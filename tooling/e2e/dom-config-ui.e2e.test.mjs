@@ -67,7 +67,7 @@ async function exportMarkdown(panel) {
 const CONDITION =
   /^(Attribute Name|Attribute Value (\S+)) (Equals|Not equals|Contains|Does not contain|In|Not in|Regex) (.*)$/;
 
-/** The rule's conditions as the Markdown export writes them. */
+/** The rule's conditions as the Markdown export writes them: in a table, a `|` is written `\|`. */
 function markdownConditions(label) {
   return label
     .replace(/^Include the rule /, "")
@@ -76,7 +76,7 @@ function markdownConditions(label) {
       const [, mode, attribute, operator, value] = CONDITION.exec(condition);
       const category = attribute ? "Attribute Value" : mode;
       const named = attribute ? ` · \`${attribute}\`` : "";
-      return `${category}${named} · ${operator} · \`${value}\``;
+      return `${category}${named} · ${operator} · \`${value.replaceAll("|", "\\|")}\``;
     })
     .join(" OR ");
 }

@@ -411,7 +411,7 @@ describe("DomHealthPage", () => {
       ),
     ).toBeInTheDocument();
     const steps = screen.getByRole("region", {
-      name: "How Apty's DES would find these elements",
+      name: "How Apty would find these elements",
     });
     expect(steps).toHaveTextContent(
       "4 checkSimplifyNth — Only its position among siblings tells it apart.",

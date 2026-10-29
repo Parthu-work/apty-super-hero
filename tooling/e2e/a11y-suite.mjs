@@ -894,9 +894,9 @@ const SURFACES = {
         await panel.locator("text=/Last checked/").first().waitFor();
         await panel
           .getByRole("region", {
-            name: "How Apty's DES would find these elements",
+            name: "How Apty would find these elements",
           })
-          .getByText("checkInitialPath")
+          .getByText("checkAttributes")
           .waitFor();
         await assertNoSeriousViolations(panel, `${theme} DOM health breakdown`);
         await panel.getByRole("button", { name: "Back" }).click();

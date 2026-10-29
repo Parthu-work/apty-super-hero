@@ -222,10 +222,15 @@ function shapeTests() {
     assert.deepEqual(depths, [3, 3], JSON.stringify(result.elementSamples));
     assert.equal(typeof result.score, "number");
     for (const sample of result.elementSamples) {
-      assert.match(sample.explanation.howFound, /^check|^Partial Selector/);
+      // Apty captures against the document, which cannot see into a shadow
+      // root, so a control there is the chain of levels up to its root.
+      assert.match(
+        sample.explanation.howFound,
+        /^check|^Partial Selector|^Ancestor/,
+      );
       assert.ok(
         sample.explanation.notes.includes(
-          "Inside 3 shadow root(s): finding it needs shadow root support.",
+          "Inside 3 shadow root(s): the stored selection opens each host in turn, and Shadow DOM support has to be on for Apty to notice changes inside.",
         ),
         JSON.stringify(sample.explanation),
       );
@@ -334,11 +339,11 @@ function shapeTests() {
     assert.doesNotMatch(json, /off by default/);
     // An empty about:blank frame is a placeholder, not a frame that failed.
     assert.ok(result.coverage.framesPlaceholder >= 1, json);
-    // Hidden menu items, one aria-hidden and one inside a display:none
-    // container, are not hit-test failures (the container's child used to
-    // read as zero-size).
+    // A menu item inside a display:none container is hidden, not a
+    // hit-test failure (it used to read as zero-size). An aria-hidden one
+    // is still clickable, and Apty's hit test does not read aria-hidden.
     const hitTest = result.metricDetails.hitTestTargetability;
-    assert.ok(hitTest.hidden >= 2, JSON.stringify(hitTest));
+    assert.ok(hitTest.hidden >= 1, JSON.stringify(hitTest));
     assert.equal(hitTest.notTargetable, 0, JSON.stringify(hitTest));
     assert.ok(
       result.risks.some((r) => r.id === "duplicate-ids"),
