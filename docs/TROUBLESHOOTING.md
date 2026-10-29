@@ -96,6 +96,16 @@ widget" is checked from these same calls, with no AI model involved.
 | "Not covered" with "This tenant uses 4.x content files…" | The Client served 4.x files (`flow.json`, `segments.json`) | The check covers 5.x only; use the manual paste path. |
 | "Needs a check in the browser" | The files show no blocker; whether this user matches a segment's rule is decided in the browser | Test as a user known to match the segment, as the card says. |
 | A cause you know is wrong | The files are older than the last publish | Reload the application so the Client fetches them again, then ask again. |
+| "No environment's URL pattern matches this page" | The page in this tab is not covered by any environment in `app-urls.json` | In Admin, add the exact host users open to the right environment, publish and reload. |
+| "…has a URL pattern for this site that does not cover this page" | The environment's pattern holds a page-specific path | Set it to the application's base URL in Admin (change a test environment first). |
+| "…wins on this page; … also matches" | Two environments match and the lower order wins, often a Test pattern over the production host | Make the pattern that should not win more specific. |
+| "No web page is open in this tab" | The widget check matches the page in the conversation's tab | Open the application page there, then ask again. |
+| Preflight: "The body deny list entry … hides …" | A deny-list entry, often a bare host, covers the Client's content files | Remove it in Settings → Data handling, or narrow it to the paths you mean. |
+
+A message that names no content kind but says the widget is missing, works
+in one environment only, or works on some pages only runs the widget check
+instead. A message that names a language ("…for French users") also checks
+that the item has a name in it.
 
 ## Response bodies are missing from a network capture
 

@@ -11,18 +11,30 @@
  * user matches a segment's rule, a visibility rule's result) is reported as
  * candidates, never guessed.
  */
+import { languageName } from "./languages.js";
+import {
+  FILE_PROBLEMS,
+  fileOf,
+  fileParams,
+  jsonOf,
+  looks4x,
+  makeGate,
+  type Rec,
+  records,
+  short,
+  text,
+  texts,
+} from "./pack-kit.js";
 import {
   type Cause,
   type ClientEvidence,
   type ContentKind,
   type DiagnosisResult,
-  type FileStatus,
   type GateId,
   type GateReason,
   type GateResult,
   type GateStatus,
   KINDS,
-  type LoadedFile,
   type NextCheck,
   type NotChecked,
   type Params,
@@ -31,12 +43,11 @@ import {
   type Verdict,
 } from "./types.js";
 
-type Rec = Record<string, unknown>;
-
 export const CARD_PAGE_ID = "1496842241";
 const CARD_SEGMENTS = "1496645671";
 const CARD_SEGMENT_OFF = "1496612886";
 const CARD_WIDGET_AUDIENCE = "1496645745";
+const CARD_LANGUAGE = "1496678461";
 export const VERIFIED_ON =
   "5.x code, commit 4c406d5, 2026-09-22; from code, not runtime-verified";
 
@@ -52,30 +63,6 @@ export function filesFor(kind: ContentKind): string[] {
   ];
 }
 
-const FOUR_X_FILES = ["flow.json", "segments.json", "rules.json"];
-const FIVE_X_FILES = ["workflow.json", "segment.json", "rule.json"];
-
-const records = (value: unknown): Rec[] =>
-  Array.isArray(value)
-    ? value.filter((x): x is Rec => typeof x === "object" && x !== null)
-    : [];
-
-const text = (value: unknown): string | undefined =>
-  typeof value === "string" && value.trim() !== "" ? value : undefined;
-
-const texts = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value.flatMap((x) =>
-        typeof x === "string"
-          ? [x]
-          : typeof x === "object" && x !== null && text((x as Rec).id)
-            ? [(x as Rec).id as string]
-            : [],
-      )
-    : [];
-
-const short = (id: string) => id.slice(0, 8);
-
 /** The names an item shows, from its own `name` and each locale's `name`. */
 function namesOf(item: Rec): string[] {
   const own = text(item.name);
@@ -88,15 +75,6 @@ function namesOf(item: Rec): string[] {
 
 const labelOf = (item: Rec) => namesOf(item)[0] ?? "(unnamed)";
 
-function fileOf(evidence: ClientEvidence, name: string): LoadedFile {
-  return evidence.files[name] ?? { name, status: "not_observed" };
-}
-
-function jsonOf(evidence: ClientEvidence, name: string): unknown {
-  const file = fileOf(evidence, name);
-  return file.status === "ok" ? file.json : undefined;
-}
-
 function gate(
   id: GateId,
   status: GateStatus,
@@ -107,75 +85,22 @@ function gate(
   evidence: string[] = [],
   cardPageId = CARD_PAGE_ID,
 ): GateResult {
-  return { id, status, ruleId, reason, params, detail, evidence, cardPageId };
-}
-
-const FILE_PROBLEMS: Record<
-  Exclude<FileStatus, "ok">,
-  { reason: GateReason; nextCheck: NextCheck; text: (f: LoadedFile) => string }
-> = {
-  not_observed: {
-    reason: "notObserved",
-    nextCheck: "reload",
-    text: (f) => `The Apty Client did not report loading ${f.name}.`,
-  },
-  empty: {
-    reason: "emptyList",
-    nextCheck: "readStatus",
-    text: (f) =>
-      `${f.name} loaded (HTTP ${f.httpStatus}) but is an empty list.`,
-  },
-  http_error: {
-    reason: "httpError",
-    nextCheck: "fixRequest",
-    text: (f) => `${f.name} failed to load (HTTP ${f.httpStatus}).`,
-  },
-  failed: {
-    reason: "requestFailed",
-    nextCheck: "fixRequest",
-    text: (f) =>
-      `The request for ${f.name} failed${f.detail ? ` (${f.detail})` : ""}.`,
-  },
-  pending: {
-    reason: "pending",
-    nextCheck: "waitForLoad",
-    text: (f) => `${f.name} was still loading.`,
-  },
-  body_denied: {
-    reason: "denied",
-    nextCheck: "denyList",
-    text: (f) =>
-      `${f.name} matches the body deny list entry "${f.detail}", so it was not read.`,
-  },
-  body_unavailable: {
-    reason: "bodyUnavailable",
-    nextCheck: "bodyLimit",
-    text: (f) =>
-      `The Apty Client has no body for ${f.name}${f.detail ? ` (${f.detail})` : ""}.`,
-  },
-  too_large_to_redact: {
-    reason: "bodyUnavailable",
-    nextCheck: "bodyLimit",
-    text: (f) => `${f.name} is too large to redact, so it was not read.`,
-  },
-  unparsable: {
-    reason: "unparsable",
-    nextCheck: "openResponse",
-    text: (f) => `${f.name} is not valid JSON.`,
-  },
-};
-
-function fileParams(file: LoadedFile): Params {
-  return {
-    file: file.name,
-    ...(file.httpStatus !== undefined ? { httpStatus: file.httpStatus } : {}),
-    ...(file.detail ? { detail: file.detail } : {}),
-  };
+  return makeGate(
+    cardPageId,
+    id,
+    status,
+    ruleId,
+    reason,
+    detail,
+    params,
+    evidence,
+  );
 }
 
 interface Draft {
   kind: ContentKind;
   query?: string;
+  language?: string;
   evidence: ClientEvidence;
 }
 
@@ -194,6 +119,7 @@ function finish(
     subject: {
       kind: draft.kind,
       ...(draft.query ? { query: draft.query } : {}),
+      ...(draft.language ? { language: draft.language } : {}),
       ...(extra.name ? { name: extra.name } : {}),
       matched: extra.matched ?? [],
     },
@@ -222,14 +148,6 @@ function noData(draft: Draft, data: GateResult, next: NextCheck) {
     causes: [],
     nextCheck: next,
   });
-}
-
-function looks4x(evidence: ClientEvidence): boolean {
-  const names = new Set(evidence.observedNames);
-  return (
-    FOUR_X_FILES.some((n) => names.has(n)) &&
-    !FIVE_X_FILES.some((n) => names.has(n))
-  );
 }
 
 function environmentGate(evidence: ClientEvidence): GateResult {
@@ -635,6 +553,78 @@ function widgetGate(draft: Draft, segments: Rec[], usable: Rec[]): GateResult {
   );
 }
 
+/**
+ * The item's name in the language the message named (JA 1496678461): the
+ * widget drops an item with no name in the user's language, and a regional
+ * entry such as fr-CA does not stand in for fr.
+ */
+function languageGate(
+  draft: Draft,
+  item: Rec,
+): { gate: GateResult; cause?: Cause } {
+  const code = draft.language ?? "";
+  const language = languageName(code);
+  const named = records(item.locales)
+    .filter((l) => text(l.name))
+    .map((l) => String(l.locale));
+  const forLanguage = named.filter(
+    (l) => l.toLowerCase().split(/[-_]/)[0] === code,
+  );
+  const lines = [
+    `${KINDS[draft.kind].file}: names in ${named.join(", ") || "no language"}`,
+  ];
+  const params = { language, code };
+  if (forLanguage.length === 0) {
+    const cause: Cause = {
+      ruleId: "CNV-13",
+      cardPageId: CARD_LANGUAGE,
+      params: { ...params, name: labelOf(item) },
+      summary: `"${labelOf(item)}" has no name in ${language} (${code}), so the widget drops it for ${language} users.`,
+      fix: `In Studio, add and publish the ${language} translation: its name, and the success and feedback messages if they are on.`,
+      evidence: lines,
+    };
+    return {
+      gate: gate(
+        "language",
+        "fail",
+        "CNV-13",
+        "localeMissing",
+        cause.summary,
+        params,
+        lines,
+        CARD_LANGUAGE,
+      ),
+      cause,
+    };
+  }
+  if (!forLanguage.some((l) => l.toLowerCase() === code)) {
+    return {
+      gate: gate(
+        "language",
+        "unknown",
+        "CNV-13",
+        "localeRegional",
+        `"${labelOf(item)}" is named in ${forLanguage.join(", ")} only: a user whose language code is ${code} gets none of them, as a regional entry does not fall back.`,
+        { ...params, locales: forLanguage.join(", ") },
+        lines,
+        CARD_LANGUAGE,
+      ),
+    };
+  }
+  return {
+    gate: gate(
+      "language",
+      "pass",
+      "CNV-13",
+      "localeFound",
+      `"${labelOf(item)}" has a name in ${language} (${forLanguage.join(", ")}).`,
+      { ...params, locales: forLanguage.join(", ") },
+      lines,
+      CARD_LANGUAGE,
+    ),
+  };
+}
+
 function visibilityGate(item: Rec, rules: Rec[] | undefined): GateResult {
   const ruleId = text(item.visibilityRuleId);
   if (!ruleId) {
@@ -669,9 +659,15 @@ export function diagnoseContentNotVisible(
   evidence: ClientEvidence,
   kind: ContentKind,
   query?: string,
+  language?: string,
 ): DiagnosisResult {
   const spec = KINDS[kind];
-  const draft: Draft = { kind, query: query?.trim() || undefined, evidence };
+  const draft: Draft = {
+    kind,
+    query: query?.trim() || undefined,
+    language,
+    evidence,
+  };
 
   if (!evidence.connection.ok) {
     const { message } = evidence.connection;
@@ -826,6 +822,12 @@ export function diagnoseContentNotVisible(
           },
         ),
   );
+
+  if (draft.language) {
+    const language = languageGate(draft, item);
+    gates.push(language.gate);
+    if (language.cause) causes.push(language.cause);
+  }
 
   const segment = segmentGate(draft, item, segments, rules);
   gates.push(segment.gate);

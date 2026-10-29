@@ -13,7 +13,11 @@ import {
   ConfiguredServiceWorkerDiagnosticsProvider,
   LIST_RESOURCES_MESSAGE,
 } from "../service-worker-diagnostics.js";
-import type { AptyObservedResource, AptyResourceList } from "../types.js";
+import type {
+  AptyObservedResource,
+  AptyResourceBody,
+  AptyResourceList,
+} from "../types.js";
 import type { ClientEvidence, LoadedFile } from "./types.js";
 
 const ENV_IN_PATH = /\/(env-[^/?#]+)\//;
@@ -79,6 +83,12 @@ function settled(file: LoadedFile): boolean {
   );
 }
 
+/** Where the calls and their bodies come from: the Apty Client, or a HAR file. */
+export interface ResourceSource {
+  listResources(): Promise<AptyResourceList>;
+  getResourceBody(requestId: string): Promise<AptyResourceBody>;
+}
+
 /**
  * The named content files as the Apty Client received them, read through the
  * same path as the Widget network calls panel: one list call, then the
@@ -89,11 +99,21 @@ export async function loadClientEvidence(
   extensionId: string | undefined,
   names: readonly string[],
 ): Promise<ClientEvidence> {
+  return loadEvidenceFrom(
+    new ConfiguredServiceWorkerDiagnosticsProvider({
+      extensionId,
+      peer: "client",
+    }),
+    names,
+  );
+}
+
+/** The same reading as `loadClientEvidence`, from any source of calls. */
+export async function loadEvidenceFrom(
+  provider: ResourceSource,
+  names: readonly string[],
+): Promise<ClientEvidence> {
   await getRedactionMode();
-  const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
-    extensionId,
-    peer: "client",
-  });
   const list = await provider.listResources();
   if (!list.ok) return connectionFailure(list);
 

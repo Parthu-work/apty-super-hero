@@ -1,8 +1,9 @@
 /**
- * The result of a check pack, from `run_diagnosis` or from a turn the agent
- * answered without the model: the verdict, each cause with its evidence, fix
- * and KB card, the next check, the checks in the card's order, and what the
- * files cannot decide. Rule names and file facts only; no raw conditions.
+ * The result of a check pack (an item not visible, or the widget itself),
+ * from `run_diagnosis` or from a turn the agent answered without the model:
+ * the verdict, each cause with its evidence, fix and KB card, the next check,
+ * the checks in the card's order, and what the files cannot decide. Rule
+ * names and file facts only; no raw conditions or URLs.
  */
 import type {
   Cause,
@@ -28,13 +29,14 @@ import {
 } from "lucide-react";
 
 const KB_PAGE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
+const PACKS = new Set(["content-not-visible", "widget-not-visible"]);
 
 function isDiagnosisResult(value: unknown): value is DiagnosisResult {
   const candidate = value as Partial<DiagnosisResult> | null;
   return (
     typeof candidate === "object" &&
     candidate !== null &&
-    candidate.packId === "content-not-visible" &&
+    PACKS.has(String(candidate.packId)) &&
     Array.isArray(candidate.gates) &&
     typeof candidate.verdict?.status === "string"
   );
@@ -82,9 +84,46 @@ const CAUSE_TEXT: Partial<
     summary: "checkPack.rule.CNV-08.summary",
     fix: "checkPack.rule.CNV-08.fix",
   },
+  "CNV-13": {
+    summary: "checkPack.rule.CNV-13.summary",
+    fix: "checkPack.rule.CNV-13.fix",
+  },
+  "WNV-01": {
+    summary: "checkPack.rule.WNV-01.summary",
+    fix: "checkPack.rule.WNV-01.fix",
+  },
+  "WNV-02": {
+    summary: "checkPack.rule.WNV-02.summary",
+    fix: "checkPack.rule.WNV-02.fix",
+  },
+  "WNV-03": {
+    summary: "checkPack.rule.WNV-03.summary",
+    fix: "checkPack.rule.WNV-03.fix",
+  },
+  "WNV-07": {
+    summary: "checkPack.rule.WNV-07.summary",
+    fix: "checkPack.rule.WNV-07.fix",
+  },
 };
 
 type Translate = ReturnType<typeof useTranslation>["t"];
+
+/** `t` that names a language by its code in the reader's language ("法语", not "French"). */
+function useCheckText(): Translate {
+  const { t, language } = useTranslation();
+  return (key, params) => {
+    if (typeof params?.code !== "string") return t(key, params);
+    let name: string | undefined;
+    try {
+      name = new Intl.DisplayNames([language], { type: "language" }).of(
+        params.code,
+      );
+    } catch {
+      name = undefined;
+    }
+    return t(key, name ? { ...params, language: name } : params);
+  };
+}
 
 function gateText(t: Translate, gate: GateResult): string {
   return t(`checkPack.reason.${gate.reason}`, gate.params);
@@ -134,7 +173,7 @@ function KbCardLink({ pageId }: { pageId: string }) {
 }
 
 function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
-  const { t } = useTranslation();
+  const t = useCheckText();
   const text = causeText(t, cause, kind);
   return (
     <li className="space-y-1.5 rounded-md border border-border bg-card p-2.5">
@@ -169,7 +208,7 @@ function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
 }
 
 function GateRow({ gate }: { gate: GateResult }) {
-  const { t } = useTranslation();
+  const t = useCheckText();
   const { Icon, className } = GATE_ICON[gate.status];
   return (
     <li className="flex items-start gap-2 py-1">
@@ -189,19 +228,22 @@ function GateRow({ gate }: { gate: GateResult }) {
 }
 
 export function CheckResultCard(props: ToolDisplaySlotProps) {
-  const { t } = useTranslation();
+  const t = useCheckText();
   const result = props.tool.output;
   if (!isDiagnosisResult(result)) return <DefaultToolDisplay {...props} />;
 
   const { verdict, subject, scan } = result;
   const kind = t(`checkPack.kind.${subject.kind}`);
-  const title = scan
-    ? t("checkPack.titleScan", { kind })
-    : subject.query
-      ? t("checkPack.titleItem", {
-          name: subject.name ?? subject.query,
-        })
-      : t("checkPack.titleGeneric");
+  const title =
+    subject.kind === "widget"
+      ? t("checkPack.titleWidget")
+      : scan
+        ? t("checkPack.titleScan", { kind })
+        : subject.query
+          ? t("checkPack.titleItem", {
+              name: subject.name ?? subject.query,
+            })
+          : t("checkPack.titleGeneric");
   const blockedRows = scan?.rows.filter((r) => r.blockers.length > 0) ?? [];
   const several = subject.matched.length > 1;
 

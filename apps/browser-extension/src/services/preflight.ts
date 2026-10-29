@@ -6,6 +6,11 @@
  * Connection, the Apty Client handshake, the DOM Health frame ping).
  */
 import type { AppSettings, ToolCallingSupport } from "@apty/agent-core";
+import { CHECK_PACK_FILES } from "@apty/browser-runtime/apty/diagnosis/pack-files";
+import {
+  matchingDenyEntry,
+  resourceNameFor,
+} from "@apty/browser-runtime/apty/resource-body-utils";
 import type { AptyServiceWorkerStatus } from "@apty/browser-runtime/apty/types";
 import type { TranslationKey } from "@apty/ui/i18n/types";
 import { isProviderConfigured } from "./ai-provider";
@@ -22,7 +27,8 @@ export interface PreflightCheck {
     | "console-bridge"
     | "clipboard"
     | "storage-access"
-    | "data-handling";
+    | "data-handling"
+    | "check-files";
   label: string;
   status: CheckStatus;
   detail: string;
@@ -49,7 +55,10 @@ export interface PreflightDeps {
   /** `false` when the management permission shows the Client is missing or disabled; `undefined` when it cannot tell. */
   clientInstalled(id: string): Promise<boolean | undefined>;
   clientStatus(id: string): Promise<AptyServiceWorkerStatus>;
-  clientResources(id: string): Promise<{ ok: boolean; count: number }>;
+  /** `urls` are the calls' URLs, when the source gives them. */
+  clientResources(
+    id: string,
+  ): Promise<{ ok: boolean; count: number; urls?: string[] }>;
   agentId(): string;
   /** The web page the agent would work on: the most recently used http(s) tab. */
   pageTab(): Promise<{ id: number; url: string } | null>;
@@ -140,7 +149,7 @@ async function aptyClientCheck(
   deps: PreflightDeps,
   agentId: string,
   t: Translate,
-): Promise<PreflightCheck> {
+): Promise<{ check: PreflightCheck; urls?: string[] }> {
   const base = {
     id: "apty-client" as const,
     label: t("preflight.checks.aptyClient.label"),
@@ -149,45 +158,94 @@ async function aptyClientCheck(
   const id = await deps.clientId();
   if (!id) {
     return {
-      ...base,
-      status: "fail",
-      detail: t("preflight.checks.aptyClient.notConnected"),
-      fix: t("preflight.checks.aptyClient.notConnectedFix"),
+      check: {
+        ...base,
+        status: "fail",
+        detail: t("preflight.checks.aptyClient.notConnected"),
+        fix: t("preflight.checks.aptyClient.notConnectedFix"),
+      },
     };
   }
   if ((await deps.clientInstalled(id)) === false) {
     return {
-      ...base,
-      status: "fail",
-      detail: t("preflight.checks.aptyClient.notInstalled", { id }),
-      fix: t("preflight.checks.aptyClient.notInstalledFix"),
+      check: {
+        ...base,
+        status: "fail",
+        detail: t("preflight.checks.aptyClient.notInstalled", { id }),
+        fix: t("preflight.checks.aptyClient.notInstalledFix"),
+      },
     };
   }
   const status = await deps.clientStatus(id);
   if (status.status !== "ok") {
     const failure = status.peerFailure ?? "timeout";
     return {
-      ...base,
-      status: "fail",
-      detail: status.error ?? t("preflight.checks.aptyClient.noAnswer"),
-      fix: t(CLIENT_FIXES[failure], { agentId }),
+      check: {
+        ...base,
+        status: "fail",
+        detail: status.error ?? t("preflight.checks.aptyClient.noAnswer"),
+        fix: t(CLIENT_FIXES[failure], { agentId }),
+      },
     };
   }
   const resources = await deps.clientResources(id);
   if (!resources.ok) {
     return {
-      ...base,
-      status: "warn",
-      detail: t("preflight.checks.aptyClient.noResources"),
-      fix: t("preflight.checks.aptyClient.noResourcesFix"),
+      check: {
+        ...base,
+        status: "warn",
+        detail: t("preflight.checks.aptyClient.noResources"),
+        fix: t("preflight.checks.aptyClient.noResourcesFix"),
+      },
     };
   }
   return {
+    check: {
+      ...base,
+      status: "pass",
+      detail: t("preflight.checks.aptyClient.answering", {
+        count: resources.count,
+      }),
+    },
+    urls: resources.urls,
+  };
+}
+
+/** Whether the body deny list hides a file the visibility checks read (C5). */
+function checkFilesCheck(
+  urls: readonly string[],
+  denyList: readonly string[],
+  t: Translate,
+): PreflightCheck {
+  const blocked = new Map<string, Set<string>>();
+  for (const url of urls) {
+    const name = resourceNameFor(url);
+    if (!CHECK_PACK_FILES.includes(name)) continue;
+    const entry = matchingDenyEntry(url, denyList);
+    if (entry === null) continue;
+    blocked.set(entry, (blocked.get(entry) ?? new Set()).add(name));
+  }
+  const base = {
+    id: "check-files" as const,
+    label: t("preflight.checks.checkFiles.label"),
+    section: "data-handling",
+  };
+  if (blocked.size === 0) {
+    return {
+      ...base,
+      status: "pass",
+      detail: t("preflight.checks.checkFiles.readable"),
+    };
+  }
+  const entries = [...blocked.keys()].map((e) => `“${e}”`).join(", ");
+  const files = [...new Set([...blocked.values()].flatMap((f) => [...f]))]
+    .sort()
+    .join(", ");
+  return {
     ...base,
-    status: "pass",
-    detail: t("preflight.checks.aptyClient.answering", {
-      count: resources.count,
-    }),
+    status: "warn",
+    detail: t("preflight.checks.checkFiles.blocked", { entries, files }),
+    fix: t("preflight.checks.checkFiles.fix", { entries }),
   };
 }
 
@@ -214,9 +272,10 @@ export async function runPreflight(
   const tab = await deps.pageTab();
   const frames = tab ? await deps.frames(tab.id) : null;
 
+  const client = await aptyClientCheck(deps, agentId, t);
   const checks: PreflightCheck[] = [
     await aiProviderCheck(deps, settings, t),
-    await aptyClientCheck(deps, agentId, t),
+    client.check,
     {
       id: "agent-id",
       label: t("preflight.checks.agentId.label"),
@@ -389,6 +448,7 @@ export async function runPreflight(
       ? { fix: t("preflight.checks.dataHandling.offFix") }
       : {}),
   });
+  if (client.urls) checks.push(checkFilesCheck(client.urls, denyList, t));
 
   return checks;
 }

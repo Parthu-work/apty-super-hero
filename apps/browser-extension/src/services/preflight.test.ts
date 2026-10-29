@@ -236,6 +236,63 @@ describe("runPreflight", () => {
 });
 
 describe("preflightJson", () => {
+  describe("files the visibility checks read (C5)", () => {
+    const CONTENT = "https://client.apty.example/tenant-1/app-2/env-3";
+    const resources = async () => ({
+      ok: true,
+      count: 4,
+      urls: [
+        `${CONTENT}/workflow.json?timestamp=1`,
+        `${CONTENT}/segment.json?timestamp=1`,
+        "https://client.apty.example/tenant-1/app-urls.json",
+        "https://cdn.example.net/theme.css",
+      ],
+    });
+    const withDenyList = (networkBodyCaptureDenyList: string[]) => ({
+      clientResources: resources,
+      loadSettings: async () => ({
+        aiProvider: "openai" as const,
+        aiToken: "sk-test",
+        aiModel: "model-x",
+        networkBodyCaptureDenyList,
+      }),
+    });
+
+    it("names a host entry that hides every content file", async () => {
+      const result = await check(
+        "check-files",
+        withDenyList(["apty.example", "/users/"]),
+      );
+
+      expect(result).toMatchObject({
+        status: "warn",
+        section: "data-handling",
+        detail:
+          "The body deny list entry “apty.example” hides app-urls.json, segment.json, workflow.json, so the visibility checks cannot read them.",
+        fix: "In Settings → Data handling, remove “apty.example” from the body deny list, or narrow it to the paths you mean.",
+      });
+    });
+
+    it("passes when no entry covers a content file", async () => {
+      const result = await check(
+        "check-files",
+        withDenyList(["/users/", "theme.css"]),
+      );
+
+      expect(result.status).toBe("pass");
+    });
+
+    it("is left out when the Client gave no list of calls", async () => {
+      const checks = await runPreflight(
+        deps({
+          clientResources: async () => ({ ok: false, count: 0 }),
+        }),
+      );
+
+      expect(checks.some((c) => c.id === "check-files")).toBe(false);
+    });
+  });
+
   it("redacts every free-text field and keeps ids and statuses", async () => {
     const checks = await runPreflight(deps());
     const json = JSON.parse(

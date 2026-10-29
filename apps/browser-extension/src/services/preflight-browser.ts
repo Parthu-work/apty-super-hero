@@ -53,7 +53,11 @@ export const browserPreflightDeps: PreflightDeps = {
   clientStatus: (id) => client(id).getStatus(),
   async clientResources(id) {
     const list = await client(id).listResources();
-    return { ok: list.ok, count: list.resources.length };
+    return {
+      ok: list.ok,
+      count: list.resources.length,
+      urls: list.resources.map((r) => r.url),
+    };
   },
   agentId: () => chrome.runtime.id,
   async pageTab() {

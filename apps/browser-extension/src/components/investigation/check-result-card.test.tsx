@@ -4,6 +4,7 @@ import {
   evidenceFrom,
 } from "@apty/browser-runtime/apty/diagnosis/diagnosis-test-utils";
 import type { ClientEvidence } from "@apty/browser-runtime/apty/diagnosis/types";
+import { diagnoseWidgetNotVisible } from "@apty/browser-runtime/apty/diagnosis/widget-not-visible";
 import { I18nProvider } from "@apty/ui/i18n/context";
 import type { UIToolPart } from "@apty/ui/types";
 import { render, screen, within } from "@testing-library/react";
@@ -155,6 +156,93 @@ describe("CheckResultCard", () => {
       screen.getAllByText("“Take a tour”开启了“在小组件中隐藏”。"),
     ).toHaveLength(2);
     expect(screen.queryByText("Cause found")).toBeNull();
+  });
+
+  it("shows the widget check: a page no environment covers, with its fix and card", () => {
+    const result = diagnoseWidgetNotVisible(
+      evidenceFrom(capture()),
+      "https://other.example.org/x",
+    );
+    render(<CheckResultCard tool={tool(result)} />);
+
+    const card = screen.getByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    expect(within(card).getByText("Cause found")).toBeInTheDocument();
+    expect(
+      within(card).getAllByText(
+        "No environment's URL pattern matches this page, so nothing from Apty loads here.",
+      ),
+    ).toHaveLength(2);
+    expect(
+      within(card).getByText(
+        "environments checked: Production (order 1), UAT (order 2)",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getAllByRole("link", { name: /KB card 1496645690/ })[0],
+    ).toHaveAttribute(
+      "href",
+      "https://apty.atlassian.net/wiki/spaces/JA/pages/1496645690",
+    );
+    expect(
+      within(card).getByText(
+        "Whether the page's CSS hides the widget container",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("lists the open widget checks when the files show no blocker", () => {
+    const result = diagnoseWidgetNotVisible(
+      evidenceFrom(capture()),
+      "https://uat.crm.example.com/leads",
+    );
+    render(<CheckResultCard tool={tool(result)} />);
+
+    expect(
+      screen.getByText("Needs a check in the browser"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This page belongs to UAT (order 2)", { exact: false }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the widget check and a missing translation in Chinese", async () => {
+    const languageStorage = {
+      load: vi.fn().mockResolvedValue("zh"),
+      save: vi.fn(),
+      watch: vi.fn(() => () => {}),
+    };
+    const widget = diagnoseWidgetNotVisible(
+      evidenceFrom(capture()),
+      "https://other.example.org/x",
+    );
+    const language = diagnoseContentNotVisible(
+      evidenceFrom(capture()),
+      "workflow",
+      "Create a lead",
+      "fr",
+    );
+    render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <CheckResultCard tool={tool(widget)} />
+        <CheckResultCard tool={tool(language)} />
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByRole("region", { name: "小组件为何可能不可见" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "没有环境的 URL 模式匹配此页面，因此 Apty 在这里不加载任何内容。",
+      ),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByText(
+        "“Create a lead”没有法语（fr）名称，因此小组件不会向法语用户显示它。",
+      ),
+    ).toHaveLength(2);
   });
 
   it("falls back to the default display for an output it does not recognise", () => {

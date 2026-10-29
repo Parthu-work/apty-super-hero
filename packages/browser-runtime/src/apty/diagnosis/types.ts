@@ -102,7 +102,16 @@ export type RuleId =
   | "CNV-09"
   | "CNV-10"
   | "CNV-11"
-  | "CNV-12";
+  | "CNV-12"
+  | "CNV-13"
+  | "WNV-00"
+  | "WNV-01"
+  | "WNV-02"
+  | "WNV-03"
+  | "WNV-04"
+  | "WNV-05"
+  | "WNV-06"
+  | "WNV-07";
 
 export type GateId =
   | "data"
@@ -113,7 +122,11 @@ export type GateId =
   | "segments"
   | "segment-consistency"
   | "widget-audience"
-  | "visibility-rule";
+  | "visibility-rule"
+  | "language"
+  | "page"
+  | "environment-match"
+  | "restriction";
 
 export type GateStatus = "pass" | "fail" | "unknown" | "info";
 
@@ -147,7 +160,23 @@ export type GateReason =
   | "widgetDisjoint"
   | "appDataUnread"
   | "noVisibilityRule"
-  | "visibilityRule";
+  | "visibilityRule"
+  | "localeFound"
+  | "localeRegional"
+  | "localeMissing"
+  | "appUrlsEmpty"
+  | "pageUnknown"
+  | "pageRead"
+  | "envMatch"
+  | "noEnvMatch"
+  | "envTooSpecific"
+  | "severalEnvMatch"
+  | "otherEnvLoaded"
+  | "envVisibilityRule"
+  | "widgetOtherUsers"
+  | "widgetNoActiveSegment"
+  | "widgetSegmentsMissing"
+  | "restrictionPatterns";
 
 export type NextCheck =
   | "fixConnection"
@@ -162,10 +191,14 @@ export type NextCheck =
   | "nameItem"
   | "whichOne"
   | "testAsMember"
+  | "openAppPage"
+  | "comparePatterns"
   | "openItems"
   | "sendSupport";
 
-export type NotChecked = "membership" | "runtime-rules";
+export type NotChecked = "membership" | "runtime-rules" | "widget-css";
+
+export type PackId = "content-not-visible" | "widget-not-visible";
 
 export type Params = Record<string, string | number>;
 
@@ -212,14 +245,16 @@ export interface ScanRow {
 }
 
 export interface DiagnosisResult {
-  packId: "content-not-visible";
+  packId: PackId;
   /** The KB card the rules come from, and how far they were verified. */
   cardPageId: string;
   verifiedOn: string;
   /** `name` is the item's own name when the query resolved to exactly one. */
   subject: {
-    kind: ContentKind;
+    kind: ContentKind | "widget";
     query?: string;
+    /** The language the message named, as a code ("fr"), for the language gate. */
+    language?: string;
     name?: string;
     matched: string[];
   };

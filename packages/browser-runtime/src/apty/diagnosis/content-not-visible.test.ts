@@ -425,3 +425,61 @@ it("gives the same result for the same files (P8)", () => {
     JSON.stringify(check("Create a lead")),
   );
 });
+
+describe("content-not-visible: the language the message named", () => {
+  const withLocales = (codes: string[]) =>
+    edit(capture(), "workflow.json", (items: Item[]) =>
+      items.map((w) =>
+        w.locales[0]?.name === "Create a lead"
+          ? {
+              ...w,
+              locales: codes.map((locale) => ({ ...w.locales[0], locale })),
+            }
+          : w,
+      ),
+    );
+  const inLanguage = (files: Capture, language: string) =>
+    diagnoseContentNotVisible(
+      evidenceFrom(files),
+      "workflow",
+      "Create a lead",
+      language,
+    );
+
+  it("finds an item with no name in that language, citing the translation card", () => {
+    const result = inLanguage(capture(), "fr");
+
+    expect(result.subject.language).toBe("fr");
+    expect(result.verdict.causes[0]).toMatchObject({
+      ruleId: "CNV-13",
+      cardPageId: "1496678461",
+      summary:
+        '"Create a lead" has no name in French (fr), so the widget drops it for French users.',
+    });
+    expect(gateOf(result, "language")?.evidence).toEqual([
+      "workflow.json: names in en",
+    ]);
+  });
+
+  it("leaves a regional entry open, since it does not stand in for the plain code", () => {
+    const result = inLanguage(withLocales(["en", "fr-CA"]), "fr");
+
+    expect(gateOf(result, "language")).toMatchObject({
+      status: "unknown",
+      reason: "localeRegional",
+      params: { language: "French", code: "fr", locales: "fr-CA" },
+    });
+    expect(result.verdict.causes).toEqual([]);
+  });
+
+  it("passes when the item is named in that language", () => {
+    const result = inLanguage(withLocales(["en", "fr"]), "fr");
+
+    expect(gateOf(result, "language")?.status).toBe("pass");
+    expect(result.verdict.causes).toEqual([]);
+  });
+
+  it("adds no language gate when the message named no language", () => {
+    expect(gateOf(check("Create a lead"), "language")).toBeUndefined();
+  });
+});

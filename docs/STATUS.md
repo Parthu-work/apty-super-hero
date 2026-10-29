@@ -124,6 +124,21 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   `max_tokens` and applies from the next message. Both are off unless set.
   Tested in Chromium against the mock provider; sizes are estimates
   (characters / 4), not a provider's token count.
+- Widget check (partial): "the Apty widget is not appearing", "works in
+  Test but not in Production" or "only works on some pages" runs a widget
+  pack with no model call. It matches the page in the conversation's tab
+  against `app-urls.json`'s patterns as the KB cards describe them (by
+  order, `*` a wildcard, anywhere in the URL) and names a page no
+  environment covers, a pattern too specific for it, or a lower-order
+  environment that wins; it reads the widget's audience from
+  `app-data.json` (selected segments, the option for other users). The
+  card shows no URL or pattern. A message that names a language also
+  checks the item's name in it. Preflight warns when a deny-list entry
+  hides the files the checks read. `evidenceFromHar` reads a HAR file the
+  same way, deny list and redaction included; on the real 5.x capture it
+  agrees with the earlier count (12 of 15 workflows hidden). Tested
+  against the e2e fake Client in Chromium; not yet on a real tenant with
+  a known failing case.
 - A bare file request ("get segments.json") is answered the same way,
   through the `inspect_extension_network` tool and the full-response
   viewer with no model request; a follow-up pages that evidence through the

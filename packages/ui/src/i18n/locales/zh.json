@@ -1115,6 +1115,12 @@
         "entryOne": "{{count}} 项",
         "entryMany": "{{count}} 项",
         "offFix": "脱敏已关闭（仅限开发）。在使用真实数据演示之前，请在“设置 → 常规 → 数据处理 → 脱敏”中选择“严格”。"
+      },
+      "checkFiles": {
+        "label": "可见性检查读取的文件",
+        "readable": "正文拒绝列表中没有条目隐藏 Apty Client 的内容文件。",
+        "blocked": "正文拒绝列表条目 {{entries}} 隐藏了 {{files}}，因此可见性检查无法读取它们。",
+        "fix": "在“设置 → 数据处理”中，从正文拒绝列表删除 {{entries}}，或将其缩小到您要排除的路径。"
       }
     }
   },
@@ -1796,6 +1802,7 @@
     "titleItem": "“{{name}}”可能不可见的原因",
     "titleScan": "可见性检查：所有{{kind}}",
     "titleGeneric": "可见性检查",
+    "titleWidget": "小组件为何可能不可见",
     "kind": {
       "workflow": "工作流",
       "tooltip": "工具提示",
@@ -1803,7 +1810,8 @@
       "announcement": "公告",
       "validation": "验证",
       "checklist": "清单",
-      "knowledgeContent": "知识内容"
+      "knowledgeContent": "知识内容",
+      "widget": "小组件"
     },
     "status": {
       "cause_found": "已找到原因",
@@ -1826,7 +1834,11 @@
       "segments": "分段",
       "segment-consistency": "分段关联",
       "widget-audience": "小组件受众",
-      "visibility-rule": "可见性规则"
+      "visibility-rule": "可见性规则",
+      "language": "语言",
+      "page": "此页面",
+      "environment-match": "此页面的环境",
+      "restriction": "限制模式"
     },
     "gateStatus": {
       "pass": "通过",
@@ -1864,7 +1876,23 @@
       "widgetDisjoint": "小组件仅对 {{segments}} 显示；该条目面向 {{itemSegments}}",
       "appDataUnread": "无法读取 app-data.json",
       "noVisibilityRule": "没有可见性规则",
-      "visibilityRule": "“{{rule}}”（{{action}}）由浏览器判断"
+      "visibilityRule": "“{{rule}}”（{{action}}）由浏览器判断",
+      "localeFound": "已有{{language}}名称（{{locales}}）",
+      "localeRegional": "仅有 {{locales}} 名称：语言代码为 {{code}} 的用户看不到，地区条目不会回退",
+      "localeMissing": "没有{{language}}（{{code}}）名称",
+      "appUrlsEmpty": "app-urls.json 为空列表，Apty 不会加载任何内容（HTTP {{httpStatus}}）",
+      "pageUnknown": "此标签页未打开网页，因此未检查 URL 模式",
+      "pageRead": "已对照此标签页中打开的页面检查",
+      "envMatch": "此页面属于 {{env}}（顺序 {{order}}）",
+      "noEnvMatch": "没有环境的 URL 模式匹配此页面（已检查：{{envs}}）",
+      "envTooSpecific": "{{envs}}：此站点的模式未覆盖此页面",
+      "severalEnvMatch": "{{env}} 在此页面优先；{{others}} 也匹配",
+      "otherEnvLoaded": "读取的文件属于 {{loaded}}，而不是 {{env}}",
+      "envVisibilityRule": "{{env}} 有自己的可见性规则“{{rule}}”（{{action}}），由浏览器判定",
+      "widgetOtherUsers": "面向所选分段，也面向不在任何活动分段中的用户",
+      "widgetNoActiveSegment": "小组件的分段在此永远不会生效：{{segments}}",
+      "widgetSegmentsMissing": "小组件的分段并非都在此处的 segment.json 中：{{segments}}",
+      "restrictionPatterns": "设置了 {{count}} 个限制模式；它们可能隐藏整个小组件"
     },
     "rule": {
       "CNV-02": {
@@ -1890,6 +1918,26 @@
       "CNV-08": {
         "summary": "其已开启分段（{{segments}}）的规则不在 rule.json 中，因此永远不会匹配。",
         "fix": "在 Studio 中打开每个分段，保存规则，然后发布。"
+      },
+      "CNV-13": {
+        "summary": "“{{name}}”没有{{language}}（{{code}}）名称，因此小组件不会向{{language}}用户显示它。",
+        "fix": "在 Studio 中添加并发布{{language}}翻译：名称，以及已启用的成功和反馈消息。"
+      },
+      "WNV-01": {
+        "summary": "app-urls.json 为空列表：未定义应用，或文件未通过架构检查，因此 Apty 在任何页面都不加载内容。",
+        "fix": "先查看状态码，再在控制台中查找“Error fetching data”或“Error parsing response”。如果某个条目格式错误，请在 Admin 中修复并发布。"
+      },
+      "WNV-02": {
+        "summary": "没有环境的 URL 模式匹配此页面，因此 Apty 在这里不加载任何内容。",
+        "fix": "在 Admin 中，将用户打开的准确主机（带或不带 www）添加到正确环境的 URL 中，发布并重新加载。将控制台设为“详细”时，“No active application found”可确认此问题。"
+      },
+      "WNV-03": {
+        "summary": "{{envs}} 有此站点的 URL 模式，但未覆盖此页面，因此这里不运行任何内容。",
+        "fix": "在 Admin 中，将环境 URL 设为应用的基础 URL（* 可覆盖其下所有页面），发布并重新加载。如有测试环境，请先修改测试环境。"
+      },
+      "WNV-07": {
+        "summary": "小组件仅限于在此永远不会生效的分段（{{segments}}），且“其他用户”选项已关闭：没有人能看到它。",
+        "fix": "在 Admin 的“TARGET AUDIENCE”下，开启小组件的某个分段或修复其规则，或为所有用户启用小组件。发布并重新加载。"
       }
     },
     "ruleLabel": "规则 {{ruleId}}",
@@ -1907,12 +1955,15 @@
       "whichOne": "是哪一个？请提供完整名称或 sourceId。",
       "testAsMember": "以已知匹配该分段的用户进行测试，并确认小组件对该用户显示。",
       "openItems": "然后查看下面待确认的检查；文件无法判断这些项。",
-      "sendSupport": "向支持团队提供 Apty 版本、环境、sourceId、打开的小组件截图以及精简后的条目。"
+      "sendSupport": "向支持团队提供 Apty 版本、环境、sourceId、打开的小组件截图以及精简后的条目。",
+      "openAppPage": "在此标签页中打开缺少小组件的应用页面，然后再问一次。",
+      "comparePatterns": "在 Admin 中比较匹配此页面的各环境 URL 模式；把不应优先的那个改得更具体。"
     },
     "notChecked": {
       "title": "未从文件中检查",
       "membership": "此用户是否匹配某个分段的规则",
-      "runtime-rules": "可见性规则、延后规则和重复规则"
+      "runtime-rules": "可见性规则、延后规则和重复规则",
+      "widget-css": "页面的 CSS 是否隐藏了小组件容器"
     },
     "blocker": {
       "hidden": "在小组件中隐藏",

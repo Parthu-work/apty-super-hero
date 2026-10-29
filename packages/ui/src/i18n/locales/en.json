@@ -1115,6 +1115,12 @@
         "entryOne": "{{count}} entry",
         "entryMany": "{{count}} entries",
         "offFix": "Redaction is off (development only). Settings → General → Data handling → Redaction: choose Strict before a demo with real data."
+      },
+      "checkFiles": {
+        "label": "Files the visibility checks read",
+        "readable": "No body deny-list entry hides the Apty Client's content files.",
+        "blocked": "The body deny list entry {{entries}} hides {{files}}, so the visibility checks cannot read them.",
+        "fix": "In Settings → Data handling, remove {{entries}} from the body deny list, or narrow it to the paths you mean."
       }
     }
   },
@@ -1796,6 +1802,7 @@
     "titleItem": "Why “{{name}}” may not be visible",
     "titleScan": "Visibility check: every {{kind}}",
     "titleGeneric": "Visibility check",
+    "titleWidget": "Why the widget may not be visible",
     "kind": {
       "workflow": "workflow",
       "tooltip": "tooltip",
@@ -1803,7 +1810,8 @@
       "announcement": "announcement",
       "validation": "validation",
       "checklist": "checklist",
-      "knowledgeContent": "knowledge content item"
+      "knowledgeContent": "knowledge content item",
+      "widget": "widget"
     },
     "status": {
       "cause_found": "Cause found",
@@ -1826,7 +1834,11 @@
       "segments": "Segments",
       "segment-consistency": "Segment link",
       "widget-audience": "Widget audience",
-      "visibility-rule": "Visibility rule"
+      "visibility-rule": "Visibility rule",
+      "language": "Language",
+      "page": "This page",
+      "environment-match": "Environment for this page",
+      "restriction": "Restriction patterns"
     },
     "gateStatus": {
       "pass": "Passed",
@@ -1864,7 +1876,23 @@
       "widgetDisjoint": "The widget is shown only to {{segments}}; the item is for {{itemSegments}}",
       "appDataUnread": "app-data.json could not be read",
       "noVisibilityRule": "No visibility rule",
-      "visibilityRule": "“{{rule}}” ({{action}}) is decided in the browser"
+      "visibilityRule": "“{{rule}}” ({{action}}) is decided in the browser",
+      "localeFound": "Named in {{language}} ({{locales}})",
+      "localeRegional": "Named in {{locales}} only: a user whose language code is {{code}} gets none, as a regional entry does not fall back",
+      "localeMissing": "No name in {{language}} ({{code}})",
+      "appUrlsEmpty": "app-urls.json is an empty list, so Apty loads nothing (HTTP {{httpStatus}})",
+      "pageUnknown": "No web page is open in this tab, so the URL patterns were not checked",
+      "pageRead": "Checked against the page open in this tab",
+      "envMatch": "This page belongs to {{env}} (order {{order}})",
+      "noEnvMatch": "No environment's URL pattern matches this page (checked: {{envs}})",
+      "envTooSpecific": "{{envs}}: a pattern for this site that does not cover this page",
+      "severalEnvMatch": "{{env}} wins on this page; {{others}} also match",
+      "otherEnvLoaded": "The files read are for {{loaded}}, not {{env}}",
+      "envVisibilityRule": "{{env}} has its own visibility rule “{{rule}}” ({{action}}), decided in the browser",
+      "widgetOtherUsers": "For selected segments, and for users in no active segment too",
+      "widgetNoActiveSegment": "The widget's segments can never be active here: {{segments}}",
+      "widgetSegmentsMissing": "Not all of the widget's segments are in segment.json here: {{segments}}",
+      "restrictionPatterns": "{{count}} restriction pattern(s) set; they can hide the whole widget"
     },
     "rule": {
       "CNV-02": {
@@ -1890,6 +1918,26 @@
       "CNV-08": {
         "summary": "The rules of its active segments ({{segments}}) are missing from rule.json, so they never match.",
         "fix": "Open each segment in Studio, save it with a rule, and publish."
+      },
+      "CNV-13": {
+        "summary": "“{{name}}” has no name in {{language}} ({{code}}), so the widget drops it for {{language}} users.",
+        "fix": "In Studio, add and publish the {{language}} translation: its name, and the success and feedback messages if they are on."
+      },
+      "WNV-01": {
+        "summary": "app-urls.json is an empty list: no application is defined, or the file failed its schema check, so Apty loads nothing on any page.",
+        "fix": "Read its status code, then the Console for “Error fetching data” or “Error parsing response”. If one entry is malformed, fix it in Admin and publish."
+      },
+      "WNV-02": {
+        "summary": "No environment's URL pattern matches this page, so nothing from Apty loads here.",
+        "fix": "In Admin, add the exact host users open (with or without www) to the right environment's URLs, publish and reload. With the Console set to Verbose, “No active application found” confirms it."
+      },
+      "WNV-03": {
+        "summary": "{{envs}} has a URL pattern for this site that does not cover this page, so no content runs here.",
+        "fix": "In Admin, set the environment's URL to the application's base URL (a * covers every page under it), publish and reload. Change a test environment first if there is one."
+      },
+      "WNV-07": {
+        "summary": "The widget is limited to segments that can never be active here ({{segments}}), and the option for other users is off: nobody sees it.",
+        "fix": "In Admin, under “TARGET AUDIENCE”, turn one of the widget's segments on or fix its rule, or enable the widget for all users. Publish and reload."
       }
     },
     "ruleLabel": "Rule {{ruleId}}",
@@ -1907,12 +1955,15 @@
       "whichOne": "Which one? Give the full name or the sourceId.",
       "testAsMember": "Test as a user known to match the segment, and confirm the widget shows for that user.",
       "openItems": "Then look at the open checks below; the files cannot decide them.",
-      "sendSupport": "Send support the Apty version, the environment, the sourceId, a screenshot of the open widget and the trimmed entry."
+      "sendSupport": "Send support the Apty version, the environment, the sourceId, a screenshot of the open widget and the trimmed entry.",
+      "openAppPage": "Open the application page where the widget is missing in this tab, then ask again.",
+      "comparePatterns": "Compare the URL patterns of the environments that match this page in Admin; make the one that should not win more specific."
     },
     "notChecked": {
       "title": "Not checked from the files",
       "membership": "Whether this user matches a segment's rule",
-      "runtime-rules": "The visibility, later and recurrence rules"
+      "runtime-rules": "The visibility, later and recurrence rules",
+      "widget-css": "Whether the page's CSS hides the widget container"
     },
     "blocker": {
       "hidden": "Hidden from the widget",

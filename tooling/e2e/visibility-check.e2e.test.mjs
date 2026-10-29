@@ -36,12 +36,15 @@ const files = Object.fromEntries(
     readFileSync(join(FIXTURES, name), "utf8"),
   ]),
 );
-const clientDir = writeContentClient(
-  join(tempDir("apty-e2e-content-"), "client"),
-  AGENT_EXTENSION_ID,
-  files,
-);
+const clientDir = join(tempDir("apty-e2e-content-"), "client");
 const clientId = unpackedExtensionId(clientDir);
+
+/** The fixture's environments, with UAT's pattern covering this server's /app pages only. */
+function appUrlsFor(origin) {
+  const apps = JSON.parse(files["app-urls.json"]);
+  apps[0].environments[1].urls = [`${origin}/app`];
+  return JSON.stringify(apps);
+}
 
 let browser;
 let model;
@@ -52,6 +55,11 @@ before(async () => {
   model.script(() => ({ text: "MODEL WAS CALLED" }));
   site = await startPageServer({
     "/app.html": "<title>CRM</title><h1>Leads</h1>",
+    "/other.html": "<title>CRM</title><h1>Accounts</h1>",
+  });
+  writeContentClient(clientDir, AGENT_EXTENSION_ID, {
+    ...files,
+    "app-urls.json": appUrlsFor(site.origin),
   });
   browser = await launchBrowser({ extraExtensions: [clientDir] });
 });
@@ -78,9 +86,9 @@ async function connectClient() {
   await options.close();
 }
 
-async function panelOnApp() {
+async function panelOnApp(path = "/app.html") {
   const app = await browser.context.newPage();
-  await app.goto(`${site.origin}/app.html`);
+  await app.goto(`${site.origin}${path}`);
   const panel = await openSidePanel(browser, model, app);
   return { app, panel };
 }
@@ -207,6 +215,63 @@ describe("visibility check, end to end", () => {
       .waitFor();
     const violations = await runAxe(panel);
     assert.deepEqual(violations, [], describeViolations(violations));
+    await panel.close();
+    await app.close();
+  });
+  it("checks the widget against the page in this tab: a pattern too specific for it, with no model request", async () => {
+    await connectClient();
+    const { app, panel } = await panelOnApp("/other.html");
+    const before = model.requests.length;
+
+    await sendChat(panel, "the Apty widget is not appearing on this page");
+
+    const card = panel.getByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    await card.waitFor({ timeout: 30_000 });
+    await card.getByText("Cause found").waitFor();
+    await card
+      .getByText(
+        "UAT (order 2) has a URL pattern for this site that does not cover this page, so no content runs here.",
+      )
+      .first()
+      .waitFor();
+    await card
+      .getByRole("link", { name: /KB card 1497104451/ })
+      .first()
+      .waitFor();
+    assert.equal(model.requests.length, before, "the model was not asked");
+    const cardText = await card.textContent();
+    assert.ok(
+      !cardText.includes(site.origin),
+      "the card shows no page URL or pattern",
+    );
+    const violations = await runAxe(panel);
+    assert.deepEqual(violations, [], describeViolations(violations));
+    await panel.close();
+    await app.close();
+  });
+
+  it("names the environment a covered page belongs to and leaves the segments to the browser", async () => {
+    await connectClient();
+    const { app, panel } = await panelOnApp("/app.html");
+
+    await sendChat(panel, "widget is missing for every user");
+
+    const card = panel.getByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    await card.waitFor({ timeout: 30_000 });
+    await card.getByText("Needs a check in the browser").waitFor();
+    await card
+      .getByText("This page belongs to UAT (order 2)", { exact: false })
+      .waitFor();
+    await card
+      .getByText("The widget is shown only to: Sales team, New hires", {
+        exact: false,
+      })
+      .waitFor();
+    assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await app.close();
   });

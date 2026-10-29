@@ -1,17 +1,23 @@
 /**
  * Maps an SE's message to a check pack with plain patterns, the same way
  * `tool-relevance.ts` picks tool groups: a message that names a content kind
- * and says it is not visible is a visibility check; a how-to question or
- * anything else is left to the model.
+ * and says it is not visible is a content check; one that says the widget
+ * itself is missing, or works in one environment or on some pages only, is a
+ * widget check; a how-to question or anything else is left to the model.
  */
+import { LANGUAGE_CODES } from "./languages.js";
 import type { ContentKind } from "./types.js";
 
-export interface Route {
-  packId: "content-not-visible";
-  kind: ContentKind;
-  /** The item's name or sourceId, when the message gives one. */
-  query?: string;
-}
+export type Route =
+  | {
+      packId: "content-not-visible";
+      kind: ContentKind;
+      /** The item's name or sourceId, when the message gives one. */
+      query?: string;
+      /** The language the message names, as a code ("fr"). */
+      language?: string;
+    }
+  | { packId: "widget-not-visible" };
 
 const KIND_WORDS: Array<[ContentKind, RegExp]> = [
   ["workflow", /\b(work)?flows?\b/],
@@ -62,12 +68,43 @@ function itemName(message: string): string | undefined {
   return undefined;
 }
 
+const WIDGET = /\bwidget\b/;
+const ONE_ENVIRONMENT_ONLY =
+  /\bworks? (?:in|on) (?:the )?[\w-]{2,20} but not (?:in|on) /;
+const SOME_PAGES_ONLY =
+  /\b(?:only (?:works|shows|appears|loads) on (?:one|some|certain|a few) pages?|(?:works|shows|appears) on (?:one|some|the main) pages? but not)\b/;
+
+const LANGUAGE_NAMES = Object.keys(LANGUAGE_CODES).join("|");
+const LANGUAGE = new RegExp(
+  `\\b(?:in|for) (?:the )?(${LANGUAGE_NAMES})\\b|\\b(${LANGUAGE_NAMES})[- ](?:users?|speakers?|speaking|translation|version|language)\\b`,
+);
+
+function languageOf(lower: string): string | undefined {
+  const match = LANGUAGE.exec(lower);
+  const name = match?.[1] ?? match?.[2];
+  return name ? LANGUAGE_CODES[name] : undefined;
+}
+
 /** The pack, kind and item a message asks about, or undefined to leave it to the model. */
 export function routeSymptom(message: string): Route | undefined {
   const lower = message.toLowerCase();
-  if (HOW_TO.test(lower) || !NOT_VISIBLE.test(lower)) return undefined;
+  if (HOW_TO.test(lower)) return undefined;
   const kind = KIND_WORDS.find(([, pattern]) => pattern.test(lower))?.[0];
-  if (!kind) return undefined;
+  if (!kind) {
+    const widgetMissing = WIDGET.test(lower) && NOT_VISIBLE.test(lower);
+    return widgetMissing ||
+      ONE_ENVIRONMENT_ONLY.test(lower) ||
+      SOME_PAGES_ONLY.test(lower)
+      ? { packId: "widget-not-visible" }
+      : undefined;
+  }
+  if (!NOT_VISIBLE.test(lower)) return undefined;
   const query = itemName(message);
-  return { packId: "content-not-visible", kind, ...(query ? { query } : {}) };
+  const language = languageOf(lower);
+  return {
+    packId: "content-not-visible",
+    kind,
+    ...(query ? { query } : {}),
+    ...(language ? { language } : {}),
+  };
 }
