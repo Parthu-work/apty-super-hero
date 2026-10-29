@@ -1,0 +1,33 @@
+[
+  {
+    "id": "0a000000-0000-7000-8000-000000000001",
+    "environments": [
+      {
+        "order": 1,
+        "name": "Production",
+        "urls": ["https://crm.example.com/"],
+        "enableUserProfile": false,
+        "userProfileURL": null,
+        "selfHostedDeploymentURL": null,
+        "clientVersion": null,
+        "enableWidget": false,
+        "id": "0e000000-0000-7000-8000-000000000001",
+        "visibilityRuleId": null,
+        "visibilityRuleAction": null
+      },
+      {
+        "order": 2,
+        "name": "UAT",
+        "urls": ["https://uat.crm.example.com/"],
+        "enableUserProfile": false,
+        "userProfileURL": null,
+        "selfHostedDeploymentURL": null,
+        "clientVersion": null,
+        "enableWidget": false,
+        "id": "0e000000-0000-7000-8000-000000000002",
+        "visibilityRuleId": null,
+        "visibilityRuleAction": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "name": "Example CRM",
+  "code": "GENERIC",
+  "applicationLaunchURL": "https://crm.example.com/",
+  "environments": [],
+  "config": {
+    "widgetConfig": {
+      "ssoConfig": null,
+      "baseTag": "body",
+      "display": "Specific",
+      "selectedSegments": [
+        "05000000-0000-7000-8000-000000000001",
+        "05000000-0000-7000-8000-000000000002"
+      ],
+      "enabledForOtherUser": false,
+      "restrictionPatterns": []
+    }
+  },
+  "id": "0a000000-0000-7000-8000-000000000001",
+  "createdAt": "2026-09-01T10:00:00.000Z",
+  "updatedAt": "2026-09-15T10:00:00.000Z",
+  "createdBy": "Content Author",
+  "updatedBy": "Content Author"
+}

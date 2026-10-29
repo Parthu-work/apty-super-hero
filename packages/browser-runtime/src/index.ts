@@ -1,5 +1,7 @@
 // Runtime interfaces and hosts
 
+// Check packs over the Apty Client's content files
+export * from "./apty/diagnosis/index.js";
 // Apty diagnostics (evidence model + Widget/Studio/Client/Service-Worker providers)
 export * from "./apty/index.js";
 // Automation

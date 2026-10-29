@@ -1,0 +1,114 @@
+[
+  {
+    "name": "Sales users",
+    "definition": {
+      "type": "group",
+      "operator": "AND",
+      "children": [
+        {
+          "type": "condition",
+          "operator": "eq",
+          "left": {
+            "kind": "var",
+            "source": "storage",
+            "key": "role"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "sales"
+          }
+        }
+      ]
+    },
+    "summary": "Require that the user's role is sales.",
+    "id": "01000000-0000-7000-8000-000000000001",
+    "createdAt": "2026-09-01T10:00:00.000Z",
+    "updatedAt": "2026-09-15T10:00:00.000Z",
+    "createdBy": "Content Author",
+    "updatedBy": "Content Author"
+  },
+  {
+    "name": "Joined in the last 90 days",
+    "definition": {
+      "type": "group",
+      "operator": "AND",
+      "children": [
+        {
+          "type": "condition",
+          "operator": "eq",
+          "left": {
+            "kind": "var",
+            "source": "storage",
+            "key": "tenure"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "new"
+          }
+        }
+      ]
+    },
+    "summary": "Require that the user joined in the last 90 days.",
+    "id": "01000000-0000-7000-8000-000000000002",
+    "createdAt": "2026-09-01T10:00:00.000Z",
+    "updatedAt": "2026-09-15T10:00:00.000Z",
+    "createdBy": "Content Author",
+    "updatedBy": "Content Author"
+  },
+  {
+    "name": "Retired accounts",
+    "definition": {
+      "type": "group",
+      "operator": "AND",
+      "children": [
+        {
+          "type": "condition",
+          "operator": "eq",
+          "left": {
+            "kind": "var",
+            "source": "storage",
+            "key": "status"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "retired"
+          }
+        }
+      ]
+    },
+    "summary": "Require that the account is retired.",
+    "id": "01000000-0000-7000-8000-000000000003",
+    "createdAt": "2026-09-01T10:00:00.000Z",
+    "updatedAt": "2026-09-15T10:00:00.000Z",
+    "createdBy": "Content Author",
+    "updatedBy": "Content Author"
+  },
+  {
+    "name": "On a lead page",
+    "definition": {
+      "type": "group",
+      "operator": "AND",
+      "children": [
+        {
+          "type": "condition",
+          "operator": "eq",
+          "left": {
+            "kind": "var",
+            "source": "storage",
+            "key": "page"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "lead"
+          }
+        }
+      ]
+    },
+    "summary": "Require that the page is a lead record.",
+    "id": "01000000-0000-7000-8000-000000000004",
+    "createdAt": "2026-09-01T10:00:00.000Z",
+    "updatedAt": "2026-09-15T10:00:00.000Z",
+    "createdBy": "Content Author",
+    "updatedBy": "Content Author"
+  }
+]
