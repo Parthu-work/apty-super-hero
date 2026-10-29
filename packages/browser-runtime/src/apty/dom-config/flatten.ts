@@ -46,6 +46,8 @@ export interface FlatRun {
   /** Every attribute but `class`, by name, then value. */
   attributes: Map<string, Map<string, number>>;
   classTokens: Map<string, number>;
+  /** Whole `class` values, as Apty's ignore conditions test them. */
+  classValues: Map<string, number>;
   /** The highest z-index of each scope (document, shadow root, frame). */
   scopeMaxZIndexes: number[];
   /** The collector listed the element behind every z-index of 1000 or more. */
@@ -105,6 +107,7 @@ export function flattenRun(run: ProfileRun, policy: NoisePolicy): FlatRun {
     tags: new Map(),
     attributes: new Map(),
     classTokens: new Map(),
+    classValues: new Map(),
     scopeMaxZIndexes: [],
     zIndexSourcesKnown: run.profile.zIndexSources !== undefined,
     zIndexSources: run.profile.zIndexSources ?? [],
@@ -138,6 +141,7 @@ export function flattenRun(run: ProfileRun, policy: NoisePolicy): FlatRun {
     const { stored, cut } = storedValue(value);
     if (cut) cutLengths.set(name, (cutLengths.get(name) ?? 0) + 1);
     if (name === "class") {
+      flat.classValues.set(stored, (flat.classValues.get(stored) ?? 0) + count);
       for (const token of stored.split(/\s+/)) {
         if (token) {
           flat.classTokens.set(
@@ -268,6 +272,12 @@ function capDistinctValues(flat: FlatRun): void {
     );
     flat.truncatedNames.add("class");
     flat.truncations.push({ kind: "distinct-values", name: "class", dropped });
+  }
+  // Only collateral counts read whole values; a cap here loses no rule.
+  if (flat.classValues.size > max) {
+    flat.classValues = new Map(
+      [...flat.classValues].sort(byCountThenValue).slice(0, max),
+    );
   }
 }
 

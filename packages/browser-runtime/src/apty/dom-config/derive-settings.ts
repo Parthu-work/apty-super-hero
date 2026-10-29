@@ -5,9 +5,12 @@
  * measured it. A default is never presented as a finding.
  */
 import {
-  DEFAULT_DES_CONFIG,
+  classifyUnstableClass,
   DEFAULT_IGNORE,
   DEFAULT_PRIORITY,
+  fnv1a,
+  isValueDynamic,
+  type MutationSource,
 } from "@apty/dom-snapshot";
 import {
   type AnalyzedPage,
@@ -16,17 +19,19 @@ import {
 } from "./classify.js";
 import type { FlatRun } from "./flatten.js";
 import {
+  APTY_CONTAINER_SCORE_THRESHOLD,
+  CONTINUOUS_CALLBACKS_PER_SECOND,
+  CONTINUOUS_MIN_CALLBACKS,
   DEBOUNCE_DEFAULT_MS,
   DEBOUNCE_MAX_MS,
   DEBOUNCE_MIN_MS,
   DEBOUNCE_P90_FACTOR,
   EXTENSION_Z_INDEX,
-  HIGH_FREQUENCY_EVENTS_PER_SECOND,
+  LARGE_CONTAINER_DESCENDANTS,
   LARGE_DOM_DIVS,
   MAX_APTY_Z_INDEX,
   MAX_PRIORITY_ATTRIBUTES,
   RECOMMENDED_APTY_Z_INDEX,
-  REFERENCE_CONTAINER_SCORE_THRESHOLD,
 } from "./limits.js";
 import {
   attributeNameNoise,
@@ -36,20 +41,36 @@ import {
   type NoisePolicy,
   tagNoise,
 } from "./noise.js";
+import { escapeRegexLiteral } from "./regex.js";
 import { compareText, isSafeLiteral, sortedUnique } from "./text.js";
 import type {
   AttributePriority,
   AttributePriorityEntry,
   ContainerScoreThreshold,
+  DomEventRule,
   ExcludedZIndex,
+  IgnoreDomEventsSetting,
   MaxZIndexSetting,
+  NotProposedSource,
   PriorityDiffEntry,
+  RuleCondition,
   Setting,
   ZIndexSource,
   ZIndexSourceSummary,
 } from "./types.js";
 
 const TEST_ATTRIBUTES = ["data-automation-id", "data-testid", "data-test"];
+
+/** `pattern.ts`: an attribute name a CSS selector cannot hold is never selected. */
+const SELECTABLE_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
+
+/** Attribute priority of Apty's application-type presets (`init-data.sql`); a non-empty application list replaces the preset's. */
+export const APPLICATION_TYPE_PRIORITIES: AttributePriority["typePresets"] = [
+  { type: "Generic", priority: ["aria-label", "title", "href", "id"] },
+  { type: "Oracle", priority: ["aria-label", "title", "href", "id"] },
+  { type: "Salesforce", priority: ["href", "title", "id"] },
+  { type: "Workday", priority: ["data-automation-id", "id", "href"] },
+];
 
 /** What a person typed or the server pre-filled; never identity (as in the audit profile). */
 const NEVER_PRIORITY = new Set(["value"]);
@@ -102,6 +123,7 @@ function nameStats(pages: AnalyzedPage[]): Map<string, NameStats> {
 function excludedFromPriority(name: string, policy: NoisePolicy): boolean {
   return (
     NEVER_PRIORITY.has(name) ||
+    !SELECTABLE_ATTRIBUTE_NAME.test(name) ||
     attributeNameNoise(name, policy) !== null ||
     DEFAULT_IGNORE.attribute(name) ||
     isStateAttribute(name) ||
@@ -179,9 +201,10 @@ export function deriveAttributePriority(
     value: chosen.join(","),
     basis: "derived",
     reason:
-      "Attributes stable on most captured pages, ordered test attributes, id, name, then by uniqueness.",
+      "Attributes stable on most captured pages, ordered test attributes, id, name, then by uniqueness. Entered in DOM Settings, the list replaces the application type's preset as a whole.",
     entries,
     defaultPriority: [...DEFAULT_PRIORITY],
+    typePresets: APPLICATION_TYPE_PRIORITIES,
     diff,
   };
 }
@@ -403,7 +426,7 @@ export function deriveDebounce(pages: AnalyzedPage[]): Setting<number> {
         probed.length
           ? "Not measured: the behavior probe saw no mutation bursts."
           : "Not measured: no behavior probe ran."
-      } ${DEBOUNCE_DEFAULT_MS} ms is this tool's default.${note}`,
+      } Apty's own default of ${DEBOUNCE_DEFAULT_MS} ms applies when the field is left empty.${note}`,
     };
   }
   const p90 = percentile90(bursts);
@@ -420,42 +443,183 @@ export function deriveDebounce(pages: AnalyzedPage[]): Setting<number> {
   };
 }
 
-export function deriveIgnoreEvents(pages: AnalyzedPage[]): Setting<string[]> {
-  const rates = new Map<string, number>();
+/** Tags never proposed: ignoring one hides every change on the page. */
+const NEVER_IGNORED_TAGS = new Set(["html", "head", "body", "main", "form"]);
+
+/** Tags specific enough to name an element by tag alone. */
+const SPECIFIC_TAGS = new Set([
+  "marquee",
+  "canvas",
+  "video",
+  "audio",
+  "progress",
+  "meter",
+  "svg",
+]);
+
+function isStableName(value: string): boolean {
+  return (
+    isSafeLiteral(value) && !isValueDynamic(value) && !/\d{2,}/.test(value)
+  );
+}
+
+/**
+ * The condition Apty's Ignore DOM events can name a source by: its id, a
+ * stable class token, or a tag specific enough to stand alone. Apty drops
+ * a change when the changed element or any ancestor matches, so the
+ * condition names the element itself, never a container. Apty's
+ * converter keeps neither negation nor `className`, so neither is used.
+ */
+function domEventCondition(source: MutationSource): RuleCondition | null {
+  if (source.id && isStableName(source.id)) {
+    return {
+      category: "Attribute Value",
+      attribute: "id",
+      operator: "Equals",
+      value: source.id,
+    };
+  }
+  const classes = source.classes ?? [];
+  const token = classes.find(
+    (c) => isStableName(c) && classifyUnstableClass(c, classes) === null,
+  );
+  if (token) {
+    return {
+      category: "Attribute Value",
+      attribute: "class",
+      operator: "Regex",
+      value: `(?:^|\\s)${escapeRegexLiteral(token)}(?:\\s|$)`,
+    };
+  }
+  if (source.tag.includes("-") || SPECIFIC_TAGS.has(source.tag)) {
+    return isSafeLiteral(source.tag)
+      ? {
+          category: "Attribute Value",
+          attribute: "tag",
+          operator: "Equals",
+          value: source.tag,
+        }
+      : null;
+  }
+  return null;
+}
+
+function whyNotProposed(source: MutationSource): string | null {
+  if (NEVER_IGNORED_TAGS.has(source.tag)) {
+    return "A page-level element: ignoring it would hide every change.";
+  }
+  if (source.interactive > 0) {
+    return `It holds ${source.interactive} control(s); ignoring it would hide changes to them.`;
+  }
+  if (source.descendants >= LARGE_CONTAINER_DESCENDANTS) {
+    return `A container of ${source.descendants} element(s); ignoring it would hide changes to all of them.`;
+  }
+  return null;
+}
+
+/**
+ * Ignore DOM events (`ignoreDomChangeConditions`): elements that changed
+ * continuously while the behavior probe watched (a clock, a spinner, a
+ * ticker), whose changes would otherwise make Apty re-resolve every step
+ * on each tick. An element holding controls, a large container and a
+ * page-level element are listed, never proposed.
+ */
+export function deriveIgnoreEvents(
+  pages: AnalyzedPage[],
+): IgnoreDomEventsSetting {
+  const rules = new Map<string, DomEventRule>();
+  const notProposed = new Map<string, NotProposedSource>();
+  let probed = 0;
+  let sourcesSeen = 0;
   for (const page of pages) {
     for (const run of page.runs) {
-      if (!run.probe?.ran) continue;
-      for (const [event, rate] of Object.entries(run.probe.eventRates)) {
-        if (isSafeLiteral(event))
-          rates.set(event, Math.max(rates.get(event) ?? 0, rate));
+      const probe = run.probe;
+      if (!probe?.ran) continue;
+      probed++;
+      const seconds = Math.max(1, probe.windowMs / 1000);
+      for (const source of probe.mutationSources ?? []) {
+        sourcesSeen++;
+        const rate = source.callbacks / seconds;
+        if (
+          source.callbacks < CONTINUOUS_MIN_CALLBACKS ||
+          rate < CONTINUOUS_CALLBACKS_PER_SECOND
+        ) {
+          continue;
+        }
+        const tag = isSafeLiteral(source.tag) ? source.tag : "[tag withheld]";
+        const blocked = whyNotProposed(source);
+        const condition = blocked ? null : domEventCondition(source);
+        if (!condition) {
+          const reason =
+            blocked ?? "Nothing stable names it: no stable id or class.";
+          const key = `${tag}\u0000${reason}`;
+          const entry = notProposed.get(key) ?? { tag, reason, pages: [] };
+          entry.pages = sortedUnique([...entry.pages, page.pageId]);
+          notProposed.set(key, entry);
+          continue;
+        }
+        const key = JSON.stringify(condition);
+        const existing = rules.get(key);
+        const callbacksPerSecond = Math.round(rate * 100) / 100;
+        if (existing) {
+          existing.pages = sortedUnique([...existing.pages, page.pageId]);
+          existing.callbacksPerSecond = Math.max(
+            existing.callbacksPerSecond,
+            callbacksPerSecond,
+          );
+          continue;
+        }
+        rules.set(key, {
+          id: `e-${fnv1a(key)}`,
+          condition,
+          tag,
+          callbacksPerSecond,
+          pages: [page.pageId],
+          reason: `A ${tag} element changed ${callbacksPerSecond} time(s) per second while the probe watched${
+            source.attributeNames.length
+              ? ` (${source.attributeNames.filter(isSafeLiteral).join(", ") || "attributes"})`
+              : ""
+          }, holding no control. Each change makes Apty re-resolve its steps.`,
+        });
       }
     }
   }
-  const high = [...rates]
-    .filter(([, rate]) => rate > HIGH_FREQUENCY_EVENTS_PER_SECOND)
-    .map(([event]) => event)
-    .sort(compareText);
-  if (high.length) {
+  const list = [...rules.values()].sort(
+    (a, b) =>
+      b.callbacksPerSecond - a.callbacksPerSecond ||
+      compareText(JSON.stringify(a.condition), JSON.stringify(b.condition)),
+  );
+  const skipped = [...notProposed.values()].sort(
+    (a, b) => compareText(a.tag, b.tag) || compareText(a.reason, b.reason),
+  );
+  if (list.length) {
     return {
-      value: high,
+      value: list.map((rule) => rule.condition),
       basis: "measured",
-      reason: `Fired more than ${HIGH_FREQUENCY_EVENTS_PER_SECOND} times per second while the probe watched.`,
+      reason: `Elements that changed at least ${CONTINUOUS_CALLBACKS_PER_SECOND} time(s) per second while the probe watched, and hold no control.`,
+      rules: list,
+      notProposed: skipped,
     };
   }
   return {
     value: [],
     basis: "default",
-    reason:
-      "None measured. An automatic capture has no human input, so mouse and scroll events rarely fire while it watches.",
+    reason: !probed
+      ? "Not measured: no behavior probe ran."
+      : sourcesSeen
+        ? "Nothing that can be ignored safely changed continuously while the probe watched."
+        : "Nothing changed while the probe watched.",
+    rules: [],
+    notProposed: skipped,
   };
 }
 
 export function containerScoreThreshold(): ContainerScoreThreshold {
   return {
-    referenceConfigValue: REFERENCE_CONTAINER_SCORE_THRESHOLD,
-    reconstructedModelValue: DEFAULT_DES_CONFIG.containerScoreThreshold,
+    referenceConfigValue: APTY_CONTAINER_SCORE_THRESHOLD,
+    reconstructedModelValue: APTY_CONTAINER_SCORE_THRESHOLD / 100,
     basis: "default",
-    reason: `Not measured. Reference configurations use ${REFERENCE_CONTAINER_SCORE_THRESHOLD}; the model reconstructed from Apty Studio build 63 uses ${DEFAULT_DES_CONFIG.containerScoreThreshold}. They may be one setting in different units; this tool neither converts nor chooses (open question 5).`,
+    reason: `Fixed by Apty: its application mapper sets ${APTY_CONTAINER_SCORE_THRESHOLD}, read as ${APTY_CONTAINER_SCORE_THRESHOLD / 100} of a step's stored containers. It is not a DOM Settings field, and steps captured by Apty 5 store no containers, so it changes nothing.`,
   };
 }
 

@@ -25,6 +25,7 @@ import {
   DOM_CONFIG_TOOL_VERSION,
 } from "./limits.js";
 import { noisePolicy } from "./noise.js";
+import { derivePartialSelectors } from "./partial-selectors.js";
 import {
   buildCoverage,
   collectIframes,
@@ -214,6 +215,7 @@ export function buildDomConfigReport(
     ),
     pages: analyzed.map((page) => pageSummary(page, sources.get(page.pageId)!)),
     rules: generated.rules,
+    partialSelectors: derivePartialSelectors(analyzed),
     rejectedRules: generated.rejectedRules,
     manualReview: generated.manualReview,
     coveredByDefaults: generated.coveredByDefaults,

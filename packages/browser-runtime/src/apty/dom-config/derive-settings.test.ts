@@ -1,3 +1,4 @@
+import type { MutationSource } from "@apty/dom-snapshot";
 import { describe, expect, it } from "vitest";
 import {
   analyze,
@@ -233,13 +234,13 @@ describe("deriveDebounce", () => {
         /^Heuristic: the 90th percentile of 20 mutation burst/,
       ),
     });
-    expect(withBursts([10, 20])).toMatchObject({ value: 200 });
+    expect(withBursts([10, 20])).toMatchObject({ value: 100 });
     expect(withBursts([5000])).toMatchObject({ value: 1500 });
   });
 
-  it("falls back to the default, marked not measured, without probe data", () => {
+  it("falls back to Apty's own default, marked not measured, without probe data", () => {
     expect(deriveDebounce([stablePage({})])).toMatchObject({
-      value: 500,
+      value: 100,
       basis: "default",
       reason: expect.stringContaining("no behavior probe ran"),
     });
@@ -257,23 +258,113 @@ describe("deriveDebounce", () => {
 });
 
 describe("deriveIgnoreEvents", () => {
-  it("lists only events the probe saw firing often", () => {
+  const source = (partial: Partial<MutationSource> = {}): MutationSource => ({
+    tag: "span",
+    attributeNames: [],
+    mutations: 3,
+    callbacks: 3,
+    descendants: 0,
+    interactive: 0,
+    ...partial,
+  });
+  const probed = (...sources: MutationSource[]) =>
+    stablePage({}, { probe: probe({ mutationSources: sources }) });
+
+  it("names an element that changes every second by its id", () => {
+    const setting = deriveIgnoreEvents([
+      probed(source({ id: "clock", classes: ["time"] })),
+    ]);
+    expect(setting).toMatchObject({
+      basis: "measured",
+      value: [
+        {
+          category: "Attribute Value",
+          attribute: "id",
+          operator: "Equals",
+          value: "clock",
+        },
+      ],
+    });
+    expect(setting.rules[0]!.callbacksPerSecond).toBe(1);
+  });
+
+  it("falls back to a stable class token, written as a token pattern, never className", () => {
+    const [condition] = deriveIgnoreEvents([
+      probed(source({ id: "spin-4821", classes: ["is-active", "spinner"] })),
+    ]).value;
+    expect(condition).toEqual({
+      category: "Attribute Value",
+      attribute: "class",
+      operator: "Regex",
+      value: "(?:^|\\s)spinner(?:\\s|$)",
+    });
+    expect(new RegExp(condition!.value).test("x spinner y")).toBe(true);
+  });
+
+  it("names a custom element by its tag when nothing else is stable", () => {
+    expect(
+      deriveIgnoreEvents([probed(source({ tag: "x-ticker" }))]).value,
+    ).toEqual([
+      {
+        category: "Attribute Value",
+        attribute: "tag",
+        operator: "Equals",
+        value: "x-ticker",
+      },
+    ]);
+  });
+
+  it("lists, but never proposes, an element holding controls, a large container or the page", () => {
+    const setting = deriveIgnoreEvents([
+      probed(
+        source({ id: "toolbar", interactive: 2 }),
+        source({ id: "grid", descendants: 400 }),
+        source({ tag: "body" }),
+      ),
+    ]);
+    expect(setting.value).toEqual([]);
+    expect(setting.notProposed.map((n) => n.tag).sort()).toEqual([
+      "body",
+      "span",
+      "span",
+    ]);
+  });
+
+  it("leaves out an element that changed only once or twice", () => {
+    expect(
+      deriveIgnoreEvents([probed(source({ id: "toast", callbacks: 2 }))]).value,
+    ).toEqual([]);
+  });
+
+  it("merges the same element across pages, keeping its highest rate", () => {
     const setting = deriveIgnoreEvents([
       stablePage(
         {},
-        { probe: probe({ eventRates: { mousemove: 45, scroll: 3 } }) },
+        { probe: probe({ mutationSources: [source({ id: "clock" })] }) },
+        "p1",
+      ),
+      stablePage(
+        {},
+        {
+          probe: probe({
+            mutationSources: [source({ id: "clock", callbacks: 9 })],
+          }),
+        },
+        "p2",
       ),
     ]);
-    expect(setting).toMatchObject({ value: ["mousemove"], basis: "measured" });
+    expect(setting.rules).toHaveLength(1);
+    expect(setting.rules[0]).toMatchObject({
+      pages: ["p1", "p2"],
+      callbacksPerSecond: 3,
+    });
   });
 
-  it("says none measured when no human moved the mouse", () => {
-    expect(
-      deriveIgnoreEvents([stablePage({}, { probe: probe({}) })]),
-    ).toMatchObject({
+  it("says when no probe ran", () => {
+    expect(deriveIgnoreEvents([stablePage({})])).toMatchObject({
       value: [],
       basis: "default",
-      reason: expect.stringContaining("None measured"),
+      reason: expect.stringContaining("no behavior probe ran"),
     });
   });
 });

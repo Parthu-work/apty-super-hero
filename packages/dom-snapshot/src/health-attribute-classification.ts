@@ -113,7 +113,7 @@ export interface DesConfig {
   /** Recovery-search acceptance floors (real `find()`, module 15906): 0.92 early-accepts the first rendered candidate found while still iterating strategies; 0.90 is the final fallback floor once every strategy is exhausted. Both are fixed Apty constants, never tuned per fixture. */
   earlyAcceptScore: number;
   fallbackAcceptScore: number;
-  /** `checkContainersScore`'s (module 74456) required fraction of originally-captured ancestor-container selectors that must still resolve to something before trusting an otherwise-unique direct hit. */
+  /** `checkContainersScore`'s required fraction of the stored container selectors that must still resolve before a hit is trusted: Apty's mapper sets 75, which Studio reads as 0.75. */
   containerScoreThreshold: number;
   /** Bound on ancestor climb / candidate pool depth (real `find()` caps candidate pools at 50; this package reuses that constant rather than inventing a new one). */
   candidateCeiling: number;
@@ -125,7 +125,7 @@ export const DEFAULT_DES_CONFIG: DesConfig = {
   strictUniqueness: false,
   earlyAcceptScore: 0.92,
   fallbackAcceptScore: 0.9,
-  containerScoreThreshold: 0.5,
+  containerScoreThreshold: 0.75,
   candidateCeiling: 50,
 };
 

@@ -1,3 +1,10 @@
+export {
+  type AptyDomConfig,
+  type AptyPartialSelectorCondition,
+  type AptyRuleNode,
+  toAptyDomConfig,
+  toRuleNode,
+} from "./apty-export.js";
 export { buildDomConfigReport } from "./build-report.js";
 export {
   captureBehaviorProbe,
@@ -45,11 +52,14 @@ export type {
   ApplicationCapture as DomConfigApplicationCapture,
   DomConfigReport,
   DomConfigReportOptions,
+  DomEventRule as DomConfigDomEventRule,
   DomProfile,
   DomProfileV2,
   PageCapture as DomConfigPageCapture,
+  PartialSelectorRule as DomConfigPartialSelectorRule,
   ProfileRun as DomConfigRun,
   Rule as DomConfigRule,
+  RuleCondition as DomConfigRuleCondition,
   RunLabel as DomConfigRunLabel,
   RunMeta as DomConfigRunMeta,
   Setting as DomConfigSetting,

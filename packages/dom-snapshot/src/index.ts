@@ -41,6 +41,7 @@ export type {
   FrameRecord,
   FrameUnreadableReason,
   MutationBurst,
+  MutationSource,
   ProfileMeta,
   ShadowHostRecord,
   ZIndexSource,
@@ -63,6 +64,7 @@ export {
   DEFAULT_DES_CONFIG,
   DEFAULT_IGNORE,
   DEFAULT_PRIORITY,
+  isValueDynamic,
 } from "./health-attribute-classification.js";
 export {
   AUDIT_DES_CONFIG,

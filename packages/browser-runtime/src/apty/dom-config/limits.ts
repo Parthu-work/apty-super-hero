@@ -25,16 +25,22 @@ export const EXTENSION_Z_INDEX = 999_999;
 export const MAX_APTY_Z_INDEX = 2_147_483_647;
 export const RECOMMENDED_APTY_Z_INDEX = 2_147_483_646;
 
-/** Reference configurations use 75; `DEFAULT_DES_CONFIG.containerScoreThreshold` is 0.5. The units may differ (open question 5). */
-export const REFERENCE_CONTAINER_SCORE_THRESHOLD = 75;
+/** Apty's application mapper hard-codes 75; Studio divides it by 100. */
+export const APTY_CONTAINER_SCORE_THRESHOLD = 75;
 
-export const DEBOUNCE_DEFAULT_MS = 500;
-export const DEBOUNCE_MIN_MS = 200;
+/** `DomChangeService`: `domDebounceTime ?? 100`. */
+export const DEBOUNCE_DEFAULT_MS = 100;
+/** Never below Apty's own default. */
+export const DEBOUNCE_MIN_MS = 100;
 export const DEBOUNCE_MAX_MS = 1_500;
 export const DEBOUNCE_P90_FACTOR = 1.2;
 
-/** Events per second above which an event is worth ignoring. */
-export const HIGH_FREQUENCY_EVENTS_PER_SECOND = 20;
+/** An element changing this often (observer callbacks per second), at least `CONTINUOUS_MIN_CALLBACKS` times, changes continuously: a clock ticks once a second. */
+export const CONTINUOUS_CALLBACKS_PER_SECOND = 0.9;
+export const CONTINUOUS_MIN_CALLBACKS = 3;
+
+/** An element with this many descendants is a container, never proposed for Ignore DOM events. */
+export const LARGE_CONTAINER_DESCENDANTS = 200;
 
 export const LARGE_DOM_DIVS = 2_000;
 
