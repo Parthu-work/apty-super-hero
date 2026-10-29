@@ -96,6 +96,8 @@ export type {
   ForkInfo,
   FunctionTool,
   ImageInput,
+  LocalAnswer,
+  LocalResponder,
   MetricsPayload,
   OpenAIAgent,
   OutboundFilter,

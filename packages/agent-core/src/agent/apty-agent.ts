@@ -23,6 +23,8 @@ import type {
   AptyAgentOptions,
   BeforeChatPayload,
   ChatOptions,
+  LocalAnswer,
+  LocalResponder,
   MetricsPayload,
   OutboundFilter,
   SessionStorageAdapter,
@@ -130,6 +132,7 @@ export class AptyAgent {
   private outboundFilters: OutboundFilter[];
   private contextFormatter: (contexts: Context[]) => string =
     formatContextsForPrompt;
+  private localResponder?: LocalResponder;
 
   private constructor(
     agent: OpenAIAgent,
@@ -175,6 +178,7 @@ export class AptyAgent {
     if (options.contextFormatter) {
       instance.contextFormatter = options.contextFormatter;
     }
+    instance.localResponder = options.localResponder;
     return instance;
   }
 
@@ -624,6 +628,19 @@ export class AptyAgent {
       ] as AgentInputItem[];
     }
 
+    let local: LocalAnswer | undefined;
+    if (typeof input === "string" && !chatOptions?.images?.length) {
+      try {
+        local = await this.localResponder?.(input, {
+          runContext: chatOptions?.runContext,
+          sessionId: chatOptions?.sessionId,
+        });
+      } catch (error) {
+        yield { type: "error", error: this.normalizeError(error) };
+        return;
+      }
+    }
+
     // If sessionId is provided, continue existing conversation
     if (chatOptions?.sessionId) {
       if (!this.conversationManager) {
@@ -645,12 +662,14 @@ export class AptyAgent {
         itemCount: session.getItemCount(),
       };
 
-      yield* this.runExecution(
-        finalInput,
-        session,
-        chatOptions?.runContext,
-        chatOptions?.tools,
-      );
+      yield* local
+        ? this.runLocalAnswer(input, local, session)
+        : this.runExecution(
+            finalInput,
+            session,
+            chatOptions?.runContext,
+            chatOptions?.tools,
+          );
       return;
     }
 
@@ -662,12 +681,84 @@ export class AptyAgent {
       yield { type: "session_created", sessionId: session.id };
     }
 
-    yield* this.runExecution(
-      finalInput,
-      session,
-      chatOptions?.runContext,
-      chatOptions?.tools,
-    );
+    yield* local
+      ? this.runLocalAnswer(input, local, session)
+      : this.runExecution(
+          finalInput,
+          session,
+          chatOptions?.runContext,
+          chatOptions?.tools,
+        );
+  }
+
+  /** A turn answered by the local responder: the same events a tool call yields, and the session keeps the user's words and the transcript. */
+  private async *runLocalAnswer(
+    input: string,
+    answer: LocalAnswer,
+    session: Session | null,
+  ): AsyncGenerator<AgentEvent> {
+    const startTime = Date.now();
+    const metrics = this.initMetrics(startTime, session);
+    const events: AgentEvent[] = [
+      {
+        type: "tool_call_start",
+        toolName: answer.toolName,
+        params: answer.params,
+      },
+      {
+        type: "tool_call_complete",
+        toolName: answer.toolName,
+        result: answer.result,
+      },
+    ];
+    for (const event of events) {
+      await this.emitToolEventHooks({ event });
+      yield event;
+    }
+
+    if (session) {
+      await session.addItems([
+        { type: "message", role: "user", content: input },
+        {
+          type: "message",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: answer.transcript }],
+        },
+      ]);
+      metrics.itemCount = session.getItemCount();
+    }
+    metrics.duration = Date.now() - startTime;
+
+    const metricsSnapshot = { ...metrics };
+    await this.emitMetricsHooks({
+      metrics: metricsSnapshot,
+      sessionId: session?.id ?? undefined,
+    });
+    yield {
+      type: "metrics_update",
+      metrics: metricsSnapshot,
+      sessionId: session?.id,
+    };
+
+    if (session) {
+      session.addMetrics(metrics);
+      if (this.conversationManager) {
+        await this.conversationManager.saveSession(session);
+      }
+    }
+
+    await this.runAfterResponseHooks({
+      input,
+      finalOutput: answer.transcript,
+      metrics: { ...metrics },
+      sessionId: session?.id ?? undefined,
+    });
+    yield {
+      type: "execution_complete",
+      finalOutput: answer.transcript,
+      metrics,
+    };
   }
 
   /**
