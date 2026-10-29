@@ -28,7 +28,10 @@
  *    and DEBUG_AGENT_EXTENSION_IDS below holds the same two.
  * 2. Paste this file's code into the Widget's service worker (or import it
  *    from there), at the top level, so the onMessageExternal listener is
- *    registered on every service-worker start.
+ *    registered on every service-worker start. If the service worker already
+ *    has an onMessageExternal listener (the Apty Client does), leave out the
+ *    listener at the bottom of this file and end the existing one with
+ *    `return handleNetworkMessage(message, sendResponse)`.
  * 3. Route the Widget's own requests through `observedFetch` instead of
  *    `fetch`. Only requests made through it are recorded; nothing else is
  *    intercepted.
@@ -667,6 +670,56 @@ export async function observedFetch(
 // External message handler — validated, allowlisted, schema-shaped responses
 // ---------------------------------------------------------------------------
 
+/**
+ * The two network verbs. A Widget or Client that already has an
+ * onMessageExternal listener calls this at the end of it, after its own sender
+ * check and status/logs branches, instead of registering the listener below:
+ * two listeners answering one message is a race. Returns whether it will
+ * answer asynchronously, as the listener's own return value.
+ */
+export function handleNetworkMessage(
+  message: { type?: unknown; requestId?: unknown },
+  sendResponse: (response: unknown) => void,
+): boolean {
+  if (message.type === "apty-debug-agent:list-observed-resources") {
+    (async () => {
+      await loadNetworkOnce();
+      sendResponse({
+        resources: network.calls.map((c) => ({
+          ...c,
+          hasBody: c.requestId in network.bodies,
+        })),
+        saveFailures,
+      });
+    })();
+    return true;
+  }
+
+  if (message.type === "apty-debug-agent:get-resource-body") {
+    const requestId = message.requestId;
+    if (typeof requestId !== "string") return false;
+    (async () => {
+      await loadNetworkOnce();
+      const kept = network.bodies[requestId];
+      const reason = missingBodyReason(requestId);
+      sendResponse(
+        kept
+          ? {
+              found: true,
+              body: kept.body,
+              base64Encoded: kept.base64Encoded,
+            }
+          : { found: false, ...(reason ? { reason } : {}) },
+      );
+    })();
+    return true;
+  }
+
+  return false;
+}
+
+// Stand-in for the host's own listener: a host that has one calls
+// handleNetworkMessage from it and leaves this out.
 chrome.runtime.onMessageExternal.addListener(
   (message, sender, sendResponse) => {
     // Reject anything not from the specific, configured debugging-agent
@@ -696,44 +749,7 @@ chrome.runtime.onMessageExternal.addListener(
       return true; // keep the message channel open for the async response
     }
 
-    if (message.type === "apty-debug-agent:list-observed-resources") {
-      (async () => {
-        await loadNetworkOnce();
-        sendResponse({
-          resources: network.calls.map((c) => ({
-            ...c,
-            hasBody: c.requestId in network.bodies,
-          })),
-          saveFailures,
-        });
-      })();
-      return true;
-    }
-
-    if (message.type === "apty-debug-agent:get-resource-body") {
-      if (typeof message.requestId !== "string") return false;
-      (async () => {
-        await loadNetworkOnce();
-        const kept = network.bodies[message.requestId];
-        sendResponse(
-          kept
-            ? {
-                found: true,
-                body: kept.body,
-                base64Encoded: kept.base64Encoded,
-              }
-            : {
-                found: false,
-                ...(missingBodyReason(message.requestId)
-                  ? { reason: missingBodyReason(message.requestId) }
-                  : {}),
-              },
-        );
-      })();
-      return true;
-    }
-
-    return false;
+    return handleNetworkMessage(message, sendResponse);
   },
 );
 

@@ -74,6 +74,10 @@ type Reference = {
     init?: RequestInit,
   ) => Promise<Response>;
   DEBUG_AGENT_EXTENSION_IDS: readonly string[];
+  handleNetworkMessage: (
+    message: { type?: unknown; requestId?: unknown },
+    sendResponse: (response: unknown) => void,
+  ) => boolean;
 };
 
 const SEGMENTS = Array.from({ length: 206 }, (_, i) => ({
@@ -275,6 +279,31 @@ describe("the Widget reference service worker", () => {
       "no answer",
     );
     expect(await ask({ type: "something-else" })).toBe("no answer");
+  });
+
+  it("serves the network verbs to a host's own listener through handleNetworkMessage, and leaves other messages to it", async () => {
+    const reference = await loadReference();
+    await reference.observedFetch("https://cdn.apty.example/segments.json");
+    await saved((state) => state.calls.length === 1 && answered(state));
+
+    const sendResponse = vi.fn();
+    expect(
+      reference.handleNetworkMessage(
+        { type: "apty-debug-agent:list-observed-resources" },
+        sendResponse,
+      ),
+    ).toBe(true);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledTimes(1));
+    expect(
+      resourcesResponseSchema.parse(sendResponse.mock.calls[0]?.[0]).resources,
+    ).toHaveLength(1);
+
+    for (const message of [
+      { type: "apty-debug-agent:get-service-worker-status" },
+      { type: "apty-debug-agent:get-resource-body" },
+    ]) {
+      expect(reference.handleNetworkMessage(message, vi.fn())).toBe(false);
+    }
   });
 
   it("keeps at most 1000 calls, one body for one resource, in session storage only, across a restart", async () => {

@@ -65,7 +65,11 @@ and build tooling, not something to drop in unmodified.
    level, so its `onMessageExternal` listener is registered on every
    service-worker start. It answers `list-observed-resources` and
    `get-resource-body` as well as status and logs, inside the same
-   sender check.
+   sender check. If the service worker already has an
+   `onMessageExternal` listener (the Apty Client does), leave out the
+   reference's listener and end the existing one with
+   `return handleNetworkMessage(message, sendResponse)`; two listeners
+   answering one message is a race.
 3. Make the Widget's own requests through `observedFetch` instead of
    `fetch`. Only those are recorded. Calls are kept in
    `chrome.storage.session` (never `chrome.storage.local`): at most 1,000

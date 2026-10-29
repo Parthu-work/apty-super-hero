@@ -14,11 +14,18 @@ answered.
 
 ## 1. Add the network section and the two verbs
 
-Copy the reference's network section (state, `observedFetch`, retention)
-into the Client's service worker. In the Client's **existing**
-`chrome.runtime.onMessageExternal` listener, which already checks the sender
-against an allow-list and answers `status` and `logs`, add two branches
-next to them:
+Copy the reference's network section (state, `observedFetch`, retention) and
+`handleNetworkMessage` into the Client's service worker. Leave out the
+reference's own `chrome.runtime.onMessageExternal` listener at the bottom of
+the file. In the Client's **existing** listener, which already checks the
+sender against an allow-list and answers `status` and `logs`, end with:
+
+```js
+return handleNetworkMessage(message, sendResponse);
+```
+
+after those branches. It answers the two network verbs and returns `false`
+for anything else:
 
 - `apty-debug-agent:list-observed-resources` answers
   `{ resources: [...calls], saveFailures }`;
