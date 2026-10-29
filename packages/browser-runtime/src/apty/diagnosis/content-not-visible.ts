@@ -185,7 +185,7 @@ function finish(
   verdict: Verdict,
   extra: Partial<
     Pick<DiagnosisResult, "confidence" | "scan" | "notChecked">
-  > & { matched?: string[] } = {},
+  > & { matched?: string[]; name?: string } = {},
 ): DiagnosisResult {
   return {
     packId: "content-not-visible",
@@ -194,6 +194,7 @@ function finish(
     subject: {
       kind: draft.kind,
       ...(draft.query ? { query: draft.query } : {}),
+      ...(extra.name ? { name: extra.name } : {}),
       matched: extra.matched ?? [],
     },
     gates,
@@ -863,5 +864,6 @@ export function diagnoseContentNotVisible(
     confidence: "likely",
     notChecked: NOT_CHECKED,
     matched: [`${label} (${short(sourceId)})`],
+    name: label,
   });
 }

@@ -20,7 +20,7 @@ import type { ToolRunContext } from "./tab-utils";
 const KIND_NAMES = Object.keys(KINDS) as [ContentKind, ...ContentKind[]];
 
 export const runDiagnosisTool = tool({
-  name: RUN_DIAGNOSIS,
+  name: "run_diagnosis",
   description:
     "Find why Apty content is not visible in the widget, from the Apty Client's own files: whether it is published in this environment, hidden from the widget, nameless, in a segment that cannot match, or outside the widget's audience. Deterministic and read-only; each finding cites its KB card. Without a name it lists every item of the kind with the blockers the files show. Call this before other diagnostics for a 'not visible' question.",
   parameters: z.object({

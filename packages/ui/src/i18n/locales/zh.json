@@ -295,7 +295,8 @@
     "update_investigation": "📝 更新调查",
     "record_verification_attempt": "🧪 验证诊断结果",
     "stop_investigation": "🛑 停止调查",
-    "get_investigation_status": "📋 检查调查状态"
+    "get_investigation_status": "📋 检查调查状态",
+    "run_diagnosis": "可见性检查"
   },
   "chatErrors": {
     "title": "无法获取回答",
@@ -1760,5 +1761,142 @@
     "notExported": "未导出",
     "exported": "已导出",
     "scoreGrade": "{{score}} · {{grade}}"
+  },
+  "checkPack": {
+    "titleItem": "“{{name}}”可能不可见的原因",
+    "titleScan": "可见性检查：所有{{kind}}",
+    "titleGeneric": "可见性检查",
+    "kind": {
+      "workflow": "工作流",
+      "tooltip": "工具提示",
+      "launcher": "启动器",
+      "announcement": "公告",
+      "validation": "验证",
+      "checklist": "清单",
+      "knowledgeContent": "知识内容"
+    },
+    "status": {
+      "cause_found": "已找到原因",
+      "candidates": "需要在浏览器中确认",
+      "no_cause_in_data": "文件中未发现原因",
+      "no_data": "没有可检查的数据",
+      "out_of_scope": "不在检查范围内"
+    },
+    "summary": {
+      "candidates": "文件中没有发现阻碍。剩下的需要由浏览器判断。",
+      "no_cause_in_data": "文件中未发现原因。",
+      "out_of_scope": "未得出结论。"
+    },
+    "gate": {
+      "data": "已读取的文件",
+      "version": "Apty 版本",
+      "environment": "环境",
+      "published": "已在此发布",
+      "flags": "条目设置",
+      "segments": "分段",
+      "segment-consistency": "分段关联",
+      "widget-audience": "小组件受众",
+      "visibility-rule": "可见性规则"
+    },
+    "gateStatus": {
+      "pass": "通过",
+      "fail": "未通过",
+      "unknown": "待确认",
+      "info": "信息"
+    },
+    "reason": {
+      "filesRead": "已读取 {{file}}，共 {{count}} 条",
+      "clientUnreachable": "无法连接 Apty Client：{{message}}",
+      "notObserved": "Apty Client 没有报告加载 {{file}}",
+      "emptyList": "{{file}} 已加载，但列表为空",
+      "httpError": "{{file}} 加载失败（HTTP {{httpStatus}}）",
+      "requestFailed": "{{file}} 的请求失败",
+      "pending": "{{file}} 仍在加载",
+      "denied": "{{file}} 匹配响应正文禁止列表中的“{{detail}}”",
+      "bodyUnavailable": "Apty Client 没有保留 {{file}} 的正文",
+      "unparsable": "{{file}} 不是有效的 JSON",
+      "version4x": "此租户使用 4.x 内容文件；这些检查仅针对 5.x 验证",
+      "envLoaded": "Apty Client 加载了 {{env}}（顺序 {{order}}）",
+      "envUnknown": "app-urls.json 中没有此环境",
+      "found": "“{{name}}”在 {{file}} 中",
+      "notPublished": "不在此环境的 {{file}} 中",
+      "severalMatch": "有 {{count}} 个条目匹配“{{name}}”",
+      "flagsOk": "未在小组件中隐藏，且有名称",
+      "flagsFail": "有 {{count}} 项设置使其不出现在列表中",
+      "noSegments": "没有分段包含它，因此所有用户都能看到",
+      "allInactive": "包含它的所有分段都已关闭",
+      "rulesMissing": "其分段的规则不在 rule.json 中",
+      "mustMatch": "用户必须匹配以下之一：{{segments}}",
+      "segmentsUnread": "无法读取 segment.json",
+      "oneSided": "有 {{count}} 个分段关联只记录在一侧；小组件以 segment.json 为准",
+      "widgetForAll": "小组件未限定分段",
+      "widgetLimited": "小组件仅对以下分段显示：{{segments}}",
+      "widgetDisjoint": "小组件仅对 {{segments}} 显示；该条目面向 {{itemSegments}}",
+      "appDataUnread": "无法读取 app-data.json",
+      "noVisibilityRule": "没有可见性规则",
+      "visibilityRule": "“{{rule}}”（{{action}}）由浏览器判断"
+    },
+    "rule": {
+      "CNV-02": {
+        "summary": "此环境中没有发布名为“{{name}}”的{{kind}}。",
+        "fix": "将其发布到用户所在的环境，或提供准确的名称或 sourceId。"
+      },
+      "CNV-03": {
+        "summary": "“{{name}}”开启了“在小组件中隐藏”。",
+        "fix": "在 Studio 的设置中取消“在小组件中隐藏”，然后发布。"
+      },
+      "CNV-04": {
+        "summary": "此{{kind}}在任何语言中都没有名称。",
+        "fix": "用用户的语言为其命名，然后发布。"
+      },
+      "CNV-05": {
+        "summary": "{{languages}} 的 {{field}} 为空，因此“{{name}}”在该语言中不显示。",
+        "fix": "补充该语言的消息，或关闭此选项，然后发布。"
+      },
+      "CNV-07": {
+        "summary": "包含它的所有分段（{{segments}}）都已关闭，因此所有人都看不到它。",
+        "fix": "开启其中一个分段，或将该条目从这些分段中移除，然后发布。"
+      },
+      "CNV-08": {
+        "summary": "其已开启分段（{{segments}}）的规则不在 rule.json 中，因此永远不会匹配。",
+        "fix": "在 Studio 中打开每个分段，保存规则，然后发布。"
+      }
+    },
+    "ruleLabel": "规则 {{ruleId}}",
+    "next": {
+      "fixConnection": "请先修复与 Apty Client 的连接；这与内容本身无关。",
+      "reload": "重新加载出问题的页面，然后再问一次。",
+      "readStatus": "列表为空可能有多种原因：接下来请查看状态码和控制台。",
+      "fixRequest": "请先修复失败的请求。",
+      "waitForLoad": "等待页面加载完成后再问一次。",
+      "denyList": "在设置的数据处理中移除该条目，以便检查此文件。",
+      "bodyLimit": "Apty Client 没有保留此文件。请重新加载后再问，或粘贴该文件。",
+      "openResponse": "打开响应，查看服务器返回的内容。",
+      "manual4x": "4.x 请使用手动粘贴的方式。",
+      "nameItem": "说出缺失条目的名称，以便完整检查。",
+      "whichOne": "是哪一个？请提供完整名称或 sourceId。",
+      "testAsMember": "以已知匹配该分段的用户进行测试，并确认小组件对该用户显示。",
+      "openItems": "然后查看下面待确认的检查；文件无法判断这些项。",
+      "sendSupport": "向支持团队提供 Apty 版本、环境、sourceId、打开的小组件截图以及精简后的条目。"
+    },
+    "notChecked": {
+      "title": "未从文件中检查",
+      "membership": "此用户是否匹配某个分段的规则",
+      "runtime-rules": "可见性规则、延后规则和重复规则"
+    },
+    "blocker": {
+      "hidden": "在小组件中隐藏",
+      "no-name": "没有名称",
+      "inactive-segments": "仅在已关闭的分段中"
+    },
+    "scanSummary": "{{total}} 个中有 {{blocked}} 个在文件中存在阻碍",
+    "causes": "原因",
+    "evidence": "证据",
+    "fix": "修复",
+    "nextCheck": "下一步检查",
+    "checks": "检查项",
+    "matches": "匹配的条目",
+    "card": "知识库卡片",
+    "provenance": "依据 4c406d5 版本的 5.x 代码，未经运行时验证。可信度：较可能。"
   }
 }

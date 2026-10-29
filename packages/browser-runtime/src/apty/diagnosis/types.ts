@@ -216,7 +216,13 @@ export interface DiagnosisResult {
   /** The KB card the rules come from, and how far they were verified. */
   cardPageId: string;
   verifiedOn: string;
-  subject: { kind: ContentKind; query?: string; matched: string[] };
+  /** `name` is the item's own name when the query resolved to exactly one. */
+  subject: {
+    kind: ContentKind;
+    query?: string;
+    name?: string;
+    matched: string[];
+  };
   gates: GateResult[];
   verdict: Verdict;
   /** Never "confirmed" while the rules are verified from code only (P2). */

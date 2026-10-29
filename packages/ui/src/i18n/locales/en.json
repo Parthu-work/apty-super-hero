@@ -295,7 +295,8 @@
     "update_investigation": "📝 Updating investigation",
     "record_verification_attempt": "🧪 Verifying diagnosis",
     "stop_investigation": "🛑 Stopping investigation",
-    "get_investigation_status": "📋 Checking investigation status"
+    "get_investigation_status": "📋 Checking investigation status",
+    "run_diagnosis": "Visibility check"
   },
   "chatErrors": {
     "title": "Couldn't get an answer",
@@ -1760,5 +1761,142 @@
     "notExported": "Not exported",
     "exported": "Exported",
     "scoreGrade": "{{score}} · {{grade}}"
+  },
+  "checkPack": {
+    "titleItem": "Why “{{name}}” may not be visible",
+    "titleScan": "Visibility check: every {{kind}}",
+    "titleGeneric": "Visibility check",
+    "kind": {
+      "workflow": "workflow",
+      "tooltip": "tooltip",
+      "launcher": "launcher",
+      "announcement": "announcement",
+      "validation": "validation",
+      "checklist": "checklist",
+      "knowledgeContent": "knowledge content item"
+    },
+    "status": {
+      "cause_found": "Cause found",
+      "candidates": "Needs a check in the browser",
+      "no_cause_in_data": "No cause in the files",
+      "no_data": "No data to check",
+      "out_of_scope": "Not covered"
+    },
+    "summary": {
+      "candidates": "The files show no blocker. What is left is decided in the browser.",
+      "no_cause_in_data": "The files show no cause.",
+      "out_of_scope": "Nothing was concluded."
+    },
+    "gate": {
+      "data": "Files read",
+      "version": "Apty version",
+      "environment": "Environment",
+      "published": "Published here",
+      "flags": "Item settings",
+      "segments": "Segments",
+      "segment-consistency": "Segment link",
+      "widget-audience": "Widget audience",
+      "visibility-rule": "Visibility rule"
+    },
+    "gateStatus": {
+      "pass": "Passed",
+      "fail": "Failed",
+      "unknown": "Open",
+      "info": "Info"
+    },
+    "reason": {
+      "filesRead": "{{file}} read, {{count}} entries",
+      "clientUnreachable": "Could not reach the Apty Client: {{message}}",
+      "notObserved": "The Apty Client did not report loading {{file}}",
+      "emptyList": "{{file}} loaded but is an empty list",
+      "httpError": "{{file}} failed to load (HTTP {{httpStatus}})",
+      "requestFailed": "The request for {{file}} failed",
+      "pending": "{{file}} was still loading",
+      "denied": "{{file}} matches the body deny list entry “{{detail}}”",
+      "bodyUnavailable": "The Apty Client has no body for {{file}}",
+      "unparsable": "{{file}} is not valid JSON",
+      "version4x": "This tenant uses 4.x content files; the checks are verified for 5.x only",
+      "envLoaded": "The Apty Client loaded {{env}} (order {{order}})",
+      "envUnknown": "The environment is not in app-urls.json",
+      "found": "“{{name}}” is in {{file}}",
+      "notPublished": "Not in {{file}} for this environment",
+      "severalMatch": "{{count}} items match “{{name}}”",
+      "flagsOk": "Not hidden from the widget, and it has a name",
+      "flagsFail": "{{count}} setting(s) keep it out of the list",
+      "noSegments": "No segment lists it, so every user can see it",
+      "allInactive": "Every segment that lists it is turned off",
+      "rulesMissing": "The rules of its segments are missing from rule.json",
+      "mustMatch": "The user must match one of: {{segments}}",
+      "segmentsUnread": "segment.json could not be read",
+      "oneSided": "{{count}} segment link(s) recorded on one side only; the widget follows segment.json",
+      "widgetForAll": "The widget is not limited to segments",
+      "widgetLimited": "The widget is shown only to: {{segments}}",
+      "widgetDisjoint": "The widget is shown only to {{segments}}; the item is for {{itemSegments}}",
+      "appDataUnread": "app-data.json could not be read",
+      "noVisibilityRule": "No visibility rule",
+      "visibilityRule": "“{{rule}}” ({{action}}) is decided in the browser"
+    },
+    "rule": {
+      "CNV-02": {
+        "summary": "No {{kind}} named “{{name}}” is published in this environment.",
+        "fix": "Publish it to the environment the user is on, or give its exact name or sourceId."
+      },
+      "CNV-03": {
+        "summary": "“Hide from widget” is on for “{{name}}”.",
+        "fix": "In Studio, clear “Hide from widget” in its settings and publish."
+      },
+      "CNV-04": {
+        "summary": "This {{kind}} has no name in any language.",
+        "fix": "Give it a name in the user's language and publish."
+      },
+      "CNV-05": {
+        "summary": "The {{field}} is empty for {{languages}}, so “{{name}}” is dropped in that language.",
+        "fix": "Add the message in that language, or turn the option off, and publish."
+      },
+      "CNV-07": {
+        "summary": "Every segment that lists it ({{segments}}) is turned off, so it is hidden from everyone.",
+        "fix": "Turn one of these segments on, or remove the item from them, and publish."
+      },
+      "CNV-08": {
+        "summary": "The rules of its active segments ({{segments}}) are missing from rule.json, so they never match.",
+        "fix": "Open each segment in Studio, save it with a rule, and publish."
+      }
+    },
+    "ruleLabel": "Rule {{ruleId}}",
+    "next": {
+      "fixConnection": "Fix the connection to the Apty Client first; this says nothing about the content.",
+      "reload": "Reload the problem page, then ask again.",
+      "readStatus": "An empty list has several causes: read its status code and the Console next.",
+      "fixRequest": "Fix the failing request first.",
+      "waitForLoad": "Wait for the page to finish loading, then ask again.",
+      "denyList": "Remove the entry from Settings, Data handling, to let this file be checked.",
+      "bodyLimit": "The Apty Client did not keep this file. Reload and ask again, or paste the file.",
+      "openResponse": "Open the response and see what the server returned.",
+      "manual4x": "Use the manual paste path for 4.x.",
+      "nameItem": "Name the one that is missing to check it in full.",
+      "whichOne": "Which one? Give the full name or the sourceId.",
+      "testAsMember": "Test as a user known to match the segment, and confirm the widget shows for that user.",
+      "openItems": "Then look at the open checks below; the files cannot decide them.",
+      "sendSupport": "Send support the Apty version, the environment, the sourceId, a screenshot of the open widget and the trimmed entry."
+    },
+    "notChecked": {
+      "title": "Not checked from the files",
+      "membership": "Whether this user matches a segment's rule",
+      "runtime-rules": "The visibility, later and recurrence rules"
+    },
+    "blocker": {
+      "hidden": "Hidden from the widget",
+      "no-name": "No name",
+      "inactive-segments": "Only in turned-off segments"
+    },
+    "scanSummary": "{{blocked}} of {{total}} have a blocker in the files",
+    "causes": "Causes",
+    "evidence": "Evidence",
+    "fix": "Fix",
+    "nextCheck": "Next check",
+    "checks": "Checks",
+    "matches": "Matching items",
+    "card": "KB card",
+    "provenance": "From 5.x code at 4c406d5, not runtime-verified. Confidence: likely."
   }
 }
