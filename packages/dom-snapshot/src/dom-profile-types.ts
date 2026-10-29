@@ -75,6 +75,25 @@ export interface BehaviorProbe {
   /** Events per second, only for events that actually fired. */
   eventRates: Record<string, number>;
   ranToCompletion: boolean;
+  /** The elements that kept changing, most observer callbacks first. Absent from probes taken before it was measured. */
+  mutationSources?: MutationSource[];
+}
+
+/** One element that changed while the probe watched: what Apty's Ignore DOM events conditions can name it by, and what ignoring it would hide. */
+export interface MutationSource {
+  tag: string;
+  id?: string;
+  /** Up to five of its class tokens, in document order. */
+  classes?: string[];
+  /** Attributes whose changes were seen, sorted. */
+  attributeNames: string[];
+  mutations: number;
+  /** Observer callbacks that held at least one of its changes. */
+  callbacks: number;
+  /** Elements below it, counted up to 1,000. */
+  descendants: number;
+  /** Controls below it (or it is one), counted up to 50. */
+  interactive: number;
 }
 
 export interface ProfileMeta {

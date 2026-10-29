@@ -4,8 +4,10 @@
  * the SE left included, never the full list.
  */
 import type {
+  DomConfigPartialSelectorRule,
   DomConfigReport,
   DomConfigRule,
+  DomConfigRuleCondition,
 } from "@apty/browser-runtime/apty/dom-config/index";
 
 export interface RuleChoices {
@@ -50,10 +52,20 @@ export function pathOf(urlShape: string): string {
   }
 }
 
-export function conditionText(rule: DomConfigRule, and: string): string {
-  return rule.conditions
-    .map((c) => `${c.category} ${c.operator} ${c.value}`)
-    .join(` ${and} `);
+/** One condition as Apty's editor shows its row: mode, attribute (for an Attribute Value row), operator, value. */
+export function conditionLabel(condition: DomConfigRuleCondition): string {
+  return [
+    condition.category,
+    condition.attribute,
+    condition.operator,
+    condition.value,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function conditionText(rule: DomConfigRule, or: string): string {
+  return rule.conditions.map(conditionLabel).join(` ${or} `);
 }
 
 function cell(text: string): string {
@@ -67,7 +79,7 @@ export function tsv(header: string[], rows: string[][]): string {
 
 interface RuleTableLabels {
   header: [string, string, string, string, string, string];
-  and: string;
+  or: string;
   evidence: (rule: DomConfigRule) => string;
 }
 
@@ -78,12 +90,28 @@ export function rulesTable(
   return tsv(
     labels.header,
     rules.map((rule) => [
-      conditionText(rule, labels.and),
+      conditionText(rule, labels.or),
       labels.evidence(rule),
       rule.reason,
       rule.pages.map(pathOf).join(", "),
       String(rule.coveredValueCount),
       rule.exampleValues.join(", "),
+    ]),
+  );
+}
+
+export function partialTable(
+  rules: DomConfigPartialSelectorRule[],
+  header: [string, string, string, string, string],
+): string {
+  return tsv(
+    header,
+    rules.map((rule) => [
+      rule.attribute,
+      rule.pattern,
+      rule.exampleParts.join(", "),
+      String(rule.elementCount),
+      rule.pages.map(pathOf).join(", "),
     ]),
   );
 }

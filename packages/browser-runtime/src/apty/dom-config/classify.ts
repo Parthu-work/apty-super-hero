@@ -77,6 +77,8 @@ export interface ClassifiedPage {
   /** At least two runs could be compared. */
   compared: boolean;
   elementConfirmed: ReadonlySet<string>;
+  /** Whole class values seen in any run. */
+  classValues: string[];
 }
 
 /** One page with everything the engine derived from its runs. */
@@ -322,5 +324,8 @@ export function classifyPage(
     items,
     compared,
     elementConfirmed: diff.elementConfirmed,
+    classValues: sortedUnique(
+      runs.flatMap((run) => [...run.classValues.keys()]),
+    ),
   };
 }

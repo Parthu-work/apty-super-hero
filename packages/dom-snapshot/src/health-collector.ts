@@ -53,13 +53,17 @@
  *   a fingerprint with another element in THIS snapshot is reported
  *   `AMBIGUOUS`, never silently resolved by taking the first match.
  */
+
+import { captureSelector } from "./apty-selector.js";
 import {
   type CollectorBudget,
   createBudget,
   DEFAULT_COLLECTOR_BUDGET,
   now,
 } from "./collector-budget.js";
-import { type ElementPath, resetDesPerformanceCaches } from "./des-engine.js";
+import { resetDesPerformanceCaches } from "./des-engine.js";
+import type { StoredSelection } from "./element-ref.js";
+import { AUDIT_DES_CONFIG } from "./health-audit-profile.js";
 import { hitTestElement } from "./health-hit-testing.js";
 import {
   isInPrivateContainer,
@@ -74,7 +78,7 @@ import {
   hasAccessibleName,
   hashFingerprint,
   resolveInComposedTree,
-  verifyStoredElementPath,
+  verifyStoredSelection,
 } from "./health-selector-engine.js";
 import type {
   DomHealthCollectorOptions,
@@ -83,6 +87,7 @@ import type {
   ElementClassification,
   ElementPathSample,
   ElementSelectorReport,
+  FrameSelectorStats,
   StabilityVerdict,
 } from "./health-types.js";
 import { detectVirtualizedLists } from "./health-virtualized.js";
@@ -167,8 +172,8 @@ const SEMANTIC_CONTAINER_ROLES = new Set([
 
 interface RegistryEntry {
   el: Element;
-  /** The real Apty-style path captured for this element at the PREVIOUS state — replayed (never regenerated) against the current live DOM by `verifyStoredElementPath`. Null only when the previous resolution was `INACCESSIBLE`. */
-  path: ElementPath | null;
+  /** What Studio would have stored for this element at the PREVIOUS state, replayed (never regenerated) against the current DOM by `verifyStoredSelection`. Null only when the previous resolution was `INACCESSIBLE`. */
+  selection: StoredSelection | null;
   id?: string;
   className?: string;
 }
@@ -284,6 +289,7 @@ interface CollectorState {
   };
   iframeTotal: number;
   iframeByTag: { iframe: number; frame: number };
+  frameSelectors: FrameSelectorStats;
   shadowRoots: number;
   shadowElements: number;
   maxZIndex: number;
@@ -380,6 +386,7 @@ function createState(
     },
     iframeTotal: 0,
     iframeByTag: { iframe: 0, frame: 0 },
+    frameSelectors: { analyzed: 0, positional: 0, onSrc: 0 },
     shadowRoots: 0,
     shadowElements: 0,
     maxZIndex: 0,
@@ -521,20 +528,19 @@ function analyzeInteractiveElement(
     state.stability.trackedFromPrevious++;
     nodeReplaced = previous.el !== el;
 
-    if (!previous.path) {
+    if (!previous.selection) {
       // The previous state's resolution was INACCESSIBLE — there was never
       // a path to store, so there is nothing real to replay. Never
       // fabricate a stability verdict from nothing.
       stability = "INACCESSIBLE";
       state.stability.inaccessible++;
     } else {
-      // The GOOD cross-state pattern: replay the path CAPTURED at the
-      // previous state against THIS state's live DOM via the real,
-      // unmodified DES `findElement` pipeline — never regenerate a fresh
-      // path from the current DOM and compare it to the old one.
-      const verification = verifyStoredElementPath(
-        root,
-        previous.path,
+      // Replay what Studio would have stored at the previous state the
+      // way the player looks it up, from the top of the document, never a
+      // selector regenerated from the current DOM.
+      const verification = verifyStoredSelection(
+        el.ownerDocument,
+        previous.selection,
         fingerprint,
       );
       switch (verification.verdict) {
@@ -601,7 +607,7 @@ function analyzeInteractiveElement(
   if (!fingerprintIsAmbiguous && !currentRegistry.has(fingerprint)) {
     currentRegistry.set(fingerprint, {
       el,
-      path: resolution.elementPath,
+      selection: resolution.selection,
       id: attributes.id,
       className: attributes.className,
     });
@@ -843,9 +849,19 @@ async function collectFromRoot(
   const frameHosts = (selector: string) =>
     Array.from(root.querySelectorAll(selector)).filter(
       (el) => !state.excluded.has(el),
-    ).length;
-  const iframeCount = frameHosts("iframe");
-  const frameCount = frameHosts("frame");
+    );
+  const iframes = frameHosts("iframe");
+  const frames = frameHosts("frame");
+  const iframeCount = iframes.length;
+  const frameCount = frames.length;
+  for (const frame of [...iframes, ...frames]) {
+    const { facts } = captureSelector(frame, AUDIT_DES_CONFIG, {
+      strict: true,
+    });
+    state.frameSelectors.analyzed++;
+    if (facts.positional) state.frameSelectors.positional++;
+    if (facts.leafAttributes.includes("src")) state.frameSelectors.onSrc++;
+  }
   state.iframeByTag.iframe += iframeCount;
   state.iframeByTag.frame += frameCount;
   state.iframeTotal += iframeCount + frameCount;
@@ -1012,6 +1028,7 @@ export async function collectDomHealthSnapshot(
       accessible: 0,
       crossOrigin: 0,
       byTag: { ...state.iframeByTag },
+      selectors: { ...state.frameSelectors },
     },
     shadowDom: {
       roots: state.shadowRoots,

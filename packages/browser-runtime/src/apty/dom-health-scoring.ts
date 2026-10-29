@@ -29,6 +29,7 @@ import type {
   ElementPathSample,
   ElementSelectorReport,
   ExcludedRootSummary,
+  FrameSelectorStats,
   VirtualizedListSummary,
 } from "@apty/dom-snapshot";
 import {
@@ -250,7 +251,7 @@ export const DEFAULT_SELECTOR_CONFIGURATION: SelectorConfigurationEvidence = {
   source: "default",
   profile: AUDIT_PROFILE_NAME,
   detail:
-    "Customer-specific Apty selector configuration is unavailable in this session. Analysis uses Apty's real default DES behavior (Ignore Selector / Partial Selector / Attribute Priority defaults) with the Agent's audit profile layered on through the same hooks: Angular build-numbered and version attributes ignored, generated ids ignored or matched on their stable part, and state, browser, theme and build classes left out of class matching.",
+    "Customer-specific Apty selector configuration is unavailable in this session. Analysis uses Apty's default element selection (Ignore Selector / Partial Selector / Attribute Priority defaults) with the Agent's audit profile layered on through the same hooks: Angular build-numbered and version attributes ignored, generated ids ignored or matched on their stable part, and state, browser, theme and build classes left out of class matching.",
 };
 
 /**
@@ -536,8 +537,8 @@ export function scoreSelectorStability(agg: {
   if (agg.trackedFromPrevious === 0) {
     return { score: 60, detail: { ...agg } };
   }
-  // Positional-only stability is real evidence (the stored path DID
-  // resolve to the correct element via `leafFieldCombinations`), but it is
+  // Positional-only stability is real evidence (the stored selector DID
+  // find the correct element, by position), but it is
   // never worth the same credit as an attribute-anchored match — a
   // positional match survives only because nothing nearby shifted order
   // either, a much thinner guarantee (spec section 4: never treat a
@@ -666,6 +667,33 @@ export function duplicateIdsRisk(
     severity: "medium",
     title: "Ids shared by more than one element",
     evidence: `${duplicateIds.valuesDuplicatedWithinARoot} id value(s) are used by more than one element in the same document or shadow root (${duplicateIds.valuesDuplicatedPageWide} across the page, shadow roots included), on ${duplicateIds.elementsWithDuplicatedId} element(s). An id selector cannot single those elements out, so the audit did not select them by id.`,
+  };
+}
+
+/**
+ * The risk for frames Studio could only tell apart by position or by
+ * their `src`, or null. Apty stores one such selector per frame level
+ * (`iframesPath`) and asks each frame at playback whether it matches.
+ */
+export function frameSelectorsRisk(
+  selectors: FrameSelectorStats | undefined,
+): DomHealthRisk | null {
+  if (!selectors || (selectors.positional === 0 && selectors.onSrc === 0)) {
+    return null;
+  }
+  const parts = [
+    selectors.positional
+      ? `${selectors.positional} only by position (a frame added or removed before it makes the selector match another frame)`
+      : null,
+    selectors.onSrc
+      ? `${selectors.onSrc} by its src (a per-session value in the URL breaks it)`
+      : null,
+  ].filter(Boolean);
+  return {
+    id: "frame-selectors",
+    severity: selectors.positional ? "medium" : "low",
+    title: "Frames identified by position or URL",
+    evidence: `Of ${selectors.analyzed} frame(s), Apty's frame selector identifies ${parts.join(" and ")}. Give each frame a stable id or name, add a Partial Selector rule for src, or set the application to identify frames by tag alone.`,
   };
 }
 
@@ -811,7 +839,7 @@ export function buildStrengths(
       details.selectorStability.recoveredStable +
       details.selectorStability.positionalStable;
     strengths.push(
-      `${metrics.selectorStability}% of tracked selectors (${foundCorrectly}/${details.selectorStability.trackedFromPrevious} — ${details.selectorStability.directStable} directly, ${details.selectorStability.recoveredStable} via DES recovery, ${details.selectorStability.positionalStable} positionally) resolved correctly across states when replayed.`,
+      `${metrics.selectorStability}% of tracked selectors (${foundCorrectly}/${details.selectorStability.trackedFromPrevious} — ${details.selectorStability.directStable} directly, ${details.selectorStability.recoveredStable} as the one rendered match among several, ${details.selectorStability.positionalStable} positionally) resolved correctly across states when replayed.`,
     );
   }
   if (metrics.hitTestTargetability >= 85 && hitTestTargetability.tested > 0) {
@@ -1035,13 +1063,12 @@ function buildSummary(
 
 export const METHODOLOGY: string[] = [
   "Collect a DOM snapshot in-page, classifying every element into an interactive/structural/decorative/hidden/inaccessible/iframe/shadow-DOM population.",
-  "For each analyzed interactive element, generate ranked candidate selectors (id, stable data attributes, aria-label, name, class, semantic attributes).",
-  "Test every candidate live with querySelectorAll: verify it resolves to exactly one element, and that the element is the intended target.",
-  "If no single stable attribute is unique, simulate an ignore-selector strategy by combining multiple stable attributes together.",
-  "If the identifying attribute looks dynamically generated, extract a stable substring and simulate a partial-selector strategy.",
-  "If the element still cannot be resolved, climb ancestors looking for a stable identifying context, then fall back to a positional (nth-of-type) path as a last resort.",
-  "Re-verify each previously-chosen selector against the live DOM on every subsequent snapshot to measure real, identity-based stability — never paired by array position.",
-  "Run a 9-point hit test (25/50/75% of width and height) against each element to measure real visual targetability, separate from selector correctness.",
+  "For each interactive element, generate the selector Apty Studio would store, with Apty's own algorithm: from the element up, the first level unique on the page ends the selector, and each level below it is made unique within its parent by attributes in Attribute Priority order, the tag, a descendant, or its position; the optimizer then drops what is not needed.",
+  "Apply Apty's default ignore rules and Attribute Priority, with the Agent's audit profile layered on through the same hooks.",
+  "Look the selector up as the Apty player does: open each shadow host in turn, query the selector and take the first rendered match, else the first match. The element it returns must be the intended target.",
+  "Classify how the selector identifies the element: one attribute or the tag, several attributes combined, a partial selector, an ancestor or descendant, or position.",
+  "On every later snapshot and application state, replay the selector stored earlier the same way and check, by logical fingerprint, that it still finds the same control.",
+  "Run Apty's 9-point hit test (the centres of a 3x3 grid, 6 of 9 points to pass, anything inside the element's parent counting as the element) to measure whether the element can be clicked where it sits.",
   "Aggregate iframe/Shadow DOM accessibility and DOM structural volatility across snapshots.",
   "Weight the verified aggregates (never raw attribute counts) into a single reproducible score, and derive a confidence level from sample size, snapshot count, and DOM accessibility coverage.",
 ];
@@ -1154,6 +1181,8 @@ export function buildDomHealthAuditResult(
   const duplicateIds = current.duplicateIds ?? NO_DUPLICATE_IDS;
   const duplicateIdRisk = duplicateIdsRisk(duplicateIds);
   if (duplicateIdRisk) risks.push(duplicateIdRisk);
+  const frameRisk = frameSelectorsRisk(current.iframes.selectors);
+  if (frameRisk) risks.push(frameRisk);
   if (virtualizedCap) {
     risks.push({
       id: "virtualized-list-partial-coverage",

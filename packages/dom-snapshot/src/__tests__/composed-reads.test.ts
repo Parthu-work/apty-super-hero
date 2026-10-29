@@ -59,11 +59,11 @@ describe("accessible names in the composed tree", () => {
 });
 
 describe("hit testing through shadow roots", () => {
-  function shadowButton() {
+  function shadowButton(html = "<button>Inside</button><div>Cover</div>") {
     document.body.innerHTML = "<x-host></x-host>";
     const host = document.querySelector("x-host")!;
     const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = "<button>Inside</button><div>Cover</div>";
+    shadow.innerHTML = html;
     const button = shadow.querySelector("button")!;
     vi.spyOn(button, "getBoundingClientRect").mockReturnValue({
       left: 10,
@@ -94,12 +94,22 @@ describe("hit testing through shadow roots", () => {
     });
   });
 
-  it("reports an element covered by a sibling inside the same shadow root as occluded", () => {
-    const { shadow, button } = shadowButton();
+  it("reports an element covered by content outside its parent, inside the same shadow root, as occluded", () => {
+    const { shadow, button } = shadowButton(
+      "<span><button>Inside</button></span><div>Cover</div>",
+    );
     const cover = shadow.querySelector("div")!;
     (shadow as { elementFromPoint?: unknown }).elementFromPoint = () => cover;
 
     expect(hitTestElement(button)?.classification).toBe("fully-occluded");
+  });
+
+  it("counts a sibling under the same parent as the element, as Apty does", () => {
+    const { shadow, button } = shadowButton();
+    const cover = shadow.querySelector("div")!;
+    (shadow as { elementFromPoint?: unknown }).elementFromPoint = () => cover;
+
+    expect(hitTestElement(button)?.classification).toBe("fully-targetable");
   });
 });
 

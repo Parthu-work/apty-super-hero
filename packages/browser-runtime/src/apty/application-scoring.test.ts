@@ -458,8 +458,8 @@ describe("buildApplicationAuditResult — evidence state, never a fabricated app
     const result = buildApplicationAuditResult(pages, "app-12");
 
     expect(result.desEvidence.steps.map((s) => [s.step, s.elements])).toEqual([
-      ["checkInitialPath", 2],
-      ["checkSimplifyNth", 1],
+      ["checkAttributes", 2],
+      ["checkNthChild", 1],
     ]);
     expect(result.desEvidence.dynamicValuesLeftOut).toEqual([
       { attribute: "id", elements: 1 },

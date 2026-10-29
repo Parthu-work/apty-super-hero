@@ -456,7 +456,7 @@
     },
     "framesWithContentReached": "{{reached}}/{{withContent}} frames with content reached, {{placeholders}} empty placeholder(s) skipped",
     "framesReachedCount": "{{reached}}/{{total}} frames reached",
-    "desTitle": "How Apty's DES would find these elements",
+    "desTitle": "How Apty would find these elements",
     "dynamicLeftOut": "Left out as dynamic (Ignore Selector): {{list}}.",
     "dynamicLeftOutItem": "{{attribute}} on {{count}} element(s)",
     "evidence": "Evidence: {{state}}",
@@ -470,8 +470,8 @@
     "missingAccessibleNames": "Missing accessible names",
     "manualSelectorDependency": "Manual selector dependency",
     "selectorConfiguration": "Selector configuration: {{source}}",
-    "selectorConfigurationCustomer": "Customer Apty DES configuration",
-    "selectorConfigurationDefault": "Default/reconstructed DES configuration",
+    "selectorConfigurationCustomer": "Customer Apty selection configuration",
+    "selectorConfigurationDefault": "Apty's default selection configuration",
     "auditProfile": "+ audit profile {{profile}}",
     "metrics": "Metrics",
     "strengths": "What's working well",
@@ -669,13 +669,12 @@
       "warnings": "Warnings"
     },
     "rules": {
-      "assumption": "ASSUMPTION (D7): each rule is shown the way Apty's condition builder would hold it, every condition required. That ID and class rules are an Attribute Name condition plus an Attribute Value condition, the Regex flavor and the separator of In are not confirmed.",
+      "assumption": "Each rule is shown as Apty's DOM Settings editor holds it: Attribute Name rows test the attribute's name, Attribute Value rows the value of the attribute they name, and Apty ignores a value when any row matches. Regex and Contains are JavaScript regular expressions; a class row tests the element's whole class value.",
       "id": "IDs",
       "class": "Classes",
       "attributeName": "Attributes by name",
       "attributeValue": "Attributes by value",
       "none": "No rules in this section.",
-      "and": "AND",
       "include": "Include the rule {{rule}}",
       "evidence": {
         "observedChange": "Observed change",
@@ -696,11 +695,12 @@
       "recordHint": "Rules for record numbers. Turn on only when the guides are written for one record.",
       "recordCount": "{{count}} record-specific rules",
       "coveredByDefaults": "Already ignored by Apty's defaults ({{count}})",
-      "coveredAssumption": "ASSUMPTION: reconstructed from Apty Studio build 63. The DOM Settings screen is assumed to add to these defaults, not to replace them.",
+      "coveredAssumption": "From Apty's element identification library. The DOM Settings conditions are added to these defaults and to the application type's preset.",
       "defaultRule": "Default rule: {{rule}}",
       "manualReview": "Needs manual review ({{count}})",
       "rejected": "Rejected rules ({{count}})",
-      "valueCount": "{{count}} values"
+      "valueCount": "{{count}} values",
+      "or": "OR"
     },
     "table": {
       "conditions": "Conditions",
@@ -725,9 +725,11 @@
       "unknownSource": "unknown element",
       "excludedZIndex": "Left out: {{value}} from {{source}}",
       "containerScoreThreshold": "Container score threshold",
-      "containerValues": "{{reference}} in the reference configurations, {{model}} in the reconstructed model. The units may differ (open question).",
+      "containerValues": "{{reference}}, fixed by Apty ({{model}} of a step's stored containers)",
       "clickAdvance": "Click-advance",
-      "aptyDefault": "Apty default, not measured"
+      "aptyDefault": "Apty default, not measured",
+      "notProposed": "Not proposed: {{tag}}. {{reason}}",
+      "typePreset": "{{type}} preset: {{order}}"
     },
     "notMeasured": "What was not measured: {{list}}",
     "openQuestions": "Open questions ({{count}})",
@@ -869,7 +871,7 @@
     "page": {
       "intro": "Captures each page more than once, compares the runs and proposes Apty DOM settings.",
       "whatItProposes": "What it proposes",
-      "proposes": "Ignore conditions, attribute priority, DOM change debounce, max z-index, Shadow DOM and ignored DOM events.",
+      "proposes": "Ignore conditions, partial selector conditions, attribute priority, DOM change debounce, max z-index, Shadow DOM and ignored DOM events.",
       "scopePage": "This page only",
       "scopePageBody": "Quickest. Captures the page you're on.",
       "scopeSafe": "Whole application: safe",
@@ -917,7 +919,24 @@
       "copiedAll": "Copied every section as tables",
       "ask": "Ask about these",
       "askDraft": "What do these proposed DOM settings mean, and which should we apply first?",
-      "askChip": "DOM config results"
+      "askChip": "DOM config results",
+      "aptyJson": "Apty DOM config (JSON)"
+    },
+    "partial": {
+      "title": "Partial selector conditions",
+      "count": "{{count}} conditions",
+      "hint": "For attributes whose value changes on every load in one part only. Apty keeps the part in parentheses and matches the value by it; enter each row with its attribute and regex.",
+      "none": "No attribute changed in a way a partial selector can keep a stable part of.",
+      "attribute": "Attribute",
+      "regex": "Regex",
+      "kept": "Kept, for example",
+      "elements": "Elements",
+      "regexOf": "the regex for {{attribute}}",
+      "keepsStart": "Keeps the start of the value (^=).",
+      "keepsEnd": "Keeps the end of the value ($=).",
+      "keepsMiddle": "Keeps a middle part of the value (*=).",
+      "elementCount": "Tells {{count}} elements apart.",
+      "examples": "Kept: {{parts}}."
     }
   },
   "skillDetails": {

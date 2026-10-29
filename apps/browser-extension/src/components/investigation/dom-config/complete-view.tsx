@@ -163,6 +163,14 @@ export function CompleteView({
           chevron
           onClick={() => navigationStore.openSubView("rules")}
         />
+        <ListRow
+          label={t("domConfig.partial.title")}
+          description={t("domConfig.partial.count", {
+            count: report.partialSelectors.length,
+          })}
+          chevron
+          onClick={() => navigationStore.openSubView("partial")}
+        />
         {SETTING_ROWS.map((row) => (
           <ListRow
             key={row.key}

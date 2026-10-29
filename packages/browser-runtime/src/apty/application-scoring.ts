@@ -15,7 +15,7 @@
  * a single-page score an application score).
  */
 
-import type { AnalysisCoverage } from "@apty/dom-snapshot";
+import type { AnalysisCoverage, FrameSelectorStats } from "@apty/dom-snapshot";
 import {
   applyConfidenceCaps,
   buildRecommendations,
@@ -36,6 +36,7 @@ import {
   duplicateIdsRisk,
   type EvidenceState,
   frameConfidenceCaps,
+  frameSelectorsRisk,
   gradeForScore,
   isScoreMeaningful,
   METHODOLOGY,
@@ -185,8 +186,8 @@ export interface RestorationEvidence {
  * primary answer to "can a selector/path captured in one application state
  * still resolve correctly when the application changes state", as distinct
  * from same-state, time-spaced volatility (which each page's own
- * `stability` already covers). Real `ElementPath`s captured at the seed
- * state are REPLAYED (via `verifyStoredElementPath`, never regenerated)
+ * `stability` already covers). The selections Studio would store at the
+ * seed state are REPLAYED (via `replayElementRefs`, never regenerated)
  * against every other state this run actually audited.
  *
  * Deliberately seed-vs-every-other-state, not a full all-pairs replay
@@ -263,7 +264,7 @@ export interface ApplicationAuditResult {
   traversal?: TraversalReport;
   /** Every backtracking attempt made during this run (restoring the live tab to a previously-discovered state before exploring one of its other children), success or failure — never silently retried and hidden. */
   restorations: RestorationEvidence[];
-  /** Real Apty ElementPaths captured at the seed state, replayed against every other audited state (spec section 7) — see `CrossStateSelectorEvidence`'s doc comment. Its counts are already folded into `metricDetails.selectorStability`, and reported here again on their own so this specific evidence is never buried. */
+  /** Selections Studio would store at the seed state, replayed against every other audited state (spec section 7) — see `CrossStateSelectorEvidence`'s doc comment. Its counts are already folded into `metricDetails.selectorStability`, and reported here again on their own so this specific evidence is never buried. */
   crossStateEvidence: CrossStateSelectorEvidence;
   /** Human-readable companion to `scope` — "APPLICATION" when `scope === "application"`, "CURRENT_PAGE" otherwise (spec sections 1/18). A result labeled CURRENT_PAGE here is never described as application health, however this tool was invoked. */
   scopeLabel: "APPLICATION" | "CURRENT_PAGE";
@@ -749,6 +750,20 @@ export function buildApplicationAuditResult(
     ),
   );
   if (duplicateIdRisk) risks.push(duplicateIdRisk);
+  // Pages of one application usually share their frames, so the worst page
+  // stands for the application rather than a sum that counts a frame twice.
+  const frameRisk = frameSelectorsRisk(
+    completed.reduce<FrameSelectorStats | undefined>((worst, p) => {
+      const stats = p.result?.iframes.selectors;
+      if (!stats) return worst;
+      if (!worst) return stats;
+      return stats.positional > worst.positional ||
+        (stats.positional === worst.positional && stats.onSrc > worst.onSrc)
+        ? stats
+        : worst;
+    }, undefined),
+  );
+  if (frameRisk) risks.push(frameRisk);
   if (failed > 0 || skippedUnsafe > 0) {
     risks.unshift({
       id: "incomplete-application-coverage",

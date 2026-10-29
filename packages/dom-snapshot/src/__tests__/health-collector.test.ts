@@ -59,9 +59,15 @@ describe("collectDomHealthSnapshot — element counts", () => {
   });
 
   it("analyzes the full interactive-element universe by default, without an arbitrary sample cap", async () => {
+    // Letter ids keep every selector an id: jsdom evaluates the positional
+    // selectors a digit id falls back to tens of times slower than Chrome.
+    const letters = (n: number) =>
+      n
+        .toString(26)
+        .replace(/./g, (d) => String.fromCharCode(97 + Number.parseInt(d, 26)));
     const buttons = Array.from(
       { length: 400 },
-      (_, i) => `<button id="btn-${i}">${i}</button>`,
+      (_, i) => `<button id="btn-${letters(i)}">${i}</button>`,
     ).join("");
     setHtml(buttons);
 
@@ -98,14 +104,17 @@ describe("collectDomHealthSnapshot — element counts", () => {
 
 describe("collectDomHealthSnapshot — selector resolution", () => {
   it("resolves a uniquely-identified element directly", async () => {
-    setHtml(`<button id="save-button">Save</button>`);
+    setHtml(
+      `<button id="save-button">Save</button><a href="#" id="help">Help</a>`,
+    );
     const snapshot = await collectDomHealthSnapshot(document);
 
-    expect(snapshot.selectorAnalysis.directSuccess).toBe(1);
+    expect(snapshot.selectorAnalysis.directSuccess).toBe(2);
     const report = snapshot.elementReports[0]!;
     expect(report.outcome).toBe("DIRECT_SUCCESS");
-    expect(report.bestSelector).toBe('button[id="save-button"]');
-    expect(report.winningAttribute).toBe("id");
+    // The only button on the page: Apty's optimizer drops the id.
+    expect(report.bestSelector).toBe("button");
+    expect(report.winningAttribute).toBeNull();
   });
 
   it("does NOT count a shared, non-unique id/class as a successful selector", async () => {
@@ -132,7 +141,9 @@ describe("collectDomHealthSnapshot — selector resolution", () => {
     // resolves with Apty's real DEFAULT configuration, so this id
     // (containing "21", a 2+ digit run) is excluded outright, and with no
     // other attribute on the element, recovery is genuinely positional.
-    setHtml(`<button id="app-wrapper-4f9a21">Save</button>`);
+    setHtml(
+      `<button id="app-wrapper-4f9a21">Save</button><button id="app-wrapper-7c2e33">Cancel</button>`,
+    );
     const snapshot = await collectDomHealthSnapshot(document);
 
     const report = snapshot.elementReports[0]!;
@@ -158,16 +169,23 @@ describe("collectDomHealthSnapshot — selector resolution", () => {
 
 describe("collectDomHealthSnapshot — element-path samples for cross-application-state replay", () => {
   it("captures a real document-rooted ElementRef sample for a resolvable interactive element", async () => {
-    setHtml(`<button id="save-button">Save</button>`);
+    setHtml(
+      `<button id="save-button">Save</button><button id="cancel">Cancel</button>`,
+    );
     const snapshot = await collectDomHealthSnapshot(document);
 
-    expect(snapshot.elementPathSamples).toHaveLength(1);
+    expect(snapshot.elementPathSamples).toHaveLength(2);
     expect(snapshot.elementPathSamples[0]!.outcome).toBe("DIRECT_SUCCESS");
     expect(snapshot.elementPathSamples[0]!.ref.path.length).toBeGreaterThan(0);
     expect(snapshot.elementPathSamples[0]!.ref.hostChain).toEqual([]);
     expect(snapshot.elementPathSamples[0]!.selector).toBe(
       'button[id="save-button"]',
     );
+    expect(snapshot.elementPathSamples[0]!.ref.selection).toEqual({
+      selector: 'button[id="save-button"]',
+      shadowRoots: [],
+      positional: false,
+    });
   });
 
   it("never samples an element whose fingerprint collided with another in the same snapshot", async () => {
@@ -208,15 +226,24 @@ describe("collectDomHealthSnapshot — cross-STATE stability (real DES replay of
     expect(second.stability.nodeReplacedButLogicallyStable).toBe(1);
   });
 
-  it("recovers via a surviving stable attribute (real DES relaxation) when the id changes between states — the GOOD replay pattern, not a naive string re-query", async () => {
-    // The stored path's id ("btn-alpha") is replayed against a DOM where
-    // that id no longer exists. A naive re-query of the OLD selector string
-    // would report this broken. Real DES replay tries its relaxation
-    // strategies against the CURRENT DOM and finds the same logical button
-    // via its still-matching "name" attribute — this is real recovery
-    // evidence, not a failure, and must be reported as such (never
-    // silently reported as if nothing changed, and never as NOT_RESOLVED
-    // when a real recovery strategy actually found it).
+  it("reports NOT_RESOLVED when the id the stored selector names changes, as the player would find nothing", async () => {
+    // Apty's lookup runs the stored selector as-is; the dynamic fallback
+    // that could recover through `name` is off in the 5.x player.
+    setHtml(
+      `<button id="btn-alpha" name="go">Go</button><button id="other" name="stop">Stop</button>`,
+    );
+    await collectDomHealthSnapshot(document, { freshAudit: true });
+
+    document.querySelector("button")!.id = "btn-beta";
+    const second = await collectDomHealthSnapshot(document, {
+      freshAudit: false,
+    });
+
+    expect(second.elementReports[0]!.stability).toBe("NOT_RESOLVED");
+    expect(second.dynamicAttributes.idsChangedAcrossSnapshots).toBe(1);
+  });
+
+  it("keeps a selector that never named the changed id stable", async () => {
     setHtml(`<button id="btn-alpha" name="go">Go</button>`);
     await collectDomHealthSnapshot(document, { freshAudit: true });
 
@@ -225,10 +252,7 @@ describe("collectDomHealthSnapshot — cross-STATE stability (real DES replay of
       freshAudit: false,
     });
 
-    expect(["RECOVERED_STABLE", "POSITIONAL_STABLE"]).toContain(
-      second.elementReports[0]!.stability,
-    );
-    expect(second.dynamicAttributes.idsChangedAcrossSnapshots).toBe(1);
+    expect(second.elementReports[0]!.stability).toBe("DIRECT_STABLE");
   });
 
   it("marks a newly-appeared logical element as NEW rather than a stability verdict", async () => {
@@ -480,7 +504,7 @@ describe("collectDomHealthSnapshot — elements inside shadow roots", () => {
     for (const report of snapshot.elementReports) {
       expect(report.shadowDepth).toBe(1);
       expect(report.outcome).toBe("POSITIONAL_ONLY");
-      expect(report.bestSelector).toMatch(/^x-item.* >>> button/);
+      expect(report.bestSelector).toMatch(/nth-of-type\(\d\) >>> button$/);
     }
   });
 

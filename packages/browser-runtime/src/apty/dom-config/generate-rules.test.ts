@@ -29,14 +29,17 @@ function rulesFor(...pages: Array<[Attrs, Attrs?]>) {
 
 const conditions = (rule: Rule) =>
   rule.conditions
-    .map((c) => `${c.category} ${c.operator} ${c.value}`)
-    .join(" AND ");
+    .map(
+      (c) =>
+        `${c.category}${c.attribute ? ` ${c.attribute}` : ""} ${c.operator} ${c.value}`,
+    )
+    .join(" OR ");
 
 describe("generateRules", () => {
   it("writes a generalized, anchored pattern for generated ids", () => {
     const { rules } = rulesFor([{ id: values("ui-id-1", "ui-id-2", "home") }]);
     expect(rules.map(conditions)).toEqual([
-      "Attribute Name Equals id AND Attribute Value Regex ^ui-id-\\d+$",
+      "Attribute Value id Regex ^ui-id-\\d+$",
     ]);
     expect(rules[0]).toMatchObject({
       target: "id",
@@ -54,7 +57,7 @@ describe("generateRules", () => {
       { href: values("/home?nocache=1729700000222") },
     ]);
     expect(rules.map(conditions)).toEqual([
-      "Attribute Name Equals href AND Attribute Value Contains nocache",
+      "Attribute Value href Contains nocache",
     ]);
     expect(rules[0]).toMatchObject({
       evidence: "observed_change",
@@ -130,7 +133,7 @@ describe("generateRules", () => {
       }),
     ]);
     expect(conditions(rejectedRules[0]!.rule)).toBe(
-      "Attribute Name Equals id AND Attribute Value Regex ^row-\\d+$",
+      "Attribute Value id Regex ^row-\\d+$",
     );
   });
 
@@ -161,11 +164,11 @@ describe("generateRules", () => {
       [{ id: values("ui-id-3", "ui-id-4") }],
     );
     expect(rules.map(conditions)).toEqual([
-      "Attribute Name Equals id AND Attribute Value Regex ^ui-(?:id-\\d+|tab-\\d+)$",
-      "Attribute Name In href,src AND Attribute Value Contains nocache",
-      "Attribute Name Equals class AND Attribute Value In even,odd,selected",
-      "Attribute Name In aria-expanded,aria-selected",
-      "Attribute Name In height,width",
+      "Attribute Value id Regex ^ui-(?:id-\\d+|tab-\\d+)$",
+      "Attribute Value href Contains nocache OR Attribute Value src Contains nocache",
+      "Attribute Value class Regex (?:^|\\s)(?:even|odd|selected)(?:\\s|$)",
+      "Attribute Name In aria-expanded, aria-selected",
+      "Attribute Name In height, width",
     ]);
     expect(rules[0]).toMatchObject({
       pages: ["p1", "p2"],
@@ -184,7 +187,7 @@ describe("generateRules", () => {
       { id: values("ui-id-3", "ui-id-4") },
     ]);
     expect(rules.map(conditions)).toEqual([
-      "Attribute Name Equals id AND Attribute Value Regex ^ui-id-\\d+$",
+      "Attribute Value id Regex ^ui-id-\\d+$",
     ]);
     expect(rules[0]).toMatchObject({
       evidence: "observed_change",
@@ -201,9 +204,9 @@ describe("generateRules", () => {
         group: "record-specific",
         evidence: "record_specific",
         conditions: [
-          { category: "Attribute Name", operator: "Equals", value: "href" },
           {
             category: "Attribute Value",
+            attribute: "href",
             operator: "Regex",
             value: "^.*\\d{5,}.*$",
           },
@@ -221,7 +224,7 @@ describe("generateRules", () => {
       },
     ]);
     expect(
-      result.rules.map((r) => [r.evidence, r.conditions[1]?.value]),
+      result.rules.map((r) => [r.evidence, r.conditions[0]?.value]),
     ).toEqual([
       ["pii", "^.*\\d{3}[\\s.)-]{1,2}\\d{3}[\\s.-]\\d{4}.*$"],
       ["pii", "^.*[^\\s@]@[^\\s@]+\\.[A-Za-z]{2,}.*$"],

@@ -48,7 +48,76 @@ describe("armBehaviorProbe", () => {
       burstGapsMs: [1_000],
       eventRates: {},
       ranToCompletion: true,
+      mutationSources: [
+        {
+          tag: "main",
+          id: "app",
+          attributeNames: ["data-state"],
+          mutations: 3,
+          callbacks: 3,
+          descendants: 1,
+          interactive: 0,
+        },
+      ],
     });
+  });
+
+  it("names the elements that keep changing, and what ignoring each would hide", async () => {
+    document.body.innerHTML = `
+      <header class="bar top"><span id="clock" class="clock tick">12:00</span></header>
+      <form id="order"><button>Save</button></form>`;
+    const probe = armBehaviorProbe(document, { clock });
+    const time = document.getElementById("clock")!;
+    for (let second = 1; second <= 3; second++) {
+      time.textContent = `12:0${second}`;
+      await deliver();
+      clockMs += 1_000;
+    }
+    document.getElementById("order")!.setAttribute("data-dirty", "true");
+    await deliver();
+
+    const sources = probe.capture().mutationSources!;
+    probe.disarm();
+
+    expect(sources[0]).toMatchObject({
+      tag: "span",
+      id: "clock",
+      classes: ["clock", "tick"],
+      callbacks: 3,
+      interactive: 0,
+    });
+    expect(sources.find((s) => s.id === "order")).toMatchObject({
+      attributeNames: ["data-dirty"],
+      interactive: 1,
+    });
+  });
+
+  it("does not see a text node's own data change, as Apty's observer does not", async () => {
+    document.body.innerHTML = `<span id="clock">12:00</span>`;
+    const probe = armBehaviorProbe(document, { clock });
+
+    document.getElementById("clock")!.firstChild!.textContent = "12:01";
+    await deliver();
+
+    expect(probe.capture().mutationSources).toEqual([]);
+    probe.disarm();
+  });
+
+  it("leaves out changes Apty never reacts to", async () => {
+    document.body.innerHTML = `<div id="pop"></div><div class="apty-player-ignored-element"><p id="inner"></p></div>`;
+    const probe = armBehaviorProbe(document, { clock });
+
+    document
+      .getElementById("pop")!
+      .setAttribute("data-popper-placement", "top");
+    document.getElementById("inner")!.setAttribute("data-x", "1");
+    await deliver();
+
+    expect(probe.capture()).toMatchObject({
+      mutationBursts: [],
+      mutationSources: [],
+    });
+    probe.disarm();
   });
 
   it("watches shadow roots that exist when it is armed", async () => {
