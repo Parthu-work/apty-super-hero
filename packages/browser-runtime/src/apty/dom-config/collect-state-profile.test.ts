@@ -301,6 +301,7 @@ describe("captureBehaviorProbe", () => {
       burstGapsMs: [],
       eventRates: { mousemove: 90, scroll: 5 },
       ranToCompletion: true,
+      mutationSources: [],
     });
     expect(
       probeRequests

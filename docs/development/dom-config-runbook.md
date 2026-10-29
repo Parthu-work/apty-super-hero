@@ -51,11 +51,23 @@ The results list the proposed settings (each opens its detail) and the
 details (Pages, Iframes, Coverage, Warnings).
 
 - **Ignore conditions.** Rules proven by observation or pattern are
-  included. Tick the rules that need review only after checking them on the
-  application. Turn on **Guides target a specific record** only when the
-  guides are written for one record.
-- **The other five settings.** Each value says whether it was measured,
-  derived or is Apty's default. Defaults are not findings.
+  included. Tick the rules that need review only after checking them on
+  the application. Turn on **Guides target a specific record** only when
+  the guides are written for one record.
+  - Each condition is shown as Apty's editor row: the mode (Attribute
+    Name or Attribute Value), the attribute for an Attribute Value row,
+    the operator and the value.
+  - A class rule drops every class of the elements it matches, and its
+    reason says how many stable class tokens go with them.
+- **Partial selector conditions.** One row per attribute and regex. Enter
+  them in the Partial selector conditions drawer, in the order shown.
+- **Ignore DOM events.** Conditions for elements that kept changing while
+  the probe watched, such as clocks and spinners. Elements that hold
+  controls are listed as not proposed. Enter the conditions in the Ignore
+  DOM events editor.
+- **The other settings.** Each value says whether it was measured,
+  derived or is Apty's default. Defaults are not findings. A non-empty
+  attribute priority replaces the application type's preset as a whole.
 - **Pages.** Open a page to see its runs and what changed between them.
 - **Warnings.** Act on the warn-severity ones first. A page with one run
   cannot show a value changing: use **Capture another run**, which opens
@@ -63,10 +75,16 @@ details (Pages, Iframes, Coverage, Warnings).
 
 ## 4. Copy into Apty
 
+These settings shape the selectors Studio generates. Steps captured
+before the change keep their stored selectors until they are captured
+again.
+
 Copy each value (in a setting's detail), each section as a table (in
 Ignore conditions), or every section at once (**Export results** › **Copy
 all**), and enter them in Apty's DOM Settings screen. **Export results** ›
-**Markdown** for the handover and **JSON** to keep the engine report.
+**Markdown** for the handover, **JSON** to keep the engine report, and
+**Apty DOM config (JSON)** for the proposals in the shape Apty stores
+them.
 Excluded rules are in no copy and no export. **Ask about these** puts the
 Markdown in a new chat for the AI to explain; it is sent only when you
 press Send.

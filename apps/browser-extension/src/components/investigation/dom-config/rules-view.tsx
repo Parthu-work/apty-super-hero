@@ -39,7 +39,7 @@ export function ruleTableText(t: Translate, rules: DomConfigRule[]): string {
       t("domConfig.table.valuesCovered"),
       t("domConfig.table.examples"),
     ],
-    and: t("domConfig.rules.and"),
+    or: t("domConfig.rules.or"),
     evidence: (rule) => evidenceLabel(t, rule.evidence),
   });
 }
@@ -54,8 +54,8 @@ function RuleItem({
   onToggle: (included: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const and = t("domConfig.rules.and");
-  const text = conditionText(rule, and);
+  const or = t("domConfig.rules.or");
+  const text = conditionText(rule, or);
   return (
     <li
       className={cn(
@@ -74,17 +74,22 @@ function RuleItem({
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs">
           {rule.conditions.map((condition, i) => (
             <span
-              key={`${condition.category}-${condition.operator}-${condition.value}`}
+              key={`${condition.category}-${condition.attribute ?? ""}-${condition.operator}-${condition.value}`}
               className="flex min-w-0 flex-wrap items-center gap-1"
             >
               {i > 0 && (
                 <span className="font-semibold text-muted-foreground">
-                  {and}
+                  {or}
                 </span>
               )}
               <span className="rounded-sm border bg-muted px-1 py-0.5 text-foreground">
                 {condition.category}
               </span>
+              {condition.attribute && (
+                <code className="rounded-sm border bg-muted px-1 py-0.5 font-mono text-foreground">
+                  {condition.attribute}
+                </code>
+              )}
               <span className="rounded-sm border bg-muted px-1 py-0.5 text-foreground">
                 {condition.operator}
               </span>
@@ -345,7 +350,7 @@ export function RulesView({
           {report.rejectedRules.map((item) => (
             <li key={item.rule.id} className="text-xs text-foreground">
               <code className="font-mono [overflow-wrap:anywhere]">
-                {conditionText(item.rule, t("domConfig.rules.and"))}
+                {conditionText(item.rule, t("domConfig.rules.or"))}
               </code>{" "}
               · <Wrapped>{item.reason}</Wrapped>
             </li>

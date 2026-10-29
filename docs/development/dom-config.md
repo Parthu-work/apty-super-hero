@@ -30,9 +30,11 @@ It is delivered in steps:
 | `noise.ts` | What is Apty's, an extension's or an overlay vendor's, using `DEFAULT_IGNORED_ROOTS` |
 | `diff-runs.ts` | Runs of a page compared; page status |
 | `classify.ts` | One bucket per value |
-| `regex.ts`, `rule-match.ts` | Pattern generalization, and how the engine evaluates its own rules |
-| `generate-rules.ts` | Rules, rejected rules, manual review, items Apty's defaults cover |
-| `derive-settings.ts` | Attribute priority, Shadow DOM, max z-index, debounce, ignore events |
+| `regex.ts`, `rule-match.ts` | Pattern generalization, and how Apty evaluates a condition |
+| `generate-rules.ts` | Ignore selector conditions, rejected rules, manual review, items Apty's defaults cover |
+| `partial-selectors.ts` | Partial Selector conditions |
+| `derive-settings.ts` | Attribute priority, Shadow DOM, max z-index, debounce, Ignore DOM events |
+| `apty-export.ts` | The proposals as Apty's `domConfig` (`toAptyDomConfig`) |
 | `report-sections.ts`, `warnings.ts` | Iframes, coverage, weak selectors, noise, warnings, assumptions |
 | `build-report.ts` | `buildDomConfigReport`: the whole pipeline |
 | `render-markdown.ts` | `renderDomConfigMarkdown` |
@@ -163,25 +165,50 @@ Where this deliberately differs from the existing helpers:
 
 ## Rules (D7, D3)
 
-A rule is a list of conditions, `{category, operator, value}`, combined with
-ALL. An id or class rule is an `Attribute Name Equals id|class` condition
-plus an `Attribute Value` condition. Patterns escape metacharacters, write
-digit runs as `\d+`, are anchored `^…$` and use a plain `|` for
-alternation. These are assumptions about Apty until open questions 1 and 2
-are answered.
+Rules are written the way Apty's DOM Settings editor stores
+`ignoreElementSelectionConditions`. This is confirmed from Apty's source
+(`rule-node-to-snippet.helpers.ts`, `pattern.ts`):
+
+- **Rows.** Each condition is an editor row. An **Attribute Name** row
+  (stored key `selection`) tests the attribute's name. An **Attribute
+  Value** row tests the value of the attribute it names (stored key: that
+  name). A rule's conditions are ORed, as Apty ORs its list.
+  - An id rule is `Attribute Value · id · Regex · ^ui-id-\d+$`.
+  - A rule on several attributes has one row per attribute.
+- **Operators.** Equals, Not equals, Contains, Does not contain, In, Not
+  in and Regex, stored as `eq`, `neq`, `contains`, `notContains`, `in`,
+  `notIn` and `regex`.
+  - `In` holds a list.
+  - `Regex` is a JavaScript regular expression without flags, searched
+    rather than matched whole. Engine patterns are anchored `^…$`.
+  - Apty compiles `Contains` into `/…/` unescaped. The engine writes
+    Contains values escaped, so `nocache` stays `nocache` and `a.b` would
+    be `a\.b`.
+- **Classes.** A class row tests the element's **whole** class value, and
+  a hit drops every class of that element.
+  - Class patterns are therefore bounded by whitespace:
+    `(?:^|\s)(?:even|odd)(?:\s|$)`.
+  - Each class rule reports, in its reason and in `collateralClassTokens`,
+    how many class tokens seen stable on the same elements it also drops.
+  - Per-token class ignores exist only as a preset's
+    `ignoreSelectorClassFunction`, which DOM Settings does not edit.
+- **Patterns.** Patterns escape metacharacters, write digit runs as
+  `\d+` and use a plain `|` for alternation.
+- **Apty's own markup.** Apty's `data-apty-*` attributes are noise
+  handled by Apty, so no rule is written for them.
 
 A literal taken from page data (a regex fragment, a `Contains` value, an
-`In` list, an example) must be identifier-shaped (letters, digits,
-`_ - . :`, at most 32 characters) with no PII shape. If it is not, no rule is
-written: the attribute goes to **Needs manual review**, with a count and no
-values. Record and PII rules use fixed templates (`^.*\d{5,}.*$` and
-similar), which contain no page data.
+`In` list, an example) must be identifier-shaped: letters, digits and
+`_ - . :`, at most 32 characters, with no PII shape. If it is not, no rule
+is written. The attribute goes to **Needs manual review**, with a count
+and no values. Record and PII rules use fixed templates
+(`^.*\d{5,}.*$` and similar), which contain no page data.
 
 For a changed URL, the rule names the query parameter that changed for the
 same link (`href Contains nocache`). Changed values that differ only in
-digits get a pattern (`autocomplete Regex ^off_\d+$`). When every value of a
-non-id, non-class attribute changed, the attribute is ignored by name; when
-some stayed, it goes to manual review.
+digits get a pattern (`autocomplete Regex ^off_\d+$`). When every value of
+a non-id, non-class attribute changed, the attribute is ignored by name.
+When some stayed, it goes to manual review.
 
 **Over-breadth guard.** A rule that would match a value seen unchanged in
 every run of a page (at least two runs compared) is rejected and listed with
@@ -194,16 +221,101 @@ patterns with a shared prefix into one alternation
 (`^ui-(?:id-\d+|tab-\d+)$`). Rules are deduplicated across pages, with
 their page lists merged.
 
+## Partial Selector conditions
+
+`partial-selectors.ts` proposes `partialSelectorsConditions` rows, stored
+as `{type: IF|OR_IF, category: ATTRIBUTE, key, relation: pattern,
+value: [regex]}`. Apty uses a row as follows:
+
+- It runs the regex and keeps capture group 1, else the whole match.
+- It matches the kept part with `^=`, `$=` or `*=`, by where the part sat.
+- The part bypasses every ignore rule, the digit default included.
+
+The rows are read from the runs of each page:
+
+1. **Tokens and shapes.** A value is split into digit runs, letter runs
+   and single other characters. Values of one attribute with the same
+   sequence of token kinds and punctuation form a shape.
+2. **Dynamic digits.** A digit run is dynamic when two runs hold values
+   that are identical except for that run: the same element reloaded with
+   a new number.
+3. **Constant and telling letters.** A letter run is constant when every
+   value of the shape holds the same letters there. Otherwise it tells
+   elements apart.
+4. **Pattern.** A pattern is written when some digit run is dynamic, some
+   letter run tells elements apart, and no dynamic digit run sits inside
+   the span of letter runs that do. The kept part reaches out to the
+   nearest dynamic number on each side, because a longer part is a
+   narrower condition:
+   - `win3-save-button` / `win7-save-button` gives `^win\d+(.+)$`, which
+     keeps `-save-button`, a `$=` match;
+   - a frame `src` whose last parameter is a cache buster keeps everything
+     before it, a `^=` match.
+5. **Validation.** Every value of the shape must give one kept part per
+   element, the same in every run, and distinct elements must give
+   distinct parts.
+6. **Privacy.** The constant text written into the pattern is page data:
+   each stretch of it must pass the D3 identifier check. The kept part
+   never appears in the pattern.
+
+Rows are merged across pages. A row also lists how many stable values its
+pattern fits, since on those Apty matches part of the value instead of
+all of it.
+
+## Ignore DOM events
+
+`ignoreDomChangeConditions` names **elements**. Apty's `DomChangeService`
+drops a DOM change whose target, or any ancestor of it, matches. It does
+the same for transition and animation end events. It never filters
+scroll or resize.
+
+The behavior probe observes what Apty observes (`attributes`,
+`childList`, `subtree`; not `characterData`). It skips changes Apty
+already ignores:
+
+- `aria-description`, `data-qa`, `data-popper-placement` and
+  `data-apty-qa`;
+- anything inside `.apty-player-ignored-element`.
+
+For each changed element it records:
+
+- its tag, id and first class tokens;
+- the attributes whose changes were seen;
+- the observer callbacks it took part in;
+- its descendants, up to 1,000;
+- the controls it is or holds, up to 50.
+
+`deriveIgnoreEvents` proposes an element that changed in at least three
+callbacks and at least 0.9 times per second, such as a clock, a spinner
+or a ticker. It names it by:
+
+1. its id, when stable;
+2. else a stable, non-state class token, as a whitespace-bounded Regex
+   row on `class`;
+3. else its tag, for a custom element or a tag specific enough to stand
+   alone (`canvas`, `video`, `progress`…).
+
+Some elements are listed under "not proposed", never proposed:
+
+- an element holding a control;
+- a container of 200 or more elements;
+- `html`, `head`, `body`, `main` and `form`.
+
+Ignoring one of these would hide changes guides depend on. Apty's
+converter keeps neither negation nor AND/OR structure, and it does not
+map `className`. So the engine writes only positive Equals and Regex rows
+on `id`, `class` and `tag`.
+
 ## Settings (D5)
 
 | Setting | How | Basis |
 |---|---|---|
-| Attribute priority | Attributes stable on most pages: test attributes, then `id`, then `name`, then by uniqueness (distinct stable values / occurrences); at most 6; compared with `DEFAULT_PRIORITY` | derived |
+| Attribute priority | Attributes stable on most pages: test attributes, then `id`, then `name`, then by uniqueness (distinct stable values / occurrences); at most 6; only names a CSS selector can hold; compared with `DEFAULT_PRIORITY` and the application-type presets. A non-empty list replaces the preset as a whole | derived |
 | Shadow DOM | On for application shadow roots; on by convention when only Apty or extension roots exist; off when none were seen | measured / default |
 | Max z-index | 2147483646, or the application's highest + 1 (at most 2147483647) when it already uses more; noise and the extension icon excluded and listed | derived / default |
-| DOM change debounce | `clamp(p90 burst length × 1.2, 200, 1500)` ms with probe data; 500 ms otherwise | derived (heuristic) / default |
-| Ignore DOM events | Events the probe saw above 20 per second; otherwise empty, "none measured" (an automatic crawl has no human input) | measured / default |
-| Container score threshold | 75 (reference configurations) and 0.5 (the reconstructed model), both shown, neither converted | default |
+| DOM change debounce | `clamp(p90 burst length × 1.2, 100, 1500)` ms with probe data; otherwise Apty's own 100 ms (`domDebounceTime ?? 100`) | derived (heuristic) / default |
+| Ignore DOM events | Element conditions for continuously changing elements (see above); otherwise empty | measured / default |
+| Container score threshold | Fixed by Apty at 75 (0.75 of a step's stored containers); not a DOM Settings field | default |
 | Click-advance | Not measured; keep Apty's value | default |
 
 **Attribute priority order.** R1.6 lists `name` before `id`; Appendix C's
@@ -544,15 +656,34 @@ The SE's runbook is [`dom-config-runbook.md`](dom-config-runbook.md).
   the coverage marks, so the Coverage and Iframes sections of the Markdown
   are the engine's own; Copy all adds the Iframes and Coverage tables.
 
+## Export in Apty's shape
+
+"Apty DOM config (JSON)" downloads `toAptyDomConfig(report)` with only
+the included rules, in the shape of Apty's `domConfig` overrides
+(`DOMConfigSchema`). It holds:
+
+- `attributePriority`;
+- `ignoreElementSelectionConditions` and `ignoreDomChangeConditions` as
+  rules-engine trees (`RuleNode`: one condition, or an OR group);
+- `partialSelectorsConditions` as the editor's rows. Apty's server
+  compiles `partialSelectorsFunction` from them on save;
+- `enableShadowDOMSupport`, `domDebounceTime` and `maxZIndex`, with
+  `null` for what was not measured, so Apty keeps its value.
+
+A unit test evaluates the exported tree the way Apty's compiler reads it
+and checks it ignores exactly what the engine's rules do.
+
 ## Open questions
 
-The report lists them every time: how Apty's builder expresses id and class
-rules; the Regex flavor and matching mode, and whether `In` is
-comma-separated; which event names Ignore DOM events accepts; the max
-z-index ceiling; whether 75 and 0.5 are the same setting; whether DOM
-Settings adds to or replaces the built-in defaults; the reference-config
-format; the unconfirmed noise entries; persistence across restarts; bundling
-the reference configs.
+The report lists those Apty's source does not answer:
+
+- the max z-index ceiling;
+- the unconfirmed noise entries;
+- persistence across restarts.
+
+The format of rules, the Regex flavor, `In`, Ignore DOM events, the
+container score threshold, how DOM Settings combines with the defaults
+and the export format are now confirmed.
 
 ## Decision record
 

@@ -368,8 +368,9 @@ const NOT_RUN = (windowMs: number): BehaviorProbe => ({
 
 /**
  * Watch every frame of the tab for `windowMs` (R2.3): arm, wait, capture,
- * disarm. Call it once the page has settled (`waitForDomStable`). Bursts of
- * all frames are listed together; event rates are summed.
+ * disarm. Call it once the page has settled (`waitForDomStable`). Bursts and
+ * mutation sources of all frames are listed together; event rates are
+ * summed. Apty applies one Ignore DOM events list in every frame.
  */
 export async function captureBehaviorProbe(
   tabId: number,
@@ -438,6 +439,9 @@ export async function captureBehaviorProbe(
       ranToCompletion:
         captured.length === armed.length &&
         captured.every((p) => p.ranToCompletion),
+      mutationSources: captured
+        .flatMap((p) => p.mutationSources ?? [])
+        .sort((a, b) => b.callbacks - a.callbacks || b.mutations - a.mutations),
     };
   } finally {
     await Promise.all(

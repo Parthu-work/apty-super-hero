@@ -42,6 +42,13 @@ export interface DomHealthCounts {
   contentEditable: number;
 }
 
+export interface FrameSelectorStats {
+  analyzed: number;
+  positional: number;
+  /** Anchored on `src`, whose value usually carries the frame's URL. */
+  onSrc: number;
+}
+
 export interface DomHealthIframeInfo {
   /** Child frame-hosting elements (`<iframe>` AND legacy `<frame>`) owned directly by this document. */
   total: number;
@@ -65,6 +72,14 @@ export interface DomHealthIframeInfo {
   crossOrigin: number;
   /** Honest breakdown of `total` by owning tag — a `<frame>` and an `<iframe>` are both counted in `total`, but this exposes which. */
   byTag: { iframe: number; frame: number };
+  /**
+   * The frame selectors Studio would store for this document's frames
+   * (`iframesPath`): generated with strict uniqueness, as
+   * `generateFrameSelector` does. A positional one finds a different frame
+   * once a sibling frame is added or removed; one on `src` breaks when
+   * the URL carries a per-session value. Absent from older snapshots.
+   */
+  selectors?: FrameSelectorStats;
 }
 
 export interface DomHealthShadowDomInfo {

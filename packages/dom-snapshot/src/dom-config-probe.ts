@@ -1,9 +1,10 @@
 /**
- * How a settled page keeps changing, for DOM Config's debounce and ignored
- * events (R2.3): mutation bursts and the rate of hover, pointer, scroll and
- * resize events, over a short window after the page settles. Mutations
- * inside noise subtrees (Apty, extensions, overlay vendors) are not
- * counted. Armed, captured and disarmed like the route probe.
+ * How a settled page keeps changing, for DOM Config's debounce and Ignore
+ * DOM events (R2.3): mutation bursts, the elements the mutations happened
+ * on, and the rate of hover, pointer, scroll and resize events, over a
+ * short window after the page settles. Mutations inside noise subtrees
+ * (Apty, extensions, overlay vendors), and those Apty itself never reacts
+ * to, are not counted. Armed, captured and disarmed like the route probe.
  *
  * An automatic capture has no human input: nobody moves the mouse or
  * scrolls, so event rates are usually zero, and the report says "none
@@ -11,7 +12,11 @@
  */
 import { now } from "./collector-budget.js";
 import { walkComposedTree } from "./composed-tree.js";
-import type { BehaviorProbe, MutationBurst } from "./dom-profile-types.js";
+import type {
+  BehaviorProbe,
+  MutationBurst,
+  MutationSource,
+} from "./dom-profile-types.js";
 import {
   type IgnoredRootMatcher,
   ignoredRootOf,
@@ -37,6 +42,28 @@ const PROBED_EVENTS = [
   "resize",
   "touchmove",
 ] as const;
+
+/** Attribute changes Apty's `DomChangeService` drops before any condition is read. */
+const APTY_IGNORED_ATTRIBUTE_CHANGES = new Set([
+  "aria-description",
+  "data-qa",
+  "data-popper-placement",
+  "data-apty-qa",
+]);
+
+const APTY_IGNORED_CLASS = "apty-player-ignored-element";
+
+const PROBE_LIMITS = {
+  maxSources: 40,
+  maxSourceClasses: 5,
+  maxSourceText: 80,
+  maxAttributeNames: 10,
+  maxDescendants: 1_000,
+  maxInteractive: 50,
+} as const;
+
+const INTERACTIVE =
+  "a[href],button,input,select,textarea,summary,[contenteditable=''],[contenteditable='true'],[role='button'],[role='link'],[role='menuitem'],[role='tab'],[role='checkbox'],[role='radio'],[role='combobox'],[role='option'],[tabindex]:not([tabindex='-1'])";
 
 export interface BehaviorProbeOptions {
   windowMs?: number;
@@ -68,6 +95,53 @@ function isNoise(
 ): boolean {
   const element = elementOf(node);
   return element !== null && ignoredRootOf(element, policy) !== null;
+}
+
+/** Apty drops a change on, or anywhere inside, an element carrying its ignore class. */
+function insideAptyIgnored(element: Element): boolean {
+  return element.closest?.(`.${APTY_IGNORED_CLASS}`) != null;
+}
+
+function shortText(value: string): string {
+  return value.length > PROBE_LIMITS.maxSourceText
+    ? `${value.slice(0, PROBE_LIMITS.maxSourceText)}…`
+    : value;
+}
+
+function countUpTo(root: Element, selector: string, max: number): number {
+  let count = 0;
+  for (const _ of Array.from(root.querySelectorAll(selector))) {
+    if (++count >= max) break;
+  }
+  return count;
+}
+
+interface SourceStats {
+  mutations: number;
+  callbacks: number;
+  attributeNames: Set<string>;
+}
+
+function describeSource(element: Element, stats: SourceStats): MutationSource {
+  const classes = (element.getAttribute("class") ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, PROBE_LIMITS.maxSourceClasses)
+    .map(shortText);
+  return {
+    tag: element.localName,
+    ...(element.id ? { id: shortText(element.id) } : {}),
+    ...(classes.length ? { classes } : {}),
+    attributeNames: [...stats.attributeNames]
+      .sort()
+      .slice(0, PROBE_LIMITS.maxAttributeNames),
+    mutations: stats.mutations,
+    callbacks: stats.callbacks,
+    descendants: countUpTo(element, "*", PROBE_LIMITS.maxDescendants),
+    interactive:
+      (element.matches(INTERACTIVE) ? 1 : 0) +
+      countUpTo(element, INTERACTIVE, PROBE_LIMITS.maxInteractive),
+  };
 }
 
 function bursts(callbacks: Array<{ at: number; count: number }>): {
@@ -108,9 +182,38 @@ export function armBehaviorProbe(
   const armedAt = clock();
   const callbacks: Array<{ at: number; count: number }> = [];
   const events = new Map<string, number>();
+  const sources = new Map<Element, SourceStats>();
 
   const record = (records: MutationRecord[]) => {
-    const count = records.filter((r) => !isNoise(r.target, policy)).length;
+    let count = 0;
+    const touched = new Set<Element>();
+    for (const r of records) {
+      if (isNoise(r.target, policy)) continue;
+      if (
+        r.type === "attributes" &&
+        APTY_IGNORED_ATTRIBUTE_CHANGES.has(r.attributeName ?? "")
+      ) {
+        continue;
+      }
+      const element = elementOf(r.target);
+      if (element && insideAptyIgnored(element)) continue;
+      count++;
+      if (!element) continue;
+      const stats = sources.get(element) ?? {
+        mutations: 0,
+        callbacks: 0,
+        attributeNames: new Set<string>(),
+      };
+      stats.mutations++;
+      if (r.type === "attributes" && r.attributeName) {
+        stats.attributeNames.add(r.attributeName);
+      }
+      if (!touched.has(element)) {
+        stats.callbacks++;
+        touched.add(element);
+      }
+      sources.set(element, stats);
+    }
     if (count > 0) callbacks.push({ at: clock(), count });
   };
   const observer = new MutationObserver(record);
@@ -145,6 +248,14 @@ export function armBehaviorProbe(
         eventRates[type] =
           seconds > 0 ? Math.round((count / seconds) * 100) / 100 : count;
       }
+      const mutationSources = [...sources]
+        .filter(([element]) => element.isConnected)
+        .sort(
+          ([, a], [, b]) =>
+            b.callbacks - a.callbacks || b.mutations - a.mutations,
+        )
+        .slice(0, PROBE_LIMITS.maxSources)
+        .map(([element, stats]) => describeSource(element, stats));
       return {
         ran: true,
         windowMs,
@@ -152,6 +263,7 @@ export function armBehaviorProbe(
         burstGapsMs: gaps,
         eventRates,
         ranToCompletion: elapsedMs >= windowMs,
+        mutationSources,
       };
     },
     disarm() {

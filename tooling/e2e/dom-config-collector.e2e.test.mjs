@@ -69,6 +69,23 @@ const LARGE_PAGE = `<!doctype html><html><body>${Array.from(
     `<div class="r" data-i="${i % 50}"><span></span><i></i><b></b></div>`,
 ).join("")}</body></html>`;
 
+const TICKER_PAGE = `<!doctype html><html><body>
+  <header><span id="clock" class="clock">12:00:00</span></header>
+  <div id="toolbar"><button>Save</button></div>
+  <main id="app"><p>Static</p></main>
+  <script>
+    window.startTicking = () => {
+      let n = 0;
+      setInterval(() => {
+        n++;
+        const clock = document.getElementById("clock");
+        clock.textContent = "12:00:" + String(n).padStart(2, "0");
+        document.getElementById("toolbar").setAttribute("data-tick", String(n));
+      }, 200);
+    };
+  </script>
+</body></html>`;
+
 let browser;
 let serverA;
 let serverB;
@@ -78,6 +95,7 @@ before(async () => {
     "/top.html": () => TOP_PAGE.replaceAll("{other}", other()),
     "/child.html": CHILD_PAGE,
     "/large.html": LARGE_PAGE,
+    "/ticker.html": TICKER_PAGE,
   });
   serverA = await startPageServer(
     pagesFor(() => `http://localhost:${serverB.address().port}`),
@@ -235,6 +253,45 @@ describe("DOM Config collector in Chromium", () => {
     }
     assert.equal(probe.burstGapsMs.length, 2);
     assert.deepEqual(probe.eventRates, {});
+    await page.close();
+  });
+
+  it("names the elements that keep changing, for Ignore DOM events", async () => {
+    const page = await openPage("/ticker.html");
+    const [armed] = await askEveryFrame("http://127.0.0.1/*ticker.html", {
+      request: "dom-config-probe-arm",
+      windowMs: 2000,
+    });
+    assert.equal(armed.response.success, true, JSON.stringify(armed));
+
+    await page.evaluate(() => window.startTicking());
+    await page.waitForTimeout(2100);
+    const [captured] = await askEveryFrame("http://127.0.0.1/*ticker.html", {
+      request: "dom-config-probe-capture",
+    });
+    await askEveryFrame("http://127.0.0.1/*ticker.html", {
+      request: "dom-config-probe-disarm",
+    });
+
+    const sources = captured.response.data.mutationSources;
+    const clock = sources.find((s) => s.id === "clock");
+    assert.ok(clock && clock.callbacks >= 5, JSON.stringify(sources));
+    assert.deepEqual(
+      {
+        tag: clock.tag,
+        classes: clock.classes,
+        interactive: clock.interactive,
+      },
+      { tag: "span", classes: ["clock"], interactive: 0 },
+    );
+    const toolbar = sources.find((s) => s.id === "toolbar");
+    assert.deepEqual(toolbar?.attributeNames, ["data-tick"]);
+    assert.ok(toolbar.interactive >= 1, JSON.stringify(toolbar));
+    assert.equal(
+      sources.some((s) => s.id === "app"),
+      false,
+      JSON.stringify(sources),
+    );
     await page.close();
   });
 

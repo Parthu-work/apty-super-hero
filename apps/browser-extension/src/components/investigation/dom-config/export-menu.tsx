@@ -2,6 +2,7 @@ import {
   type DomConfigReport,
   type DomConfigRule,
   renderDomConfigMarkdown,
+  toAptyDomConfig,
 } from "@apty/browser-runtime/apty/dom-config/index";
 import { Button } from "@apty/ui/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import {
   ChevronDownIcon,
   CopyIcon,
   FileCodeIcon,
+  FileJsonIcon,
   FileTextIcon,
 } from "lucide-react";
 import {
@@ -28,6 +30,7 @@ import {
 } from "./copy-format";
 import { coverageTableText } from "./coverage-view";
 import { iframesTableText } from "./iframes-view";
+import { partialTableText } from "./partial-selectors-view";
 import { useAnnounce } from "./report-parts";
 import { ruleTableText, TARGET_LABEL } from "./rules-view";
 import { settingsTableText } from "./settings-view";
@@ -63,6 +66,11 @@ function allTables(
     ...sections
       .filter(([, rules]) => rules.length > 0)
       .map(([title, rules]) => `${title}\n${ruleTableText(t, rules)}`),
+    ...(report.partialSelectors.length
+      ? [
+          `${t("domConfig.partial.title")}\n${partialTableText(t, report.partialSelectors)}`,
+        ]
+      : []),
     `${t("domConfig.settings.title")}\n${settingsTableText(t, report)}`,
     ...(report.iframes.length
       ? [`${t("domConfig.tabs.iframes")}\n${iframesTableText(t, report)}`]
@@ -124,6 +132,19 @@ export function ExportMenu({
         >
           <FileCodeIcon aria-hidden="true" />
           {t("domConfig.page.json")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            download(
+              JSON.stringify(toAptyDomConfig(exported()), null, 2),
+              exportFileName(report.applicationName, "apty.json"),
+              "application/json",
+            );
+            onExported();
+          }}
+        >
+          <FileJsonIcon aria-hidden="true" />
+          {t("domConfig.page.aptyJson")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={async () => {

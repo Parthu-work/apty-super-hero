@@ -26,7 +26,12 @@ afterEach(() => {
 });
 
 const conditionText = (conditions: RuleCondition[]) =>
-  conditions.map((c) => `${c.category} ${c.operator} ${c.value}`).join(" AND ");
+  conditions
+    .map(
+      (c) =>
+        `${c.category}${c.attribute ? ` ${c.attribute}` : ""} ${c.operator} ${c.value}`,
+    )
+    .join(" OR ");
 
 describe("Appendix C (pMD) golden capture", () => {
   const report = buildDomConfigReport(pmdCapture(), {
@@ -38,13 +43,13 @@ describe("Appendix C (pMD) golden capture", () => {
 
   it("finds the generated ids, the timestamps and the changing dates", () => {
     expect(main).toEqual([
-      "Attribute Name Equals id AND Attribute Value Regex ^ui-id-\\d+$",
-      "Attribute Name Equals autocomplete AND Attribute Value Regex ^off_\\d+$",
-      "Attribute Name Equals href AND Attribute Value Contains nocache",
-      "Attribute Name Equals href AND Attribute Value Contains visitDate",
+      "Attribute Value id Regex ^ui-id-\\d+$",
+      "Attribute Value autocomplete Regex ^off_\\d+$",
+      "Attribute Value href Contains nocache",
+      "Attribute Value href Contains visitDate",
     ]);
     const nocache = report.rules.find(
-      (r) => r.conditions[1]?.value === "nocache",
+      (r) => r.conditions[0]?.value === "nocache",
     );
     expect(nocache).toMatchObject({
       evidence: "observed_change",
@@ -224,15 +229,16 @@ function markdownRules(markdown: string): RuleCondition[][] {
     markdown.indexOf("### Already ignored"),
   );
   const condition =
-    /(Attribute Name|Attribute Value) · ([A-Za-z ]+?) · `((?:[^`\\]|\\.)*)`/g;
+    /(Attribute Name|Attribute Value)(?: · `([^`]+)`)? · ([A-Za-z ]+?) · `((?:[^`\\]|\\.)*)`/g;
   return section
     .split("\n")
     .filter((line) => line.startsWith("| ") && line.includes("Attribute "))
     .map((line) =>
       [...line.matchAll(condition)].map((m) => ({
         category: m[1] as RuleCondition["category"],
-        operator: m[2] as RuleCondition["operator"],
-        value: m[3]!.replace(/\\\|/g, "|"),
+        ...(m[2] ? { attribute: m[2] } : {}),
+        operator: m[3] as RuleCondition["operator"],
+        value: m[4]!.replace(/\\\|/g, "|"),
       })),
     );
 }
@@ -276,7 +282,7 @@ describe("Markdown", () => {
     ]) {
       const markdown = renderDomConfigMarkdown(report);
       expect(markdownRules(markdown)).toEqual(
-        report.rules.map((r) => r.conditions),
+        report.rules.map((r) => r.conditions.map(({ items: _, ...c }) => c)),
       );
       const settings = markdownSettings(markdown);
       expect(settings.get("Enable Shadow DOM support")).toEqual([
@@ -329,7 +335,7 @@ describe("Markdown", () => {
 
   it("escapes a pattern's | only as the table requires, so the pattern itself keeps a plain |", () => {
     const [rule] = withAlternation.rules;
-    expect(rule!.conditions[1]!.value).toBe("^ui-(?:id-\\d+|tab-\\d+)$");
+    expect(rule!.conditions[0]!.value).toBe("^ui-(?:id-\\d+|tab-\\d+)$");
     expect(renderConditions(rule!)).toContain("^ui-(?:id-\\d+\\|tab-\\d+)$");
   });
 });

@@ -1,16 +1,11 @@
 /**
- * DOM Health evidence in the vocabulary of Apty's Dynamic Element Selection
- * (DES): which recovery step would find an element, which values it leaves
- * out as dynamic, why a hit test failed, and what would make the element
- * reliable. Text only from the engine's own per-element evidence
- * (`ElementSelectorReport`) and counts; never page text or attribute
- * values, only attribute names.
- *
- * Step names are the ones in Apty's DES documentation (checkInitialPath,
- * checkSimplifyDynamic, checkSimplifyNth, checkContainers,
- * checkDirectElement). `des-engine.ts` reconstructs the same steps as
- * dropDynamicValues, dropPositionalPseudo, dropOneAncestor and
- * leafFieldCombinations (docs/development/des-engine.md).
+ * DOM Health evidence in the vocabulary of Apty's element selection: which
+ * check of Studio's selector generation (`match.ts`: checkAttributes,
+ * checkTag, the descendant check, checkNthChild) identifies an element,
+ * which values the audit treats as dynamic, why a hit test failed, and
+ * what would make the element reliable. Text only from the engine's own
+ * per-element evidence (`ElementSelectorReport`) and counts; never page
+ * text or attribute values, only attribute names.
  */
 import type {
   ElementSelectorReport,
@@ -60,49 +55,49 @@ const STEPS: Record<
   { step: string; meaning: string }
 > = {
   DIRECT_SUCCESS: {
-    step: "checkInitialPath",
+    step: "checkAttributes",
     meaning:
-      "One stable attribute identifies the element: the captured path resolves on the first try.",
+      "One attribute, or the tag alone, is unique on the page: the stored selector names the element directly.",
   },
   RECOVERED_BY_PARTIAL: {
     step: "Partial Selector",
     meaning:
-      "Unique only on the stable part of an attribute value; the changing part is left out by a Partial Selector rule.",
+      "Unique only on the stable part of an attribute value; a Partial Selector rule keeps that part and leaves the changing part out.",
   },
   RECOVERED_BY_IGNORE: {
-    step: "checkSimplifyDynamic",
+    step: "checkAttributes, combined",
     meaning:
-      "No single attribute is unique: several are combined, with dynamic values left out (Ignore Selector).",
+      "No single attribute is unique: several are combined, after the Ignore Selector rules left the dynamic ones out.",
   },
   RECOVERED_BY_CONTEXT: {
-    step: "checkContainers",
+    step: "Ancestor",
     meaning:
-      "Unique only with ancestor context: a change to those containers can break the path.",
+      "Unique only below an ancestor, or by a descendant (:has): a change to that structure can break the selector.",
   },
   POSITIONAL_ONLY: {
-    step: "checkSimplifyNth",
+    step: "checkNthChild",
     meaning:
-      "Only its position among siblings (nth-child) tells it apart; once position is dropped, checkDirectElement can pick a sibling.",
+      "Only its position among siblings (nth-child, nth-of-type) tells it apart: inserting or reordering a sibling makes the selector find another element.",
   },
   AMBIGUOUS: {
-    step: "Ambiguous",
+    step: "Several rendered matches",
     meaning:
-      "Two candidates score within 0.03 of each other: DES may pick the look-alike.",
+      "The selector matches more than one rendered element; the player takes the first in document order.",
   },
   WRONG_TARGET: {
-    step: "Wrong target",
+    step: "Wrong element",
     meaning:
-      "DES's best candidate is a different element, e.g. a rendered look-alike preferred over a hidden target.",
+      "The player's lookup returns another element first, e.g. a rendered look-alike preferred over a hidden target.",
   },
   NOT_RESOLVED: {
     step: "Not found",
     meaning:
-      "No candidate reaches DES's 0.90 score after every strategy, checkDirectElement included.",
+      "The selector matches nothing, or a shadow host on the way to it has no open shadow root.",
   },
   INACCESSIBLE: {
     step: "Behind a boundary",
     meaning:
-      "In a closed shadow root or a frame DES cannot search from the page that holds the path.",
+      "Inside a closed shadow root: Apty's picker stops at its host and its lookup cannot open it.",
   },
 };
 
@@ -122,11 +117,12 @@ const STABILITY_NOTE: Partial<
   Record<ElementSelectorReport["stability"], string>
 > = {
   RECOVERED_STABLE:
-    "Across states, the stored path still found it, but only after a DES relaxation step: a captured value changed.",
+    "Across states, the stored selector still found it, but only because it was the one rendered match among several.",
   POSITIONAL_STABLE:
-    "Across states, the stored path found it only by checkDirectElement, the weakest step.",
-  WRONG_TARGET: "Across states, the stored path landed on a different element.",
-  NOT_RESOLVED: "Across states, the stored path found nothing.",
+    "Across states, the stored selector found it by its position alone.",
+  WRONG_TARGET:
+    "Across states, the stored selector landed on a different element.",
+  NOT_RESOLVED: "Across states, the stored selector found nothing.",
   DETACHED: "Across states, the element disappeared.",
 };
 
@@ -140,7 +136,7 @@ function howFound(report: ElementSelectorReport): string {
     case "DIRECT_SUCCESS":
       return report.winningAttribute
         ? `${step}: \`${report.winningAttribute}\` alone identifies it.`
-        : `${step}: the captured path identifies it on the first try.`;
+        : `${step}: its tag alone is unique on the page.`;
     case "RECOVERED_BY_PARTIAL":
       return `${step}: unique on the stable part of \`${report.winningAttribute ?? "an attribute"}\` only.`;
     case "RECOVERED_BY_IGNORE":
@@ -148,7 +144,9 @@ function howFound(report: ElementSelectorReport): string {
         ? `${step}: no single attribute is unique, so ${quoted(report.stableAttributeNames)} are combined.`
         : `${step}: no single attribute is unique, so several are combined.`;
     case "RECOVERED_BY_CONTEXT":
-      return `${step}: its own attributes are not unique; it needs ${report.ancestorDepthUsed} ancestor level(s).`;
+      return report.ancestorDepthUsed > 0
+        ? `${step}: its own attributes are not unique; it needs ${report.ancestorDepthUsed} ancestor level(s).`
+        : `${step}: it is told apart by a descendant.`;
     default:
       return `${step}: ${STEPS[report.outcome].meaning}`;
   }
@@ -172,11 +170,11 @@ function fixFor(report: ElementSelectorReport): string | null {
     case "NOT_RESOLVED":
       return "Configure a manual selector for it, or add a stable attribute.";
     case "INACCESSIBLE":
-      return "For a cross-origin frame, add its URL to the cross-origin iframe configuration; for shadow DOM, enable shadow root support.";
+      return "Ask for the component's shadow root to be open: Apty cannot target content inside a closed one, only its host.";
   }
 }
 
-/** One element's evidence, in DES terms. */
+/** One element's evidence, in the terms of Apty's element selection. */
 export function explainElement(
   report: ElementSelectorReport,
 ): ElementExplanation {
@@ -188,7 +186,7 @@ export function explainElement(
   }
   if (report.shadowDepth > 0) {
     notes.push(
-      `Inside ${report.shadowDepth} shadow root(s): finding it needs shadow root support.`,
+      `Inside ${report.shadowDepth} shadow root(s): the stored selection opens each host in turn, and Shadow DOM support has to be on for Apty to notice changes inside.`,
     );
   }
   const classification = report.hitTest?.classification;
@@ -213,7 +211,7 @@ export function explainElement(
 
 const STEP_ORDER = Object.keys(STEPS) as SelectorResolutionOutcome[];
 
-/** Counts per DES step, in DES order; steps with no elements are left out. */
+/** Counts per step, in step order; steps with no elements are left out. */
 function desSteps(
   counts: Partial<Record<SelectorResolutionOutcome, number>>,
 ): DesStepCount[] {

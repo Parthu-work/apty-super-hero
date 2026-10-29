@@ -1,3 +1,10 @@
+export {
+  type AptySelection,
+  type AptySelectorFacts,
+  captureSelection,
+  captureSelector,
+  playSelection,
+} from "./apty-selector.js";
 export { collectDomSnapshot, collectDomSnapshotInPage } from "./collector.js";
 export {
   closestComposed,
@@ -34,6 +41,7 @@ export type {
   FrameRecord,
   FrameUnreadableReason,
   MutationBurst,
+  MutationSource,
   ProfileMeta,
   ShadowHostRecord,
   ZIndexSource,
@@ -48,6 +56,7 @@ export {
   resolveElementRef,
   resolveHostChain,
   SHADOW_BOUNDARY,
+  type StoredSelection,
   shadowHostChain,
   toElementRef,
 } from "./element-ref.js";
@@ -55,6 +64,7 @@ export {
   DEFAULT_DES_CONFIG,
   DEFAULT_IGNORE,
   DEFAULT_PRIORITY,
+  isValueDynamic,
 } from "./health-attribute-classification.js";
 export {
   AUDIT_DES_CONFIG,
@@ -113,6 +123,7 @@ export {
   resolveInComposedTree,
   testSelector,
   verifyStoredElementPath,
+  verifyStoredSelection,
 } from "./health-selector-engine.js";
 export {
   collectNavTrailDeep,

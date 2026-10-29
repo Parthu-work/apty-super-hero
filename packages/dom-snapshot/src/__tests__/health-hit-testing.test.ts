@@ -122,7 +122,7 @@ describe("hitTestElement", () => {
   });
 
   it("classifies fully-occluded when an unrelated overlay covers every sampled point", () => {
-    setHtml(`<button id="btn">Go</button><div id="overlay"></div>`);
+    setHtml(`<div><button id="btn">Go</button></div><div id="overlay"></div>`);
     const el = document.getElementById("btn")!;
     const overlay = document.getElementById("overlay")!;
     mockRect(el, { width: 100, height: 40, left: 10, top: 10 });
@@ -134,8 +134,8 @@ describe("hitTestElement", () => {
     expect(result?.pointsPassed).toBe(0);
   });
 
-  it("classifies partially-targetable when a majority (>=5/9) of points pass", () => {
-    setHtml(`<button id="btn">Go</button><div id="overlay"></div>`);
+  it("classifies partially-targetable at Apty's 6 of 9 points", () => {
+    setHtml(`<div><button id="btn">Go</button></div><div id="overlay"></div>`);
     const el = document.getElementById("btn")!;
     const overlay = document.getElementById("overlay")!;
     mockRect(el, { width: 100, height: 40, left: 10, top: 10 });
@@ -149,5 +149,82 @@ describe("hitTestElement", () => {
 
     expect(result?.classification).toBe("partially-targetable");
     expect(result?.pointsPassed).toBe(6);
+  });
+
+  it("reads 5 of 9 points as mostly occluded, below Apty's threshold", () => {
+    setHtml(`<div><button id="btn">Go</button></div><div id="overlay"></div>`);
+    const el = document.getElementById("btn")!;
+    const overlay = document.getElementById("overlay")!;
+    mockRect(el, { width: 100, height: 40, left: 10, top: 10 });
+    let call = 0;
+    vi.spyOn(document, "elementFromPoint").mockImplementation(() => {
+      call++;
+      return call <= 5 ? el : overlay;
+    });
+
+    expect(hitTestElement(el)?.classification).toBe("mostly-occluded");
+  });
+
+  it("counts a sibling inside the element's own parent as the element, as Apty does for a field's trigger icon", () => {
+    setHtml(
+      `<div class="lookup"><input id="field"><span id="icon"></span></div>`,
+    );
+    const el = document.getElementById("field")!;
+    const icon = document.getElementById("icon")!;
+    mockRect(el, { width: 100, height: 40, left: 10, top: 10 });
+    vi.spyOn(document, "elementFromPoint").mockReturnValue(icon);
+
+    expect(hitTestElement(el)?.classification).toBe("fully-targetable");
+  });
+
+  it("samples the centres of a 3x3 grid", () => {
+    setHtml(`<button id="btn">Go</button>`);
+    const el = document.getElementById("btn")!;
+    mockRect(el, { width: 90, height: 30, left: 0, top: 0 });
+    const points: Array<[number, number]> = [];
+    vi.spyOn(document, "elementFromPoint").mockImplementation((x, y) => {
+      points.push([x, y]);
+      return el;
+    });
+
+    hitTestElement(el);
+
+    expect(points.map(([x]) => x).slice(0, 3)).toEqual([15, 45, 75]);
+    expect([...new Set(points.map(([, y]) => y))]).toEqual([5, 15, 25]);
+  });
+
+  it("looks through Apty's own layers to the element below", () => {
+    setHtml(
+      `<div><button id="btn">Go</button></div><apty-widget id="w"></apty-widget>`,
+    );
+    const el = document.getElementById("btn")!;
+    const widget = document.getElementById("w")!;
+    mockRect(el, { width: 100, height: 40, left: 10, top: 10 });
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [widget, el],
+    });
+    try {
+      expect(hitTestElement(el)?.classification).toBe("fully-targetable");
+    } finally {
+      delete (document as { elementsFromPoint?: unknown }).elementsFromPoint;
+    }
+  });
+
+  it("passes a point where nothing is hit, as Apty does", () => {
+    setHtml(`<div><button id="btn">Go</button></div>`);
+    const el = document.getElementById("btn")!;
+    mockRect(el, { width: 100, height: 40, left: 10, top: 10 });
+    vi.spyOn(document, "elementFromPoint").mockReturnValue(null);
+
+    expect(hitTestElement(el)?.pointsPassed).toBe(9);
+  });
+
+  it("treats a transparent element as hidden", () => {
+    setHtml(`<button id="btn" style="opacity: 0">Go</button>`);
+    const el = document.getElementById("btn")!;
+    mockRect(el, { width: 100, height: 40, left: 10, top: 10 });
+
+    expect(hitTestElement(el)?.classification).toBe("hidden");
   });
 });
