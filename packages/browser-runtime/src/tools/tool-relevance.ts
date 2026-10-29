@@ -204,6 +204,12 @@ const GROUPS_THAT_IMPLY_INVESTIGATION: BrowserToolGroupName[] = [
   "extensionNetwork",
 ];
 
+// "get config.json" asks for a file, not an investigation: offering the
+// investigation group's schemas with it cost thousands of tokens a turn
+// and pushed small-limit providers over their per-minute budget.
+const RETRIEVAL_REQUEST =
+  /^(?:please\s+|can you\s+|could you\s+)?(?:get|show|read|fetch|open|list|view|display|print|give me)\b/;
+
 const CASUAL_PATTERNS: RegExp[] = [
   /^(hi|hello|hey|yo)\b/,
   /^(thanks|thank you|thx)\b/,
@@ -243,7 +249,10 @@ export function selectRelevantTools(userMessage: string): FunctionTool[] {
     }
   }
 
-  if (GROUPS_THAT_IMPLY_INVESTIGATION.some((g) => matchedGroups.has(g))) {
+  if (
+    !RETRIEVAL_REQUEST.test(text.trim()) &&
+    GROUPS_THAT_IMPLY_INVESTIGATION.some((g) => matchedGroups.has(g))
+  ) {
     matchedGroups.add("investigation");
   }
 
