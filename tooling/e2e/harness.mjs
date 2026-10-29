@@ -549,6 +549,73 @@ export function writeFakeClient(dir, mode, agentId, product = "Client") {
 }
 
 /**
+ * A fake Apty Client that reports `files` (name to JSON text) as the content
+ * files of one 5.x environment and serves their bodies, the way the real
+ * Client's service worker would once it answers the Agent's requests.
+ */
+export function writeContentClient(dir, agentId, files) {
+  mkdirSync(dir, { recursive: true });
+  const base =
+    "https://client.apty.example/tenant-0f000000-0000-7000-8000-000000000000/app-0a000000-0000-7000-8000-000000000001/env-0e000000-0000-7000-8000-000000000002";
+  const names = Object.keys(files);
+  const resources = names.map((name, i) => ({
+    requestId: `c${i + 1}`,
+    url: `${base}/${name}?timestamp=${i + 1}`,
+    method: "GET",
+    status: 200,
+    mimeType: "application/json",
+    timestamp: i + 1,
+    hasBody: true,
+  }));
+  const bodies = Object.fromEntries(
+    names.map((name, i) => [`c${i + 1}`, files[name]]),
+  );
+  writeFileSync(
+    join(dir, "manifest.json"),
+    JSON.stringify(
+      {
+        manifest_version: 3,
+        name: "Apty Client E2E (content)",
+        version: "1.0.0",
+        background: { service_worker: "background.js" },
+        externally_connectable: { ids: [agentId] },
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    join(dir, "background.js"),
+    `const AGENT_ID = ${JSON.stringify(agentId)};
+const RESOURCES = ${JSON.stringify(resources)};
+const BODIES = ${JSON.stringify(bodies)};
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (sender.id !== AGENT_ID) return false;
+  switch (message?.type) {
+    case "apty-debug-agent:get-service-worker-status":
+      sendResponse({ running: true, lastActivity: Date.now() });
+      return true;
+    case "apty-debug-agent:get-service-worker-logs":
+      sendResponse({ logs: [] });
+      return true;
+    case "apty-debug-agent:list-observed-resources":
+      sendResponse({ resources: RESOURCES });
+      return true;
+    case "apty-debug-agent:get-resource-body":
+      sendResponse(BODIES[message.requestId]
+        ? { found: true, body: BODIES[message.requestId], base64Encoded: false }
+        : { found: false });
+      return true;
+    default:
+      return false;
+  }
+});
+`,
+  );
+  return dir;
+}
+
+/**
  * A helper extension with the `management` permission. Disabling and
  * re-enabling the Agent through it orphans the Agent's content scripts in
  * already-open tabs, exactly like an extension update does; Chrome does not

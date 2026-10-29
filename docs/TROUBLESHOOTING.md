@@ -79,6 +79,20 @@ body the same way.
 The Agent can't watch the Client's requests itself: Chrome doesn't show one
 extension's requests to another (see `DECISIONS.md`).
 
+### Visibility check
+
+A chat message such as "my workflow 'Create a lead' is not visible in the
+widget" is checked from these same calls, with no AI model involved.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "No data to check" with "No Apty Client extension ID is saved." | No Client is connected | Connect it above, then ask again. |
+| "No data to check" with a connection failure | The Client didn't answer | Fix it with the table above; the check says nothing about the content until then. |
+| "The Apty Client did not report loading workflow.json" | The widget hasn't requested that file since the Client started | Reload the application with the widget, then ask again. |
+| "Not covered" with "This tenant uses 4.x content files…" | The Client served 4.x files (`flow.json`, `segments.json`) | The check covers 5.x only; use the manual paste path. |
+| "Needs a check in the browser" | The files show no blocker; whether this user matches a segment's rule is decided in the browser | Test as a user known to match the segment, as the card says. |
+| A cause you know is wrong | The files are older than the last publish | Reload the application so the Client fetches them again, then ask again. |
+
 ## Response bodies are missing from a network capture
 
 Response bodies are off by default. Turn on **Settings → General → Data
