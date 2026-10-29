@@ -131,9 +131,13 @@ function createStreamingGenerator(): AsyncGenerator<AgentEvent> & {
 
 function setupMockAgent(): {
   agent: AptyAgent;
-  conversationManager: { deleteSession: ReturnType<typeof vi.fn> };
+  conversationManager: {
+    createSession: ReturnType<typeof vi.fn>;
+    deleteSession: ReturnType<typeof vi.fn>;
+  };
 } {
   const conversationManager = {
+    createSession: vi.fn(async () => ({ id: "session-1" })),
     deleteSession: vi.fn(),
   };
 
@@ -197,14 +201,15 @@ describe("useChat", () => {
       await result.current.sendMessage("Hi there");
     });
 
-    // Called with the sessionId as it was *before* this send (null for the
-    // first message of a new conversation).
-    expect(getRunContext).toHaveBeenCalledWith(null);
+    // A new chat's session is created first, so the first turn's run
+    // context is keyed by its real id, not "pending".
+    expect(getRunContext).toHaveBeenCalledWith("session-1");
     expect(agent.chat).toHaveBeenCalledWith("Hi there", {
-      sessionId: undefined,
+      sessionId: "session-1",
       contexts: undefined,
       runContext: { conversationId: "conv-1", tabId: 27 },
     });
+    expect(result.current.sessionId).toBe("session-1");
   });
 
   it("resolves and forwards a per-turn tool subset via config.selectTools", async () => {
@@ -329,6 +334,35 @@ describe("useChat", () => {
 
     expect(streamingGenerator.return).toHaveBeenCalled();
     expect(result.current.status).toBe("idle");
+  });
+
+  it("deletes the session it created when the first turn is stopped before it starts", async () => {
+    const { agent, conversationManager } = setupDefaultAgent();
+    let finishCreating: (session: { id: string }) => void = () => {};
+    conversationManager.createSession.mockReturnValue(
+      new Promise((resolve) => {
+        finishCreating = resolve;
+      }),
+    );
+    const getRunContext = vi.fn();
+    const { result } = await renderUseChat(agent, {
+      config: { getRunContext },
+    });
+
+    let turn: Promise<void> | undefined;
+    act(() => {
+      turn = result.current.sendMessage("Stop me");
+    });
+    await act(async () => {
+      await result.current.interrupt();
+      finishCreating({ id: "session-2" });
+      await turn;
+    });
+
+    expect(conversationManager.deleteSession).toHaveBeenCalledWith("session-2");
+    expect(getRunContext).not.toHaveBeenCalled();
+    expect(agent.chat).not.toHaveBeenCalled();
+    expect(result.current.sessionId).toBeNull();
   });
 
   it("never starts a turn that was stopped while still submitted", async () => {

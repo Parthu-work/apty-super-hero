@@ -23,8 +23,9 @@ export interface ChatConfig {
    * that bind a conversation to a specific browser tab (e.g.
    * `@apty/browser-runtime`) use this to tell tool calls which tab
    * this conversation is actually about, keeping `@apty/ui` itself
-   * runtime-agnostic. Called with the current session id (`null` before
-   * the first message creates one).
+   * runtime-agnostic. Called with the conversation's session id: when it
+   * is set, a new chat's session is created before its first turn, so the
+   * id is `null` only for an agent without a conversation manager.
    */
   getRunContext?: (sessionId: string | null) => unknown | Promise<unknown>;
   /**
