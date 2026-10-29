@@ -277,11 +277,30 @@ export function useChat(
           timestamp: Date.now(),
         }));
 
-        const runContext = await configRef.current?.getRunContext?.(sessionId);
-        const tools = await configRef.current?.selectTools?.(text, sessionId);
+        // With a run context, a new chat's session is created before it is
+        // resolved, so the first turn's tools record under the real session
+        // id instead of the unscoped "pending" bucket the chat never reads.
+        const getRunContext = configRef.current?.getRunContext;
+        const manager = agent.getConversationManager();
+        const created =
+          sessionId || !getRunContext || !manager
+            ? null
+            : await manager.createSession();
+        if (turnRef.current !== turn) {
+          if (created) void manager?.deleteSession(created.id);
+          return;
+        }
+        const turnSessionId = created?.id ?? sessionId;
+        if (created) setSessionId(created.id);
+
+        const runContext = await getRunContext?.(turnSessionId);
+        const tools = await configRef.current?.selectTools?.(
+          text,
+          turnSessionId,
+        );
         if (turnRef.current !== turn) return;
         const events = agent.chat(text, {
-          sessionId: sessionId ?? undefined,
+          sessionId: turnSessionId ?? undefined,
           contexts: coreContexts,
           runContext,
           tools,

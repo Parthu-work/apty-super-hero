@@ -5,10 +5,9 @@
  * being stored.
  *
  * The page asks for a widget configuration that is not there (404) and
- * throws with it, every 400 ms. The chat needs a session first: tools in a
- * new chat's first turn record under "pending", which the bar does not show
- * once the session exists, so the test greets before it investigates. The
- * steps start an investigation
+ * throws with it, every 400 ms. The investigation is the new chat's first
+ * turn, so the bar shows what that turn's tools record. The steps start an
+ * investigation
  * (its plan comes from the planner), watch the network and read the
  * runtime errors (one cluster, flagged as a likely related incident), wait
  * past the correlation window and check the Apty Client (a second cluster,

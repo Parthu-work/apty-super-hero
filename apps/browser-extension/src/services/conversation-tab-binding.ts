@@ -27,11 +27,10 @@ const boundTabs = new Map<string, number>();
  * message in this conversation, binding the conversation to its tab the
  * first time a real session id is available.
  *
- * Before a session exists (the very first message of a new conversation),
- * there is no id to key the binding by yet — this resolves against
- * whichever tab is active at send time, same as the pre-existing
- * behavior, and the binding is established as soon as a session id shows
- * up on a later turn.
+ * `useChat` creates a new conversation's session before its first turn,
+ * so the binding is made on that turn. Without a session id (an agent with
+ * no conversation manager) this resolves against whichever tab is active at
+ * send time, under the unscoped "pending" id.
  */
 export async function resolveConversationRunContext(
   sessionId: string | null,

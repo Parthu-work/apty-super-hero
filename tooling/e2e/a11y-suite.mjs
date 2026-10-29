@@ -678,16 +678,15 @@ const SURFACES = {
         `${theme} side panel, chat with a tool result`,
       );
 
-      const summary = panel
+      // The first turn of a new chat: its evidence is the chat's own.
+      await panel
         .getByRole("region", { name: "Investigation", exact: true })
-        .getByRole("button", { name: "Expand" });
-      if (await summary.count()) {
-        await summary.first().click();
-        await assertNoSeriousViolations(
-          panel,
-          `${theme} side panel, investigation summary`,
-        );
-      }
+        .getByRole("button", { name: "Expand" })
+        .click();
+      await assertNoSeriousViolations(
+        panel,
+        `${theme} side panel, investigation summary`,
+      );
 
       await panel
         .getByRole("button", { name: "View full response" })
@@ -945,7 +944,6 @@ const SURFACES = {
         await app.goto(`${site.origin}/investigation.html`);
         const panel = await openSidePanel(browser, model, app);
         await assertThemeApplied(panel, theme);
-        await scriptedTurn(panel, "hello", []);
         await scriptedTurn(panel, INVESTIGATION_PROMPT, INVESTIGATION_STEPS);
 
         const bar = panel.getByRole("region", {
