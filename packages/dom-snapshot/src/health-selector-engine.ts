@@ -1,21 +1,26 @@
 /**
- * Adapter between the real-Apty-faithful DES engine (`des-engine.ts`) and
- * the DOM Health collector's existing per-element evidence shape
- * (`ElementResolution`). `resolveElement` below delegates entirely to
- * `findElement` for the actual resolution decision, so there is exactly
- * one automatic element-selection algorithm in this package.
+ * DOM Health's per-element evidence, from the algorithm the Apty 5.x
+ * player runs: the selector Studio would store for the element
+ * (`apty-selector.ts` `captureSelector`, Apty's `match` + `optimize`) and
+ * the player's lookup of it (first rendered match, else the first). The
+ * outcome compares what that lookup returns with the element we know is
+ * the target. How the selector identifies the element (by one attribute,
+ * several, a partial selector, an ancestor or position) comes from the
+ * selector itself.
  *
- * The real Apty `find()` algorithm this delegates to has NO discrete
- * "ambiguous"/"wrong target" state — it is a single ranked candidate pool
- * with a top-1 pick above a score floor (see `des-engine.ts`'s module doc
- * comment). Everything this adapter reports beyond that raw pick —
- * classifying the outcome against KNOWN ground truth (we always know which
- * live element a DOM Health snapshot is asking about) and flagging a thin
- * score margin as a stability risk — is DOM Health's own evidence layer on
- * top of the real algorithm, and is documented as such below; it is never
- * presented as part of Apty's own runtime decision.
+ * The DES path (`des-engine.ts`) is still built for each element: it is
+ * the input of Apty's dynamic fallback, which the 5.x player keeps off,
+ * and the report uses it only to say what that fallback would do.
+ * `WRONG_TARGET`, `AMBIGUOUS` and the other categories are DOM Health's
+ * own; Apty's lookup simply returns an element or nothing.
  */
 
+import {
+  type AptySelectorFacts,
+  captureSelector,
+  closedShadowHost,
+  playSelection,
+} from "./apty-selector.js";
 import { composedText } from "./composed-tree.js";
 import {
   buildElementPath,
@@ -24,15 +29,15 @@ import {
   type ElementPattern,
   type FindResult,
   findElement,
-  generateMinimalSelector,
-  type MinimalSelectorResult,
-  pathToSelector,
+  isElementRendered,
+  resetDesPerformanceCaches,
 } from "./des-engine.js";
 import {
   ELEMENT_REF_VERSION,
   type ElementRef,
   resolveHostChain,
   SHADOW_BOUNDARY,
+  type StoredSelection,
   shadowHostChain,
   toElementRef,
 } from "./element-ref.js";
@@ -63,41 +68,24 @@ export interface ElementResolution {
   stableAttributeNames: string[];
   /** The attribute (e.g. "id", "class") the winning candidate's leaf pattern is anchored on — null when nothing resolved, or when the winning strategy combined enough different signals that naming one attribute would be misleading (context/positional wins report the strategy instead). */
   winningAttribute: string | null;
-  /**
-   * The real Apty-style path captured for this element at THIS state — the
-   * exact thing a caller must store and later REPLAY (via
-   * `verifyStoredElementPath`) against a later state's live DOM to validate
-   * cross-state stability. Null only for `INACCESSIBLE` (no path was ever
-   * built because the element lives behind a boundary this engine cannot
-   * search).
-   */
+  /** The DES path for this element at THIS state (the dynamic fallback's input); null for `INACCESSIBLE`. */
   elementPath: ElementPath | null;
+  /** The selector Studio would store for the element in its own root; null for `INACCESSIBLE`. */
+  selector: string | null;
+  facts: AptySelectorFacts | null;
 }
 
 /** An element resolved across its shadow hosts (`resolveInComposedTree`). */
 export interface ComposedElementResolution extends ElementResolution {
   /** Root-aware reference for replay at another state; null when any hop was INACCESSIBLE. */
   elementRef: ElementRef | null;
+  /** What Studio stores: the element's selector and one per shadow host; null when INACCESSIBLE. */
+  selection: StoredSelection | null;
   /** How many shadow roots the element sits inside (0 for the document's own tree). */
   shadowDepth: number;
 }
 
 export interface ResolveElementOptions {
-  /**
-   * Optionally bounds how many ancestor levels the engine may climb while
-   * building the element's path. Left unset by default (unbounded, the
-   * full path to the scope root / `document.body`) — the real Apty
-   * algorithm has no depth cap of its own (`buildElementPath` walks to
-   * `document.body`, or a configured `scopeRootSelectors` container), and
-   * an earlier version of this adapter capped this at 4 as its own
-   * "safety bound" — that cap was never derived from real Apty behavior,
-   * and truncating the path here before `findElement` ever sees it could
-   * cause this adapter to report failure/positional-fallback for an
-   * element real Apty could resolve by climbing further. Only set this
-   * when a caller has a specific reason to bound the search (e.g. a perf
-   * ceiling on a pathologically deep DOM).
-   */
-  maxAncestorDepth?: number;
   /** Short-circuits to INACCESSIBLE with this reason — set by a caller that already knows the target lives behind a boundary this engine cannot search (a closed shadow root, a cross-origin frame). */
   inaccessibleReason?: string;
   /** Real Apty Studio Ignore Selector / Partial Selector / Attribute Priority configuration, when a caller has it — merged over `AUDIT_DES_CONFIG`. Absent this, DOM Health uses the Agent's audit profile: Apty's real defaults (`health-attribute-classification.ts`) extended through their own hooks (`health-audit-profile.ts`). */
@@ -136,21 +124,6 @@ export function testSelector(
   }
 }
 
-/** Real Apty's `find()` early-accepts as soon as a rendered candidate clears 0.92, and the runner-up in a ranked pool is rarely more than a couple points behind the winner in a genuinely stable case — a margin this thin, chosen deliberately small so it flags real fragility rather than every ordinary multi-candidate search, means the real algorithm's pick could plausibly flip to a different element from a small, unrelated DOM change. This is DOM Health's own addition; the real algorithm does not branch on it. */
-const NEAR_TIE_MARGIN = 0.03;
-
-function detectNearTie(result: FindResult, config: DesConfig): boolean {
-  const aboveFloor = result.rankedCandidates.filter(
-    (c) => c.score >= config.fallbackAcceptScore,
-  );
-  if (aboveFloor.length < 2) return false;
-  const [top, runnerUp] = aboveFloor;
-  return (
-    top!.element !== runnerUp!.element &&
-    top!.score - runnerUp!.score < NEAR_TIE_MARGIN
-  );
-}
-
 function leafAttributeNames(pattern: ElementPattern): {
   dynamic: string[];
   stable: string[];
@@ -167,218 +140,159 @@ function leafAttributeNames(pattern: ElementPattern): {
 }
 
 /**
- * Classify an already-successful `generateMinimalSelector` result into the
- * legacy outcome vocabulary. This is DOM Health's own reporting layer, not
- * part of the real algorithm: real Apty's `find()` has no such categories
- * (see the module doc comment). The signal used here is genuinely real,
- * though — `minimal.leafPattern`'s attribute `selectionType`s (`"exact"`
- * vs `"prefix"/"suffix"/"partial"`) reflect whether a configured Partial
- * Selector function actually fired for the winning attribute, and
- * `ancestorLevelsUsed`/`attributesUsed.length` reflect the real capture
- * algorithm's own climb/combine behavior.
+ * How a selector that found the right element identifies it. DOM Health's
+ * reporting vocabulary, read from the selector Apty would store:
+ * position anywhere makes it positional; a configured partial selector
+ * part, recovery by partial; an ancestor level or a `:has()` descendant,
+ * recovery by context; several conditions on the element's own level,
+ * recovery by combining attributes; one condition or the tag alone, direct.
  */
-function classifyMinimalSelector(minimal: MinimalSelectorResult): {
+export function classifySelectorFacts(facts: AptySelectorFacts): {
   outcome: SelectorResolutionOutcome;
   strategy: SelectorStrategy;
   winningAttribute: string | null;
 } {
-  // Checked BEFORE `ancestorLevelsUsed`: a climb whose every level (leaf
-  // included) fell back to `nth-child` at every step is still purely
-  // positional, even though it took more than one level to become
-  // globally unique (e.g. two structurally-identical containers, each
-  // with an unlabeled 2nd button — neither the leaf's own position nor
-  // its immediate container's is enough alone, but no ATTRIBUTE ever
-  // contributed either). Only a climb where some level's own attribute
-  // genuinely helped counts as RECOVERED_BY_CONTEXT.
-  if (minimal.usesPositionalSelector) {
+  if (facts.positional) {
     return {
       outcome: "POSITIONAL_ONLY",
       strategy: "positional",
       winningAttribute: null,
     };
   }
-  if (minimal.ancestorLevelsUsed > 0) {
+  const named = facts.leafAttributes.join("+") || null;
+  if (facts.partial) {
+    return {
+      outcome: "RECOVERED_BY_PARTIAL",
+      strategy: "partial",
+      winningAttribute: named,
+    };
+  }
+  if (facts.levels > 1 || facts.descendant) {
     return {
       outcome: "RECOVERED_BY_CONTEXT",
       strategy: "context",
       winningAttribute: null,
     };
   }
-  const leafUsed = minimal.attributesUsed;
-  const usedPartialMatch = minimal.leafPattern.attributes
-    .concat(
-      minimal.leafPattern.classes.map((c) => ({
-        name: "class",
-        selectionType: c.selectionType,
-      })),
-    )
-    .some(
-      (a) =>
-        leafUsed.includes(a.name) &&
-        a.selectionType &&
-        a.selectionType !== "exact",
-    );
-  if (usedPartialMatch) {
-    return {
-      outcome: "RECOVERED_BY_PARTIAL",
-      strategy: "partial",
-      winningAttribute: leafUsed[0] ?? null,
-    };
-  }
-  if (leafUsed.length > 1) {
+  if (facts.leafConditions > 1) {
     return {
       outcome: "RECOVERED_BY_IGNORE",
       strategy: "ignore",
-      winningAttribute: leafUsed.join("+"),
+      winningAttribute: named,
     };
   }
   return {
     outcome: "DIRECT_SUCCESS",
     strategy: "direct",
-    winningAttribute: leafUsed[0] ?? null,
+    winningAttribute: named,
   };
 }
 
+function auditConfig(
+  root: ParentNode,
+  options: ResolveElementOptions,
+): DesConfig {
+  const baseConfig: DesConfig = { ...AUDIT_DES_CONFIG, ...options.desConfig };
+  const duplicateIds = options.duplicateIdsFor?.(root);
+  return duplicateIds?.size
+    ? withDuplicateIdsIgnored(baseConfig, duplicateIds)
+    : baseConfig;
+}
+
+function inaccessible(): ElementResolution {
+  return {
+    outcome: "INACCESSIBLE",
+    strategy: "none",
+    bestSelector: null,
+    matchCount: 0,
+    ancestorDepthUsed: 0,
+    usesPositionalSelector: false,
+    dynamicAttributeNames: [],
+    stableAttributeNames: [],
+    winningAttribute: null,
+    elementPath: null,
+    selector: null,
+    facts: null,
+  };
+}
+
+function querySelectorAllSafe(root: ParentNode, selector: string): Element[] {
+  try {
+    return Array.from(root.querySelectorAll(selector));
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Run the real DES `find()` pipeline for one live element against `root`
- * and adapt it to the legacy `ElementResolution` shape
- * `health-collector.ts` aggregates. `root` is the correct scope to query
- * against — the owner `Document` for ordinary elements, the `ShadowRoot`
- * for elements inside a shadow tree (open, or closed when reached through
- * `shadowRootOf`), and never a different frame's document.
- *
- * Two real algorithms are combined here, each answering a different
- * question: `findElement` (real `find()`) answers "does this resolve to
- * the correct live element at all" — WRONG_TARGET/NOT_RESOLVED/(this
- * package's own AMBIGUOUS risk flag) come from it. `generateMinimalSelector`
- * (real `match()`/`optimize()`) answers "how was it identified" —
- * DIRECT_SUCCESS/RECOVERED_BY_PARTIAL/RECOVERED_BY_IGNORE/
- * RECOVERED_BY_CONTEXT/POSITIONAL_ONLY come from it. Real Apty's own
- * `checkInitialPath` always has `nth-child` baked into its literal
- * captured path (see `des-engine.ts`'s `buildElementPattern`), so "which
- * raw `find()` strategy technically produced the winning candidate" does
- * NOT cleanly distinguish "identified by a stable attribute" from
- * "identified only by position" — `generateMinimalSelector`, which tries
- * non-positional identification first and only falls back to `nth-child`
- * when nothing else works, is the correct instrument for that question.
+ * Capture `el`'s selector as Studio would and look it up in `root` (the
+ * owner document, or the shadow root `el` lives in) as the player would:
+ * `NOT_RESOLVED` when the lookup returns nothing, `WRONG_TARGET` when it
+ * returns another element, `AMBIGUOUS` when the right element is returned
+ * only because it comes first among several rendered matches; otherwise
+ * the way the selector identifies it (`classifySelectorFacts`).
  */
 export function resolveElement(
   root: ParentNode,
   el: Element,
   options: ResolveElementOptions = {},
 ): ElementResolution {
-  if (options.inaccessibleReason) {
-    return {
-      outcome: "INACCESSIBLE",
-      strategy: "none",
-      bestSelector: null,
-      matchCount: 0,
-      ancestorDepthUsed: 0,
-      usesPositionalSelector: false,
-      dynamicAttributeNames: [],
-      stableAttributeNames: [],
-      winningAttribute: null,
-      elementPath: null,
-    };
-  }
+  if (options.inaccessibleReason) return inaccessible();
 
-  const baseConfig: DesConfig = { ...AUDIT_DES_CONFIG, ...options.desConfig };
-  const duplicateIds = options.duplicateIdsFor?.(root);
-  const config = duplicateIds?.size
-    ? withDuplicateIdsIgnored(baseConfig, duplicateIds)
-    : baseConfig;
-  const fullPath = buildElementPath(el, config);
-  // Faithful to real Apty: no depth cap unless the caller explicitly asks
-  // for one (see `ResolveElementOptions.maxAncestorDepth`'s doc comment).
-  const path =
-    options.maxAncestorDepth === undefined
-      ? fullPath
-      : fullPath.slice(
-          Math.max(0, fullPath.length - 1 - options.maxAncestorDepth),
-        );
-
-  const result = findElement(path, root, config);
-  const leafInfo = leafAttributeNames(path[path.length - 1]!);
-  const winningMatchCount =
-    result.attemptsEvidence.find((a) => a.strategy === result.strategy)
-      ?.candidatesFound ?? 0;
+  const config = auditConfig(root, options);
+  const path = buildElementPath(el, config);
+  const leafInfo = leafAttributeNames(
+    path[path.length - 1] ?? buildElementPattern(el, config),
+  );
+  const captured = captureSelector(el, config);
+  const matches = querySelectorAllSafe(root, captured.selector);
+  const rendered = matches.filter(isElementRendered);
+  const picked = rendered[0] ?? matches[0] ?? null;
 
   const base = {
     dynamicAttributeNames: leafInfo.dynamic,
     stableAttributeNames: leafInfo.stable,
     elementPath: path,
+    selector: captured.selector,
+    facts: captured.facts,
+    bestSelector: captured.selector,
+    matchCount: matches.length,
+    ancestorDepthUsed: Math.max(0, captured.facts.levels - 1),
   };
-
-  if (result.element === null) {
+  if (picked === null) {
     return {
+      ...base,
       outcome: "NOT_RESOLVED",
       strategy: "none",
-      bestSelector: null,
-      matchCount: 0,
-      ancestorDepthUsed: 0,
       usesPositionalSelector: false,
       winningAttribute: null,
-      ...base,
     };
   }
-
-  const minimal = generateMinimalSelector(result.element, root, config);
-  const selector = minimal?.selector ?? pathToSelector(path);
-
-  if (result.element !== el) {
+  if (picked !== el) {
     return {
+      ...base,
       outcome: "WRONG_TARGET",
       strategy: "none",
-      bestSelector: selector,
-      matchCount: winningMatchCount,
-      ancestorDepthUsed: minimal?.ancestorLevelsUsed ?? 0,
-      usesPositionalSelector: false,
+      usesPositionalSelector: captured.facts.positional,
       winningAttribute: null,
-      ...base,
     };
   }
-
-  if (detectNearTie(result, config)) {
+  if (rendered.length > 1) {
     return {
+      ...base,
       outcome: "AMBIGUOUS",
       strategy: "none",
-      bestSelector: selector,
-      matchCount: winningMatchCount,
-      ancestorDepthUsed: minimal?.ancestorLevelsUsed ?? 0,
-      usesPositionalSelector: false,
+      usesPositionalSelector: captured.facts.positional,
       winningAttribute: null,
-      ...base,
     };
   }
-
-  if (!minimal) {
-    // Defensive only: `findElement` already proved `el` is live-reachable
-    // via SOME selector, so `generateMinimalSelector` (which walks the
-    // same DOM) should always succeed too. Never fabricate a stronger
-    // outcome than the evidence supports if it somehow doesn't.
-    return {
-      outcome: "POSITIONAL_ONLY",
-      strategy: "positional",
-      bestSelector: selector,
-      matchCount: winningMatchCount,
-      ancestorDepthUsed: 0,
-      usesPositionalSelector: true,
-      winningAttribute: null,
-      ...base,
-    };
-  }
-
-  const classification = classifyMinimalSelector(minimal);
+  const classification = classifySelectorFacts(captured.facts);
   return {
+    ...base,
     outcome: classification.outcome,
     strategy: classification.strategy,
-    bestSelector: selector,
-    matchCount:
-      classification.outcome === "DIRECT_SUCCESS" ? 1 : winningMatchCount,
-    ancestorDepthUsed: minimal.ancestorLevelsUsed,
-    usesPositionalSelector: minimal.usesPositionalSelector,
+    usesPositionalSelector: captured.facts.positional,
     winningAttribute: classification.winningAttribute,
-    ...base,
   };
 }
 
@@ -465,6 +379,16 @@ export function resolveInComposedTree(
   frameKey = "",
 ): ComposedElementResolution {
   const hosts = shadowHostChain(el);
+  if (closedShadowHost(el)) {
+    // Apty's picker stops at a closed root's host and its lookup opens
+    // hosts through `host.shadowRoot`, so nothing inside can be targeted.
+    return {
+      ...inaccessible(),
+      elementRef: null,
+      selection: null,
+      shadowDepth: hosts.length,
+    };
+  }
   const hostResolutions = hosts.map((host) => {
     const cached = hostCache.get(host);
     if (cached) return cached;
@@ -477,48 +401,65 @@ export function resolveInComposedTree(
     return resolution;
   });
   const own = resolveElement(el.getRootNode() as ParentNode, el, options);
+  const all = [...hostResolutions, own];
+  const selection: StoredSelection | null =
+    own.selector !== null && hostResolutions.every((r) => r.selector !== null)
+      ? {
+          selector: own.selector,
+          shadowRoots: hostResolutions.map((r) => r.selector!),
+          positional: all.some((r) => r.facts?.positional ?? false),
+        }
+      : null;
+  const paths = all.map((r) => r.elementPath);
+  const elementRef: ElementRef | null = paths.every((path) => path !== null)
+    ? {
+        version: ELEMENT_REF_VERSION,
+        hostChain: paths.slice(0, -1) as ElementPath[],
+        path: paths[paths.length - 1] as ElementPath,
+        frameKey,
+        ...(selection ? { selection } : {}),
+      }
+    : null;
   if (hosts.length === 0) {
-    return {
-      ...own,
-      elementRef: own.elementPath
-        ? {
-            version: ELEMENT_REF_VERSION,
-            hostChain: [],
-            path: own.elementPath,
-            frameKey,
-          }
-        : null,
-      shadowDepth: 0,
-    };
+    return { ...own, elementRef, selection, shadowDepth: 0 };
   }
 
-  const all = [...hostResolutions, own];
   const weakest = all.reduce((worst, next) =>
     OUTCOME_SEVERITY[next.outcome] > OUTCOME_SEVERITY[worst.outcome]
       ? next
       : worst,
   );
-  const selectors = all.map((r) => r.bestSelector);
-  const paths = all.map((r) => r.elementPath);
-  return {
+  const composed: ComposedElementResolution = {
     ...own,
     outcome: weakest.outcome,
     strategy: weakest.strategy,
     winningAttribute: weakest === own ? own.winningAttribute : null,
     usesPositionalSelector: all.some((r) => r.usesPositionalSelector),
-    bestSelector: selectors.every((sel) => sel !== null)
-      ? selectors.join(SHADOW_BOUNDARY)
+    bestSelector: selection
+      ? [...selection.shadowRoots, selection.selector].join(SHADOW_BOUNDARY)
       : null,
-    elementRef: paths.every((path) => path !== null)
-      ? {
-          version: ELEMENT_REF_VERSION,
-          hostChain: paths.slice(0, -1) as ElementPath[],
-          path: paths[paths.length - 1] as ElementPath,
-          frameKey,
-        }
-      : null,
+    elementRef,
+    selection,
     shadowDepth: hosts.length,
   };
+  // The player opens each host with the FIRST match of its selector, not
+  // the first rendered one, so a hop can resolve on its own and still
+  // send the lookup into another host's root.
+  if (
+    selection &&
+    OUTCOME_SEVERITY[composed.outcome] < OUTCOME_SEVERITY.WRONG_TARGET
+  ) {
+    const played = playSelection(selection, el.ownerDocument);
+    if (played.element !== el) {
+      return {
+        ...composed,
+        outcome: played.element ? "WRONG_TARGET" : "NOT_RESOLVED",
+        strategy: "none",
+        winningAttribute: null,
+      };
+    }
+  }
+  return composed;
 }
 
 export type CrossStateVerdict =
@@ -538,7 +479,24 @@ export interface CrossStateVerification {
   selector: string | null;
 }
 
+/** Real Apty's `find()` early-accepts at 0.92; a runner-up within this margin of the winner could take its place after a small, unrelated DOM change. DOM Health's own addition. */
+const NEAR_TIE_MARGIN = 0.03;
+
+function detectNearTie(result: FindResult, config: DesConfig): boolean {
+  const aboveFloor = result.rankedCandidates.filter(
+    (c) => c.score >= config.fallbackAcceptScore,
+  );
+  if (aboveFloor.length < 2) return false;
+  const [top, runnerUp] = aboveFloor;
+  return (
+    top!.element !== runnerUp!.element &&
+    top!.score - runnerUp!.score < NEAR_TIE_MARGIN
+  );
+}
+
 /**
+ * Legacy replay, for a sample stored before `ElementRef` carried a selection: the stored DES path through `findElement`.
+ *
  * The GOOD cross-state validation pattern (as opposed to the BAD pattern of
  * regenerating a fresh selector at the new state and comparing it to the
  * old one): replay a `ElementPath` CAPTURED at a previous state against the
@@ -575,8 +533,7 @@ export function verifyStoredElementPath(
     return { verdict: "NOT_RESOLVED", element: null, selector: null };
   }
 
-  const minimal = generateMinimalSelector(result.element, root, config);
-  const selector = minimal?.selector ?? pathToSelector(storedPath);
+  const selector = captureSelector(result.element, config).selector;
 
   if (!fingerprintMatches(result.element, expectedFingerprint)) {
     return { verdict: "WRONG_TARGET", element: result.element, selector };
@@ -593,6 +550,52 @@ export function verifyStoredElementPath(
     return { verdict: "DIRECT_STABLE", element: result.element, selector };
   }
   return { verdict: "RECOVERED_STABLE", element: result.element, selector };
+}
+
+/**
+ * Cross-state replay as the player does it: the selection stored at an
+ * earlier state, looked up from the top of `doc` now. `HOST_NOT_RESOLVED`
+ * when a shadow host selector found no open root (the lookup then runs
+ * against the document, as Apty's does, and found nothing);
+ * `NOT_RESOLVED` / `WRONG_TARGET` when the lookup returns nothing or
+ * another element (by logical fingerprint); `AMBIGUOUS` when the right
+ * element came first among several rendered matches. A correct find is
+ * `POSITIONAL_STABLE` when the selector depends on position,
+ * `RECOVERED_STABLE` when it matched several elements and only the
+ * rendered preference picked the right one, else `DIRECT_STABLE`.
+ */
+export function verifyStoredSelection(
+  doc: Document,
+  stored: StoredSelection,
+  expectedFingerprint: string,
+): CrossStateVerification & { brokenAtHop?: number; hostSelector?: string } {
+  const played = playSelection(stored, doc);
+  const selector = stored.selector;
+  if (!played.element) {
+    if (played.brokenHostIndex !== null) {
+      return {
+        verdict: "HOST_NOT_RESOLVED",
+        element: null,
+        selector,
+        brokenAtHop: played.brokenHostIndex,
+        hostSelector: stored.shadowRoots[played.brokenHostIndex],
+      };
+    }
+    return { verdict: "NOT_RESOLVED", element: null, selector };
+  }
+  if (!fingerprintMatches(played.element, expectedFingerprint)) {
+    return { verdict: "WRONG_TARGET", element: played.element, selector };
+  }
+  if (played.renderedCount > 1) {
+    return { verdict: "AMBIGUOUS", element: played.element, selector };
+  }
+  if (stored.positional) {
+    return { verdict: "POSITIONAL_STABLE", element: played.element, selector };
+  }
+  if (played.matchCount > 1) {
+    return { verdict: "RECOVERED_STABLE", element: played.element, selector };
+  }
+  return { verdict: "DIRECT_STABLE", element: played.element, selector };
 }
 
 const HASHED_FINGERPRINT_PREFIX = "h:";
@@ -639,12 +642,30 @@ export function replayElementRefs(
   samples: Array<{ fingerprint: string; ref?: unknown; path?: unknown }>,
   config: DesConfig = AUDIT_DES_CONFIG,
 ): ElementPathReplayResult[] {
+  resetDesPerformanceCaches();
   return samples.map((sample) => {
     const migrated = toElementRef(sample);
     if (!migrated) {
       return { fingerprint: sample.fingerprint, verdict: "NOT_RESOLVED" };
     }
     const legacy = migrated.legacy ? { legacy: true } : {};
+    if (migrated.ref.selection) {
+      const verification = verifyStoredSelection(
+        doc,
+        migrated.ref.selection,
+        sample.fingerprint,
+      );
+      return {
+        fingerprint: sample.fingerprint,
+        verdict: verification.verdict,
+        ...(verification.brokenAtHop !== undefined
+          ? {
+              brokenAtHop: verification.brokenAtHop,
+              hostSelector: verification.hostSelector,
+            }
+          : {}),
+      };
+    }
     const chain = resolveHostChain(migrated.ref, doc, config);
     if (!chain.root) {
       const broken = chain.hops[chain.hops.length - 1]!;

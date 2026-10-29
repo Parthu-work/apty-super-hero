@@ -1,3 +1,10 @@
+export {
+  type AptySelection,
+  type AptySelectorFacts,
+  captureSelection,
+  captureSelector,
+  playSelection,
+} from "./apty-selector.js";
 export { collectDomSnapshot, collectDomSnapshotInPage } from "./collector.js";
 export {
   closestComposed,
@@ -48,6 +55,7 @@ export {
   resolveElementRef,
   resolveHostChain,
   SHADOW_BOUNDARY,
+  type StoredSelection,
   shadowHostChain,
   toElementRef,
 } from "./element-ref.js";
@@ -113,6 +121,7 @@ export {
   resolveInComposedTree,
   testSelector,
   verifyStoredElementPath,
+  verifyStoredSelection,
 } from "./health-selector-engine.js";
 export {
   collectNavTrailDeep,

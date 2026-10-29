@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { captureSelector } from "../apty-selector";
 import {
   buildElementPath,
   buildElementPattern,
-  generateMinimalSelector,
   pathToSelector,
 } from "../des-engine";
 import {
@@ -242,7 +242,7 @@ describe("the audit profile", () => {
 
   it("prefers a data-testid over styled-components classes, which Studio's defaults would pick", () => {
     document.body.innerHTML =
-      '<div class="sc-bdVaJa hEcuXe"><button class="sc-htpNat jrIVkE" data-testid="publish-model-button">Publish</button></div>';
+      '<div class="sc-bdVaJa hEcuXe"><button class="sc-htpNat jrIVkE" data-testid="publish-model-button">Publish</button><button class="sc-htpNat kQwErT" data-testid="discard">Discard</button></div>';
     const button = document.querySelector("button")!;
 
     expect(resolveElement(document, button).bestSelector).toContain(
@@ -274,7 +274,7 @@ describe("the audit profile", () => {
     loadErpFixture("infor-portal-workspace");
     const frame = document.querySelector("iframe")!;
 
-    const minimal = generateMinimalSelector(frame, document, AUDIT_DES_CONFIG);
+    const minimal = captureSelector(frame, AUDIT_DES_CONFIG);
 
     expect(minimal?.selector).not.toContain("#frameview");
     expect(() => document.querySelectorAll(minimal!.selector)).not.toThrow();

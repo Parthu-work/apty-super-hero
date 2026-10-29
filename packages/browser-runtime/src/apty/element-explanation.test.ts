@@ -33,7 +33,7 @@ function report(
 describe("explainElement", () => {
   it("a direct match names the winning attribute and needs no fix", () => {
     expect(explainElement(report())).toEqual({
-      howFound: "checkInitialPath: `name` alone identifies it.",
+      howFound: "checkAttributes: `name` alone identifies it.",
       notes: [],
       fix: null,
     });
@@ -49,7 +49,7 @@ describe("explainElement", () => {
       }),
     );
     expect(explanation.howFound).toBe(
-      "checkSimplifyDynamic: no single attribute is unique, so `type`, `class` are combined.",
+      "checkAttributes, combined: no single attribute is unique, so `type`, `class` are combined.",
     );
     expect(explanation.notes).toEqual([
       "Left out as dynamic (generated or changing values): `id`.",
@@ -63,24 +63,20 @@ describe("explainElement", () => {
         report({ outcome: "RECOVERED_BY_CONTEXT", ancestorDepthUsed: 3 }),
       ).howFound,
     ).toBe(
-      "checkContainers: its own attributes are not unique; it needs 3 ancestor level(s).",
+      "Ancestor: its own attributes are not unique; it needs 3 ancestor level(s).",
     );
   });
 
   it("a positional-only element explains the sibling risk and asks for a distinguishing attribute", () => {
     const explanation = explainElement(report({ outcome: "POSITIONAL_ONLY" }));
-    expect(explanation.howFound).toMatch(
-      /^checkSimplifyNth: Only its position/,
-    );
-    expect(explanation.howFound).toMatch(
-      /checkDirectElement can pick a sibling/,
-    );
+    expect(explanation.howFound).toMatch(/^checkNthChild: Only its position/);
+    expect(explanation.howFound).toMatch(/reordering a sibling/);
     expect(explanation.fix).toMatch(/attribute that tells it apart/);
   });
 
-  it("an element behind a boundary points at the cross-origin and shadow root configuration", () => {
+  it("an element behind a closed shadow root asks for the root to be open", () => {
     expect(explainElement(report({ outcome: "INACCESSIBLE" })).fix).toBe(
-      "For a cross-origin frame, add its URL to the cross-origin iframe configuration; for shadow DOM, enable shadow root support.",
+      "Ask for the component's shadow root to be open: Apty cannot target content inside a closed one, only its host.",
     );
   });
 
@@ -95,9 +91,9 @@ describe("explainElement", () => {
         }),
       ).notes,
     ).toEqual([
-      "Inside 2 shadow root(s): finding it needs shadow root support.",
+      "Inside 2 shadow root(s): the stored selection opens each host in turn, and Shadow DOM support has to be on for Apty to notice changes inside.",
       "Hit test: No width or height when sampled: collapsed or not laid out yet. The player can find it but not highlight or click it.",
-      "Across states, the stored path landed on a different element.",
+      "Across states, the stored selector landed on a different element.",
       "No accessible name: no label to anchor on or to show users in guidance.",
     ]);
     expect(
@@ -137,10 +133,10 @@ describe("desEvidenceFor", () => {
     const evidence = desEvidenceFor(SNAPSHOT);
 
     expect(evidence.steps.map((s) => [s.step, s.elements])).toEqual([
-      ["checkInitialPath", 8],
-      ["checkSimplifyDynamic", 3],
-      ["checkContainers", 2],
-      ["checkSimplifyNth", 5],
+      ["checkAttributes", 8],
+      ["checkAttributes, combined", 3],
+      ["Ancestor", 2],
+      ["checkNthChild", 5],
       ["Not found", 1],
     ]);
     expect(evidence.hitTestReasons.map((r) => [r.reason, r.elements])).toEqual([
@@ -161,9 +157,9 @@ describe("mergeDesEvidence", () => {
     const page = desEvidenceFor(SNAPSHOT);
     const merged = mergeDesEvidence([page, page]);
 
-    expect(
-      merged.steps.find((s) => s.step === "checkSimplifyNth")?.elements,
-    ).toBe(10);
+    expect(merged.steps.find((s) => s.step === "checkNthChild")?.elements).toBe(
+      10,
+    );
     expect(merged.hitTestReasons[0]).toMatchObject({
       reason: "zero-size",
       elements: 12,

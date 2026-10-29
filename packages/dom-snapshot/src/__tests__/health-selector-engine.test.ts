@@ -29,7 +29,9 @@ beforeEach(() => {
 
 describe("resolveElement — direct success", () => {
   it("resolves a stable, unique id directly", () => {
-    setHtml(`<button id="save-button">Save</button>`);
+    setHtml(
+      `<button id="save-button">Save</button><button id="cancel">Cancel</button>`,
+    );
     const el = document.querySelector("button")!;
 
     const result = resolveElement(document, el);
@@ -40,9 +42,19 @@ describe("resolveElement — direct success", () => {
     expect(result.matchCount).toBe(1);
   });
 
+  it("reduces the only element of its tag to the bare tag, as Apty's optimizer does", () => {
+    setHtml(`<button id="save-button">Save</button>`);
+    const el = document.querySelector("button")!;
+
+    const result = resolveElement(document, el);
+
+    expect(result.outcome).toBe("DIRECT_SUCCESS");
+    expect(result.bestSelector).toBe("button");
+  });
+
   it("prefers a stable data-testid over an id", () => {
     setHtml(
-      `<button id="btn-928371" data-testid="create-opportunity">Create</button>`,
+      `<button id="btn-928371" data-testid="create-opportunity">Create</button><button>Other</button>`,
     );
     const el = document.querySelector("button")!;
 
@@ -132,28 +144,31 @@ describe("resolveElement — partial-attribute recovery", () => {
 });
 
 describe("resolveElement — contextual (ancestor) recovery", () => {
-  it("climbs to a stable ancestor when the element itself has no identifying attribute", () => {
-    // Two structurally-identical toolbars: neither the leaf's own
-    // position (2nd button) nor its immediate container's is globally
-    // unique alone, so real Apty's own capture algorithm must climb an
-    // extra level and use the ANCESTOR's own stable id to disambiguate —
-    // a genuine attribute contributing at that level, not just position.
+  it("climbs to a stable ancestor when the element's own attribute is unique only within its parent", () => {
     setHtml(`
-      <div id="toolbar-a">
-        <button>First</button>
-        <button>Second</button>
-      </div>
-      <div id="toolbar-b">
-        <button>First</button>
-        <button>Second</button>
-      </div>
+      <div id="toolbar-a"><button name="save">Save</button><button name="close">Close</button></div>
+      <div id="toolbar-b"><button name="save">Save</button><button name="close">Close</button></div>
     `);
-    const el = document.querySelectorAll("#toolbar-b button")[1]!;
+    const el = document.querySelector('#toolbar-b button[name="save"]')!;
 
     const result = resolveElement(document, el);
 
     expect(result.outcome).toBe("RECOVERED_BY_CONTEXT");
     expect(result.ancestorDepthUsed).toBeGreaterThanOrEqual(1);
+    expect(result.bestSelector).toContain("toolbar-b");
+  });
+
+  it("reports an ancestor plus a position as positional, not as context", () => {
+    setHtml(`
+      <div id="toolbar-a"><button>First</button><button>Second</button></div>
+      <div id="toolbar-b"><button>First</button><button>Second</button></div>
+    `);
+    const el = document.querySelectorAll("#toolbar-b button")[1]!;
+
+    const result = resolveElement(document, el);
+
+    expect(result.outcome).toBe("POSITIONAL_ONLY");
+    expect(result.bestSelector).toMatch(/toolbar-b.*nth-/);
   });
 });
 
@@ -205,7 +220,9 @@ describe("resolveElement — Partial Selector precedes Ignore Selector for the s
 
 describe("resolveElement — attribute-priority transparency", () => {
   it("exposes which attribute the winning direct candidate came from", () => {
-    setHtml(`<button data-testid="save-action">Save</button>`);
+    setHtml(
+      `<button data-testid="save-action">Save</button><button data-testid="close">Close</button>`,
+    );
     const el = document.querySelector("button")!;
 
     const result = resolveElement(document, el);
@@ -282,28 +299,17 @@ describe("resolveElement — shadow DOM scoping", () => {
 });
 
 describe("resolveElement — no artificial ancestor-depth cap (real Apty has none)", () => {
-  it("resolves via a disambiguating ancestor 5 levels up when unbounded, but fails to disambiguate when capped at the old default of 4", () => {
-    // Two structurally-identical 5-level-deep branches; the ONLY
-    // distinguishing signal (a unique id) lives on the 5th ancestor. Real
-    // Apty's own `buildElementPath` has no depth limit at all — walking
-    // only 4 ancestors up (this adapter's old hard-coded default) would
-    // never even see that id, and would report a non-unique/positional
-    // result for something real Apty could resolve directly.
+  it("climbs as many levels as it takes to reach a unique ancestor", () => {
     setHtml(`
       <div id="root-a"><div><div><div><div><button>Go</button></div></div></div></div></div>
       <div id="root-b"><div><div><div><div><button>Go</button></div></div></div></div></div>
     `);
     const el = document.querySelectorAll("button")[0]!;
 
-    const capped = resolveElement(document, el, { maxAncestorDepth: 4 });
-    expect(capped.outcome).not.toBe("DIRECT_SUCCESS");
-    expect(capped.outcome).not.toBe("RECOVERED_BY_CONTEXT");
+    const result = resolveElement(document, el);
 
-    const unbounded = resolveElement(document, el);
-    expect(["DIRECT_SUCCESS", "RECOVERED_BY_CONTEXT"]).toContain(
-      unbounded.outcome,
-    );
-    expect(unbounded.bestSelector).toContain("root-a");
+    expect(result.outcome).toBe("RECOVERED_BY_CONTEXT");
+    expect(result.bestSelector).toBe('div[id="root-a"] button');
   });
 });
 

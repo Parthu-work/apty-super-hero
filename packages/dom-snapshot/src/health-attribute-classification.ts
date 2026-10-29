@@ -1,25 +1,20 @@
 /**
  * Apty selector-generation configuration — Ignore Selector, Partial
- * Selector, and Attribute Priority — reconstructed from the REAL Apty
- * Studio extension (build `studio-extension_63`, specifically
- * `workflowPreview.js` modules 65913 (`initAttributes`/`addAttribute`) and
- * 92317 (`initOptions`/`defaultIgnore`)), not invented. A prior session
- * built these as a flat `{attribute: string}[]` rule list before any real
- * Apty source was available; that shape has been replaced entirely now
- * that the real one is known. See `docs/development/des-engine.md` for the
- * full reverse-engineering notes, including what could not be recovered
- * with confidence from the minified bundle.
+ * Selector and Attribute Priority — ported from Apty's own
+ * `lib-client-element-identification` (`options.ts`, `pattern.ts`). An
+ * earlier version was reconstructed from the minified Studio build 63;
+ * the defaults and the class handling below now follow the source.
  *
- * Real shape and precedence (module 65913's `addAttribute`, confirmed by
- * reading the actual minified-but-unmangled function): Ignore Selector and
- * Partial Selector are both FUNCTIONS keyed by attribute name, never a
- * flat rule list. For a given attribute, the Partial function is called
- * FIRST; only when it returns nothing does the Ignore function get
- * consulted at all. A Partial function returns the STABLE SUBSTRING(S) to
- * anchor on (a string or string array), not a boolean — the engine then
- * classifies each returned substring's relationship to the original value
- * as "prefix"/"suffix"/"partial" by whether the original value starts or
- * ends with it.
+ * Shape and precedence (`pattern.ts` `addAttribute`): Ignore Selector and
+ * Partial Selector are both FUNCTIONS keyed by attribute name. For a given
+ * attribute the Partial function is called FIRST; a non-empty result
+ * bypasses every ignore rule. A Partial function returns the STABLE
+ * SUBSTRING(S) to anchor on, and each one becomes a `^=`, `$=` or `*=`
+ * condition by where it sat in the original value.
+ *
+ * Classes take two passes: the attribute ignore sees the WHOLE `class`
+ * value (a hit drops every class on the element), then each token goes
+ * through the class ignore (`tether*` by default).
  */
 
 /** `defaultFn` is the built-in default for this same key, passed through so a configured function can call it and extend rather than fully replace the default (mirrors the real `addAttribute`'s `r(e,t,n,r)` fallback pattern). */
@@ -47,18 +42,31 @@ export interface IgnoreConfig {
 export type PartialConfig = Record<string, PartialFn | undefined>;
 
 /**
- * Real default ignore heuristic (`workflowPreview.js` module 92317,
- * `t.defaultIgnore`) — deliberately far coarser than a general "does this
- * look machine-generated" classifier: a small attribute-name blocklist,
- * `id`/`for` values containing 2+ consecutive digits anywhere, and classes
- * literally prefixed `tether` (a popup-positioning library Apty
- * special-cases). Nothing else is excluded by default — an arbitrary
- * `data-*` attribute, a non-id/for attribute containing digits, or a class
- * token that merely *looks* generated is INCLUDED by default unless Studio
- * configuration adds a rule for it. This is a real, confirmed divergence
- * from the previous (invented) `looksDynamic` classifier in
- * `health-dynamic.ts`, which is a different, unrelated heuristic used
- * elsewhere in this package and left untouched.
+ * Framework noise ignored by default that an application re-enables by
+ * listing it in its attribute priority (`options.ts`
+ * `OVERRIDABLE_IGNORED_ATTRIBUTES`). Apty-internal attributes and the
+ * digit heuristic always apply.
+ */
+export const OVERRIDABLE_IGNORED_ATTRIBUTES: readonly string[] = [
+  "style",
+  "data-reactid",
+  "data-react-checksum",
+  "tabindex",
+];
+
+const ALWAYS_IGNORED_ATTRIBUTES: readonly string[] = [
+  ...OVERRIDABLE_IGNORED_ATTRIBUTES,
+  "apty-observer-added",
+  "data-apty-qa",
+  "data-apty-qa-state",
+];
+
+/**
+ * Apty's default ignore (`options.ts` `defaultIgnore`): a short attribute
+ * list, `id`/`for` values with 2+ consecutive digits, `xmlns:` and `lnid`
+ * names, and class tokens starting `tether`. Nothing else is excluded:
+ * an arbitrary `data-*` attribute or a generated-looking class token is
+ * kept unless the application configures a rule for it.
  */
 export const DEFAULT_IGNORE: {
   attribute: IgnoreFn;
@@ -66,35 +74,20 @@ export const DEFAULT_IGNORE: {
   tag: IgnoreFn;
   contains: IgnoreFn;
 } = {
-  attribute: (name, value) => {
-    if (
-      [
-        "style",
-        "data-reactid",
-        "data-react-checksum",
-        "tabindex",
-        "apty-observer-added",
-      ].includes(name)
-    ) {
-      return true;
-    }
-    if (value && ["id", "for"].includes(name) && /\d{2,}/.test(value)) {
-      return true;
-    }
-    return /(^xmlns:)|lnid|apty/.test(name);
-  },
+  attribute: (name, value) =>
+    ALWAYS_IGNORED_ATTRIBUTES.includes(name) ||
+    (Boolean(value) && ["id", "for"].includes(name) && /\d{2,}/.test(value!)) ||
+    /(^xmlns:)|lnid/.test(name),
   class: (name) => name.startsWith("tether"),
   tag: () => false,
   contains: () => false,
 };
 
 /**
- * Real default priority (`workflowPreview.js` module 92317, `initOptions`'s
- * `priority: r||["id","class","href","src"]`) — no built-in preference for
- * `data-testid`/`aria-label`/`name`/`role` at all. Those only get tried
- * before everything else when Studio configuration adds them via
- * `partialSelectorAttributes`, which always takes precedence over the
- * priority list regardless of its own order (see `resolveAttributeOrder`).
+ * The library's own priority when nothing is configured (`options.ts`
+ * `initOptions`). Application-type presets replace it: Generic and Oracle
+ * use `aria-label,title,href,id`, Salesforce `href,title,id`, Workday
+ * `data-automation-id,id,href`.
  */
 export const DEFAULT_PRIORITY: readonly string[] = [
   "id",
@@ -109,6 +102,10 @@ export interface DesConfig {
   partialSelectors?: PartialConfig;
   /** Attribute names always tried first, ahead of `priority`, when building a selector (real `initAttributes`: `partialSelectorAttributes` is unshifted ahead of the priority-ordered list). */
   partialSelectorAttributes?: readonly string[];
+  /**
+   * Attributes the application declared as carrying identity: its configured priority plus its partial-selector attributes (`initOptions` `identityAttributes`). Selector optimization never reduces their value to a bare `[name]`. Empty when nothing is configured: the library's default priority is a guess at an order, not a claim about identity.
+   */
+  identityAttributes?: readonly string[];
   /** CSS selectors identifying a container to root path-building/searching at, instead of walking all the way to `document.body` (real `scopeRootSelectors`/`getScopeRootForElement`). */
   scopeRootSelectors?: readonly string[];
   /** Real `elementMatches`: when false (the default), a selector matching several elements is still treated as resolved if exactly one of them is actually rendered/visible. */
@@ -152,41 +149,44 @@ export function resolveAttributeOrder(
   return partialFirst;
 }
 
-function ignoreFnFor(config: DesConfig, key: string): IgnoreFn {
+function ignoreFnFor(config: DesConfig, key: "class" | "tag"): IgnoreFn {
   const configured = config.ignore[key];
-  const defaultFn =
-    key === "class" || key === "tag" || key === "contains"
-      ? DEFAULT_IGNORE[key]
-      : DEFAULT_IGNORE.attribute;
+  const defaultFn = DEFAULT_IGNORE[key];
   if (configured) {
     return (name, value) => configured(name, value, defaultFn);
   }
   return defaultFn;
 }
 
-/** The ignore function to use for one specific attribute name — a per-name override (`config.ignore[name]`) if present, else the general attribute-ignore function. */
+/** `createSelectorOptions`: an overridable default ignore stops applying once the application lists the attribute in its priority. */
+function defaultAttributeIgnore(config: DesConfig): IgnoreFn {
+  return (name, value) =>
+    config.priority.includes(name) &&
+    OVERRIDABLE_IGNORED_ATTRIBUTES.includes(name)
+      ? false
+      : DEFAULT_IGNORE.attribute(name, value);
+}
+
+/** The ignore function for one attribute name (`pattern.ts`: `ignore[name] ?? ignore.attribute`, handed the default as its fallback). */
 export function ignoreFnForAttribute(
   config: DesConfig,
   name: string,
 ): IgnoreFn {
-  const perAttribute = config.ignore[name];
-  const general = ignoreFnFor(config, "attribute");
-  if (perAttribute) {
-    return (n, v) => perAttribute(n, v, general);
+  const defaultFn = defaultAttributeIgnore(config);
+  const configured = config.ignore[name] ?? config.ignore.attribute;
+  if (configured) {
+    return (n, v) => configured(n, v, defaultFn);
   }
-  return general;
+  return defaultFn;
 }
 
+/** Applied to each class token; Apty passes no value, this port passes the whole `class` value so a hook can see a token's siblings. */
 export function ignoreFnForClass(config: DesConfig): IgnoreFn {
   return ignoreFnFor(config, "class");
 }
 
 export function ignoreFnForTag(config: DesConfig): IgnoreFn {
   return ignoreFnFor(config, "tag");
-}
-
-function ignoreFnForContains(config: DesConfig): IgnoreFn {
-  return ignoreFnFor(config, "contains");
 }
 
 export function partialFnForAttribute(

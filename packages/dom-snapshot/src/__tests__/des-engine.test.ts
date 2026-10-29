@@ -15,7 +15,6 @@ import {
   diffScore,
   elementMatches,
   findElement,
-  generateMinimalSelector,
   getContainerSelectors,
   pathToSelector,
   patternDiffScore,
@@ -66,10 +65,17 @@ describe("DEFAULT_IGNORE — the real Apty default (module 92317), not a general
     expect(DEFAULT_IGNORE.attribute("data-reactid", "abc")).toBe(true);
   });
 
-  it("blocklists attribute names containing 'lnid' or 'apty', or prefixed 'xmlns:'", () => {
+  it("blocklists attribute names containing 'lnid' or prefixed 'xmlns:', and Apty's own QA attributes", () => {
     expect(DEFAULT_IGNORE.attribute("data-lnid", "x")).toBe(true);
-    expect(DEFAULT_IGNORE.attribute("apty-widget-id", "x")).toBe(true);
     expect(DEFAULT_IGNORE.attribute("xmlns:foo", "x")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("data-apty-qa", "x")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("data-apty-qa-state", "x")).toBe(true);
+    expect(DEFAULT_IGNORE.attribute("apty-observer-added", "x")).toBe(true);
+  });
+
+  it("keeps other attribute names that merely contain 'apty', as the library does", () => {
+    expect(DEFAULT_IGNORE.attribute("apty-widget-id", "x")).toBe(false);
+    expect(DEFAULT_IGNORE.attribute("data-apty-step", "x")).toBe(false);
   });
 
   it("ignores classes only when literally prefixed 'tether', never for merely looking generated", () => {
@@ -476,33 +482,63 @@ describe("shadow DOM", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// generateMinimalSelector — faithful-intent reconstruction of real
-// match()/optimize() (see des-engine.ts's doc comment on exactly what
-// could not be recovered byte-for-byte).
-// ---------------------------------------------------------------------------
-
-describe("generateMinimalSelector", () => {
-  it("prefers a single stable id over combining multiple attributes", () => {
-    setHtml(`<button id="save-button" class="btn btn-primary">Save</button>`);
-    const el = document.querySelector("button")!;
-    const result = generateMinimalSelector(el, document, DEFAULT_DES_CONFIG);
-    expect(result?.selector).toBe('button[id="save-button"]');
-    expect(result?.usesPositionalSelector).toBe(false);
+describe("buildElementPattern — Apty's class and priority handling", () => {
+  it("drops a tether class token and keeps the other tokens", () => {
+    setHtml(`<div class="tether-element panel">x</div>`);
+    const pattern = buildElementPattern(document.querySelector("div")!);
+    expect(pattern.classes.map((c) => c.class)).toEqual(["panel"]);
   });
 
-  it("falls back to nth-child when nothing on the element alone is unique", () => {
-    setHtml(
-      `<ul><li class="row">A</li><li class="row">B</li><li class="row">C</li></ul>`,
+  it("drops every class when the attribute ignore matches the whole class value", () => {
+    setHtml(`<div class="row active-3">x</div>`);
+    const config: DesConfig = {
+      ...DEFAULT_DES_CONFIG,
+      ignore: {
+        attribute: (name, value, defaultFn) =>
+          Boolean(defaultFn?.(name, value)) ||
+          (name === "class" && /\d/.test(value ?? "")),
+      },
+    };
+    const pattern = buildElementPattern(document.querySelector("div")!, config);
+    expect(pattern.classes).toEqual([]);
+  });
+
+  it("re-enables an overridable default ignore listed in the priority", () => {
+    setHtml(`<div tabindex="0" style="color: red">x</div>`);
+    const el = document.querySelector("div")!;
+    expect(buildElementPattern(el).attributes.map((a) => a.name)).not.toContain(
+      "tabindex",
     );
-    const second = document.querySelectorAll("li")[1]!;
-    const result = generateMinimalSelector(
-      second,
-      document,
-      DEFAULT_DES_CONFIG,
-    );
-    expect(result?.usesPositionalSelector).toBe(true);
-    expect(document.querySelectorAll(result!.selector)).toHaveLength(1);
-    expect(document.querySelector(result!.selector)).toBe(second);
+    const config: DesConfig = {
+      ...DEFAULT_DES_CONFIG,
+      priority: ["tabindex", "id"],
+    };
+    expect(
+      buildElementPattern(el, config).attributes.map((a) => a.name),
+    ).toEqual(["tabindex"]);
+  });
+
+  it("renders a partial class part as an attribute condition on the whole class value", () => {
+    setHtml(`<div class="btn-x123 primary">x</div>`);
+    const config: DesConfig = {
+      ...DEFAULT_DES_CONFIG,
+      partialSelectors: { class: () => "btn-x" },
+    };
+    const pattern = buildElementPattern(document.querySelector("div")!, config);
+    expect(
+      patternToSelector({ ...pattern, relates: undefined, pseudo: [] }),
+    ).toBe('div[class^="btn-x"]');
+  });
+});
+
+describe("findElement — checkDirectElement tries the leaf unmodified first", () => {
+  it("finds the leaf alone when only an ancestor changed", () => {
+    setHtml(`<section id="a"><button name="go">Go</button></section>`);
+    const el = document.querySelector("button")!;
+    const path = buildElementPath(el);
+    document.querySelector("section")!.id = "b";
+    document.querySelector("section")!.className = "renamed";
+    const result = findElement(path, document);
+    expect(result.element).toBe(el);
   });
 });
