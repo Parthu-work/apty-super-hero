@@ -229,15 +229,7 @@ function isLikelyCasualMessage(lowerText: string): boolean {
   return trimmed.split(/\s+/).length <= 3;
 }
 
-/**
- * Select which browser tools to expose to the model for one chat message.
- *
- * @param userMessage The current user message text (not the full history —
- *   this is a per-turn decision, deliberately simple for a first rollout).
- * @returns The relevant tool objects (sourced from the same canonical
- *   `browserToolGroups`), or `[]` for messages that read as casual chat.
- */
-export function selectRelevantTools(userMessage: string): FunctionTool[] {
+function selectRelevantGroups(userMessage: string): Set<BrowserToolGroupName> {
   const text = userMessage.toLowerCase();
   const matchedGroups = new Set<BrowserToolGroupName>();
 
@@ -256,18 +248,24 @@ export function selectRelevantTools(userMessage: string): FunctionTool[] {
     matchedGroups.add("investigation");
   }
 
-  if (matchedGroups.size === 0) {
-    if (isLikelyCasualMessage(text)) {
-      return [];
-    }
+  if (matchedGroups.size === 0 && !isLikelyCasualMessage(text)) {
     for (const group of DEFAULT_FALLBACK_GROUPS) {
       matchedGroups.add(group);
     }
   }
+  return matchedGroups;
+}
 
+const REGISTRY_ORDER = Object.keys(browserToolGroups) as BrowserToolGroupName[];
+
+// In the registry's order, not the order the groups matched in, so the same
+// groups always produce the same tool list: a provider's prompt cache keys
+// on the exact prefix, and the tools come first in it.
+function toolsOf(groups: ReadonlySet<BrowserToolGroupName>): FunctionTool[] {
   const seenNames = new Set<string>();
   const selected: FunctionTool[] = [];
-  for (const group of matchedGroups) {
+  for (const group of REGISTRY_ORDER) {
+    if (!groups.has(group)) continue;
     for (const tool of browserToolGroups[group]) {
       if (!seenNames.has(tool.name)) {
         seenNames.add(tool.name);
@@ -276,4 +274,60 @@ export function selectRelevantTools(userMessage: string): FunctionTool[] {
     }
   }
   return selected;
+}
+
+/**
+ * Select which browser tools to expose to the model for one chat message.
+ *
+ * @param userMessage The current user message text (not the full history;
+ *   `createStickyToolSelector` adds the chat's recent turns).
+ * @returns The relevant tool objects (sourced from the same canonical
+ *   `browserToolGroups`), or `[]` for messages that read as casual chat.
+ */
+export function selectRelevantTools(userMessage: string): FunctionTool[] {
+  return toolsOf(selectRelevantGroups(userMessage));
+}
+
+const REMEMBERED_TURNS = 3;
+
+export interface StickyToolSelectorOptions {
+  /** Chats remembered at once; the least recently used one is forgotten first. */
+  maxSessions?: number;
+}
+
+/**
+ * `selectRelevantTools` with a memory per chat: a turn is offered its own
+ * message's tools plus those of the chat's last three turns that selected
+ * any, so a follow-up such as "ok go ahead" keeps the tools the
+ * investigation it continues was using, where on its own it reads as
+ * casual chat and gets none. A turn that selects nothing is not
+ * remembered, so short replies do not push the investigation out. A new
+ * chat, or a turn with no session, starts with no memory.
+ */
+export function createStickyToolSelector({
+  maxSessions = 50,
+}: StickyToolSelectorOptions = {}): (
+  text: string,
+  sessionId: string | null,
+) => FunctionTool[] {
+  const recentTurns = new Map<string, Set<BrowserToolGroupName>[]>();
+
+  return (text, sessionId) => {
+    const current = selectRelevantGroups(text);
+    if (sessionId === null) return toolsOf(current);
+
+    const turns = recentTurns.get(sessionId) ?? [];
+    const groups = new Set([...turns.flatMap((t) => [...t]), ...current]);
+
+    recentTurns.delete(sessionId);
+    recentTurns.set(
+      sessionId,
+      current.size > 0 ? [...turns, current].slice(-REMEMBERED_TURNS) : turns,
+    );
+    if (recentTurns.size > maxSessions) {
+      const oldest = recentTurns.keys().next().value;
+      if (oldest !== undefined) recentTurns.delete(oldest);
+    }
+    return toolsOf(groups);
+  };
 }

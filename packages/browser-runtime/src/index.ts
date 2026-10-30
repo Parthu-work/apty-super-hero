@@ -33,7 +33,10 @@ export { RuntimeScreenshotStorage } from "./storage/screenshot-storage.js";
 export { createFileFetchResponder } from "./tools/file-fetch-responder.js";
 // Tools
 export * from "./tools/index.js";
-export { selectRelevantTools } from "./tools/tool-relevance.js";
+export {
+  createStickyToolSelector,
+  selectRelevantTools,
+} from "./tools/tool-relevance.js";
 // SSRF range detection, shared between the skill fetch sandbox and any
 // other caller needing private/internal-IP checks (e.g. AI host validation)
 export { isIPv4, isPrivateIPv4, isPrivateIPv6 } from "./vm/url-guard.js";

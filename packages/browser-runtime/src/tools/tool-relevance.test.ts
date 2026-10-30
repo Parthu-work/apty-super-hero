@@ -14,7 +14,9 @@ import { describe, expect, it } from "vitest";
 };
 
 const { allBrowserTools, browserToolGroups } = await import("./index.js");
-const { selectRelevantTools } = await import("./tool-relevance.js");
+const { createStickyToolSelector, selectRelevantTools } = await import(
+  "./tool-relevance.js"
+);
 
 function names(tools: { name: string }[]): string[] {
   return tools.map((t) => t.name).sort();
@@ -133,5 +135,77 @@ describe("selectRelevantTools", () => {
     for (const tool of result) {
       expect(allNames.has(tool.name)).toBe(true);
     }
+  });
+});
+
+describe("tool order", () => {
+  it("is the registry's, however the groups were matched, so equal sets send equal schemas", () => {
+    const implied = selectRelevantTools("check the apty client service worker");
+    const keyword = selectRelevantTools(
+      "investigate the apty client service worker",
+    );
+
+    expect(names(implied)).toEqual(names(keyword));
+    expect(implied.map((t) => t.name)).toEqual(keyword.map((t) => t.name));
+  });
+});
+
+describe("createStickyToolSelector", () => {
+  const investigation = "investigate why the apty widget is broken here";
+
+  it("keeps the chat's earlier tools for a short follow-up such as 'ok go ahead'", () => {
+    const select = createStickyToolSelector();
+
+    const first = select(investigation, "s-1");
+    const followUp = select("ok go ahead", "s-1");
+
+    expect(selectRelevantTools("ok go ahead")).toEqual([]);
+    expect(names(followUp)).toEqual(names(first));
+  });
+
+  it("adds the current message's tools to the remembered ones", () => {
+    const select = createStickyToolSelector();
+    select(investigation, "s-1");
+
+    const both = names(select("now take a screenshot", "s-1"));
+
+    expect(both).toEqual(
+      expect.arrayContaining(["capture_screenshot", "start_investigation"]),
+    );
+  });
+
+  it("remembers only the last three tool-using turns", () => {
+    const select = createStickyToolSelector();
+    select(investigation, "s-1");
+    select("take a screenshot", "s-1");
+    select("switch to the other tab", "s-1");
+    select("highlight the save button", "s-1");
+
+    const followUp = names(select("ok", "s-1"));
+
+    expect(followUp).not.toContain("start_investigation");
+    expect(followUp).toEqual(
+      expect.arrayContaining(["capture_screenshot", "switch_to_tab"]),
+    );
+  });
+
+  it("keeps each chat's memory apart, and has none without a session", () => {
+    const select = createStickyToolSelector();
+    select(investigation, "s-1");
+
+    expect(select("ok go ahead", "s-2")).toEqual([]);
+    expect(select("ok go ahead", null)).toEqual([]);
+    select(investigation, null);
+    expect(select("ok go ahead", null)).toEqual([]);
+  });
+
+  it("forgets the oldest chat once it holds the most it keeps", () => {
+    const select = createStickyToolSelector({ maxSessions: 2 });
+    select(investigation, "s-1");
+    select(investigation, "s-2");
+    select(investigation, "s-3");
+
+    expect(select("ok", "s-1")).toEqual([]);
+    expect(select("ok", "s-3").length).toBeGreaterThan(0);
   });
 });

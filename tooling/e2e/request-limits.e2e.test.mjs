@@ -5,7 +5,8 @@
  * request budget shortens an earlier turn to fit, then stops a message that
  * cannot fit before it reaches the provider. The system prompt is its core
  * alone on a turn that offers no tools, with a tool's guidance only on a
- * turn that offers that tool.
+ * turn that offers that tool. A short follow-up keeps the tools of the chat
+ * it continues; the same words in a new chat get none.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -126,6 +127,32 @@ describe("request limits", () => {
       systemPrompt(casual).length < systemPrompt(investigation).length / 2,
       `core ${systemPrompt(casual).length} chars, investigation ${systemPrompt(investigation).length}`,
     );
+    await panel.close();
+    await app.close();
+  });
+
+  it("keeps an investigation's tools for 'ok go ahead' in its chat, and offers none in a new chat", async () => {
+    const { app, panel } = await panelOnApp();
+    model.script(() => ({ text: "RESULT: ok" }));
+    const offered = (request) =>
+      (request.tools ?? []).map((t) => t.function?.name);
+
+    await chatAndWait(panel, "investigate why the apty widget is broken here");
+    const investigation = offered(model.requests.at(-1));
+    await chatAndWait(panel, "ok go ahead");
+    const followUp = model.requests.at(-1);
+
+    assert.ok(investigation.includes("start_investigation"));
+    assert.deepEqual(offered(followUp), investigation);
+    assert.match(systemPrompt(followUp), /=== THE DEBUGGING LOOP/);
+
+    await panel.getByRole("button", { name: "New chat" }).click();
+    await panel
+      .getByRole("heading", { name: "What are we debugging?" })
+      .waitFor();
+    await chatAndWait(panel, "ok go ahead");
+    assert.deepEqual(offered(model.requests.at(-1)), []);
+    assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await app.close();
   });

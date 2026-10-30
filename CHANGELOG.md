@@ -6,6 +6,17 @@ full commit-level history.
 
 ## Unreleased
 
+- **Sticky tool selection (LLM plan P1)**: a short follow-up such as "ok go ahead" keeps the tools of the chat it continues. Before, it read as casual chat and was offered no tools, so the model could not carry on the investigation it had just proposed.
+  - **What a turn gets**: its own message's tool groups plus those of the chat's last 3 turns that selected any. A turn that selects nothing is not remembered, so short replies do not push the investigation out.
+  - **Per chat**: the memory is per chat, for the 50 most recently used. A new chat starts empty, so "hi" there still gets no tools.
+  - **Fixed order**: tools come in the registry's order, not the order their keywords matched, so the same groups always send the same tool list.
+  - **Measured** with `npm run report:request-size`: the follow-up scenario goes from 0 tools (2,784 tokens) to the 6 DOM Health tools it continues (4,585). Every other scenario is unchanged.
+  - **Tests**: the request-limits Chromium test checks that "ok go ahead" after an investigation is offered that turn's tools and the debugging loop, and that the same words in a new chat get none.
+- **Prompt caching for Anthropic (LLM plan P3)**: Anthropic requests mark the system prompt, which also covers the tools, and the newest message as cache breakpoints. The next step of a tool loop, or the next turn, can read the conversation so far from Anthropic's cache.
+  - **Cost**: a cache write costs 1.25 times the input price and a read about a tenth, with a 5-minute lifetime. A prefix under the model's minimum is not cached and costs nothing extra.
+  - **Other providers**: no markers. The fixed tool order and P2's byte-stable core keep the start of each request the same for their prefix caches.
+  - **Tests**: a unit test checks the request body Anthropic gets: the breakpoints on the system prompt and on the last block of the newest message, including a tool result, and nowhere else.
+  - **Not measured**: cache hits or savings against a real provider.
 - **A smaller system prompt (LLM plan P2)**: the system prompt is now a byte-stable core plus sections of guidance keyed by tool. A call carries a section only when it offers one of that section's tools.
   - **The core**: identity and scope, the two-extension architecture, the evidence-first answer format, the untrusted-page rule and the tool-call format. It is 1,258 estimated tokens and is sent on every call, the same bytes first.
   - **The sections**: the debugging loop (with `start_investigation`), Client and Widget debugging, retrieving a resource, Studio debugging, and each tool-boundaries paragraph (with the tools it names).

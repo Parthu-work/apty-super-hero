@@ -9,7 +9,7 @@ import {
   type RequestAnatomy,
 } from "@apty/browser-runtime/runtime/request-anatomy";
 import { allBrowserTools } from "@apty/browser-runtime/tools/index";
-import { selectRelevantTools } from "@apty/browser-runtime/tools/tool-relevance";
+import { createStickyToolSelector } from "@apty/browser-runtime/tools/tool-relevance";
 import { composeSystemPrompt } from "@apty/ui/components/chatbot/constants";
 import { describe, expect, it } from "vitest";
 import { createOutboundFilters } from "./outbound-filters";
@@ -101,12 +101,23 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
+/** The tools the extension offers: each earlier user message is a turn of the same chat. */
+function toolsFor(scenario: Scenario): MeasurableTool[] {
+  const select = createStickyToolSelector();
+  for (const item of scenario.history) {
+    if (item.type === "message" && item.role === "user") {
+      select(String(item.content), scenario.name);
+    }
+  }
+  return select(scenario.message, scenario.name) as MeasurableTool[];
+}
+
 /** `sent` runs the outbound filters the extension installs; `raw` does not. */
 async function measure(
   scenario: Scenario,
   sent: boolean,
 ): Promise<RequestAnatomy> {
-  const tools = selectRelevantTools(scenario.message) as MeasurableTool[];
+  const tools = toolsFor(scenario);
   let input = [...scenario.history, user(scenario.message)];
   if (sent) {
     for (const filter of createOutboundFilters()) {
@@ -143,7 +154,7 @@ async function measureWithBudget(
   scenario: Scenario,
   budget: number,
 ): Promise<number | "stopped"> {
-  const tools = selectRelevantTools(scenario.message) as MeasurableTool[];
+  const tools = toolsFor(scenario);
   let input = [...scenario.history, user(scenario.message)] as AgentInputItem[];
   const filters = [
     ...createOutboundFilters(),
@@ -216,6 +227,13 @@ describe("request anatomy scenarios", () => {
     ]) {
       expect(byName(sent, name)).toEqual(byName(rows, name));
     }
+  });
+
+  it("a follow-up is offered the tools of the turn it continues", () => {
+    const followup = byName(rows, "followup");
+    expect(followup.toolCount).toBeGreaterThan(0);
+    expect(followup.toolCount).toBe(byName(rows, "dom-health").toolCount);
+    expect(byName(rows, "casual").toolCount).toBe(0);
   });
 
   it("a request budget sends at most the budget, or stops the request", () => {
