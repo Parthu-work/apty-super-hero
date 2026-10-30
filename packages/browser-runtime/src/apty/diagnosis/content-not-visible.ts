@@ -17,10 +17,13 @@ import {
   fileOf,
   fileParams,
   jsonOf,
+  labelOf,
   looks4x,
   makeGate,
+  namesOf,
   type Rec,
   records,
+  resolveItems,
   short,
   text,
   texts,
@@ -62,18 +65,6 @@ export function filesFor(kind: ContentKind): string[] {
     "app-data.json",
   ];
 }
-
-/** The names an item shows, from its own `name` and each locale's `name`. */
-function namesOf(item: Rec): string[] {
-  const own = text(item.name);
-  const localized = records(item.locales).flatMap((l) => {
-    const name = text(l.name);
-    return name ? [name] : [];
-  });
-  return [...new Set([...(own ? [own] : []), ...localized])];
-}
-
-const labelOf = (item: Rec) => namesOf(item)[0] ?? "(unnamed)";
 
 function gate(
   id: GateId,
@@ -173,21 +164,6 @@ function environmentGate(evidence: ClientEvidence): GateResult {
     `The Apty Client loaded the ${name} environment (order ${String(env.order)}).`,
     { env: name, order: String(env.order) },
     [`env id ${short(envKey ?? "")} = ${name} in app-urls.json`],
-  );
-}
-
-function resolveItems(items: Rec[], query: string): Rec[] {
-  const wanted = query.trim().toLowerCase();
-  const byId = items.filter(
-    (i) => text(i.sourceId) === query.trim() || text(i.id) === query.trim(),
-  );
-  if (byId.length > 0) return byId;
-  const exact = items.filter((i) =>
-    namesOf(i).some((n) => n.trim().toLowerCase() === wanted),
-  );
-  if (exact.length > 0) return exact;
-  return items.filter((i) =>
-    namesOf(i).some((n) => n.toLowerCase().includes(wanted)),
   );
 }
 

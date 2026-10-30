@@ -148,6 +148,66 @@ describe("routeSymptom", () => {
     }
   });
 
+  const selector: Array<[string, Record<string, unknown>]> = [
+    [
+      "Apty cannot find the element for the 'Lead source help' tooltip",
+      { kind: "tooltip", query: "Lead source help" },
+    ],
+    [
+      "the Save tooltip is on the wrong element",
+      { kind: "tooltip", query: "Save" },
+    ],
+    [
+      "the selector is green in Studio but the launcher does not appear",
+      { kind: "launcher" },
+    ],
+    [
+      "workflow 'Take a tour' step 2 fails, the element is not identified",
+      { kind: "workflow", query: "Take a tour", step: 2 },
+    ],
+    [
+      "the Email format validation's selector stopped working",
+      { kind: "validation", query: "Email format" },
+    ],
+    ["my tooltip is missing after a page reload", { kind: "tooltip" }],
+  ];
+  for (const [message, expected] of selector) {
+    it(`routes "${message}" to the selector check`, () => {
+      expect(routeSymptom(message)).toEqual({
+        packId: "element-not-found",
+        ...expected,
+      });
+    });
+  }
+
+  it("routes a page where nothing can be selected to the page check, and keeps DOM Health requests with the model", () => {
+    for (const message of [
+      "Apty cannot select any elements on this page",
+      "the element picker does not work here",
+      "only the header and footer can be selected",
+      "is this page Apty-ready?",
+    ]) {
+      expect(routeSymptom(message)).toEqual({ packId: "page-readiness" });
+    }
+    for (const message of [
+      "check DOM health",
+      "run a DOM health audit of this page",
+      "how do I use the element picker?",
+      "select the Save button",
+    ]) {
+      expect(routeSymptom(message)).toBeUndefined();
+    }
+  });
+
+  it("keeps a visibility question on the content check when it does not say the element is not found", () => {
+    expect(routeSymptom("the Save tooltip is not showing")?.packId).toBe(
+      "content-not-visible",
+    );
+    expect(routeSymptom("the tooltip fails with a CSP error")?.packId).toBe(
+      "logs-and-errors",
+    );
+  });
+
   it("does not read an apostrophe as the start of a name", () => {
     expect(
       routeSymptom("the user's workflow isn't showing in the widget")?.query,

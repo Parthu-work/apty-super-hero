@@ -10,6 +10,7 @@
  */
 import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
 import { z } from "zod";
+import type { DomHealthAuditOutcome } from "../apty/dom-health.js";
 import { REDACTED_TITLE } from "../apty/dom-health-redaction.js";
 import {
   DEFAULT_APPLICATION_MAX_PAGES,
@@ -51,6 +52,20 @@ async function userAuditSettings(): Promise<{
         ? settings.domHealthThresholdOverrides
         : undefined,
   };
+}
+
+/** The DOM Health audit of the conversation's tab for the page check, or undefined when no tab resolves. */
+export async function tabDomHealthOf(
+  runContext: unknown,
+): Promise<DomHealthAuditOutcome | undefined> {
+  const resolution = await resolveDiagnosticTab({
+    context: runContext,
+  } as ToolRunContext);
+  if (!resolution.ok) return undefined;
+  return runDomHealthAudit(
+    resolution.tab.id as number,
+    await userAuditSettings(),
+  );
 }
 
 /** @internal */

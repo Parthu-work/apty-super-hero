@@ -26,7 +26,9 @@ import {
   isSafeToDiscover,
   replayElementRefs,
   resolveDomPath,
+  type StoredElementTarget,
   shadowRootOf,
+  testStoredElement,
 } from "@apty/dom-snapshot";
 import { startCapture, stopCapture } from "./element-capture";
 import {
@@ -456,6 +458,26 @@ function settingsEntries(value: unknown): string[] {
     : [];
 }
 
+const MAX_STORED_SELECTOR_CHARS = 4000;
+const MAX_STORED_SHADOW_HOSTS = 20;
+
+/** A stored selector from a check pack, or null when the message does not carry a well-formed one. */
+function storedElementTarget(value: unknown): StoredElementTarget | null {
+  const target = value as Partial<StoredElementTarget> | null;
+  if (
+    !target ||
+    (target.language !== "css" && target.language !== "xpath") ||
+    typeof target.selector !== "string" ||
+    target.selector.length === 0 ||
+    target.selector.length > MAX_STORED_SELECTOR_CHARS
+  ) {
+    return null;
+  }
+  const shadowRoots = settingsEntries(target.shadowRoots);
+  if (shadowRoots.length > MAX_STORED_SHADOW_HOSTS) return null;
+  return { language: target.language, selector: target.selector, shadowRoots };
+}
+
 /** Paths may cross shadow boundaries (`buildComposedDomPath`), so they are resolved hop by hop, never with one `querySelector`. */
 export function clickSafeNavigationCandidate(domPath: unknown) {
   const path = typeof domPath === "string" ? domPath : "";
@@ -614,6 +636,16 @@ export function handleFrameMessage(
             document,
             Array.isArray(message.samples) ? message.samples : [],
           ),
+      );
+    case "test-apty-element":
+      return respondAsync(
+        sendResponse,
+        "Failed to test the stored selector",
+        () => {
+          const target = storedElementTarget(message.target);
+          if (!target) throw new Error("No stored selector to test.");
+          return testStoredElement(document, target);
+        },
       );
     case "describe-dom-health-frame-self":
       return respondAsync(sendResponse, "Failed to describe this frame", () =>

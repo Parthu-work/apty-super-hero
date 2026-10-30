@@ -4,9 +4,12 @@
  * and says it is not visible is a content check; one that says the widget
  * itself is missing, or works in one environment or on some pages only, is a
  * widget check; one that quotes a message the KB cards name, or asks about
- * CSP, CORS, Apty's 404s or the errors in the logs, is a logs check; a
- * how-to question, a request to investigate that only mentions the console
- * or the network, or anything else is left to the model.
+ * CSP, CORS, Apty's 404s or the errors in the logs, is a logs check; one
+ * that names an item and says Apty cannot find its element, or that it sits
+ * on the wrong one, is a selector check; one that says nothing can be
+ * selected on the page is a page check; a how-to question, a request to
+ * investigate that only mentions the console or the network, or anything
+ * else is left to the model.
  */
 import { LANGUAGE_CODES } from "./languages.js";
 import type { ContentKind } from "./types.js";
@@ -21,6 +24,14 @@ export type Route =
       language?: string;
     }
   | { packId: "widget-not-visible" }
+  | {
+      packId: "element-not-found";
+      kind: ContentKind;
+      query?: string;
+      /** The workflow step the message names, 1-based. */
+      step?: number;
+    }
+  | { packId: "page-readiness" }
   | {
       packId: "logs-and-errors";
       /** The message suspects Apty of the application's 404s (JA 1496645781). */
@@ -65,12 +76,17 @@ const AFTER_KIND = new RegExp(
   `\\b(?:${KIND_NOUN})\\s+(?!is\\b|isn't\\b|are\\b|was\\b|does\\b|doesn't\\b|not\\b|in\\b|on\\b|for\\b|that\\b|which\\b)(.{2,60}?)\\s+(?:is|isn't|was|does|doesn't|did|didn't|won't|has|are)\\b`,
   "i",
 );
-const NOT_A_NAME = /^(?:my|our|the|a|an|this|that|new|published|apty)$/i;
+const NOT_A_NAME = /^(?:my|our|the|a|an|this|that|new|published|apty|its)$/i;
 const POSSESSIVE = /['’]s?$/;
+const TRAILING_STEP = /\s+(?:at\s+)?step\s+\d{1,3}$/i;
+
+/** Words of a clause, not a name: "the selector is green in Studio but the launcher". */
+const CLAUSE = /\b(?:is|are|was|were|but|when|if|because)\b/i;
 
 function itemName(message: string): string | undefined {
   for (const pattern of [QUOTED, CALLED, BEFORE_KIND, AFTER_KIND]) {
-    const name = pattern.exec(message)?.[1]?.trim();
+    const name = pattern.exec(message)?.[1]?.trim().replace(TRAILING_STEP, "");
+    if (pattern === BEFORE_KIND && name && CLAUSE.test(name)) continue;
     if (name && !NOT_A_NAME.test(name) && !POSSESSIVE.test(name)) return name;
   }
   return undefined;
@@ -106,6 +122,32 @@ function asksForLogs(lower: string): Route | undefined {
     : undefined;
 }
 
+const ELEMENT_PROBLEM = new RegExp(
+  [
+    "\\b(?:cannot|can't|can not|could not|couldn't|does not|doesn't|did not|didn't|unable to|fails? to|failed to|not able to)\\s+(?:find|identify|locate|track|detect)\\b[^.?!]{0,30}\\b(?:element|target|field|button)s?\\b",
+    "\\b(?:element|target)s? (?:is |was )?(?:not|never) (?:found|identified|detected|tracked)\\b",
+    "\\bselectors?\\b[^.?!]{0,30}\\b(?:not working|doesn't work|does not work|stopped working|fails?|failing|failed|broken|invalid|changed)\\b",
+    "\\b(?:green|valid(?:ates)?) in studio\\b",
+    "\\b(?:on|to|at) (?:the |a )?wrong element\\b",
+    "\\bstep\\b[^.?!]{0,30}\\b(?:fails?|failing|failed|errors?|breaks?|broke|stuck)\\b",
+    "\\bmissing after (?:a |the )?(?:page )?(?:reload|refresh)\\b",
+  ].join("|"),
+);
+const STEP_NUMBER = /\bstep\s+(\d{1,3})\b/;
+const PAGE_SELECTION =
+  /\b(?:cannot|can't|can not|unable to|not able to|could not|couldn't)\s+(?:select|pick)\s+(?:any(?:thing)?|(?:the |any )?elements?)\b|\belement picker\b[^.?!]{0,40}\b(?:doesn't|does not|can't|cannot|won't|not|fails?)\b|\bonly (?:the )?header and footer\b|\bis (?:this|the) page (?:apty[- ])?(?:ready|supported)\b/;
+
+function elementRoute(message: string, kind: ContentKind): Route {
+  const query = itemName(message);
+  const step = Number(STEP_NUMBER.exec(message.toLowerCase())?.[1] ?? 0);
+  return {
+    packId: "element-not-found",
+    kind,
+    ...(query ? { query } : {}),
+    ...(step > 0 ? { step } : {}),
+  };
+}
+
 /** The pack, kind and item a message asks about, or undefined to leave it to the model. */
 export function routeSymptom(message: string): Route | undefined {
   const lower = message.toLowerCase();
@@ -114,7 +156,9 @@ export function routeSymptom(message: string): Route | undefined {
     return { packId: "logs-and-errors", about404: true };
   if (LOG_EVIDENCE.test(lower)) return { packId: "logs-and-errors" };
   const kind = KIND_WORDS.find(([, pattern]) => pattern.test(lower))?.[0];
+  if (kind && ELEMENT_PROBLEM.test(lower)) return elementRoute(message, kind);
   if (!kind) {
+    if (PAGE_SELECTION.test(lower)) return { packId: "page-readiness" };
     const widgetMissing = WIDGET.test(lower) && NOT_VISIBLE.test(lower);
     if (
       widgetMissing ||

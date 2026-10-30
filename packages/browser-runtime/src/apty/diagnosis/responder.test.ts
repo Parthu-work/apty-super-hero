@@ -96,7 +96,7 @@ describe("createDiagnosisResponder", () => {
 
   it("answers a widget question for the page open in the conversation's tab, without putting its URL in the answer", async () => {
     const pageUrlOf = vi.fn(async () => "https://intranet.other.example/home");
-    const respond = createDiagnosisResponder(undefined, pageUrlOf);
+    const respond = createDiagnosisResponder({ pageUrlOf });
 
     const answer = await respond("the Apty widget is not appearing", {
       runContext: { conversationId: "s-1", tabId: 4 },
@@ -118,11 +118,7 @@ describe("createDiagnosisResponder", () => {
       framesRead: 1,
       framesDisabled: 0,
     }));
-    const respond = createDiagnosisResponder(
-      undefined,
-      undefined,
-      pageConsoleOf,
-    );
+    const respond = createDiagnosisResponder({ pageConsoleOf });
 
     const answer = await respond("any errors in the console?", {
       runContext: { conversationId: "s-3", tabId: 6 },
@@ -158,8 +154,78 @@ describe("createDiagnosisResponder", () => {
     );
   });
 
+  it("runs an item's stored selector in the conversation's tab, and keeps the selector out of the answer", async () => {
+    const probe = vi.fn(async () => ({
+      ok: true as const,
+      frames: [
+        {
+          depth: 0,
+          sameOriginAsTop: true,
+          answered: true,
+          test: {
+            invalid: false,
+            matchCount: 2,
+            renderedCount: 2,
+            brokenHostIndex: null,
+            shadowMatches: 0,
+            chosen: { rendered: true, inViewport: true },
+          },
+        },
+      ],
+    }));
+    const elementProbeOf = vi.fn(() => probe);
+    const respond = createDiagnosisResponder({ elementProbeOf });
+
+    const answer = await respond(
+      "the 'Lead source help' tooltip is on the wrong element",
+      { runContext: { conversationId: "s-4", tabId: 7 } },
+    );
+
+    expect(elementProbeOf).toHaveBeenCalledWith({
+      conversationId: "s-4",
+      tabId: 7,
+    });
+    expect(probe).toHaveBeenCalledWith(
+      expect.objectContaining({ selector: 'select[name="lead_source"]' }),
+    );
+    expect(answer?.params).toEqual({
+      kind: "tooltip",
+      problem: "element-not-found",
+      name: "Lead source help",
+    });
+    const result = answer?.result as DiagnosisResult;
+    expect(result.verdict.causes[0]?.ruleId).toBe("SEL-08");
+    expect(answer?.transcript).toMatch(
+      /^Selector check of tooltip "Lead source help" from the Apty Client's files/,
+    );
+    expect(JSON.stringify(answer)).not.toContain("lead_source");
+  });
+
+  it("answers a page where nothing can be selected from DOM Health's audit of the tab", async () => {
+    const domHealthOf = vi.fn(async () => undefined);
+    const respond = createDiagnosisResponder({ domHealthOf });
+
+    const answer = await respond(
+      "Apty cannot select any elements on this page",
+      { runContext: { conversationId: "s-5", tabId: 8 } },
+    );
+
+    expect(domHealthOf).toHaveBeenCalledWith({
+      conversationId: "s-5",
+      tabId: 8,
+    });
+    expect(answer?.params).toEqual({ kind: "page" });
+    expect((answer?.result as DiagnosisResult).packId).toBe("page-readiness");
+    expect(answer?.transcript).toMatch(
+      /^Page selection check from DOM Health's audit of the page/,
+    );
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
   it("answers with a named no-data result when no Client is saved", async () => {
-    const respond = createDiagnosisResponder(async () => undefined);
+    const respond = createDiagnosisResponder({
+      clientExtensionId: async () => undefined,
+    });
 
     const answer = await respond("my workflow is not visible", {});
 
@@ -228,6 +294,24 @@ describe("run_diagnosis", () => {
     expect(result.verdict.causes[0]?.ruleId).toBe("CNV-07");
     const contacted = new Set(mockSendMessage.mock.calls.map((c) => c[0]));
     expect([...contacted]).toEqual([EXT_ID]);
+  });
+
+  it("runs the selector check when the model asks for an element that is not found, and needs a web page in the tab", async () => {
+    mockTabsGet.mockResolvedValue({ url: "chrome://newtab/" });
+
+    const result = (await runDiagnosisTool.invoke(
+      { context: { conversationId: "s-6", tabId: 3 } } as never,
+      JSON.stringify({
+        kind: "tooltip",
+        name: "Lead source help",
+        problem: "element-not-found",
+      }),
+    )) as DiagnosisResult;
+
+    expect(result.packId).toBe("element-not-found");
+    expect(result.gates.find((g) => g.id === "lookup")?.reason).toBe(
+      "noPageToProbe",
+    );
   });
 
   it("runs the widget check for the tool's own tab when the model asks for kind widget", async () => {

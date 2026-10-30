@@ -116,6 +116,20 @@ tab, and names each one it could not read:
 | "The page's CSP blocked … none from a host the Apty Client uses" | A CSP block that the agent cannot attribute to Apty | Read the Console text: a nonce means a player version with nonce support, a plain block means whitelisting. |
 | A CORS problem the check does not show | The browser does not report CORS blocks to the page | Read the Console and the Network tab yourself; the card lists this under "Not checked". |
 
+A message that names a tooltip, launcher, validation or workflow and says
+Apty cannot find its element (or it is on the wrong element, the selector
+stopped working, a step fails) runs the selector check. It runs the item's
+stored selector in every frame of this tab; "Apty cannot select any
+elements on this page" runs the page check on DOM Health's audit instead:
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "The steps of … are in its own file, which the Apty Client has not loaded" | The Client loads a workflow's steps when it plays | Play the workflow once in this tab, then ask again. |
+| "No web page is open in this tab, so the selector was not run" | The check runs the selector in the conversation's tab | Open the page where the content should show there, then ask again. |
+| "… is identified by JQUERY/CUSTOM_SCRIPT, which is code the check does not run" | The check never runs the application's code | Run that selector in the Console on the page yourself. |
+| "… matches nothing in the frames that answered; N frame(s) did not answer" | A frame, often cross-origin, did not answer the agent | The element may be in it: check that frame in DevTools. |
+| "… matches nothing on this page, which is expected if it runs on another page" | A workflow step on a different page | Name the failing step ("step 3") with its page open in this tab. |
+
 A message that names no content kind but says the widget is missing, works
 in one environment only, or works on some pages only runs the widget check
 instead. A message that names a language ("…for French users") also checks

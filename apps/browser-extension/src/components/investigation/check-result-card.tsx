@@ -1,5 +1,6 @@
 /**
- * The result of a check pack (an item not visible, or the widget itself),
+ * The result of a check pack (an item not visible, the widget itself, the
+ * logs, an item's element or the page's element selection),
  * from `run_diagnosis` or from a turn the agent answered without the model:
  * the verdict, each cause with its evidence, fix and KB card, the next check,
  * the checks in the card's order, and what the files cannot decide. Rule
@@ -33,6 +34,8 @@ const PACKS = new Set([
   "content-not-visible",
   "widget-not-visible",
   "logs-and-errors",
+  "element-not-found",
+  "page-readiness",
 ]);
 
 function isDiagnosisResult(value: unknown): value is DiagnosisResult {
@@ -132,6 +135,74 @@ const CAUSE_TEXT: Partial<
     summary: "checkPack.rule.LOG-06.summary",
     fix: "checkPack.rule.LOG-06.fix",
   },
+  "SEL-02": {
+    summary: "checkPack.rule.SEL-02.summary",
+    fix: "checkPack.rule.SEL-02.fix",
+  },
+  "SEL-04": {
+    summary: "checkPack.rule.SEL-04.summary",
+    fix: "checkPack.rule.SEL-04.fix",
+  },
+  "SEL-05": {
+    summary: "checkPack.rule.SEL-05.summary",
+    fix: "checkPack.rule.SEL-05.fix",
+  },
+  "SEL-06": {
+    summary: "checkPack.rule.SEL-06.summary",
+    fix: "checkPack.rule.SEL-06.fix",
+  },
+  "SEL-07": {
+    summary: "checkPack.rule.SEL-07.summary",
+    fix: "checkPack.rule.SEL-07.fix",
+  },
+  "SEL-08": {
+    summary: "checkPack.rule.SEL-08.summary",
+    fix: "checkPack.rule.SEL-08.fix",
+  },
+  "SEL-09": {
+    summary: "checkPack.rule.SEL-09.summary",
+    fix: "checkPack.rule.SEL-09.fix",
+  },
+  "SEL-10": {
+    summary: "checkPack.rule.SEL-10.summary",
+    fix: "checkPack.rule.SEL-10.fix",
+  },
+  "SEL-11": {
+    summary: "checkPack.rule.SEL-11.summary",
+    fix: "checkPack.rule.SEL-11.fix",
+  },
+  "SEL-12": {
+    summary: "checkPack.rule.SEL-12.summary",
+    fix: "checkPack.rule.SEL-12.fix",
+  },
+  "SEL-13": {
+    summary: "checkPack.rule.SEL-13.summary",
+    fix: "checkPack.rule.SEL-13.fix",
+  },
+  "DOM-01": {
+    summary: "checkPack.rule.DOM-01.summary",
+    fix: "checkPack.rule.DOM-01.fix",
+  },
+  "DOM-03": {
+    summary: "checkPack.rule.DOM-03.summary",
+    fix: "checkPack.rule.DOM-03.fix",
+  },
+  "DOM-04": {
+    summary: "checkPack.rule.DOM-04.summary",
+    fix: "checkPack.rule.DOM-04.fix",
+  },
+  "DOM-05": {
+    summary: "checkPack.rule.DOM-05.summary",
+    fix: "checkPack.rule.DOM-05.fix",
+  },
+  "DOM-06": {
+    summary: "checkPack.rule.DOM-06.summary",
+    fix: "checkPack.rule.DOM-06.fix",
+  },
+  "DOM-07": {
+    summary: "checkPack.rule.DOM-07.summary",
+    fix: "checkPack.rule.DOM-07.fix",
+  },
 };
 
 type Translate = ReturnType<typeof useTranslation>["t"];
@@ -153,8 +224,20 @@ function useCheckText(): Translate {
   };
 }
 
+const PART_KEY: Record<string, TranslationKey> = {
+  own: "checkPack.part.own",
+  disabled: "checkPack.part.disabled",
+  step: "checkPack.part.step",
+};
+
+/** Names where on the item an element sits ("Step 2"), for the strings that start with it. */
+function withWhere(t: Translate, params: GateResult["params"]) {
+  const key = PART_KEY[String(params.part)];
+  return key ? { ...params, where: t(key, { n: params.n ?? 1 }) } : params;
+}
+
 function gateText(t: Translate, gate: GateResult): string {
-  return t(`checkPack.reason.${gate.reason}`, gate.params);
+  return t(`checkPack.reason.${gate.reason}`, withWhere(t, gate.params));
 }
 
 function headline(t: Translate, result: DiagnosisResult, kind: string) {
@@ -179,7 +262,7 @@ function headline(t: Translate, result: DiagnosisResult, kind: string) {
 
 function causeText(t: Translate, cause: Cause, kind: string) {
   const keys = CAUSE_TEXT[cause.ruleId];
-  const params = { ...cause.params, kind };
+  const params = { ...withWhere(t, cause.params), kind };
   return keys
     ? { summary: t(keys.summary, params), fix: t(keys.fix, params) }
     : { summary: cause.summary, fix: cause.fix };
@@ -263,17 +346,23 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
   const { verdict, subject, scan } = result;
   const kind = t(`checkPack.kind.${subject.kind}`);
   const title =
-    subject.kind === "logs"
-      ? t("checkPack.titleLogs")
-      : subject.kind === "widget"
-        ? t("checkPack.titleWidget")
-        : scan
-          ? t("checkPack.titleScan", { kind })
-          : subject.query
-            ? t("checkPack.titleItem", {
-                name: subject.name ?? subject.query,
-              })
-            : t("checkPack.titleGeneric");
+    result.packId === "page-readiness"
+      ? t("checkPack.titlePage")
+      : result.packId === "element-not-found"
+        ? subject.query
+          ? t("checkPack.titleElement", { name: subject.name ?? subject.query })
+          : t("checkPack.titleElementGeneric")
+        : subject.kind === "logs"
+          ? t("checkPack.titleLogs")
+          : subject.kind === "widget"
+            ? t("checkPack.titleWidget")
+            : scan
+              ? t("checkPack.titleScan", { kind })
+              : subject.query
+                ? t("checkPack.titleItem", {
+                    name: subject.name ?? subject.query,
+                  })
+                : t("checkPack.titleGeneric");
   const blockedRows = scan?.rows.filter((r) => r.blockers.length > 0) ?? [];
   const several = subject.matched.length > 1;
 
@@ -297,9 +386,9 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
             {t("checkPack.causes")}
           </h4>
           <ul className="space-y-2">
-            {verdict.causes.map((cause) => (
+            {verdict.causes.map((cause, index) => (
               <CauseItem
-                key={`${cause.ruleId}-${cause.summary}`}
+                key={`${cause.ruleId}-${index}`}
                 cause={cause}
                 kind={kind}
               />
@@ -351,8 +440,8 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           {t("checkPack.checks")}
         </h4>
         <ul>
-          {result.gates.map((gate) => (
-            <GateRow key={`${gate.id}-${gate.reason}`} gate={gate} />
+          {result.gates.map((gate, index) => (
+            <GateRow key={`${gate.id}-${gate.reason}-${index}`} gate={gate} />
           ))}
         </ul>
       </div>

@@ -150,6 +150,20 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   It cannot see what Apty logs in the page in Extension mode or CORS
   blocks, and says so. Tested against the e2e fake Client and a page that
   logs one of those texts, in Chromium.
+- Selector and page checks (partial): "the Save tooltip is on the wrong
+  element", "Apty cannot find the element for …", "step 3 fails" or "the
+  selector stopped working" for a tooltip, launcher, validation or workflow
+  reads the item's stored element from its file and runs the active
+  selector in every frame of the tab the way the 5.x player does. It names
+  an empty active field, no match, several matches, a hidden or off-screen
+  match, a match only inside a frame or a shadow root the stored lookup
+  does not reach, and a generated-looking value, each with its KB card;
+  jQuery and custom-script selectors are not run. A workflow's steps come
+  from its own file once the Client has loaded it (name and shape not
+  verified on a real capture). "Apty cannot select any elements on this
+  page" maps DOM Health's audit of the tab to the KB cards. The card shows
+  counts, no selector or URL. Tested against the e2e fake Client and a page
+  built to break each selector, in Chromium; not yet on a real tenant.
 - A bare file request ("get segments.json") is answered the same way,
   through the `inspect_extension_network` tool and the full-response
   viewer with no model request; a follow-up pages that evidence through the
@@ -168,7 +182,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | LLM request safety and size | Phase A (O1-O5) is on `main`. Phase B: P4, the context budget, is built as the request budget (Settings → AI → Request size), with an answer length cap; P1, P2, P3 and P5 are not started, and P2 (a smaller system prompt) is what would let a budget under about 8,000 tokens work. Phase C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
 | Production readiness | Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | Widget network calls from the real Apty Client (partial) | The Widget team adopts the reference handlers and `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)) and lists both Agent IDs. Open question: which Widget context makes calls such as `segments.json`; a content script would need a relay. Until then the panel names the Client's failure instead of listing calls |
-| Visibility check on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them |
+| Visibility, selector and page checks on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them. The selector check also needs a capture with a played workflow, to confirm the steps file's name and shape |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Known limitations

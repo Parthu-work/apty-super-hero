@@ -3,7 +3,9 @@ import {
   capture,
   evidenceFrom,
 } from "@apty/browser-runtime/apty/diagnosis/diagnosis-test-utils";
+import { diagnoseElementNotFound } from "@apty/browser-runtime/apty/diagnosis/element-not-found";
 import { diagnoseLogsAndErrors } from "@apty/browser-runtime/apty/diagnosis/logs-and-errors";
+import { diagnosePageReadiness } from "@apty/browser-runtime/apty/diagnosis/page-readiness";
 import type { ClientEvidence } from "@apty/browser-runtime/apty/diagnosis/types";
 import { diagnoseWidgetNotVisible } from "@apty/browser-runtime/apty/diagnosis/widget-not-visible";
 import { I18nProvider } from "@apty/ui/i18n/context";
@@ -304,6 +306,111 @@ describe("CheckResultCard", () => {
       screen.getAllByText(
         "Apty Client 请求 segment.json 失败，因此其中的内容无法到达播放器。",
       ).length,
+    ).toBeGreaterThan(0);
+  });
+
+  const twoMatches = async () => ({
+    ok: true as const,
+    frames: [
+      {
+        depth: 0,
+        sameOriginAsTop: true,
+        answered: true,
+        test: {
+          invalid: false,
+          matchCount: 2,
+          renderedCount: 2,
+          brokenHostIndex: null,
+          shadowMatches: 0,
+          chosen: { rendered: true, inViewport: true },
+        },
+      },
+    ],
+  });
+  const selectorResult = () =>
+    diagnoseElementNotFound(
+      evidenceFrom(capture()),
+      { kind: "validation", query: "Email format" },
+      twoMatches,
+    );
+
+  it("shows the selector check with each element it ran, named by where it sits on the item", async () => {
+    render(<CheckResultCard tool={tool(await selectorResult())} />);
+
+    const card = screen.getByRole("region", {
+      name: "Why Apty may not find the element of “Email format”",
+    });
+    expect(
+      within(card).getAllByText(
+        "Disabled element 1: the selector matches 2 elements (2 rendered). Apty takes the first rendered one, which may not be yours.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(card).getByText(
+        "Whether the element is on the page at the moment the content runs",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the selector check in Chinese, the element's place included", async () => {
+    const languageStorage = {
+      load: vi.fn().mockResolvedValue("zh"),
+      save: vi.fn(),
+      watch: vi.fn(() => () => {}),
+    };
+    const result = await selectorResult();
+    render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <CheckResultCard tool={tool(result)} />
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByRole("region", {
+        name: "Apty 可能找不到“Email format”元素的原因",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "禁用元素 1：选择器匹配 2 个元素（2 个已渲染）。Apty 使用第一个已渲染的元素，它可能不是你要的那个。",
+      ).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows the page check with each DOM Health finding and its card", () => {
+    const result = diagnosePageReadiness({
+      available: true,
+      score: 60,
+      grade: "FAIR",
+      confidence: "MEDIUM",
+      evidenceState: "HEALTHY_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 1,
+        framesAccessible: 1,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
+      iframes: { total: 0 },
+      shadowDom: { roots: 0, elements: 0 },
+      zIndex: { highZIndexElementCount: 0 },
+      duplicateIds: { elementsWithDuplicatedId: 4 },
+      virtualized: { containers: 0, observedItems: 0 },
+      manualSelectorDependency: 5,
+      metadata: { interactiveElementsAnalyzed: 80 },
+      risks: [{ id: "duplicate-ids" }],
+    } as never);
+    render(<CheckResultCard tool={tool(result)} />);
+
+    const card = screen.getByRole("region", {
+      name: "Element selection on this page",
+    });
+    expect(
+      within(card).getAllByText(
+        "4 element(s) share their id with another in the same document or shadow root, so a selector on that id matches more than one.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(card).getAllByRole("link", { name: /1496580223/ }).length,
     ).toBeGreaterThan(0);
   });
 

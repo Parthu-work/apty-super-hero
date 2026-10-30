@@ -119,7 +119,29 @@ export type RuleId =
   | "LOG-04"
   | "LOG-05"
   | "LOG-06"
-  | "LOG-07";
+  | "LOG-07"
+  | "SEL-00"
+  | "SEL-01"
+  | "SEL-02"
+  | "SEL-03"
+  | "SEL-04"
+  | "SEL-05"
+  | "SEL-06"
+  | "SEL-07"
+  | "SEL-08"
+  | "SEL-09"
+  | "SEL-10"
+  | "SEL-11"
+  | "SEL-12"
+  | "SEL-13"
+  | "DOM-00"
+  | "DOM-01"
+  | "DOM-02"
+  | "DOM-03"
+  | "DOM-04"
+  | "DOM-05"
+  | "DOM-06"
+  | "DOM-07";
 
 export type GateId =
   | "data"
@@ -137,7 +159,16 @@ export type GateId =
   | "restriction"
   | "client-logs"
   | "client-calls"
-  | "page-console";
+  | "page-console"
+  | "element"
+  | "lookup"
+  | "selector-values"
+  | "frames"
+  | "shadow-dom"
+  | "virtualized"
+  | "overlays"
+  | "duplicate-ids"
+  | "automatic-selection";
 
 export type GateStatus = "pass" | "fail" | "unknown" | "info";
 
@@ -203,7 +234,45 @@ export type GateReason =
   | "apty404s"
   | "cspBlockedApty"
   | "cspBlockedOther"
-  | "aptyResourceFailed";
+  | "aptyResourceFailed"
+  | "kindHasNoElement"
+  | "itemNotNamed"
+  | "stepFileMissing"
+  | "stepNotFound"
+  | "noElement"
+  | "activeFieldEmpty"
+  | "codeSelector"
+  | "noPageToProbe"
+  | "framesUnreadable"
+  | "invalidSelector"
+  | "frameScope"
+  | "framePathDepth"
+  | "shadowScope"
+  | "brokenShadowHost"
+  | "framesSilent"
+  | "noMatch"
+  | "noMatchHere"
+  | "severalMatches"
+  | "notRendered"
+  | "outOfView"
+  | "oneMatch"
+  | "dynamicValue"
+  | "elementRead"
+  | "auditUnavailable"
+  | "auditScore"
+  | "framesNotInspected"
+  | "framesInspected"
+  | "shadowRoots"
+  | "noShadowRoots"
+  | "virtualizedLists"
+  | "noVirtualizedLists"
+  | "frameSelectors"
+  | "coveredElements"
+  | "noCoveredElements"
+  | "duplicateIds"
+  | "noDuplicateIds"
+  | "manualSelectors"
+  | "automaticSelectors";
 
 export type NextCheck =
   | "fixConnection"
@@ -223,19 +292,30 @@ export type NextCheck =
   | "removalTest"
   | "readConsoleText"
   | "openItems"
-  | "sendSupport";
+  | "sendSupport"
+  | "runInConsole"
+  | "openItemPage"
+  | "reloadAndRetest"
+  | "playWorkflow"
+  | "nameStep"
+  | "checkTiming";
 
 export type NotChecked =
   | "membership"
   | "runtime-rules"
   | "widget-css"
   | "extension-page-console"
-  | "cors";
+  | "cors"
+  | "element-timing"
+  | "closed-shadow-roots"
+  | "canvas";
 
 export type PackId =
   | "content-not-visible"
   | "widget-not-visible"
-  | "logs-and-errors";
+  | "logs-and-errors"
+  | "element-not-found"
+  | "page-readiness";
 
 /** One console or log line, already redacted. */
 export interface LogLine {
@@ -316,7 +396,7 @@ export interface DiagnosisResult {
   verifiedOn: string;
   /** `name` is the item's own name when the query resolved to exactly one. */
   subject: {
-    kind: ContentKind | "widget" | "logs";
+    kind: ContentKind | "widget" | "logs" | "page";
     query?: string;
     /** The language the message named, as a code ("fr"), for the language gate. */
     language?: string;

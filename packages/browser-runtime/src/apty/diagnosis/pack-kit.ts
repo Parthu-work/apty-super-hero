@@ -42,6 +42,34 @@ export const texts = (value: unknown): string[] =>
 
 export const short = (id: string) => id.slice(0, 8);
 
+/** The names an item shows, from its own `name` and each locale's `name`. */
+export function namesOf(item: Rec): string[] {
+  const own = text(item.name);
+  const localized = records(item.locales).flatMap((l) => {
+    const name = text(l.name);
+    return name ? [name] : [];
+  });
+  return [...new Set([...(own ? [own] : []), ...localized])];
+}
+
+export const labelOf = (item: Rec) => namesOf(item)[0] ?? "(unnamed)";
+
+/** The items a name or sourceId names: by id, then by exact name, then by a name that contains it. */
+export function resolveItems(items: Rec[], query: string): Rec[] {
+  const wanted = query.trim().toLowerCase();
+  const byId = items.filter(
+    (i) => text(i.sourceId) === query.trim() || text(i.id) === query.trim(),
+  );
+  if (byId.length > 0) return byId;
+  const exact = items.filter((i) =>
+    namesOf(i).some((n) => n.trim().toLowerCase() === wanted),
+  );
+  if (exact.length > 0) return exact;
+  return items.filter((i) =>
+    namesOf(i).some((n) => n.toLowerCase().includes(wanted)),
+  );
+}
+
 export function fileOf(evidence: ClientEvidence, name: string): LoadedFile {
   return evidence.files[name] ?? { name, status: "not_observed" };
 }

@@ -1813,7 +1813,8 @@
       "checklist": "清单",
       "knowledgeContent": "知识内容",
       "widget": "小组件",
-      "logs": "日志"
+      "logs": "日志",
+      "page": "页面"
     },
     "status": {
       "cause_found": "已找到原因",
@@ -1843,7 +1844,16 @@
       "restriction": "限制模式",
       "client-logs": "Apty Client 日志",
       "client-calls": "Apty Client 请求",
-      "page-console": "页面控制台"
+      "page-console": "页面控制台",
+      "element": "已存储的元素",
+      "lookup": "此页面上的选择器",
+      "selector-values": "选择器中的值",
+      "frames": "框架",
+      "shadow-dom": "Shadow DOM",
+      "virtualized": "虚拟化列表",
+      "overlays": "被遮挡的元素",
+      "duplicate-ids": "重复的 id",
+      "automatic-selection": "自动选择"
     },
     "gateStatus": {
       "pass": "通过",
@@ -1913,7 +1923,45 @@
       "apty404s": "Apty Client 自己的请求中有 {{count}} 个返回 404",
       "cspBlockedApty": "页面的 CSP 阻止了来自 Apty 主机的 {{count}} 次加载（{{directives}}）",
       "cspBlockedOther": "页面的 CSP 阻止了 {{count}} 次加载，都不是 Apty Client 使用的主机",
-      "aptyResourceFailed": "来自 Apty 主机的 {{count}} 个资源在页面中加载失败"
+      "aptyResourceFailed": "来自 Apty 主机的 {{count}} 个资源在页面中加载失败",
+      "kindHasNoElement": "此类内容不绑定元素，因此没有可检查的选择器",
+      "itemNotNamed": "请说出找不到元素的条目名称",
+      "stepFileMissing": "“{{name}}”的步骤在它自己的文件中，Apty Client 尚未加载该文件",
+      "stepNotFound": "“{{name}}”的文件中有 {{count}} 个步骤，因此没有第 {{step}} 步",
+      "noElement": "{{where}}在文件中没有元素；可能是发布缺陷（未验证）",
+      "activeFieldEmpty": "{{where}}按 {{type}} 识别，但其 {{field}} 为空",
+      "codeSelector": "{{where}}按 {{type}} 识别，这是检查不会运行的代码",
+      "noPageToProbe": "此标签页中没有打开网页，因此未运行选择器",
+      "framesUnreadable": "无法列出此标签页的框架，因此未运行选择器",
+      "invalidSelector": "{{where}}：存储的选择器无法解析",
+      "frameScope": "{{where}}：在页面本身中没有匹配，但在某个框架内有 {{count}} 个匹配，且其框架路径为空",
+      "framePathDepth": "{{where}}：其框架路径指定 {{depth}} 层框架，但元素位于第 {{found}} 层",
+      "shadowScope": "{{where}}：在存储的查找不会进入的 shadow root 内有 {{count}} 个匹配",
+      "brokenShadowHost": "{{where}}：第 {{index}} 个（共 {{total}} 个）shadow host 选择器找不到打开的 shadow root",
+      "framesSilent": "{{where}}：在已应答的框架中没有匹配；有 {{silent}} 个框架未应答",
+      "noMatch": "{{where}}：存储的选择器在此页面上没有匹配",
+      "noMatchHere": "{{where}}：在此页面上没有匹配，如果该步骤在其他页面上运行，这是正常的",
+      "severalMatches": "{{where}}：匹配 {{count}} 个元素（{{rendered}} 个已渲染）",
+      "notRendered": "{{where}}：匹配一个元素，但它未被渲染",
+      "outOfView": "{{where}}：匹配一个已渲染的元素，但它在页面可见区域之外",
+      "oneMatch": "{{where}}：在可见区域内恰好匹配一个已渲染的元素",
+      "dynamicValue": "{{where}}：包含 {{count}} 个看似自动生成的值，这类值在重新加载后常会变化",
+      "elementRead": "{{where}}按 {{type}} 识别；框架路径 {{frames}} 层，shadow host {{hosts}} 个",
+      "auditUnavailable": "{{message}}",
+      "auditScore": "DOM Health 对此页面的评分为 {{score}}（{{grade}}），基于 {{elements}} 个交互元素",
+      "framesNotInspected": "{{total}} 个框架中有 {{count}} 个无法检查",
+      "framesInspected": "所有已应答的框架都已检查",
+      "frameSelectors": "{{total}} 个框架中有 {{count}} 个只能按位置或地址区分",
+      "shadowRoots": "{{count}} 个打开的 shadow root 中有 {{elements}} 个元素",
+      "noShadowRoots": "没有打开的 shadow root",
+      "virtualizedLists": "{{count}} 个列表只绘制可见的行（已绘制 {{drawn}} 行）",
+      "noVirtualizedLists": "没有虚拟化列表",
+      "coveredElements": "部分交互元素被遮挡或在可见区域之外；有 {{overlays}} 个元素的 z-index 极高",
+      "noCoveredElements": "测试的交互元素都可以被点击到",
+      "duplicateIds": "{{count}} 个元素与其他元素共用同一个 id",
+      "noDuplicateIds": "每个 id 在其文档或 shadow root 中都是唯一的",
+      "manualSelectors": "{{percent}}% 的交互元素需要手工编写选择器",
+      "automaticSelectors": "按 Apty 自身的规则，大多数交互元素都有稳定的选择器"
     },
     "rule": {
       "CNV-02": {
@@ -1983,6 +2031,74 @@
       "LOG-06": {
         "summary": "来自 Apty 主机的 {{count}} 个资源在页面中加载失败。",
         "fix": "请客户在其网络或 CSP 策略中将 Apty CDN 域名加入白名单，然后重新加载。"
+      },
+      "SEL-02": {
+        "summary": "{{where}}按 {{type}} 识别，但其 {{field}} 为空，因此没有可查找的内容；其他类型中已填写的字段会被忽略。",
+        "fix": "在 Studio 中重新选择该元素，或填写当前识别类型的选择器，然后发布。"
+      },
+      "SEL-04": {
+        "summary": "{{where}}：存储的选择器无法解析，因此查找不到任何内容。",
+        "fix": "在 Studio 中重新选择该元素或更正选择器，然后发布并重新加载。"
+      },
+      "SEL-05": {
+        "summary": "{{where}}：选择器在页面本身中没有匹配，但在某个框架内匹配 {{count}} 个元素，且其框架路径为空，手写选择器就是这样。",
+        "fix": "删除手写的选择器，在框架内用 Studio 的选取器重新选择该元素，以记录框架路径；然后发布。"
+      },
+      "SEL-06": {
+        "summary": "{{where}}：选择器在某个 shadow root 内匹配 {{count}} 个元素，但没有存储 shadow host，因此在文档中查找永远到不了这些元素。",
+        "fix": "在 Studio 中重新选择该元素，使识别信息包含 shadow host 链，然后发布。"
+      },
+      "SEL-07": {
+        "summary": "{{where}}：存储的选择器在此页面上没有匹配。",
+        "fix": "在 Elements 中查找附近的该元素：它可能被重命名或移动了。在 Studio 中重新选择它，然后发布并重新加载。"
+      },
+      "SEL-08": {
+        "summary": "{{where}}：选择器匹配 {{count}} 个元素（{{rendered}} 个已渲染）。Apty 使用第一个已渲染的元素，它可能不是你要的那个。",
+        "fix": "在 Studio 中细化选择器，使其只匹配目标元素，然后发布并重新加载。"
+      },
+      "SEL-09": {
+        "summary": "{{where}}：选择器匹配一个元素，但它未被渲染（被 CSS 隐藏或未显示），因此没有可附着的元素。",
+        "fix": "查明内容应显示时该元素为何被隐藏：可能需要先点击、切换标签页或滚动。"
+      },
+      "SEL-10": {
+        "summary": "{{where}}：选择器匹配一个已渲染的元素，但它在页面可见区域之外。",
+        "fix": "先把该元素滚动到可见区域，或按 KB 卡片所述在该步骤前添加滚动。"
+      },
+      "SEL-11": {
+        "summary": "{{where}}：选择器包含 {{count}} 个看似自动生成的值，这类值在重新加载后常会变化。",
+        "fix": "在 Admin 的 Application、DOM Analysis 中为会变化的属性添加忽略规则，在 Studio 中重新选择该元素并发布。"
+      },
+      "SEL-12": {
+        "summary": "{{where}}：其框架路径指定 {{depth}} 层框架，但元素位于第 {{found}} 层。",
+        "fix": "在包含该元素的框架内用 Studio 重新选择它，使框架路径与实际嵌套一致；然后发布。"
+      },
+      "SEL-13": {
+        "summary": "{{where}}：第 {{index}} 个（共 {{total}} 个）shadow host 选择器找不到打开的 shadow root，因此查找退回到文档并且找不到任何内容。",
+        "fix": "在 Studio 中重新选择该元素以记录其 shadow host 链，然后发布。"
+      },
+      "DOM-01": {
+        "summary": "{{total}} 个框架中有 {{count}} 个无法检查（通常是跨域框架），因此未检查 Apty 在其中的选择。",
+        "fix": "确认包含该元素的框架已为 Apty 注册，并在 Studio 中于该框架内选择元素。"
+      },
+      "DOM-03": {
+        "summary": "{{count}} 个列表只绘制可见的行（当前已绘制 {{drawn}} 行），因此更靠下的目标在滚动到之前不在页面中。",
+        "fix": "按 KB 卡片所述，在该步骤前把该行滚动到可见区域；选择器找不到未绘制的行。"
+      },
+      "DOM-04": {
+        "summary": "部分交互元素在点击位置被遮挡、尺寸为零或在可见区域之外；有 {{overlays}} 个元素的 z-index 极高。",
+        "fix": "找出遮挡该元素的内容（固定页头、对话框、聊天启动器），关闭后再测试；Apty 的内容也可能被它挡住。"
+      },
+      "DOM-05": {
+        "summary": "{{count}} 个元素与同一文档或 shadow root 中的其他元素共用 id，因此基于该 id 的选择器会匹配多个元素。",
+        "fix": "不要按 id 选择这些元素：在 Studio 中用其他属性细化选择器，然后发布。"
+      },
+      "DOM-06": {
+        "summary": "按 Apty 自身的规则，已分析的交互元素中有 {{percent}}% 没有唯一且稳定的选择器，需要手工编写。",
+        "fix": "对内容用到的元素，检查 Studio 记录的选择器并使其稳定（Ignore 和 Partial Selector 规则，或 XPath），然后发布。"
+      },
+      "DOM-07": {
+        "summary": "{{total}} 个框架中有 {{count}} 个只能按位置或地址区分，因此存储的框架路径可能指向另一个框架。",
+        "fix": "为每个框架设置稳定的 id 或 name，或为其地址添加 Partial Selector 规则，然后重新选择元素。"
       }
     },
     "ruleLabel": "规则 {{ruleId}}",
@@ -2004,7 +2120,13 @@
       "openAppPage": "在此标签页中打开缺少小组件的应用页面，然后再问一次。",
       "comparePatterns": "在 Admin 中比较匹配此页面的各环境 URL 模式；把不应优先的那个改得更具体。",
       "removalTest": "停用或移除 Apty 后重复完全相同的流程：如果仍出现相同的 404，则不是 Apty 造成的。",
-      "readConsoleText": "阅读控制台中的完整 CSP 文本：提到 nonce 表示需要支持 nonce 的播放器版本，普通阻止表示需要加入白名单。"
+      "readConsoleText": "阅读控制台中的完整 CSP 文本：提到 nonce 表示需要支持 nonce 的播放器版本，普通阻止表示需要加入白名单。",
+      "runInConsole": "在此页面的控制台中运行该条目的 jQuery 或自定义脚本选择器，看它是否返回目标元素。",
+      "openItemPage": "在此标签页中打开内容应显示的页面，然后再问一次。",
+      "reloadAndRetest": "重新加载页面后再问一次：包含自动生成值的选择器在重新加载后常会失效。",
+      "playWorkflow": "在此标签页中播放一次该工作流，让 Apty Client 加载其步骤，然后再问一次。",
+      "nameStep": "说出失败的步骤（“第 3 步”），并在此标签页中打开它失败的页面。",
+      "checkTiming": "检查内容运行时该元素是否已在页面上（Apty 每秒重试一次，共 5 秒），以及该条目是否已发布到此处且其分段匹配。"
     },
     "notChecked": {
       "title": "未从文件中检查",
@@ -2012,7 +2134,10 @@
       "runtime-rules": "可见性规则、延后规则和重复规则",
       "widget-css": "页面的 CSS 是否隐藏了小组件容器",
       "extension-page-console": "扩展模式下 Apty 在页面中记录的内容（运行在代理无法读取的环境中）",
-      "cors": "CORS 阻止（浏览器不会向页面报告）"
+      "cors": "CORS 阻止（浏览器不会向页面报告）",
+      "element-timing": "内容运行的那一刻元素是否在页面上",
+      "closed-shadow-roots": "封闭 shadow root 内的元素，Apty 和代理都无法打开",
+      "canvas": "在 canvas 上绘制的内容，没有可选择的元素"
     },
     "blocker": {
       "hidden": "在小组件中隐藏",
@@ -2027,6 +2152,14 @@
     "checks": "检查项",
     "matches": "匹配的条目",
     "card": "知识库卡片",
-    "provenance": "依据 4c406d5 版本的 5.x 代码，未经运行时验证。可信度：较可能。"
+    "provenance": "依据 4c406d5 版本的 5.x 代码，未经运行时验证。可信度：较可能。",
+    "titleElement": "Apty 可能找不到“{{name}}”元素的原因",
+    "titleElementGeneric": "选择器检查",
+    "titlePage": "此页面上的元素选择",
+    "part": {
+      "own": "其元素",
+      "disabled": "禁用元素 {{n}}",
+      "step": "第 {{n}} 步"
+    }
   }
 }

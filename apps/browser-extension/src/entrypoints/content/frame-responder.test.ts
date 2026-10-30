@@ -74,6 +74,37 @@ describe("frame responder", () => {
     expect(handleFrameMessage({ type: oldType }, vi.fn())).toBe(false);
   });
 
+  it("tests a stored selector and answers with counts only", async () => {
+    document.body.innerHTML =
+      '<button class="save">Save</button><button class="save">Save as</button>';
+
+    const reply = await ask({
+      request: "test-apty-element",
+      target: { language: "css", selector: "button.save", shadowRoots: [] },
+    });
+
+    expect(reply).toMatchObject({
+      success: true,
+      data: { invalid: false, matchCount: 2 },
+    });
+    expect(JSON.stringify(reply)).not.toContain("Save");
+  });
+
+  it("refuses a stored selector that is missing or oversized", async () => {
+    for (const target of [
+      undefined,
+      { language: "jquery", selector: "$('a')", shadowRoots: [] },
+      { language: "css", selector: "a".repeat(4001), shadowRoots: [] },
+    ]) {
+      await expect(
+        ask({ request: "test-apty-element", target }),
+      ).resolves.toEqual({
+        success: false,
+        error: "No stored selector to test.",
+      });
+    }
+  });
+
   it("leaves messages meant for the UI script unanswered", async () => {
     expect(handleFrameMessage({ request: "open-apty-agent" }, vi.fn())).toBe(
       false,

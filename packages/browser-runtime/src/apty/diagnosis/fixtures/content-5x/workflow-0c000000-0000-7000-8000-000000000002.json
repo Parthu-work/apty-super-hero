@@ -1,0 +1,52 @@
+[
+  {
+    "sourceId": "0c000000-0000-7000-8000-000000000002",
+    "steps": [
+      {
+        "id": "0a200000-0000-7000-8000-000000000001",
+        "element": {
+          "identificationType": "ELEMENT_PICKER",
+          "pickedSelector": "#tour-start",
+          "cssSelector": "#tour-start",
+          "xPath": "",
+          "jquerySelector": "",
+          "customScript": "",
+          "iframesPath": [],
+          "shadowRootSelectors": [],
+          "elementDefinition": {},
+          "id": "0a100000-0000-7000-8000-000000000005"
+        }
+      },
+      {
+        "id": "0a200000-0000-7000-8000-000000000002",
+        "element": {
+          "identificationType": "ELEMENT_PICKER",
+          "pickedSelector": "nav a.reports",
+          "cssSelector": "nav a.reports",
+          "xPath": "",
+          "jquerySelector": "",
+          "customScript": "",
+          "iframesPath": [],
+          "shadowRootSelectors": [],
+          "elementDefinition": {},
+          "id": "0a100000-0000-7000-8000-000000000006"
+        }
+      },
+      {
+        "id": "0a200000-0000-7000-8000-000000000003",
+        "element": {
+          "identificationType": "CSS",
+          "pickedSelector": "",
+          "cssSelector": "#panel-4711 button",
+          "xPath": "",
+          "jquerySelector": "",
+          "customScript": "",
+          "iframesPath": [],
+          "shadowRootSelectors": [],
+          "elementDefinition": {},
+          "id": "0a100000-0000-7000-8000-000000000007"
+        }
+      }
+    ]
+  }
+]

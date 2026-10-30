@@ -1,12 +1,22 @@
 import type { LocalResponder } from "@apty/agent-core";
 import { getAptyIntegrationConfig } from "../config.js";
+import type { DomHealthAuditOutcome } from "../dom-health.js";
+import { tabElementProbeOf } from "../element-probe.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
+import {
+  diagnoseElementNotFound,
+  elementFilesFor,
+  type Probe,
+  stepFileFor,
+} from "./element-not-found.js";
 import { languageName } from "./languages.js";
 import { loadClientEvidence } from "./loader.js";
 import { loadLogEvidence } from "./log-loader.js";
 import { diagnoseLogsAndErrors } from "./logs-and-errors.js";
+import { diagnosePageReadiness } from "./page-readiness.js";
 import { type Route, routeSymptom } from "./router.js";
 import type {
+  ClientEvidence,
   DiagnosisResult,
   LogEvidence,
   NextCheck,
@@ -50,6 +60,18 @@ const NEXT_CHECK_TEXT: Record<NextCheck, string> = {
   openItems: "Then check the open items, which the files cannot decide.",
   sendSupport:
     "Send support the Apty version, the environment name, the sourceId, a screenshot of the open widget and the trimmed entry with its request URL and status.",
+  runInConsole:
+    "Run the item's jQuery or custom-script selector in the Console on this page and see whether it returns the intended element.",
+  openItemPage:
+    "Open the page where the content should show in this tab, then ask again.",
+  reloadAndRetest:
+    "Reload the page and ask again: a selector holding a generated value often stops matching after a reload.",
+  playWorkflow:
+    "Play the workflow once in this tab, so the Apty Client loads its steps, then ask again.",
+  nameStep:
+    'Name the step that fails ("step 3"), with the page where it fails open in this tab.',
+  checkTiming:
+    "Check that the element is there when the content runs (Apty retries once a second for 5 seconds), and that the item is published here and its segment matches.",
 };
 
 const NOT_CHECKED_TEXT: Record<NotChecked, string> = {
@@ -59,12 +81,21 @@ const NOT_CHECKED_TEXT: Record<NotChecked, string> = {
   "extension-page-console":
     "what Apty logs in the page in Extension mode, which runs where the agent cannot read",
   cors: "CORS blocks, which the browser does not report to the page",
+  "element-timing":
+    "whether the element is on the page at the moment the content runs",
+  "closed-shadow-roots":
+    "elements inside closed shadow roots, which neither Apty nor the agent can open",
+  canvas: "content drawn on a canvas, which has no elements to select",
 };
 
 function subjectLine(result: DiagnosisResult): string {
   const { subject } = result;
   if (subject.kind === "widget") return "Widget visibility check";
   if (subject.kind === "logs") return "Logs and errors check";
+  if (result.packId === "page-readiness") return "Page selection check";
+  if (result.packId === "element-not-found") {
+    return `Selector check of ${subject.kind}${subject.query ? ` "${subject.query}"` : ""}`;
+  }
   const language = subject.language
     ? ` for ${languageName(subject.language)} users`
     : "";
@@ -75,7 +106,7 @@ function subjectLine(result: DiagnosisResult): string {
 export function transcriptOf(result: DiagnosisResult): string {
   const { verdict } = result;
   const lines = [
-    `${subjectLine(result)} from the Apty Client's files (KB card ${result.cardPageId}; ${result.verifiedOn}).`,
+    `${subjectLine(result)} from ${result.packId === "page-readiness" ? "DOM Health's audit of the page" : "the Apty Client's files"} (KB card ${result.cardPageId}; ${result.verifiedOn}).`,
     `Result: ${verdict.status.replace(/_/g, " ")}. ${verdict.headline}`,
     ...verdict.causes.map(
       (c) => `- ${c.ruleId}: ${c.summary} Fix: ${c.fix} (card ${c.cardPageId})`,
@@ -114,18 +145,56 @@ export async function tabUrlOf(
   }
 }
 
-/** Where the packs read the user's page: its URL, and its console. */
+/** Where the packs read the user's page: its URL, its console, its frames and its DOM Health. */
 export interface PageSources {
   pageUrl: () => Promise<string | undefined>;
   pageConsole: () => Promise<LogEvidence["page"]>;
+  probeElement: Probe;
+  domHealth: () => Promise<DomHealthAuditOutcome | undefined>;
+}
+
+/** The Client's files for the selector check, with a workflow's own steps file when the Client has loaded it. */
+async function elementEvidence(
+  clientExtensionId: string | undefined,
+  kind: Extract<Route, { packId: "element-not-found" }>["kind"],
+  query: string | undefined,
+): Promise<ClientEvidence> {
+  const evidence = await loadClientEvidence(
+    clientExtensionId,
+    elementFilesFor(kind),
+  );
+  const stepFile =
+    kind === "workflow" ? stepFileFor(evidence, query) : undefined;
+  if (!stepFile) return evidence;
+  const steps = await loadClientEvidence(clientExtensionId, [stepFile]);
+  return { ...evidence, files: { ...evidence.files, ...steps.files } };
 }
 
 /** Runs the routed pack on the Client's files, logs and calls, and the page. */
 export async function runPack(
   route: Route,
   clientExtensionId: string | undefined,
-  { pageUrl, pageConsole }: PageSources,
+  { pageUrl, pageConsole, probeElement, domHealth }: PageSources,
 ): Promise<DiagnosisResult> {
+  if (route.packId === "page-readiness") {
+    return diagnosePageReadiness(await domHealth());
+  }
+  if (route.packId === "element-not-found") {
+    const evidence = await elementEvidence(
+      clientExtensionId,
+      route.kind,
+      route.query,
+    );
+    return diagnoseElementNotFound(
+      evidence,
+      {
+        kind: route.kind,
+        ...(route.query ? { query: route.query } : {}),
+        ...(route.step ? { step: route.step } : {}),
+      },
+      probeElement,
+    );
+  }
   if (route.packId === "logs-and-errors") {
     const evidence = await loadLogEvidence(clientExtensionId, pageConsole);
     return diagnoseLogsAndErrors(evidence, route.about404);
@@ -148,6 +217,15 @@ export async function runPack(
 
 function paramsOf(route: Route) {
   if (route.packId === "widget-not-visible") return { kind: "widget" };
+  if (route.packId === "page-readiness") return { kind: "page" };
+  if (route.packId === "element-not-found") {
+    return {
+      kind: route.kind,
+      problem: "element-not-found",
+      ...(route.query ? { name: route.query } : {}),
+      ...(route.step ? { step: route.step } : {}),
+    };
+  }
   if (route.packId === "logs-and-errors") {
     return { kind: "logs", ...(route.about404 ? { about404: true } : {}) };
   }
@@ -158,25 +236,44 @@ function paramsOf(route: Route) {
   };
 }
 
+/** Where the responder reads the Client's ID and, for the conversation's tab, each page source. */
+export interface ResponderSources {
+  clientExtensionId: () => Promise<string | undefined>;
+  pageUrlOf: (runContext: unknown) => Promise<string | undefined>;
+  pageConsoleOf: (runContext: unknown) => Promise<LogEvidence["page"]>;
+  elementProbeOf: (runContext: unknown) => Probe;
+  domHealthOf: (
+    runContext: unknown,
+  ) => Promise<DomHealthAuditOutcome | undefined>;
+}
+
+const DEFAULT_SOURCES: ResponderSources = {
+  clientExtensionId: async () =>
+    (await getAptyIntegrationConfig()).clientExtensionId,
+  pageUrlOf: tabUrlOf,
+  pageConsoleOf: async () => undefined,
+  elementProbeOf: tabElementProbeOf,
+  domHealthOf: async () => undefined,
+};
+
 /**
- * Answers a message the router recognises from the Apty Client's files, so
- * the chat can show the check without a model call. Anything else returns
- * undefined and goes to the model.
+ * Answers a message the router recognises from the Apty Client's files and
+ * the page in the conversation's tab, so the chat can show the check
+ * without a model call. Anything else returns undefined and goes to the
+ * model.
  */
 export function createDiagnosisResponder(
-  clientExtensionId: () => Promise<string | undefined> = async () =>
-    (await getAptyIntegrationConfig()).clientExtensionId,
-  pageUrlOf: (runContext: unknown) => Promise<string | undefined> = tabUrlOf,
-  pageConsoleOf: (
-    runContext: unknown,
-  ) => Promise<LogEvidence["page"]> = async () => undefined,
+  overrides: Partial<ResponderSources> = {},
 ): LocalResponder {
+  const sources = { ...DEFAULT_SOURCES, ...overrides };
   return async (input, { runContext }) => {
     const route = routeSymptom(input);
     if (!route) return undefined;
-    const result = await runPack(route, await clientExtensionId(), {
-      pageUrl: () => pageUrlOf(runContext),
-      pageConsole: () => pageConsoleOf(runContext),
+    const result = await runPack(route, await sources.clientExtensionId(), {
+      pageUrl: () => sources.pageUrlOf(runContext),
+      pageConsole: () => sources.pageConsoleOf(runContext),
+      probeElement: sources.elementProbeOf(runContext),
+      domHealth: () => sources.domHealthOf(runContext),
     });
     return {
       toolName: RUN_DIAGNOSIS,
