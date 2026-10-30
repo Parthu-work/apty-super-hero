@@ -38,6 +38,23 @@ describe("applyResultPrivacy", () => {
     });
   });
 
+  it("drops the title of a tab told by its origin in Strict, as devtools results give it (M2)", () => {
+    expect(
+      applyResultPrivacy(
+        {
+          meta: {
+            tab: {
+              id: 7,
+              origin: "https://ehr.example.com/",
+              title: "Jane Testpatient",
+            },
+          },
+        },
+        "withhold",
+      ),
+    ).toEqual({ meta: { tab: { id: 7, origin: "https://ehr.example.com/" } } });
+  });
+
   it("drops the query of a URL that is not a page descriptor in Strict", () => {
     expect(
       applyResultPrivacy(

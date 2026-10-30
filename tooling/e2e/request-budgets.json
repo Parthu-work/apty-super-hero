@@ -1,0 +1,17 @@
+{
+  "$comment": "Estimated tokens (characters / 4) each named request may send, as built plus 10% headroom. A test fails when a scenario grows past its budget; raise one here only with the reason in the commit. Regenerate with npm run report:request-size.",
+  "headroom": 0.1,
+  "budgets": {
+    "casual": 1385,
+    "followup": 5044,
+    "apty-question": 7891,
+    "segments-json": 5032,
+    "dom-health": 3370,
+    "click-task": 4300,
+    "investigation-10-turns": 11675,
+    "long-chat-8-turns": 11565,
+    "snapshot-heavy": 4273,
+    "long-chat-8-turns-summarized": 10138,
+    "summary-request": 149
+  }
+}

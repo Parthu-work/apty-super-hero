@@ -60,7 +60,8 @@ function isPageDescriptor(record: Record<string, unknown>): boolean {
   const hasTitle = [...PAGE_TITLE_KEYS].some(
     (k) => typeof record[k] === "string",
   );
-  const hasUrl = [...URL_KEYS].some(
+  // Devtools results tell their tab by origin, next to its title.
+  const hasUrl = [...URL_KEYS, "origin"].some(
     (k) => typeof record[k] === "string" && PAGE_URL.test(record[k] as string),
   );
   return hasTitle && hasUrl;

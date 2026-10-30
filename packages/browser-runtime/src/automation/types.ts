@@ -16,6 +16,8 @@ export interface TextSnapshotNode {
   tagName?: string;
   focused?: boolean;
   modal?: boolean;
+  /** A region the user can type into, whatever its role (contenteditable). */
+  editable?: boolean;
   keyshortcuts?: string;
   roledescription?: string;
   valuetext?: string;

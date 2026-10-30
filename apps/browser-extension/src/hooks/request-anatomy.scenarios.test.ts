@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
   AgentError,
   type AgentInputItem,
@@ -365,6 +365,23 @@ describe("request anatomy scenarios", () => {
           if (sentTotal <= budget) expect(total).toBe(sentTotal);
         }
       }
+    }
+  });
+
+  it("sends no named request over its budget in tooling/e2e/request-budgets.json, and every request has one (M1)", () => {
+    const file = join(
+      import.meta.dirname,
+      "../../../../tooling/e2e/request-budgets.json",
+    );
+    const { budgets } = JSON.parse(readFileSync(file, "utf8")) as {
+      budgets: Record<string, number>;
+    };
+
+    for (const row of [...sent, ...summaryRows]) {
+      expect(
+        [row.scenario, row.totalTokens <= (budgets[row.scenario] ?? -1)],
+        `${row.scenario}: ${row.totalTokens} estimated tokens, budget ${budgets[row.scenario]}`,
+      ).toEqual([row.scenario, true]);
     }
   });
 

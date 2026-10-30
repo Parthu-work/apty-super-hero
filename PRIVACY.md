@@ -9,7 +9,7 @@ configure yourself.
 
 | Destination | What is sent | When |
 |---|---|---|
-| The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings | Only while you chat. Nothing is sent before you configure a provider. |
+| The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings. A check answered without the model (such as "my workflow is not visible") sends nothing itself; its result goes with your next message, masked like a tool result. With **Summarize earlier turns** on (Settings → AI → Request size; off by default), one more request asks the model to summarize a long chat's earlier messages, masked the same way | Only while you chat. Nothing is sent before you configure a provider; checks that need no model run without one. |
 | The Apty Client extension you connect | Requests for its own service-worker logs, status and observed resources | Only when the agent investigates the Client. |
 | A local MCP daemon you connect (`localhost` only) | Tool results for the MCP client you run, such as Claude Code, filtered exactly like the results sent to the AI provider (see below) | Only while you keep the bridge connected. |
 | A diagnostic HTTP endpoint built into your build (`VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT`) | Requests for service-worker diagnostics | Only if your build sets it; empty by default. |
@@ -26,6 +26,11 @@ input values, titles or record numbers, and you review it before saving.
 chat as a chip you can remove; it goes to your AI provider only when you
 press Send.
 
+A HAR file you pick on **Check a HAR file** is read in the side panel only:
+it is never stored or sent. "Ask about this result" there puts the check's
+result, not the file or its name, in a new chat as a chip, sent only when
+you press Send.
+
 ## What your AI provider keeps
 
 What a provider does with a request after it arrives is set by that
@@ -36,7 +41,7 @@ regulated data:
 | Provider | What this extension asks for | Provider's data policy |
 |---|---|---|
 | OpenAI | Every request is sent with `store: false`, so the Responses API is asked not to keep it as a stored response | [API data usage](https://platform.openai.com/docs/guides/your-data) |
-| Anthropic | Nothing beyond the request | [Privacy center](https://privacy.anthropic.com/), [commercial terms](https://www.anthropic.com/legal/commercial-terms) |
+| Anthropic | Requests are marked for prompt caching: Anthropic keeps the start of a request (the system prompt, the tools offered and the conversation so far, as masked) for about 5 minutes, so the next request can reuse it | [Privacy center](https://privacy.anthropic.com/), [commercial terms](https://www.anthropic.com/legal/commercial-terms) |
 | Google (Gemini API) | Nothing beyond the request | [Gemini API terms](https://ai.google.dev/gemini-api/terms) |
 | Azure OpenAI | Nothing beyond the request | [Data, privacy and security](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy) |
 | OpenRouter | Nothing beyond the request | [Privacy policy](https://openrouter.ai/privacy) |
@@ -66,7 +71,7 @@ Data handling → Redaction**:
 | A medical record number written after `MRN` or `medical record number` in any text (`MRN 4815162342`, `?mrn=4815162342`) | Masked | Masked | Not masked |
 | Values of JSON keys holding page context (`page_title`, `page_path`, `page_search`, `referrer`) | Masked | Not masked | Not masked |
 | Any web URL in a tool result | Query string and fragment removed; in the path, record numbers (5+ digits), GUIDs, long hex ids and email addresses become `:id` / `:email` | Each query value replaced with `[masked]`; the path is kept | Sent as is |
-| A tab or page as the tab and page tools describe it | Tab id and origin only: no title, no path | Title and URL with masked query values | Sent as is |
+| A tab or page as the tab and page tools describe it, and the page's name at the top of a page read | Tab id and origin only: no title, no path | Title and URL with masked query values | Sent as is |
 | Values typed or chosen in form fields | Not sent | Replaced with `[masked]` | Sent as is |
 
 How credentials are matched:

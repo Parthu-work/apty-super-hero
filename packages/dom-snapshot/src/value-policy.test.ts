@@ -309,3 +309,32 @@ describe("prepareNodeForPolicy", () => {
     expect(node.children).toHaveLength(2);
   });
 });
+
+describe("prepareNodeForPolicy and the page itself (M2)", () => {
+  it("withholds the page title the snapshot root carries in Strict, and keeps it in Standard", () => {
+    const root = {
+      role: "RootWebArea",
+      name: "Jane Testpatient - Chart",
+      children: [],
+    };
+
+    expect(prepareNodeForPolicy(root, "withhold").name).toBe(
+      "[title withheld]",
+    );
+    expect(prepareNodeForPolicy(root, "mask").name).toBe(
+      "Jane Testpatient - Chart",
+    );
+  });
+
+  it("treats a region marked editable as a field: its text is not sent in Strict", () => {
+    const region = {
+      role: "generic",
+      editable: true,
+      children: [
+        { role: "StaticText", name: "Editor-Marker-Seven", children: [] },
+      ],
+    };
+
+    expect(prepareNodeForPolicy(region, "withhold").children).toEqual([]);
+  });
+});

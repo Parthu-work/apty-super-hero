@@ -6,6 +6,13 @@ full commit-level history.
 
 ## Unreleased
 
+- **LLM plan Phase C: a size gate, a masking proof, and the data-flow docs**.
+  - **Size gate (M1)**: `tooling/e2e/request-budgets.json` holds each named request's size plus 10%; a test fails when one grows past it.
+  - **Masking proof (M2)**: one page with PHI-like strings in every place Strict masks, read by all nine reading tools. It found three leaks in Strict, now fixed:
+    - the page title at the top of `search_elements`;
+    - the text of a contenteditable region;
+    - the tab title in the devtools results.
+  - **Docs (M3)**: `docs/security/DATA_FLOW.md`, `docs/development/REQUEST_ANATOMY.md`, and PRIVACY.md on Anthropic's 5-minute prompt cache, the summary request, checks answered without the model and HAR files.
 - **Fixes from the October audit of the checks (31 open on main, 4 in this branch)**: each was confirmed in the code, or reproduced, before it was fixed, and each fix has a test that failed first.
   - **Router**:
     - An item is named by the words nearest its kind ("the selector for the Save tooltip" names "Save").
