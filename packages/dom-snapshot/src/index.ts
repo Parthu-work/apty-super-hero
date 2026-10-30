@@ -167,6 +167,11 @@ export {
 export { buildTextSnapshot, formatSnapshot } from "./manager.js";
 export { searchAndFormat, searchSnapshotText } from "./query.js";
 export { shadowRootOf } from "./shadow-roots.js";
+export {
+  type StoredElementTarget,
+  type StoredElementTest,
+  testStoredElement,
+} from "./stored-element-test.js";
 export * from "./types.js";
 export {
   applyUrlPolicy,

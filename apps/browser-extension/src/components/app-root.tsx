@@ -53,6 +53,7 @@ import {
 import { DebuggingWelcomeScreen } from "./investigation/debugging-welcome-screen";
 import { DomConfigPage } from "./investigation/dom-config/dom-config-page";
 import { DomHealthPage } from "./investigation/dom-health/dom-health-page";
+import { HarCheckPage } from "./investigation/har-check/har-check-page";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
@@ -303,6 +304,11 @@ function ChatApp() {
                         ignoredRoots={settings.domHealthIgnoredRoots}
                       />
                     ),
+                  },
+                  {
+                    id: "har-check",
+                    label: t("shell.harCheck"),
+                    content: <HarCheckPage />,
                   },
                   {
                     id: "connections",

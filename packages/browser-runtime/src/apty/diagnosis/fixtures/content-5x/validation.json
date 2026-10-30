@@ -19,6 +19,34 @@
         "contentHTML": "<p>Help text</p>",
         "locale": "en"
       }
-    ]
+    ],
+    "element": {
+      "identificationType": "XPATH",
+      "pickedSelector": "",
+      "cssSelector": "",
+      "xPath": "//input[@type='email']",
+      "jquerySelector": "",
+      "customScript": "",
+      "iframesPath": [],
+      "shadowRootSelectors": [],
+      "elementDefinition": {},
+      "id": "0a100000-0000-7000-8000-000000000003"
+    },
+    "disableElement": {
+      "elements": [
+        {
+          "identificationType": "ELEMENT_PICKER",
+          "pickedSelector": "button[type=\"submit\"]",
+          "cssSelector": "button[type=\"submit\"]",
+          "xPath": "",
+          "jquerySelector": "",
+          "customScript": "",
+          "iframesPath": [],
+          "shadowRootSelectors": [],
+          "elementDefinition": {},
+          "id": "0a100000-0000-7000-8000-000000000004"
+        }
+      ]
+    }
   }
 ]

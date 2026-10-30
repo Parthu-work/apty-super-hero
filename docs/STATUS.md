@@ -124,6 +124,54 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   `max_tokens` and applies from the next message. Both are off unless set.
   Tested in Chromium against the mock provider; sizes are estimates
   (characters / 4), not a provider's token count.
+- Widget check (partial): "the Apty widget is not appearing", "works in
+  Test but not in Production" or "only works on some pages" runs a widget
+  pack with no model call. It matches the page in the conversation's tab
+  against `app-urls.json`'s patterns as the KB cards describe them (by
+  order, `*` a wildcard, anywhere in the URL) and names a page no
+  environment covers, a pattern too specific for it, or a lower-order
+  environment that wins; it reads the widget's audience from
+  `app-data.json` (selected segments, the option for other users). The
+  card shows no URL or pattern. A message that names a language also
+  checks the item's name in it. Preflight warns when a deny-list entry
+  hides the files the checks read. `evidenceFromHar` reads a HAR file the
+  same way, deny list and redaction included; on the real 5.x capture it
+  agrees with the earlier count (12 of 15 workflows hidden). Tested
+  against the e2e fake Client in Chromium; not yet on a real tenant with
+  a known failing case.
+- HAR file check (partial): Menu › Check a HAR file runs the visibility
+  and widget checks on a customer's HAR with no Client connected: the
+  file is read in the panel only, never stored or sent, summarized by file
+  names and counts, and checked with the same packs and card. "Ask about
+  this result" hands the check's transcript, not the file, to a new chat.
+  Tested in Chromium with a synthetic HAR (axe clean, no model request
+  until Send, no file name or URL in the request); not yet with a
+  customer's own export.
+- Logs check (partial): a message that quotes a Console text the KB cards
+  name, or asks about CSP, CORS, Apty's 404s or the errors in the logs, is
+  answered with no model call from the Client's service-worker logs, its
+  own calls and the console the page-world bridge buffered in the tab:
+  "No active application found", "Error fetching data" or "Error parsing
+  response", "[Apty] No matching version found", a failed content request,
+  a CSP block or a failed load from a host the Client uses, and whether any
+  of the Client's calls returned 404. Each source it cannot read is named.
+  It cannot see what Apty logs in the page in Extension mode or CORS
+  blocks, and says so. Tested against the e2e fake Client and a page that
+  logs one of those texts, in Chromium.
+- Selector and page checks (partial): "the Save tooltip is on the wrong
+  element", "Apty cannot find the element for …", "step 3 fails" or "the
+  selector stopped working" for a tooltip, launcher, validation or workflow
+  reads the item's stored element from its file and runs the active
+  selector in every frame of the tab the way the 5.x player does. It names
+  an empty active field, no match, several matches, a hidden or off-screen
+  match, a match only inside a frame or a shadow root the stored lookup
+  does not reach, and a generated-looking value, each with its KB card;
+  jQuery and custom-script selectors are not run. A workflow's steps come
+  from its own file once the Client has loaded it (name and shape not
+  verified on a real capture). "Apty cannot select any elements on this
+  page" maps DOM Health's audit of the tab to the KB cards. The card shows
+  counts, no selector or URL. Tested against the e2e fake Client and a page
+  built to break each selector, in Chromium; not yet on a real tenant.
 - A bare file request ("get segments.json") is answered the same way,
   through the `inspect_extension_network` tool and the full-response
   viewer with no model request; a follow-up pages that evidence through the
@@ -142,7 +190,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | LLM request safety and size | Phase A (O1-O5) is on `main`. Phase B: P4, the context budget, is built as the request budget (Settings → AI → Request size), with an answer length cap; P1, P2, P3 and P5 are not started, and P2 (a smaller system prompt) is what would let a budget under about 8,000 tokens work. Phase C not started ([`docs/tasks/llm/`](tasks/llm/00-rules.md)) |
 | Production readiness | Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | Widget network calls from the real Apty Client (partial) | The Widget team adopts the reference handlers and `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)) and lists both Agent IDs. Open question: which Widget context makes calls such as `segments.json`; a content script would need a relay. Until then the panel names the Client's failure instead of listing calls |
-| Visibility check on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them |
+| Visibility, selector and page checks on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them. The selector check also needs a capture with a played workflow, to confirm the steps file's name and shape |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Known limitations

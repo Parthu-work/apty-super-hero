@@ -126,6 +126,14 @@ export type AptyPeerFailure =
   | "send_failed"
   | "malformed_response";
 
+/** What `readLogs` returns; `failure` names why it is `ok: false`. */
+export interface AptyLogRead {
+  ok: boolean;
+  logs: AptyLog[];
+  error?: string;
+  failure?: AptyPeerFailure | "not_configured";
+}
+
 /** What `listResources` returns; `failure` names why it is `ok: false`. */
 export interface AptyResourceList {
   ok: boolean;

@@ -20,6 +20,18 @@
         "locale": "en"
       }
     ],
-    "type": "LAUNCHER"
+    "type": "LAUNCHER",
+    "element": {
+      "identificationType": "CSS",
+      "pickedSelector": "",
+      "cssSelector": "button.new-lead",
+      "xPath": "",
+      "jquerySelector": "",
+      "customScript": "",
+      "iframesPath": [],
+      "shadowRootSelectors": [],
+      "elementDefinition": {},
+      "id": "0a100000-0000-7000-8000-000000000002"
+    }
   }
 ]

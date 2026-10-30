@@ -96,6 +96,56 @@ widget" is checked from these same calls, with no AI model involved.
 | "Not covered" with "This tenant uses 4.x content files…" | The Client served 4.x files (`flow.json`, `segments.json`) | The check covers 5.x only; use the manual paste path. |
 | "Needs a check in the browser" | The files show no blocker; whether this user matches a segment's rule is decided in the browser | Test as a user known to match the segment, as the card says. |
 | A cause you know is wrong | The files are older than the last publish | Reload the application so the Client fetches them again, then ask again. |
+| "No environment's URL pattern matches this page" | The page in this tab is not covered by any environment in `app-urls.json` | In Admin, add the exact host users open to the right environment, publish and reload. |
+| "…has a URL pattern for this site that does not cover this page" | The environment's pattern holds a page-specific path | Set it to the application's base URL in Admin (change a test environment first). |
+| "…wins on this page; … also matches" | Two environments match and the lower order wins, often a Test pattern over the production host | Make the pattern that should not win more specific. |
+| "No web page is open in this tab" | The widget check matches the page in the conversation's tab | Open the application page there, then ask again. |
+| Preflight: "The body deny list entry … hides …" | A deny-list entry, often a bare host, covers the Client's content files | Remove it in Settings → Data handling, or narrow it to the paths you mean. |
+
+A message that quotes a Console text the KB cards name ("No active
+application found", "Error parsing response", "No matching version
+found…"), or asks about CSP, CORS, Apty's 404s or the errors in the logs,
+runs the logs check instead. It reads the Client's service-worker logs, the
+Client's own calls and the console the page-world bridge buffered in this
+tab, and names each one it could not read:
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "The Apty Client's logs could not be read" | The Client answers the network messages but not `apty-debug-agent:get-service-worker-logs` | The Widget team adds the logs handler from the reference ([`docs/integrations/apty`](integrations/apty/README.md)). |
+| "No web page is open in this tab, so its console was not read" | The check reads the console of the conversation's tab | Open the application page there, then ask again. |
+| "The page's CSP blocked … none from a host the Apty Client uses" | A CSP block that the agent cannot attribute to Apty | Read the Console text: a nonce means a player version with nonce support, a plain block means whitelisting. |
+| A CORS problem the check does not show | The browser does not report CORS blocks to the page | Read the Console and the Network tab yourself; the card lists this under "Not checked". |
+
+A message that names a tooltip, launcher, validation or workflow and says
+Apty cannot find its element (or it is on the wrong element, the selector
+stopped working, a step fails) runs the selector check. It runs the item's
+stored selector in every frame of this tab; "Apty cannot select any
+elements on this page" runs the page check on DOM Health's audit instead:
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "The steps of … are in its own file, which the Apty Client has not loaded" | The Client loads a workflow's steps when it plays | Play the workflow once in this tab, then ask again. |
+| "No web page is open in this tab, so the selector was not run" | The check runs the selector in the conversation's tab | Open the page where the content should show there, then ask again. |
+| "… is identified by JQUERY/CUSTOM_SCRIPT, which is code the check does not run" | The check never runs the application's code | Run that selector in the Console on the page yourself. |
+| "… matches nothing in the frames that answered; N frame(s) did not answer" | A frame, often cross-origin, did not answer the agent | The element may be in it: check that frame in DevTools. |
+| "… matches nothing on this page, which is expected if it runs on another page" | A workflow step on a different page | Name the failing step ("step 3") with its page open in this tab. |
+
+A message that names no content kind but says the widget is missing, works
+in one environment only, or works on some pages only runs the widget check
+instead. A message that names a language ("…for French users") also checks
+that the item has a name in it.
+
+### Checking a HAR file
+
+Menu › Check a HAR file runs the same checks on a HAR a customer recorded,
+with no Client connected.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "No Apty content files in this HAR" | The HAR was recorded without the widget's calls, or in Extension mode, where the Client fetches its files in its service worker | Record again with the widget open and Preserve log on; in Extension mode, open the Apty Client's service worker from `chrome://extensions` and export the HAR there. |
+| "This HAR has no page request…" with the widget check | The capture has only the Client's calls (a service-worker HAR), so there is no page to match | Record the page itself too, or ask about the widget in a tab on that page with the Client connected. |
+| "This file is over 50 MB…" | The check reads files up to 50,000,000 characters | Record only the problem flow, with fewer pages, and export again. |
+| "…matches the body deny list entry…" on the card | Your deny list covers the HAR's Apty files as it does the Client's | Remove or narrow the entry in Settings → Data handling. |
 
 ## Response bodies are missing from a network capture
 

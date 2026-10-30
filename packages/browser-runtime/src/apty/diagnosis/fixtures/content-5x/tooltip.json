@@ -20,6 +20,18 @@
         "locale": "en"
       }
     ],
-    "type": "TOOLTIP"
+    "type": "TOOLTIP",
+    "element": {
+      "identificationType": "ELEMENT_PICKER",
+      "pickedSelector": "select[name=\"lead_source\"]",
+      "cssSelector": "select[name=\"lead_source\"]",
+      "xPath": "//select[@name='lead_source']",
+      "jquerySelector": "",
+      "customScript": "",
+      "iframesPath": [],
+      "shadowRootSelectors": [],
+      "elementDefinition": {},
+      "id": "0a100000-0000-7000-8000-000000000001"
+    }
   }
 ]

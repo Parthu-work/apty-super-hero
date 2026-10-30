@@ -1,8 +1,10 @@
 /**
- * The result of a check pack, from `run_diagnosis` or from a turn the agent
- * answered without the model: the verdict, each cause with its evidence, fix
- * and KB card, the next check, the checks in the card's order, and what the
- * files cannot decide. Rule names and file facts only; no raw conditions.
+ * The result of a check pack (an item not visible, the widget itself, the
+ * logs, an item's element or the page's element selection),
+ * from `run_diagnosis` or from a turn the agent answered without the model:
+ * the verdict, each cause with its evidence, fix and KB card, the next check,
+ * the checks in the card's order, and what the files cannot decide. Rule
+ * names and file facts only; no raw conditions or URLs.
  */
 import type {
   Cause,
@@ -28,13 +30,20 @@ import {
 } from "lucide-react";
 
 const KB_PAGE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
+const PACKS = new Set([
+  "content-not-visible",
+  "widget-not-visible",
+  "logs-and-errors",
+  "element-not-found",
+  "page-readiness",
+]);
 
 function isDiagnosisResult(value: unknown): value is DiagnosisResult {
   const candidate = value as Partial<DiagnosisResult> | null;
   return (
     typeof candidate === "object" &&
     candidate !== null &&
-    candidate.packId === "content-not-visible" &&
+    PACKS.has(String(candidate.packId)) &&
     Array.isArray(candidate.gates) &&
     typeof candidate.verdict?.status === "string"
   );
@@ -82,12 +91,153 @@ const CAUSE_TEXT: Partial<
     summary: "checkPack.rule.CNV-08.summary",
     fix: "checkPack.rule.CNV-08.fix",
   },
+  "CNV-13": {
+    summary: "checkPack.rule.CNV-13.summary",
+    fix: "checkPack.rule.CNV-13.fix",
+  },
+  "WNV-01": {
+    summary: "checkPack.rule.WNV-01.summary",
+    fix: "checkPack.rule.WNV-01.fix",
+  },
+  "WNV-02": {
+    summary: "checkPack.rule.WNV-02.summary",
+    fix: "checkPack.rule.WNV-02.fix",
+  },
+  "WNV-03": {
+    summary: "checkPack.rule.WNV-03.summary",
+    fix: "checkPack.rule.WNV-03.fix",
+  },
+  "WNV-07": {
+    summary: "checkPack.rule.WNV-07.summary",
+    fix: "checkPack.rule.WNV-07.fix",
+  },
+  "LOG-01": {
+    summary: "checkPack.rule.LOG-01.summary",
+    fix: "checkPack.rule.LOG-01.fix",
+  },
+  "LOG-02": {
+    summary: "checkPack.rule.LOG-02.summary",
+    fix: "checkPack.rule.LOG-02.fix",
+  },
+  "LOG-03": {
+    summary: "checkPack.rule.LOG-03.summary",
+    fix: "checkPack.rule.LOG-03.fix",
+  },
+  "LOG-04": {
+    summary: "checkPack.rule.LOG-04.summary",
+    fix: "checkPack.rule.LOG-04.fix",
+  },
+  "LOG-05": {
+    summary: "checkPack.rule.LOG-05.summary",
+    fix: "checkPack.rule.LOG-05.fix",
+  },
+  "LOG-06": {
+    summary: "checkPack.rule.LOG-06.summary",
+    fix: "checkPack.rule.LOG-06.fix",
+  },
+  "SEL-02": {
+    summary: "checkPack.rule.SEL-02.summary",
+    fix: "checkPack.rule.SEL-02.fix",
+  },
+  "SEL-04": {
+    summary: "checkPack.rule.SEL-04.summary",
+    fix: "checkPack.rule.SEL-04.fix",
+  },
+  "SEL-05": {
+    summary: "checkPack.rule.SEL-05.summary",
+    fix: "checkPack.rule.SEL-05.fix",
+  },
+  "SEL-06": {
+    summary: "checkPack.rule.SEL-06.summary",
+    fix: "checkPack.rule.SEL-06.fix",
+  },
+  "SEL-07": {
+    summary: "checkPack.rule.SEL-07.summary",
+    fix: "checkPack.rule.SEL-07.fix",
+  },
+  "SEL-08": {
+    summary: "checkPack.rule.SEL-08.summary",
+    fix: "checkPack.rule.SEL-08.fix",
+  },
+  "SEL-09": {
+    summary: "checkPack.rule.SEL-09.summary",
+    fix: "checkPack.rule.SEL-09.fix",
+  },
+  "SEL-10": {
+    summary: "checkPack.rule.SEL-10.summary",
+    fix: "checkPack.rule.SEL-10.fix",
+  },
+  "SEL-11": {
+    summary: "checkPack.rule.SEL-11.summary",
+    fix: "checkPack.rule.SEL-11.fix",
+  },
+  "SEL-12": {
+    summary: "checkPack.rule.SEL-12.summary",
+    fix: "checkPack.rule.SEL-12.fix",
+  },
+  "SEL-13": {
+    summary: "checkPack.rule.SEL-13.summary",
+    fix: "checkPack.rule.SEL-13.fix",
+  },
+  "DOM-01": {
+    summary: "checkPack.rule.DOM-01.summary",
+    fix: "checkPack.rule.DOM-01.fix",
+  },
+  "DOM-03": {
+    summary: "checkPack.rule.DOM-03.summary",
+    fix: "checkPack.rule.DOM-03.fix",
+  },
+  "DOM-04": {
+    summary: "checkPack.rule.DOM-04.summary",
+    fix: "checkPack.rule.DOM-04.fix",
+  },
+  "DOM-05": {
+    summary: "checkPack.rule.DOM-05.summary",
+    fix: "checkPack.rule.DOM-05.fix",
+  },
+  "DOM-06": {
+    summary: "checkPack.rule.DOM-06.summary",
+    fix: "checkPack.rule.DOM-06.fix",
+  },
+  "DOM-07": {
+    summary: "checkPack.rule.DOM-07.summary",
+    fix: "checkPack.rule.DOM-07.fix",
+  },
 };
 
 type Translate = ReturnType<typeof useTranslation>["t"];
 
+/** `t` that names a language by its code in the reader's language ("法语", not "French"). */
+function useCheckText(): Translate {
+  const { t, language } = useTranslation();
+  return (key, params) => {
+    if (typeof params?.code !== "string") return t(key, params);
+    let name: string | undefined;
+    try {
+      name = new Intl.DisplayNames([language], { type: "language" }).of(
+        params.code,
+      );
+    } catch {
+      name = undefined;
+    }
+    return t(key, name ? { ...params, language: name } : params);
+  };
+}
+
+const PART_KEY: Record<string, TranslationKey> = {
+  own: "checkPack.part.own",
+  disabled: "checkPack.part.disabled",
+  step: "checkPack.part.step",
+};
+
+/** Names where on the item an element sits ("Step 2"), for the strings that start with it. */
+function withWhere(t: Translate, params: GateResult["params"]) {
+  const key = PART_KEY[String(params.part)];
+  return key ? { ...params, where: t(key, { n: params.n ?? 1 }) } : params;
+}
+
 function gateText(t: Translate, gate: GateResult): string {
-  return t(`checkPack.reason.${gate.reason}`, gate.params);
+  return t(`checkPack.reason.${gate.reason}`, withWhere(t, gate.params));
 }
 
 function headline(t: Translate, result: DiagnosisResult, kind: string) {
@@ -112,7 +262,7 @@ function headline(t: Translate, result: DiagnosisResult, kind: string) {
 
 function causeText(t: Translate, cause: Cause, kind: string) {
   const keys = CAUSE_TEXT[cause.ruleId];
-  const params = { ...cause.params, kind };
+  const params = { ...withWhere(t, cause.params), kind };
   return keys
     ? { summary: t(keys.summary, params), fix: t(keys.fix, params) }
     : { summary: cause.summary, fix: cause.fix };
@@ -134,7 +284,7 @@ function KbCardLink({ pageId }: { pageId: string }) {
 }
 
 function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
-  const { t } = useTranslation();
+  const t = useCheckText();
   const text = causeText(t, cause, kind);
   return (
     <li className="space-y-1.5 rounded-md border border-border bg-card p-2.5">
@@ -169,7 +319,7 @@ function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
 }
 
 function GateRow({ gate }: { gate: GateResult }) {
-  const { t } = useTranslation();
+  const t = useCheckText();
   const { Icon, className } = GATE_ICON[gate.status];
   return (
     <li className="flex items-start gap-2 py-1">
@@ -189,19 +339,30 @@ function GateRow({ gate }: { gate: GateResult }) {
 }
 
 export function CheckResultCard(props: ToolDisplaySlotProps) {
-  const { t } = useTranslation();
+  const t = useCheckText();
   const result = props.tool.output;
   if (!isDiagnosisResult(result)) return <DefaultToolDisplay {...props} />;
 
   const { verdict, subject, scan } = result;
   const kind = t(`checkPack.kind.${subject.kind}`);
-  const title = scan
-    ? t("checkPack.titleScan", { kind })
-    : subject.query
-      ? t("checkPack.titleItem", {
-          name: subject.name ?? subject.query,
-        })
-      : t("checkPack.titleGeneric");
+  const title =
+    result.packId === "page-readiness"
+      ? t("checkPack.titlePage")
+      : result.packId === "element-not-found"
+        ? subject.query
+          ? t("checkPack.titleElement", { name: subject.name ?? subject.query })
+          : t("checkPack.titleElementGeneric")
+        : subject.kind === "logs"
+          ? t("checkPack.titleLogs")
+          : subject.kind === "widget"
+            ? t("checkPack.titleWidget")
+            : scan
+              ? t("checkPack.titleScan", { kind })
+              : subject.query
+                ? t("checkPack.titleItem", {
+                    name: subject.name ?? subject.query,
+                  })
+                : t("checkPack.titleGeneric");
   const blockedRows = scan?.rows.filter((r) => r.blockers.length > 0) ?? [];
   const several = subject.matched.length > 1;
 
@@ -225,9 +386,9 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
             {t("checkPack.causes")}
           </h4>
           <ul className="space-y-2">
-            {verdict.causes.map((cause) => (
+            {verdict.causes.map((cause, index) => (
               <CauseItem
-                key={`${cause.ruleId}-${cause.summary}`}
+                key={`${cause.ruleId}-${index}`}
                 cause={cause}
                 kind={kind}
               />
@@ -279,8 +440,8 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           {t("checkPack.checks")}
         </h4>
         <ul>
-          {result.gates.map((gate) => (
-            <GateRow key={`${gate.id}-${gate.reason}`} gate={gate} />
+          {result.gates.map((gate, index) => (
+            <GateRow key={`${gate.id}-${gate.reason}-${index}`} gate={gate} />
           ))}
         </ul>
       </div>

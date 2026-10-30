@@ -88,3 +88,57 @@ export function served(files: Capture): ServedFile[] {
     body: JSON.stringify(json),
   }));
 }
+
+export interface HarEntry {
+  name: string;
+  body?: string;
+  status?: number;
+  at?: string;
+  base64?: boolean;
+}
+
+/** A HAR file recorded on `page`, with one call per content file. */
+export function harOf(
+  entries: HarEntry[],
+  page = "https://uat.crm.example.com/leads",
+) {
+  return {
+    log: {
+      entries: [
+        {
+          _resourceType: "document",
+          startedDateTime: "2026-10-29T10:00:00.000Z",
+          request: { method: "GET", url: page },
+          response: { status: 200, content: { mimeType: "text/html" } },
+        },
+        ...entries.map((e, i) => ({
+          startedDateTime: e.at ?? `2026-10-29T10:00:0${i + 1}.000Z`,
+          request: {
+            method: "GET",
+            url: `${ENV_PATH}/${e.name}?timestamp=${i}`,
+          },
+          response: {
+            status: e.status ?? 200,
+            content: {
+              mimeType: "application/json",
+              ...(e.body === undefined
+                ? {}
+                : e.base64
+                  ? {
+                      text: Buffer.from(e.body).toString("base64"),
+                      encoding: "base64",
+                    }
+                  : { text: e.body }),
+            },
+          },
+        })),
+      ],
+    },
+  };
+}
+
+export const harEntriesOf = (files: Capture): HarEntry[] =>
+  Object.entries(files).map(([name, json]) => ({
+    name,
+    body: JSON.stringify(json),
+  }));

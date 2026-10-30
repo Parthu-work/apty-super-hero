@@ -553,7 +553,7 @@ export function writeFakeClient(dir, mode, agentId, product = "Client") {
  * files of one 5.x environment and serves their bodies, the way the real
  * Client's service worker would once it answers the Agent's requests.
  */
-export function writeContentClient(dir, agentId, files) {
+export function writeContentClient(dir, agentId, files, { logs = [] } = {}) {
   mkdirSync(dir, { recursive: true });
   const base =
     "https://client.apty.example/tenant-0f000000-0000-7000-8000-000000000000/app-0a000000-0000-7000-8000-000000000001/env-0e000000-0000-7000-8000-000000000002";
@@ -596,7 +596,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       sendResponse({ running: true, lastActivity: Date.now() });
       return true;
     case "apty-debug-agent:get-service-worker-logs":
-      sendResponse({ logs: [] });
+      sendResponse({ logs: ${JSON.stringify(logs)} });
       return true;
     case "apty-debug-agent:list-observed-resources":
       sendResponse({ resources: RESOURCES });

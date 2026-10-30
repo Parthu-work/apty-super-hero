@@ -102,7 +102,46 @@ export type RuleId =
   | "CNV-09"
   | "CNV-10"
   | "CNV-11"
-  | "CNV-12";
+  | "CNV-12"
+  | "CNV-13"
+  | "WNV-00"
+  | "WNV-01"
+  | "WNV-02"
+  | "WNV-03"
+  | "WNV-04"
+  | "WNV-05"
+  | "WNV-06"
+  | "WNV-07"
+  | "LOG-00"
+  | "LOG-01"
+  | "LOG-02"
+  | "LOG-03"
+  | "LOG-04"
+  | "LOG-05"
+  | "LOG-06"
+  | "LOG-07"
+  | "SEL-00"
+  | "SEL-01"
+  | "SEL-02"
+  | "SEL-03"
+  | "SEL-04"
+  | "SEL-05"
+  | "SEL-06"
+  | "SEL-07"
+  | "SEL-08"
+  | "SEL-09"
+  | "SEL-10"
+  | "SEL-11"
+  | "SEL-12"
+  | "SEL-13"
+  | "DOM-00"
+  | "DOM-01"
+  | "DOM-02"
+  | "DOM-03"
+  | "DOM-04"
+  | "DOM-05"
+  | "DOM-06"
+  | "DOM-07";
 
 export type GateId =
   | "data"
@@ -113,7 +152,23 @@ export type GateId =
   | "segments"
   | "segment-consistency"
   | "widget-audience"
-  | "visibility-rule";
+  | "visibility-rule"
+  | "language"
+  | "page"
+  | "environment-match"
+  | "restriction"
+  | "client-logs"
+  | "client-calls"
+  | "page-console"
+  | "element"
+  | "lookup"
+  | "selector-values"
+  | "frames"
+  | "shadow-dom"
+  | "virtualized"
+  | "overlays"
+  | "duplicate-ids"
+  | "automatic-selection";
 
 export type GateStatus = "pass" | "fail" | "unknown" | "info";
 
@@ -147,7 +202,77 @@ export type GateReason =
   | "widgetDisjoint"
   | "appDataUnread"
   | "noVisibilityRule"
-  | "visibilityRule";
+  | "visibilityRule"
+  | "localeFound"
+  | "localeRegional"
+  | "localeMissing"
+  | "appUrlsEmpty"
+  | "pageUnknown"
+  | "pageRead"
+  | "envMatch"
+  | "noEnvMatch"
+  | "envTooSpecific"
+  | "severalEnvMatch"
+  | "otherEnvLoaded"
+  | "envVisibilityRule"
+  | "widgetOtherUsers"
+  | "widgetNoActiveSegment"
+  | "widgetSegmentsMissing"
+  | "restrictionPatterns"
+  | "logsUnavailable"
+  | "pageConsoleUnavailable"
+  | "noPageConsole"
+  | "noKnownMessage"
+  | "noActiveApplication"
+  | "fetchOrParseError"
+  | "noMatchingVersion"
+  | "errorsLogged"
+  | "callsOk"
+  | "contentCallsFailed"
+  | "otherCallsFailed"
+  | "no404FromApty"
+  | "apty404s"
+  | "cspBlockedApty"
+  | "cspBlockedOther"
+  | "aptyResourceFailed"
+  | "kindHasNoElement"
+  | "itemNotNamed"
+  | "stepFileMissing"
+  | "stepNotFound"
+  | "noElement"
+  | "activeFieldEmpty"
+  | "codeSelector"
+  | "noPageToProbe"
+  | "framesUnreadable"
+  | "invalidSelector"
+  | "frameScope"
+  | "framePathDepth"
+  | "shadowScope"
+  | "brokenShadowHost"
+  | "framesSilent"
+  | "noMatch"
+  | "noMatchHere"
+  | "severalMatches"
+  | "notRendered"
+  | "outOfView"
+  | "oneMatch"
+  | "dynamicValue"
+  | "elementRead"
+  | "auditUnavailable"
+  | "auditScore"
+  | "framesNotInspected"
+  | "framesInspected"
+  | "shadowRoots"
+  | "noShadowRoots"
+  | "virtualizedLists"
+  | "noVirtualizedLists"
+  | "frameSelectors"
+  | "coveredElements"
+  | "noCoveredElements"
+  | "duplicateIds"
+  | "noDuplicateIds"
+  | "manualSelectors"
+  | "automaticSelectors";
 
 export type NextCheck =
   | "fixConnection"
@@ -162,10 +287,63 @@ export type NextCheck =
   | "nameItem"
   | "whichOne"
   | "testAsMember"
+  | "openAppPage"
+  | "comparePatterns"
+  | "removalTest"
+  | "readConsoleText"
   | "openItems"
-  | "sendSupport";
+  | "sendSupport"
+  | "runInConsole"
+  | "openItemPage"
+  | "reloadAndRetest"
+  | "playWorkflow"
+  | "nameStep"
+  | "checkTiming";
 
-export type NotChecked = "membership" | "runtime-rules";
+export type NotChecked =
+  | "membership"
+  | "runtime-rules"
+  | "widget-css"
+  | "extension-page-console"
+  | "cors"
+  | "element-timing"
+  | "closed-shadow-roots"
+  | "canvas";
+
+export type PackId =
+  | "content-not-visible"
+  | "widget-not-visible"
+  | "logs-and-errors"
+  | "element-not-found"
+  | "page-readiness";
+
+/** One console or log line, already redacted. */
+export interface LogLine {
+  level: string;
+  message: string;
+  /** For page lines, what the bridge saw: console, csp-violation, resource-error. */
+  source?: string;
+}
+
+/** What the logs pack reads: the Client's logs and calls, and the page's console. */
+export interface LogEvidence {
+  connection: ClientEvidence["connection"];
+  clientLogs:
+    | { ok: true; lines: LogLine[] }
+    | { ok: false; failure: string; message: string };
+  /** The Client's calls by file name, with no URL: only the host is kept, to tell its own from others. */
+  calls: Array<{
+    name: string;
+    host: string;
+    status?: number;
+    failed?: boolean;
+    errorText?: string;
+  }>;
+  /** Undefined when no web page is open in the conversation's tab. */
+  page?:
+    | { ok: true; lines: LogLine[]; framesRead: number; framesDisabled: number }
+    | { ok: false; code: string; message: string };
+}
 
 export type Params = Record<string, string | number>;
 
@@ -212,14 +390,16 @@ export interface ScanRow {
 }
 
 export interface DiagnosisResult {
-  packId: "content-not-visible";
+  packId: PackId;
   /** The KB card the rules come from, and how far they were verified. */
   cardPageId: string;
   verifiedOn: string;
   /** `name` is the item's own name when the query resolved to exactly one. */
   subject: {
-    kind: ContentKind;
+    kind: ContentKind | "widget" | "logs" | "page";
     query?: string;
+    /** The language the message named, as a code ("fr"), for the language gate. */
+    language?: string;
     name?: string;
     matched: string[];
   };

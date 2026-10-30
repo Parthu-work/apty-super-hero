@@ -122,6 +122,7 @@ describe("preflight (C2)", () => {
         clipboard: "pass",
         "storage-access": "pass",
         "data-handling": "pass",
+        "check-files": "pass",
       },
       JSON.stringify(checks, null, 1),
     );
@@ -143,6 +144,23 @@ describe("preflight (C2)", () => {
     assert.match(
       checks["ai-provider"].text,
       /Fix: Open Settings → AI Configuration/,
+    );
+    await store({ apty_settings: SETTINGS() });
+    await options.close();
+  });
+
+  it("with a deny-list host entry over the Client's content: names the entry and the files it hides (C5)", async () => {
+    await store({
+      apty_settings: {
+        ...SETTINGS(),
+        networkBodyCaptureDenyList: ["apty.example"],
+      },
+    });
+    const { options, checks } = await runChecks();
+    assert.equal(checks["check-files"].status, "warn");
+    assert.match(
+      checks["check-files"].text,
+      /The body deny list entry “apty\.example” hides segment\.json, so the visibility checks cannot read them\./,
     );
     await store({ apty_settings: SETTINGS() });
     await options.close();
