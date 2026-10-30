@@ -233,7 +233,21 @@ type Translate = ReturnType<typeof useTranslation>["t"];
 /** `t` that names a language by its code in the reader's language ("法语", not "French"). */
 function useCheckText(): Translate {
   const { t, language } = useTranslation();
-  return (key, params) => {
+  return (key, rawParams) => {
+    // Why something could not be read: English keeps the Client's own
+    // words, another language names the failure by its code.
+    const params =
+      typeof rawParams?.failure === "string"
+        ? {
+            ...rawParams,
+            failureText:
+              language === "en" && typeof rawParams.message === "string"
+                ? rawParams.message
+                : t(
+                    FAILURE_KEY[rawParams.failure] ?? "checkPack.failure.other",
+                  ),
+          }
+        : rawParams;
     if (typeof params?.code !== "string") return t(key, params);
     let name: string | undefined;
     try {
@@ -275,16 +289,11 @@ const FAILURE_KEY: Record<string, TranslationKey> = {
 
 /**
  * Names where on the item an element sits ("Step 2") or which reader a line
- * came from, for the strings that start with it, and why something could
- * not be read.
+ * came from, for the strings that start with it.
  */
 function withWhere(t: Translate, params: GateResult["params"]) {
   const part = PART_KEY[String(params.part)];
   const source = SOURCE_KEY[String(params.source)];
-  const failure =
-    typeof params.failure === "string"
-      ? (FAILURE_KEY[params.failure] ?? "checkPack.failure.other")
-      : undefined;
   return {
     ...params,
     ...(part
@@ -292,7 +301,6 @@ function withWhere(t: Translate, params: GateResult["params"]) {
       : source
         ? { where: t(source) }
         : {}),
-    ...(failure ? { failureText: t(failure) } : {}),
   };
 }
 

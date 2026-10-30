@@ -7,6 +7,7 @@ import {
   ConversationManager,
   ErrorCode,
   InMemoryStorage,
+  isSummaryItem,
   type SerializedSession,
   SessionStorage,
 } from "@apty/agent-core";
@@ -120,7 +121,11 @@ function toolsFor(scenario: Scenario): MeasurableTool[] {
   if (scenario.instructions !== undefined) return [];
   const select = createStickyToolSelector();
   for (const item of scenario.history) {
-    if (item.type === "message" && item.role === "user") {
+    if (
+      item.type === "message" &&
+      item.role === "user" &&
+      !isSummaryItem(item as AgentInputItem)
+    ) {
       select(String(item.content), scenario.name);
     }
   }
@@ -279,8 +284,8 @@ const SUMMARY_SCENARIOS: Scenario[] = [
   },
   {
     name: "summary-request",
-    message: String(summary.request.input[0]?.content ?? ""),
-    history: [],
+    message: String(summary.request.input.at(-1)?.content ?? ""),
+    history: summary.request.input.slice(0, -1),
     instructions: summary.request.systemInstructions ?? "",
   },
 ];
