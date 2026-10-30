@@ -144,6 +144,7 @@ with no Client connected.
 |---|---|---|
 | "No Apty content files in this HAR" | The HAR was recorded without the widget's calls, or in Extension mode, where the Client fetches its files in its service worker | Record again with the widget open and Preserve log on; in Extension mode, open the Apty Client's service worker from `chrome://extensions` and export the HAR there. |
 | "This HAR has no page request…" with the widget check | The capture has only the Client's calls (a service-worker HAR), so there is no page to match | Record the page itself too, or ask about the widget in a tab on that page with the Client connected. |
+| A file you see in the HAR is not listed or not read | Only calls under a `tenant-<id>` path count as Apty's, so a file of the same name from another service never stands in for the Client's | Check that the HAR holds the Client's own calls; a file under another path is left out on purpose. |
 | "This file is over 50 MB…" | The check reads files up to 50,000,000 characters | Record only the problem flow, with fewer pages, and export again. |
 | "…matches the body deny list entry…" on the card | Your deny list covers the HAR's Apty files as it does the Client's | Remove or narrow the entry in Settings → Data handling. |
 

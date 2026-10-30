@@ -94,12 +94,12 @@ function subjectLine(result: DiagnosisResult): string {
   if (subject.kind === "logs") return "Logs and errors check";
   if (result.packId === "page-readiness") return "Page selection check";
   if (result.packId === "element-not-found") {
-    return `Selector check of ${subject.kind}${subject.query ? ` "${subject.query}"` : ""}`;
+    return `Selector check of ${subject.kind}${subject.query ? ` ${JSON.stringify(subject.query)}` : ""}`;
   }
   const language = subject.language
     ? ` for ${languageName(subject.language)} users`
     : "";
-  return `Visibility check of ${subject.kind}${subject.query ? ` "${subject.query}"` : "s"}${language}`;
+  return `Visibility check of ${subject.kind}${subject.query ? ` ${JSON.stringify(subject.query)}` : "s"}${language}`;
 }
 
 /** What the session keeps of a check, for the model to read on later turns. */

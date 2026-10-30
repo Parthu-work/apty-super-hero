@@ -212,6 +212,12 @@ describe("routeSymptom", () => {
     );
   });
 
+  it("keeps a stray quote mark out of a name", () => {
+    expect(
+      routeSymptom('the workflow called Take a tour" is not visible')?.query,
+    ).toBe("Take a tour");
+  });
+
   it("does not read an apostrophe as the start of a name", () => {
     expect(
       routeSymptom("the user's workflow isn't showing in the widget")?.query,

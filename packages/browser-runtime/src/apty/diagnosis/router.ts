@@ -81,6 +81,9 @@ const POSSESSIVE = /['’]s?$/;
 /** A trailing "step 3" on a name; one leading whitespace, so the scan stays linear on free text. */
 const TRAILING_STEP = /(?:^|\s)(?:at\s{1,5})?step\s{1,5}\d{1,3}$/i;
 
+/** Double quote marks left at a name's ends; apostrophes stay for `POSSESSIVE`. */
+const STRAY_QUOTES = /^["“”]+|["“”]+$/g;
+
 /** Words of a clause, not a name: "the selector is green in Studio but the launcher". */
 const CLAUSE = /\b(?:is|are|was|were|but|when|if|because)\b/i;
 
@@ -90,7 +93,8 @@ function itemName(message: string): string | undefined {
       .exec(message)?.[1]
       ?.trim()
       .replace(TRAILING_STEP, "")
-      .trimEnd();
+      .replace(STRAY_QUOTES, "")
+      .trim();
     if (pattern === BEFORE_KIND && name && CLAUSE.test(name)) continue;
     if (name && !NOT_A_NAME.test(name) && !POSSESSIVE.test(name)) return name;
   }

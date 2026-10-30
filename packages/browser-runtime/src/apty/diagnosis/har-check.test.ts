@@ -66,6 +66,41 @@ describe("summarizeHar", () => {
   });
 });
 
+/** A call to a file of an Apty name on a host and path that are not Apty's. */
+const thirdParty = (name: string, at = "2026-10-29T10:05:00.000Z") => ({
+  startedDateTime: at,
+  request: { method: "GET", url: `https://cdn.analytics.example/v1/${name}` },
+  response: {
+    status: 200,
+    content: { mimeType: "application/json", text: "[]" },
+  },
+});
+
+describe("files outside Apty's tenant paths", () => {
+  it("are not read as the Client's, even when newer", async () => {
+    const har = harOf(harEntriesOf(capture()));
+    har.log.entries.push(thirdParty("segment.json") as never);
+
+    const result = await runHarCheck(har, {
+      packId: "content-not-visible",
+      kind: "workflow",
+      query: "Export a report",
+    });
+
+    expect(result.verdict.causes[0]?.ruleId).toBe("CNV-07");
+  });
+
+  it("are not counted as Apty content files", () => {
+    const har = harOf([]);
+    har.log.entries.push(thirdParty("workflow.json") as never);
+
+    expect(summarizeHar(har)).toMatchObject({
+      contentFiles: [],
+      version: "none",
+    });
+  });
+});
+
 describe("runHarCheck", () => {
   it("runs the visibility check on the HAR's files", async () => {
     const result = await runHarCheck(harOf(harEntriesOf(capture())), {

@@ -267,6 +267,17 @@ describe("transcriptOf", () => {
     expect(transcript).toContain("Not checked from the files:");
   });
 
+  it("quotes the item's name so it cannot read as the check's own words", async () => {
+    const answer = await createDiagnosisResponder()(
+      'the workflow called Take "a" tour is not visible',
+      {},
+    );
+
+    expect(answer?.transcript.split("\n")[0]).toMatch(
+      /^Visibility check of workflow "Take \\"a\\" tour" from/,
+    );
+  });
+
   it("lists the scan's blockers when no item was named", async () => {
     const respond = createDiagnosisResponder();
     const answer = await respond(

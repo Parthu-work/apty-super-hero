@@ -25,12 +25,30 @@ function entriesOf(har: unknown): Rec[] {
   return Array.isArray(entries) ? entries.map(rec) : [];
 }
 
+/**
+ * A HAR holds every call the page made, not only the Client's: a file is
+ * Apty content only under a `tenant-<id>` path segment, where both 4.x and
+ * 5.x keep theirs, so an `app-data.json` or `segment.json` of another
+ * service is never read as the Client's.
+ */
+export function isAptyContentUrl(url: string): boolean {
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return false;
+  }
+  return path.split("/").some((segment) => /^tenant-[\w-]+$/.test(segment));
+}
+
 function callsOf(har: unknown): HarCall[] {
   return entriesOf(har).flatMap((entry, index): HarCall[] => {
     const request = rec(entry.request);
     const response = rec(entry.response);
     const content = rec(response.content);
-    if (typeof request.url !== "string") return [];
+    if (typeof request.url !== "string" || !isAptyContentUrl(request.url)) {
+      return [];
+    }
     const status = typeof response.status === "number" ? response.status : 0;
     const failed = status === 0;
     const text = typeof content.text === "string" ? content.text : undefined;
