@@ -142,6 +142,7 @@ describe("routeSymptom", () => {
       "how do I read the service worker logs?",
       "run a console command and check the network request",
       "what is a CSP?",
+      "investigate why the apty widget doesn't load: check the console error and the network request",
     ]) {
       expect(routeSymptom(message)).toBeUndefined();
     }
