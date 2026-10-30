@@ -132,6 +132,13 @@ export interface AptyAgentOptions<
    * provider's default.
    */
   maxOutputTokens?: () => number | undefined | Promise<number | undefined>;
+  /**
+   * The system prompt of one model call, composed from the tools that call
+   * offers, so guidance for tools a turn does not offer is not sent. The
+   * outbound filters see the composed prompt. Undefined sends
+   * `instructions` unchanged on every call.
+   */
+  instructionsFor?: (tools: ReadonlyArray<{ name: string }>) => string;
 }
 
 /** A turn the runtime answered itself, with no model call. */

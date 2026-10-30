@@ -10,7 +10,7 @@ import {
 } from "@apty/browser-runtime/runtime/request-anatomy";
 import { allBrowserTools } from "@apty/browser-runtime/tools/index";
 import { selectRelevantTools } from "@apty/browser-runtime/tools/tool-relevance";
-import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
+import { composeSystemPrompt } from "@apty/ui/components/chatbot/constants";
 import { describe, expect, it } from "vitest";
 import { createOutboundFilters } from "./outbound-filters";
 
@@ -111,12 +111,16 @@ async function measure(
   if (sent) {
     for (const filter of createOutboundFilters()) {
       input = (await filter(input as AgentInputItem[], {
-        instructions: SYSTEM_PROMPT,
+        instructions: composeSystemPrompt(tools),
         tools,
       })) as MeasurableItem[];
     }
   }
-  return measureRequest({ instructions: SYSTEM_PROMPT, tools, input });
+  return measureRequest({
+    instructions: composeSystemPrompt(tools),
+    tools,
+    input,
+  });
 }
 
 const rows = await Promise.all(
@@ -147,7 +151,10 @@ async function measureWithBudget(
   ];
   try {
     for (const filter of filters) {
-      input = await filter(input, { instructions: SYSTEM_PROMPT, tools });
+      input = await filter(input, {
+        instructions: composeSystemPrompt(tools),
+        tools,
+      });
     }
   } catch (error) {
     if (
@@ -159,7 +166,7 @@ async function measureWithBudget(
     throw error;
   }
   return measureRequest({
-    instructions: SYSTEM_PROMPT,
+    instructions: composeSystemPrompt(tools),
     tools,
     input: input as unknown as MeasurableItem[],
   }).totalTokens;
@@ -229,7 +236,7 @@ describe("request anatomy scenarios", () => {
 
   it("reports the whole registry size for reference", () => {
     const all = measureRequest({
-      instructions: SYSTEM_PROMPT,
+      instructions: composeSystemPrompt(allBrowserTools),
       tools: allBrowserTools as unknown as MeasurableTool[],
       input: [],
     });

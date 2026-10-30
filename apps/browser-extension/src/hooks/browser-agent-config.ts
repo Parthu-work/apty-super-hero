@@ -28,7 +28,7 @@ import { useStorage } from "@apty/browser-runtime/hooks";
 import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-store";
 import { tabConsoleOf } from "@apty/browser-runtime/tools/apty";
 import { tabDomHealthOf } from "@apty/browser-runtime/tools/dom-health";
-import { SYSTEM_PROMPT } from "@apty/ui/components/chatbot/constants";
+import { SYSTEM_PROMPT_CORE } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo } from "react";
 import {
   createAIProvider,
@@ -177,7 +177,9 @@ export function useLocalResponder(): LocalResponder {
  * Browser-specific agent configuration
  */
 export const BROWSER_AGENT_CONFIG = {
-  instructions: SYSTEM_PROMPT,
+  // The core only; each call adds the sections its offered tools need
+  // (`composeSystemPrompt`, passed as the agent's `instructionsFor`).
+  instructions: SYSTEM_PROMPT_CORE,
   name: "Apty Live Browser Debugging Agent",
   // A prior round lowered useAgent's own default from 2000 to 30 (a runaway
   // loop should hit a step limit in a normal session) — but this object is

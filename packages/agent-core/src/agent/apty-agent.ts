@@ -138,6 +138,7 @@ export class AptyAgent {
   private contextFormatter: (contexts: Context[]) => string =
     formatContextsForPrompt;
   private localResponder?: LocalResponder;
+  private instructionsFor?: (tools: ReadonlyArray<{ name: string }>) => string;
   private maxOutputTokens?: () =>
     | number
     | undefined
@@ -189,6 +190,7 @@ export class AptyAgent {
     }
     instance.localResponder = options.localResponder;
     instance.maxOutputTokens = options.maxOutputTokens;
+    instance.instructionsFor = options.instructionsFor;
     return instance;
   }
 
@@ -311,14 +313,15 @@ export class AptyAgent {
                   this.modelProvider,
                 ),
               );
-              const request = {
-                instructions: modelData.instructions,
-                tools: (agent as { tools?: FunctionTool[] }).tools ?? [],
-              };
+              const tools = (agent as { tools?: FunctionTool[] }).tools ?? [];
+              const instructions = this.instructionsFor
+                ? this.instructionsFor(tools)
+                : modelData.instructions;
+              const request = { instructions, tools };
               for (const filter of this.outboundFilters) {
                 input = await filter(input, request);
               }
-              return { input, instructions: modelData.instructions };
+              return { input, instructions };
             },
           });
           for await (const streamEvent of result) {

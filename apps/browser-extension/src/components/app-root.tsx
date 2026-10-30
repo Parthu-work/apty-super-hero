@@ -6,6 +6,7 @@
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import { useAgent, useChatConfig } from "@apty/ui";
 import ChatBot from "@apty/ui/components/chatbot";
+import { composeSystemPrompt } from "@apty/ui/components/chatbot/constants";
 import { ErrorBoundary } from "@apty/ui/components/error/ErrorBoundary";
 import type { InterventionMode } from "@apty/ui/components/intervention";
 import { I18nProvider, useTranslation } from "@apty/ui/i18n/context";
@@ -159,6 +160,7 @@ function ChatApp() {
       contextFormatter: formatContextsPrivately,
       localResponder,
       maxOutputTokens,
+      instructionsFor: composeSystemPrompt,
     },
     ...BROWSER_AGENT_CONFIG,
   });
