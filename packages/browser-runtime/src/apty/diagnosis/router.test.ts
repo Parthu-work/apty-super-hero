@@ -170,6 +170,10 @@ describe("routeSymptom", () => {
       { kind: "validation", query: "Email format" },
     ],
     ["my tooltip is missing after a page reload", { kind: "tooltip" }],
+    [
+      "the Take a tour  at step 2 workflow fails",
+      { kind: "workflow", query: "Take a tour", step: 2 },
+    ],
   ];
   for (const [message, expected] of selector) {
     it(`routes "${message}" to the selector check`, () => {

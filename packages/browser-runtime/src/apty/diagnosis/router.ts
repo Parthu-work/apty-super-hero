@@ -78,14 +78,19 @@ const AFTER_KIND = new RegExp(
 );
 const NOT_A_NAME = /^(?:my|our|the|a|an|this|that|new|published|apty|its)$/i;
 const POSSESSIVE = /['’]s?$/;
-const TRAILING_STEP = /\s+(?:at\s+)?step\s+\d{1,3}$/i;
+/** A trailing "step 3" on a name; one leading whitespace, so the scan stays linear on free text. */
+const TRAILING_STEP = /(?:^|\s)(?:at\s{1,5})?step\s{1,5}\d{1,3}$/i;
 
 /** Words of a clause, not a name: "the selector is green in Studio but the launcher". */
 const CLAUSE = /\b(?:is|are|was|were|but|when|if|because)\b/i;
 
 function itemName(message: string): string | undefined {
   for (const pattern of [QUOTED, CALLED, BEFORE_KIND, AFTER_KIND]) {
-    const name = pattern.exec(message)?.[1]?.trim().replace(TRAILING_STEP, "");
+    const name = pattern
+      .exec(message)?.[1]
+      ?.trim()
+      .replace(TRAILING_STEP, "")
+      .trimEnd();
     if (pattern === BEFORE_KIND && name && CLAUSE.test(name)) continue;
     if (name && !NOT_A_NAME.test(name) && !POSSESSIVE.test(name)) return name;
   }
