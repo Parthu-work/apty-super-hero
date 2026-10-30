@@ -6,6 +6,28 @@ full commit-level history.
 
 ## Unreleased
 
+- **A smaller system prompt (LLM plan P2)**: the system prompt is now a byte-stable core plus sections of guidance keyed by tool. A call carries a section only when it offers one of that section's tools.
+  - **The core**: identity and scope, the two-extension architecture, the evidence-first answer format, the untrusted-page rule and the tool-call format. It is 1,258 estimated tokens and is sent on every call, the same bytes first.
+  - **The sections**: the debugging loop (with `start_investigation`), Client and Widget debugging, retrieving a resource, Studio debugging, and each tool-boundaries paragraph (with the tools it names).
+  - **The text**: every line is the earlier prompt's, moved, not reworded. A test checks that every section line is sent exactly once when all its tools are offered.
+  - **Mechanism**: the agent gains an optional `instructionsFor(tools)` that composes the prompt per call; the outbound filters and the request budget measure the composed prompt. A test fails if a section names a tool the registry does not have.
+  - **Measured** with `npm run report:request-size`, as sent:
+
+    | Scenario | Before | After |
+    |---|---|---|
+    | Casual message | 3,810 | 1,259 |
+    | File request | 6,344 | 4,574 |
+    | DOM health | 5,505 | 3,063 |
+    | 10-turn investigation | 11,264 | 10,613 |
+
+  - **Request budget**: at an 8,000 budget, the 10-turn investigation now fits (7,873) instead of stopping.
+  - **Tests**: the request-limits Chromium test now checks the core alone on a turn with no tools and the debugging loop only with the investigation tools. Its budget scenario uses larger messages, because the smaller prompt left the old ones under budget; all its assertions are unchanged.
+  - **Not measured**: savings against a real provider.
+- **HAR file check: only Apty's own files are read**: a HAR holds every call the page made. A file of an Apty name from another host or path, such as a `segment.json` of an analytics service, could replace the Client's and change the verdict. Reproduced: a newer third-party `segment.json` hid the CNV-07 cause of a fixture workflow.
+  - Only calls under a `tenant-<id>` path segment count now, in both the check and the summary. Both 4.x and 5.x keep their files there in the captures seen.
+  - The real 5.x capture gives the same result as before: 15 workflows, 12 hidden.
+- **Item names in a check's transcript**: double quote marks left at the ends of a name parsed from a message are dropped. The transcript JSON-quotes the name, so a quote inside it cannot close the quoting early.
+
 - **HAR file check (partial)**: Menu › Check a HAR file runs the visibility and widget checks on a HAR a customer recorded, for when their Apty Client cannot be connected.
   - **Reading the file**: the file is read in the side panel only, kept in memory while the page is open, and never stored or sent. "Clear file" drops it.
   - **Summary**: the page lists the calls and the Apty content files the HAR holds, by name only. It names a HAR with no Apty files and says how to record one (Preserve log on; in Extension mode, from the Client's service worker). It also flags a 4.x capture, and a HAR with no page request, for which the widget check cannot match environments.

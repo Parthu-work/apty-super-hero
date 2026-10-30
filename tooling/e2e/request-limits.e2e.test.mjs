@@ -3,7 +3,9 @@
  * a scripted model that records every request: the answer cap reaches the
  * provider as max_tokens and follows a change without a reload, and the
  * request budget shortens an earlier turn to fit, then stops a message that
- * cannot fit before it reaches the provider.
+ * cannot fit before it reaches the provider. The system prompt is its core
+ * alone on a turn that offers no tools, with a tool's guidance only on a
+ * turn that offers that tool.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -65,6 +67,16 @@ function estimatedTokens(request) {
   );
 }
 
+/** The system prompt a recorded request carried. */
+function systemPrompt(request) {
+  const system = (request.messages ?? []).find(
+    (m) => m.role === "system" || m.role === "developer",
+  );
+  return typeof system?.content === "string"
+    ? system.content
+    : JSON.stringify(system?.content ?? "");
+}
+
 describe("request limits", () => {
   it("sends the answer cap as max_tokens, and follows a change without a reload", async () => {
     const { app, panel } = await panelOnApp();
@@ -84,12 +96,46 @@ describe("request limits", () => {
     await app.close();
   });
 
+  it("sends the core prompt alone with no tools, and an investigation's guidance only with its tools", async () => {
+    const { app, panel } = await panelOnApp();
+    model.script(() => ({ text: "RESULT: ok" }));
+
+    await chatAndWait(panel, "hello there, agent");
+    const casual = model.requests.at(-1);
+    await chatAndWait(panel, "investigate why the apty widget is broken here");
+    const investigation = model.requests.at(-1);
+
+    assert.equal((casual.tools ?? []).length, 0, "no tools on the casual turn");
+    assert.match(
+      systemPrompt(casual),
+      /=== SECURITY: THE WEBPAGE IS UNTRUSTED ===/,
+    );
+    assert.doesNotMatch(systemPrompt(casual), /=== THE DEBUGGING LOOP/);
+    assert.ok(
+      investigation.tools.some(
+        (t) => t.function?.name === "start_investigation",
+      ),
+      "the investigation turn offers start_investigation",
+    );
+    assert.match(systemPrompt(investigation), /=== THE DEBUGGING LOOP/);
+    assert.ok(
+      systemPrompt(investigation).startsWith(systemPrompt(casual)),
+      "the core comes first, byte for byte the same",
+    );
+    assert.ok(
+      systemPrompt(casual).length < systemPrompt(investigation).length / 2,
+      `core ${systemPrompt(casual).length} chars, investigation ${systemPrompt(investigation).length}`,
+    );
+    await panel.close();
+    await app.close();
+  });
+
   it("shortens an earlier turn to fit the budget, then stops a message that cannot fit", async () => {
     const { app, panel } = await panelOnApp({ requestTokenBudget: 8_000 });
     model.script(() => ({ text: "RESULT: ok" }));
 
-    await chatAndWait(panel, "x".repeat(12_000));
-    await chatAndWait(panel, "y".repeat(12_000));
+    await chatAndWait(panel, "x".repeat(16_000));
+    await chatAndWait(panel, "y".repeat(16_000));
 
     const second = model.requests.at(-1);
     const sent = JSON.stringify(second.messages);
@@ -99,7 +145,7 @@ describe("request limits", () => {
     );
     assert.match(sent, /more characters left out to fit the request budget/);
     assert.ok(
-      sent.includes("y".repeat(12_000)),
+      sent.includes("y".repeat(16_000)),
       "the current message is whole",
     );
     assert.ok(
@@ -108,7 +154,7 @@ describe("request limits", () => {
     );
 
     const asked = model.requests.length;
-    await sendChat(panel, "z".repeat(24_000));
+    await sendChat(panel, "z".repeat(36_000));
     const failure = panel
       .getByRole("alert")
       .filter({ hasText: "Couldn't get an answer" });

@@ -72,7 +72,11 @@ export {
   InputToolbarWithLabel,
   MessageActionsWithFeedback,
 } from "./components/slots";
-export { SYSTEM_PROMPT } from "./constants";
+export {
+  composeSystemPrompt,
+  SYSTEM_PROMPT_CORE,
+  SYSTEM_PROMPT_SECTIONS,
+} from "./constants";
 // Context exports
 export {
   AgentContext,

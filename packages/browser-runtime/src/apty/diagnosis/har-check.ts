@@ -2,12 +2,13 @@
  * The HAR file check of the side panel: an SE who has a customer's HAR
  * instead of a connected Apty Client runs the same visibility and widget
  * checks on it. The file is read in memory only; its Apty files go through
- * the deny list and redaction like the Client's (`evidenceFromHar`), and
- * the summary names files and counts, never a URL.
+ * the deny list and redaction like the Client's (`evidenceFromHar`), only
+ * files under Apty's tenant paths count, and the summary names files and
+ * counts, never a URL.
  */
 import { resourceNameFor } from "../resource-body-utils.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
-import { evidenceFromHar, pageUrlOfHar } from "./har.js";
+import { evidenceFromHar, isAptyContentUrl, pageUrlOfHar } from "./har.js";
 import { type Rec, records } from "./pack-kit.js";
 import { type ContentKind, type DiagnosisResult, KINDS } from "./types.js";
 import {
@@ -59,7 +60,11 @@ export function summarizeHar(har: unknown): HarSummary {
     const content = (entry.response as Rec | undefined)?.content as
       | Rec
       | undefined;
-    if (typeof url !== "string" || typeof content?.text !== "string") {
+    if (
+      typeof url !== "string" ||
+      typeof content?.text !== "string" ||
+      !isAptyContentUrl(url)
+    ) {
       return [];
     }
     const name = resourceNameFor(url);

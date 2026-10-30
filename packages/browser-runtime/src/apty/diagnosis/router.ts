@@ -81,16 +81,25 @@ const POSSESSIVE = /['’]s?$/;
 /** A trailing "step 3" on a name; one leading whitespace, so the scan stays linear on free text. */
 const TRAILING_STEP = /(?:^|\s)(?:at\s{1,5})?step\s{1,5}\d{1,3}$/i;
 
+/** Double quote marks left at a name's ends; apostrophes stay for `POSSESSIVE`. */
+const QUOTE_MARKS = new Set(['"', "“", "”"]);
+
+/** Trims them by character, not by regex, so the scan stays linear. */
+function withoutStrayQuotes(name: string): string {
+  let start = 0;
+  let end = name.length;
+  while (start < end && QUOTE_MARKS.has(name.charAt(start))) start++;
+  while (end > start && QUOTE_MARKS.has(name.charAt(end - 1))) end--;
+  return name.slice(start, end);
+}
+
 /** Words of a clause, not a name: "the selector is green in Studio but the launcher". */
 const CLAUSE = /\b(?:is|are|was|were|but|when|if|because)\b/i;
 
 function itemName(message: string): string | undefined {
   for (const pattern of [QUOTED, CALLED, BEFORE_KIND, AFTER_KIND]) {
-    const name = pattern
-      .exec(message)?.[1]
-      ?.trim()
-      .replace(TRAILING_STEP, "")
-      .trimEnd();
+    const raw = pattern.exec(message)?.[1]?.trim().replace(TRAILING_STEP, "");
+    const name = raw === undefined ? undefined : withoutStrayQuotes(raw).trim();
     if (pattern === BEFORE_KIND && name && CLAUSE.test(name)) continue;
     if (name && !NOT_A_NAME.test(name) && !POSSESSIVE.test(name)) return name;
   }
