@@ -162,6 +162,26 @@ describe("widget-not-visible", () => {
     );
   });
 
+  it("names a widget limited to specific segments with none chosen, not an empty list (13)", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).selectedSegments = [];
+      }),
+      UAT_PAGE,
+    );
+
+    const cause = result.verdict.causes[0];
+    expect(cause).toMatchObject({
+      ruleId: "WNV-07",
+      params: { variant: "noneChosen" },
+    });
+    expect(cause?.summary).toContain("none is chosen");
+    expect(cause?.summary).not.toContain("()");
+    expect(result.gates.find((g) => g.id === "widget-audience")?.reason).toBe(
+      "widgetNoSegmentChosen",
+    );
+  });
+
   it("leaves a selected segment missing from segment.json open, since its effect is not verified", () => {
     const result = diagnoseWidgetNotVisible(
       files((f) => {

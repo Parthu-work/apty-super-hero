@@ -133,4 +133,22 @@ describe("testStoredElement", () => {
       inViewport: false,
     });
   });
+
+  it("tells whether the frame it runs in is the one the stored frame path leads to (N3)", () => {
+    document.body.innerHTML = `<iframe id="a"></iframe><iframe id="b"></iframe>`;
+    const [a, b] = [...document.querySelectorAll("iframe")].map(
+      (frame) => frame.contentDocument as Document,
+    );
+    const target = { ...css("button"), framePath: ["#b"] };
+
+    expect(testStoredElement(b as Document, target).onFramePath).toBe(true);
+    expect(testStoredElement(a as Document, target).onFramePath).toBe(false);
+    expect(
+      testStoredElement(b as Document, { ...target, framePath: [] })
+        .onFramePath,
+    ).toBe(false);
+    expect(testStoredElement(document, css("button")).onFramePath).toBe(
+      undefined,
+    );
+  });
 });

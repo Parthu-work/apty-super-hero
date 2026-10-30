@@ -28,22 +28,20 @@ const KIND_NAMES: [
 export const runDiagnosisTool = tool({
   name: "run_diagnosis",
   description:
-    "Find why Apty content, or the widget itself (kind 'widget'), is not visible, or read the errors in the Apty Client's logs and calls and the page's console (kind 'logs'), from the Apty Client's own files: whether it is published in this environment, hidden from the widget, nameless or unnamed in the user's language, in a segment that cannot match, outside the widget's audience, or on a page no environment's URL pattern covers. With problem 'element-not-found' it runs a tooltip's, launcher's, validation's or workflow step's stored selector in every frame of the page the way the player does (no match, several, hidden, only in a frame or a shadow root, a generated value); kind 'page' reads DOM Health's audit of the page for what stops element selection there. Deterministic and read-only; each finding cites its KB card. Without a name it lists every item of the kind with the blockers the files show. Call this before other diagnostics for a 'not visible' or 'element not found' question.",
+    "Runs Apty's read-only checks on the Apty Client's files and the page; each finding cites its KB card. kind 'widget': why the widget is not visible; 'logs': errors in the Client's logs and calls and the page console; 'page': what stops element selection on the page (DOM Health). A content kind: why that item is not visible (unpublished, hidden, unnamed in the user's language, an unmatchable segment, outside the widget's audience, no environment for the page), or with problem 'element-not-found', its stored selector run in every frame the way the player does. Without a name it lists every item of the kind with its blockers. Call it before other diagnostics for a 'not visible' or 'element not found' question.",
   parameters: z.object({
     kind: z
       .enum(KIND_NAMES)
-      .describe(
-        "The kind of content that is missing, 'widget' for the widget itself, or 'logs' for the errors in the logs and the page's console.",
-      ),
+      .describe("What is missing: a content kind, 'widget', 'logs' or 'page'."),
     name: z
       .string()
       .optional()
-      .describe("The item's name or sourceId, when the user gave one."),
+      .describe("The item's name or sourceId, if given."),
     problem: z
       .enum(["not-visible", "element-not-found"])
       .optional()
       .describe(
-        "'element-not-found' when Apty cannot find the item's element, or shows it on the wrong one; default 'not-visible'.",
+        "'element-not-found' when Apty cannot find its element or uses the wrong one; default 'not-visible'.",
       ),
     step: z
       .number()
@@ -51,14 +49,14 @@ export const runDiagnosisTool = tool({
       .min(1)
       .optional()
       .describe(
-        "The workflow step that fails, 1-based, when the user named one.",
+        "The failing workflow step, a whole number, 1 or more, if named.",
       ),
     language: z
       .string()
       .regex(/^[a-z]{2}$/)
       .optional()
       .describe(
-        "The users' language as a two-letter code, when the problem is one language.",
+        "The users' language, two lowercase letters ('fr'), if one language.",
       ),
   }),
   execute: async ({ kind, name, language, problem, step }, context) => {

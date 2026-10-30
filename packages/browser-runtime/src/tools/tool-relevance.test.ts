@@ -209,3 +209,30 @@ describe("createStickyToolSelector", () => {
     expect(select("ok", "s-3").length).toBeGreaterThan(0);
   });
 });
+
+describe("run_diagnosis for selector and page questions (N8)", () => {
+  it("is offered when a message says an element is not found, a selector broke or nothing can be selected", () => {
+    for (const message of [
+      "investigate why the Save tooltip selector stopped working",
+      "Apty cannot find the element for the Save tooltip",
+      "investigate why Apty cannot select any elements on this page",
+      "the workflow fails at step 3, investigate",
+    ]) {
+      expect(names(selectRelevantTools(message))).toContain("run_diagnosis");
+    }
+  });
+});
+
+describe("a file request after an investigation (P1-1)", () => {
+  it("gets the file tools only, not the investigation it follows", () => {
+    const select = createStickyToolSelector();
+    select("investigate why the apty widget is broken here", "s-1");
+
+    const fetch = names(select("get the data from segments.json", "s-1"));
+
+    expect(fetch).toEqual(
+      names(selectRelevantTools("get the data from segments.json")),
+    );
+    expect(fetch).not.toContain("start_investigation");
+  });
+});

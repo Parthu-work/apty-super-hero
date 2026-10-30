@@ -141,4 +141,29 @@ describe("diagnosePageReadiness", () => {
     });
     expect(result.notChecked).toEqual(["canvas", "closed-shadow-roots"]);
   });
+
+  it("quotes the ambiguity it found when ambiguity alone raises DOM-06, not the hand-made selector share (N10)", () => {
+    const result = diagnosePageReadiness(
+      audit({
+        manualSelectorDependency: 4,
+        metricDetails: {
+          ambiguityRisk: { ambiguous: 7, wrongTarget: 2, totalAnalyzed: 40 },
+        },
+        risks: [risk("ambiguous-or-wrong-target")],
+      }),
+    );
+
+    const cause = result.verdict.causes.find((c) => c.ruleId === "DOM-06");
+    expect(cause?.params).toMatchObject({
+      variant: "ambiguous",
+      ambiguous: 7,
+      wrongTarget: 2,
+      total: 40,
+    });
+    expect(cause?.summary).toContain("7 of 40");
+    expect(cause?.summary).not.toContain("4%");
+    expect(
+      result.gates.find((g) => g.id === "automatic-selection")?.reason,
+    ).toBe("ambiguousSelectors");
+  });
 });

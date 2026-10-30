@@ -45,6 +45,14 @@ export interface UseAgentOptions {
 
   /** Additional agent options */
   agentOptions?: Partial<Parameters<typeof AptyAgent.create>[0]>;
+
+  /**
+   * Create the agent even with no provider configured, so answers that need
+   * no model (`agentOptions.localResponder`) still run; any model call then
+   * fails with the not-configured error. The host decides which messages
+   * to send without a provider (`checkAuthBeforeSend`).
+   */
+  localAnswersWithoutModel?: boolean;
 }
 
 export interface UseAgentReturn {
@@ -79,6 +87,16 @@ export interface UseAgentReturn {
  */
 const NOT_CONFIGURED_ERROR_MESSAGE = "API token or model not configured";
 
+/** Stands in for the provider while none is configured: it fails every call, so nothing is sent. */
+const UNCONFIGURED_MODEL = {
+  async getResponse(): Promise<never> {
+    throw new Error(NOT_CONFIGURED_ERROR_MESSAGE);
+  },
+  getStreamedResponse(): never {
+    throw new Error(NOT_CONFIGURED_ERROR_MESSAGE);
+  },
+} as unknown as Parameters<typeof AptyAgent.create>[0]["model"];
+
 export function useAgent({
   settings,
   isLoading,
@@ -90,6 +108,7 @@ export function useAgent({
   name = "Assistant",
   maxTurns = 30,
   agentOptions = {},
+  localAnswersWithoutModel = false,
 }: UseAgentOptions): UseAgentReturn {
   const [agent, setAgent] = useState<AptyAgent | undefined>(undefined);
   const [error, setError] = useState<Error | undefined>(undefined);
@@ -127,13 +146,15 @@ export function useAgent({
     }
 
     if (!isConfigured) {
-      setAgent(undefined);
       setError((prev: Error | undefined) =>
         prev?.message === NOT_CONFIGURED_ERROR_MESSAGE
           ? prev
           : new Error(NOT_CONFIGURED_ERROR_MESSAGE),
       );
-      return;
+      if (!localAnswersWithoutModel) {
+        setAgent(undefined);
+        return;
+      }
     }
 
     // Use current settings values (from closure) for agent creation
@@ -146,7 +167,9 @@ export function useAgent({
 
     try {
       // Create the model using the provided factory
-      const model = modelFactoryRef.current(currentSettings);
+      const model = isConfigured
+        ? modelFactoryRef.current(currentSettings)
+        : UNCONFIGURED_MODEL;
 
       let contextManager: ContextManager | undefined;
       if (contextProvidersRef.current.length > 0) {
@@ -171,7 +194,7 @@ export function useAgent({
       });
 
       setAgent(newAgent);
-      setError(undefined);
+      if (isConfigured) setError(undefined);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // "Not configured" is the expected state on every fresh install
@@ -193,6 +216,7 @@ export function useAgent({
     instructions,
     name,
     maxTurns,
+    localAnswersWithoutModel,
   ]);
 
   return {

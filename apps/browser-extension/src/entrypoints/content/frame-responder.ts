@@ -475,7 +475,17 @@ function storedElementTarget(value: unknown): StoredElementTarget | null {
   }
   const shadowRoots = settingsEntries(target.shadowRoots);
   if (shadowRoots.length > MAX_STORED_SHADOW_HOSTS) return null;
-  return { language: target.language, selector: target.selector, shadowRoots };
+  const framePath =
+    target.framePath === undefined
+      ? undefined
+      : settingsEntries(target.framePath);
+  if (framePath && framePath.length > MAX_STORED_SHADOW_HOSTS) return null;
+  return {
+    language: target.language,
+    selector: target.selector,
+    shadowRoots,
+    ...(framePath ? { framePath } : {}),
+  };
 }
 
 /** Paths may cross shadow boundaries (`buildComposedDomPath`), so they are resolved hop by hop, never with one `querySelector`. */

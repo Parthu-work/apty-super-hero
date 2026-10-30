@@ -6,6 +6,48 @@ full commit-level history.
 
 ## Unreleased
 
+- **Fixes from the October audit of the checks (31 open on main, 4 in this branch)**: each was confirmed in the code, or reproduced, before it was fixed, and each fix has a test that failed first.
+  - **Router**:
+    - An item is named by the words nearest its kind ("the selector for the Save tooltip" names "Save").
+    - "missing", "hidden" or "gone" followed by an object no longer reads as "not visible".
+    - A request to investigate goes to the model.
+    - How-to and ordinary messages ("How would I…", "is this page ready for the demo?") get no check.
+    - "the widget doesn't load", "X fails at step N" and the Chinese "widget 没有显示" are routed, so the Home presets route the same in both languages.
+  - **Privacy**:
+    - An answer given without the model gets the URL policy every tool result gets.
+    - A failed call's error text reaches the card and the transcript redacted, with no URL.
+    - A HAR check says it read the HAR's files.
+    - A locally answered turn keeps its attached chip in the session.
+  - **No API key**: a message a check answers runs without an AI provider; anything else still asks for setup.
+  - **Files**:
+    - A newer 404 of a file wins over an older 200.
+    - Only the newest environment's files are read, never a mix, and a HAR's summary names how many environments it holds.
+  - **HAR page**:
+    - The page is the one the Apty files loaded on, not a sign-in page the HAR starts on.
+    - A file over 50 MB is refused before it is read.
+    - Calls that brought no file are named as such.
+    - A check that answers after another file was picked is dropped, and a failing check is named.
+  - **Packs**:
+    - The scan leaves segment blockers open when segment.json could not be read.
+    - WNV-07 names a widget limited to specific segments with none chosen.
+    - DOM-06 quotes the ambiguity when ambiguity alone raised it.
+    - A name only under another code for the language (iw, in, nb) is left open, not called missing.
+    - The Chinese card shows Chinese text where it showed the Client's English messages.
+  - **Selector check**:
+    - Only the frame the stored frame path leads to is counted.
+    - A selector in jQuery syntax is left open as code the check does not run, not called broken.
+  - **Tools**:
+    - `run_diagnosis` is offered for selector and page questions.
+    - Its schema is 15% smaller and says in words that `step` is a whole number of 1 or more and `language` two lowercase letters.
+    - A file request after an investigation gets the file tools only.
+  - **Request size**:
+    - An image counts at a fixed estimate (1,600 tokens), not its base64 data as text, so a screenshot turn no longer fails under a request budget.
+    - The summary request is one message per turn, so a budget can leave out the oldest.
+    - Checks answered without the model are kept in summaries.
+    - The summary is a user message, not a system one.
+  - **Not changed**:
+    - URL patterns keep the player's own matching: unanchored, case-sensitive, no port normalising.
+    - XPath's first-match rule and the screen token stay as they are: neither is in this repo's player sources nor confirmed.
 - **Summaries of earlier turns (LLM plan P5), off by default**: Settings → AI → Request size → **Summarize earlier turns**. When a chat grows long, the model summarizes its earlier turns, and later requests carry the summary instead.
   - **Masked like every request**: the summary request runs the same outbound filters: masking, the result caps, the request budget and the request report. It carries user and assistant messages only, never tool results.
   - **When**: after a turn whose last request was over three quarters of the request budget, or 20,000 tokens without one. The newest 4 messages and their tool calls stay whole. A chat of 8 items or fewer is never summarized.

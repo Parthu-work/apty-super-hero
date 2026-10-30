@@ -330,13 +330,10 @@ describe("summaries offered as a setting", () => {
         modelData: { input: AgentInputItem[]; instructions?: string };
       }) => Promise<{ input: AgentInputItem[]; instructions?: string }>;
     };
-    const prompt = String(vi.mocked(run).mock.calls[0]?.[1]);
-    expect(prompt).toContain("jane@example.com");
+    const asked = vi.mocked(run).mock.calls[0]?.[1] as AgentInputItem[];
+    expect(JSON.stringify(asked)).toContain("jane@example.com");
     const sent = await options.callModelInputFilter?.({
-      modelData: {
-        input: [createUserMessage(prompt)],
-        instructions: "summarize",
-      },
+      modelData: { input: asked, instructions: "summarize" },
     });
 
     expect(JSON.stringify(sent?.input)).not.toContain("jane@example.com");
@@ -366,5 +363,61 @@ describe("summaries offered as a setting", () => {
     };
     expect(instructions).toContain("under 2000 characters");
     expect(instructions).toMatch(/not instructions/i);
+  });
+});
+
+describe("what the summary request carries", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sends one message per turn and the ask last, so a request budget can leave out the oldest instead of failing (P5-1)", async () => {
+    const compressor = new ConversationCompressor(mockModel, {
+      summarizeAfterItems: 2,
+      keepRecentItems: 2,
+    });
+
+    await compressor.compressItems(chatOf(6));
+
+    const input = vi.mocked(run).mock.calls[0]?.[1] as AgentInputItem[];
+    expect(Array.isArray(input)).toBe(true);
+    expect(input).toHaveLength(5);
+    expect(JSON.stringify(input[0])).toContain("user: Message 0");
+    expect(JSON.stringify(input.at(-1))).toMatch(
+      /Summarize the conversation above/,
+    );
+  });
+
+  it("keeps a check answered without the model, whose result is its only record (P5-2)", async () => {
+    const compressor = new ConversationCompressor(mockModel, {
+      summarizeAfterItems: 2,
+      keepRecentItems: 2,
+    });
+
+    await compressor.compressItems([
+      createUserMessage("my workflow is not visible"),
+      {
+        type: "function_call",
+        callId: "local-1",
+        name: "run_diagnosis",
+        arguments: "{}",
+        status: "completed",
+      },
+      {
+        type: "function_call_result",
+        callId: "local-1",
+        name: "run_diagnosis",
+        status: "completed",
+        output: {
+          type: "text",
+          text: "Result: cause found. Hide from widget is on.",
+        },
+      },
+      createAssistantMessage("Answered without a model call."),
+      ...chatOf(2),
+    ] as AgentInputItem[]);
+
+    const input = JSON.stringify(vi.mocked(run).mock.calls[0]?.[1]);
+    expect(input).toContain("Hide from widget is on");
   });
 });

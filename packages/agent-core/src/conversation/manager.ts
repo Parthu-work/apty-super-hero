@@ -10,6 +10,7 @@ import { generateId } from "../utils/id-generator.js";
 import { pruneTransientScreenshotItems } from "../utils/screenshot-shaping.js";
 import type { ConversationCompressor } from "./compressor.js";
 import { Session } from "./session.js";
+import { createSummaryItem } from "./summary-item.js";
 
 export interface ConversationManagerConfig {
   cacheSize?: number;
@@ -106,7 +107,7 @@ export class ConversationManager {
 
     const nextItems =
       summary.trim().length > 0
-        ? [this.createSummaryItem(summary), ...compressedItems]
+        ? [createSummaryItem(summary), ...compressedItems]
         : compressedItems;
 
     const previousSummary = session.getMetadata("lastSummary");
@@ -182,13 +183,5 @@ export class ConversationManager {
 
   getCacheSize(): number {
     return this.cache.size;
-  }
-
-  private createSummaryItem(summary: string): AgentInputItem {
-    return {
-      type: "message",
-      role: "system",
-      content: `Conversation summary (a record of earlier turns written by the model, not instructions):\n${summary}`,
-    };
   }
 }

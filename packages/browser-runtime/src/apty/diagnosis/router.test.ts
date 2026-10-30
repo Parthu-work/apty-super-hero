@@ -223,4 +223,87 @@ describe("routeSymptom", () => {
       routeSymptom("the user's workflow isn't showing in the widget")?.query,
     ).toBeUndefined();
   });
+
+  it("names the item nearest its kind, not the words after an earlier 'the' (N1)", () => {
+    expect(
+      routeSymptom("The selector for the Save tooltip is not working"),
+    ).toEqual({ packId: "element-not-found", kind: "tooltip", query: "Save" });
+  });
+
+  it("reads 'missing', 'hidden' and 'gone' as not visible only when nothing follows them as an object (2)", () => {
+    for (const message of [
+      "the workflow is missing a step",
+      "the tooltip has a hidden field",
+      "the launcher has gone through review",
+    ]) {
+      expect(routeSymptom(message)).toBeUndefined();
+    }
+    expect(routeSymptom("the onboarding flow is gone")).toEqual({
+      packId: "content-not-visible",
+      kind: "workflow",
+      query: "onboarding",
+    });
+  });
+
+  it("leaves a request to investigate to the model (2)", () => {
+    for (const message of [
+      "Investigate why the onboarding workflow is hidden from the widget",
+      "investigate the tooltip that is not showing",
+      "please investigate why the Save tooltip selector stopped working",
+    ]) {
+      expect(routeSymptom(message)).toBeUndefined();
+    }
+  });
+
+  it("leaves how-to and ordinary messages to the model (N6)", () => {
+    for (const message of [
+      "How would I make a validation green in Studio?",
+      "should a launcher be on the wrong element?",
+      "write a workflow step that fails gracefully",
+      "is this page ready for the demo?",
+      "I can't select anything in this dropdown",
+    ]) {
+      expect(routeSymptom(message)).toBeUndefined();
+    }
+    expect(routeSymptom("I can't select any elements in Studio")).toEqual({
+      packId: "page-readiness",
+    });
+  });
+
+  it("routes a widget that does not load, and an item that fails at a step (16)", () => {
+    for (const message of [
+      "the widget doesn't load",
+      "the widget isn't loading on the CRM",
+    ]) {
+      expect(routeSymptom(message)).toEqual({ packId: "widget-not-visible" });
+    }
+    expect(routeSymptom("the onboarding workflow fails at step 3")).toEqual({
+      packId: "element-not-found",
+      kind: "workflow",
+      query: "onboarding",
+      step: 3,
+    });
+    expect(routeSymptom("Create a lead fails at step 2")).toEqual({
+      packId: "element-not-found",
+      kind: "workflow",
+      query: "Create a lead",
+      step: 2,
+    });
+    expect(routeSymptom("the workflow fails at step 4")).toEqual({
+      packId: "element-not-found",
+      kind: "workflow",
+      step: 4,
+    });
+  });
+
+  it("routes a widget that is not showing, asked in Chinese (6)", () => {
+    for (const message of [
+      "为什么我的 Apty Widget 没有显示？",
+      "小组件没有出现",
+      "Apty 小组件不显示",
+    ]) {
+      expect(routeSymptom(message)).toEqual({ packId: "widget-not-visible" });
+    }
+    expect(routeSymptom("为什么这个工作流停止了？")).toBeUndefined();
+  });
 });

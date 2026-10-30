@@ -345,6 +345,31 @@ function audienceStep(evidence: ClientEvidence): Step {
     "widgetConfig.enabledForOtherUser = false",
     ...states.map((s) => `segment ${s.name}: ${s.state}`),
   ];
+  if (selected.length === 0) {
+    const cause: Cause = {
+      ruleId: "WNV-07",
+      cardPageId: WIDGET_CARD,
+      params: { variant: "noneChosen" },
+      summary:
+        "The widget is set to show only to specific segments, but none is chosen, and the option for other users is off: nobody sees it.",
+      fix: 'In Admin, under "TARGET AUDIENCE", choose the widget\'s segments or enable the widget for all users. Publish and reload.',
+      evidence: [...lines, "widgetConfig.selectedSegments = []"],
+    };
+    return {
+      gates: [
+        gate(
+          "widget-audience",
+          "fail",
+          "WNV-07",
+          "widgetNoSegmentChosen",
+          cause.summary,
+          cause.params,
+          cause.evidence,
+        ),
+      ],
+      causes: [cause],
+    };
+  }
   const usable = states.filter((s) => s.state === "usable");
   if (usable.length > 0) {
     const names = usable.map((s) => s.name).join(", ");
@@ -442,14 +467,14 @@ export function diagnoseWidgetNotVisible(
   pageUrl?: string,
 ): DiagnosisResult {
   if (!evidence.connection.ok) {
-    const { message } = evidence.connection;
+    const { message, failure } = evidence.connection;
     const data = gate(
       "data",
       "fail",
       "WNV-00",
       "clientUnreachable",
       `Could not reach the Apty Client: ${message}`,
-      { message },
+      { message, failure },
     );
     return finish(evidence, [data], {
       status: "no_data",

@@ -290,7 +290,7 @@ describe("ConversationManager", () => {
 
       expect(reloaded?.getMetadata("lastSummary")).toBe("Important context");
       const items = await reloaded?.getItems();
-      expect(items?.[0]).toMatchObject({ role: "system" });
+      expect(items?.[0]).toMatchObject({ role: "user" });
       expect(reloaded?.getSummary().preview).toContain("Important context");
     });
 
@@ -486,5 +486,27 @@ describe("ConversationManager summaries offered as a setting", () => {
     expect(summary?.content).toMatch(/^Conversation summary/);
     expect(summary?.content).toMatch(/not instructions/i);
     expect(summary?.content).toContain("Important context");
+  });
+
+  it("inserts the summary as a user message, not a system one, and keeps it out of the chat's preview", async () => {
+    const compressor = {
+      shouldCompress: () => false,
+      async compressItems(items: AgentInputItem[]) {
+        return { summary: "Earlier turns", compressedItems: items.slice(-1) };
+      },
+    } as unknown as ConversationCompressor;
+    const manager = new ConversationManager(storage, { compressor });
+    const session = await manager.createSession();
+    await session.addItems([
+      createUserMessage("first question"),
+      createAssistantMessage("first answer"),
+      createUserMessage("latest question"),
+    ]);
+
+    await manager.compressSession(session.id);
+
+    const [summary] = (await session.getItems()) as Array<{ role: string }>;
+    expect(summary?.role).toBe("user");
+    expect(session.getSummary().preview).toBe("latest question");
   });
 });

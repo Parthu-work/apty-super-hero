@@ -170,6 +170,24 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
     "not in the widget",
     "can't see",
     "cannot see",
+    // The selector and page checks (element-not-found, page-readiness).
+    "find the element",
+    "find its element",
+    "element not found",
+    "wrong element",
+    "selector stopped",
+    "selector not working",
+    "selector is not working",
+    "selector isn't working",
+    "selector broke",
+    "selector is broken",
+    "green in studio",
+    "element picker",
+    "select any element",
+    "select anything",
+    "apty-ready",
+    "apty ready",
+    "fails at step",
   ],
   extensionNetwork: [
     "segments.json",
@@ -315,6 +333,11 @@ export function createStickyToolSelector({
   return (text, sessionId) => {
     const current = selectRelevantGroups(text);
     if (sessionId === null) return toolsOf(current);
+    // A file request stays a file request: the investigation it follows
+    // does not ride along (see RETRIEVAL_REQUEST).
+    if (RETRIEVAL_REQUEST.test(text.toLowerCase().trim())) {
+      return toolsOf(current);
+    }
 
     const turns = recentTurns.get(sessionId) ?? [];
     const groups = new Set([...turns.flatMap((t) => [...t]), ...current]);

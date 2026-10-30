@@ -6,6 +6,25 @@ import type {
   OutboundFilter,
 } from "../types.js";
 
+/** The call ID prefix of a turn the local responder answered with no model call. */
+export const LOCAL_ANSWER_CALL_PREFIX = "local-";
+
+/** A local check's transcript: the only record of what it found, since its closing message is a fixed note. */
+function localCheckText(item: AgentInputItem): string | undefined {
+  if (item.type !== "function_call_result") return undefined;
+  const result = item as { callId?: unknown; output?: unknown };
+  if (
+    typeof result.callId !== "string" ||
+    !result.callId.startsWith(LOCAL_ANSWER_CALL_PREFIX)
+  ) {
+    return undefined;
+  }
+  const { output } = result;
+  if (typeof output === "string") return output;
+  const text = (output as { text?: unknown } | null)?.text;
+  return typeof text === "string" ? text : undefined;
+}
+
 export class ConversationCompressor {
   private config: Required<
     Omit<
@@ -71,7 +90,11 @@ export class ConversationCompressor {
       recentItems = items.slice(-this.config.keepRecentItems);
     }
 
-    if (!itemsToSummarize.some((item) => item.type === "message")) {
+    if (
+      !itemsToSummarize.some(
+        (item) => item.type === "message" || localCheckText(item) !== undefined,
+      )
+    ) {
       return { summary: "", compressedItems: items };
     }
 
@@ -84,29 +107,41 @@ export class ConversationCompressor {
   }
 
   private async generateSummary(items: AgentInputItem[]): Promise<string> {
-    const conversationText = items
-      .filter((item) => item.type === "message")
-      .map((item) => {
+    // One message per turn, the ask last: a request budget can then leave
+    // out the oldest turns instead of failing on one oversized message.
+    const lines = items.flatMap((item): string[] => {
+      if (item.type === "message") {
         const role = "role" in item ? item.role : "unknown";
-        const content = this.extractContent(item);
-        return `${role}: ${content}`;
-      })
-      .join("\n");
-
-    const result = await run(
-      this.agent,
-      `Summarize this conversation:\n\n${conversationText}`,
+        return [`${role}: ${this.extractContent(item)}`];
+      }
+      const check = localCheckText(item);
+      return check ? [`check: ${check}`] : [];
+    });
+    const input: AgentInputItem[] = [
+      ...lines.map(
+        (text): AgentInputItem => ({
+          type: "message",
+          role: "user",
+          content: text,
+        }),
+      ),
       {
-        callModelInputFilter: async ({ modelData }) => {
-          let input = modelData.input;
-          const request = { instructions: modelData.instructions, tools: [] };
-          for (const filter of this.outboundFilters) {
-            input = await filter(input, request);
-          }
-          return { input, instructions: modelData.instructions };
-        },
+        type: "message",
+        role: "user",
+        content: "Summarize the conversation above.",
       },
-    );
+    ];
+
+    const result = await run(this.agent, input, {
+      callModelInputFilter: async ({ modelData }) => {
+        let input = modelData.input;
+        const request = { instructions: modelData.instructions, tools: [] };
+        for (const filter of this.outboundFilters) {
+          input = await filter(input, request);
+        }
+        return { input, instructions: modelData.instructions };
+      },
+    });
 
     return (result.finalOutput ?? "").trim();
   }

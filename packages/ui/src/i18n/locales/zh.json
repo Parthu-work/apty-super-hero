@@ -1866,7 +1866,7 @@
     },
     "reason": {
       "filesRead": "已读取 {{file}}，共 {{count}} 条",
-      "clientUnreachable": "无法连接 Apty Client：{{message}}",
+      "clientUnreachable": "无法连接 Apty Client：{{failureText}}",
       "notObserved": "Apty Client 没有报告加载 {{file}}",
       "emptyList": "{{file}} 已加载，但列表为空",
       "httpError": "{{file}} 加载失败（HTTP {{httpStatus}}）",
@@ -1897,6 +1897,7 @@
       "visibilityRule": "“{{rule}}”（{{action}}）由浏览器判断",
       "localeFound": "已有{{language}}名称（{{locales}}）",
       "localeRegional": "仅有 {{locales}} 名称：语言代码为 {{code}} 的用户看不到，地区条目不会回退",
+      "localeAlias": "{{language}}：只有 {{locales}} 的名称，这是该语言的另一个代码；代码为 {{code}} 的用户能否看到它未经验证",
       "localeMissing": "没有{{language}}（{{code}}）名称",
       "appUrlsEmpty": "app-urls.json 为空列表，Apty 不会加载任何内容（HTTP {{httpStatus}}）",
       "pageUnknown": "此标签页未打开网页，因此未检查 URL 模式",
@@ -1909,10 +1910,11 @@
       "envVisibilityRule": "{{env}} 有自己的可见性规则“{{rule}}”（{{action}}），由浏览器判定",
       "widgetOtherUsers": "面向所选分段，也面向不在任何活动分段中的用户",
       "widgetNoActiveSegment": "小组件的分段在此永远不会生效：{{segments}}",
+      "widgetNoSegmentChosen": "小组件设置为特定分段，但未选择任何分段",
       "widgetSegmentsMissing": "小组件的分段并非都在此处的 segment.json 中：{{segments}}",
       "restrictionPatterns": "设置了 {{count}} 个限制模式；它们可能隐藏整个小组件",
-      "logsUnavailable": "无法读取 Apty Client 的日志：{{message}}",
-      "pageConsoleUnavailable": "无法读取页面控制台：{{message}}",
+      "logsUnavailable": "无法读取 Apty Client 的日志：{{failureText}}",
+      "pageConsoleUnavailable": "无法读取页面控制台：{{failureText}}",
       "noPageConsole": "此标签页未打开网页，因此未读取其控制台",
       "noKnownMessage": "{{where}}：{{count}} 行，没有错误，也没有知识库卡片列出的消息",
       "errorsLogged": "{{where}}：{{count}} 个错误，都不是知识库卡片列出的消息",
@@ -1934,11 +1936,13 @@
       "noElement": "{{where}}在文件中没有元素；可能是发布缺陷（未验证）",
       "activeFieldEmpty": "{{where}}按 {{type}} 识别，但其 {{field}} 为空",
       "codeSelector": "{{where}}按 {{type}} 识别，这是检查不会运行的代码",
+      "jquerySyntax": "{{where}}使用了 jQuery 语法，浏览器无法解析，检查不会运行它",
       "noPageToProbe": "此标签页中没有打开网页，因此未运行选择器",
       "framesUnreadable": "无法列出此标签页的框架，因此未运行选择器",
       "invalidSelector": "{{where}}：存储的选择器无法解析",
       "frameScope": "{{where}}：在页面本身中没有匹配，但在某个框架内有 {{count}} 个匹配，且其框架路径为空",
       "framePathDepth": "{{where}}：其框架路径指定 {{depth}} 层框架，但元素位于第 {{found}} 层",
+      "framePathOther": "{{where}}：路径指向的框架中没有匹配，同一层的另一个框架中有 {{count}} 个",
       "shadowScope": "{{where}}：在存储的查找不会进入的 shadow root 内有 {{count}} 个匹配",
       "brokenShadowHost": "{{where}}：第 {{index}} 个（共 {{total}} 个）shadow host 选择器找不到打开的 shadow root",
       "framesSilent": "{{where}}：在已应答的框架中没有匹配；有 {{silent}} 个框架未应答",
@@ -1950,7 +1954,7 @@
       "oneMatch": "{{where}}：在可见区域内恰好匹配一个已渲染的元素",
       "dynamicValue": "{{where}}：包含 {{count}} 个看似自动生成的值，这类值在重新加载后常会变化",
       "elementRead": "{{where}}按 {{type}} 识别；框架路径 {{frames}} 层，shadow host {{hosts}} 个",
-      "auditUnavailable": "{{message}}",
+      "auditUnavailable": "{{failureText}}",
       "auditScore": "DOM Health 对此页面的评分为 {{score}}（{{grade}}），基于 {{elements}} 个交互元素",
       "framesNotInspected": "{{total}} 个框架中有 {{count}} 个无法检查",
       "framesInspected": "所有已应答的框架都已检查",
@@ -1964,6 +1968,7 @@
       "duplicateIds": "{{count}} 个元素与其他元素共用同一个 id",
       "noDuplicateIds": "每个 id 在其文档或 shadow root 中都是唯一的",
       "manualSelectors": "{{percent}}% 的交互元素需要手工编写选择器",
+      "ambiguousSelectors": "{{total}} 个交互元素中有 {{ambiguous}} 个只有匹配多个元素的选择器",
       "automaticSelectors": "按 Apty 自身的规则，大多数交互元素都有稳定的选择器"
     },
     "rule": {
@@ -2010,6 +2015,10 @@
       "WNV-07": {
         "summary": "小组件仅限于在此永远不会生效的分段（{{segments}}），且“其他用户”选项已关闭：没有人能看到它。",
         "fix": "在 Admin 的“TARGET AUDIENCE”下，开启小组件的某个分段或修复其规则，或为所有用户启用小组件。发布并重新加载。"
+      },
+      "WNV-07-noneChosen": {
+        "summary": "小组件设置为仅向特定分段显示，但未选择任何分段，且“其他用户”选项已关闭：没有人能看到它。",
+        "fix": "在 Admin 的“TARGET AUDIENCE”下，为小组件选择分段，或为所有用户启用小组件。发布并重新加载。"
       },
       "LOG-01": {
         "summary": "Apty 找不到 URL 模式匹配此页面的环境，因此那里不加载任何内容。",
@@ -2075,6 +2084,10 @@
         "summary": "{{where}}：其框架路径指定 {{depth}} 层框架，但元素位于第 {{found}} 层。",
         "fix": "在包含该元素的框架内用 Studio 重新选择它，使框架路径与实际嵌套一致；然后发布。"
       },
+      "SEL-12-otherFrame": {
+        "summary": "{{where}}：在其框架路径指向的框架中没有匹配，但在同一层的另一个框架中有 {{count}} 个元素。",
+        "fix": "在 Studio 中进入包含该元素的框架重新选择它，使框架路径指向该框架，然后发布。"
+      },
       "SEL-13": {
         "summary": "{{where}}：第 {{index}} 个（共 {{total}} 个）shadow host 选择器找不到打开的 shadow root，因此查找退回到文档并且找不到任何内容。",
         "fix": "在 Studio 中重新选择该元素以记录其 shadow host 链，然后发布。"
@@ -2098,6 +2111,10 @@
       "DOM-06": {
         "summary": "按 Apty 自身的规则，已分析的交互元素中有 {{percent}}% 没有唯一且稳定的选择器，需要手工编写。",
         "fix": "对内容用到的元素，检查 Studio 记录的选择器并使其稳定（Ignore 和 Partial Selector 规则，或 XPath），然后发布。"
+      },
+      "DOM-06-ambiguous": {
+        "summary": "在分析的交互元素中，{{total}} 个中有 {{ambiguous}} 个只有匹配多个元素的选择器，另有 {{wrongTarget}} 个的选择器会选中错误的元素。",
+        "fix": "对你的内容所用的元素，在 Studio 中细化选择器，使其只匹配目标元素（使用稳定的属性，或 Ignore 和 Partial Selector 规则），然后发布。"
       },
       "DOM-07": {
         "summary": "{{total}} 个框架中有 {{count}} 个只能按位置或地址区分，因此存储的框架路径可能指向另一个框架。",
@@ -2148,6 +2165,24 @@
       "inactive-segments": "仅在已关闭的分段中"
     },
     "scanSummary": "{{total}} 个中有 {{blocked}} 个在文件中存在阻碍",
+    "scanSummaryNoSegments": "在已读取的文件中，{{total}} 个中有 {{blocked}} 个存在阻碍；无法读取 segment.json，因此未检查已停用的分段",
+    "where": {
+      "client": "Apty Client 日志",
+      "page": "页面控制台"
+    },
+    "failure": {
+      "not_configured": "未保存 Apty Client 扩展 ID",
+      "no_receiver": "Apty Client 未安装或未运行",
+      "no_response": "Apty Client 没有响应",
+      "timeout": "Apty Client 未及时响应",
+      "send_failed": "无法向 Apty Client 发送请求",
+      "malformed_response": "Apty Client 的响应格式不符合预期",
+      "unreachable": "无法连接 Apty Client",
+      "no_page": "此标签页中没有打开网页，因此未进行审计。",
+      "audit_error": "DOM Health 无法审计此页面。",
+      "no_frame_answered": "此页面没有任何框架响应，因此未进行任何审计。",
+      "other": "无法读取"
+    },
     "causes": "原因",
     "evidence": "证据",
     "fix": "修复",
@@ -2174,6 +2209,9 @@
     "summary": "{{file}}：{{calls}} 个请求，{{files}} 个 Apty 内容文件",
     "noAptyFiles": "此 HAR 中没有 Apty 内容文件",
     "noAptyFilesHelp": "请在打开小组件并开启“保留日志”的情况下重新录制。在 Extension 模式下，请在 chrome://extensions 中从 Apty Client 的 service worker 导出 HAR，它的请求是在那里发出的。",
+    "noFileInCalls": "此 HAR 中 Apty 的请求未带回任何文件",
+    "noFileInCallsHelp": "{{count}} 个 Apty 内容请求失败，或录制时没有响应正文。检查会列出每个文件的状态；请开启“保留日志”并重新加载页面后再次录制，让请求完成。",
+    "environments": "此 HAR 包含来自 {{count}} 个 Apty 环境的请求；检查读取最新环境的文件。",
     "version4x": "此 HAR 包含 4.x 内容文件；这些检查仅针对 5.x 验证过。",
     "target": "缺少的是什么？",
     "targets": {
@@ -2198,7 +2236,8 @@
       "too-large": "此文件超过 50 MB，太大，无法在此读取。",
       "not-json": "此文件不是有效的 JSON，因此不是 HAR 文件。",
       "not-har": "此 JSON 文件没有 log 条目，因此不是 HAR 文件。",
-      "unreadable": "无法读取此文件。"
+      "unreadable": "无法读取此文件。",
+      "check-failed": "无法对此文件运行检查。"
     }
   }
 }

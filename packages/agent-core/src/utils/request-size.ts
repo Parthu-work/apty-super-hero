@@ -10,10 +10,18 @@ function textOf(value: unknown): string {
   }
 }
 
+/** One image as providers bill it, about 1,600 tokens for a screenshot at most (an estimate). */
+const IMAGE_TOKENS = 1_600;
+
+const isImagePart = (part: unknown) => {
+  const type = (part as { type?: unknown } | null)?.type;
+  return type === "input_image" || type === "image";
+};
+
 /**
  * Estimated tokens of a request as sent: characters / 4 of the instructions,
- * the tool schemas and each item's content, arguments or output, the rule
- * the request budget and the request-size report count by.
+ * the tool schemas and each item's content, arguments or output, and each
+ * image at a fixed estimate: the rule the request budget counts by.
  */
 export function estimateRequestTokens(request: {
   instructions?: string;
@@ -32,7 +40,14 @@ export function estimateRequestTokens(request: {
       parameters: tool.parameters ?? {},
     }).length;
   }
+  let images = 0;
   for (const item of request.input) {
+    const content = (item as { content?: unknown }).content;
+    if (Array.isArray(content) && content.some(isImagePart)) {
+      images += content.filter(isImagePart).length;
+      chars += textOf(content.filter((p) => !isImagePart(p))).length;
+      continue;
+    }
     const part = item as {
       type?: string;
       content?: unknown;
@@ -47,5 +62,5 @@ export function estimateRequestTokens(request: {
           : part.content,
     ).length;
   }
-  return Math.ceil(chars / 4);
+  return Math.ceil(chars / 4) + images * IMAGE_TOKENS;
 }

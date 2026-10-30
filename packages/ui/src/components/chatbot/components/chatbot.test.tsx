@@ -401,6 +401,34 @@ describe("Chatbot needsAuth pre-flight (WP19)", () => {
     expect(screen.getByTestId("count")).toHaveTextContent("0");
   });
 
+  it("passes the typed text to checkAuthBeforeSend, so a host can let through what needs no model (8)", async () => {
+    const checkAuthBeforeSend = vi.fn(async () => ({
+      needsAuth: false,
+      hasCustomConfig: false,
+    }));
+    const TestChild = () => {
+      const { sendMessage } = useChatContext();
+      return (
+        <button type="button" onClick={() => sendMessage("hello there")}>
+          send
+        </button>
+      );
+    };
+
+    await renderWithAct(
+      <ChatbotProvider agent={mockAgent} handlers={{ checkAuthBeforeSend }}>
+        <TestChild />
+      </ChatbotProvider>,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("send"));
+    });
+
+    await waitFor(() => {
+      expect(checkAuthBeforeSend).toHaveBeenCalledWith("hello there");
+    });
+  });
+
   it("sends normally when checkAuthBeforeSend reports no auth is needed", async () => {
     const onNeedsAuth = vi.fn();
     const TestChild = () => {

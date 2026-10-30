@@ -111,4 +111,23 @@ describe("useAgent", () => {
       expect.any(Error),
     );
   });
+
+  it("creates an agent without a provider when answers that need no model may run, without building a provider model (8)", async () => {
+    const modelFactory = vi.fn(() => ({ id: "fake-model" }));
+
+    const { result } = renderHook(() =>
+      useAgent({
+        settings: {},
+        isLoading: false,
+        modelFactory,
+        storage: createFakeSessionStorage(),
+        localAnswersWithoutModel: true,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.agent).toBeDefined();
+    });
+    expect(modelFactory).not.toHaveBeenCalled();
+  });
 });

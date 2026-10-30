@@ -162,6 +162,27 @@ describe("diagnoseElementNotFound", () => {
     expect(missing.verdict.nextCheck).toBe("sendSupport");
   });
 
+  it("does not call a jQuery-only selector broken: it is left open like code the check does not run (N5)", async () => {
+    const run = probe();
+
+    const result = await diagnoseElementNotFound(
+      files((all) => {
+        (tooltip(all).element as Rec).pickedSelector =
+          'button:contains("Save"):visible';
+      }),
+      { kind: "tooltip", query: "Lead source help" },
+      run,
+    );
+
+    expect(run).not.toHaveBeenCalled();
+    expect(result.gates.find((g) => g.id === "element")).toMatchObject({
+      status: "unknown",
+      reason: "jquerySyntax",
+    });
+    expect(result.verdict.causes).toEqual([]);
+    expect(result.verdict.nextCheck).toBe("runInConsole");
+  });
+
   it("finds a hand-written selector that only matches inside a frame, and a frame path at the wrong depth", async () => {
     const selector = 'select[name="lead_source"]';
     const handWritten = await diagnoseElementNotFound(
@@ -185,6 +206,35 @@ describe("diagnoseElementNotFound", () => {
       ruleId: "SEL-12",
       params: { depth: 1, found: 2 },
     });
+  });
+
+  it("counts only the frame its frame path leads to, not every frame at that depth (N3)", async () => {
+    const selector = 'select[name="lead_source"]';
+    const probed = probe({
+      [selector]: [
+        top(test(0)),
+        child(test(1, { onFramePath: false })),
+        child(test(0, { onFramePath: true })),
+      ],
+    });
+    const result = await diagnoseElementNotFound(
+      files((all) => {
+        (tooltip(all).element as Rec).iframesPath = ["iframe#main"];
+      }),
+      { kind: "tooltip", query: "Lead source help" },
+      probed,
+    );
+
+    expect(probed.mock.calls[0]?.[0]).toMatchObject({
+      framePath: ["iframe#main"],
+    });
+    expect(result.verdict.causes[0]).toMatchObject({
+      ruleId: "SEL-12",
+      params: { variant: "otherFrame", count: 1 },
+    });
+    expect(result.gates.find((g) => g.id === "lookup")?.reason).toBe(
+      "framePathOther",
+    );
   });
 
   it("finds an element behind a shadow root the lookup does not enter, and a host selector that finds no open root", async () => {

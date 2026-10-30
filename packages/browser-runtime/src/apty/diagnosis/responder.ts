@@ -1,4 +1,7 @@
 import type { LocalResponder } from "@apty/agent-core";
+import { getRedactionMode } from "../../runtime/redaction-mode.js";
+import { applyResultPrivacy } from "../../runtime/result-privacy.js";
+import { currentValuePolicy } from "../../runtime/value-policy.js";
 import { getAptyIntegrationConfig } from "../config.js";
 import type { DomHealthAuditOutcome } from "../dom-health.js";
 import { tabElementProbeOf } from "../element-probe.js";
@@ -102,11 +105,25 @@ function subjectLine(result: DiagnosisResult): string {
   return `Visibility check of ${subject.kind}${subject.query ? ` ${JSON.stringify(subject.query)}` : "s"}${language}`;
 }
 
+/** Where a check read its files: the live Apty Client, or a HAR file the SE picked. */
+export type EvidenceSource = "client" | "har";
+
+function readFrom(result: DiagnosisResult, source: EvidenceSource): string {
+  if (result.packId === "page-readiness")
+    return "DOM Health's audit of the page";
+  return source === "har"
+    ? "the HAR file's Apty files"
+    : "the Apty Client's files";
+}
+
 /** What the session keeps of a check, for the model to read on later turns. */
-export function transcriptOf(result: DiagnosisResult): string {
+export function transcriptOf(
+  result: DiagnosisResult,
+  source: EvidenceSource = "client",
+): string {
   const { verdict } = result;
   const lines = [
-    `${subjectLine(result)} from ${result.packId === "page-readiness" ? "DOM Health's audit of the page" : "the Apty Client's files"} (KB card ${result.cardPageId}; ${result.verifiedOn}).`,
+    `${subjectLine(result)} from ${readFrom(result, source)} (KB card ${result.cardPageId}; ${result.verifiedOn}).`,
     `Result: ${verdict.status.replace(/_/g, " ")}. ${verdict.headline}`,
     ...verdict.causes.map(
       (c) => `- ${c.ruleId}: ${c.summary} Fix: ${c.fix} (card ${c.cardPageId})`,
@@ -275,11 +292,18 @@ export function createDiagnosisResponder(
       probeElement: sources.elementProbeOf(runContext),
       domHealth: () => sources.domHealthOf(runContext),
     });
+    // The URL policy every tool result gets on its way to the model
+    // (tools/index.ts): the answer is kept in the session and read next turn.
+    await getRedactionMode();
+    const policy = currentValuePolicy();
+    const shown = applyResultPrivacy(result, policy) as DiagnosisResult;
     return {
       toolName: RUN_DIAGNOSIS,
-      params: paramsOf(route),
-      result,
-      transcript: transcriptOf(result),
+      params: applyResultPrivacy(paramsOf(route), policy) as ReturnType<
+        typeof paramsOf
+      >,
+      result: shown,
+      transcript: applyResultPrivacy(transcriptOf(shown), policy) as string,
     };
   };
 }

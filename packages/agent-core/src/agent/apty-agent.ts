@@ -8,7 +8,10 @@ import {
 import type { ContextManager } from "../context/manager.js";
 import type { Context } from "../context/types.js";
 import { formatContextsForPrompt, resolveContexts } from "../context/utils.js";
-import { ConversationCompressor } from "../conversation/compressor.js";
+import {
+  ConversationCompressor,
+  LOCAL_ANSWER_CALL_PREFIX,
+} from "../conversation/compressor.js";
 import { EphemeralSession } from "../conversation/ephemeral-session.js";
 import { ConversationManager } from "../conversation/manager.js";
 import type { Session } from "../conversation/session.js";
@@ -690,6 +693,11 @@ export class AptyAgent {
       }
     }
 
+    // The session keeps a locally answered turn as the model would have read
+    // it: the user's words with the contexts they attached.
+    const localTurnInput =
+      typeof finalInput === "string" ? finalInput : finalTextInput;
+
     // If sessionId is provided, continue existing conversation
     if (chatOptions?.sessionId) {
       if (!this.conversationManager) {
@@ -712,7 +720,7 @@ export class AptyAgent {
       };
 
       yield* local
-        ? this.runLocalAnswer(input, local, session)
+        ? this.runLocalAnswer(localTurnInput, local, session)
         : this.runExecution(
             finalInput,
             session,
@@ -731,7 +739,7 @@ export class AptyAgent {
     }
 
     yield* local
-      ? this.runLocalAnswer(input, local, session)
+      ? this.runLocalAnswer(localTurnInput, local, session)
       : this.runExecution(
           finalInput,
           session,
@@ -766,7 +774,7 @@ export class AptyAgent {
     }
 
     if (session) {
-      const callId = `local-${generateId()}`;
+      const callId = `${LOCAL_ANSWER_CALL_PREFIX}${generateId()}`;
       await session.addItems([
         { type: "message", role: "user", content: input },
         {

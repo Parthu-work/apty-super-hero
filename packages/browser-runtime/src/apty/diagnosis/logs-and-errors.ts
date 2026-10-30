@@ -17,7 +17,7 @@
  */
 
 import { CHECK_PACK_FILES } from "./pack-files.js";
-import { makeGate } from "./pack-kit.js";
+import { makeGate, quotedErrorText } from "./pack-kit.js";
 import type {
   Cause,
   DiagnosisResult,
@@ -116,6 +116,10 @@ function excerpt(line: LogLine): string {
     : text;
 }
 
+/** Which reader a line came from, for the card to name in the user's language. */
+const sourceOf = (where: string) =>
+  where === "page console" ? "page" : "client";
+
 /** Lines another gate reports on its own: CSP violations and failed loads. */
 const OWN_GATE = new Set(["csp-violation", "resource-error"]);
 
@@ -128,7 +132,7 @@ function knownIn(lines: LogLine[], where: string) {
     const cause: Cause = {
       ruleId: known.ruleId,
       cardPageId: known.cardPageId,
-      params: { where, phrase, count: hits.length },
+      params: { where, source: sourceOf(where), phrase, count: hits.length },
       summary: known.summary,
       fix: known.fix,
       evidence: [`${where}: "${phrase}" (${hits.length}×)`],
@@ -157,7 +161,7 @@ function sourceGate(
       KNOWN.find((k) => k.ruleId === causes[0]?.ruleId)?.reason ??
         "noActiveApplication",
       causes.map((c) => c.summary).join(" "),
-      { where, count: causes.length },
+      { where, source: sourceOf(where), count: causes.length },
       causes.flatMap((c) => c.evidence),
       causes[0]?.cardPageId,
     );
@@ -171,7 +175,7 @@ function sourceGate(
       "LOG-00",
       "errorsLogged",
       `${where}: ${errors.length} error(s), none of them a message the KB cards name.`,
-      { where, count: errors.length },
+      { where, source: sourceOf(where), count: errors.length },
       distinct.map((m) => `${where}: ${m}`),
     );
   }
@@ -181,12 +185,12 @@ function sourceGate(
     "LOG-00",
     "noKnownMessage",
     `${where}: ${lines.length} line(s), no error and no message the KB cards name.`,
-    { where, count: lines.length },
+    { where, source: sourceOf(where), count: lines.length },
   );
 }
 
 const describeCall = (c: LogEvidence["calls"][number]) =>
-  `${c.name}: ${c.failed ? (c.errorText ?? "failed") : `HTTP ${c.status}`}`;
+  `${c.name}: ${c.failed ? (c.errorText ? quotedErrorText(c.errorText) : "failed") : `HTTP ${c.status}`}`;
 
 function callsStep(
   evidence: LogEvidence,
@@ -397,14 +401,14 @@ export function diagnoseLogsAndErrors(
   about404 = false,
 ): DiagnosisResult {
   if (!evidence.connection.ok) {
-    const { message } = evidence.connection;
+    const { message, failure } = evidence.connection;
     const data = gate(
       "data",
       "fail",
       "LOG-00",
       "clientUnreachable",
       `Could not reach the Apty Client: ${message}`,
-      { message },
+      { message, failure },
     );
     return finish(evidence, [data], {
       status: "no_data",
@@ -437,7 +441,10 @@ export function diagnoseLogsAndErrors(
         "LOG-00",
         "logsUnavailable",
         `The Apty Client's logs could not be read: ${evidence.clientLogs.message}`,
-        { message: evidence.clientLogs.message },
+        {
+          message: evidence.clientLogs.message,
+          failure: evidence.clientLogs.failure,
+        },
       ),
     );
   }
@@ -468,7 +475,7 @@ export function diagnoseLogsAndErrors(
         page
           ? `The page's console could not be read: ${page.message}`
           : "No web page is open in this tab, so its console was not read.",
-        page ? { message: page.message } : {},
+        page ? { message: page.message, failure: page.code } : {},
       ),
     );
     nexts.push("openAppPage");

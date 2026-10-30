@@ -11,7 +11,7 @@
  * user matches a segment's rule, a visibility rule's result) is reported as
  * candidates, never guessed.
  */
-import { languageName } from "./languages.js";
+import { languageName, OTHER_LANGUAGE_CODES } from "./languages.js";
 import {
   FILE_PROBLEMS,
   fileOf,
@@ -167,10 +167,11 @@ function environmentGate(evidence: ClientEvidence): GateResult {
   );
 }
 
+/** `segments` is undefined when segment.json could not be read: its blockers stay open, never counted as none. */
 function scan(
   draft: Draft,
   items: Rec[],
-  segments: Rec[],
+  segments: Rec[] | undefined,
   gates: GateResult[],
 ) {
   const spec = KINDS[draft.kind];
@@ -179,7 +180,7 @@ function scan(
     const blockers: ScanRow["blockers"] = [];
     if (item.hideFromWidget === true) blockers.push("hidden");
     if (namesOf(item).length === 0) blockers.push("no-name");
-    const linked = segments.filter((s) =>
+    const linked = (segments ?? []).filter((s) =>
       texts(s[spec.segmentField]).includes(sourceId),
     );
     if (linked.length > 0 && linked.every((s) => s.isActive !== true)) {
@@ -188,19 +189,41 @@ function scan(
     return { name: labelOf(item), sourceId, blockers };
   });
   const blocked = rows.filter((r) => r.blockers.length > 0).length;
+  const segmentsUnread = segments === undefined;
+  if (segmentsUnread) {
+    const file = fileOf(draft.evidence, "segment.json");
+    gates.push(
+      gate(
+        "segments",
+        "unknown",
+        "CNV-09",
+        "segmentsUnread",
+        `segment.json could not be read (${file.status}).`,
+        { status: file.status },
+        [],
+        CARD_SEGMENTS,
+      ),
+    );
+  }
   return finish(
     draft,
     gates,
     {
-      status: blocked > 0 ? "candidates" : "no_cause_in_data",
-      headline: `${blocked} of ${rows.length} ${spec.label}s have a blocker in the files. Name the one that is missing to check it in full.`,
+      status: blocked > 0 || segmentsUnread ? "candidates" : "no_cause_in_data",
+      headline: segmentsUnread
+        ? `${blocked} of ${rows.length} ${spec.label}s have a blocker in the files read; segment.json could not be read, so inactive segments were not checked. Name the one that is missing to check it in full.`
+        : `${blocked} of ${rows.length} ${spec.label}s have a blocker in the files. Name the one that is missing to check it in full.`,
       causes: [],
       nextCheck: "nameItem",
     },
     {
       confidence: "likely",
       notChecked: NOT_CHECKED,
-      scan: { total: rows.length, rows },
+      scan: {
+        total: rows.length,
+        rows,
+        ...(segmentsUnread ? { segmentsUnread: true } : {}),
+      },
     },
   );
 }
@@ -550,6 +573,25 @@ function languageGate(
     `${KINDS[draft.kind].file}: names in ${named.join(", ") || "no language"}`,
   ];
   const params = { language, code };
+  const underOtherCode = named.filter((l) =>
+    (OTHER_LANGUAGE_CODES[code] ?? []).includes(
+      l.toLowerCase().split(/[-_]/)[0] ?? "",
+    ),
+  );
+  if (forLanguage.length === 0 && underOtherCode.length > 0) {
+    return {
+      gate: gate(
+        "language",
+        "unknown",
+        "CNV-13",
+        "localeAlias",
+        `"${labelOf(item)}" is named in ${underOtherCode.join(", ")} only, another code for ${language}: whether the widget shows it to users whose language code is ${code} is not verified.`,
+        { ...params, locales: underOtherCode.join(", ") },
+        lines,
+        CARD_LANGUAGE,
+      ),
+    };
+  }
   if (forLanguage.length === 0) {
     const cause: Cause = {
       ruleId: "CNV-13",
@@ -646,7 +688,7 @@ export function diagnoseContentNotVisible(
   };
 
   if (!evidence.connection.ok) {
-    const { message } = evidence.connection;
+    const { message, failure } = evidence.connection;
     return noData(
       draft,
       gate(
@@ -655,7 +697,7 @@ export function diagnoseContentNotVisible(
         "CNV-00",
         "clientUnreachable",
         `Could not reach the Apty Client: ${message}`,
-        { message },
+        { message, failure },
       ),
       "fixConnection",
     );
@@ -722,7 +764,7 @@ export function diagnoseContentNotVisible(
     environmentGate(evidence),
   ];
 
-  if (!draft.query) return scan(draft, items, segments ?? [], gates);
+  if (!draft.query) return scan(draft, items, segments, gates);
 
   const matches = resolveItems(items, draft.query);
   if (matches.length === 0) {

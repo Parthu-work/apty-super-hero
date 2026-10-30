@@ -80,6 +80,29 @@ describe("Connections, the setup badge and settings links", () => {
     await app.close();
   });
 
+  it("answers a check question with no API key and no model request, and asks for setup for anything else (8)", async () => {
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app, { aiToken: "" });
+    for (const page of optionsTabs()) await page.close();
+    model.script(() => ({ text: "MODEL WAS CALLED" }));
+
+    await sendChat(panel, "my workflow is not visible in the widget");
+    await panel
+      .getByText("Could not reach the Apty Client", { exact: false })
+      .first()
+      .waitFor({ timeout: 30_000 });
+    assert.equal(model.requests.length, 0, "no model request");
+    assert.equal(await panel.getByText("Connect an AI provider").count(), 0);
+
+    await sendChat(panel, "hello, what can you do?");
+    await panel.getByText("Connect an AI provider").waitFor();
+    assert.equal(model.requests.length, 0, "still no model request");
+    assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+
   it("explains a refused API key in the chat and opens the AI provider settings from there", async () => {
     const app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);

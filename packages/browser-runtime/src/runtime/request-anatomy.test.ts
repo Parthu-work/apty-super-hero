@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   estimateTokens,
+  IMAGE_TOKENS,
   measureRequest,
   toolSchemaTokens,
 } from "./request-anatomy.js";
@@ -40,6 +41,31 @@ describe("request anatomy", () => {
         anatomy.toolSchemaTokens +
         anatomy.historyTokens +
         anatomy.toolResultTokens,
+    );
+  });
+
+  it("counts an image at a fixed estimate, not its data URL as text (5)", () => {
+    const withImage = measureRequest({
+      instructions: "",
+      tools: [],
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: "abcd" },
+            {
+              type: "input_image",
+              image: `data:image/png;base64,${"A".repeat(400_000)}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(withImage.historyTokens).toBe(
+      estimateTokens(JSON.stringify([{ type: "input_text", text: "abcd" }])) +
+        IMAGE_TOKENS,
     );
   });
 });

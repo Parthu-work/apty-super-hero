@@ -89,6 +89,40 @@ function finding(
   };
 }
 
+/** DOM-06 raised by ambiguity alone: no hand-made-selector risk to quote. */
+function ambiguityOnly(audit: DomHealthAuditResult): boolean {
+  const ids = new Set(audit.risks.map((r) => r.id));
+  return (
+    ids.has("ambiguous-or-wrong-target") &&
+    !ids.has("manual-selector-dependency") &&
+    !ids.has("low-automatic-selection")
+  );
+}
+
+function ambiguityFinding(audit: DomHealthAuditResult): Finding {
+  const a = audit.metricDetails?.ambiguityRisk;
+  const ambiguous = a?.ambiguous ?? 0;
+  const wrongTarget = a?.wrongTarget ?? 0;
+  const total = a?.totalAnalyzed ?? audit.metadata.interactiveElementsAnalyzed;
+  return finding(
+    "automatic-selection",
+    "DOM-06",
+    CARD_SELECTOR,
+    true,
+    ["ambiguousSelectors", "automaticSelectors"],
+    [
+      `${ambiguous} of ${total} interactive elements analyzed only have selectors that match several elements, and ${wrongTarget} have one that picks the wrong element.`,
+      "",
+    ],
+    { variant: "ambiguous", ambiguous, wrongTarget, total },
+    "For the elements your content uses, refine the selector in Studio so it matches only the intended element (a stable attribute, or Ignore and Partial Selector rules), then publish.",
+    [
+      `elements whose selectors match several elements: ${ambiguous} of ${total}`,
+      `elements whose selector picks the wrong one: ${wrongTarget}`,
+    ],
+  );
+}
+
 function findings(audit: DomHealthAuditResult): Finding[] {
   const risk = (id: string) => audit.risks.some((r) => r.id === id);
   const { frameAccessibility: fa } = audit;
@@ -184,22 +218,24 @@ function findings(audit: DomHealthAuditResult): Finding[] {
         `elements with a shared id: ${audit.duplicateIds.elementsWithDuplicatedId}`,
       ],
     ),
-    finding(
-      "automatic-selection",
-      "DOM-06",
-      CARD_SELECTOR,
-      unresolved,
-      ["manualSelectors", "automaticSelectors"],
-      [
-        `${audit.manualSelectorDependency}% of the interactive elements analyzed have no unique, stable selector by Apty's own rules and would need a hand-made one.`,
-        "Apty's own rules give most interactive elements a unique, stable selector.",
-      ],
-      { percent: audit.manualSelectorDependency },
-      "For the elements your content uses, check the selector Studio recorded and make it stable (Ignore and Partial Selector rules, or XPath), then publish.",
-      [
-        `elements needing a hand-made selector: ${audit.manualSelectorDependency}% of ${audit.metadata.interactiveElementsAnalyzed}`,
-      ],
-    ),
+    ambiguityOnly(audit)
+      ? ambiguityFinding(audit)
+      : finding(
+          "automatic-selection",
+          "DOM-06",
+          CARD_SELECTOR,
+          unresolved,
+          ["manualSelectors", "automaticSelectors"],
+          [
+            `${audit.manualSelectorDependency}% of the interactive elements analyzed have no unique, stable selector by Apty's own rules and would need a hand-made one.`,
+            "Apty's own rules give most interactive elements a unique, stable selector.",
+          ],
+          { percent: audit.manualSelectorDependency },
+          "For the elements your content uses, check the selector Studio recorded and make it stable (Ignore and Partial Selector rules, or XPath), then publish.",
+          [
+            `elements needing a hand-made selector: ${audit.manualSelectorDependency}% of ${audit.metadata.interactiveElementsAnalyzed}`,
+          ],
+        ),
   ];
 }
 
@@ -232,7 +268,7 @@ export function diagnosePageReadiness(
       "DOM-00",
       "auditUnavailable",
       message,
-      { message },
+      { message, failure: audit ? "audit_error" : "no_page" },
     );
     return finish([data], {
       status: "no_data",
@@ -252,7 +288,7 @@ export function diagnosePageReadiness(
           "DOM-00",
           "auditUnavailable",
           message,
-          { message },
+          { message, failure: "no_frame_answered" },
         ),
       ],
       { status: "no_data", headline: message, causes: [], nextCheck: "reload" },
