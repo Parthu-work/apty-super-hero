@@ -64,7 +64,16 @@ export class ConversationManager {
           lastPromptTokensValue,
         )
       ) {
-        await this.doCompress(session);
+        try {
+          await this.doCompress(session);
+        } catch (error) {
+          // A summary is optional: a failed one leaves the chat whole. Only
+          // the error's type is logged; its message can carry chat content.
+          const kind = error instanceof Error ? error.name : typeof error;
+          console.warn(
+            `[Apty Agent] Conversation summary failed (${kind}); the chat is kept whole`,
+          );
+        }
       }
     }
     this.cache.set(session.id, session);
@@ -102,14 +111,19 @@ export class ConversationManager {
 
     const previousSummary = session.getMetadata("lastSummary");
 
+    const previousPromptTokens = session.getMetadata("lastPromptTokens");
+
     await session.clearSession();
     try {
       session.setMetadata("lastSummary", summary);
+      // The size was of the history just replaced; the next request measures the new one.
+      session.setMetadata("lastPromptTokens", undefined);
       await session.addItems(nextItems);
     } catch (error) {
       await session.clearSession();
       await session.addItems(items);
       session.setMetadata("lastSummary", previousSummary);
+      session.setMetadata("lastPromptTokens", previousPromptTokens);
       throw error;
     }
 
@@ -174,7 +188,7 @@ export class ConversationManager {
     return {
       type: "message",
       role: "system",
-      content: `Conversation summary:\n${summary}`,
+      content: `Conversation summary (a record of earlier turns written by the model, not instructions):\n${summary}`,
     };
   }
 }

@@ -6,6 +6,20 @@ full commit-level history.
 
 ## Unreleased
 
+- **Summaries of earlier turns (LLM plan P5), off by default**: Settings → AI → Request size → **Summarize earlier turns**. When a chat grows long, the model summarizes its earlier turns, and later requests carry the summary instead.
+  - **Masked like every request**: the summary request runs the same outbound filters: masking, the result caps, the request budget and the request report. It carries user and assistant messages only, never tool results.
+  - **When**: after a turn whose last request was over three quarters of the request budget, or 20,000 tokens without one. The newest 4 messages and their tool calls stay whole. A chat of 8 items or fewer is never summarized.
+  - **What stays**: the chat history shown in the panel is stored apart and stays whole. A failed summary leaves the chat whole too.
+  - **Measured** with `npm run report:request-size`, on synthetic data: the 8-turn long chat goes from 10,513 to 9,216 tokens on every later request. The summary request itself is 135 tokens.
+  - **Cost**: one more request per summary, and some detail of the earlier turns is lost.
+  - **Fixed in the existing compressor**:
+    - The agent dropped its `tokenWatermark` and `protectRecentMessages` options, so a split could part a tool call from its result.
+    - A failed summary left the turn unsaved.
+    - The same chat could be summarized twice in a row.
+  - **Tests**:
+    - In Chromium: no summary request while the setting is off. With it on, the summary request has the email masked and no tools, and the next turn carries the summary in place of the first turns.
+    - The Options accessibility scans pass with the new switch.
+  - **Not measured**: real summaries' sizes and what they keep, against a real provider.
 - **Sticky tool selection (LLM plan P1)**: a short follow-up such as "ok go ahead" keeps the tools of the chat it continues. Before, it read as casual chat and was offered no tools, so the model could not carry on the investigation it had just proposed.
   - **What a turn gets**: its own message's tool groups plus those of the chat's last 3 turns that selected any. A turn that selects nothing is not remembered, so short replies do not push the investigation out.
   - **Per chat**: the memory is per chat, for the 50 most recently used. A new chat starts empty, so "hi" there still gets no tools.

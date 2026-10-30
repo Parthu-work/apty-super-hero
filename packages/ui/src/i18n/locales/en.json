@@ -124,7 +124,9 @@
       "outputLabel": "Answer length cap (tokens)",
       "outputHint": "The most tokens one answer may use. A lower cap keeps answers shorter, but a long report can be cut off.",
       "unset": "No limit",
-      "outOfRange": "Enter a whole number from {{min}} to {{max}}, or leave it empty."
+      "outOfRange": "Enter a whole number from {{min}} to {{max}}, or leave it empty.",
+      "summariesLabel": "Summarize earlier turns",
+      "summariesHint": "When a chat grows long (three quarters of the request budget, or 20,000 tokens without one), the model summarizes its earlier turns and later requests carry the summary instead. Each summary is one more request to the AI provider, masked like your messages, and some detail of the earlier turns is lost. Off by default."
     }
   },
   "theme": {

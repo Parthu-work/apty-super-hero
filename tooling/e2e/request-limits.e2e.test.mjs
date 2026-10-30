@@ -6,7 +6,9 @@
  * cannot fit before it reaches the provider. The system prompt is its core
  * alone on a turn that offers no tools, with a tool's guidance only on a
  * turn that offers that tool. A short follow-up keeps the tools of the chat
- * it continues; the same words in a new chat get none.
+ * it continues; the same words in a new chat get none. Summaries of earlier
+ * turns are off unless Settings turns them on; then the summary request is
+ * masked like any other, and later requests carry the summary.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -152,6 +154,55 @@ describe("request limits", () => {
       .waitFor();
     await chatAndWait(panel, "ok go ahead");
     assert.deepEqual(offered(model.requests.at(-1)), []);
+    assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+
+  const isSummaryRequest = (request) =>
+    JSON.stringify(request.messages?.[0] ?? "").includes(
+      "conversation summarizer",
+    );
+  const note = (i) =>
+    `hello, note ${i}: ${i === 1 ? "the ticket owner is jane.doe@example.com. " : ""}${"word ".repeat(1_000)}`;
+  const SUMMARY = "SUMMARY: the ticket owner was noted";
+
+  async function chatSixNotes(settings) {
+    const { app, panel } = await panelOnApp(settings);
+    model.script((request) => ({
+      text: isSummaryRequest(request) ? SUMMARY : "RESULT: ok",
+    }));
+    for (let i = 1; i <= 6; i++) await chatAndWait(panel, note(i));
+    return { app, panel };
+  }
+
+  it("sends no summary request while Settings leaves summaries off", async () => {
+    const { app, panel } = await chatSixNotes({ requestTokenBudget: 8_000 });
+
+    assert.equal(model.requests.filter(isSummaryRequest).length, 0);
+    assert.equal(model.requests.length, 6);
+    await panel.close();
+    await app.close();
+  });
+
+  it("with summaries on, masks the summary request like any other and sends the summary in place of the earlier turns", async () => {
+    const { app, panel } = await chatSixNotes({
+      requestTokenBudget: 8_000,
+      summarizeEarlierTurns: true,
+    });
+
+    const summaries = model.requests.filter(isSummaryRequest);
+    assert.equal(summaries.length, 1, "one summary, after the fifth turn");
+    const asked = JSON.stringify(summaries[0].messages);
+    assert.match(asked, /note 1: the ticket owner is/);
+    assert.ok(!asked.includes("jane.doe@example.com"), "the email was masked");
+    assert.ok(!(summaries[0].tools?.length > 0), "no tools offered");
+
+    const last = JSON.stringify(model.requests.at(-1).messages);
+    assert.ok(!isSummaryRequest(model.requests.at(-1)));
+    assert.ok(last.includes(SUMMARY), "the sixth turn carries the summary");
+    assert.ok(!last.includes("note 1:"), "the first turn was summarized");
+    assert.ok(last.includes("note 4:"), "the newest turns stay whole");
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await app.close();

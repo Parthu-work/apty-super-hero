@@ -29,6 +29,7 @@ import {
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
 import {
+  EARLIER_TURN_SUMMARIES,
   formatContextsPrivately,
   maxOutputTokens,
 } from "../hooks/outbound-filters";
@@ -161,6 +162,7 @@ function ChatApp() {
       localResponder,
       maxOutputTokens,
       instructionsFor: composeSystemPrompt,
+      compression: EARLIER_TURN_SUMMARIES,
     },
     ...BROWSER_AGENT_CONFIG,
   });

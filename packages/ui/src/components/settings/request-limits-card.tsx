@@ -16,6 +16,7 @@ import {
 } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Switch } from "../ui/switch";
 
 export interface RequestLimitsCardProps {
   settings: AppSettings;
@@ -91,7 +92,7 @@ function LimitField({
   );
 }
 
-/** The request budget and the answer cap; each saves when the field is left or Enter is pressed. */
+/** The request budget and the answer cap, which save when the field is left or Enter is pressed, and summaries of earlier turns. */
 export function RequestLimitsCard({
   settings,
   onChange,
@@ -125,6 +126,30 @@ export function RequestLimitsCard({
           range={MAX_OUTPUT_TOKENS_RANGE}
           onCommit={(maxOutputTokens) => onChange({ maxOutputTokens })}
         />
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-4">
+            <Label
+              htmlFor="summarize-earlier-turns"
+              className="text-sm font-medium"
+            >
+              {t("settings.requestLimits.summariesLabel")}
+            </Label>
+            <Switch
+              id="summarize-earlier-turns"
+              aria-describedby="summarize-earlier-turns-hint"
+              checked={settings.summarizeEarlierTurns === true}
+              onCheckedChange={(summarizeEarlierTurns) =>
+                onChange({ summarizeEarlierTurns })
+              }
+            />
+          </div>
+          <p
+            id="summarize-earlier-turns-hint"
+            className="text-xs text-muted-foreground"
+          >
+            {t("settings.requestLimits.summariesHint")}
+          </p>
+        </div>
       </CardContent>
     </Card>
   );

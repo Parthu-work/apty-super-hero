@@ -66,4 +66,17 @@ describe("RequestLimitsCard", () => {
 
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("shows summaries of earlier turns off when never set, and turns them on", () => {
+    const { onChange } = renderCard();
+    const toggle = screen.getByRole("switch", {
+      name: "Summarize earlier turns",
+    });
+
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(toggle).toHaveAccessibleDescription(/one more request/);
+    fireEvent.click(toggle);
+
+    expect(onChange).toHaveBeenCalledWith({ summarizeEarlierTurns: true });
+  });
 });

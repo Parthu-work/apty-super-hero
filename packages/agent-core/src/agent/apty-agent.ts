@@ -35,6 +35,7 @@ import { generateId } from "../utils/id-generator.js";
 import { safeJsonParse } from "../utils/json.js";
 import { createLogger } from "../utils/logger.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
+import { estimateRequestTokens } from "../utils/request-size.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
 
 const log = createLogger("AptyAgent");
@@ -212,13 +213,15 @@ export class AptyAgent {
       options.storage ?? new SessionStorage(new InMemoryStorage());
 
     // Build compressor if compression config is provided
-    const compressor = options.compression
-      ? new ConversationCompressor(options.compression.model, {
-          summarizeAfterItems: options.compression.summarizeAfterItems,
-          keepRecentItems: options.compression.keepRecentItems,
-          maxSummaryLength: options.compression.maxSummaryLength,
-        })
-      : undefined;
+    let compressor: ConversationCompressor | undefined;
+    if (options.compression) {
+      const { model, ...config } = options.compression;
+      compressor = new ConversationCompressor(
+        model ?? options.model,
+        config,
+        options.outboundFilters,
+      );
+    }
 
     return new ConversationManager(storage, { compressor });
   }
@@ -275,6 +278,9 @@ export class AptyAgent {
           })
         : this.agent;
     let runAgent = agentFor(tools);
+    // Stands in for the provider's input-token count when it reports none,
+    // as some OpenAI-compatible streams do, so summaries can still trigger.
+    let lastRequestTokens: number | undefined;
 
     // Track tool-call argument streaming during a single model response.
     // This is best-effort and provider-dependent (e.g. OpenAI ChatCompletions tool_calls deltas).
@@ -321,6 +327,11 @@ export class AptyAgent {
               for (const filter of this.outboundFilters) {
                 input = await filter(input, request);
               }
+              lastRequestTokens = estimateRequestTokens({
+                instructions,
+                tools,
+                input,
+              });
               return { input, instructions };
             },
           });
@@ -537,7 +548,12 @@ export class AptyAgent {
 
       if (session) {
         session.addMetrics(metrics);
-        session.setMetadata("lastPromptTokens", metrics.promptTokens);
+        session.setMetadata(
+          "lastPromptTokens",
+          metrics.promptTokens > 0
+            ? metrics.promptTokens
+            : (lastRequestTokens ?? metrics.promptTokens),
+        );
         if (this.conversationManager) {
           await this.conversationManager.saveSession(session);
         }
@@ -571,7 +587,12 @@ export class AptyAgent {
       yield { type: "error", error: agentError };
       if (session) {
         session.addMetrics(metrics);
-        session.setMetadata("lastPromptTokens", metrics.promptTokens);
+        session.setMetadata(
+          "lastPromptTokens",
+          metrics.promptTokens > 0
+            ? metrics.promptTokens
+            : (lastRequestTokens ?? metrics.promptTokens),
+        );
         if (this.conversationManager) {
           await this.conversationManager.saveSession(session);
         }

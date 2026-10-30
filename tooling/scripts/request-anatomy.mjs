@@ -85,6 +85,12 @@ if (data.budgeted) {
   );
   console.log([line(head), ...table.map(line)].join("\n"));
 }
+if (data.summaries) {
+  console.log(
+    "\nWith summaries of earlier turns (Settings → AI), as sent: the long chat after a summary at its length limit, and the summary request itself:\n",
+  );
+  console.log(render(data.summaries));
+}
 console.log(
   `\nregistry: ${data.registry.toolCount} tools, ${data.registry.toolSchemaTokens} schema tokens, system prompt ${data.registry.systemPromptTokens} tokens`,
 );

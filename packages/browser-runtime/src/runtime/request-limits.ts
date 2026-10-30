@@ -13,7 +13,13 @@ import {
 export interface RequestLimits {
   requestTokenBudget?: number;
   maxOutputTokens?: number;
+  summarizeEarlierTurns?: boolean;
 }
+
+/** Summaries start below the budget, so the next request fits without leaving turns out. */
+const SUMMARY_SHARE_OF_BUDGET = 0.75;
+/** Without a budget, a chat is summarized once a request reaches this many tokens. */
+const SUMMARY_WATERMARK_WITHOUT_BUDGET = 20_000;
 
 function within(
   value: unknown,
@@ -38,7 +44,23 @@ export function limitsFromSettings(settings: unknown): RequestLimits {
   return {
     ...(requestTokenBudget ? { requestTokenBudget } : {}),
     ...(maxOutputTokens ? { maxOutputTokens } : {}),
+    ...(s?.summarizeEarlierTurns === true
+      ? { summarizeEarlierTurns: true }
+      : {}),
   };
+}
+
+/**
+ * The request size, in estimated tokens, above which the earlier turns are
+ * summarized, or undefined while summaries are off.
+ *
+ * @internal
+ */
+export function summaryWatermarkFor(limits: RequestLimits): number | undefined {
+  if (!limits.summarizeEarlierTurns) return undefined;
+  return limits.requestTokenBudget
+    ? Math.floor(limits.requestTokenBudget * SUMMARY_SHARE_OF_BUDGET)
+    : SUMMARY_WATERMARK_WITHOUT_BUDGET;
 }
 
 let cached: RequestLimits | null = null;
@@ -75,6 +97,19 @@ export function getRequestLimits(): Promise<RequestLimits> {
     return cached;
   })();
   return loading;
+}
+
+/**
+ * `summaryWatermarkFor` the limits read so far, without waiting: every turn
+ * reads the limits before it ends, so they are loaded by the time a chat is
+ * saved. Off until then.
+ */
+export function currentSummaryWatermark(): number | undefined {
+  if (cached === null) {
+    void getRequestLimits();
+    return undefined;
+  }
+  return summaryWatermarkFor(cached);
 }
 
 /** @internal */
