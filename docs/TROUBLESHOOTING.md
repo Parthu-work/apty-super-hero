@@ -135,6 +135,18 @@ in one environment only, or works on some pages only runs the widget check
 instead. A message that names a language ("…for French users") also checks
 that the item has a name in it.
 
+### Checking a HAR file
+
+Menu › Check a HAR file runs the same checks on a HAR a customer recorded,
+with no Client connected.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "No Apty content files in this HAR" | The HAR was recorded without the widget's calls, or in Extension mode, where the Client fetches its files in its service worker | Record again with the widget open and Preserve log on; in Extension mode, open the Apty Client's service worker from `chrome://extensions` and export the HAR there. |
+| "This HAR has no page request…" with the widget check | The capture has only the Client's calls (a service-worker HAR), so there is no page to match | Record the page itself too, or ask about the widget in a tab on that page with the Client connected. |
+| "This file is over 50 MB…" | The check reads files up to 50,000,000 characters | Record only the problem flow, with fewer pages, and export again. |
+| "…matches the body deny list entry…" on the card | Your deny list covers the HAR's Apty files as it does the Client's | Remove or narrow the entry in Settings → Data handling. |
+
 ## Response bodies are missing from a network capture
 
 Response bodies are off by default. Turn on **Settings → General → Data

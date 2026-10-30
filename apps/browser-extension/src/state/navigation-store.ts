@@ -1,7 +1,11 @@
 import { useSyncExternalStore } from "react";
 
 /** A tool page; it covers the whole panel, chat and composer included. */
-export type ToolPage = "dom-health" | "dom-config" | "connections";
+export type ToolPage =
+  | "dom-health"
+  | "dom-config"
+  | "har-check"
+  | "connections";
 
 export type NavigationOrigin = "home" | "menu";
 

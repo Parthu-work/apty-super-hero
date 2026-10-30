@@ -10,6 +10,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import {
   ActivityIcon,
   CrosshairIcon,
+  FileSearchIcon,
   PlugIcon,
   ScanSearchIcon,
   SettingsIcon,
@@ -137,6 +138,12 @@ export function MenuDrawer({
             trailing={<JobStatusBadge status={domConfigStatus(config, t)} />}
             aria-current={page === "dom-config" ? "page" : undefined}
             onClick={() => openDomConfigPage("menu")}
+          />
+          <ListRow
+            icon={<FileSearchIcon />}
+            label={t("shell.harCheck")}
+            aria-current={page === "har-check" ? "page" : undefined}
+            onClick={() => openTool("har-check")}
           />
           <ListRow
             icon={<CrosshairIcon />}

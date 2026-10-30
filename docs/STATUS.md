@@ -139,6 +139,14 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   agrees with the earlier count (12 of 15 workflows hidden). Tested
   against the e2e fake Client in Chromium; not yet on a real tenant with
   a known failing case.
+- HAR file check (partial): Menu › Check a HAR file runs the visibility
+  and widget checks on a customer's HAR with no Client connected: the
+  file is read in the panel only, never stored or sent, summarized by file
+  names and counts, and checked with the same packs and card. "Ask about
+  this result" hands the check's transcript, not the file, to a new chat.
+  Tested in Chromium with a synthetic HAR (axe clean, no model request
+  until Send, no file name or URL in the request); not yet with a
+  customer's own export.
 - Logs check (partial): a message that quotes a Console text the KB cards
   name, or asks about CSP, CORS, Apty's 404s or the errors in the logs, is
   answered with no model call from the Client's service-worker logs, its

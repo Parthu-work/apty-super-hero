@@ -1710,7 +1710,8 @@
     "recentChatsFailed": "Couldn't load recent chats.",
     "deleteChatTitle": "Delete this chat?",
     "deleteChatDescription": "\"{{title}}\" will be removed from this browser. This can't be undone.",
-    "thisPage": "This page"
+    "thisPage": "This page",
+    "harCheck": "Check a HAR file"
   },
   "slash": {
     "tools": "Tools",
@@ -2160,6 +2161,42 @@
       "own": "Its element",
       "disabled": "Disabled element {{n}}",
       "step": "Step {{n}}"
+    }
+  },
+  "harCheck": {
+    "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",
+    "privacy": "The file is read in this panel only. It is not stored or sent; its Apty files go through the deny list and redaction before any check.",
+    "choose": "Choose a HAR file",
+    "chooseAnother": "Choose another file",
+    "clear": "Clear file",
+    "summary": "{{file}}: {{calls}} calls, {{files}} Apty content files",
+    "noAptyFiles": "No Apty content files in this HAR",
+    "noAptyFilesHelp": "Record it again with the widget open and Preserve log on. In Extension mode, export the HAR from the Apty Client's service worker in chrome://extensions, where its calls are made.",
+    "version4x": "This HAR holds 4.x content files; the checks are verified for 5.x only.",
+    "target": "What is missing?",
+    "targets": {
+      "workflow": "A workflow",
+      "tooltip": "A tooltip",
+      "launcher": "A launcher",
+      "announcement": "An announcement",
+      "validation": "A validation",
+      "checklist": "A checklist",
+      "knowledgeContent": "Knowledge content",
+      "widget": "The widget itself"
+    },
+    "name": "Name or sourceId (optional)",
+    "nameHelp": "Leave it empty to list every item of that kind with a blocker.",
+    "noPage": "This HAR has no page request, so the widget check cannot match the page to an environment.",
+    "check": "Check",
+    "checking": "Checking…",
+    "ask": "Ask about this result",
+    "askChip": "HAR file check",
+    "askDraft": "Explain this check from the HAR file and what to do next.",
+    "error": {
+      "too-large": "This file is over 50 MB, too large to read here.",
+      "not-json": "This file is not valid JSON, so it is not a HAR file.",
+      "not-har": "This JSON file has no log entries, so it is not a HAR file.",
+      "unreadable": "This file could not be read."
     }
   }
 }

@@ -14,59 +14,9 @@ const settings = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible";
-import { type Capture, capture, ENV_PATH } from "./diagnosis-test-utils";
+import { capture, harEntriesOf, harOf } from "./diagnosis-test-utils";
 import { evidenceFromHar, pageUrlOfHar } from "./har";
 import { diagnoseWidgetNotVisible, WIDGET_FILES } from "./widget-not-visible";
-
-interface Entry {
-  name: string;
-  body?: string;
-  status?: number;
-  at?: string;
-  base64?: boolean;
-}
-
-function harOf(entries: Entry[], page = "https://uat.crm.example.com/leads") {
-  return {
-    log: {
-      entries: [
-        {
-          _resourceType: "document",
-          startedDateTime: "2026-10-29T10:00:00.000Z",
-          request: { method: "GET", url: page },
-          response: { status: 200, content: { mimeType: "text/html" } },
-        },
-        ...entries.map((e, i) => ({
-          startedDateTime: e.at ?? `2026-10-29T10:00:0${i + 1}.000Z`,
-          request: {
-            method: "GET",
-            url: `${ENV_PATH}/${e.name}?timestamp=${i}`,
-          },
-          response: {
-            status: e.status ?? 200,
-            content: {
-              mimeType: "application/json",
-              ...(e.body === undefined
-                ? {}
-                : e.base64
-                  ? {
-                      text: Buffer.from(e.body).toString("base64"),
-                      encoding: "base64",
-                    }
-                  : { text: e.body }),
-            },
-          },
-        })),
-      ],
-    },
-  };
-}
-
-const entriesOf = (files: Capture): Entry[] =>
-  Object.entries(files).map(([name, json]) => ({
-    name,
-    body: JSON.stringify(json),
-  }));
 
 beforeEach(() => {
   settings.value = { redactionMode: "strict", networkBodyCaptureDenyList: [] };
@@ -75,7 +25,7 @@ beforeEach(() => {
 
 describe("evidenceFromHar", () => {
   it("gives the packs the same files a connected Client would", async () => {
-    const har = harOf(entriesOf(capture()));
+    const har = harOf(harEntriesOf(capture()));
 
     const evidence = await evidenceFromHar(har, filesFor("workflow"));
 

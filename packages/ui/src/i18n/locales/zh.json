@@ -1710,7 +1710,8 @@
     "recentChatsFailed": "无法加载最近的对话。",
     "deleteChatTitle": "删除此对话？",
     "deleteChatDescription": "“{{title}}”将从此浏览器中删除。此操作无法撤销。",
-    "thisPage": "此页面"
+    "thisPage": "此页面",
+    "harCheck": "检查 HAR 文件"
   },
   "slash": {
     "tools": "工具",
@@ -2160,6 +2161,42 @@
       "own": "其元素",
       "disabled": "禁用元素 {{n}}",
       "step": "第 {{n}} 步"
+    }
+  },
+  "harCheck": {
+    "intro": "当无法连接客户的 Apty Client 时，对客户录制的 HAR 文件运行可见性检查。",
+    "privacy": "文件仅在此面板中读取，不会被存储或发送；在任何检查之前，其中的 Apty 文件都会经过拒绝列表和脱敏处理。",
+    "choose": "选择 HAR 文件",
+    "chooseAnother": "选择其他文件",
+    "clear": "清除文件",
+    "summary": "{{file}}：{{calls}} 个请求，{{files}} 个 Apty 内容文件",
+    "noAptyFiles": "此 HAR 中没有 Apty 内容文件",
+    "noAptyFilesHelp": "请在打开小组件并开启“保留日志”的情况下重新录制。在 Extension 模式下，请在 chrome://extensions 中从 Apty Client 的 service worker 导出 HAR，它的请求是在那里发出的。",
+    "version4x": "此 HAR 包含 4.x 内容文件；这些检查仅针对 5.x 验证过。",
+    "target": "缺少的是什么？",
+    "targets": {
+      "workflow": "工作流",
+      "tooltip": "提示",
+      "launcher": "启动器",
+      "announcement": "公告",
+      "validation": "验证",
+      "checklist": "清单",
+      "knowledgeContent": "知识内容",
+      "widget": "小组件本身"
+    },
+    "name": "名称或 sourceId（可选）",
+    "nameHelp": "留空则列出该类型中所有存在阻碍的条目。",
+    "noPage": "此 HAR 中没有页面请求，因此小组件检查无法将页面匹配到环境。",
+    "check": "检查",
+    "checking": "正在检查…",
+    "ask": "询问此结果",
+    "askChip": "HAR 文件检查",
+    "askDraft": "请解释这次基于 HAR 文件的检查结果以及下一步该怎么做。",
+    "error": {
+      "too-large": "此文件超过 50 MB，太大，无法在此读取。",
+      "not-json": "此文件不是有效的 JSON，因此不是 HAR 文件。",
+      "not-har": "此 JSON 文件没有 log 条目，因此不是 HAR 文件。",
+      "unreadable": "无法读取此文件。"
     }
   }
 }

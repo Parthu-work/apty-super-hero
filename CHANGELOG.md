@@ -6,6 +6,14 @@ full commit-level history.
 
 ## Unreleased
 
+- **HAR file check (partial)**: Menu › Check a HAR file runs the visibility and widget checks on a HAR a customer recorded, for when their Apty Client cannot be connected.
+  - **Reading the file**: the file is read in the side panel only, kept in memory while the page is open, and never stored or sent. "Clear file" drops it.
+  - **Summary**: the page lists the calls and the Apty content files the HAR holds, by name only. It names a HAR with no Apty files and says how to record one (Preserve log on; in Extension mode, from the Client's service worker). It also flags a 4.x capture, and a HAR with no page request, for which the widget check cannot match environments.
+  - **Running a check**: pick what is missing (a content kind or the widget itself) and an optional name, then Check. The check runs `evidenceFromHar`, with the deny list and redaction, and the same packs as the chat, and shows the same card, with no model call.
+  - **Ask about this result**: a new chat opens with the check's transcript as a chip, marked as coming from a HAR file. The file and its name are not in it, and nothing is sent until Send.
+  - **Code**: `readHar` (size cap 50,000,000 characters), `summarizeHar` and `runHarCheck` live in `diagnosis/har-check.ts`. The HAR test builder moved to the shared diagnosis test utils.
+  - **Strings**: English and Chinese.
+
 - **Selector and page checks (wave 4, partial)**: a message that names a tooltip, launcher, validation or workflow and says Apty cannot find its element, or that it is on the wrong element, the selector stopped working, it is green in Studio but does not show, a step fails or it is missing after a reload, is answered with no model call.
   - **What it reads**: the item's stored element from its content file (`identificationType`, then `pickedSelector`, `cssSelector` or `xPath`, with `shadowRootSelectors` and `iframesPath`). It runs that selector in every frame of the conversation's tab the way the 5.x player does: the shadow hosts first, then the first rendered match, else the first match. This is DOM Health's port, `playSelection`, run by a new `test-apty-element` request in each frame's responder.
   - **What comes back**: counts and booleans only, never the selector, text or a URL.
