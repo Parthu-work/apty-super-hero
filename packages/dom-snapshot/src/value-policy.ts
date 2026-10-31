@@ -159,12 +159,16 @@ export function applyUrlPolicy(
     : base;
 }
 
+const WITHHELD_TITLE = "[title withheld]";
+
 export interface PolicyNode {
   role: string;
   name?: string;
   value?: string;
   /** Set by the collector when `name` is the selected option or the field's own text. */
   nameIsValue?: boolean;
+  /** A region the user can type into whatever its role (contenteditable). */
+  editable?: boolean;
   selected?: boolean;
   children: PolicyNode[];
 }
@@ -187,7 +191,15 @@ export function prepareNodeForPolicy<T extends PolicyNode>(
   policy: ValuePolicy,
 ): T {
   if (policy === "show") return node;
-  if (isEditableRole(node.role)) {
+  // The document's name is its title, which can name the patient.
+  if (
+    policy === "withhold" &&
+    (node.role === "RootWebArea" || node.role === "WebArea") &&
+    node.name
+  ) {
+    return { ...node, name: WITHHELD_TITLE };
+  }
+  if (isEditableRole(node.role) || node.editable) {
     return {
       ...node,
       value: applyValuePolicy(node.value, policy),

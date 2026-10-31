@@ -257,11 +257,11 @@ export interface ChatbotEventHandlers {
   /** Called when metrics are updated */
   onMetricsUpdate?: (metrics: AgentMetrics, sessionId?: string) => void;
   /**
-   * Pre-flight auth check called before sending a message.
+   * Pre-flight auth check called before sending a message, with its text.
    * If this returns `{ needsAuth: true }`, the chatbot calls
    * `onNeedsAuth` instead of sending the message.
    */
-  checkAuthBeforeSend?: () => Promise<AuthCheckResult>;
+  checkAuthBeforeSend?: (text: string) => Promise<AuthCheckResult>;
   /**
    * Called when `checkAuthBeforeSend` reports `needsAuth: true`. Nothing is
    * sent and nothing is added to the persisted conversation; `draftText` is

@@ -59,6 +59,7 @@ export { ConversationCompressor } from "./conversation/compressor.js";
 export { ConversationManager } from "./conversation/manager.js";
 export { Session } from "./conversation/session.js";
 export { SessionStorage } from "./conversation/storage.js";
+export { isSummaryItem } from "./conversation/summary-item.js";
 
 // Generic Storage
 export type {

@@ -889,6 +889,9 @@ export class SnapshotManager {
           case "modal":
             if (propValue) node.modal = true;
             break;
+          case "editable":
+            if (propValue) node.editable = true;
+            break;
         }
       }
     }

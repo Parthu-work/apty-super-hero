@@ -193,7 +193,8 @@ export interface RequestReport {
 }
 
 export interface CompressionOptions extends CompressionConfig {
-  model: AiSdkModel;
+  /** The model that writes summaries; the agent's own model when missing. */
+  model?: AiSdkModel;
 }
 
 export interface ImageInput {
@@ -413,4 +414,11 @@ export interface CompressionConfig {
    * associated tool call/result pairs intact, and only compress older items.
    */
   protectRecentMessages?: number;
+  /**
+   * Read on every check in place of `tokenWatermark`, so a setting can turn
+   * summaries on and off without rebuilding the agent: compress when
+   * lastPromptTokens exceeds the value returned; undefined means do not
+   * compress.
+   */
+  getTokenWatermark?: () => number | undefined;
 }

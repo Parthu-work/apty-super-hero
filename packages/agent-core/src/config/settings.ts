@@ -119,6 +119,11 @@ export interface AppSettings {
   requestTokenBudget?: number;
   /** The most tokens one answer may use. Missing leaves the provider's default. */
   maxOutputTokens?: number;
+  /**
+   * When a chat grows long, the model summarizes its earlier turns and later
+   * requests carry the summary instead. Missing means off.
+   */
+  summarizeEarlierTurns?: boolean;
 }
 
 /** What Settings accepts for `requestTokenBudget`; a stored value outside it counts as unset. */

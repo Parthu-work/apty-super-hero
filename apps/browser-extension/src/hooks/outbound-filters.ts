@@ -1,4 +1,5 @@
 import {
+  type CompressionOptions,
   type Context,
   formatContextsForPrompt,
   type OutboundFilter,
@@ -8,7 +9,10 @@ import { privateContexts } from "@apty/browser-runtime/runtime/context-privacy";
 import { createOutboundSanitizer } from "@apty/browser-runtime/runtime/outbound-sanitizer";
 import { currentRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { createRequestBudgetFilter } from "@apty/browser-runtime/runtime/request-budget";
-import { getRequestLimits } from "@apty/browser-runtime/runtime/request-limits";
+import {
+  currentSummaryWatermark,
+  getRequestLimits,
+} from "@apty/browser-runtime/runtime/request-limits";
 import { createRequestReportFilter } from "@apty/browser-runtime/runtime/request-reports";
 import { currentValuePolicy } from "@apty/browser-runtime/runtime/value-policy";
 
@@ -35,6 +39,18 @@ export function createOutboundFilters(): OutboundFilter[] {
 export async function maxOutputTokens(): Promise<number | undefined> {
   return (await getRequestLimits()).maxOutputTokens;
 }
+
+/**
+ * Summaries of earlier turns, off unless Settings turns them on. The newest
+ * four messages and their tool calls stay whole; a chat of eight items or
+ * fewer is never summarized.
+ */
+export const EARLIER_TURN_SUMMARIES: CompressionOptions = {
+  getTokenWatermark: currentSummaryWatermark,
+  protectRecentMessages: 4,
+  summarizeAfterItems: 8,
+  maxSummaryLength: 2_000,
+};
 
 /** Attached page and tab contexts, worded under the current URL and page-title policy. */
 export function formatContextsPrivately(contexts: Context[]): string {

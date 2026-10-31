@@ -213,6 +213,46 @@ const groqEmptyToolsNotStrictMiddleware: LanguageModelMiddleware = {
   }),
 };
 
+type PromptMessage = Parameters<
+  NonNullable<LanguageModelMiddleware["transformParams"]>
+>[0]["params"]["prompt"][number];
+
+function withCacheBreakpoint(message: PromptMessage): PromptMessage {
+  return {
+    ...message,
+    providerOptions: {
+      ...message.providerOptions,
+      anthropic: {
+        ...message.providerOptions?.anthropic,
+        cacheControl: { type: "ephemeral" },
+      },
+    },
+  };
+}
+
+/**
+ * Anthropic caches a request's prefix only where it is marked. Two of its
+ * four breakpoints: the system prompt, which also covers the tools sent
+ * before it, and the newest message, so the next step of a tool loop or the
+ * next turn reads the conversation so far instead of paying for it again.
+ * A cache write costs 1.25 times the input price and a read about a tenth;
+ * a prefix below the model's minimum (512 to 4,096 tokens) is not cached
+ * and costs nothing extra.
+ */
+const anthropicPromptCacheMiddleware: LanguageModelMiddleware = {
+  specificationVersion: "v3",
+  transformParams: async ({ params }) => {
+    const lastSystem = params.prompt.findLastIndex((m) => m.role === "system");
+    const last = params.prompt.length - 1;
+    return {
+      ...params,
+      prompt: params.prompt.map((message, i) =>
+        i === lastSystem || i === last ? withCacheBreakpoint(message) : message,
+      ),
+    };
+  },
+};
+
 /**
  * Create an AI SDK provider for BYOK mode.
  */
@@ -229,13 +269,19 @@ export function createAIProvider(
   const baseURL = validateHostUrl(settings.aiHost || undefined);
 
   switch (provider) {
-    case "anthropic":
-      return createAnthropic({
+    case "anthropic": {
+      const anthropic = createAnthropic({
         apiKey,
         baseURL: anthropicBaseUrl(baseURL),
         headers: anthropicHeaders(settings.aiWorkspaceId),
         fetch: options.fetch,
       });
+      return (modelId: string) =>
+        wrapLanguageModel({
+          model: anthropic(modelId),
+          middleware: anthropicPromptCacheMiddleware,
+        });
+    }
     case "google":
       return createGoogleGenerativeAI({
         apiKey,

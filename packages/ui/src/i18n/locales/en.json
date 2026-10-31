@@ -124,7 +124,9 @@
       "outputLabel": "Answer length cap (tokens)",
       "outputHint": "The most tokens one answer may use. A lower cap keeps answers shorter, but a long report can be cut off.",
       "unset": "No limit",
-      "outOfRange": "Enter a whole number from {{min}} to {{max}}, or leave it empty."
+      "outOfRange": "Enter a whole number from {{min}} to {{max}}, or leave it empty.",
+      "summariesLabel": "Summarize earlier turns",
+      "summariesHint": "When a chat grows long (three quarters of the request budget, or 20,000 tokens without one), the model summarizes its earlier turns and later requests carry the summary instead. Each summary is one more request to the AI provider, masked like your messages, and some detail of the earlier turns is lost. Off by default."
     }
   },
   "theme": {
@@ -1864,7 +1866,7 @@
     },
     "reason": {
       "filesRead": "{{file}} read, {{count}} entries",
-      "clientUnreachable": "Could not reach the Apty Client: {{message}}",
+      "clientUnreachable": "Could not reach the Apty Client: {{failureText}}",
       "notObserved": "The Apty Client did not report loading {{file}}",
       "emptyList": "{{file}} loaded but is an empty list",
       "httpError": "{{file}} failed to load (HTTP {{httpStatus}})",
@@ -1895,6 +1897,7 @@
       "visibilityRule": "“{{rule}}” ({{action}}) is decided in the browser",
       "localeFound": "Named in {{language}} ({{locales}})",
       "localeRegional": "Named in {{locales}} only: a user whose language code is {{code}} gets none, as a regional entry does not fall back",
+      "localeAlias": "{{language}}: named in {{locales}} only, another code for it; whether users with {{code}} see it is not verified",
       "localeMissing": "No name in {{language}} ({{code}})",
       "appUrlsEmpty": "app-urls.json is an empty list, so Apty loads nothing (HTTP {{httpStatus}})",
       "pageUnknown": "No web page is open in this tab, so the URL patterns were not checked",
@@ -1907,10 +1910,11 @@
       "envVisibilityRule": "{{env}} has its own visibility rule “{{rule}}” ({{action}}), decided in the browser",
       "widgetOtherUsers": "For selected segments, and for users in no active segment too",
       "widgetNoActiveSegment": "The widget's segments can never be active here: {{segments}}",
+      "widgetNoSegmentChosen": "The widget is set to specific segments, but none is chosen",
       "widgetSegmentsMissing": "Not all of the widget's segments are in segment.json here: {{segments}}",
       "restrictionPatterns": "{{count}} restriction pattern(s) set; they can hide the whole widget",
-      "logsUnavailable": "The Apty Client's logs could not be read: {{message}}",
-      "pageConsoleUnavailable": "The page's console could not be read: {{message}}",
+      "logsUnavailable": "The Apty Client's logs could not be read: {{failureText}}",
+      "pageConsoleUnavailable": "The page's console could not be read: {{failureText}}",
       "noPageConsole": "No web page is open in this tab, so its console was not read",
       "noKnownMessage": "{{where}}: {{count}} line(s), no error and no message the KB cards name",
       "errorsLogged": "{{where}}: {{count}} error(s), none a message the KB cards name",
@@ -1932,11 +1936,13 @@
       "noElement": "{{where}} has no element in the file; probably a publish defect (not verified)",
       "activeFieldEmpty": "{{where}} is identified by {{type}}, but its {{field}} is empty",
       "codeSelector": "{{where}} is identified by {{type}}, which is code the check does not run",
+      "jquerySyntax": "{{where}} uses jQuery syntax, which the browser rejects and the check does not run",
       "noPageToProbe": "No web page is open in this tab, so the selector was not run",
       "framesUnreadable": "The tab's frames could not be listed, so the selector was not run",
       "invalidSelector": "{{where}}: the stored selector does not parse",
       "frameScope": "{{where}}: matches nothing in the page itself but {{count}} inside a frame, and its frame path is empty",
       "framePathDepth": "{{where}}: its frame path names {{depth}} frame level(s), but the element is at depth {{found}}",
+      "framePathOther": "{{where}}: no match in the frame its path leads to, {{count}} in another frame at that level",
       "shadowScope": "{{where}}: matches {{count}} inside a shadow root its stored lookup does not enter",
       "brokenShadowHost": "{{where}}: shadow host selector {{index}} of {{total}} finds no open shadow root",
       "framesSilent": "{{where}}: matches nothing in the frames that answered; {{silent}} frame(s) did not answer",
@@ -1948,7 +1954,7 @@
       "oneMatch": "{{where}}: matches exactly one rendered element in view",
       "dynamicValue": "{{where}}: holds {{count}} generated-looking value(s), which often change after a reload",
       "elementRead": "{{where}} is identified by {{type}}; frame path {{frames}} level(s), shadow hosts {{hosts}}",
-      "auditUnavailable": "{{message}}",
+      "auditUnavailable": "{{failureText}}",
       "auditScore": "DOM Health scored this page {{score}} ({{grade}}) over {{elements}} interactive elements",
       "framesNotInspected": "{{count}} of {{total}} frames could not be inspected",
       "framesInspected": "Every frame that answered was inspected",
@@ -1962,6 +1968,7 @@
       "duplicateIds": "{{count}} elements share their id with another",
       "noDuplicateIds": "Every id is unique in its document or shadow root",
       "manualSelectors": "{{percent}}% of interactive elements would need a hand-made selector",
+      "ambiguousSelectors": "{{ambiguous}} of {{total}} interactive elements only have selectors matching several elements",
       "automaticSelectors": "Apty's own rules give most interactive elements a stable selector"
     },
     "rule": {
@@ -2008,6 +2015,10 @@
       "WNV-07": {
         "summary": "The widget is limited to segments that can never be active here ({{segments}}), and the option for other users is off: nobody sees it.",
         "fix": "In Admin, under “TARGET AUDIENCE”, turn one of the widget's segments on or fix its rule, or enable the widget for all users. Publish and reload."
+      },
+      "WNV-07-noneChosen": {
+        "summary": "The widget is set to show only to specific segments, but none is chosen, and the option for other users is off: nobody sees it.",
+        "fix": "In Admin, under “TARGET AUDIENCE”, choose the widget's segments or enable the widget for all users. Publish and reload."
       },
       "LOG-01": {
         "summary": "Apty found no environment whose URL pattern matches the page, so nothing loads there.",
@@ -2073,6 +2084,10 @@
         "summary": "{{where}}: its frame path names {{depth}} frame level(s), but the element is at depth {{found}}.",
         "fix": "Select the element again in Studio inside the frame that holds it, so the frame path matches the live nesting; then publish."
       },
+      "SEL-12-otherFrame": {
+        "summary": "{{where}}: matches nothing in the frame its frame path leads to, but {{count}} element(s) in another frame at the same level.",
+        "fix": "Select the element again in Studio inside the frame that holds it, so the frame path points at that frame; then publish."
+      },
       "SEL-13": {
         "summary": "{{where}}: shadow host selector {{index}} of {{total}} finds no open shadow root, so the lookup falls back to the document and finds nothing.",
         "fix": "Select the element again in Studio so its shadow host chain is recorded, then publish."
@@ -2096,6 +2111,10 @@
       "DOM-06": {
         "summary": "{{percent}}% of the interactive elements analyzed have no unique, stable selector by Apty's own rules and would need a hand-made one.",
         "fix": "For the elements your content uses, check the selector Studio recorded and make it stable (Ignore and Partial Selector rules, or XPath), then publish."
+      },
+      "DOM-06-ambiguous": {
+        "summary": "{{ambiguous}} of {{total}} interactive elements analyzed only have selectors that match several elements, and {{wrongTarget}} have one that picks the wrong element.",
+        "fix": "For the elements your content uses, refine the selector in Studio so it matches only the intended element (a stable attribute, or Ignore and Partial Selector rules), then publish."
       },
       "DOM-07": {
         "summary": "{{count}} of {{total}} frames can only be told apart by position or by their address, so a stored frame path can point at another frame.",
@@ -2146,6 +2165,24 @@
       "inactive-segments": "Only in turned-off segments"
     },
     "scanSummary": "{{blocked}} of {{total}} have a blocker in the files",
+    "scanSummaryNoSegments": "{{blocked}} of {{total}} have a blocker in the files read; segment.json could not be read, so inactive segments were not checked",
+    "where": {
+      "client": "Apty Client logs",
+      "page": "page console"
+    },
+    "failure": {
+      "not_configured": "no Apty Client extension ID is saved",
+      "no_receiver": "the Apty Client is not installed or not running",
+      "no_response": "the Apty Client did not answer",
+      "timeout": "the Apty Client did not answer in time",
+      "send_failed": "the request could not be sent to the Apty Client",
+      "malformed_response": "the Apty Client answered with an unexpected shape",
+      "unreachable": "the Apty Client could not be reached",
+      "no_page": "No web page is open in this tab, so it was not audited.",
+      "audit_error": "DOM Health could not audit this page.",
+      "no_frame_answered": "No frame of this page answered, so nothing was audited.",
+      "other": "it could not be read"
+    },
     "causes": "Causes",
     "evidence": "Evidence",
     "fix": "Fix",
@@ -2172,6 +2209,9 @@
     "summary": "{{file}}: {{calls}} calls, {{files}} Apty content files",
     "noAptyFiles": "No Apty content files in this HAR",
     "noAptyFilesHelp": "Record it again with the widget open and Preserve log on. In Extension mode, export the HAR from the Apty Client's service worker in chrome://extensions, where its calls are made.",
+    "noFileInCalls": "Apty's calls in this HAR brought no file",
+    "noFileInCallsHelp": "{{count}} call(s) for Apty content failed or were recorded without a body. A check names each file's status; record again with Preserve log on and reload the page, so the calls finish.",
+    "environments": "This HAR holds calls from {{count}} Apty environments; the checks read the newest one's files.",
     "version4x": "This HAR holds 4.x content files; the checks are verified for 5.x only.",
     "target": "What is missing?",
     "targets": {
@@ -2196,7 +2236,8 @@
       "too-large": "This file is over 50 MB, too large to read here.",
       "not-json": "This file is not valid JSON, so it is not a HAR file.",
       "not-har": "This JSON file has no log entries, so it is not a HAR file.",
-      "unreadable": "This file could not be read."
+      "unreadable": "This file could not be read.",
+      "check-failed": "The check could not run on this file."
     }
   }
 }

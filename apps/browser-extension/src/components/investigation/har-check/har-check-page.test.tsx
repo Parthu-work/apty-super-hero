@@ -1,5 +1,6 @@
 import {
   capture,
+  ENV_PATH,
   harEntriesOf,
   harOf,
 } from "@apty/browser-runtime/apty/diagnosis/diagnosis-test-utils";
@@ -134,6 +135,65 @@ describe("HarCheckPage", () => {
       /^Checked from a HAR file, not the live Apty Client\.\nVisibility check of workflows/,
     );
     expect(JSON.stringify(draft)).not.toMatch(/customer-tenant|https?:/);
+    expect(draft?.contexts?.[0]?.value).toMatch(
+      /from the HAR file's Apty files/,
+    );
+    expect(draft?.contexts?.[0]?.value).not.toMatch(/Apty Client's files/);
+  });
+
+  it("refuses a file over the size limit before reading it into memory (N11)", async () => {
+    render(<HarCheckPage />);
+    const big = new File(["{}"], "big.har");
+    Object.defineProperty(big, "size", { value: 60_000_000 });
+    const text = vi.spyOn(big, "text");
+
+    choose(big);
+
+    expect(
+      await screen.findByText(
+        "This file is over 50 MB, too large to read here.",
+      ),
+    ).toBeInTheDocument();
+    expect(text).not.toHaveBeenCalled();
+  });
+
+  it("says Apty's calls brought no file when they all failed, not that the HAR has none (N12)", async () => {
+    render(<HarCheckPage />);
+
+    choose(
+      harFile(
+        harOf([
+          { name: "workflow.json", status: 0 },
+          { name: "segment.json", status: 403 },
+        ]),
+      ),
+    );
+
+    expect(
+      await screen.findByText("Apty's calls in this HAR brought no file"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No Apty content files in this HAR")).toBeNull();
+  });
+
+  it("says when the HAR holds more than one Apty environment (N7)", async () => {
+    const har = harOf(harEntriesOf(capture()));
+    const last = har.log.entries.at(-1)?.request as { url: string };
+    last.url = last.url.replace(
+      ENV_PATH,
+      ENV_PATH.replace(
+        /env-[\w-]+$/,
+        "env-0e000000-0000-7000-8000-000000000009",
+      ),
+    );
+    render(<HarCheckPage />);
+
+    choose(harFile(har));
+
+    expect(
+      await screen.findByText(
+        "This HAR holds calls from 2 Apty environments; the checks read the newest one's files.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("forgets the file when cleared", async () => {

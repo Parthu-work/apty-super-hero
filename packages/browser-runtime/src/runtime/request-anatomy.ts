@@ -6,6 +6,29 @@
 
 export const CHARS_PER_TOKEN = 4;
 
+/**
+ * One image as providers bill it, about 1,600 tokens for a screenshot at
+ * most (an estimate): its base64 data is not text the model reads.
+ *
+ * @internal
+ */
+export const IMAGE_TOKENS = 1_600;
+
+const isImagePart = (part: unknown) => {
+  const type = (part as { type?: unknown } | null)?.type;
+  return type === "input_image" || type === "image";
+};
+
+/** A message's content: its text as characters / 4, and each image at `IMAGE_TOKENS`. */
+function contentTokens(content: unknown): number {
+  if (!Array.isArray(content)) return estimateTokens(textOf(content));
+  const images = content.filter(isImagePart).length;
+  const text = content.filter((part) => !isImagePart(part));
+  return (
+    (text.length > 0 ? estimateTokens(textOf(text)) : 0) + images * IMAGE_TOKENS
+  );
+}
+
 /** @internal */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
@@ -75,7 +98,7 @@ export function measureRequest(request: {
     } else if (item.type === "function_call") {
       historyTokens += estimateTokens(textOf(item.arguments));
     } else {
-      historyTokens += estimateTokens(textOf(item.content));
+      historyTokens += contentTokens(item.content);
     }
   }
   const systemPromptTokens = estimateTokens(request.instructions);

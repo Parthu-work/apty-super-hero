@@ -18,9 +18,8 @@ import type {
   AptyResourceBody,
   AptyResourceList,
 } from "../types.js";
+import { quotedErrorText } from "./pack-kit.js";
 import type { ClientEvidence, LoadedFile } from "./types.js";
-
-const ENV_IN_PATH = /\/(env-[^/?#]+)\//;
 
 export function connectionFailure(list: AptyResourceList): ClientEvidence {
   const failure = list.failure ?? "no_response";
@@ -45,7 +44,13 @@ function toLoadedFile(
   const base = { name, httpStatus: resource.status };
   switch (read.status) {
     case "failed":
-      return { ...base, status: "failed", detail: resource.errorText };
+      return {
+        ...base,
+        status: "failed",
+        ...(resource.errorText !== undefined
+          ? { detail: quotedErrorText(resource.errorText) }
+          : {}),
+      };
     case "pending":
       return { ...base, status: "pending" };
     case "body_denied":
@@ -74,13 +79,61 @@ function toLoadedFile(
   return { ...base, status: "ok", json };
 }
 
+/**
+ * A call that answered for the file: the newest such call is what the
+ * player has now, so an older 200 never stands in for a newer 404.
+ */
 function settled(file: LoadedFile): boolean {
   return (
     file.status === "ok" ||
     file.status === "empty" ||
+    file.status === "http_error" ||
+    file.status === "unparsable" ||
     file.status === "body_denied" ||
     file.status === "too_large_to_redact"
   );
+}
+
+type ScopeLevel = "tenant" | "app" | "env";
+type Scope = Partial<Record<ScopeLevel, string>>;
+const SCOPE_SEGMENT = /^(tenant|app|env)-[\w-]+$/;
+
+/** The tenant, app and environment a call's path names (5.x keeps app-urls.json at tenant level). */
+function scopeOf(url: string): Scope {
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return {};
+  }
+  const scope: Scope = {};
+  for (const segment of path.split("/")) {
+    const level = SCOPE_SEGMENT.exec(segment)?.[1] as ScopeLevel | undefined;
+    if (level && scope[level] === undefined) scope[level] = segment;
+  }
+  return scope;
+}
+
+/** A call belongs to an environment when each level both name is the same. */
+function inScope(url: string, chosen: Scope): boolean {
+  const scope = scopeOf(url);
+  return (["tenant", "app", "env"] as const).every(
+    (level) =>
+      scope[level] === undefined ||
+      chosen[level] === undefined ||
+      scope[level] === chosen[level],
+  );
+}
+
+const environmentKey = (scope: Scope) =>
+  scope.env === undefined
+    ? undefined
+    : `${scope.tenant ?? ""}/${scope.app ?? ""}/${scope.env}`;
+
+/** How many Apty environments (tenant, app and env) the calls' paths name. */
+export function environmentsIn(urls: readonly string[]): number {
+  return new Set(urls.flatMap((url) => environmentKey(scopeOf(url)) ?? []))
+    .size;
 }
 
 /** Where the calls and their bodies come from: the Apty Client, or a HAR file. */
@@ -119,11 +172,24 @@ export async function loadEvidenceFrom(
 
   const denyList = await loadBodyDenyList();
   const files: Record<string, LoadedFile> = {};
-  let envId: string | undefined;
+  const requested = list.resources.filter(
+    (r) =>
+      r.method.toUpperCase() === "GET" &&
+      names.includes(resourceNameFor(r.url)),
+  );
+  // The files of one environment, the newest one's: two tabs, or a HAR
+  // recorded across environments or tenants, must not mix their files.
+  const newestFirstAll = [...requested].sort(
+    (a, b) => b.timestamp - a.timestamp,
+  );
+  const anchor =
+    newestFirstAll.find((r) => scopeOf(r.url).env !== undefined) ??
+    newestFirstAll[0];
+  const chosenScope = anchor ? scopeOf(anchor.url) : {};
+  const environments = environmentsIn(requested.map((r) => r.url));
   for (const name of names) {
-    const calls = list.resources.filter(
-      (r) =>
-        r.method.toUpperCase() === "GET" && resourceNameFor(r.url) === name,
+    const calls = requested.filter(
+      (r) => resourceNameFor(r.url) === name && inScope(r.url, chosenScope),
     );
     const byId = new Map(calls.map((r) => [r.requestId, r]));
     const newestFirst: GroupableCall[] = calls
@@ -139,7 +205,6 @@ export async function loadEvidenceFrom(
         await readResourceBody(provider, resource, denyList),
       );
       if (index === 0 || settled(loaded)) chosen = loaded;
-      envId ??= ENV_IN_PATH.exec(resource.url)?.[1];
       if (settled(loaded)) break;
     }
     files[name] = chosen;
@@ -150,6 +215,7 @@ export async function loadEvidenceFrom(
       ...new Set(list.resources.map((r) => resourceNameFor(r.url))),
     ],
     files,
-    envId,
+    envId: chosenScope.env,
+    ...(environments > 1 ? { environments } : {}),
   };
 }

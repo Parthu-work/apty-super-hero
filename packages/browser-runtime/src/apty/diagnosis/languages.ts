@@ -30,6 +30,14 @@ export const LANGUAGE_CODES: Readonly<Record<string, string>> = {
   vietnamese: "vi",
 };
 
+/**
+ * Older or narrower codes for the same language that content can carry
+ * (iw and in before ISO 639 changed them, Norwegian Bokmål and Nynorsk).
+ * Whether the player treats them as the code above is not verified.
+ */
+export const OTHER_LANGUAGE_CODES: Readonly<Record<string, readonly string[]>> =
+  { he: ["iw"], id: ["in"], no: ["nb", "nn"] };
+
 /** "French" for "fr"; the code itself for one this table does not name. */
 export function languageName(code: string): string {
   const name = Object.keys(LANGUAGE_CODES).find(

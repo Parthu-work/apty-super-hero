@@ -6,6 +6,80 @@ full commit-level history.
 
 ## Unreleased
 
+- **LLM plan Phase C: a size gate, a masking proof, and the data-flow docs**.
+  - **Size gate (M1)**: `tooling/e2e/request-budgets.json` holds each named request's size plus 10%; a test fails when one grows past it.
+  - **Masking proof (M2)**: one page with PHI-like strings in every place Strict masks, read by all nine reading tools. It found three leaks in Strict, now fixed:
+    - the page title at the top of `search_elements`;
+    - the text of a contenteditable region;
+    - the tab title in the devtools results.
+  - **Docs (M3)**: `docs/security/DATA_FLOW.md`, `docs/development/REQUEST_ANATOMY.md`, and PRIVACY.md on Anthropic's 5-minute prompt cache, the summary request, checks answered without the model and HAR files.
+- **Fixes from the October audit of the checks (31 open on main, 4 in this branch)**: each was confirmed in the code, or reproduced, before it was fixed, and each fix has a test that failed first.
+  - **Router**:
+    - An item is named by the words nearest its kind ("the selector for the Save tooltip" names "Save").
+    - "missing", "hidden" or "gone" followed by an object no longer reads as "not visible".
+    - A request to investigate goes to the model.
+    - How-to and ordinary messages ("How would I…", "is this page ready for the demo?") get no check.
+    - "the widget doesn't load", "X fails at step N" and the Chinese "widget 没有显示" are routed, so the Home presets route the same in both languages.
+  - **Privacy**:
+    - An answer given without the model gets the URL policy every tool result gets.
+    - A failed call's error text reaches the card and the transcript redacted, with no URL.
+    - A HAR check says it read the HAR's files.
+    - A locally answered turn keeps its attached chip in the session.
+  - **No API key**: a message a check answers runs without an AI provider; anything else still asks for setup.
+  - **Files**:
+    - A newer 404 of a file wins over an older 200.
+    - Only the newest environment's files are read, never a mix, and a HAR's summary names how many environments it holds.
+  - **HAR page**:
+    - The page is the one the Apty files loaded on, not a sign-in page the HAR starts on.
+    - A file over 50 MB is refused before it is read.
+    - Calls that brought no file are named as such.
+    - A check that answers after another file was picked is dropped, and a failing check is named.
+  - **Packs**:
+    - The scan leaves segment blockers open when segment.json could not be read.
+    - WNV-07 names a widget limited to specific segments with none chosen.
+    - DOM-06 quotes the ambiguity when ambiguity alone raised it.
+    - A name only under another code for the language (iw, in, nb) is left open, not called missing.
+    - The Chinese card shows Chinese text where it showed the Client's English messages.
+  - **Selector check**:
+    - Only the frame the stored frame path leads to is counted.
+    - A selector in jQuery syntax is left open as code the check does not run, not called broken.
+  - **Tools**:
+    - `run_diagnosis` is offered for selector and page questions.
+    - Its schema is 15% smaller and says in words that `step` is a whole number of 1 or more and `language` two lowercase letters.
+    - A file request after an investigation gets the file tools only.
+  - **Request size**:
+    - An image counts at a fixed estimate (1,600 tokens), not its base64 data as text, so a screenshot turn no longer fails under a request budget.
+    - The summary request is one message per turn, so a budget can leave out the oldest.
+    - Checks answered without the model are kept in summaries.
+    - The summary is a user message, not a system one.
+  - **Not changed**:
+    - URL patterns keep the player's own matching: unanchored, case-sensitive, no port normalising.
+    - XPath's first-match rule and the screen token stay as they are: neither is in this repo's player sources nor confirmed.
+- **Summaries of earlier turns (LLM plan P5), off by default**: Settings → AI → Request size → **Summarize earlier turns**. When a chat grows long, the model summarizes its earlier turns, and later requests carry the summary instead.
+  - **Masked like every request**: the summary request runs the same outbound filters: masking, the result caps, the request budget and the request report. It carries user and assistant messages only, never tool results.
+  - **When**: after a turn whose last request was over three quarters of the request budget, or 20,000 tokens without one. The newest 4 messages and their tool calls stay whole. A chat of 8 items or fewer is never summarized.
+  - **What stays**: the chat history shown in the panel is stored apart and stays whole. A failed summary leaves the chat whole too.
+  - **Measured** with `npm run report:request-size`, on synthetic data: the 8-turn long chat goes from 10,513 to 9,216 tokens on every later request. The summary request itself is 135 tokens.
+  - **Cost**: one more request per summary, and some detail of the earlier turns is lost.
+  - **Fixed in the existing compressor**:
+    - The agent dropped its `tokenWatermark` and `protectRecentMessages` options, so a split could part a tool call from its result.
+    - A failed summary left the turn unsaved.
+    - The same chat could be summarized twice in a row.
+  - **Tests**:
+    - In Chromium: no summary request while the setting is off. With it on, the summary request has the email masked and no tools, and the next turn carries the summary in place of the first turns.
+    - The Options accessibility scans pass with the new switch.
+  - **Not measured**: real summaries' sizes and what they keep, against a real provider.
+- **Sticky tool selection (LLM plan P1)**: a short follow-up such as "ok go ahead" keeps the tools of the chat it continues. Before, it read as casual chat and was offered no tools, so the model could not carry on the investigation it had just proposed.
+  - **What a turn gets**: its own message's tool groups plus those of the chat's last 3 turns that selected any. A turn that selects nothing is not remembered, so short replies do not push the investigation out.
+  - **Per chat**: the memory is per chat, for the 50 most recently used. A new chat starts empty, so "hi" there still gets no tools.
+  - **Fixed order**: tools come in the registry's order, not the order their keywords matched, so the same groups always send the same tool list.
+  - **Measured** with `npm run report:request-size`: the follow-up scenario goes from 0 tools (2,784 tokens) to the 6 DOM Health tools it continues (4,585). Every other scenario is unchanged.
+  - **Tests**: the request-limits Chromium test checks that "ok go ahead" after an investigation is offered that turn's tools and the debugging loop, and that the same words in a new chat get none.
+- **Prompt caching for Anthropic (LLM plan P3)**: Anthropic requests mark the system prompt, which also covers the tools, and the newest message as cache breakpoints. The next step of a tool loop, or the next turn, can read the conversation so far from Anthropic's cache.
+  - **Cost**: a cache write costs 1.25 times the input price and a read about a tenth, with a 5-minute lifetime. A prefix under the model's minimum is not cached and costs nothing extra.
+  - **Other providers**: no markers. The fixed tool order and P2's byte-stable core keep the start of each request the same for their prefix caches.
+  - **Tests**: a unit test checks the request body Anthropic gets: the breakpoints on the system prompt and on the last block of the newest message, including a tool result, and nowhere else.
+  - **Not measured**: cache hits or savings against a real provider.
 - **A smaller system prompt (LLM plan P2)**: the system prompt is now a byte-stable core plus sections of guidance keyed by tool. A call carries a section only when it offers one of that section's tools.
   - **The core**: identity and scope, the two-extension architecture, the evidence-first answer format, the untrusted-page rule and the tool-call format. It is 1,258 estimated tokens and is sent on every call, the same bytes first.
   - **The sections**: the debugging loop (with `start_investigation`), Client and Widget debugging, retrieving a resource, Studio debugging, and each tool-boundaries paragraph (with the tools it names).

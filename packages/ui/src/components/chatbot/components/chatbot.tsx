@@ -78,7 +78,7 @@ export function ChatbotProvider({
       const authCheck = handlersRef.current?.checkAuthBeforeSend;
       if (authCheck) {
         try {
-          const result = await authCheck();
+          const result = await authCheck(text);
           if (result.needsAuth) {
             handlersRef.current?.onNeedsAuth?.(text);
             return;

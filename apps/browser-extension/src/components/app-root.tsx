@@ -13,7 +13,6 @@ import { I18nProvider, useTranslation } from "@apty/ui/i18n/context";
 import type { Language } from "@apty/ui/i18n/types";
 import { ThemeProvider } from "@apty/ui/theme/context";
 import type { Theme } from "@apty/ui/theme/types";
-import type { AuthCheckResult } from "@apty/ui/types";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { AGENT_ACTIVITY_REQUEST } from "../entrypoints/content/agent-activity";
@@ -29,12 +28,14 @@ import {
   useSelectRelevantTools,
 } from "../hooks/browser-agent-config";
 import {
+  EARLIER_TURN_SUMMARIES,
   formatContextsPrivately,
   maxOutputTokens,
 } from "../hooks/outbound-filters";
 import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
+import { checkAuth } from "../services/send-gate";
 import { InputModeProvider } from "../state/input-mode-context";
 import { InterventionModeProvider } from "../state/intervention-mode-context";
 import { ApprovalPrompt } from "./approval-prompt";
@@ -118,21 +119,6 @@ function useConversationHeartbeat() {
   return { start, stop };
 }
 
-/**
- * Pre-flight configuration check.
- *
- * Apty's agent is BYOK-only: there is no external login/proxy fallback, so
- * a message can only be sent once a provider + API key are configured.
- */
-async function checkAuth(
-  settings: ReturnType<typeof useChatConfig>["settings"],
-): Promise<AuthCheckResult> {
-  if (isProviderConfigured(settings)) {
-    return { needsAuth: false, hasCustomConfig: true };
-  }
-  return { needsAuth: true, hasCustomConfig: false };
-}
-
 function ChatApp() {
   const { t } = useTranslation();
   const { settings, isLoading } = useChatConfig({
@@ -161,7 +147,9 @@ function ChatApp() {
       localResponder,
       maxOutputTokens,
       instructionsFor: composeSystemPrompt,
+      compression: EARLIER_TURN_SUMMARIES,
     },
+    localAnswersWithoutModel: true,
     ...BROWSER_AGENT_CONFIG,
   });
 
@@ -171,7 +159,10 @@ function ChatApp() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  const handleCheckAuth = useCallback(() => checkAuth(settingsRef.current), []);
+  const handleCheckAuth = useCallback(
+    async (text: string) => checkAuth(settingsRef.current, text),
+    [],
+  );
 
   // First-run / not-configured dead end: instead of injecting messages into
   // the conversation, show one dismissible setup card that carries the

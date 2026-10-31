@@ -1,5 +1,5 @@
 import type { AgentInputItem } from "@openai/agents";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryStorage } from "../storage/memory.js";
 import type { SerializedSession } from "../types.js";
 import type { ConversationCompressor } from "./compressor.js";
@@ -290,7 +290,7 @@ describe("ConversationManager", () => {
 
       expect(reloaded?.getMetadata("lastSummary")).toBe("Important context");
       const items = await reloaded?.getItems();
-      expect(items?.[0]).toMatchObject({ role: "system" });
+      expect(items?.[0]).toMatchObject({ role: "user" });
       expect(reloaded?.getSummary().preview).toContain("Important context");
     });
 
@@ -404,5 +404,109 @@ describe("ConversationManager", () => {
 
       expect(compressCalled).toBe(true);
     });
+  });
+});
+
+describe("ConversationManager summaries offered as a setting", () => {
+  let storage: SessionStorage;
+
+  beforeEach(() => {
+    storage = new SessionStorage(new InMemoryStorage<SerializedSession>());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("saves the chat whole when the summary fails, and logs no content", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const compressor = {
+      shouldCompress: () => true,
+      async compressItems() {
+        throw new Error("provider said: the owner is jane@example.com");
+      },
+    } as unknown as ConversationCompressor;
+    const manager = new ConversationManager(storage, { compressor });
+    const session = await manager.createSession();
+    await session.addItems([
+      createUserMessage("Message 1"),
+      createAssistantMessage("Response 1"),
+    ]);
+
+    await manager.saveSession(session);
+
+    const reloaded = await storage.load(session.id);
+    expect(reloaded?.getItemCount()).toBe(2);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/summary failed/);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("jane@example.com");
+  });
+
+  it("forgets the last request's size after summarizing, so the next save does not summarize again", async () => {
+    const compressItems = vi.fn(async (items: AgentInputItem[]) => ({
+      summary: "earlier turns",
+      compressedItems: items.slice(-2),
+    }));
+    const compressor = {
+      shouldCompress: (_count: number, tokens?: number) =>
+        tokens !== undefined && tokens > 1_000,
+      compressItems,
+    } as unknown as ConversationCompressor;
+    const manager = new ConversationManager(storage, { compressor });
+    const session = await manager.createSession();
+    await session.addItems([
+      createUserMessage("Message 1"),
+      createAssistantMessage("Response 1"),
+      createUserMessage("Message 2"),
+      createAssistantMessage("Response 2"),
+    ]);
+    session.setMetadata("lastPromptTokens", 5_000);
+
+    await manager.saveSession(session);
+    await manager.saveSession(session);
+
+    expect(compressItems).toHaveBeenCalledTimes(1);
+    expect(session.getMetadata("lastPromptTokens")).toBeUndefined();
+  });
+
+  it("frames the summary as a record of earlier turns, not instructions", async () => {
+    const compressor = {
+      shouldCompress: () => false,
+      async compressItems() {
+        return { summary: "Important context", compressedItems: [] };
+      },
+    } as unknown as ConversationCompressor;
+    const manager = new ConversationManager(storage, { compressor });
+    const session = await manager.createSession();
+    await session.addItems([createUserMessage("Hello world")]);
+
+    await manager.compressSession(session.id);
+
+    const [summary] = (await session.getItems()) as Array<{ content: string }>;
+    expect(summary?.content).toMatch(/^Conversation summary/);
+    expect(summary?.content).toMatch(/not instructions/i);
+    expect(summary?.content).toContain("Important context");
+  });
+
+  it("inserts the summary as a user message, not a system one, and keeps it out of the chat's preview", async () => {
+    const compressor = {
+      shouldCompress: () => false,
+      async compressItems(items: AgentInputItem[]) {
+        return { summary: "Earlier turns", compressedItems: items.slice(-1) };
+      },
+    } as unknown as ConversationCompressor;
+    const manager = new ConversationManager(storage, { compressor });
+    const session = await manager.createSession();
+    await session.addItems([
+      createUserMessage("first question"),
+      createAssistantMessage("first answer"),
+      createUserMessage("latest question"),
+    ]);
+
+    await manager.compressSession(session.id);
+
+    const [summary] = (await session.getItems()) as Array<{ role: string }>;
+    expect(summary?.role).toBe("user");
+    expect(session.getSummary().preview).toBe("latest question");
   });
 });

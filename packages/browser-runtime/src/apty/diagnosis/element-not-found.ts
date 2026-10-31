@@ -205,6 +205,13 @@ function cause(
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 
+/**
+ * Pseudo-classes only jQuery knows (`:contains`, `:eq`, `:visible`...): the
+ * browser rejects them, so the check cannot say how the player runs them.
+ */
+const JQUERY_ONLY =
+  /:(?:contains|eq|gt|lt|first|last|even|odd|visible|hidden|input|button|checkbox|radio|text|password|submit|reset|file|image|selected|header|animated|parent)(?![\w-])/;
+
 /** What the probe found where the player looks: the top document, or the frame depth the frame path names. */
 function lookupFinding(
   kind: ElementKind,
@@ -239,11 +246,15 @@ function lookupFinding(
   }
 
   const depth = framePath.length;
-  const routed = probe.frames.filter((f) => f.depth === depth && f.answered);
+  // A frame its path does not lead to is not where the player looks; one
+  // whose path cannot be read from inside it (a cross-origin parent) still counts.
+  const onPath = (f: FrameProbe) =>
+    f.depth === depth && f.test?.onFramePath !== false;
+  const routed = probe.frames.filter((f) => onPath(f) && f.answered);
   const tests = routed.flatMap((f) => (f.test ? [f.test] : []));
   const elsewhere = probe.frames.filter(
     (f): f is FrameProbe & { test: NonNullable<FrameProbe["test"]> } =>
-      f.depth !== depth && f.answered && (f.test?.matchCount ?? 0) > 0,
+      !onPath(f) && f.answered && (f.test?.matchCount ?? 0) > 0,
   );
   const silent = probe.frames.filter((f) => !f.answered).length;
   const matches = sum(tests.map((t) => t.matchCount));
@@ -309,6 +320,20 @@ function lookupFinding(
     const first = elsewhere[0];
     if (first) {
       const found = sum(elsewhere.map((f) => f.test.matchCount));
+      if (depth > 0 && first.depth === depth) {
+        return fail(
+          "SEL-12",
+          "framePathOther",
+          `${label}: matches nothing in the frame its frame path leads to, but ${found} element(s) in another frame at the same level.`,
+          { ...base, variant: "otherFrame", count: found },
+          CARD_SHADOW,
+          "Select the element again in Studio inside the frame that holds it, so the frame path points at that frame; then publish.",
+          [
+            counted,
+            `${label}: ${found} match(es) in another frame at depth ${depth}`,
+          ],
+        );
+      }
       return depth === 0
         ? fail(
             "SEL-05",
@@ -513,12 +538,35 @@ async function partFinding(
     };
   }
 
+  if (active.language === "css" && JQUERY_ONLY.test(selector)) {
+    return {
+      gates: [
+        gate(
+          "element",
+          "unknown",
+          "SEL-03",
+          "jquerySyntax",
+          `${label}: the selector uses jQuery syntax, which the browser's lookup rejects and the check does not run.`,
+          { ...base, type },
+          [`${label}: identificationType = ${type}, jQuery syntax`],
+        ),
+      ],
+      causes: [],
+      nexts: ["runInConsole"],
+    };
+  }
+
   const framePath = texts(element.iframesPath);
   const shadowRoots = texts(element.shadowRootSelectors);
   const found = lookupFinding(
     kind,
     part,
-    await probe({ language: active.language, selector, shadowRoots }),
+    await probe({
+      language: active.language,
+      selector,
+      shadowRoots,
+      ...(framePath.length > 0 ? { framePath } : {}),
+    }),
     framePath,
     shadowRoots,
     stepNamed,
@@ -651,7 +699,7 @@ export async function diagnoseElementNotFound(
   probe: Probe,
 ): Promise<DiagnosisResult> {
   if (!evidence.connection.ok) {
-    const { message } = evidence.connection;
+    const { message, failure } = evidence.connection;
     return stopAt(
       q,
       evidence,
@@ -661,7 +709,7 @@ export async function diagnoseElementNotFound(
         "SEL-00",
         "clientUnreachable",
         `Could not reach the Apty Client: ${message}`,
-        { message },
+        { message, failure },
       ),
       "no_data",
       "fixConnection",

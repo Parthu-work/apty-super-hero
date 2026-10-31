@@ -12,6 +12,7 @@ import {
   isTransientScreenshotItem,
   pruneTransientScreenshotItems,
 } from "../utils/screenshot-shaping.js";
+import { isSummaryItem } from "./summary-item.js";
 
 function createEmptySessionMetrics(): SessionMetrics {
   return {
@@ -164,7 +165,8 @@ export class Session implements OpenAISession {
         (item) =>
           item.type === "message" &&
           item.role === "user" &&
-          !isTransientScreenshotItem(item),
+          !isTransientScreenshotItem(item) &&
+          !isSummaryItem(item),
       );
 
     const previewSource =

@@ -11,6 +11,7 @@ import {
   type HarCheck,
   type HarRead,
   type HarSummary,
+  MAX_HAR_BYTES,
   readHar,
   runHarCheck,
   summarizeHar,
@@ -27,7 +28,7 @@ import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { UIToolPart } from "@apty/ui/types";
 import { FileUpIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { chatHandoff } from "../../../state/chat-handoff";
 import { ToolPageShell } from "../../shell/tool-page-shell";
 import { CheckResultCard } from "../check-result-card";
@@ -42,7 +43,10 @@ interface LoadedHar {
   summary: HarSummary;
 }
 
-type ReadError = Extract<HarRead, { ok: false }>["reason"] | "unreadable";
+type ReadError =
+  | Extract<HarRead, { ok: false }>["reason"]
+  | "unreadable"
+  | "check-failed";
 
 function checkFor(target: Target, name: string): HarCheck {
   if (target === "widget") return { packId: "widget-not-visible" };
@@ -89,9 +93,21 @@ function Summary({ loaded }: { loaded: LoadedHar }) {
           ))}
         </ul>
       )}
-      {summary.version === "none" && (
-        <Notice tone="warning" title={t("harCheck.noAptyFiles")}>
-          {t("harCheck.noAptyFilesHelp")}
+      {summary.version === "none" &&
+        (summary.callsWithoutFile > 0 ? (
+          <Notice tone="warning" title={t("harCheck.noFileInCalls")}>
+            {t("harCheck.noFileInCallsHelp", {
+              count: summary.callsWithoutFile,
+            })}
+          </Notice>
+        ) : (
+          <Notice tone="warning" title={t("harCheck.noAptyFiles")}>
+            {t("harCheck.noAptyFilesHelp")}
+          </Notice>
+        ))}
+      {summary.environments > 1 && (
+        <Notice tone="info">
+          {t("harCheck.environments", { count: summary.environments })}
         </Notice>
       )}
       {summary.version === "4.x" && (
@@ -110,10 +126,23 @@ export function HarCheckPage() {
   const [name, setName] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<DiagnosisResult | null>(null);
+  // A check answers only while its file is still the one picked.
+  const run = useRef(0);
+
+  const forgetRunningCheck = () => {
+    run.current += 1;
+    setRunning(false);
+    setResult(null);
+  };
 
   const pick = async (file: File | undefined) => {
     if (!file) return;
-    setResult(null);
+    forgetRunningCheck();
+    if (file.size > MAX_HAR_BYTES) {
+      setLoaded(null);
+      setError("too-large");
+      return;
+    }
     let text: string;
     try {
       text = await file.text();
@@ -138,11 +167,16 @@ export function HarCheckPage() {
 
   const check = async () => {
     if (!loaded) return;
+    const token = ++run.current;
     setRunning(true);
+    setError(null);
     try {
-      setResult(await runHarCheck(loaded.har, checkFor(target, name)));
+      const checked = await runHarCheck(loaded.har, checkFor(target, name));
+      if (token === run.current) setResult(checked);
+    } catch {
+      if (token === run.current) setError("check-failed");
     } finally {
-      setRunning(false);
+      if (token === run.current) setRunning(false);
     }
   };
 
@@ -155,15 +189,15 @@ export function HarCheckPage() {
           id: `har-check-${Date.now()}`,
           type: "custom",
           label: t("harCheck.askChip"),
-          value: `Checked from a HAR file, not the live Apty Client.\n${transcriptOf(result)}`,
+          value: `Checked from a HAR file, not the live Apty Client.\n${transcriptOf(result, "har")}`,
         },
       ],
     });
   };
 
   const clear = () => {
+    forgetRunningCheck();
     setLoaded(null);
-    setResult(null);
     setError(null);
   };
 

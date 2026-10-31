@@ -104,6 +104,19 @@ describe("CheckResultCard", () => {
     expect(screen.getByText("Only in turned-off segments")).toBeInTheDocument();
   });
 
+  it("says segments were not checked when segment.json could not be read (7)", () => {
+    const evidence = evidenceFrom(capture());
+    evidence.files["segment.json"] = { name: "segment.json", status: "failed" };
+
+    render(<CheckResultCard tool={tool(check(undefined, evidence))} />);
+
+    expect(
+      screen.getByText(
+        "1 of 9 have a blocker in the files read; segment.json could not be read, so inactive segments were not checked",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("asks which one when several items match", () => {
     render(<CheckResultCard tool={tool(check("Request"))} />);
 
@@ -193,6 +206,28 @@ describe("CheckResultCard", () => {
         "Whether the page's CSS hides the widget container",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("words a widget limited to specific segments with none chosen, with no empty list (13)", () => {
+    const files = capture() as Record<string, unknown>;
+    const appData = files["app-data.json"] as {
+      config: { widgetConfig: Record<string, unknown> };
+    };
+    appData.config.widgetConfig.enabledForOtherUser = false;
+    appData.config.widgetConfig.selectedSegments = [];
+    const result = diagnoseWidgetNotVisible(
+      evidenceFrom(files),
+      "https://uat.crm.example.com/leads/42",
+    );
+
+    render(<CheckResultCard tool={tool(result)} />);
+
+    expect(
+      screen.getAllByText(
+        "The widget is set to show only to specific segments, but none is chosen, and the option for other users is off: nobody sees it.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/\(\)/)).toBeNull();
   });
 
   it("lists the open widget checks when the files show no blocker", () => {
@@ -309,6 +344,54 @@ describe("CheckResultCard", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("shows the Chinese card in Chinese: where a line was read and why logs, the console or an audit could not be read (10)", async () => {
+    const languageStorage = {
+      load: vi.fn().mockResolvedValue("zh"),
+      save: vi.fn(),
+      watch: vi.fn(() => () => {}),
+    };
+    const logs = diagnoseLogsAndErrors({
+      connection: { ok: true },
+      clientLogs: {
+        ok: false,
+        failure: "no_response",
+        message: "The Apty Client did not answer the logs request.",
+      },
+      calls: [],
+      page: {
+        ok: true,
+        lines: [{ level: "debug", message: "No active application found" }],
+        framesRead: 1,
+        framesDisabled: 0,
+      },
+    });
+    const { unmount } = render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <CheckResultCard tool={tool(logs)} />
+      </I18nProvider>,
+    );
+    await screen.findByRole("region", { name: "错误与日志" });
+    const card = screen.getByRole("region", { name: "错误与日志" });
+    expect(card).not.toHaveTextContent("did not answer");
+    expect(
+      within(card).getAllByText(
+        "页面控制台：没有环境匹配此页面（“No active application found”）",
+      ).length,
+    ).toBeGreaterThan(0);
+    unmount();
+
+    render(
+      <I18nProvider storageAdapter={languageStorage as never}>
+        <CheckResultCard tool={tool(diagnosePageReadiness(undefined))} />
+      </I18nProvider>,
+    );
+    expect(
+      (await screen.findAllByText("此标签页中没有打开网页，因此未进行审计。"))
+        .length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/No web page is open/)).toBeNull();
+  });
+
   const twoMatches = async () => ({
     ok: true as const,
     frames: [
@@ -412,6 +495,41 @@ describe("CheckResultCard", () => {
     expect(
       within(card).getAllByRole("link", { name: /1496580223/ }).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("words DOM-06 by the ambiguity that raised it (N10)", () => {
+    const result = diagnosePageReadiness({
+      available: true,
+      score: 70,
+      grade: "GOOD",
+      confidence: "MEDIUM",
+      evidenceState: "HEALTHY_EVIDENCE",
+      frameAccessibility: {
+        framesTotal: 1,
+        framesAccessible: 1,
+        framesFailed: 0,
+        framesInaccessible: 0,
+      },
+      iframes: { total: 0 },
+      shadowDom: { roots: 0, elements: 0 },
+      zIndex: { highZIndexElementCount: 0 },
+      duplicateIds: { elementsWithDuplicatedId: 0 },
+      virtualized: { containers: 0, observedItems: 0 },
+      manualSelectorDependency: 4,
+      metricDetails: {
+        ambiguityRisk: { ambiguous: 7, wrongTarget: 2, totalAnalyzed: 40 },
+      },
+      metadata: { interactiveElementsAnalyzed: 80 },
+      risks: [{ id: "ambiguous-or-wrong-target" }],
+    } as never);
+    render(<CheckResultCard tool={tool(result)} />);
+
+    expect(
+      screen.getAllByText(
+        "7 of 40 interactive elements analyzed only have selectors that match several elements, and 2 have one that picks the wrong element.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/4% of the interactive elements/)).toBeNull();
   });
 
   it("falls back to the default display for an output it does not recognise", () => {

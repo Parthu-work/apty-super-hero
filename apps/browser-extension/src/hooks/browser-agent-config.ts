@@ -21,15 +21,15 @@ import {
   allBrowserTools,
   createDiagnosisResponder,
   createFileFetchResponder,
+  createStickyToolSelector,
   IndexedDBStorage,
-  selectRelevantTools,
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
 import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-store";
 import { tabConsoleOf } from "@apty/browser-runtime/tools/apty";
 import { tabDomHealthOf } from "@apty/browser-runtime/tools/dom-health";
 import { SYSTEM_PROMPT_CORE } from "@apty/ui/components/chatbot/constants";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   createAIProvider,
   isProviderConfigured,
@@ -123,8 +123,8 @@ export function useBrowserTools(): FunctionTool[] {
 
 /**
  * Returns a stable `ChatConfig.selectTools` callback: for each message,
- * picks the subset of `allBrowserTools` relevant to that message (see
- * `selectRelevantTools`), then applies the same automation-mode filtering
+ * picks the subset of `allBrowserTools` relevant to that message and the
+ * chat's recent turns (see `createStickyToolSelector`), then applies the same automation-mode filtering
  * `useBrowserTools` applies to the full registry. Every tool remains
  * registered — this only narrows what's sent in the model's tool schema
  * for a given turn, keeping request size proportional to the task instead
@@ -141,10 +141,12 @@ export function useSelectRelevantTools() {
     [automationModeRaw],
   );
 
+  const [selectSticky] = useState(createStickyToolSelector);
+
   return useCallback(
-    (text: string) =>
-      filterToolsByMode(selectRelevantTools(text), automationMode),
-    [automationMode],
+    (text: string, sessionId: string | null) =>
+      filterToolsByMode(selectSticky(text, sessionId), automationMode),
+    [selectSticky, automationMode],
   );
 }
 

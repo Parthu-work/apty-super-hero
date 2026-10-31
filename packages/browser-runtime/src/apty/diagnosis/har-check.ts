@@ -9,6 +9,7 @@
 import { resourceNameFor } from "../resource-body-utils.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import { evidenceFromHar, isAptyContentUrl, pageUrlOfHar } from "./har.js";
+import { environmentsIn } from "./loader.js";
 import { type Rec, records } from "./pack-kit.js";
 import { type ContentKind, type DiagnosisResult, KINDS } from "./types.js";
 import {
@@ -18,6 +19,8 @@ import {
 
 /** Larger than any capture seen (3.8 MB), small enough to parse in the panel. */
 const MAX_HAR_CHARS = 50_000_000;
+/** The same limit on the file's size, checked before it is read into memory. */
+export const MAX_HAR_BYTES = MAX_HAR_CHARS;
 
 const FILES_5X = new Set([
   ...Object.values(KINDS).map((k) => k.file),
@@ -48,35 +51,38 @@ export interface HarSummary {
   calls: number;
   /** The Apty content files the HAR holds a body for, by name. */
   contentFiles: string[];
+  /** Calls for an Apty content file that brought none: failed, or recorded without a body. */
+  callsWithoutFile: number;
+  /** The Apty environments the content calls came from; a check reads the newest one's files. */
+  environments: number;
   version: "5.x" | "4.x" | "none";
   /** A document request is there, so the widget check can match environments. */
   hasPage: boolean;
 }
 
+const isContentFile = (name: string) =>
+  FILES_5X.has(name) || FILES_4X.has(name) || STEPS_FILE.test(name);
+
 export function summarizeHar(har: unknown): HarSummary {
   const entries = records((har as { log?: Rec }).log?.entries);
-  const names = entries.flatMap((entry) => {
+  const aptyCalls = entries.flatMap((entry) => {
     const url = (entry.request as Rec | undefined)?.url;
+    if (typeof url !== "string" || !isAptyContentUrl(url)) return [];
+    const name = resourceNameFor(url);
+    if (!isContentFile(name)) return [];
     const content = (entry.response as Rec | undefined)?.content as
       | Rec
       | undefined;
-    if (
-      typeof url !== "string" ||
-      typeof content?.text !== "string" ||
-      !isAptyContentUrl(url)
-    ) {
-      return [];
-    }
-    const name = resourceNameFor(url);
-    return FILES_5X.has(name) || FILES_4X.has(name) || STEPS_FILE.test(name)
-      ? [name]
-      : [];
+    return [{ url, name, hasFile: typeof content?.text === "string" }];
   });
+  const names = aptyCalls.filter((c) => c.hasFile).map((c) => c.name);
   const contentFiles = [...new Set(names)].sort();
   const has5x = contentFiles.some((n) => FILES_5X.has(n));
   return {
     calls: entries.length,
     contentFiles,
+    callsWithoutFile: aptyCalls.filter((c) => !c.hasFile).length,
+    environments: environmentsIn(aptyCalls.map((c) => c.url)),
     version: has5x
       ? "5.x"
       : contentFiles.some((n) => FILES_4X.has(n))

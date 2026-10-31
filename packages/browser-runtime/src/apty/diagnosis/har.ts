@@ -105,13 +105,24 @@ export function evidenceFromHar(
   return loadEvidenceFrom(harSource(har), names);
 }
 
-/** The page the HAR was recorded on: its first document request, if any. */
+const isDocument = (entry: Rec) =>
+  entry._resourceType === "document" ||
+  String(rec(rec(entry.response).content).mimeType).startsWith("text/html");
+
+/**
+ * The page the HAR's Apty files loaded on: the last document request before
+ * its newest Apty content call (entries are in the order they started), or
+ * the last document when there is none. A recording that starts on a
+ * sign-in page reaches the application's page later.
+ */
 export function pageUrlOfHar(har: unknown): string | undefined {
-  const page = entriesOf(har).find(
-    (e) =>
-      e._resourceType === "document" ||
-      String(rec(rec(e.response).content).mimeType).startsWith("text/html"),
-  );
-  const url = rec(page?.request).url;
-  return typeof url === "string" ? url : undefined;
+  let lastDocument: string | undefined;
+  let aptyPage: string | undefined;
+  for (const entry of entriesOf(har)) {
+    const url = rec(entry.request).url;
+    if (typeof url !== "string") continue;
+    if (isDocument(entry)) lastDocument = url;
+    else if (isAptyContentUrl(url)) aptyPage = lastDocument;
+  }
+  return aptyPage ?? lastDocument;
 }

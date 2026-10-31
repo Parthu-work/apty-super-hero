@@ -1,6 +1,16 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { AgentError, type AgentInputItem, ErrorCode } from "@apty/agent-core";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import {
+  AgentError,
+  type AgentInputItem,
+  ConversationCompressor,
+  ConversationManager,
+  ErrorCode,
+  InMemoryStorage,
+  isSummaryItem,
+  type SerializedSession,
+  SessionStorage,
+} from "@apty/agent-core";
 import { createContextBudgetFilter } from "@apty/browser-runtime/runtime/context-budget";
 import {
   type MeasurableItem,
@@ -9,10 +19,13 @@ import {
   type RequestAnatomy,
 } from "@apty/browser-runtime/runtime/request-anatomy";
 import { allBrowserTools } from "@apty/browser-runtime/tools/index";
-import { selectRelevantTools } from "@apty/browser-runtime/tools/tool-relevance";
+import { createStickyToolSelector } from "@apty/browser-runtime/tools/tool-relevance";
 import { composeSystemPrompt } from "@apty/ui/components/chatbot/constants";
 import { describe, expect, it } from "vitest";
-import { createOutboundFilters } from "./outbound-filters";
+import {
+  createOutboundFilters,
+  EARLIER_TURN_SUMMARIES,
+} from "./outbound-filters";
 
 /**
  * Names the request shapes the agent produces today, with fixed synthetic
@@ -48,6 +61,8 @@ interface Scenario {
   name: string;
   message: string;
   history: MeasurableItem[];
+  /** A request of its own, such as a summary's: these instructions and no tools. */
+  instructions?: string;
 }
 
 const investigation: MeasurableItem[] = [];
@@ -101,23 +116,98 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
+/** The tools the extension offers: each earlier user message is a turn of the same chat. */
+function toolsFor(scenario: Scenario): MeasurableTool[] {
+  if (scenario.instructions !== undefined) return [];
+  const select = createStickyToolSelector();
+  for (const item of scenario.history) {
+    if (
+      item.type === "message" &&
+      item.role === "user" &&
+      !isSummaryItem(item as AgentInputItem)
+    ) {
+      select(String(item.content), scenario.name);
+    }
+  }
+  return select(scenario.message, scenario.name) as MeasurableTool[];
+}
+
+const instructionsFor = (scenario: Scenario, tools: MeasurableTool[]) =>
+  scenario.instructions ?? composeSystemPrompt(tools);
+
+interface RecordedRequest {
+  systemInstructions?: string;
+  input: MeasurableItem[];
+}
+
+/**
+ * The chat after the extension's summary settings run over it, and the
+ * summary request they sent, with a model that answers at the summary
+ * length limit.
+ */
+async function summarized(history: MeasurableItem[]) {
+  const requests: RecordedRequest[] = [];
+  const model = {
+    async getResponse(request: RecordedRequest) {
+      requests.push(request);
+      const text = "s".repeat(EARLIER_TURN_SUMMARIES.maxSummaryLength ?? 0);
+      return {
+        usage: {
+          requests: 1,
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+          inputTokensDetails: [],
+          outputTokensDetails: [],
+        },
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            status: "completed",
+            content: [{ type: "output_text", text }],
+          },
+        ],
+      };
+    },
+  } as unknown as ConstructorParameters<typeof ConversationCompressor>[0];
+  const manager = new ConversationManager(
+    new SessionStorage(new InMemoryStorage<SerializedSession>()),
+    {
+      compressor: new ConversationCompressor(
+        model,
+        { ...EARLIER_TURN_SUMMARIES, getTokenWatermark: () => 0 },
+        createOutboundFilters(),
+      ),
+    },
+  );
+  const session = await manager.createSession();
+  await session.addItems(history as AgentInputItem[]);
+  session.setMetadata("lastPromptTokens", 1);
+  await manager.saveSession(session);
+  return {
+    history: (await session.getItems()) as MeasurableItem[],
+    request: requests[0] as RecordedRequest,
+  };
+}
+
 /** `sent` runs the outbound filters the extension installs; `raw` does not. */
 async function measure(
   scenario: Scenario,
   sent: boolean,
 ): Promise<RequestAnatomy> {
-  const tools = selectRelevantTools(scenario.message) as MeasurableTool[];
+  const tools = toolsFor(scenario);
   let input = [...scenario.history, user(scenario.message)];
   if (sent) {
     for (const filter of createOutboundFilters()) {
       input = (await filter(input as AgentInputItem[], {
-        instructions: composeSystemPrompt(tools),
+        instructions: instructionsFor(scenario, tools),
         tools,
       })) as MeasurableItem[];
     }
   }
   return measureRequest({
-    instructions: composeSystemPrompt(tools),
+    instructions: instructionsFor(scenario, tools),
     tools,
     input,
   });
@@ -143,7 +233,7 @@ async function measureWithBudget(
   scenario: Scenario,
   budget: number,
 ): Promise<number | "stopped"> {
-  const tools = selectRelevantTools(scenario.message) as MeasurableTool[];
+  const tools = toolsFor(scenario);
   let input = [...scenario.history, user(scenario.message)] as AgentInputItem[];
   const filters = [
     ...createOutboundFilters(),
@@ -152,7 +242,7 @@ async function measureWithBudget(
   try {
     for (const filter of filters) {
       input = await filter(input, {
-        instructions: composeSystemPrompt(tools),
+        instructions: instructionsFor(scenario, tools),
         tools,
       });
     }
@@ -166,7 +256,7 @@ async function measureWithBudget(
     throw error;
   }
   return measureRequest({
-    instructions: composeSystemPrompt(tools),
+    instructions: instructionsFor(scenario, tools),
     tools,
     input: input as unknown as MeasurableItem[],
   }).totalTokens;
@@ -180,6 +270,30 @@ const budgeted = await Promise.all(
     }
     return row;
   }),
+);
+
+const longChat = SCENARIOS.find(
+  (s) => s.name === "long-chat-8-turns",
+) as Scenario;
+const summary = await summarized(longChat.history);
+const SUMMARY_SCENARIOS: Scenario[] = [
+  {
+    name: "long-chat-8-turns-summarized",
+    message: longChat.message,
+    history: summary.history,
+  },
+  {
+    name: "summary-request",
+    message: String(summary.request.input.at(-1)?.content ?? ""),
+    history: summary.request.input.slice(0, -1),
+    instructions: summary.request.systemInstructions ?? "",
+  },
+];
+const summaryRows = await Promise.all(
+  SUMMARY_SCENARIOS.map(async (s) => ({
+    scenario: s.name,
+    ...(await measure(s, true)),
+  })),
 );
 
 const byName = (list: typeof rows, name: string) =>
@@ -218,6 +332,26 @@ describe("request anatomy scenarios", () => {
     }
   });
 
+  it("a follow-up is offered the tools of the turn it continues", () => {
+    const followup = byName(rows, "followup");
+    expect(followup.toolCount).toBeGreaterThan(0);
+    expect(followup.toolCount).toBe(byName(rows, "dom-health").toolCount);
+    expect(byName(rows, "casual").toolCount).toBe(0);
+  });
+
+  it("a summary carries a long chat's earlier turns in one message, at the cost of one request without tools", () => {
+    const whole = byName(sent, "long-chat-8-turns");
+    const after = byName(summaryRows, "long-chat-8-turns-summarized");
+    const request = byName(summaryRows, "summary-request");
+
+    expect(after.toolCount).toBe(whole.toolCount);
+    expect(after.systemPromptTokens).toBe(whole.systemPromptTokens);
+    expect(after.totalTokens).toBeLessThan(whole.totalTokens);
+    expect(request.toolCount).toBe(0);
+    expect(request.totalTokens).toBeGreaterThan(0);
+    expect(summary.request.systemInstructions).toMatch(/summarizer/);
+  });
+
   it("a request budget sends at most the budget, or stops the request", () => {
     for (const row of budgeted) {
       const sentTotal = byName(sent, row.scenario as string).totalTokens;
@@ -234,6 +368,23 @@ describe("request anatomy scenarios", () => {
     }
   });
 
+  it("sends no named request over its budget in tooling/e2e/request-budgets.json, and every request has one (M1)", () => {
+    const file = join(
+      import.meta.dirname,
+      "../../../../tooling/e2e/request-budgets.json",
+    );
+    const { budgets } = JSON.parse(readFileSync(file, "utf8")) as {
+      budgets: Record<string, number>;
+    };
+
+    for (const row of [...sent, ...summaryRows]) {
+      expect(
+        [row.scenario, row.totalTokens <= (budgets[row.scenario] ?? -1)],
+        `${row.scenario}: ${row.totalTokens} estimated tokens, budget ${budgets[row.scenario]}`,
+      ).toEqual([row.scenario, true]);
+    }
+  });
+
   it("reports the whole registry size for reference", () => {
     const all = measureRequest({
       instructions: composeSystemPrompt(allBrowserTools),
@@ -246,7 +397,17 @@ describe("request anatomy scenarios", () => {
       mkdirSync(dirname(out), { recursive: true });
       writeFileSync(
         out,
-        JSON.stringify({ registry: all, raw: rows, sent, budgeted }, null, 2),
+        JSON.stringify(
+          {
+            registry: all,
+            raw: rows,
+            sent,
+            budgeted,
+            summaries: summaryRows,
+          },
+          null,
+          2,
+        ),
       );
     }
   });

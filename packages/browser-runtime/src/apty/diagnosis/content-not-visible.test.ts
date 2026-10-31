@@ -252,6 +252,24 @@ describe("content-not-visible: a workflow that is not in the files", () => {
 });
 
 describe("content-not-visible: no item named", () => {
+  it("leaves segment blockers open when segment.json could not be read, instead of counting none (7)", () => {
+    const files = edit(capture(), "workflow.json", (items: Item[]) =>
+      items.map((item) => ({ ...item, hideFromWidget: false })),
+    );
+    const evidence = evidenceFrom(files);
+    evidence.files["segment.json"] = { name: "segment.json", status: "failed" };
+
+    const result = diagnoseContentNotVisible(evidence, "workflow");
+
+    expect(result.scan?.segmentsUnread).toBe(true);
+    expect(gateOf(result, "segments")).toMatchObject({
+      status: "unknown",
+      reason: "segmentsUnread",
+    });
+    expect(result.verdict.status).toBe("candidates");
+    expect(result.verdict.headline).toMatch(/segment\.json could not be read/);
+  });
+
   it("lists the blockers the files show for every item", () => {
     const result = check();
 
@@ -470,6 +488,23 @@ describe("content-not-visible: the language the message named", () => {
       params: { language: "French", code: "fr", locales: "fr-CA" },
     });
     expect(result.verdict.causes).toEqual([]);
+  });
+
+  it("leaves an entry under an older code for the language open, not a missing name (14)", () => {
+    for (const [code, older] of [
+      ["he", "iw"],
+      ["id", "in"],
+      ["no", "nb"],
+    ]) {
+      const result = inLanguage(withLocales(["en", older]), code);
+
+      expect(gateOf(result, "language")).toMatchObject({
+        status: "unknown",
+        reason: "localeAlias",
+        params: { code, locales: older },
+      });
+      expect(result.verdict.causes).toEqual([]);
+    }
   });
 
   it("passes when the item is named in that language", () => {

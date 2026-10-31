@@ -13,7 +13,7 @@ const settings = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 };
 
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
-import { capture, harEntriesOf, harOf } from "./diagnosis-test-utils";
+import { capture, ENV_PATH, harEntriesOf, harOf } from "./diagnosis-test-utils";
 import { readHar, runHarCheck, summarizeHar } from "./har-check";
 
 beforeEach(() => {
@@ -53,6 +53,34 @@ describe("summarizeHar", () => {
     expect(summary.contentFiles).not.toContain("analytics.json");
     expect(summary.contentFiles).toEqual([...summary.contentFiles].sort());
     expect(JSON.stringify(summary)).not.toMatch(/https?:|tenant-/);
+  });
+
+  it("counts the Apty calls that brought no file, apart from a HAR with none (N12)", () => {
+    const har = harOf([
+      { name: "workflow.json", status: 0 },
+      { name: "segment.json", status: 403 },
+    ]);
+
+    const summary = summarizeHar(har);
+
+    expect(summary.contentFiles).toEqual([]);
+    expect(summary.callsWithoutFile).toBe(2);
+    expect(summarizeHar(harOf([])).callsWithoutFile).toBe(0);
+  });
+
+  it("counts the Apty environments a HAR holds (N7)", () => {
+    const har = harOf(harEntriesOf(capture()));
+    const last = har.log.entries.at(-1)?.request as { url: string };
+    last.url = last.url.replace(
+      ENV_PATH,
+      ENV_PATH.replace(
+        /env-[\w-]+$/,
+        "env-0e000000-0000-7000-8000-000000000009",
+      ),
+    );
+
+    expect(summarizeHar(har).environments).toBe(2);
+    expect(summarizeHar(harOf(harEntriesOf(capture()))).environments).toBe(1);
   });
 
   it("tells a 4.x capture and one with no Apty files", () => {

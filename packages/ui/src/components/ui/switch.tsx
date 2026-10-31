@@ -10,6 +10,7 @@ interface SwitchProps {
   id?: string;
   "aria-label"?: string;
   "aria-labelledby"?: string;
+  "aria-describedby"?: string;
 }
 
 const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(

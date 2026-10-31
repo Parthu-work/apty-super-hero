@@ -10,6 +10,7 @@ import { generateId } from "../utils/id-generator.js";
 import { pruneTransientScreenshotItems } from "../utils/screenshot-shaping.js";
 import type { ConversationCompressor } from "./compressor.js";
 import { Session } from "./session.js";
+import { createSummaryItem } from "./summary-item.js";
 
 export interface ConversationManagerConfig {
   cacheSize?: number;
@@ -64,7 +65,16 @@ export class ConversationManager {
           lastPromptTokensValue,
         )
       ) {
-        await this.doCompress(session);
+        try {
+          await this.doCompress(session);
+        } catch (error) {
+          // A summary is optional: a failed one leaves the chat whole. Only
+          // the error's type is logged; its message can carry chat content.
+          const kind = error instanceof Error ? error.name : typeof error;
+          console.warn(
+            `[Apty Agent] Conversation summary failed (${kind}); the chat is kept whole`,
+          );
+        }
       }
     }
     this.cache.set(session.id, session);
@@ -97,19 +107,24 @@ export class ConversationManager {
 
     const nextItems =
       summary.trim().length > 0
-        ? [this.createSummaryItem(summary), ...compressedItems]
+        ? [createSummaryItem(summary), ...compressedItems]
         : compressedItems;
 
     const previousSummary = session.getMetadata("lastSummary");
 
+    const previousPromptTokens = session.getMetadata("lastPromptTokens");
+
     await session.clearSession();
     try {
       session.setMetadata("lastSummary", summary);
+      // The size was of the history just replaced; the next request measures the new one.
+      session.setMetadata("lastPromptTokens", undefined);
       await session.addItems(nextItems);
     } catch (error) {
       await session.clearSession();
       await session.addItems(items);
       session.setMetadata("lastSummary", previousSummary);
+      session.setMetadata("lastPromptTokens", previousPromptTokens);
       throw error;
     }
 
@@ -168,13 +183,5 @@ export class ConversationManager {
 
   getCacheSize(): number {
     return this.cache.size;
-  }
-
-  private createSummaryItem(summary: string): AgentInputItem {
-    return {
-      type: "message",
-      role: "system",
-      content: `Conversation summary:\n${summary}`,
-    };
   }
 }

@@ -3,6 +3,7 @@
  * that could not be read, telling a 4.x tenant from a 5.x one, and building
  * a gate result.
  */
+import { redactText } from "../../runtime/redaction-mode.js";
 import type {
   ClientEvidence,
   FileStatus,
@@ -17,6 +18,20 @@ import type {
 } from "./types.js";
 
 export type Rec = Record<string, unknown>;
+
+const URL_IN_TEXT = /\bhttps?:\/\/[^\s)"']+/g;
+const MAX_ERROR_CHARS = 160;
+
+/**
+ * A failed call's error text as a card or a transcript may quote it:
+ * redacted in the current mode, with no URL, a few words at most.
+ */
+export function quotedErrorText(text: string): string {
+  const shown = redactText(text).replace(URL_IN_TEXT, "[url]");
+  return shown.length > MAX_ERROR_CHARS
+    ? `${shown.slice(0, MAX_ERROR_CHARS)}…`
+    : shown;
+}
 
 const FOUR_X_FILES = ["flow.json", "segments.json", "rules.json"];
 const FIVE_X_FILES = ["workflow.json", "segment.json", "rule.json"];

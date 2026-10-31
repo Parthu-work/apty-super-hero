@@ -86,6 +86,8 @@ export interface ClientEvidence {
   files: Record<string, LoadedFile>;
   /** The `env-<id>` segment of the content files' path. */
   envId?: string;
+  /** How many Apty environments the calls came from, when more than one; the files are the newest one's. */
+  environments?: number;
 }
 
 export type RuleId =
@@ -217,6 +219,11 @@ export type GateReason =
   | "envVisibilityRule"
   | "widgetOtherUsers"
   | "widgetNoActiveSegment"
+  | "widgetNoSegmentChosen"
+  | "ambiguousSelectors"
+  | "localeAlias"
+  | "framePathOther"
+  | "jquerySyntax"
   | "widgetSegmentsMissing"
   | "restrictionPatterns"
   | "logsUnavailable"
@@ -409,5 +416,10 @@ export interface DiagnosisResult {
   confidence: "likely" | "unknown";
   files: Array<{ name: string; status: FileStatus; httpStatus?: number }>;
   notChecked: NotChecked[];
-  scan?: { total: number; rows: ScanRow[] };
+  scan?: {
+    total: number;
+    rows: ScanRow[];
+    /** segment.json could not be read, so no row counts its segments. */
+    segmentsUnread?: boolean;
+  };
 }

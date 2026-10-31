@@ -251,3 +251,32 @@ describe("logs-and-errors", () => {
     });
   });
 });
+
+describe("error text from the Client's calls", () => {
+  it("reaches the card with no URL and no token (15)", () => {
+    const result = diagnoseLogsAndErrors(
+      evidence({
+        calls: [
+          {
+            name: "workflow.json",
+            host: CLIENT_HOST,
+            failed: true,
+            errorText:
+              "net::ERR_FAILED https://crm.example.com/patient?mrn=12345 bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlc2lnbmF0dXJl",
+          },
+          {
+            name: "users.json",
+            host: CLIENT_HOST,
+            failed: true,
+            errorText: "blocked: https://crm.example.com/patient?mrn=12345",
+          },
+        ],
+      }),
+    );
+
+    const shown = JSON.stringify(result);
+    expect(shown).toContain("net::ERR_FAILED");
+    expect(shown).not.toContain("mrn=12345");
+    expect(shown).not.toContain("eyJhbGciOiJIUzI1NiJ9");
+  });
+});

@@ -172,3 +172,25 @@ describe("createContextBudgetFilter", () => {
     expect(await filter(items, REQUEST)).not.toBe(items);
   });
 });
+
+describe("a screenshot under a request budget (5)", () => {
+  it("counts the image as an image, not its data as text, so the turn is sent", async () => {
+    const screenshot: AgentInputItem = {
+      type: "message",
+      role: "user",
+      content: [
+        { type: "input_text", text: "here is the page" },
+        {
+          type: "input_image",
+          image: `data:image/png;base64,${"A".repeat(200_000)}`,
+          detail: "auto",
+        },
+      ],
+    } as AgentInputItem;
+
+    const sent = await budgetOf(8_000)([screenshot], REQUEST);
+
+    expect(sent).toEqual([screenshot]);
+    expect(sizeOf([screenshot])).toBeLessThan(8_000);
+  });
+});

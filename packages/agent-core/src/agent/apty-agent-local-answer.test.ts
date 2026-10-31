@@ -159,6 +159,35 @@ describe("AptyAgent local answers", () => {
     expect(JSON.stringify(sent.at(-1))).toContain("how do I fix it?");
   });
 
+  it("keeps the contexts attached to a locally answered message, for later turns (9)", async () => {
+    const { agent, conversationManager } = agentWith(() => ANSWER);
+
+    const events = await collect(
+      agent.chat("my workflow is not visible", {
+        contexts: [
+          {
+            id: "har-1",
+            type: "custom",
+            providerId: "har",
+            label: "HAR file check",
+            value: "Checked from a HAR file, not the live Apty Client.",
+          },
+        ],
+      }),
+    );
+    const created = events.find((e) => e.type === "session_created");
+    const sessionId =
+      created?.type === "session_created" ? created.sessionId : "";
+
+    const [user] = (await (
+      await conversationManager.getSession(sessionId)
+    )?.getItems()) as Array<Record<string, unknown>>;
+    expect(String(user?.content)).toContain(
+      "Checked from a HAR file, not the live Apty Client.",
+    );
+    expect(String(user?.content)).toContain("my workflow is not visible");
+  });
+
   it("sends the message to the model when the responder has no answer", async () => {
     const { agent, requests } = agentWith(() => undefined);
 

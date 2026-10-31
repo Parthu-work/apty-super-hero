@@ -14,6 +14,8 @@ export interface StoredElementTarget {
   selector: string;
   /** One selector per shadow host, outermost first (`shadowRootSelectors`). */
   shadowRoots: string[];
+  /** One selector per frame level, outermost first (`iframesPath`). */
+  framePath?: string[];
 }
 
 export interface StoredElementTest {
@@ -27,6 +29,12 @@ export interface StoredElementTest {
   shadowMatches: number;
   /** The element the player would take. */
   chosen: { rendered: boolean; inViewport: boolean } | null;
+  /**
+   * With a frame path: whether this frame is the one it leads to, each
+   * level's selector taking the first match as the player's lookup does;
+   * null when a level cannot be read from here (a cross-origin parent).
+   */
+  onFramePath?: boolean | null;
 }
 
 const MAX_SHADOW_MATCHES = 50;
@@ -79,6 +87,35 @@ function describeChosen(el: Element | null): StoredElementTest["chosen"] {
     : null;
 }
 
+function onFramePath(
+  doc: Document,
+  framePath: readonly string[],
+): boolean | null {
+  const chain: Element[] = [];
+  let view: Window | null = doc.defaultView;
+  while (view && view.parent !== view) {
+    let frame: Element | null;
+    try {
+      frame = view.frameElement;
+    } catch {
+      return null;
+    }
+    if (!frame) return null;
+    chain.unshift(frame);
+    view = view.parent;
+  }
+  if (chain.length !== framePath.length) return false;
+  return chain.every((frame, level) => {
+    try {
+      return (
+        frame.ownerDocument.querySelector(framePath[level] ?? "") === frame
+      );
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function testStoredElement(
   doc: Document,
   target: StoredElementTarget,
@@ -91,6 +128,9 @@ export function testStoredElement(
     brokenHostIndex: null,
     shadowMatches: 0,
     chosen: null,
+    ...(target.framePath
+      ? { onFramePath: onFramePath(doc, target.framePath) }
+      : {}),
   };
 
   if (target.language === "xpath") {
@@ -112,6 +152,7 @@ export function testStoredElement(
     doc,
   );
   return {
+    ...empty,
     invalid: false,
     matchCount: played.matchCount,
     renderedCount: played.renderedCount,

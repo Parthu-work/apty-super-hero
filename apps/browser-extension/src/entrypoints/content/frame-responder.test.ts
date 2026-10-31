@@ -90,6 +90,25 @@ describe("frame responder", () => {
     expect(JSON.stringify(reply)).not.toContain("Save");
   });
 
+  it("passes the stored frame path on, so the frame can tell whether it is the one the path leads to (N3)", async () => {
+    document.body.innerHTML = "<button>Save</button>";
+
+    const reply = await ask({
+      request: "test-apty-element",
+      target: {
+        language: "css",
+        selector: "button",
+        shadowRoots: [],
+        framePath: ["iframe#main"],
+      },
+    });
+
+    expect(reply).toMatchObject({
+      success: true,
+      data: { matchCount: 1, onFramePath: false },
+    });
+  });
+
   it("refuses a stored selector that is missing or oversized", async () => {
     for (const target of [
       undefined,

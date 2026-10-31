@@ -135,6 +135,35 @@ describe("createDiagnosisResponder", () => {
     expect(answer?.transcript).toMatch(/^Logs and errors check from/);
   });
 
+  it("applies the URL policy to an answer given without the model, as to any tool result (1)", async () => {
+    const respond = createDiagnosisResponder();
+
+    const answer = await respond(
+      'the workflow "https://crm.example.com/patient?mrn=12345" is not visible',
+      { runContext: {} },
+    );
+
+    expect(answer?.transcript).toContain("Visibility check of workflow");
+    expect(answer?.transcript).not.toContain("mrn=12345");
+    expect(JSON.stringify(answer?.result)).not.toContain("mrn=12345");
+  });
+
+  it("says a check of a HAR file read the HAR's files, not the Client's (N14)", async () => {
+    const result = (
+      await createDiagnosisResponder()(
+        "my workflow is not visible in the widget",
+        { runContext: {} },
+      )
+    )?.result as DiagnosisResult;
+
+    expect(transcriptOf(result).split("\n")[0]).toMatch(
+      /from the Apty Client's files/,
+    );
+    const fromHar = transcriptOf(result, "har").split("\n")[0];
+    expect(fromHar).toMatch(/from the HAR file's Apty files/);
+    expect(fromHar).not.toMatch(/Apty Client/);
+  });
+
   it("passes the language the message named to the check", async () => {
     const answer = await createDiagnosisResponder()(
       "the Create a lead workflow is not showing for French users",

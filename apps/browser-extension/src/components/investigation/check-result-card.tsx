@@ -64,9 +64,14 @@ const GATE_ICON: Record<GateStatus, { Icon: LucideIcon; className: string }> = {
   info: { Icon: InfoIcon, className: "text-muted-foreground" },
 };
 
-const CAUSE_TEXT: Partial<
-  Record<RuleId, { summary: TranslationKey; fix: TranslationKey }>
-> = {
+interface CauseKeys {
+  summary: TranslationKey;
+  fix: TranslationKey;
+  /** Other wording for the same rule, chosen by the cause's `variant` param. */
+  variants?: Record<string, { summary: TranslationKey; fix: TranslationKey }>;
+}
+
+const CAUSE_TEXT: Partial<Record<RuleId, CauseKeys>> = {
   "CNV-02": {
     summary: "checkPack.rule.CNV-02.summary",
     fix: "checkPack.rule.CNV-02.fix",
@@ -110,6 +115,12 @@ const CAUSE_TEXT: Partial<
   "WNV-07": {
     summary: "checkPack.rule.WNV-07.summary",
     fix: "checkPack.rule.WNV-07.fix",
+    variants: {
+      noneChosen: {
+        summary: "checkPack.rule.WNV-07-noneChosen.summary",
+        fix: "checkPack.rule.WNV-07-noneChosen.fix",
+      },
+    },
   },
   "LOG-01": {
     summary: "checkPack.rule.LOG-01.summary",
@@ -174,6 +185,12 @@ const CAUSE_TEXT: Partial<
   "SEL-12": {
     summary: "checkPack.rule.SEL-12.summary",
     fix: "checkPack.rule.SEL-12.fix",
+    variants: {
+      otherFrame: {
+        summary: "checkPack.rule.SEL-12-otherFrame.summary",
+        fix: "checkPack.rule.SEL-12-otherFrame.fix",
+      },
+    },
   },
   "SEL-13": {
     summary: "checkPack.rule.SEL-13.summary",
@@ -198,6 +215,12 @@ const CAUSE_TEXT: Partial<
   "DOM-06": {
     summary: "checkPack.rule.DOM-06.summary",
     fix: "checkPack.rule.DOM-06.fix",
+    variants: {
+      ambiguous: {
+        summary: "checkPack.rule.DOM-06-ambiguous.summary",
+        fix: "checkPack.rule.DOM-06-ambiguous.fix",
+      },
+    },
   },
   "DOM-07": {
     summary: "checkPack.rule.DOM-07.summary",
@@ -210,7 +233,21 @@ type Translate = ReturnType<typeof useTranslation>["t"];
 /** `t` that names a language by its code in the reader's language ("法语", not "French"). */
 function useCheckText(): Translate {
   const { t, language } = useTranslation();
-  return (key, params) => {
+  return (key, rawParams) => {
+    // Why something could not be read: English keeps the Client's own
+    // words, another language names the failure by its code.
+    const params =
+      typeof rawParams?.failure === "string"
+        ? {
+            ...rawParams,
+            failureText:
+              language === "en" && typeof rawParams.message === "string"
+                ? rawParams.message
+                : t(
+                    FAILURE_KEY[rawParams.failure] ?? "checkPack.failure.other",
+                  ),
+          }
+        : rawParams;
     if (typeof params?.code !== "string") return t(key, params);
     let name: string | undefined;
     try {
@@ -230,10 +267,41 @@ const PART_KEY: Record<string, TranslationKey> = {
   step: "checkPack.part.step",
 };
 
-/** Names where on the item an element sits ("Step 2"), for the strings that start with it. */
+/** Which reader a log line came from, by the logs check's `source` param. */
+const SOURCE_KEY: Record<string, TranslationKey> = {
+  client: "checkPack.where.client",
+  page: "checkPack.where.page",
+};
+
+/** Why something could not be read, by its failure code, so no English message reaches another language. */
+const FAILURE_KEY: Record<string, TranslationKey> = {
+  not_configured: "checkPack.failure.not_configured",
+  no_receiver: "checkPack.failure.no_receiver",
+  no_response: "checkPack.failure.no_response",
+  timeout: "checkPack.failure.timeout",
+  send_failed: "checkPack.failure.send_failed",
+  malformed_response: "checkPack.failure.malformed_response",
+  unreachable: "checkPack.failure.unreachable",
+  no_page: "checkPack.failure.no_page",
+  audit_error: "checkPack.failure.audit_error",
+  no_frame_answered: "checkPack.failure.no_frame_answered",
+};
+
+/**
+ * Names where on the item an element sits ("Step 2") or which reader a line
+ * came from, for the strings that start with it.
+ */
 function withWhere(t: Translate, params: GateResult["params"]) {
-  const key = PART_KEY[String(params.part)];
-  return key ? { ...params, where: t(key, { n: params.n ?? 1 }) } : params;
+  const part = PART_KEY[String(params.part)];
+  const source = SOURCE_KEY[String(params.source)];
+  return {
+    ...params,
+    ...(part
+      ? { where: t(part, { n: params.n ?? 1 }) }
+      : source
+        ? { where: t(source) }
+        : {}),
+  };
 }
 
 function gateText(t: Translate, gate: GateResult): string {
@@ -245,10 +313,15 @@ function headline(t: Translate, result: DiagnosisResult, kind: string) {
   const first = verdict.causes[0];
   if (first) return causeText(t, first, kind).summary;
   if (scan) {
-    return t("checkPack.scanSummary", {
-      blocked: scan.rows.filter((r) => r.blockers.length > 0).length,
-      total: scan.total,
-    });
+    return t(
+      scan.segmentsUnread
+        ? "checkPack.scanSummaryNoSegments"
+        : "checkPack.scanSummary",
+      {
+        blocked: scan.rows.filter((r) => r.blockers.length > 0).length,
+        total: scan.total,
+      },
+    );
   }
   const several = gates.find((g) => g.reason === "severalMatch");
   if (several) return gateText(t, several);
@@ -261,7 +334,11 @@ function headline(t: Translate, result: DiagnosisResult, kind: string) {
 }
 
 function causeText(t: Translate, cause: Cause, kind: string) {
-  const keys = CAUSE_TEXT[cause.ruleId];
+  const ruleKeys = CAUSE_TEXT[cause.ruleId];
+  const variant = cause.params.variant;
+  const keys =
+    (typeof variant === "string" ? ruleKeys?.variants?.[variant] : undefined) ??
+    ruleKeys;
   const params = { ...withWhere(t, cause.params), kind };
   return keys
     ? { summary: t(keys.summary, params), fix: t(keys.fix, params) }
