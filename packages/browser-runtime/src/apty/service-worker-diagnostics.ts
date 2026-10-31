@@ -46,6 +46,7 @@ import type {
   AptyLog,
   AptyLogRead,
   AptyObservedResource,
+  AptyPeerFailure,
   AptyResourceBody,
   AptyResourceList,
   AptyServiceWorkerDiagnosticsProvider,
@@ -139,6 +140,7 @@ const observedResourceSchema = z.object({
   timestamp: z.number().finite(),
   /** True when the Client keeps this exact call's body. A Client that does not send it is read as "unknown". */
   hasBody: z.boolean().optional(),
+  requestBody: z.string().max(MAX_BODY_CHARS_ACCEPTED).optional(),
 });
 
 /** @internal */
@@ -163,6 +165,55 @@ export const resourceBodyResponseSchema = z.object({
   /** Why there is no body when `found` is false. A value this Agent does not know reads as absent. */
   reason: z.enum(BODY_MISSING_REASONS).optional().catch(undefined),
 });
+
+const WIDGET_CHAT_MESSAGE = "apty-debug-agent:get-widget-chat";
+const MAX_WIDGET_CHATS_ACCEPTED = 50;
+const MAX_WIDGET_CHAT_TURNS_ACCEPTED = 200;
+const MAX_WIDGET_CHAT_TEXT_ACCEPTED = 20_000;
+
+const widgetChatSuggestionSchema = z.object({
+  id: z.string().max(200),
+  name: z.string().max(500),
+  type: z.string().max(100),
+});
+
+/** @internal */
+export const widgetChatResponseSchema = z.object({
+  ok: z.literal(true),
+  chats: z
+    .array(
+      z.object({
+        chatId: z.string().max(200),
+        name: z.string().max(500),
+        turns: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant", "system"]),
+              text: z.string().max(MAX_WIDGET_CHAT_TEXT_ACCEPTED),
+              suggestions: z
+                .array(widgetChatSuggestionSchema)
+                .max(50)
+                .optional(),
+            }),
+          )
+          .max(MAX_WIDGET_CHAT_TURNS_ACCEPTED),
+      }),
+    )
+    .max(MAX_WIDGET_CHATS_ACCEPTED),
+});
+
+/**
+ * The Widget's Ask Dapty conversations as the Client reports them, oldest
+ * chat first, or why they could not be read.
+ * @internal Used by the Ask Dapty check.
+ */
+export type AptyWidgetChatRead =
+  | z.infer<typeof widgetChatResponseSchema>
+  | {
+      ok: false;
+      failure: AptyPeerFailure | "not_configured";
+      message: string;
+    };
 
 /** Result of validating an untrusted external response. */
 type ValidationResult<T> =
@@ -342,7 +393,10 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
     return { ok: true, logs: redactLogEntries(result.value.logs ?? []) };
   }
 
-  async listResources(): Promise<AptyResourceList> {
+  /** `includeRequestBodies` keeps each call's `requestBody`, the end user's own chat text; without it the list carries none. */
+  async listResources(
+    options: { includeRequestBodies?: boolean } = {},
+  ): Promise<AptyResourceList> {
     if (!this.config.extensionId) {
       return {
         ok: false,
@@ -375,13 +429,49 @@ export class ConfiguredServiceWorkerDiagnosticsProvider
         error: `malformed resources response: ${result.reason}`,
       };
     }
+    const kept = result.value.resources.slice(-MAX_RESOURCES_KEPT);
     return {
       ok: true,
-      resources: result.value.resources.slice(-MAX_RESOURCES_KEPT),
+      resources: options.includeRequestBodies
+        ? kept
+        : kept.map(({ requestBody: _, ...resource }) => resource),
       ...(result.value.saveFailures
         ? { saveFailures: result.value.saveFailures }
         : {}),
     };
+  }
+
+  /**
+   * The Widget's Ask Dapty conversations, from the Widget's own state.
+   * @internal Used by the Ask Dapty check.
+   */
+  async readWidgetChat(): Promise<AptyWidgetChatRead> {
+    if (!this.config.extensionId) {
+      return {
+        ok: false,
+        failure: "not_configured",
+        message: "No Apty Client extension ID is saved.",
+      };
+    }
+    const outcome = await sendWithRetryDetailed(this.config.extensionId, {
+      type: WIDGET_CHAT_MESSAGE,
+    });
+    if (!outcome.ok) {
+      return {
+        ok: false,
+        failure: outcome.failure,
+        message: peerFailureMessage(this.peer, outcome.failure),
+      };
+    }
+    const result = validate(widgetChatResponseSchema, outcome.response);
+    if (!result.ok) {
+      return {
+        ok: false,
+        failure: "malformed_response",
+        message: `The ${PEER_NAMES[this.peer].full} answered the widget chat request with an unexpected shape (${result.reason}).`,
+      };
+    }
+    return result.value;
   }
 
   async getResourceBody(requestId: string): Promise<AptyResourceBody> {
@@ -428,5 +518,13 @@ export class NotConfiguredServiceWorkerDiagnosticsProvider
   }
   async getResourceBody(): Promise<AptyResourceBody> {
     return { found: false };
+  }
+  /** @internal Used by the Ask Dapty check. */
+  async readWidgetChat(): Promise<AptyWidgetChatRead> {
+    return {
+      ok: false,
+      failure: "not_configured",
+      message: "No Apty Client extension ID is configured.",
+    };
   }
 }

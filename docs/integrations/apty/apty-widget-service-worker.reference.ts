@@ -41,6 +41,12 @@
  *    (chrome.runtime.sendMessage to this worker) recording the result here.
  *    We do not know which context makes these calls; check before relying on
  *    this.
+ * 5. Call `recordWidgetChatTurn(chatId, name, messages)` after each Ask Dapty
+ *    turn (the user's message and the reply, or an error), with the chat's
+ *    whole message list as the Widget stores it ({ id, role, content,
+ *    suggestions? }). It must run in the service worker: in extension mode
+ *    that is where background-script-ipc.service.ts gets the chat reply; a
+ *    content script relays the call with chrome.runtime.sendMessage.
  *
  * WHY THIS CAN'T JUST BE BUILT INTO THIS REPO
  * --------------------------------------------
@@ -103,7 +109,21 @@
  *    fails (quota) is counted and reported as `saveFailures` in the list
  *    answer: the in-memory state still serves, but a service-worker restart
  *    then loads the last state that was saved.
- * 7. observedFetch never slows or changes the Widget's own fetch: it
+ * 7. Request bodies are kept for allow-listed resources only
+ *    (REQUEST_BODY_RESOURCES: today the Ask Dapty chat POST), as
+ *    `requestBody` on the call in the list answer, and only when `init.body`
+ *    is text (a string or URLSearchParams) of at most MAX_BODY_CHARS. For
+ *    these resources the last REQUEST_BODY_CALLS_KEPT calls keep their
+ *    bodies (request and response) instead of one per method and URL. Both
+ *    count toward MAX_KEPT_BODY_CHARS and are evicted with the call's
+ *    response body, oldest first after the other successful bodies.
+ * 8. The Widget's Ask Dapty conversations are kept as the Widget reports
+ *    them through recordWidgetChatTurn (see "WHAT THE WIDGET TEAM MUST
+ *    CHANGE", item 5), in chrome.storage.session under WIDGET_CHAT_STORAGE_KEY:
+ *    at most MAX_WIDGET_CHATS chats, MAX_WIDGET_CHAT_TURNS turns per chat and
+ *    MAX_WIDGET_CHAT_TEXT_CHARS per text. The Agent reads them with
+ *    `apty-debug-agent:get-widget-chat`.
+ * 9. observedFetch never slows or changes the Widget's own fetch: it
  *    returns the Response as soon as fetch does, reads the body afterwards
  *    from a clone, stopping at MAX_BODY_CHARS, and swallows any recording
  *    error. A relative URL is recorded as fetch resolves it in a service
@@ -294,6 +314,13 @@ const MAX_KEPT_BODY_CHARS = 2_000_000;
 // The Agent rejects a longer body, so a longer one is not kept at all
 // rather than cut into something that is no longer valid JSON.
 const MAX_BODY_CHARS = 1_000_000;
+// Resources whose request body is kept too, and whose last
+// REQUEST_BODY_CALLS_KEPT calls keep their bodies instead of one per method
+// and URL: the Widget's Ask Dapty chat POST (and its streaming variant).
+const REQUEST_BODY_RESOURCES: readonly RegExp[] = [
+  /\/ai-service\/api\/v1\/ai\/[^/]+\/widget\/chat(?:\/stream)?$/,
+];
+const REQUEST_BODY_CALLS_KEPT = 20;
 
 // Matches AptyObservedResource in packages/browser-runtime/src/apty/types.ts,
 // with the Agent's own bounds on each field.
@@ -319,11 +346,18 @@ type MissingBodyReason = "too-large" | "evicted" | "unreadable" | "none";
 interface NetworkState {
   calls: ObservedCall[];
   bodies: Record<string, KeptBody>;
+  /** Request bodies of REQUEST_BODY_RESOURCES calls, by requestId. */
+  requestBodies: Record<string, string>;
   /** Calls whose body was read but could not be kept: "too-large" or "unreadable". */
   notKept?: Record<string, "too-large" | "unreadable">;
 }
 
-let network: NetworkState = { calls: [], bodies: {}, notKept: {} };
+let network: NetworkState = {
+  calls: [],
+  bodies: {},
+  requestBodies: {},
+  notKept: {},
+};
 // Calls whose body is still being read after their status was recorded.
 const readingBody = new Set<string>();
 let saveFailures = 0;
@@ -342,6 +376,10 @@ function loadNetworkOnce(): Promise<void> {
             -MAX_NETWORK_ENTRIES,
           ),
           bodies: { ...stored.bodies, ...network.bodies },
+          requestBodies: {
+            ...stored.requestBodies,
+            ...network.requestBodies,
+          },
           notKept: { ...stored.notKept, ...network.notKept },
         };
       }
@@ -428,41 +466,81 @@ function isFailure(call: ObservedCall): boolean {
   return call.failed === true || (call.status ?? 0) >= 400;
 }
 
+function keepsRequestBody(call: ObservedCall): boolean {
+  if (call.method !== "POST") return false;
+  let path: string;
+  try {
+    path = new URL(call.url).pathname;
+  } catch {
+    return false;
+  }
+  return REQUEST_BODY_RESOURCES.some((pattern) => pattern.test(path));
+}
+
+function keptChars(id: string): number {
+  return (
+    (network.bodies[id]?.body.length ?? 0) +
+    (network.requestBodies[id]?.length ?? 0)
+  );
+}
+
+function dropBodies(id: string): void {
+  delete network.bodies[id];
+  delete network.requestBodies[id];
+}
+
 /**
  * Keep the body of the latest successful call and of the latest failed call
- * of each resource, then bring the total under MAX_KEPT_BODY_CHARS: the
- * oldest resources' successful bodies go first, failed bodies last.
+ * of each resource (the last REQUEST_BODY_CALLS_KEPT calls of a
+ * REQUEST_BODY_RESOURCES one), then bring the total under
+ * MAX_KEPT_BODY_CHARS: the oldest resources' successful bodies go first,
+ * failed and allow-listed bodies last.
  */
 function pruneBodies(): void {
   const latestSuccess = new Map<string, string>();
   const latestFailure = new Map<string, string>();
+  const allowListed = new Map<string, string[]>();
   for (const call of network.calls) {
-    if (!(call.requestId in network.bodies)) continue;
+    const id = call.requestId;
+    if (keepsRequestBody(call)) {
+      if (!(id in network.bodies) && !(id in network.requestBodies)) continue;
+      const ids = allowListed.get(resourceKey(call)) ?? [];
+      ids.push(id);
+      allowListed.set(resourceKey(call), ids);
+      continue;
+    }
+    if (!(id in network.bodies)) continue;
     (isFailure(call) ? latestFailure : latestSuccess).set(
       resourceKey(call),
-      call.requestId,
+      id,
     );
   }
-  const keep = new Set([...latestSuccess.values(), ...latestFailure.values()]);
-  for (const id of Object.keys(network.bodies)) {
-    if (!keep.has(id)) delete network.bodies[id];
+  const keep = new Set([
+    ...latestSuccess.values(),
+    ...latestFailure.values(),
+    ...[...allowListed.values()].flatMap((ids) =>
+      ids.slice(-REQUEST_BODY_CALLS_KEPT),
+    ),
+  ]);
+  for (const id of [
+    ...Object.keys(network.bodies),
+    ...Object.keys(network.requestBodies),
+  ]) {
+    if (!keep.has(id)) dropBodies(id);
   }
-  let total = Object.values(network.bodies).reduce(
-    (sum, kept) => sum + kept.body.length,
-    0,
-  );
+  let total = [...keep].reduce((sum, id) => sum + keptChars(id), 0);
   const successIds = new Set(latestSuccess.values());
   const oldestFirst = network.calls
     .map((c) => c.requestId)
-    .filter((id) => id in network.bodies);
+    .filter((id) => keep.has(id));
   const evictionOrder = [
     ...oldestFirst.filter((id) => successIds.has(id)),
     ...oldestFirst.filter((id) => !successIds.has(id)),
   ];
   for (const id of evictionOrder) {
     if (total <= MAX_KEPT_BODY_CHARS) break;
-    total -= network.bodies[id]?.body.length ?? 0;
-    delete network.bodies[id];
+    total -= keptChars(id);
+    dropBodies(id);
   }
 }
 
@@ -470,6 +548,7 @@ async function record(
   call: ObservedCall,
   body?: KeptBody,
   notKept?: "too-large" | "unreadable",
+  requestBody?: string,
 ): Promise<void> {
   await loadNetworkOnce();
   const index = network.calls.findIndex((c) => c.requestId === call.requestId);
@@ -477,14 +556,20 @@ async function record(
   else network.calls[index] = { ...network.calls[index], ...call };
   network.calls = network.calls.slice(-MAX_NETWORK_ENTRIES);
   if (body) network.bodies[call.requestId] = body;
+  if (requestBody !== undefined) {
+    network.requestBodies[call.requestId] = requestBody;
+  }
   if (notKept) {
     network.notKept ??= {};
     network.notKept[call.requestId] = notKept;
   }
   pruneBodies();
   const known = new Set(network.calls.map((c) => c.requestId));
-  for (const id of Object.keys(network.bodies)) {
-    if (!known.has(id)) delete network.bodies[id];
+  for (const id of [
+    ...Object.keys(network.bodies),
+    ...Object.keys(network.requestBodies),
+  ]) {
+    if (!known.has(id)) dropBodies(id);
   }
   for (const id of Object.keys(network.notKept ?? {})) {
     if (!known.has(id)) delete network.notKept?.[id];
@@ -497,8 +582,25 @@ function recordSilently(
   call: ObservedCall,
   body?: KeptBody,
   notKept?: "too-large" | "unreadable",
+  requestBody?: string,
 ): void {
-  record(call, body, notKept).catch(() => undefined);
+  record(call, body, notKept, requestBody).catch(() => undefined);
+}
+
+/** The request body of an allow-listed call when it is text within MAX_BODY_CHARS. */
+function requestBodyText(
+  call: ObservedCall,
+  init: RequestInit | undefined,
+): string | undefined {
+  if (!keepsRequestBody(call)) return undefined;
+  const body = init?.body;
+  const text =
+    typeof body === "string"
+      ? body
+      : body instanceof URLSearchParams
+        ? body.toString()
+        : undefined;
+  return text !== undefined && text.length <= MAX_BODY_CHARS ? text : undefined;
 }
 
 /**
@@ -622,7 +724,7 @@ export async function observedFetch(
       ),
       timestamp: Date.now(),
     };
-    recordSilently(call);
+    recordSilently(call, undefined, undefined, requestBodyText(call, init));
   } catch {
     call = undefined;
   }
@@ -667,11 +769,114 @@ export async function observedFetch(
 }
 
 // ---------------------------------------------------------------------------
+// Ask Dapty conversations — reported by the Widget through recordWidgetChatTurn
+// ---------------------------------------------------------------------------
+
+const WIDGET_CHAT_STORAGE_KEY = "apty_widget_chat";
+const MAX_WIDGET_CHATS = 10;
+const MAX_WIDGET_CHAT_TURNS = 50;
+const MAX_WIDGET_CHAT_TEXT_CHARS = 20_000;
+const MAX_WIDGET_CHAT_SUGGESTIONS = 20;
+
+/** One message as the Widget's chat storage keeps it (widget-chat-storage.service.ts). */
+export interface WidgetChatMessage {
+  id?: string;
+  role: string;
+  content: string;
+  suggestions?: ReadonlyArray<{ id: string; name: string; type: string }>;
+}
+
+interface WidgetChatTurn {
+  role: "user" | "assistant" | "system";
+  text: string;
+  suggestions?: Array<{ id: string; name: string; type: string }>;
+}
+
+interface WidgetChat {
+  chatId: string;
+  name: string;
+  turns: WidgetChatTurn[];
+  updatedAt: number;
+}
+
+let widgetChats: WidgetChat[] = [];
+let widgetChatsLoaded: Promise<void> | undefined;
+
+function loadWidgetChatsOnce(): Promise<void> {
+  widgetChatsLoaded ??= chrome.storage.session
+    .get(WIDGET_CHAT_STORAGE_KEY)
+    .then((result) => {
+      const stored = result[WIDGET_CHAT_STORAGE_KEY] as
+        | WidgetChat[]
+        | undefined;
+      if (!Array.isArray(stored)) return;
+      const fresh = new Set(widgetChats.map((chat) => chat.chatId));
+      widgetChats = [
+        ...stored.filter((chat) => !fresh.has(chat.chatId)),
+        ...widgetChats,
+      ].slice(-MAX_WIDGET_CHATS);
+    })
+    .catch(() => undefined);
+  return widgetChatsLoaded;
+}
+
+function toTurn(message: WidgetChatMessage): WidgetChatTurn | undefined {
+  const role = message.role;
+  if (role !== "user" && role !== "assistant" && role !== "system") {
+    return undefined;
+  }
+  if (typeof message.content !== "string") return undefined;
+  const suggestions = Array.isArray(message.suggestions)
+    ? message.suggestions.slice(0, MAX_WIDGET_CHAT_SUGGESTIONS).map((s) => ({
+        id: bounded(String(s.id), 200),
+        name: bounded(String(s.name), 500),
+        type: bounded(String(s.type), 100),
+      }))
+    : undefined;
+  return {
+    role,
+    text: bounded(message.content, MAX_WIDGET_CHAT_TEXT_CHARS),
+    ...(suggestions?.length ? { suggestions } : {}),
+  };
+}
+
+/**
+ * The Widget calls this after each Ask Dapty turn with the chat's whole
+ * message list. Keeps the newest MAX_WIDGET_CHATS chats; never throws into
+ * the Widget.
+ */
+export function recordWidgetChatTurn(
+  chatId: string,
+  name: string,
+  messages: readonly WidgetChatMessage[],
+): void {
+  (async () => {
+    await loadWidgetChatsOnce();
+    const chat: WidgetChat = {
+      chatId: bounded(String(chatId), 200),
+      name: bounded(String(name ?? ""), 500),
+      turns: messages
+        .map(toTurn)
+        .filter((turn): turn is WidgetChatTurn => turn !== undefined)
+        .slice(-MAX_WIDGET_CHAT_TURNS),
+      updatedAt: Date.now(),
+    };
+    widgetChats = [
+      ...widgetChats.filter((other) => other.chatId !== chat.chatId),
+      chat,
+    ].slice(-MAX_WIDGET_CHATS);
+    await chrome.storage.session.set({
+      [WIDGET_CHAT_STORAGE_KEY]: widgetChats,
+    });
+  })().catch(() => undefined);
+}
+
+// ---------------------------------------------------------------------------
 // External message handler — validated, allowlisted, schema-shaped responses
 // ---------------------------------------------------------------------------
 
 /**
- * The two network verbs. A Widget or Client that already has an
+ * The two network verbs and the Ask Dapty chat read. A Widget or Client that already has an
  * onMessageExternal listener calls this at the end of it, after its own sender
  * check and status/logs branches, instead of registering the listener below:
  * two listeners answering one message is a race. Returns whether it will
@@ -688,8 +893,26 @@ export function handleNetworkMessage(
         resources: network.calls.map((c) => ({
           ...c,
           hasBody: c.requestId in network.bodies,
+          ...(c.requestId in network.requestBodies
+            ? { requestBody: network.requestBodies[c.requestId] }
+            : {}),
         })),
         saveFailures,
+      });
+    })();
+    return true;
+  }
+
+  if (message.type === "apty-debug-agent:get-widget-chat") {
+    (async () => {
+      await loadWidgetChatsOnce();
+      sendResponse({
+        ok: true,
+        chats: widgetChats.map(({ chatId, name, turns }) => ({
+          chatId,
+          name,
+          turns,
+        })),
       });
     })();
     return true;

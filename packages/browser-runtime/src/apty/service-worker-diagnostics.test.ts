@@ -255,6 +255,29 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — extension messaging", (
       );
     });
 
+    it("passes a chat call's request body on only when asked to", async () => {
+      const chatCall = {
+        requestId: "req-2",
+        url: "https://ai.apty.io/ai-service/api/v1/ai/t1/widget/chat",
+        method: "POST",
+        status: 200,
+        timestamp: 222,
+        requestBody: '{"message":"How do I add a vendor?"}',
+      };
+      respondWith({ resources: [chatCall] });
+      const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+        extensionId: "client-ext-id",
+      });
+
+      const plain = await provider.listResources();
+      const withBodies = await provider.listResources({
+        includeRequestBodies: true,
+      });
+
+      expect(plain.resources[0]).not.toHaveProperty("requestBody");
+      expect(withBodies.resources[0]?.requestBody).toBe(chatCall.requestBody);
+    });
+
     it("reports not ok when the extension never responds", async () => {
       neverRespond();
       const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
@@ -456,5 +479,69 @@ describe("ConfiguredServiceWorkerDiagnosticsProvider — HTTP diagnostic endpoin
     await provider.getStatus();
     expect(mockSendMessage).toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("readWidgetChat", () => {
+  const chats = [
+    {
+      chatId: "c-1",
+      name: "Vendors",
+      turns: [
+        { role: "user", text: "How do I add a vendor?" },
+        {
+          role: "assistant",
+          text: "Use the workflow below.",
+          suggestions: [
+            { id: "wf-1", name: "Create vendor", type: "workflow" },
+          ],
+        },
+      ],
+    },
+  ];
+
+  it("returns the Widget's chats as the Client reports them", async () => {
+    respondWith({ ok: true, chats });
+    const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+      extensionId: "client-ext-id",
+    });
+
+    await expect(provider.readWidgetChat()).resolves.toEqual({
+      ok: true,
+      chats,
+    });
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      "client-ext-id",
+      { type: "apty-debug-agent:get-widget-chat" },
+      expect.any(Function),
+    );
+  });
+
+  it("names why it could not read them", async () => {
+    await expect(
+      new NotConfiguredServiceWorkerDiagnosticsProvider().readWidgetChat(),
+    ).resolves.toMatchObject({ ok: false, failure: "not_configured" });
+    await expect(
+      new ConfiguredServiceWorkerDiagnosticsProvider({}).readWidgetChat(),
+    ).resolves.toMatchObject({ ok: false, failure: "not_configured" });
+
+    const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+      extensionId: "client-ext-id",
+    });
+    respondWithLastError();
+    await expect(provider.readWidgetChat()).resolves.toMatchObject({
+      ok: false,
+      failure: "no_receiver",
+      message: expect.any(String),
+    });
+
+    respondWith({
+      ok: true,
+      chats: [{ chatId: "c-1", name: "x", turns: [{ role: "bot", text: "" }] }],
+    });
+    await expect(provider.readWidgetChat()).resolves.toMatchObject({
+      ok: false,
+      failure: "malformed_response",
+    });
   });
 });

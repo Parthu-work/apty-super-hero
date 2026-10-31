@@ -110,6 +110,50 @@ and build tooling, not something to drop in unmodified.
    `packages/browser-runtime/src/apty/service-worker-diagnostics.ts`'s
    top-of-file comment and `ARCHITECTURE.md` for that tradeoff.
 
+## Ask Dapty in extension mode
+
+When the Apty Client runs as an extension, the Widget's AI assistant ("Ask
+Dapty") calls `POST {aiBackendURL}/ai-service/api/v1/ai/{tenantId}/widget/chat`
+from the Client's service worker
+(`background-script-ipc.service.ts`). Chrome does not let the Agent see
+that call: `chrome.webRequest` does not report another extension's
+requests, and `chrome.debugger` refuses to attach to another extension's
+worker. The Agent checks the chat only from what the Client reports. These
+changes are additive: an older Client still answers every other message,
+and an older Agent ignores the new fields.
+
+What the Widget team must change:
+
+1. **Route the chat call through `observedFetch`** with its body as a string
+   (`body: JSON.stringify({ message, context, envId, applicationType })`).
+   The reference keeps the request body of the resources in
+   `REQUEST_BODY_RESOURCES` (today the chat POST and its `/stream` variant)
+   and lists it as `requestBody` on the call. Only a string or
+   `URLSearchParams` body of at most 1,000,000 characters is kept; a
+   `Request` object's body is not read. For these resources the last 20
+   calls keep their bodies (request and response), instead of one body per
+   method and URL. They count toward the same 2,000,000-character budget and
+   are evicted after the other successful bodies.
+2. **Call `recordWidgetChatTurn(chatId, name, messages)` after each turn**,
+   with the chat's whole message list as the Widget stores it
+   (`{ id, role, content, suggestions? }`, the shape of
+   `widget-chat-storage.service.ts`). Call it in the service worker, where the
+   chat reply arrives in extension mode; a content script relays it with
+   `chrome.runtime.sendMessage`. The reference keeps the newest 10 chats, the
+   last 50 turns of each and 20,000 characters per text, in
+   `chrome.storage.session` only. Roles other than `user`, `assistant` and
+   `system` are left out.
+3. **Answer `apty-debug-agent:get-widget-chat`.** `handleNetworkMessage`
+   already does, inside the same sender check, so a Client whose listener
+   ends with `return handleNetworkMessage(message, sendResponse)` needs no
+   other change. The answer is
+   `{ ok: true, chats: [{ chatId, name, turns: [{ role, text, suggestions?: [{ id, name, type }] }] }] }`,
+   oldest chat first; `id` is the suggestion's `sourceId`.
+
+The chat text is the end user's own content. The Agent reads request bodies
+only when its Ask Dapty check asks for them, never logs them, and redacts
+them before anything is shown or sent to a model.
+
 Widget/Client diagnostics (`window.__APTY_WIDGET__` /
 `window.__APTY_CLIENT__`) are a separate, simpler mechanism — see
 `packages/browser-runtime/src/apty/widget-diagnostics.ts` and
