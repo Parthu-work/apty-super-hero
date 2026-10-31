@@ -12,6 +12,7 @@ import {
 } from "./dapty-conversation.js";
 import { loadDaptyFromClient } from "./dapty-loader.js";
 import { asksAboutDapty } from "./dapty-route.js";
+import { createDaptySource } from "./dapty-sources.js";
 import type { DaptyEvidence } from "./dapty-types.js";
 import {
   diagnoseElementNotFound,
@@ -326,6 +327,7 @@ const DEFAULT_SOURCES: ResponderSources = {
   pageConsoleOf: async () => undefined,
   elementProbeOf: tabElementProbeOf,
   domHealthOf: async () => undefined,
+  daptyOf: createDaptySource({}),
 };
 
 /**
