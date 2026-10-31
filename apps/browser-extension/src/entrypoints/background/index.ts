@@ -8,6 +8,7 @@ import { watchPageHookSettings } from "@apty/browser-runtime/runtime/page-hooks-
 import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { initLogging } from "../../lib/logging";
 import { registerCommandHandlers } from "./commands";
+import "./dapty-capture-registration";
 import { registerGlobalDownloadHelper } from "./downloads";
 import { registerGlobalErrorHandlers } from "./global-errors";
 import { registerInstallHandler, seedAptyIntegrationConfig } from "./lifecycle";

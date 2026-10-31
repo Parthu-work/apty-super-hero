@@ -189,6 +189,8 @@ export interface AptyObservedResource {
   timestamp: number;
   /** True when the Client keeps this exact call's body; absent when the Client does not say. */
   hasBody?: boolean;
+  /** The request's text body, for the calls the Client keeps it for (the Ask Dapty chat POST). The end user's own content: read only when asked for (`listResources({ includeRequestBodies: true })`). */
+  requestBody?: string;
 }
 
 /** Why a resource has no body to give, when the Client says. */

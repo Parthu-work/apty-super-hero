@@ -78,6 +78,7 @@
     "downloads",
     "debugger",
     "webNavigation",
+    "webRequest",
     "alarms",
     "clipboardWrite"
   ],

@@ -7,9 +7,11 @@
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ConfiguredServiceWorkerDiagnosticsProvider,
   MAX_BODY_CHARS_ACCEPTED,
   resourceBodyResponseSchema,
   resourcesResponseSchema,
+  widgetChatResponseSchema,
 } from "./service-worker-diagnostics";
 
 const AGENT_ID = "bpiondflhhdplemamgggcdajclmoeple";
@@ -79,6 +81,16 @@ type Reference = {
     message: { type?: unknown; requestId?: unknown },
     sendResponse: (response: unknown) => void,
   ) => boolean;
+  recordWidgetChatTurn: (
+    chatId: string,
+    name: string,
+    messages: ReadonlyArray<{
+      id?: string;
+      role: string;
+      content: string;
+      suggestions?: ReadonlyArray<{ id: string; name: string; type: string }>;
+    }>,
+  ) => void;
 };
 
 const SEGMENTS = Array.from({ length: 206 }, (_, i) => ({
@@ -790,5 +802,140 @@ describe("bodies are kept per resource", () => {
     await loadReference();
     expect(console.log).not.toBe(before);
     console.log = before;
+  });
+});
+
+describe("the Ask Dapty chat in extension mode", () => {
+  const CHAT =
+    "https://ai.apty.example/ai-service/api/v1/ai/tenant-1/widget/chat?applicationId=app-9";
+  const chatRequest = (i: number) =>
+    JSON.stringify({
+      message: `question ${i}`,
+      context: [],
+      envId: "prod",
+      applicationType: "web",
+    });
+
+  it("lists each chat POST with its request body, and keeps the last 20 chat bodies", async () => {
+    const reference = await loadReference();
+    let i = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ reply: `answer ${i++}`, suggestions: [] }),
+      ),
+    );
+    for (let n = 0; n < 25; n++) {
+      await reference.observedFetch(CHAT, {
+        method: "POST",
+        body: chatRequest(n),
+      });
+    }
+    await reference.observedFetch(`${CHAT.split("?")[0]}/history`, {
+      method: "POST",
+      body: "not allow-listed",
+    });
+    await saved(
+      (state) =>
+        state.calls.length === 26 &&
+        answered(state) &&
+        Object.keys(state.bodies).length === 21,
+    );
+
+    const { resources } = resourcesResponseSchema.parse(await list());
+    const chats = resources.slice(0, 25);
+    expect(chats.slice(0, 5).map((c) => [c.hasBody, c.requestBody])).toEqual(
+      Array.from({ length: 5 }, () => [false, undefined]),
+    );
+    expect(chats.slice(5).map((c) => c.requestBody)).toEqual(
+      Array.from({ length: 20 }, (_, n) => chatRequest(n + 5)),
+    );
+    expect(chats.slice(5).every((c) => c.hasBody)).toBe(true);
+    expect(resources[25]).not.toHaveProperty("requestBody");
+    expect(
+      resourceBodyResponseSchema.parse(await body(chats[24]!.requestId)),
+    ).toMatchObject({
+      found: true,
+      body: expect.stringContaining("answer 24"),
+    });
+  });
+
+  it("answers get-widget-chat from the Widget's own state, bounded, and the Agent reads it", async () => {
+    const reference = await loadReference();
+    reference.recordWidgetChatTurn("c-1", "Vendors", [
+      { id: "m1", role: "user", content: "How do I add a vendor?" },
+      {
+        id: "m2",
+        role: "assistant",
+        content: "Use the workflow below.",
+        suggestions: [
+          { id: "wf-1", name: "Create vendor", type: "workflow" },
+          { id: "kc-7", name: "Vendor policy", type: "knowledge_content" },
+        ],
+      },
+      { id: "m3", role: "tool", content: "ignored" },
+    ]);
+    for (let n = 0; n < 12; n++) {
+      reference.recordWidgetChatTurn(`c-${n + 2}`, `chat ${n}`, [
+        { role: "user", content: "x".repeat(30_000) },
+      ]);
+    }
+    reference.recordWidgetChatTurn("c-1", "Vendors", [
+      { id: "m1", role: "user", content: "How do I add a vendor?" },
+    ]);
+    await vi.waitFor(
+      async () => {
+        const answer = widgetChatResponseSchema.parse(
+          await ask({ type: "apty-debug-agent:get-widget-chat" }),
+        );
+        expect(answer.chats.at(-1)?.turns).toHaveLength(1);
+      },
+      { timeout: 2000, interval: 20 },
+    );
+
+    const answer = widgetChatResponseSchema.parse(
+      await ask({ type: "apty-debug-agent:get-widget-chat" }),
+    );
+    expect(answer.chats).toHaveLength(10);
+    expect(answer.chats.at(-1)?.chatId).toBe("c-1");
+    expect(answer.chats[0]?.turns[0]?.text).toHaveLength(20_000);
+    expect(await ask({ type: "apty-debug-agent:get-widget-chat" }, "x")).toBe(
+      "no answer",
+    );
+
+    reference.recordWidgetChatTurn("c-1", "Vendors", [
+      { id: "m1", role: "user", content: "How do I add a vendor?" },
+      {
+        id: "m2",
+        role: "assistant",
+        content: "Use the workflow below.",
+        suggestions: [{ id: "wf-1", name: "Create vendor", type: "workflow" }],
+      },
+      { id: "m3", role: "tool", content: "ignored" },
+    ]);
+    const provider = new ConfiguredServiceWorkerDiagnosticsProvider({
+      extensionId: WIDGET_ID,
+    });
+    await vi.waitFor(
+      async () => {
+        const read = await provider.readWidgetChat();
+        if (!read.ok) throw new Error(read.message);
+        expect(read.chats.at(-1)).toEqual({
+          chatId: "c-1",
+          name: "Vendors",
+          turns: [
+            { role: "user", text: "How do I add a vendor?" },
+            {
+              role: "assistant",
+              text: "Use the workflow below.",
+              suggestions: [
+                { id: "wf-1", name: "Create vendor", type: "workflow" },
+              ],
+            },
+          ],
+        });
+      },
+      { timeout: 2000, interval: 20 },
+    );
   });
 });
