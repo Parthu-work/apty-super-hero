@@ -143,7 +143,14 @@ export type RuleId =
   | "DOM-04"
   | "DOM-05"
   | "DOM-06"
-  | "DOM-07";
+  | "DOM-07"
+  | "DAP-00"
+  | "DAP-01"
+  | "DAP-02"
+  | "DAP-03"
+  | "DAP-04"
+  | "DAP-05"
+  | "DAP-06";
 
 export type GateId =
   | "data"
@@ -170,7 +177,12 @@ export type GateId =
   | "virtualized"
   | "overlays"
   | "duplicate-ids"
-  | "automatic-selection";
+  | "automatic-selection"
+  | "chat-available"
+  | "chat-call"
+  | "chat-origin"
+  | "chat-answer"
+  | "chat-suggestions";
 
 export type GateStatus = "pass" | "fail" | "unknown" | "info";
 
@@ -279,7 +291,29 @@ export type GateReason =
   | "duplicateIds"
   | "noDuplicateIds"
   | "manualSelectors"
-  | "automaticSelectors";
+  | "automaticSelectors"
+  | "daptyNotObserved"
+  | "daptyRead"
+  | "aiAssistantOff"
+  | "aiAssistantOn"
+  | "chatCallNotSeen"
+  | "chatCallFailed"
+  | "chatCallHttp"
+  | "chatCallOk"
+  | "chatOriginExtension"
+  | "chatOriginUnchecked"
+  | "chatOriginAnswered"
+  | "chatOriginUnknown"
+  | "chatOriginAllowed"
+  | "chatOriginRejected"
+  | "daptyNoAnswer"
+  | "daptyErrorReply"
+  | "daptyGaveUp"
+  | "daptyAnswered"
+  | "suggestionsNone"
+  | "suggestionsMissing"
+  | "suggestionsOpen"
+  | "suggestionsLaunch";
 
 export type NextCheck =
   | "fixConnection"
@@ -305,7 +339,10 @@ export type NextCheck =
   | "reloadAndRetest"
   | "playWorkflow"
   | "nameStep"
-  | "checkTiming";
+  | "checkTiming"
+  | "askDapty"
+  | "checkKb"
+  | "clickAsUser";
 
 export type NotChecked =
   | "membership"
@@ -315,14 +352,17 @@ export type NotChecked =
   | "cors"
   | "element-timing"
   | "closed-shadow-roots"
-  | "canvas";
+  | "canvas"
+  | "kb-contents"
+  | "suggestion-ids";
 
 export type PackId =
   | "content-not-visible"
   | "widget-not-visible"
   | "logs-and-errors"
   | "element-not-found"
-  | "page-readiness";
+  | "page-readiness"
+  | "dapty-conversation";
 
 /** One console or log line, already redacted. */
 export interface LogLine {
@@ -396,6 +436,34 @@ export interface ScanRow {
   blockers: Array<"hidden" | "no-name" | "inactive-segments">;
 }
 
+/** What a click on one of Dapty's suggestions would do, by the files. */
+export interface DaptyRow {
+  name: string;
+  type?: "workflow" | "knowledge_content";
+  sourceId?: string;
+  /**
+   * `launches`: published here with no visibility rule; `rule`: launches
+   * only if its visibility rule passes; `missing`: not published here, so
+   * nothing opens; `ambiguous`: several items carry the name; `unchecked`:
+   * its file could not be read.
+   */
+  status: "launches" | "rule" | "missing" | "ambiguous" | "unchecked";
+  rule?: string;
+  /** Hidden from the widget's list, which a launch from Dapty does not check. */
+  listHidden?: boolean;
+}
+
+/** The Ask Dapty conversation a result was read from, for the card. */
+export interface DaptySummary {
+  source: "client" | "har" | "page" | "widget-dom";
+  turns: number;
+  /** Redacted and cut short. */
+  lastQuestion?: string;
+  suggestions: DaptyRow[];
+  /** Suggestions are names from the chat panel, matched by name. */
+  namesOnly: boolean;
+}
+
 export interface DiagnosisResult {
   packId: PackId;
   /** The KB card the rules come from, and how far they were verified. */
@@ -403,7 +471,7 @@ export interface DiagnosisResult {
   verifiedOn: string;
   /** `name` is the item's own name when the query resolved to exactly one. */
   subject: {
-    kind: ContentKind | "widget" | "logs" | "page";
+    kind: ContentKind | "widget" | "logs" | "page" | "dapty";
     query?: string;
     /** The language the message named, as a code ("fr"), for the language gate. */
     language?: string;
@@ -422,4 +490,5 @@ export interface DiagnosisResult {
     /** segment.json could not be read, so no row counts its segments. */
     segmentsUnread?: boolean;
   };
+  dapty?: DaptySummary;
 }

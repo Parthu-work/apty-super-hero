@@ -5,14 +5,16 @@
  * redaction as the Client's, so a HAR's content is read exactly as the
  * Client's would be. Nothing here is sent anywhere.
  */
-import type { AptyObservedResource } from "../types.js";
+import { type DaptyResource, loadDaptyFrom } from "./dapty-loader.js";
+import { daptyKindOf } from "./dapty-parse.js";
+import type { DaptyEvidence } from "./dapty-types.js";
 import { loadEvidenceFrom, type ResourceSource } from "./loader.js";
 import type { ClientEvidence } from "./types.js";
 
 type Rec = Record<string, unknown>;
 
 interface HarCall {
-  resource: AptyObservedResource;
+  resource: DaptyResource;
   text?: string;
   base64: boolean;
 }
@@ -41,14 +43,37 @@ export function isAptyContentUrl(url: string): boolean {
   return path.split("/").some((segment) => /^tenant-[\w-]+$/.test(segment));
 }
 
-function callsOf(har: unknown): HarCall[] {
+function headerOf(request: Rec, name: string): string | undefined {
+  const headers = Array.isArray(request.headers) ? request.headers : [];
+  for (const header of headers) {
+    const h = rec(header);
+    if (String(h.name).toLowerCase() === name && typeof h.value === "string") {
+      return h.value;
+    }
+  }
+  return undefined;
+}
+
+/** Which of a HAR's calls a reader takes: Apty's content files, or the Ask Dapty chat calls. */
+type HarCalls = "content" | "dapty";
+
+function wanted(request: Rec, calls: HarCalls): boolean {
+  if (typeof request.url !== "string") return false;
+  if (calls === "content") return isAptyContentUrl(request.url);
+  const method = typeof request.method === "string" ? request.method : "GET";
+  return daptyKindOf(request.url, method) !== undefined;
+}
+
+function callsOf(har: unknown, calls: HarCalls = "content"): HarCall[] {
   return entriesOf(har).flatMap((entry, index): HarCall[] => {
     const request = rec(entry.request);
     const response = rec(entry.response);
     const content = rec(response.content);
-    if (typeof request.url !== "string" || !isAptyContentUrl(request.url)) {
+    if (!wanted(request, calls) || typeof request.url !== "string") {
       return [];
     }
+    const postData = rec(request.postData);
+    const origin = headerOf(request, "origin");
     const status = typeof response.status === "number" ? response.status : 0;
     const failed = status === 0;
     const text = typeof content.text === "string" ? content.text : undefined;
@@ -72,6 +97,10 @@ function callsOf(har: unknown): HarCall[] {
             typeof content.mimeType === "string" ? content.mimeType : "",
           timestamp: Number.isNaN(started) ? index : started,
           hasBody: text !== undefined,
+          ...(calls === "dapty" && typeof postData.text === "string"
+            ? { requestBody: postData.text }
+            : {}),
+          ...(calls === "dapty" && origin ? { origin } : {}),
         },
         text,
         base64: content.encoding === "base64",
@@ -81,8 +110,8 @@ function callsOf(har: unknown): HarCall[] {
 }
 
 /** The calls of a HAR file, served the way the Client serves its own. */
-function harSource(har: unknown): ResourceSource {
-  const calls = callsOf(har);
+function harSource(har: unknown, which: HarCalls = "content"): ResourceSource {
+  const calls = callsOf(har, which);
   return {
     listResources: async () => ({
       ok: true,
@@ -103,6 +132,11 @@ export function evidenceFromHar(
   names: readonly string[],
 ): Promise<ClientEvidence> {
   return loadEvidenceFrom(harSource(har), names);
+}
+
+/** The Ask Dapty chat a HAR recorded: the chat calls with their questions, and any stored chat files. */
+export function daptyFromHar(har: unknown): Promise<DaptyEvidence> {
+  return loadDaptyFrom(harSource(har, "dapty"), "har");
 }
 
 const isDocument = (entry: Rec) =>

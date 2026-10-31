@@ -33,9 +33,13 @@ import { chatHandoff } from "../../../state/chat-handoff";
 import { ToolPageShell } from "../../shell/tool-page-shell";
 import { CheckResultCard } from "../check-result-card";
 
-type Target = ContentKind | "widget";
+type Target = ContentKind | "widget" | "dapty";
 
-const TARGETS: Target[] = [...(Object.keys(KINDS) as ContentKind[]), "widget"];
+const TARGETS: Target[] = [
+  ...(Object.keys(KINDS) as ContentKind[]),
+  "widget",
+  "dapty",
+];
 
 interface LoadedHar {
   fileName: string;
@@ -50,6 +54,7 @@ type ReadError =
 
 function checkFor(target: Target, name: string): HarCheck {
   if (target === "widget") return { packId: "widget-not-visible" };
+  if (target === "dapty") return { packId: "dapty-conversation" };
   const query = name.trim();
   return {
     packId: "content-not-visible",
@@ -112,6 +117,14 @@ function Summary({ loaded }: { loaded: LoadedHar }) {
       )}
       {summary.version === "4.x" && (
         <Notice tone="info">{t("harCheck.version4x")}</Notice>
+      )}
+      {summary.daptyCalls + summary.daptyStoredChats > 0 && (
+        <p className="text-sm text-foreground">
+          {t("harCheck.daptyFound", {
+            calls: summary.daptyCalls,
+            stored: summary.daptyStoredChats,
+          })}
+        </p>
       )}
     </div>
   );
@@ -269,7 +282,10 @@ export function HarCheckPage() {
                 ))}
               </select>
             </div>
-            {target !== "widget" ? (
+            {target === "dapty" ? (
+              loaded.summary.daptyCalls + loaded.summary.daptyStoredChats ===
+                0 && <Notice tone="info">{t("harCheck.noDapty")}</Notice>
+            ) : target !== "widget" ? (
               <div className="space-y-1.5">
                 <label
                   htmlFor={`${id}-name`}

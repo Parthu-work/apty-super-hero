@@ -116,6 +116,19 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   `run_diagnosis`. Tested against the e2e fake Client in Chromium (both
   themes, axe-clean, no model request); not yet run against the real
   Client, which does not answer these messages yet (below).
+- Ask Dapty check (partial): a message about the widget's AI assistant
+  ("Dapty suggested a workflow but nothing opens", "the AI assistant is not
+  answering") is answered with no model call. The check reads the chat from
+  the Apty Client's record (Extension mode) or a HAR (the HAR page's "The
+  Ask Dapty chat"), then names a chat turned off for the application, a
+  failed chat call or HTTP error, in Injected mode a page origin
+  ai-service's CORS check rejects, Dapty's give-up reply, and what each
+  suggestion does on a click (opens, needs its visibility rule, not
+  published here). Rules are read from apty-dap's widget and ai-service
+  code, not runtime-verified. Tested in Chromium against a fake Client and a
+  synthetic HAR (axe clean, no model request, no URL on the card); the real
+  Client does not record the chat calls yet (below). See
+  [`docs/development/ask-dapty.md`](development/ask-dapty.md).
 - Request size (Settings → AI): with a request budget set, older tool
   results become stubs, long earlier messages are shortened and the oldest
   turns are left out (the first message sent says how many) until the
@@ -191,6 +204,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Production readiness | Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | Widget network calls from the real Apty Client (partial) | The Widget team adopts the reference handlers and `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)) and lists both Agent IDs. Open question: which Widget context makes calls such as `segments.json`; a content script would need a relay. Until then the panel names the Client's failure instead of listing calls |
 | Visibility, selector and page checks on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them. The selector check also needs a capture with a played workflow, to confirm the steps file's name and shape |
+| Ask Dapty check on live chats (partial) | Extension mode: the Client routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)). Injected mode and the widget's chat panel: the capture layer (page network and chat-panel readers) wired into `ResponderSources.daptyOf`. Then a run on a real tenant with a known failing chat |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 
 ## Known limitations

@@ -6,6 +6,12 @@ full commit-level history.
 
 ## Unreleased
 
+- **Ask Dapty check (partial)**: when an end user asked the widget's AI assistant and got no answer, or suggestions that do not open, the side panel reads the conversation and checks it with no model call.
+  - **Sources**: the Apty Client's record of the chat call and stored chats (Extension mode, through the existing Client contract), and a customer's HAR (the chat request, its answer and its Origin). The page's own network and the widget's chat panel come with the capture layer.
+  - **Checks**, from apty-dap's widget and ai-service code: the chat turned off for the application (DAP-01), a failed chat call or an HTTP error (DAP-02, DAP-03), in Injected mode a page origin ai-service's CORS check rejects, including environment URLs with no scheme (DAP-04), Dapty's fixed "couldn't find information" reply (DAP-05), and each suggestion: opens, opens only if its visibility rule passes, not published here (DAP-06), several items with the name, or unchecked. An item hidden from the widget's list still opens from Dapty, and the card says so.
+  - **Where**: in the chat ("Dapty suggested a workflow but nothing opens"), as `run_diagnosis` kind `dapty`, and on the HAR page ("The Ask Dapty chat"). English and Chinese.
+  - **Privacy**: every turn is redacted before the check reads it; the card shows the last question collapsed and cut to 200 characters, the suggestion names and statuses, and no URL or id.
+  - Design and sources: [`docs/development/ask-dapty.md`](docs/development/ask-dapty.md).
 - **LLM plan Phase C: a size gate, a masking proof, and the data-flow docs**.
   - **Size gate (M1)**: `tooling/e2e/request-budgets.json` holds each named request's size plus 10%; a test fails when one grows past it.
   - **Masking proof (M2)**: one page with PHI-like strings in every place Strict masks, read by all nine reading tools. It found three leaks in Strict, now fixed:

@@ -14,6 +14,10 @@ import type {
   RuleId,
   VerdictStatus,
 } from "@apty/browser-runtime";
+import type {
+  DaptyRow,
+  DaptySummary,
+} from "@apty/browser-runtime/apty/diagnosis/types";
 import { DefaultToolDisplay } from "@apty/ui/components/chatbot";
 import { StatusBadge, type StatusTone } from "@apty/ui/components/ui/badge";
 import { useTranslation } from "@apty/ui/i18n/context";
@@ -36,6 +40,7 @@ const PACKS = new Set([
   "logs-and-errors",
   "element-not-found",
   "page-readiness",
+  "dapty-conversation",
 ]);
 
 function isDiagnosisResult(value: unknown): value is DiagnosisResult {
@@ -226,6 +231,42 @@ const CAUSE_TEXT: Partial<Record<RuleId, CauseKeys>> = {
     summary: "checkPack.rule.DOM-07.summary",
     fix: "checkPack.rule.DOM-07.fix",
   },
+  "DAP-01": {
+    summary: "checkPack.rule.DAP-01.summary",
+    fix: "checkPack.rule.DAP-01.fix",
+  },
+  "DAP-02": {
+    summary: "checkPack.rule.DAP-02.summary",
+    fix: "checkPack.rule.DAP-02.fix",
+  },
+  "DAP-03": {
+    summary: "checkPack.rule.DAP-03.summary",
+    fix: "checkPack.rule.DAP-03.fix",
+    variants: {
+      panel: {
+        summary: "checkPack.rule.DAP-03-panel.summary",
+        fix: "checkPack.rule.DAP-03-panel.fix",
+      },
+    },
+  },
+  "DAP-04": {
+    summary: "checkPack.rule.DAP-04.summary",
+    fix: "checkPack.rule.DAP-04.fix",
+    variants: {
+      noScheme: {
+        summary: "checkPack.rule.DAP-04-noScheme.summary",
+        fix: "checkPack.rule.DAP-04.fix",
+      },
+    },
+  },
+  "DAP-05": {
+    summary: "checkPack.rule.DAP-05.summary",
+    fix: "checkPack.rule.DAP-05.fix",
+  },
+  "DAP-06": {
+    summary: "checkPack.rule.DAP-06.summary",
+    fix: "checkPack.rule.DAP-06.fix",
+  },
 };
 
 type Translate = ReturnType<typeof useTranslation>["t"];
@@ -389,7 +430,7 @@ function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
       )}
       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
         <span>{t("checkPack.ruleLabel", { ruleId: cause.ruleId })}</span>
-        <KbCardLink pageId={cause.cardPageId} />
+        {cause.cardPageId && <KbCardLink pageId={cause.cardPageId} />}
       </p>
     </li>
   );
@@ -415,6 +456,70 @@ function GateRow({ gate }: { gate: GateResult }) {
   );
 }
 
+const ROW_TONE: Record<DaptyRow["status"], string> = {
+  launches: "text-success",
+  rule: "text-warning",
+  missing: "text-destructive",
+  ambiguous: "text-warning",
+  unchecked: "text-muted-foreground",
+};
+
+/** The Ask Dapty conversation: what each suggestion would do on a click, and the user's last question. */
+function DaptySection({ dapty }: { dapty: DaptySummary }) {
+  const t = useCheckText();
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        {t(`checkPack.daptySource.${dapty.source}`, { turns: dapty.turns })}
+      </p>
+      {dapty.lastQuestion && (
+        <details className="rounded-md border border-border px-2.5 py-1.5">
+          <summary className="cursor-pointer text-sm font-medium text-foreground">
+            {t("checkPack.daptyQuestion")}
+          </summary>
+          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
+            {dapty.lastQuestion}
+          </p>
+        </details>
+      )}
+      {dapty.suggestions.length > 0 && (
+        <div className="space-y-1">
+          <h4 className="text-xs font-medium text-muted-foreground">
+            {t("checkPack.daptySuggestions")}
+          </h4>
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {dapty.suggestions.map((row, index) => (
+              <li
+                // Two suggestions can share a name; the order is the reply's.
+                key={`${row.sourceId ?? row.name}-${index}`}
+                className="flex flex-wrap justify-between gap-x-3 px-2.5 py-1.5 text-sm"
+              >
+                <span className="font-medium text-foreground">{row.name}</span>
+                <span className={ROW_TONE[row.status]}>
+                  {t(`checkPack.daptyRow.${row.status}`, {
+                    rule: row.rule ?? "",
+                  })}
+                  {row.listHidden && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      {t("checkPack.daptyListHidden")}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {dapty.namesOnly && (
+            <p className="text-xs text-muted-foreground">
+              {t("checkPack.daptyNamesOnly")}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CheckResultCard(props: ToolDisplaySlotProps) {
   const t = useCheckText();
   const result = props.tool.output;
@@ -423,23 +528,27 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
   const { verdict, subject, scan } = result;
   const kind = t(`checkPack.kind.${subject.kind}`);
   const title =
-    result.packId === "page-readiness"
-      ? t("checkPack.titlePage")
-      : result.packId === "element-not-found"
-        ? subject.query
-          ? t("checkPack.titleElement", { name: subject.name ?? subject.query })
-          : t("checkPack.titleElementGeneric")
-        : subject.kind === "logs"
-          ? t("checkPack.titleLogs")
-          : subject.kind === "widget"
-            ? t("checkPack.titleWidget")
-            : scan
-              ? t("checkPack.titleScan", { kind })
-              : subject.query
-                ? t("checkPack.titleItem", {
-                    name: subject.name ?? subject.query,
-                  })
-                : t("checkPack.titleGeneric");
+    result.packId === "dapty-conversation"
+      ? t("checkPack.titleDapty")
+      : result.packId === "page-readiness"
+        ? t("checkPack.titlePage")
+        : result.packId === "element-not-found"
+          ? subject.query
+            ? t("checkPack.titleElement", {
+                name: subject.name ?? subject.query,
+              })
+            : t("checkPack.titleElementGeneric")
+          : subject.kind === "logs"
+            ? t("checkPack.titleLogs")
+            : subject.kind === "widget"
+              ? t("checkPack.titleWidget")
+              : scan
+                ? t("checkPack.titleScan", { kind })
+                : subject.query
+                  ? t("checkPack.titleItem", {
+                      name: subject.name ?? subject.query,
+                    })
+                  : t("checkPack.titleGeneric");
   const blockedRows = scan?.rows.filter((r) => r.blockers.length > 0) ?? [];
   const several = subject.matched.length > 1;
 
@@ -486,6 +595,8 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           </ul>
         </div>
       )}
+
+      {result.dapty && <DaptySection dapty={result.dapty} />}
 
       {blockedRows.length > 0 && (
         <ul className="divide-y divide-border rounded-md border border-border">
@@ -537,8 +648,14 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
       )}
 
       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-        <span>{t("checkPack.provenance")}</span>
-        <KbCardLink pageId={result.cardPageId} />
+        {result.cardPageId ? (
+          <>
+            <span>{t("checkPack.provenance")}</span>
+            <KbCardLink pageId={result.cardPageId} />
+          </>
+        ) : (
+          <span>{t("checkPack.provenanceDapty")}</span>
+        )}
       </p>
     </section>
   );

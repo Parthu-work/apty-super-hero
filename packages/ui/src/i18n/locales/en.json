@@ -1817,7 +1817,8 @@
       "knowledgeContent": "knowledge content item",
       "widget": "widget",
       "logs": "logs",
-      "page": "page"
+      "page": "page",
+      "dapty": "Ask Dapty chat"
     },
     "status": {
       "cause_found": "Cause found",
@@ -1856,7 +1857,12 @@
       "virtualized": "Virtualized lists",
       "overlays": "Covered elements",
       "duplicate-ids": "Shared ids",
-      "automatic-selection": "Automatic selection"
+      "automatic-selection": "Automatic selection",
+      "chat-available": "Chat turned on",
+      "chat-call": "Chat call",
+      "chat-origin": "Allowed origin",
+      "chat-answer": "Answer",
+      "chat-suggestions": "Suggestions"
     },
     "gateStatus": {
       "pass": "Passed",
@@ -1969,7 +1975,29 @@
       "noDuplicateIds": "Every id is unique in its document or shadow root",
       "manualSelectors": "{{percent}}% of interactive elements would need a hand-made selector",
       "ambiguousSelectors": "{{ambiguous}} of {{total}} interactive elements only have selectors matching several elements",
-      "automaticSelectors": "Apty's own rules give most interactive elements a stable selector"
+      "automaticSelectors": "Apty's own rules give most interactive elements a stable selector",
+      "daptyNotObserved": "No Ask Dapty chat call or stored chat was found.",
+      "daptyRead": "Read {{turns}} turn(s), {{calls}} chat call(s) and {{stored}} stored chat(s).",
+      "aiAssistantOff": "The AI assistant is turned off for this application, so the widget shows no chat.",
+      "aiAssistantOn": "The AI assistant is turned on for this application.",
+      "chatCallNotSeen": "No chat call was recorded; the conversation comes from a stored chat or the chat panel.",
+      "chatCallFailed": "The newest chat call failed before ai-service answered ({{detail}}).",
+      "chatCallHttp": "The newest chat call failed with HTTP {{httpStatus}}.",
+      "chatCallOk": "The newest chat call answered (HTTP {{httpStatus}}).",
+      "chatOriginExtension": "The chat call came from the Apty Client's service worker (Extension mode), where the CORS check does not block it.",
+      "chatOriginUnchecked": "No chat call was recorded, so the CORS check was not reproduced.",
+      "chatOriginAnswered": "The chat call got an answer, so ai-service allowed the page's origin.",
+      "chatOriginUnknown": "The page or the application's environment URLs are not known, so the CORS check was not reproduced.",
+      "chatOriginAllowed": "The page's origin is among those the application's environment URLs allow.",
+      "chatOriginRejected": "The page's origin is not among those the application's {{urls}} environment URL(s) allow ({{withoutScheme}} have no https:// scheme).",
+      "daptyNoAnswer": "No answer to the last question was recorded.",
+      "daptyErrorReply": "The chat panel shows an error instead of an answer.",
+      "daptyGaveUp": "Dapty gave its fixed “couldn't find information” reply.",
+      "daptyAnswered": "Dapty answered the last question.",
+      "suggestionsNone": "Dapty suggested no workflow or knowledge item.",
+      "suggestionsMissing": "{{missing}} of {{count}} suggestion(s) are not published in this environment.",
+      "suggestionsOpen": "{{open}} of {{count}} suggestion(s) depend on a visibility rule or could not be checked.",
+      "suggestionsLaunch": "All {{count}} suggestion(s) are published here with no visibility rule, so a click opens them."
     },
     "rule": {
       "CNV-02": {
@@ -2119,6 +2147,37 @@
       "DOM-07": {
         "summary": "{{count}} of {{total}} frames can only be told apart by position or by their address, so a stored frame path can point at another frame.",
         "fix": "Give each frame a stable id or name, or add a Partial Selector rule for its address, then select the element again."
+      },
+      "DAP-01": {
+        "summary": "The AI assistant is turned off for this application, so the widget shows no chat.",
+        "fix": "Turn the AI assistant on in the application's widget settings in Admin, then publish."
+      },
+      "DAP-02": {
+        "summary": "The newest chat call failed before ai-service answered ({{detail}}).",
+        "fix": "In Injected mode this is most often the CORS check (see the origin check); otherwise the network or a blocker extension. Ask again with the Network tab open."
+      },
+      "DAP-03": {
+        "summary": "The newest chat call failed with HTTP {{httpStatus}}, so Dapty could not answer.",
+        "fix": "A 4xx means ai-service rejected the request; a 5xx means it failed while answering. Send the time of the call and the status to Apty support."
+      },
+      "DAP-03-panel": {
+        "summary": "The chat panel shows an error instead of an answer to the last question.",
+        "fix": "Open the Network tab, ask again and read the widget chat call's status."
+      },
+      "DAP-04": {
+        "summary": "The page's origin is not among the origins the application's {{urls}} environment URL(s) allow, so in Injected mode ai-service's CORS check rejects the chat call.",
+        "fix": "Add this page's address, with its https:// scheme, to an environment's URLs in Admin, then publish. ai-service reads them from app-urls.json, cached for up to 5 minutes."
+      },
+      "DAP-04-noScheme": {
+        "summary": "The page's origin is not among the origins the application's environment URLs allow, and {{withoutScheme}} of its {{urls}} URL(s) have no https:// scheme, which allows no origin. In Injected mode ai-service's CORS check rejects the chat call."
+      },
+      "DAP-05": {
+        "summary": "Dapty gave its fixed “couldn't find information” reply: no indexed document or allowed web page answered the question.",
+        "fix": "Check that this application has documents or a connected repository indexed in Admin (AI settings), that they cover the question, and that the application's support docs domains list your help site."
+      },
+      "DAP-06": {
+        "summary": "Dapty suggested “{{name}}”, which this environment does not publish, so clicking it opens nothing.",
+        "fix": "Dapty lists the environment's items from ai-service's own copy of the content files, which can lag a publish by a few minutes, or the model named an item it was not given. Publish the item to this environment, or ask again once ai-service has the newest content."
       }
     },
     "ruleLabel": "Rule {{ruleId}}",
@@ -2146,7 +2205,10 @@
       "reloadAndRetest": "Reload the page and ask again: a selector holding a generated value often stops matching after a reload.",
       "playWorkflow": "Play the workflow once in this tab, so the Apty Client loads its steps, then ask again.",
       "nameStep": "Name the step that fails (“step 3”), with the page where it fails open in this tab.",
-      "checkTiming": "Check that the element is there when the content runs (Apty retries once a second for 5 seconds), and that the item is published here and its segment matches."
+      "checkTiming": "Check that the element is there when the content runs (Apty retries once a second for 5 seconds), and that the item is published here and its segment matches.",
+      "askDapty": "Open the widget's Ask Dapty chat on the page in this tab, ask the question again, then check again.",
+      "checkKb": "Check what this application's AI knowledge holds in Admin (documents and connected repositories), and whether it covers the question.",
+      "clickAsUser": "Ask Dapty again as the user, on the page where the item's visibility rule should pass, and click the suggestion."
     },
     "notChecked": {
       "title": "Not checked from the files",
@@ -2157,7 +2219,9 @@
       "cors": "CORS blocks, which the browser does not report to the page",
       "element-timing": "Whether the element is on the page at the moment the content runs",
       "closed-shadow-roots": "Elements inside closed shadow roots, which neither Apty nor the agent can open",
-      "canvas": "Content drawn on a canvas, which has no elements to select"
+      "canvas": "Content drawn on a canvas, which has no elements to select",
+      "kb-contents": "What the indexed documents say, which only ai-service can search",
+      "suggestion-ids": "The suggestions' ids, which the chat panel does not show, so they were matched by name"
     },
     "blocker": {
       "hidden": "Hidden from the widget",
@@ -2198,7 +2262,26 @@
       "own": "Its element",
       "disabled": "Disabled element {{n}}",
       "step": "Step {{n}}"
-    }
+    },
+    "titleDapty": "Ask Dapty chat check",
+    "daptySource": {
+      "client": "From the Apty Client's record of the chat: {{turns}} turn(s).",
+      "har": "From the HAR file's chat calls: {{turns}} turn(s).",
+      "page": "From the page's chat calls: {{turns}} turn(s).",
+      "widget-dom": "From the widget's chat panel: {{turns}} turn(s)."
+    },
+    "daptyQuestion": "The user's last question",
+    "daptySuggestions": "What each suggestion does on a click",
+    "daptyRow": {
+      "launches": "Opens",
+      "rule": "Opens only if visibility rule “{{rule}}” passes",
+      "missing": "Not published here: opens nothing",
+      "ambiguous": "Several items have this name",
+      "unchecked": "Not checked: its file could not be read"
+    },
+    "daptyListHidden": "(hidden from the widget's list)",
+    "daptyNamesOnly": "Matched by name: the chat panel does not show the suggestions' ids.",
+    "provenanceDapty": "From Apty's widget chat and ai-service code (apty-dap development), not runtime-verified. Confidence: likely."
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",
@@ -2222,7 +2305,8 @@
       "validation": "A validation",
       "checklist": "A checklist",
       "knowledgeContent": "Knowledge content",
-      "widget": "The widget itself"
+      "widget": "The widget itself",
+      "dapty": "The Ask Dapty chat"
     },
     "name": "Name or sourceId (optional)",
     "nameHelp": "Leave it empty to list every item of that kind with a blocker.",
@@ -2238,6 +2322,8 @@
       "not-har": "This JSON file has no log entries, so it is not a HAR file.",
       "unreadable": "This file could not be read.",
       "check-failed": "The check could not run on this file."
-    }
+    },
+    "daptyFound": "Ask Dapty: {{calls}} chat call(s) and {{stored}} stored chat(s).",
+    "noDapty": "This HAR holds no Ask Dapty chat call. Record one with the widget's chat open, asking the question again."
   }
 }
