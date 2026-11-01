@@ -149,6 +149,21 @@ with no Client connected.
 | "This file is over 50 MB…" | The check reads files up to 50,000,000 characters | Record only the problem flow, with fewer pages, and export again. |
 | "…matches the body deny list entry…" on the card | Your deny list covers the HAR's Apty files as it does the Client's | Remove or narrow the entry in Settings → Data handling. |
 
+### Ask Dapty check
+
+A message about the widget's AI assistant ("Dapty suggested a workflow
+but nothing opens", "the AI assistant is not answering") runs the Ask Dapty
+check, and the HAR page offers "The Ask Dapty chat". See
+[`docs/development/ask-dapty.md`](development/ask-dapty.md).
+
+| What you see | Cause | Fix |
+|---|---|---|
+| "No Ask Dapty chat call or stored chat was found" | The chat was before the agent started, or in Extension mode the Client does not report the chat yet, or a HAR was recorded without it | Ask Dapty again on the page in this tab, then ask for the check; or record a HAR with the widget's chat open. |
+| "No answer to the last question was recorded" with "Record the next Ask Dapty chat" | Injected mode: the question is captured all the time, the answer only while the tab is recorded | Press the button, ask Dapty again on the page, then ask for the check again. Chrome shows its "is debugging this browser" bar while recording. |
+| DAP-04 with "have no https:// scheme" | An environment URL such as `crm.example.com/*` lets the player load the widget but allows no origin in ai-service's CORS check | Add the address with its `https://` scheme to the environment in Admin and publish; ai-service caches the URLs for up to 5 minutes. |
+| DAP-06 "not published here" | Dapty suggests from ai-service's own copy of the content files, which can lag a publish, or the model named an item it was not given | Publish the item to this environment, or ask again a few minutes after publishing. |
+| "Matched by name: the chat panel does not show the suggestions' ids" | The chat was read from the widget's chat panel, which shows names only | Check a recorded chat call (HAR or the Client's record) for ids. |
+
 ## Response bodies are missing from a network capture
 
 Response bodies are off by default. Turn on **Settings → General → Data

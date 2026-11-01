@@ -26,4 +26,13 @@ describe("checkAuth", () => {
       hasCustomConfig: false,
     });
   });
+
+  it("without a provider, sends an Ask Dapty problem, which the Ask Dapty check answers with no model", () => {
+    expect(
+      checkAuth({}, "Dapty suggested Export a report but nothing happens")
+        .needsAuth,
+    ).toBe(false);
+    expect(checkAuth({}, "Dapty 没有回答").needsAuth).toBe(false);
+    expect(checkAuth({}, "How do I turn on Dapty?").needsAuth).toBe(true);
+  });
 });

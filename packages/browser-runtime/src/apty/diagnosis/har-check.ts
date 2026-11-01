@@ -8,7 +8,17 @@
  */
 import { resourceNameFor } from "../resource-body-utils.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
-import { evidenceFromHar, isAptyContentUrl, pageUrlOfHar } from "./har.js";
+import {
+  DAPTY_FILES,
+  diagnoseDaptyConversation,
+} from "./dapty-conversation.js";
+import { daptyKindOf } from "./dapty-parse.js";
+import {
+  daptyFromHar,
+  evidenceFromHar,
+  isAptyContentUrl,
+  pageUrlOfHar,
+} from "./har.js";
 import { environmentsIn } from "./loader.js";
 import { type Rec, records } from "./pack-kit.js";
 import { type ContentKind, type DiagnosisResult, KINDS } from "./types.js";
@@ -58,6 +68,9 @@ export interface HarSummary {
   version: "5.x" | "4.x" | "none";
   /** A document request is there, so the widget check can match environments. */
   hasPage: boolean;
+  /** Ask Dapty chat calls, and stored chat files, the HAR recorded. */
+  daptyCalls: number;
+  daptyStoredChats: number;
 }
 
 const isContentFile = (name: string) =>
@@ -75,6 +88,13 @@ export function summarizeHar(har: unknown): HarSummary {
       | undefined;
     return [{ url, name, hasFile: typeof content?.text === "string" }];
   });
+  const dapty = entries.flatMap((entry) => {
+    const request = entry.request as Rec | undefined;
+    const url = request?.url;
+    const method = typeof request?.method === "string" ? request.method : "GET";
+    const kind = typeof url === "string" ? daptyKindOf(url, method) : undefined;
+    return kind ? [kind] : [];
+  });
   const names = aptyCalls.filter((c) => c.hasFile).map((c) => c.name);
   const contentFiles = [...new Set(names)].sort();
   const has5x = contentFiles.some((n) => FILES_5X.has(n));
@@ -89,18 +109,28 @@ export function summarizeHar(har: unknown): HarSummary {
         ? "4.x"
         : "none",
     hasPage: pageUrlOfHar(har) !== undefined,
+    daptyCalls: dapty.filter((k) => k === "chat").length,
+    daptyStoredChats: dapty.filter((k) => k === "stored-chat").length,
   };
 }
 
 export type HarCheck =
   | { packId: "content-not-visible"; kind: ContentKind; query?: string }
-  | { packId: "widget-not-visible" };
+  | { packId: "widget-not-visible" }
+  | { packId: "dapty-conversation" };
 
 /** Runs a visibility or widget check on a HAR, the page it was recorded on standing in for the tab. */
 export async function runHarCheck(
   har: unknown,
   check: HarCheck,
 ): Promise<DiagnosisResult> {
+  if (check.packId === "dapty-conversation") {
+    const [chat, files] = await Promise.all([
+      daptyFromHar(har),
+      evidenceFromHar(har, DAPTY_FILES),
+    ]);
+    return diagnoseDaptyConversation(chat, files, pageUrlOfHar(har));
+  }
   if (check.packId === "widget-not-visible") {
     return diagnoseWidgetNotVisible(
       await evidenceFromHar(har, WIDGET_FILES),

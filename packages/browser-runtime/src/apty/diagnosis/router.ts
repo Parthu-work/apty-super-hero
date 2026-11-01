@@ -65,7 +65,7 @@ const NOT_VISIBLE = new RegExp(
 );
 
 const HOW_TO =
-  /^\s*(?:how (?:do|does|can|could|would|will|to|should|is|are)|what (?:is|are|does|do|should|would)|where (?:do|does|can|is|are)|explain|tell me (?:how|about)|(?:can|could) you explain|(?:should|would|could|can) (?:i|we|a|an|the)\b|is it possible|write|draft|give me)\b/;
+  /^\s*(?:how (?:do|does|can|could|would|will|to|should|is|are)|what (?:is|are|does|do|should|would)|where (?:do|does|can|is|are)|explain|tell me (?:how|about)|(?:can|could) you explain|(?:should|would|could|can) (?:i|we|a|an|the)\b|is it possible|is there a way|(?:can|could) you (?:show|tell|help)|write|draft|give me)\b/;
 
 const QUOTED = /(?:^|[\s(])["“'‘]([^"”'’\n]{2,80})["”'’](?=$|[\s.,!?;:)])/;
 const CALLED =
@@ -177,12 +177,13 @@ function asksForLogs(lower: string): Route | undefined {
 
 const ELEMENT_PROBLEM = new RegExp(
   [
-    "\\b(?:cannot|can't|can not|could not|couldn't|does not|doesn't|did not|didn't|unable to|fails? to|failed to|not able to)\\s+(?:find|identify|locate|track|detect)\\b[^.?!]{0,30}\\b(?:element|target|field|button)s?\\b",
+    // "I can't find the button to…" is the SE's own search, not Apty's.
+    "(?<!\\b(?:i|we)\\s)\\b(?:cannot|can't|can not|could not|couldn't|does not|doesn't|did not|didn't|unable to|fails? to|failed to|not able to)\\s+(?:find|identify|locate|track|detect)\\b[^.?!]{0,30}\\b(?:element|target|field|button)s?\\b",
     "\\b(?:element|target)s? (?:is |was )?(?:not|never) (?:found|identified|detected|tracked)\\b",
     "\\bselectors?\\b[^.?!]{0,30}\\b(?:not working|doesn't work|does not work|stopped working|fails?|failing|failed|broken|invalid|changed)\\b",
     "\\b(?:green|valid(?:ates)?) in studio\\b",
     "\\b(?:on|to|at) (?:the |a )?wrong element\\b",
-    "\\bstep\\b[^.?!]{0,30}\\b(?:fails?|failing|failed|errors?|breaks?|broke|stuck)\\b",
+    "\\bstep\\b(?!\\s+that\\b)[^.?!]{0,30}\\b(?:fails?|failing|failed|errors?|breaks?|broke|stuck)\\b",
     FAILS_AT_STEP.source,
     "\\bmissing after (?:a |the )?(?:page )?(?:reload|refresh)\\b",
   ].join("|"),
@@ -202,11 +203,29 @@ function elementRoute(message: string, kind: ContentKind): Route {
   };
 }
 
+/**
+ * Authoring and Studio-UI wording, not a symptom on the user's page: saving
+ * or drafting content, Studio's own controls and settings, analytics.
+ * "Green in Studio" stays a symptom.
+ */
+const NOT_A_SYMPTOM =
+  /\b(?:(?:failed|fails?|unable) to (?:save|publish)|in draft|stuck in (?:draft|review)|(?:i'?m|i am|we'?re|we are) (?:writing|building|creating|authoring)|any tips|analytics|clicks|dropdown|settings|(?:find|see) (?:the |a |an )?(?:button|field|option|setting|menu|place|way|tab|link)s?)\b/;
+const STUDIO_UI = /\bin studio\b|\bstudio (?:says|shows|editor)\b/;
+const GREEN_IN_STUDIO = /\b(?:green|valid(?:ates)?) in studio\b/;
+
 /** The pack, kind and item a message asks about, or undefined to leave it to the model. */
 export function routeSymptom(message: string): Route | undefined {
   const lower = message.toLowerCase();
   // A request to investigate wants the model's investigation, not a fixed check.
   if (HOW_TO.test(lower) || INVESTIGATE.test(lower)) return undefined;
+  if (
+    NOT_A_SYMPTOM.test(lower) ||
+    (STUDIO_UI.test(lower) &&
+      !GREEN_IN_STUDIO.test(lower) &&
+      !PAGE_SELECTION.test(lower))
+  ) {
+    return undefined;
+  }
   if (APTY_404.test(lower))
     return { packId: "logs-and-errors", about404: true };
   if (LOG_EVIDENCE.test(lower)) return { packId: "logs-and-errors" };

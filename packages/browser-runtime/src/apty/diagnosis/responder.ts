@@ -7,6 +7,14 @@ import type { DomHealthAuditOutcome } from "../dom-health.js";
 import { tabElementProbeOf } from "../element-probe.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import {
+  DAPTY_FILES,
+  diagnoseDaptyConversation,
+} from "./dapty-conversation.js";
+import { loadDaptyFromClient } from "./dapty-loader.js";
+import { asksAboutDapty } from "./dapty-route.js";
+import { readDaptyForTab } from "./dapty-sources.js";
+import type { DaptyEvidence } from "./dapty-types.js";
+import {
   diagnoseElementNotFound,
   elementFilesFor,
   type Probe,
@@ -56,6 +64,8 @@ const NEXT_CHECK_TEXT: Record<NextCheck, string> = {
     "Open the application page where the widget is missing in this tab, then ask again.",
   comparePatterns:
     "Compare the URL patterns of the environments that match this page in Admin; make the one that should not win more specific.",
+  askRegexFlag:
+    "Ask whether this tenant has the regex URL feature flags on (urlRegex for the application, regExpUrl for the environment; both are off by default): they decide which environment this page gets, and the files cannot tell.",
   removalTest:
     "Disable or remove Apty and repeat the exact flow: if the same 404s still occur, they are not Apty's.",
   readConsoleText:
@@ -75,6 +85,12 @@ const NEXT_CHECK_TEXT: Record<NextCheck, string> = {
     'Name the step that fails ("step 3"), with the page where it fails open in this tab.',
   checkTiming:
     "Check that the element is there when the content runs (Apty retries once a second for 5 seconds), and that the item is published here and its segment matches.",
+  askDapty:
+    "Open the widget's Ask Dapty chat on the page in this tab, ask the question again, then check again.",
+  checkKb:
+    "Check what this application's AI knowledge holds in Admin (documents and connected repositories), and whether it covers the question.",
+  clickAsUser:
+    "Ask Dapty again as the user, on the page where the item's visibility rule should pass, and click the suggestion.",
 };
 
 const NOT_CHECKED_TEXT: Record<NotChecked, string> = {
@@ -88,7 +104,13 @@ const NOT_CHECKED_TEXT: Record<NotChecked, string> = {
     "whether the element is on the page at the moment the content runs",
   "closed-shadow-roots":
     "elements inside closed shadow roots, which neither Apty nor the agent can open",
+  "screen-token":
+    "whether the screen on display has the screen token an element was captured with, which the application's own script computes",
   canvas: "content drawn on a canvas, which has no elements to select",
+  "kb-contents":
+    "what the indexed documents say, which only ai-service can search",
+  "suggestion-ids":
+    "the suggestions' ids, which the chat panel does not show, so they were matched by name",
 };
 
 function subjectLine(result: DiagnosisResult): string {
@@ -96,6 +118,7 @@ function subjectLine(result: DiagnosisResult): string {
   if (subject.kind === "widget") return "Widget visibility check";
   if (subject.kind === "logs") return "Logs and errors check";
   if (result.packId === "page-readiness") return "Page selection check";
+  if (result.packId === "dapty-conversation") return "Ask Dapty chat check";
   if (result.packId === "element-not-found") {
     return `Selector check of ${subject.kind}${subject.query ? ` ${JSON.stringify(subject.query)}` : ""}`;
   }
@@ -108,9 +131,17 @@ function subjectLine(result: DiagnosisResult): string {
 /** Where a check read its files: the live Apty Client, or a HAR file the SE picked. */
 export type EvidenceSource = "client" | "har";
 
+const DAPTY_READ_FROM = {
+  client: "the Apty Client's record of the chat and its files",
+  har: "the HAR file's chat calls and Apty files",
+  page: "the page's chat calls and the Apty Client's files",
+  "widget-dom": "the widget's chat panel and the Apty Client's files",
+} as const;
+
 function readFrom(result: DiagnosisResult, source: EvidenceSource): string {
   if (result.packId === "page-readiness")
     return "DOM Health's audit of the page";
+  if (result.dapty) return DAPTY_READ_FROM[result.dapty.source];
   return source === "har"
     ? "the HAR file's Apty files"
     : "the Apty Client's files";
@@ -123,11 +154,21 @@ export function transcriptOf(
 ): string {
   const { verdict } = result;
   const lines = [
-    `${subjectLine(result)} from ${readFrom(result, source)} (KB card ${result.cardPageId}; ${result.verifiedOn}).`,
+    `${subjectLine(result)} from ${readFrom(result, source)} (${result.cardPageId ? `KB card ${result.cardPageId}; ` : ""}${result.verifiedOn}).`,
     `Result: ${verdict.status.replace(/_/g, " ")}. ${verdict.headline}`,
+    ...(result.dapty?.lastQuestion
+      ? [
+          `The user's last question to Dapty: ${JSON.stringify(result.dapty.lastQuestion)}`,
+        ]
+      : []),
     ...verdict.causes.map(
-      (c) => `- ${c.ruleId}: ${c.summary} Fix: ${c.fix} (card ${c.cardPageId})`,
+      (c) =>
+        `- ${c.ruleId}: ${c.summary} Fix: ${c.fix}${c.cardPageId ? ` (card ${c.cardPageId})` : ""}`,
     ),
+    ...(result.dapty?.suggestions.map(
+      (r) =>
+        `- Suggested ${JSON.stringify(r.name)}: ${r.status}${r.rule ? ` (visibility rule ${JSON.stringify(r.rule)})` : ""}${r.listHidden ? ", hidden from the widget's list" : ""}`,
+    ) ?? []),
     ...result.gates
       .filter((g) => g.status === "unknown")
       .map((g) => `- Open: ${g.detail}`),
@@ -168,7 +209,12 @@ export interface PageSources {
   pageConsole: () => Promise<LogEvidence["page"]>;
   probeElement: Probe;
   domHealth: () => Promise<DomHealthAuditOutcome | undefined>;
+  /** The Ask Dapty chat; by default as the Apty Client recorded it. */
+  dapty?: () => Promise<DaptyEvidence>;
 }
+
+/** A route the chat or `run_diagnosis` can run: the router's, or the Ask Dapty check. */
+export type CheckRoute = Route | { packId: "dapty-conversation" };
 
 /** The Client's files for the selector check, with a workflow's own steps file when the Client has loaded it. */
 async function elementEvidence(
@@ -189,10 +235,18 @@ async function elementEvidence(
 
 /** Runs the routed pack on the Client's files, logs and calls, and the page. */
 export async function runPack(
-  route: Route,
+  route: CheckRoute,
   clientExtensionId: string | undefined,
-  { pageUrl, pageConsole, probeElement, domHealth }: PageSources,
+  { pageUrl, pageConsole, probeElement, domHealth, dapty }: PageSources,
 ): Promise<DiagnosisResult> {
+  if (route.packId === "dapty-conversation") {
+    const [chat, files, page] = await Promise.all([
+      dapty ? dapty() : loadDaptyFromClient(clientExtensionId),
+      loadClientEvidence(clientExtensionId, DAPTY_FILES),
+      pageUrl(),
+    ]);
+    return diagnoseDaptyConversation(chat, files, page);
+  }
   if (route.packId === "page-readiness") {
     return diagnosePageReadiness(await domHealth());
   }
@@ -232,7 +286,8 @@ export async function runPack(
   );
 }
 
-function paramsOf(route: Route) {
+function paramsOf(route: CheckRoute) {
+  if (route.packId === "dapty-conversation") return { kind: "dapty" };
   if (route.packId === "widget-not-visible") return { kind: "widget" };
   if (route.packId === "page-readiness") return { kind: "page" };
   if (route.packId === "element-not-found") {
@@ -262,6 +317,11 @@ export interface ResponderSources {
   domHealthOf: (
     runContext: unknown,
   ) => Promise<DomHealthAuditOutcome | undefined>;
+  /** The Ask Dapty chat for the conversation's tab; undefined reads the Apty Client's record. */
+  daptyOf?: (
+    runContext: unknown,
+    clientExtensionId: string | undefined,
+  ) => Promise<DaptyEvidence>;
 }
 
 const DEFAULT_SOURCES: ResponderSources = {
@@ -271,6 +331,7 @@ const DEFAULT_SOURCES: ResponderSources = {
   pageConsoleOf: async () => undefined,
   elementProbeOf: tabElementProbeOf,
   domHealthOf: async () => undefined,
+  daptyOf: readDaptyForTab,
 };
 
 /**
@@ -284,13 +345,20 @@ export function createDiagnosisResponder(
 ): LocalResponder {
   const sources = { ...DEFAULT_SOURCES, ...overrides };
   return async (input, { runContext }) => {
-    const route = routeSymptom(input);
+    const route: CheckRoute | undefined = asksAboutDapty(input)
+      ? { packId: "dapty-conversation" }
+      : routeSymptom(input);
     if (!route) return undefined;
-    const result = await runPack(route, await sources.clientExtensionId(), {
+    const clientExtensionId = await sources.clientExtensionId();
+    const { daptyOf } = sources;
+    const result = await runPack(route, clientExtensionId, {
       pageUrl: () => sources.pageUrlOf(runContext),
       pageConsole: () => sources.pageConsoleOf(runContext),
       probeElement: sources.elementProbeOf(runContext),
       domHealth: () => sources.domHealthOf(runContext),
+      ...(daptyOf
+        ? { dapty: () => daptyOf(runContext, clientExtensionId) }
+        : {}),
     });
     // The URL policy every tool result gets on its way to the model
     // (tools/index.ts): the answer is kept in the session and read next turn.

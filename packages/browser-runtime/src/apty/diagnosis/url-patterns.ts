@@ -7,6 +7,14 @@
  * the cards say nothing else, so a pattern whose host has capitals or the
  * default port never matches: a page's URL has neither. Such a pattern
  * still counts as one for the page's host, and is named as the reason.
+ *
+ * With the tenant's regex URL feature flags on (urlRegex for the
+ * application, regExpUrl for the environment; both off by default), the
+ * player first tries each of an environment's patterns as a raw regular
+ * expression, then as a wildcard, and a pattern that is not a valid regex
+ * throws there (active-application.helpers.ts in 5.x code). The flags are
+ * the player's own settings, in no file the Client reports, so both picks
+ * are worked out.
  */
 import { type Rec, records, text, texts } from "./pack-kit.js";
 
@@ -18,6 +26,22 @@ const wildcard = (pattern: string) =>
 /** @internal */
 export function patternMatches(pattern: string, url: string): boolean {
   return new RegExp(wildcard(pattern)).test(url);
+}
+
+function regexOutcome(
+  patterns: string[],
+  url: string,
+): EnvironmentMatch["regex"] {
+  for (const pattern of patterns) {
+    let regex: RegExp;
+    try {
+      regex = new RegExp(pattern);
+    } catch {
+      return "invalid";
+    }
+    if (regex.test(url)) return "match";
+  }
+  return patterns.some((p) => patternMatches(p, url)) ? "match" : "none";
 }
 
 export type HostPitfall = "upperCaseHost" | "defaultPort";
@@ -37,6 +61,12 @@ export interface EnvironmentMatch {
   order: number;
   /** One of its patterns matches the page. */
   matches: boolean;
+  /**
+   * The same with the regex URL flags on: a pattern matches as a regex or
+   * as a wildcard, or one met before any match is not a valid regex, where
+   * the player throws.
+   */
+  regex: "match" | "none" | "invalid";
   /** One of its patterns is for the page's host, whether or not it matches. */
   sameHost: boolean;
   /** Why its patterns for the page's host can never match as written. */
@@ -76,6 +106,7 @@ export function matchEnvironments(
         name: text(env.name) ?? "(unnamed)",
         order: typeof env.order === "number" ? env.order : Number.MAX_VALUE,
         matches: matching.length > 0,
+        regex: regexOutcome(patterns, pageUrl),
         sameHost:
           hostPitfalls.length > 0 || hosts.some((h) => hostMatches(h, host)),
         hostPitfalls,

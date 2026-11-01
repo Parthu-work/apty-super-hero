@@ -1817,7 +1817,8 @@
       "knowledgeContent": "知识内容",
       "widget": "小组件",
       "logs": "日志",
-      "page": "页面"
+      "page": "页面",
+      "dapty": "Ask Dapty 聊天"
     },
     "status": {
       "cause_found": "已找到原因",
@@ -1851,12 +1852,18 @@
       "element": "已存储的元素",
       "lookup": "此页面上的选择器",
       "selector-values": "选择器中的值",
+      "screen": "屏幕",
       "frames": "框架",
       "shadow-dom": "Shadow DOM",
       "virtualized": "虚拟化列表",
       "overlays": "被遮挡的元素",
       "duplicate-ids": "重复的 id",
-      "automatic-selection": "自动选择"
+      "automatic-selection": "自动选择",
+      "chat-available": "聊天已开启",
+      "chat-call": "聊天请求",
+      "chat-origin": "允许的来源",
+      "chat-answer": "回答",
+      "chat-suggestions": "推荐"
     },
     "gateStatus": {
       "pass": "通过",
@@ -1906,6 +1913,10 @@
       "noEnvMatch": "没有环境的 URL 模式匹配此页面（已检查：{{envs}}）",
       "envTooSpecific": "{{envs}}：此站点的模式未覆盖此页面",
       "severalEnvMatch": "{{env}} 在此页面优先；{{others}} 也匹配",
+      "envRegexOnly": "关闭正则 URL 标志时没有环境匹配；开启时，{{env}} 作为正则表达式匹配",
+      "envRegexFlip": "关闭正则 URL 标志时此页面属于 {{flagsOff}}；开启时，{{flagsOn}} 作为正则表达式匹配并按顺序优先",
+      "envRegexInvalid": "{{env}} 有一个不是有效正则表达式的 URL 模式：开启正则 URL 标志时，此应用的小组件不会加载；关闭时，此页面属于 {{flagsOff}}",
+      "envRegexInvalidNoMatch": "{{env}} 有一个不是有效正则表达式的 URL 模式：开启正则 URL 标志时，此应用的小组件不会加载；关闭时，没有环境匹配",
       "emptyPatternMatch": "{{env}} 仅通过一个空的 URL 模式匹配此页面，而空模式会匹配所有页面",
       "otherEnvLoaded": "读取的文件属于 {{loaded}}，而不是 {{env}}",
       "envVisibilityRule": "{{env}} 有自己的可见性规则“{{rule}}”（{{action}}），由浏览器判定",
@@ -1938,7 +1949,6 @@
       "activeFieldEmpty": "{{where}}按 {{type}} 识别，但其 {{field}} 为空",
       "codeSelector": "{{where}}按 {{type}} 识别，这是检查不会运行的代码",
       "jquerySyntax": "{{where}}使用了 jQuery 语法，浏览器无法解析，检查不会运行它",
-      "screenBound": "{{where}}绑定到应用的某一个屏幕，检查不会将其与此页面比较",
       "noPageToProbe": "此标签页中没有打开网页，因此未运行选择器",
       "framesUnreadable": "无法列出此标签页的框架，因此未运行选择器",
       "invalidSelector": "{{where}}：存储的选择器无法解析",
@@ -1956,6 +1966,9 @@
       "oneMatch": "{{where}}：在可见区域内恰好匹配一个已渲染的元素",
       "dynamicValue": "{{where}}：包含 {{count}} 个看似自动生成的值，这类值在重新加载后常会变化",
       "elementRead": "{{where}}按 {{type}} 识别；框架路径 {{frames}} 层，shadow host {{hosts}} 个",
+      "screenGated": "{{where}}受屏幕限制：只有当前显示的屏幕具有选取该元素时的令牌，播放器才会找到它，而此检查无法计算该令牌。在其他任何屏幕上，即使选择器匹配，Apty 也找不到它",
+      "screenTokenIgnored": "{{where}}带有屏幕令牌，但该应用没有屏幕令牌函数，因此播放器会忽略它",
+      "screenTokenUnchecked": "{{where}}带有屏幕令牌，但无法检查：未读取 app-data.json",
       "auditUnavailable": "{{failureText}}",
       "auditScore": "DOM Health 对此页面的评分为 {{score}}（{{grade}}），基于 {{elements}} 个交互元素",
       "framesNotInspected": "{{total}} 个框架中有 {{count}} 个无法检查",
@@ -1971,7 +1984,29 @@
       "noDuplicateIds": "每个 id 在其文档或 shadow root 中都是唯一的",
       "manualSelectors": "{{percent}}% 的交互元素需要手工编写选择器",
       "ambiguousSelectors": "{{total}} 个交互元素中有 {{ambiguous}} 个只有匹配多个元素的选择器",
-      "automaticSelectors": "按 Apty 自身的规则，大多数交互元素都有稳定的选择器"
+      "automaticSelectors": "按 Apty 自身的规则，大多数交互元素都有稳定的选择器",
+      "daptyNotObserved": "未找到 Ask Dapty 聊天请求或已保存的聊天。",
+      "daptyRead": "已读取 {{turns}} 轮对话、{{calls}} 个聊天请求和 {{stored}} 个已保存的聊天。",
+      "aiAssistantOff": "此应用已关闭 AI 助手，因此小组件不显示聊天。",
+      "aiAssistantOn": "此应用已开启 AI 助手。",
+      "chatCallNotSeen": "未记录到聊天请求；对话来自已保存的聊天或聊天面板。",
+      "chatCallFailed": "最新的聊天请求在 ai-service 回答之前失败（{{detail}}）。",
+      "chatCallHttp": "最新的聊天请求失败，HTTP {{httpStatus}}。",
+      "chatCallOk": "最新的聊天请求已回答（HTTP {{httpStatus}}）。",
+      "chatOriginExtension": "聊天请求来自 Apty Client 的 service worker（扩展模式），CORS 检查不会拦截它。",
+      "chatOriginUnchecked": "未记录到聊天请求，因此未复现 CORS 检查。",
+      "chatOriginAnswered": "聊天请求得到了回答，说明 ai-service 允许了该页面的来源。",
+      "chatOriginUnknown": "不知道页面或应用的环境 URL，因此未复现 CORS 检查。",
+      "chatOriginAllowed": "页面的来源在应用环境 URL 允许的来源之中。",
+      "chatOriginRejected": "页面的来源不在应用 {{urls}} 个环境 URL 允许的来源之中（其中 {{withoutScheme}} 个没有 https:// 协议）。",
+      "daptyNoAnswer": "未记录到对最后一个问题的回答。",
+      "daptyErrorReply": "聊天面板显示的是错误，而不是回答。",
+      "daptyGaveUp": "Dapty 给出了固定的“找不到相关信息”回复。",
+      "daptyAnswered": "Dapty 回答了最后一个问题。",
+      "suggestionsNone": "Dapty 没有推荐任何工作流或知识内容。",
+      "suggestionsMissing": "{{count}} 个推荐中有 {{missing}} 个未在此环境发布。",
+      "suggestionsOpen": "{{count}} 个推荐中有 {{open}} 个取决于可见性规则或无法检查。",
+      "suggestionsLaunch": "全部 {{count}} 个推荐都已在此发布且没有可见性规则，点击即可打开。"
     },
     "rule": {
       "CNV-02": {
@@ -2121,6 +2156,37 @@
       "DOM-07": {
         "summary": "{{total}} 个框架中有 {{count}} 个只能按位置或地址区分，因此存储的框架路径可能指向另一个框架。",
         "fix": "为每个框架设置稳定的 id 或 name，或为其地址添加 Partial Selector 规则，然后重新选择元素。"
+      },
+      "DAP-01": {
+        "summary": "此应用已关闭 AI 助手，因此小组件不显示聊天。",
+        "fix": "在 Admin 中应用的小组件设置里开启 AI 助手，然后发布。"
+      },
+      "DAP-02": {
+        "summary": "最新的聊天请求在 ai-service 回答之前失败（{{detail}}）。",
+        "fix": "在注入模式下，这通常是 CORS 检查造成的（见来源检查）；否则是网络或拦截类扩展。打开 Network 面板后再问一次。"
+      },
+      "DAP-03": {
+        "summary": "最新的聊天请求失败，HTTP {{httpStatus}}，因此 Dapty 无法回答。",
+        "fix": "4xx 表示 ai-service 拒绝了请求；5xx 表示它在回答时出错。请把请求时间和状态码发给 Apty 支持。"
+      },
+      "DAP-03-panel": {
+        "summary": "聊天面板对最后一个问题显示的是错误，而不是回答。",
+        "fix": "打开 Network 面板，再问一次，并查看小组件聊天请求的状态码。"
+      },
+      "DAP-04": {
+        "summary": "页面的来源不在应用 {{urls}} 个环境 URL 允许的来源之中，因此在注入模式下 ai-service 的 CORS 检查会拒绝聊天请求。",
+        "fix": "在 Admin 中把此页面的地址（带 https:// 协议）加到某个环境的 URL 中，然后发布。ai-service 从 app-urls.json 读取这些地址，缓存最长 5 分钟。"
+      },
+      "DAP-04-noScheme": {
+        "summary": "页面的来源不在应用环境 URL 允许的来源之中，且 {{urls}} 个 URL 中有 {{withoutScheme}} 个没有 https:// 协议，这样的 URL 不允许任何来源。在注入模式下 ai-service 的 CORS 检查会拒绝聊天请求。"
+      },
+      "DAP-05": {
+        "summary": "Dapty 给出了固定的“找不到相关信息”回复：没有已索引的文档或允许的网页回答了这个问题。",
+        "fix": "检查此应用在 Admin（AI 设置）中是否已索引文档或连接的资料库、它们是否涵盖这个问题，以及应用的支持文档域名是否列出了你的帮助站点。"
+      },
+      "DAP-06": {
+        "summary": "Dapty 推荐了“{{name}}”，但此环境没有发布它，因此点击后什么也不会打开。",
+        "fix": "Dapty 根据 ai-service 自己缓存的内容文件列出环境中的项目，可能比发布晚几分钟；也可能是模型给出了它没有拿到的项目。请把该项目发布到此环境，或等 ai-service 拿到最新内容后再问。"
       }
     },
     "ruleLabel": "规则 {{ruleId}}",
@@ -2141,6 +2207,7 @@
       "sendSupport": "向支持团队提供 Apty 版本、环境、sourceId、打开的小组件截图以及精简后的条目。",
       "openAppPage": "在此标签页中打开缺少小组件的应用页面，然后再问一次。",
       "comparePatterns": "在 Admin 中比较匹配此页面的各环境 URL 模式；把不应优先的那个改得更具体。",
+      "askRegexFlag": "询问此租户是否开启了正则 URL 功能标志（urlRegex 用于应用，regExpUrl 用于环境；默认均为关闭）：它们决定此页面属于哪个环境，而文件无法判断。",
       "removalTest": "停用或移除 Apty 后重复完全相同的流程：如果仍出现相同的 404，则不是 Apty 造成的。",
       "readConsoleText": "阅读控制台中的完整 CSP 文本：提到 nonce 表示需要支持 nonce 的播放器版本，普通阻止表示需要加入白名单。",
       "runInConsole": "在此页面的控制台中运行该条目的 jQuery 或自定义脚本选择器，看它是否返回目标元素。",
@@ -2148,7 +2215,10 @@
       "reloadAndRetest": "重新加载页面后再问一次：包含自动生成值的选择器在重新加载后常会失效。",
       "playWorkflow": "在此标签页中播放一次该工作流，让 Apty Client 加载其步骤，然后再问一次。",
       "nameStep": "说出失败的步骤（“第 3 步”），并在此标签页中打开它失败的页面。",
-      "checkTiming": "检查内容运行时该元素是否已在页面上（Apty 每秒重试一次，共 5 秒），以及该条目是否已发布到此处且其分段匹配。"
+      "checkTiming": "检查内容运行时该元素是否已在页面上（Apty 每秒重试一次，共 5 秒），以及该条目是否已发布到此处且其分段匹配。",
+      "askDapty": "在此标签页的页面上打开小组件的 Ask Dapty 聊天，再问一次，然后重新检查。",
+      "checkKb": "在 Admin 中查看此应用的 AI 知识（文档和连接的资料库）包含什么，以及是否涵盖这个问题。",
+      "clickAsUser": "以该用户身份、在该项目的可见性规则应当通过的页面上再问一次 Dapty，并点击推荐。"
     },
     "notChecked": {
       "title": "未从文件中检查",
@@ -2159,7 +2229,10 @@
       "cors": "CORS 阻止（浏览器不会向页面报告）",
       "element-timing": "内容运行的那一刻元素是否在页面上",
       "closed-shadow-roots": "封闭 shadow root 内的元素，Apty 和代理都无法打开",
-      "canvas": "在 canvas 上绘制的内容，没有可选择的元素"
+      "screen-token": "当前显示的屏幕是否具有选取元素时的屏幕令牌，该令牌由应用自己的脚本计算",
+      "canvas": "在 canvas 上绘制的内容，没有可选择的元素",
+      "kb-contents": "已索引文档的内容，只有 ai-service 能搜索",
+      "suggestion-ids": "推荐的 ID：聊天面板不显示它们，因此按名称匹配"
     },
     "blocker": {
       "hidden": "在小组件中隐藏",
@@ -2200,7 +2273,29 @@
       "own": "其元素",
       "disabled": "禁用元素 {{n}}",
       "step": "第 {{n}} 步"
-    }
+    },
+    "titleDapty": "Ask Dapty 聊天检查",
+    "daptySource": {
+      "client": "来自 Apty Client 记录的聊天：{{turns}} 轮。",
+      "har": "来自 HAR 文件中的聊天请求：{{turns}} 轮。",
+      "page": "来自页面的聊天请求：{{turns}} 轮。",
+      "widget-dom": "来自小组件的聊天面板：{{turns}} 轮。"
+    },
+    "daptyQuestion": "用户的最后一个问题",
+    "daptySuggestions": "每个推荐点击后的结果",
+    "daptyRow": {
+      "launches": "可以打开",
+      "rule": "仅当可见性规则“{{rule}}”通过时才会打开",
+      "missing": "未在此发布：点击后什么也不会打开",
+      "ambiguous": "有多个项目使用这个名称",
+      "unchecked": "未检查：无法读取它所在的文件"
+    },
+    "daptyListHidden": "（在小组件列表中被隐藏）",
+    "daptyNamesOnly": "按名称匹配：聊天面板不显示推荐的 ID。",
+    "provenanceDapty": "依据 Apty 小组件聊天和 ai-service 的代码（apty-dap development），未经运行时验证。可信度：较可能。",
+    "daptyRecord": "录制下一次 Ask Dapty 聊天（2 分钟）",
+    "daptyRecording": "正在录制此标签页：请在页面上再问 Dapty 一次，然后让我重新检查。",
+    "daptyRecordFailed": "无法录制此标签页。请在此窗口中打开带有小组件的页面后重试。"
   },
   "harCheck": {
     "intro": "当无法连接客户的 Apty Client 时，对客户录制的 HAR 文件运行可见性检查。",
@@ -2224,7 +2319,8 @@
       "validation": "验证",
       "checklist": "清单",
       "knowledgeContent": "知识内容",
-      "widget": "小组件本身"
+      "widget": "小组件本身",
+      "dapty": "Ask Dapty 聊天"
     },
     "name": "名称或 sourceId（可选）",
     "nameHelp": "留空则列出该类型中所有存在阻碍的条目。",
@@ -2240,6 +2336,8 @@
       "not-har": "此 JSON 文件没有 log 条目，因此不是 HAR 文件。",
       "unreadable": "无法读取此文件。",
       "check-failed": "无法对此文件运行检查。"
-    }
+    },
+    "daptyFound": "Ask Dapty：{{calls}} 个聊天请求和 {{stored}} 个已保存的聊天。",
+    "noDapty": "此 HAR 不包含 Ask Dapty 聊天请求。请在打开小组件聊天并重新提问时录制。"
   }
 }
