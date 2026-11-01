@@ -6,6 +6,14 @@ full commit-level history.
 
 ## Unreleased
 
+- **The audit items left open (12, N9), and a test that failed under load**:
+  - **URL patterns (12)**: matching still follows the player (unanchored, case-sensitive, no port normalising), so the verdict never disagrees with it. What changed is the reason given:
+    - a pattern for the page's host written with capitals, or with `:443` or `:80`, can never match; it now gets WNV-03 with that reason, where it got WNV-02, "no pattern for this page's host";
+    - an environment that matches only through an empty pattern, which matches every page, is an open item (WNV-04).
+  - **Screen token (N9)**: an element tied to a screen (`screenToken` set) is left open rather than called found, since the check does not know which screen the page is on. The captures have the token only on rule elements, which the check does not read, so this is a defensive change.
+  - **XPath's first match (N4)** was already fixed on main (694a160).
+  - **Still not changed**: language aliases (14) and jQuery selectors (N5) stay open items; confirming either needs the player's source or a tenant.
+  - **Tests**: the packages' test suites run one package at a time. Run together, they made the DOM Health collector's 6-second budget test fail on every run on a 4-core machine; alone it takes about 3.5 seconds.
 - **LLM plan Phase C: a size gate, a masking proof, and the data-flow docs**.
   - **Size gate (M1)**: `tooling/e2e/request-budgets.json` holds each named request's size plus 10%; a test fails when one grows past it.
   - **Masking proof (M2)**: one page with PHI-like strings in every place Strict masks, read by all nine reading tools. It found three leaks in Strict, now fixed:
@@ -54,7 +62,7 @@ full commit-level history.
     - The summary is a user message, not a system one.
   - **Not changed**:
     - URL patterns keep the player's own matching: unanchored, case-sensitive, no port normalising.
-    - XPath's first-match rule and the screen token stay as they are: neither is in this repo's player sources nor confirmed.
+    - XPath's first-match rule and the screen token stay as they are: neither is in this repo's player sources nor confirmed. (Both were addressed later: see the entry above.)
 - **Summaries of earlier turns (LLM plan P5), off by default**: Settings → AI → Request size → **Summarize earlier turns**. When a chat grows long, the model summarizes its earlier turns, and later requests carry the summary instead.
   - **Masked like every request**: the summary request runs the same outbound filters: masking, the result caps, the request budget and the request report. It carries user and assistant messages only, never tool results.
   - **When**: after a turn whose last request was over three quarters of the request budget, or 20,000 tokens without one. The newest 4 messages and their tool calls stay whole. A chat of 8 items or fewer is never summarized.

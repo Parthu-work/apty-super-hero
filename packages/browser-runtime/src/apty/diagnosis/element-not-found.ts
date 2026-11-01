@@ -457,7 +457,42 @@ function lookupFinding(
   };
 }
 
+/**
+ * The element files the check reads have shown no screen token (it sits on
+ * rule elements), so one that carries a token is left open: the check does
+ * not know which screen the page is on.
+ */
 async function partFinding(
+  kind: ElementKind,
+  part: Part,
+  probe: Probe,
+  stepNamed: boolean,
+): Promise<Finding> {
+  const finding = await lookupPart(kind, part, probe, stepNamed);
+  const element = part.element as Rec | null | undefined;
+  if (!element || typeof element !== "object" || !text(element.screenToken)) {
+    return finding;
+  }
+  const label = where(part);
+  return {
+    ...finding,
+    gates: [
+      ...finding.gates,
+      gate(
+        "element",
+        "unknown",
+        "SEL-03",
+        "screenBound",
+        `${label} is tied to one screen of the application (screenToken), which the check does not compare with this page.`,
+        { part: part.part, n: part.n },
+        [`${label}: screenToken set`],
+      ),
+    ],
+    nexts: [...finding.nexts, "runInConsole"],
+  };
+}
+
+async function lookupPart(
   kind: ElementKind,
   part: Part,
   probe: Probe,
