@@ -117,6 +117,50 @@ describe("testStoredElement", () => {
     });
   });
 
+  it("takes the first XPath match even when a later one is rendered, as the player does", () => {
+    document.body.innerHTML = `
+      <button class="save" style="display:none">Save</button>
+      <button class="save">Save</button>`;
+
+    const test = testStoredElement(document, {
+      language: "xpath",
+      selector: "//button[@class='save']",
+      shadowRoots: [],
+    });
+
+    expect(test).toMatchObject({
+      matchCount: 2,
+      renderedCount: 1,
+      chosen: { rendered: false, inViewport: false },
+    });
+  });
+
+  it("drops SVG nodes from an XPath lookup, so an icon is never the element taken", () => {
+    document.body.innerHTML = `
+      <div class="toolbar">
+        <svg class="icon"><title>Save</title></svg>
+        <button class="icon">Save</button>
+      </div>`;
+
+    const any = testStoredElement(document, {
+      language: "xpath",
+      selector: "//*[contains(@class, 'icon')]",
+      shadowRoots: [],
+    });
+    const svgOnly = testStoredElement(document, {
+      language: "xpath",
+      selector: "//div[@class='toolbar']/*[1]",
+      shadowRoots: [],
+    });
+
+    expect(any).toMatchObject({ matchCount: 1, renderedCount: 1 });
+    expect(svgOnly).toMatchObject({
+      invalid: false,
+      matchCount: 0,
+      chosen: null,
+    });
+  });
+
   it("reports an element below the screen as outside the viewport", () => {
     document.body.innerHTML = `<button id="far">Far</button>`;
     rectOf(document.getElementById("far")!, {

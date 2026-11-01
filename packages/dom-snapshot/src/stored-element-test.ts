@@ -1,8 +1,10 @@
 /**
  * Runs an Apty item's stored selector in one document the way the 5.x
- * player does (`playSelection`: the shadow hosts first, then the first
- * rendered match, else the first match) and reports what it found as
- * counts and booleans only: no text, attribute value or URL leaves the page.
+ * player does and reports what it found as counts and booleans only: no
+ * text, attribute value or URL leaves the page. CSS goes through
+ * `playSelection` (the shadow hosts first, then the first rendered match,
+ * else the first match); XPath takes the first HTML element it matches,
+ * rendered or not, as the player's `document.evaluate` lookup does.
  */
 import { playSelection } from "./apty-selector.js";
 import { querySelectorAllDeep } from "./composed-tree.js";
@@ -48,6 +50,8 @@ function cssParses(doc: Document, selector: string): boolean {
   }
 }
 
+const XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+
 function xpathMatches(doc: Document, selector: string): Element[] | null {
   try {
     const result = doc.evaluate(
@@ -60,7 +64,12 @@ function xpathMatches(doc: Document, selector: string): Element[] | null {
     const elements: Element[] = [];
     for (let i = 0; i < result.snapshotLength; i++) {
       const node = result.snapshotItem(i);
-      if (node?.nodeType === 1) elements.push(node as Element);
+      if (
+        node?.nodeType === 1 &&
+        (node as Element).namespaceURI === XHTML_NAMESPACE
+      ) {
+        elements.push(node as Element);
+      }
     }
     return elements;
   } catch {
@@ -136,13 +145,12 @@ export function testStoredElement(
   if (target.language === "xpath") {
     const matches = xpathMatches(doc, target.selector);
     if (!matches) return empty;
-    const rendered = matches.filter(isElementRendered);
     return {
       ...empty,
       invalid: false,
       matchCount: matches.length,
-      renderedCount: rendered.length,
-      chosen: describeChosen(rendered[0] ?? matches[0] ?? null),
+      renderedCount: matches.filter(isElementRendered).length,
+      chosen: describeChosen(matches[0] ?? null),
     };
   }
 

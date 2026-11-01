@@ -223,6 +223,28 @@ describe("run_diagnosis for selector and page questions (N8)", () => {
   });
 });
 
+describe("run_diagnosis for Ask Dapty questions", () => {
+  it("is offered when a message is about the Widget's AI assistant", () => {
+    for (const message of [
+      "Ask Dapty suggested a workflow that does not exist",
+      "why did dapty answer with the wrong article",
+      "the AI assistant in the widget gives no sources",
+      "the ai chat shows an error after my question",
+      "check the widget chat for this user",
+      "the chatbot recommends a deleted flow",
+      "为什么助手推荐的流程打不开",
+    ]) {
+      expect(names(selectRelevantTools(message))).toContain("run_diagnosis");
+    }
+  });
+
+  it("is not offered for a chat about something else", () => {
+    expect(
+      names(selectRelevantTools("please summarize the chat history above")),
+    ).not.toContain("run_diagnosis");
+  });
+});
+
 describe("a file request after an investigation (P1-1)", () => {
   it("gets the file tools only, not the investigation it follows", () => {
     const select = createStickyToolSelector();

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Injected Widget</title>
+  </head>
+  <body>
+    <h1>Host application</h1>
+    <apty-widget></apty-widget>
+    <script>
+      // The Widget in injected mode: a page script that calls the ai-service
+      // chat endpoint with the page's own fetch.
+      window.askDapty = async (message, context = []) => {
+        const response = await fetch(
+          "/ai-service/api/v1/ai/tenant-1/widget/chat?applicationId=app-9",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              message,
+              context,
+              envId: "prod",
+              applicationType: "web",
+            }),
+          },
+        );
+        return response.json();
+      };
+
+      // The chat panel, built to AIChatConversation.tsx's structure.
+      const root = document.querySelector("apty-widget").attachShadow({
+        mode: "open",
+      });
+      root.innerHTML = `
+        <div class="MuiBox-root panel">
+          <div class="MuiBox-root scroll">
+            <div class="MuiBox-root">
+              <p class="MuiTypography-root MuiTypography-body2">How do I add a vendor?</p>
+            </div>
+            <div class="MuiBox-root" data-chat-dialog="show.feedback">
+              <div class="MuiBox-root markdown">
+                <p>Use the <strong>Create vendor</strong> workflow.</p>
+                <ul><li>Open Vendors</li><li>Click New</li></ul>
+              </div>
+              <div class="MuiBox-root">
+                <span class="MuiTypography-root MuiTypography-caption">Sources</span>
+                <button class="MuiButtonBase-root MuiButton-root MuiButton-outlined">Create vendor</button>
+                <button class="MuiButtonBase-root MuiButton-root MuiButton-outlined">Vendor policy</button>
+              </div>
+              <div class="MuiBox-root">
+                <button class="MuiButtonBase-root MuiIconButton-root" aria-label="Helpful"></button>
+              </div>
+            </div>
+            <div class="MuiBox-root">
+              <p class="MuiTypography-root MuiTypography-body2">And who approves it?</p>
+            </div>
+            <div class="MuiBox-root">
+              <p class="MuiTypography-root MuiTypography-body1" style="color: rgb(211, 47, 47)">Something went wrong. Try again.</p>
+            </div>
+          </div>
+        </div>`;
+    </script>
+  </body>
+</html>

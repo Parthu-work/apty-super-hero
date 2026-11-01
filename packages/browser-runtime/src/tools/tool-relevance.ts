@@ -188,6 +188,13 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
     "apty-ready",
     "apty ready",
     "fails at step",
+    // The Ask Dapty check: the Widget's AI assistant and its suggestions.
+    "dapty",
+    "ai assistant",
+    "ai chat",
+    "widget chat",
+    "chatbot",
+    "助手",
   ],
   extensionNetwork: [
     "segments.json",
