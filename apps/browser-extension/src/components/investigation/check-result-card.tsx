@@ -573,6 +573,16 @@ function DaptySection({
           )}
         </div>
       )}
+      {dapty.storedChatUnread && (
+        <p className="text-xs text-muted-foreground">
+          {t(`checkPack.daptyStoredChatUnread.${dapty.storedChatUnread}`)}
+        </p>
+      )}
+      {dapty.filesFromCdn && (
+        <p className="text-xs text-muted-foreground">
+          {t("checkPack.daptyFilesFromCdn")}
+        </p>
+      )}
     </div>
   );
 }

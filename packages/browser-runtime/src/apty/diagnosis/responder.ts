@@ -12,7 +12,7 @@ import {
 } from "./dapty-conversation.js";
 import { loadDaptyFromClient } from "./dapty-loader.js";
 import { asksAboutDapty } from "./dapty-route.js";
-import { readDaptyForTab } from "./dapty-sources.js";
+import { readDaptyFilesForTab, readDaptyForTab } from "./dapty-sources.js";
 import type { DaptyEvidence } from "./dapty-types.js";
 import {
   diagnoseElementNotFound,
@@ -131,17 +131,28 @@ function subjectLine(result: DiagnosisResult): string {
 /** Where a check read its files: the live Apty Client, or a HAR file the SE picked. */
 export type EvidenceSource = "client" | "har";
 
-const DAPTY_READ_FROM = {
-  client: "the Apty Client's record of the chat and its files",
-  har: "the HAR file's chat calls and Apty files",
-  page: "the page's chat calls and the Apty Client's files",
-  "widget-dom": "the widget's chat panel and the Apty Client's files",
+const DAPTY_CHAT_FROM = {
+  client: "the Apty Client's record of the chat",
+  har: "the HAR file's chat calls",
+  page: "the page's chat calls",
+  cdn: "the stored chat on Apty's content CDN",
+  "widget-dom": "the widget's chat panel",
 } as const;
+
+function daptyReadFrom(dapty: NonNullable<DiagnosisResult["dapty"]>): string {
+  const files =
+    dapty.source === "har"
+      ? "Apty files"
+      : dapty.filesFromCdn
+        ? "the content files on Apty's content CDN"
+        : "the Apty Client's files";
+  return `${DAPTY_CHAT_FROM[dapty.source]} and ${files}`;
+}
 
 function readFrom(result: DiagnosisResult, source: EvidenceSource): string {
   if (result.packId === "page-readiness")
     return "DOM Health's audit of the page";
-  if (result.dapty) return DAPTY_READ_FROM[result.dapty.source];
+  if (result.dapty) return daptyReadFrom(result.dapty);
   return source === "har"
     ? "the HAR file's Apty files"
     : "the Apty Client's files";
@@ -211,6 +222,8 @@ export interface PageSources {
   domHealth: () => Promise<DomHealthAuditOutcome | undefined>;
   /** The Ask Dapty chat; by default as the Apty Client recorded it. */
   dapty?: () => Promise<DaptyEvidence>;
+  /** The Ask Dapty check's content files; by default the Apty Client's. */
+  daptyFiles?: () => Promise<ClientEvidence>;
 }
 
 /** A route the chat or `run_diagnosis` can run: the router's, or the Ask Dapty check. */
@@ -237,12 +250,21 @@ async function elementEvidence(
 export async function runPack(
   route: CheckRoute,
   clientExtensionId: string | undefined,
-  { pageUrl, pageConsole, probeElement, domHealth, dapty }: PageSources,
+  {
+    pageUrl,
+    pageConsole,
+    probeElement,
+    domHealth,
+    dapty,
+    daptyFiles,
+  }: PageSources,
 ): Promise<DiagnosisResult> {
   if (route.packId === "dapty-conversation") {
     const [chat, files, page] = await Promise.all([
       dapty ? dapty() : loadDaptyFromClient(clientExtensionId),
-      loadClientEvidence(clientExtensionId, DAPTY_FILES),
+      daptyFiles
+        ? daptyFiles()
+        : loadClientEvidence(clientExtensionId, DAPTY_FILES),
       pageUrl(),
     ]);
     return diagnoseDaptyConversation(chat, files, page);
@@ -322,6 +344,11 @@ export interface ResponderSources {
     runContext: unknown,
     clientExtensionId: string | undefined,
   ) => Promise<DaptyEvidence>;
+  /** Its content files; undefined reads the Apty Client's. */
+  daptyFilesOf?: (
+    runContext: unknown,
+    clientExtensionId: string | undefined,
+  ) => Promise<ClientEvidence>;
 }
 
 const DEFAULT_SOURCES: ResponderSources = {
@@ -332,6 +359,7 @@ const DEFAULT_SOURCES: ResponderSources = {
   elementProbeOf: tabElementProbeOf,
   domHealthOf: async () => undefined,
   daptyOf: readDaptyForTab,
+  daptyFilesOf: readDaptyFilesForTab,
 };
 
 /**
@@ -350,7 +378,7 @@ export function createDiagnosisResponder(
       : routeSymptom(input);
     if (!route) return undefined;
     const clientExtensionId = await sources.clientExtensionId();
-    const { daptyOf } = sources;
+    const { daptyOf, daptyFilesOf } = sources;
     const result = await runPack(route, clientExtensionId, {
       pageUrl: () => sources.pageUrlOf(runContext),
       pageConsole: () => sources.pageConsoleOf(runContext),
@@ -358,6 +386,9 @@ export function createDiagnosisResponder(
       domHealth: () => sources.domHealthOf(runContext),
       ...(daptyOf
         ? { dapty: () => daptyOf(runContext, clientExtensionId) }
+        : {}),
+      ...(daptyFilesOf
+        ? { daptyFiles: () => daptyFilesOf(runContext, clientExtensionId) }
         : {}),
     });
     // The URL policy every tool result gets on its way to the model

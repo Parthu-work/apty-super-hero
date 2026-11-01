@@ -7,7 +7,7 @@
 
 /** A chat call as a capture source saw it; the capture layer declares the same shape. */
 export interface RawDaptyCall {
-  source: "page" | "client" | "har";
+  source: "page" | "client" | "har" | "cdn";
   kind: "chat" | "stored-chat" | "chat-list";
   /** The full URL, read for its ids only and never shown. */
   url: string;
@@ -29,7 +29,14 @@ export interface RawDaptyDomTurn {
   suggestionNames: string[];
 }
 
-export type DaptySource = "client" | "har" | "page" | "widget-dom";
+export type DaptySource = "client" | "har" | "page" | "cdn" | "widget-dom";
+
+/**
+ * Why the stored chat on Apty's content CDN could not be read: the
+ * application identifies users by an Apty ID that only the Apty Client can
+ * read, or the page did not hold the value it identifies users by.
+ */
+export type StoredChatUnread = "apty-id" | "no-user-value";
 
 export interface DaptySuggestion {
   /** The item's sourceId; missing when only the chat panel's names were read. */
@@ -76,4 +83,5 @@ export interface DaptyEvidence {
   storedChats: number;
   /** Suggestions carry ids; false when they are names from the chat panel. */
   suggestionIds: boolean;
+  storedChatUnread?: StoredChatUnread;
 }

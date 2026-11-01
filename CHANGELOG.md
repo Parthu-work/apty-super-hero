@@ -6,6 +6,11 @@ full commit-level history.
 
 ## Unreleased
 
+- **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
+  - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
+  - The content URL and tenant come from its web-accessible `player-config.json`, or `window.__APTY_PLAYER_CONFIG__` in Injected mode. The application and environment come from `app-urls.json`, as the player picks them.
+  - The content files, and the user's newest stored chat with its suggestions' ids, are read from the public content CDN with no credentials, through the body deny list and redaction. The stored chat needs the user's ID on the page, as the application's `userIdentificationConfig` names it; an application that uses Apty's own ID falls back to the chat panel, and the card says why.
+  - Design and sources: [`docs/development/ask-dapty.md`](docs/development/ask-dapty.md).
 - **Selector check: screen-gated elements (N9)**: an element captured with a screen token is named as screen-gated when the application has a screen token function (SEL-14), as the player's `isOnCapturedScreen` gate does.
 - **Widget check: the regex URL flags**: when the player's regex URL mode would pick another environment, or meets an invalid pattern, the environment gate is open (WNV-08) instead of asserting WNV-02/WNV-03.
 - **Router (N1, N6)**: the SE's own authoring and Studio wording ("I can't find the button to publish a workflow", "is there a way to…", "stuck in draft") goes to the model.
