@@ -262,12 +262,35 @@ describe("routeSymptom", () => {
       "write a workflow step that fails gracefully",
       "is this page ready for the demo?",
       "I can't select anything in this dropdown",
+      "I can't find the button to publish a workflow",
+      "I can't find the field where I set the tooltip delay",
+      "Can you show me how to build a workflow step that fails gracefully?",
+      "I'm writing a workflow; the step should handle errors, any tips?",
+      "Is there a way to make a workflow skip a step that errors?",
+      "Apty failed to track the launcher button clicks in analytics",
+      "we couldn't detect the field change in the validation rule",
+      "the workflow step failed to save in Studio",
+      "my workflow step is stuck in draft",
+      "the launcher selector dropdown in Studio is broken",
+      "can't select any of the dropdown options in the widget settings",
     ]) {
       expect(routeSymptom(message)).toBeUndefined();
     }
     expect(routeSymptom("I can't select any elements in Studio")).toEqual({
       packId: "page-readiness",
     });
+    expect(routeSymptom("I can't find the checklist in the widget")).toEqual({
+      packId: "content-not-visible",
+      kind: "checklist",
+    });
+    expect(
+      routeSymptom(
+        "the selector is green in Studio but the launcher doesn't show",
+      ),
+    ).toEqual({ packId: "element-not-found", kind: "launcher" });
+    expect(
+      routeSymptom("Apty can't find the element for the launcher"),
+    ).toEqual({ packId: "element-not-found", kind: "launcher" });
   });
 
   it("routes a widget that does not load, and an item that fails at a step (16)", () => {
