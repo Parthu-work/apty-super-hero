@@ -294,6 +294,27 @@ describe("createDaptySource", () => {
       expect(client).toHaveBeenNthCalledWith(2, "saved");
     });
 
+    it("asks a Client found on the page once whether it answers, and leaves out one that does not", async () => {
+      const client = vi.fn(async () => recorded(0));
+      const clientFiles = vi.fn(async () => noClient);
+      const clientAnswers = vi.fn(async () => false);
+      const source = createDaptySource({
+        client,
+        clientFiles,
+        detectClient: async () => "p".repeat(32),
+        clientAnswers,
+      });
+
+      await source.chat({ tabId: 4 }, undefined);
+      await source.files({ tabId: 4 }, undefined);
+      await source.chat({ tabId: 4 }, "saved");
+
+      expect(clientAnswers).toHaveBeenCalledTimes(1);
+      expect(client).toHaveBeenNthCalledWith(1, undefined);
+      expect(clientFiles).toHaveBeenCalledWith(undefined, expect.any(Array));
+      expect(client).toHaveBeenNthCalledWith(2, "saved");
+    });
+
     it("reads the content files from the CDN when the Client does not answer, and shares one CDN read with the chat", async () => {
       const cdn = vi.fn(() => stored);
       const source = createDaptySource({

@@ -17,6 +17,7 @@ import {
 } from "../apty-cdn-source.js";
 import { getDaptyPageCalls } from "../dapty-page-capture.js";
 import { readDaptyWidgetTurns } from "../dapty-widget-reader.js";
+import { sendExternalMessageDetailed } from "../external-messaging.js";
 import {
   type AptyWidgetChatRead,
   ConfiguredServiceWorkerDiagnosticsProvider,
@@ -52,6 +53,13 @@ interface DaptyReaders {
   client?: (extensionId: string | undefined) => Promise<DaptyEvidence>;
   /** The Apty Client's ID as the tab's page shows it, when none is saved. */
   detectClient?: (tabId: number) => Promise<string | undefined>;
+  /**
+   * Whether a Client found on the page answers the Agent at all. The 5.x
+   * Client takes every external message and never answers one it does not
+   * know (`chrome-background-transport.ts`), so asking it would wait out
+   * every timeout.
+   */
+  clientAnswers?: (extensionId: string) => Promise<boolean>;
   /** Apty's content CDN for a tab: the stored chat and the content files. */
   cdn?: (tabId: number) => CdnResourceSource;
   /** Overridable for tests; the Apty Client's files by default. */
@@ -71,6 +79,10 @@ const tabOf = (runContext: unknown) => {
 
 /** One CDN read per tab and check run: the chat and the files share it. */
 const CDN_REUSE_MS = 15_000;
+/** How long a found Client's answer is trusted; silence for less, as a cold worker can miss the ping. */
+const CLIENT_ANSWER_REUSE_MS = 5 * 60_000;
+const CLIENT_SILENCE_REUSE_MS = 60_000;
+const CLIENT_PING_MS = 1_500;
 
 const APTY_NOT_FOUND: ClientEvidence["connection"] = {
   ok: false,
@@ -98,11 +110,29 @@ export function createDaptySource(readers: DaptyReaders) {
     return source;
   };
 
-  const clientIdFor = async (tab: number | undefined, saved?: string) =>
-    saved ??
-    (tab !== undefined && readers.detectClient
-      ? await readers.detectClient(tab).catch(() => undefined)
-      : undefined);
+  const answering = new Map<string, { until: number; ok: Promise<boolean> }>();
+  const answers = (id: string) => {
+    if (!readers.clientAnswers) return Promise.resolve(true);
+    const cached = answering.get(id);
+    if (cached && Date.now() < cached.until) return cached.ok;
+    const ok = readers.clientAnswers(id).catch(() => false);
+    const asked = Date.now();
+    answering.set(id, { until: asked + CLIENT_SILENCE_REUSE_MS, ok });
+    void ok.then((answered) => {
+      if (answered) {
+        answering.set(id, { until: asked + CLIENT_ANSWER_REUSE_MS, ok });
+      }
+    });
+    return ok;
+  };
+
+  /** The saved Client ID, or the page's when none is saved and that Client answers. */
+  const clientIdFor = async (tab: number | undefined, saved?: string) => {
+    if (saved) return saved;
+    if (tab === undefined || !readers.detectClient) return undefined;
+    const found = await readers.detectClient(tab).catch(() => undefined);
+    return found && (await answers(found)) ? found : undefined;
+  };
 
   async function chat(
     runContext: unknown,
@@ -190,6 +220,14 @@ const forTab = createDaptySource({
       peer: "client",
     }).readWidgetChat(),
   detectClient: detectClientExtensionId,
+  clientAnswers: async (extensionId) =>
+    (
+      await sendExternalMessageDetailed(
+        extensionId,
+        { type: "apty-debug-agent:get-service-worker-status" },
+        CLIENT_PING_MS,
+      )
+    ).ok,
   cdn: (tabId) =>
     createCdnResourceSource({
       page: tabAptyPage(tabId),

@@ -1,7 +1,7 @@
 /**
  * The Ask Dapty check with an Apty Client that reports nothing, as every
- * Client does today: no `onMessageExternal` listener, no Client ID saved in
- * the Agent. The Client only does what the real one does on every page:
+ * Client does today: like 5.x, it takes every external message and answers
+ * none of the Agent's, and no Client ID is saved in the Agent. The Client only does what the real one does on every page:
  * inject `chrome-extension://<id>/window-script.js` and serve its
  * web-accessible `player-config.json`. The Agent finds the Client from the
  * page, reads the content files and the user's stored chat from the content
@@ -74,6 +74,7 @@ function writeUnpatchedClient(dir, contentURL) {
       manifest_version: 3,
       name: "Apty Client E2E (unpatched)",
       version: "1.0.0",
+      background: { service_worker: "background.js" },
       content_scripts: [{ matches: ["<all_urls>"], js: ["content.js"] }],
       web_accessible_resources: [
         { matches: ["<all_urls>"], resources: ["player-config.json"] },
@@ -89,6 +90,12 @@ script.src = chrome.runtime.getURL("window-script.js");
 `,
   );
   writeFileSync(join(dir, "window-script.js"), "void 0;\n");
+  // Like the 5.x Client's IPC receiver (chrome-background-transport.ts): it
+  // takes every external message and never answers one it does not know.
+  writeFileSync(
+    join(dir, "background.js"),
+    "chrome.runtime.onMessageExternal.addListener(() => true);\n",
+  );
   writeFileSync(
     join(dir, "player-config.json"),
     JSON.stringify({ contentURL, tenantId: TENANT, isSelfHosted: false }),
@@ -177,10 +184,12 @@ describe("Ask Dapty check with an unpatched Apty Client", () => {
     const panel = await openSidePanel(browser, model, app);
     const before = model.requests.length;
 
+    const asked = Date.now();
     await sendChat(panel, "Dapty suggested a workflow but nothing opens");
 
     const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
     await card.waitFor({ timeout: 30_000 });
+    const tookMs = Date.now() - asked;
     await card
       .getByText("From the stored chat on Apty's content CDN: 2 turn(s).")
       .waitFor();
@@ -199,6 +208,10 @@ describe("Ask Dapty check with an unpatched Apty Client", () => {
     assert.ok(!text.includes("http"), "the card shows no URL");
     assert.ok(!text.includes("jane.doe@example.com"), "the email is masked");
     assert.equal(model.requests.length, before, "the model was not asked");
+    assert.ok(
+      tookMs < 6_000,
+      `the check did not wait on a Client that never answers (${tookMs} ms)`,
+    );
     assert.ok(
       served.some((r) => r.path.endsWith(`/widget-chat/${CHAT_ID}.json`)),
       "the stored chat was read from the CDN",
