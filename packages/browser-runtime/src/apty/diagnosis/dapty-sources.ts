@@ -6,15 +6,25 @@
  * so the check runs with whichever the build has.
  */
 
+import { getDaptyPageCalls } from "../dapty-page-capture.js";
+import { readDaptyWidgetTurns } from "../dapty-widget-reader.js";
+import {
+  type AptyWidgetChatRead,
+  ConfiguredServiceWorkerDiagnosticsProvider,
+} from "../service-worker-diagnostics.js";
 import { loadDaptyFromClient } from "./dapty-loader.js";
-import { daptyEvidenceFromCalls, daptyEvidenceFromDom } from "./dapty-parse.js";
+import {
+  daptyEvidenceFromCalls,
+  daptyEvidenceFromDom,
+  daptyTurnsFromClientChat,
+} from "./dapty-parse.js";
 import type {
   DaptyEvidence,
   RawDaptyCall,
   RawDaptyDomTurn,
 } from "./dapty-types.js";
 
-export interface DaptyReaders {
+interface DaptyReaders {
   /** The chat calls the page in a tab made, newest last. */
   pageCalls?: (tabId: number) => Promise<RawDaptyCall[]>;
   /** The turns the widget's chat panel shows in a tab. */
@@ -23,6 +33,8 @@ export interface DaptyReaders {
   ) => Promise<
     { ok: true; turns: RawDaptyDomTurn[] } | { ok: false; reason: string }
   >;
+  /** The Widget's own conversations, as the Apty Client reports them. */
+  widgetChat?: (extensionId: string | undefined) => Promise<AptyWidgetChatRead>;
   /** Overridable for tests; the Apty Client's record by default. */
   client?: (extensionId: string | undefined) => Promise<DaptyEvidence>;
 }
@@ -33,6 +45,7 @@ const holdsChat = (evidence: DaptyEvidence) =>
 /**
  * The `daptyOf` source for `createDiagnosisResponder`. A reader that throws
  * counts as holding nothing, so the next one is tried.
+ * @internal
  */
 export function createDaptySource(readers: DaptyReaders) {
   const client = readers.client ?? loadDaptyFromClient;
@@ -48,7 +61,25 @@ export function createDaptySource(readers: DaptyReaders) {
       const page = daptyEvidenceFromCalls(calls, "page");
       if (holdsChat(page)) return page;
     }
-    const recorded = await client(clientExtensionId);
+    const [recorded, reported] = await Promise.all([
+      client(clientExtensionId),
+      readers.widgetChat
+        ? readers.widgetChat(clientExtensionId).catch(() => undefined)
+        : undefined,
+    ]);
+    // The Widget's own state holds every turn with ids; the recorded calls
+    // still say how the newest call went.
+    const newest = reported?.ok ? reported.chats.at(-1) : undefined;
+    const turns = newest ? daptyTurnsFromClientChat(newest.turns) : [];
+    if (turns.length > 0) {
+      return {
+        ...recorded,
+        source: "client",
+        connection: { ok: true },
+        turns,
+        suggestionIds: true,
+      };
+    }
     if (holdsChat(recorded)) return recorded;
     if (tab !== undefined && readers.widgetTurns) {
       const read = await readers
@@ -61,3 +92,14 @@ export function createDaptySource(readers: DaptyReaders) {
     return recorded;
   };
 }
+
+/** The chat for the conversation's tab from every source this build has. */
+export const readDaptyForTab = createDaptySource({
+  pageCalls: getDaptyPageCalls,
+  widgetTurns: readDaptyWidgetTurns,
+  widgetChat: (extensionId) =>
+    new ConfiguredServiceWorkerDiagnosticsProvider({
+      extensionId,
+      peer: "client",
+    }).readWidgetChat(),
+});

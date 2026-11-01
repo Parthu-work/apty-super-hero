@@ -2291,7 +2291,10 @@
     },
     "daptyListHidden": "(hidden from the widget's list)",
     "daptyNamesOnly": "Matched by name: the chat panel does not show the suggestions' ids.",
-    "provenanceDapty": "From Apty's widget chat and ai-service code (apty-dap development), not runtime-verified. Confidence: likely."
+    "provenanceDapty": "From Apty's widget chat and ai-service code (apty-dap development), not runtime-verified. Confidence: likely.",
+    "daptyRecord": "Record the next Ask Dapty chat (2 minutes)",
+    "daptyRecording": "Recording this tab: ask Dapty the question again on the page, then ask me to check again.",
+    "daptyRecordFailed": "This tab could not be recorded. Open the page with the widget in this window and try again."
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",

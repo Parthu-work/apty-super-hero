@@ -19,10 +19,11 @@ on how Apty runs on the page.
 
 | Source | Mode | What it holds | Needs | Status |
 | --- | --- | --- | --- | --- |
-| The Apty Client's record | Extension | The chat call's answer and the stored chat files, through the existing Client contract (`apty-debug-agent:list-observed-resources` and `get-resource-body`) | The Client routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` | Built here (`dapty-loader.ts`), default source |
+| The Widget's own conversations | Extension | Every turn with its suggestions' ids, from the Widget's state (`apty-debug-agent:get-widget-chat`) | The Client adopts the reference module's `recordWidgetChatTurn` ([`docs/integrations/apty`](../integrations/apty/README.md)) | Wired (`service-worker-diagnostics.ts` `readWidgetChat`) |
+| The Apty Client's record | Extension | The chat call (with its request body when the Client records it) and the stored chat files, through `list-observed-resources` and `get-resource-body` | The Client routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` | Wired (`dapty-loader.ts`) |
 | A HAR file | Either | The chat call with its request (`postData`, which holds the whole earlier conversation as `context`), its answer and its `Origin` header | The customer records a HAR with the chat open | Built here (`har.ts` `daptyFromHar`, HAR page "The Ask Dapty chat") |
-| The page's network | Injected | The chat POST's request body (`chrome.webRequest`), and its answer during a recording (`chrome.debugger`) | Nothing from Apty | Capture layer (session B: `dapty-page-capture.ts`), wired at integration |
-| The widget's chat panel | Either | The rendered question, answer and suggestion names (no ids), from `<apty-widget>`'s open shadow root | Nothing from Apty | Capture layer (session B: `dapty-widget-reader.ts`), wired at integration |
+| The page's network | Injected | The chat POST's request body, always (`chrome.webRequest`); its answer while the tab is recorded (`chrome.debugger`, the card's "Record the next Ask Dapty chat") | Nothing from Apty | Wired (`dapty-page-capture.ts`) |
+| The widget's chat panel | Either | The rendered question, answer and suggestion names (no ids), from `<apty-widget>`'s open shadow root | Nothing from Apty | Wired (`dapty-widget-reader.ts`), last resort |
 
 Why the sources differ: in Injected mode the widget's code runs in the page
 and calls `fetch` itself (`player/src/main-content-script/api-client/widget-chat-api-client.service.ts:50-55`),
@@ -87,14 +88,19 @@ chat panel, the suggestions' ids (it matches by name and says so).
 - For the model: `run_diagnosis` with kind `dapty`.
 - On the HAR page: "What is missing?" → "The Ask Dapty chat".
 
-## Integration with the capture layer
+## Source order
 
-`ResponderSources.daptyOf(runContext, clientExtensionId)` chooses the
-source; it is unset today, so the check reads the Client's record. At
-integration it reads, in this order: the page's calls for the
-conversation's tab (`getDaptyPageCalls`, through `daptyEvidenceFromCalls`
-with source `page`), the Client's record, then the widget's chat panel
-(`readDaptyWidgetTurns`, through `daptyEvidenceFromDom`), taking the first
-that holds a conversation. Both raw shapes (`RawDaptyCall`,
-`RawDaptyDomTurn`) are declared in `dapty-types.ts` and identically in the
-capture layer, so the two join without a shared file.
+`readDaptyForTab` (`dapty-sources.ts`) is the source for the chat and for
+`run_diagnosis`. It reads, in order, and takes the first that holds a
+conversation:
+
+1. the page's calls for the conversation's tab (Injected mode);
+2. the Widget's own conversations reported by the Client, with the
+   recorded calls' outcome for the newest call (Extension mode);
+3. the Client's recorded calls and stored chats;
+4. the widget's chat panel (names only).
+
+A reader that fails counts as holding nothing. In Injected mode the request
+is always captured but the answer only while the tab is recorded, so a card
+with no answer offers "Record the next Ask Dapty chat (2 minutes)"; the SE
+asks Dapty again on the page, then asks for the check again.

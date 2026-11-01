@@ -115,4 +115,68 @@ describe("createDaptySource", () => {
     expect(pageCalls).not.toHaveBeenCalled();
     expect(evidence.source).toBe("client");
   });
+  it("takes the Widget's own conversation, with ids, and the recorded call's outcome", async () => {
+    const read = createDaptySource({
+      pageCalls: async () => [],
+      client: async () => ({
+        ...recorded(0),
+        calls: 1,
+        lastCall: { status: 503, timestamp: 9 },
+      }),
+      widgetChat: async () => ({
+        ok: true as const,
+        chats: [
+          {
+            chatId: "old",
+            name: "Old",
+            turns: [{ role: "user" as const, text: "old" }],
+          },
+          {
+            chatId: "new",
+            name: "Reports",
+            turns: [
+              { role: "system" as const, text: "ignored" },
+              {
+                role: "user" as const,
+                text: "Where are reports? jane.doe@example.com",
+              },
+              {
+                role: "assistant" as const,
+                text: "Try this.",
+                suggestions: [
+                  { id: "0c05", name: "Export a report", type: "workflow" },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      widgetTurns: panel,
+    });
+
+    const evidence = await read({ tabId: 4 }, "ext");
+
+    expect(evidence.source).toBe("client");
+    expect(evidence.turns.map((t) => t.role)).toEqual(["user", "assistant"]);
+    expect(evidence.turns[0]?.text).not.toContain("jane.doe@example.com");
+    expect(evidence.turns[1]?.suggestions).toEqual([
+      { id: "0c05", name: "Export a report", type: "workflow" },
+    ]);
+    expect(evidence.lastCall?.status).toBe(503);
+  });
+
+  it("falls back when the Client cannot report the Widget's conversations", async () => {
+    const read = createDaptySource({
+      client: async () => recorded(1),
+      widgetChat: async () => ({
+        ok: false as const,
+        failure: "no_receiver" as const,
+        message: "x",
+      }),
+    });
+
+    expect((await read({ tabId: 4 }, "ext")).turns[0]?.text).toBe(
+      "From the Client",
+    );
+  });
 });

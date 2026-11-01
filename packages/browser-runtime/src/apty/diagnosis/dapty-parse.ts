@@ -215,6 +215,21 @@ export function daptyEvidenceFromCalls(
 }
 
 /**
+ * The turns of one conversation as the Apty Client reports it from the
+ * Widget's own state (`apty-debug-agent:get-widget-chat`), with ids.
+ */
+export function daptyTurnsFromClientChat(
+  turns: ReadonlyArray<{ role: string; text: string; suggestions?: unknown }>,
+): DaptyTurn[] {
+  return turns
+    .flatMap((t) => {
+      const parsed = turn(t.role, t.text, t.suggestions);
+      return parsed ? [parsed] : [];
+    })
+    .slice(-MAX_TURNS);
+}
+
+/**
  * The conversation from the widget's chat panel: names only, and no call to
  * judge. The capture layer's chat-panel reader feeds it at integration.
  * @internal

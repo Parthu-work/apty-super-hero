@@ -14,12 +14,14 @@ import type {
   RuleId,
   VerdictStatus,
 } from "@apty/browser-runtime";
+import { recordDaptyChat } from "@apty/browser-runtime/apty/dapty-page-capture";
 import type {
   DaptyRow,
   DaptySummary,
 } from "@apty/browser-runtime/apty/diagnosis/types";
 import { DefaultToolDisplay } from "@apty/ui/components/chatbot";
 import { StatusBadge, type StatusTone } from "@apty/ui/components/ui/badge";
+import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
@@ -32,6 +34,7 @@ import {
   InfoIcon,
   type LucideIcon,
 } from "lucide-react";
+import { useState } from "react";
 
 const KB_PAGE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
 const PACKS = new Set([
@@ -464,11 +467,65 @@ const ROW_TONE: Record<DaptyRow["status"], string> = {
   unchecked: "text-muted-foreground",
 };
 
+/** How long a recording of the page's Ask Dapty chat runs: one question and its answer. */
+const RECORD_MS = 120_000;
+
+/**
+ * In Injected mode the page's chat request is captured all the time, but
+ * its answer only while the tab is recorded (with the debugger), so the SE
+ * records the next chat and asks again.
+ */
+function RecordDaptyChat() {
+  const t = useCheckText();
+  const [state, setState] = useState<"idle" | "recording" | "failed">("idle");
+  const record = async () => {
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (typeof tab?.id !== "number") throw new Error("no tab");
+      const started = await recordDaptyChat(tab.id, { maxMs: RECORD_MS });
+      setState(started.ok ? "recording" : "failed");
+    } catch {
+      setState("failed");
+    }
+  };
+  return (
+    <div className="space-y-1" aria-live="polite">
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={state === "recording"}
+        onClick={() => void record()}
+      >
+        {t("checkPack.daptyRecord")}
+      </Button>
+      {state !== "idle" && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            state === "recording"
+              ? "checkPack.daptyRecording"
+              : "checkPack.daptyRecordFailed",
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** The Ask Dapty conversation: what each suggestion would do on a click, and the user's last question. */
-function DaptySection({ dapty }: { dapty: DaptySummary }) {
+function DaptySection({
+  dapty,
+  canRecord,
+}: {
+  dapty: DaptySummary;
+  canRecord: boolean;
+}) {
   const t = useCheckText();
   return (
     <div className="space-y-2">
+      {canRecord && <RecordDaptyChat />}
       <p className="text-xs text-muted-foreground">
         {t(`checkPack.daptySource.${dapty.source}`, { turns: dapty.turns })}
       </p>
@@ -596,7 +653,18 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
         </div>
       )}
 
-      {result.dapty && <DaptySection dapty={result.dapty} />}
+      {result.dapty && (
+        <DaptySection
+          dapty={result.dapty}
+          canRecord={
+            result.dapty.source !== "har" &&
+            result.gates.some(
+              (g) =>
+                g.reason === "daptyNotObserved" || g.reason === "daptyNoAnswer",
+            )
+          }
+        />
+      )}
 
       {blockedRows.length > 0 && (
         <ul className="divide-y divide-border rounded-md border border-border">

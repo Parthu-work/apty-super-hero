@@ -9,8 +9,14 @@ import {
 } from "@apty/browser-runtime/apty/diagnosis/diagnosis-test-utils";
 import { I18nProvider } from "@apty/ui/i18n/context";
 import type { UIToolPart } from "@apty/ui/types";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+const recordDaptyChat = vi.hoisted(() => vi.fn());
+vi.mock("@apty/browser-runtime/apty/dapty-page-capture", () => ({
+  recordDaptyChat,
+}));
+
 import { CheckResultCard } from "./check-result-card";
 
 const CHAT =
@@ -154,5 +160,50 @@ describe("CheckResultCard for the Ask Dapty check", () => {
       screen.getByText("未在此发布：点击后什么也不会打开"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Not published here: opens nothing")).toBeNull();
+  });
+  it("records the next chat in this tab when no answer was captured", async () => {
+    recordDaptyChat.mockResolvedValue({ ok: true, until: 1 });
+    (chrome.tabs as unknown as { query: unknown }).query = vi.fn(async () => [
+      { id: 12 },
+    ]);
+    const unanswered = diagnoseDaptyConversation(
+      daptyEvidenceFromCalls(
+        [
+          {
+            source: "page",
+            kind: "chat",
+            url: CHAT,
+            method: "POST",
+            status: 200,
+            requestBody: JSON.stringify({ message: "help", context: [] }),
+            timestamp: 1,
+          },
+        ],
+        "page",
+      ),
+      evidenceFrom(capture()),
+    );
+    render(<CheckResultCard tool={tool(unanswered)} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Record the next Ask Dapty chat (2 minutes)",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Recording this tab: ask Dapty the question again on the page, then ask me to check again.",
+      ),
+    ).toBeInTheDocument();
+    expect(recordDaptyChat).toHaveBeenCalledWith(12, { maxMs: 120_000 });
+  });
+
+  it("offers no recording when the chat already has its answer", () => {
+    render(<CheckResultCard tool={tool(checked(SUGGESTED))} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Record the next Ask Dapty chat/ }),
+    ).toBeNull();
   });
 });

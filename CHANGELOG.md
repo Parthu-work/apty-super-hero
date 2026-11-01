@@ -6,8 +6,11 @@ full commit-level history.
 
 ## Unreleased
 
+- **Selector check: screen-gated elements (N9)**: an element captured with a screen token is named as screen-gated when the application has a screen token function (SEL-14), as the player's `isOnCapturedScreen` gate does.
+- **Widget check: the regex URL flags**: when the player's regex URL mode would pick another environment, or meets an invalid pattern, the environment gate is open (WNV-08) instead of asserting WNV-02/WNV-03.
+- **Router (N1, N6)**: the SE's own authoring and Studio wording ("I can't find the button to publish a workflow", "is there a way to…", "stuck in draft") goes to the model.
 - **Ask Dapty check (partial)**: when an end user asked the widget's AI assistant and got no answer, or suggestions that do not open, the side panel reads the conversation and checks it with no model call.
-  - **Sources**: the Apty Client's record of the chat call and stored chats (Extension mode, through the existing Client contract), and a customer's HAR (the chat request, its answer and its Origin). The page's own network and the widget's chat panel come with the capture layer.
+  - **Sources**, best first: the page's own chat calls (Injected mode; the answer while the tab is recorded from the card), the Widget's own conversations reported by the Client and its recorded calls (Extension mode), the widget's chat panel (names only), and a customer's HAR (the chat request, its answer and its Origin).
   - **Checks**, from apty-dap's widget and ai-service code: the chat turned off for the application (DAP-01), a failed chat call or an HTTP error (DAP-02, DAP-03), in Injected mode a page origin ai-service's CORS check rejects, including environment URLs with no scheme (DAP-04), Dapty's fixed "couldn't find information" reply (DAP-05), and each suggestion: opens, opens only if its visibility rule passes, not published here (DAP-06), several items with the name, or unchecked. An item hidden from the widget's list still opens from Dapty, and the card says so.
   - **Where**: in the chat ("Dapty suggested a workflow but nothing opens"), as `run_diagnosis` kind `dapty`, and on the HAR page ("The Ask Dapty chat"). English and Chinese.
   - **Privacy**: every turn is redacted before the check reads it; the card shows the last question collapsed and cut to 200 characters, the suggestion names and statuses, and no URL or id.

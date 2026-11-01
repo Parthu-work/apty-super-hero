@@ -24,6 +24,7 @@ import {
   sendChat,
   startMockModel,
   startPageServer,
+  startServer,
   tempDir,
   unpackedExtensionId,
 } from "./harness.mjs";
@@ -206,15 +207,36 @@ function injectedHar(pageUrl) {
 const clientDir = writeDaptyClient(join(tempDir("apty-e2e-dapty-"), "client"));
 const clientId = unpackedExtensionId(clientDir);
 
+/** The capture layer's fake injected Widget: `window.askDapty(message)` posts to the page's own origin. */
+const WIDGET_PAGE = readFileSync(
+  join(ROOT, "tooling/e2e/fixtures/dapty-capture/widget-page.html"),
+  "utf8",
+);
+
 let browser;
 let model;
 let site;
+let injected;
 
 before(async () => {
   model = await startMockModel();
   model.script(() => ({ text: "MODEL WAS CALLED" }));
   site = await startPageServer({
     "/app.html": "<title>CRM</title><h1>Reports</h1>",
+  });
+  injected = await startServer((req, res) => {
+    const url = new URL(req.url, "http://x");
+    if (req.method === "POST" && url.pathname.endsWith("/widget/chat")) {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(ANSWER);
+      return;
+    }
+    if (url.pathname === "/widget.html") {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(WIDGET_PAGE);
+      return;
+    }
+    res.writeHead(404).end();
   });
   browser = await launchBrowser({ extraExtensions: [clientDir] });
 });
@@ -223,6 +245,7 @@ after(async () => {
   await browser?.close();
   model?.close();
   site?.close();
+  injected?.close();
 });
 
 async function connectClient() {
@@ -324,5 +347,43 @@ describe("Ask Dapty check, end to end", () => {
     assert.deepEqual(violations, [], describeViolations(violations));
     await panel.close();
     await app.close();
+  });
+  it("reads an Injected-mode chat from the page itself: the question passively, the answer after a recording", async () => {
+    await connectClient();
+    const page = await browser.context.newPage();
+    await page.goto(`${injected.origin}/widget.html`);
+    const panel = await openSidePanel(browser, model, page);
+    const before = model.requests.length;
+
+    await page.evaluate(() => window.askDapty("Where do I export reports?"));
+    await sendChat(panel, "Dapty is not answering my user");
+    const first = panel
+      .getByRole("region", { name: "Ask Dapty chat check" })
+      .last();
+    await first.waitFor({ timeout: 30_000 });
+    await first
+      .getByText("No answer to the last question was recorded.")
+      .waitFor();
+    await first.getByText("From the page's chat calls: 1 turn(s).").waitFor();
+    await first
+      .getByRole("button", {
+        name: "Record the next Ask Dapty chat (2 minutes)",
+      })
+      .click();
+    await first.getByText(/^Recording this tab/).waitFor({ timeout: 30_000 });
+
+    await page.evaluate(() => window.askDapty("Where do I export reports?"));
+    await sendChat(panel, "Dapty suggested a workflow but nothing opens");
+    const second = panel
+      .getByRole("region", { name: "Ask Dapty chat check" })
+      .last();
+    await second.getByText("Rule DAP-06").waitFor({ timeout: 30_000 });
+    await second.getByText("Not published here: opens nothing").waitFor();
+    await second.getByText(/^From the page's chat calls/).waitFor();
+    assert.equal(model.requests.length, before, "the model was not asked");
+    const text = await second.textContent();
+    assert.ok(!text.includes("127.0.0.1"), "the card shows no URL");
+    await panel.close();
+    await page.close();
   });
 });
