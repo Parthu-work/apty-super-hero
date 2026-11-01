@@ -38,6 +38,7 @@ import {
   type GateResult,
   type GateStatus,
   KINDS,
+  type LoadedFile,
   type NextCheck,
   type NotChecked,
   type Params,
@@ -55,6 +56,7 @@ const CARD_IFRAME = "1496612922";
 const CARD_SCROLL = "1496253303";
 const VERIFIED_ON =
   "5.x code, commit 4c406d5, 2026-09-22, and support cases; not runtime-verified";
+const APP_DATA = "app-data.json";
 
 type ElementKind = Extract<
   ContentKind,
@@ -130,9 +132,13 @@ function gate(
   );
 }
 
-/** Names of the files the pack reads for a kind; a workflow's steps come from its own file (`stepFileFor`). */
+/**
+ * Names of the files the pack reads for a kind, with app-data.json for the
+ * application's screen token function; a workflow's steps come from its own
+ * file (`stepFileFor`).
+ */
 export function elementFilesFor(kind: ContentKind): string[] {
-  return [KINDS[kind].file];
+  return [KINDS[kind].file, APP_DATA];
 }
 
 /**
@@ -457,7 +463,120 @@ function lookupFinding(
   };
 }
 
+/** Whether the application computes screen tokens, from app-data.json's DOM config. */
+type ScreenTokens =
+  | { read: true; computed: boolean }
+  | {
+      read: false;
+      file: LoadedFile;
+      problem: (typeof FILE_PROBLEMS)[keyof typeof FILE_PROBLEMS];
+    };
+
+function screenTokensOf(evidence: ClientEvidence): ScreenTokens {
+  const file = fileOf(evidence, APP_DATA);
+  if (file.status !== "ok") {
+    return { read: false, file, problem: FILE_PROBLEMS[file.status] };
+  }
+  const config = (file.json as Rec | null | undefined)?.config as
+    | Rec
+    | undefined;
+  const domConfig = config?.domConfig as Rec | undefined;
+  return {
+    read: true,
+    computed: text(domConfig?.screenTokenFunction) !== undefined,
+  };
+}
+
+/**
+ * The player's screen gate (`isOnCapturedScreen`): before any lookup, an
+ * element that stored a screen token resolves to nothing unless the
+ * application's token function, the tenant's own script, returns that token
+ * for the screen on display. Only a picked element's token reaches the
+ * player (a jQuery one too, but that is not run here). The token and the
+ * function can name program codes, so only that they exist is reported.
+ */
+function screenFinding(part: Part, tokens: ScreenTokens): Finding | undefined {
+  const element = part.element as Rec | null | undefined;
+  const token = element?.screenToken;
+  if (
+    element?.identificationType !== "ELEMENT_PICKER" ||
+    typeof token !== "string" ||
+    token === ""
+  ) {
+    return undefined;
+  }
+  const label = where(part);
+  const base = { part: part.part, n: part.n };
+  const stored = `${label}: screenToken set`;
+  if (!tokens.read) {
+    return {
+      gates: [
+        gate(
+          "screen",
+          "unknown",
+          "SEL-14",
+          "screenTokenUnchecked",
+          `${label} carries a screen token that could not be checked: ${tokens.problem.text(tokens.file)}`,
+          base,
+          [stored, `${APP_DATA}: ${tokens.file.status}`],
+        ),
+      ],
+      causes: [],
+      nexts: [tokens.problem.nextCheck],
+    };
+  }
+  if (!tokens.computed) {
+    return {
+      gates: [
+        gate(
+          "screen",
+          "info",
+          "SEL-14",
+          "screenTokenIgnored",
+          `${label} carries a screen token, but the application has no screen token function, so the player ignores the token.`,
+          base,
+          [stored, `${APP_DATA}: no domConfig.screenTokenFunction`],
+        ),
+      ],
+      causes: [],
+      nexts: [],
+    };
+  }
+  return {
+    gates: [
+      gate(
+        "screen",
+        "unknown",
+        "SEL-14",
+        "screenGated",
+        `${label} is screen-gated: the player resolves it only when the screen on display has the token it was captured with, which this check cannot compute. On any other screen Apty finds nothing, even when the selector matches.`,
+        base,
+        [stored, `${APP_DATA}: domConfig.screenTokenFunction set`],
+      ),
+    ],
+    causes: [],
+    nexts: [],
+  };
+}
+
 async function partFinding(
+  kind: ElementKind,
+  part: Part,
+  probe: Probe,
+  stepNamed: boolean,
+  tokens: ScreenTokens,
+): Promise<Finding> {
+  const found = await selectorFinding(kind, part, probe, stepNamed);
+  const screen = screenFinding(part, tokens);
+  if (!screen) return found;
+  return {
+    gates: [...found.gates, ...screen.gates],
+    causes: found.causes,
+    nexts: [...found.nexts, ...screen.nexts],
+  };
+}
+
+async function selectorFinding(
   kind: ElementKind,
   part: Part,
   probe: Probe,
@@ -894,15 +1013,22 @@ export async function diagnoseElementNotFound(
     );
   }
 
+  const tokens = screenTokensOf(evidence);
   const findings: Finding[] = [];
   for (const part of chosen) {
-    findings.push(await partFinding(kind, part, probe, q.step !== undefined));
+    findings.push(
+      await partFinding(kind, part, probe, q.step !== undefined, tokens),
+    );
   }
   gates.push(...findings.flatMap((f) => f.gates));
   const causes = findings.flatMap((f) => f.causes);
   const nexts = findings.flatMap((f) => f.nexts);
-  const open = gates.some((g) => g.status === "unknown");
+  const openGates = gates.filter((g) => g.status === "unknown");
+  const open = openGates.length > 0;
+  const screenOpen = openGates.some((g) => g.id === "screen");
   const elsewhere = gates.filter((g) => g.reason === "noMatchHere").length;
+  const several = chosen.length > 1;
+  const foundOne = `The stored selector${several ? "s" : ""} of "${name}" find${several ? "" : "s"} exactly one rendered element on this page`;
   const verdict: Verdict =
     causes.length === 0 && elsewhere > 0
       ? {
@@ -921,19 +1047,25 @@ export async function diagnoseElementNotFound(
         : open
           ? {
               status: "candidates",
-              headline: `Nothing in the stored element${chosen.length > 1 ? "s" : ""} of "${name}" decides it; see the open checks.`,
+              headline: openGates.every((g) => g.id === "screen")
+                ? `${foundOne}, but whether Apty uses ${several ? "them" : "it"} on the screen on display depends on a screen token this check cannot compare; see the open checks.`
+                : `Nothing in the stored element${several ? "s" : ""} of "${name}" decides it; see the open checks.`,
               causes: [],
               nextCheck: nexts[0] ?? "openItems",
             }
           : {
               status: "no_cause_in_data",
-              headline: `The stored selector${chosen.length > 1 ? "s" : ""} of "${name}" find${chosen.length > 1 ? "" : "s"} exactly one rendered element on this page.`,
+              headline: `${foundOne}.`,
               causes: [],
               nextCheck: "checkTiming",
             };
   return finish(q, evidence, gates, verdict, {
     name,
     matched: [name],
-    notChecked: ["element-timing", "closed-shadow-roots"],
+    notChecked: [
+      "element-timing",
+      "closed-shadow-roots",
+      ...(screenOpen ? (["screen-token"] as const) : []),
+    ],
   });
 }

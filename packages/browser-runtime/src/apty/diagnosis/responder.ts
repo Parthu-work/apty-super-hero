@@ -102,6 +102,8 @@ const NOT_CHECKED_TEXT: Record<NotChecked, string> = {
     "whether the element is on the page at the moment the content runs",
   "closed-shadow-roots":
     "elements inside closed shadow roots, which neither Apty nor the agent can open",
+  "screen-token":
+    "whether the screen on display has the screen token an element was captured with, which the application's own script computes",
   canvas: "content drawn on a canvas, which has no elements to select",
   "kb-contents":
     "what the indexed documents say, which only ai-service can search",

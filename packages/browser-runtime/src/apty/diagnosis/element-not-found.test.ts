@@ -2,9 +2,14 @@ import type { StoredElementTest } from "@apty/dom-snapshot";
 import { describe, expect, it, vi } from "vitest";
 import type { ElementProbe, FrameProbe } from "../element-probe.js";
 import { capture, evidenceFrom } from "./diagnosis-test-utils.js";
-import { diagnoseElementNotFound, stepFileFor } from "./element-not-found.js";
+import {
+  diagnoseElementNotFound,
+  elementFilesFor,
+  stepFileFor,
+} from "./element-not-found.js";
 import tourSteps from "./fixtures/content-5x/workflow-0c000000-0000-7000-8000-000000000002.json";
 import type { Rec } from "./pack-kit.js";
+import { transcriptOf } from "./responder.js";
 
 const TOUR_FILE = "workflow-0c000000-0000-7000-8000-000000000002.json";
 
@@ -437,6 +442,159 @@ describe("diagnoseElementNotFound", () => {
     expect(announcement.verdict.status).toBe("out_of_scope");
     expect(missing.gates.at(-1)?.reason).toBe("notPublished");
     expect(several.subject.matched).toHaveLength(2);
+  });
+
+  describe("screen tokens (N9)", () => {
+    const TOKEN = "PRG-7731:claims-intake";
+    const TOKEN_FUNCTION =
+      "function (doc) { return 'PRG-7731:' + doc.title; } // secret-program";
+    const one = { 'select[name="lead_source"]': [top(test(1))] };
+
+    const gated = (screenTokenFunction?: string | null) =>
+      files((all) => {
+        (tooltip(all).element as Rec).screenToken = TOKEN;
+        const appData = all["app-data.json"] as unknown as Rec;
+        if (screenTokenFunction !== undefined) {
+          (appData.config as Rec).domConfig = { screenTokenFunction };
+        }
+      });
+    const screenGates = (result: { gates: Array<{ id: string }> }) =>
+      result.gates.filter((g) => g.id === "screen");
+    const expectNoTokenIn = (text: string) => {
+      expect(text).not.toContain("PRG-7731");
+      expect(text).not.toContain("claims-intake");
+      expect(text).not.toContain("secret-program");
+    };
+
+    it("loads app-data.json with the item's file, for the application's screen token function", () => {
+      expect(elementFilesFor("tooltip")).toEqual([
+        "tooltip.json",
+        "app-data.json",
+      ]);
+    });
+
+    it("leaves a picked element open when the application computes screen tokens, even when its selector matches one element", async () => {
+      const result = await diagnoseElementNotFound(
+        gated(TOKEN_FUNCTION),
+        { kind: "tooltip", query: "Lead source help" },
+        probe(one),
+      );
+
+      expect(result.gates.find((g) => g.id === "lookup")?.reason).toBe(
+        "oneMatch",
+      );
+      expect(screenGates(result)).toEqual([
+        expect.objectContaining({
+          status: "unknown",
+          reason: "screenGated",
+          params: { part: "own", n: 1 },
+        }),
+      ]);
+      expect(result.verdict).toMatchObject({
+        status: "candidates",
+        causes: [],
+        nextCheck: "openItems",
+      });
+      expect(result.verdict.headline).toMatch(
+        /finds exactly one rendered element on this page, but whether Apty uses it on the screen on display depends on a screen token/,
+      );
+      expect(result.notChecked).toContain("screen-token");
+      const transcript = transcriptOf(result);
+      expect(transcript).toContain("- Open: Its element is screen-gated");
+      expectNoTokenIn(JSON.stringify(result));
+      expectNoTokenIn(transcript);
+    });
+
+    it("keeps a cause found and adds the screen gate as an open item", async () => {
+      const result = await diagnoseElementNotFound(
+        gated(TOKEN_FUNCTION),
+        { kind: "tooltip", query: "Lead source help" },
+        probe(),
+      );
+
+      expect(result.verdict).toMatchObject({
+        status: "cause_found",
+        nextCheck: "openItems",
+      });
+      expect(result.verdict.causes.map((c) => c.ruleId)).toEqual(["SEL-07"]);
+      expect(screenGates(result)).toHaveLength(1);
+    });
+
+    it("says the player ignores the token when the application has no screen token function", async () => {
+      for (const evidence of [gated(null), gated(""), gated()]) {
+        const result = await diagnoseElementNotFound(
+          evidence,
+          { kind: "tooltip", query: "Lead source help" },
+          probe(one),
+        );
+
+        expect(screenGates(result)).toEqual([
+          expect.objectContaining({
+            status: "info",
+            reason: "screenTokenIgnored",
+          }),
+        ]);
+        expect(result.verdict.status).toBe("no_cause_in_data");
+        expect(result.notChecked).not.toContain("screen-token");
+      }
+    });
+
+    it("says the token could not be checked when app-data.json was not read", async () => {
+      const evidence = gated(TOKEN_FUNCTION);
+      delete evidence.files["app-data.json"];
+
+      const result = await diagnoseElementNotFound(
+        evidence,
+        { kind: "tooltip", query: "Lead source help" },
+        probe(one),
+      );
+
+      expect(screenGates(result)).toEqual([
+        expect.objectContaining({
+          status: "unknown",
+          reason: "screenTokenUnchecked",
+        }),
+      ]);
+      expect(result.verdict).toMatchObject({
+        status: "candidates",
+        nextCheck: "reload",
+      });
+      expect(result.notChecked).toContain("screen-token");
+      expectNoTokenIn(JSON.stringify(result));
+      expectNoTokenIn(transcriptOf(result));
+    });
+
+    it("gates only picked elements: a CSS or XPath element's token never reaches the player", async () => {
+      const evidence = files((all) => {
+        const item = all["validation.json"]?.[0] as Rec;
+        (item.element as Rec).screenToken = TOKEN;
+        const disabled = (item.disableElement as Rec).elements as Rec[];
+        (disabled[0] as Rec).screenToken = TOKEN;
+        disabled.push({
+          ...(disabled[0] as Rec),
+          identificationType: "CSS",
+          cssSelector: "input.email",
+        });
+        const appData = all["app-data.json"] as unknown as Rec;
+        (appData.config as Rec).domConfig = {
+          screenTokenFunction: TOKEN_FUNCTION,
+        };
+      });
+
+      const result = await diagnoseElementNotFound(
+        evidence,
+        { kind: "validation", query: "Email format" },
+        probe({
+          "//input[@type='email']": [top(test(1))],
+          'button[type="submit"]': [top(test(1))],
+          "input.email": [top(test(1))],
+        }),
+      );
+
+      expect(screenGates(result).map((g) => g.params)).toEqual([
+        { part: "disabled", n: 1 },
+      ]);
+    });
   });
 
   it("names a Client it cannot reach", async () => {

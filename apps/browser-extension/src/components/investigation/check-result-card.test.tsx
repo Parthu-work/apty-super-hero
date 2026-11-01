@@ -460,6 +460,60 @@ describe("CheckResultCard", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("shows a screen-gated element as an open check without its token or the application's function (N9)", async () => {
+    const files = capture() as Record<string, Array<Record<string, unknown>>>;
+    const tooltip = files["tooltip.json"]?.[0] as Record<string, unknown>;
+    (tooltip.element as Record<string, unknown>).screenToken =
+      "PRG-7731:claims-intake";
+    const appData = files["app-data.json"] as unknown as {
+      config: Record<string, unknown>;
+    };
+    appData.config.domConfig = {
+      screenTokenFunction: "function (doc) { return 'PRG-7731:' + doc.title; }",
+    };
+    const result = await diagnoseElementNotFound(
+      evidenceFrom(files),
+      { kind: "tooltip", query: "Lead source help" },
+      async () => ({
+        ok: true as const,
+        frames: [
+          {
+            depth: 0,
+            sameOriginAsTop: true,
+            answered: true,
+            test: {
+              invalid: false,
+              matchCount: 1,
+              renderedCount: 1,
+              brokenHostIndex: null,
+              shadowMatches: 0,
+              chosen: { rendered: true, inViewport: true },
+            },
+          },
+        ],
+      }),
+    );
+
+    render(<CheckResultCard tool={tool(result)} />);
+
+    const card = screen.getByRole("region", {
+      name: "Why Apty may not find the element of “Lead source help”",
+    });
+    expect(within(card).getByText("Screen")).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "Its element is screen-gated: the player resolves it only when the screen on display has the token it was captured with, which this check cannot compute. On any other screen Apty finds nothing, even when the selector matches",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "Whether the screen on display has the screen token an element was captured with, which the application's own script computes",
+      ),
+    ).toBeInTheDocument();
+    expect(card.textContent).not.toContain("PRG-7731");
+    expect(card.textContent).not.toContain("claims-intake");
+  });
+
   it("shows the page check with each DOM Health finding and its card", () => {
     const result = diagnosePageReadiness({
       available: true,
