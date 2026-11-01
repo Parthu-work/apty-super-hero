@@ -337,4 +337,24 @@ describe("prepareNodeForPolicy and the page itself (M2)", () => {
 
     expect(prepareNodeForPolicy(region, "withhold").children).toEqual([]);
   });
+
+  it("withholds both the title and the typed content of a page in design mode, whose root is editable", () => {
+    const root = {
+      role: "RootWebArea",
+      name: "Jane Testpatient - Note",
+      value: "Jane Testpatient was seen today",
+      editable: true,
+      children: [
+        { role: "StaticText", name: "Editor-Marker-Eight", children: [] },
+        { role: "option", name: "Diabetes", selected: true, children: [] },
+        { role: "paragraph", children: [] },
+      ],
+    };
+
+    const shown = prepareNodeForPolicy(root, "withhold");
+
+    expect(shown.name).toBe("[title withheld]");
+    expect(shown.value).toBeUndefined();
+    expect(shown.children).toEqual([{ role: "paragraph", children: [] }]);
+  });
 });
