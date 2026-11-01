@@ -41,7 +41,11 @@ import type {
   RuleId,
   Verdict,
 } from "./types.js";
-import { type EnvironmentMatch, matchEnvironments } from "./url-patterns.js";
+import {
+  type EnvironmentMatch,
+  type HostPitfall,
+  matchEnvironments,
+} from "./url-patterns.js";
 
 const WIDGET_CARD = "1496645690";
 const CARD_APP_URLS = "1496253321";
@@ -114,6 +118,18 @@ function isWebPage(url: string | undefined): url is string {
 }
 
 const orderOf = (m: EnvironmentMatch) => `${m.name} (order ${m.order})`;
+
+const PITFALL_TEXT: Record<HostPitfall, string> = {
+  upperCaseHost:
+    "the pattern's host has capital letters, which a page's URL never has",
+  defaultPort:
+    "the pattern names the default port (:443 or :80), which a page's URL never shows",
+};
+
+const whyNoMatch = (m: EnvironmentMatch) =>
+  m.hostPitfalls.length > 0
+    ? m.hostPitfalls.map((p) => `${orderOf(m)}: ${PITFALL_TEXT[p]}`)
+    : [`${orderOf(m)}: same host, the pattern's path does not match`];
 
 interface Step {
   gates: GateResult[];
@@ -203,9 +219,7 @@ function environmentStep(
         params: { envs: names },
         summary: `${names} has a URL pattern for this site that does not cover this page, so no content runs here.`,
         fix: "In Admin, set the environment's URL to the application's base URL (a * covers every page under it), publish and reload. Change a test environment first if there is one.",
-        evidence: sameHost.map(
-          (m) => `${orderOf(m)}: same host, the pattern's path does not match`,
-        ),
+        evidence: sameHost.flatMap(whyNoMatch),
       };
       return {
         gates: [
@@ -266,6 +280,21 @@ function environmentStep(
     ),
   ];
   let next: NextCheck | undefined;
+  if (winner.onlyEmptyPatternMatches) {
+    gates.push(
+      gate(
+        "environment-match",
+        "unknown",
+        "WNV-04",
+        "emptyPatternMatch",
+        `${orderOf(winner)} matches this page only through an empty URL pattern, which matches every page.`,
+        { env: orderOf(winner) },
+        [`${orderOf(winner)}: an empty URL pattern`],
+        CARD_TEST_PROD,
+      ),
+    );
+    next = "comparePatterns";
+  }
   if (matching.length > 1) {
     const others = matching.slice(1).map(orderOf).join(", ");
     gates.push(
@@ -280,7 +309,7 @@ function environmentStep(
         CARD_TEST_PROD,
       ),
     );
-    next = "comparePatterns";
+    next ??= "comparePatterns";
   }
   const loaded = evidence.envId?.replace(/^env-/, "");
   if (loaded && text(winner.env.id) && loaded !== winner.env.id) {

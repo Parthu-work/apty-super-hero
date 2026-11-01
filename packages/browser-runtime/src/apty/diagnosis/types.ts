@@ -234,6 +234,7 @@ export type GateReason =
   | "envRegexFlip"
   | "envRegexInvalid"
   | "envRegexInvalidNoMatch"
+  | "emptyPatternMatch"
   | "otherEnvLoaded"
   | "envVisibilityRule"
   | "widgetOtherUsers"

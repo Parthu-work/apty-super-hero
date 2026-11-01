@@ -1917,6 +1917,7 @@
       "envRegexFlip": "关闭正则 URL 标志时此页面属于 {{flagsOff}}；开启时，{{flagsOn}} 作为正则表达式匹配并按顺序优先",
       "envRegexInvalid": "{{env}} 有一个不是有效正则表达式的 URL 模式：开启正则 URL 标志时，此应用的小组件不会加载；关闭时，此页面属于 {{flagsOff}}",
       "envRegexInvalidNoMatch": "{{env}} 有一个不是有效正则表达式的 URL 模式：开启正则 URL 标志时，此应用的小组件不会加载；关闭时，没有环境匹配",
+      "emptyPatternMatch": "{{env}} 仅通过一个空的 URL 模式匹配此页面，而空模式会匹配所有页面",
       "otherEnvLoaded": "读取的文件属于 {{loaded}}，而不是 {{env}}",
       "envVisibilityRule": "{{env}} 有自己的可见性规则“{{rule}}”（{{action}}），由浏览器判定",
       "widgetOtherUsers": "面向所选分段，也面向不在任何活动分段中的用户",

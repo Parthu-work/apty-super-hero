@@ -1917,6 +1917,7 @@
       "envRegexFlip": "With the regex URL flags off this page gets {{flagsOff}}; with them on, {{flagsOn}} matches as a regular expression and comes first",
       "envRegexInvalid": "{{env}} has a URL pattern that is not a valid regular expression: with the regex URL flags on, the widget does not load for this application; with them off, this page gets {{flagsOff}}",
       "envRegexInvalidNoMatch": "{{env}} has a URL pattern that is not a valid regular expression: with the regex URL flags on, the widget does not load for this application; with them off, no environment matches",
+      "emptyPatternMatch": "{{env}} matches this page only through an empty URL pattern, which matches every page",
       "otherEnvLoaded": "The files read are for {{loaded}}, not {{env}}",
       "envVisibilityRule": "{{env}} has its own visibility rule “{{rule}}” ({{action}}), decided in the browser",
       "widgetOtherUsers": "For selected segments, and for users in no active segment too",

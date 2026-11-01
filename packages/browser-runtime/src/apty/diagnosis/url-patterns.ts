@@ -4,7 +4,9 @@
  * lowest first, and the first whose `urls` pattern matches wins; a star
  * matches anything, and a pattern can match anywhere inside the URL. From
  * 5.x code at 4c406d5, not runtime-verified. Matching is case-sensitive, as
- * the cards say nothing else.
+ * the cards say nothing else, so a pattern whose host has capitals or the
+ * default port never matches: a page's URL has neither. Such a pattern
+ * still counts as one for the page's host, and is named as the reason.
  *
  * With the tenant's regex URL feature flags on (urlRegex for the
  * application, regExpUrl for the environment; both off by default), the
@@ -42,6 +44,10 @@ function regexOutcome(
   return patterns.some((p) => patternMatches(p, url)) ? "match" : "none";
 }
 
+export type HostPitfall = "upperCaseHost" | "defaultPort";
+
+const DEFAULT_PORT = /:(?:443|80)$/;
+
 /** The host part of a pattern such as `https://*.example.com/app/*`. */
 function patternHost(pattern: string): string | undefined {
   const rest = pattern.replace(/^[a-z*]+:\/\//i, "");
@@ -63,6 +69,21 @@ export interface EnvironmentMatch {
   regex: "match" | "none" | "invalid";
   /** One of its patterns is for the page's host, whether or not it matches. */
   sameHost: boolean;
+  /** Why its patterns for the page's host can never match as written. */
+  hostPitfalls: HostPitfall[];
+  /** It matches only through an empty pattern, which matches every URL. */
+  onlyEmptyPatternMatches: boolean;
+}
+
+const hostMatches = (patternHost: string, host: string) =>
+  new RegExp(`^${wildcard(patternHost)}$`).test(host);
+
+function pitfallsOf(patternHost: string, host: string): HostPitfall[] {
+  const pitfalls: HostPitfall[] = [];
+  if (patternHost !== patternHost.toLowerCase()) pitfalls.push("upperCaseHost");
+  if (DEFAULT_PORT.test(patternHost)) pitfalls.push("defaultPort");
+  const normalized = patternHost.toLowerCase().replace(DEFAULT_PORT, "");
+  return pitfalls.length > 0 && hostMatches(normalized, host) ? pitfalls : [];
 }
 
 /** Every environment of every application, by order, matched against the page. */
@@ -75,16 +96,22 @@ export function matchEnvironments(
     .flatMap((app) => records(app.environments))
     .map((env) => {
       const patterns = texts(env.urls);
+      const matching = patterns.filter((p) => patternMatches(p, pageUrl));
+      const hosts = patterns.flatMap((p) => patternHost(p) ?? []);
+      const hostPitfalls = [
+        ...new Set(hosts.flatMap((h) => pitfallsOf(h, host))),
+      ];
       return {
         env,
         name: text(env.name) ?? "(unnamed)",
         order: typeof env.order === "number" ? env.order : Number.MAX_VALUE,
-        matches: patterns.some((p) => patternMatches(p, pageUrl)),
+        matches: matching.length > 0,
         regex: regexOutcome(patterns, pageUrl),
-        sameHost: patterns.some((p) => {
-          const h = patternHost(p);
-          return h !== undefined && new RegExp(`^${wildcard(h)}$`).test(host);
-        }),
+        sameHost:
+          hostPitfalls.length > 0 || hosts.some((h) => hostMatches(h, host)),
+        hostPitfalls,
+        onlyEmptyPatternMatches:
+          matching.length > 0 && matching.every((p) => p === ""),
       };
     })
     .sort((a, b) => a.order - b.order);
