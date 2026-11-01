@@ -183,6 +183,24 @@ describe("diagnoseElementNotFound", () => {
     expect(result.verdict.nextCheck).toBe("runInConsole");
   });
 
+  it("leaves an element tied to a screen open instead of calling it found, as the check does not know this page's screen (N9)", async () => {
+    const result = await diagnoseElementNotFound(
+      files((all) => {
+        (tooltip(all).element as Rec).screenToken = "screen-7";
+      }),
+      { kind: "tooltip", query: "Lead source help" },
+      probe({ 'select[name="lead_source"]': [top(test(1))] }),
+    );
+
+    expect(result.gates.find((g) => g.reason === "screenBound")).toMatchObject({
+      status: "unknown",
+      ruleId: "SEL-03",
+    });
+    expect(result.verdict.status).toBe("candidates");
+    expect(result.verdict.nextCheck).toBe("runInConsole");
+    expect(JSON.stringify(result)).not.toContain("screen-7");
+  });
+
   it("finds a hand-written selector that only matches inside a frame, and a frame path at the wrong depth", async () => {
     const selector = 'select[name="lead_source"]';
     const handWritten = await diagnoseElementNotFound(

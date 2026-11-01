@@ -96,6 +96,41 @@ describe("widget-not-visible", () => {
     ]);
   });
 
+  it("names a pattern for this host that can never match because of capitals or the default port (12)", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        const [prod, uat] = envs(f) as [Rec, Rec];
+        prod.urls = ["https://CRM.example.com/*"];
+        uat.urls = ["https://crm.example.com:443/*"];
+      }),
+      PROD_PAGE,
+    );
+
+    expect(result.verdict.causes[0]).toMatchObject({ ruleId: "WNV-03" });
+    expect(result.verdict.causes[0]?.evidence).toEqual([
+      "Production (order 1): the pattern's host has capital letters, which a page's URL never has",
+      "UAT (order 2): the pattern names the default port (:443 or :80), which a page's URL never shows",
+    ]);
+    expect(JSON.stringify(result)).not.toContain("CRM.example.com");
+  });
+
+  it("leaves open an environment that matches only through an empty pattern, which matches every page (12)", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        (envs(f)[0] as Rec).urls = [""];
+      }),
+      "https://other.example.org/x",
+    );
+
+    expect(gateOf(result, "emptyPatternMatch")).toMatchObject({
+      status: "unknown",
+      ruleId: "WNV-04",
+      detail:
+        "Production (order 1) matches this page only through an empty URL pattern, which matches every page.",
+    });
+    expect(result.verdict.nextCheck).toBe("comparePatterns");
+  });
+
   it("says which environment wins when a Test pattern also covers the production host", () => {
     const result = diagnoseWidgetNotVisible(
       files((f) => {

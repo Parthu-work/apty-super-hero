@@ -22,7 +22,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check . --fix --unsafe",
     "lint:dependencies": "knip --strict",
-    "test": "pnpm -r --if-present test && npm run test:mcp-bridge && npm run test:scripts",
+    "test": "pnpm -r --workspace-concurrency=1 --if-present test && npm run test:mcp-bridge && npm run test:scripts",
     "test:coverage": "pnpm -r --if-present test:coverage && npm --prefix apps/mcp-bridge run test:coverage",
     "typecheck": "pnpm -r --if-present typecheck && npm run typecheck:mcp-bridge",
     "test:mcp-bridge": "npm --prefix apps/mcp-bridge test",
