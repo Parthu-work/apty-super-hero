@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Strict mode: a page in design mode**: a document whose root is editable (`designMode`) now has its typed content, its direct text and its chosen option withheld as well as its title. Withholding the title returned early and skipped the editable-content redaction, so the root's value reached snapshots in Strict.
 - **The audit items left open (12, N9), and a test that failed under load**:
   - **URL patterns (12)**: matching still follows the player (unanchored, case-sensitive, no port normalising), so the verdict never disagrees with it. What changed is the reason given:
     - a pattern for the page's host written with capitals, or with `:443` or `:80`, can never match; it now gets WNV-03 with that reason, where it got WNV-02, "no pattern for this page's host";

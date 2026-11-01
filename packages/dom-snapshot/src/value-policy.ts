@@ -187,18 +187,18 @@ function isChosenOption(node: PolicyNode): boolean {
  * untouched.
  */
 export function prepareNodeForPolicy<T extends PolicyNode>(
-  node: T,
+  rawNode: T,
   policy: ValuePolicy,
 ): T {
-  if (policy === "show") return node;
-  // The document's name is its title, which can name the patient.
-  if (
+  if (policy === "show") return rawNode;
+  // The document's name is its title, which can name the patient. A page in
+  // design mode is also editable, so its content is redacted below too.
+  const node =
     policy === "withhold" &&
-    (node.role === "RootWebArea" || node.role === "WebArea") &&
-    node.name
-  ) {
-    return { ...node, name: WITHHELD_TITLE };
-  }
+    (rawNode.role === "RootWebArea" || rawNode.role === "WebArea") &&
+    rawNode.name
+      ? { ...rawNode, name: WITHHELD_TITLE }
+      : rawNode;
   if (isEditableRole(node.role) || node.editable) {
     return {
       ...node,
