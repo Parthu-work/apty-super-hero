@@ -2274,6 +2274,7 @@
       "disabled": "Disabled element {{n}}",
       "step": "Step {{n}}"
     },
+    "filesFromCdn": "Content files read from Apty's content CDN, as the Apty Client does not report its calls.",
     "titleDapty": "Ask Dapty chat check",
     "daptySource": {
       "client": "From the Apty Client's record of the chat: {{turns}} turn(s).",
@@ -2297,7 +2298,6 @@
       "apty-id": "The stored chat, which has the ids, was not read: this application identifies its users by an Apty ID that only the Apty Client can read.",
       "no-user-value": "The stored chat, which has the ids, was not read: the page does not hold the value this application identifies its users by."
     },
-    "daptyFilesFromCdn": "Content files read from Apty's content CDN, as the Apty Client does not report its calls.",
     "provenanceDapty": "From Apty's widget chat and ai-service code (apty-dap development), not runtime-verified. Confidence: likely.",
     "daptyRecord": "Record the next Ask Dapty chat (2 minutes)",
     "daptyRecording": "Recording this tab: ask Dapty the question again on the page, then ask me to check again.",

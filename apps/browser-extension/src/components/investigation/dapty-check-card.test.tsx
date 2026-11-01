@@ -153,9 +153,9 @@ describe("CheckResultCard for the Ask Dapty check", () => {
         ]),
         storedChatUnread: "apty-id",
       },
-      { ...evidenceFrom(capture()), fromCdn: true },
+      evidenceFrom(capture()),
     );
-    render(<CheckResultCard tool={tool(result)} />);
+    render(<CheckResultCard tool={tool({ ...result, filesFromCdn: true })} />);
 
     expect(
       screen.getByText(

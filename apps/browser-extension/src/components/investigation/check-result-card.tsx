@@ -578,11 +578,6 @@ function DaptySection({
           {t(`checkPack.daptyStoredChatUnread.${dapty.storedChatUnread}`)}
         </p>
       )}
-      {dapty.filesFromCdn && (
-        <p className="text-xs text-muted-foreground">
-          {t("checkPack.daptyFilesFromCdn")}
-        </p>
-      )}
     </div>
   );
 }
@@ -723,6 +718,12 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
             ))}
           </ul>
         </div>
+      )}
+
+      {result.filesFromCdn && (
+        <p className="text-xs text-muted-foreground">
+          {t("checkPack.filesFromCdn")}
+        </p>
       )}
 
       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">

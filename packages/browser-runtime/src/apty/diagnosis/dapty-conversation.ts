@@ -143,7 +143,6 @@ function finish(
       ...(dapty.storedChatUnread
         ? { storedChatUnread: dapty.storedChatUnread }
         : {}),
-      ...(files.fromCdn ? { filesFromCdn: true } : {}),
     },
   };
 }

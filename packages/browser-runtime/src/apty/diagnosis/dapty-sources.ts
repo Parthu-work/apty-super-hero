@@ -9,19 +9,18 @@
  * whichever the build has.
  */
 
-import {
-  type CdnResourceSource,
-  createCdnResourceSource,
-  detectClientExtensionId,
-  tabAptyPage,
-} from "../apty-cdn-source.js";
 import { getDaptyPageCalls } from "../dapty-page-capture.js";
 import { readDaptyWidgetTurns } from "../dapty-widget-reader.js";
-import { sendExternalMessageDetailed } from "../external-messaging.js";
 import {
   type AptyWidgetChatRead,
   ConfiguredServiceWorkerDiagnosticsProvider,
 } from "../service-worker-diagnostics.js";
+import {
+  type AptyFilesReaders,
+  createAptyFiles,
+  DEFAULT_APTY_FILES_READERS,
+  tabOf,
+} from "./apty-files.js";
 import { DAPTY_FILES } from "./dapty-conversation.js";
 import { loadDaptyFrom, loadDaptyFromClient } from "./dapty-loader.js";
 import {
@@ -35,10 +34,8 @@ import type {
   RawDaptyDomTurn,
   StoredChatUnread,
 } from "./dapty-types.js";
-import { loadClientEvidence, loadEvidenceFrom } from "./loader.js";
-import type { ClientEvidence } from "./types.js";
 
-interface DaptyReaders {
+interface DaptyReaders extends AptyFilesReaders {
   /** The chat calls the page in a tab made, newest last. */
   pageCalls?: (tabId: number) => Promise<RawDaptyCall[]>;
   /** The turns the widget's chat panel shows in a tab. */
@@ -51,88 +48,20 @@ interface DaptyReaders {
   widgetChat?: (extensionId: string | undefined) => Promise<AptyWidgetChatRead>;
   /** Overridable for tests; the Apty Client's record by default. */
   client?: (extensionId: string | undefined) => Promise<DaptyEvidence>;
-  /** The Apty Client's ID as the tab's page shows it, when none is saved. */
-  detectClient?: (tabId: number) => Promise<string | undefined>;
-  /**
-   * Whether a Client found on the page answers the Agent at all. The 5.x
-   * Client takes every external message and never answers one it does not
-   * know (`chrome-background-transport.ts`), so asking it would wait out
-   * every timeout.
-   */
-  clientAnswers?: (extensionId: string) => Promise<boolean>;
-  /** Apty's content CDN for a tab: the stored chat and the content files. */
-  cdn?: (tabId: number) => CdnResourceSource;
-  /** Overridable for tests; the Apty Client's files by default. */
-  clientFiles?: (
-    extensionId: string | undefined,
-    names: readonly string[],
-  ) => Promise<ClientEvidence>;
 }
 
 const holdsChat = (evidence: DaptyEvidence) =>
   evidence.connection.ok && (evidence.turns.length > 0 || evidence.calls > 0);
 
-const tabOf = (runContext: unknown) => {
-  const tabId = (runContext as { tabId?: unknown } | undefined)?.tabId;
-  return typeof tabId === "number" ? tabId : undefined;
-};
-
-/** One CDN read per tab and check run: the chat and the files share it. */
-const CDN_REUSE_MS = 15_000;
-/** How long a found Client's answer is trusted; silence for less, as a cold worker can miss the ping. */
-const CLIENT_ANSWER_REUSE_MS = 5 * 60_000;
-const CLIENT_SILENCE_REUSE_MS = 60_000;
-const CLIENT_PING_MS = 1_500;
-
-const APTY_NOT_FOUND: ClientEvidence["connection"] = {
-  ok: false,
-  failure: "apty_not_found",
-  message:
-    "Apty was not found on this page: no Apty Client answered, the page holds no injected player config, and no Apty Client script is on it.",
-};
-
 /**
  * The `daptyOf` and `daptyFilesOf` sources for `createDiagnosisResponder`.
  * A reader that throws counts as holding nothing, so the next one is tried.
+ * The chat and the files share one CDN read.
  * @internal
  */
 export function createDaptySource(readers: DaptyReaders) {
   const client = readers.client ?? loadDaptyFromClient;
-  const clientFiles = readers.clientFiles ?? loadClientEvidence;
-  const cdnRuns = new Map<number, { at: number; source: CdnResourceSource }>();
-
-  const cdnFor = (tab: number | undefined) => {
-    if (tab === undefined || !readers.cdn) return undefined;
-    const cached = cdnRuns.get(tab);
-    if (cached && Date.now() - cached.at < CDN_REUSE_MS) return cached.source;
-    const source = readers.cdn(tab);
-    cdnRuns.set(tab, { at: Date.now(), source });
-    return source;
-  };
-
-  const answering = new Map<string, { until: number; ok: Promise<boolean> }>();
-  const answers = (id: string) => {
-    if (!readers.clientAnswers) return Promise.resolve(true);
-    const cached = answering.get(id);
-    if (cached && Date.now() < cached.until) return cached.ok;
-    const ok = readers.clientAnswers(id).catch(() => false);
-    const asked = Date.now();
-    answering.set(id, { until: asked + CLIENT_SILENCE_REUSE_MS, ok });
-    void ok.then((answered) => {
-      if (answered) {
-        answering.set(id, { until: asked + CLIENT_ANSWER_REUSE_MS, ok });
-      }
-    });
-    return ok;
-  };
-
-  /** The saved Client ID, or the page's when none is saved and that Client answers. */
-  const clientIdFor = async (tab: number | undefined, saved?: string) => {
-    if (saved) return saved;
-    if (tab === undefined || !readers.detectClient) return undefined;
-    const found = await readers.detectClient(tab).catch(() => undefined);
-    return found && (await answers(found)) ? found : undefined;
-  };
+  const apty = createAptyFiles(readers);
 
   async function chat(
     runContext: unknown,
@@ -145,7 +74,7 @@ export function createDaptySource(readers: DaptyReaders) {
       const page = daptyEvidenceFromCalls(calls, "page");
       if (holdsChat(page)) return page;
     }
-    const id = await clientIdFor(tab, clientExtensionId);
+    const id = await apty.clientIdFor(tab, clientExtensionId);
     const [recorded, reported] = await Promise.all([
       client(id),
       readers.widgetChat
@@ -168,7 +97,7 @@ export function createDaptySource(readers: DaptyReaders) {
     if (holdsChat(recorded)) return recorded;
 
     let unread: StoredChatUnread | undefined;
-    const cdn = cdnFor(tab);
+    const cdn = apty.cdnFor(tab, DAPTY_FILES, true);
     if (cdn) {
       const stored = await loadDaptyFrom(cdn, "cdn").catch(() => undefined);
       if (stored && holdsChat(stored)) return stored;
@@ -189,29 +118,16 @@ export function createDaptySource(readers: DaptyReaders) {
     return unread ? { ...recorded, storedChatUnread: unread } : recorded;
   }
 
-  async function files(
-    runContext: unknown,
-    clientExtensionId: string | undefined,
-  ): Promise<ClientEvidence> {
-    const tab = tabOf(runContext);
-    const id = await clientIdFor(tab, clientExtensionId);
-    const fromClient = await clientFiles(id, DAPTY_FILES);
-    if (fromClient.connection.ok) return fromClient;
-    const cdn = cdnFor(tab);
-    if (!cdn) return fromClient;
-    const fromCdn = await loadEvidenceFrom(cdn, DAPTY_FILES).catch(
-      () => undefined,
-    );
-    if (fromCdn?.connection.ok) return { ...fromCdn, fromCdn: true };
-    return id === undefined
-      ? { ...fromClient, connection: APTY_NOT_FOUND }
-      : fromClient;
-  }
+  const files = (runContext: unknown, clientExtensionId: string | undefined) =>
+    apty.files(runContext, clientExtensionId, DAPTY_FILES, {
+      storedChats: true,
+    });
 
   return { chat, files };
 }
 
 const forTab = createDaptySource({
+  ...DEFAULT_APTY_FILES_READERS,
   pageCalls: getDaptyPageCalls,
   widgetTurns: readDaptyWidgetTurns,
   widgetChat: (extensionId) =>
@@ -219,21 +135,6 @@ const forTab = createDaptySource({
       extensionId,
       peer: "client",
     }).readWidgetChat(),
-  detectClient: detectClientExtensionId,
-  clientAnswers: async (extensionId) =>
-    (
-      await sendExternalMessageDetailed(
-        extensionId,
-        { type: "apty-debug-agent:get-service-worker-status" },
-        CLIENT_PING_MS,
-      )
-    ).ok,
-  cdn: (tabId) =>
-    createCdnResourceSource({
-      page: tabAptyPage(tabId),
-      files: DAPTY_FILES,
-      storedChats: true,
-    }),
 });
 
 /** The chat for the conversation's tab from every source this build has. */

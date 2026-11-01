@@ -5,6 +5,7 @@ import { currentValuePolicy } from "../../runtime/value-policy.js";
 import { getAptyIntegrationConfig } from "../config.js";
 import type { DomHealthAuditOutcome } from "../dom-health.js";
 import { tabElementProbeOf } from "../element-probe.js";
+import { readAptyFilesForTab } from "./apty-files.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import {
   DAPTY_FILES,
@@ -139,23 +140,22 @@ const DAPTY_CHAT_FROM = {
   "widget-dom": "the widget's chat panel",
 } as const;
 
-function daptyReadFrom(dapty: NonNullable<DiagnosisResult["dapty"]>): string {
-  const files =
-    dapty.source === "har"
-      ? "Apty files"
-      : dapty.filesFromCdn
-        ? "the content files on Apty's content CDN"
-        : "the Apty Client's files";
-  return `${DAPTY_CHAT_FROM[dapty.source]} and ${files}`;
-}
+const CDN_FILES = "the content files on Apty's content CDN";
 
 function readFrom(result: DiagnosisResult, source: EvidenceSource): string {
   if (result.packId === "page-readiness")
     return "DOM Health's audit of the page";
-  if (result.dapty) return daptyReadFrom(result.dapty);
-  return source === "har"
-    ? "the HAR file's Apty files"
-    : "the Apty Client's files";
+  if (result.dapty) {
+    const files =
+      result.dapty.source === "har"
+        ? "Apty files"
+        : result.filesFromCdn
+          ? CDN_FILES
+          : "the Apty Client's files";
+    return `${DAPTY_CHAT_FROM[result.dapty.source]} and ${files}`;
+  }
+  if (source === "har") return "the HAR file's Apty files";
+  return result.filesFromCdn ? CDN_FILES : "the Apty Client's files";
 }
 
 /** What the session keeps of a check, for the model to read on later turns. */
@@ -224,6 +224,8 @@ export interface PageSources {
   dapty?: () => Promise<DaptyEvidence>;
   /** The Ask Dapty check's content files; by default the Apty Client's. */
   daptyFiles?: () => Promise<ClientEvidence>;
+  /** Every other check's content files; by default the Apty Client's. */
+  files?: (names: readonly string[]) => Promise<ClientEvidence>;
 }
 
 /** A route the chat or `run_diagnosis` can run: the router's, or the Ask Dapty check. */
@@ -231,20 +233,21 @@ export type CheckRoute = Route | { packId: "dapty-conversation" };
 
 /** The Client's files for the selector check, with a workflow's own steps file when the Client has loaded it. */
 async function elementEvidence(
-  clientExtensionId: string | undefined,
+  load: (names: readonly string[]) => Promise<ClientEvidence>,
   kind: Extract<Route, { packId: "element-not-found" }>["kind"],
   query: string | undefined,
 ): Promise<ClientEvidence> {
-  const evidence = await loadClientEvidence(
-    clientExtensionId,
-    elementFilesFor(kind),
-  );
+  const evidence = await load(elementFilesFor(kind));
   const stepFile =
     kind === "workflow" ? stepFileFor(evidence, query) : undefined;
   if (!stepFile) return evidence;
-  const steps = await loadClientEvidence(clientExtensionId, [stepFile]);
+  const steps = await load([stepFile]);
   return { ...evidence, files: { ...evidence.files, ...steps.files } };
 }
+
+/** The result, saying when its files came from Apty's content CDN. */
+const fromCdn = (result: DiagnosisResult, evidence: ClientEvidence) =>
+  evidence.fromCdn ? { ...result, filesFromCdn: true } : result;
 
 /** Runs the routed pack on the Client's files, logs and calls, and the page. */
 export async function runPack(
@@ -257,35 +260,35 @@ export async function runPack(
     domHealth,
     dapty,
     daptyFiles,
+    files,
   }: PageSources,
 ): Promise<DiagnosisResult> {
+  const load =
+    files ?? ((names) => loadClientEvidence(clientExtensionId, names));
   if (route.packId === "dapty-conversation") {
-    const [chat, files, page] = await Promise.all([
+    const [chat, evidence, page] = await Promise.all([
       dapty ? dapty() : loadDaptyFromClient(clientExtensionId),
-      daptyFiles
-        ? daptyFiles()
-        : loadClientEvidence(clientExtensionId, DAPTY_FILES),
+      daptyFiles ? daptyFiles() : load(DAPTY_FILES),
       pageUrl(),
     ]);
-    return diagnoseDaptyConversation(chat, files, page);
+    return fromCdn(diagnoseDaptyConversation(chat, evidence, page), evidence);
   }
   if (route.packId === "page-readiness") {
     return diagnosePageReadiness(await domHealth());
   }
   if (route.packId === "element-not-found") {
-    const evidence = await elementEvidence(
-      clientExtensionId,
-      route.kind,
-      route.query,
-    );
-    return diagnoseElementNotFound(
+    const evidence = await elementEvidence(load, route.kind, route.query);
+    return fromCdn(
+      await diagnoseElementNotFound(
+        evidence,
+        {
+          kind: route.kind,
+          ...(route.query ? { query: route.query } : {}),
+          ...(route.step ? { step: route.step } : {}),
+        },
+        probeElement,
+      ),
       evidence,
-      {
-        kind: route.kind,
-        ...(route.query ? { query: route.query } : {}),
-        ...(route.step ? { step: route.step } : {}),
-      },
-      probeElement,
     );
   }
   if (route.packId === "logs-and-errors") {
@@ -293,18 +296,21 @@ export async function runPack(
     return diagnoseLogsAndErrors(evidence, route.about404);
   }
   if (route.packId === "widget-not-visible") {
-    const evidence = await loadClientEvidence(clientExtensionId, WIDGET_FILES);
-    return diagnoseWidgetNotVisible(evidence, await pageUrl());
+    const evidence = await load(WIDGET_FILES);
+    return fromCdn(
+      diagnoseWidgetNotVisible(evidence, await pageUrl()),
+      evidence,
+    );
   }
-  const evidence = await loadClientEvidence(
-    clientExtensionId,
-    filesFor(route.kind),
-  );
-  return diagnoseContentNotVisible(
+  const evidence = await load(filesFor(route.kind));
+  return fromCdn(
+    diagnoseContentNotVisible(
+      evidence,
+      route.kind,
+      route.query,
+      route.language,
+    ),
     evidence,
-    route.kind,
-    route.query,
-    route.language,
   );
 }
 
@@ -349,6 +355,12 @@ export interface ResponderSources {
     runContext: unknown,
     clientExtensionId: string | undefined,
   ) => Promise<ClientEvidence>;
+  /** Every other check's content files for the tab; undefined reads the Apty Client's. */
+  filesOf?: (
+    runContext: unknown,
+    clientExtensionId: string | undefined,
+    names: readonly string[],
+  ) => Promise<ClientEvidence>;
 }
 
 const DEFAULT_SOURCES: ResponderSources = {
@@ -360,6 +372,7 @@ const DEFAULT_SOURCES: ResponderSources = {
   domHealthOf: async () => undefined,
   daptyOf: readDaptyForTab,
   daptyFilesOf: readDaptyFilesForTab,
+  filesOf: readAptyFilesForTab,
 };
 
 /**
@@ -378,7 +391,7 @@ export function createDiagnosisResponder(
       : routeSymptom(input);
     if (!route) return undefined;
     const clientExtensionId = await sources.clientExtensionId();
-    const { daptyOf, daptyFilesOf } = sources;
+    const { daptyOf, daptyFilesOf, filesOf } = sources;
     const result = await runPack(route, clientExtensionId, {
       pageUrl: () => sources.pageUrlOf(runContext),
       pageConsole: () => sources.pageConsoleOf(runContext),
@@ -389,6 +402,12 @@ export function createDiagnosisResponder(
         : {}),
       ...(daptyFilesOf
         ? { daptyFiles: () => daptyFilesOf(runContext, clientExtensionId) }
+        : {}),
+      ...(filesOf
+        ? {
+            files: (names: readonly string[]) =>
+              filesOf(runContext, clientExtensionId, names),
+          }
         : {}),
     });
     // The URL policy every tool result gets on its way to the model

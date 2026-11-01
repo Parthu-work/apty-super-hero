@@ -7,6 +7,7 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { getAptyIntegrationConfig } from "../apty/config.js";
+import { readAptyFilesForTab } from "../apty/diagnosis/apty-files.js";
 import {
   readDaptyFilesForTab,
   readDaptyForTab,
@@ -106,6 +107,8 @@ export const runDiagnosisTool = tool({
         dapty: () => readDaptyForTab(runContext, config.clientExtensionId),
         daptyFiles: () =>
           readDaptyFilesForTab(runContext, config.clientExtensionId),
+        files: (names) =>
+          readAptyFilesForTab(runContext, config.clientExtensionId, names),
       },
     );
   },

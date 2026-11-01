@@ -174,7 +174,7 @@ after(async () => {
   cdn?.close();
 });
 
-describe("Ask Dapty check with an unpatched Apty Client", () => {
+describe("checks with an unpatched Apty Client", () => {
   it("finds the Client from the page, reads the stored chat and content files from the CDN, and checks each suggestion by id", async () => {
     const app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);
@@ -219,6 +219,45 @@ describe("Ask Dapty check with an unpatched Apty Client", () => {
     assert.ok(
       served.every((r) => r.cookie === undefined),
       "no credentials were sent",
+    );
+    assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+
+  it("runs the widget check from the content CDN too, with no Client ID saved", async () => {
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    await app.waitForFunction(() =>
+      document.querySelector('script[src$="/window-script.js"]'),
+    );
+    const panel = await openSidePanel(browser, model, app);
+    const before = model.requests.length;
+    const asked = Date.now();
+
+    await sendChat(panel, "the Apty widget is not appearing");
+
+    const card = panel.getByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    await card.waitFor({ timeout: 30_000 });
+    const tookMs = Date.now() - asked;
+    await card
+      .getByText(
+        "Content files read from Apty's content CDN, as the Apty Client does not report its calls.",
+      )
+      .waitFor();
+    const text = await card.textContent();
+    assert.ok(!text.includes("http"), "the card shows no URL");
+    assert.ok(
+      !/No Apty Client extension ID is saved/.test(text),
+      "the check did not stop at the missing Client ID",
+    );
+    assert.equal(model.requests.length, before, "the model was not asked");
+    assert.ok(tookMs < 6_000, `the check finished quickly (${tookMs} ms)`);
+    assert.ok(
+      served.some((r) => r.path.endsWith(`/env-${ENV}/segment.json`)),
+      "segment.json was read from the CDN",
     );
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();

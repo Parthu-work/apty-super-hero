@@ -279,6 +279,24 @@ describe("createCdnResourceSource", () => {
     expect(evidence.turns).toEqual([]);
   });
 
+  it("reads a workflow's steps file at the environment, and never a name that would change the path", async () => {
+    const { fetchImpl, requested } = cdn(
+      ENV_FILES({ [`${T}/app-${APP}/env-${ENV}/workflow-0c05.json`]: [] }),
+    );
+    const source = createCdnResourceSource({
+      page: page(),
+      files: ["workflow-0c05.json", "../../other-tenant/rule.json"],
+      fetchImpl,
+    });
+
+    await source.listResources();
+
+    expect(requested).toEqual([
+      `${T}/app-urls.json`,
+      `${T}/app-${APP}/env-${ENV}/workflow-0c05.json`,
+    ]);
+  });
+
   it("reports Apty as not found, and calls nothing, without a usable config", async () => {
     for (const probe of [
       { ok: false, reason: "no-apty" } as const,

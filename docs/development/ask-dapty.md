@@ -144,8 +144,12 @@ conversation:
 5. the widget's chat panel (names only).
 
 The Client is asked with the saved ID, or the ID the page shows when none
-is saved. `readDaptyFilesForTab` reads the content files from the Client,
-or from the CDN when the Client does not answer, and the card says so.
+is saved and that Client answers a 1.5 s ping (the 5.x Client takes every
+external message and answers none it does not know, so asking it would
+wait out every timeout). The content files come from the Client, or from
+the CDN when the Client does not answer, and the card says so. The same
+source, `readAptyFilesForTab` (`apty-files.ts`), serves the widget,
+visibility and selector checks.
 
 A reader that fails counts as holding nothing. In Injected mode the request
 is always captured but the answer only while the tab is recorded, so a card

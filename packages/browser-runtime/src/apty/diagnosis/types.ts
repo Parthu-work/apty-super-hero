@@ -479,8 +479,6 @@ export interface DaptySummary {
   namesOnly: boolean;
   /** Why the stored chat with ids could not be read instead. */
   storedChatUnread?: "apty-id" | "no-user-value";
-  /** The content files came from Apty's content CDN, not the Apty Client. */
-  filesFromCdn?: boolean;
 }
 
 export interface DiagnosisResult {
@@ -510,4 +508,6 @@ export interface DiagnosisResult {
     segmentsUnread?: boolean;
   };
   dapty?: DaptySummary;
+  /** The content files came from Apty's content CDN, as the Apty Client does not report its calls. */
+  filesFromCdn?: boolean;
 }

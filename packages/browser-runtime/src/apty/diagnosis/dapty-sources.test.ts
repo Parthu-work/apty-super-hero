@@ -331,7 +331,7 @@ describe("createDaptySource", () => {
       expect(cdn).toHaveBeenCalledTimes(1);
     });
 
-    it("keeps the Client's files when it answers, and says Apty was not found when neither does", async () => {
+    it("keeps the Client's files when it answers, and keeps the Client's reason when neither answers", async () => {
       const fromClient: ClientEvidence = {
         connection: { ok: true },
         observedNames: [],
@@ -357,7 +357,10 @@ describe("createDaptySource", () => {
       const missing = await neither.files({ tabId: 4 }, undefined);
       expect(missing.connection).toMatchObject({
         ok: false,
-        failure: "apty_not_found",
+        failure: "no_receiver",
+        message: expect.stringContaining(
+          "Apty's content CDN could not be read either",
+        ),
       });
     });
   });

@@ -105,6 +105,8 @@ function usableBase(url: string): string | undefined {
 
 /** A path segment the Client would put in a URL as is: no separator or query in it. */
 const PATH_SAFE = /^[^/?#\\\s]{1,256}$/;
+/** A content file name as the Client names them (`segment.json`, `workflow-<id>.json`). */
+const FILE_NAME = /^[\w.-]{1,200}\.json$/;
 
 /**
  * The application and environment the player picks for the page: the first
@@ -275,7 +277,7 @@ export function createCdnResourceSource({
       const app = `${tenant}/app-${ids.appId}`;
       const env = `${app}/env-${ids.envId}`;
       for (const name of files) {
-        if (name === "app-urls.json") continue;
+        if (name === "app-urls.json" || !FILE_NAME.test(name)) continue;
         const scope = TENANT_FILES.has(name)
           ? tenant
           : APP_FILES.has(name)
