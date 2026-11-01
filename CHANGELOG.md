@@ -7,11 +7,19 @@ full commit-level history.
 ## Unreleased
 
 - **Strict mode: a page in design mode**: a document whose root is editable (`designMode`) now has its typed content, its direct text and its chosen option withheld as well as its title. Withholding the title returned early and skipped the editable-content redaction, so the root's value reached snapshots in Strict.
-- **The audit items left open (12, N9), and a test that failed under load**:
+- **Selector check: screen-gated elements (N9)**: an element captured with a screen token is named as screen-gated when the application has a screen token function (SEL-14), as the player's `isOnCapturedScreen` gate does.
+- **Widget check: the regex URL flags**: when the player's regex URL mode would pick another environment, or meets an invalid pattern, the environment gate is open (WNV-08) instead of asserting WNV-02/WNV-03.
+- **Router (N1, N6)**: the SE's own authoring and Studio wording ("I can't find the button to publish a workflow", "is there a way to…", "stuck in draft") goes to the model.
+- **Ask Dapty check (partial)**: when an end user asked the widget's AI assistant and got no answer, or suggestions that do not open, the side panel reads the conversation and checks it with no model call.
+  - **Sources**, best first: the page's own chat calls (Injected mode; the answer while the tab is recorded from the card), the Widget's own conversations reported by the Client and its recorded calls (Extension mode), the widget's chat panel (names only), and a customer's HAR (the chat request, its answer and its Origin).
+  - **Checks**, from apty-dap's widget and ai-service code: the chat turned off for the application (DAP-01), a failed chat call or an HTTP error (DAP-02, DAP-03), in Injected mode a page origin ai-service's CORS check rejects, including environment URLs with no scheme (DAP-04), Dapty's fixed "couldn't find information" reply (DAP-05), and each suggestion: opens, opens only if its visibility rule passes, not published here (DAP-06), several items with the name, or unchecked. An item hidden from the widget's list still opens from Dapty, and the card says so.
+  - **Where**: in the chat ("Dapty suggested a workflow but nothing opens"), as `run_diagnosis` kind `dapty`, and on the HAR page ("The Ask Dapty chat"). English and Chinese.
+  - **Privacy**: every turn is redacted before the check reads it; the card shows the last question collapsed and cut to 200 characters, the suggestion names and statuses, and no URL or id.
+  - Design and sources: [`docs/development/ask-dapty.md`](docs/development/ask-dapty.md).
+- **The audit item left open (12), and a test that failed under load**:
   - **URL patterns (12)**: matching still follows the player (unanchored, case-sensitive, no port normalising), so the verdict never disagrees with it. What changed is the reason given:
     - a pattern for the page's host written with capitals, or with `:443` or `:80`, can never match; it now gets WNV-03 with that reason, where it got WNV-02, "no pattern for this page's host";
     - an environment that matches only through an empty pattern, which matches every page, is an open item (WNV-04).
-  - **Screen token (N9)**: an element tied to a screen (`screenToken` set) is left open rather than called found, since the check does not know which screen the page is on. The captures have the token only on rule elements, which the check does not read, so this is a defensive change.
   - **XPath's first match (N4)** was already fixed on main (694a160).
   - **Still not changed**: language aliases (14) and jQuery selectors (N5) stay open items; confirming either needs the player's source or a tenant.
   - **Tests**: the packages' test suites run one package at a time. Run together, they made the DOM Health collector's 6-second budget test fail on every run on a 4-core machine; alone it takes about 3.5 seconds.

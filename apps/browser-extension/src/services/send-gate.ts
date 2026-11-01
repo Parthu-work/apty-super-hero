@@ -1,4 +1,5 @@
 import type { AppSettings } from "@apty/agent-core";
+import { asksAboutDapty } from "@apty/browser-runtime/apty/diagnosis/dapty-route";
 import { routeSymptom } from "@apty/browser-runtime/apty/diagnosis/router";
 import type { AuthCheckResult } from "@apty/ui/types";
 import { isProviderConfigured } from "./ai-provider";
@@ -17,7 +18,7 @@ export function checkAuth(
     return { needsAuth: false, hasCustomConfig: true };
   }
   return {
-    needsAuth: routeSymptom(text) === undefined,
+    needsAuth: !asksAboutDapty(text) && routeSymptom(text) === undefined,
     hasCustomConfig: false,
   };
 }

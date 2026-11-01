@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { capture, evidenceFrom } from "./diagnosis-test-utils";
+import { transcriptOf } from "./responder";
 import type { ClientEvidence } from "./types";
 import { patternMatches } from "./url-patterns";
 import { diagnoseWidgetNotVisible } from "./widget-not-visible";
@@ -315,5 +316,163 @@ describe("widget-not-visible", () => {
       UAT_PAGE,
     );
     expect(fourX.verdict.status).toBe("out_of_scope");
+  });
+});
+
+describe("widget-not-visible with the tenant's regex URL flags", () => {
+  const QA_PAGE = "https://qa.crm.example.com/leads/42";
+  const REGEX_ONLY = "https://(uat|qa)\\.crm\\.example\\.com/";
+  const PROD_OR_UAT = "https://(uat\\.)?crm\\.example\\.com/";
+  const NOT_A_REGEX = "*.crm.example.com/*";
+
+  const envGates = (result: ReturnType<typeof diagnoseWidgetNotVisible>) =>
+    result.gates.filter((g) => g.id === "environment-match");
+  const envCauses = (result: ReturnType<typeof diagnoseWidgetNotVisible>) =>
+    result.verdict.causes.filter(
+      (c) => c.ruleId === "WNV-02" || c.ruleId === "WNV-03",
+    );
+
+  const scenarios = {
+    regexOnly: {
+      page: QA_PAGE,
+      evidence: files((f) => {
+        (envs(f)[1] as Rec).urls = [REGEX_ONLY];
+      }),
+      patterns: [REGEX_ONLY, "https://crm.example.com/"],
+    },
+    orderFlip: {
+      page: UAT_PAGE,
+      evidence: files((f) => {
+        (envs(f)[0] as Rec).urls = [PROD_OR_UAT];
+      }),
+      patterns: [PROD_OR_UAT, "https://uat.crm.example.com/"],
+    },
+    invalid: {
+      page: UAT_PAGE,
+      evidence: files((f) => {
+        (envs(f)[0] as Rec).urls = [NOT_A_REGEX];
+      }),
+      patterns: [NOT_A_REGEX, "https://uat.crm.example.com/"],
+    },
+    invalidNoMatch: {
+      page: "https://other.example.org/x",
+      evidence: files((f) => {
+        (envs(f)[0] as Rec).urls = ["*.crm.example.com"];
+      }),
+      patterns: ["*.crm.example.com", "https://uat.crm.example.com/"],
+    },
+  };
+
+  it("keeps today's result when a pattern matches only as a wildcard, as regex mode falls back to it", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        const [prod, uat] = envs(f) as [Rec, Rec];
+        uat.urls = ["https://*.crm.example.com/*"];
+        prod.order = 3;
+        prod.urls = [NOT_A_REGEX];
+      }),
+      UAT_PAGE,
+    );
+
+    expect(envGates(result).map((g) => [g.reason, g.status])).toEqual([
+      ["envMatch", "pass"],
+      ["severalEnvMatch", "unknown"],
+    ]);
+    expect(result.verdict.nextCheck).toBe("comparePatterns");
+  });
+
+  it("leaves the environment open, with no WNV-02 cause, when only a regex reading matches the page", () => {
+    const { evidence, page } = scenarios.regexOnly;
+    const result = diagnoseWidgetNotVisible(evidence, page);
+
+    expect(envGates(result)).toEqual([
+      expect.objectContaining({
+        status: "unknown",
+        ruleId: "WNV-08",
+        reason: "envRegexOnly",
+        params: { env: "UAT (order 2)" },
+        cardPageId: "1496253321",
+      }),
+    ]);
+    expect(envGates(result)[0]?.detail).toBe(
+      "No environment matches this page with the regex URL flags off, so nothing from Apty loads here; with them on, UAT (order 2) matches it as a regular expression. Whether the flags are on is not in the files.",
+    );
+    expect(envCauses(result)).toEqual([]);
+    expect(result.verdict).toMatchObject({
+      status: "candidates",
+      nextCheck: "askRegexFlag",
+    });
+  });
+
+  it("names both environments when a lower-order one wins only as a regex", () => {
+    const { evidence, page } = scenarios.orderFlip;
+    const result = diagnoseWidgetNotVisible(evidence, page);
+
+    expect(envGates(result)).toEqual([
+      expect.objectContaining({
+        status: "unknown",
+        reason: "envRegexFlip",
+        params: { flagsOff: "UAT (order 2)", flagsOn: "Production (order 1)" },
+      }),
+    ]);
+    expect(envGates(result)[0]?.evidence).toEqual([
+      "regex URL flags off: first match by order: UAT (order 2)",
+      "regex URL flags on: first match by order: Production (order 1)",
+    ]);
+    expect(result.verdict.nextCheck).toBe("askRegexFlag");
+  });
+
+  it("says regex mode would not load the widget when a pattern met first is not a valid regex, without throwing", () => {
+    const { evidence, page } = scenarios.invalid;
+    const result = diagnoseWidgetNotVisible(evidence, page);
+
+    expect(envGates(result)).toEqual([
+      expect.objectContaining({
+        status: "unknown",
+        reason: "envRegexInvalid",
+        params: {
+          env: "Production (order 1)",
+          flagsOff: "Production (order 1)",
+        },
+      }),
+    ]);
+    expect(envGates(result)[0]?.detail).toContain(
+      "the widget does not load for this application; with them off, this page gets Production (order 1).",
+    );
+
+    const noMatch = diagnoseWidgetNotVisible(
+      scenarios.invalidNoMatch.evidence,
+      scenarios.invalidNoMatch.page,
+    );
+    expect(envGates(noMatch)).toEqual([
+      expect.objectContaining({
+        reason: "envRegexInvalidNoMatch",
+        params: { env: "Production (order 1)" },
+      }),
+    ]);
+    expect(envCauses(noMatch)).toEqual([]);
+    expect(noMatch.verdict.nextCheck).toBe("askRegexFlag");
+  });
+
+  it("puts no URL and no pattern in the result or the transcript", () => {
+    for (const [name, { evidence, page, patterns }] of Object.entries(
+      scenarios,
+    )) {
+      const result = diagnoseWidgetNotVisible(evidence, page);
+      expect(
+        envGates(result).some((g) => g.ruleId === "WNV-08"),
+        name,
+      ).toBe(true);
+
+      const shown = [JSON.stringify(result), transcriptOf(result)];
+      for (const text of shown) {
+        expect(text, name).not.toContain(page);
+        expect(text, name).not.toContain(new URL(page).host);
+        expect(text, name).not.toMatch(/https?:|example\.(com|org)|\\\./);
+        for (const pattern of patterns) {
+          expect(text, name).not.toContain(pattern);
+        }
+      }
+    }
   });
 });

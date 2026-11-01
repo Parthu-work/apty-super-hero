@@ -208,4 +208,53 @@ describe("HarCheckPage", () => {
     );
     expect(screen.getByRole("button", { name: "Check" })).toBeDisabled();
   });
+  it("runs the Ask Dapty check on the HAR's chat calls, with no name field", async () => {
+    const har = harOf(
+      harEntriesOf(capture()),
+      "https://intranet.example.org/crm",
+    );
+    har.log.entries.push({
+      startedDateTime: "2026-10-29T10:00:09.000Z",
+      request: {
+        method: "POST",
+        url: "https://api.app.apty.ai/ai-service/api/v1/ai/t-1/widget/chat?applicationId=0a000000-0000-7000-8000-000000000001",
+        postData: { text: JSON.stringify({ message: "help", context: [] }) },
+      },
+      response: { status: 0, content: { mimeType: "" } },
+    } as (typeof har.log.entries)[number]);
+    render(<HarCheckPage />);
+    choose(harFile(har));
+
+    expect(
+      await screen.findByText(
+        "Ask Dapty: 1 chat call(s) and 0 stored chat(s).",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("What is missing?"), {
+      target: { value: "dapty" },
+    });
+    expect(screen.queryByLabelText("Name or sourceId (optional)")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    const card = await screen.findByRole("region", {
+      name: "Ask Dapty chat check",
+    });
+    expect(card).toHaveTextContent("Rule DAP-04");
+  });
+
+  it("says when the HAR holds no Ask Dapty chat", async () => {
+    render(<HarCheckPage />);
+    choose(harFile(harOf(harEntriesOf(capture()))));
+    await screen.findByText(/Apty content files/);
+
+    fireEvent.change(screen.getByLabelText("What is missing?"), {
+      target: { value: "dapty" },
+    });
+
+    expect(
+      screen.getByText(
+        "This HAR holds no Ask Dapty chat call. Record one with the widget's chat open, asking the question again.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
