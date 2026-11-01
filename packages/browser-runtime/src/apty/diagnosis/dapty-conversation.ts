@@ -140,6 +140,9 @@ function finish(
         : {}),
       suggestions: rows,
       namesOnly: !dapty.suggestionIds,
+      ...(dapty.storedChatUnread
+        ? { storedChatUnread: dapty.storedChatUnread }
+        : {}),
     },
   };
 }

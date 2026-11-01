@@ -26,7 +26,12 @@ const settings = vi.hoisted(() => ({
 
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
 import { runDiagnosisTool } from "../../tools/diagnosis";
-import { capture, resourcesFor, served } from "./diagnosis-test-utils";
+import {
+  capture,
+  evidenceFrom,
+  resourcesFor,
+  served,
+} from "./diagnosis-test-utils";
 import {
   createDiagnosisResponder,
   RUN_DIAGNOSIS,
@@ -146,6 +151,42 @@ describe("createDiagnosisResponder", () => {
     expect(answer?.transcript).toContain("Visibility check of workflow");
     expect(answer?.transcript).not.toContain("mrn=12345");
     expect(JSON.stringify(answer?.result)).not.toContain("mrn=12345");
+  });
+
+  it("reads every check's files for the conversation's tab, and says when they came from Apty's content CDN", async () => {
+    const filesOf = vi.fn(
+      async (
+        _runContext: unknown,
+        _id: string | undefined,
+        _names: readonly string[],
+      ) => ({
+        ...evidenceFrom(capture()),
+        fromCdn: true,
+      }),
+    );
+    const respond = createDiagnosisResponder({ filesOf });
+    const runContext = { conversationId: "s-9", tabId: 9 };
+
+    const widget = await respond("the Apty widget is not appearing", {
+      runContext,
+    });
+    const content = await respond(
+      "My workflow 'Take a tour' is not visible in the widget",
+      { runContext },
+    );
+
+    expect(filesOf).toHaveBeenCalledWith(
+      runContext,
+      EXT_ID,
+      expect.arrayContaining(["app-urls.json", "segment.json"]),
+    );
+    for (const answer of [widget, content]) {
+      expect((answer?.result as DiagnosisResult).filesFromCdn).toBe(true);
+      expect(answer?.transcript.split("\n")[0]).toMatch(
+        /from the content files on Apty's content CDN/,
+      );
+    }
+    expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
   it("says a check of a HAR file read the HAR's files, not the Client's (N14)", async () => {

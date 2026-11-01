@@ -163,6 +163,9 @@ check, and the HAR page offers "The Ask Dapty chat". See
 | DAP-04 with "have no https:// scheme" | An environment URL such as `crm.example.com/*` lets the player load the widget but allows no origin in ai-service's CORS check | Add the address with its `https://` scheme to the environment in Admin and publish; ai-service caches the URLs for up to 5 minutes. |
 | DAP-06 "not published here" | Dapty suggests from ai-service's own copy of the content files, which can lag a publish, or the model named an item it was not given | Publish the item to this environment, or ask again a few minutes after publishing. |
 | "Matched by name: the chat panel does not show the suggestions' ids" | The chat was read from the widget's chat panel, which shows names only | Check a recorded chat call (HAR or the Client's record) for ids. |
+| "The stored chat, which has the ids, was not read: … an Apty ID that only the Apty Client can read" | The application identifies users by Apty's own ID, which the Client keeps in its extension storage | Expected until the Client reports the chat; a HAR with the chat open has the ids. An application that identifies users from the page (a window variable, session or local storage) needs nothing. |
+| "Content files read from Apty's content CDN" | The Apty Client does not report its calls, so the check read the same public files the Client reads | Nothing to do: this is how Extension mode works with today's Client. |
+| "Apty was not found on this page" | No Client answered, the page sets no injected player config, and no Apty Client script is on it | Reload the page with Apty installed, or check the Client is enabled for this site. |
 
 ## Response bodies are missing from a network capture
 

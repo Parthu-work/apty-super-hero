@@ -13,17 +13,19 @@ Everything below about Apty's behaviour is read from `aptyInc/apty-dap`
 
 ## How apty-super-hero connects to Ask Dapty
 
-apty-super-hero never calls ai-service itself. It observes the calls the
-widget already makes, through one of four sources. Which one works depends
-on how Apty runs on the page.
+apty-super-hero never calls ai-service itself, and needs no Apty credential
+or setting. It observes what the widget already does, and reads the same
+public files the Apty Client reads. Which source holds the chat depends on
+how Apty runs on the page.
 
 | Source | Mode | What it holds | Needs | Status |
 | --- | --- | --- | --- | --- |
-| The Widget's own conversations | Extension | Every turn with its suggestions' ids, from the Widget's state (`apty-debug-agent:get-widget-chat`) | The Client adopts the reference module's `recordWidgetChatTurn` ([`docs/integrations/apty`](../integrations/apty/README.md)) | Wired (`service-worker-diagnostics.ts` `readWidgetChat`) |
-| The Apty Client's record | Extension | The chat call (with its request body when the Client records it) and the stored chat files, through `list-observed-resources` and `get-resource-body` | The Client routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` | Wired (`dapty-loader.ts`) |
-| A HAR file | Either | The chat call with its request (`postData`, which holds the whole earlier conversation as `context`), its answer and its `Origin` header | The customer records a HAR with the chat open | Built here (`har.ts` `daptyFromHar`, HAR page "The Ask Dapty chat") |
-| The page's network | Injected | The chat POST's request body, always (`chrome.webRequest`); its answer while the tab is recorded (`chrome.debugger`, the card's "Record the next Ask Dapty chat") | Nothing from Apty | Wired (`dapty-page-capture.ts`) |
-| The widget's chat panel | Either | The rendered question, answer and suggestion names (no ids), from `<apty-widget>`'s open shadow root | Nothing from Apty | Wired (`dapty-widget-reader.ts`), last resort |
+| The page's network | Injected | The chat POST's request body, always (`chrome.webRequest`); its answer while the tab is recorded (`chrome.debugger`, the card's "Record the next Ask Dapty chat") | Nothing from Apty | Works today (`dapty-page-capture.ts`) |
+| The Widget's own conversations | Extension | Every turn with its suggestions' ids, from the Widget's state (`apty-debug-agent:get-widget-chat`) | The Client adopts the reference module's `recordWidgetChatTurn` ([`docs/integrations/apty`](../integrations/apty/README.md)) | Wired, waiting on the Client |
+| The Apty Client's record | Extension | The chat call (with its request body when the Client records it) and the stored chat files, through `list-observed-resources` and `get-resource-body` | The Client routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` | Wired, waiting on the Client |
+| Apty's content CDN | Either | The content files the check needs, and the user's newest stored chat with every turn and its suggestions' ids | Nothing from Apty; for the stored chat, the user's ID on the page | Works today (`apty-cdn-source.ts`) |
+| A HAR file | Either | The chat call with its request (`postData`, which holds the whole earlier conversation as `context`), its answer and its `Origin` header | The customer records a HAR with the chat open | Works today (`har.ts` `daptyFromHar`, HAR page "The Ask Dapty chat") |
+| The widget's chat panel | Either | The rendered question, answer and suggestion names (no ids), from `<apty-widget>`'s open shadow root | Nothing from Apty | Works today (`dapty-widget-reader.ts`), last resort |
 
 Why the sources differ: in Injected mode the widget's code runs in the page
 and calls `fetch` itself (`player/src/main-content-script/api-client/widget-chat-api-client.service.ts:50-55`),
@@ -31,8 +33,48 @@ so the tab's network shows the call. In Extension mode the call runs in the
 Client's own service worker (`player/src/background/messaging/background-script-ipc.service.ts:136-157`),
 and Chrome lets no other extension see that traffic: in a Chromium test
 `chrome.webRequest` saw nothing and attaching `chrome.debugger` to the
-other extension's worker was refused. So Extension mode needs the Client's
-cooperation, the same way every other Client check does.
+other extension's worker was refused. Today's Client also answers no
+message from another extension (it has no `onMessageExternal` listener), so
+a Client ID alone gives nothing.
+
+### Reading Apty from the page and its CDN
+
+What the Client does, which the CDN source repeats (`apty-cdn-source.ts`,
+from apty-dap `development`, read only):
+
+1. **Find Apty on the page.** In Injected mode the page sets
+   `window.__APTY_PLAYER_CONFIG__` (`player/src/config/config.ts`). In
+   Extension mode the Client injects
+   `<script src="chrome-extension://<id>/window-script.js">` into every page
+   (`main-content-script/inject-custom-script.ts`), which names its ID, and
+   serves `player-config.json` as a web-accessible resource
+   (`wxt.config.ts`). Either gives `contentURL` and `tenantId`. The script
+   tag is the signal: Chrome leaves `chrome-extension://` loads out of the
+   page's resource timing.
+2. **Pick the application and environment.** `tenant-{t}/app-urls.json`,
+   and the first application, then environment by order, whose URL pattern
+   matches the page (`cdn.service.ts` `getActiveIds`; wildcard patterns, as
+   with the regex URL flags off by default).
+3. **Read the content files.** `tenant-{t}/app-{a}/app-data.json` and
+   `tenant-{t}/app-{a}/env-{e}/{workflow,knowledge-content,rule}.json`
+   (`cdn-path.builder.ts`), with `?timestamp=` and no credentials, as the
+   Client does.
+4. **Read the stored chat.** `users/{userId}/widget-chat/chat-list.json`,
+   then the newest `{chatId}.json` under the application
+   (`widget-chat-storage.service.ts`). `userId` is the value
+   `app-data.json`'s `config.userIdentificationConfig` names: a dotted
+   window path, a session or local storage key, or a key of
+   `window.aptyAugmentation` (`user-tracking.service.ts`,
+   `window-ipc-handles.service.ts`). With `AptyId`, the user's ID is a
+   random ID in the Client's own extension storage, which no other
+   extension can read, so the check falls back to the chat panel and the
+   card says why.
+
+Every body goes through the body deny list and redaction like the Client's
+record (`/widget-chat/` withholds the stored chats). The content URL must
+be `https` (or `http` on this machine, for tests), and a user or chat ID
+that would change the path is not used. One CDN read per check run serves
+both the chat and the files.
 
 The calls, as ai-service defines them
 (`shared/contracts/src/ai/ai-chat-widget/ai-chat-widget.schema.ts`):
@@ -98,7 +140,16 @@ conversation:
 2. the Widget's own conversations reported by the Client, with the
    recorded calls' outcome for the newest call (Extension mode);
 3. the Client's recorded calls and stored chats;
-4. the widget's chat panel (names only).
+4. the user's stored chat on Apty's content CDN;
+5. the widget's chat panel (names only).
+
+The Client is asked with the saved ID, or the ID the page shows when none
+is saved and that Client answers a 1.5 s ping (the 5.x Client takes every
+external message and answers none it does not know, so asking it would
+wait out every timeout). The content files come from the Client, or from
+the CDN when the Client does not answer, and the card says so. The same
+source, `readAptyFilesForTab` (`apty-files.ts`), serves the widget,
+visibility and selector checks.
 
 A reader that fails counts as holding nothing. In Injected mode the request
 is always captured but the answer only while the tab is recorded, so a card

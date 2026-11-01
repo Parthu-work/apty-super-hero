@@ -141,6 +141,34 @@ describe("CheckResultCard for the Ask Dapty check", () => {
     ).toBeInTheDocument();
   });
 
+  it("says why the stored chat with ids was not read, and that the files came from the CDN", () => {
+    const result = diagnoseDaptyConversation(
+      {
+        ...daptyEvidenceFromDom([
+          {
+            role: "assistant",
+            text: "Here",
+            suggestionNames: ["Create a lead"],
+          },
+        ]),
+        storedChatUnread: "apty-id",
+      },
+      evidenceFrom(capture()),
+    );
+    render(<CheckResultCard tool={tool({ ...result, filesFromCdn: true })} />);
+
+    expect(
+      screen.getByText(
+        "The stored chat, which has the ids, was not read: this application identifies its users by an Apty ID that only the Apty Client can read.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Content files read from Apty's content CDN, as the Apty Client does not report its calls.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows the Ask Dapty card in Chinese", async () => {
     const languageStorage = {
       load: vi.fn().mockResolvedValue("zh"),

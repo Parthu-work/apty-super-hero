@@ -88,6 +88,8 @@ export interface ClientEvidence {
   envId?: string;
   /** How many Apty environments the calls came from, when more than one; the files are the newest one's. */
   environments?: number;
+  /** Read from Apty's content CDN, because the Client does not report its calls. */
+  fromCdn?: boolean;
 }
 
 export type RuleId =
@@ -468,13 +470,15 @@ export interface DaptyRow {
 
 /** The Ask Dapty conversation a result was read from, for the card. */
 export interface DaptySummary {
-  source: "client" | "har" | "page" | "widget-dom";
+  source: "client" | "har" | "page" | "cdn" | "widget-dom";
   turns: number;
   /** Redacted and cut short. */
   lastQuestion?: string;
   suggestions: DaptyRow[];
   /** Suggestions are names from the chat panel, matched by name. */
   namesOnly: boolean;
+  /** Why the stored chat with ids could not be read instead. */
+  storedChatUnread?: "apty-id" | "no-user-value";
 }
 
 export interface DiagnosisResult {
@@ -504,4 +508,6 @@ export interface DiagnosisResult {
     segmentsUnread?: boolean;
   };
   dapty?: DaptySummary;
+  /** The content files came from Apty's content CDN, as the Apty Client does not report its calls. */
+  filesFromCdn?: boolean;
 }
