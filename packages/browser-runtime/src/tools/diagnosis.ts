@@ -34,7 +34,7 @@ const KIND_NAMES: [
 export const runDiagnosisTool = tool({
   name: "run_diagnosis",
   description:
-    "Runs Apty's read-only checks on the Apty Client's files and the page; each finding cites its KB card. kind 'widget': why the widget is not visible; 'logs': errors in the Client's logs and calls and the page console; 'page': what stops element selection on the page (DOM Health); 'dapty': what the widget's Ask Dapty chat answered, whether its call got through and whether each item it suggested would open. A content kind: why that item is not visible (unpublished, hidden, unnamed in the user's language, an unmatchable segment, outside the widget's audience, no environment for the page), or with problem 'element-not-found', its stored selector run in every frame the way the player does. Without a name it lists every item of the kind with its blockers. Call it before other diagnostics for a 'not visible' or 'element not found' question.",
+    "Runs Apty's read-only checks on the Apty Client's files and the page; findings cite KB cards. kind 'widget': why the widget is not visible; 'logs': errors in the Client's logs, calls and page console; 'page': what stops element selection (DOM Health); 'dapty': the Ask Dapty chat's call, answer and suggestions. A content kind: why that item is not visible, or with problem 'element-not-found', its stored selector run in every frame like the player. Without a name it lists every item of the kind with its blockers. Call it first for a 'not visible', 'element not found' or Ask Dapty question.",
   parameters: z.object({
     kind: z
       .enum(KIND_NAMES)
