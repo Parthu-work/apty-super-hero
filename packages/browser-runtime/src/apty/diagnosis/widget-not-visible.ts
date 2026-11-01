@@ -121,11 +121,77 @@ interface Step {
   next?: NextCheck;
 }
 
+function regexFlagGate(
+  off: EnvironmentMatch | undefined,
+  on: EnvironmentMatch,
+): { reason: GateReason; detail: string; params: Params } {
+  if (on.regex === "invalid") {
+    const flagsOff = off
+      ? `this page gets ${orderOf(off)}`
+      : "no environment matches this page";
+    const detail = `${orderOf(on)} has a URL pattern that is not a valid regular expression: with the regex URL flags on, the player stops with an error there, so the widget does not load for this application; with them off, ${flagsOff}.`;
+    return off
+      ? {
+          reason: "envRegexInvalid",
+          detail,
+          params: { env: orderOf(on), flagsOff: orderOf(off) },
+        }
+      : {
+          reason: "envRegexInvalidNoMatch",
+          detail,
+          params: { env: orderOf(on) },
+        };
+  }
+  return off
+    ? {
+        reason: "envRegexFlip",
+        detail: `With the regex URL flags off this page gets ${orderOf(off)}; with them on, ${orderOf(on)} matches it as a regular expression and comes first by order.`,
+        params: { flagsOff: orderOf(off), flagsOn: orderOf(on) },
+      }
+    : {
+        reason: "envRegexOnly",
+        detail: `No environment matches this page with the regex URL flags off, so nothing from Apty loads here; with them on, ${orderOf(on)} matches it as a regular expression.`,
+        params: { env: orderOf(on) },
+      };
+}
+
+/**
+ * When the tenant's regex URL flags would change the pick, neither pick is
+ * asserted: the flags are in no file the Client reports.
+ */
+function regexFlagStep(all: EnvironmentMatch[]): Step | undefined {
+  const off = all.find((m) => m.matches);
+  const on = all.find((m) => m.regex !== "none");
+  if (!on || (on === off && on.regex === "match")) return undefined;
+  const { reason, detail, params } = regexFlagGate(off, on);
+  return {
+    gates: [
+      gate(
+        "environment-match",
+        "unknown",
+        "WNV-08",
+        reason,
+        `${detail} Whether the flags are on is not in the files.`,
+        params,
+        [
+          `regex URL flags off: ${off ? `first match by order: ${orderOf(off)}` : "no environment matches"}`,
+          `regex URL flags on: ${on.regex === "invalid" ? `${orderOf(on)} has a pattern that is not a valid regex, so the player throws` : `first match by order: ${orderOf(on)}`}`,
+        ],
+        CARD_APP_URLS,
+      ),
+    ],
+    causes: [],
+    next: "askRegexFlag",
+  };
+}
+
 function environmentStep(
   evidence: ClientEvidence,
   pageUrl: string,
 ): Step & { winner?: EnvironmentMatch } {
   const all = matchEnvironments(jsonOf(evidence, "app-urls.json"), pageUrl);
+  const regexFlag = regexFlagStep(all);
+  if (regexFlag) return regexFlag;
   const matching = all.filter((m) => m.matches);
   if (matching.length === 0) {
     const sameHost = all.filter((m) => m.sameHost);

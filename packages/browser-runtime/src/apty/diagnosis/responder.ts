@@ -64,6 +64,8 @@ const NEXT_CHECK_TEXT: Record<NextCheck, string> = {
     "Open the application page where the widget is missing in this tab, then ask again.",
   comparePatterns:
     "Compare the URL patterns of the environments that match this page in Admin; make the one that should not win more specific.",
+  askRegexFlag:
+    "Ask whether this tenant has the regex URL feature flags on (urlRegex for the application, regExpUrl for the environment; both are off by default): they decide which environment this page gets, and the files cannot tell.",
   removalTest:
     "Disable or remove Apty and repeat the exact flow: if the same 404s still occur, they are not Apty's.",
   readConsoleText:
