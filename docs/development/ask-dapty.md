@@ -201,4 +201,3 @@ reads.
 under `packages/browser-runtime/src/apty/diagnosis/fixtures/dapty-live/`
 (`expected.json`, `evidence.json`, `capture.har.json`); it refuses a HAR
 that still holds an email address, a cookie or an authorization header.
-
