@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Apty Client",
+  "description": "A tiny stand-in for the 5.x Apty Client's WXT Chrome build, for testing tooling/scripts/build-client-test-recorder.mjs.",
+  "version": "5.2.0.1",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://preview.crm.example.test/*"],
+      "js": ["main-content-script.js"],
+      "all_frames": false
+    }
+  ],
+  "host_permissions": ["<all_urls>"],
+  "web_accessible_resources": [
+    { "matches": ["<all_urls>"], "resources": ["player-config.json"] },
+    { "matches": ["<all_urls>"], "resources": ["window-script.js"] }
+  ],
+  "background": { "service_worker": "background.js" }
+}
