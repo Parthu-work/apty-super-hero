@@ -216,14 +216,14 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 
 | Item | State | PR |
 |---|---|---|
-| W1 Evidence bundle: "Export evidence" on the Ask Dapty card (Developer tools on), and `dapty-bundle-to-fixture.mjs` | Built | [#87](https://github.com/Parthu-work/apty-super-hero/pull/87) |
+| W1 Evidence bundle: "Export evidence" on the Ask Dapty card (Developer tools on), and `dapty-bundle-to-fixture.mjs` | Merged | [#87](https://github.com/Parthu-work/apty-super-hero/pull/87) |
 | W2 Live-tenant fixtures: `fixtures/dapty-live/` and `dapty-live-fixtures.test.ts` | Built; **blocked**: the real captures, and any check they break, wait on the SE's evidence | [#83](https://github.com/Parthu-work/apty-super-hero/pull/83) |
-| W3 Settings → Apty Integration → "Apty Client: content CDN" (C5, on by default) | Built | [#82](https://github.com/Parthu-work/apty-super-hero/pull/82) |
-| W4 Default model: Anthropic `claude-sonnet-5-5`, summaries `claude-haiku-5-5` (C6) | Built | [#86](https://github.com/Parthu-work/apty-super-hero/pull/86) |
+| W3 Settings → Apty Integration → "Apty Client: content CDN" (C5, on by default) | Merged | [#82](https://github.com/Parthu-work/apty-super-hero/pull/82) |
+| W4 Default model: Anthropic `claude-sonnet-5-5`, summaries `claude-haiku-5-5` (C6) | Merged | [#86](https://github.com/Parthu-work/apty-super-hero/pull/86) |
 | W5 WNV-08 only for 4.x or an unknown player | Merged | [#80](https://github.com/Parthu-work/apty-super-hero/pull/80) |
 | W6 The mcp-bridge daemon-cli test leaving its daemon running | Merged | [#79](https://github.com/Parthu-work/apty-super-hero/pull/79) |
 | W7 A reproducible, test-only 5.x Client recorder build | Built | [#84](https://github.com/Parthu-work/apty-super-hero/pull/84) |
-| W8 One source of truth for the Agent's IDs, and the Ask Dapty release checklist | Built; **blocked**: the Web Store ID, set in one commit when the store assigns it, then the Client team adds it to `externally_connectable` | [#85](https://github.com/Parthu-work/apty-super-hero/pull/85) |
+| W8 One source of truth for the Agent's IDs, and the Ask Dapty release checklist | Merged; **blocked**: the Web Store ID, set in one commit when the store assigns it, then the Client team adds it to `externally_connectable` | [#85](https://github.com/Parthu-work/apty-super-hero/pull/85) |
 | W9 Audit items 10 (Chinese card), N5 (rejected selectors), 14 (language codes) | Merged | [#81](https://github.com/Parthu-work/apty-super-hero/pull/81) |
 
 ## Known limitations
