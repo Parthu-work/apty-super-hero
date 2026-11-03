@@ -21,6 +21,7 @@ import {
   jsonOf,
   looks4x,
   makeGate,
+  playerVersionOf,
   type Rec,
   records,
   short,
@@ -173,7 +174,8 @@ function regexFlagGate(
 
 /**
  * When the tenant's regex URL flags would change the pick, neither pick is
- * asserted: the flags are in no file the Client reports.
+ * asserted: the flags are in no file the Client reports. Only for a 4.x
+ * player, or one the files do not tell: the 5.x player never turns them on.
  */
 function regexFlagStep(all: EnvironmentMatch[]): Step | undefined {
   const off = all.find((m) => m.matches);
@@ -205,8 +207,11 @@ function environmentStep(
   evidence: ClientEvidence,
   pageUrl: string,
 ): Step & { winner?: EnvironmentMatch } {
-  const all = matchEnvironments(jsonOf(evidence, "app-urls.json"), pageUrl);
-  const regexFlag = regexFlagStep(all);
+  const regexFlags = playerVersionOf(evidence) !== "5.x";
+  const all = matchEnvironments(jsonOf(evidence, "app-urls.json"), pageUrl, {
+    regexFlags,
+  });
+  const regexFlag = regexFlags ? regexFlagStep(all) : undefined;
   if (regexFlag) return regexFlag;
   const matching = all.filter((m) => m.matches);
   if (matching.length === 0) {

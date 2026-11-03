@@ -170,6 +170,31 @@ export function fileParams(file: LoadedFile): Params {
   };
 }
 
+/** The files only a 5.x player reads, or only a 4.x one (which reads `config.json` with `appUrls`). */
+const FIVE_X_MARKERS = [...FIVE_X_FILES, "app-urls.json", "app-data.json"];
+const FOUR_X_MARKERS = [...FOUR_X_FILES, "config.json"];
+
+/**
+ * Which player the files are from, when they tell. It decides whether the
+ * regex URL flags can be on at all: the 5.x player's `getFeatureFlags()`
+ * only ever returns `DEFAULT_FEATURE_FLAGS`, where `urlRegex` and
+ * `regExpUrl` are off, and nothing fetches a tenant's values (apty-dap
+ * `cdn-api/src/types/feature-flags.ts` and `player/.../cdn/cdn.service.ts:933`,
+ * Appendix A1 and A2 of the Ask Dapty brief); the 4.x player fetches them
+ * per tenant (apty-assist `feature-flag.effects.ts`, A4). Files read from
+ * the content CDN are always 5.x: only the 5.x Client is found that way.
+ */
+export function playerVersionOf(
+  evidence: ClientEvidence,
+): "5.x" | "4.x" | "unknown" {
+  if (evidence.fromCdn) return "5.x";
+  const names = new Set(evidence.observedNames);
+  const five = FIVE_X_MARKERS.some((n) => names.has(n));
+  const four = FOUR_X_MARKERS.some((n) => names.has(n));
+  if (five === four) return "unknown";
+  return five ? "5.x" : "4.x";
+}
+
 export function looks4x(evidence: ClientEvidence): boolean {
   const names = new Set(evidence.observedNames);
   return (
