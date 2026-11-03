@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Ask Dapty production readiness (W1-W9), where each stands**: merged: the WNV-08 change (W5) and the mcp-bridge test fix (W6). In review: the evidence bundle (W1), the live-fixture suite (W2), the content CDN setting (W3), the default model (W4), the test-recorder build (W7), the ID check and release checklist (W8) and audit items 10, N5 and 14 (W9). Blocked: W2's real captures, on the SE's live-tenant evidence; W8's Web Store ID, on the first store upload. The table is in `docs/STATUS.md`.
 - **Widget check: WNV-08 only where the regex URL flags can be on**: the 5.x player's `getFeatureFlags()` only ever returns its defaults, where `urlRegex` and `regExpUrl` are off, and nothing fetches a tenant's values (apty-dap `cdn.service.ts:933`, `feature-flags.ts`); the 4.x player fetches them per tenant. On files from a 5.x player (its own files observed, or read from the content CDN) the environment is decided with wildcard matching alone, so the card gives WNV-02, WNV-03 or a pass instead of the open WNV-08. WNV-08 stays for a 4.x player, or files that do not say which player read them (`pack-kit.ts` `playerVersionOf`).
 - **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
   - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
