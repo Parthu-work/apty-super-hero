@@ -26,6 +26,9 @@ instead of `status: "not_configured"`.
 - **`CLIENT-PATCH.md`**: the changes the Apty Client team makes in the
   Client's build to record its calls, described by behavior.
 
+- **`TEST-RECORDER.md`**: a reproducible test-only build of a 5.x Client
+  that reports its calls, for SEs; never for customers.
+
 - **`STUDIO.md`**: what Apty Studio must add (allow-list the Agent's ID,
   answer two messages) so the Agent can read Studio's service worker.
 

@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **A reproducible 5.x Client test-recorder build (test only)**: `tooling/scripts/build-client-test-recorder.mjs <client.zip> <out.zip> [--match …]` puts the compiled reference module and a fetch wrapper in front of a 5.x Client's background, so it records the chat call, the content files and stored-chat saves (not analytics) and answers the Agent; it allows the Agent's IDs, marks the build "(test recorder)" with a TEST-BUILD.txt, and refuses anything that is not a 5.x WXT build. Tested with a fake 5.x Client in a unit test and an E2E suite. See `docs/integrations/apty/TEST-RECORDER.md`.
 - **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
   - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
   - The content URL and tenant come from its web-accessible `player-config.json`, or `window.__APTY_PLAYER_CONFIG__` in Injected mode. The application and environment come from `app-urls.json`, as the player picks them.
