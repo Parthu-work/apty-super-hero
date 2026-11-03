@@ -41,7 +41,10 @@ applied: adopt the Chrome Web Store's ID):
 
 The Apty Client and Apty Studio must list **both** IDs in
 `externally_connectable.ids`: the first now, the store's as soon as the
-first upload assigns it. Record the store's ID here when it exists. Each
+first upload assigns it. Record the store's ID here when it exists, in the
+same commit that sets `AGENT_WEB_STORE_ID` in
+`tooling/scripts/check-extension-id.mjs` and replaces every placeholder
+(`npm run audit:extension-ids` checks they agree). Each
 build shows the ID it is running under, with a Copy button, in Settings →
 Connection.
 
