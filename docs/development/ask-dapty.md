@@ -71,7 +71,15 @@ from apty-dap `development`, read only):
    card says why.
 
 Every body goes through the body deny list and redaction like the Client's
-record (`/widget-chat/` withholds the stored chats). The content URL must
+record (`/widget-chat/` withholds the stored chats).
+
+**Settings → Apty Integration → "Apty Client: content CDN"**
+(`aptyCdnFallback`, on by default) turns the CDN reads off. Off, no check
+probes the page for `player-config.json` or reads the CDN (files or stored
+chat); the Client is still found from its page script and pinged, which is
+only messaging, so a Client that records its calls keeps working with no
+saved ID, and a card shows the Client's own failure message. The setting is
+read on every check (`createAptyFiles`'s `cdnFallback` reader). The content URL must
 be `https` (or `http` on this machine, for tests), and a user or chat ID
 that would change the path is not used. One CDN read per check run serves
 both the chat and the files.
@@ -155,3 +163,49 @@ A reader that fails counts as holding nothing. In Injected mode the request
 is always captured but the answer only while the tab is recorded, so a card
 with no answer offers "Record the next Ask Dapty chat (2 minutes)"; the SE
 asks Dapty again on the page, then asks for the check again.
+
+## Evidence bundle
+
+For the live-tenant test (evidence E1 to E12), the Ask Dapty card has
+**Export evidence** when Settings → Troubleshooting → Developer tools is
+on. It shows the bundle for review ("Review before sharing", the same
+dialog as DOM Health's validation bundle), then saves
+`apty-dapty-evidence-<timestamp>.json`.
+
+What it holds (`diagnosis/dapty-evidence.ts`, `bundleVersion`
+`apty-dapty-evidence/1`):
+
+- the Agent's version and build commit, and the Chrome version;
+- the card's result (`DiagnosisResult`), without the user's last question;
+- timing: ms from the message to the card, for the content files, and per
+  source;
+- which source answered, and for each one tried before it: the page's call
+  count, the Client ping (`saved-id`, `answered`, `silent`, `not-on-page`),
+  the Client record's connection failure, whether the CDN may be read, the
+  CDN probe (`ok` or `AptyPageProbe`'s reason) and the stored chat's state;
+- for each content file: name, scope (tenant, app or env), status, HTTP
+  status, size and top-level keys; for `app-urls.json` the count of
+  applications and environments and the pattern shapes (scheme or none,
+  wildcard, regex-looking, empty); for `app-data.json` the
+  `userIdentificationConfig.type` and the `aiAssistant` flag; for
+  `workflow.json` and `knowledge-content.json` the item count and, per
+  suggestion, whether its id matched an item's `sourceId`, its `id`, or
+  neither;
+- the newest chat call: status, failed and error text, the request's
+  `context` length, and the answer's keys and suggestion count;
+- the stored chat: its message count and the suggestion fields present;
+- the chat panel: which markers matched
+  (`data-chat-dialog="show.feedback"`, `.MuiTypography-body1/2`,
+  `.MuiButton-root`) and the turns of each kind.
+
+No conversation text, URL, or tenant, application, user or chat id goes
+in; every string left is redacted in the current mode. The trace is
+collected only when the chat answers the check without the model, kept on
+the card's result, and never in the transcript or a tool result the model
+reads.
+
+`tooling/scripts/dapty-bundle-to-fixture.mjs <bundle.json> <name> --har
+<capture.har>` turns a bundle and the SE's redacted HAR into a fixture
+under `packages/browser-runtime/src/apty/diagnosis/fixtures/dapty-live/`
+(`expected.json`, `evidence.json`, `capture.har.json`); it refuses a HAR
+that still holds an email address, a cookie or an authorization header.

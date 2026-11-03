@@ -79,6 +79,11 @@
     "resetDone": "设置已重置，请记得保存",
     "extensionSubtitle": "配置你的 Apty Agent 扩展",
     "aptyIntegration": "连接",
+    "aptyCdn": {
+      "title": "Apty Client：内容 CDN",
+      "label": "当 Apty Client 没有响应时，从 Apty 的内容 CDN 读取它所读取的相同公开文件",
+      "help": "检查随后会从 Apty Client 自身配置所指定的内容 URL 读取内容文件（app-urls.json、app-data.json、workflow.json 以及检查所需的其他文件），并在页面持有用户 ID 时读取该用户存储的 Ask Dapty 对话。不会发送任何凭据，每个文件都经过正文拒绝列表和脱敏处理。关闭后：只读取 Apty Client 自身的记录，Client 没有响应时检查会说明原因。"
+    },
     "languageHint": "选择您的首选语言",
     "themeHint": "选择您喜欢的主题",
     "privacyNotice": "不会收集任何分析或遥测数据。您的消息和工具结果只会发送给您在下方配置的 AI 服务商，使用您自己的 API 密钥。",
@@ -2297,6 +2302,11 @@
     },
     "daptyListHidden": "（在小组件列表中被隐藏）",
     "daptyNamesOnly": "按名称匹配：聊天面板不显示推荐的 ID。",
+    "daptyEvidence": {
+      "export": "导出证据",
+      "reviewDescription": "用于真实租户测试：构建信息、此卡片的结果、耗时、哪个来源给出了答案以及之前每个来源为何没有，以及读取的每个文件和调用的状态、大小、键和计数。不含对话文本、URL 或租户、应用、用户、对话 ID；每个值都按当前脱敏模式处理。发送前请检查。",
+      "label": "Ask Dapty 证据包"
+    },
     "daptyStoredChatUnread": {
       "apty-id": "未读取带有 ID 的已保存聊天：此应用通过只有 Apty Client 能读取的 Apty ID 识别用户。",
       "no-user-value": "未读取带有 ID 的已保存聊天：页面中没有此应用用来识别用户的值。"

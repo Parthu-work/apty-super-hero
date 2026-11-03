@@ -130,6 +130,12 @@ export interface AppSettings {
    * otherwise (`summaryModelFor`).
    */
   summaryModel?: string;
+  /**
+   * When the Apty Client does not answer, the checks read the same public
+   * content files (and the user's stored Ask Dapty chat) from Apty's content
+   * CDN, with no credentials. Missing means on.
+   */
+  aptyCdnFallback?: boolean;
 }
 
 /** What Settings accepts for `requestTokenBudget`; a stored value outside it counts as unset. */
@@ -187,4 +193,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   screenshotPolicy: "ask",
   pageHooksEnabled: true,
   pageHooksExcludedSites: [],
+  aptyCdnFallback: true,
 };

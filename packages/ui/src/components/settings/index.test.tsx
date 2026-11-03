@@ -166,6 +166,39 @@ describe("SettingsPage", () => {
     );
   });
 
+  it("saves the content CDN switch on the Apty Integration tab at once, keeping the stored settings", async () => {
+    const storageAdapter = createMemoryStorage<unknown>();
+    await storageAdapter.save("apty_settings", { aiToken: "stored-key" });
+    storageAdapter.save.mockClear();
+    render(
+      <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
+        <ThemeProvider storageAdapter={createMemoryStorage<string>() as never}>
+          <SettingsPage
+            storageAdapter={storageAdapter}
+            initialTab="connection"
+            connectionContent={<p>Apty Client</p>}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const toggle = await screen.findByRole("switch", {
+      name: /read the same public files it reads from Apty's content CDN/,
+    });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(storageAdapter.save).toHaveBeenLastCalledWith(
+        "apty_settings",
+        expect.objectContaining({
+          aiToken: "stored-key",
+          aptyCdnFallback: false,
+        }),
+      ),
+    );
+  });
+
   it("fills fields the stored settings leave out with their defaults, and saves the schema version", async () => {
     const storageAdapter = createMemoryStorage<unknown>();
     await storageAdapter.save("apty_settings", { aiToken: "stored-key" });

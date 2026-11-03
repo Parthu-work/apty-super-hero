@@ -61,8 +61,10 @@ const harFile = (name: string) =>
 beforeEach(() => {
   check.next = undefined;
   (
-    chrome.storage as unknown as { onChanged: { addListener: () => void } }
-  ).onChanged = { addListener: vi.fn() };
+    chrome.storage as unknown as {
+      onChanged: { addListener: () => void; removeListener: () => void };
+    }
+  ).onChanged = { addListener: vi.fn(), removeListener: vi.fn() };
 });
 
 describe("HarCheckPage while a check runs (N13)", () => {

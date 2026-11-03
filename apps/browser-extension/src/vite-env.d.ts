@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_APTY_CLIENT_EXTENSION_ID?: string;
   readonly VITE_APTY_SERVICE_WORKER_EXTENSION_ID?: string;
   readonly VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT?: string;
+  /** The commit the build was made from (vite.config.ts); empty when unknown. */
+  readonly VITE_APTY_AGENT_COMMIT?: string;
 }
 
 interface ImportMeta {

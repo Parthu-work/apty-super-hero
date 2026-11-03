@@ -79,6 +79,11 @@
     "resetDone": "Settings reset, remember to save",
     "extensionSubtitle": "Configure your Apty Agent extension",
     "aptyIntegration": "Connection",
+    "aptyCdn": {
+      "title": "Apty Client: content CDN",
+      "label": "When the Apty Client doesn't answer, read the same public files it reads from Apty's content CDN",
+      "help": "The checks then read the content files (app-urls.json, app-data.json, workflow.json and the others a check names) and, when the page holds the user's ID, the user's stored Ask Dapty chat, from the content URL the Apty Client's own configuration names. No credentials are sent, and every file goes through the body deny list and redaction. Off: only the Apty Client's own record is read, and a check says why when the Client doesn't answer."
+    },
     "languageHint": "Choose your preferred language",
     "themeHint": "Choose your preferred theme",
     "privacyNotice": "No analytics or telemetry are collected. Your messages and tool results go only to the AI provider you configure below, using your own API key.",
@@ -2297,6 +2302,11 @@
     },
     "daptyListHidden": "(hidden from the widget's list)",
     "daptyNamesOnly": "Matched by name: the chat panel does not show the suggestions' ids.",
+    "daptyEvidence": {
+      "export": "Export evidence",
+      "reviewDescription": "For the live-tenant test: build facts, this card's result, timings, which source answered and why each earlier one did not, and for every file and call read only its status, size, keys and counts. No conversation text, URL, or tenant, application, user or chat id; every value is masked in the current redaction mode. Check it before you send it.",
+      "label": "Ask Dapty evidence bundle"
+    },
     "daptyStoredChatUnread": {
       "apty-id": "The stored chat, which has the ids, was not read: this application identifies its users by an Apty ID that only the Apty Client can read.",
       "no-user-value": "The stored chat, which has the ids, was not read: the page does not hold the value this application identifies its users by."
