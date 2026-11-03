@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Widget check: WNV-08 only where the regex URL flags can be on**: the 5.x player's `getFeatureFlags()` only ever returns its defaults, where `urlRegex` and `regExpUrl` are off, and nothing fetches a tenant's values (apty-dap `cdn.service.ts:933`, `feature-flags.ts`); the 4.x player fetches them per tenant. On files from a 5.x player (its own files observed, or read from the content CDN) the environment is decided with wildcard matching alone, so the card gives WNV-02, WNV-03 or a pass instead of the open WNV-08. WNV-08 stays for a 4.x player, or files that do not say which player read them (`pack-kit.ts` `playerVersionOf`).
 - **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
   - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
   - The content URL and tenant come from its web-accessible `player-config.json`, or `window.__APTY_PLAYER_CONFIG__` in Injected mode. The application and environment come from `app-urls.json`, as the player picks them.
