@@ -6,6 +6,8 @@
  * Client answers at all.
  */
 
+import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
+import { ChromeStorageAdapter } from "../../storage/storage-adapter.js";
 import {
   type CdnResourceSource,
   createCdnResourceSource,
@@ -32,6 +34,13 @@ export interface AptyFilesReaders {
     names: readonly string[],
     options: { storedChats: boolean },
   ) => CdnResourceSource;
+  /**
+   * Whether Apty's content CDN may be read when the Client does not answer
+   * (Settings → Apty Integration). Off: no page probe for the Client's
+   * config and no CDN request; the Client is still found and pinged.
+   * Missing means on.
+   */
+  cdnFallback?: () => Promise<boolean>;
   /** Overridable for tests; the Apty Client's files by default. */
   clientFiles?: (
     extensionId: string | undefined,
@@ -68,12 +77,16 @@ export function createAptyFiles(readers: AptyFilesReaders) {
   const cdnRuns = new Map<string, { at: number; source: CdnResourceSource }>();
   const answering = new Map<string, { until: number; ok: Promise<boolean> }>();
 
-  function cdnFor(
+  async function cdnFor(
     tab: number | undefined,
     names: readonly string[],
     storedChats = false,
-  ): CdnResourceSource | undefined {
+  ): Promise<CdnResourceSource | undefined> {
     if (tab === undefined || !readers.cdn) return undefined;
+    const allowed = readers.cdnFallback
+      ? await readers.cdnFallback().catch(() => true)
+      : true;
+    if (!allowed) return undefined;
     const key = `${tab}|${storedChats}|${[...names].sort().join(",")}`;
     const cached = cdnRuns.get(key);
     if (cached && Date.now() - cached.at < CDN_REUSE_MS) return cached.source;
@@ -122,7 +135,7 @@ export function createAptyFiles(readers: AptyFilesReaders) {
     const id = await clientIdFor(tab, saved);
     const fromClient = await clientFiles(id, names);
     if (fromClient.connection.ok) return fromClient;
-    const cdn = cdnFor(tab, names, storedChats);
+    const cdn = await cdnFor(tab, names, storedChats);
     if (!cdn) return fromClient;
     const fromCdn = await loadEvidenceFrom(cdn, names).catch(() => undefined);
     if (fromCdn?.connection.ok) return { ...fromCdn, fromCdn: true };
@@ -134,7 +147,18 @@ export function createAptyFiles(readers: AptyFilesReaders) {
   return { cdnFor, clientIdFor, files };
 }
 
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
+
+/** Settings → Apty Integration's content CDN fallback: on unless turned off. */
+async function loadAptyCdnFallback(): Promise<boolean> {
+  const settings = await settingsStorage
+    .load(STORAGE_KEYS.SETTINGS)
+    .catch(() => null);
+  return settings?.aptyCdnFallback !== false;
+}
+
 export const DEFAULT_APTY_FILES_READERS: AptyFilesReaders = {
+  cdnFallback: loadAptyCdnFallback,
   detectClient: detectClientExtensionId,
   clientAnswers: async (extensionId) =>
     (

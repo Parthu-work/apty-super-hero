@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Settings: Apty's content CDN can be turned off (decision C5)**: Settings → Apty Integration → "Apty Client: content CDN" (`aptyCdnFallback`, on by default, as merged). Off, no check probes the page for the Client's `player-config.json` or reads the CDN, for content files or the stored Ask Dapty chat; the Client is still found from the page and pinged, and the card shows the Client's own failure message. Finding the Client to ping it no longer fetches `player-config.json` at all. English and Chinese; data flow in `docs/security/DATA_FLOW.md`.
 - **Audit items 10, N5 and 14, checked again against the player's source**:
   - **Language codes (14)**: the 5.x player compares the page's `lang` (before the first `-`) to each locale code exactly, with no alias (`locale.service.ts` `getActiveLanguage`). An item named only under `iw`, `in` or `nb` is now missing for `he`, `id` or `no` users (CNV-13), not an open item, and content in `he` does not pass for a page that says `lang="iw"`.
   - **A CSS selector the browser rejects (N5)**: the player retries it with jQuery (`element-identification` `select.ts`), so the selector check leaves it open as not run here, with the Console as the next check, instead of calling it broken (SEL-04). An XPath that does not parse is still SEL-04: XPath has no retry.
