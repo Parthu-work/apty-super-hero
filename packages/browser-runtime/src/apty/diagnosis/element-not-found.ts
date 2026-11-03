@@ -9,7 +9,10 @@
  * is never more certain than "likely".
  *
  * The card shows counts, never the selector or the page's text. jQuery and
- * custom-script selectors are code and are not run.
+ * custom-script selectors are code and are not run. A CSS selector the
+ * browser rejects is not run either: the player retries it with jQuery
+ * (apty-dap `element-identification/src/select.ts` `selectCSS`, Appendix A20
+ * of the Ask Dapty brief), so it is "not checked here", not broken.
  */
 import type { StoredElementTarget } from "@apty/dom-snapshot";
 import { isValueDynamic } from "@apty/dom-snapshot";
@@ -226,6 +229,7 @@ function lookupFinding(
   framePath: string[],
   shadowRoots: string[],
   stepNamed: boolean,
+  language: StoredElementTarget["language"],
 ): Finding {
   const label = where(part);
   const base = { part: part.part, n: part.n };
@@ -267,8 +271,7 @@ function lookupFinding(
   const rendered = sum(tests.map((t) => t.renderedCount));
   const shadowMatches = sum(tests.map((t) => t.shadowMatches));
   const brokenHost = tests.find((t) => t.brokenHostIndex !== null);
-  const scope = depth === 0 ? "the page itself" : `frames at depth ${depth}`;
-  const counted = `${label}: ${matches} match(es), ${rendered} rendered, in ${scope}`;
+  const counted = `${label}: matches = ${matches}, rendered = ${rendered}, frame depth = ${depth}`;
   const fail = (
     ruleId: RuleId,
     reason: GateReason,
@@ -285,11 +288,29 @@ function lookupFinding(
     nexts: [],
   });
 
+  if (tests.some((t) => t.invalid) && language === "css") {
+    return {
+      gates: [
+        gate(
+          "lookup",
+          "unknown",
+          "SEL-03",
+          "cssRejected",
+          `${label}: the browser rejects the stored CSS selector; the player then retries it with jQuery, which the check does not run.`,
+          base,
+          [`${label}: the selector does not parse as CSS`],
+        ),
+      ],
+      causes: [],
+      nexts: ["runInConsole"],
+    };
+  }
+
   if (tests.some((t) => t.invalid)) {
     return fail(
       "SEL-04",
       "invalidSelector",
-      `${label}: the stored selector does not parse, so the lookup finds nothing.`,
+      `${label}: the stored XPath does not parse, so the lookup finds nothing.`,
       base,
       SELECTOR_CARD,
       "Select the element again in Studio, or correct the selector, then publish and reload.",
@@ -317,10 +338,7 @@ function lookupFinding(
         { ...base, count: shadowMatches },
         CARD_SHADOW,
         "Select the element again in Studio so the identification includes the shadow host chain, then publish.",
-        [
-          counted,
-          `${label}: ${shadowMatches} match(es) inside open shadow roots`,
-        ],
+        [counted, `${label}: shadow-root matches = ${shadowMatches}`],
       );
     }
     const first = elsewhere[0];
@@ -336,7 +354,7 @@ function lookupFinding(
           "Select the element again in Studio inside the frame that holds it, so the frame path points at that frame; then publish.",
           [
             counted,
-            `${label}: ${found} match(es) in another frame at depth ${depth}`,
+            `${label}: other-frame matches = ${found} (depth ${depth})`,
           ],
         );
       }
@@ -350,7 +368,7 @@ function lookupFinding(
             "Delete the hand-written selector and select the element with Studio's picker while inside the frame, so the frame path is recorded; then publish.",
             [
               counted,
-              `${label}: ${found} match(es) in a frame at depth ${first.depth}`,
+              `${label}: frame matches = ${found} (depth ${first.depth})`,
             ],
           )
         : fail(
@@ -360,7 +378,10 @@ function lookupFinding(
             { ...base, depth, found: first.depth },
             CARD_SHADOW,
             "Select the element again in Studio inside the frame that holds it, so the frame path matches the live nesting; then publish.",
-            [counted, `${label}: ${found} match(es) at depth ${first.depth}`],
+            [
+              counted,
+              `${label}: frame matches = ${found} (depth ${first.depth})`,
+            ],
           );
     }
     if (silent > 0) {
@@ -665,7 +686,7 @@ async function selectorFinding(
           "unknown",
           "SEL-03",
           "jquerySyntax",
-          `${label}: the selector uses jQuery syntax, which the browser's lookup rejects and the check does not run.`,
+          `${label}: the selector uses jQuery syntax, which the browser rejects; the player then retries it with jQuery, which the check does not run.`,
           { ...base, type },
           [`${label}: identificationType = ${type}, jQuery syntax`],
         ),
@@ -689,6 +710,7 @@ async function selectorFinding(
     framePath,
     shadowRoots,
     stepNamed,
+    active.language,
   );
   const generated = valuesIn(selector).filter(isValueDynamic).length;
   const noMatch = found.gates.some(
