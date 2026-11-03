@@ -1,4 +1,8 @@
-import { spawn } from "node:child_process";
+import {
+  type ChildProcess,
+  type SpawnOptionsWithoutStdio,
+  spawn,
+} from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,34 +21,60 @@ afterEach(() => {
   rmSync(configDir, { recursive: true, force: true });
 });
 
-/** Spawns the real `daemon.ts` CLI entrypoint (via `tsx`, no build step needed) and resolves once its stderr contains `marker`, or after `timeoutMs`. Always kills the child before resolving. */
+/**
+ * Runs a TypeScript entrypoint in one `node` process with tsx's loader (no
+ * build step). Not through `npx tsx`: that is three processes, and SIGTERM to
+ * `npx` left the daemon running, still writing its token into
+ * `APTY_MCP_CONFIG_DIR` while `afterEach` deleted it (ENOTEMPTY in CI).
+ */
+function spawnTsx(args: string[], options: SpawnOptionsWithoutStdio) {
+  return spawn(process.execPath, ["--import", "tsx", ...args], options);
+}
+
+/** Stops a spawned CLI; settles once it has exited and its output is closed. */
+function stop(child: ChildProcess): Promise<void> {
+  const closed = new Promise<void>((resolve) => {
+    if (child.stdout?.closed !== false && child.stderr?.closed !== false) {
+      resolve();
+    } else {
+      child.once("close", () => resolve());
+    }
+  });
+  child.kill("SIGTERM");
+  return closed;
+}
+
+/** Spawns the real `daemon.ts` CLI entrypoint (via `tsx`, no build step needed) and resolves once its stderr contains `marker`, or rejects after `timeoutMs`. Either way it settles only after the child has exited. */
 function runDaemonUntil(
   args: string[],
   marker: string,
   timeoutMs = 10_000,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("npx", ["tsx", "src/daemon.ts", ...args], {
+    const child = spawnTsx(["src/daemon.ts", ...args], {
       cwd: PACKAGE_ROOT,
       env: { ...process.env, APTY_MCP_CONFIG_DIR: configDir },
     });
 
     let stderr = "";
+    let done = false;
     const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(
-        new Error(
-          `Timed out waiting for marker ${JSON.stringify(marker)} in stderr. Got:\n${stderr}`,
+      done = true;
+      void stop(child).then(() =>
+        reject(
+          new Error(
+            `Timed out waiting for marker ${JSON.stringify(marker)} in stderr. Got:\n${stderr}`,
+          ),
         ),
       );
     }, timeoutMs);
 
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
-      if (stderr.includes(marker)) {
+      if (!done && stderr.includes(marker)) {
+        done = true;
         clearTimeout(timer);
-        child.kill("SIGTERM");
-        resolve(stderr);
+        void stop(child).then(() => resolve(stderr));
       }
     });
 
@@ -73,17 +103,27 @@ describe("daemon.ts CLI — non-loopback host warning", () => {
   }, 15_000);
 });
 
+describe("daemon.ts CLI — shutdown", () => {
+  it("has stopped the daemon by the time the run settles, before afterEach removes its config dir", async () => {
+    const stderr = await runDaemonUntil(
+      ["--port", "0", "--host", "127.0.0.1", "--extension-id", "test-ext-id"],
+      "Apty MCP Daemon started",
+    );
+    const pid = Number(/pid=(\d+)/.exec(stderr)?.[1]);
+    expect(pid).toBeGreaterThan(0);
+    expect(() => process.kill(pid, 0)).toThrow(
+      expect.objectContaining({ code: "ESRCH" }),
+    );
+  }, 15_000);
+});
+
 describe("daemon.ts CLI — token commands", () => {
   it("--print-token-path prints the token path without starting a server", async () => {
     const output = await new Promise<string>((resolve, reject) => {
-      const child = spawn(
-        "npx",
-        ["tsx", "src/daemon.ts", "--print-token-path"],
-        {
-          cwd: PACKAGE_ROOT,
-          env: { ...process.env, APTY_MCP_CONFIG_DIR: configDir },
-        },
-      );
+      const child = spawnTsx(["src/daemon.ts", "--print-token-path"], {
+        cwd: PACKAGE_ROOT,
+        env: { ...process.env, APTY_MCP_CONFIG_DIR: configDir },
+      });
       let stdout = "";
       child.stdout.on("data", (chunk) => {
         stdout += chunk.toString();
@@ -91,8 +131,7 @@ describe("daemon.ts CLI — token commands", () => {
       child.on("close", () => resolve(stdout));
       child.on("error", reject);
       setTimeout(() => {
-        child.kill("SIGTERM");
-        reject(new Error("timed out"));
+        void stop(child).then(() => reject(new Error("timed out")));
       }, 10_000);
     });
 
@@ -104,7 +143,7 @@ describe("daemon.ts CLI — token commands", () => {
       stdout: string;
       stderr: string;
     }>((resolve, reject) => {
-      const child = spawn("npx", ["tsx", "src/daemon.ts", "--rotate-token"], {
+      const child = spawnTsx(["src/daemon.ts", "--rotate-token"], {
         cwd: PACKAGE_ROOT,
         env: { ...process.env, APTY_MCP_CONFIG_DIR: configDir },
       });
@@ -119,8 +158,7 @@ describe("daemon.ts CLI — token commands", () => {
       child.on("close", () => resolve({ stdout, stderr }));
       child.on("error", reject);
       setTimeout(() => {
-        child.kill("SIGTERM");
-        reject(new Error("timed out"));
+        void stop(child).then(() => reject(new Error("timed out")));
       }, 10_000);
     });
 
@@ -132,7 +170,7 @@ describe("daemon.ts CLI — token commands", () => {
 describe("cli.ts usage", () => {
   it("documents the APTY_ variables and never warns about the deprecated ones", async () => {
     const stderr = await new Promise<string>((resolve, reject) => {
-      const child = spawn("npx", ["tsx", "src/cli.ts", "-h"], {
+      const child = spawnTsx(["src/cli.ts", "-h"], {
         cwd: PACKAGE_ROOT,
         env: {
           ...process.env,
