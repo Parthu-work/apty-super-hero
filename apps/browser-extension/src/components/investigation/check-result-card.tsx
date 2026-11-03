@@ -349,6 +349,22 @@ function withWhere(t: Translate, params: GateResult["params"]) {
   };
 }
 
+/** The selector check's evidence lines start with where the element sits, in English (`element-not-found.ts` `where`). */
+const EVIDENCE_WHERE = /^(Its element|Disabled element (\d+)|Step (\d+)):/;
+
+function evidenceLine(t: Translate, line: string): string {
+  const match = EVIDENCE_WHERE.exec(line);
+  if (!match) return line;
+  const [, label, disabled, step] = match;
+  const key = disabled
+    ? PART_KEY.disabled
+    : step
+      ? PART_KEY.step
+      : PART_KEY.own;
+  if (!key || !label) return line;
+  return `${t(key, { n: Number(disabled ?? step ?? 1) })}:${line.slice(label.length + 1)}`;
+}
+
 function gateText(t: Translate, gate: GateResult): string {
   return t(`checkPack.reason.${gate.reason}`, withWhere(t, gate.params));
 }
@@ -426,7 +442,7 @@ function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
                 key={line}
                 className="break-all font-mono text-xs text-foreground"
               >
-                {line}
+                {evidenceLine(t, line)}
               </li>
             ))}
           </ul>
