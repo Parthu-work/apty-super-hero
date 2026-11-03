@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Ask Dapty: a home for live-tenant captures**: `fixtures/dapty-live/` (with a README on naming, conversion and the redaction checklist) and `dapty-live-fixtures.test.ts`, which runs the check on every case's redacted HAR and compares the verdict, rule ids, gates and suggestion rows with the card the SE observed. No live capture has arrived yet, so it has no cases.
 - **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
   - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
   - The content URL and tenant come from its web-accessible `player-config.json`, or `window.__APTY_PLAYER_CONFIG__` in Injected mode. The application and environment come from `app-urls.json`, as the player picks them.
