@@ -54,9 +54,23 @@ receives chat messages.
 
 `chrome.runtime.sendMessage` to the extension IDs saved in Options, for
 their logs, status and observed resources
-(`packages/browser-runtime/src/apty/service-worker-diagnostics.ts`). The
-checks read the Client only from the ID saved in Options and take none from
-a tool call (`tools/diagnosis.ts`).
+(`packages/browser-runtime/src/apty/service-worker-diagnostics.ts`). With
+no ID saved, the checks use the Apty Client ID the page shows (the
+`window-script.js` it injects) once that Client answers a status ping
+(`diagnosis/apty-files.ts`). They take no ID from a tool call
+(`tools/diagnosis.ts`).
+
+## To Apty's content CDN
+
+When the Apty Client does not answer, the checks `GET` the same public
+content files the Client reads (and, for Ask Dapty, the user's stored chat
+when the page holds the user's ID) from the content URL in the Client's
+`player-config.json` or the page's `window.__APTY_PLAYER_CONFIG__`, with
+`credentials: "omit"` (`apty/apty-cdn-source.ts`). Nothing is sent but the
+path. Bodies go through the body deny list and redaction like the Client's
+record. **Settings → Apty Integration → Apty Client: content CDN** turns it
+off: then the page is not probed for the Client's config and no CDN request
+is made.
 
 ## Never sent
 

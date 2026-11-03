@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Settings: Apty's content CDN can be turned off (decision C5)**: Settings → Apty Integration → "Apty Client: content CDN" (`aptyCdnFallback`, on by default, as merged). Off, no check probes the page for the Client's `player-config.json` or reads the CDN, for content files or the stored Ask Dapty chat; the Client is still found from the page and pinged, and the card shows the Client's own failure message. Finding the Client to ping it no longer fetches `player-config.json` at all. English and Chinese; data flow in `docs/security/DATA_FLOW.md`.
 - **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
   - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
   - The content URL and tenant come from its web-accessible `player-config.json`, or `window.__APTY_PLAYER_CONFIG__` in Injected mode. The application and environment come from `app-urls.json`, as the player picks them.
