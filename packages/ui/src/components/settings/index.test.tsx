@@ -54,6 +54,13 @@ function createMemoryStorage<T>() {
   };
 }
 
+/** Settings of a user who picked the Custom preset; a fresh install opens on Anthropic. */
+function customPresetStorage() {
+  const storageAdapter = createMemoryStorage<unknown>();
+  storageAdapter.load.mockResolvedValue({ aiProvider: "custom" });
+  return storageAdapter;
+}
+
 function renderSettings(
   initialTab: "ai" | "general" = "ai",
   storedSettings?: unknown,
@@ -191,8 +198,22 @@ describe("SettingsPage", () => {
     );
   });
 
-  it("turns a provider on when its first API key is typed in", async () => {
+  it("opens a fresh install's provider form on Anthropic's claude-sonnet-5-5, not enabled (C6)", async () => {
     renderSettings("ai");
+
+    expect(
+      await screen.findByPlaceholderText("sk-ant-..."),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("claude-sonnet-5-5")).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("switch", { name: "Enable" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+  });
+
+  it("turns a provider on when its first API key is typed in", async () => {
+    renderSettings("ai", { aiProvider: "custom" });
 
     const enable = await screen.findByRole("switch", { name: "Enable" });
     expect(enable.getAttribute("aria-checked")).toBe("false");
@@ -213,7 +234,7 @@ describe("SettingsPage", () => {
       onTestConnection?: SettingsPageProps["onTestConnection"];
       onFetchModels?: SettingsPageProps["onFetchModels"];
     }) {
-      const storageAdapter = createMemoryStorage<unknown>();
+      const storageAdapter = customPresetStorage();
       render(
         <I18nProvider storageAdapter={createMemoryStorage<string>() as never}>
           <ThemeProvider
@@ -344,7 +365,7 @@ describe("SettingsPage", () => {
             storageAdapter={createMemoryStorage<string>() as never}
           >
             <SettingsPage
-              storageAdapter={createMemoryStorage<unknown>()}
+              storageAdapter={customPresetStorage()}
               initialTab="ai"
               onSave={onSave}
               onTestConnection={onTestConnection}
@@ -400,7 +421,7 @@ describe("SettingsPage", () => {
             storageAdapter={createMemoryStorage<string>() as never}
           >
             <SettingsPage
-              storageAdapter={createMemoryStorage<unknown>()}
+              storageAdapter={customPresetStorage()}
               initialTab="ai"
             />
           </ThemeProvider>
@@ -427,7 +448,7 @@ describe("SettingsPage", () => {
             storageAdapter={createMemoryStorage<string>() as never}
           >
             <SettingsPage
-              storageAdapter={createMemoryStorage<unknown>()}
+              storageAdapter={customPresetStorage()}
               initialTab="ai"
               {...props}
             />

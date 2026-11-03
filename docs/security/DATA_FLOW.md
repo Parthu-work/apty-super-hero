@@ -39,7 +39,9 @@ The summary request of **Summarize earlier turns** (off by default) runs the
 same outbound filters inside `ConversationCompressor`
 (`packages/agent-core/src/conversation/compressor.ts`). It carries the
 earlier user and assistant messages and the results of checks answered
-without the model, never other tool results.
+without the model, never other tool results. It goes to the same provider with the
+same key; only its model id can differ (`summaryModel`, by default
+`claude-haiku-5-5` on Anthropic).
 
 Screenshots follow **Settings → Data handling → Screenshots** (ask by
 default); a denied screenshot sends no image.

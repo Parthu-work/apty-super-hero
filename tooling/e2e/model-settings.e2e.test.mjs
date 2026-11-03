@@ -54,6 +54,13 @@ before(async () => {
     .getByRole("tab", { name: "AI", exact: true })
     .click()
     .catch(() => {});
+  // A fresh install opens on Anthropic (DEFAULT_CHAT_MODEL); this suite
+  // drives an OpenAI-compatible mock through the Custom preset.
+  await options.getByLabel("AI Host").waitFor();
+  await options
+    .getByRole("button", { name: /Custom/ })
+    .first()
+    .click();
   await options.getByLabel("AI Host").fill(model.baseUrl);
   await options.getByPlaceholder("Your API Key").fill("e2e-key");
 });

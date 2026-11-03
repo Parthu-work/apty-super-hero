@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Default model (decision C6)**: a fresh install's provider form opens on Anthropic with `claude-sonnet-5-5`, still bring-your-own-key and off until a key is saved. A saved provider or model never changes: settings that already hold a key, model, host or model list but never named a provider keep the old default (settings migration v3). With **Summarize earlier turns** on, the summary request uses its own model id with the same provider and key, **Summary model** in Settings → AI → Request size: empty means `claude-haiku-5-5` on Anthropic and the chat model elsewhere. English and Chinese; see `docs/development/REQUEST_ANATOMY.md`.
 - **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
   - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
   - The content URL and tenant come from its web-accessible `player-config.json`, or `window.__APTY_PLAYER_CONFIG__` in Injected mode. The application and environment come from `app-urls.json`, as the player picks them.
