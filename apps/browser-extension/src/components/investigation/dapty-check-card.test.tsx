@@ -234,4 +234,59 @@ describe("CheckResultCard for the Ask Dapty check", () => {
       screen.queryByRole("button", { name: /Record the next Ask Dapty chat/ }),
     ).toBeNull();
   });
+
+  describe("Export evidence", () => {
+    const withSettings = (settings: Record<string, unknown>) =>
+      vi
+        .mocked(chrome.storage.local.get)
+        .mockResolvedValue({ apty_settings: settings } as never);
+
+    it("is offered only with Developer tools on, and shows the bundle for review before download", async () => {
+      withSettings({ developerTools: true, redactionMode: "strict" });
+      const result = {
+        ...checked(SUGGESTED),
+        daptyEvidence: {
+          totalMs: 812,
+          answeredBy: "page" as const,
+          attempts: [
+            { source: "page" as const, ms: 3, used: true, calls: 1, turns: 2 },
+          ],
+          filesFromCdn: false,
+          files: [],
+        },
+      };
+      render(<CheckResultCard tool={tool(result)} />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Export evidence" }),
+      );
+
+      const review = await screen.findByRole("region", {
+        name: "Ask Dapty evidence bundle",
+      });
+      const bundle = JSON.parse(review.textContent ?? "");
+      expect(bundle).toMatchObject({
+        bundleVersion: "apty-dapty-evidence/1",
+        result: { packId: "dapty-conversation" },
+        evidence: { totalMs: 812, answeredBy: "page" },
+      });
+      expect(bundle.versions).toHaveProperty("agent");
+      expect(bundle.versions).toHaveProperty("commit");
+      expect(review.textContent).not.toContain("Which workflow exports");
+      expect(
+        screen.getByRole("button", { name: "Download" }),
+      ).toBeInTheDocument();
+    });
+
+    it("is not shown with Developer tools off", async () => {
+      withSettings({ developerTools: false });
+      render(<CheckResultCard tool={tool(checked(SUGGESTED))} />);
+
+      await screen.findByRole("region", { name: "Ask Dapty chat check" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(
+        screen.queryByRole("button", { name: "Export evidence" }),
+      ).toBeNull();
+    });
+  });
 });

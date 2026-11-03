@@ -35,6 +35,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { DaptyEvidenceExport } from "./dapty-evidence-export";
 
 const KB_PAGE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
 const PACKS = new Set([
@@ -735,6 +736,8 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           </ul>
         </div>
       )}
+
+      {result.dapty && <DaptyEvidenceExport result={result} />}
 
       {result.filesFromCdn && (
         <p className="text-xs text-muted-foreground">
