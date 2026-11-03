@@ -319,7 +319,19 @@ describe("widget-not-visible", () => {
   });
 });
 
-describe("widget-not-visible with the tenant's regex URL flags", () => {
+/**
+ * The same files as a 4.x Client reports them (`config.json` with
+ * `appUrls`, none of 5.x's own files), where the regex URL flags come from
+ * the tenant (apty-assist `feature-flag.effects.ts`, Appendix A4).
+ */
+const as4x = (evidence: ClientEvidence): ClientEvidence => ({
+  ...evidence,
+  observedNames: ["config.json"],
+});
+
+describe("widget-not-visible with the tenant's regex URL flags (4.x)", () => {
+  const files4x = (change?: (f: Record<string, Rec[] | Rec>) => void) =>
+    as4x(files(change));
   const QA_PAGE = "https://qa.crm.example.com/leads/42";
   const REGEX_ONLY = "https://(uat|qa)\\.crm\\.example\\.com/";
   const PROD_OR_UAT = "https://(uat\\.)?crm\\.example\\.com/";
@@ -335,28 +347,28 @@ describe("widget-not-visible with the tenant's regex URL flags", () => {
   const scenarios = {
     regexOnly: {
       page: QA_PAGE,
-      evidence: files((f) => {
+      evidence: files4x((f) => {
         (envs(f)[1] as Rec).urls = [REGEX_ONLY];
       }),
       patterns: [REGEX_ONLY, "https://crm.example.com/"],
     },
     orderFlip: {
       page: UAT_PAGE,
-      evidence: files((f) => {
+      evidence: files4x((f) => {
         (envs(f)[0] as Rec).urls = [PROD_OR_UAT];
       }),
       patterns: [PROD_OR_UAT, "https://uat.crm.example.com/"],
     },
     invalid: {
       page: UAT_PAGE,
-      evidence: files((f) => {
+      evidence: files4x((f) => {
         (envs(f)[0] as Rec).urls = [NOT_A_REGEX];
       }),
       patterns: [NOT_A_REGEX, "https://uat.crm.example.com/"],
     },
     invalidNoMatch: {
       page: "https://other.example.org/x",
-      evidence: files((f) => {
+      evidence: files4x((f) => {
         (envs(f)[0] as Rec).urls = ["*.crm.example.com"];
       }),
       patterns: ["*.crm.example.com", "https://uat.crm.example.com/"],
@@ -365,7 +377,7 @@ describe("widget-not-visible with the tenant's regex URL flags", () => {
 
   it("keeps today's result when a pattern matches only as a wildcard, as regex mode falls back to it", () => {
     const result = diagnoseWidgetNotVisible(
-      files((f) => {
+      files4x((f) => {
         const [prod, uat] = envs(f) as [Rec, Rec];
         uat.urls = ["https://*.crm.example.com/*"];
         prod.order = 3;
@@ -474,5 +486,85 @@ describe("widget-not-visible with the tenant's regex URL flags", () => {
         }
       }
     }
+  });
+});
+
+describe("widget-not-visible on 5.x, whose player never turns the regex URL flags on", () => {
+  const QA_PAGE = "https://qa.crm.example.com/leads/42";
+  const REGEX_ONLY = "https://(uat|qa)\\.crm\\.example\\.com/";
+  const PROD_OR_UAT = "https://(uat\\.)?crm\\.example\\.com/";
+  const NOT_A_REGEX = "*.crm.example.com/*";
+  const envGates = (result: ReturnType<typeof diagnoseWidgetNotVisible>) =>
+    result.gates.filter((g) => g.id === "environment-match");
+
+  it("decides with wildcard matching alone (apty-dap cdn.service.ts:933 returns DEFAULT_FEATURE_FLAGS)", () => {
+    const regexOnly = diagnoseWidgetNotVisible(
+      files((f) => {
+        (envs(f)[1] as Rec).urls = [REGEX_ONLY];
+      }),
+      QA_PAGE,
+    );
+    const orderFlip = diagnoseWidgetNotVisible(
+      files((f) => {
+        (envs(f)[0] as Rec).urls = [PROD_OR_UAT];
+      }),
+      UAT_PAGE,
+    );
+    const invalid = diagnoseWidgetNotVisible(
+      files((f) => {
+        (envs(f)[0] as Rec).urls = [NOT_A_REGEX];
+      }),
+      UAT_PAGE,
+    );
+
+    expect(envGates(regexOnly).map((g) => [g.ruleId, g.reason])).toEqual([
+      ["WNV-02", "noEnvMatch"],
+    ]);
+    expect(envGates(orderFlip).map((g) => [g.ruleId, g.reason])).toEqual([
+      ["WNV-02", "envMatch"],
+    ]);
+    expect(envGates(orderFlip)[0]?.params).toMatchObject({ env: "UAT" });
+    expect(envGates(invalid)[0]).toMatchObject({
+      ruleId: "WNV-02",
+      status: "pass",
+      params: { env: "Production" },
+    });
+    for (const result of [regexOnly, orderFlip, invalid]) {
+      expect(result.gates.map((g) => g.ruleId)).not.toContain("WNV-08");
+      expect(result.verdict.nextCheck).not.toBe("askRegexFlag");
+    }
+  });
+
+  it("treats files read from Apty's content CDN as 5.x, whatever was observed", () => {
+    const evidence = {
+      ...as4x(
+        files((f) => {
+          (envs(f)[1] as Rec).urls = [REGEX_ONLY];
+        }),
+      ),
+      fromCdn: true,
+    };
+
+    const result = diagnoseWidgetNotVisible(evidence, QA_PAGE);
+
+    expect(result.gates.map((g) => g.ruleId)).not.toContain("WNV-08");
+    expect(result.verdict.causes[0]?.ruleId).toBe("WNV-02");
+  });
+
+  it("keeps WNV-08 when the files do not tell which player read them", () => {
+    const result = diagnoseWidgetNotVisible(
+      {
+        ...files((f) => {
+          (envs(f)[1] as Rec).urls = [REGEX_ONLY];
+        }),
+        observedNames: [],
+      },
+      QA_PAGE,
+    );
+
+    expect(envGates(result)[0]).toMatchObject({
+      ruleId: "WNV-08",
+      reason: "envRegexOnly",
+    });
   });
 });

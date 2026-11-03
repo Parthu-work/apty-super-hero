@@ -14,7 +14,8 @@
  * expression, then as a wildcard, and a pattern that is not a valid regex
  * throws there (active-application.helpers.ts in 5.x code). The flags are
  * the player's own settings, in no file the Client reports, so both picks
- * are worked out.
+ * are worked out, unless the caller knows the flags are off: the 5.x player
+ * never turns them on (`pack-kit.ts` `playerVersionOf`).
  */
 import { type Rec, records, text, texts } from "./pack-kit.js";
 
@@ -86,10 +87,14 @@ function pitfallsOf(patternHost: string, host: string): HostPitfall[] {
   return pitfalls.length > 0 && hostMatches(normalized, host) ? pitfalls : [];
 }
 
-/** Every environment of every application, by order, matched against the page. */
+/**
+ * Every environment of every application, by order, matched against the
+ * page. With `regexFlags` false, `regex` is the wildcard result.
+ */
 export function matchEnvironments(
   appUrls: unknown,
   pageUrl: string,
+  { regexFlags = true }: { regexFlags?: boolean } = {},
 ): EnvironmentMatch[] {
   const host = new URL(pageUrl).host;
   return records(appUrls)
@@ -106,7 +111,11 @@ export function matchEnvironments(
         name: text(env.name) ?? "(unnamed)",
         order: typeof env.order === "number" ? env.order : Number.MAX_VALUE,
         matches: matching.length > 0,
-        regex: regexOutcome(patterns, pageUrl),
+        regex: regexFlags
+          ? regexOutcome(patterns, pageUrl)
+          : matching.length > 0
+            ? "match"
+            : "none",
         sameHost:
           hostPitfalls.length > 0 || hosts.some((h) => hostMatches(h, host)),
         hostPitfalls,
