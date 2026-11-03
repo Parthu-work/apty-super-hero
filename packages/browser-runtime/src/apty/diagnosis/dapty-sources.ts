@@ -22,6 +22,7 @@ import {
   tabOf,
 } from "./apty-files.js";
 import { DAPTY_FILES } from "./dapty-conversation.js";
+import { type DaptyTrace, traced } from "./dapty-evidence.js";
 import { loadDaptyFrom, loadDaptyFromClient } from "./dapty-loader.js";
 import {
   daptyEvidenceFromCalls,
@@ -47,7 +48,10 @@ interface DaptyReaders extends AptyFilesReaders {
   /** The Widget's own conversations, as the Apty Client reports them. */
   widgetChat?: (extensionId: string | undefined) => Promise<AptyWidgetChatRead>;
   /** Overridable for tests; the Apty Client's record by default. */
-  client?: (extensionId: string | undefined) => Promise<DaptyEvidence>;
+  client?: (
+    extensionId: string | undefined,
+    trace?: DaptyTrace,
+  ) => Promise<DaptyEvidence>;
 }
 
 const holdsChat = (evidence: DaptyEvidence) =>
@@ -66,19 +70,46 @@ export function createDaptySource(readers: DaptyReaders) {
   async function chat(
     runContext: unknown,
     clientExtensionId: string | undefined,
+    trace?: DaptyTrace,
   ): Promise<DaptyEvidence> {
     const tab = tabOf(runContext);
+    const held = (evidence: DaptyEvidence) => ({
+      used: holdsChat(evidence),
+      calls: evidence.calls,
+      turns: evidence.turns.length,
+      ...(evidence.connection.ok
+        ? {}
+        : { reason: evidence.connection.failure }),
+    });
 
     if (tab !== undefined && readers.pageCalls) {
-      const calls = await readers.pageCalls(tab).catch(() => []);
-      const page = daptyEvidenceFromCalls(calls, "page");
+      const { pageCalls } = readers;
+      const page = await traced(
+        trace,
+        "page",
+        async () => {
+          const calls = await pageCalls(tab).catch(() => []);
+          trace?.calls.push(...calls);
+          return daptyEvidenceFromCalls(calls, "page");
+        },
+        held,
+      );
       if (holdsChat(page)) return page;
     }
-    const id = await apty.clientIdFor(tab, clientExtensionId);
+    const id = await apty.clientIdFor(tab, clientExtensionId, trace);
     const [recorded, reported] = await Promise.all([
-      client(id),
+      traced(trace, "client", () => client(id, trace), held),
       readers.widgetChat
-        ? readers.widgetChat(id).catch(() => undefined)
+        ? traced(
+            trace,
+            "widget-chat",
+            async () => readers.widgetChat?.(id).catch(() => undefined),
+            (read) => ({
+              used: false,
+              turns: read?.ok ? (read.chats.at(-1)?.turns.length ?? 0) : 0,
+              ...(read && !read.ok ? { reason: read.failure } : {}),
+            }),
+          )
         : undefined,
     ]);
     // The Widget's own state holds every turn with ids; the recorded calls
@@ -86,6 +117,10 @@ export function createDaptySource(readers: DaptyReaders) {
     const newest = reported?.ok ? reported.chats.at(-1) : undefined;
     const turns = newest ? daptyTurnsFromClientChat(newest.turns) : [];
     if (turns.length > 0) {
+      const chatAttempt = trace?.attempts.find(
+        (a) => a.source === "widget-chat",
+      );
+      if (chatAttempt) chatAttempt.used = true;
       return {
         ...recorded,
         source: "client",
@@ -98,16 +133,35 @@ export function createDaptySource(readers: DaptyReaders) {
 
     let unread: StoredChatUnread | undefined;
     const cdn = await apty.cdnFor(tab, DAPTY_FILES, true);
+    if (trace) trace.cdnAllowed = cdn !== undefined;
     if (cdn) {
-      const stored = await loadDaptyFrom(cdn, "cdn").catch(() => undefined);
-      if (stored && holdsChat(stored)) return stored;
+      const stored = await traced(
+        trace,
+        "cdn",
+        () => loadDaptyFrom(cdn, "cdn", trace).catch(() => undefined),
+        (read) => (read ? held(read) : { used: false, reason: "not-readable" }),
+      );
       const state = await cdn.storedChat().catch(() => undefined);
+      if (trace && state) trace.storedChat = state;
+      if (stored && holdsChat(stored)) return stored;
       if (state === "apty-id" || state === "no-user-value") unread = state;
     }
     if (tab !== undefined && readers.widgetTurns) {
-      const read = await readers
-        .widgetTurns(tab)
-        .catch(() => ({ ok: false as const, reason: "not-readable" }));
+      const { widgetTurns } = readers;
+      const read = await traced(
+        trace,
+        "widget-dom",
+        () =>
+          widgetTurns(tab).catch(() => ({
+            ok: false as const,
+            reason: "not-readable",
+          })),
+        (result) =>
+          result.ok
+            ? { used: result.turns.length > 0, turns: result.turns.length }
+            : { used: false, reason: result.reason },
+      );
+      if (trace) trace.dom = read;
       if (read.ok && read.turns.length > 0) {
         return {
           ...daptyEvidenceFromDom(read.turns),
@@ -118,9 +172,14 @@ export function createDaptySource(readers: DaptyReaders) {
     return unread ? { ...recorded, storedChatUnread: unread } : recorded;
   }
 
-  const files = (runContext: unknown, clientExtensionId: string | undefined) =>
+  const files = (
+    runContext: unknown,
+    clientExtensionId: string | undefined,
+    trace?: DaptyTrace,
+  ) =>
     apty.files(runContext, clientExtensionId, DAPTY_FILES, {
       storedChats: true,
+      ...(trace ? { trace } : {}),
     });
 
   return { chat, files };

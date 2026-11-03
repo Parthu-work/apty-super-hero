@@ -290,8 +290,8 @@ describe("createDaptySource", () => {
       await read({ tabId: 4 }, undefined);
       await read({ tabId: 4 }, "saved");
 
-      expect(client).toHaveBeenNthCalledWith(1, "p".repeat(32));
-      expect(client).toHaveBeenNthCalledWith(2, "saved");
+      expect(client).toHaveBeenNthCalledWith(1, "p".repeat(32), undefined);
+      expect(client).toHaveBeenNthCalledWith(2, "saved", undefined);
     });
 
     it("asks a Client found on the page once whether it answers, and leaves out one that does not", async () => {
@@ -310,9 +310,9 @@ describe("createDaptySource", () => {
       await source.chat({ tabId: 4 }, "saved");
 
       expect(clientAnswers).toHaveBeenCalledTimes(1);
-      expect(client).toHaveBeenNthCalledWith(1, undefined);
+      expect(client).toHaveBeenNthCalledWith(1, undefined, undefined);
       expect(clientFiles).toHaveBeenCalledWith(undefined, expect.any(Array));
-      expect(client).toHaveBeenNthCalledWith(2, "saved");
+      expect(client).toHaveBeenNthCalledWith(2, "saved", undefined);
     });
 
     it("reads the content files from the CDN when the Client does not answer, and shares one CDN read with the chat", async () => {

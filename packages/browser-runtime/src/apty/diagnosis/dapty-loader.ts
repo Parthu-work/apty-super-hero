@@ -12,6 +12,7 @@ import {
 import { matchingDenyEntry } from "../resource-body-utils.js";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "../service-worker-diagnostics.js";
 import type { AptyObservedResource } from "../types.js";
+import type { DaptyTrace } from "./dapty-evidence.js";
 import { daptyEvidenceFromCalls, daptyKindOf } from "./dapty-parse.js";
 import type { DaptyEvidence, RawDaptyCall } from "./dapty-types.js";
 import { connectionFailure, type ResourceSource } from "./loader.js";
@@ -88,8 +89,10 @@ export async function daptyCallsFrom(
 export async function loadDaptyFrom(
   provider: ResourceSource,
   source: RawDaptyCall["source"],
+  trace?: DaptyTrace,
 ): Promise<DaptyEvidence> {
   const read = await daptyCallsFrom(provider, source);
+  if (read.ok) trace?.calls.push(...read.calls);
   if (!read.ok) {
     return {
       source,
@@ -106,6 +109,7 @@ export async function loadDaptyFrom(
 /** The Ask Dapty chat as the Apty Client recorded it, in extension mode. */
 export function loadDaptyFromClient(
   extensionId: string | undefined,
+  trace?: DaptyTrace,
 ): Promise<DaptyEvidence> {
   return loadDaptyFrom(
     new ConfiguredServiceWorkerDiagnosticsProvider({
@@ -113,5 +117,6 @@ export function loadDaptyFromClient(
       peer: "client",
     }),
     "client",
+    trace,
   );
 }

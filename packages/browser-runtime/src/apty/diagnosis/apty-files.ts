@@ -15,6 +15,7 @@ import {
   tabAptyPage,
 } from "../apty-cdn-source.js";
 import { sendExternalMessageDetailed } from "../external-messaging.js";
+import type { ClientPing, DaptyTrace } from "./dapty-evidence.js";
 import { loadClientEvidence, loadEvidenceFrom } from "./loader.js";
 import type { ClientEvidence } from "./types.js";
 
@@ -117,11 +118,27 @@ export function createAptyFiles(readers: AptyFilesReaders) {
   async function clientIdFor(
     tab: number | undefined,
     saved?: string,
+    trace?: DaptyTrace,
   ): Promise<string | undefined> {
-    if (saved) return saved;
-    if (tab === undefined || !readers.detectClient) return undefined;
+    const ping = (result: ClientPing) => {
+      if (trace) trace.clientPing ??= result;
+    };
+    if (saved) {
+      ping("saved-id");
+      return saved;
+    }
+    if (tab === undefined || !readers.detectClient) {
+      ping("no-tab");
+      return undefined;
+    }
     const found = await readers.detectClient(tab).catch(() => undefined);
-    return found && (await answers(found)) ? found : undefined;
+    if (!found) {
+      ping("not-on-page");
+      return undefined;
+    }
+    const ok = await answers(found);
+    ping(ok ? "answered" : "silent");
+    return ok ? found : undefined;
   }
 
   /** The named files from the Client, or from the CDN when the Client does not answer. */
@@ -129,19 +146,34 @@ export function createAptyFiles(readers: AptyFilesReaders) {
     runContext: unknown,
     saved: string | undefined,
     names: readonly string[],
-    { storedChats = false }: { storedChats?: boolean } = {},
+    {
+      storedChats = false,
+      trace,
+    }: { storedChats?: boolean; trace?: DaptyTrace } = {},
   ): Promise<ClientEvidence> {
+    const started = Date.now();
     const tab = tabOf(runContext);
-    const id = await clientIdFor(tab, saved);
+    const id = await clientIdFor(tab, saved, trace);
     const fromClient = await clientFiles(id, names);
-    if (fromClient.connection.ok) return fromClient;
+    const done = (evidence: ClientEvidence) => {
+      if (trace) trace.filesMs = Date.now() - started;
+      return evidence;
+    };
+    if (fromClient.connection.ok) return done(fromClient);
+    if (trace) trace.filesConnection = fromClient.connection.failure;
     const cdn = await cdnFor(tab, names, storedChats);
-    if (!cdn) return fromClient;
+    if (!cdn) return done(fromClient);
     const fromCdn = await loadEvidenceFrom(cdn, names).catch(() => undefined);
-    if (fromCdn?.connection.ok) return { ...fromCdn, fromCdn: true };
-    return fromClient.connection.ok
-      ? fromClient
-      : { ...fromClient, connection: withCdnUnread(fromClient.connection) };
+    if (trace) {
+      const probe = await cdn.probe().catch(() => undefined);
+      if (probe) trace.cdnProbe = probe.ok ? "ok" : probe.reason;
+    }
+    if (fromCdn?.connection.ok) return done({ ...fromCdn, fromCdn: true });
+    return done(
+      fromClient.connection.ok
+        ? fromClient
+        : { ...fromClient, connection: withCdnUnread(fromClient.connection) },
+    );
   }
 
   return { cdnFor, clientIdFor, files };

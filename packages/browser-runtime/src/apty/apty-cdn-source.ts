@@ -73,8 +73,15 @@ export interface CdnResourceSource extends ResourceSource {
   storedChat(): Promise<StoredChatState>;
 }
 
-const TENANT_FILES = new Set(["app-urls.json", "content-config.json"]);
-const APP_FILES = new Set(["app-data.json", "application-locales.json"]);
+/** Content files read from the tenant's and the application's folder; the rest are per environment (`cdn-path.builder.ts`). */
+export const TENANT_FILES: ReadonlySet<string> = new Set([
+  "app-urls.json",
+  "content-config.json",
+]);
+export const APP_FILES: ReadonlySet<string> = new Set([
+  "app-data.json",
+  "application-locales.json",
+]);
 /** @internal */
 export const MAX_CDN_BODY_CHARS = 5_000_000;
 const USER_SOURCES: ReadonlySet<string> = new Set<PageUserSource>([
