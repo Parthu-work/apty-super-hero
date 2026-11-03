@@ -31,6 +31,26 @@ export const SETTINGS_MIGRATIONS: readonly SettingsMigration[] = [
         : settings;
     },
   },
+  {
+    // Fresh installs now default to Anthropic (DEFAULT_CHAT_MODEL). Settings
+    // that already hold a provider configuration but never named the
+    // provider keep the old default, so no saved setup changes provider.
+    version: 3,
+    migrate: (settings) => {
+      const models = settings.customModels;
+      const configured =
+        Boolean(settings.aiToken || settings.aiModel || settings.aiHost) ||
+        (Array.isArray(models) && models.length > 0);
+      if (!configured) return settings;
+      return {
+        ...settings,
+        ...(settings.aiProvider === undefined ? { aiProvider: "openai" } : {}),
+        ...(settings.providerType === undefined
+          ? { providerType: "openai" }
+          : {}),
+      };
+    },
+  },
 ];
 
 export const SETTINGS_VERSION = Math.max(

@@ -131,7 +131,10 @@
       "unset": "No limit",
       "outOfRange": "Enter a whole number from {{min}} to {{max}}, or leave it empty.",
       "summariesLabel": "Summarize earlier turns",
-      "summariesHint": "When a chat grows long (three quarters of the request budget, or 20,000 tokens without one), the model summarizes its earlier turns and later requests carry the summary instead. Each summary is one more request to the AI provider, masked like your messages, and some detail of the earlier turns is lost. Off by default."
+      "summariesHint": "When a chat grows long (three quarters of the request budget, or 20,000 tokens without one), the model summarizes its earlier turns and later requests carry the summary instead. Each summary is one more request to the AI provider, masked like your messages, and some detail of the earlier turns is lost. Off by default.",
+      "summaryModelLabel": "Summary model",
+      "summaryModelSameAsChat": "Same as the chat model",
+      "summaryModelHint": "The model id that writes the summaries, with the same provider and key as the chat. Empty: claude-haiku-5-5 with Anthropic, the chat model with any other provider."
     }
   },
   "theme": {

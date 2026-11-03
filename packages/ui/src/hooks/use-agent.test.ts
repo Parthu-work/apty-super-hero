@@ -6,7 +6,7 @@
  * first-run screen. Only a genuinely unexpected failure should still log.
  */
 
-import type { SessionStorageAdapter } from "@apty/agent-core";
+import { AptyAgent, type SessionStorageAdapter } from "@apty/agent-core";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgent } from "./use-agent";
@@ -129,5 +129,64 @@ describe("useAgent", () => {
       expect(result.current.agent).toBeDefined();
     });
     expect(modelFactory).not.toHaveBeenCalled();
+  });
+
+  it("builds the summary request's model from summaryModelFor, with the same provider (C6)", async () => {
+    const create = vi.spyOn(AptyAgent, "create");
+    const modelFactory = vi.fn((settings: { aiModel?: string }) => ({
+      id: settings.aiModel,
+    }));
+    const compression = { summarizeAfterItems: 8 };
+
+    const { result } = renderHook(() =>
+      useAgent({
+        settings: {
+          aiProvider: "anthropic",
+          aiToken: "sk-ant-test",
+          aiModel: "claude-sonnet-5-5",
+          summarizeEarlierTurns: true,
+        },
+        isLoading: false,
+        modelFactory,
+        storage: createFakeSessionStorage(),
+        agentOptions: { compression },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.agent).toBeDefined());
+    const options = create.mock.lastCall?.[0];
+    expect(options?.model).toEqual({ id: "claude-sonnet-5-5" });
+    expect(options?.compression).toEqual({
+      ...compression,
+      model: { id: "claude-haiku-5-5" },
+    });
+    expect(modelFactory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aiProvider: "anthropic",
+        aiModel: "claude-haiku-5-5",
+      }),
+    );
+  });
+
+  it("leaves summaries on the chat model while they are off", async () => {
+    const create = vi.spyOn(AptyAgent, "create");
+    const compression = { summarizeAfterItems: 8 };
+
+    const { result } = renderHook(() =>
+      useAgent({
+        settings: {
+          aiProvider: "anthropic",
+          aiToken: "sk-ant-test",
+          aiModel: "claude-sonnet-5-5",
+        },
+        isLoading: false,
+        modelFactory: vi.fn(() => ({ id: "chat" })),
+        storage: createFakeSessionStorage(),
+        agentOptions: { compression },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.agent).toBeDefined());
+    expect(create.mock.lastCall?.[0]?.compression).toBe(compression);
   });
 });

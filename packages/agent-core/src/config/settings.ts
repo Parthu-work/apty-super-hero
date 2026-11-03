@@ -125,6 +125,12 @@ export interface AppSettings {
    */
   summarizeEarlierTurns?: boolean;
   /**
+   * The model that writes those summaries, with the chat's own provider.
+   * Missing or empty: `claude-haiku-5-5` for Anthropic, the chat model
+   * otherwise (`summaryModelFor`).
+   */
+  summaryModel?: string;
+  /**
    * When the Apty Client does not answer, the checks read the same public
    * content files (and the user's stored Ask Dapty chat) from Apty's content
    * CDN, with no credentials. Missing means on.
@@ -140,11 +146,40 @@ export const REQUEST_TOKEN_BUDGET_RANGE = {
 /** What Settings accepts for `maxOutputTokens`; a stored value outside it counts as unset. */
 export const MAX_OUTPUT_TOKENS_RANGE = { min: 256, max: 1_000_000 } as const;
 
+/**
+ * What a fresh install's provider form starts on (decision C6): multi-step
+ * tool use under a long, rule-heavy system prompt, with Anthropic's prompt
+ * caching already wired in. Bring your own key: nothing is enabled until a
+ * key is saved.
+ */
+export const DEFAULT_CHAT_MODEL = {
+  provider: "anthropic",
+  model: "claude-sonnet-5-5",
+} as const satisfies { provider: AIProviderKey; model: string };
+
+/** Anthropic's default for summaries of earlier turns: a short, plain task. */
+export const DEFAULT_ANTHROPIC_SUMMARY_MODEL = "claude-haiku-5-5";
+
+/**
+ * The model id the summary request uses, or undefined for the chat model:
+ * only while summaries are on, and only a different id from the chat's.
+ */
+export function summaryModelFor(settings: AppSettings): string | undefined {
+  if (settings.summarizeEarlierTurns !== true) return undefined;
+  const chosen =
+    settings.summaryModel?.trim() ||
+    (settings.aiProvider === "anthropic" ||
+    (settings.aiProvider === undefined && settings.providerType === "claude")
+      ? DEFAULT_ANTHROPIC_SUMMARY_MODEL
+      : undefined);
+  return chosen && chosen !== settings.aiModel?.trim() ? chosen : undefined;
+}
+
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  aiProvider: "openai",
+  aiProvider: DEFAULT_CHAT_MODEL.provider,
   language: "en",
   theme: "system",
-  providerType: "openai",
+  providerType: "claude",
   providerEnabled: false,
   defaultModel: undefined,
   customModels: [],

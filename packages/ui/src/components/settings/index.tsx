@@ -3,6 +3,7 @@ import {
   type AIProviderKey,
   type AppSettings,
   type CustomModelConfig,
+  DEFAULT_CHAT_MODEL,
   detectProviderFromHost,
   migrateSettings,
   PHI_APPROVED_PROVIDERS,
@@ -94,7 +95,10 @@ const buildDefaultProviderModels = (): CustomModelConfig[] =>
     providerType: provider.providerType,
     aiHost: "host" in provider ? (provider.host ?? "") : "",
     aiToken: "",
-    aiModel: provider.models[0] ?? "",
+    aiModel:
+      key === DEFAULT_CHAT_MODEL.provider
+        ? DEFAULT_CHAT_MODEL.model
+        : (provider.models[0] ?? ""),
     enabled: false,
   }));
 
@@ -466,8 +470,13 @@ export function SettingsPage({
         });
 
         setCustomModels(mergedCustomModels);
+        // With nothing enabled, the form opens on the saved provider, which
+        // on a fresh install is DEFAULT_CHAT_MODEL's.
         const initialSelection =
           mergedCustomModels.find((model) => model.enabled)?.id ||
+          mergedCustomModels.find(
+            (model) => model.id === `builtin-${loadedSettings.aiProvider}`,
+          )?.id ||
           mergedCustomModels[0]?.id ||
           null;
         setSelectedModelId(initialSelection);

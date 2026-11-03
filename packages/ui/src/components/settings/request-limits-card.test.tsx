@@ -79,4 +79,42 @@ describe("RequestLimitsCard", () => {
 
     expect(onChange).toHaveBeenCalledWith({ summarizeEarlierTurns: true });
   });
+
+  it("shows the summary model only while summaries are on, with Anthropic's default as the hint, and saves a trimmed id", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <RequestLimitsCard
+        settings={{ aiProvider: "anthropic" }}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.queryByLabelText("Summary model")).toBeNull();
+
+    rerender(
+      <RequestLimitsCard
+        settings={{ aiProvider: "anthropic", summarizeEarlierTurns: true }}
+        onChange={onChange}
+      />,
+    );
+    const field = screen.getByLabelText("Summary model");
+    expect(field).toHaveAttribute("placeholder", "claude-haiku-5-5");
+    fireEvent.change(field, { target: { value: " claude-opus-5-5 " } });
+    fireEvent.blur(field);
+
+    expect(onChange).toHaveBeenCalledWith({ summaryModel: "claude-opus-5-5" });
+  });
+
+  it("says the chat model is used for another provider", () => {
+    render(
+      <RequestLimitsCard
+        settings={{ aiProvider: "google", summarizeEarlierTurns: true }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Summary model")).toHaveAttribute(
+      "placeholder",
+      "Same as the chat model",
+    );
+  });
 });
