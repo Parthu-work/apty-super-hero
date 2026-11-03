@@ -16,7 +16,7 @@
  *
  * Usage: node tooling/scripts/dapty-bundle-to-fixture.mjs <bundle.json> <name> [--har <capture.har>] [--out <dir>]
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -96,8 +96,14 @@ export function writeFixture({ bundle, name, har, outDir }) {
     }
   }
   const dir = join(outDir, name);
-  if (existsSync(dir)) throw new Error(`${dir} already exists`);
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(outDir, { recursive: true });
+  try {
+    // Not recursive: fails if the case folder exists, with no window to race it.
+    mkdirSync(dir);
+  } catch (error) {
+    if (error.code === "EEXIST") throw new Error(`${dir} already exists`);
+    throw error;
+  }
   const write = (file, value) =>
     writeFileSync(join(dir, file), `${JSON.stringify(value, null, 2)}\n`);
   write("expected.json", expected);

@@ -53,6 +53,13 @@ after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
+/** A private temporary folder, removed after the tests. */
+function work() {
+  const dir = mkdtempSync(join(tmpdir(), "dapty-fixture-"));
+  dirs.push(dir);
+  return dir;
+}
+
 describe("dapty-bundle-to-fixture", () => {
   it("keeps the rule ids, gate statuses and suggestion rows the card showed", () => {
     assert.deepEqual(expectedFrom(bundle), {
@@ -73,8 +80,7 @@ describe("dapty-bundle-to-fixture", () => {
   });
 
   it("writes expected.json, evidence.json and the HAR under the fixture's name", () => {
-    const out = mkdtempSync(join(tmpdir(), "dapty-fixture-"));
-    dirs.push(out);
+    const out = work();
 
     const dir = writeFixture({
       bundle,
@@ -108,7 +114,7 @@ describe("dapty-bundle-to-fixture", () => {
           bundle,
           name: "leaky",
           har: leaky,
-          outDir: tmpdir(),
+          outDir: work(),
         }),
       /not redacted/,
     );
