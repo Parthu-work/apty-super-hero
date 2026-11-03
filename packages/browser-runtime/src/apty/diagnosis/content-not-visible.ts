@@ -11,7 +11,7 @@
  * user matches a segment's rule, a visibility rule's result) is reported as
  * candidates, never guessed.
  */
-import { languageName, OTHER_LANGUAGE_CODES } from "./languages.js";
+import { languageName } from "./languages.js";
 import {
   FILE_PROBLEMS,
   fileOf,
@@ -555,7 +555,12 @@ function widgetGate(draft: Draft, segments: Rec[], usable: Rec[]): GateResult {
 /**
  * The item's name in the language the message named (JA 1496678461): the
  * widget drops an item with no name in the user's language, and a regional
- * entry such as fr-CA does not stand in for fr.
+ * entry such as fr-CA does not stand in for fr. Codes match only when equal:
+ * the 5.x player compares `document.documentElement.lang.split('-')[0]` to
+ * each locale code with `===`, with no alias for he/iw, id/in or no/nb
+ * (apty-dap `player/src/main-content-script/locale/locale.service.ts`
+ * `getActiveLanguage`, Appendix A22 of the Ask Dapty brief). This gate only
+ * runs on 5.x files; a 4.x tenant stops at the version gate.
  */
 function languageGate(
   draft: Draft,
@@ -570,28 +575,9 @@ function languageGate(
     (l) => l.toLowerCase().split(/[-_]/)[0] === code,
   );
   const lines = [
-    `${KINDS[draft.kind].file}: names in ${named.join(", ") || "no language"}`,
+    `${KINDS[draft.kind].file}: named locales = ${named.join(", ") || "none"}`,
   ];
   const params = { language, code };
-  const underOtherCode = named.filter((l) =>
-    (OTHER_LANGUAGE_CODES[code] ?? []).includes(
-      l.toLowerCase().split(/[-_]/)[0] ?? "",
-    ),
-  );
-  if (forLanguage.length === 0 && underOtherCode.length > 0) {
-    return {
-      gate: gate(
-        "language",
-        "unknown",
-        "CNV-13",
-        "localeAlias",
-        `"${labelOf(item)}" is named in ${underOtherCode.join(", ")} only, another code for ${language}: whether the widget shows it to users whose language code is ${code} is not verified.`,
-        { ...params, locales: underOtherCode.join(", ") },
-        lines,
-        CARD_LANGUAGE,
-      ),
-    };
-  }
   if (forLanguage.length === 0) {
     const cause: Cause = {
       ruleId: "CNV-13",

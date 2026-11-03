@@ -250,10 +250,7 @@ function environmentStep(
       summary:
         "No environment's URL pattern matches this page, so nothing from Apty loads here.",
       fix: 'In Admin, add the exact host users open (with or without www) to the right environment\'s URLs, publish and reload. With the Console set to Verbose, "No active application found" confirms it.',
-      evidence: [
-        `environments checked: ${checked}`,
-        "none has a pattern for this page's host",
-      ],
+      evidence: [`environments checked: ${checked}`, "matching patterns: 0"],
     };
     return {
       gates: [
