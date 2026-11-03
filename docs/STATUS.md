@@ -217,7 +217,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Item | State | PR |
 |---|---|---|
 | W1 Evidence bundle: "Export evidence" on the Ask Dapty card (Developer tools on), and `dapty-bundle-to-fixture.mjs` | Merged | [#87](https://github.com/Parthu-work/apty-super-hero/pull/87) |
-| W2 Live-tenant fixtures: `fixtures/dapty-live/` and `dapty-live-fixtures.test.ts` | Built; **blocked**: the real captures, and any check they break, wait on the SE's evidence | [#83](https://github.com/Parthu-work/apty-super-hero/pull/83) |
+| W2 Live-tenant fixtures: `fixtures/dapty-live/` and `dapty-live-fixtures.test.ts` | Merged; **blocked**: the real captures, and any check they break, wait on the SE's evidence | [#83](https://github.com/Parthu-work/apty-super-hero/pull/83) |
 | W3 Settings → Apty Integration → "Apty Client: content CDN" (C5, on by default) | Merged | [#82](https://github.com/Parthu-work/apty-super-hero/pull/82) |
 | W4 Default model: Anthropic `claude-sonnet-5-5`, summaries `claude-haiku-5-5` (C6) | Merged | [#86](https://github.com/Parthu-work/apty-super-hero/pull/86) |
 | W5 WNV-08 only for 4.x or an unknown player | Merged | [#80](https://github.com/Parthu-work/apty-super-hero/pull/80) |
