@@ -6,6 +6,7 @@ full commit-level history.
 
 ## Unreleased
 
+- **Release readiness: the Agent's IDs in one place**: `npm run audit:extension-ids` (CI and the release workflow) checks that every Apty integration file listing the Agent's IDs lists the pinned ID and the Web Store ID and nothing else; until the store assigns its ID (`AGENT_WEB_STORE_ID`, null) each holds a placeholder and the check reports it as pending. It found `STUDIO.md` listing only the pinned ID; it now has the placeholder too. `docs/development/RELEASING.md` gains the ID steps and an Ask Dapty release checklist.
 - **Ask Dapty with no setup and no change on Apty's side**: the check now reads Apty from the page itself when the Apty Client reports nothing, which is every Client today in Extension mode.
   - The Client's extension ID comes from the `window-script.js` it injects into every page, so none has to be saved.
   - The content URL and tenant come from its web-accessible `player-config.json`, or `window.__APTY_PLAYER_CONFIG__` in Injected mode. The application and environment come from `app-urls.json`, as the player picks them.

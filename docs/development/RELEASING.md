@@ -41,3 +41,48 @@ Upload the `-webstore` zip to the Chrome Web Store by hand. The answers for
 the store's privacy form (single purpose, each permission, remote code,
 data use) are in [`docs/store/WEB_STORE_LISTING.md`](../store/WEB_STORE_LISTING.md),
 and the privacy policy is [`PRIVACY.md`](../../PRIVACY.md).
+
+## Extension IDs
+
+`npm run audit:extension-ids` checks that every file in
+`docs/integrations/apty/` that lists the Agent's IDs (the reference
+module's `DEBUG_AGENT_EXTENSION_IDS`, the README, `CLIENT-PATCH.md`,
+`STUDIO.md`) lists the pinned ID from `tooling/e2e/harness.mjs` and the Web
+Store ID, and nothing else. Until the store assigns its ID,
+`AGENT_WEB_STORE_ID` in `tooling/scripts/check-extension-id.mjs` is `null`,
+each file holds a placeholder, and the check reports that as pending.
+
+When the first upload assigns the ID: set `AGENT_WEB_STORE_ID`, replace
+every placeholder in one commit (the check fails on any left), record the
+ID in the README's [Extension IDs](../integrations/apty/README.md#extension-ids)
+table, and tell the Apty Client and Studio teams to add it to their
+`externally_connectable.ids`.
+
+## Ask Dapty release checklist
+
+Before tagging a release that carries the Ask Dapty check:
+
+- [ ] **Apty's content CDN (decision C5)**: confirm the default of
+      Settings → Apty Integration → "Apty Client: content CDN"
+      (`aptyCdnFallback`, on) with Product and Security, and that the
+      switch turns every CDN read off.
+- [ ] **Default model (decision C6)**: a fresh install's provider form
+      opens on Anthropic `claude-sonnet-5-5`, not enabled until a key is
+      saved; summaries use `claude-haiku-5-5` on Anthropic. An upgrade keeps
+      every saved provider and model.
+- [ ] **The three Ask Dapty E2E suites pass** on the release build:
+
+      ```bash
+      npm run build
+      ```
+
+      ```bash
+      node --test --test-timeout=180000 --test-concurrency=1 tooling/e2e/dapty-check.e2e.test.mjs tooling/e2e/dapty-capture.e2e.test.mjs tooling/e2e/dapty-cdn.e2e.test.mjs
+      ```
+
+- [ ] **Evidence bundle for SEs**: the release notes tell SEs that, with
+      Settings → Troubleshooting → Developer tools on, the Ask Dapty card's
+      "Export evidence" saves the redacted bundle the live-tenant cases
+      ask for (`docs/development/ask-dapty.md`, "Evidence bundle").
+- [ ] `npm run audit:extension-ids` passes (pending is fine until the store
+      ID exists).
