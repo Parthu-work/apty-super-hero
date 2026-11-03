@@ -41,6 +41,7 @@
     "audit:any": "node tooling/scripts/check-any-baseline.mjs",
     "audit:i18n": "node tooling/scripts/check-i18n-baseline.mjs",
     "audit:docs-links": "node tooling/scripts/check-docs-links.mjs",
+    "audit:extension-ids": "node tooling/scripts/check-extension-id.mjs --docs",
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
     "check:dist-licences": "node tooling/scripts/check-dist-licences.mjs",

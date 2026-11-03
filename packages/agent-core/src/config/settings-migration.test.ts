@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_APP_SETTINGS } from "./settings.js";
+import {
+  DEFAULT_APP_SETTINGS,
+  DEFAULT_CHAT_MODEL,
+  summaryModelFor,
+} from "./settings.js";
 import {
   migrateSettings,
   SETTINGS_VERSION,
@@ -34,6 +38,8 @@ describe("migrateSettings", () => {
     expect(settings).toEqual({
       aiToken: "key",
       redactionMode: "standard",
+      aiProvider: "openai",
+      providerType: "openai",
       settingsVersion: SETTINGS_VERSION,
     });
     expect(changed).toBe(true);
@@ -154,5 +160,116 @@ describe("withSettingsDefaults", () => {
     });
 
     expect(filled.pageHooksEnabled).toBe(false);
+  });
+});
+
+describe("the default model (decision C6)", () => {
+  it("starts a fresh install on Anthropic's claude-sonnet-5-5, not enabled until a key is saved", () => {
+    const fresh = withSettingsDefaults(migrateSettings(null).settings);
+
+    expect(DEFAULT_CHAT_MODEL).toEqual({
+      provider: "anthropic",
+      model: "claude-sonnet-5-5",
+    });
+    expect(fresh).toMatchObject({
+      aiProvider: "anthropic",
+      providerType: "claude",
+      providerEnabled: false,
+    });
+    expect(fresh.aiToken).toBeUndefined();
+  });
+
+  it("leaves every saved provider and model as it was", () => {
+    const saved = [
+      {
+        aiProvider: "google",
+        providerType: "google",
+        aiModel: "gemini-pro-latest",
+        aiToken: "k",
+      },
+      {
+        aiProvider: "openai",
+        aiModel: "gpt-x",
+        aiToken: "k",
+        settingsVersion: 2,
+      },
+      {
+        customModels: [
+          {
+            id: "m1",
+            providerType: "openai",
+            aiToken: "k",
+            aiModel: "local",
+            enabled: true,
+          },
+        ],
+        settingsVersion: 2,
+      },
+    ];
+    for (const stored of saved) {
+      const filled = withSettingsDefaults(migrateSettings(stored).settings);
+      const before = withSettingsDefaults({
+        ...stored,
+        aiProvider: (stored as { aiProvider?: string }).aiProvider ?? "openai",
+        providerType:
+          (stored as { providerType?: "openai" }).providerType ?? "openai",
+      } as never);
+      expect(filled.aiProvider, JSON.stringify(stored)).toBe(before.aiProvider);
+      expect(filled.providerType, JSON.stringify(stored)).toBe(
+        before.providerType,
+      );
+      expect(filled.aiModel).toBe((stored as { aiModel?: string }).aiModel);
+      expect(filled.customModels).toEqual(
+        (stored as { customModels?: unknown[] }).customModels ?? [],
+      );
+    }
+  });
+
+  it("keeps the old default provider for settings saved with a key but no provider", () => {
+    const { settings } = migrateSettings({ aiToken: "k", aiModel: "gpt-x" });
+
+    expect(withSettingsDefaults(settings)).toMatchObject({
+      aiProvider: "openai",
+      providerType: "openai",
+      aiModel: "gpt-x",
+    });
+  });
+});
+
+describe("summaryModelFor", () => {
+  it("uses claude-haiku-5-5 for Anthropic, the saved one when set, and nothing while summaries are off", () => {
+    const anthropic = {
+      aiProvider: "anthropic" as const,
+      aiModel: "claude-sonnet-5-5",
+    };
+
+    expect(summaryModelFor(anthropic)).toBeUndefined();
+    expect(summaryModelFor({ ...anthropic, summarizeEarlierTurns: true })).toBe(
+      "claude-haiku-5-5",
+    );
+    expect(
+      summaryModelFor({
+        ...anthropic,
+        summarizeEarlierTurns: true,
+        summaryModel: " claude-opus-5-5 ",
+      }),
+    ).toBe("claude-opus-5-5");
+  });
+
+  it("falls back to the chat model for another provider, or when the ids are the same", () => {
+    expect(
+      summaryModelFor({
+        aiProvider: "google",
+        aiModel: "gemini-pro-latest",
+        summarizeEarlierTurns: true,
+      }),
+    ).toBeUndefined();
+    expect(
+      summaryModelFor({
+        aiProvider: "anthropic",
+        aiModel: "claude-haiku-5-5",
+        summarizeEarlierTurns: true,
+      }),
+    ).toBeUndefined();
   });
 });

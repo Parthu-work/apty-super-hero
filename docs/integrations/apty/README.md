@@ -44,7 +44,10 @@ applied: adopt the Chrome Web Store's ID):
 
 The Apty Client and Apty Studio must list **both** IDs in
 `externally_connectable.ids`: the first now, the store's as soon as the
-first upload assigns it. Record the store's ID here when it exists. Each
+first upload assigns it. Record the store's ID here when it exists, in the
+same commit that sets `AGENT_WEB_STORE_ID` in
+`tooling/scripts/check-extension-id.mjs` and replaces every placeholder
+(`npm run audit:extension-ids` checks they agree). Each
 build shows the ID it is running under, with a Copy button, in Settings →
 Connection.
 
@@ -112,6 +115,16 @@ and build tooling, not something to drop in unmodified.
    than this messaging-based approach; see
    `packages/browser-runtime/src/apty/service-worker-diagnostics.ts`'s
    top-of-file comment and `ARCHITECTURE.md` for that tradeoff.
+
+## When the Client reports nothing
+
+Until the Client adopts the changes below, the Agent reads the same public
+content files the Client reads (and the user's stored Ask Dapty chat) from
+Apty's content CDN, with no credentials, using the `contentURL` and
+`tenantId` of the Client's web-accessible `player-config.json`
+([`docs/development/ask-dapty.md`](../../development/ask-dapty.md)). Product
+or Security can turn this off in **Settings → Apty Integration → Apty
+Client: content CDN**; the Agent then only messages the Client.
 
 ## Ask Dapty in extension mode
 

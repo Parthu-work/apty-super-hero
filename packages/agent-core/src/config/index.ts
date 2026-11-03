@@ -10,7 +10,9 @@ export { DEFAULT_CONVERSATION_CONFIG } from "./defaults.js";
 export {
   type AppSettings,
   type CustomModelConfig,
+  DEFAULT_ANTHROPIC_SUMMARY_MODEL,
   DEFAULT_APP_SETTINGS,
+  DEFAULT_CHAT_MODEL,
   MAX_OUTPUT_TOKENS_RANGE,
   type ProviderType,
   REDACTION_MODES,
@@ -18,6 +20,7 @@ export {
   type RedactionModeSetting,
   SCREENSHOT_POLICIES,
   type ScreenshotPolicySetting,
+  summaryModelFor,
   type ToolCallingSupport,
 } from "./settings.js";
 export {

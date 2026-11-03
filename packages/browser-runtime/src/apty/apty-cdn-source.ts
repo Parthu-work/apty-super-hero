@@ -73,8 +73,15 @@ export interface CdnResourceSource extends ResourceSource {
   storedChat(): Promise<StoredChatState>;
 }
 
-const TENANT_FILES = new Set(["app-urls.json", "content-config.json"]);
-const APP_FILES = new Set(["app-data.json", "application-locales.json"]);
+/** Content files read from the tenant's and the application's folder; the rest are per environment (`cdn-path.builder.ts`). */
+export const TENANT_FILES: ReadonlySet<string> = new Set([
+  "app-urls.json",
+  "content-config.json",
+]);
+export const APP_FILES: ReadonlySet<string> = new Set([
+  "app-data.json",
+  "application-locales.json",
+]);
 /** @internal */
 export const MAX_CDN_BODY_CHARS = 5_000_000;
 const USER_SOURCES: ReadonlySet<string> = new Set<PageUserSource>([
@@ -373,6 +380,26 @@ export async function probeClientInPage(): Promise<
 }
 
 /**
+ * Runs in the tab's isolated world: only the Client's extension ID, from the
+ * script it injects. Unlike `probeClientInPage`, it reads no config, so
+ * finding the Client to ping it costs no request.
+ * @internal
+ */
+export function clientIdInPage(): string | undefined {
+  const pattern =
+    /^chrome-extension:\/\/([a-p]{32})\/window-script\.js(?:[?#]|$)/;
+  return [
+    ...performance.getEntriesByType("resource").map((e) => e.name),
+    ...Array.from(
+      document.querySelectorAll("script[src]"),
+      (s) => s.getAttribute("src") ?? "",
+    ),
+  ]
+    .map((u) => pattern.exec(u)?.[1])
+    .find(Boolean);
+}
+
+/**
  * Runs in the page's main world: the injected player's config, when the page
  * set one. Only the two fields the source needs leave the page.
  * @internal
@@ -489,8 +516,7 @@ export async function detectClientExtensionId(
   tabId: number,
 ): Promise<string | undefined> {
   try {
-    const client = await run(tabId, "ISOLATED", probeClientInPage);
-    return client?.found ? client.id : undefined;
+    return await run(tabId, "ISOLATED", clientIdInPage);
   } catch {
     return undefined;
   }
