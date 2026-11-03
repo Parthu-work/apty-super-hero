@@ -328,11 +328,38 @@ describe("diagnoseElementNotFound", () => {
       }),
     );
 
-    expect(invalid.verdict.causes[0]?.ruleId).toBe("SEL-04");
+    expect(invalid.verdict.causes).toEqual([]);
+    expect(invalid.gates.find((g) => g.id === "lookup")).toMatchObject({
+      status: "unknown",
+      reason: "cssRejected",
+    });
+    expect(invalid.verdict.nextCheck).toBe("runInConsole");
     expect(below.verdict.causes[0]).toMatchObject({
       ruleId: "SEL-10",
       cardPageId: "1496253303",
     });
+  });
+
+  it("calls a CSS selector the browser rejects not checked, as the player retries it with jQuery, but an XPath that does not parse broken", async () => {
+    // apty-dap element-identification/src/select.ts selectCSS (Appendix A20):
+    // a rejected selector gets a second attempt through jQuery; selectXPath
+    // has no such retry.
+    const css = await diagnoseElementNotFound(
+      files(),
+      { kind: "tooltip", query: "Lead source help" },
+      probe({
+        'select[name="lead_source"]': [top(test(0, { invalid: true }))],
+      }),
+    );
+    const xpath = await diagnoseElementNotFound(
+      files(),
+      { kind: "validation", query: "Email format" },
+      probe({ "//input[@type='email']": [top(test(0, { invalid: true }))] }),
+    );
+
+    expect(css.verdict.causes.map((c) => c.ruleId)).not.toContain("SEL-04");
+    expect(transcriptOf(css)).toContain("retries it with jQuery");
+    expect(xpath.verdict.causes[0]).toMatchObject({ ruleId: "SEL-04" });
   });
 
   it("says why it could not run when no web page is open in the tab", async () => {

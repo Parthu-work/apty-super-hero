@@ -475,7 +475,7 @@ describe("content-not-visible: the language the message named", () => {
         '"Create a lead" has no name in French (fr), so the widget drops it for French users.',
     });
     expect(gateOf(result, "language")?.evidence).toEqual([
-      "workflow.json: names in en",
+      "workflow.json: named locales = en",
     ]);
   });
 
@@ -490,7 +490,8 @@ describe("content-not-visible: the language the message named", () => {
     expect(result.verdict.causes).toEqual([]);
   });
 
-  it("leaves an entry under an older code for the language open, not a missing name (14)", () => {
+  it("calls a name under another code for the language missing, as the 5.x player matches codes exactly (14)", () => {
+    // apty-dap locale.service.ts getActiveLanguage (Appendix A22): `===`, no aliases.
     for (const [code, older] of [
       ["he", "iw"],
       ["id", "in"],
@@ -499,12 +500,21 @@ describe("content-not-visible: the language the message named", () => {
       const result = inLanguage(withLocales(["en", older]), code);
 
       expect(gateOf(result, "language")).toMatchObject({
-        status: "unknown",
-        reason: "localeAlias",
-        params: { code, locales: older },
+        status: "fail",
+        reason: "localeMissing",
       });
-      expect(result.verdict.causes).toEqual([]);
+      expect(result.verdict.causes[0]?.ruleId).toBe("CNV-13");
     }
+  });
+
+  it('does not let content in "he" pass for users whose page says lang="iw" (14)', () => {
+    const result = inLanguage(withLocales(["en", "he"]), "iw");
+
+    expect(gateOf(result, "language")).toMatchObject({
+      status: "fail",
+      reason: "localeMissing",
+      params: { code: "iw" },
+    });
   });
 
   it("passes when the item is named in that language", () => {
