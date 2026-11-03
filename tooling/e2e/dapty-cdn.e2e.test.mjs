@@ -225,6 +225,60 @@ describe("checks with an unpatched Apty Client", () => {
     await app.close();
   });
 
+  it("exports the evidence bundle from the card with Developer tools on, with no email or user id in it", async () => {
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    await app.waitForFunction(() =>
+      document.querySelector('script[src$="/window-script.js"]'),
+    );
+    const panel = await openSidePanel(browser, model, app, {
+      developerTools: true,
+    });
+
+    await sendChat(panel, "Dapty suggested a workflow but nothing opens");
+    const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
+    await card.waitFor({ timeout: 30_000 });
+    await card.getByRole("button", { name: "Export evidence" }).click();
+    const review = panel.getByRole("region", {
+      name: "Ask Dapty evidence bundle",
+    });
+    await review.waitFor();
+    const text = await review.textContent();
+    const bundle = JSON.parse(text);
+
+    assert.equal(bundle.bundleVersion, "apty-dapty-evidence/1");
+    assert.equal(bundle.result.packId, "dapty-conversation");
+    assert.equal(typeof bundle.versions.agent, "string");
+    assert.ok("commit" in bundle.versions && "chrome" in bundle.versions);
+    assert.equal(bundle.evidence.answeredBy, "cdn");
+    assert.equal(bundle.evidence.clientPing, "silent");
+    assert.equal(bundle.evidence.storedChat, "read");
+    assert.equal(bundle.evidence.storedChatFile.messages, 2);
+    assert.ok(
+      bundle.evidence.files.some(
+        (f) => f.name === "app-data.json" && f.scope === "app",
+      ),
+    );
+    assert.ok(typeof bundle.evidence.totalMs === "number");
+    for (const secret of [
+      "jane.doe@example.com",
+      "u-7",
+      "crmUser",
+      TENANT,
+      APP,
+      ENV,
+      CHAT_ID,
+      "How do I export my pipeline",
+    ]) {
+      assert.ok(!text.includes(secret), `the bundle holds ${secret}`);
+    }
+    assert.ok(!/https?:\/\//.test(text), "the bundle holds no URL");
+    await panel.getByRole("button", { name: "Cancel" }).click();
+    assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+
   it("runs the widget check from the content CDN too, with no Client ID saved", async () => {
     const app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);

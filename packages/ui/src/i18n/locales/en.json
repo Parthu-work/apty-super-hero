@@ -2294,6 +2294,11 @@
     },
     "daptyListHidden": "(hidden from the widget's list)",
     "daptyNamesOnly": "Matched by name: the chat panel does not show the suggestions' ids.",
+    "daptyEvidence": {
+      "export": "Export evidence",
+      "reviewDescription": "For the live-tenant test: build facts, this card's result, timings, which source answered and why each earlier one did not, and for every file and call read only its status, size, keys and counts. No conversation text, URL, or tenant, application, user or chat id; every value is masked in the current redaction mode. Check it before you send it.",
+      "label": "Ask Dapty evidence bundle"
+    },
     "daptyStoredChatUnread": {
       "apty-id": "The stored chat, which has the ids, was not read: this application identifies its users by an Apty ID that only the Apty Client can read.",
       "no-user-value": "The stored chat, which has the ids, was not read: the page does not hold the value this application identifies its users by."

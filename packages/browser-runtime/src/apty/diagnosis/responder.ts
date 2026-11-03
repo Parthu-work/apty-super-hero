@@ -11,6 +11,11 @@ import {
   DAPTY_FILES,
   diagnoseDaptyConversation,
 } from "./dapty-conversation.js";
+import {
+  createDaptyTrace,
+  type DaptyTrace,
+  summarizeDaptyTrace,
+} from "./dapty-evidence.js";
 import { loadDaptyFromClient } from "./dapty-loader.js";
 import { asksAboutDapty } from "./dapty-route.js";
 import { readDaptyFilesForTab, readDaptyForTab } from "./dapty-sources.js";
@@ -221,9 +226,9 @@ export interface PageSources {
   probeElement: Probe;
   domHealth: () => Promise<DomHealthAuditOutcome | undefined>;
   /** The Ask Dapty chat; by default as the Apty Client recorded it. */
-  dapty?: () => Promise<DaptyEvidence>;
+  dapty?: (trace?: DaptyTrace) => Promise<DaptyEvidence>;
   /** The Ask Dapty check's content files; by default the Apty Client's. */
-  daptyFiles?: () => Promise<ClientEvidence>;
+  daptyFiles?: (trace?: DaptyTrace) => Promise<ClientEvidence>;
   /** Every other check's content files; by default the Apty Client's. */
   files?: (names: readonly string[]) => Promise<ClientEvidence>;
 }
@@ -249,7 +254,11 @@ async function elementEvidence(
 const fromCdn = (result: DiagnosisResult, evidence: ClientEvidence) =>
   evidence.fromCdn ? { ...result, filesFromCdn: true } : result;
 
-/** Runs the routed pack on the Client's files, logs and calls, and the page. */
+/**
+ * Runs the routed pack on the Client's files, logs and calls, and the page.
+ * With a trace, the Ask Dapty result also carries how each source was read
+ * (`daptyEvidence`), for the card's evidence bundle.
+ */
 export async function runPack(
   route: CheckRoute,
   clientExtensionId: string | undefined,
@@ -262,16 +271,23 @@ export async function runPack(
     daptyFiles,
     files,
   }: PageSources,
+  trace?: DaptyTrace,
 ): Promise<DiagnosisResult> {
   const load =
     files ?? ((names) => loadClientEvidence(clientExtensionId, names));
   if (route.packId === "dapty-conversation") {
     const [chat, evidence, page] = await Promise.all([
-      dapty ? dapty() : loadDaptyFromClient(clientExtensionId),
-      daptyFiles ? daptyFiles() : load(DAPTY_FILES),
+      dapty ? dapty(trace) : loadDaptyFromClient(clientExtensionId, trace),
+      daptyFiles ? daptyFiles(trace) : load(DAPTY_FILES),
       pageUrl(),
     ]);
-    return fromCdn(diagnoseDaptyConversation(chat, evidence, page), evidence);
+    const result = fromCdn(
+      diagnoseDaptyConversation(chat, evidence, page),
+      evidence,
+    );
+    return trace
+      ? { ...result, daptyEvidence: summarizeDaptyTrace(trace, chat, evidence) }
+      : result;
   }
   if (route.packId === "page-readiness") {
     return diagnosePageReadiness(await domHealth());
@@ -349,11 +365,13 @@ export interface ResponderSources {
   daptyOf?: (
     runContext: unknown,
     clientExtensionId: string | undefined,
+    trace?: DaptyTrace,
   ) => Promise<DaptyEvidence>;
   /** Its content files; undefined reads the Apty Client's. */
   daptyFilesOf?: (
     runContext: unknown,
     clientExtensionId: string | undefined,
+    trace?: DaptyTrace,
   ) => Promise<ClientEvidence>;
   /** Every other check's content files for the tab; undefined reads the Apty Client's. */
   filesOf?: (
@@ -390,26 +408,39 @@ export function createDiagnosisResponder(
       ? { packId: "dapty-conversation" }
       : routeSymptom(input);
     if (!route) return undefined;
+    const trace =
+      route.packId === "dapty-conversation" ? createDaptyTrace() : undefined;
     const clientExtensionId = await sources.clientExtensionId();
     const { daptyOf, daptyFilesOf, filesOf } = sources;
-    const result = await runPack(route, clientExtensionId, {
-      pageUrl: () => sources.pageUrlOf(runContext),
-      pageConsole: () => sources.pageConsoleOf(runContext),
-      probeElement: sources.elementProbeOf(runContext),
-      domHealth: () => sources.domHealthOf(runContext),
-      ...(daptyOf
-        ? { dapty: () => daptyOf(runContext, clientExtensionId) }
-        : {}),
-      ...(daptyFilesOf
-        ? { daptyFiles: () => daptyFilesOf(runContext, clientExtensionId) }
-        : {}),
-      ...(filesOf
-        ? {
-            files: (names: readonly string[]) =>
-              filesOf(runContext, clientExtensionId, names),
-          }
-        : {}),
-    });
+    const result = await runPack(
+      route,
+      clientExtensionId,
+      {
+        pageUrl: () => sources.pageUrlOf(runContext),
+        pageConsole: () => sources.pageConsoleOf(runContext),
+        probeElement: sources.elementProbeOf(runContext),
+        domHealth: () => sources.domHealthOf(runContext),
+        ...(daptyOf
+          ? {
+              dapty: (t?: DaptyTrace) =>
+                daptyOf(runContext, clientExtensionId, t),
+            }
+          : {}),
+        ...(daptyFilesOf
+          ? {
+              daptyFiles: (t?: DaptyTrace) =>
+                daptyFilesOf(runContext, clientExtensionId, t),
+            }
+          : {}),
+        ...(filesOf
+          ? {
+              files: (names: readonly string[]) =>
+                filesOf(runContext, clientExtensionId, names),
+            }
+          : {}),
+      },
+      trace,
+    );
     // The URL policy every tool result gets on its way to the model
     // (tools/index.ts): the answer is kept in the session and read next turn.
     await getRedactionMode();

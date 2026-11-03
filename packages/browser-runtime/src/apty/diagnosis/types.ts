@@ -4,6 +4,8 @@
  * the transcript, and rule IDs plus parameters for the card to localize.
  */
 
+import type { DaptyEvidenceSummary } from "./dapty-evidence.js";
+
 export type ContentKind =
   | "workflow"
   | "tooltip"
@@ -510,4 +512,10 @@ export interface DiagnosisResult {
   dapty?: DaptySummary;
   /** The content files came from Apty's content CDN, as the Apty Client does not report its calls. */
   filesFromCdn?: boolean;
+  /**
+   * Ask Dapty only, when the chat answered it without the model: how each
+   * source was read, as counts and reasons, for the evidence bundle. Never
+   * in the transcript or a tool result the model reads.
+   */
+  daptyEvidence?: DaptyEvidenceSummary;
 }

@@ -43,8 +43,10 @@ const harFile = (har: unknown, name = "customer-tenant.har") =>
 
 beforeEach(() => {
   (
-    chrome.storage as unknown as { onChanged: { addListener: () => void } }
-  ).onChanged = { addListener: vi.fn() };
+    chrome.storage as unknown as {
+      onChanged: { addListener: () => void; removeListener: () => void };
+    }
+  ).onChanged = { addListener: vi.fn(), removeListener: vi.fn() };
 });
 
 afterEach(() => {
