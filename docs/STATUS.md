@@ -207,8 +207,24 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Production readiness | Still open: R6's icons (owner artwork, D6) and R9's human-only items. D1-D7 are unanswered and all defaults are applied provisionally ([`docs/tasks/prod/`](tasks/prod/00-rules.md)) |
 | Widget network calls from the real Apty Client (partial) | The Widget team adopts the reference handlers and `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)) and lists both Agent IDs. Open question: which Widget context makes calls such as `segments.json`; a content script would need a relay. Until then the panel names the Client's failure instead of listing calls |
 | Visibility, selector and page checks on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them. The selector check also needs a capture with a played workflow, to confirm the steps file's name and shape |
-| Ask Dapty check on live chats (partial) | Extension mode: the Client adopts the reference module's `recordWidgetChatTurn` and routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)). Then a run on a real tenant, in both modes, with a known failing chat; the chat panel reader is untested against the real widget's DOM |
+| Ask Dapty check on live chats (partial) | Extension mode: the Client adopts the reference module's `recordWidgetChatTurn` and routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)); until then SEs can test the record path with the test-only recorder build (W7). Then the live-tenant run, in both modes, with a known failing chat, sending the evidence bundle (W1), HARs and content files: those become the live fixtures (W2), and any check they break is fixed there. The chat panel reader is untested against the real widget's DOM |
+| Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
+
+
+### Ask Dapty production readiness
+
+| Item | State | PR |
+|---|---|---|
+| W1 Evidence bundle: "Export evidence" on the Ask Dapty card (Developer tools on), and `dapty-bundle-to-fixture.mjs` | Merged | [#87](https://github.com/Parthu-work/apty-super-hero/pull/87) |
+| W2 Live-tenant fixtures: `fixtures/dapty-live/` and `dapty-live-fixtures.test.ts` | Merged; **blocked**: the real captures, and any check they break, wait on the SE's evidence | [#83](https://github.com/Parthu-work/apty-super-hero/pull/83) |
+| W3 Settings → Apty Integration → "Apty Client: content CDN" (C5, on by default) | Merged | [#82](https://github.com/Parthu-work/apty-super-hero/pull/82) |
+| W4 Default model: Anthropic `claude-sonnet-5-5`, summaries `claude-haiku-5-5` (C6) | Merged | [#86](https://github.com/Parthu-work/apty-super-hero/pull/86) |
+| W5 WNV-08 only for 4.x or an unknown player | Merged | [#80](https://github.com/Parthu-work/apty-super-hero/pull/80) |
+| W6 The mcp-bridge daemon-cli test leaving its daemon running | Merged | [#79](https://github.com/Parthu-work/apty-super-hero/pull/79) |
+| W7 A reproducible, test-only 5.x Client recorder build | Merged | [#84](https://github.com/Parthu-work/apty-super-hero/pull/84) |
+| W8 One source of truth for the Agent's IDs, and the Ask Dapty release checklist | Merged; **blocked**: the Web Store ID, set in one commit when the store assigns it, then the Client team adds it to `externally_connectable` | [#85](https://github.com/Parthu-work/apty-super-hero/pull/85) |
+| W9 Audit items 10 (Chinese card), N5 (rejected selectors), 14 (language codes) | Merged | [#81](https://github.com/Parthu-work/apty-super-hero/pull/81) |
 
 ## Known limitations
 
