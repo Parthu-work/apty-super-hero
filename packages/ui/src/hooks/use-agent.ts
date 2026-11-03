@@ -12,6 +12,7 @@ import {
   type ContextProvider,
   type FunctionTool,
   type SessionStorageAdapter,
+  summaryModelFor,
 } from "@apty/agent-core";
 import { useEffect, useRef, useState } from "react";
 
@@ -133,6 +134,8 @@ export function useAgent({
   const aiToken = settings.aiToken;
   const aiModel = settings.aiModel;
   const aiProvider = settings.aiProvider;
+  const summarizeEarlierTurns = settings.summarizeEarlierTurns;
+  const summaryModel = settings.summaryModel;
 
   // This product is BYOK-only (there is no login/proxy fallback): a
   // non-empty token and model is what "configured" means, full stop — no
@@ -163,6 +166,8 @@ export function useAgent({
       aiToken,
       aiModel,
       aiProvider,
+      summarizeEarlierTurns,
+      summaryModel,
     };
 
     try {
@@ -179,6 +184,22 @@ export function useAgent({
         });
       }
 
+      // Summaries use the same provider, with their own model id when one applies.
+      const { compression, ...options } = agentOptionsRef.current;
+      const summaryId = isConfigured
+        ? summaryModelFor(currentSettings)
+        : undefined;
+      const summaryCompression =
+        compression && summaryId
+          ? {
+              ...compression,
+              model: modelFactoryRef.current({
+                ...currentSettings,
+                aiModel: summaryId,
+              }),
+            }
+          : compression;
+
       // Create the agent
       const newAgent = AptyAgent.create({
         name,
@@ -190,7 +211,8 @@ export function useAgent({
         storage: storageRef.current,
         contextManager,
         maxTurns,
-        ...agentOptionsRef.current,
+        ...options,
+        ...(summaryCompression ? { compression: summaryCompression } : {}),
       });
 
       setAgent(newAgent);
@@ -213,6 +235,8 @@ export function useAgent({
     aiToken,
     aiModel,
     aiProvider,
+    summarizeEarlierTurns,
+    summaryModel,
     instructions,
     name,
     maxTurns,

@@ -137,7 +137,11 @@ describe("the Ask Dapty check in the chat", () => {
     });
     const result = answer?.result as DiagnosisResult;
 
-    expect(daptyOf).toHaveBeenCalledWith({ tabId: 7 }, EXT_ID);
+    expect(daptyOf).toHaveBeenCalledWith(
+      { tabId: 7 },
+      EXT_ID,
+      expect.objectContaining({ calls: [] }),
+    );
     expect(result.dapty).toMatchObject({
       source: "widget-dom",
       namesOnly: true,

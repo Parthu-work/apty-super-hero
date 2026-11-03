@@ -290,8 +290,8 @@ describe("createDaptySource", () => {
       await read({ tabId: 4 }, undefined);
       await read({ tabId: 4 }, "saved");
 
-      expect(client).toHaveBeenNthCalledWith(1, "p".repeat(32));
-      expect(client).toHaveBeenNthCalledWith(2, "saved");
+      expect(client).toHaveBeenNthCalledWith(1, "p".repeat(32), undefined);
+      expect(client).toHaveBeenNthCalledWith(2, "saved", undefined);
     });
 
     it("asks a Client found on the page once whether it answers, and leaves out one that does not", async () => {
@@ -310,9 +310,9 @@ describe("createDaptySource", () => {
       await source.chat({ tabId: 4 }, "saved");
 
       expect(clientAnswers).toHaveBeenCalledTimes(1);
-      expect(client).toHaveBeenNthCalledWith(1, undefined);
+      expect(client).toHaveBeenNthCalledWith(1, undefined, undefined);
       expect(clientFiles).toHaveBeenCalledWith(undefined, expect.any(Array));
-      expect(client).toHaveBeenNthCalledWith(2, "saved");
+      expect(client).toHaveBeenNthCalledWith(2, "saved", undefined);
     });
 
     it("reads the content files from the CDN when the Client does not answer, and shares one CDN read with the chat", async () => {
@@ -329,6 +329,30 @@ describe("createDaptySource", () => {
       expect(files.fromCdn).toBe(true);
       expect(files.files["workflow.json"]?.status).toBe("ok");
       expect(cdn).toHaveBeenCalledTimes(1);
+    });
+
+    it("never reads the CDN with the content CDN setting off, and still pings a Client found on the page", async () => {
+      const cdn = vi.fn(() => stored);
+      const clientAnswers = vi.fn(async () => false);
+      const widgetTurns = vi.fn(panel);
+      const source = createDaptySource({
+        client: async () => recorded(0),
+        clientFiles: async () => noClient,
+        detectClient: async () => "p".repeat(32),
+        clientAnswers,
+        cdn,
+        cdnFallback: async () => false,
+        widgetTurns,
+      });
+
+      const chat = await source.chat({ tabId: 4 }, undefined);
+      const files = await source.files({ tabId: 4 }, undefined);
+
+      expect(cdn).not.toHaveBeenCalled();
+      expect(clientAnswers).toHaveBeenCalledTimes(1);
+      expect(chat.source).toBe("widget-dom");
+      expect(chat.storedChatUnread).toBeUndefined();
+      expect(files).toBe(noClient);
     });
 
     it("keeps the Client's files when it answers, and keeps the Client's reason when neither answers", async () => {

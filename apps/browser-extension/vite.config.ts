@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { crx, type ManifestV3Export } from "@crxjs/vite-plugin";
@@ -69,8 +70,23 @@ function emittedLicences(): Plugin {
   };
 }
 
+/** The commit a build is made from, for evidence bundles; empty outside a git checkout. */
+function buildCommit(): string {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 12);
+  try {
+    return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
+  define: {
+    "import.meta.env.VITE_APTY_AGENT_COMMIT": JSON.stringify(buildCommit()),
+  },
   plugins: [
     react(),
     emittedConsoleBridge(CONSOLE_BRIDGE, CONSOLE_BRIDGE_FILE),

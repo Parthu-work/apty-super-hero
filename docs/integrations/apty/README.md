@@ -113,6 +113,16 @@ and build tooling, not something to drop in unmodified.
    `packages/browser-runtime/src/apty/service-worker-diagnostics.ts`'s
    top-of-file comment and `ARCHITECTURE.md` for that tradeoff.
 
+## When the Client reports nothing
+
+Until the Client adopts the changes below, the Agent reads the same public
+content files the Client reads (and the user's stored Ask Dapty chat) from
+Apty's content CDN, with no credentials, using the `contentURL` and
+`tenantId` of the Client's web-accessible `player-config.json`
+([`docs/development/ask-dapty.md`](../../development/ask-dapty.md)). Product
+or Security can turn this off in **Settings → Apty Integration → Apty
+Client: content CDN**; the Agent then only messages the Client.
+
 ## Ask Dapty in extension mode
 
 When the Apty Client runs as an extension, the Widget's AI assistant ("Ask

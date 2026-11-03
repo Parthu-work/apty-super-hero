@@ -6,6 +6,8 @@
  * Client answers at all.
  */
 
+import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
+import { ChromeStorageAdapter } from "../../storage/storage-adapter.js";
 import {
   type CdnResourceSource,
   createCdnResourceSource,
@@ -13,6 +15,7 @@ import {
   tabAptyPage,
 } from "../apty-cdn-source.js";
 import { sendExternalMessageDetailed } from "../external-messaging.js";
+import type { ClientPing, DaptyTrace } from "./dapty-evidence.js";
 import { loadClientEvidence, loadEvidenceFrom } from "./loader.js";
 import type { ClientEvidence } from "./types.js";
 
@@ -32,6 +35,13 @@ export interface AptyFilesReaders {
     names: readonly string[],
     options: { storedChats: boolean },
   ) => CdnResourceSource;
+  /**
+   * Whether Apty's content CDN may be read when the Client does not answer
+   * (Settings → Apty Integration). Off: no page probe for the Client's
+   * config and no CDN request; the Client is still found and pinged.
+   * Missing means on.
+   */
+  cdnFallback?: () => Promise<boolean>;
   /** Overridable for tests; the Apty Client's files by default. */
   clientFiles?: (
     extensionId: string | undefined,
@@ -68,12 +78,16 @@ export function createAptyFiles(readers: AptyFilesReaders) {
   const cdnRuns = new Map<string, { at: number; source: CdnResourceSource }>();
   const answering = new Map<string, { until: number; ok: Promise<boolean> }>();
 
-  function cdnFor(
+  async function cdnFor(
     tab: number | undefined,
     names: readonly string[],
     storedChats = false,
-  ): CdnResourceSource | undefined {
+  ): Promise<CdnResourceSource | undefined> {
     if (tab === undefined || !readers.cdn) return undefined;
+    const allowed = readers.cdnFallback
+      ? await readers.cdnFallback().catch(() => true)
+      : true;
+    if (!allowed) return undefined;
     const key = `${tab}|${storedChats}|${[...names].sort().join(",")}`;
     const cached = cdnRuns.get(key);
     if (cached && Date.now() - cached.at < CDN_REUSE_MS) return cached.source;
@@ -104,11 +118,27 @@ export function createAptyFiles(readers: AptyFilesReaders) {
   async function clientIdFor(
     tab: number | undefined,
     saved?: string,
+    trace?: DaptyTrace,
   ): Promise<string | undefined> {
-    if (saved) return saved;
-    if (tab === undefined || !readers.detectClient) return undefined;
+    const ping = (result: ClientPing) => {
+      if (trace) trace.clientPing ??= result;
+    };
+    if (saved) {
+      ping("saved-id");
+      return saved;
+    }
+    if (tab === undefined || !readers.detectClient) {
+      ping("no-tab");
+      return undefined;
+    }
     const found = await readers.detectClient(tab).catch(() => undefined);
-    return found && (await answers(found)) ? found : undefined;
+    if (!found) {
+      ping("not-on-page");
+      return undefined;
+    }
+    const ok = await answers(found);
+    ping(ok ? "answered" : "silent");
+    return ok ? found : undefined;
   }
 
   /** The named files from the Client, or from the CDN when the Client does not answer. */
@@ -116,25 +146,51 @@ export function createAptyFiles(readers: AptyFilesReaders) {
     runContext: unknown,
     saved: string | undefined,
     names: readonly string[],
-    { storedChats = false }: { storedChats?: boolean } = {},
+    {
+      storedChats = false,
+      trace,
+    }: { storedChats?: boolean; trace?: DaptyTrace } = {},
   ): Promise<ClientEvidence> {
+    const started = Date.now();
     const tab = tabOf(runContext);
-    const id = await clientIdFor(tab, saved);
+    const id = await clientIdFor(tab, saved, trace);
     const fromClient = await clientFiles(id, names);
-    if (fromClient.connection.ok) return fromClient;
-    const cdn = cdnFor(tab, names, storedChats);
-    if (!cdn) return fromClient;
+    const done = (evidence: ClientEvidence) => {
+      if (trace) trace.filesMs = Date.now() - started;
+      return evidence;
+    };
+    if (fromClient.connection.ok) return done(fromClient);
+    if (trace) trace.filesConnection = fromClient.connection.failure;
+    const cdn = await cdnFor(tab, names, storedChats);
+    if (!cdn) return done(fromClient);
     const fromCdn = await loadEvidenceFrom(cdn, names).catch(() => undefined);
-    if (fromCdn?.connection.ok) return { ...fromCdn, fromCdn: true };
-    return fromClient.connection.ok
-      ? fromClient
-      : { ...fromClient, connection: withCdnUnread(fromClient.connection) };
+    if (trace) {
+      const probe = await cdn.probe().catch(() => undefined);
+      if (probe) trace.cdnProbe = probe.ok ? "ok" : probe.reason;
+    }
+    if (fromCdn?.connection.ok) return done({ ...fromCdn, fromCdn: true });
+    return done(
+      fromClient.connection.ok
+        ? fromClient
+        : { ...fromClient, connection: withCdnUnread(fromClient.connection) },
+    );
   }
 
   return { cdnFor, clientIdFor, files };
 }
 
+const settingsStorage = new ChromeStorageAdapter<AppSettings>();
+
+/** Settings → Apty Integration's content CDN fallback: on unless turned off. */
+async function loadAptyCdnFallback(): Promise<boolean> {
+  const settings = await settingsStorage
+    .load(STORAGE_KEYS.SETTINGS)
+    .catch(() => null);
+  return settings?.aptyCdnFallback !== false;
+}
+
 export const DEFAULT_APTY_FILES_READERS: AptyFilesReaders = {
+  cdnFallback: loadAptyCdnFallback,
   detectClient: detectClientExtensionId,
   clientAnswers: async (extensionId) =>
     (
