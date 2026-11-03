@@ -1,5 +1,6 @@
 import {
   type AppSettings,
+  DEFAULT_ANTHROPIC_SUMMARY_MODEL,
   MAX_OUTPUT_TOKENS_RANGE,
   REQUEST_TOKEN_BUDGET_RANGE,
 } from "@apty/agent-core";
@@ -92,6 +93,45 @@ function LimitField({
   );
 }
 
+/** The model id summaries use; empty means the provider's default (`summaryModelFor`). */
+function SummaryModelField({ settings, onChange }: RequestLimitsCardProps) {
+  const { t } = useTranslation();
+  const saved = settings.summaryModel ?? "";
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
+  const commit = () => {
+    const value = text.trim();
+    if (value !== saved) onChange({ summaryModel: value || undefined });
+  };
+  const anthropic = settings.aiProvider === "anthropic";
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="summary-model" className="text-sm font-medium">
+        {t("settings.requestLimits.summaryModelLabel")}
+      </Label>
+      <Input
+        id="summary-model"
+        value={text}
+        placeholder={
+          anthropic
+            ? DEFAULT_ANTHROPIC_SUMMARY_MODEL
+            : t("settings.requestLimits.summaryModelSameAsChat")
+        }
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+        }}
+        aria-describedby="summary-model-hint"
+        className="font-mono"
+      />
+      <p id="summary-model-hint" className="text-xs text-muted-foreground">
+        {t("settings.requestLimits.summaryModelHint")}
+      </p>
+    </div>
+  );
+}
+
 /** The request budget and the answer cap, which save when the field is left or Enter is pressed, and summaries of earlier turns. */
 export function RequestLimitsCard({
   settings,
@@ -150,6 +190,9 @@ export function RequestLimitsCard({
             {t("settings.requestLimits.summariesHint")}
           </p>
         </div>
+        {settings.summarizeEarlierTurns === true && (
+          <SummaryModelField settings={settings} onChange={onChange} />
+        )}
       </CardContent>
     </Card>
   );

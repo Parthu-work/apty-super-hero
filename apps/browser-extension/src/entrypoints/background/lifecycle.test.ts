@@ -85,9 +85,13 @@ describe("registerInstallHandler", () => {
     update();
     await vi.waitFor(() => expect(set).toHaveBeenCalledOnce());
 
+    // A key saved before the provider was named keeps the old default
+    // provider (settings migration v3), so the update changes no setup.
     expect(store[STORAGE_KEYS.SETTINGS]).toEqual({
       aiToken: "kept",
       redactionMode: "standard",
+      aiProvider: "openai",
+      providerType: "openai",
       settingsVersion: SETTINGS_VERSION,
     });
 

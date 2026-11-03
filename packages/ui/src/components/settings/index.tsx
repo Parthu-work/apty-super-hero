@@ -3,6 +3,7 @@ import {
   type AIProviderKey,
   type AppSettings,
   type CustomModelConfig,
+  DEFAULT_CHAT_MODEL,
   detectProviderFromHost,
   migrateSettings,
   PHI_APPROVED_PROVIDERS,
@@ -64,6 +65,7 @@ import {
 import { SettingRow } from "../ui/setting-row";
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { AptyCdnCard } from "./apty-cdn-card";
 import { DataHandlingCard } from "./data-handling-card";
 import { RequestLimitsCard } from "./request-limits-card";
 import { TroubleshootingCard } from "./troubleshooting-card";
@@ -93,7 +95,10 @@ const buildDefaultProviderModels = (): CustomModelConfig[] =>
     providerType: provider.providerType,
     aiHost: "host" in provider ? (provider.host ?? "") : "",
     aiToken: "",
-    aiModel: provider.models[0] ?? "",
+    aiModel:
+      key === DEFAULT_CHAT_MODEL.provider
+        ? DEFAULT_CHAT_MODEL.model
+        : (provider.models[0] ?? ""),
     enabled: false,
   }));
 
@@ -465,8 +470,13 @@ export function SettingsPage({
         });
 
         setCustomModels(mergedCustomModels);
+        // With nothing enabled, the form opens on the saved provider, which
+        // on a fresh install is DEFAULT_CHAT_MODEL's.
         const initialSelection =
           mergedCustomModels.find((model) => model.enabled)?.id ||
+          mergedCustomModels.find(
+            (model) => model.id === `builtin-${loadedSettings.aiProvider}`,
+          )?.id ||
           mergedCustomModels[0]?.id ||
           null;
         setSelectedModelId(initialSelection);
@@ -1939,6 +1949,7 @@ export function SettingsPage({
           {connectionContent && (
             <TabsContent value="connection" className="mt-0 space-y-4">
               {connectionContent}
+              <AptyCdnCard settings={settings} onChange={saveGeneralSetting} />
             </TabsContent>
           )}
         </div>

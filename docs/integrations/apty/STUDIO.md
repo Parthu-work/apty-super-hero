@@ -21,13 +21,13 @@ Apty Studio Extension.
    ```json
    "externally_connectable": {
      "matches": ["…Studio's existing entries…"],
-     "ids": ["bpiondflhhdplemamgggcdajclmoeple"]
+     "ids": ["bpiondflhhdplemamgggcdajclmoeple", "<the Web Store ID, once assigned>"]
    }
    ```
 
-   The ID above is the Agent's pinned development and enterprise ID (from
+   The first ID is the Agent's pinned development and enterprise ID (from
    its manifest `key`). The Web Store build gets a different ID from the
-   store at its first upload; add that one too
+   store at its first upload; put it in place of the placeholder
    ([Extension IDs](README.md#extension-ids)). The Studio row in the
    Agent's Settings shows the running ID and this snippet with a Copy
    button.

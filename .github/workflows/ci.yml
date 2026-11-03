@@ -99,6 +99,9 @@ jobs:
       - name: Markdown links resolve
         run: npm run audit:docs-links
 
+      - name: The Agent's IDs agree across the Apty integration files
+        run: npm run audit:extension-ids
+
       - name: Third-party notices match the dependencies
         run: npm run audit:notices
 
