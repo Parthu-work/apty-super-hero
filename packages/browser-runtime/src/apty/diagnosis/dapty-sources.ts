@@ -132,7 +132,7 @@ export function createDaptySource(readers: DaptyReaders) {
     if (holdsChat(recorded)) return recorded;
 
     let unread: StoredChatUnread | undefined;
-    const cdn = apty.cdnFor(tab, DAPTY_FILES, true);
+    const cdn = await apty.cdnFor(tab, DAPTY_FILES, true);
     if (trace) trace.cdnAllowed = cdn !== undefined;
     if (cdn) {
       const stored = await traced(

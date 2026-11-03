@@ -64,6 +64,7 @@ import {
 import { SettingRow } from "../ui/setting-row";
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { AptyCdnCard } from "./apty-cdn-card";
 import { DataHandlingCard } from "./data-handling-card";
 import { RequestLimitsCard } from "./request-limits-card";
 import { TroubleshootingCard } from "./troubleshooting-card";
@@ -1939,6 +1940,7 @@ export function SettingsPage({
           {connectionContent && (
             <TabsContent value="connection" className="mt-0 space-y-4">
               {connectionContent}
+              <AptyCdnCard settings={settings} onChange={saveGeneralSetting} />
             </TabsContent>
           )}
         </div>

@@ -380,6 +380,26 @@ export async function probeClientInPage(): Promise<
 }
 
 /**
+ * Runs in the tab's isolated world: only the Client's extension ID, from the
+ * script it injects. Unlike `probeClientInPage`, it reads no config, so
+ * finding the Client to ping it costs no request.
+ * @internal
+ */
+export function clientIdInPage(): string | undefined {
+  const pattern =
+    /^chrome-extension:\/\/([a-p]{32})\/window-script\.js(?:[?#]|$)/;
+  return [
+    ...performance.getEntriesByType("resource").map((e) => e.name),
+    ...Array.from(
+      document.querySelectorAll("script[src]"),
+      (s) => s.getAttribute("src") ?? "",
+    ),
+  ]
+    .map((u) => pattern.exec(u)?.[1])
+    .find(Boolean);
+}
+
+/**
  * Runs in the page's main world: the injected player's config, when the page
  * set one. Only the two fields the source needs leave the page.
  * @internal
@@ -496,8 +516,7 @@ export async function detectClientExtensionId(
   tabId: number,
 ): Promise<string | undefined> {
   try {
-    const client = await run(tabId, "ISOLATED", probeClientInPage);
-    return client?.found ? client.id : undefined;
+    return await run(tabId, "ISOLATED", clientIdInPage);
   } catch {
     return undefined;
   }

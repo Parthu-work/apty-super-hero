@@ -79,6 +79,11 @@
     "resetDone": "设置已重置，请记得保存",
     "extensionSubtitle": "配置你的 Apty Agent 扩展",
     "aptyIntegration": "连接",
+    "aptyCdn": {
+      "title": "Apty Client：内容 CDN",
+      "label": "当 Apty Client 没有响应时，从 Apty 的内容 CDN 读取它所读取的相同公开文件",
+      "help": "检查随后会从 Apty Client 自身配置所指定的内容 URL 读取内容文件（app-urls.json、app-data.json、workflow.json 以及检查所需的其他文件），并在页面持有用户 ID 时读取该用户存储的 Ask Dapty 对话。不会发送任何凭据，每个文件都经过正文拒绝列表和脱敏处理。关闭后：只读取 Apty Client 自身的记录，Client 没有响应时检查会说明原因。"
+    },
     "languageHint": "选择您的首选语言",
     "themeHint": "选择您喜欢的主题",
     "privacyNotice": "不会收集任何分析或遥测数据。您的消息和工具结果只会发送给您在下方配置的 AI 服务商，使用您自己的 API 密钥。",

@@ -134,6 +134,43 @@ describe("createAptyFiles", () => {
     );
   });
 
+  it("with the content CDN setting off, never reads the CDN and keeps the Client's own reason", async () => {
+    const cdn = vi.fn(() => cdnWith([{ name: "Export" }]));
+    const cdnFallback = vi.fn(async () => false);
+    const clientAnswers = vi.fn(async () => false);
+    const apty = createAptyFiles({
+      clientFiles: async () => silent,
+      detectClient: async () => "p".repeat(32),
+      clientAnswers,
+      cdn,
+      cdnFallback,
+    });
+
+    const read = await apty.files({ tabId: 1 }, undefined, ["rule.json"]);
+
+    expect(read).toBe(silent);
+    expect(cdn).not.toHaveBeenCalled();
+    expect(clientAnswers).toHaveBeenCalledWith("p".repeat(32));
+    expect(await apty.cdnFor(1, ["rule.json"])).toBeUndefined();
+  });
+
+  it("reads the setting each time, so turning it back on takes effect without a reload", async () => {
+    let on = false;
+    const cdn = vi.fn(() => cdnWith([{ name: "Export" }]));
+    const apty = createAptyFiles({
+      clientFiles: async () => silent,
+      cdn,
+      cdnFallback: async () => on,
+    });
+
+    await apty.files({ tabId: 1 }, "ext", ["workflow.json"]);
+    on = true;
+    const read = await apty.files({ tabId: 1 }, "ext", ["workflow.json"]);
+
+    expect(read.fromCdn).toBe(true);
+    expect(cdn).toHaveBeenCalledTimes(1);
+  });
+
   it("reads only the Client without a tab", async () => {
     const cdn = vi.fn(() => cdnWith([]));
     const apty = createAptyFiles({ clientFiles: async () => silent, cdn });

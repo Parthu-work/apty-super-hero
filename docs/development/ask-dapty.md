@@ -71,7 +71,15 @@ from apty-dap `development`, read only):
    card says why.
 
 Every body goes through the body deny list and redaction like the Client's
-record (`/widget-chat/` withholds the stored chats). The content URL must
+record (`/widget-chat/` withholds the stored chats).
+
+**Settings → Apty Integration → "Apty Client: content CDN"**
+(`aptyCdnFallback`, on by default) turns the CDN reads off. Off, no check
+probes the page for `player-config.json` or reads the CDN (files or stored
+chat); the Client is still found from its page script and pinged, which is
+only messaging, so a Client that records its calls keeps working with no
+saved ID, and a card shows the Client's own failure message. The setting is
+read on every check (`createAptyFiles`'s `cdnFallback` reader). The content URL must
 be `https` (or `http` on this machine, for tests), and a user or chat ID
 that would change the path is not used. One CDN read per check run serves
 both the chat and the files.

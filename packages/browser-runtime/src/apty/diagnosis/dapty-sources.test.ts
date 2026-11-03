@@ -331,6 +331,30 @@ describe("createDaptySource", () => {
       expect(cdn).toHaveBeenCalledTimes(1);
     });
 
+    it("never reads the CDN with the content CDN setting off, and still pings a Client found on the page", async () => {
+      const cdn = vi.fn(() => stored);
+      const clientAnswers = vi.fn(async () => false);
+      const widgetTurns = vi.fn(panel);
+      const source = createDaptySource({
+        client: async () => recorded(0),
+        clientFiles: async () => noClient,
+        detectClient: async () => "p".repeat(32),
+        clientAnswers,
+        cdn,
+        cdnFallback: async () => false,
+        widgetTurns,
+      });
+
+      const chat = await source.chat({ tabId: 4 }, undefined);
+      const files = await source.files({ tabId: 4 }, undefined);
+
+      expect(cdn).not.toHaveBeenCalled();
+      expect(clientAnswers).toHaveBeenCalledTimes(1);
+      expect(chat.source).toBe("widget-dom");
+      expect(chat.storedChatUnread).toBeUndefined();
+      expect(files).toBe(noClient);
+    });
+
     it("keeps the Client's files when it answers, and keeps the Client's reason when neither answers", async () => {
       const fromClient: ClientEvidence = {
         connection: { ok: true },
