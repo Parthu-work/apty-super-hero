@@ -154,6 +154,15 @@ const FRAME_RESPONDER_SCRIPT_MARKER = "frame-responder";
 const NO_RECEIVER_PATTERN =
   /receiving end does not exist|could not establish connection/i;
 
+/**
+ * The built content script is a loader that `import()`s the responder, so
+ * a frame that has just loaded, or just been injected, has no listener
+ * until that import resolves — longer on a busy machine. Asked again at
+ * once, it is still deaf, and the frame reads as uninspectable.
+ */
+const RECEIVER_WAIT_MS = 2_000;
+const RECEIVER_POLL_MS = 100;
+
 function frameResponderFiles(): string[] {
   const scripts = chrome.runtime.getManifest?.().content_scripts ?? [];
   for (const script of scripts) {
@@ -193,7 +202,7 @@ async function injectFrameResponder(
  * `chrome.runtime.lastError`) so callers can build an explicit
  * accessibility picture instead of an unhandled rejection. When the frame
  * has no live receiver, the responder is injected and the message retried
- * once.
+ * until the responder has loaded, for at most `RECEIVER_WAIT_MS`.
  */
 export async function sendFrameMessage<T>(
   tabId: number,
@@ -216,7 +225,23 @@ export async function sendFrameMessage<T>(
       error: `${first.error} The frame responder could not be injected into this frame.`,
     };
   }
-  return sendFrameMessageOnce<T>(tabId, frameId, message, timeoutMs);
+  const deadline = Date.now() + Math.min(RECEIVER_WAIT_MS, timeoutMs);
+  for (;;) {
+    const retry = await sendFrameMessageOnce<T>(
+      tabId,
+      frameId,
+      message,
+      timeoutMs,
+    );
+    if (
+      retry.success ||
+      !NO_RECEIVER_PATTERN.test(retry.error ?? "") ||
+      Date.now() >= deadline
+    ) {
+      return retry;
+    }
+    await new Promise((resolve) => setTimeout(resolve, RECEIVER_POLL_MS));
+  }
 }
 
 function sendFrameMessageOnce<T>(
