@@ -225,6 +225,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | W7 A reproducible, test-only 5.x Client recorder build | Merged | [#84](https://github.com/Parthu-work/apty-super-hero/pull/84) |
 | W8 One source of truth for the Agent's IDs, and the Ask Dapty release checklist | Merged; **blocked**: the Web Store ID, set in one commit when the store assigns it, then the Client team adds it to `externally_connectable` | [#85](https://github.com/Parthu-work/apty-super-hero/pull/85) |
 | W9 Audit items 10 (Chinese card), N5 (rejected selectors), 14 (language codes) | Merged | [#81](https://github.com/Parthu-work/apty-super-hero/pull/81) |
+| Follow-up: the flaky DOM Config crawl and DOM Health click-only E2E tests, which read a frame before its responder had loaded; the Agent now waits up to 2 s for it | Merged | [#89](https://github.com/Parthu-work/apty-super-hero/pull/89) |
 
 ## Known limitations
 
