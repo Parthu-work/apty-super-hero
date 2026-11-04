@@ -56,11 +56,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe("sendFrameMessage recovery", () => {
-  it("injects the responder into a frame with no live receiver and retries once", async () => {
+  it("injects the responder into a frame with no live receiver and asks again", async () => {
     replies(
       {
         error: "Could not establish connection. Receiving end does not exist.",
@@ -76,6 +77,42 @@ describe("sendFrameMessage recovery", () => {
       files: ["assets/frame-responder.ts-loader-def.js"],
     });
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for an injected responder that is still loading instead of reading the frame as uninspectable", async () => {
+    vi.useFakeTimers();
+    const noReceiver = {
+      error: "Could not establish connection. Receiving end does not exist.",
+    };
+    replies(noReceiver, noReceiver, noReceiver, {
+      success: true,
+      data: { pong: true },
+    });
+
+    const pending = sendFrameMessage(4, 9, { request: "dom-health-ping" });
+    await vi.runAllTimersAsync();
+
+    expect(await pending).toEqual({ success: true, data: { pong: true } });
+    expect(mockExecuteScript).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up within the wait on a frame whose responder never starts listening", async () => {
+    vi.useFakeTimers();
+    mockSendMessage.mockImplementation(
+      (_t: number, _m: unknown, _o: unknown, cb: (r?: unknown) => void) => {
+        runtime.lastError = { message: "Receiving end does not exist." };
+        cb(undefined);
+        runtime.lastError = undefined;
+      },
+    );
+
+    const pending = sendFrameMessage(4, 9, { request: "x" });
+    await vi.advanceTimersByTimeAsync(2_100);
+
+    expect(await pending).toEqual({
+      success: false,
+      error: "Receiving end does not exist.",
+    });
   });
 
   it("does not inject for failures other than a missing receiver", async () => {
