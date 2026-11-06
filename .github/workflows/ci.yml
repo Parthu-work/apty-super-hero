@@ -105,6 +105,11 @@ jobs:
       - name: Third-party notices match the dependencies
         run: npm run audit:notices
 
+      # After the build, so the extension's dist (what the release zips
+      # are made from) is scanned too.
+      - name: No KB pack in the tree or the build
+        run: npm run audit:kb-pack
+
       - name: Dependency vulnerability audit
         run: pnpm audit --prod
 

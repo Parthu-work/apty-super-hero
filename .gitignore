@@ -48,3 +48,8 @@ keys.json
 .cursor/
 
 .idea/
+
+# KB packs hold internal Confluence card text; this repository is public
+# (docs/tasks/kb-rag/MASTER.md, rule 2). `npm run audit:kb-pack` fails on them.
+*.kbpack.json
+kb-pack*/

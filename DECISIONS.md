@@ -34,7 +34,7 @@ document they concern.
 | [Investigation lifecycle changes go through explicit tools, not implicit inference](docs/archive/DECISIONS.md#investigation-lifecycle-changes-go-through-explicit-tools-not-implicit-inference) | ≤ 2026-09-30 | Accepted |
 | [Friendly tool-call names reuse the existing i18n `tools.*` translation layer](docs/archive/DECISIONS.md#friendly-tool-call-names-reuse-the-existing-i18n-tools-translation-layer) | ≤ 2026-09-30 | Accepted |
 | [No new UI framework/design system](docs/archive/DECISIONS.md#no-new-ui-frameworkdesign-system) | ≤ 2026-09-30 | Accepted |
-| [No RAG layer, ever, in this repo](docs/archive/DECISIONS.md#no-rag-layer-ever-in-this-repo) | ≤ 2026-09-30 | Accepted |
+| [No RAG layer, ever, in this repo](docs/archive/DECISIONS.md#no-rag-layer-ever-in-this-repo) | ≤ 2026-09-30 | Amended by D-KB1: KB card retrieval for a finding or symptom only |
 | [Apty diagnostics are honest stubs, not fake implementations](docs/archive/DECISIONS.md#apty-diagnostics-are-honest-stubs-not-fake-implementations) | ≤ 2026-09-30 | Accepted |
 | [Config lives in `chrome.storage.local`, seeded from build-time env, not read directly from `import.meta.env` in browser-runtime](docs/archive/DECISIONS.md#config-lives-in-chromestoragelocal-seeded-from-build-time-env-not-read-directly-from-importmetaenv-in-browser-runtime) | ≤ 2026-09-30 | Accepted |
 | [BYOK only, no proxy fallback (carried over from the prior session)](docs/archive/DECISIONS.md#byok-only-no-proxy-fallback-carried-over-from-the-prior-session) | ≤ 2026-09-30 | Accepted |
@@ -58,3 +58,8 @@ document they concern.
 | [Truncated JSON: an unterminated sensitive value is redacted to the end](docs/archive/DECISIONS.md#truncated-json-an-unterminated-sensitive-value-is-redacted-to-the-end) | 2026-10-15 | Accepted |
 | [No Agent-side webRequest recorder for the Apty Client's calls](docs/archive/DECISIONS.md#no-agent-side-webrequest-recorder-for-the-apty-clients-calls) | 2026-10-18 | Accepted |
 | [DOM Config: a deterministic engine turns DOM analysis runs into Apty DOM settings](docs/development/dom-config.md#decision-record) | 2026-10-23 | Accepted |
+| [D-KB1: KB card retrieval supersedes "no RAG" for findings and symptoms only](docs/tasks/kb-rag/decisions.md#d-kb1-card-retrieval-supersedes-no-rag-for-findings-and-symptoms-only) | 2026-11-06 | Accepted |
+| [D-KB2: the KB reaches SEs as a local pack they import, never through this public repository](docs/tasks/kb-rag/decisions.md#d-kb2-the-kb-reaches-ses-as-a-local-pack-they-import) | 2026-11-06 | Accepted |
+| [D-KB3: KB retrieval is keyword (BM25) first, dense vectors only on a measured gain](docs/tasks/kb-rag/decisions.md#d-kb3-keyword-retrieval-first) | 2026-11-06 | Accepted |
+| [D-KB4: KB cards are pages labelled `rag-card` in space JA, 5.x only](docs/tasks/kb-rag/decisions.md#d-kb4-cards-are-pages-labelled-rag-card-in-space-ja) | 2026-11-06 | Accepted |
+| [D-KB5: the KB owner builds and distributes packs](docs/tasks/kb-rag/decisions.md#d-kb5-the-kb-owner-builds-and-distributes-packs) | 2026-11-06 | Accepted |
