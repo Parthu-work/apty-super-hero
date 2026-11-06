@@ -16,6 +16,7 @@
     ".": {
       "entry": [
         "tooling/scripts/*.{mjs,js}",
+        "tooling/scripts/kb/*.{mjs,js}",
         "tooling/e2e/*.{mjs,js}",
         "tooling/e2e/fixtures/**/*.{mjs,js}"
       ],
