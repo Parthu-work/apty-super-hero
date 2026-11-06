@@ -48,6 +48,7 @@
     "audit:notices": "node tooling/scripts/third-party-notices.mjs --check",
     "audit:kb-pack": "node tooling/scripts/check-no-kb-pack.mjs",
     "kb:pack": "node tooling/scripts/kb/build-kb-pack.mjs",
+    "kb:eval": "node tooling/scripts/kb/eval-kb.mjs",
     "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",
     "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },
