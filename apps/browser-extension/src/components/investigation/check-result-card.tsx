@@ -6,6 +6,8 @@
  * the checks in the card's order, and what the files cannot decide. Rule
  * names and file facts only; no raw conditions or URLs.
  */
+
+import { kbCardUrl } from "@apty/agent-core";
 import type {
   Cause,
   DiagnosisResult,
@@ -15,6 +17,7 @@ import type {
   VerdictStatus,
 } from "@apty/browser-runtime";
 import { recordDaptyChat } from "@apty/browser-runtime/apty/dapty-page-capture";
+import { cardLayerOf } from "@apty/browser-runtime/apty/diagnosis/card-layers";
 import type {
   DaptyRow,
   DaptySummary,
@@ -36,8 +39,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { DaptyEvidenceExport } from "./dapty-evidence-export";
+import { KbCardExcerpt } from "./kb-card-excerpt";
 
-const KB_PAGE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
 const PACKS = new Set([
   "content-not-visible",
   "widget-not-visible",
@@ -410,7 +413,7 @@ function KbCardLink({ pageId }: { pageId: string }) {
   const { t } = useTranslation();
   return (
     <a
-      href={`${KB_PAGE}${pageId}`}
+      href={kbCardUrl(pageId)}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -452,6 +455,12 @@ function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
         <span>{t("checkPack.ruleLabel", { ruleId: cause.ruleId })}</span>
         {cause.cardPageId && <KbCardLink pageId={cause.cardPageId} />}
       </p>
+      {cause.cardPageId && (
+        <KbCardExcerpt
+          pageId={cause.cardPageId}
+          layer={cardLayerOf(cause.ruleId)}
+        />
+      )}
     </li>
   );
 }

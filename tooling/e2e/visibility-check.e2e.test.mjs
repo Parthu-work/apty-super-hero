@@ -27,6 +27,7 @@ import {
   unpackedExtensionId,
   writeContentClient,
 } from "./harness.mjs";
+import { fixturePage, importPack, writeFixturePack } from "./kb-fixture.mjs";
 
 const FIXTURES = join(
   ROOT,
@@ -474,4 +475,68 @@ describe("selector and page checks, end to end", () => {
     await panel.close();
     await app.close();
   });
+});
+
+describe("with a KB pack loaded (KB-RAG K5)", () => {
+  const LAYER_1 = "FIXTURE: clear the Hide From Widget switch, then publish.";
+
+  before(async () => {
+    const { file } = writeFixturePack(tempDir("apty-kb-visibility-"), {
+      pages: [
+        fixturePage("1496842241", "FIXTURE workflow not in the widget", [
+          LAYER_1,
+          "FIXTURE page checks.",
+          "FIXTURE data to read.",
+          "Send support: the FIXTURE version.",
+        ]),
+      ],
+    });
+    await importPack(browser, file);
+  });
+
+  for (const theme of ["light", "dark"]) {
+    it(`shows the cause's settings layer under it, by keyboard and axe clean, in the ${theme} theme, with no model request`, async () => {
+      await connectClient();
+      const settings = await extensionPage(browser);
+      await settings.evaluate(
+        (t) => chrome.storage.local.set({ apty_theme: t }),
+        theme,
+      );
+      await settings.close();
+      const { app, panel } = await panelOnApp();
+      await panel.waitForFunction(
+        (dark) => document.documentElement.classList.contains("dark") === dark,
+        theme === "dark",
+      );
+      const before = model.requests.length;
+
+      await sendChat(
+        panel,
+        "My workflow 'Take a tour' is not visible in the widget",
+      );
+      const card = panel.getByRole("region", {
+        name: "Why “Take a tour” may not be visible",
+      });
+      await card.waitFor({ timeout: 30_000 });
+      const expander = card.getByRole("button", { name: "From the KB card" });
+      await expander.waitFor();
+      await expander.focus();
+      await panel.keyboard.press("Enter");
+      await card.getByText(LAYER_1).waitFor();
+      await card
+        .getByText("Layer 1 of “FIXTURE workflow not in the widget”")
+        .waitFor();
+      await card.getByText("Verified on: FIXTURE code, 2026-01-01.").waitFor();
+      assert.ok(
+        (await card.getByRole("link", { name: /KB card 1496842241/ }).count()) >
+          0,
+        "the card link stays",
+      );
+      assert.equal(model.requests.length, before, "no model request");
+      const violations = await runAxe(panel);
+      assert.deepEqual(violations, [], describeViolations(violations));
+      await panel.close();
+      await app.close();
+    });
+  }
 });

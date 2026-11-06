@@ -2358,7 +2358,13 @@
     "provenanceDapty": "From Apty's widget chat and ai-service code (apty-dap development), not runtime-verified. Confidence: likely.",
     "daptyRecord": "Record the next Ask Dapty chat (2 minutes)",
     "daptyRecording": "Recording this tab: ask Dapty the question again on the page, then ask me to check again.",
-    "daptyRecordFailed": "This tab could not be recorded. Open the page with the widget in this window and try again."
+    "daptyRecordFailed": "This tab could not be recorded. Open the page with the widget in this window and try again.",
+    "kbCard": {
+      "from": "From the KB card",
+      "notVerified": "Not verified",
+      "layer": "Layer {{layer}} of “{{title}}”",
+      "noVerifiedLine": "The card has no “Verified on” line."
+    }
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",
