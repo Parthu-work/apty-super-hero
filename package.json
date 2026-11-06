@@ -46,6 +46,7 @@
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
     "check:dist-licences": "node tooling/scripts/check-dist-licences.mjs",
     "audit:notices": "node tooling/scripts/third-party-notices.mjs --check",
+    "audit:kb-pack": "node tooling/scripts/check-no-kb-pack.mjs",
     "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",
     "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },
