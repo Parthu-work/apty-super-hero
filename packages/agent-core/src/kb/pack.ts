@@ -243,3 +243,10 @@ export function kbPackAgeDays(info: Pick<KbPackInfo, "builtAt">, now: Date) {
   if (Number.isNaN(built)) return undefined;
   return Math.max(0, Math.floor((now.getTime() - built) / 86_400_000));
 }
+
+/** The Confluence page of a KB card, as the check packs and `kb://` citations link to it. */
+const KB_CARD_PAGE_BASE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
+
+export function kbCardUrl(pageId: string): string {
+  return `${KB_CARD_PAGE_BASE}${pageId}`;
+}

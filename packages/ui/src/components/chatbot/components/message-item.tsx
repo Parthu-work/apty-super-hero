@@ -15,6 +15,7 @@ import { Fragment, useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
+import { linkKbCitations } from "../../../lib/kb-citations";
 import { isLocalImageUrl } from "../../../lib/safe-media";
 import {
   resolveScreenshotUrls,
@@ -140,7 +141,12 @@ export function DefaultMessageItem({
             // Transform [[screenshot:...]] placeholders to markdown images.
             // First resolve to special URLs, then replace with actual
             // base64 data URLs when available for inline rendering.
-            let processedText = part.text;
+            let processedText =
+              message.role === "assistant"
+                ? linkKbCitations(part.text, (pageId, layer) =>
+                    t("chat.kbCitation", { pageId, layer }),
+                  )
+                : part.text;
             if (screenshotUidList.length > 0) {
               processedText = transformScreenshotPlaceholders(
                 processedText,

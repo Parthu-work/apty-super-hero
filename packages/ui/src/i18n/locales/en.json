@@ -349,7 +349,8 @@
     "record_verification_attempt": "🧪 Verifying diagnosis",
     "stop_investigation": "🛑 Stopping investigation",
     "get_investigation_status": "📋 Checking investigation status",
-    "run_diagnosis": "Visibility check"
+    "run_diagnosis": "Visibility check",
+    "search_kb": "Knowledge base search"
   },
   "chatErrors": {
     "title": "Couldn't get an answer",
@@ -1296,7 +1297,8 @@
     "contextUsage": "Context Usage",
     "tokensOf": "{{used}} / {{max}} tokens",
     "promptCompletion": "Prompt: {{prompt}} | Completion: {{completion}}",
-    "summarizing": "Summarizing..."
+    "summarizing": "Summarizing...",
+    "kbCitation": "KB card {{pageId}}, layer {{layer}}"
   },
   "investigation": {
     "componentHealth": "Apty component health",

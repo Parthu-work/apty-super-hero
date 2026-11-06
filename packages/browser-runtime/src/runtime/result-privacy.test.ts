@@ -96,6 +96,24 @@ describe("applyResultPrivacy", () => {
     expect(applyResultPrivacy(result, "withhold")).toEqual(result);
   });
 
+  it("keeps a KB card citation whole, and nothing else in the kb: scheme (KB-RAG K4)", () => {
+    for (const policy of ["withhold", "mask"] as const) {
+      expect(applyResultPrivacy({ cite: "kb://101#L3" }, policy)).toEqual({
+        cite: "kb://101#L3",
+      });
+      for (const value of [
+        "kb://101#L5",
+        "kb://101/patients?mrn=884213#L1",
+        "kb://host.example/path#L1",
+      ]) {
+        expect(
+          (applyResultPrivacy({ cite: value }, policy) as { cite: string })
+            .cite,
+        ).not.toBe(value);
+      }
+    }
+  });
+
   it("masks any string under a URL key, relative or not, and empties one it can't parse", () => {
     const result = {
       ogImage: "/patients/884213/photo.jpg?mrn=884213",

@@ -196,6 +196,25 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
     "chatbot",
     "助手",
   ],
+  // Product facts behind a finding (KB-RAG K4): the card's settings,
+  // checks, data and support contacts.
+  kb: [
+    "how do i",
+    "how can i",
+    "how to",
+    "turn off",
+    "turn on",
+    "turn it off",
+    "turn it on",
+    "switch off",
+    "setting",
+    "in studio",
+    "in admin",
+    "kb card",
+    "knowledge base",
+    "contact support",
+    "send support",
+  ],
   extensionNetwork: [
     "segments.json",
     "app.json",
@@ -222,6 +241,12 @@ const DEFAULT_FALLBACK_GROUPS: BrowserToolGroupName[] = ["tabs", "page"];
 // pulled in by these categories even when the wording doesn't literally
 // say "investigate" — an Apty/network/extension question about *why*
 // something happens is a debugging request either way.
+// A check pack's symptom is where card text helps: its fix, checks and
+// support contacts are product facts the model must not invent (KB-RAG
+// K4). Not every Apty question: a 10-turn investigation must still fit an
+// 8,000-token request budget.
+const GROUPS_THAT_IMPLY_KB: BrowserToolGroupName[] = ["diagnosis"];
+
 const GROUPS_THAT_IMPLY_INVESTIGATION: BrowserToolGroupName[] = [
   "apty",
   "devtools",
@@ -271,6 +296,13 @@ function selectRelevantGroups(userMessage: string): Set<BrowserToolGroupName> {
     GROUPS_THAT_IMPLY_INVESTIGATION.some((g) => matchedGroups.has(g))
   ) {
     matchedGroups.add("investigation");
+  }
+
+  if (
+    !RETRIEVAL_REQUEST.test(text.trim()) &&
+    GROUPS_THAT_IMPLY_KB.some((g) => matchedGroups.has(g))
+  ) {
+    matchedGroups.add("kb");
   }
 
   if (matchedGroups.size === 0 && !isLikelyCasualMessage(text)) {

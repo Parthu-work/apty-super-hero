@@ -36,6 +36,11 @@ const PAGE_URL = /^(?:https?|file):\/\//i;
 const WEB_URL_IN_TEXT = /https?:\/\/[^\s"'<>()[\]{}`\\]+/gi;
 /** Screenshot payloads and local object URLs, which carry no page data in their address. */
 const NOT_REWRITTEN = /^(?:data|blob):/i;
+/**
+ * A KB card citation (KB-RAG K4), `kb://<pageId>#L<layer>`: digits and a
+ * layer number the search_kb tool writes, with no page data to mask.
+ */
+const KB_CITATION = /^kb:\/\/\d+#L[1-4]$/;
 /** A whole value shaped like a URL; an XPath such as `//div[2]` is not. */
 const URL_SHAPED =
   /^(?:\/(?!\/)|\/\/[\w.-]+(?::\d+)?(?:[/?#]|$)|(?:[a-z][a-z0-9+.-]*:)+\/\/)\S*$/i;
@@ -101,7 +106,9 @@ function rewriteRecord(
 
 function rewrite(value: unknown, policy: ValuePolicy): unknown {
   if (typeof value === "string") {
-    return URL_SHAPED.test(value) && !NOT_REWRITTEN.test(value)
+    return URL_SHAPED.test(value) &&
+      !NOT_REWRITTEN.test(value) &&
+      !KB_CITATION.test(value)
       ? (applyUrlPolicy(value, policy) ?? "")
       : rewriteText(value, policy);
   }
