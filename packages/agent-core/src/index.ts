@@ -66,16 +66,21 @@ export { isSummaryItem } from "./conversation/summary-item.js";
 // KB packs and search
 export {
   canonicalJson,
+  describeKbPack,
   KB_LAYERS,
   KB_PACK_KIND,
   KB_PACK_LIMITS,
   KB_PACK_SCHEMA_VERSION,
+  KB_PACK_STALE_DAYS,
   type KbCard,
   type KbChunk,
+  type KbImportResult,
   type KbLayer,
   type KbPack,
   type KbPackErrorCode,
+  type KbPackInfo,
   type KbPackParseResult,
+  kbPackAgeDays,
   parseKbPack,
   type Sha256Hex,
 } from "./kb/pack.js";

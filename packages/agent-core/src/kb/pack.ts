@@ -199,3 +199,47 @@ export async function parseKbPack(
   }
   return { ok: true, pack };
 }
+
+/** What the Options card and Preflight show about the loaded pack: no card text. */
+export interface KbPackInfo {
+  site: string;
+  space: string;
+  label: string;
+  cardCount: number;
+  chunkCount: number;
+  builtAt: string;
+  importedAt: string;
+  mode: "bm25" | "hybrid";
+  /** Whether the pack carries a calibrated "not covered" threshold. */
+  calibrated: boolean;
+  sha256: string;
+}
+
+export type KbImportResult =
+  | { ok: true; info: KbPackInfo }
+  | { ok: false; code: KbPackErrorCode | "read_failed" };
+
+export const KB_PACK_STALE_DAYS = 30;
+
+export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
+  return {
+    site: pack.source.site,
+    space: pack.source.space,
+    label: pack.source.label,
+    cardCount: pack.cards.length,
+    chunkCount: pack.chunks.length,
+    builtAt: pack.builtAt,
+    importedAt,
+    mode:
+      pack.retrieval.dense && pack.vectors !== undefined ? "hybrid" : "bm25",
+    calibrated: pack.retrieval.threshold !== undefined,
+    sha256: pack.sha256,
+  };
+}
+
+/** Whole days since the pack was built, or undefined when its date does not parse. */
+export function kbPackAgeDays(info: Pick<KbPackInfo, "builtAt">, now: Date) {
+  const built = Date.parse(info.builtAt);
+  if (Number.isNaN(built)) return undefined;
+  return Math.max(0, Math.floor((now.getTime() - built) / 86_400_000));
+}

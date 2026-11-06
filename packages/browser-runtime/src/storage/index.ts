@@ -4,6 +4,7 @@
  */
 
 export { type IndexedDBConfig, IndexedDBStorage } from "./indexeddb-storage.js";
+export { createKbPackStore, type KbPackStore } from "./kb-store.js";
 
 export {
   ChromeStorageAdapter,

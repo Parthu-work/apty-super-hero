@@ -12,6 +12,7 @@ import {
 } from "@apty/browser-runtime/runtime/page-hooks-registration";
 import { isInstalledAndEnabled } from "./apty-client-check";
 import { testConnection } from "./connection-check";
+import { kbPackStore } from "./kb-pack";
 import type { FrameAnswer, PreflightDeps } from "./preflight";
 
 const client = (extensionId: string) =>
@@ -110,4 +111,5 @@ export const browserPreflightDeps: PreflightDeps = {
       return "unknown";
     }
   },
+  knowledgeBase: () => kbPackStore().info(),
 };
