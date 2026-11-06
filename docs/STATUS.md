@@ -210,6 +210,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Ask Dapty check on live chats (partial) | Extension mode: the Client adopts the reference module's `recordWidgetChatTurn` and routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)); until then SEs can test the record path with the test-only recorder build (W7). Then the live-tenant run, in both modes, with a known failing chat, sending the evidence bundle (W1), HARs and content files: those become the live fixtures (W2), and any check they break is fixed there. The chat panel reader is untested against the real widget's DOM |
 | Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
+| KB retrieval (KB-RAG), not started | The owner answers D-KB1 to D-KB5, then K0 to K9 in [`docs/tasks/kb-rag/MASTER.md`](tasks/kb-rag/MASTER.md): an imported KB pack, card text on the verdict card, a `search_kb` tool with `kb://` citations. No KB text may enter this public repository |
 
 
 ### Ask Dapty production readiness
