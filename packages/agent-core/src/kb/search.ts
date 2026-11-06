@@ -78,6 +78,17 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const SEPARATOR = /[\s,;:–—-]/;
+
+/** The text without separators at either end; linear, as a heading comes from an imported pack. */
+function trimSeparators(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && SEPARATOR.test(text.charAt(start))) start++;
+  while (end > start && SEPARATOR.test(text.charAt(end - 1))) end--;
+  return text.slice(start, end);
+}
+
 /**
  * What a heading adds beyond the boilerplate: the "Layer N:" prefix, the
  * card's own title (indexed on its own) and a layer description shared by
@@ -90,11 +101,11 @@ function headingTerms(
 ): string {
   const rest = chunk.heading
     .replace(LAYER_PREFIX, "")
-    .replace(new RegExp(escapeRegExp(card.title), "i"), "")
-    .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, "");
-  return sharedDescriptions.has(`${chunk.layer}:${rest.toLowerCase()}`)
+    .replace(new RegExp(escapeRegExp(card.title), "i"), "");
+  const trimmed = trimSeparators(rest);
+  return sharedDescriptions.has(`${chunk.layer}:${trimmed.toLowerCase()}`)
     ? ""
-    : rest;
+    : trimmed;
 }
 
 /** A layer description in more than half of the cards appears in every card, in effect. */
@@ -106,11 +117,11 @@ function sharedLayerDescriptions(
   for (const chunk of chunks) {
     const card = cards.get(chunk.pageId);
     if (!card) continue;
-    const rest = chunk.heading
-      .replace(LAYER_PREFIX, "")
-      .replace(new RegExp(escapeRegExp(card.title), "i"), "")
-      .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, "")
-      .toLowerCase();
+    const rest = trimSeparators(
+      chunk.heading
+        .replace(LAYER_PREFIX, "")
+        .replace(new RegExp(escapeRegExp(card.title), "i"), ""),
+    ).toLowerCase();
     const key = `${chunk.layer}:${rest}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
