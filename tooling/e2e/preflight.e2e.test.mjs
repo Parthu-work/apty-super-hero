@@ -123,6 +123,7 @@ describe("preflight (C2)", () => {
         "storage-access": "pass",
         "data-handling": "pass",
         "check-files": "pass",
+        "knowledge-base": "info",
       },
       JSON.stringify(checks, null, 1),
     );

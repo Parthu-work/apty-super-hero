@@ -1,5 +1,7 @@
 import type {
   AppSettings,
+  KbImportResult,
+  KbPackInfo,
   KeyValueStorage,
   RedactionModeSetting,
   RequestReport,
@@ -54,6 +56,15 @@ export interface SettingsPageProps {
   redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
   /** The last requests sent to the AI provider, shown in the Data-handling card. */
   recentRequests?: RequestReport[];
+  /** The KB pack store; when provided the Knowledge base card is shown. */
+  knowledgeBase?: KnowledgeBaseAdapter;
+}
+
+/** Reads, imports and removes the one KB pack this browser holds; supplied by the host app. */
+export interface KnowledgeBaseAdapter {
+  info(): Promise<KbPackInfo | null>;
+  importPack(text: string): Promise<KbImportResult>;
+  remove(): Promise<void>;
 }
 
 export interface ConnectionTestResult {

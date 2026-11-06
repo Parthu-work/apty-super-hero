@@ -5,7 +5,13 @@
  * wires them to the real Chrome APIs and the existing checks (Test
  * Connection, the Apty Client handshake, the DOM Health frame ping).
  */
-import type { AppSettings, ToolCallingSupport } from "@apty/agent-core";
+import {
+  type AppSettings,
+  KB_PACK_STALE_DAYS,
+  type KbPackInfo,
+  kbPackAgeDays,
+  type ToolCallingSupport,
+} from "@apty/agent-core";
 import { CHECK_PACK_FILES } from "@apty/browser-runtime/apty/diagnosis/pack-files";
 import {
   matchingDenyEntry,
@@ -16,7 +22,8 @@ import type { TranslationKey } from "@apty/ui/i18n/types";
 import { isProviderConfigured } from "./ai-provider";
 import { englishTranslate, type Translate } from "./model-list";
 
-export type CheckStatus = "pass" | "warn" | "fail";
+/** `info` reports a choice, such as no knowledge base, that is not a fault. */
+export type CheckStatus = "pass" | "warn" | "fail" | "info";
 
 export interface PreflightCheck {
   id:
@@ -28,7 +35,8 @@ export interface PreflightCheck {
     | "clipboard"
     | "storage-access"
     | "data-handling"
-    | "check-files";
+    | "check-files"
+    | "knowledge-base";
   label: string;
   status: CheckStatus;
   detail: string;
@@ -70,6 +78,9 @@ export interface PreflightDeps {
   contentScriptStorage(
     tabId: number,
   ): Promise<"blocked" | "readable" | "unknown">;
+  /** The loaded KB pack, or null when none is loaded. */
+  knowledgeBase(): Promise<KbPackInfo | null>;
+  now?(): Date;
 }
 
 function hostOf(url: string): string {
@@ -449,8 +460,56 @@ export async function runPreflight(
       : {}),
   });
   if (client.urls) checks.push(checkFilesCheck(client.urls, denyList, t));
+  checks.push(
+    knowledgeBaseCheck(
+      await Promise.resolve()
+        .then(() => deps.knowledgeBase())
+        .catch(() => null),
+      deps.now?.() ?? new Date(),
+      t,
+    ),
+  );
 
   return checks;
+}
+
+function knowledgeBaseCheck(
+  info: KbPackInfo | null,
+  now: Date,
+  t: Translate,
+): PreflightCheck {
+  const base = {
+    id: "knowledge-base" as const,
+    label: t("preflight.checks.knowledgeBase.label"),
+    section: "knowledge-base",
+  };
+  if (!info) {
+    return {
+      ...base,
+      status: "info",
+      detail: t("preflight.checks.knowledgeBase.notLoaded"),
+      fix: t("preflight.checks.knowledgeBase.notLoadedFix"),
+    };
+  }
+  const params = {
+    count: info.cardCount,
+    space: info.space,
+    date: info.builtAt.slice(0, 10),
+  };
+  const days = kbPackAgeDays(info, now);
+  if (days !== undefined && days > KB_PACK_STALE_DAYS) {
+    return {
+      ...base,
+      status: "warn",
+      detail: t("preflight.checks.knowledgeBase.stale", { ...params, days }),
+      fix: t("preflight.checks.knowledgeBase.staleFix"),
+    };
+  }
+  return {
+    ...base,
+    status: "pass",
+    detail: t("preflight.checks.knowledgeBase.loaded", params),
+  };
 }
 
 /** Results as JSON for sharing: every string through the given redaction (strict in the app). */

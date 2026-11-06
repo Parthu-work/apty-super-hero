@@ -137,6 +137,14 @@ describe("PreflightPanel", () => {
       screen.getByRole("button", { name: "复制 Apty Client 的修复方法" }),
     ).toBeInTheDocument();
     expect(screen.getByText("没有打开的网页。")).toBeInTheDocument();
+    const knowledgeBase = within(results)
+      .getAllByRole("listitem")
+      .find((item) => item.dataset.check === "knowledge-base");
+    expect(knowledgeBase).toHaveAttribute("data-status", "info");
+    expect(knowledgeBase).toHaveTextContent("信息");
+    expect(knowledgeBase).toHaveTextContent(
+      "未加载。检查会链接到 KB 卡片，但不显示其文本。",
+    );
     expect(screen.queryByText("AI provider", { exact: false })).toBeNull();
   });
 });

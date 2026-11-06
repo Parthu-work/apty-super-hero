@@ -67,6 +67,7 @@ import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { AptyCdnCard } from "./apty-cdn-card";
 import { DataHandlingCard } from "./data-handling-card";
+import { KnowledgeBaseCard } from "./knowledge-base-card";
 import { RequestLimitsCard } from "./request-limits-card";
 import { TroubleshootingCard } from "./troubleshooting-card";
 import type { SaveStatus, SettingsPageProps, SettingsTab } from "./types";
@@ -373,6 +374,7 @@ export function SettingsPage({
   initialSkill: _initialSkill,
   redactionPreview,
   recentRequests,
+  knowledgeBase,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
   void _initialSkill;
@@ -1194,6 +1196,8 @@ export function SettingsPage({
               onChange={saveGeneralSetting}
             />
 
+            {knowledgeBase && <KnowledgeBaseCard adapter={knowledgeBase} />}
+
             {/* Skill execution toggle — off by default. Running a skill
                 script executes untrusted, author-supplied code in a QuickJS
                 sandbox, through a fetch bridge with a documented residual
@@ -1958,4 +1962,8 @@ export function SettingsPage({
   );
 }
 
-export type { SettingsPageProps, STTConfigAdapter } from "./types";
+export type {
+  KnowledgeBaseAdapter,
+  SettingsPageProps,
+  STTConfigAdapter,
+} from "./types";
