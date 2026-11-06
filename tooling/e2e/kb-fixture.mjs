@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { buildPack } from "../scripts/kb/build-kb-pack.mjs";
 import { extensionPage } from "./harness.mjs";
 
-function page(id, title, layers) {
+/** A synthetic Confluence card page: four layers of FIXTURE text. */
+export function fixturePage(id, title, layers) {
   const body = layers
     .map(
       (text, i) =>
@@ -25,13 +26,13 @@ function page(id, title, layers) {
 }
 
 export const FIXTURE_PAGES = [
-  page("101", "FIXTURE banner never glows", [
+  fixturePage("101", "FIXTURE banner never glows", [
     "In Studio, turn on the FIXTURE Glowing Banner setting.",
     "FIXTURE page checks for the banner slot.",
     "NOT VERIFIED: FIXTURE glow.json lists glowIds.",
     "Send support: the FIXTURE version.",
   ]),
-  page("202", "FIXTURE tooltip opens twice", [
+  fixturePage("202", "FIXTURE tooltip opens twice", [
     "In Studio, clear the FIXTURE Double Trigger setting.",
     "FIXTURE anchor element must be unique.",
     "FIXTURE tooltip.json lists triggerCount.",
