@@ -76,6 +76,15 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
+- KB retrieval (KB-RAG, K0 to K6, K8): Options → Settings → General →
+  Knowledge base imports a KB pack the KB owner builds with `pnpm kb:pack`
+  (never in this public repository: `npm run audit:kb-pack`). With a pack
+  loaded, a check-pack cause shows its card's text ("From the KB card"), a
+  symptom no check pack claims gets a KB matches card, both with no model
+  request and no AI key, and follow-up answers use `search_kb` and cite
+  `kb://` cards. `pnpm kb:eval` measures retrieval. Tested in Chromium with
+  synthetic cards and a mock model, not a real pack or provider
+  ([`kb-rag.md`](development/kb-rag.md)).
 - The dependency check (`knip --strict`) blocks CI; exports kept only for
   tests are tagged `@internal`, which it skips.
 - Data stored under the AIPex names is no longer migrated: a developer
@@ -210,7 +219,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Ask Dapty check on live chats (partial) | Extension mode: the Client adopts the reference module's `recordWidgetChatTurn` and routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)); until then SEs can test the record path with the test-only recorder build (W7). Then the live-tenant run, in both modes, with a known failing chat, sending the evidence bundle (W1), HARs and content files: those become the live fixtures (W2), and any check they break is fixed there. The chat panel reader is untested against the real widget's DOM |
 | Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
-| KB retrieval (KB-RAG) | K0 is built: the owner decisions D-KB1 to D-KB5 and the guard that keeps KB packs out of this public repository (`npm run audit:kb-pack`, in CI and the release workflow). K1 is built: `pnpm kb:pack` builds a pack from Confluence on the KB owner's machine, tested against synthetic Confluence responses only; no page in JA has the `rag-card` label yet, so it has not built a real pack. K2 is built: `parseKbPack` and `createKbIndex` in `@apty/agent-core` (schema, size and checksum checks; BM25 search with a calibrated threshold and fusion with dense vectors when a pack has them), unit-tested on synthetic packs. K3 is built: Options → Settings → General → Knowledge base imports, shows and removes the pack (IndexedDB `apty-kb-db`), Preflight reports it, with an E2E import, restart, Preflight, axe and keyboard test. K4 is built: the model's `search_kb` tool and its prompt section, offered with a check pack's symptom or a product follow-up, with `kb://` citations shown as links to the card; tested with a mock model in Chromium, not a real provider. K5 is built: with a pack loaded, each check-pack cause shows "From the KB card": its card's layer for the rule (settings, page and elements, or data), the "Verified on" line and a Not verified badge, with no AI key and no model request (E2E in both themes). K6 is built: a symptom no check pack claims, with a pack loaded, gets a KB matches card (top 3 cards) with no model request and no AI key; a bare how-to still goes to the model (E2E, no key, both themes). K8 is built: `pnpm kb:eval` reports Recall@1, Recall@3, MRR, layer accuracy, "not covered" precision and recall and the misses by id, and `--calibrate` suggests the threshold; a synthetic set runs in CI. Not yet run on the real 40-question set, which the KB owner keeps and runs locally, so no real numbers or threshold exist. K7 and K9 (dense vectors, docs) are not started ([`docs/tasks/kb-rag/`](tasks/kb-rag/MASTER.md)) |
+| KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above). Still open: the KB owner labels the JA cards `rag-card` (none carry it today), builds the first real pack and runs `pnpm kb:eval --calibrate` on the 40-question set; its numbers and threshold go in the pack and on the handbook page F15. K7 (dense vectors) waits on that baseline and is not shipped ([`kb-rag.md`](development/kb-rag.md)) |
 
 
 ### Ask Dapty production readiness

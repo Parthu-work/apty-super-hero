@@ -20,10 +20,17 @@ and passes the same steps, in this order, before it leaves the browser:
    `applyResultPrivacy` before it is kept in the session, and a failed call's
    error text is redacted where it is read (`quotedErrorText`). Nothing is
    sent for the answer itself; it goes with the next model request.
-3. **Attached contexts** (page, tab, HAR or DOM Health chips) are worded under
+3. **KB card text** (KB-RAG) reaches the model only as a `search_kb` result
+   (`packages/browser-runtime/src/tools/kb.ts`, wrapped like every tool) or as
+   the KB matches answer the responder keeps in the session (step 2), at
+   most 4,000 characters of the imported pack's text per result. The pack
+   comes from IndexedDB (`apty-kb-db`); nothing is fetched. `applyResultPrivacy`
+   keeps a whole `kb://<digits>#L<1-4>` citation as it is and masks the rest
+   as usual.
+4. **Attached contexts** (page, tab, HAR or DOM Health chips) are worded under
    the URL and title policy (`formatContextsPrivately`,
    `apps/browser-extension/src/hooks/outbound-filters.ts`).
-4. **The outbound filters** (`createOutboundFilters`, same file) run on the
+5. **The outbound filters** (`createOutboundFilters`, same file) run on the
    whole request on every model call:
    1. `createOutboundSanitizer`: tool results redacted in the current mode,
       user messages' structural secrets masked in Strict and Standard.
@@ -32,7 +39,7 @@ and passes the same steps, in this order, before it leaves the browser:
    3. `createContextBudgetFilter`: the request budget from Settings, if set.
    4. `createRequestReportFilter`: counts only, kept in
       `chrome.storage.session` for the Data handling card.
-5. **The provider wrapper** (`apps/browser-extension/src/services/ai-provider.ts`)
+6. **The provider wrapper** (`apps/browser-extension/src/services/ai-provider.ts`)
    adds `store: false` for OpenAI and cache breakpoints for Anthropic.
 
 The summary request of **Summarize earlier turns** (off by default) runs the
@@ -81,6 +88,11 @@ is made.
   handed to a new chat as a chip; the file and its name are not.
 - The DOM Health validation bundle and other exports: saved or copied only
   when you click.
+- A KB pack: read from the file you pick in Options and kept in IndexedDB.
+  Only the chunks a search returns go to the model (above); the verdict
+  card's "From the KB card" and the KB matches card show it in the panel
+  only. The pack builder (`tooling/scripts/kb/build-kb-pack.mjs`) is the
+  only code that talks to Confluence, run by the KB owner, not the extension.
 
 ## Kept on the device
 
@@ -97,3 +109,6 @@ way out, every time.
 - `tooling/e2e/llm-outbound.e2e.test.mjs`: secrets in tool results and typed
   messages, typed values, screenshots and the request reports.
 - `tooling/e2e/request-limits.e2e.test.mjs`: the summary request is masked.
+- `tooling/e2e/kb-answer.e2e.test.mjs`: a `search_kb` result reaches the model
+  with its citation; `kb-matches.e2e.test.mjs`: the KB matches card makes no
+  model request.

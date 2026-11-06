@@ -329,6 +329,51 @@ diagnostic isolation) is now Fixed above.
 
 ## Reviewed — no new finding
 
+### 14. KB retrieval: KB packs, `search_kb` and the KB cards in the side panel (KB-RAG, 2026-11-06)
+
+- **Affected components**: `tooling/scripts/kb/build-kb-pack.mjs`,
+  `packages/agent-core/src/kb/`, `packages/browser-runtime/src/storage/kb-store.ts`,
+  `packages/browser-runtime/src/kb/`, `packages/browser-runtime/src/tools/kb.ts`,
+  the Options Knowledge base card, the verdict card's "From the KB card", the
+  KB matches card ([`kb-rag.md`](../development/kb-rag.md)).
+- **Internal KB text on SE machines**: an imported pack's card text sits in
+  the extension origin's IndexedDB (`apty-kb-db`), like conversations: other
+  extensions and web pages cannot read it; anyone with the browser profile
+  can. **Remove** in Options deletes it.
+- **The public repository** (MASTER.md rules 2 and 4): no pack, card text or
+  Confluence credential is committed, built in CI or bundled.
+  `.gitignore` ignores `*.kbpack.json` and `kb-pack*/`, and
+  `npm run audit:kb-pack` fails CI, the release workflow and the release
+  dry run on those names or on a file carrying the pack's kind marker, the
+  built extension included; it prints paths only. Tests build synthetic
+  packs at run time from FIXTURE cards.
+- **The pack is untrusted input**: `parseKbPack` checks the size before
+  parsing (25 MB), then the kind, the schema version, the shape (zod), the
+  limits (5,000 chunks, 1,000 characters a chunk), the internal references,
+  card URLs (Confluence page URLs only) and the sha256. A refused file keeps
+  the loaded pack. Card text is rendered as React text, never as HTML or
+  Markdown, on the Options, verdict and KB matches cards; the model's answer
+  quoting it goes through the usual sanitized Markdown renderer, whose links
+  ask before opening.
+- **Card text to the AI provider**: only through `search_kb` results and the
+  KB matches answer kept in the session, both through `applyResultPrivacy`
+  and the outbound filters like every tool result (DATA_FLOW.md). The one
+  change near the URL policy: a whole value of exactly
+  `kb://<digits>#L<1-4>` (the tool's own citation) is kept as it is; it holds
+  no page data, and every other value, including `kb:` values of any other
+  shape, is masked as before (`result-privacy.test.ts`).
+- **The model's reach**: `search_kb` takes a query (at most 300
+  characters), `topK` (1 to 5) and layers; it cannot name a pack, a URL or a
+  page to fetch, and nothing is fetched. No permission, host or
+  `externally_connectable` entry was added.
+- **The builder's token**: a read-only service account's classic API token,
+  read from `CONFLUENCE_EMAIL` and `CONFLUENCE_TOKEN`, sent only as Basic
+  auth to the configured Atlassian site, never written to disk or printed
+  (tested); the pack is written outside the repository with mode 600.
+- **Conclusion**: no new permission or network path from the extension;
+  internal text is kept to the SE's own browser and the provider they chose,
+  under the existing masking. Accepted as reviewed, no new finding.
+
 ### 13. Apty Client extension Service Worker network inspection (this session)
 
 - **Affected component**: `packages/browser-runtime/src/apty/extension-network-inspector.ts`,
