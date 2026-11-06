@@ -35,4 +35,12 @@ describe("checkAuth", () => {
     expect(checkAuth({}, "Dapty 没有回答").needsAuth).toBe(false);
     expect(checkAuth({}, "How do I turn on Dapty?").needsAuth).toBe(true);
   });
+
+  it("without a provider, sends a symptom the KB pack's cards answer, and nothing else extra (KB-RAG K6)", () => {
+    expect(checkAuth({}, "the tooltip opens twice", true).needsAuth).toBe(
+      false,
+    );
+    expect(checkAuth({}, "the tooltip opens twice").needsAuth).toBe(true);
+    expect(checkAuth(CONFIGURED, "anything", false).needsAuth).toBe(false);
+  });
 });

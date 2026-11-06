@@ -1,7 +1,8 @@
 /**
- * Tool-display dispatcher: gives `analyze_element_selectors` and
- * `run_diagnosis` dedicated visuals (see `selector-analysis-display.tsx` and
- * `check-result-card.tsx`) and every other tool the existing default
+ * Tool-display dispatcher: gives `analyze_element_selectors`,
+ * `run_diagnosis` and a `search_kb` result with cards dedicated visuals (see
+ * `selector-analysis-display.tsx`, `check-result-card.tsx` and
+ * `kb-matches-card.tsx`) and every other tool the existing default
  * rendering. Only dispatches once the tool call has
  * actually completed with output — in-flight/error states always fall back
  * to the default display so failures are never hidden behind a
@@ -10,6 +11,7 @@
 import { DefaultToolDisplay } from "@apty/ui/components/chatbot";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import { CheckResultCard } from "./check-result-card";
+import { isKbMatches, KbMatchesCard } from "./kb-matches-card";
 import { evidenceIdOf, ResponseBodyViewer } from "./response-body-viewer";
 import { SelectorAnalysisDisplay } from "./selector-analysis-display";
 
@@ -25,6 +27,13 @@ export function AptyToolDisplay(props: ToolDisplaySlotProps) {
     props.tool.state === "completed"
   ) {
     return <CheckResultCard {...props} />;
+  }
+  if (
+    props.tool.toolName === "search_kb" &&
+    props.tool.state === "completed" &&
+    isKbMatches(props.tool.output)
+  ) {
+    return <KbMatchesCard {...props} />;
   }
   return <DefaultToolDisplay {...props} />;
 }

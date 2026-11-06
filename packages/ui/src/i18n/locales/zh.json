@@ -2408,5 +2408,10 @@
     },
     "daptyFound": "Ask Dapty：{{calls}} 个聊天请求和 {{stored}} 个已保存的聊天。",
     "noDapty": "此 HAR 不包含 Ask Dapty 聊天请求。请在打开小组件聊天并重新提问时录制。"
+  },
+  "kbMatches": {
+    "title": "匹配的 KB 卡片",
+    "layer": "卡片的第 {{layer}} 层",
+    "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。"
   }
 }

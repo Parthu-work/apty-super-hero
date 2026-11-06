@@ -1,4 +1,6 @@
 import type { LocalResponder } from "@apty/agent-core";
+import type { KbToolResult } from "../../kb/kb-index.js";
+import { localKbMatches } from "../../kb/kb-matches.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
 import { currentValuePolicy } from "../../runtime/value-policy.js";
@@ -373,6 +375,8 @@ export interface ResponderSources {
     clientExtensionId: string | undefined,
     trace?: DaptyTrace,
   ) => Promise<ClientEvidence>;
+  /** The KB pack's cards for a symptom no check pack claims (KB-RAG K6). */
+  kbMatchesOf?: (input: string) => Promise<KbToolResult | undefined>;
   /** Every other check's content files for the tab; undefined reads the Apty Client's. */
   filesOf?: (
     runContext: unknown,
@@ -391,7 +395,31 @@ const DEFAULT_SOURCES: ResponderSources = {
   daptyOf: readDaptyForTab,
   daptyFilesOf: readDaptyFilesForTab,
   filesOf: readAptyFilesForTab,
+  kbMatchesOf: (input) => localKbMatches(input),
 };
+
+const SEARCH_KB = "search_kb";
+
+/** A symptom no check pack claims, answered from the KB pack's cards with no model call. */
+async function kbAnswer(
+  input: string,
+  kbMatchesOf: ResponderSources["kbMatchesOf"],
+) {
+  const matches = await kbMatchesOf?.(input);
+  if (!matches) return undefined;
+  await getRedactionMode();
+  const policy = currentValuePolicy();
+  const shown = applyResultPrivacy(matches, policy) as KbToolResult;
+  return {
+    toolName: SEARCH_KB,
+    params: applyResultPrivacy(
+      { query: input.slice(0, 300), topK: 3 },
+      policy,
+    ) as { query: string; topK: number },
+    result: shown,
+    transcript: JSON.stringify(shown),
+  };
+}
 
 /**
  * Answers a message the router recognises from the Apty Client's files and
@@ -407,7 +435,7 @@ export function createDiagnosisResponder(
     const route: CheckRoute | undefined = asksAboutDapty(input)
       ? { packId: "dapty-conversation" }
       : routeSymptom(input);
-    if (!route) return undefined;
+    if (!route) return kbAnswer(input, sources.kbMatchesOf);
     const trace =
       route.packId === "dapty-conversation" ? createDaptyTrace() : undefined;
     const clientExtensionId = await sources.clientExtensionId();
