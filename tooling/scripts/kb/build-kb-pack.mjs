@@ -1,0 +1,547 @@
+#!/usr/bin/env node
+/**
+ * Builds a KB pack from the RAG Answer Cards in Confluence
+ * (docs/tasks/kb-rag/MASTER.md, K1). Run by the KB owner on their own
+ * machine; the pack holds internal card text, so it is written outside this
+ * public repository and never printed: the summary names ids, titles and
+ * counts only.
+ *
+ * Usage:
+ *   CONFLUENCE_EMAIL=… CONFLUENCE_TOKEN=… pnpm kb:pack [--site apty.atlassian.net]
+ *     [--space JA] [--label rag-card] [--out <file>] [--threshold <score>]
+ *     [--customer-names <file>] [--diff <old pack>]
+ *
+ * The token is a read-only service account's classic API token, read from the
+ * environment, never written or logged.
+ */
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const BUILDER = "build-kb-pack 1.0.0";
+const PACK_KIND = "apty-kb-pack";
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const MAX_CHUNK_CHARS = 1000;
+const MAX_RETRIES = 3;
+const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
+const NOT_VERIFIED = /\bNOT VERIFIED\b/g;
+const TITLE_PREFIX = /^RAG Card:\s*/i;
+const DEFAULTS = { site: "apty.atlassian.net", space: "JA", label: "rag-card" };
+
+const ENTITIES = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  ndash: "–",
+  mdash: "—",
+  hellip: "…",
+  lsquo: "‘",
+  rsquo: "’",
+  ldquo: "“",
+  rdquo: "”",
+  bull: "•",
+  rarr: "→",
+};
+
+function decodeEntities(text) {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, name) => {
+    if (name[0] === "#") {
+      const code =
+        name[1].toLowerCase() === "x"
+          ? Number.parseInt(name.slice(2), 16)
+          : Number.parseInt(name.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+    }
+    return ENTITIES[name.toLowerCase()] ?? whole;
+  });
+}
+
+/** Confluence storage XHTML to plain text: one line per block, list items as "- ". */
+export function storageToText(html) {
+  const text = html
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (_, body) =>
+      body.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+    )
+    .replace(/<ac:parameter\b[\s\S]*?<\/ac:parameter>/gi, "")
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, "")
+    .replace(/<li\b[^>]*>(\s*<p\b[^>]*>)?/gi, "\n- ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(
+      /<\/?(p|div|h[1-6]|ul|ol|li|tr|table|tbody|thead|blockquote|pre|ac:task|ac:layout-cell)\b[^>]*>/gi,
+      "\n",
+    )
+    .replace(/<\/?(td|th)\b[^>]*>/gi, " ")
+    .replace(/<[^>]+>/g, "");
+  return decodeEntities(text)
+    .split("\n")
+    .map((line) => line.replace(/[ \t ]+/g, " ").trim())
+    .filter((line) => line && line !== "-")
+    .join("\n");
+}
+
+/** Keys sorted at every level, no whitespace: the text the pack's sha256 covers. */
+export function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function packSha256(pack) {
+  const { sha256: _ignored, ...rest } = pack;
+  return createHash("sha256").update(canonicalJson(rest)).digest("hex");
+}
+
+function comparePageIds(a, b) {
+  return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+}
+
+/**
+ * One Confluence page as a card and its four layer chunks, or the reason it
+ * is skipped. A card with fewer or more than four layers, out of order, or
+ * a layer over 1,000 characters is never guessed at.
+ */
+export function parseCard(page, { site, space, group = "" }) {
+  const html = page.body ?? "";
+  const headings = [...html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)];
+  const layers = headings
+    .map((match) => ({
+      match,
+      heading: storageToText(match[1]).replace(/\n/g, " "),
+    }))
+    .filter(({ heading }) => LAYER_HEADING.test(heading));
+  const numbers = layers.map(
+    ({ heading }) => Number(LAYER_HEADING.exec(heading)[1]) || 0,
+  );
+  if (layers.length !== 4) {
+    return { skipped: `has ${layers.length} layers, not 4` };
+  }
+  if (numbers.join() !== "1,2,3,4") {
+    return { skipped: `layers are numbered ${numbers.join(", ")}, not 1-4` };
+  }
+  const intro = storageToText(html.slice(0, layers[0].match.index));
+  const verifiedOn =
+    intro.split("\n").find((line) => /^Verified on:/i.test(line)) ?? null;
+
+  const chunks = [];
+  for (const [i, { match, heading }] of layers.entries()) {
+    const start = match.index + match[0].length;
+    const end = layers[i + 1]?.match.index ?? html.length;
+    const text = storageToText(html.slice(start, end));
+    const layer = i + 1;
+    if (text.length > MAX_CHUNK_CHARS) {
+      return {
+        skipped: `layer ${layer} has ${text.length} characters, over ${MAX_CHUNK_CHARS}`,
+      };
+    }
+    chunks.push({
+      id: `${page.id}#L${layer}`,
+      pageId: page.id,
+      layer,
+      heading,
+      text,
+      notVerified: (text.match(NOT_VERIFIED) ?? []).length > 0,
+    });
+  }
+  const notVerifiedCount = chunks.reduce(
+    (sum, chunk) => sum + (chunk.text.match(NOT_VERIFIED) ?? []).length,
+    0,
+  );
+  return {
+    card: {
+      pageId: page.id,
+      title: page.title.replace(TITLE_PREFIX, "").trim(),
+      group,
+      verifiedOn,
+      notVerifiedCount,
+      url: `https://${site}/wiki/spaces/${space}/pages/${page.id}`,
+      updatedAt: page.updatedAt ?? "",
+    },
+    chunks,
+  };
+}
+
+/** Thrown for a failure the KB owner has to act on; the message holds no card text. */
+export class BuildError extends Error {}
+
+/**
+ * Fetches every page with the label in the space: CQL search for ids, then
+ * each body in storage format, and each parent's title as the card's group.
+ */
+export async function fetchCardPages({
+  site,
+  space,
+  label,
+  email,
+  token,
+  fetchImpl = fetch,
+  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+}) {
+  const origin = `https://${site}`;
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`,
+  };
+
+  async function getJson(url, { search = false } = {}) {
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetchImpl(url, { headers });
+      if (response.status === 429 && attempt < MAX_RETRIES) {
+        const header = response.headers?.get?.("Retry-After");
+        const seconds = header ? Number(header) : Number.NaN;
+        await sleep(
+          Number.isFinite(seconds) && seconds >= 0
+            ? seconds * 1000
+            : 2 ** attempt * 1000,
+        );
+        continue;
+      }
+      const path = new URL(url).pathname;
+      if (search && (response.status === 401 || response.status === 403)) {
+        throw new BuildError(
+          `CQL search returned ${response.status}. A scoped API token routes to the v2 API, which has no CQL search: use a classic API token of a read-only service account.`,
+        );
+      }
+      if (response.status === 429) {
+        throw new BuildError(
+          `${path} is still rate limited after ${MAX_RETRIES} retries; try again later.`,
+        );
+      }
+      if (!response.ok) {
+        throw new BuildError(`${path} returned ${response.status}.`);
+      }
+      return response.json();
+    }
+  }
+
+  const cql = `space="${space}" AND label="${label}" AND type=page`;
+  let next = `${origin}/wiki/rest/api/search?cql=${encodeURIComponent(cql)}&limit=50`;
+  const ids = [];
+  while (next) {
+    const page = await getJson(next, { search: true });
+    for (const result of page.results ?? []) {
+      const id = result.content?.id ?? result.id;
+      if (id && !ids.includes(String(id))) ids.push(String(id));
+    }
+    const link = page._links?.next;
+    if (!link) break;
+    next = link.startsWith("http")
+      ? link
+      : link.startsWith("/wiki/")
+        ? `${origin}${link}`
+        : `${page._links?.base ?? `${origin}/wiki`}${link}`;
+  }
+
+  const parents = new Map();
+  const pages = [];
+  for (const id of ids.sort(comparePageIds)) {
+    const page = await getJson(
+      `${origin}/wiki/api/v2/pages/${id}?body-format=storage`,
+    );
+    let group = "";
+    if (page.parentId) {
+      if (!parents.has(page.parentId)) {
+        const parent = await getJson(
+          `${origin}/wiki/api/v2/pages/${page.parentId}`,
+        );
+        parents.set(page.parentId, parent.title ?? "");
+      }
+      group = parents.get(page.parentId);
+    }
+    pages.push({
+      id: String(page.id),
+      title: page.title ?? "",
+      body: page.body?.storage?.value ?? "",
+      updatedAt: page.version?.createdAt ?? "",
+      group,
+    });
+  }
+  return pages;
+}
+
+/** The pack for these pages, sorted by page id, with its checksum; and the pages skipped. */
+export function buildPack({ pages, site, space, label, builtAt, threshold }) {
+  const cards = [];
+  const chunks = [];
+  const skipped = [];
+  for (const page of [...pages].sort((a, b) => comparePageIds(a.id, b.id))) {
+    const parsed = parseCard(page, { site, space, group: page.group });
+    if (parsed.skipped) {
+      skipped.push({
+        pageId: page.id,
+        title: page.title,
+        reason: parsed.skipped,
+      });
+      continue;
+    }
+    cards.push(parsed.card);
+    chunks.push(...parsed.chunks);
+  }
+  const retrieval = { bm25: true };
+  if (threshold !== undefined) retrieval.threshold = threshold;
+  const pack = {
+    kind: PACK_KIND,
+    schemaVersion: 1,
+    builtAt,
+    builder: BUILDER,
+    source: { site, space, label, cardCount: cards.length },
+    aptyVersion: "5.x",
+    retrieval,
+    cards,
+    chunks,
+  };
+  return { pack: { ...pack, sha256: packSha256(pack) }, skipped };
+}
+
+/** Customer names from a local file: one per line, `#` starts a comment. */
+export function readNameList(text) {
+  return text
+    .split("\n")
+    .map((line) => line.replace(/#.*/, "").trim())
+    .filter(Boolean);
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Page ids of cards that name any of `names`, as a whole word, in any case. */
+export function customerNameHits(pack, names) {
+  if (names.length === 0) return [];
+  const pattern = new RegExp(
+    `(?<![\\p{L}\\p{N}])(?:${names.map(escapeRegExp).join("|")})(?![\\p{L}\\p{N}])`,
+    "iu",
+  );
+  const hits = new Set();
+  for (const card of pack.cards) {
+    if (
+      pattern.test(`${card.title}\n${card.group}\n${card.verifiedOn ?? ""}`)
+    ) {
+      hits.add(card.pageId);
+    }
+  }
+  for (const chunk of pack.chunks) {
+    if (pattern.test(`${chunk.heading}\n${chunk.text}`)) hits.add(chunk.pageId);
+  }
+  return [...hits].sort(comparePageIds);
+}
+
+function cardFingerprint(pack, card) {
+  const chunks = pack.chunks.filter((chunk) => chunk.pageId === card.pageId);
+  return canonicalJson({
+    title: card.title,
+    group: card.group,
+    verifiedOn: card.verifiedOn,
+    chunks: chunks.map(({ layer, heading, text }) => ({
+      layer,
+      heading,
+      text,
+    })),
+  });
+}
+
+/** Cards added, changed and removed between two packs, as `{ pageId, title }`. */
+export function diffPacks(previous, current) {
+  const before = new Map(previous.cards.map((card) => [card.pageId, card]));
+  const after = new Map(current.cards.map((card) => [card.pageId, card]));
+  const pick = ({ pageId, title }) => ({ pageId, title });
+  const byId = (a, b) => comparePageIds(a.pageId, b.pageId);
+  return {
+    added: current.cards
+      .filter((card) => !before.has(card.pageId))
+      .map(pick)
+      .sort(byId),
+    removed: previous.cards
+      .filter((card) => !after.has(card.pageId))
+      .map(pick)
+      .sort(byId),
+    changed: current.cards
+      .filter(
+        (card) =>
+          before.has(card.pageId) &&
+          cardFingerprint(previous, before.get(card.pageId)) !==
+            cardFingerprint(current, card),
+      )
+      .map(pick)
+      .sort(byId),
+  };
+}
+
+function parseArgs(argv) {
+  const options = { ...DEFAULTS };
+  const flags = {
+    "--site": "site",
+    "--space": "space",
+    "--label": "label",
+    "--out": "out",
+    "--threshold": "threshold",
+    "--customer-names": "customerNames",
+    "--diff": "diff",
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const key = flags[argv[i]];
+    if (!key || argv[i + 1] === undefined) {
+      throw new BuildError(`Unknown or incomplete option: ${argv[i]}`);
+    }
+    options[key] = argv[++i];
+  }
+  if (options.threshold !== undefined) {
+    const threshold = Number(options.threshold);
+    if (!Number.isFinite(threshold) || threshold < 0) {
+      throw new BuildError("--threshold takes a score of 0 or more.");
+    }
+    options.threshold = threshold;
+  }
+  return options;
+}
+
+function insideRepository(path) {
+  const rel = relative(REPO_ROOT, path);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+/** The CLI, with its inputs injected for tests. Returns the exit code. */
+export async function run({
+  argv,
+  env,
+  fetchImpl = fetch,
+  sleep,
+  now = () => new Date(),
+  home = homedir(),
+  cwd = process.cwd(),
+  out: print = (line) => console.log(line),
+  err: printError = (line) => console.error(line),
+}) {
+  try {
+    const options = parseArgs(argv);
+    const email = env.CONFLUENCE_EMAIL;
+    const token = env.CONFLUENCE_TOKEN;
+    if (!email || !token) {
+      throw new BuildError(
+        "Set CONFLUENCE_EMAIL and CONFLUENCE_TOKEN (a read-only service account's classic API token) in the environment.",
+      );
+    }
+    const builtAt = now().toISOString();
+    const outPath = resolve(
+      cwd,
+      options.out ??
+        join(
+          home,
+          "apty-kb",
+          `apty-kb-${options.space}-${builtAt.slice(0, 10).replace(/-/g, "")}.kbpack.json`,
+        ),
+    );
+    if (insideRepository(outPath)) {
+      throw new BuildError(
+        "The pack holds internal card text: write it outside this repository (the default is ~/apty-kb/).",
+      );
+    }
+    const names = options.customerNames
+      ? readNameList(readFileSync(resolve(cwd, options.customerNames), "utf8"))
+      : [];
+    const previous = options.diff
+      ? JSON.parse(readFileSync(resolve(cwd, options.diff), "utf8"))
+      : undefined;
+
+    const pages = await fetchCardPages({
+      site: options.site,
+      space: options.space,
+      label: options.label,
+      email,
+      token,
+      fetchImpl,
+      sleep,
+    });
+    if (pages.length === 0) {
+      throw new BuildError(
+        `No page in space ${options.space} has the label "${options.label}".`,
+      );
+    }
+    const { pack, skipped } = buildPack({
+      pages,
+      site: options.site,
+      space: options.space,
+      label: options.label,
+      builtAt,
+      threshold: options.threshold,
+    });
+
+    const hits = customerNameHits(pack, names);
+    if (hits.length > 0) {
+      throw new BuildError(
+        `Customer names found in pages ${hits.join(", ")}; hide them in the cards and build again.`,
+      );
+    }
+
+    print(
+      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks) from ${options.site}, space ${options.space}, label "${options.label}".`,
+    );
+    for (const { pageId, title, reason } of skipped) {
+      print(`  skipped ${pageId} "${title}": ${reason}`);
+    }
+    const flagged = pack.cards.filter((card) => card.notVerifiedCount > 0);
+    if (flagged.length > 0) {
+      print(
+        `  ${flagged.length} cards carry NOT VERIFIED statements: ${flagged.map((card) => card.pageId).join(", ")}`,
+      );
+    }
+    const unverified = pack.cards.filter((card) => card.verifiedOn === null);
+    if (unverified.length > 0) {
+      print(
+        `  warning: no "Verified on" line in ${unverified.map((card) => card.pageId).join(", ")}`,
+      );
+    }
+    if (pack.retrieval.threshold === undefined) {
+      print(
+        "  warning: no --threshold; every match counts as covered until K8 calibrates one.",
+      );
+    }
+    if (previous) {
+      const diff = diffPacks(previous, pack);
+      for (const kind of ["added", "changed", "removed"]) {
+        for (const { pageId, title } of diff[kind]) {
+          print(`  ${kind} ${pageId} "${title}"`);
+        }
+      }
+      if (Object.values(diff).every((list) => list.length === 0)) {
+        print("  no card changed since the previous pack");
+      }
+    }
+
+    mkdirSync(dirname(outPath), { recursive: true });
+    const body = `${JSON.stringify(pack)}\n`;
+    writeFileSync(outPath, body, { mode: 0o600 });
+    print(
+      `Wrote ${outPath} (${Buffer.byteLength(body)} bytes, sha256 ${pack.sha256.slice(0, 12)}…). Share it on the restricted internal page only.`,
+    );
+    return 0;
+  } catch (error) {
+    if (error instanceof BuildError) {
+      printError(error.message);
+      return 1;
+    }
+    const code = error?.cause?.code ? `: ${error.cause.code}` : "";
+    printError(`Build failed (${error?.name ?? "Error"}${code}).`);
+    return 1;
+  }
+}
+
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  process.exitCode = await run({
+    argv: process.argv.slice(2),
+    env: process.env,
+  });
+}
