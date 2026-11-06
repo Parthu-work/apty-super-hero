@@ -17,6 +17,7 @@ import {
 import { extensionNetworkTools } from "./extension-network.js";
 import { interventionTools } from "./interventions/index.js";
 import { investigationTools } from "./investigation.js";
+import { kbTools } from "./kb.js";
 import { networkCaptureTools } from "./network-capture.js";
 import {
   getPageMetadataTool,
@@ -53,10 +54,11 @@ import { uploadFileToInputTool } from "./tools/upload-file";
 
 /**
  * All browser tools registered for AI use
- * Total: 66 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
+ * Total: 67 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
  * 4 intervention + 6 skill + 3 devtools + 2 DOM Health + 6 apty +
  * 9 investigation + 1 selector + 3 investigation-aware network capture +
- * 7 Apty Client extension network inspection + 1 diagnosis (check packs).
+ * 7 Apty Client extension network inspection + 1 diagnosis (check packs) +
+ * 1 KB pack search.
  * Recompute this from the arrays below
  * rather than trusting this comment when auditing — it has gone stale
  * before (see docs/archive/PROJECT_PROGRESS.md's tool-registry audit).
@@ -189,6 +191,11 @@ const diagnosisToolGroup: BrowserFunctionTool[] = privateGroup(
   diagnosisTools as unknown as BrowserFunctionTool[],
 );
 
+// The KB pack imported in Options: RAG Answer Cards (1 tool)
+const kbToolGroup: BrowserFunctionTool[] = privateGroup(
+  kbTools as unknown as BrowserFunctionTool[],
+);
+
 const browserFunctionTools: BrowserFunctionTool[] = [
   ...tabToolGroup,
   ...uiToolGroup,
@@ -205,6 +212,7 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   ...networkCaptureToolGroup,
   ...extensionNetworkToolGroup,
   ...diagnosisToolGroup,
+  ...kbToolGroup,
 ] as const;
 
 export const allBrowserTools: FunctionTool[] =
@@ -233,6 +241,7 @@ export const browserToolGroups = {
   networkCapture: networkCaptureToolGroup,
   extensionNetwork: extensionNetworkToolGroup,
   diagnosis: diagnosisToolGroup,
+  kb: kbToolGroup,
 } as const;
 
 export type BrowserToolGroupName = keyof typeof browserToolGroups;

@@ -258,3 +258,34 @@ describe("a file request after an investigation (P1-1)", () => {
     expect(fetch).not.toContain("start_investigation");
   });
 });
+
+describe("search_kb (KB-RAG K4)", () => {
+  it("is offered with a check pack's symptom and a product follow-up", () => {
+    for (const message of [
+      "the widget is not showing for this user",
+      "the workflow is not showing in the widget",
+      "how do I turn that off in Studio?",
+      "which setting in Admin hides it",
+      "what should I send support",
+    ]) {
+      expect(names(selectRelevantTools(message))).toContain("search_kb");
+    }
+  });
+
+  it("is not offered for casual chat or a page task with no Apty symptom", () => {
+    for (const message of [
+      "hi",
+      "click the login button",
+      "check dom health",
+      "get the data from segments.json",
+    ]) {
+      expect(names(selectRelevantTools(message))).not.toContain("search_kb");
+    }
+  });
+
+  it("stays offered for a short follow-up to a check", () => {
+    const select = createStickyToolSelector();
+    select("the workflow is not showing in the widget", "s-kb");
+    expect(names(select("ok, and then?", "s-kb"))).toContain("search_kb");
+  });
+});

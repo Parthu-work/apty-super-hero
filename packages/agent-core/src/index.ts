@@ -80,6 +80,7 @@ export {
   type KbPackErrorCode,
   type KbPackInfo,
   type KbPackParseResult,
+  kbCardUrl,
   kbPackAgeDays,
   parseKbPack,
   type Sha256Hex,

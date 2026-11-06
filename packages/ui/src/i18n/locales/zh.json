@@ -349,7 +349,8 @@
     "record_verification_attempt": "🧪 验证诊断结果",
     "stop_investigation": "🛑 停止调查",
     "get_investigation_status": "📋 检查调查状态",
-    "run_diagnosis": "可见性检查"
+    "run_diagnosis": "可见性检查",
+    "search_kb": "知识库搜索"
   },
   "chatErrors": {
     "title": "无法获取回答",
@@ -1296,7 +1297,8 @@
     "contextUsage": "上下文用量",
     "tokensOf": "{{used}} / {{max}} 个令牌",
     "promptCompletion": "提示：{{prompt}} | 补全：{{completion}}",
-    "summarizing": "正在总结..."
+    "summarizing": "正在总结...",
+    "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层"
   },
   "investigation": {
     "componentHealth": "Apty 组件健康状况",

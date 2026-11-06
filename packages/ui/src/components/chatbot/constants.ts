@@ -196,6 +196,21 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
       "run_dom_health_audit computes the Apty DOM Readiness Score deterministically from two real DOM snapshots — you must report its score, metrics, risks, and recommendations exactly as returned, never recalculate your own score or invent metrics/evidence not present in the result. It only reads the page's own DOM, independent of Apty Client/Studio/Service-Worker state.",
     ],
   },
+  {
+    // KB-RAG K4. A bare "how do I configure X" with no finding or symptom
+    // still goes to Ask Dapty (D-KB1).
+    heading: "\n=== APTY PRODUCT FACTS COME FROM THE KB CARDS ===",
+    tools: ["search_kb"],
+    lines: [
+      "For an Apty product fact behind a finding or a symptom (a setting's name, where it is in Studio or Admin, what to check in the Console or the network data, when and how to contact support), call search_kb first and answer only from the chunks it returns. Never name an Apty setting, field or menu that is not in a returned chunk.",
+
+      "Cite each claim with the chunk's cite id, written as it is (kb://<pageId>#L<layer>), right after the claim. When a chunk has notVerified true or says NOT VERIFIED, say the statement is not verified.",
+
+      "If search_kb returns not_covered or no_pack, say the KB does not cover it, and suggest Ask Dapty, or the card's send-support list when a result named one. Do not answer from general knowledge instead.",
+
+      "A general 'how do I configure X' question with no finding or symptom belongs to Ask Dapty, as the core prompt says.",
+    ],
+  },
 ];
 
 /** The prompt for a call that offers `tools`: the core, then each section one of those tools needs, in order. */

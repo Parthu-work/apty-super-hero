@@ -12,6 +12,7 @@
     "long-chat-8-turns": 11565,
     "snapshot-heavy": 4273,
     "long-chat-8-turns-summarized": 10138,
-    "summary-request": 149
+    "summary-request": 149,
+    "kb-followup": 10056
   }
 }
