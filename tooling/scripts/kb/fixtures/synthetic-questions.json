@@ -1,0 +1,49 @@
+[
+  {
+    "id": "s1",
+    "q": "the banner never glows",
+    "expectedPageIds": ["1001"],
+    "expectedLayer": 1
+  },
+  {
+    "id": "s2",
+    "q": "where is glowIds read for the banner",
+    "expectedPageIds": ["1001"],
+    "expectedLayer": 3
+  },
+  { "id": "s3", "q": "tooltip opens two times", "expectedPageIds": ["1002"] },
+  {
+    "id": "s4",
+    "q": "Double Trigger option",
+    "expectedPageIds": ["1002"],
+    "expectedLayer": 1
+  },
+  {
+    "id": "s5",
+    "q": "survey is blank for French users",
+    "expectedPageIds": ["1003"]
+  },
+  {
+    "id": "s6",
+    "q": "launcher icon missing after publish",
+    "expectedPageIds": ["1004"],
+    "expectedLayer": 1
+  },
+  {
+    "id": "s7",
+    "q": "checklist progress resets every day",
+    "expectedPageIds": ["1005"]
+  },
+  {
+    "id": "s8",
+    "q": "the anchor element is not unique",
+    "expectedPageIds": ["1002"],
+    "expectedLayer": 2
+  },
+  { "id": "n1", "q": "kubernetes helm chart rollout", "expectedPageIds": [] },
+  {
+    "id": "n2",
+    "q": "which colour is the payroll banner",
+    "expectedPageIds": []
+  }
+]
