@@ -84,8 +84,17 @@ function jsonResponse(body, { status = 200, headers = {} } = {}) {
   };
 }
 
-/** A fake Confluence: CQL search in pages of `perPage`, v2 bodies and parents. */
-function fakeConfluence({ ids, perPage = 2, bodies = {}, before } = {}) {
+/**
+ * A fake Confluence: CQL search in pages of `perPage`, v2 bodies and parents.
+ * Search results carry titles as Confluence's do: `titles` overrides one.
+ */
+function fakeConfluence({
+  ids,
+  perPage = 2,
+  bodies = {},
+  titles = {},
+  before,
+} = {}) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, auth: init.headers.Authorization });
@@ -97,7 +106,13 @@ function fakeConfluence({ ids, perPage = 2, bodies = {}, before } = {}) {
       const slice = ids.slice(start, start + perPage);
       const more = start + perPage < ids.length;
       return jsonResponse({
-        results: slice.map((id) => ({ content: { id, type: "page" } })),
+        results: slice.map((id) => ({
+          content: {
+            id,
+            type: "page",
+            title: titles[id] ?? `RAG Card: FIXTURE card ${id}`,
+          },
+        })),
         _links: {
           base: `https://${SITE}/wiki`,
           ...(more
@@ -111,7 +126,9 @@ function fakeConfluence({ ids, perPage = 2, bodies = {}, before } = {}) {
     const pageMatch = /^\/wiki\/api\/v2\/pages\/(\d+)$/.exec(pathname);
     if (pageMatch) {
       const id = pageMatch[1];
-      if (id === "900") return jsonResponse({ id, title: "FIXTURE parent" });
+      if (id === "900") {
+        return jsonResponse({ id, title: "RAG Cards: FIXTURE parent" });
+      }
       return jsonResponse({
         id,
         title: `RAG Card: FIXTURE card ${id}`,
@@ -256,6 +273,30 @@ describe("fetchCardPages", () => {
     );
     const expected = `Basic ${Buffer.from("svc@example.com:FIXTURE-TOKEN").toString("base64")}`;
     assert.ok(calls.every(({ auth }) => auth === expected));
+  });
+
+  it('by default reads the "RAG Card:" pages under RAG Answer Cards, not their group pages', async () => {
+    const { fetchImpl, calls } = fakeConfluence({
+      ids: ["5", "900", "6"],
+      titles: { 900: "RAG Cards: FIXTURE parent" },
+    });
+    const { label: _label, ...noLabel } = base;
+    const pages = await fetchCardPages({
+      ...noLabel,
+      root: "1496711169",
+      fetchImpl,
+    });
+    assert.deepEqual(
+      pages.map(({ id, group }) => [id, group]),
+      [
+        ["5", "FIXTURE parent"],
+        ["6", "FIXTURE parent"],
+      ],
+    );
+    assert.match(
+      decodeURIComponent(calls[0].url),
+      /cql=space="FX" AND ancestor=1496711169 AND type=page&limit=50/,
+    );
   });
 
   it("waits for Retry-After on 429 and retries up to 3 times", async () => {
@@ -551,7 +592,18 @@ describe("the CLI", () => {
       fetchImpl,
     });
     assert.equal(empty.code, 1);
-    assert.match(empty.err, /No page in space JA has the label "rag-card"/);
+    assert.match(
+      empty.err,
+      /No page in space JA matches: "RAG Card:" pages under page 1496711169\./,
+    );
+    for (const [flag, value, message] of [
+      ["--root", "1 OR space=X", /--root takes a page id/],
+      ["--label", 'x" OR label="y', /--label takes one label/],
+      ["--space", "JA OR x", /--space takes a space key/],
+    ]) {
+      const refused = await runWith({ argv: [flag, value], fetchImpl });
+      assert.match(refused.err, message);
+    }
     const bad = await runWith({ argv: ["--threshold", "-1"], fetchImpl });
     assert.match(bad.err, /--threshold takes a score of 0 or more/);
     const unknown = await runWith({ argv: ["--token", "x"], fetchImpl });
