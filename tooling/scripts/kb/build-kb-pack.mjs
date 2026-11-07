@@ -61,25 +61,95 @@ function decodeEntities(text) {
   });
 }
 
-/** Confluence storage XHTML to plain text: one line per block, list items as "- ". */
+const BLOCK_TAGS = new Set([
+  "p",
+  "div",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "ul",
+  "ol",
+  "li",
+  "tr",
+  "table",
+  "tbody",
+  "thead",
+  "blockquote",
+  "pre",
+  "ac:task",
+  "ac:layout-cell",
+]);
+/** Elements whose content is not text: skipped to their closing tag. */
+const SKIPPED_TAGS = new Set(["script", "style", "ac:parameter"]);
+const TAG_NAME = /^\/?([a-z][\w:.-]*)/i;
+
+/**
+ * Confluence storage XHTML to plain text: one line per block, list items as
+ * "- ". A single pass over the markup, with no regular expression removing
+ * tags, so nothing a crafted body nests can survive a partial removal.
+ */
 export function storageToText(html) {
-  const text = html
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (_, body) =>
-      body.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-    )
-    .replace(/<ac:parameter\b[\s\S]*?<\/ac:parameter>/gi, "")
-    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, "")
-    .replace(/<li\b[^>]*>(\s*<p\b[^>]*>)?/gi, "\n- ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(
-      /<\/?(p|div|h[1-6]|ul|ol|li|tr|table|tbody|thead|blockquote|pre|ac:task|ac:layout-cell)\b[^>]*>/gi,
-      "\n",
-    )
-    .replace(/<\/?(td|th)\b[^>]*>/gi, " ")
-    .replace(/<[^>]+>/g, "");
-  return decodeEntities(text)
+  let out = "";
+  let skipping = null;
+  let afterListItem = false;
+  let i = 0;
+  while (i < html.length) {
+    if (html.startsWith("<![CDATA[", i)) {
+      const end = html.indexOf("]]>", i + 9);
+      const stop = end === -1 ? html.length : end;
+      if (!skipping) {
+        out += html.slice(i + 9, stop);
+        afterListItem = false;
+      }
+      i = stop + 3;
+      continue;
+    }
+    if (html[i] === "<") {
+      const close = html.indexOf(">", i + 1);
+      if (close === -1) {
+        if (!skipping) out += decodeEntities(html.slice(i));
+        break;
+      }
+      const tag = html.slice(i + 1, close);
+      i = close + 1;
+      const name = TAG_NAME.exec(tag)?.[1]?.toLowerCase();
+      if (!name) continue;
+      const closing = tag.startsWith("/");
+      if (skipping) {
+        if (closing && name === skipping) skipping = null;
+        continue;
+      }
+      if (!closing && SKIPPED_TAGS.has(name) && !tag.endsWith("/")) {
+        skipping = name;
+      } else if (name === "li" && !closing) {
+        out += "\n- ";
+        afterListItem = true;
+        continue;
+      } else if (name === "br") {
+        out += "\n";
+      } else if (BLOCK_TAGS.has(name)) {
+        if (!(afterListItem && name === "p" && !closing)) out += "\n";
+      } else if (name === "td" || name === "th") {
+        out += " ";
+      }
+      afterListItem = false;
+      continue;
+    }
+    const next = html.indexOf("<", i);
+    const stop = next === -1 ? html.length : next;
+    if (!skipping) {
+      const text = decodeEntities(html.slice(i, stop));
+      out += text;
+      if (text.trim()) afterListItem = false;
+    }
+    i = stop;
+  }
+  return out
     .split("\n")
-    .map((line) => line.replace(/[ \t ]+/g, " ").trim())
+    .map((line) => line.replace(/[ \t\u00a0]+/g, " ").trim())
     .filter((line) => line && line !== "-")
     .join("\n");
 }
