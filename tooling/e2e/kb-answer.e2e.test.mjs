@@ -103,4 +103,44 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
     await panel.close();
     await app.close();
   });
+
+  it("returns not covered for a question the loaded pack does not cover, with the instruction not to invent a setting", async () => {
+    model.requests.length = 0;
+    model.script((request) => {
+      const results = toolResults(request);
+      if (results.length === 0) {
+        return {
+          tool: "search_kb",
+          args: { query: "kubernetes helm chart rollout" },
+        };
+      }
+      return { text: "RESULT: The KB does not cover this." };
+    });
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    await chatAndWait(
+      panel,
+      "how do I set up a kubernetes helm rollout in Admin?",
+    );
+
+    const [first, second] = model.requests;
+    assert.match(
+      first.messages[0].content,
+      /If search_kb returns not_covered or no_pack, say the KB does not cover it/,
+    );
+    assert.match(
+      first.messages[0].content,
+      /Never name an Apty setting, field or menu that is not in a returned chunk/,
+    );
+    assert.deepEqual(toolResults(second), [
+      { status: "not_covered", results: [] },
+    ]);
+    assert.equal(
+      await panel.getByRole("button", { name: /^KB card / }).count(),
+      0,
+    );
+    await panel.close();
+    await app.close();
+  });
 });

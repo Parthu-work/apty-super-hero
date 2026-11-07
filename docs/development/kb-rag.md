@@ -156,6 +156,6 @@ outside this repository. A synthetic set
 | Ranking, ties, threshold, fusion | `packages/agent-core/src/kb/search.test.ts` |
 | Store, index cache, tool, matches | `packages/browser-runtime/src/storage/kb-store.test.ts`, `src/kb/*.test.ts`, `src/tools/kb.test.ts` |
 | Import, restart, Preflight, axe, keyboard | `tooling/e2e/knowledge-base.e2e.test.mjs` |
-| `search_kb` with a mock model, citation link | `tooling/e2e/kb-answer.e2e.test.mjs` |
+| `search_kb` with a mock model, citation link, "not covered" for an uncovered question | `tooling/e2e/kb-answer.e2e.test.mjs` |
 | Card text under a cause, both themes | `tooling/e2e/visibility-check.e2e.test.mjs`, `dapty-check.e2e.test.mjs` |
 | KB matches card with no AI key | `tooling/e2e/kb-matches.e2e.test.mjs` |
