@@ -143,6 +143,23 @@ describe("createKbIndex search", () => {
   });
 });
 
+describe("untrusted headings", () => {
+  it("indexes a heading with a very long run of whitespace in linear time", () => {
+    const heading = `Layer 1: x${"\t".repeat(200_000)}y`;
+    const started = performance.now();
+    const index = createKbIndex(
+      syntheticPack([
+        {
+          ...CARDS[0],
+          headings: [heading, heading, heading, heading],
+        } as SyntheticCard,
+      ]),
+    );
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(index.search("banner").status).toBe("ok");
+  });
+});
+
 describe("hybrid ranking", () => {
   // 202#L1 points the same way as the query; 303#L1 nearly; the rest away.
   const vectors = CARDS.flatMap((c) =>

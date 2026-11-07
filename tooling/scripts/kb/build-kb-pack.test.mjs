@@ -147,6 +147,18 @@ describe("storageToText", () => {
   });
 });
 
+describe("storageToText against crafted markup", () => {
+  it("drops script, style and macro parameters whole, and leaves no tag fragment when tags are nested", () => {
+    const text = storageToText(
+      '<p>x <scr<script>alert(1)</script>ipt y</p><script>var a = "<b>";</script><style>p{}</style><p>z</p>',
+    );
+    assert.ok(!text.includes("<"), text);
+    assert.ok(!text.includes("var a"), text);
+    assert.ok(!text.includes("p{}"), text);
+    assert.match(text, /z$/);
+  });
+});
+
 describe("parseCard", () => {
   it("splits a card into its four layers, with the Verified on line and NOT VERIFIED marks", () => {
     const { card, chunks } = parseCard(page("101"), {
