@@ -408,3 +408,55 @@ describe("run_diagnosis", () => {
     expect(result.verdict.causes[0]?.ruleId).toBe("WNV-02");
   });
 });
+
+describe("the KB matches answer (KB-RAG K6)", () => {
+  const matches = {
+    status: "ok" as const,
+    results: [
+      {
+        cite: "kb://202#L1",
+        title: "FIXTURE tooltip opens twice",
+        layer: 1 as const,
+        heading: "Layer 1: FIXTURE",
+        verifiedOn: "Verified on: FIXTURE.",
+        notVerified: false,
+        score: 3.2,
+        text: "- In Studio, clear the FIXTURE Double Trigger setting.",
+      },
+    ],
+  };
+
+  it("answers a symptom no check pack claims from the KB pack, as a search_kb call", async () => {
+    const kbMatchesOf = vi.fn(async () => matches);
+    const respond = createDiagnosisResponder({ kbMatchesOf });
+    const answer = await respond("the tooltip opens twice on the page", {});
+    expect(kbMatchesOf).toHaveBeenCalledWith(
+      "the tooltip opens twice on the page",
+    );
+    expect(answer).toMatchObject({
+      toolName: "search_kb",
+      params: { query: "the tooltip opens twice on the page", topK: 3 },
+      result: matches,
+    });
+    expect(JSON.parse(answer?.transcript ?? "{}")).toEqual(matches);
+  });
+
+  it("never answers in place of a check pack", async () => {
+    serveCapture();
+    const kbMatchesOf = vi.fn(async () => matches);
+    const respond = createDiagnosisResponder({ kbMatchesOf });
+    const answer = await respond(
+      "My workflow 'Take a tour' is not visible in the widget",
+      {},
+    );
+    expect(answer?.toolName).toBe(RUN_DIAGNOSIS);
+    expect(kbMatchesOf).not.toHaveBeenCalled();
+  });
+
+  it("leaves the message to the model when the KB has nothing above its threshold", async () => {
+    const respond = createDiagnosisResponder({
+      kbMatchesOf: async () => undefined,
+    });
+    expect(await respond("the tooltip opens twice", {})).toBeUndefined();
+  });
+});

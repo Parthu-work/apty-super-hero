@@ -83,7 +83,11 @@ function toolHit(hit: KbSearchHit): KbToolHit {
 export function kbToolResult(
   index: KbIndex | null,
   query: string,
-  options: { topK?: number; layers?: readonly KbLayer[] } = {},
+  options: {
+    topK?: number;
+    layers?: readonly KbLayer[];
+    onePerCard?: boolean;
+  } = {},
 ): KbToolResult {
   if (!index) return { status: "no_pack", results: [] };
   const found = index.search(query, options);

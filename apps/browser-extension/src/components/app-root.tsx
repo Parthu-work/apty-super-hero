@@ -4,6 +4,7 @@
  */
 
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
+import { localKbMatches } from "@apty/browser-runtime/kb/kb-matches";
 import { useAgent, useChatConfig } from "@apty/ui";
 import ChatBot from "@apty/ui/components/chatbot";
 import { composeSystemPrompt } from "@apty/ui/components/chatbot/constants";
@@ -160,7 +161,13 @@ function ChatApp() {
   settingsRef.current = settings;
 
   const handleCheckAuth = useCallback(
-    async (text: string) => checkAuth(settingsRef.current, text),
+    async (text: string) =>
+      checkAuth(
+        settingsRef.current,
+        text,
+        !isProviderConfigured(settingsRef.current) &&
+          (await localKbMatches(text)) !== undefined,
+      ),
     [],
   );
 
