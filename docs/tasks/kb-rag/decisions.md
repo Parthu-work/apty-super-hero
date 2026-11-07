@@ -42,6 +42,15 @@ evaluation shows a gain the owner accepts.
 Accepted. 5.x cards only; the source moves to the 5.x Product Knowledge Hub
 when the restructure lands.
 
+**Amended 2026-11-07 by the owner.** The cards carry no `rag-card` label;
+they are the pages titled "RAG Card: …" under
+[RAG Answer Cards](https://apty.atlassian.net/wiki/spaces/JA/pages/1496711169/RAG+Answer+Cards)
+(page `1496711169`), grouped under pages titled "RAG Cards: …" (125 cards in
+17 groups on 2026-11-07). The builder reads that tree by default (`--root`,
+the group page's title as the card's group); `--label` still selects
+labelled pages instead. When the restructure moves the tree, pass its new
+space and root page.
+
 ## D-KB5: the KB owner builds and distributes packs
 
 Accepted: the KB owner, assumed to be Harsh Sharma.

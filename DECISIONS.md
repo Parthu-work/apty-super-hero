@@ -61,5 +61,5 @@ document they concern.
 | [D-KB1: KB card retrieval supersedes "no RAG" for findings and symptoms only](docs/tasks/kb-rag/decisions.md#d-kb1-card-retrieval-supersedes-no-rag-for-findings-and-symptoms-only) | 2026-11-06 | Accepted |
 | [D-KB2: the KB reaches SEs as a local pack they import, never through this public repository](docs/tasks/kb-rag/decisions.md#d-kb2-the-kb-reaches-ses-as-a-local-pack-they-import) | 2026-11-06 | Accepted |
 | [D-KB3: KB retrieval is keyword (BM25) first, dense vectors only on a measured gain](docs/tasks/kb-rag/decisions.md#d-kb3-keyword-retrieval-first) | 2026-11-06 | Accepted |
-| [D-KB4: KB cards are pages labelled `rag-card` in space JA, 5.x only](docs/tasks/kb-rag/decisions.md#d-kb4-cards-are-pages-labelled-rag-card-in-space-ja) | 2026-11-06 | Accepted |
+| [D-KB4: KB cards are pages labelled `rag-card` in space JA, 5.x only](docs/tasks/kb-rag/decisions.md#d-kb4-cards-are-pages-labelled-rag-card-in-space-ja) | 2026-11-06 | Amended 2026-11-07: the "RAG Card:" pages under RAG Answer Cards |
 | [D-KB5: the KB owner builds and distributes packs](docs/tasks/kb-rag/decisions.md#d-kb5-the-kb-owner-builds-and-distributes-packs) | 2026-11-06 | Accepted |

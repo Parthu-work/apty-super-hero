@@ -8,8 +8,12 @@
  *
  * Usage:
  *   CONFLUENCE_EMAIL=… CONFLUENCE_TOKEN=… pnpm kb:pack [--site apty.atlassian.net]
- *     [--space JA] [--label rag-card] [--out <file>] [--threshold <score>]
- *     [--customer-names <file>] [--diff <old pack>]
+ *     [--space JA] [--root <pageId> | --label <label>] [--out <file>]
+ *     [--threshold <score>] [--customer-names <file>] [--diff <old pack>]
+ *
+ * The cards are the pages titled "RAG Card: …" under the RAG Answer Cards
+ * page (`--root`, default 1496711169 in JA), each group page's title as
+ * their group; `--label` selects labelled pages instead.
  *
  * The token is a read-only service account's classic API token, read from the
  * environment, never written or logged.
@@ -28,7 +32,14 @@ const MAX_RETRIES = 3;
 const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
 const NOT_VERIFIED = /\bNOT VERIFIED\b/g;
 const TITLE_PREFIX = /^RAG Card:\s*/i;
-const DEFAULTS = { site: "apty.atlassian.net", space: "JA", label: "rag-card" };
+const GROUP_PREFIX = /^RAG Cards:\s*/i;
+/** The RAG Answer Cards page in JA, whose descendants are the cards. */
+export const RAG_ANSWER_CARDS_PAGE = "1496711169";
+const DEFAULTS = {
+  site: "apty.atlassian.net",
+  space: "JA",
+  root: RAG_ANSWER_CARDS_PAGE,
+};
 
 const ENTITIES = {
   amp: "&",
@@ -245,12 +256,15 @@ export function parseCard(page, { site, space, group = "" }) {
 export class BuildError extends Error {}
 
 /**
- * Fetches every page with the label in the space: CQL search for ids, then
- * each body in storage format, and each parent's title as the card's group.
+ * Fetches the cards: by default every "RAG Card: …" page under `root` in
+ * the space, or with `label` every page carrying it; CQL search for ids,
+ * then each body in storage format, and each parent's title, without its
+ * "RAG Cards:" prefix, as the card's group.
  */
 export async function fetchCardPages({
   site,
   space,
+  root,
   label,
   email,
   token,
@@ -294,13 +308,17 @@ export async function fetchCardPages({
     }
   }
 
-  const cql = `space="${space}" AND label="${label}" AND type=page`;
+  const cql = label
+    ? `space="${space}" AND label="${label}" AND type=page`
+    : `space="${space}" AND ancestor=${root} AND type=page`;
   let next = `${origin}/wiki/rest/api/search?cql=${encodeURIComponent(cql)}&limit=50`;
   const ids = [];
   while (next) {
     const page = await getJson(next, { search: true });
     for (const result of page.results ?? []) {
       const id = result.content?.id ?? result.id;
+      const title = result.content?.title ?? result.title ?? "";
+      if (!label && !TITLE_PREFIX.test(title)) continue;
       if (id && !ids.includes(String(id))) ids.push(String(id));
     }
     const link = page._links?.next;
@@ -324,7 +342,10 @@ export async function fetchCardPages({
         const parent = await getJson(
           `${origin}/wiki/api/v2/pages/${page.parentId}`,
         );
-        parents.set(page.parentId, parent.title ?? "");
+        parents.set(
+          page.parentId,
+          (parent.title ?? "").replace(GROUP_PREFIX, "").trim(),
+        );
       }
       group = parents.get(page.parentId);
     }
@@ -452,6 +473,7 @@ function parseArgs(argv) {
   const flags = {
     "--site": "site",
     "--space": "space",
+    "--root": "root",
     "--label": "label",
     "--out": "out",
     "--threshold": "threshold",
@@ -464,6 +486,15 @@ function parseArgs(argv) {
       throw new BuildError(`Unknown or incomplete option: ${argv[i]}`);
     }
     options[key] = argv[++i];
+  }
+  if (!/^[A-Za-z0-9~_-]+$/.test(options.space)) {
+    throw new BuildError("--space takes a space key.");
+  }
+  if (!/^\d+$/.test(options.root)) {
+    throw new BuildError("--root takes a page id.");
+  }
+  if (options.label !== undefined && !/^[\w.-]+$/.test(options.label)) {
+    throw new BuildError("--label takes one label.");
   }
   if (options.threshold !== undefined) {
     const threshold = Number(options.threshold);
@@ -523,9 +554,13 @@ export async function run({
       ? JSON.parse(readFileSync(resolve(cwd, options.diff), "utf8"))
       : undefined;
 
+    const selection = options.label
+      ? `label "${options.label}"`
+      : `"RAG Card:" pages under page ${options.root}`;
     const pages = await fetchCardPages({
       site: options.site,
       space: options.space,
+      root: options.root,
       label: options.label,
       email,
       token,
@@ -534,14 +569,14 @@ export async function run({
     });
     if (pages.length === 0) {
       throw new BuildError(
-        `No page in space ${options.space} has the label "${options.label}".`,
+        `No page in space ${options.space} matches: ${selection}.`,
       );
     }
     const { pack, skipped } = buildPack({
       pages,
       site: options.site,
       space: options.space,
-      label: options.label,
+      label: options.label ?? `ancestor:${options.root}`,
       builtAt,
       threshold: options.threshold,
     });
@@ -554,7 +589,7 @@ export async function run({
     }
 
     print(
-      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks) from ${options.site}, space ${options.space}, label "${options.label}".`,
+      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks) from ${options.site}, space ${options.space}, ${selection}.`,
     );
     for (const { pageId, title, reason } of skipped) {
       print(`  skipped ${pageId} "${title}": ${reason}`);

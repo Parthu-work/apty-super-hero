@@ -10,7 +10,7 @@ decisions are in [`decisions.md`](../tasks/kb-rag/decisions.md).
 ## Design
 
 ```
-Confluence (JA, label rag-card)
+Confluence (JA, the "RAG Card:" pages under RAG Answer Cards)
   │  pnpm kb:pack, on the KB owner's machine (CONFLUENCE_EMAIL/TOKEN)
   ▼
 apty-kb-<space>-<date>.kbpack.json   ← never in this repository
@@ -96,9 +96,13 @@ CONFLUENCE_EMAIL=kb-reader@example.com CONFLUENCE_TOKEN=… pnpm kb:pack --custo
   changed and removed.
 - `--customer-names <file>` (one name per line, `#` comments) fails the
   build on a match and names the page ids only.
-- Today no page in JA carries the `rag-card` label (checked 2026-11-06), so
-  the builder stops with `No page in space JA has the label "rag-card"`
-  until the cards are labelled.
+- It reads the pages titled "RAG Card: …" under
+  [RAG Answer Cards](https://apty.atlassian.net/wiki/spaces/JA/pages/1496711169/RAG+Answer+Cards)
+  (`--root 1496711169`, the default), each group page's title ("Workflows",
+  "Studio", …) as the card's group: 125 cards in 17 groups on 2026-11-07.
+  `--label <label>` selects labelled pages instead. The "start here"
+  routing cards have no `Layer N:` sections, so they are reported as
+  skipped. When the restructure moves the tree, pass `--space` and `--root`.
 
 ### Share it
 
@@ -132,7 +136,7 @@ outside this repository. A synthetic set
 ## Not done
 
 - **A real pack and real numbers.** No pack has been built from Confluence
-  (the label is missing), and the 40-question set has not been run, so no
+  yet, and the 40-question set has not been run, so no
   threshold is calibrated and no target exists (End goal, section 9).
 - **K7, dense vectors.** Not shipped: it ships only if K8 on the real set
   shows a gain the owner accepts, and it would add the quantized model
