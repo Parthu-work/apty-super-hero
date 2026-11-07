@@ -135,6 +135,39 @@
       "summaryModelLabel": "Summary model",
       "summaryModelSameAsChat": "Same as the chat model",
       "summaryModelHint": "The model id that writes the summaries, with the same provider and key as the chat. Empty: claude-haiku-5-5 with Anthropic, the chat model with any other provider."
+    },
+    "knowledgeBase": {
+      "title": "Knowledge base",
+      "description": "The KB pack your KB owner shared: the RAG Answer Cards the checks and answers quote. It stays in this browser; card text goes to your AI provider only when an answer uses it.",
+      "notLoaded": "No knowledge base loaded. Import the .kbpack.json file from the internal page your KB owner shared.",
+      "loadedLabel": "Loaded knowledge base",
+      "space": "Space",
+      "cards": "Cards",
+      "built": "Built",
+      "imported": "Imported",
+      "retrieval": "Retrieval",
+      "modeBm25": "Keyword (BM25)",
+      "modeHybrid": "Keyword and vectors",
+      "calibrated": "calibrated threshold",
+      "uncalibrated": "no calibrated threshold: every match counts as covered",
+      "stale": "This pack was built {{days}} days ago. Ask the KB owner for a newer one and import it.",
+      "import": "Import pack…",
+      "replace": "Replace pack…",
+      "remove": "Remove",
+      "fileLabel": "KB pack file",
+      "removeTitle": "Remove the knowledge base?",
+      "removeDescription": "The pack is deleted from this browser. Checks then link to the cards without their text until you import a pack again.",
+      "importedStatus": "Imported {{count}} cards from space {{space}}.",
+      "removedStatus": "Knowledge base removed.",
+      "errors": {
+        "tooLarge": "This file is too large for a KB pack (over 25 MB or 5,000 chunks).",
+        "notJson": "This file is not JSON, so it is not a KB pack.",
+        "wrongKind": "This JSON file is not a KB pack.",
+        "wrongSchemaVersion": "This KB pack uses a schema version this Agent does not read. Update the Agent or ask for a pack built for it.",
+        "invalid": "This KB pack is malformed. Ask the KB owner to build it again.",
+        "checksumMismatch": "This KB pack's checksum does not match its contents: it was changed or cut short. Download it again.",
+        "readFailed": "The file could not be read. Try again."
+      }
     }
   },
   "theme": {
@@ -316,7 +349,8 @@
     "record_verification_attempt": "🧪 Verifying diagnosis",
     "stop_investigation": "🛑 Stopping investigation",
     "get_investigation_status": "📋 Checking investigation status",
-    "run_diagnosis": "Visibility check"
+    "run_diagnosis": "Visibility check",
+    "search_kb": "Knowledge base search"
   },
   "chatErrors": {
     "title": "Couldn't get an answer",
@@ -1026,7 +1060,8 @@
     "status": {
       "pass": "Pass",
       "warn": "Warning",
-      "fail": "Fail"
+      "fail": "Fail",
+      "info": "Info"
     },
     "fix": "Fix:",
     "copyAgentId": "Copy this extension's ID",
@@ -1131,6 +1166,14 @@
         "readable": "No body deny-list entry hides the Apty Client's content files.",
         "blocked": "The body deny list entry {{entries}} hides {{files}}, so the visibility checks cannot read them.",
         "fix": "In Settings → Data handling, remove {{entries}} from the body deny list, or narrow it to the paths you mean."
+      },
+      "knowledgeBase": {
+        "label": "Knowledge base",
+        "loaded": "Loaded: {{count}} cards from space {{space}}, built {{date}}.",
+        "notLoaded": "Not loaded. Checks link to the KB cards without their text.",
+        "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
+        "stale": "Loaded: {{count}} cards from space {{space}}, built {{date}}, {{days}} days ago.",
+        "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base."
       }
     }
   },
@@ -1254,7 +1297,8 @@
     "contextUsage": "Context Usage",
     "tokensOf": "{{used}} / {{max}} tokens",
     "promptCompletion": "Prompt: {{prompt}} | Completion: {{completion}}",
-    "summarizing": "Summarizing..."
+    "summarizing": "Summarizing...",
+    "kbCitation": "KB card {{pageId}}, layer {{layer}}"
   },
   "investigation": {
     "componentHealth": "Apty component health",
@@ -2314,7 +2358,13 @@
     "provenanceDapty": "From Apty's widget chat and ai-service code (apty-dap development), not runtime-verified. Confidence: likely.",
     "daptyRecord": "Record the next Ask Dapty chat (2 minutes)",
     "daptyRecording": "Recording this tab: ask Dapty the question again on the page, then ask me to check again.",
-    "daptyRecordFailed": "This tab could not be recorded. Open the page with the widget in this window and try again."
+    "daptyRecordFailed": "This tab could not be recorded. Open the page with the widget in this window and try again.",
+    "kbCard": {
+      "from": "From the KB card",
+      "notVerified": "Not verified",
+      "layer": "Layer {{layer}} of “{{title}}”",
+      "noVerifiedLine": "The card has no “Verified on” line."
+    }
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",

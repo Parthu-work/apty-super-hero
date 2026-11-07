@@ -41,9 +41,24 @@ function deps(overrides: Partial<PreflightDeps> = {}): PreflightDeps {
     bridgeAllowedOn: () => true,
     clipboardPermission: async () => "granted",
     contentScriptStorage: async () => "blocked",
+    knowledgeBase: async () => PACK_INFO,
+    now: () => new Date("2026-03-10T00:00:00.000Z"),
     ...overrides,
   };
 }
+
+const PACK_INFO = {
+  site: "fixture.atlassian.net",
+  space: "FX",
+  label: "rag-card",
+  cardCount: 12,
+  chunkCount: 48,
+  builtAt: "2026-03-01T00:00:00.000Z",
+  importedAt: "2026-03-02T00:00:00.000Z",
+  mode: "bm25" as const,
+  calibrated: true,
+  sha256: "a".repeat(64),
+};
 
 async function check(id: string, overrides: Partial<PreflightDeps> = {}) {
   const checks = await runPreflight(deps(overrides));
@@ -64,6 +79,7 @@ describe("runPreflight", () => {
       ["clipboard", "pass"],
       ["storage-access", "pass"],
       ["data-handling", "pass"],
+      ["knowledge-base", "pass"],
     ]);
     expect(checks[0]?.detail).toBe(
       "model-x answered in 120 ms and calls tools.",
@@ -232,6 +248,48 @@ describe("runPreflight", () => {
       detail:
         "Response bodies: captured · deny list: 0 entries · redaction: off.",
     });
+  });
+});
+
+describe("the knowledge base check", () => {
+  it("names the loaded pack, with its card count, space and build date", async () => {
+    expect(await check("knowledge-base")).toMatchObject({
+      status: "pass",
+      detail: "Loaded: 12 cards from space FX, built 2026-03-01.",
+      section: "knowledge-base",
+    });
+  });
+
+  it("reports no pack as information, not a fault, with where to import one", async () => {
+    for (const knowledgeBase of [
+      async () => null,
+      async () => {
+        throw new Error("IndexedDB blocked");
+      },
+    ]) {
+      const result = await check("knowledge-base", { knowledgeBase });
+      expect(result.status).toBe("info");
+      expect(result.detail).toMatch(/^Not loaded\./);
+      expect(result.fix).toMatch(/Settings → General → Knowledge base/);
+    }
+  });
+
+  it("warns when the pack is older than 30 days", async () => {
+    const result = await check("knowledge-base", {
+      now: () => new Date("2026-04-01T00:00:00.000Z"),
+    });
+    expect(result).toMatchObject({
+      status: "warn",
+      detail: "Loaded: 12 cards from space FX, built 2026-03-01, 31 days ago.",
+    });
+    expect(result.fix).toMatch(/newer pack/);
+    expect(
+      (
+        await check("knowledge-base", {
+          now: () => new Date("2026-03-31T00:00:00.000Z"),
+        })
+      ).status,
+    ).toBe("pass");
   });
 });
 

@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ClipboardCheck,
+  Info,
   Loader2,
   XCircle,
 } from "lucide-react";
@@ -53,6 +54,11 @@ const STATUS: Record<
     label: "preflight.status.fail",
     icon: XCircle,
     className: "text-destructive",
+  },
+  info: {
+    label: "preflight.status.info",
+    icon: Info,
+    className: "text-muted-foreground",
   },
 };
 

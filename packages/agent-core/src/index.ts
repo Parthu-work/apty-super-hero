@@ -63,7 +63,36 @@ export { ConversationManager } from "./conversation/manager.js";
 export { Session } from "./conversation/session.js";
 export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
-
+// KB packs and search
+export {
+  canonicalJson,
+  describeKbPack,
+  KB_LAYERS,
+  KB_PACK_KIND,
+  KB_PACK_LIMITS,
+  KB_PACK_SCHEMA_VERSION,
+  KB_PACK_STALE_DAYS,
+  type KbCard,
+  type KbChunk,
+  type KbImportResult,
+  type KbLayer,
+  type KbPack,
+  type KbPackErrorCode,
+  type KbPackInfo,
+  type KbPackParseResult,
+  kbCardUrl,
+  kbPackAgeDays,
+  parseKbPack,
+  type Sha256Hex,
+} from "./kb/pack.js";
+export {
+  createKbIndex,
+  type KbIndex,
+  type KbIndexInfo,
+  type KbSearchHit,
+  type KbSearchOptions,
+  type KbSearchResult,
+} from "./kb/search.js";
 // Generic Storage
 export type {
   BaseKeyValueStorage,

@@ -19,6 +19,7 @@ import {
   type OptionsTab,
 } from "../../lib/open-options";
 import { testConnection } from "../../services/connection-check";
+import { kbPackStore } from "../../services/kb-pack";
 import { fetchModelList } from "../../services/model-list";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
 import { AptyClientPanel, AptyStudioPanel } from "./apty-client-panel";
@@ -106,6 +107,12 @@ import "../../styles/tailwind.css";
 initLogging();
 applyRememberedTheme();
 
+const knowledgeBase = {
+  info: () => kbPackStore().info(),
+  importPack: (text: string) => kbPackStore().replace(text),
+  remove: () => kbPackStore().remove(),
+};
+
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 
@@ -159,6 +166,7 @@ function OptionsPageContent() {
       initialSkill={initialSkill}
       redactionPreview={previewRedaction}
       recentRequests={requestReports}
+      knowledgeBase={knowledgeBase}
     />
   );
 }

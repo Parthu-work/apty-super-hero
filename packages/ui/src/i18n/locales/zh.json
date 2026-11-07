@@ -135,6 +135,39 @@
       "summaryModelLabel": "摘要模型",
       "summaryModelSameAsChat": "与聊天模型相同",
       "summaryModelHint": "编写摘要的模型 ID，使用与聊天相同的提供商和密钥。留空：Anthropic 使用 claude-haiku-5-5，其他提供商使用聊天模型。"
+    },
+    "knowledgeBase": {
+      "title": "知识库",
+      "description": "知识库负责人共享的 KB 包：检查和回答所引用的 RAG 答案卡片。它只保存在此浏览器中；只有当回答用到卡片时，卡片文本才会发送给你的 AI 提供方。",
+      "notLoaded": "尚未加载知识库。请从知识库负责人共享的内部页面导入 .kbpack.json 文件。",
+      "loadedLabel": "已加载的知识库",
+      "space": "空间",
+      "cards": "卡片",
+      "built": "构建于",
+      "imported": "导入于",
+      "retrieval": "检索方式",
+      "modeBm25": "关键词（BM25）",
+      "modeHybrid": "关键词和向量",
+      "calibrated": "已校准阈值",
+      "uncalibrated": "未校准阈值：任何匹配都视为已覆盖",
+      "stale": "此包构建于 {{days}} 天前。请向知识库负责人索取更新的包并导入。",
+      "import": "导入包…",
+      "replace": "替换包…",
+      "remove": "移除",
+      "fileLabel": "KB 包文件",
+      "removeTitle": "移除知识库？",
+      "removeDescription": "该包将从此浏览器中删除。在你再次导入包之前，检查只会链接到卡片，不显示卡片文本。",
+      "importedStatus": "已从空间 {{space}} 导入 {{count}} 张卡片。",
+      "removedStatus": "知识库已移除。",
+      "errors": {
+        "tooLarge": "此文件对于 KB 包来说过大（超过 25 MB 或 5,000 个片段）。",
+        "notJson": "此文件不是 JSON，因此不是 KB 包。",
+        "wrongKind": "此 JSON 文件不是 KB 包。",
+        "wrongSchemaVersion": "此 KB 包使用的架构版本此 Agent 无法读取。请更新 Agent，或索取为其构建的包。",
+        "invalid": "此 KB 包格式错误。请让知识库负责人重新构建。",
+        "checksumMismatch": "此 KB 包的校验和与其内容不符：它已被更改或被截断。请重新下载。",
+        "readFailed": "无法读取该文件。请重试。"
+      }
     }
   },
   "theme": {
@@ -316,7 +349,8 @@
     "record_verification_attempt": "🧪 验证诊断结果",
     "stop_investigation": "🛑 停止调查",
     "get_investigation_status": "📋 检查调查状态",
-    "run_diagnosis": "可见性检查"
+    "run_diagnosis": "可见性检查",
+    "search_kb": "知识库搜索"
   },
   "chatErrors": {
     "title": "无法获取回答",
@@ -1026,7 +1060,8 @@
     "status": {
       "pass": "通过",
       "warn": "警告",
-      "fail": "失败"
+      "fail": "失败",
+      "info": "信息"
     },
     "fix": "修复：",
     "copyAgentId": "复制此扩展的 ID",
@@ -1131,6 +1166,14 @@
         "readable": "正文拒绝列表中没有条目隐藏 Apty Client 的内容文件。",
         "blocked": "正文拒绝列表条目 {{entries}} 隐藏了 {{files}}，因此可见性检查无法读取它们。",
         "fix": "在“设置 → 数据处理”中，从正文拒绝列表删除 {{entries}}，或将其缩小到您要排除的路径。"
+      },
+      "knowledgeBase": {
+        "label": "知识库",
+        "loaded": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}。",
+        "notLoaded": "未加载。检查会链接到 KB 卡片，但不显示其文本。",
+        "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
+        "stale": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}，{{days}} 天前。",
+        "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。"
       }
     }
   },
@@ -1254,7 +1297,8 @@
     "contextUsage": "上下文用量",
     "tokensOf": "{{used}} / {{max}} 个令牌",
     "promptCompletion": "提示：{{prompt}} | 补全：{{completion}}",
-    "summarizing": "正在总结..."
+    "summarizing": "正在总结...",
+    "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层"
   },
   "investigation": {
     "componentHealth": "Apty 组件健康状况",
@@ -2314,7 +2358,13 @@
     "provenanceDapty": "依据 Apty 小组件聊天和 ai-service 的代码（apty-dap development），未经运行时验证。可信度：较可能。",
     "daptyRecord": "录制下一次 Ask Dapty 聊天（2 分钟）",
     "daptyRecording": "正在录制此标签页：请在页面上再问 Dapty 一次，然后让我重新检查。",
-    "daptyRecordFailed": "无法录制此标签页。请在此窗口中打开带有小组件的页面后重试。"
+    "daptyRecordFailed": "无法录制此标签页。请在此窗口中打开带有小组件的页面后重试。",
+    "kbCard": {
+      "from": "来自 KB 卡片",
+      "notVerified": "未验证",
+      "layer": "“{{title}}”的第 {{layer}} 层",
+      "noVerifiedLine": "该卡片没有“验证于”行。"
+    }
   },
   "harCheck": {
     "intro": "当无法连接客户的 Apty Client 时，对客户录制的 HAR 文件运行可见性检查。",

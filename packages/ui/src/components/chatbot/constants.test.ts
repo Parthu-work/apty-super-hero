@@ -60,3 +60,18 @@ describe("composeSystemPrompt", () => {
     }
   });
 });
+
+describe("the KB section (KB-RAG K4)", () => {
+  it("is sent only with search_kb, and tells the model to cite cards and never invent a setting", () => {
+    const KB = "\n=== APTY PRODUCT FACTS COME FROM THE KB CARDS ===";
+    expect(composeSystemPrompt(tools("run_diagnosis"))).not.toContain(KB);
+    const prompt = composeSystemPrompt(tools("search_kb"));
+    expect(prompt).toContain(KB);
+    expect(prompt).toContain("kb://<pageId>#L<layer>");
+    expect(prompt).toMatch(
+      /Never name an Apty setting.*not in a returned chunk/,
+    );
+    expect(prompt).toMatch(/not_covered or no_pack.*Ask Dapty/);
+    expect(prompt).toMatch(/notVerified true or says NOT VERIFIED/);
+  });
+});

@@ -114,6 +114,18 @@ export const SCENARIOS: Scenario[] = [
     message: "what is on this page",
     history: [call("take_snapshot"), result(60_000)],
   },
+  {
+    // KB-RAG K4: a product follow-up to a check, after a search_kb result
+    // at its 4,000-character cap.
+    name: "kb-followup",
+    message: "how do I turn that off in Studio?",
+    history: [
+      user("the workflow is not showing in the widget"),
+      call("search_kb"),
+      result(4000, "search_kb"),
+      assistant("It is hidden from the widget (kb://101#L1)."),
+    ],
+  },
 ];
 
 /** The tools the extension offers: each earlier user message is a turn of the same chat. */

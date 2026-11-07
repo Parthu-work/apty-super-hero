@@ -28,6 +28,7 @@ import {
   tempDir,
   unpackedExtensionId,
 } from "./harness.mjs";
+import { importPack, writeFixturePack } from "./kb-fixture.mjs";
 
 const FIXTURES = join(
   ROOT,
@@ -385,5 +386,30 @@ describe("Ask Dapty check, end to end", () => {
     assert.ok(!text.includes("127.0.0.1"), "the card shows no URL");
     await panel.close();
     await page.close();
+  });
+});
+
+describe("Ask Dapty check with a KB pack loaded (KB-RAG K5)", () => {
+  it("adds no card text: its causes cite no KB card", async () => {
+    const { file } = writeFixturePack(tempDir("apty-kb-dapty-"));
+    await importPack(browser, file);
+    await connectClient();
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+
+    await sendChat(panel, "Dapty suggested a workflow but nothing opens");
+    const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
+    await card.waitFor({ timeout: 30_000 });
+    await card.getByText("Rule DAP-06").waitFor();
+    assert.equal(
+      await card.getByRole("button", { name: /From the KB card/ }).count(),
+      0,
+    );
+    assert.ok(!(await card.textContent()).includes("FIXTURE"));
+    const violations = await runAxe(panel);
+    assert.deepEqual(violations, [], describeViolations(violations));
+    await panel.close();
+    await app.close();
   });
 });
