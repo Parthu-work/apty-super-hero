@@ -76,15 +76,23 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
-- KB retrieval (KB-RAG, K0 to K6, K8): Options → Settings → General →
-  Knowledge base imports a KB pack the KB owner builds with `pnpm kb:pack`
-  (never in this public repository: `npm run audit:kb-pack`). With a pack
-  loaded, a check-pack cause shows its card's text ("From the KB card"), a
-  symptom no check pack claims gets a KB matches card, both with no model
-  request and no AI key, and follow-up answers use `search_kb` and cite
-  `kb://` cards. `pnpm kb:eval` measures retrieval. Tested in Chromium with
-  synthetic cards and a mock model, not a real pack or provider
-  ([`kb-rag.md`](development/kb-rag.md)).
+- KB retrieval (KB-RAG, K0 to K6, K8, K10 to K20): Options → Settings →
+  General → Knowledge base imports one KB pack per Apty version (4.x, 5.x,
+  common) that the KB owner builds with `pnpm kb:pack` (never in this
+  public repository: `npm run audit:kb-pack`); `pnpm kb:demo-pack` builds
+  synthetic demo packs to try it. A check-pack cause shows its card's text,
+  any message no check pack claims gets a KB matches card (or a "not yet
+  written" stub), both with no model request and no AI key; `search_kb`
+  grounds answers with citations to each card's own page, a grounding note
+  marks setting names the cited cards lack. Coverage, not a score
+  threshold, decides "not covered"; a setting no card holds is named. The
+  tab's version comes from a check's files or the user's choice. The
+  widget and flow checks run on 4.x tenants (4.x code, not
+  runtime-verified), reading a 4.x tenant's files from the page's network
+  capture ("Capture and reload") or a HAR saved from the 4.x Client's
+  service worker. Synthetic set: every question passes for both versions.
+  Tested in Chromium with synthetic cards and a mock model, not a real pack
+  or provider ([`kb-rag.md`](development/kb-rag.md)).
 - The dependency check (`knip --strict`) blocks CI; exports kept only for
   tests are tagged `@internal`, which it skips.
 - Data stored under the AIPex names is no longer migrated: a developer
@@ -219,7 +227,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Ask Dapty check on live chats (partial) | Extension mode: the Client adopts the reference module's `recordWidgetChatTurn` and routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)); until then SEs can test the record path with the test-only recorder build (W7). Then the live-tenant run, in both modes, with a known failing chat, sending the evidence bundle (W1), HARs and content files: those become the live fixtures (W2), and any check they break is fixed there. The chat panel reader is untested against the real widget's DOM |
 | Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
-| KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above). Still open: the KB owner builds the first real pack from the 125 "RAG Card:" pages under RAG Answer Cards in JA (the builder's default since 2026-11-07) and runs `pnpm kb:eval --calibrate` on the 40-question set; its numbers and threshold go in the pack and on the handbook page F15. K7 (dense vectors) waits on that baseline and is not shipped ([`kb-rag.md`](development/kb-rag.md)) |
+| KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above; [`FIXES.md`](tasks/kb-rag/FIXES.md#status)). Still open: the KB owner builds the real 4.x (A4PKH, root 1509720081) and 5.x (JA, root 1496711169) packs, writes 60-question sets per version and runs `pnpm kb:eval --calibrate --by-category`; the D-KB8 numbers (ids only) go on the handbook page F15. The 4.x check packs' apty-assist citations are to be confirmed against a checkout, and their causes' own 4.x card ids named; the 4.x Client bridge ships in apty-assist ([`4X-BRIDGE.md`](integrations/apty/4X-BRIDGE.md)). K7 (dense vectors) waits on the real sets ([`kb-rag.md`](development/kb-rag.md)) |
 
 
 ### Ask Dapty production readiness

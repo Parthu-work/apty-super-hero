@@ -764,4 +764,25 @@ This is what K19 puts in the docs; it is also the manual setup for 7.4.
 
 ## Status
 
-IN PROGRESS (2026-11-09). Updated per package below as each lands.
+**DONE, with three steps partial** (2026-11-09). Every package K10–K20
+landed on `claude/charming-knuth-g0d7ab`, one commit per package, each
+green; the synthetic set passes every question for 4.x and 5.x.
+
+Partial, and what finishes each:
+
+1. **Real cards (section 7.3, acceptance 4).** No classic Confluence token
+   was available, so no real pack was built or evaluated here. The KB owner
+   runs the commands in section 7.3 (and in
+   `docs/development/kb-rag.md`, "Lifecycle: the KB owner"), rebuilds with
+   the printed coverage flags and records the D-KB8 numbers (ids only) on
+   F15.
+2. **4.x check packs from a checkout (K14).** apty-assist was not readable
+   from this environment, so the 4.x rules follow the behaviour this file
+   states, citing the files it names with their lines to be confirmed;
+   causes other than `app-urls.json` cite the A4PKH tree (1509720081) until
+   the KB owner names their cards. Finish: check each `W4X`/`C4X` rule
+   against `player3.0` at a pinned commit, put the commit in
+   `FOUR_X_VERIFIED_ON`, and replace `CARD_4X_TREE` with each cause's card.
+3. **4.x Client bridge (K15 C).** Written as a change description in
+   `docs/integrations/apty/4X-BRIDGE.md`; the apty-assist PR is not made
+   (no access).

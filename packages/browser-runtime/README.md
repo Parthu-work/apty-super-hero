@@ -108,6 +108,61 @@ Under `automation/`, you'll find building blocks for browser automation:
   - `dom`: Pure DOM-based snapshots (using `@apty/dom-snapshot`)
 - Snapshot text search utilities (`searchSnapshotText`, `parseSearchQuery`, `hasGlobPatterns`)
 
+### 5) Knowledge base and the Apty check packs
+
+KB-RAG ([`docs/development/kb-rag.md`](../../docs/development/kb-rag.md)):
+
+- **`search_kb`** (`tools/kb.ts`): parameters `query` (1–300 characters, in
+  English: the model translates a question asked in another language),
+  `topK` (1–5, default 3), `layers` (1 settings, 2 Console and Elements, 3
+  network data, 4 support) and `aptyVersion` (`4.x`/`5.x`, only when the
+  user said it; otherwise the tab's known version, else every pack). It
+  returns `{ status, reason?, missingPhrases?, mixedVersions?, stub?, results }`:
+  `ok`, `not_covered` (`no_match`, `low_coverage`, `unknown_setting`),
+  `stub` (a card whose text is not written yet: cite, title, site, space,
+  version) or `no_pack`; each result has `cite` (`kb://<pageId>#L<layer>`),
+  `title`, `site`, `space`, `aptyVersion`, `layer`, `heading`,
+  `verifiedOn`, `notVerified`, `score` and `text`, whole chunks only, at
+  most 4,000 characters in all. It goes through the result-privacy filter
+  like every tool; the card's link is built from `site` and `space` so the
+  URL policy does not take the card for a visited page.
+- **Store** (`storage/kb-store.ts`, `createKbPackStore`): one pack per
+  version in IndexedDB `apty-kb-db`; `info()` lists the loaded packs,
+  `load(version)`, `replace(text)` (stores under the file's own version),
+  `remove(version)`; the one pack an earlier Agent stored moves to 5.x.
+- **Index** (`kb/kb-index.ts`): `sharedKbIndexSource().current(version)`
+  for `4.x`, `5.x` or `unknown` (every pack), cached by the packs' sha256.
+- **KB matches responder** (`kb/kb-matches.ts`, used by
+  `createDiagnosisResponder`): any message no check pack claims is searched
+  and answered with no model call when covered, or with a stub; a bare
+  how-to is left alone (`kb/kb-intent.ts`); a message mostly outside the
+  Latin script gets the English-cards notice when no model is configured.
+- **Tab version** (`kb/kb-version.ts`): a check's files decide it
+  (`playerVersionOf`), else the user's choice, per site host, in memory.
+
+The **4.x check packs** (`apty/diagnosis/widget-not-visible-4x.ts`, rules
+`W4X-…`, and `content-not-visible-4x.ts`, rules `C4X-…`) run when a check's
+files are 4.x (`playerVersionOf`); a 5.x or unknown tenant runs the 5.x
+packs. Every 4.x finding says it comes from 4.x code and is not
+runtime-verified.
+
+**Where a check's files come from**, in order:
+
+1. The **Apty Client** (5.x, or a 4.x Client with the bridge in
+   `docs/integrations/apty/4X-BRIDGE.md`), through `apty-debug-agent:*`
+   messages.
+2. The tab's **page network capture** (a 4.x player in Injected mode
+   fetches from the page): a running capture, or one stopped in the last 15
+   minutes; the verdict card's **Capture and reload** makes one
+   (`apty/diagnosis/capture-check.ts`).
+3. Apty's **content CDN** (5.x only), unless Settings → Apty Integration
+   turns it off.
+4. A **HAR file** on the HAR page (`apty/diagnosis/har-check.ts`), including
+   one saved from the 4.x Client's service worker, which has no page entry
+   and is checked against the tab's page once the user confirms it.
+
+All go through the same body deny list and redaction.
+
 ## Installation
 
 ```bash

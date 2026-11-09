@@ -247,6 +247,13 @@ describe("the CLI", () => {
           expectedPageIds: [],
           category: "not-covered-domain",
         },
+        {
+          id: "c1",
+          q: "how do I configure a launcher",
+          expectedPageIds: [],
+          category: "how-to",
+          surface: "responder",
+        },
       ]),
     );
     const lines = [];
@@ -262,6 +269,8 @@ describe("the CLI", () => {
       /^ {2}not-covered-domain: 1 q, .*not covered P 100% R 100%$/m,
     );
     assert.match(text, /^ {2}short: 1 q, R@1 100%, R@3 100%/m);
+    assert.match(text, /^ {2}how-to: left to the responder's tests$/m);
+    assert.match(text, /^2 questions \(1 the KB should cover\)/m);
     assert.ok(!text.includes("kubernetes"));
   });
 

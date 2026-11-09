@@ -94,7 +94,7 @@ widget" is checked from these same calls, with no AI model involved.
 | "No data to check" with "No Apty Client extension ID is saved." | No Client is connected | Connect it above, then ask again. |
 | "No data to check" with a connection failure | The Client didn't answer | Fix it with the table above; the check says nothing about the content until then. |
 | "The Apty Client did not report loading workflow.json" | The widget hasn't requested that file since the Client started | Reload the application with the widget, then ask again. |
-| "Not covered" with "This tenant uses 4.x content files…" | The Client served 4.x files (`flow.json`, `segments.json`) | The check covers 5.x only; use the manual paste path. |
+| "Not covered" with "This tenant uses 4.x content files…" | A content check of a kind the 4.x pack does not cover yet (it covers flows and the widget), or the selector check | Use the widget or flow check; see [4.x tenant](#4x-tenant). |
 | "Needs a check in the browser" | The files show no blocker; whether this user matches a segment's rule is decided in the browser | Test as a user known to match the segment, as the card says. |
 | A cause you know is wrong | The files are older than the last publish | Reload the application so the Client fetches them again, then ask again. |
 | "No environment's URL pattern matches this page" | The page in this tab is not covered by any environment in `app-urls.json` | In Admin, add the exact host users open to the right environment, publish and reload. |
@@ -168,6 +168,32 @@ check, and the HAR page offers "The Ask Dapty chat". See
 | "The stored chat, which has the ids, was not read: … an Apty ID that only the Apty Client can read" | The application identifies users by Apty's own ID, which the Client keeps in its extension storage | Expected until the Client reports the chat; a HAR with the chat open has the ids. An application that identifies users from the page (a window variable, session or local storage) needs nothing. |
 | "Content files read from Apty's content CDN" | The Apty Client does not report its calls, so the check read the same public files the Client reads | Nothing to do: this is how Extension mode works with today's Client. |
 | "Apty was not found on this page" | No Client answered, the page sets no injected player config, and no Apty Client script is on it | Reload the page with Apty installed, or check the Client is enabled for this site. |
+
+## Knowledge base
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Import refused (too large, not a pack, schema version, malformed, checksum) | The file is not a pack this Agent reads, or was changed or cut | See the error table in [`kb-rag.md`](development/kb-rag.md#troubleshooting) |
+| Every question is "not covered" | Coverage settings too strict, or no pack for the tab's Apty version | Ask the KB owner for a calibrated pack; import the tab's version, or pick "Not sure" |
+| Cards of the wrong Apty version | The tab's version is unknown or was picked wrongly | Pick the version on the KB matches or verdict card |
+| No KB card although no AI key is needed | The message reads as a bare how-to, or nothing covers it | Name the symptom; how-tos belong to Ask Dapty |
+| "Not found in the cited KB cards: …" under an answer | The model named a setting no returned card holds | Treat that setting as unverified; ask again naming the card's own words |
+| "unknown citation" in an answer | The model cited a card its search did not return | Ignore that citation |
+
+The full table, with the cause of each import error and the KB owner's
+side, is in [`docs/development/kb-rag.md`](development/kb-rag.md#troubleshooting).
+
+## 4.x tenant
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The verdict has no data and the Apty Client cannot be reached | The 4.x Client has no Agent bridge | Injected mode: **Capture and reload** on the verdict card. Extension mode: save a HAR from the 4.x Client's service worker (the card lists the steps) and check it on the HAR page |
+| "Captured 0 Apty calls" | The player runs in Extension mode, so the page makes no content call | Use the service-worker HAR |
+| The HAR check cannot match the widget to an environment | A service-worker HAR has no page request | Tick "Use the page open in this tab" before **Check** |
+| A 4.x finding says "not runtime-verified" | The 4.x checks are ported from 4.x code (D-KB7) | Confirm the cause on the tenant; report a wrong one with its rule id |
+| A selector check stops at "4.x content files" | The selector check is not ported to 4.x yet | Use the widget and flow checks, or check the element by hand |
+
+See [`docs/integrations/apty/README.md`](integrations/apty/README.md#4x-tenants).
 
 ## Response bodies are missing from a network capture
 

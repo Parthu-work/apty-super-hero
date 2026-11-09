@@ -185,10 +185,27 @@ Until the bridge in [`4X-BRIDGE.md`](4X-BRIDGE.md) ships in apty-assist,
 the Agent reads a 4.x tenant's content files from:
 
 - **Injected mode:** the page's own network capture. The player fetches
-  from the page, so the check reads the files from the conversation's
-  capture, or offers **Capture and reload** on the verdict card.
-- **Extension mode:** a HAR saved from the 4.x Client's service worker
-  (the verdict card lists the steps: `chrome://extensions` → Developer
-  mode → the Client's **service worker** → Network → Preserve log →
-  reload the tab and reproduce → **Save all as HAR with content** → drop
-  the HAR on the side panel).
+  from the page, so a check reads the files from the tab's capture (running,
+  or stopped in the last 15 minutes). With none, a widget or content
+  verdict with no files offers **Capture and reload**: the Agent captures
+  the tab, reloads it, waits until the Apty calls stop (2 s with no new one,
+  at most 20 s) and runs the same check on what it captured. It keeps whole
+  bodies of Apty content calls only (a `tenant-…` path), through the body
+  deny list and redaction.
+- **Extension mode:** a HAR saved from the 4.x Client's service worker. The
+  verdict card lists the steps:
+  1. Open `chrome://extensions`, turn on **Developer mode**.
+  2. Find the Apty extension (the 4.x Client) and click **service worker**
+     under "Inspect views".
+  3. In that DevTools window open **Network** and tick **Preserve log**.
+  4. Reload the application tab and reproduce the problem.
+  5. In the service worker's Network panel, right-click → **Save all as HAR
+     with content**.
+  6. Open Menu › **Check a HAR file** in the side panel and choose the HAR.
+     A service-worker HAR has no page request, so tick "Use the page open in
+     this tab: …" to check the widget against the page you confirm.
+
+The 4.x checks (`W4X-…` widget rules, `C4X-…` flow rules) are ported from
+4.x code and are not runtime-verified (owner decision D-KB7). The bridge
+that would let the Agent read a 4.x Client like a 5.x one is described,
+ready to apply in apty-assist, in [`4X-BRIDGE.md`](4X-BRIDGE.md).

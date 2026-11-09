@@ -1,161 +1,344 @@
 # KB retrieval (KB-RAG)
 
 The Agent finds the RAG Answer Card for a finding or a symptom, shows its
-text in the side panel and grounds follow-up answers in it with a citation.
-It runs entirely in the browser: no server, no vector database, no Confluence
-call and no new permission in the extension. The owner prompt is
-[`docs/tasks/kb-rag/MASTER.md`](../tasks/kb-rag/MASTER.md); the owner's
-decisions are in [`decisions.md`](../tasks/kb-rag/decisions.md).
+text in the side panel and grounds follow-up answers in it with a citation,
+for Apty 4.x and 5.x tenants alike. It runs entirely in the browser: no
+server, no vector database, no Confluence call and no new permission in the
+extension. The owner prompts are [`MASTER.md`](../tasks/kb-rag/MASTER.md)
+(K0–K9) and [`FIXES.md`](../tasks/kb-rag/FIXES.md) (K10–K20); the owner's
+decisions are in [`decisions.md`](../tasks/kb-rag/decisions.md) (D-KB1 to
+D-KB9).
+
+To try it in ten minutes with synthetic cards, follow the root
+[README](../../README.md#try-it-locally-in-10-minutes).
 
 ## Design
 
 ```
-Confluence (JA, the "RAG Card:" pages under RAG Answer Cards)
-  │  pnpm kb:pack, on the KB owner's machine (CONFLUENCE_EMAIL/TOKEN)
-  ▼
-apty-kb-<space>-<date>.kbpack.json   ← never in this repository
-  │  shared on a restricted internal page; each SE imports it
-  ▼
+Confluence                                      pnpm kb:pack, KB owner's machine
+  A4PKH (root 1509720081)      --version 4.x  ─┐  (CONFLUENCE_EMAIL / TOKEN)
+  JA    (root 1496711169)      --version 5.x  ─┤
+  Apty KB - Common             --version common┘
+         │
+         ▼
+apty-kb-<space>-<version>-<date>.kbpack.json      ← never in this repository
+         │  shared on a restricted internal page; each SE imports each version
+         ▼
 Options → Settings → General → Knowledge base → IndexedDB apty-kb-db
-  │
-  ├─ the verdict card: "From the KB card" under each cause (no model)
-  ├─ the KB matches card: a symptom no check pack claims (no model)
-  └─ search_kb: the model's follow-up answers, cited kb://<pageId>#L<layer>
+  pack:4.x  meta:4.x   pack:5.x  meta:5.x   pack:common  meta:common
+         │
+         │   tab version: a check's files (playerVersionOf), else the
+         │   user's "Apty version: 4.x / 5.x / Not sure"; unknown = every pack
+         ▼
+  ├─ verdict card: "From the KB card" under each cause (no model)
+  ├─ KB matches card: a message no check pack claims (no model)
+  ├─ search_kb: the model's answers, cited kb://<pageId>#L<layer>
+  └─ grounding check: phrases the cited chunks do not hold are marked
 ```
 
 | Part | Code |
 |---|---|
 | Pack builder | `tooling/scripts/kb/build-kb-pack.mjs` (`pnpm kb:pack`) |
-| Schema, checksum, limits | `packages/agent-core/src/kb/pack.ts` (`parseKbPack`) |
-| Search | `packages/agent-core/src/kb/search.ts` (`createKbIndex`) |
-| Storage | `packages/browser-runtime/src/storage/kb-store.ts` (`createKbPackStore`) |
-| Index cache, tool result | `packages/browser-runtime/src/kb/kb-index.ts` |
-| The model's tool | `packages/browser-runtime/src/tools/kb.ts` (`search_kb`) |
+| Demo pack | `tooling/scripts/kb/build-demo-pack.mjs` (`pnpm kb:demo-pack`) |
+| Schema, checksum, limits, links | `packages/agent-core/src/kb/pack.ts` (`parseKbPack`, `kbCardUrl`) |
+| Search, coverage, layer hints | `packages/agent-core/src/kb/search.ts` (`createKbIndex`) |
+| Several packs at once | `packages/agent-core/src/kb/index-set.ts` (`createKbIndexSet`) |
+| Text analysis, stemmer, synonyms | `packages/agent-core/src/kb/text.ts`, `stem.ts`, `synonyms.ts` |
+| Storage, one pack per version | `packages/browser-runtime/src/storage/kb-store.ts` (`createKbPackStore`) |
+| Index per version, tool result | `packages/browser-runtime/src/kb/kb-index.ts` |
+| Tab version | `packages/browser-runtime/src/kb/kb-version.ts` |
+| Symptom, how-to and script rules | `packages/browser-runtime/src/kb/kb-intent.ts` |
 | KB matches answer | `packages/browser-runtime/src/kb/kb-matches.ts`, `createDiagnosisResponder` |
-| Layer a cause reads | `packages/browser-runtime/src/apty/diagnosis/card-layers.ts` (`cardLayerOf`) |
+| The model's tool | `packages/browser-runtime/src/tools/kb.ts` (`search_kb`) |
+| When the tool is offered | `packages/browser-runtime/src/tools/tool-relevance.ts` |
+| Layer a cause reads | `packages/browser-runtime/src/apty/diagnosis/card-layers.ts` |
 | Options card | `packages/ui/src/components/settings/knowledge-base-card.tsx` |
-| Verdict card text | `apps/browser-extension/src/components/investigation/kb-card-excerpt.tsx` |
+| Citations and grounding | `packages/ui/src/lib/kb-citations.ts`, `kb-grounding.ts` |
+| Verdict card text, version control | `apps/browser-extension/src/components/investigation/kb-card-excerpt.tsx`, `kb-version-control.tsx` |
 | KB matches card | `apps/browser-extension/src/components/investigation/kb-matches-card.tsx` |
-| Citation links | `packages/ui/src/lib/kb-citations.ts` |
 | Evaluation | `tooling/scripts/kb/eval-kb.mjs` (`pnpm kb:eval`) |
 | Repository guard | `tooling/scripts/check-no-kb-pack.mjs` (`npm run audit:kb-pack`) |
 
-### The pack
+## The pack (schema 2)
 
-One JSON file, schema v1 (MASTER.md section 3.1), plus two optional fields
-the schema needed: `retrieval.threshold` (the calibrated BM25 score below
-which a question is "not covered") and `retrieval.dense.threshold` (the same
-for cosine similarity, with vectors). One chunk per card layer, at most 1,000
-characters; chunks are unique by `(pageId, layer)`. The `sha256` covers the
-canonical JSON (keys sorted at every level, no whitespace) without itself.
+One JSON file per version. `parseKbPack` reads schema 1 and 2 and returns
+the schema 2 shape: a schema 1 pack is a 5.x pack of full cards with no
+symptom, and keeps its `retrieval.threshold` and its search exactly as
+before.
 
-### Search
+| Field | Meaning |
+|---|---|
+| `kind` | `"apty-kb-pack"`, the marker `audit:kb-pack` fails the repository on |
+| `schemaVersion` | `2` (the builder's); `1` is still read |
+| `builtAt`, `builder` | ISO time, builder version |
+| `source.site`, `.space`, `.label`, `.cardCount` | Where the cards came from; `label` is `ancestor:<root>` for the tree |
+| `aptyVersion` | `"4.x"`, `"5.x"` or `"common"` |
+| `retrieval.bm25` | `true` |
+| `retrieval.coverage` | `{ min, minIdf, minTerms }`, calibrated by `kb:eval --calibrate`; absent: `{ 0.5, 1.5, 1 }` |
+| `retrieval.synonyms` | The KB owner's own synonym groups (`kb:pack --synonyms`), added to the built-in ones |
+| `retrieval.threshold` | Schema 1 only: the BM25 score below which a question was not covered |
+| `retrieval.dense` | Optional vectors (K7, not shipped) |
+| `cards[].pageId`, `.title`, `.group`, `.url`, `.updatedAt` | The card; `url` is its own page in its own space |
+| `cards[].verifiedOn` | The card's "Verified on" line, verbatim, or null |
+| `cards[].symptom` | The card's "Symptom:" line (at most 300 characters), or null |
+| `cards[].status` | `"full"`, `"stub"` (its text for this version is not written yet) or `"routing"` ("Start here") |
+| `cards[].notVerifiedCount` | NOT VERIFIED statements in the card |
+| `chunks[]` | One per layer of a full card: `id` (`<pageId>#L<layer>`), `pageId`, `layer` 1–4, `heading`, `text` (at most 1,000 characters), `notVerified`; none for a stub or routing card |
+| `sha256` | Over the canonical JSON (keys sorted, no whitespace) without itself |
 
-MiniSearch BM25 over the card title (boost 3), the heading (1.5) and the
-text, with prefix matching from 3 characters and fuzzy matching (0.2) from
-5. The index leaves out what every card shares: the `Layer N:` prefix, the
-card's title repeated in its headings, a layer description most cards share,
-the `Verified on` and `Send support` lines and the `NOT VERIFIED` mark (the
-text sent to the model keeps all of them). Ties go to the lower page id,
-then the lower layer, so the same pack and query always rank the same. With
-a pack's vectors and a query vector, keyword and dense rankings are fused by
-reciprocal rank (k = 60); no pack has vectors yet (K7).
+Limits: 25 MB, 5,000 chunks. Import errors: `too_large`, `not_json`,
+`wrong_kind`, `wrong_schema_version`, `invalid` (with the field),
+`checksum_mismatch`, `read_failed`.
 
-### Where it shows
+## Retrieval
+
+**Ranking (BM25).** A chunk's score is its card's score over the title
+(boost 2) and the symptom line (2.5), indexed once per card, plus its own
+score over the heading (1.5) and the text. The layer the question asks
+about gets ×1.3 on its own part only, so the hint picks among a card's
+layers without being outweighed by what all of them share:
+
+| Layer | Words that point to it |
+|---|---|
+| 3, network data | Network tab, status, a status code (`403`), response, request, payload, `.json`, HAR, "means", "returned" |
+| 2, Console and Elements | Console, Elements, DevTools, selector, XPath, DOM, inspect |
+| 1, settings | Studio, Admin, setting, configure, publish, toggle |
+| 4, support | support, ticket, escalate, contact, "send to" |
+
+With no hint, a question naming a file prefers layer 3 and any other
+layer 1. Ties go to the lower page id, then the lower layer.
+
+**Terms.** Lower case, "doesn't" as "does not", function words dropped,
+then a light deterministic stemmer (`stem.ts`: plurals, `-ing`, `-ed`,
+`-er`/`-est`, `-ly`, a final `e`; never a token with digits or dots). A
+file name stays whole, its id normalized (`flow-123.json`,
+`flow-<uuid>.json` and `flow-ID.json` are all `flow-id.json`), and its
+parts follow it. Prefixes match from 4 characters; typos (one edit per five
+characters) from 6, and only for a word no card holds.
+
+**Synonyms** (`synonyms.ts`, weight 0.8): balloon/tooltip/popup/bubble/hint;
+workflow/walkthrough/guide/flow/tour; reload/refresh/F5;
+production/prod/live; test/UAT/staging/QA/sandbox;
+freeze/hang/unresponsive/stuck; crash/tab crashed/out of memory;
+slow/sluggish/lag/laggy/performance; disappear/vanish/missing/gone;
+repeat/again/keeps coming back/every time/each login; language names and
+locale/translation; split step/decision step/branch/condition;
+launcher/button/icon/beacon; segment/audience/user group/targeting;
+publish/release/go live/deploy content; selector/XPath/CSS/locator;
+CSP/Content-Security-Policy/nonce; CORS/cross-origin; iframe/frame/embedded;
+shadow DOM/shadow root/LWC; skip/jump/starts at step.
+
+**Coverage (is the question covered at all?).** BM25 sums over terms, so a
+long off-topic question can outscore a short covered one; coverage does not
+depend on length. Over the question's distinct terms,
+
+```
+idf(t)    = ln(1 + N / (1 + df(t)))      N = documents (chunks, and one per stub or routing card)
+coverage  = Σ idf(t) · match(t) / Σ idf(t)
+match(t)  = 1 exact or stemmed, 0.8 synonym, 0.5 typo or prefix, 0 none   (against the top card)
+```
+
+A word no card holds gets the highest idf, so "saml", "kubernetes" or
+"licence" pull coverage down. The question is covered when coverage ≥
+`coverage.min` **and** at least `coverage.minTerms` matched terms have idf
+≥ `coverage.minIdf` (so "apty widget" alone is never covered).
+Not covered: `reason: "no_match" | "low_coverage" | "unknown_setting"`.
+
+**Setting-name guard.** Each quoted phrase and each run of two or more Title
+Case words (not a sentence's first word, not names such as Apty, Chrome,
+Google, Microsoft, Salesforce, Network, Console, Elements, DevTools) must
+appear, stemmed, in the top card. Otherwise: `unknown_setting` with
+`missingPhrases`, e.g. "Widget Activation".
+
+**Stubs and routing.** A stub is searched on its title and symptom; when it
+is the best covered match the result is `status: "stub"` with the card
+(title, link, version, no text), never the nearest other card. A routing
+card takes part in ranking and is never returned.
+
+## Versions
+
+- **Packs per version.** One active pack per version in IndexedDB
+  (`pack:<version>`, `meta:<version>`); the one pack an earlier Agent stored
+  moves to 5.x on first open.
+- **Tab version.** A check's files decide it (`playerVersionOf`: 4.x reads
+  `flow.json`, `segments.json`, `rules.json`, `feature-flag.json`,
+  `flow-<id>.json`; 5.x reads `workflow.json`, `segment.json`, `rule.json`;
+  `app-urls.json` and `app-data.json` are read by both and tell nothing).
+  Otherwise the user's choice on the KB matches or verdict card, kept in the
+  side panel's memory per site host, never in `chrome.storage`. `search_kb`
+  takes an optional `aptyVersion` the model sets only when the user said it.
+- **What is searched.** The tab's version and the common pack, or every pack
+  when the version is unknown. Each hit carries its version; when the top
+  two differ, the card labels both and asks "These cards are for different
+  Apty versions; which does this tenant run?", and the prompt forbids
+  merging two versions' statements into one instruction.
+- **Links.** Every link is the card's own page (`card.url`); a check pack's
+  card with no pack loaded falls back to its version's space (A4PKH for 4.x,
+  JA for 5.x).
+
+## Where it shows
 
 - **Verdict card.** A cause that cites a card gets **From the KB card**: the
-  layer its rule reads (`cardLayerOf`: settings causes 1, page and element
-  causes 2, data and network causes 3), the card's `Verified on` line and a
-  **Not verified** badge. No pack, or a pack without the card: the link only.
-- **KB matches card.** A message that reports a symptom no check pack
-  claims gets the pack's top 3 cards, one chunk each, with no model call and
-  no AI key. A check pack's answer always wins; a bare "how do I configure X"
-  with no symptom goes to the model or Ask Dapty (D-KB1).
-- **Follow-up answers.** `search_kb` and its prompt section are offered with a
-  check pack's symptom or a product follow-up ("how do I", "setting", "in
-  Studio", "send support"). The model answers only from the returned chunks
-  and cites each claim; `kb://<pageId>#L<layer>` renders as "KB card 101,
-  layer 1", a link to the card.
+  layer its rule reads (`cardLayerOf`), the "Verified on" line and a **Not
+  verified** badge. The card says which Apty version its KB answers read.
+- **KB matches card.** Any message no check pack claims is searched; a
+  covered one shows the top 3 cards (title, version, one chunk each, link),
+  a stub shows "The KB has a card for this, but its `<version>` text is not
+  written yet." with its link, with no model call and no AI key. A bare
+  how-to ("how do I / how to / can I / where is the setting / where do I
+  configure / what is the setting for", with no symptom word) gets no card
+  (D-KB1). A message mostly outside the Latin script gets "The KB cards are
+  in English. Ask in English, or send the question to the model." when no
+  model is configured, and goes to the model otherwise.
+- **`search_kb`.** Offered with any Apty, network, DevTools, selector or
+  check-pack question, any symptom word, a question in another script and a
+  product follow-up ("setting", "in Studio", "send support"); not with a bare
+  how-to, a request to fetch a file or casual chat. The prompt section says
+  to answer only from the returned chunks, cite each claim, carry NOT
+  VERIFIED, say so on `not_covered`, `unknown_setting` (naming the phrase,
+  suggesting nothing similar) and `stub` (with the link), state the version,
+  and search in English for a question in another language.
+- **Grounding check.** After an answer in a turn whose `search_kb` calls
+  returned cards, every setting-like phrase no returned chunk holds is
+  underlined with the tooltip "Not found in the cited KB cards" and named
+  under the answer; a `kb://` cite the turn did not return reads "unknown
+  citation". Deterministic, no model call, the text unchanged.
 
-## Lifecycle
+## Lifecycle: the KB owner
 
-### Build a pack (KB owner)
-
-```bash
-CONFLUENCE_EMAIL=kb-reader@example.com CONFLUENCE_TOKEN=… pnpm kb:pack --customer-names ~/apty-kb/customer-names.txt --diff ~/apty-kb/previous.kbpack.json --threshold 18.2
-```
-
-- The token is a read-only service account's **classic** API token (a
-  scoped token cannot use CQL search, and the builder says so). It is read
-  from the environment and never written or logged.
-- The pack is written to `~/apty-kb/apty-kb-JA-<yyyymmdd>.kbpack.json`, mode
-  600; the builder refuses to write inside this repository.
-- It prints ids, titles and counts only: the cards it skipped (not exactly
-  layers 1 to 4, or a layer over 1,000 characters), those with NOT VERIFIED
-  statements or no `Verified on` line, and with `--diff` the cards added,
-  changed and removed.
-- `--customer-names <file>` (one name per line, `#` comments) fails the
-  build on a match and names the page ids only.
-- It reads the pages titled "RAG Card: …" under
-  [RAG Answer Cards](https://apty.atlassian.net/wiki/spaces/JA/pages/1496711169/RAG+Answer+Cards)
-  (`--root 1496711169`, the default), each group page's title ("Workflows",
-  "Studio", …) as the card's group: 125 cards in 17 groups on 2026-11-07.
-  `--label <label>` selects labelled pages instead. The "start here"
-  routing cards have no `Layer N:` sections, so they are reported as
-  skipped. When the restructure moves the tree, pass `--space` and `--root`.
-
-### Share it
-
-Upload the pack to a restricted internal page (Confluence or SharePoint).
-Never attach it to a GitHub issue, PR, release or CI run: this repository
-and its releases are public, and `npm run audit:kb-pack` fails CI on a pack
-in the tree or the build.
-
-### Import it (each SE)
-
-Options → Settings → General → **Knowledge base** → **Import pack…**. The card
-shows the space, card count, build and import dates and retrieval mode, and
-warns when the pack is more than 30 days old; Preflight reports the same.
-**Replace pack…** loads a newer one; **Remove** deletes it after a
-confirmation.
-
-### Evaluate and calibrate (KB owner)
+Needs a read-only service account's **classic** Confluence API token (a
+scoped token cannot use CQL search, and the builder says so).
 
 ```bash
-pnpm kb:eval --pack ~/apty-kb/apty-kb-JA-20261110.kbpack.json --questions ~/apty-kb/questions-40.json --calibrate
+mkdir -p ~/apty-kb
 ```
 
-The questions file is `[{ "id", "q", "expectedPageIds": [...], "expectedLayer"? }]`;
-an empty `expectedPageIds` means the KB should not cover the question. The
-report gives Recall@1, Recall@3, MRR, layer accuracy, "not covered"
-precision and recall, and each miss by question id; `--calibrate` suggests
-the threshold to pass to `kb:pack --threshold`. The 40-question set stays
-outside this repository. A synthetic set
-(`tooling/scripts/kb/fixtures/`) runs in CI.
+```bash
+export CONFLUENCE_EMAIL=<service-account-email> CONFLUENCE_TOKEN=<classic-read-only-token>
+```
+
+```bash
+pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x
+```
+
+```bash
+pnpm kb:pack --space JA --root 1496711169 --version 5.x
+```
+
+```bash
+pnpm kb:pack --space <common-space-key> --root <root-page-id> --version common
+```
+
+The builder reads the "RAG Card:" pages under the root, each group page's
+title as the card's group, and prints ids, titles and counts only: cards per
+class (full, stub, routing, malformed with its reason), cards with NOT
+VERIFIED statements, no "Verified on" line or no "Symptom:" line, and with
+`--diff <old pack>` the cards added, changed and removed. `--customer-names
+<file>` fails the build on a listed name (page ids only). `--synonyms <file>`
+adds the owner's groups (one per line, comma-separated). The pack is written
+to `~/apty-kb/apty-kb-<space>-<version>-<yyyymmdd>.kbpack.json`, mode 600;
+the builder refuses to write inside this repository. `--version` is required
+for JA and any space other than A4PKH.
+
+**Calibrate, then rebuild** with the printed flags:
+
+```bash
+pnpm kb:eval --pack ~/apty-kb/apty-kb-A4PKH-4.x-<yyyymmdd>.kbpack.json --questions ~/apty-kb/questions-4x.json --calibrate --by-category
+```
+
+```bash
+pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x --coverage-min <x> --coverage-min-idf <y>
+```
+
+**Share** the files on a restricted internal page. Never attach a pack to a
+GitHub issue, PR, release or CI run: this repository and its releases are
+public, and `npm run audit:kb-pack` fails CI on a pack in the tree or the
+build.
+
+## Lifecycle: each SE
+
+Options → Settings → General → **Knowledge base** → **Import pack…**, once
+per version; the file names its version. Each loaded pack has a row
+(version, space, cards and how many are not yet written, build and import
+dates, retrieval, calibration) with **Replace** and **Remove** (after a
+confirmation; the other versions stay). A pack older than 30 days gets a
+warning, in Options and in Preflight (one row per version).
+
+## Evaluation
+
+```bash
+pnpm kb:eval --pack <file> --questions <file> [--calibrate] [--coverage-min <x>] [--coverage-min-idf <y>] [--by-category] [--json]
+```
+
+A questions file is a list of `{ "id", "category"?, "q", "expectedPageIds",
+"expectedLayer"?, "surface"? }`. An empty `expectedPageIds` means the KB
+should not cover it; a stub counts as a hit when it is the expected card; a
+`multi` question needs all its cards in the top 3; `"surface": "responder"`
+(a bare how-to, a question in another script) is left to the responder's
+tests. The report gives Recall@1, Recall@3, MRR, layer accuracy, "not
+covered" precision and recall, covered recall and each miss by id; it never
+prints question or card text. `--by-category` prints the same per category.
+`--calibrate` grid-searches `coverage.min` (0.05 to 0.95) and `minIdf` (the
+vocabulary idf's 10th to 90th percentiles) for the best Youden J (covered
+recall + not-covered recall − 1), keeping Recall@3 within 0.02 of the
+uncapped ranking, and prints the `kb:pack` flags.
+
+**Gate (D-KB8), per version, on the real sets** (60 or more questions, at
+least 9 not covered, every category of FIXES.md 7.2, written in the owner's
+own words and kept in `~/apty-kb/`): Recall@3 ≥ 0.90, "not covered"
+precision ≥ 0.90 and recall ≥ 0.80, layer accuracy ≥ 0.70. On the synthetic
+set (`tooling/scripts/kb/fixtures/demo-questions-4x.json`, `-5x.json`) every
+question passes.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Import refused: "too large" | Over 25 MB or 5,000 chunks | Ask the KB owner to split the tree |
+| Import refused: "not JSON" / "not a KB pack" | Wrong file | Import the `.kbpack.json` file |
+| Import refused: "schema version" | A pack from a newer builder | Update the Agent |
+| Import refused: "malformed" | The file was edited or cut | Download it again; the owner rebuilds if it persists |
+| Import refused: "checksum" | Changed or truncated in transit | Download it again |
+| Everything is "not covered" | Coverage settings too strict for the pack, or the tab's version has no pack loaded | Rebuild with the calibrated flags; import the tab's version, or choose "Not sure" |
+| Cards of the wrong version | The tab's version is unknown or was chosen wrongly | Pick the version on the KB matches or verdict card; a check's files decide it when one runs |
+| No KB card with no AI key | The message reads as a bare how-to, or nothing covers it | Name the symptom ("…does not show", "…flickers"); how-tos belong to Ask Dapty (D-KB1) |
+| The model does not call `search_kb` | The message is casual, a bare how-to or a file request | Name the symptom or the Apty item; `tool-relevance.ts` lists the words |
+| Links open the wrong space | A schema 1 pack (always JA) | Rebuild the pack with this builder |
+| "Older than 30 days" | Stale pack | Ask the KB owner for a newer one |
+| "The KB cards are in English" | The question is mostly in another script and no model is configured | Ask in English, or configure a model |
 
 ## Not done
 
-- **A real pack and real numbers.** No pack has been built from Confluence
-  yet, and the 40-question set has not been run, so no
-  threshold is calibrated and no target exists (End goal, section 9).
-- **K7, dense vectors.** Not shipped: it ships only if K8 on the real set
-  shows a gain the owner accepts, and it would add the quantized model
-  (about 23 MB) to the extension. The fusion code is ready in
-  `createKbIndex`.
-- **Real providers.** `search_kb` was tested with a mock model in Chromium,
-  not with a real provider.
+- **Real cards and the D-KB8 gate.** The real 4.x and 5.x packs and their
+  60-question sets have not been run in this repository's work (no classic
+  Confluence token here). The KB owner runs the commands above and records
+  the numbers (ids only) on the handbook page F15.
+- **4.x check packs from a checkout.** The 4.x widget and flow checks were
+  ported from the behaviour FIXES.md K14 describes; their apty-assist file
+  and line citations are to be confirmed against a checkout, and causes
+  other than `app-urls.json` cite the A4PKH tree until the KB owner names
+  their cards. A 4.x port of the selector and page checks is later work.
+- **The 4.x Client bridge** is described in
+  [`4X-BRIDGE.md`](../integrations/apty/4X-BRIDGE.md), not yet in apty-assist.
+- **K7, dense vectors.** Not shipped; decide again on the real sets.
+- **Real providers.** `search_kb` was tested with a mock model in Chromium.
 
 ## Tests
 
 | What | Where |
 |---|---|
-| Builder (fetch, parse, checksum, deny list, diff, CLI) | `tooling/scripts/kb/build-kb-pack.test.mjs` |
-| Evaluation and calibration | `tooling/scripts/kb/eval-kb.test.mjs` |
+| Builder (fetch, parse, classes, symptom, versions, checksum, deny list, diff, coverage and synonym flags, CLI) | `tooling/scripts/kb/build-kb-pack.test.mjs` |
+| Evaluation, calibration, categories | `tooling/scripts/kb/eval-kb.test.mjs` |
+| Demo packs, the synthetic edge-case set | `tooling/scripts/kb/build-demo-pack.test.mjs` |
 | Repository guard | `tooling/scripts/check-no-kb-pack.test.mjs` |
-| Schema, checksum vector, limits | `packages/agent-core/src/kb/pack.test.ts` |
-| Ranking, ties, threshold, fusion | `packages/agent-core/src/kb/search.test.ts` |
-| Store, index cache, tool, matches | `packages/browser-runtime/src/storage/kb-store.test.ts`, `src/kb/*.test.ts`, `src/tools/kb.test.ts` |
-| Import, restart, Preflight, axe, keyboard | `tooling/e2e/knowledge-base.e2e.test.mjs` |
-| `search_kb` with a mock model, citation link, "not covered" for an uncovered question | `tooling/e2e/kb-answer.e2e.test.mjs` |
-| Card text under a cause, both themes | `tooling/e2e/visibility-check.e2e.test.mjs`, `dapty-check.e2e.test.mjs` |
-| KB matches card with no AI key | `tooling/e2e/kb-matches.e2e.test.mjs` |
+| Schema 1 and 2, checksum, limits, links | `packages/agent-core/src/kb/pack.test.ts` |
+| Ranking, coverage, guard, symptom, stems, synonyms, file names, layer hints, stubs | `packages/agent-core/src/kb/search.test.ts`, `text.test.ts`, `stem.test.ts` |
+| Several packs, versions, mixed results | `packages/agent-core/src/kb/index-set.test.ts` |
+| Store per version and migration, index per version, tool, matches, intent, tab version | `packages/browser-runtime/src/storage/kb-store.test.ts`, `src/kb/*.test.ts`, `src/tools/kb.test.ts` |
+| When `search_kb` is offered | `packages/browser-runtime/src/tools/tool-relevance.test.ts` |
+| Options rows, citations, grounding | `packages/ui/src/components/settings/knowledge-base-card.test.tsx`, `src/lib/kb-citations.test.ts`, `kb-grounding.test.ts`, `message-item.test.tsx` |
+| Two packs, restart, migration, Preflight rows, axe, keyboard | `tooling/e2e/knowledge-base.e2e.test.mjs` |
+| `search_kb` with a mock model, citation link, "not covered" | `tooling/e2e/kb-answer.e2e.test.mjs` |
+| KB matches card with no AI key, every symptom family, the English-cards notice | `tooling/e2e/kb-matches.e2e.test.mjs` |
+| Card text under a cause; a 4.x tenant | `tooling/e2e/visibility-check.e2e.test.mjs`, `dapty-check.e2e.test.mjs` |
+| 4.x evidence: Capture and reload, a service-worker HAR | `tooling/e2e/four-x-evidence.e2e.test.mjs` |

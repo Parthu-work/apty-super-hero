@@ -213,6 +213,7 @@ export function byCategory(core, pack, questions, options = {}) {
     const report = evaluate(core, pack, groups.get(name), options);
     return {
       category: name,
+      responder: groups.get(name).every((q) => q.surface === "responder"),
       questions: report.questions,
       recallAt1: report.recallAt1,
       recallAt3: report.recallAt3,
@@ -385,6 +386,10 @@ export async function run({
       out(format(report));
       const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(0)}%`);
       for (const c of report.byCategory ?? []) {
+        if (c.responder) {
+          out(`  ${c.category}: left to the responder's tests`);
+          continue;
+        }
         out(
           `  ${c.category}: ${c.questions} q, R@1 ${pct(c.recallAt1)}, R@3 ${pct(c.recallAt3)}, layer ${pct(c.layerAccuracy)}, not covered P ${pct(c.notCoveredPrecision)} R ${pct(c.notCoveredRecall)}${c.misses.length ? `, misses ${c.misses.join(",")}` : ""}`,
         );

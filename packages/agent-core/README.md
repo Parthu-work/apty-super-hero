@@ -359,6 +359,49 @@ Key fields:
 - `KeyValueStorage<T>`: `save`, `load`, `delete`, `listAll`, `query`, `watch`
 - `InMemoryStorage<T>`: reference implementation of `KeyValueStorage`
 
+## Knowledge base (KB) API
+
+The KB-RAG core, platform-free ([`docs/development/kb-rag.md`](../../docs/development/kb-rag.md)):
+
+- `parseKbPack(text, { sha256 })`: checks a pack file (size, kind, schema 1
+  or 2, shape, references, checksum) and returns `{ ok: true, pack }` or
+  `{ ok: false, code }`; a schema 1 pack comes back as a 5.x pack of full
+  cards with no symptom. The SHA-256 function is injected (Web Crypto in
+  the browser, `node:crypto` in Node).
+- `createKbIndex(pack)`: one pack's index. `createKbIndexSet(packs)`: one
+  search over several (a tab's version and the common pack, or all).
+- `index.search(query, { topK, layers, onePerCard })` returns
+  `{ status, hits, coverage, reason?, missingPhrases?, card?, cardVersion?, mixedVersions? }`:
+  `status` is `ok`, `not_covered` (`reason`: `no_match`, `low_coverage`,
+  `unknown_setting` with `missingPhrases`) or `stub` (`card`, its text not
+  written yet); each hit has `chunk`, `card`, `score` and `aptyVersion`.
+- `index.cardChunks(pageId)`, `index.card(pageId)`: a card's own layers, for
+  a finding that names its card.
+- `kbCardUrl(pageId, { url, site, space, aptyVersion })`: a card's link.
+- `KB_APTY_VERSIONS` (`4.x`, `5.x`, `common`), `KB_COVERAGE_DEFAULTS`,
+  `layerHint(query)`, `stem`, `kbTerms`, `namedPhrases`.
+
+```ts
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { createKbIndexSet, kbCardUrl, parseKbPack } from "@apty/agent-core";
+
+const sha256 = async (text: string) =>
+  createHash("sha256").update(text).digest("hex");
+// A synthetic demo pack: pnpm kb:demo-pack --version 5.x
+const text = readFileSync(`${process.env.HOME}/apty-kb/apty-kb-DEMO-5.x.kbpack.json`, "utf8");
+const parsed = await parseKbPack(text, { sha256 });
+if (!parsed.ok) throw new Error(parsed.code);
+
+const index = createKbIndexSet([parsed.pack]);
+const result = index.search("tooltip flickering on hover", { topK: 3, onePerCard: true });
+for (const hit of result.hits) {
+  console.log(hit.chunk.id, hit.aptyVersion, hit.card.title, kbCardUrl(hit.chunk.pageId, hit.card));
+}
+index.search("where is the Widget Activation toggle");
+// → { status: "not_covered", reason: "unknown_setting", missingPhrases: ["Widget Activation"], … }
+```
+
 ## Development (monorepo)
 
 From the repository root:

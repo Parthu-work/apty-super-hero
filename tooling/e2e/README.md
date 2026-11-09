@@ -7,6 +7,10 @@ first (`npm run build`, which also builds the MCP bridge daemon).
 |---|---|
 | `agent.e2e.test.mjs` | The real side panel and agent loop against a scripted OpenAI-compatible model: the approval prompt (Allow, Deny, "Allow on this site", revoke), response-body opt-in and deny-list, a clean console, and DOM Health on a tab whose content scripts were orphaned by an extension restart. |
 | `apty-client.e2e.test.mjs` | Fake Apty Client extensions (working, not allow-listed, bridge missing): the Options handshake and its messages, the agent reading a 206-item body and a 403 body, with the full-response viewer, and a bare "get segments.json" answered with no model request (the deny list included) whose evidence the model pages on a follow-up. |
+| `knowledge-base.e2e.test.mjs` | KB-RAG packs in Options: a 5.x and a 4.x synthetic pack imported side by side, a tampered one refused, both kept across an extension restart, one Preflight row per version, axe in both themes, removing the 4.x pack by keyboard keeps the 5.x one, and the one pack an earlier Agent stored moved to 5.x. |
+| `kb-answer.e2e.test.mjs` | `search_kb` with a mock model: the KB prompt section and tool offered, the card's chunk with its site, space and version reaching the request, the citation linking to the card's own page, and "not covered" (with its reason) for a question the pack does not cover. |
+| `kb-matches.e2e.test.mjs` | The KB matches card with no AI key: a symptom answered from the pack with no model request (axe in both themes), one question per K16 symptom family (flickers, hangs, keeps coming back, jumps), the English-cards notice for a question in Chinese, and a bare how-to left to the model. |
+| `four-x-evidence.e2e.test.mjs` | A 4.x tenant with no Apty Client (K15): an Injected-mode page (`fixtures/fake-4x-client/`) checked through "Capture and reload", and a HAR saved from the 4.x Client's service worker (no page entry) checked against the tab's page once confirmed; 4.x verdicts citing 4.x cards only, no model request. |
 | `visibility-check.e2e.test.mjs` | A fake Apty Client serving synthetic 5.x content files: "not visible in the widget" answered with the check card and no model request (no Client saved, a hidden workflow, the scan of every workflow, a segment that is turned off in dark mode), axe on the card, a follow-up reaching the model with the check in its history, the widget check against the page in the tab (a pattern too specific for it, and a covered page), the logs check reading the Client's logs and a page that logs a message the KB cards name, and the selector and page checks on a page built to break each fixture selector (two matches, only in a frame, behind a shadow root, a workflow step with a generated id) and DOM Health's audit of it. |
 | `dapty-capture.e2e.test.mjs` | The Ask Dapty capture layer: an injected widget's chat call on the tab's network (passively, then both bodies while recording), the same call from another extension's service worker seen by neither source, and the widget's chat panel read from its open shadow root. |
 | `dapty-cdn.e2e.test.mjs` | The checks with an Apty Client that reports nothing (like 5.x, it takes every external message and answers none; no Client ID saved). The widget check reads its files from the content CDN in under 6 s. The Ask Dapty check: the Agent finds the Client from the script it injects, reads its web-accessible `player-config.json`, then the content files and the user's stored chat from a local content CDN, and shows each suggestion's outcome by id with no model request, no URL, the email masked and no credentials sent. |
@@ -23,6 +27,40 @@ first (`npm run build`, which also builds the MCP bridge daemon).
 | `dom-health-apps-<part>.e2e.test.mjs` | DOM Health on six application shapes (deep shadow DOM, frameset, cross-origin portal, pushState SPA, click-only, third-party overlay), "Ask about this result" and the validation bundle export, in three files; the pages and the shared setup are in `dom-health-apps-suite.mjs`. |
 | `keyboard.e2e.test.mjs` | Every flow by keyboard alone (open the menu and a tool, start and stop a DOM config capture, check a page and ask about the result, delete a chat through its confirmation, the Options tabs by arrow keys), and the names of the panel's and Options' main controls. |
 | `mcp.e2e.test.mjs` | The real MCP daemon: the Options page Connect button, the daemon's dangerous-tool block, and the approval prompt relayed from the service worker to the side panel. |
+
+Run one file, the KB set, or all of them (build first):
+
+```bash
+node --test --test-timeout=180000 tooling/e2e/kb-matches.e2e.test.mjs
+```
+
+```bash
+node --test --test-timeout=180000 --test-concurrency=1 tooling/e2e/knowledge-base.e2e.test.mjs tooling/e2e/kb-answer.e2e.test.mjs tooling/e2e/kb-matches.e2e.test.mjs tooling/e2e/visibility-check.e2e.test.mjs tooling/e2e/har-check.e2e.test.mjs tooling/e2e/apty-client.e2e.test.mjs tooling/e2e/four-x-evidence.e2e.test.mjs
+```
+
+```bash
+npm run test:e2e
+```
+
+To debug a failing test, run its file with the browser shown, or record a
+Playwright trace of each browser it launches and open it in the trace
+viewer:
+
+```bash
+E2E_HEADED=1 node --test --test-timeout=180000 tooling/e2e/kb-matches.e2e.test.mjs
+```
+
+```bash
+E2E_TRACE=/tmp/apty-e2e-traces node --test --test-timeout=180000 tooling/e2e/kb-matches.e2e.test.mjs
+```
+
+```bash
+npx playwright-core show-trace /tmp/apty-e2e-traces/<trace-file>.zip
+```
+
+`fixtures/fake-4x-client/` holds a synthetic 4.x player in Injected mode
+(see its README); `fixtures/fake-5x-client/` the 5.x Client extension.
+`kb-fixture.mjs` builds the synthetic KB packs with the real builder.
 
 `E2E_EXTENSION_DIR` runs the suite against another build, e.g. `main`'s, to
 compare behaviour before and after a change.

@@ -71,6 +71,39 @@ pnpm --filter @apty/browser-extension build
 Vite outputs to `dist/` by default (unless `build.outDir` is configured).
 Load the built extension by selecting the build output directory in `chrome://extensions`.
 
+## Reload after a rebuild
+
+After every `pnpm build`, open `chrome://extensions` and click the reload
+icon on the Apty Agent's card; reopen the side panel. A loaded KB pack and
+your settings survive the reload.
+
+## Knowledge base
+
+The KB packs (KB-RAG, [`docs/development/kb-rag.md`](../../docs/development/kb-rag.md))
+live in the extension origin's IndexedDB database `apty-kb-db`, object
+store `records`: `pack:<version>` holds a pack's cards and chunks and
+`meta:<version>` what Options shows about it, for each of `4.x`, `5.x` and
+`common`. Nothing of a pack is in `chrome.storage`.
+
+To inspect or clear it: open Options (or the side panel), open DevTools
+(right-click → Inspect), **Application** → **IndexedDB** → `apty-kb-db` →
+`records`. Remove a pack from Options → Settings → General → Knowledge base
+rather than deleting records by hand; the store keeps each pack and its
+meta record together.
+
+Where the KB shows:
+
+- **Options → Settings → General → Knowledge base**: Import pack… (the file
+  names its version), one row per loaded pack with Replace and Remove, and
+  the age warning. **Connection → Preflight** has a row per version.
+- **Side panel**: the KB matches card for a message no check pack claims
+  (no AI key needed), "From the KB card" under each cause of a check's
+  verdict card, "Apty version: 4.x / 5.x / Not sure" on both, the model's
+  `search_kb` calls with citations that link to each card, and the
+  grounding note under an answer that names a setting the cited cards do
+  not hold. A 4.x verdict with no files offers **Capture and reload** and
+  the steps to save a HAR from the 4.x Client's service worker.
+
 ## Project structure
 
 - `manifest.json`: MV3 manifest
