@@ -154,6 +154,34 @@ describe("createDiagnosisResponder", () => {
     expect(JSON.stringify(answer?.result)).not.toContain("mrn=12345");
   });
 
+  it("asks a source for the 4.x files only once its calls show a 4.x tenant", async () => {
+    const fiveX = vi.fn(async () => evidenceFrom(capture()));
+    await createDiagnosisResponder({ filesOf: fiveX })(
+      "the Apty widget is not appearing",
+      {},
+    );
+    await createDiagnosisResponder({ filesOf: fiveX })(
+      "My workflow 'Take a tour' is not visible in the widget",
+      {},
+    );
+    for (const [, , names] of fiveX.mock.calls as unknown as [
+      unknown,
+      unknown,
+      string[],
+    ][]) {
+      expect(names).not.toContain("feature-flag.json");
+      expect(names).not.toContain("flow.json");
+    }
+    const fourX = vi.fn(async () => evidenceFrom(capture("content-4x")));
+    await createDiagnosisResponder({ filesOf: fourX })(
+      "the Apty widget is not appearing",
+      {},
+    );
+    expect(fourX.mock.calls.map((call) => call[2])).toContainEqual(
+      expect.arrayContaining(["feature-flag.json"]),
+    );
+  });
+
   it("says when a 4.x check read its files from the page's network capture (K15)", async () => {
     const filesOf = vi.fn(async () => ({
       ...evidenceFrom(capture("content-4x")),

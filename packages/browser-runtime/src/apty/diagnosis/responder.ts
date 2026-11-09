@@ -278,7 +278,22 @@ async function noteVersion(
 }
 
 /**
- * The content check's files: the 5.x ones and the 4.x ones (KB-RAG K14),
+ * A source's 4.x files, asked for only once its calls show a 4.x tenant
+ * (KB-RAG K14): the content CDN is 5.x only, and asking it for a 4.x name
+ * would fail in the page.
+ */
+async function withFiles4x(
+  load: (names: readonly string[]) => Promise<ClientEvidence>,
+  evidence: ClientEvidence,
+  names: readonly string[],
+): Promise<ClientEvidence> {
+  if (!looks4x(evidence)) return evidence;
+  const more = await load(names);
+  return { ...evidence, files: { ...evidence.files, ...more.files } };
+}
+
+/**
+ * The content check's files: the 5.x ones, then the 4.x ones (KB-RAG K14),
  * and for a 4.x flow named in the question, that flow's steps file.
  */
 async function contentEvidence(
@@ -286,7 +301,11 @@ async function contentEvidence(
   kind: ContentKind,
   query: string | undefined,
 ): Promise<ClientEvidence> {
-  const evidence = await load([...filesFor(kind), ...CONTENT_FILES_4X]);
+  const evidence = await withFiles4x(
+    load,
+    await load(filesFor(kind)),
+    CONTENT_FILES_4X,
+  );
   if (!looks4x(evidence) || kind !== "workflow" || !query) return evidence;
   const flows = records(jsonOf(evidence, "flow.json"));
   const wanted = query.trim().toLowerCase();
@@ -367,7 +386,9 @@ export async function runPack(
     return diagnoseLogsAndErrors(evidence, route.about404);
   }
   if (route.packId === "widget-not-visible") {
-    const evidence = await load([...WIDGET_FILES, ...WIDGET_FILES_4X]);
+    const evidence = await withFiles4x(load, await load(WIDGET_FILES), [
+      ...WIDGET_FILES_4X,
+    ]);
     await noteVersion(evidence, pageUrl);
     return fromCdn(
       diagnoseWidgetNotVisible(evidence, await pageUrl()),
