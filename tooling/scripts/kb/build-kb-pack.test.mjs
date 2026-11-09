@@ -359,7 +359,9 @@ describe("buildPack", () => {
       page("3", { body: cardBody({ layers: 2 }) }),
       page("100"),
     ];
-    const { pack, skipped } = buildPack({ ...args, pages, threshold: 1.5 });
+    const coverage = { min: 0.45, minIdf: 2.1, minTerms: 1 };
+    const { pack, skipped } = buildPack({ ...args, pages, coverage });
+    assert.equal(pack.schemaVersion, 2);
     assert.deepEqual(
       pack.cards.map((card) => card.pageId),
       ["20", "100"],
@@ -390,13 +392,13 @@ describe("buildPack", () => {
       label: "rag-card",
       cardCount: 2,
     });
-    assert.deepEqual(pack.retrieval, { bm25: true, threshold: 1.5 });
+    assert.deepEqual(pack.retrieval, { bm25: true, coverage });
     const { sha256, ...rest } = pack;
     assert.equal(
       sha256,
       createHash("sha256").update(canonicalJson(rest)).digest("hex"),
     );
-    assert.deepEqual(buildPack({ ...args, pages, threshold: 1.5 }).pack, pack);
+    assert.deepEqual(buildPack({ ...args, pages, coverage }).pack, pack);
   });
 
   it("uses the canonical JSON agent-core checks: keys sorted at every level, no whitespace", () => {
@@ -501,7 +503,7 @@ describe("the CLI", () => {
     assert.equal(statSync(file).mode & 0o777, 0o600);
     assert.match(result.out, /Built 2 cards \(8 chunks\)/);
     assert.match(result.out, /NOT VERIFIED statements: 7, 8/);
-    assert.match(result.out, /no --threshold/);
+    assert.match(result.out, /no --coverage-min/);
     for (const secret of [
       "Glowing Banner",
       "glowIds",
@@ -585,6 +587,32 @@ describe("the CLI", () => {
     assert.equal(calls.length, 0);
   });
 
+  it("writes the calibrated coverage settings into the pack", async () => {
+    const out = join(tempDir(), "p.kbpack.json");
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const result = await runWith({
+      argv: [
+        "--space",
+        "FX",
+        "--out",
+        out,
+        "--coverage-min",
+        "0.35",
+        "--coverage-min-idf",
+        "2.4",
+      ],
+      fetchImpl,
+    });
+    assert.equal(result.code, 0, result.err);
+    const pack = JSON.parse(readFileSync(out, "utf8"));
+    assert.deepEqual(pack.retrieval.coverage, {
+      min: 0.35,
+      minIdf: 2.4,
+      minTerms: 1,
+    });
+    assert.doesNotMatch(result.out, /no --coverage-min/);
+  });
+
   it("names an empty label and a bad option", async () => {
     const { fetchImpl } = fakeConfluence({ ids: [] });
     const empty = await runWith({
@@ -604,8 +632,18 @@ describe("the CLI", () => {
       const refused = await runWith({ argv: [flag, value], fetchImpl });
       assert.match(refused.err, message);
     }
-    const bad = await runWith({ argv: ["--threshold", "-1"], fetchImpl });
-    assert.match(bad.err, /--threshold takes a score of 0 or more/);
+    for (const [flag, value, message] of [
+      ["--coverage-min", "1.5", /--coverage-min takes a number from 0 to 1/],
+      [
+        "--coverage-min-idf",
+        "-1",
+        /--coverage-min-idf takes a number of 0 or more/,
+      ],
+      ["--threshold", "2", /Unknown or incomplete option: --threshold/],
+    ]) {
+      const bad = await runWith({ argv: [flag, value], fetchImpl });
+      assert.match(bad.err, message);
+    }
     const unknown = await runWith({ argv: ["--token", "x"], fetchImpl });
     assert.match(unknown.err, /Unknown or incomplete option: --token/);
   });

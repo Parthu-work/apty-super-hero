@@ -87,8 +87,11 @@ export {
 } from "./kb/pack.js";
 export {
   createKbIndex,
+  KB_COVERAGE_DEFAULTS,
+  type KbCoverageSettings,
   type KbIndex,
   type KbIndexInfo,
+  type KbNotCoveredReason,
   type KbSearchHit,
   type KbSearchOptions,
   type KbSearchResult,

@@ -1,10 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-  canonicalJson,
-  KB_PACK_KIND,
-  KB_PACK_SCHEMA_VERSION,
-  type KbPack,
-} from "./pack.js";
+import { canonicalJson, KB_PACK_KIND, type KbPack } from "./pack.js";
 
 export interface SyntheticCard {
   pageId: string;
@@ -35,7 +30,7 @@ const DEFAULT_HEADINGS = (title: string): [string, string, string, string] => [
   `Layer 4: ${title}, when to contact support`,
 ];
 
-/** A synthetic pack, checksummed, with `retrieval` overrides; never real card text. */
+/** A synthetic pack, checksummed, with `retrieval` overrides; schema 1 unless `extra` says otherwise; never real card text. */
 export function syntheticPack(
   cards: SyntheticCard[],
   retrieval: Partial<KbPack["retrieval"]> = {},
@@ -43,7 +38,7 @@ export function syntheticPack(
 ): KbPack {
   const body = {
     kind: KB_PACK_KIND,
-    schemaVersion: KB_PACK_SCHEMA_VERSION,
+    schemaVersion: 1,
     builtAt: "2026-03-01T00:00:00.000Z",
     builder: "build-kb-pack 1.0.0",
     source: {

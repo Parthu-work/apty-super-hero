@@ -26,6 +26,7 @@ export interface FixtureCard {
 export function fixturePackText(
   cards: FixtureCard[],
   retrieval: Record<string, unknown> = {},
+  extra: Record<string, unknown> = {},
 ): string {
   const body = {
     kind: KB_PACK_KIND,
@@ -60,6 +61,7 @@ export function fixturePackText(
         notVerified: text.includes("NOT VERIFIED"),
       })),
     ),
+    ...extra,
   };
   const sha256 = createHash("sha256").update(canonicalJson(body)).digest("hex");
   return JSON.stringify({ ...body, sha256 });

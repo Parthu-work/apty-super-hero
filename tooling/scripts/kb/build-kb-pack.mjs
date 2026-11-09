@@ -9,7 +9,8 @@
  * Usage:
  *   CONFLUENCE_EMAIL=… CONFLUENCE_TOKEN=… pnpm kb:pack [--site apty.atlassian.net]
  *     [--space JA] [--root <pageId> | --label <label>] [--out <file>]
- *     [--threshold <score>] [--customer-names <file>] [--diff <old pack>]
+ *     [--coverage-min <0-1>] [--coverage-min-idf <idf>]
+ *     [--customer-names <file>] [--diff <old pack>]
  *
  * The cards are the pages titled "RAG Card: …" under the RAG Answer Cards
  * page (`--root`, default 1496711169 in JA), each group page's title as
@@ -35,6 +36,8 @@ const TITLE_PREFIX = /^RAG Card:\s*/i;
 const GROUP_PREFIX = /^RAG Cards:\s*/i;
 /** The RAG Answer Cards page in JA, whose descendants are the cards. */
 export const RAG_ANSWER_CARDS_PAGE = "1496711169";
+/** The search's own defaults (agent-core `KB_COVERAGE_DEFAULTS`), for a flag given alone. */
+const COVERAGE_DEFAULTS = { min: 0.5, minIdf: 1.5, minTerms: 1 };
 const DEFAULTS = {
   site: "apty.atlassian.net",
   space: "JA",
@@ -361,7 +364,7 @@ export async function fetchCardPages({
 }
 
 /** The pack for these pages, sorted by page id, with its checksum; and the pages skipped. */
-export function buildPack({ pages, site, space, label, builtAt, threshold }) {
+export function buildPack({ pages, site, space, label, builtAt, coverage }) {
   const cards = [];
   const chunks = [];
   const skipped = [];
@@ -379,10 +382,10 @@ export function buildPack({ pages, site, space, label, builtAt, threshold }) {
     chunks.push(...parsed.chunks);
   }
   const retrieval = { bm25: true };
-  if (threshold !== undefined) retrieval.threshold = threshold;
+  if (coverage !== undefined) retrieval.coverage = coverage;
   const pack = {
     kind: PACK_KIND,
-    schemaVersion: 1,
+    schemaVersion: 2,
     builtAt,
     builder: BUILDER,
     source: { site, space, label, cardCount: cards.length },
@@ -476,7 +479,8 @@ function parseArgs(argv) {
     "--root": "root",
     "--label": "label",
     "--out": "out",
-    "--threshold": "threshold",
+    "--coverage-min": "coverageMin",
+    "--coverage-min-idf": "coverageMinIdf",
     "--customer-names": "customerNames",
     "--diff": "diff",
   };
@@ -496,12 +500,19 @@ function parseArgs(argv) {
   if (options.label !== undefined && !/^[\w.-]+$/.test(options.label)) {
     throw new BuildError("--label takes one label.");
   }
-  if (options.threshold !== undefined) {
-    const threshold = Number(options.threshold);
-    if (!Number.isFinite(threshold) || threshold < 0) {
-      throw new BuildError("--threshold takes a score of 0 or more.");
+  if (options.coverageMin !== undefined) {
+    const min = Number(options.coverageMin);
+    if (!Number.isFinite(min) || min < 0 || min > 1) {
+      throw new BuildError("--coverage-min takes a number from 0 to 1.");
     }
-    options.threshold = threshold;
+    options.coverageMin = min;
+  }
+  if (options.coverageMinIdf !== undefined) {
+    const minIdf = Number(options.coverageMinIdf);
+    if (!Number.isFinite(minIdf) || minIdf < 0) {
+      throw new BuildError("--coverage-min-idf takes a number of 0 or more.");
+    }
+    options.coverageMinIdf = minIdf;
   }
   return options;
 }
@@ -578,7 +589,19 @@ export async function run({
       space: options.space,
       label: options.label ?? `ancestor:${options.root}`,
       builtAt,
-      threshold: options.threshold,
+      coverage:
+        options.coverageMin === undefined &&
+        options.coverageMinIdf === undefined
+          ? undefined
+          : {
+              ...COVERAGE_DEFAULTS,
+              ...(options.coverageMin !== undefined
+                ? { min: options.coverageMin }
+                : {}),
+              ...(options.coverageMinIdf !== undefined
+                ? { minIdf: options.coverageMinIdf }
+                : {}),
+            },
     });
 
     const hits = customerNameHits(pack, names);
@@ -606,9 +629,9 @@ export async function run({
         `  warning: no "Verified on" line in ${unverified.map((card) => card.pageId).join(", ")}`,
       );
     }
-    if (pack.retrieval.threshold === undefined) {
+    if (pack.retrieval.coverage === undefined) {
       print(
-        "  warning: no --threshold; every match counts as covered until K8 calibrates one.",
+        "  warning: no --coverage-min or --coverage-min-idf; the default coverage settings apply until kb:eval --calibrate suggests values.",
       );
     }
     if (previous) {

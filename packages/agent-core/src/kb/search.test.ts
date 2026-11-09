@@ -110,6 +110,8 @@ describe("createKbIndex search", () => {
     expect(index.search("kubernetes helm chart")).toEqual({
       status: "not_covered",
       hits: [],
+      coverage: 0,
+      reason: "no_match",
     });
     const top = index.search("banner does not glow").hits[0]?.score ?? 0;
     const strict = createKbIndex(syntheticPack(CARDS, { threshold: top + 1 }));
@@ -196,5 +198,120 @@ describe("hybrid ranking", () => {
     const fused = index.search("survey blank", { queryVector, topK: 2 });
     expect(ids(fused)).toEqual(["303#L1", "202#L1"]);
     expect(fused.hits[1]?.score).toBeCloseTo(1 / 61);
+  });
+});
+
+const V2 = { schemaVersion: 2 } as const;
+const WIDGET_CARDS = [
+  card("101", "FIXTURE banner never glows in the widget", [
+    "- In Studio, turn on the FIXTURE Glowing Banner setting for the widget.",
+    "- The FIXTURE banner slot must be on the page next to the widget.",
+    "- glow.json lists glowIds for the widget (FIXTURE).",
+    "- Contact support when the widget banner still does not glow.",
+  ]),
+  card("202", "FIXTURE tooltip opens twice in the widget", [
+    "- In Studio, clear the FIXTURE Double Trigger setting in the widget.",
+    "- The FIXTURE anchor element must be unique for the widget.",
+    "- tooltip.json lists triggerCount for the widget (FIXTURE).",
+    "- Contact support when the widget tooltip still opens twice.",
+  ]),
+  card("303", "FIXTURE survey is blank in the widget", [
+    "- In Admin, set the FIXTURE Survey Locale for the widget user's language.",
+    "- The FIXTURE survey frame must load inside the widget.",
+    "- survey.json lists questions per locale for the widget (FIXTURE).",
+    "- Contact support when the widget survey stays blank.",
+  ]),
+  card("404", "FIXTURE checklist progress resets in the widget", [
+    "- In Admin, turn on FIXTURE Remember Progress for the widget checklist.",
+    "- Local storage must keep the FIXTURE progress key for the widget.",
+    "- progress.json lists completedSteps for the widget (FIXTURE).",
+    "- Contact support when the widget checklist still resets.",
+  ]),
+];
+
+describe("coverage (schema v2)", () => {
+  const index = createKbIndex(syntheticPack(WIDGET_CARDS, {}, V2));
+
+  it("does not cover a long off-topic question that a short covered one beats", () => {
+    const long = index.search(
+      "our kubernetes cluster keeps restarting the pod with CrashLoopBackOff after the helm upgrade so the payroll dashboard times out for managers in every region overnight",
+    );
+    expect(long).toMatchObject({ status: "not_covered", hits: [] });
+    expect(long.reason).toBe(long.coverage > 0 ? "low_coverage" : "no_match");
+    expect(long.coverage).toBeLessThan(0.5);
+
+    const short = index.search("survey blank");
+    expect(short.status).toBe("ok");
+    expect(short.hits[0]?.chunk.pageId).toBe("303");
+    expect(short.coverage).toBe(1);
+  });
+
+  it("names a setting the top card does not have, instead of answering with the card", () => {
+    const invented = index.search("where is the Glowing Toggle for the banner");
+    expect(invented).toMatchObject({
+      status: "not_covered",
+      reason: "unknown_setting",
+      missingPhrases: ["Glowing Toggle"],
+      hits: [],
+    });
+    const quoted = index.search('banner "glow switch" does not glow');
+    expect(quoted.missingPhrases).toEqual(["glow switch"]);
+
+    const real = index.search("where is the Glowing Banner setting");
+    expect(real.status).toBe("ok");
+    expect(real.hits[0]?.chunk.pageId).toBe("101");
+    expect(index.search("Chrome Network tab shows glow.json").reason).not.toBe(
+      "unknown_setting",
+    );
+  });
+
+  it("does not cover a question whose only matched words are in most cards", () => {
+    const result = index.search("apty widget");
+    expect(result.status).toBe("not_covered");
+    expect(result.reason).toBe("low_coverage");
+  });
+
+  it("gives the same coverage, to the last digit, every time", () => {
+    const again = createKbIndex(syntheticPack(WIDGET_CARDS, {}, V2));
+    for (const query of [
+      "banner never glows on the payroll page",
+      "tooltip opens twice",
+      "survey stays blank for French users",
+    ]) {
+      expect(again.search(query)).toEqual(index.search(query));
+      expect(
+        Object.is(again.search(query).coverage, index.search(query).coverage),
+      ).toBe(true);
+    }
+  });
+
+  it("uses the pack's calibrated coverage settings", () => {
+    const query =
+      "banner never glows on the payroll kubernetes dashboard overnight";
+    expect(index.search(query).status).toBe("not_covered");
+    const lenient = createKbIndex(
+      syntheticPack(
+        WIDGET_CARDS,
+        { coverage: { min: 0.2, minIdf: 0.5, minTerms: 1 } },
+        V2,
+      ),
+    );
+    expect(lenient.search(query).status).toBe("ok");
+    const strict = createKbIndex(
+      syntheticPack(
+        WIDGET_CARDS,
+        { coverage: { min: 0.5, minIdf: 0.5, minTerms: 3 } },
+        V2,
+      ),
+    );
+    expect(strict.search("survey blank").status).toBe("not_covered");
+  });
+
+  it("matches a typo only from six characters, and a prefix only from four", () => {
+    expect(index.search("tooltp opens").hits[0]?.chunk.pageId).toBe("202");
+    expect(index.search("glowz banner").coverage).toBeLessThan(1);
+    expect(index.search("glowz").status).toBe("not_covered");
+    expect(index.search("surv").hits[0]?.chunk.pageId).toBe("303");
+    expect(index.search("sur").status).toBe("not_covered");
   });
 });

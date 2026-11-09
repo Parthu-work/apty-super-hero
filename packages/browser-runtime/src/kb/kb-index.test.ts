@@ -22,8 +22,33 @@ describe("kbToolResult", () => {
     const index = await (await source()).source.current();
     expect(kbToolResult(index, "kubernetes helm chart")).toEqual({
       status: "not_covered",
+      reason: "no_match",
       results: [],
     });
+  });
+
+  it("tells the model why a schema 2 pack does not cover a question, naming a setting it lacks", async () => {
+    const v2 = fixturePackText(
+      FIXTURE_CARDS,
+      { coverage: { min: 0.5, minIdf: 1, minTerms: 1 } },
+      { schemaVersion: 2 },
+    );
+    const index = await (await source(v2)).source.current();
+    expect(
+      kbToolResult(index, "where is the Glowing Toggle for the banner"),
+    ).toEqual({
+      status: "not_covered",
+      reason: "unknown_setting",
+      missingPhrases: ["Glowing Toggle"],
+      results: [],
+    });
+    expect(
+      kbToolResult(
+        index,
+        "our kubernetes pod restarts with CrashLoopBackOff after the helm upgrade overnight",
+      ),
+    ).toMatchObject({ status: "not_covered", results: [] });
+    expect(kbToolResult(index, "tooltip opens twice").status).toBe("ok");
   });
 
   it("returns each chunk with its citation, Verified on line and NOT VERIFIED mark", async () => {

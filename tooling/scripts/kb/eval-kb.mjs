@@ -5,13 +5,14 @@
  * questions it misses, by id only. It runs the same search the extension
  * runs (`createKbIndex` from @apty/agent-core's build output, which
  * `npm run typecheck` or `npm run build` writes). `--calibrate` suggests the
- * threshold to store in the pack (`build-kb-pack --threshold`).
+ * coverage settings to build a schema 2 pack with (`kb:pack --coverage-min
+ * --coverage-min-idf`), or for a schema 1 pack the score threshold.
  *
  * The real 40-question set is internal: the KB owner keeps it and the pack
  * outside this repository and runs this locally. A synthetic set runs in CI.
  *
- * Usage: pnpm kb:eval --pack <file> --questions <file> [--threshold <n>]
- *   [--calibrate] [--json]
+ * Usage: pnpm kb:eval --pack <file> --questions <file> [--calibrate]
+ *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>] [--json]
  *
  * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"? }]`;
  * an empty `expectedPageIds` means the KB should not cover the question.
@@ -63,6 +64,11 @@ export function readQuestions(text) {
   });
 }
 
+function withCoverage(pack, coverage) {
+  if (coverage === undefined) return pack;
+  return { ...pack, retrieval: { ...pack.retrieval, coverage } };
+}
+
 function withThreshold(pack, threshold) {
   if (threshold === undefined) return pack;
   const retrieval = { ...pack.retrieval };
@@ -78,8 +84,9 @@ const ratio = (part, whole) => (whole === 0 ? null : round(part / whole));
  * The metrics for `questions` against `pack`, with the pack's threshold or
  * `threshold` in its place (null: none). Same pack and questions, same numbers.
  */
-export function evaluate(core, pack, questions, { threshold } = {}) {
-  const index = core.createKbIndex(withThreshold(pack, threshold));
+export function evaluate(core, pack, questions, { threshold, coverage } = {}) {
+  const tuned = withCoverage(withThreshold(pack, threshold), coverage);
+  const index = core.createKbIndex(tuned);
   const covered = questions.filter((q) => q.expectedPageIds.length > 0);
   let hit1 = 0;
   let hit3 = 0;
@@ -88,6 +95,7 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
   let layerHits = 0;
   let predictedNotCovered = 0;
   let correctNotCovered = 0;
+  let coveredAnswered = 0;
   const misses = [];
   for (const question of questions) {
     const result = index.search(question.q, {
@@ -104,6 +112,7 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
         misses.push({ id: question.id, expected: [], got: ranked.slice(0, 3) });
       continue;
     }
+    if (!notCovered) coveredAnswered++;
     const rank = ranked.findIndex((pageId) => expected.has(pageId));
     if (rank === 0) hit1++;
     if (rank >= 0 && rank < 3) hit3++;
@@ -125,9 +134,13 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
   return {
     questions: questions.length,
     covered: covered.length,
-    threshold: index.info.calibrated
-      ? withThreshold(pack, threshold).retrieval.threshold
-      : null,
+    schemaVersion: pack.schemaVersion,
+    threshold:
+      pack.schemaVersion === 1 && index.info.calibrated
+        ? tuned.retrieval.threshold
+        : null,
+    coverage:
+      pack.schemaVersion === 2 ? (tuned.retrieval.coverage ?? null) : null,
     mode: index.info.mode,
     recallAt1: ratio(hit1, covered.length),
     recallAt3: ratio(hit3, covered.length),
@@ -135,6 +148,7 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
     layerAccuracy: ratio(layerHits, layerTotal),
     notCoveredPrecision: ratio(correctNotCovered, predictedNotCovered),
     notCoveredRecall: ratio(correctNotCovered, trueNotCovered),
+    coveredRecall: ratio(coveredAnswered, covered.length),
     misses,
   };
 }
@@ -169,10 +183,69 @@ export function calibrate(core, pack, questions) {
   };
 }
 
+const UNCAPPED = { min: 0, minIdf: 0, minTerms: 0 };
+
+/** The idf at each 10th percentile from the 10th to the 90th, nearest rank, rounded as printed. */
+export function idfPercentiles(index) {
+  const idf = index.vocabularyIdf();
+  if (idf.length === 0) return [0];
+  return [10, 20, 30, 40, 50, 60, 70, 80, 90].map((p) =>
+    round(idf[Math.min(idf.length - 1, Math.ceil((p / 100) * idf.length) - 1)]),
+  );
+}
+
+/**
+ * The coverage settings for a schema 2 pack: the grid of `min` 0.05 to
+ * 0.95 (step 0.05) and `minIdf` at the vocabulary's idf percentiles, best
+ * by Youden's J (covered recall + not-covered recall - 1), among the
+ * settings that lose at most 0.02 of Recall@3 against the uncapped
+ * ranking. Ties go to the higher Recall@3, then the lower `min` and
+ * `minIdf`. `minTerms` stays at the pack's (default 1).
+ */
+export function calibrateCoverage(core, pack, questions) {
+  const minTerms = pack.retrieval.coverage?.minTerms ?? 1;
+  const baseline = evaluate(core, pack, questions, { coverage: UNCAPPED });
+  const floor = (baseline.recallAt3 ?? 0) - 0.02;
+  const percentiles = [...new Set(idfPercentiles(core.createKbIndex(pack)))];
+  let best;
+  for (let step = 1; step <= 19; step++) {
+    const min = round(step * 0.05);
+    for (const minIdf of percentiles) {
+      const report = evaluate(core, pack, questions, {
+        coverage: { min, minIdf, minTerms },
+      });
+      if ((report.recallAt3 ?? 0) < floor - 1e-9) continue;
+      const j = round(
+        (report.coveredRecall ?? 0) + (report.notCoveredRecall ?? 0) - 1,
+      );
+      const better =
+        !best ||
+        j > best.j ||
+        (j === best.j && (report.recallAt3 ?? 0) > best.recallAt3);
+      if (better) {
+        best = {
+          min,
+          minIdf,
+          minTerms,
+          j,
+          recallAt3: report.recallAt3 ?? 0,
+          notCoveredPrecision: report.notCoveredPrecision,
+          notCoveredRecall: report.notCoveredRecall,
+        };
+      }
+    }
+  }
+  return { ...best, uncappedRecallAt3: baseline.recallAt3 };
+}
+
 function format(report) {
   const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(1)}%`);
   const lines = [
-    `${report.questions} questions (${report.covered} the KB should cover), ${report.mode}, threshold ${report.threshold ?? "none"}`,
+    `${report.questions} questions (${report.covered} the KB should cover), ${report.mode}, ${
+      report.schemaVersion === 2
+        ? `coverage ${report.coverage ? `min ${report.coverage.min}, minIdf ${report.coverage.minIdf}, minTerms ${report.coverage.minTerms}` : "defaults"}`
+        : `threshold ${report.threshold ?? "none"}`
+    }`,
     `Recall@1 ${pct(report.recallAt1)}  Recall@3 ${pct(report.recallAt3)}  MRR ${report.mrr ?? "n/a"}  layer ${pct(report.layerAccuracy)}`,
     `"not covered" precision ${pct(report.notCoveredPrecision)}  recall ${pct(report.notCoveredRecall)}`,
   ];
@@ -192,6 +265,13 @@ function parseArgs(argv) {
     else if (flag === "--json") options.json = true;
     else if (flag === "--pack" || flag === "--questions") {
       options[flag.slice(2)] = argv[++i];
+    } else if (flag === "--coverage-min" || flag === "--coverage-min-idf") {
+      const value = Number(argv[++i]);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error(`${flag} takes a number of 0 or more.`);
+      }
+      options[flag === "--coverage-min" ? "coverageMin" : "coverageMinIdf"] =
+        value;
     } else if (flag === "--threshold") {
       const value = Number(argv[++i]);
       if (!Number.isFinite(value) || value < 0) {
@@ -223,9 +303,29 @@ export async function run({
     const questions = readQuestions(
       readFileSync(resolve(cwd, options.questions), "utf8"),
     );
+    const coverage =
+      options.coverageMin !== undefined || options.coverageMinIdf !== undefined
+        ? {
+            ...core.KB_COVERAGE_DEFAULTS,
+            ...pack.retrieval.coverage,
+            ...(options.coverageMin !== undefined
+              ? { min: options.coverageMin }
+              : {}),
+            ...(options.coverageMinIdf !== undefined
+              ? { minIdf: options.coverageMinIdf }
+              : {}),
+          }
+        : undefined;
+    const v2 = pack.schemaVersion === 2;
     const report = {
-      ...evaluate(core, pack, questions, { threshold: options.threshold }),
-      ...(options.calibrate
+      ...evaluate(core, pack, questions, {
+        threshold: options.threshold,
+        coverage,
+      }),
+      ...(options.calibrate && v2
+        ? { suggestedCoverage: calibrateCoverage(core, pack, questions) }
+        : {}),
+      ...(options.calibrate && !v2
         ? { suggestedThreshold: calibrate(core, pack, questions) }
         : {}),
     };
@@ -233,6 +333,12 @@ export async function run({
       out(JSON.stringify(report, null, 2));
     } else {
       out(format(report));
+      if (report.suggestedCoverage) {
+        const c = report.suggestedCoverage;
+        out(
+          `Suggested coverage: min ${c.min}, minIdf ${c.minIdf} (Youden J ${c.j}, Recall@3 ${c.recallAt3} against ${c.uncappedRecallAt3} uncapped). Build with --coverage-min ${c.min} --coverage-min-idf ${c.minIdf}.`,
+        );
+      }
       if (report.suggestedThreshold) {
         const s = report.suggestedThreshold;
         out(

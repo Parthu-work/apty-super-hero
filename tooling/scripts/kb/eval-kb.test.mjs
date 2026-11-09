@@ -3,10 +3,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { buildPack } from "./build-kb-pack.mjs";
+import { buildPack, packSha256 } from "./build-kb-pack.mjs";
 import {
   calibrate,
+  calibrateCoverage,
   evaluate,
+  idfPercentiles,
   loadAgentCore,
   readPack,
   readQuestions,
@@ -23,6 +25,14 @@ let core;
 let dir;
 let packFile;
 let pack;
+let v2File;
+let v2;
+
+/** The same cards as a schema 1 pack, which keeps its score threshold. */
+function asSchema1(built) {
+  const { sha256: _old, ...rest } = { ...built, schemaVersion: 1 };
+  return { ...rest, sha256: packSha256(rest) };
+}
 const questions = readQuestions(readFileSync(QUESTIONS_FILE, "utf8"));
 
 before(async () => {
@@ -36,8 +46,11 @@ before(async () => {
     builtAt: "2026-03-01T00:00:00.000Z",
   });
   packFile = join(dir, "pack.json");
-  writeFileSync(packFile, JSON.stringify(built.pack));
+  writeFileSync(packFile, JSON.stringify(asSchema1(built.pack)));
   pack = await readPack(core, readFileSync(packFile, "utf8"));
+  v2File = join(dir, "pack-v2.json");
+  writeFileSync(v2File, JSON.stringify(built.pack));
+  v2 = await readPack(core, readFileSync(v2File, "utf8"));
 });
 
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -95,6 +108,36 @@ describe("calibrate", () => {
   });
 });
 
+describe("calibrateCoverage (schema 2)", () => {
+  it("finds the coverage settings that sort every synthetic question, without losing Recall@3", () => {
+    const suggested = calibrateCoverage(core, v2, questions);
+    assert.equal(suggested.j, 1);
+    assert.equal(suggested.recallAt3, suggested.uncappedRecallAt3);
+    assert.ok(
+      idfPercentiles(core.createKbIndex(v2)).includes(suggested.minIdf),
+    );
+    const report = evaluate(core, v2, questions, {
+      coverage: {
+        min: suggested.min,
+        minIdf: suggested.minIdf,
+        minTerms: suggested.minTerms,
+      },
+    });
+    assert.equal(report.recallAt3, 1);
+    assert.equal(report.notCoveredPrecision, 1);
+    assert.equal(report.notCoveredRecall, 1);
+    assert.equal(report.threshold, null);
+    assert.deepEqual(calibrateCoverage(core, v2, questions), suggested);
+  });
+
+  it("does not let a threshold change a schema 2 pack's answers", () => {
+    assert.deepEqual(
+      evaluate(core, v2, questions, { threshold: 1_000 }).misses,
+      evaluate(core, v2, questions).misses,
+    );
+  });
+});
+
 describe("the CLI", () => {
   it("prints the metrics and question ids, never question or card text", async () => {
     const lines = [];
@@ -117,6 +160,42 @@ describe("the CLI", () => {
     for (const secret of ["kubernetes", "Glowing Banner", "glowIds"]) {
       assert.ok(!text.includes(secret), secret);
     }
+  });
+
+  it("suggests the coverage flags for a schema 2 pack, and evaluates with them", async () => {
+    const lines = [];
+    const out = (line) => lines.push(line);
+    const argv = ["--pack", v2File, "--questions", QUESTIONS_FILE.pathname];
+    assert.equal(
+      await run({ argv: [...argv, "--calibrate"], out, err: out }),
+      0,
+    );
+    const flags =
+      /Build with --coverage-min ([\d.]+) --coverage-min-idf ([\d.]+)\./.exec(
+        lines.join("\n"),
+      );
+    assert.ok(flags, lines.join("\n"));
+    lines.length = 0;
+    const code = await run({
+      argv: [
+        ...argv,
+        "--coverage-min",
+        flags[1],
+        "--coverage-min-idf",
+        flags[2],
+      ],
+      out,
+      err: out,
+    });
+    assert.equal(code, 0);
+    assert.match(
+      lines.join("\n"),
+      new RegExp(`coverage min ${flags[1]}, minIdf ${flags[2]}, minTerms 1`),
+    );
+    assert.match(
+      lines.join("\n"),
+      /"not covered" precision 100\.0% {2}recall 100\.0%/,
+    );
   });
 
   it("names a refused pack and a bad questions file", async () => {

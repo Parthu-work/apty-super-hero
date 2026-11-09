@@ -6,6 +6,13 @@ import {
   type KbLayer,
   type KbPack,
 } from "./pack.js";
+import {
+  analyze,
+  containsPhrase,
+  editDistance,
+  namedPhrases,
+  queryTerms,
+} from "./text.js";
 
 export interface KbSearchOptions {
   /** How many results; 1 to 20, default 3. */
@@ -24,11 +31,41 @@ export interface KbSearchHit {
   score: number;
 }
 
+export type KbNotCoveredReason =
+  | "no_match"
+  | "low_coverage"
+  | "unknown_setting";
+
 export interface KbSearchResult {
-  /** `not_covered`: nothing matched, or nothing reached the pack's calibrated threshold. */
+  /** `not_covered`: nothing matched, the top card covers too little of the question, or it names a setting the card does not have. */
   status: "ok" | "not_covered";
   hits: KbSearchHit[];
+  /**
+   * The share of the question's weight the top card matches, 0 to 1: each
+   * term weighs its idf, and counts in full when the card has it, half when
+   * only a typo or a prefix of it matches.
+   */
+  coverage: number;
+  reason?: KbNotCoveredReason;
+  /** With `unknown_setting`: the phrases the question names that the top card does not have. */
+  missingPhrases?: string[];
 }
+
+/** When the top card covers a question (schema 2); calibrated per pack by `eval-kb.mjs`. */
+export interface KbCoverageSettings {
+  /** The lowest coverage that counts as covered. */
+  min: number;
+  /** A matched term counts toward `minTerms` only with an idf at least this. */
+  minIdf: number;
+  /** How many matched terms need `minIdf`. */
+  minTerms: number;
+}
+
+export const KB_COVERAGE_DEFAULTS: KbCoverageSettings = {
+  min: 0.5,
+  minIdf: 1.5,
+  minTerms: 1,
+};
 
 export interface KbIndexInfo {
   cardCount: number;
@@ -40,6 +77,8 @@ export interface KbIndexInfo {
 
 export interface KbIndex {
   info: KbIndexInfo;
+  /** Each indexed term's idf, `ln(1 + N / (1 + df))`, sorted: what calibration picks `minIdf` from. */
+  vocabularyIdf(): number[];
   search(query: string, options?: KbSearchOptions): KbSearchResult;
   /** A card's own chunks, by layer: for a finding that already names its card. */
   cardChunks(pageId: string): KbChunk[];
@@ -156,14 +195,14 @@ function cosine(a: Float32Array, b: Float32Array): number {
 }
 
 /**
- * A search index over a parsed pack. Keyword search is BM25 (MiniSearch)
+ * The schema 1 index, unchanged: keyword search is BM25 (MiniSearch)
  * over the card title (boost 3), the heading (1.5) and the text, with prefix
  * and light fuzzy matching; with the pack's vectors and a query vector, the
  * keyword and dense rankings are fused (reciprocal rank fusion, k = 60).
  * The same pack and query always give the same ranking: ties go to the
  * lower page id, then the lower layer. Chunks are unique by page and layer.
  */
-export function createKbIndex(pack: KbPack): KbIndex {
+function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
   const cards = new Map(pack.cards.map((card) => [card.pageId, card]));
   const seen = new Set<string>();
   const chunks: KbChunk[] = [];
@@ -281,8 +320,14 @@ export function createKbIndex(pack: KbPack): KbIndex {
         .sort(compareHits);
     }
 
+    const coverage = coverageOf(query, ranked[0] ?? keyword[0]);
     if (!covered || ranked.length === 0) {
-      return { status: "not_covered", hits: [] };
+      return {
+        status: "not_covered",
+        hits: [],
+        coverage,
+        reason: keyword.length === 0 ? "no_match" : "low_coverage",
+      };
     }
     if (options.onePerCard) {
       const best = new Set<string>();
@@ -292,11 +337,12 @@ export function createKbIndex(pack: KbPack): KbIndex {
         return true;
       });
     }
-    return { status: "ok", hits: ranked.slice(0, topK) };
+    return { status: "ok", hits: ranked.slice(0, topK), coverage };
   }
 
   return {
     info,
+    vocabularyIdf: () => [],
     search,
     cardChunks: (pageId) =>
       chunks
@@ -304,4 +350,319 @@ export function createKbIndex(pack: KbPack): KbIndex {
         .sort((a, b) => a.layer - b.layer),
     card: (pageId) => cards.get(pageId),
   };
+}
+
+type CoverageOf = (query: string, top: KbSearchHit | undefined) => number;
+
+interface Assessment {
+  coverage: number;
+  /** Matched terms with an idf of at least `minIdf`. */
+  strongTerms: number;
+  missingPhrases: string[];
+}
+
+/** A typo or a prefix: fuzzy from six characters for a word the KB does not hold, a prefix from four. */
+const FUZZY_MIN_CHARS = 6;
+const FUZZY_FRACTION = 0.2;
+const PREFIX_MIN_CHARS = 4;
+const APPROXIMATE_MATCH = 0.5;
+
+const maxEdits = (term: string) => Math.round(term.length * FUZZY_FRACTION);
+
+/**
+ * What the coverage decision reads: each term's document frequency over
+ * the chunks (a card's title counts once, with its lowest layer) and each
+ * card's own terms, in order.
+ */
+function corpusOf(
+  chunks: KbChunk[],
+  cards: Map<string, KbCard>,
+  indexedText: (chunk: KbChunk) => { heading: string; text: string },
+) {
+  const lowest = new Map<string, number>();
+  for (const chunk of chunks) {
+    const seen = lowest.get(chunk.pageId);
+    if (seen === undefined || chunk.layer < seen) {
+      lowest.set(chunk.pageId, chunk.layer);
+    }
+  }
+  const df = new Map<string, number>();
+  const cardTerms = new Map<string, string[]>();
+  for (const chunk of chunks) {
+    const card = cards.get(chunk.pageId) as KbCard;
+    const { heading, text } = indexedText(chunk);
+    const own =
+      lowest.get(chunk.pageId) === chunk.layer ? analyze(card.title) : [];
+    const terms = [...own, ...analyze(heading), ...analyze(text)];
+    for (const term of new Set(terms)) df.set(term, (df.get(term) ?? 0) + 1);
+    cardTerms.set(chunk.pageId, [
+      ...(cardTerms.get(chunk.pageId) ?? []),
+      ...terms,
+    ]);
+  }
+  const cardSets = new Map(
+    [...cardTerms].map(([pageId, terms]) => [pageId, new Set(terms)]),
+  );
+  const n = chunks.length;
+  const idf = (term: string) => Math.log(1 + n / (1 + (df.get(term) ?? 0)));
+
+  function matchWeight(term: string, own: Set<string>): number {
+    if (own.has(term)) return 1;
+    const fuzzy = term.length >= FUZZY_MIN_CHARS && !df.has(term);
+    for (const candidate of own) {
+      if (term.length >= PREFIX_MIN_CHARS && candidate.startsWith(term)) {
+        return APPROXIMATE_MATCH;
+      }
+      if (
+        fuzzy &&
+        editDistance(term, candidate, maxEdits(term)) <= maxEdits(term)
+      ) {
+        return APPROXIMATE_MATCH;
+      }
+    }
+    return 0;
+  }
+
+  return {
+    vocabulary: df,
+    idf,
+    vocabularyIdf: () => [...df.keys()].map(idf).sort((a, b) => a - b),
+    assess(query: string, pageId: string, minIdf: number): Assessment {
+      const own = cardSets.get(pageId) ?? new Set<string>();
+      let weighted = 0;
+      let total = 0;
+      let strongTerms = 0;
+      for (const term of queryTerms(query)) {
+        const weight = idf(term);
+        const match = matchWeight(term, own);
+        weighted += weight * match;
+        total += weight;
+        if (match > 0 && weight >= minIdf) strongTerms++;
+      }
+      const stream = cardTerms.get(pageId) ?? [];
+      const titleTerms = analyze(cards.get(pageId)?.title ?? "");
+      return {
+        coverage: total === 0 ? 0 : weighted / total,
+        strongTerms,
+        missingPhrases: namedPhrases(query).filter(
+          (phrase) =>
+            !containsPhrase(stream, phrase) &&
+            !containsPhrase(titleTerms, phrase),
+        ),
+      };
+    },
+  };
+}
+
+function uniqueChunks(pack: KbPack) {
+  const cards = new Map(pack.cards.map((card) => [card.pageId, card]));
+  const seen = new Set<string>();
+  const chunks: KbChunk[] = [];
+  const vectorsByChunk = new Map<string, Float32Array>();
+  const vectors = decodeVectors(pack);
+  pack.chunks.forEach((chunk, i) => {
+    if (seen.has(chunk.id) || !cards.has(chunk.pageId)) return;
+    seen.add(chunk.id);
+    chunks.push(chunk);
+    const vector = vectors[i];
+    if (vector) vectorsByChunk.set(chunk.id, vector);
+  });
+  return { cards, chunks, vectorsByChunk };
+}
+
+function onePerCardOnly(hits: KbSearchHit[]): KbSearchHit[] {
+  const best = new Set<string>();
+  return hits.filter((h) => {
+    if (best.has(h.chunk.pageId)) return false;
+    best.add(h.chunk.pageId);
+    return true;
+  });
+}
+
+const splitQuery = (text: string) => text.split(" ").filter(Boolean);
+const asIs = (term: string) => term;
+
+/**
+ * The schema 2 index. BM25 (MiniSearch) ranks; a length-independent
+ * coverage decides whether the top card covers the question at all:
+ * `coverage = Σ idf(t)·match(t) / Σ idf(t)` over the question's distinct
+ * terms, with `idf(t) = ln(1 + N / (1 + df(t)))`, so a word no card holds
+ * weighs most. The question is covered when coverage reaches
+ * `coverage.min` and `coverage.minTerms` matched terms have an idf of at
+ * least `coverage.minIdf`, and the top card holds every setting-like phrase
+ * the question names (`namedPhrases`).
+ */
+function createV2Index(pack: KbPack): KbIndex {
+  const { cards, chunks, vectorsByChunk } = uniqueChunks(pack);
+  const byId = new Map(chunks.map((chunk) => [chunk.id, chunk]));
+  const shared = sharedLayerDescriptions(chunks, cards);
+  const indexedText = (chunk: KbChunk) => ({
+    heading: headingTerms(chunk, cards.get(chunk.pageId) as KbCard, shared),
+    text: bodyTerms(chunk.text),
+  });
+  const corpus = corpusOf(chunks, cards, indexedText);
+  const settings = pack.retrieval.coverage ?? KB_COVERAGE_DEFAULTS;
+
+  const mini = new MiniSearch<{
+    id: string;
+    title: string;
+    heading: string;
+    text: string;
+  }>({
+    fields: ["title", "heading", "text"],
+    tokenize: analyze,
+    processTerm: asIs,
+    searchOptions: {
+      boost: { title: 3, heading: 1.5 },
+      tokenize: splitQuery,
+      processTerm: asIs,
+      prefix: (term) => term.length >= PREFIX_MIN_CHARS,
+      fuzzy: (term) =>
+        term.length >= FUZZY_MIN_CHARS && !corpus.vocabulary.has(term)
+          ? FUZZY_FRACTION
+          : false,
+    },
+  });
+  mini.addAll(
+    chunks.map((chunk) => ({
+      id: chunk.id,
+      title: (cards.get(chunk.pageId) as KbCard).title,
+      ...indexedText(chunk),
+    })),
+  );
+
+  const dense = pack.retrieval.dense;
+  const hybrid = dense !== undefined && vectorsByChunk.size === chunks.length;
+  const hit = (chunk: KbChunk, score: number): KbSearchHit => ({
+    chunk,
+    card: cards.get(chunk.pageId) as KbCard,
+    score,
+  });
+
+  function search(
+    query: string,
+    options: KbSearchOptions = {},
+  ): KbSearchResult {
+    const topK = Math.min(
+      MAX_TOP_K,
+      Math.max(1, Math.floor(options.topK ?? 3)),
+    );
+    const allowed = options.layers ? new Set(options.layers) : undefined;
+    const inLayers = (chunk: KbChunk) => !allowed || allowed.has(chunk.layer);
+    const terms = queryTerms(query);
+
+    const keyword = (terms.length > 0 ? mini.search(terms.join(" ")) : [])
+      .map((result) => {
+        const chunk = byId.get(String(result.id));
+        return chunk && inLayers(chunk) ? hit(chunk, result.score) : undefined;
+      })
+      .filter((h): h is KbSearchHit => h !== undefined)
+      .sort(compareHits);
+
+    let ranked = keyword;
+    let denseCovered = false;
+    if (hybrid && options.queryVector) {
+      const queryVector = options.queryVector;
+      const denseThreshold = dense?.threshold;
+      const semantic = chunks
+        .filter(inLayers)
+        .map((chunk) =>
+          hit(
+            chunk,
+            cosine(queryVector, vectorsByChunk.get(chunk.id) as Float32Array),
+          ),
+        )
+        .filter(
+          (h) => denseThreshold !== undefined && h.score >= denseThreshold,
+        )
+        .sort(compareHits);
+      denseCovered = semantic.length > 0;
+      const fused = new Map<string, number>();
+      for (const list of [keyword, semantic]) {
+        list.forEach((h, rank) => {
+          fused.set(
+            h.chunk.id,
+            (fused.get(h.chunk.id) ?? 0) + 1 / (RRF_K + rank + 1),
+          );
+        });
+      }
+      ranked = [...fused]
+        .map(([id, score]) => hit(byId.get(id) as KbChunk, score))
+        .sort(compareHits);
+    }
+
+    const top = ranked[0];
+    if (!top) {
+      return {
+        status: "not_covered",
+        hits: [],
+        coverage: 0,
+        reason: "no_match",
+      };
+    }
+    const { coverage, strongTerms, missingPhrases } = corpus.assess(
+      query,
+      top.chunk.pageId,
+      settings.minIdf,
+    );
+    if (missingPhrases.length > 0) {
+      return {
+        status: "not_covered",
+        hits: [],
+        coverage,
+        reason: "unknown_setting",
+        missingPhrases,
+      };
+    }
+    const covered =
+      denseCovered ||
+      (coverage >= settings.min && strongTerms >= settings.minTerms);
+    if (!covered) {
+      return {
+        status: "not_covered",
+        hits: [],
+        coverage,
+        reason: "low_coverage",
+      };
+    }
+    const hits = options.onePerCard ? onePerCardOnly(ranked) : ranked;
+    return { status: "ok", hits: hits.slice(0, topK), coverage };
+  }
+
+  return {
+    info: {
+      cardCount: cards.size,
+      chunkCount: chunks.length,
+      mode: hybrid ? "hybrid" : "bm25",
+      calibrated: pack.retrieval.coverage !== undefined,
+    },
+    vocabularyIdf: corpus.vocabularyIdf,
+    search,
+    cardChunks: (pageId) =>
+      chunks
+        .filter((chunk) => chunk.pageId === pageId)
+        .sort((a, b) => a.layer - b.layer),
+    card: (pageId) => cards.get(pageId),
+  };
+}
+
+/**
+ * A search index over a parsed pack. A schema 1 pack searches exactly as
+ * it did (BM25, its calibrated score threshold); a schema 2 pack ranks by
+ * BM25 and decides "not covered" by coverage. Either way the same pack and
+ * query give the same result: ties go to the lower page id, then the lower
+ * layer, and chunks are unique by page and layer.
+ */
+export function createKbIndex(pack: KbPack): KbIndex {
+  if (pack.schemaVersion === 2) return createV2Index(pack);
+  const { cards, chunks } = uniqueChunks(pack);
+  const shared = sharedLayerDescriptions(chunks, cards);
+  const corpus = corpusOf(chunks, cards, (chunk) => ({
+    heading: headingTerms(chunk, cards.get(chunk.pageId) as KbCard, shared),
+    text: bodyTerms(chunk.text),
+  }));
+  const index = createLegacyIndex(pack, (query, top) =>
+    top ? corpus.assess(query, top.chunk.pageId, 0).coverage : 0,
+  );
+  return { ...index, vocabularyIdf: corpus.vocabularyIdf };
 }

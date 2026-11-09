@@ -11,7 +11,7 @@ import { kbToolResult, sharedKbIndexSource } from "../kb/kb-index.js";
 export const searchKbTool = tool({
   name: "search_kb",
   description:
-    "Searches the KB pack of Apty RAG Answer Cards loaded in this browser for the settings, page checks, data to read or support contacts behind a finding or symptom. Results are chunks of cards, each with a cite id (kb://<pageId>#L<layer>), its card's 'Verified on' line and a notVerified mark. Answer Apty product questions only from these results and cite each claim with its cite id. status 'not_covered': the KB does not cover the question; 'no_pack': no KB pack is loaded.",
+    "Searches the KB pack of Apty RAG Answer Cards loaded in this browser for the settings, page checks, data to read or support contacts behind a finding or symptom. Results are chunks of cards, each with a cite id (kb://<pageId>#L<layer>), its card's 'Verified on' line and a notVerified mark. Answer Apty product questions only from these results and cite each claim with its cite id. status 'not_covered': the KB does not cover the question, with reason 'no_match' (no card matched), 'low_coverage' (the best card matches too little of it) or 'unknown_setting' (the question names a setting, listed in missingPhrases, that no card has: say so and do not suggest a similar one); 'no_pack': no KB pack is loaded.",
   parameters: z.object({
     query: z
       .string()

@@ -2,7 +2,9 @@ import { z } from "zod";
 
 /** The marker every KB pack carries; `tooling/scripts/check-no-kb-pack.mjs` fails the repository on it. */
 export const KB_PACK_KIND = "apty-kb-pack";
-export const KB_PACK_SCHEMA_VERSION = 1;
+/** The schema the builder writes; `parseKbPack` also reads schema 1. */
+export const KB_PACK_SCHEMA_VERSION = 2;
+const KB_PACK_SCHEMA_VERSIONS: readonly unknown[] = [1, 2];
 export const KB_PACK_LIMITS = {
   maxChunks: 5000,
   maxBytes: 25 * 1024 * 1024,
@@ -42,7 +44,7 @@ const chunkSchema = z.object({
 
 const packSchema = z.object({
   kind: z.literal(KB_PACK_KIND),
-  schemaVersion: z.literal(KB_PACK_SCHEMA_VERSION),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   builtAt: z.string(),
   builder: z.string(),
   source: z.object({
@@ -56,6 +58,14 @@ const packSchema = z.object({
     bm25: z.literal(true),
     /** The lowest top BM25 score that counts as covered, calibrated by `eval-kb.mjs`. */
     threshold: z.number().nonnegative().optional(),
+    /** Schema 2: when the top card covers a question (`search.ts`), calibrated by `eval-kb.mjs`. */
+    coverage: z
+      .object({
+        min: z.number().min(0).max(1),
+        minIdf: z.number().nonnegative(),
+        minTerms: z.number().int().nonnegative(),
+      })
+      .optional(),
     dense: z
       .object({
         model: z.string(),
@@ -175,7 +185,7 @@ export async function parseKbPack(
       ? (raw as Record<string, unknown>)
       : {};
   if (record.kind !== KB_PACK_KIND) return { ok: false, code: "wrong_kind" };
-  if (record.schemaVersion !== KB_PACK_SCHEMA_VERSION) {
+  if (!KB_PACK_SCHEMA_VERSIONS.includes(record.schemaVersion)) {
     return { ok: false, code: "wrong_schema_version" };
   }
   const parsed = packSchema.safeParse(raw);
@@ -210,7 +220,7 @@ export interface KbPackInfo {
   builtAt: string;
   importedAt: string;
   mode: "bm25" | "hybrid";
-  /** Whether the pack carries a calibrated "not covered" threshold. */
+  /** Whether the pack carries a calibrated "not covered" threshold (schema 1) or coverage settings (schema 2). */
   calibrated: boolean;
   sha256: string;
 }
@@ -232,7 +242,9 @@ export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
     importedAt,
     mode:
       pack.retrieval.dense && pack.vectors !== undefined ? "hybrid" : "bm25",
-    calibrated: pack.retrieval.threshold !== undefined,
+    calibrated:
+      pack.retrieval.threshold !== undefined ||
+      pack.retrieval.coverage !== undefined,
     sha256: pack.sha256,
   };
 }

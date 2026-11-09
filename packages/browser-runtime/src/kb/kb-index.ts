@@ -2,6 +2,7 @@ import {
   createKbIndex,
   type KbIndex,
   type KbLayer,
+  type KbNotCoveredReason,
   type KbSearchHit,
 } from "@apty/agent-core";
 import { createKbPackStore, type KbPackStore } from "../storage/kb-store.js";
@@ -55,6 +56,10 @@ export interface KbToolHit {
 
 export interface KbToolResult {
   status: "ok" | "not_covered" | "no_pack";
+  /** With `not_covered`: nothing matched, too little of the question matched, or it names a setting the best card lacks. */
+  reason?: KbNotCoveredReason;
+  /** With `unknown_setting`: the phrases no card has. */
+  missingPhrases?: string[];
   results: KbToolHit[];
 }
 
@@ -92,7 +97,12 @@ export function kbToolResult(
   if (!index) return { status: "no_pack", results: [] };
   const found = index.search(query, options);
   if (found.status === "not_covered") {
-    return { status: "not_covered", results: [] };
+    return {
+      status: "not_covered",
+      ...(found.reason ? { reason: found.reason } : {}),
+      ...(found.missingPhrases ? { missingPhrases: found.missingPhrases } : {}),
+      results: [],
+    };
   }
   const results: KbToolHit[] = [];
   let total = 0;

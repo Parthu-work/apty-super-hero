@@ -57,6 +57,24 @@ describe("parseKbPack", () => {
     expect(result).toEqual({ ok: true, pack });
   });
 
+  it("reads a schema 2 pack with its coverage settings, and refuses settings out of range", async () => {
+    const pack = syntheticPack(
+      [CARD],
+      { coverage: { min: 0.45, minIdf: 2.1, minTerms: 1 } },
+      { schemaVersion: 2 },
+    );
+    expect(await parse(pack)).toEqual({ ok: true, pack });
+    const wrong = syntheticPack(
+      [CARD],
+      { coverage: { min: 1.5, minIdf: 2.1, minTerms: 1 } },
+      { schemaVersion: 2 },
+    );
+    expect(await parse(wrong)).toMatchObject({
+      code: "invalid",
+      detail: expect.stringMatching(/^retrieval\.coverage\.min/),
+    });
+  });
+
   it("names each kind of bad file", async () => {
     const pack = syntheticPack([CARD]);
     expect(await parse("{not json")).toEqual({ ok: false, code: "not_json" });
@@ -64,7 +82,7 @@ describe("parseKbPack", () => {
     expect(await parse({ ...pack, kind: "other" })).toMatchObject({
       code: "wrong_kind",
     });
-    expect(await parse({ ...pack, schemaVersion: 2 })).toMatchObject({
+    expect(await parse({ ...pack, schemaVersion: 3 })).toMatchObject({
       code: "wrong_schema_version",
     });
     const tampered = structuredClone(pack);
