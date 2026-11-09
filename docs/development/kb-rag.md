@@ -253,7 +253,8 @@ pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x --coverage-min <x> --
 **Share** the files on a restricted internal page. Never attach a pack to a
 GitHub issue, PR, release or CI run: this repository and its releases are
 public, and `npm run audit:kb-pack` fails CI on a pack in the tree or the
-build.
+build, and on a source comment that quotes a card title next to its page id
+(name a card by its id and a description in your own words).
 
 ## Lifecycle: each SE
 

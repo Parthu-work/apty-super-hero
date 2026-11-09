@@ -1,11 +1,10 @@
 /**
- * Check pack for "the Apty widget is not showing", from the RAG cards
- * "widget is not appearing on the application" (JA 1496645690), "widget
- * works in Test but not in Production" (JA 1496645709), "the widget shows on
- * every page but content fails on some pages because the environment URL is
- * too specific" (JA 1497104451), "app-urls.json response, what it means"
- * (JA 1496253321) and "widget shows for every user although it is set to
- * selected segments" (JA 1496645745). Every rule is from 5.x code at 4c406d5
+ * Check pack for "the Apty widget is not showing", from the RAG cards on the
+ * widget missing from the whole application (JA 1496645690), the widget
+ * missing in Production only (JA 1496645709), an environment URL pattern
+ * too specific for some pages (JA 1497104451), the app-urls.json mirror
+ * card (JA 1496253321) and the widget shown to users outside its segments
+ * (JA 1496645745). Every rule is from 5.x code at 4c406d5
  * or support cases, not runtime-verified, so a finding is never more certain
  * than "likely".
  *

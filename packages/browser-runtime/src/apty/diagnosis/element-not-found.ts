@@ -1,7 +1,7 @@
 /**
  * Check pack for "Apty cannot find the element" and "the tooltip is on the
- * wrong element", from the RAG cards that "start here, an element or
- * selector problem" (JA 1496875202) routes to. It reads the item's stored
+ * wrong element", from the RAG cards that the element and selector routing
+ * page (JA 1496875202) points to. It reads the item's stored
  * element from its content file and runs the active selector in every frame
  * of the user's tab the way the 5.x player does: the shadow hosts first,
  * then the first rendered match, else the first match. Every rule is from

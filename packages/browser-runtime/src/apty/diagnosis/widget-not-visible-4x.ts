@@ -33,7 +33,7 @@ import type {
 } from "./types.js";
 import { patternMatches } from "./url-patterns.js";
 
-/** The 4.x card "app-urls.json response, what it means" in A4PKH. */
+/** 4.x mirror card for the app-urls.json response (A4PKH 1509786000). */
 const CARD_4X_APP_URLS = "1509786000";
 /**
  * The 4.x RAG Answer Cards tree in A4PKH: the cause's own card until the

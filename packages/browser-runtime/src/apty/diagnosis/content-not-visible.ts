@@ -1,6 +1,6 @@
 /**
  * Check pack for "my <content> is not visible in the widget", from the RAG
- * card "workflow is not showing in the widget" (JA 1496842241) and the
+ * card on a workflow missing from the widget list (JA 1496842241) and the
  * segmentation reference behind it (JA 1477640228, 1477836862). Every rule
  * here is from 5.x code at 4c406d5, not runtime-verified, so a finding is
  * never more certain than "likely".
