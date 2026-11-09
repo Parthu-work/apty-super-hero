@@ -7,7 +7,7 @@ work [`docs/STATUS.md`](../STATUS.md) lists as open; the rest are in
 
 - `llm/`, `prod/`: open in STATUS.md (LLM Phases B and C; R6 and R9), and linked from STATUS.md and `REVIEW.md`.
 - `widget-network.md`: the Widget network calls item is open in STATUS.md.
-- `kb-rag/`: KB retrieval is open in STATUS.md; `decisions.md` holds the owner decisions D-KB1 to D-KB5, which `DECISIONS.md` links to.
+- `kb-rag/`: KB retrieval is open in STATUS.md; `decisions.md` holds the owner decisions D-KB1 to D-KB5, which `DECISIONS.md` links to. `FIX-MASTER.md` (K10–K18) fixes what the 2026-11-09 audit of the real 4.x cards found.
 - `00-context.md`: `widget-network.md` takes its rules from it.
 - `master/`: `DECISIONS.md` points to it for the hardening decisions.
 - `wp1-apty-integration.md`: named by `00-context.md` and `STATUS_HISTORY.md`.
