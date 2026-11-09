@@ -19,36 +19,36 @@ root page `1509720081`, "RAG Answer Cards") with this repository's own
 KB should cover, 9 it should not). The pack and the questions stayed outside
 the repository.
 
-| Measure | Result |
-|---|---|
-| Pages under the root / cards packed / chunks | 118 / 90 / 360 (28 skipped: 23 "4.x version not yet written" stubs and the "start here" routing pages, correctly, but reported only as "has 0 layers") |
-| Recall@1 / Recall@3 / MRR | 0.667 / 0.804 / 0.749 |
-| "Not covered" precision / recall, no threshold | 0.50 / 0.11 |
-| Same, best calibrated threshold (22.96) | 0.67 / 0.44 |
-| Same, threshold 150 | 0.31 / 1.00, but Recall@3 falls to 0.51 |
-| Network-response questions (`app-urls.json`, `flow.json`, `segments.json`) | Right card every time; layer 3 first when the question names a status code or the Network tab |
+| Measure                                                                    | Result                                                                                                                                                 |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pages under the root / cards packed / chunks                               | 118 / 90 / 360 (28 skipped: 23 "4.x version not yet written" stubs and the "start here" routing pages, correctly, but reported only as "has 0 layers") |
+| Recall@1 / Recall@3 / MRR                                                  | 0.667 / 0.804 / 0.749                                                                                                                                  |
+| "Not covered" precision / recall, no threshold                             | 0.50 / 0.11                                                                                                                                            |
+| Same, best calibrated threshold (22.96)                                    | 0.67 / 0.44                                                                                                                                            |
+| Same, threshold 150                                                        | 0.31 / 1.00, but Recall@3 falls to 0.51                                                                                                                |
+| Network-response questions (`app-urls.json`, `flow.json`, `segments.json`) | Right card every time; layer 3 first when the question names a status code or the Network tab                                                          |
 
 The defects, each with the work package that fixes it:
 
-| # | Defect | Evidence | Fix |
-|---|---|---|---|
-| D1 | "Not covered" is a raw BM25 score threshold. BM25 sums over query terms, so a long off-topic question outscores a short covered one; no threshold separates them. | "where is the Widget Activation toggle and Allowed Domains list" (the invented settings MASTER.md §0 was written against) returned 3 cards as `ok`; so did SAML SSO, licence price, iOS support, "kubernetes CrashLoopBackOff". | K10 |
-| D2 | The card's `Symptom:` line (the sentence written in the user's words) is never indexed; the title boost (3) lets one shared title word ("user", "tooltip") win; no stemming or synonyms. | Paraphrases miss: "every user sees it" ranks a "one user cannot see it" card first; "French users see English" finds no language card in the top 3; "guide jumps to step 4", "keeps coming back every login", "Content-Security-Policy refused" rank the right card 2nd or lower. | K11 |
-| D3 | Packs are 5.x only: `aptyVersion: z.literal("5.x")`, the builder always writes `"5.x"`, the store holds one pack, `KB_CARD_PAGE_BASE` is hard-coded to space JA, nothing knows the tenant's version. | A pack built from `A4PKH` is labelled 5.x. An SE with 4.x and 5.x customers can load only one, and gets the other version's cards silently. | K12 |
-| D4 | `playerVersionOf` treats `app-urls.json` and `app-data.json` as 5.x markers. The 4.x player reads both (apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts:17,23`). | A 4.x tenant seen before `flow.json` loads is called 5.x, so the regex URL flags are assumed off (`widget-not-visible.ts:210`). | K13 |
-| D5 | A 4.x tenant gets no diagnosis. Every check stops at the version gate (`CNV-V5`, "nothing was concluded"). In Extension mode the 4.x player fetches every content file through `chrome.runtime.sendMessage` to its own background (`player3.0/src/api/http.ts:249`), which tab-level CDP capture never sees, and its manifest has no `externally_connectable`, so the Agent cannot ask it. The CDN fallback is 5.x only. | A 4.x "widget not showing" question gets no evidence and no answer. | K14, K15 |
-| D6 | The no-key KB matches card only fires on a symptom regex (`kb-matches.ts:15`). 38 of the 102 real 4.x card titles do not pass it. | Missed words: flickers, jumps, slow/slower, freezes, hangs, repeats, "again and again", invisible, cropped, duplicates, "does nothing", "still shows", "no balloon appears", rejected, skips, differ, and every "`<file>`.json response, what it means" question. A Chinese question returns nothing (the cards are English). | K16 |
-| D7 | Stub cards and routing cards vanish from the pack, so a question that only a stub covers gets the nearest wrong card. | "bulk publish over 10 workflows", "analytics events missing in Admin", "on-prem ClickHouse migration", "`rules.json` response", "`flow-ID.json` response" all returned unrelated cards as `ok`. | K17 |
-| D8 | The model can still name a setting no chunk contains; nothing checks the answer. | Prompt-only guard (`constants.ts`, "Never name an Apty setting… not in a returned chunk"). | K18 |
+| #   | Defect                                                                                                                                                                                                                                                                                                                                                                                                                   | Evidence                                                                                                                                                                                                                                                                                                                      | Fix      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| D1  | "Not covered" is a raw BM25 score threshold. BM25 sums over query terms, so a long off-topic question outscores a short covered one; no threshold separates them.                                                                                                                                                                                                                                                        | "where is the Widget Activation toggle and Allowed Domains list" (the invented settings MASTER.md §0 was written against) returned 3 cards as `ok`; so did SAML SSO, licence price, iOS support, "kubernetes CrashLoopBackOff".                                                                                               | K10      |
+| D2  | The card's `Symptom:` line (the sentence written in the user's words) is never indexed; the title boost (3) lets one shared title word ("user", "tooltip") win; no stemming or synonyms.                                                                                                                                                                                                                                 | Paraphrases miss: "every user sees it" ranks a "one user cannot see it" card first; "French users see English" finds no language card in the top 3; "guide jumps to step 4", "keeps coming back every login", "Content-Security-Policy refused" rank the right card 2nd or lower.                                             | K11      |
+| D3  | Packs are 5.x only: `aptyVersion: z.literal("5.x")`, the builder always writes `"5.x"`, the store holds one pack, `KB_CARD_PAGE_BASE` is hard-coded to space JA, nothing knows the tenant's version.                                                                                                                                                                                                                     | A pack built from `A4PKH` is labelled 5.x. An SE with 4.x and 5.x customers can load only one, and gets the other version's cards silently.                                                                                                                                                                                   | K12      |
+| D4  | `playerVersionOf` treats `app-urls.json` and `app-data.json` as 5.x markers. The 4.x player reads both (apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts:17,23`).                                                                                                                                                                                                                                                | A 4.x tenant seen before `flow.json` loads is called 5.x, so the regex URL flags are assumed off (`widget-not-visible.ts:210`).                                                                                                                                                                                               | K13      |
+| D5  | A 4.x tenant gets no diagnosis. Every check stops at the version gate (`CNV-V5`, "nothing was concluded"). In Extension mode the 4.x player fetches every content file through `chrome.runtime.sendMessage` to its own background (`player3.0/src/api/http.ts:249`), which tab-level CDP capture never sees, and its manifest has no `externally_connectable`, so the Agent cannot ask it. The CDN fallback is 5.x only. | A 4.x "widget not showing" question gets no evidence and no answer.                                                                                                                                                                                                                                                           | K14, K15 |
+| D6  | The no-key KB matches card only fires on a symptom regex (`kb-matches.ts:15`). 38 of the 102 real 4.x card titles do not pass it.                                                                                                                                                                                                                                                                                        | Missed words: flickers, jumps, slow/slower, freezes, hangs, repeats, "again and again", invisible, cropped, duplicates, "does nothing", "still shows", "no balloon appears", rejected, skips, differ, and every "`<file>`.json response, what it means" question. A Chinese question returns nothing (the cards are English). | K16      |
+| D7  | Stub cards and routing cards vanish from the pack, so a question that only a stub covers gets the nearest wrong card.                                                                                                                                                                                                                                                                                                    | "bulk publish over 10 workflows", "analytics events missing in Admin", "on-prem ClickHouse migration", "`rules.json` response", "`flow-ID.json` response" all returned unrelated cards as `ok`.                                                                                                                               | K17      |
+| D8  | The model can still name a setting no chunk contains; nothing checks the answer.                                                                                                                                                                                                                                                                                                                                         | Prompt-only guard (`constants.ts`, "Never name an Apty setting… not in a returned chunk").                                                                                                                                                                                                                                    | K18      |
 
 ## 1. Owner decisions needed before K12 (record in `decisions.md` and `DECISIONS.md`)
 
-| Id | Decision | Default proposed |
-|---|---|---|
-| D-KB6 | Amend D-KB4 and MASTER.md §6: 4.x cards are in scope. Sources: Apty 4.x Product Knowledge Hub (`A4PKH`, root `1509720081`), Apty 5.x Product Knowledge Hub (its RAG Answer Cards root once moved; until then JA `1496711169`), Apty KB - Common for cards the same in both. | Accept |
-| D-KB7 | Amend MASTER.md §6 ("4.x cards out of scope") for the check packs too: the Agent diagnoses 4.x tenants, starting with "widget not showing" and "content not showing", from 4.x code (apty-assist) with file and line citations. | Accept |
-| D-KB8 | Quality gate on the real question set (now that a baseline exists, End goal §9): Recall@3 ≥ 0.90, "not covered" precision ≥ 0.90 and recall ≥ 0.80, per version. | Accept, or name other numbers |
-| D-KB9 | The 4.x Client bridge (K15 option C) needs a change in apty-assist (`player3.0` background). Ship it, or rely on the guided HAR path only. | HAR path now, bridge as a follow-up ticket |
+| Id    | Decision                                                                                                                                                                                                                                                                    | Default proposed                           |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| D-KB6 | Amend D-KB4 and MASTER.md §6: 4.x cards are in scope. Sources: Apty 4.x Product Knowledge Hub (`A4PKH`, root `1509720081`), Apty 5.x Product Knowledge Hub (its RAG Answer Cards root once moved; until then JA `1496711169`), Apty KB - Common for cards the same in both. | Accept                                     |
+| D-KB7 | Amend MASTER.md §6 ("4.x cards out of scope") for the check packs too: the Agent diagnoses 4.x tenants, starting with "widget not showing" and "content not showing", from 4.x code (apty-assist) with file and line citations.                                             | Accept                                     |
+| D-KB8 | Quality gate on the real question set (now that a baseline exists, End goal §9): Recall@3 ≥ 0.90, "not covered" precision ≥ 0.90 and recall ≥ 0.80, per version.                                                                                                            | Accept, or name other numbers              |
+| D-KB9 | The 4.x Client bridge (K15 option C) needs a change in apty-assist (`player3.0` background). Ship it, or rely on the guided HAR path only.                                                                                                                                  | HAR path now, bridge as a follow-up ticket |
 
 ## 2. Hard rules (in addition to MASTER.md §2)
 
@@ -63,7 +63,7 @@ The defects, each with the work package that fixes it:
    no `symptom`, no `status`, no coverage settings, behaving exactly as today).
 4. Search stays deterministic (P8) and platform-free. No new runtime
    dependency in `agent-core` without a licence check (`npm run
-   check:dist-licences`); a stemmer is about 100 lines, so write it.
+check:dist-licences`); a stemmer is about 100 lines, so write it.
 5. Every 4.x check-pack rule cites the apty-assist file and line it comes
    from, like the 5.x rules cite apty-dap; anything not confirmed in code is
    marked not runtime-verified, like today.
@@ -90,7 +90,7 @@ K10, K11, K17 and K12 and paste the before and after numbers, ids only.
     in no chunk gets `ln(1 + N)` (the highest weight: it is the term the KB
     has never heard of, like "saml", "kubernetes", "ios", "licence").
   - `coverage = Σ idf(t) for t matched in the top card (title, symptom, its
-    chunks) / Σ idf(t) for all query terms`. An exact or stemmed match counts
+chunks) / Σ idf(t) for all query terms`. An exact or stemmed match counts
     1, a fuzzy-only match 0.5, a synonym (K11) 0.8.
   - Covered when `coverage ≥ retrieval.coverage.min` **and** at least
     `retrieval.coverage.minTerms` (default 1) matched terms have
@@ -103,7 +103,7 @@ K10, K11, K17 and K12 and paste the before and after numbers, ids only.
     missing phrase is returned so the answer can say "the KB has no setting
     called …".
 - `KbSearchResult` gains `coverage: number` and `reason?: "no_match" |
-  "low_coverage" | "unknown_setting"`. `search_kb` passes `reason` and
+"low_coverage" | "unknown_setting"`. `search_kb` passes `reason` and
   `missingPhrases` to the model.
 - Keep `retrieval.threshold` (v1) working; v2 packs carry
   `retrieval.coverage: { min, minIdf, minTerms }` instead.
@@ -255,8 +255,8 @@ Three paths, in this order:
   4. Network → right-click → **Save all as HAR with content**;
   5. drop the HAR on the side panel (the existing HAR import), which runs
      the 4.x checks on it.
-  The HAR's page URL comes from the tab when the HAR has none (a
-  service-worker HAR has no page entry), with the user's confirmation.
+     The HAR's page URL comes from the tab when the HAR has none (a
+     service-worker HAR has no page entry), with the user's confirmation.
 - **C. 4.x Client bridge (needs D-KB9; apty-assist, separate PR):** add
   `externally_connectable: { ids: [<Agent IDs>] }` to the 4.x player
   manifest and a `chrome.runtime.onMessageExternal` handler in
@@ -366,22 +366,22 @@ Extend `tooling/scripts/kb/fixtures/synthetic-cards.mjs` and
 below, and give each question a `category` field; `eval-kb.mjs --by-category`
 prints the metrics per category.
 
-| Category | What it checks |
-|---|---|
-| paraphrase | the user's words, not the title's |
-| symptom-line | answered only by a card's symptom line |
-| collision | a shared title word must not win |
-| typo | one or two letters off |
-| short | one or two words |
-| multi | two symptoms in one question |
-| network-file | a file name, a status code, an empty `[]` |
-| layer | settings vs Console vs network vs support |
-| stub | only a stub card covers it |
-| version | the same title in a 4.x and a 5.x card |
-| not-covered-long | a long off-topic question |
-| not-covered-setting | an invented Title Case setting name |
-| not-covered-domain | another product area (SSO, billing, mobile, infra) |
-| non-english | a question in Chinese |
+| Category            | What it checks                                     |
+| ------------------- | -------------------------------------------------- |
+| paraphrase          | the user's words, not the title's                  |
+| symptom-line        | answered only by a card's symptom line             |
+| collision           | a shared title word must not win                   |
+| typo                | one or two letters off                             |
+| short               | one or two words                                   |
+| multi               | two symptoms in one question                       |
+| network-file        | a file name, a status code, an empty `[]`          |
+| layer               | settings vs Console vs network vs support          |
+| stub                | only a stub card covers it                         |
+| version             | the same title in a 4.x and a 5.x card             |
+| not-covered-long    | a long off-topic question                          |
+| not-covered-setting | an invented Title Case setting name                |
+| not-covered-domain  | another product area (SSO, billing, mobile, infra) |
+| non-english         | a question in Chinese                              |
 
 ### 5.3 Real cards (KB owner, outside the repository)
 
@@ -402,19 +402,19 @@ not covered, covering every category in 5.2. When the 5.x tree moves to the
 
 ### 5.4 Manual run in Chrome (each scenario, both versions)
 
-| # | Do | Expect |
-|---|---|---|
-| 1 | No AI key. Ask a covered symptom in your own words | KB matches card, top 3, one excerpt each, version label, no model request |
-| 2 | No AI key. Ask "how do I configure X" with no symptom | No KB card (D-KB1) |
-| 3 | AI key. Ask a follow-up on a finding | Answer cites `kb://…`; links open the card in its own space; no phrase flagged by K18 |
-| 4 | Ask "where is the Widget Activation toggle" | "The KB has no setting called Widget Activation", no card text presented as an answer |
-| 5 | Ask about SSO, pricing or mobile | "Not covered", suggests Ask Dapty |
-| 6 | Ask something only a stub covers | "Card exists, text not written yet" with its link |
-| 7 | 4.x tenant, Injected mode: "widget not showing" | Network capture runs, 4.x verdict, 4.x card text under each cause |
-| 8 | 4.x tenant, Extension mode: same | Guided HAR steps; after the HAR import, 4.x verdict |
-| 9 | 5.x tenant with the Client connected: same | 5.x verdict as today, 5.x card text |
-| 10 | Both packs loaded, unknown version | Hits labelled by version; no mixed instruction |
-| 11 | Ask in Chinese | English-cards notice |
+| #   | Do                                                    | Expect                                                                                |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1   | No AI key. Ask a covered symptom in your own words    | KB matches card, top 3, one excerpt each, version label, no model request             |
+| 2   | No AI key. Ask "how do I configure X" with no symptom | No KB card (D-KB1)                                                                    |
+| 3   | AI key. Ask a follow-up on a finding                  | Answer cites `kb://…`; links open the card in its own space; no phrase flagged by K18 |
+| 4   | Ask "where is the Widget Activation toggle"           | "The KB has no setting called Widget Activation", no card text presented as an answer |
+| 5   | Ask about SSO, pricing or mobile                      | "Not covered", suggests Ask Dapty                                                     |
+| 6   | Ask something only a stub covers                      | "Card exists, text not written yet" with its link                                     |
+| 7   | 4.x tenant, Injected mode: "widget not showing"       | Network capture runs, 4.x verdict, 4.x card text under each cause                     |
+| 8   | 4.x tenant, Extension mode: same                      | Guided HAR steps; after the HAR import, 4.x verdict                                   |
+| 9   | 5.x tenant with the Client connected: same            | 5.x verdict as today, 5.x card text                                                   |
+| 10  | Both packs loaded, unknown version                    | Hits labelled by version; no mixed instruction                                        |
+| 11  | Ask in Chinese                                        | English-cards notice                                                                  |
 
 ## 6. Out of scope
 
