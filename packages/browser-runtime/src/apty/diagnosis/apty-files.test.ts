@@ -179,3 +179,53 @@ describe("createAptyFiles", () => {
     expect(cdn).not.toHaveBeenCalled();
   });
 });
+
+describe("the page's network capture (KB-RAG K15)", () => {
+  const FLOWS = "https://cdn.apty.example/tenant-t/app-a/env-e/flow.json";
+  const captured = () => ({
+    resources: [
+      {
+        requestId: "p1",
+        url: FLOWS,
+        method: "GET",
+        status: 200,
+        timestamp: 1,
+        hasBody: true,
+      },
+    ],
+    bodies: new Map([["p1", JSON.stringify([{ id: 1, name: { 1: "x" } }])]]),
+  });
+
+  it("reads the files from the tab's capture when the Client does not answer, before the CDN, and says so", async () => {
+    const cdn = vi.fn(() => cdnWith([]));
+    const apty = createAptyFiles({
+      clientFiles: async () => silent,
+      capture: (tab) => (tab === 7 ? captured() : undefined),
+      cdn,
+    });
+    const evidence = await apty.files({ tabId: 7 }, undefined, ["flow.json"]);
+    expect(evidence.fromCapture).toBe(true);
+    expect(evidence.files["flow.json"]).toMatchObject({ status: "ok" });
+    expect(cdn).not.toHaveBeenCalled();
+  });
+
+  it("goes on to the CDN when the capture holds no Apty call, and keeps the Client's files when it answers", async () => {
+    const empty = createAptyFiles({
+      clientFiles: async () => silent,
+      capture: () => ({ resources: [], bodies: new Map() }),
+      cdn: () => cdnWith([]),
+    });
+    const evidence = await empty.files({ tabId: 7 }, undefined, [
+      "workflow.json",
+    ]);
+    expect(evidence.fromCapture).toBeUndefined();
+    expect(evidence.fromCdn).toBe(true);
+    const client = createAptyFiles({
+      clientFiles: async () => answered,
+      capture: () => captured(),
+    });
+    expect(await client.files({ tabId: 7 }, "ext", ["flow.json"])).toBe(
+      answered,
+    );
+  });
+});

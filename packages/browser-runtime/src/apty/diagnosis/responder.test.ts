@@ -154,6 +154,23 @@ describe("createDiagnosisResponder", () => {
     expect(JSON.stringify(answer?.result)).not.toContain("mrn=12345");
   });
 
+  it("says when a 4.x check read its files from the page's network capture (K15)", async () => {
+    const filesOf = vi.fn(async () => ({
+      ...evidenceFrom(capture("content-4x")),
+      fromCapture: true,
+    }));
+    const respond = createDiagnosisResponder({ filesOf });
+    const answer = await respond("the Apty widget is not appearing", {
+      runContext: { conversationId: "s-9", tabId: 9 },
+    });
+    const result = answer?.result as DiagnosisResult;
+    expect(result.aptyVersion).toBe("4.x");
+    expect(result.filesFromCapture).toBe(true);
+    expect(answer?.transcript.split("\n")[0]).toMatch(
+      /from the Apty files in the page's network capture/,
+    );
+  });
+
   it("reads every check's files for the conversation's tab, and says when they came from Apty's content CDN", async () => {
     const filesOf = vi.fn(
       async (

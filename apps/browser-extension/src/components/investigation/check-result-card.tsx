@@ -17,6 +17,10 @@ import type {
   VerdictStatus,
 } from "@apty/browser-runtime";
 import { recordDaptyChat } from "@apty/browser-runtime/apty/dapty-page-capture";
+import {
+  captureAndReload,
+  recheckFromCapture,
+} from "@apty/browser-runtime/apty/diagnosis/capture-check";
 import { cardLayerOf } from "@apty/browser-runtime/apty/diagnosis/card-layers";
 import type {
   DaptyRow,
@@ -25,6 +29,7 @@ import type {
 import { DefaultToolDisplay } from "@apty/ui/components/chatbot";
 import { StatusBadge, type StatusTone } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
+import { CopyButton } from "@apty/ui/components/ui/copy-button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
 import { cn } from "@apty/ui/lib/utils";
@@ -608,6 +613,135 @@ function RecordDaptyChat() {
   );
 }
 
+/** A widget or content check that read no file: the page's capture or a HAR can supply them (K15). */
+function needsFiles(result: DiagnosisResult): boolean {
+  return (
+    (result.packId === "widget-not-visible" ||
+      result.packId === "content-not-visible") &&
+    result.verdict.status === "no_data" &&
+    !result.filesFromCdn &&
+    !result.filesFromCapture
+  );
+}
+
+type CaptureState =
+  | { kind: "idle" }
+  | { kind: "capturing" }
+  | { kind: "none" }
+  | { kind: "failed" }
+  | { kind: "done"; calls: number; result: DiagnosisResult };
+
+const HAR_STEPS = [
+  "checkPack.harSteps.extensions",
+  "checkPack.harSteps.serviceWorker",
+  "checkPack.harSteps.network",
+  "checkPack.harSteps.reproduce",
+  "checkPack.harSteps.save",
+  "checkPack.harSteps.drop",
+] as const;
+
+/**
+ * Where a 4.x tenant's files can come from (KB-RAG K15): in Injected mode
+ * the page makes the calls, so a capture of the tab while it reloads holds
+ * them; in Extension mode the 4.x Client's service worker makes them, so
+ * the SE saves a HAR there and checks it on the HAR page.
+ */
+function GetFiles({ result }: { result: DiagnosisResult }) {
+  const t = useCheckText();
+  const [state, setState] = useState<CaptureState>({ kind: "idle" });
+  const run = async () => {
+    setState({ kind: "capturing" });
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (typeof tab?.id !== "number") throw new Error("no tab");
+      const captured = await captureAndReload(tab.id);
+      if (!captured.ok) throw new Error(captured.error);
+      if (captured.calls === 0) {
+        setState({ kind: "none" });
+        return;
+      }
+      const again = await recheckFromCapture(result, tab.id, tab.url);
+      if (!again) throw new Error("no check");
+      setState({ kind: "done", calls: captured.calls, result: again });
+    } catch {
+      setState({ kind: "failed" });
+    }
+  };
+  const stepsLabel = t("checkPack.harSteps.title");
+  return (
+    <div className="space-y-2 rounded-md border border-border p-2.5">
+      <p className="text-sm text-foreground">{t("checkPack.getFiles")}</p>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={state.kind === "capturing"}
+        onClick={() => void run()}
+      >
+        {t("checkPack.captureReload")}
+      </Button>
+      <div aria-live="polite" className="space-y-2">
+        {state.kind === "capturing" && (
+          <p className="text-xs text-muted-foreground">
+            {t("checkPack.capturing")}
+          </p>
+        )}
+        {state.kind === "none" && (
+          <p className="text-xs text-muted-foreground">
+            {t("checkPack.captureNone")}
+          </p>
+        )}
+        {state.kind === "failed" && (
+          <p className="text-xs text-muted-foreground">
+            {t("checkPack.captureFailed")}
+          </p>
+        )}
+        {state.kind === "done" && (
+          <>
+            <p className="text-xs text-muted-foreground">
+              {t("checkPack.captured", { calls: state.calls })}
+            </p>
+            <CheckResultCard
+              tool={{
+                type: "tool",
+                toolName: "run_diagnosis",
+                toolCallId: `capture-${result.packId}`,
+                input: {},
+                output: state.result,
+                state: "completed",
+              }}
+            />
+          </>
+        )}
+      </div>
+      <details className="rounded-md border border-border px-2.5 py-1.5">
+        <summary className="cursor-pointer text-sm font-medium text-foreground">
+          {stepsLabel}
+        </summary>
+        <ol
+          aria-label={stepsLabel}
+          className="mt-1 list-decimal space-y-1 pl-5 text-sm text-foreground"
+        >
+          {HAR_STEPS.map((key, index) => (
+            <li key={key}>
+              {t(key)}
+              {index === 0 && (
+                <CopyButton
+                  text="chrome://extensions"
+                  label={t("checkPack.harSteps.copyExtensions")}
+                  className="ml-1 align-middle"
+                />
+              )}
+            </li>
+          ))}
+        </ol>
+      </details>
+    </div>
+  );
+}
+
 /** The Ask Dapty conversation: what each suggestion would do on a click, and the user's last question. */
 function DaptySection({
   dapty,
@@ -822,6 +956,12 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           {t("checkPack.filesFromCdn")}
         </p>
       )}
+      {result.filesFromCapture && (
+        <p className="text-xs text-muted-foreground">
+          {t("checkPack.filesFromCapture")}
+        </p>
+      )}
+      {needsFiles(result) && <GetFiles result={result} />}
 
       {result.cardPageId && <VerdictKbVersion />}
 

@@ -2423,6 +2423,23 @@
       "notVerified": "Not verified",
       "layer": "Layer {{layer}} of “{{title}}”",
       "noVerifiedLine": "The card has no “Verified on” line."
+    },
+    "filesFromCapture": "Read from the page's network capture.",
+    "getFiles": "No Apty file could be read. A 4.x tenant's files can still be read:",
+    "captureReload": "Capture and reload",
+    "capturing": "Capturing the page's network while it reloads…",
+    "captureNone": "The page made no Apty content call. In Extension mode the 4.x Client makes them: save a HAR from its service worker.",
+    "captureFailed": "The capture could not run on this tab. Save a HAR instead.",
+    "captured": "Captured {{calls}} Apty calls. The check ran on them:",
+    "harSteps": {
+      "title": "Save a HAR from the 4.x Client's service worker",
+      "extensions": "Open chrome://extensions and turn on Developer mode.",
+      "serviceWorker": "Find the Apty extension (the 4.x Client) and click “service worker” under “Inspect views”.",
+      "network": "In that DevTools window, open Network and tick Preserve log.",
+      "reproduce": "Reload the application tab and reproduce the problem.",
+      "save": "In the service worker's Network panel, right-click and choose “Save all as HAR with content”.",
+      "drop": "Open the HAR check in the side panel and choose the HAR; confirm the page it should be checked against.",
+      "copyExtensions": "Copy chrome://extensions"
     }
   },
   "harCheck": {
@@ -2466,7 +2483,8 @@
       "check-failed": "The check could not run on this file."
     },
     "daptyFound": "Ask Dapty: {{calls}} chat call(s) and {{stored}} stored chat(s).",
-    "noDapty": "This HAR holds no Ask Dapty chat call. Record one with the widget's chat open, asking the question again."
+    "noDapty": "This HAR holds no Ask Dapty chat call. Record one with the widget's chat open, asking the question again.",
+    "useTabPage": "Use the page open in this tab: {{page}}"
   },
   "kbVersion": {
     "label": "Apty version",

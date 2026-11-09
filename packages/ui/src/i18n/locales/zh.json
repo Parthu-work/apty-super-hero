@@ -2423,6 +2423,23 @@
       "notVerified": "未验证",
       "layer": "“{{title}}”的第 {{layer}} 层",
       "noVerifiedLine": "该卡片没有“验证于”行。"
+    },
+    "filesFromCapture": "从页面的网络捕获中读取。",
+    "getFiles": "无法读取任何 Apty 文件。仍可读取 4.x 租户的文件：",
+    "captureReload": "捕获并重新加载",
+    "capturing": "正在页面重新加载时捕获其网络…",
+    "captureNone": "页面没有发出任何 Apty 内容请求。在扩展模式下，这些请求由 4.x Client 发出：请从其 service worker 保存 HAR。",
+    "captureFailed": "无法在此标签页上运行捕获。请改为保存 HAR。",
+    "captured": "已捕获 {{calls}} 个 Apty 请求。检查已在其上运行：",
+    "harSteps": {
+      "title": "从 4.x Client 的 service worker 保存 HAR",
+      "extensions": "打开 chrome://extensions 并开启开发者模式。",
+      "serviceWorker": "找到 Apty 扩展（4.x Client），在“检查视图”下点击“service worker”。",
+      "network": "在该 DevTools 窗口中打开“网络”，勾选“保留日志”。",
+      "reproduce": "重新加载应用标签页并重现问题。",
+      "save": "在 service worker 的“网络”面板中右键，选择“以 HAR 格式保存所有内容”。",
+      "drop": "在侧边栏打开 HAR 检查并选择该 HAR；确认要对照检查的页面。",
+      "copyExtensions": "复制 chrome://extensions"
     }
   },
   "harCheck": {
@@ -2466,7 +2483,8 @@
       "check-failed": "无法对此文件运行检查。"
     },
     "daptyFound": "Ask Dapty：{{calls}} 个聊天请求和 {{stored}} 个已保存的聊天。",
-    "noDapty": "此 HAR 不包含 Ask Dapty 聊天请求。请在打开小组件聊天并重新提问时录制。"
+    "noDapty": "此 HAR 不包含 Ask Dapty 聊天请求。请在打开小组件聊天并重新提问时录制。",
+    "useTabPage": "使用此标签页中打开的页面：{{page}}"
   },
   "kbVersion": {
     "label": "Apty 版本",

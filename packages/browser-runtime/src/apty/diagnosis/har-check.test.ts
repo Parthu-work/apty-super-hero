@@ -151,3 +151,45 @@ describe("runHarCheck", () => {
     expect(JSON.stringify(result)).not.toContain("intranet.other.example");
   });
 });
+
+describe("a HAR saved from the 4.x Client's service worker (KB-RAG K15 B)", () => {
+  const swHar = () => {
+    const har = harOf(harEntriesOf(capture("content-4x")));
+    har.log.entries = har.log.entries.filter(
+      (entry) => !("_resourceType" in entry),
+    );
+    return har;
+  };
+
+  it("has no page, so the widget check uses the page the user confirmed", async () => {
+    const har = swHar();
+    expect(summarizeHar(har)).toMatchObject({ version: "4.x", hasPage: false });
+    const unconfirmed = await runHarCheck(har, {
+      packId: "widget-not-visible",
+    });
+    expect(unconfirmed.gates.find((g) => g.id === "page")?.reason).toBe(
+      "pageUnknown",
+    );
+    const confirmed = await runHarCheck(
+      har,
+      { packId: "widget-not-visible" },
+      { pageUrl: "https://uat.crm.example.com/leads" },
+    );
+    expect(confirmed.aptyVersion).toBe("4.x");
+    expect(
+      confirmed.gates.find((g) => g.reason === "envMatch")?.params.env,
+    ).toBe("FIXTURE CRM: UAT");
+  });
+
+  it("checks a 4.x flow with its own steps file", async () => {
+    const result = await runHarCheck(swHar(), {
+      packId: "content-not-visible",
+      kind: "workflow",
+      query: "Create a lead",
+    });
+    expect(result.aptyVersion).toBe("4.x");
+    expect(result.gates.map((g) => g.reason)).toContain("found");
+    expect(result.gates.some((g) => g.ruleId === "C4X-06")).toBe(false);
+    expect(result.verdict.causes).toEqual([]);
+  });
+});

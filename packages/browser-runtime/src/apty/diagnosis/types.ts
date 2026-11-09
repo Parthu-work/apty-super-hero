@@ -86,6 +86,8 @@ export interface ClientEvidence {
   /** Every resource name the Client reported, to tell a 4.x tenant from a 5.x one. */
   observedNames: string[];
   files: Record<string, LoadedFile>;
+  /** The files came from the page's network capture (KB-RAG K15). */
+  fromCapture?: boolean;
   /** The `env-<id>` segment of the content files' path. */
   envId?: string;
   /** How many Apty environments the calls came from, when more than one; the files are the newest one's. */
@@ -535,6 +537,8 @@ export interface DiagnosisResult {
   dapty?: DaptySummary;
   /** The content files came from Apty's content CDN, as the Apty Client does not report its calls. */
   filesFromCdn?: boolean;
+  /** The content files were read from the page's network capture (KB-RAG K15). */
+  filesFromCapture?: boolean;
   /**
    * Ask Dapty only, when the chat answered it without the model: how each
    * source was read, as counts and reasons, for the evidence bundle. Never

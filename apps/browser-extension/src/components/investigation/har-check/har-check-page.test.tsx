@@ -260,3 +260,31 @@ describe("HarCheckPage", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("HarCheckPage — a HAR from the 4.x Client's service worker (K15 B)", () => {
+  it("offers the tab's page for a HAR with no page, and checks against it once confirmed", async () => {
+    (chrome as unknown as { tabs: unknown }).tabs = {
+      query: vi.fn(async () => [
+        { id: 3, url: "https://uat.crm.example.com/leads?session=FIXTURE" },
+      ]),
+    };
+    const har = harOf(harEntriesOf(capture("content-4x")));
+    har.log.entries.shift();
+    render(<HarCheckPage />);
+    choose(harFile(har));
+    await screen.findByText(/Apty content files/);
+    fireEvent.change(screen.getByLabelText("What is missing?"), {
+      target: { value: "widget" },
+    });
+    const use = await screen.findByRole("checkbox", {
+      name: "Use the page open in this tab: https://uat.crm.example.com/leads",
+    });
+    expect(use).not.toBeChecked();
+    fireEvent.click(use);
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    const card = await screen.findByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    await waitFor(() => expect(card).toHaveTextContent(/FIXTURE CRM: UAT/));
+  });
+});

@@ -64,3 +64,14 @@ export function resourceNameFor(url: string): string {
   const segments = withoutQuery.split("/").filter(Boolean);
   return segments[segments.length - 1] || withoutQuery;
 }
+
+/** An Apty content call: its path has a `tenant-<id>` segment, as the content CDN's do. */
+export function isAptyContentUrl(url: string): boolean {
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return false;
+  }
+  return path.split("/").some((segment) => /^tenant-[\w-]+$/.test(segment));
+}

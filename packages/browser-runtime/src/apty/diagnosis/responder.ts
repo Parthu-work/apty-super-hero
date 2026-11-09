@@ -172,6 +172,9 @@ function readFrom(result: DiagnosisResult, source: EvidenceSource): string {
     return `${DAPTY_CHAT_FROM[result.dapty.source]} and ${files}`;
   }
   if (source === "har") return "the HAR file's Apty files";
+  if (result.filesFromCapture) {
+    return "the Apty files in the page's network capture";
+  }
   return result.filesFromCdn ? CDN_FILES : "the Apty Client's files";
 }
 
@@ -297,9 +300,13 @@ async function contentEvidence(
   return { ...evidence, files: { ...evidence.files, ...steps.files } };
 }
 
-/** The result, saying when its files came from Apty's content CDN. */
+/** The result, saying when its files came from Apty's content CDN or the page's network capture. */
 const fromCdn = (result: DiagnosisResult, evidence: ClientEvidence) =>
-  evidence.fromCdn ? { ...result, filesFromCdn: true } : result;
+  evidence.fromCdn
+    ? { ...result, filesFromCdn: true }
+    : evidence.fromCapture
+      ? { ...result, filesFromCapture: true }
+      : result;
 
 /**
  * Runs the routed pack on the Client's files, logs and calls, and the page.
