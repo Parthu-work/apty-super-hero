@@ -33,9 +33,6 @@ export function quotedErrorText(text: string): string {
     : shown;
 }
 
-const FOUR_X_FILES = ["flow.json", "segments.json", "rules.json"];
-const FIVE_X_FILES = ["workflow.json", "segment.json", "rule.json"];
-
 export const records = (value: unknown): Rec[] =>
   Array.isArray(value)
     ? value.filter((x): x is Rec => typeof x === "object" && x !== null)
@@ -170,13 +167,34 @@ export function fileParams(file: LoadedFile): Params {
   };
 }
 
-/** The files only a 5.x player reads, or only a 4.x one (which reads `config.json` with `appUrls`). */
-const FIVE_X_MARKERS = [...FIVE_X_FILES, "app-urls.json", "app-data.json"];
-const FOUR_X_MARKERS = [...FOUR_X_FILES, "config.json"];
+/**
+ * The files only one player reads. Both players read `app-urls.json` and
+ * `app-data.json` (apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts`
+ * lines 17 and 23; apty-dap's player CDN service, `cdn.service.ts`), so
+ * they tell nothing. The 5.x player reads `workflow.json`, `segment.json`
+ * and `rule.json` and a `workflow-<uuid>.json` per workflow; the 4.x player
+ * reads `flow.json`, `segments.json`, `rules.json`, `feature-flag.json`
+ * (`feature-flag.effects.ts`) and a `flow-<id>.json` per flow
+ * (`cdn-helpers.ts`). `config.json` is read by the 4.x Studio from its own
+ * extension, never in a tenant's calls, so it is not a marker.
+ */
+const FIVE_X_MARKERS = new Set(["workflow.json", "segment.json", "rule.json"]);
+const FOUR_X_MARKERS = new Set([
+  "flow.json",
+  "segments.json",
+  "rules.json",
+  "feature-flag.json",
+]);
+const FOUR_X_FLOW_FILE = /^flow-[\w-]+\.json$/;
+
+const isFiveX = (name: string) => FIVE_X_MARKERS.has(name);
+const isFourX = (name: string) =>
+  FOUR_X_MARKERS.has(name) || FOUR_X_FLOW_FILE.test(name);
 
 /**
- * Which player the files are from, when they tell. It decides whether the
- * regex URL flags can be on at all: the 5.x player's `getFeatureFlags()`
+ * Which player the files are from, when they tell: `unknown` when only
+ * shared files, or files of both players, were observed. It decides whether
+ * the regex URL flags can be on at all: the 5.x player's `getFeatureFlags()`
  * only ever returns `DEFAULT_FEATURE_FLAGS`, where `urlRegex` and
  * `regExpUrl` are off, and nothing fetches a tenant's values (apty-dap
  * `cdn-api/src/types/feature-flags.ts` and `player/.../cdn/cdn.service.ts:933`,
@@ -188,17 +206,12 @@ export function playerVersionOf(
   evidence: ClientEvidence,
 ): "5.x" | "4.x" | "unknown" {
   if (evidence.fromCdn) return "5.x";
-  const names = new Set(evidence.observedNames);
-  const five = FIVE_X_MARKERS.some((n) => names.has(n));
-  const four = FOUR_X_MARKERS.some((n) => names.has(n));
+  const five = evidence.observedNames.some(isFiveX);
+  const four = evidence.observedNames.some(isFourX);
   if (five === four) return "unknown";
   return five ? "5.x" : "4.x";
 }
 
 export function looks4x(evidence: ClientEvidence): boolean {
-  const names = new Set(evidence.observedNames);
-  return (
-    FOUR_X_FILES.some((n) => names.has(n)) &&
-    !FIVE_X_FILES.some((n) => names.has(n))
-  );
+  return playerVersionOf(evidence) === "4.x";
 }

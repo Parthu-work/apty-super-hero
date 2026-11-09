@@ -61,5 +61,9 @@ document they concern.
 | [D-KB1: KB card retrieval supersedes "no RAG" for findings and symptoms only](docs/tasks/kb-rag/decisions.md#d-kb1-card-retrieval-supersedes-no-rag-for-findings-and-symptoms-only) | 2026-11-06 | Accepted |
 | [D-KB2: the KB reaches SEs as a local pack they import, never through this public repository](docs/tasks/kb-rag/decisions.md#d-kb2-the-kb-reaches-ses-as-a-local-pack-they-import) | 2026-11-06 | Accepted |
 | [D-KB3: KB retrieval is keyword (BM25) first, dense vectors only on a measured gain](docs/tasks/kb-rag/decisions.md#d-kb3-keyword-retrieval-first) | 2026-11-06 | Accepted |
-| [D-KB4: KB cards are pages labelled `rag-card` in space JA, 5.x only](docs/tasks/kb-rag/decisions.md#d-kb4-cards-are-pages-labelled-rag-card-in-space-ja) | 2026-11-06 | Amended 2026-11-07: the "RAG Card:" pages under RAG Answer Cards |
+| [D-KB4: KB cards are pages labelled `rag-card` in space JA, 5.x only](docs/tasks/kb-rag/decisions.md#d-kb4-cards-are-pages-labelled-rag-card-in-space-ja) | 2026-11-06 | Amended 2026-11-07: the "RAG Card:" pages under RAG Answer Cards; 2026-11-09 by D-KB6: 4.x and common too |
 | [D-KB5: the KB owner builds and distributes packs](docs/tasks/kb-rag/decisions.md#d-kb5-the-kb-owner-builds-and-distributes-packs) | 2026-11-06 | Accepted |
+| [D-KB6: 4.x cards are in scope, one pack per Apty version](docs/tasks/kb-rag/decisions.md#d-kb6-4x-cards-are-in-scope) | 2026-11-09 | Accepted; amends D-KB4 |
+| [D-KB7: the Agent diagnoses 4.x tenants from 4.x code](docs/tasks/kb-rag/decisions.md#d-kb7-the-agent-diagnoses-4x-tenants) | 2026-11-09 | Accepted |
+| [D-KB8: retrieval quality gate per version](docs/tasks/kb-rag/decisions.md#d-kb8-retrieval-quality-gate-per-version) | 2026-11-09 | Accepted |
+| [D-KB9: 4.x evidence from page capture and the service-worker HAR; the Client bridge in apty-assist](docs/tasks/kb-rag/decisions.md#d-kb9-how-the-agent-gets-a-4x-tenants-calls) | 2026-11-09 | Accepted |

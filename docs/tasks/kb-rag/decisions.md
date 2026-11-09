@@ -54,3 +54,42 @@ space and root page.
 ## D-KB5: the KB owner builds and distributes packs
 
 Accepted: the KB owner, assumed to be Harsh Sharma.
+
+## D-KB6: 4.x cards are in scope
+
+Accepted by the owner on 2026-11-09 with [`FIXES.md`](FIXES.md). Amends
+D-KB4 and MASTER.md section 6. Packs carry their Apty version, and an SE
+loads one pack per version:
+
+- **4.x:** the Apty 4.x Product Knowledge Hub, space `A4PKH`, root page
+  `1509720081` (`kb:pack --version 4.x`, the default for `A4PKH`);
+- **5.x:** the cards under JA root `1496711169` until the restructure moves
+  them to the 5.x hub, then that root (`--version 5.x`);
+- **common:** Apty KB - Common, for cards the same in both versions
+  (`--version common`); a common pack is searched with either version.
+
+## D-KB7: the Agent diagnoses 4.x tenants
+
+Accepted 2026-11-09. Amends MASTER.md section 6 for the check packs. The
+Agent runs 4.x check packs, starting with "widget not showing" and "content
+not showing", ported from 4.x code (apty-assist `player3.0`) with file and
+line citations in code comments. Each finding says it comes from 4.x code
+and is not runtime-verified until tested on a tenant. `element-not-found`
+and `page-readiness` keep the version gate for 4.x until a later port.
+
+## D-KB8: retrieval quality gate per version
+
+Accepted 2026-11-09. On the real question sets, per version (60 or more
+questions each, at least 9 the KB should not cover): **Recall@3 ≥ 0.90,
+"not covered" precision ≥ 0.90, "not covered" recall ≥ 0.80, layer
+accuracy ≥ 0.70.** On the synthetic CI set every question passes. The real
+sets and packs stay outside this repository; the KB owner runs them.
+
+## D-KB9: how the Agent gets a 4.x tenant's calls
+
+Accepted 2026-11-09. Page network capture (Injected mode) and the guided
+service-worker HAR (Extension mode) ship in this repository. The 4.x Client
+bridge is a separate change to `aptyInc/apty-assist`; without access to that
+repository it is described, ready to apply, in
+[`docs/integrations/apty/4X-BRIDGE.md`](../../integrations/apty/4X-BRIDGE.md),
+with no apty-assist code copied here.

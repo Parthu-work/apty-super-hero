@@ -175,3 +175,20 @@ Widget/Client diagnostics (`window.__APTY_WIDGET__` /
 `packages/browser-runtime/src/apty/widget-diagnostics.ts` and
 `client-diagnostics.ts` for those contracts; they don't need anything from
 this folder.
+
+## 4.x tenants
+
+The 4.x Client cannot be messaged by the Agent today: its manifests have no
+`externally_connectable`, and in Extension mode its player fetches content
+through its own background, which the tab's network capture does not see.
+Until the bridge in [`4X-BRIDGE.md`](4X-BRIDGE.md) ships in apty-assist,
+the Agent reads a 4.x tenant's content files from:
+
+- **Injected mode:** the page's own network capture. The player fetches
+  from the page, so the check reads the files from the conversation's
+  capture, or offers **Capture and reload** on the verdict card.
+- **Extension mode:** a HAR saved from the 4.x Client's service worker
+  (the verdict card lists the steps: `chrome://extensions` → Developer
+  mode → the Client's **service worker** → Network → Preserve log →
+  reload the tab and reproduce → **Save all as HAR with content** → drop
+  the HAR on the side panel).

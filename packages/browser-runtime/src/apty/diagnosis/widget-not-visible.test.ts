@@ -320,13 +320,14 @@ describe("widget-not-visible", () => {
 });
 
 /**
- * The same files as a 4.x Client reports them (`config.json` with
- * `appUrls`, none of 5.x's own files), where the regex URL flags come from
- * the tenant (apty-assist `feature-flag.effects.ts`, Appendix A4).
+ * The same files with nothing that tells the player apart (K13: only a
+ * file both players read), so the tenant's regex URL flags may be on, as
+ * they can be on a 4.x tenant (apty-assist `feature-flag.effects.ts`,
+ * Appendix A4).
  */
 const as4x = (evidence: ClientEvidence): ClientEvidence => ({
   ...evidence,
-  observedNames: ["config.json"],
+  observedNames: ["app-urls.json", "app-data.json"],
 });
 
 describe("widget-not-visible with the tenant's regex URL flags (4.x)", () => {
