@@ -76,6 +76,7 @@ describe("createKbPackStore", () => {
         space: "FX",
         label: "rag-card",
         cardCount: 1,
+        stubCount: 0,
         chunkCount: 4,
         builtAt: "2026-03-01T00:00:00.000Z",
         importedAt: NOW.toISOString(),

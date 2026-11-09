@@ -143,6 +143,7 @@
       "loadedLabel": "已加载的知识库",
       "space": "空间",
       "cards": "卡片",
+      "cardsWithStubs": "{{count}}，其中 {{stubs}} 张尚未编写",
       "built": "构建于",
       "imported": "导入于",
       "retrieval": "检索方式",
@@ -2412,6 +2413,7 @@
   "kbMatches": {
     "title": "匹配的 KB 卡片",
     "layer": "卡片的第 {{layer}} 层",
+    "stub": "KB 中有这张卡片，但其 {{version}} 版本的内容尚未编写。",
     "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。"
   }
 }

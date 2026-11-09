@@ -4,6 +4,7 @@ import { createKbIndexSource, kbToolResult } from "./kb-index.js";
 import {
   FIXTURE_CARDS,
   fixturePackText,
+  fixtureV2PackText,
   memoryRecords,
 } from "./kb-test-utils.js";
 
@@ -49,6 +50,20 @@ describe("kbToolResult", () => {
       ),
     ).toMatchObject({ status: "not_covered", results: [] });
     expect(kbToolResult(index, "tooltip opens twice").status).toBe("ok");
+  });
+
+  it("names a card whose text is not written yet, with its link and no text", async () => {
+    const index = await (await source(fixtureV2PackText())).source.current();
+    expect(kbToolResult(index, "the gadget export never finishes")).toEqual({
+      status: "stub",
+      stub: {
+        cite: "kb://303",
+        title: "FIXTURE gadget export never finishes",
+        url: "https://fixture.atlassian.net/wiki/spaces/FX/pages/303",
+        aptyVersion: "5.x",
+      },
+      results: [],
+    });
   });
 
   it("returns each chunk with its citation, Verified on line and NOT VERIFIED mark", async () => {

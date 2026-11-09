@@ -104,7 +104,10 @@ export function evaluate(core, pack, questions, { threshold, coverage } = {}) {
       topK: RANK_DEPTH,
       onePerCard: true,
     });
-    const ranked = result.hits.map((hit) => hit.chunk.pageId);
+    const ranked =
+      result.status === "stub" && result.card
+        ? [result.card.pageId]
+        : result.hits.map((hit) => hit.chunk.pageId);
     const expected = new Set(question.expectedPageIds);
     const notCovered = result.status === "not_covered";
     if (notCovered) predictedNotCovered++;

@@ -18,8 +18,10 @@ export function memoryRecords(): KbRecords {
 export interface FixtureCard {
   pageId: string;
   title: string;
-  /** Layer 1 to 4 text; FIXTURE content only. */
-  layers: [string, string, string, string];
+  /** Layer 1 to 4 text; FIXTURE content only. A stub or routing card has none. */
+  layers?: [string, string, string, string];
+  status?: "full" | "stub" | "routing";
+  symptom?: string | null;
 }
 
 /** A synthetic pack file's text, checksummed like the builder's. */
@@ -46,13 +48,16 @@ export function fixturePackText(
       title: card.title,
       group: "FIXTURE group",
       verifiedOn: "Verified on: FIXTURE code, 2026-01-01.",
-      notVerifiedCount: card.layers.filter((t) => t.includes("NOT VERIFIED"))
-        .length,
+      notVerifiedCount: (card.layers ?? []).filter((t) =>
+        t.includes("NOT VERIFIED"),
+      ).length,
+      ...(card.status ? { status: card.status } : {}),
+      ...(card.symptom !== undefined ? { symptom: card.symptom } : {}),
       url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${card.pageId}`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     })),
     chunks: cards.flatMap((card) =>
-      card.layers.map((text, i) => ({
+      (card.layers ?? []).map((text, i) => ({
         id: `${card.pageId}#L${i + 1}`,
         pageId: card.pageId,
         layer: i + 1,
@@ -89,3 +94,20 @@ export const FIXTURE_CARDS: FixtureCard[] = [
     ],
   },
 ];
+
+/** A card whose text is not written yet (schema 2). */
+export const FIXTURE_STUB: FixtureCard = {
+  pageId: "303",
+  title: "FIXTURE gadget export never finishes",
+  symptom: "Exporting FIXTURE gadgets hangs and never completes.",
+  status: "stub",
+};
+
+/** The fixture cards and the stub as a schema 2 pack, with settings a two-card pack can reach. */
+export function fixtureV2PackText(cards = [...FIXTURE_CARDS, FIXTURE_STUB]) {
+  return fixturePackText(
+    cards,
+    { coverage: { min: 0.5, minIdf: 1, minTerms: 1 } },
+    { schemaVersion: 2 },
+  );
+}

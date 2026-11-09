@@ -29,6 +29,8 @@ const cardSchema = z.object({
   /** Schema 2: the card's "Symptom:" line, the problem in the user's words. */
   symptom: z.string().max(300).nullable().optional(),
   notVerifiedCount: z.number().int().nonnegative(),
+  /** Schema 2: a stub ("not yet written") or routing ("start here") card has no chunks. */
+  status: z.enum(["full", "stub", "routing"]).optional(),
   url: z
     .string()
     .regex(/^https:\/\/[^/\s]+\/wiki\/spaces\/[^/\s]+\/pages\/\d+$/),
@@ -123,9 +125,13 @@ export function canonicalJson(value: unknown): string {
 
 function integrityProblem(pack: KbPack): string | undefined {
   const cardIds = new Set<string>();
+  const chunkless = new Map<string, string>();
   for (const card of pack.cards) {
     if (cardIds.has(card.pageId)) return `card ${card.pageId} appears twice`;
     cardIds.add(card.pageId);
+    if (card.status === "stub" || card.status === "routing") {
+      chunkless.set(card.pageId, card.status);
+    }
   }
   if (pack.source.cardCount !== pack.cards.length) {
     return "source.cardCount does not match the cards";
@@ -133,6 +139,10 @@ function integrityProblem(pack: KbPack): string | undefined {
   for (const chunk of pack.chunks) {
     if (!cardIds.has(chunk.pageId)) {
       return `chunk ${chunk.id} names no card`;
+    }
+    const status = chunkless.get(chunk.pageId);
+    if (status) {
+      return `card ${chunk.pageId} is a${status === "stub" ? "" : "n"} ${status === "stub" ? "stub" : "routing card"} and has chunks`;
     }
     if (chunk.id !== `${chunk.pageId}#L${chunk.layer}`) {
       return `chunk ${chunk.id} does not match its page and layer`;
@@ -223,6 +233,8 @@ export interface KbPackInfo {
   space: string;
   label: string;
   cardCount: number;
+  /** Cards whose text for this version is not written yet. */
+  stubCount: number;
   chunkCount: number;
   builtAt: string;
   importedAt: string;
@@ -244,6 +256,7 @@ export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
     space: pack.source.space,
     label: pack.source.label,
     cardCount: pack.cards.length,
+    stubCount: pack.cards.filter((card) => card.status === "stub").length,
     chunkCount: pack.chunks.length,
     builtAt: pack.builtAt,
     importedAt,

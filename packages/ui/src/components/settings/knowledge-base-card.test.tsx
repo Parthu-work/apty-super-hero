@@ -15,6 +15,7 @@ const INFO: KbPackInfo = {
   space: "FX",
   label: "rag-card",
   cardCount: 12,
+  stubCount: 0,
   chunkCount: 48,
   builtAt: "2026-03-01T00:00:00.000Z",
   importedAt: "2026-03-02T09:00:00.000Z",
@@ -87,6 +88,17 @@ describe("KnowledgeBaseCard", () => {
       within(list).getByText("Keyword and vectors · calibrated threshold"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/days ago/)).toBeNull();
+  });
+
+  it("counts the cards whose text is not written yet", async () => {
+    render(
+      <KnowledgeBaseCard
+        adapter={adapter({ ...INFO, stubCount: 3 })}
+        now={NOW}
+      />,
+    );
+    const list = await screen.findByLabelText("Loaded knowledge base");
+    expect(within(list).getByText("12, 3 not yet written")).toBeInTheDocument();
   });
 
   it("warns when the pack is older than 30 days", async () => {

@@ -131,7 +131,9 @@ describe("createKbIndex search", () => {
     } as typeof pack;
     const once = createKbIndex(duplicated);
     expect(once.info).toEqual({
+      aptyVersion: "5.x",
       cardCount: 1,
+      stubCount: 0,
       chunkCount: 4,
       mode: "bm25",
       calibrated: false,
@@ -457,5 +459,55 @@ describe("layerHint", () => {
     ["the tooltip flickers", 1],
   ] as const)("%s → layer %i", (query, layer) => {
     expect(layerHint(query)).toBe(layer);
+  });
+});
+
+describe("stub and routing cards (schema v2)", () => {
+  const CARDS: SyntheticCard[] = [
+    ...USER_WORDS,
+    {
+      pageId: "17",
+      title: "FIXTURE bulk export of gadgets times out",
+      symptom: "Exporting many FIXTURE gadgets at once never finishes.",
+      status: "stub",
+    },
+    {
+      pageId: "18",
+      title: "Start here: FIXTURE panel and badge questions",
+      symptom: "Which FIXTURE panel or badge card to read first.",
+      status: "routing",
+    },
+  ];
+  const index = createKbIndex(syntheticPack(CARDS, {}, V2));
+
+  it("answers a question only a stub covers with the stub, never another card", () => {
+    const result = index.search("bulk export of gadgets never finishes", {
+      onePerCard: true,
+    });
+    expect(result).toMatchObject({ status: "stub", hits: [] });
+    expect(result.card?.pageId).toBe("17");
+    expect(index.info.stubCount).toBe(1);
+  });
+
+  it("never returns a routing card, even when it ranks first", () => {
+    const result = index.search("which panel or badge card to read first", {
+      onePerCard: true,
+      topK: 10,
+    });
+    expect(result.hits.map((hit) => hit.chunk.pageId)).not.toContain("18");
+    expect(result.card).toBeUndefined();
+    for (const query of ["panel", "badge", "start here"]) {
+      const any = index.search(query, { topK: 20 });
+      expect(any.hits.every((hit) => hit.card.status !== "routing")).toBe(true);
+      expect(any.status).not.toBe("stub");
+    }
+  });
+
+  it("answers from a full card when it, not the stub, covers the question", () => {
+    const result = index.search("badge flickers on hover", {
+      onePerCard: true,
+    });
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("12");
   });
 });

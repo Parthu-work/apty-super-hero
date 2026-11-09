@@ -159,7 +159,14 @@ export function KnowledgeBaseCard({
             <dt className="text-muted-foreground">
               {t("settings.knowledgeBase.cards")}
             </dt>
-            <dd>{info.cardCount}</dd>
+            <dd>
+              {info.stubCount
+                ? t("settings.knowledgeBase.cardsWithStubs", {
+                    count: info.cardCount,
+                    stubs: info.stubCount,
+                  })
+                : info.cardCount}
+            </dd>
             <dt className="text-muted-foreground">
               {t("settings.knowledgeBase.built")}
             </dt>

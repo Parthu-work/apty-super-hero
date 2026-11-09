@@ -75,6 +75,25 @@ describe("parseKbPack", () => {
     });
   });
 
+  it("accepts stub and routing cards without chunks, and refuses chunks on them", async () => {
+    const stub = {
+      pageId: "102",
+      title: "FIXTURE gadgets cannot be exported",
+      status: "stub" as const,
+    };
+    const pack = syntheticPack([CARD, stub], {}, { schemaVersion: 2 });
+    expect(await parse(pack)).toEqual({ ok: true, pack });
+    const withChunks = syntheticPack(
+      [CARD, { ...stub, layers: CARD.layers }],
+      {},
+      { schemaVersion: 2 },
+    );
+    expect(await parse(withChunks)).toMatchObject({
+      code: "invalid",
+      detail: "card 102 is a stub and has chunks",
+    });
+  });
+
   it("names each kind of bad file", async () => {
     const pack = syntheticPack([CARD]);
     expect(await parse("{not json")).toEqual({ ok: false, code: "not_json" });

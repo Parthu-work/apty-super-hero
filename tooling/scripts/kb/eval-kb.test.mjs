@@ -130,6 +130,38 @@ describe("calibrateCoverage (schema 2)", () => {
     assert.deepEqual(calibrateCoverage(core, v2, questions), suggested);
   });
 
+  it("counts a stub as a hit when it is the expected card", async () => {
+    const withStub = buildPack({
+      pages: [
+        ...SYNTHETIC_PAGES,
+        {
+          id: "1099",
+          title: "RAG Card: FIXTURE gadget export never finishes",
+          group: "FIXTURE group",
+          updatedAt: "2026-02-01T00:00:00.000Z",
+          body: "<p>Symptom: exporting FIXTURE gadgets hangs.</p><p>The 5.x version not yet written.</p>",
+        },
+      ],
+      site: "fixture.atlassian.net",
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-01T00:00:00.000Z",
+    }).pack;
+    const report = evaluate(
+      core,
+      await readPack(core, JSON.stringify(withStub)),
+      [
+        {
+          id: "st1",
+          q: "gadget export never finishes",
+          expectedPageIds: ["1099"],
+        },
+      ],
+    );
+    assert.equal(report.recallAt1, 1);
+    assert.deepEqual(report.misses, []);
+  });
+
   it("does not let a threshold change a schema 2 pack's answers", () => {
     assert.deepEqual(
       evaluate(core, v2, questions, { threshold: 1_000 }).misses,

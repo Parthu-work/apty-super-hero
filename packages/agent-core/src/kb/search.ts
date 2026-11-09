@@ -42,9 +42,15 @@ export type KbNotCoveredReason =
   | "unknown_setting";
 
 export interface KbSearchResult {
-  /** `not_covered`: nothing matched, the top card covers too little of the question, or it names a setting the card does not have. */
-  status: "ok" | "not_covered";
+  /**
+   * `not_covered`: nothing matched, the top card covers too little of the
+   * question, or it names a setting the card does not have. `stub`: the
+   * card that covers it is not written yet for this version (`card`).
+   */
+  status: "ok" | "not_covered" | "stub";
   hits: KbSearchHit[];
+  /** With `stub`: the card, with no text. */
+  card?: KbCard;
   /**
    * The share of the question's weight the top card matches, 0 to 1: each
    * term weighs its idf, and counts in full when the card has it, half when
@@ -73,7 +79,11 @@ export const KB_COVERAGE_DEFAULTS: KbCoverageSettings = {
 };
 
 export interface KbIndexInfo {
+  /** The Apty version the pack's cards are for. */
+  aptyVersion: KbPack["aptyVersion"];
   cardCount: number;
+  /** Cards not written yet for this version (schema 2). */
+  stubCount: number;
   chunkCount: number;
   mode: "bm25" | "hybrid";
   /** Whether the pack carries a calibrated threshold; without one, any match counts as covered. */
@@ -253,7 +263,9 @@ function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
   const dense = pack.retrieval.dense;
   const hybrid = dense !== undefined && vectorsByChunk.size === chunks.length;
   const info: KbIndexInfo = {
+    aptyVersion: pack.aptyVersion,
     cardCount: cards.size,
+    stubCount: 0,
     chunkCount: chunks.length,
     mode: hybrid ? "hybrid" : "bm25",
     calibrated: pack.retrieval.threshold !== undefined,
@@ -407,10 +419,20 @@ function corpusOf(
       `${cardText.get(chunk.pageId) ?? ""}\n${normalize(`${own}\n${heading}\n${text}`).replace(/\s+/g, " ")}`,
     );
   }
+  let documents = chunks.length;
+  for (const card of cards.values()) {
+    if (cardTerms.has(card.pageId)) continue;
+    const own = `${card.title}\n${card.symptom ?? ""}`;
+    const terms = analyze(own);
+    for (const term of new Set(terms)) df.set(term, (df.get(term) ?? 0) + 1);
+    cardTerms.set(card.pageId, terms);
+    cardText.set(card.pageId, normalize(own).replace(/\s+/g, " "));
+    documents++;
+  }
   const cardSets = new Map(
     [...cardTerms].map(([pageId, terms]) => [pageId, new Set(terms)]),
   );
-  const n = chunks.length;
+  const n = documents;
   const idf = (term: string) => Math.log(1 + n / (1 + (df.get(term) ?? 0)));
 
   function approximate(term: string, own: Set<string>): boolean {
@@ -671,6 +693,7 @@ function createV2Index(pack: KbPack): KbIndex {
     const hinted = layerHint(query);
 
     const scores = new Map<string, number>();
+    const chunklessScores = new Map<string, number>();
     if (terms.length > 0) {
       const options = {
         boostTerm: (_term: string, i: number) =>
@@ -678,7 +701,10 @@ function createV2Index(pack: KbPack): KbIndex {
       };
       const text = searched.join(" ");
       for (const result of cardIndex.search(text, options)) {
-        for (const chunk of chunksOf.get(String(result.id)) ?? []) {
+        const pageId = String(result.id);
+        const own = chunksOf.get(pageId);
+        if (!own) chunklessScores.set(pageId, result.score);
+        for (const chunk of own ?? []) {
           scores.set(chunk.id, (scores.get(chunk.id) ?? 0) + result.score);
         }
       }
@@ -734,7 +760,14 @@ function createV2Index(pack: KbPack): KbIndex {
     }
 
     const top = ranked[0];
-    if (!top) {
+    const stub = [...chunklessScores]
+      .filter(([pageId]) => cards.get(pageId)?.status === "stub")
+      .sort(([a, x], [b, y]) => y - x || comparePageIds(a, b))[0];
+    const stubFirst =
+      stub !== undefined && (!top || stub[1] > top.score)
+        ? (cards.get(stub[0]) as KbCard)
+        : undefined;
+    if (!top && !stubFirst) {
       return {
         status: "not_covered",
         hits: [],
@@ -744,7 +777,7 @@ function createV2Index(pack: KbPack): KbIndex {
     }
     const { coverage, strongTerms, missingPhrases } = corpus.assess(
       query,
-      top.chunk.pageId,
+      stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
       settings.minIdf,
     );
     if (missingPhrases.length > 0) {
@@ -767,13 +800,19 @@ function createV2Index(pack: KbPack): KbIndex {
         reason: "low_coverage",
       };
     }
+    if (stubFirst) {
+      return { status: "stub", hits: [], coverage, card: stubFirst };
+    }
     const hits = options.onePerCard ? onePerCardOnly(ranked) : ranked;
     return { status: "ok", hits: hits.slice(0, topK), coverage };
   }
 
   return {
     info: {
+      aptyVersion: pack.aptyVersion,
       cardCount: cards.size,
+      stubCount: [...cards.values()].filter((card) => card.status === "stub")
+        .length,
       chunkCount: chunks.length,
       mode: hybrid ? "hybrid" : "bm25",
       calibrated: pack.retrieval.coverage !== undefined,

@@ -52,6 +52,7 @@ const PACK_INFO = {
   space: "FX",
   label: "rag-card",
   cardCount: 12,
+  stubCount: 0,
   chunkCount: 48,
   builtAt: "2026-03-01T00:00:00.000Z",
   importedAt: "2026-03-02T00:00:00.000Z",

@@ -31,6 +31,35 @@ const hit = (
 });
 
 describe("KbMatchesCard", () => {
+  it("says the KB has a card whose text is not written yet, with its link", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "stub",
+          stub: {
+            cite: "kb://303",
+            title: "FIXTURE gadget export never finishes",
+            url: "https://fixture.atlassian.net/wiki/spaces/A4X/pages/303",
+            aptyVersion: "4.x",
+          },
+          results: [],
+        })}
+      />,
+    );
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    expect(
+      within(card).getByText(
+        "The KB has a card for this, but its 4.x text is not written yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByRole("link", { name: /FIXTURE gadget export/ }),
+    ).toHaveAttribute(
+      "href",
+      "https://fixture.atlassian.net/wiki/spaces/A4X/pages/303",
+    );
+  });
+
   it("lists each card with its link, layer, text, Verified on line and Not verified badge", () => {
     render(
       <AptyToolDisplay

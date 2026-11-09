@@ -31,6 +31,11 @@ const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const MAX_CHUNK_CHARS = 1000;
 const MAX_SYMPTOM_CHARS = 300;
 const SYMPTOM_LINE = /^Symptom:\s*/i;
+const NOT_YET_WRITTEN = [
+  /\b(?:4|5)\.x version not yet written\b/i,
+  /not yet written/i,
+];
+const ROUTING_TITLE = /^start here\b/i;
 const MAX_RETRIES = 3;
 const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
 const NOT_VERIFIED = /\bNOT VERIFIED\b/g;
@@ -209,6 +214,36 @@ export function parseCard(page, { site, space, group = "" }) {
   const numbers = layers.map(
     ({ heading }) => Number(LAYER_HEADING.exec(heading)[1]) || 0,
   );
+  const title = page.title.replace(TITLE_PREFIX, "").trim();
+  const card = (intro, status) => {
+    const lines = intro.split("\n");
+    const symptomLine = lines.find((line) => SYMPTOM_LINE.test(line));
+    return {
+      pageId: page.id,
+      title,
+      group,
+      verifiedOn: lines.find((line) => /^Verified on:/i.test(line)) ?? null,
+      symptom: symptomLine
+        ? symptomLine
+            .replace(SYMPTOM_LINE, "")
+            .trim()
+            .slice(0, MAX_SYMPTOM_CHARS) || null
+        : null,
+      notVerifiedCount: 0,
+      status,
+      url: `https://${site}/wiki/spaces/${space}/pages/${page.id}`,
+      updatedAt: page.updatedAt ?? "",
+    };
+  };
+  if (layers.length === 0) {
+    const text = storageToText(html);
+    if (ROUTING_TITLE.test(title)) {
+      return { card: card(text, "routing"), chunks: [] };
+    }
+    if (NOT_YET_WRITTEN.some((pattern) => pattern.test(text))) {
+      return { card: card(text, "stub"), chunks: [] };
+    }
+  }
   if (layers.length !== 4) {
     return { skipped: `has ${layers.length} layers, not 4` };
   }
@@ -251,16 +286,7 @@ export function parseCard(page, { site, space, group = "" }) {
     0,
   );
   return {
-    card: {
-      pageId: page.id,
-      title: page.title.replace(TITLE_PREFIX, "").trim(),
-      group,
-      verifiedOn,
-      symptom,
-      notVerifiedCount,
-      url: `https://${site}/wiki/spaces/${space}/pages/${page.id}`,
-      updatedAt: page.updatedAt ?? "",
-    },
+    card: { ...card(intro, "full"), notVerifiedCount },
     chunks,
   };
 }
@@ -373,7 +399,7 @@ export async function fetchCardPages({
   return pages;
 }
 
-/** The pack for these pages, sorted by page id, with its checksum; and the pages skipped. */
+/** The pack for these pages, sorted by page id, with its checksum; and the pages skipped (malformed). */
 export function buildPack({
   pages,
   site,
@@ -653,11 +679,16 @@ export async function run({
       );
     }
 
+    const count = (status) =>
+      pack.cards.filter((card) => card.status === status).length;
     print(
-      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks) from ${options.site}, space ${options.space}, ${selection}.`,
+      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing; ${skipped.length} malformed skipped. From ${options.site}, space ${options.space}, ${selection}.`,
     );
+    for (const card of pack.cards.filter((c) => c.status === "stub")) {
+      print(`  stub ${card.pageId} "${card.title}": not yet written`);
+    }
     for (const { pageId, title, reason } of skipped) {
-      print(`  skipped ${pageId} "${title}": ${reason}`);
+      print(`  malformed, skipped ${pageId} "${title}": ${reason}`);
     }
     const flagged = pack.cards.filter((card) => card.notVerifiedCount > 0);
     if (flagged.length > 0) {
@@ -665,7 +696,9 @@ export async function run({
         `  ${flagged.length} cards carry NOT VERIFIED statements: ${flagged.map((card) => card.pageId).join(", ")}`,
       );
     }
-    for (const card of pack.cards.filter((c) => c.symptom === null)) {
+    for (const card of pack.cards.filter(
+      (c) => c.symptom === null && c.status !== "routing",
+    )) {
       print(`  no Symptom line in ${card.pageId} "${card.title}"`);
     }
     const unverified = pack.cards.filter((card) => card.verifiedOn === null);

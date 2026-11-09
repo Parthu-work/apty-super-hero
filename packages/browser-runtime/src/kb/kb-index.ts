@@ -54,8 +54,19 @@ export interface KbToolHit {
   text: string;
 }
 
+/** A card that covers the question but whose text for its version is not written yet. */
+export interface KbStubHit {
+  /** `kb://<pageId>`: the card, with no layer. */
+  cite: string;
+  title: string;
+  url: string;
+  aptyVersion: string;
+}
+
 export interface KbToolResult {
-  status: "ok" | "not_covered" | "no_pack";
+  status: "ok" | "not_covered" | "stub" | "no_pack";
+  /** With `stub`: the card; say it exists, that its text is not written yet, and give its link. */
+  stub?: KbStubHit;
   /** With `not_covered`: nothing matched, too little of the question matched, or it names a setting the best card lacks. */
   reason?: KbNotCoveredReason;
   /** With `unknown_setting`: the phrases no card has. */
@@ -96,6 +107,18 @@ export function kbToolResult(
 ): KbToolResult {
   if (!index) return { status: "no_pack", results: [] };
   const found = index.search(query, options);
+  if (found.status === "stub" && found.card) {
+    return {
+      status: "stub",
+      stub: {
+        cite: `kb://${found.card.pageId}`,
+        title: found.card.title,
+        url: found.card.url,
+        aptyVersion: index.info.aptyVersion,
+      },
+      results: [],
+    };
+  }
   if (found.status === "not_covered") {
     return {
       status: "not_covered",

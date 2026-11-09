@@ -191,6 +191,7 @@ describe("parseCard", () => {
       verifiedOn: "Verified on: FIXTURE code, commit 0000000, 2026-01-01.",
       symptom: "the FIXTURE banner never glows.",
       notVerifiedCount: 1,
+      status: "full",
       url: `https://${SITE}/wiki/spaces/FX/pages/101`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     });
@@ -244,6 +245,38 @@ describe("parseCard", () => {
     );
     assert.equal(long.card.symptom.length, 300);
     assert.ok(long.card.symptom.startsWith("FIXTURE y"));
+  });
+
+  it("keeps a stub and a routing card with no chunks, and skips a malformed one with its reason", () => {
+    const options = { site: SITE, space: "FX" };
+    const intro = (text) =>
+      `<p>Symptom: FIXTURE gadgets cannot be exported.</p><p>${text}</p>`;
+    const stub = parseCard(
+      page("31", { body: intro("The 4.x version not yet written (FIXTURE).") }),
+      options,
+    );
+    assert.equal(stub.card.status, "stub");
+    assert.equal(stub.card.symptom, "FIXTURE gadgets cannot be exported.");
+    assert.deepEqual(stub.chunks, []);
+    const generic = parseCard(
+      page("32", { body: intro("FIXTURE: this card is not yet written.") }),
+      options,
+    );
+    assert.equal(generic.card.status, "stub");
+    const routing = parseCard(
+      page("33", {
+        title: "RAG Card: Start here: FIXTURE gadget questions",
+        body: "<p>FIXTURE: read the gadget cards below.</p>",
+      }),
+      options,
+    );
+    assert.equal(routing.card.status, "routing");
+    assert.equal(routing.card.title, "Start here: FIXTURE gadget questions");
+    assert.deepEqual(routing.chunks, []);
+    assert.deepEqual(
+      parseCard(page("34", { body: "<p>FIXTURE: nothing here.</p>" }), options),
+      { skipped: "has 0 layers, not 4" },
+    );
   });
 
   it("gives null for a card with no Verified on line", () => {
@@ -520,7 +553,10 @@ describe("the CLI", () => {
     assert.equal(pack.builtAt, "2026-03-04T05:06:07.000Z");
     assert.equal(packSha256(pack), pack.sha256);
     assert.equal(statSync(file).mode & 0o777, 0o600);
-    assert.match(result.out, /Built 2 cards \(8 chunks\)/);
+    assert.match(
+      result.out,
+      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing; 0 malformed skipped\./,
+    );
     assert.match(result.out, /NOT VERIFIED statements: 7, 8/);
     assert.match(result.out, /no --coverage-min/);
     for (const secret of [

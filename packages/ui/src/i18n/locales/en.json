@@ -143,6 +143,7 @@
       "loadedLabel": "Loaded knowledge base",
       "space": "Space",
       "cards": "Cards",
+      "cardsWithStubs": "{{count}}, {{stubs}} not yet written",
       "built": "Built",
       "imported": "Imported",
       "retrieval": "Retrieval",
@@ -2412,6 +2413,7 @@
   "kbMatches": {
     "title": "KB cards that match",
     "layer": "Layer {{layer}} of the card",
+    "stub": "The KB has a card for this, but its {{version}} text is not written yet.",
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card."
   }
 }

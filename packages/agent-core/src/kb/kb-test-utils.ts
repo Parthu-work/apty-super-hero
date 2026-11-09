@@ -4,8 +4,10 @@ import { canonicalJson, KB_PACK_KIND, type KbPack } from "./pack.js";
 export interface SyntheticCard {
   pageId: string;
   title: string;
-  /** The four layers' text; FIXTURE content only. */
-  layers: [string, string, string, string];
+  /** The four layers' text; FIXTURE content only. A stub or routing card has none. */
+  layers?: [string, string, string, string];
+  /** Schema 2: a stub or routing card carries no chunks. */
+  status?: "full" | "stub" | "routing";
   headings?: [string, string, string, string];
   verifiedOn?: string | null;
   /** The card's symptom line (schema 2). */
@@ -59,15 +61,16 @@ export function syntheticPack(
         card.verifiedOn === undefined
           ? "Verified on: FIXTURE code, 2026-01-01."
           : card.verifiedOn,
-      notVerifiedCount: card.layers.filter((text) =>
+      notVerifiedCount: (card.layers ?? []).filter((text) =>
         text.includes("NOT VERIFIED"),
       ).length,
+      ...(card.status !== undefined ? { status: card.status } : {}),
       ...(card.symptom !== undefined ? { symptom: card.symptom } : {}),
       url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${card.pageId}`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     })),
     chunks: cards.flatMap((card) =>
-      card.layers.map((text, i) => ({
+      (card.layers ?? []).map((text, i) => ({
         id: `${card.pageId}#L${i + 1}`,
         pageId: card.pageId,
         layer: (i + 1) as 1 | 2 | 3 | 4,

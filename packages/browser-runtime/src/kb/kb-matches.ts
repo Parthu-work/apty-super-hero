@@ -38,7 +38,8 @@ export async function localKbMatches(
       text.slice(0, MAX_QUERY_CHARS),
       { topK: KB_MATCHES, onePerCard: true },
     );
-    return result.status === "ok" && result.results.length > 0
+    return result.status === "stub" ||
+      (result.status === "ok" && result.results.length > 0)
       ? result
       : undefined;
   } catch {

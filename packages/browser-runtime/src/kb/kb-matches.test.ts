@@ -5,6 +5,7 @@ import { isKbSymptom, localKbMatches } from "./kb-matches.js";
 import {
   FIXTURE_CARDS,
   fixturePackText,
+  fixtureV2PackText,
   memoryRecords,
 } from "./kb-test-utils.js";
 
@@ -46,6 +47,19 @@ describe("localKbMatches", () => {
     const pages = result?.results.map((hit) => hit.cite.split("#")[0]);
     expect(new Set(pages).size).toBe(pages?.length);
     expect(result?.results.length).toBeLessThanOrEqual(3);
+  });
+
+  it("shows a stub when only a card not written yet covers the symptom", async () => {
+    const store = createKbPackStore({ records: memoryRecords() });
+    await store.replace(fixtureV2PackText());
+    const result = await localKbMatches(
+      "the gadget export never finishes",
+      createKbIndexSource(store),
+    );
+    expect(result).toMatchObject({
+      status: "stub",
+      stub: { cite: "kb://303" },
+    });
   });
 
   it("answers nothing for a bare how-to, below the threshold, with no pack, or when the pack cannot be read", async () => {
