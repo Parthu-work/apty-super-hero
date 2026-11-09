@@ -14,9 +14,10 @@ const ALL_HITS = 20;
  * One search over several packs (KB-RAG K12): a tab's version and the
  * common cards, or every loaded pack when the version is unknown. Each
  * pack is searched with its own index and settings, and the results are
- * merged the same way every time: the covered packs' hits by score (ties
- * by page id, then layer), else the best covered stub, else the uncovered
- * result that came closest. Page ids are unique across spaces, so a card
+ * merged the same way every time: when the best covered result (by
+ * coverage) is a stub, that stub; otherwise the covered packs' hits by
+ * score (ties by page id, then layer); else the uncovered result that came
+ * closest. Page ids are unique across spaces, so a card
  * is in one pack only. Each hit carries its pack's version, and
  * `mixedVersions` says when the top two come from different versions.
  */
@@ -48,6 +49,15 @@ export function createKbIndexSet(packs: readonly KbPack[]): KbIndex {
     const results = indexes.map((index) =>
       index.search(query, { ...options, topK: ALL_HITS }),
     );
+    const closest = (list: KbSearchResult[]) =>
+      [...list].sort(
+        (a, b) =>
+          b.coverage - a.coverage ||
+          Number(b.status === "ok") - Number(a.status === "ok") ||
+          (a.card?.pageId ?? "").localeCompare(b.card?.pageId ?? ""),
+      )[0];
+    const best = closest(results.filter((r) => r.status !== "not_covered"));
+    if (best?.status === "stub") return { ...best, mixedVersions: false };
     const covered = results.filter((r) => r.status === "ok");
     if (covered.length > 0) {
       const hits = covered
@@ -60,14 +70,6 @@ export function createKbIndexSet(packs: readonly KbPack[]): KbIndex {
         coverage: Math.max(...covered.map((r) => r.coverage)),
       });
     }
-    const closest = (list: KbSearchResult[]) =>
-      [...list].sort(
-        (a, b) =>
-          b.coverage - a.coverage ||
-          (a.card?.pageId ?? "").localeCompare(b.card?.pageId ?? ""),
-      )[0];
-    const stub = closest(results.filter((r) => r.status === "stub"));
-    if (stub) return { ...stub, mixedVersions: false };
     return (
       closest(results) ?? {
         status: "not_covered",

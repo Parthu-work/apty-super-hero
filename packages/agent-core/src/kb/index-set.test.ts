@@ -84,6 +84,49 @@ describe("createKbIndexSet", () => {
     expect(unknown.info.cardCount).toBe(5);
   });
 
+  it("answers with another version's stub when it covers the question better than this version's cards", () => {
+    const withStub = syntheticPack(
+      [
+        card("51", "FIXTURE beacon hides behind the menu", "Beacon"),
+        {
+          pageId: "59",
+          title: "FIXTURE bulk export of guides times out",
+          symptom: "Exporting many FIXTURE guides at once never finishes.",
+          status: "stub",
+        },
+      ],
+      COVERAGE,
+      { schemaVersion: 2, aptyVersion: "5.x" } as never,
+    );
+    const weak = syntheticPack(
+      [
+        {
+          pageId: "43",
+          title: "FIXTURE guide list loads in the wrong order",
+          layers: [
+            "- In Studio, sort the FIXTURE guide list and export it again.",
+            "- The FIXTURE list element must be on the page.",
+            "- guides.json lists sortOrder (FIXTURE).",
+            "- Send support the FIXTURE list id.",
+          ],
+        },
+      ],
+      { coverage: { min: 0.1, minIdf: 0, minTerms: 1 } },
+      { schemaVersion: 2, aptyVersion: "4.x" } as never,
+    );
+    expect(
+      createKbIndexSet([weak]).search("bulk export of guides never finishes")
+        .status,
+    ).toBe("ok");
+    const set = createKbIndexSet([weak, withStub]);
+    const result = set.search("bulk export of guides never finishes", {
+      onePerCard: true,
+    });
+    expect(result.status).toBe("stub");
+    expect(result.card?.pageId).toBe("59");
+    expect(result.cardVersion).toBe("5.x");
+  });
+
   it("is not covered when no pack covers the question, and empty with no pack", () => {
     expect(
       createKbIndexSet([FOUR, FIVE]).search("kubernetes helm chart"),
