@@ -533,7 +533,7 @@ function lowestLayers(chunks: KbChunk[]): Map<string, number> {
 const LAYER_HINTS: [KbLayer, RegExp][] = [
   [
     3,
-    /network tab|\bstatus\b|\b[1-5]\d\d\b|\brespon(?:se|ses|ded)?\b|\brequests?\b|\bpayloads?\b|\.json\b|\bhar\b|\bmeans?\b|\breturn(?:s|ed|ing)?\b/g,
+    /network tab|\bstatus\b|\b[1-5]\d\d\b|\bresponses?\b|\bresponded\b|\brequests?\b|\bpayloads?\b|\.json\b|\bhar\b|\bmeans?\b|\breturn(?:s|ed|ing)?\b/g,
   ],
   [
     2,

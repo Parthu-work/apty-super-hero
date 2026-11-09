@@ -10,7 +10,7 @@ const UNDOUBLED = /([b-df-hj-km-np-rtv-y])\1$/;
 
 const hasVowel = (text: string) => VOWEL.test(text);
 
-/** "stopp" → "stop", "runn" → "run"; l, s and z stay doubled ("install", "miss", "buzz"). */
+/** Drops one of a doubled final consonant ("stopped" and "running" end as "stop" and "run"); l, s and z stay doubled ("install", "miss", "buzz"). */
 function undouble(stem: string): string {
   return UNDOUBLED.test(stem) ? stem.slice(0, -1) : stem;
 }
