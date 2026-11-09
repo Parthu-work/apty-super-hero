@@ -14,14 +14,14 @@ import type { ToolRunContext } from "./tab-utils.js";
 export const searchKbTool = tool({
   name: "search_kb",
   description:
-    "Searches the KB pack of Apty RAG Answer Cards loaded in this browser for the settings, page checks, data to read or support contacts behind a finding or symptom. Results are chunks of cards, each with a cite id (kb://<pageId>#L<layer>), its card's link, Apty version (4.x, 5.x or common), 'Verified on' line and a notVerified mark; mixedVersions true means the top cards are for different versions: ask which one the tenant runs and never merge them into one instruction. Answer Apty product questions only from these results and cite each claim with its cite id. status 'not_covered': the KB does not cover the question, with reason 'no_match' (no card matched), 'low_coverage' (the best card matches too little of it) or 'unknown_setting' (the question names a setting, listed in missingPhrases, that no card has: say so and do not suggest a similar one); 'stub': the KB has a card for this (stub: its title, link and Apty version) but its text is not written yet: say so and give the link, and do not answer from elsewhere; 'no_pack': no KB pack is loaded.",
+    "Searches the loaded KB packs of Apty RAG Answer Cards for the settings, page checks, data or support contacts behind a finding or symptom. Each result is a card chunk with its cite id (kb://<pageId>#L<layer>), Apty version, 'Verified on' line and notVerified mark; mixedVersions: the top cards are for different versions. status: 'ok'; 'not_covered' with reason no_match, low_coverage or unknown_setting (missingPhrases: settings no card has); 'stub' (a card whose text is not written yet); 'no_pack'.",
   parameters: z.object({
     query: z
       .string()
       .min(1)
       .max(300)
       .describe(
-        "The symptom or finding in the user's words, in English (the cards are English: translate a question asked in another language), at most 300 characters.",
+        "The symptom or finding in the user's words, in English, at most 300 characters.",
       ),
     topK: z
       .number()
@@ -40,9 +40,7 @@ export const searchKbTool = tool({
     aptyVersion: z
       .enum(["4.x", "5.x"])
       .optional()
-      .describe(
-        "The tenant's Apty version, only when the user said it; otherwise the tab's known version, or every loaded pack.",
-      ),
+      .describe("The tenant's Apty version, only when the user said it."),
   }),
   execute: async ({ query, topK, layers, aptyVersion }, context) => {
     const version =

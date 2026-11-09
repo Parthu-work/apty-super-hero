@@ -20,8 +20,9 @@ selector or check-pack question, any message naming a symptom, a question
 mostly in another script, and a product follow-up ("setting", "in Studio",
 "send support"); not with a bare "how do I configure X" (D-KB1), a request
 to fetch a file or casual chat (`tool-relevance.ts`, `kb/kb-intent.ts`).
-That costs about 760 tokens on an Apty question (7,174 before): `apty-question` is 7,936
-(budget 8,730 since K16) and a 10-turn investigation 11,376. Its result is
+That costs about 690 tokens on an Apty question (7,174 before): `apty-question` is 7,866
+(budget 8,653 since K16), under an 8,000-token request budget, and a
+10-turn investigation 11,306. Its result is
 at most 4,000 characters of card text. The `kb-followup` scenario measures
 a follow-up after a full result.
 

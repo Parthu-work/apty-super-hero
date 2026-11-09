@@ -39,6 +39,7 @@ See `CHANGELOG.md` for the full list with commit references.
 
 ```bash
 pnpm install
+pnpm --dir apps/mcp-bridge install --ignore-workspace   # the MCP bridge is its own project
 pnpm build   # builds workspace packages, then the extension into apps/browser-extension/dist
 pnpm dev     # or: watch mode with HMR
 ```
@@ -62,6 +63,12 @@ Prerequisites: Node `^20.19.0 || >=22.12.0`, pnpm 10.33, Chrome or Chromium.
 
 ```bash
 pnpm install --frozen-lockfile
+```
+
+The MCP bridge is its own pnpm project, which `pnpm build` also builds:
+
+```bash
+pnpm --dir apps/mcp-bridge install --frozen-lockfile --ignore-workspace
 ```
 
 ```bash
