@@ -11,6 +11,8 @@
  * user matches a segment's rule, a visibility rule's result) is reported as
  * candidates, never guessed.
  */
+
+import { diagnoseContentNotVisible4x } from "./content-not-visible-4x.js";
 import { languageName } from "./languages.js";
 import {
   FILE_PROBLEMS,
@@ -689,25 +691,7 @@ export function diagnoseContentNotVisible(
     );
   }
   if (looks4x(evidence)) {
-    return finish(
-      draft,
-      [
-        gate(
-          "version",
-          "fail",
-          "CNV-V5",
-          "version4x",
-          "This tenant uses 4.x content files (flow.json, segments.json). The checks are verified for 5.x only.",
-        ),
-      ],
-      {
-        status: "out_of_scope",
-        headline:
-          "This looks like a 4.x tenant. The KB cards are not verified for 4.x, so nothing was concluded.",
-        causes: [],
-        nextCheck: "manual4x",
-      },
-    );
+    return diagnoseContentNotVisible4x(evidence, kind, query);
   }
 
   const kindFile = fileOf(evidence, spec.file);

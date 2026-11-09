@@ -20,7 +20,7 @@ import {
   pageUrlOfHar,
 } from "./har.js";
 import { environmentsIn } from "./loader.js";
-import { type Rec, records } from "./pack-kit.js";
+import { playerVersionOf, type Rec, records } from "./pack-kit.js";
 import { type ContentKind, type DiagnosisResult, KINDS } from "./types.js";
 import {
   diagnoseWidgetNotVisible,
@@ -36,8 +36,13 @@ const FILES_5X = new Set([
   ...Object.values(KINDS).map((k) => k.file),
   ...WIDGET_FILES,
 ]);
-const FILES_4X = new Set(["flow.json", "segments.json", "rules.json"]);
-const STEPS_FILE = /^workflow-[\w-]+\.json$/;
+const FILES_4X = new Set([
+  "flow.json",
+  "segments.json",
+  "rules.json",
+  "feature-flag.json",
+]);
+const STEPS_FILE = /^(?:workflow|flow)-[\w-]+\.json$/;
 
 export type HarRead =
   | { ok: true; har: unknown }
@@ -97,17 +102,18 @@ export function summarizeHar(har: unknown): HarSummary {
   });
   const names = aptyCalls.filter((c) => c.hasFile).map((c) => c.name);
   const contentFiles = [...new Set(names)].sort();
-  const has5x = contentFiles.some((n) => FILES_5X.has(n));
+  const player = playerVersionOf({
+    connection: { ok: true },
+    observedNames: contentFiles,
+    files: {},
+  });
   return {
     calls: entries.length,
     contentFiles,
     callsWithoutFile: aptyCalls.filter((c) => !c.hasFile).length,
     environments: environmentsIn(aptyCalls.map((c) => c.url)),
-    version: has5x
-      ? "5.x"
-      : contentFiles.some((n) => FILES_4X.has(n))
-        ? "4.x"
-        : "none",
+    version:
+      player === "4.x" ? "4.x" : contentFiles.length > 0 ? "5.x" : "none",
     hasPage: pageUrlOfHar(har) !== undefined,
     daptyCalls: dapty.filter((k) => k === "chat").length,
     daptyStoredChats: dapty.filter((k) => k === "stored-chat").length,

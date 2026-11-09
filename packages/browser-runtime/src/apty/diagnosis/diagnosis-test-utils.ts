@@ -1,5 +1,10 @@
 import type { AptyObservedResource } from "../types.js";
+import appData4x from "./fixtures/content-4x/app-data.json";
+import appUrls4x from "./fixtures/content-4x/app-urls.json";
+import featureFlag4x from "./fixtures/content-4x/feature-flag.json";
 import flow4x from "./fixtures/content-4x/flow.json";
+import flowSteps4x from "./fixtures/content-4x/flow-18515.json";
+import rules4x from "./fixtures/content-4x/rules.json";
 import segments4x from "./fixtures/content-4x/segments.json";
 import announcement from "./fixtures/content-5x/announcement.json";
 import appData from "./fixtures/content-5x/app-data.json";
@@ -33,7 +38,15 @@ const SETS: Record<"content-5x" | "content-4x", Capture> = {
     "checklist.json": checklist,
     "knowledge-content.json": knowledgeContent,
   },
-  "content-4x": { "segments.json": segments4x, "flow.json": flow4x },
+  "content-4x": {
+    "app-urls.json": appUrls4x,
+    "app-data.json": appData4x,
+    "feature-flag.json": featureFlag4x,
+    "segments.json": segments4x,
+    "rules.json": rules4x,
+    "flow.json": flow4x,
+    "flow-18515.json": flowSteps4x,
+  },
 };
 
 /** The synthetic content files, by name, as a fresh copy on every call. */

@@ -2065,7 +2065,15 @@
       "suggestionsNone": "Dapty suggested no workflow or knowledge item.",
       "suggestionsMissing": "{{missing}} of {{count}} suggestion(s) are not published in this environment.",
       "suggestionsOpen": "{{open}} of {{count}} suggestion(s) depend on a visibility rule or could not be checked.",
-      "suggestionsLaunch": "All {{count}} suggestion(s) are published here with no visibility rule, so a click opens them."
+      "suggestionsLaunch": "All {{count}} suggestion(s) are published here with no visibility rule, so a click opens them.",
+      "appUrlsFailed4x": "app-urls.json failed (HTTP {{httpStatus}}); the 4.x player reads it as an empty list",
+      "envRegexInvalid4x": "{{env}} has the URL pattern “{{pattern}}”, not a valid regular expression; the tenant's regex URL flag is on",
+      "playerOff4x": "The player is switched off for {{env}}",
+      "widgetOff4x": "The widget is switched off for {{env}}",
+      "flowHidden4x": "“{{name}}” is hidden from the widget",
+      "rulesMissing4x": "The rules of its segments are missing from rules.json",
+      "flowSteps4x": "{{file}} has no steps",
+      "flowStepsUnread4x": "{{file}} was not read: the player loads it when the flow plays"
     },
     "rule": {
       "CNV-02": {
@@ -2246,6 +2254,50 @@
       "DAP-06": {
         "summary": "Dapty suggested “{{name}}”, which this environment does not publish, so clicking it opens nothing.",
         "fix": "Dapty lists the environment's items from ai-service's own copy of the content files, which can lag a publish by a few minutes, or the model named an item it was not given. Publish the item to this environment, or ask again once ai-service has the newest content."
+      },
+      "W4X-01": {
+        "summary": "app-urls.json failed (HTTP {{httpStatus}}); the 4.x player reads a failed request as an empty list, so no application loads and the widget does not show.",
+        "fix": "Fix the failing request (its status and the Console say why), then reload."
+      },
+      "W4X-01-empty": {
+        "summary": "app-urls.json is an empty list: no application is published for this tenant, so the widget does not show on any page.",
+        "fix": "In 4.x Admin, publish the application and its environments, then reload."
+      },
+      "W4X-02": {
+        "summary": "No environment's URL pattern matches this page, so the 4.x player loads nothing here.",
+        "fix": "In 4.x Admin, add a URL pattern that covers this page (a * covers any run of characters) to the right environment, publish and reload."
+      },
+      "W4X-04": {
+        "summary": "The player is switched off for {{env}}, so nothing from Apty runs on this page.",
+        "fix": "In 4.x Admin, turn the player on for this environment, publish and reload."
+      },
+      "W4X-05": {
+        "summary": "The widget is switched off for {{env}}, so it does not show although the player runs.",
+        "fix": "In 4.x Admin, turn the widget on for this environment, publish and reload."
+      },
+      "C4X-01": {
+        "summary": "flow.json is an empty list: no flow is published in this environment.",
+        "fix": "In 4.x Studio, publish the flow to this environment, then reload."
+      },
+      "C4X-02": {
+        "summary": "No flow named “{{name}}” is in flow.json: it is not published in this environment.",
+        "fix": "In 4.x Studio, publish the flow to this environment (check its name), then reload."
+      },
+      "C4X-03": {
+        "summary": "“{{name}}” is hidden from the widget.",
+        "fix": "In 4.x Studio, clear the flow's hide-in-widget option, publish and reload."
+      },
+      "C4X-04": {
+        "summary": "Every segment that lists “{{name}}” is turned off ({{segments}}), so nobody gets it.",
+        "fix": "In 4.x Admin, turn one of its segments on, or add the flow to an active segment, then publish."
+      },
+      "C4X-05": {
+        "summary": "The rules of the segments that list “{{name}}” are missing from rules.json ({{segments}}), so they can never match.",
+        "fix": "In 4.x Admin, fix or re-create the segment's rule, publish and reload."
+      },
+      "C4X-06": {
+        "summary": "{{file}} has no steps for “{{name}}”, so it has nothing to play.",
+        "fix": "In 4.x Studio, check the flow's steps, publish and reload."
       }
     },
     "ruleLabel": "Rule {{ruleId}}",

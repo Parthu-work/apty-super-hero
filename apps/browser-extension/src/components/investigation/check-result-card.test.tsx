@@ -8,6 +8,7 @@ import { diagnoseLogsAndErrors } from "@apty/browser-runtime/apty/diagnosis/logs
 import { diagnosePageReadiness } from "@apty/browser-runtime/apty/diagnosis/page-readiness";
 import type { ClientEvidence } from "@apty/browser-runtime/apty/diagnosis/types";
 import { diagnoseWidgetNotVisible } from "@apty/browser-runtime/apty/diagnosis/widget-not-visible";
+import { diagnoseWidgetNotVisible4x } from "@apty/browser-runtime/apty/diagnosis/widget-not-visible-4x";
 import { I18nProvider } from "@apty/ui/i18n/context";
 import type { UIToolPart } from "@apty/ui/types";
 import { render, screen, within } from "@testing-library/react";
@@ -172,6 +173,29 @@ describe("CheckResultCard", () => {
       screen.getAllByText("“Take a tour”开启了“在小组件中隐藏”。"),
     ).toHaveLength(2);
     expect(screen.queryByText("Cause found")).toBeNull();
+  });
+
+  it("shows a 4.x widget check with its rule text and its 4.x card (K14)", () => {
+    const result = diagnoseWidgetNotVisible4x(
+      evidenceFrom(capture("content-4x")),
+      "https://other.example.org/x",
+    );
+    render(<CheckResultCard tool={tool(result)} />);
+    const card = screen.getByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    expect(
+      within(card).getAllByText(
+        "No environment's URL pattern matches this page, so the 4.x player loads nothing here.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(card).getAllByRole("link", { name: /KB card 1509786000/ })[0],
+    ).toHaveAttribute(
+      "href",
+      "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509786000",
+    );
+    expect(within(card).getByText(/W4X-02/)).toBeInTheDocument();
   });
 
   it("links a 4.x check's cards in the 4.x space when no pack holds them (K12)", () => {

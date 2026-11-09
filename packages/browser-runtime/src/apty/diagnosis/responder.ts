@@ -12,6 +12,11 @@ import { tabElementProbeOf } from "../element-probe.js";
 import { readAptyFilesForTab } from "./apty-files.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import {
+  CONTENT_FILES_4X,
+  flowNames,
+  flowStepsFile,
+} from "./content-not-visible-4x.js";
+import {
   DAPTY_FILES,
   diagnoseDaptyConversation,
 } from "./dapty-conversation.js";
@@ -34,11 +39,12 @@ import { languageName } from "./languages.js";
 import { loadClientEvidence } from "./loader.js";
 import { loadLogEvidence } from "./log-loader.js";
 import { diagnoseLogsAndErrors } from "./logs-and-errors.js";
-import { playerVersionOf } from "./pack-kit.js";
+import { jsonOf, looks4x, playerVersionOf, records } from "./pack-kit.js";
 import { diagnosePageReadiness } from "./page-readiness.js";
 import { type Route, routeSymptom } from "./router.js";
 import type {
   ClientEvidence,
+  ContentKind,
   DiagnosisResult,
   LogEvidence,
   NextCheck,
@@ -48,6 +54,7 @@ import {
   diagnoseWidgetNotVisible,
   WIDGET_FILES,
 } from "./widget-not-visible.js";
+import { WIDGET_FILES_4X } from "./widget-not-visible-4x.js";
 
 export const RUN_DIAGNOSIS = "run_diagnosis";
 
@@ -267,6 +274,29 @@ async function noteVersion(
   );
 }
 
+/**
+ * The content check's files: the 5.x ones and the 4.x ones (KB-RAG K14),
+ * and for a 4.x flow named in the question, that flow's steps file.
+ */
+async function contentEvidence(
+  load: (names: readonly string[]) => Promise<ClientEvidence>,
+  kind: ContentKind,
+  query: string | undefined,
+): Promise<ClientEvidence> {
+  const evidence = await load([...filesFor(kind), ...CONTENT_FILES_4X]);
+  if (!looks4x(evidence) || kind !== "workflow" || !query) return evidence;
+  const flows = records(jsonOf(evidence, "flow.json"));
+  const wanted = query.trim().toLowerCase();
+  const flow =
+    flows.find((f) => String(f.id) === query.trim()) ??
+    flows.find((f) =>
+      flowNames(f).some((n) => n.trim().toLowerCase() === wanted),
+    );
+  if (!flow) return evidence;
+  const steps = await load([flowStepsFile(String(flow.id))]);
+  return { ...evidence, files: { ...evidence.files, ...steps.files } };
+}
+
 /** The result, saying when its files came from Apty's content CDN. */
 const fromCdn = (result: DiagnosisResult, evidence: ClientEvidence) =>
   evidence.fromCdn ? { ...result, filesFromCdn: true } : result;
@@ -330,14 +360,14 @@ export async function runPack(
     return diagnoseLogsAndErrors(evidence, route.about404);
   }
   if (route.packId === "widget-not-visible") {
-    const evidence = await load(WIDGET_FILES);
+    const evidence = await load([...WIDGET_FILES, ...WIDGET_FILES_4X]);
     await noteVersion(evidence, pageUrl);
     return fromCdn(
       diagnoseWidgetNotVisible(evidence, await pageUrl()),
       evidence,
     );
   }
-  const evidence = await load(filesFor(route.kind));
+  const evidence = await contentEvidence(load, route.kind, route.query);
   await noteVersion(evidence, pageUrl);
   return fromCdn(
     diagnoseContentNotVisible(

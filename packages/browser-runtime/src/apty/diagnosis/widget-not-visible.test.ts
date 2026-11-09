@@ -315,7 +315,8 @@ describe("widget-not-visible", () => {
       evidenceFrom(capture("content-4x")),
       UAT_PAGE,
     );
-    expect(fourX.verdict.status).toBe("out_of_scope");
+    expect(fourX.aptyVersion).toBe("4.x");
+    expect(fourX.verdict.status).not.toBe("out_of_scope");
   });
 });
 

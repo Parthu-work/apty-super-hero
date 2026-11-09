@@ -540,3 +540,100 @@ describe("with a KB pack loaded (KB-RAG K5)", () => {
     });
   }
 });
+
+describe("a 4.x tenant (KB-RAG K14)", () => {
+  const FOUR_X = join(
+    ROOT,
+    "packages/browser-runtime/src/apty/diagnosis/fixtures/content-4x",
+  );
+  let browser4x;
+  let client4xId;
+
+  before(async () => {
+    const files4x = Object.fromEntries(
+      readdirSync(FOUR_X).map((name) => [
+        name,
+        readFileSync(join(FOUR_X, name), "utf8"),
+      ]),
+    );
+    const apps = JSON.parse(files4x["app-urls.json"]);
+    apps[0].environments[1].urls = [`${site.origin}/app`];
+    files4x["app-urls.json"] = JSON.stringify(apps);
+    const dir = join(tempDir("apty-e2e-content-4x-"), "client");
+    client4xId = unpackedExtensionId(dir);
+    writeContentClient(dir, AGENT_EXTENSION_ID, files4x);
+    browser4x = await launchBrowser({ extraExtensions: [dir] });
+    const options = await extensionPage(browser4x);
+    await options.getByRole("tab", { name: "Connection" }).click();
+    await options.getByLabel("Extension ID").fill(client4xId);
+    await options
+      .getByLabel("Extension ID")
+      .locator("..")
+      .getByRole("button", { name: "Connect", exact: true })
+      .click();
+    await options.getByText("Answering").waitFor({ timeout: 30_000 });
+    await options.close();
+  });
+
+  after(async () => {
+    await browser4x?.close();
+  });
+
+  async function panel4x(path) {
+    const app = await browser4x.context.newPage();
+    await app.goto(`${site.origin}${path}`);
+    const panel = await openSidePanel(browser4x, model, app);
+    return { app, panel };
+  }
+
+  it("runs the 4.x widget check, cites a 4.x card and asks no model", async () => {
+    const before = model.requests.length;
+    const { app, panel } = await panel4x("/other.html");
+    await sendChat(panel, "the Apty widget is not appearing on this page");
+    const card = panel.getByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    await card.waitFor({ timeout: 30_000 });
+    await card
+      .getByText(
+        "No environment's URL pattern matches this page, so the 4.x player loads nothing here.",
+      )
+      .first()
+      .waitFor();
+    const links = await card
+      .getByRole("link", { name: /KB card / })
+      .evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+    assert.ok(links.length > 0);
+    for (const href of links) {
+      assert.match(href, /\/wiki\/spaces\/A4PKH\/pages\/\d+$/);
+    }
+    await card
+      .getByText(/Apty version: 4\.x, from the check's files/)
+      .waitFor();
+    assert.equal(model.requests.length, before, "the model was not asked");
+    const violations = await runAxe(panel);
+    assert.deepEqual(violations, [], describeViolations(violations));
+    await panel.close();
+    await app.close();
+  });
+
+  it("runs the 4.x flow check: a flow hidden from the widget", async () => {
+    const before = model.requests.length;
+    const { app, panel } = await panel4x("/app.html");
+    await sendChat(
+      panel,
+      "My workflow 'Close a deal' is not visible in the widget",
+    );
+    const card = panel
+      .getByRole("region")
+      .filter({ hasText: "Close a deal" })
+      .first();
+    await card
+      .getByText("“Close a deal” is hidden from the widget.")
+      .first()
+      .waitFor({ timeout: 30_000 });
+    assert.equal(model.requests.length, before, "the model was not asked");
+    await panel.close();
+    await app.close();
+  });
+});

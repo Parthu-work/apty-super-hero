@@ -865,7 +865,7 @@ export async function diagnoseElementNotFound(
         "fail",
         "SEL-00",
         "version4x",
-        "This tenant uses 4.x content files (flow.json, segments.json). The checks are verified for 5.x only.",
+        "This tenant uses 4.x content files (flow.json, segments.json). The selector check is ported for 5.x only; a 4.x port is future work after KB-RAG K14, which covers the widget and flow checks.",
       ),
       "out_of_scope",
       "manual4x",

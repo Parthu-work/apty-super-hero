@@ -85,6 +85,52 @@ interface CauseKeys {
 }
 
 const CAUSE_TEXT: Partial<Record<RuleId, CauseKeys>> = {
+  "W4X-01": {
+    summary: "checkPack.rule.W4X-01.summary",
+    fix: "checkPack.rule.W4X-01.fix",
+    variants: {
+      empty: {
+        summary: "checkPack.rule.W4X-01-empty.summary",
+        fix: "checkPack.rule.W4X-01-empty.fix",
+      },
+    },
+  },
+  "W4X-02": {
+    summary: "checkPack.rule.W4X-02.summary",
+    fix: "checkPack.rule.W4X-02.fix",
+  },
+  "W4X-04": {
+    summary: "checkPack.rule.W4X-04.summary",
+    fix: "checkPack.rule.W4X-04.fix",
+  },
+  "W4X-05": {
+    summary: "checkPack.rule.W4X-05.summary",
+    fix: "checkPack.rule.W4X-05.fix",
+  },
+  "C4X-01": {
+    summary: "checkPack.rule.C4X-01.summary",
+    fix: "checkPack.rule.C4X-01.fix",
+  },
+  "C4X-02": {
+    summary: "checkPack.rule.C4X-02.summary",
+    fix: "checkPack.rule.C4X-02.fix",
+  },
+  "C4X-03": {
+    summary: "checkPack.rule.C4X-03.summary",
+    fix: "checkPack.rule.C4X-03.fix",
+  },
+  "C4X-04": {
+    summary: "checkPack.rule.C4X-04.summary",
+    fix: "checkPack.rule.C4X-04.fix",
+  },
+  "C4X-05": {
+    summary: "checkPack.rule.C4X-05.summary",
+    fix: "checkPack.rule.C4X-05.fix",
+  },
+  "C4X-06": {
+    summary: "checkPack.rule.C4X-06.summary",
+    fix: "checkPack.rule.C4X-06.fix",
+  },
   "CNV-02": {
     summary: "checkPack.rule.CNV-02.summary",
     fix: "checkPack.rule.CNV-02.fix",
