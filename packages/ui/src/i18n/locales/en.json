@@ -138,9 +138,12 @@
     },
     "knowledgeBase": {
       "title": "Knowledge base",
-      "description": "The KB pack your KB owner shared: the RAG Answer Cards the checks and answers quote. It stays in this browser; card text goes to your AI provider only when an answer uses it.",
+      "description": "The KB packs your KB owner shared, one per Apty version (4.x, 5.x, common): the RAG Answer Cards the checks and answers quote. It stays in this browser; card text goes to your AI provider only when an answer uses it.",
       "notLoaded": "No knowledge base loaded. Import the .kbpack.json file from the internal page your KB owner shared.",
-      "loadedLabel": "Loaded knowledge base",
+      "loadedLabelVersion": "Loaded knowledge base ({{version}})",
+      "versionHeading": "Apty {{version}}",
+      "replaceVersion": "Replace {{version}} pack…",
+      "removeVersion": "Remove {{version}} pack",
       "space": "Space",
       "cards": "Cards",
       "cardsWithStubs": "{{count}}, {{stubs}} not yet written",
@@ -149,17 +152,16 @@
       "retrieval": "Retrieval",
       "modeBm25": "Keyword (BM25)",
       "modeHybrid": "Keyword and vectors",
-      "calibrated": "calibrated threshold",
-      "uncalibrated": "no calibrated threshold: every match counts as covered",
+      "calibrated": "calibrated",
+      "uncalibrated": "not calibrated: default coverage settings",
       "stale": "This pack was built {{days}} days ago. Ask the KB owner for a newer one and import it.",
       "import": "Import pack…",
-      "replace": "Replace pack…",
       "remove": "Remove",
       "fileLabel": "KB pack file",
-      "removeTitle": "Remove the knowledge base?",
-      "removeDescription": "The pack is deleted from this browser. Checks then link to the cards without their text until you import a pack again.",
-      "importedStatus": "Imported {{count}} cards from space {{space}}.",
-      "removedStatus": "Knowledge base removed.",
+      "removeTitle": "Remove the {{version}} knowledge base?",
+      "removeDescription": "The pack is deleted from this browser; the packs of other versions stay. Questions about this version then link to the cards without their text until you import its pack again.",
+      "importedStatus": "Imported {{count}} cards for Apty {{version}} from space {{space}}.",
+      "removedStatus": "The {{version}} knowledge base was removed.",
       "errors": {
         "tooLarge": "This file is too large for a KB pack (over 25 MB or 5,000 chunks).",
         "notJson": "This file is not JSON, so it is not a KB pack.",
@@ -1170,6 +1172,7 @@
       },
       "knowledgeBase": {
         "label": "Knowledge base",
+        "labelVersion": "Knowledge base ({{version}})",
         "loaded": "Loaded: {{count}} cards from space {{space}}, built {{date}}.",
         "notLoaded": "Not loaded. Checks link to the KB cards without their text.",
         "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
@@ -2410,11 +2413,18 @@
     "daptyFound": "Ask Dapty: {{calls}} chat call(s) and {{stored}} stored chat(s).",
     "noDapty": "This HAR holds no Ask Dapty chat call. Record one with the widget's chat open, asking the question again."
   },
+  "kbVersion": {
+    "label": "Apty version",
+    "notSure": "Not sure",
+    "fromCheck": "Apty version: {{version}}, from the check's files."
+  },
   "kbMatches": {
     "title": "KB cards that match",
     "layer": "Layer {{layer}} of the card",
     "stub": "The KB has a card for this, but its {{version}} text is not written yet.",
     "nonEnglish": "The KB cards are in English. Ask in English, or send the question to the model.",
+    "mixedVersions": "These cards are for different Apty versions; which does this tenant run?",
+    "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card."
   }
 }

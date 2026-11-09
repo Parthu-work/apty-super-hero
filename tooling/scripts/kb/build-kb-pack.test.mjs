@@ -520,9 +520,14 @@ describe("the CLI", () => {
   };
   const now = () => new Date("2026-03-04T05:06:07.000Z");
 
-  function runWith(options) {
+  /** The CLI with `--version 5.x` unless the test passes its own (or `version: null` for none). */
+  function runWith({ version = "5.x", ...options }) {
     const out = [];
     const err = [];
+    const argv =
+      version === null || options.argv?.includes("--version")
+        ? options.argv
+        : [...(options.argv ?? []), "--version", version];
     const result = run({
       env,
       now,
@@ -530,6 +535,7 @@ describe("the CLI", () => {
       out: (line) => out.push(line),
       err: (line) => err.push(line),
       ...options,
+      argv,
     });
     return result.then((code) => ({
       code,
@@ -547,7 +553,7 @@ describe("the CLI", () => {
       home,
     });
     assert.equal(result.code, 0, result.err);
-    const file = join(home, "apty-kb", "apty-kb-FX-20260304.kbpack.json");
+    const file = join(home, "apty-kb", "apty-kb-FX-5.x-20260304.kbpack.json");
     const pack = JSON.parse(readFileSync(file, "utf8"));
     assert.equal(pack.cards.length, 2);
     assert.equal(pack.builtAt, "2026-03-04T05:06:07.000Z");
@@ -666,6 +672,56 @@ describe("the CLI", () => {
       ["FIXTURE gizmo", "gadget", "widgetry"],
       ["sprocket", "cog"],
     ]);
+  });
+
+  it("labels the pack with its Apty version: 4.x for A4PKH by default, and asks for it for JA or another space", async () => {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const fourX = await runWith({
+      argv: ["--space", "A4PKH", "--root", "1509720081", "--site", SITE],
+      version: null,
+      fetchImpl,
+      home,
+    });
+    assert.equal(fourX.code, 0, fourX.err);
+    const file = join(
+      home,
+      "apty-kb",
+      "apty-kb-A4PKH-4.x-20260304.kbpack.json",
+    );
+    const pack = JSON.parse(readFileSync(file, "utf8"));
+    assert.equal(pack.aptyVersion, "4.x");
+    assert.equal(
+      pack.cards[0].url,
+      `https://${SITE}/wiki/spaces/A4PKH/pages/7`,
+    );
+
+    for (const space of ["JA", "FX"]) {
+      const missing = await runWith({
+        argv: ["--space", space],
+        version: null,
+        fetchImpl,
+      });
+      assert.equal(missing.code, 1);
+      assert.match(
+        missing.err,
+        new RegExp(
+          `Pass --version 4\\.x, 5\\.x or common: space ${space} holds cards of more than one version`,
+        ),
+      );
+    }
+    const common = await runWith({
+      argv: ["--space", "FX", "--out", join(tempDir(), "c.kbpack.json")],
+      version: "common",
+      fetchImpl,
+    });
+    assert.equal(common.code, 0, common.err);
+    const wrong = await runWith({
+      argv: ["--space", "FX"],
+      version: "6.x",
+      fetchImpl,
+    });
+    assert.match(wrong.err, /--version takes 4\.x, 5\.x or common/);
   });
 
   it("writes the calibrated coverage settings into the pack", async () => {

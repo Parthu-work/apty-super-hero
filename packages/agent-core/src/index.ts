@@ -63,15 +63,18 @@ export { ConversationManager } from "./conversation/manager.js";
 export { Session } from "./conversation/session.js";
 export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
+export { createKbIndexSet } from "./kb/index-set.js";
 // KB packs and search
 export {
   canonicalJson,
   describeKbPack,
+  KB_APTY_VERSIONS,
   KB_LAYERS,
   KB_PACK_KIND,
   KB_PACK_LIMITS,
   KB_PACK_SCHEMA_VERSION,
   KB_PACK_STALE_DAYS,
+  type KbAptyVersion,
   type KbCard,
   type KbChunk,
   type KbImportResult,
@@ -80,6 +83,7 @@ export {
   type KbPackErrorCode,
   type KbPackInfo,
   type KbPackParseResult,
+  kbCardLocation,
   kbCardUrl,
   kbPackAgeDays,
   parseKbPack,

@@ -1,6 +1,7 @@
 import {
   KB_PACK_LIMITS,
   KB_PACK_STALE_DAYS,
+  type KbAptyVersion,
   type KbImportResult,
   type KbPackInfo,
   kbPackAgeDays,
@@ -41,8 +42,8 @@ const ERROR_KEYS: Record<ErrorCode, TranslationKey> = {
 
 type Status =
   | { kind: "idle" }
-  | { kind: "imported"; cardCount: number; space: string }
-  | { kind: "removed" }
+  | { kind: "imported"; cardCount: number; space: string; version: string }
+  | { kind: "removed"; version: string }
   | { kind: "error"; code: ErrorCode };
 
 export interface KnowledgeBaseCardProps {
@@ -50,24 +51,125 @@ export interface KnowledgeBaseCardProps {
   now?: () => Date;
 }
 
-/** Options → Settings → Knowledge base: import, see and remove the KB pack (KB-RAG K3). */
+/** One loaded pack: what it is, with its age warning, Replace and Remove. */
+function PackRow({
+  info,
+  now,
+  busy,
+  onReplace,
+  onRemove,
+}: {
+  info: KbPackInfo;
+  now: Date;
+  busy: boolean;
+  onReplace: () => void;
+  onRemove: () => void;
+}) {
+  const { t } = useTranslation();
+  const version = info.aptyVersion;
+  const age = kbPackAgeDays(info, now);
+  const stale = age !== undefined && age > KB_PACK_STALE_DAYS;
+  return (
+    <section
+      aria-label={t("settings.knowledgeBase.loadedLabelVersion", { version })}
+      className="space-y-2 rounded-md border border-border p-3"
+    >
+      <h3 className="text-sm font-medium text-foreground">
+        {t("settings.knowledgeBase.versionHeading", { version })}
+      </h3>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.space")}
+        </dt>
+        <dd>
+          {info.space} · {info.site}
+        </dd>
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.cards")}
+        </dt>
+        <dd>
+          {info.stubCount
+            ? t("settings.knowledgeBase.cardsWithStubs", {
+                count: info.cardCount,
+                stubs: info.stubCount,
+              })
+            : info.cardCount}
+        </dd>
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.built")}
+        </dt>
+        <dd>{info.builtAt.slice(0, 10)}</dd>
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.imported")}
+        </dt>
+        <dd>{info.importedAt.slice(0, 10)}</dd>
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.retrieval")}
+        </dt>
+        <dd>
+          {t(
+            info.mode === "hybrid"
+              ? "settings.knowledgeBase.modeHybrid"
+              : "settings.knowledgeBase.modeBm25",
+          )}
+          {" · "}
+          {t(
+            info.calibrated
+              ? "settings.knowledgeBase.calibrated"
+              : "settings.knowledgeBase.uncalibrated",
+          )}
+        </dd>
+      </dl>
+      {stale && (
+        <Notice tone="warning">
+          {t("settings.knowledgeBase.stale", { days: age ?? 0 })}
+        </Notice>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" disabled={busy} onClick={onReplace}>
+          <Upload aria-hidden="true" className="h-4 w-4" />
+          {t("settings.knowledgeBase.replaceVersion", { version })}
+        </Button>
+        <Button variant="danger" disabled={busy} onClick={onRemove}>
+          <Trash2 aria-hidden="true" className="h-4 w-4" />
+          {t("settings.knowledgeBase.removeVersion", { version })}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Options → Settings → Knowledge base: import, see and remove the KB
+ * packs, one per Apty version (KB-RAG K3, K12). Import reads the version
+ * from the file and replaces that version's pack.
+ */
 export function KnowledgeBaseCard({
   adapter,
   now = () => new Date(),
 }: KnowledgeBaseCardProps) {
   const { t } = useTranslation();
-  const [info, setInfo] = useState<KbPackInfo | null | undefined>(undefined);
+  const [packs, setPacks] = useState<KbPackInfo[] | undefined>(undefined);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<KbAptyVersion | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  const reload = useCallback(
+    () =>
+      adapter
+        .info()
+        .then((loaded) => setPacks(loaded))
+        .catch(() => setPacks([])),
+    [adapter],
+  );
 
   useEffect(() => {
     let live = true;
     adapter
       .info()
-      .then((loaded) => live && setInfo(loaded))
-      .catch(() => live && setInfo(null));
+      .then((loaded) => live && setPacks(loaded))
+      .catch(() => live && setPacks([]));
     return () => {
       live = false;
     };
@@ -96,11 +198,12 @@ export function KnowledgeBaseCard({
               : await adapter.importPack(text);
         }
         if (result.ok) {
-          setInfo(result.info);
+          await reload();
           setStatus({
             kind: "imported",
             cardCount: result.info.cardCount,
             space: result.info.space,
+            version: result.info.aptyVersion,
           });
         } else {
           setStatus({ kind: "error", code: result.code });
@@ -111,23 +214,24 @@ export function KnowledgeBaseCard({
         setBusy(false);
       }
     },
-    [adapter],
+    [adapter, reload],
   );
 
   const onRemove = useCallback(async () => {
+    if (!confirming) return;
+    const version = confirming;
     setBusy(true);
     try {
-      await adapter.remove();
-      setInfo(null);
-      setStatus({ kind: "removed" });
+      await adapter.remove(version);
+      await reload();
+      setStatus({ kind: "removed", version });
     } finally {
       setBusy(false);
-      setConfirming(false);
+      setConfirming(null);
     }
-  }, [adapter]);
+  }, [adapter, confirming, reload]);
 
-  const age = info ? kbPackAgeDays(info, now()) : undefined;
-  const stale = age !== undefined && age > KB_PACK_STALE_DAYS;
+  const today = now();
 
   return (
     <Card id="knowledge-base" className="scroll-mt-4">
@@ -141,75 +245,37 @@ export function KnowledgeBaseCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {info === undefined ? null : info === null ? (
+        {packs === undefined ? null : packs.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t("settings.knowledgeBase.notLoaded")}
           </p>
         ) : (
-          <dl
-            aria-label={t("settings.knowledgeBase.loadedLabel")}
-            className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm"
-          >
-            <dt className="text-muted-foreground">
-              {t("settings.knowledgeBase.space")}
-            </dt>
-            <dd>
-              {info.space} · {info.site}
-            </dd>
-            <dt className="text-muted-foreground">
-              {t("settings.knowledgeBase.cards")}
-            </dt>
-            <dd>
-              {info.stubCount
-                ? t("settings.knowledgeBase.cardsWithStubs", {
-                    count: info.cardCount,
-                    stubs: info.stubCount,
-                  })
-                : info.cardCount}
-            </dd>
-            <dt className="text-muted-foreground">
-              {t("settings.knowledgeBase.built")}
-            </dt>
-            <dd>{info.builtAt.slice(0, 10)}</dd>
-            <dt className="text-muted-foreground">
-              {t("settings.knowledgeBase.imported")}
-            </dt>
-            <dd>{info.importedAt.slice(0, 10)}</dd>
-            <dt className="text-muted-foreground">
-              {t("settings.knowledgeBase.retrieval")}
-            </dt>
-            <dd>
-              {t(
-                info.mode === "hybrid"
-                  ? "settings.knowledgeBase.modeHybrid"
-                  : "settings.knowledgeBase.modeBm25",
-              )}
-              {" · "}
-              {t(
-                info.calibrated
-                  ? "settings.knowledgeBase.calibrated"
-                  : "settings.knowledgeBase.uncalibrated",
-              )}
-            </dd>
-          </dl>
+          packs.map((info) => (
+            <PackRow
+              key={info.aptyVersion}
+              info={info}
+              now={today}
+              busy={busy}
+              onReplace={() => fileInput.current?.click()}
+              onRemove={() => setConfirming(info.aptyVersion)}
+            />
+          ))
         )}
 
-        {stale && (
-          <Notice tone="warning">
-            {t("settings.knowledgeBase.stale", { days: age ?? 0 })}
-          </Notice>
-        )}
         {status.kind === "imported" && (
           <Notice tone="success">
             {t("settings.knowledgeBase.importedStatus", {
               count: status.cardCount,
               space: status.space,
+              version: status.version,
             })}
           </Notice>
         )}
         {status.kind === "removed" && (
           <Notice tone="info">
-            {t("settings.knowledgeBase.removedStatus")}
+            {t("settings.knowledgeBase.removedStatus", {
+              version: status.version,
+            })}
           </Notice>
         )}
         {status.kind === "error" && (
@@ -223,22 +289,8 @@ export function KnowledgeBaseCard({
             onClick={() => fileInput.current?.click()}
           >
             <Upload aria-hidden="true" className="h-4 w-4" />
-            {t(
-              info
-                ? "settings.knowledgeBase.replace"
-                : "settings.knowledgeBase.import",
-            )}
+            {t("settings.knowledgeBase.import")}
           </Button>
-          {info && (
-            <Button
-              variant="danger"
-              disabled={busy}
-              onClick={() => setConfirming(true)}
-            >
-              <Trash2 aria-hidden="true" className="h-4 w-4" />
-              {t("settings.knowledgeBase.remove")}
-            </Button>
-          )}
           <input
             ref={fileInput}
             type="file"
@@ -251,9 +303,11 @@ export function KnowledgeBaseCard({
         </div>
       </CardContent>
       <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={t("settings.knowledgeBase.removeTitle")}
+        open={confirming !== null}
+        onOpenChange={(open) => !open && setConfirming(null)}
+        title={t("settings.knowledgeBase.removeTitle", {
+          version: confirming ?? "",
+        })}
         description={t("settings.knowledgeBase.removeDescription")}
         confirmLabel={t("settings.knowledgeBase.remove")}
         pending={busy}

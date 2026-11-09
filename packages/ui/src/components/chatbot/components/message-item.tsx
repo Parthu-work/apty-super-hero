@@ -15,7 +15,7 @@ import { Fragment, useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
-import { linkKbCitations } from "../../../lib/kb-citations";
+import { kbReturnedCards, linkKbCitations } from "../../../lib/kb-citations";
 import { isLocalImageUrl } from "../../../lib/safe-media";
 import {
   resolveScreenshotUrls,
@@ -72,6 +72,7 @@ export function DefaultMessageItem({
   onCopy,
   formatExport,
   onOpenProviderSettings,
+  kbCards: turnKbCards,
   className,
   ...props
 }: MessageItemProps) {
@@ -109,6 +110,9 @@ export function DefaultMessageItem({
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
 
+  // The cards this turn's search_kb calls returned: the citations link to them.
+  const kbCards = turnKbCards ?? kbReturnedCards(message.parts);
+
   // The user's chips and attachments sit under their words.
   const parts =
     message.role === "user"
@@ -143,8 +147,10 @@ export function DefaultMessageItem({
             // base64 data URLs when available for inline rendering.
             let processedText =
               message.role === "assistant"
-                ? linkKbCitations(part.text, (pageId, layer) =>
-                    t("chat.kbCitation", { pageId, layer }),
+                ? linkKbCitations(
+                    part.text,
+                    (pageId, layer) => t("chat.kbCitation", { pageId, layer }),
+                    (pageId) => kbCards.urls.get(pageId),
                   )
                 : part.text;
             if (screenshotUidList.length > 0) {

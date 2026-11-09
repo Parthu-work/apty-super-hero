@@ -138,9 +138,12 @@
     },
     "knowledgeBase": {
       "title": "知识库",
-      "description": "知识库负责人共享的 KB 包：检查和回答所引用的 RAG 答案卡片。它只保存在此浏览器中；只有当回答用到卡片时，卡片文本才会发送给你的 AI 提供方。",
+      "description": "知识库负责人共享的 KB 包，每个 Apty 版本一个（4.x、5.x、common）：检查和回答所引用的 RAG 答案卡片。它只保存在此浏览器中；只有当回答用到卡片时，卡片文本才会发送给你的 AI 提供方。",
       "notLoaded": "尚未加载知识库。请从知识库负责人共享的内部页面导入 .kbpack.json 文件。",
-      "loadedLabel": "已加载的知识库",
+      "loadedLabelVersion": "已加载的知识库（{{version}}）",
+      "versionHeading": "Apty {{version}}",
+      "replaceVersion": "替换 {{version}} 包…",
+      "removeVersion": "移除 {{version}} 包",
       "space": "空间",
       "cards": "卡片",
       "cardsWithStubs": "{{count}}，其中 {{stubs}} 张尚未编写",
@@ -149,17 +152,16 @@
       "retrieval": "检索方式",
       "modeBm25": "关键词（BM25）",
       "modeHybrid": "关键词和向量",
-      "calibrated": "已校准阈值",
-      "uncalibrated": "未校准阈值：任何匹配都视为已覆盖",
+      "calibrated": "已校准",
+      "uncalibrated": "未校准：使用默认覆盖设置",
       "stale": "此包构建于 {{days}} 天前。请向知识库负责人索取更新的包并导入。",
       "import": "导入包…",
-      "replace": "替换包…",
       "remove": "移除",
       "fileLabel": "KB 包文件",
-      "removeTitle": "移除知识库？",
-      "removeDescription": "该包将从此浏览器中删除。在你再次导入包之前，检查只会链接到卡片，不显示卡片文本。",
-      "importedStatus": "已从空间 {{space}} 导入 {{count}} 张卡片。",
-      "removedStatus": "知识库已移除。",
+      "removeTitle": "移除 {{version}} 知识库？",
+      "removeDescription": "该包将从此浏览器中删除，其他版本的包保留。在你再次导入此版本的包之前，关于此版本的问题只会链接到卡片，不显示卡片文本。",
+      "importedStatus": "已从空间 {{space}} 导入 Apty {{version}} 的 {{count}} 张卡片。",
+      "removedStatus": "{{version}} 知识库已移除。",
       "errors": {
         "tooLarge": "此文件对于 KB 包来说过大（超过 25 MB 或 5,000 个片段）。",
         "notJson": "此文件不是 JSON，因此不是 KB 包。",
@@ -1170,6 +1172,7 @@
       },
       "knowledgeBase": {
         "label": "知识库",
+        "labelVersion": "知识库（{{version}}）",
         "loaded": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}。",
         "notLoaded": "未加载。检查会链接到 KB 卡片，但不显示其文本。",
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
@@ -2410,11 +2413,18 @@
     "daptyFound": "Ask Dapty：{{calls}} 个聊天请求和 {{stored}} 个已保存的聊天。",
     "noDapty": "此 HAR 不包含 Ask Dapty 聊天请求。请在打开小组件聊天并重新提问时录制。"
   },
+  "kbVersion": {
+    "label": "Apty 版本",
+    "notSure": "不确定",
+    "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
+  },
   "kbMatches": {
     "title": "匹配的 KB 卡片",
     "layer": "卡片的第 {{layer}} 层",
     "stub": "KB 中有这张卡片，但其 {{version}} 版本的内容尚未编写。",
     "nonEnglish": "KB 卡片是英文的。请用英文提问，或把问题发送给模型。",
+    "mixedVersions": "这些卡片属于不同的 Apty 版本；此租户运行的是哪个版本？",
+    "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
     "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。"
   }
 }

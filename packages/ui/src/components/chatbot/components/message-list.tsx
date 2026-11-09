@@ -1,6 +1,7 @@
 import { BrainIcon, ChevronDownIcon, Loader2Icon } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "../../../i18n/context";
+import { kbReturnedCards } from "../../../lib/kb-citations";
 import { cn } from "../../../lib/utils";
 import type { MessageListProps, UIMessage } from "../../../types";
 import {
@@ -162,6 +163,9 @@ export function DefaultMessageList({
                             <MessageItem
                               key={finalMsg.id}
                               message={finalMsg}
+                              kbCards={kbReturnedCards(
+                                turn.assistantMessages.flatMap((m) => m.parts),
+                              )}
                               isLast={finalMsg.id === lastMessageId}
                               isStreaming={running}
                               onRegenerate={onRegenerate}
@@ -177,6 +181,9 @@ export function DefaultMessageList({
                         <MessageItem
                           key={msg.id}
                           message={msg}
+                          kbCards={kbReturnedCards(
+                            turn.assistantMessages.flatMap((m) => m.parts),
+                          )}
                           isLast={msg.id === lastMessageId}
                           isStreaming={running}
                           onRegenerate={onRegenerate}

@@ -8,7 +8,8 @@
  *
  * Usage:
  *   CONFLUENCE_EMAIL=… CONFLUENCE_TOKEN=… pnpm kb:pack [--site apty.atlassian.net]
- *     [--space JA] [--root <pageId> | --label <label>] [--out <file>]
+ *     [--space JA] [--root <pageId> | --label <label>] [--version 4.x|5.x|common]
+ *     [--out <file>]
  *     [--coverage-min <0-1>] [--coverage-min-idf <idf>]
  *     [--synonyms <file>] [--customer-names <file>] [--diff <old pack>]
  *
@@ -43,6 +44,13 @@ const TITLE_PREFIX = /^RAG Card:\s*/i;
 const GROUP_PREFIX = /^RAG Cards:\s*/i;
 /** The RAG Answer Cards page in JA, whose descendants are the cards. */
 export const RAG_ANSWER_CARDS_PAGE = "1496711169";
+/**
+ * The Apty version a space's cards are for, when the space holds one
+ * version only (D-KB6); JA and any other space need `--version`.
+ */
+const SPACE_VERSIONS = { A4PKH: "4.x" };
+const VERSIONS = ["4.x", "5.x", "common"];
+
 /** The search's own defaults (agent-core `KB_COVERAGE_DEFAULTS`), for a flag given alone. */
 const COVERAGE_DEFAULTS = { min: 0.5, minIdf: 1.5, minTerms: 1 };
 const DEFAULTS = {
@@ -408,6 +416,7 @@ export function buildPack({
   builtAt,
   coverage,
   synonyms,
+  aptyVersion = "5.x",
 }) {
   const cards = [];
   const chunks = [];
@@ -434,7 +443,7 @@ export function buildPack({
     builtAt,
     builder: BUILDER,
     source: { site, space, label, cardCount: cards.length },
-    aptyVersion: "5.x",
+    aptyVersion,
     retrieval,
     cards,
     chunks,
@@ -546,6 +555,7 @@ function parseArgs(argv) {
     "--coverage-min-idf": "coverageMinIdf",
     "--customer-names": "customerNames",
     "--synonyms": "synonyms",
+    "--version": "version",
     "--diff": "diff",
   };
   for (let i = 0; i < argv.length; i++) {
@@ -563,6 +573,15 @@ function parseArgs(argv) {
   }
   if (options.label !== undefined && !/^[\w.-]+$/.test(options.label)) {
     throw new BuildError("--label takes one label.");
+  }
+  if (options.version !== undefined && !VERSIONS.includes(options.version)) {
+    throw new BuildError("--version takes 4.x, 5.x or common.");
+  }
+  options.version ??= SPACE_VERSIONS[options.space];
+  if (options.version === undefined) {
+    throw new BuildError(
+      `Pass --version 4.x, 5.x or common: space ${options.space} holds cards of more than one version, or of an unknown one.`,
+    );
   }
   if (options.coverageMin !== undefined) {
     const min = Number(options.coverageMin);
@@ -614,7 +633,7 @@ export async function run({
         join(
           home,
           "apty-kb",
-          `apty-kb-${options.space}-${builtAt.slice(0, 10).replace(/-/g, "")}.kbpack.json`,
+          `apty-kb-${options.space}-${options.version}-${builtAt.slice(0, 10).replace(/-/g, "")}.kbpack.json`,
         ),
     );
     if (insideRepository(outPath)) {
@@ -657,6 +676,7 @@ export async function run({
       label: options.label ?? `ancestor:${options.root}`,
       builtAt,
       synonyms,
+      aptyVersion: options.version,
       coverage:
         options.coverageMin === undefined &&
         options.coverageMinIdf === undefined
@@ -682,7 +702,7 @@ export async function run({
     const count = (status) =>
       pack.cards.filter((card) => card.status === status).length;
     print(
-      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing; ${skipped.length} malformed skipped. From ${options.site}, space ${options.space}, ${selection}.`,
+      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing; ${skipped.length} malformed skipped. Apty ${options.version}, from ${options.site}, space ${options.space}, ${selection}.`,
     );
     for (const card of pack.cards.filter((c) => c.status === "stub")) {
       print(`  stub ${card.pageId} "${card.title}": not yet written`);

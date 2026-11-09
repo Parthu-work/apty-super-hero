@@ -1,6 +1,8 @@
 import type { LocalResponder } from "@apty/agent-core";
+import { siteHostOf } from "../../conversation/site-host.js";
 import type { KbToolResult } from "../../kb/kb-index.js";
 import { type KbMatchesOptions, localKbMatches } from "../../kb/kb-matches.js";
+import { kbVersionForUrl, rememberKbVersion } from "../../kb/kb-version.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
 import { currentValuePolicy } from "../../runtime/value-policy.js";
@@ -32,6 +34,7 @@ import { languageName } from "./languages.js";
 import { loadClientEvidence } from "./loader.js";
 import { loadLogEvidence } from "./log-loader.js";
 import { diagnoseLogsAndErrors } from "./logs-and-errors.js";
+import { playerVersionOf } from "./pack-kit.js";
 import { diagnosePageReadiness } from "./page-readiness.js";
 import { type Route, routeSymptom } from "./router.js";
 import type {
@@ -252,6 +255,18 @@ async function elementEvidence(
   return { ...evidence, files: { ...evidence.files, ...steps.files } };
 }
 
+/** What the files tell of the tenant's Apty version, kept for the KB searches on this site (K12). */
+async function noteVersion(
+  evidence: ClientEvidence,
+  pageUrl: () => Promise<string | undefined>,
+): Promise<void> {
+  rememberKbVersion(
+    siteHostOf(await pageUrl()),
+    playerVersionOf(evidence),
+    "evidence",
+  );
+}
+
 /** The result, saying when its files came from Apty's content CDN. */
 const fromCdn = (result: DiagnosisResult, evidence: ClientEvidence) =>
   evidence.fromCdn ? { ...result, filesFromCdn: true } : result;
@@ -296,6 +311,7 @@ export async function runPack(
   }
   if (route.packId === "element-not-found") {
     const evidence = await elementEvidence(load, route.kind, route.query);
+    await noteVersion(evidence, pageUrl);
     return fromCdn(
       await diagnoseElementNotFound(
         evidence,
@@ -315,12 +331,14 @@ export async function runPack(
   }
   if (route.packId === "widget-not-visible") {
     const evidence = await load(WIDGET_FILES);
+    await noteVersion(evidence, pageUrl);
     return fromCdn(
       diagnoseWidgetNotVisible(evidence, await pageUrl()),
       evidence,
     );
   }
   const evidence = await load(filesFor(route.kind));
+  await noteVersion(evidence, pageUrl);
   return fromCdn(
     diagnoseContentNotVisible(
       evidence,
@@ -406,9 +424,14 @@ const DEFAULT_SOURCES: ResponderSources = {
 const SEARCH_KB = "search_kb";
 
 /** A message no check pack claims, answered from the KB pack's cards with no model call. */
-async function kbAnswer(input: string, sources: ResponderSources) {
+async function kbAnswer(
+  input: string,
+  sources: ResponderSources,
+  runContext: unknown,
+) {
   const matches = await sources.kbMatchesOf?.(input, {
     modelAvailable: sources.modelAvailable?.() ?? false,
+    version: kbVersionForUrl(await sources.pageUrlOf(runContext)),
   });
   if (!matches) return undefined;
   await getRedactionMode();
@@ -439,7 +462,7 @@ export function createDiagnosisResponder(
     const route: CheckRoute | undefined = asksAboutDapty(input)
       ? { packId: "dapty-conversation" }
       : routeSymptom(input);
-    if (!route) return kbAnswer(input, sources);
+    if (!route) return kbAnswer(input, sources, runContext);
     const trace =
       route.packId === "dapty-conversation" ? createDaptyTrace() : undefined;
     const clientExtensionId = await sources.clientExtensionId();

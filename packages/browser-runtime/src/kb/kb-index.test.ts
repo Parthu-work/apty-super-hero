@@ -3,9 +3,11 @@ import { createKbPackStore } from "../storage/kb-store.js";
 import { createKbIndexSource, kbToolResult } from "./kb-index.js";
 import {
   FIXTURE_CARDS,
+  type FixtureCard,
   fixturePackText,
   fixtureV2PackText,
   memoryRecords,
+  versionPackText,
 } from "./kb-test-utils.js";
 
 async function source(text = fixturePackText(FIXTURE_CARDS)) {
@@ -59,9 +61,11 @@ describe("kbToolResult", () => {
       stub: {
         cite: "kb://303",
         title: "FIXTURE gadget export never finishes",
-        url: "https://fixture.atlassian.net/wiki/spaces/FX/pages/303",
+        site: "fixture.atlassian.net",
+        space: "FX",
         aptyVersion: "5.x",
       },
+      mixedVersions: false,
       results: [],
     });
   });
@@ -71,10 +75,14 @@ describe("kbToolResult", () => {
     const result = kbToolResult(index, "glow.json glowIds", { topK: 1 });
     expect(result).toEqual({
       status: "ok",
+      mixedVersions: false,
       results: [
         {
           cite: "kb://101#L3",
           title: "FIXTURE banner never glows",
+          site: "fixture.atlassian.net",
+          space: "FX",
+          aptyVersion: "5.x",
           layer: 3,
           heading: "Layer 3: FIXTURE banner never glows, part 3",
           verifiedOn: "Verified on: FIXTURE code, 2026-01-01.",
@@ -109,6 +117,92 @@ describe("kbToolResult", () => {
   });
 });
 
+describe("createKbIndexSource per version (K12)", () => {
+  const banner = (pageId: string) => ({
+    ...(FIXTURE_CARDS[0] as FixtureCard),
+    pageId,
+  });
+  async function threePacks() {
+    const store = createKbPackStore({ records: memoryRecords() });
+    await store.replace(versionPackText("4.x", [banner("401")], "A4X"));
+    await store.replace(
+      versionPackText(
+        "5.x",
+        [banner("501"), FIXTURE_CARDS[1] as FixtureCard],
+        "JX",
+      ),
+    );
+    await store.replace(
+      versionPackText(
+        "common",
+        [
+          {
+            pageId: "601",
+            title: "FIXTURE policy blocks the extension",
+            layers: [
+              "- In Admin, allow the FIXTURE extension in the browser policy.",
+              "- chrome://policy lists the FIXTURE block.",
+              "- policy.json lists blockedIds (FIXTURE).",
+              "- Send support the FIXTURE policy export.",
+            ],
+          },
+        ],
+        "CX",
+      ),
+    );
+    return { store, source: createKbIndexSource(store) };
+  }
+
+  it("gives a 4.x tab the 4.x and common cards only, linked in their own spaces", async () => {
+    const { source: kb } = await threePacks();
+    const result = kbToolResult(
+      await kb.current("4.x"),
+      "the banner never glows",
+      {
+        onePerCard: true,
+        topK: 5,
+      },
+    );
+    expect(
+      result.results.map((hit) => [hit.cite, hit.aptyVersion, hit.space]),
+    ).toEqual([["kb://401#L1", "4.x", "A4X"]]);
+    expect(
+      kbToolResult(await kb.current("4.x"), "the tooltip opens twice").status,
+    ).toBe("not_covered");
+  });
+
+  it("searches every pack for an unknown version, labels both versions and says they differ", async () => {
+    const { source: kb } = await threePacks();
+    const result = kbToolResult(
+      await kb.current("unknown"),
+      "the banner never glows",
+      {
+        onePerCard: true,
+      },
+    );
+    expect(
+      result.results
+        .slice(0, 2)
+        .map((hit) => hit.aptyVersion)
+        .sort(),
+    ).toEqual(["4.x", "5.x"]);
+    expect(result.mixedVersions).toBe(true);
+  });
+
+  it("keeps one index per set of packs, and forgets a removed version", async () => {
+    const { store, source: kb } = await threePacks();
+    const first = await kb.current("5.x");
+    expect(await kb.current("5.x")).toBe(first);
+    expect(first?.info.aptyVersions).toEqual(["5.x", "common"]);
+    await store.remove("4.x");
+    expect(await kb.current("4.x")).not.toBe(null);
+    expect((await kb.current("4.x"))?.info.aptyVersions).toEqual(["common"]);
+    await store.remove("common");
+    expect(await kb.current("4.x")).toBeNull();
+    expect(await kb.current("5.x")).not.toBe(first);
+  });
+});
+
 describe("createKbIndexSource", () => {
   it("builds the index once per pack, rebuilds for a new pack and forgets a removed one", async () => {
     const { store, source: kb } = await source();
@@ -122,7 +216,7 @@ describe("createKbIndexSource", () => {
     expect(second).not.toBe(first);
     expect(second?.info.cardCount).toBe(1);
 
-    await store.remove();
+    await store.remove("5.x");
     expect(await kb.current()).toBeNull();
   });
 });

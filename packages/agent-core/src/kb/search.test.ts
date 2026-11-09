@@ -131,7 +131,7 @@ describe("createKbIndex search", () => {
     } as typeof pack;
     const once = createKbIndex(duplicated);
     expect(once.info).toEqual({
-      aptyVersion: "5.x",
+      aptyVersions: ["5.x"],
       cardCount: 1,
       stubCount: 0,
       chunkCount: 4,

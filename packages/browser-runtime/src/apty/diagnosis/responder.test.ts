@@ -24,6 +24,7 @@ const settings = vi.hoisted(() => ({
   tabs: { get: mockTabsGet },
 };
 
+import { forgetKbVersions, kbVersionForHost } from "../../kb/kb-version";
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
 import { runDiagnosisTool } from "../../tools/diagnosis";
 import {
@@ -432,7 +433,7 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     const answer = await respond("the tooltip opens twice on the page", {});
     expect(kbMatchesOf).toHaveBeenCalledWith(
       "the tooltip opens twice on the page",
-      { modelAvailable: false },
+      { modelAvailable: false, version: "unknown" },
     );
     expect(answer).toMatchObject({
       toolName: "search_kb",
@@ -463,6 +464,26 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     await respond("小部件没有显示", {});
     expect(kbMatchesOf).toHaveBeenCalledWith("小部件没有显示", {
       modelAvailable: true,
+      version: "unknown",
+    });
+  });
+
+  it("searches the KB for the version a check's files showed on this site (K12)", async () => {
+    forgetKbVersions();
+    const pageUrlOf = async () => "https://crm.example.com/leads/42";
+    const kbMatchesOf = vi.fn(async () => undefined);
+    const respond = createDiagnosisResponder({ pageUrlOf, kbMatchesOf });
+    await respond("the tooltip opens twice", {});
+    expect(kbMatchesOf).toHaveBeenLastCalledWith("the tooltip opens twice", {
+      modelAvailable: false,
+      version: "unknown",
+    });
+    await respond("the widget is not showing", {});
+    expect(kbVersionForHost("crm.example.com")).toBe("5.x");
+    await respond("the tooltip opens twice", {});
+    expect(kbMatchesOf).toHaveBeenLastCalledWith("the tooltip opens twice", {
+      modelAvailable: false,
+      version: "5.x",
     });
   });
 

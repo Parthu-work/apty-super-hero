@@ -1,6 +1,7 @@
 import MiniSearch from "minisearch";
 import {
   decodeVectors,
+  type KbAptyVersion,
   type KbCard,
   type KbChunk,
   type KbLayer,
@@ -34,6 +35,8 @@ export interface KbSearchHit {
   chunk: KbChunk;
   card: KbCard;
   score: number;
+  /** The version of the pack the card comes from. */
+  aptyVersion: KbAptyVersion;
 }
 
 export type KbNotCoveredReason =
@@ -49,8 +52,11 @@ export interface KbSearchResult {
    */
   status: "ok" | "not_covered" | "stub";
   hits: KbSearchHit[];
-  /** With `stub`: the card, with no text. */
+  /** With `stub`: the card, with no text, and its pack's version. */
   card?: KbCard;
+  cardVersion?: KbAptyVersion;
+  /** Searching several versions' packs: the top two hits are for different versions. */
+  mixedVersions?: boolean;
   /**
    * The share of the question's weight the top card matches, 0 to 1: each
    * term weighs its idf, and counts in full when the card has it, half when
@@ -79,8 +85,8 @@ export const KB_COVERAGE_DEFAULTS: KbCoverageSettings = {
 };
 
 export interface KbIndexInfo {
-  /** The Apty version the pack's cards are for. */
-  aptyVersion: KbPack["aptyVersion"];
+  /** The Apty versions the cards are for. */
+  aptyVersions: KbAptyVersion[];
   cardCount: number;
   /** Cards not written yet for this version (schema 2). */
   stubCount: number;
@@ -120,7 +126,7 @@ function comparePageIds(a: string, b: string): number {
   return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
 }
 
-function compareHits(a: KbSearchHit, b: KbSearchHit): number {
+export function compareHits(a: KbSearchHit, b: KbSearchHit): number {
   return (
     b.score - a.score ||
     comparePageIds(a.chunk.pageId, b.chunk.pageId) ||
@@ -263,7 +269,7 @@ function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
   const dense = pack.retrieval.dense;
   const hybrid = dense !== undefined && vectorsByChunk.size === chunks.length;
   const info: KbIndexInfo = {
-    aptyVersion: pack.aptyVersion,
+    aptyVersions: [pack.aptyVersion],
     cardCount: cards.size,
     stubCount: 0,
     chunkCount: chunks.length,
@@ -272,7 +278,12 @@ function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
   };
 
   function hit(chunk: KbChunk, score: number): KbSearchHit {
-    return { chunk, card: cards.get(chunk.pageId) as KbCard, score };
+    return {
+      chunk,
+      card: cards.get(chunk.pageId) as KbCard,
+      score,
+      aptyVersion: pack.aptyVersion,
+    };
   }
 
   function search(
@@ -676,6 +687,7 @@ function createV2Index(pack: KbPack): KbIndex {
     chunk,
     card: cards.get(chunk.pageId) as KbCard,
     score,
+    aptyVersion: pack.aptyVersion,
   });
 
   function search(
@@ -801,7 +813,13 @@ function createV2Index(pack: KbPack): KbIndex {
       };
     }
     if (stubFirst) {
-      return { status: "stub", hits: [], coverage, card: stubFirst };
+      return {
+        status: "stub",
+        hits: [],
+        coverage,
+        card: stubFirst,
+        cardVersion: pack.aptyVersion,
+      };
     }
     const hits = options.onePerCard ? onePerCardOnly(ranked) : ranked;
     return { status: "ok", hits: hits.slice(0, topK), coverage };
@@ -809,7 +827,7 @@ function createV2Index(pack: KbPack): KbIndex {
 
   return {
     info: {
-      aptyVersion: pack.aptyVersion,
+      aptyVersions: [pack.aptyVersion],
       cardCount: cards.size,
       stubCount: [...cards.values()].filter((card) => card.status === "stub")
         .length,

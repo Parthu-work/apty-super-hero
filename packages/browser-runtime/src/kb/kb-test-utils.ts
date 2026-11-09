@@ -29,6 +29,7 @@ export function fixturePackText(
   cards: FixtureCard[],
   retrieval: Record<string, unknown> = {},
   extra: Record<string, unknown> = {},
+  space = "FX",
 ): string {
   const body = {
     kind: KB_PACK_KIND,
@@ -53,7 +54,7 @@ export function fixturePackText(
       ).length,
       ...(card.status ? { status: card.status } : {}),
       ...(card.symptom !== undefined ? { symptom: card.symptom } : {}),
-      url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${card.pageId}`,
+      url: `https://fixture.atlassian.net/wiki/spaces/${space}/pages/${card.pageId}`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     })),
     chunks: cards.flatMap((card) =>
@@ -109,5 +110,19 @@ export function fixtureV2PackText(cards = [...FIXTURE_CARDS, FIXTURE_STUB]) {
     cards,
     { coverage: { min: 0.5, minIdf: 1, minTerms: 1 } },
     { schemaVersion: 2 },
+  );
+}
+
+/** A schema 2 pack of `version`'s cards in `space`, with settings a small pack can reach. */
+export function versionPackText(
+  version: "4.x" | "5.x" | "common",
+  cards: FixtureCard[],
+  space: string,
+) {
+  return fixturePackText(
+    cards,
+    { coverage: { min: 0.4, minIdf: 0.5, minTerms: 1 } },
+    { schemaVersion: 2, aptyVersion: version },
+    space,
   );
 }

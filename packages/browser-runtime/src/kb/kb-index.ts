@@ -1,32 +1,49 @@
 import {
-  createKbIndex,
+  createKbIndexSet,
+  type KbAptyVersion,
   type KbIndex,
   type KbLayer,
   type KbNotCoveredReason,
+  type KbPack,
   type KbSearchHit,
+  kbCardLocation,
 } from "@apty/agent-core";
 import { createKbPackStore, type KbPackStore } from "../storage/kb-store.js";
 
-/** The search index over the loaded pack, rebuilt only when another pack is loaded. */
+/** The Apty version a tab runs, as far as the Agent knows. */
+export type KbTabVersion = "4.x" | "5.x" | "unknown";
+
+/** The search index over the loaded packs a tab's version reads, rebuilt only when those packs change. */
 export interface KbIndexSource {
-  current(): Promise<KbIndex | null>;
+  /** The tab's version and the common cards, or every loaded pack for `unknown` (the default). */
+  current(version?: KbTabVersion): Promise<KbIndex | null>;
 }
 
 /** @internal exported for tests, which give it a store of their own. */
 export function createKbIndexSource(store: KbPackStore): KbIndexSource {
-  let cached: { sha256: string; index: KbIndex } | undefined;
+  const cached = new Map<KbTabVersion, { key: string; index: KbIndex }>();
   return {
-    async current() {
-      const info = await store.info();
-      if (!info) {
-        cached = undefined;
+    async current(version = "unknown") {
+      const infos = (await store.info()).filter(
+        (info) =>
+          version === "unknown" ||
+          info.aptyVersion === version ||
+          info.aptyVersion === "common",
+      );
+      if (infos.length === 0) {
+        cached.delete(version);
         return null;
       }
-      if (cached?.sha256 === info.sha256) return cached.index;
-      const pack = await store.load();
-      if (!pack) return null;
-      cached = { sha256: pack.sha256, index: createKbIndex(pack) };
-      return cached.index;
+      const key = infos.map((info) => info.sha256).join(",");
+      const hit = cached.get(version);
+      if (hit?.key === key) return hit.index;
+      const packs = (
+        await Promise.all(infos.map((info) => store.load(info.aptyVersion)))
+      ).filter((pack): pack is KbPack => pack !== null);
+      if (packs.length === 0) return null;
+      const index = createKbIndexSet(packs);
+      cached.set(version, { key, index });
+      return index;
     },
   };
 }
@@ -45,6 +62,10 @@ export interface KbToolHit {
   /** What the answer cites: `kb://<pageId>#L<layer>`. */
   cite: string;
   title: string;
+  /** The card's Confluence site and space (its link is built from them, `kbCardUrl`), in its version's space. */
+  site: string;
+  space: string;
+  aptyVersion: KbAptyVersion;
   layer: KbLayer;
   heading: string;
   verifiedOn: string | null;
@@ -59,7 +80,8 @@ export interface KbStubHit {
   /** `kb://<pageId>`: the card, with no layer. */
   cite: string;
   title: string;
-  url: string;
+  site: string;
+  space: string;
   aptyVersion: string;
 }
 
@@ -72,6 +94,8 @@ export interface KbToolResult {
   reason?: KbNotCoveredReason;
   /** With `unknown_setting`: the phrases no card has. */
   missingPhrases?: string[];
+  /** The top two cards are for different Apty versions: ask which one the tenant runs. */
+  mixedVersions?: boolean;
   results: KbToolHit[];
 }
 
@@ -83,6 +107,8 @@ function toolHit(hit: KbSearchHit): KbToolHit {
   return {
     cite: kbCite(hit.chunk.pageId, hit.chunk.layer),
     title: hit.card.title,
+    ...kbCardLocation(hit.card),
+    aptyVersion: hit.aptyVersion,
     layer: hit.chunk.layer,
     heading: hit.chunk.heading,
     verifiedOn: hit.card.verifiedOn,
@@ -114,9 +140,10 @@ export function kbToolResult(
       stub: {
         cite: `kb://${found.card.pageId}`,
         title: found.card.title,
-        url: found.card.url,
-        aptyVersion: index.info.aptyVersion,
+        ...kbCardLocation(found.card),
+        aptyVersion: found.cardVersion ?? "5.x",
       },
+      mixedVersions: false,
       results: [],
     };
   }
@@ -135,5 +162,5 @@ export function kbToolResult(
     total += hit.chunk.text.length;
     results.push(toolHit(hit));
   }
-  return { status: "ok", results };
+  return { status: "ok", mixedVersions: found.mixedVersions ?? false, results };
 }

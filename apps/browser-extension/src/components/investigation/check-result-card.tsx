@@ -7,7 +7,7 @@
  * names and file facts only; no raw conditions or URLs.
  */
 
-import { kbCardUrl } from "@apty/agent-core";
+import type { KbAptyVersion } from "@apty/agent-core";
 import type {
   Cause,
   DiagnosisResult,
@@ -39,7 +39,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { DaptyEvidenceExport } from "./dapty-evidence-export";
-import { KbCardExcerpt } from "./kb-card-excerpt";
+import { KbCardExcerpt, useKbCardUrl } from "./kb-card-excerpt";
+import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
 const PACKS = new Set([
   "content-not-visible",
@@ -409,11 +410,22 @@ function causeText(t: Translate, cause: Cause, kind: string) {
     : { summary: cause.summary, fix: cause.fix };
 }
 
-function KbCardLink({ pageId }: { pageId: string }) {
+/** Which version's KB cards this site's questions read: from the check's files, or the user's choice. */
+function VerdictKbVersion() {
+  return <KbVersionControl host={useActiveSiteHost()} />;
+}
+
+function KbCardLink({
+  pageId,
+  aptyVersion,
+}: {
+  pageId: string;
+  aptyVersion?: KbAptyVersion;
+}) {
   const { t } = useTranslation();
   return (
     <a
-      href={kbCardUrl(pageId)}
+      href={useKbCardUrl(pageId, aptyVersion)}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -424,7 +436,15 @@ function KbCardLink({ pageId }: { pageId: string }) {
   );
 }
 
-function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
+function CauseItem({
+  cause,
+  kind,
+  aptyVersion,
+}: {
+  cause: Cause;
+  kind: string;
+  aptyVersion?: KbAptyVersion;
+}) {
   const t = useCheckText();
   const text = causeText(t, cause, kind);
   return (
@@ -453,7 +473,9 @@ function CauseItem({ cause, kind }: { cause: Cause; kind: string }) {
       )}
       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
         <span>{t("checkPack.ruleLabel", { ruleId: cause.ruleId })}</span>
-        {cause.cardPageId && <KbCardLink pageId={cause.cardPageId} />}
+        {cause.cardPageId && (
+          <KbCardLink pageId={cause.cardPageId} aptyVersion={aptyVersion} />
+        )}
       </p>
       {cause.cardPageId && (
         <KbCardExcerpt
@@ -665,6 +687,7 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
                 key={`${cause.ruleId}-${index}`}
                 cause={cause}
                 kind={kind}
+                aptyVersion={result.aptyVersion}
               />
             ))}
           </ul>
@@ -754,11 +777,16 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
         </p>
       )}
 
+      {result.cardPageId && <VerdictKbVersion />}
+
       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
         {result.cardPageId ? (
           <>
             <span>{t("checkPack.provenance")}</span>
-            <KbCardLink pageId={result.cardPageId} />
+            <KbCardLink
+              pageId={result.cardPageId}
+              aptyVersion={result.aptyVersion}
+            />
           </>
         ) : (
           <span>{t("checkPack.provenanceDapty")}</span>

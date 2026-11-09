@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  KbAptyVersion,
   KbImportResult,
   KbPackInfo,
   KeyValueStorage,
@@ -60,11 +61,12 @@ export interface SettingsPageProps {
   knowledgeBase?: KnowledgeBaseAdapter;
 }
 
-/** Reads, imports and removes the one KB pack this browser holds; supplied by the host app. */
+/** Reads, imports and removes the KB packs this browser holds, one per Apty version; supplied by the host app. */
 export interface KnowledgeBaseAdapter {
-  info(): Promise<KbPackInfo | null>;
+  info(): Promise<KbPackInfo[]>;
+  /** Stores the file's pack under the version it names. */
   importPack(text: string): Promise<KbImportResult>;
-  remove(): Promise<void>;
+  remove(version: KbAptyVersion): Promise<void>;
 }
 
 export interface ConnectionTestResult {

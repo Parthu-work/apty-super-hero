@@ -50,17 +50,23 @@ export const FIXTURE_COVERAGE = { min: 0.4, minIdf: 0.5, minTerms: 1 };
 /** Writes the synthetic pack to `dir` and returns its path and the pack. */
 export function writeFixturePack(
   dir,
-  { pages = FIXTURE_PAGES, coverage = FIXTURE_COVERAGE } = {},
+  {
+    pages = FIXTURE_PAGES,
+    coverage = FIXTURE_COVERAGE,
+    aptyVersion = "5.x",
+    space = "FX",
+  } = {},
 ) {
   const { pack } = buildPack({
     pages,
     site: "fixture.atlassian.net",
-    space: "FX",
+    space,
     label: "rag-card",
     builtAt: new Date().toISOString(),
     coverage,
+    aptyVersion,
   });
-  const file = join(dir, "apty-kb-FX-fixture.kbpack.json");
+  const file = join(dir, `apty-kb-${space}-${aptyVersion}-fixture.kbpack.json`);
   writeFileSync(file, JSON.stringify(pack));
   return { file, pack };
 }
@@ -73,6 +79,10 @@ export async function importPack(browser, file) {
   );
   const card = options.locator("#knowledge-base");
   await card.getByTestId("knowledge-base-file").setInputFiles(file);
-  await card.getByText(/^Imported \d+ cards from space FX\.$/).waitFor();
+  await card
+    .getByText(
+      /^Imported \d+ cards for Apty (?:4\.x|5\.x|common) from space \w+\.$/,
+    )
+    .waitFor();
   await options.close();
 }

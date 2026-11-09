@@ -174,6 +174,22 @@ describe("CheckResultCard", () => {
     expect(screen.queryByText("Cause found")).toBeNull();
   });
 
+  it("links a 4.x check's cards in the 4.x space when no pack holds them (K12)", () => {
+    const result = {
+      ...diagnoseWidgetNotVisible(
+        evidenceFrom(capture()),
+        "https://other.example.org/x",
+      ),
+      aptyVersion: "4.x" as const,
+    };
+    render(<CheckResultCard tool={tool(result)} />);
+    for (const link of screen.getAllByRole("link", { name: /KB card / })) {
+      expect(link.getAttribute("href")).toMatch(
+        /^https:\/\/apty\.atlassian\.net\/wiki\/spaces\/A4PKH\/pages\/\d+$/,
+      );
+    }
+  });
+
   it("shows the widget check: a page no environment covers, with its fix and card", () => {
     const result = diagnoseWidgetNotVisible(
       evidenceFrom(capture()),

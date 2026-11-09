@@ -8,8 +8,11 @@ import {
 import {
   canonicalJson,
   decodeVectors,
+  describeKbPack,
   KB_PACK_LIMITS,
   type KbPack,
+  kbCardLocation,
+  kbCardUrl,
   parseKbPack,
 } from "./pack.js";
 
@@ -28,6 +31,16 @@ const parse = (value: unknown) =>
   parseKbPack(typeof value === "string" ? value : JSON.stringify(value), {
     sha256: webSha256,
   });
+
+/** The pack as parseKbPack returns it: every card with a status and a symptom. */
+const asRead = (pack: KbPack): KbPack => ({
+  ...pack,
+  cards: pack.cards.map((card) => ({
+    ...card,
+    status: card.status ?? "full",
+    symptom: card.symptom ?? null,
+  })),
+});
 
 async function reseal(pack: Record<string, unknown>) {
   const { sha256: _old, ...rest } = pack;
@@ -54,7 +67,7 @@ describe("parseKbPack", () => {
   it("accepts a well-formed pack", async () => {
     const pack = syntheticPack([CARD], { threshold: 1.2 });
     const result = await parse(pack);
-    expect(result).toEqual({ ok: true, pack });
+    expect(result).toEqual({ ok: true, pack: asRead(pack) });
   });
 
   it("reads a schema 2 pack with its coverage settings, and refuses settings out of range", async () => {
@@ -63,7 +76,7 @@ describe("parseKbPack", () => {
       { coverage: { min: 0.45, minIdf: 2.1, minTerms: 1 } },
       { schemaVersion: 2 },
     );
-    expect(await parse(pack)).toEqual({ ok: true, pack });
+    expect(await parse(pack)).toEqual({ ok: true, pack: asRead(pack) });
     const wrong = syntheticPack(
       [CARD],
       { coverage: { min: 1.5, minIdf: 2.1, minTerms: 1 } },
@@ -82,7 +95,7 @@ describe("parseKbPack", () => {
       status: "stub" as const,
     };
     const pack = syntheticPack([CARD, stub], {}, { schemaVersion: 2 });
-    expect(await parse(pack)).toEqual({ ok: true, pack });
+    expect(await parse(pack)).toEqual({ ok: true, pack: asRead(pack) });
     const withChunks = syntheticPack(
       [CARD, { ...stub, layers: CARD.layers }],
       {},
@@ -92,6 +105,40 @@ describe("parseKbPack", () => {
       code: "invalid",
       detail: "card 102 is a stub and has chunks",
     });
+  });
+
+  it("reads a schema 1 pack as a 5.x pack of full cards with no symptom, keeping its checksum and threshold", async () => {
+    const v1 = syntheticPack([CARD], { threshold: 2.5 });
+    const result = await parse(v1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.pack.aptyVersion).toBe("5.x");
+    expect(result.pack.schemaVersion).toBe(1);
+    expect(result.pack.retrieval.threshold).toBe(2.5);
+    expect(result.pack.sha256).toBe(v1.sha256);
+    expect(result.pack.cards[0]).toMatchObject({
+      status: "full",
+      symptom: null,
+    });
+  });
+
+  it("reads a 4.x and a common pack, and refuses another version", async () => {
+    for (const aptyVersion of ["4.x", "common"]) {
+      const pack = syntheticPack([CARD], {}, {
+        schemaVersion: 2,
+        aptyVersion,
+      } as never);
+      const result = await parse(pack);
+      expect(result.ok && result.pack.aptyVersion).toBe(aptyVersion);
+      expect(result.ok && describeKbPack(result.pack, "x").aptyVersion).toBe(
+        aptyVersion,
+      );
+    }
+    const other = syntheticPack([CARD], {}, {
+      schemaVersion: 2,
+      aptyVersion: "6.x",
+    } as never);
+    expect(await parse(other)).toMatchObject({ code: "invalid" });
   });
 
   it("names each kind of bad file", async () => {
@@ -193,5 +240,36 @@ describe("parseKbPack", () => {
     expect(await parse(missing)).toMatchObject({
       detail: "dense retrieval without vectors",
     });
+  });
+});
+
+describe("kbCardUrl", () => {
+  it("links to the card's own page, and without one to its version's space", () => {
+    expect(
+      kbCardUrl("1509786000", {
+        url: "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509786000",
+      }),
+    ).toBe("https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509786000");
+    expect(kbCardUrl("1509786000", { aptyVersion: "4.x" })).toBe(
+      "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509786000",
+    );
+    expect(kbCardUrl("1496645690")).toBe(
+      "https://apty.atlassian.net/wiki/spaces/JA/pages/1496645690",
+    );
+    expect(
+      kbCardUrl("7", { site: "fixture.atlassian.net", space: "A4X" }),
+    ).toBe("https://fixture.atlassian.net/wiki/spaces/A4X/pages/7");
+    expect(
+      kbCardUrl("7", {
+        site: "evil.example/x?",
+        space: "A4X",
+        aptyVersion: "4.x",
+      }),
+    ).toBe("https://apty.atlassian.net/wiki/spaces/A4PKH/pages/7");
+    expect(
+      kbCardLocation({
+        url: "https://fixture.atlassian.net/wiki/spaces/A4X/pages/7",
+      }),
+    ).toEqual({ site: "fixture.atlassian.net", space: "A4X" });
   });
 });

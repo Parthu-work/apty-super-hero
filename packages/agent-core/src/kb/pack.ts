@@ -57,7 +57,8 @@ const packSchema = z.object({
     label: z.string(),
     cardCount: z.number().int().nonnegative(),
   }),
-  aptyVersion: z.literal("5.x"),
+  /** Schema 1 packs are 5.x; schema 2 names the version its cards are for. */
+  aptyVersion: z.enum(["4.x", "5.x", "common"]),
   retrieval: z.object({
     bm25: z.literal(true),
     /** The lowest top BM25 score that counts as covered, calibrated by `eval-kb.mjs`. */
@@ -91,6 +92,12 @@ const packSchema = z.object({
 });
 
 export type KbPack = z.infer<typeof packSchema>;
+export type KbAptyVersion = KbPack["aptyVersion"];
+export const KB_APTY_VERSIONS: readonly KbAptyVersion[] = [
+  "4.x",
+  "5.x",
+  "common",
+];
 export type KbCard = z.infer<typeof cardSchema>;
 export type KbChunk = z.infer<typeof chunkSchema>;
 
@@ -179,6 +186,18 @@ export function decodeVectors(pack: KbPack): Float32Array[] {
   );
 }
 
+/** Every card with a status and a symptom: a schema 1 card is a full card with no symptom line. */
+function normalized(pack: KbPack): KbPack {
+  return {
+    ...pack,
+    cards: pack.cards.map((card) => ({
+      ...card,
+      symptom: card.symptom ?? null,
+      status: card.status ?? "full",
+    })),
+  };
+}
+
 /**
  * Parses an imported pack file. The pack is untrusted input: its size is
  * checked before parsing, then its kind, schema version, shape, limits,
@@ -214,7 +233,7 @@ export async function parseKbPack(
       detail: issue ? `${issue.path.join(".")}: ${issue.message}` : undefined,
     };
   }
-  const pack = parsed.data;
+  const pack = normalized(parsed.data);
   if (pack.chunks.length > KB_PACK_LIMITS.maxChunks) {
     return { ok: false, code: "too_large" };
   }
@@ -229,6 +248,7 @@ export async function parseKbPack(
 
 /** What the Options card and Preflight show about the loaded pack: no card text. */
 export interface KbPackInfo {
+  aptyVersion: KbAptyVersion;
   site: string;
   space: string;
   label: string;
@@ -252,6 +272,7 @@ export const KB_PACK_STALE_DAYS = 30;
 
 export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
   return {
+    aptyVersion: pack.aptyVersion,
     site: pack.source.site,
     space: pack.source.space,
     label: pack.source.label,
@@ -276,9 +297,52 @@ export function kbPackAgeDays(info: Pick<KbPackInfo, "builtAt">, now: Date) {
   return Math.max(0, Math.floor((now.getTime() - built) / 86_400_000));
 }
 
-/** The Confluence page of a KB card, as the check packs and `kb://` citations link to it. */
-const KB_CARD_PAGE_BASE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
+/** Where a version's cards live when a link has no card to read its URL from. */
+const KB_CARD_SPACE: Record<KbAptyVersion, string> = {
+  "4.x": "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/",
+  "5.x": "https://apty.atlassian.net/wiki/spaces/JA/pages/",
+  common: "https://apty.atlassian.net/wiki/spaces/JA/pages/",
+};
 
-export function kbCardUrl(pageId: string): string {
-  return `${KB_CARD_PAGE_BASE}${pageId}`;
+/**
+ * The Confluence page of a KB card: the card's own `url` when the pack
+ * holds it (page ids are unique across spaces), else the space its
+ * version's cards live in (JA for 5.x and a schema 1 pack).
+ */
+export function kbCardUrl(
+  pageId: string,
+  {
+    url,
+    site,
+    space,
+    aptyVersion = "5.x",
+  }: {
+    url?: string;
+    site?: string;
+    space?: string;
+    aptyVersion?: KbAptyVersion;
+  } = {},
+): string {
+  if (url) return url;
+  if (site && space && SITE.test(site) && SPACE.test(space)) {
+    return `https://${site}/wiki/spaces/${space}/pages/${pageId}`;
+  }
+  return `${KB_CARD_SPACE[aptyVersion]}${pageId}`;
+}
+
+const SITE = /^[a-z0-9.-]+$/i;
+const SPACE = /^[A-Za-z0-9~_-]+$/;
+const CARD_URL = /^https:\/\/([^/\s]+)\/wiki\/spaces\/([^/\s]+)\/pages\/\d+$/;
+
+/**
+ * Where a card lives, as a site and a space key rather than a URL: a tool
+ * result passes them to the model and the side panel without being read as
+ * a visited page by the URL policy, and `kbCardUrl` builds the link back.
+ */
+export function kbCardLocation(card: Pick<KbCard, "url">): {
+  site: string;
+  space: string;
+} {
+  const [, site = "", space = ""] = CARD_URL.exec(card.url) ?? [];
+  return { site, space };
 }

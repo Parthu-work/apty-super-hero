@@ -9,6 +9,7 @@
  */
 import {
   type KbIndexSource,
+  type KbTabVersion,
   type KbToolResult,
   kbToolResult,
   sharedKbIndexSource,
@@ -21,17 +22,19 @@ const KB_MATCHES = 3;
 export interface KbMatchesOptions {
   /** A model is configured, so a question the cards cannot match goes to it. */
   modelAvailable?: boolean;
+  /** The tab's Apty version: its pack and the common cards, or every pack when unknown. */
+  version?: KbTabVersion;
 }
 
 /** The pack's best cards, a stub, the English-cards notice, or undefined: a bare how-to, no pack, not covered, or the pack cannot be read. */
 export async function localKbMatches(
   text: string,
   source: KbIndexSource = sharedKbIndexSource(),
-  { modelAvailable = false }: KbMatchesOptions = {},
+  { modelAvailable = false, version = "unknown" }: KbMatchesOptions = {},
 ): Promise<KbToolResult | undefined> {
   if (isBareHowTo(text)) return undefined;
   try {
-    const index = await source.current();
+    const index = await source.current(version);
     if (!index) return undefined;
     if (isMostlyNonLatin(text)) {
       return modelAvailable

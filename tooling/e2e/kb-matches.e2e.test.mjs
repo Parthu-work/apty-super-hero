@@ -111,7 +111,7 @@ describe("KB matches card (KB-RAG K6)", () => {
       });
       assert.equal(
         await link.first().getAttribute("href"),
-        "https://apty.atlassian.net/wiki/spaces/JA/pages/202",
+        "https://fixture.atlassian.net/wiki/spaces/FX/pages/202",
       );
       await card
         .getByText("Verified on: FIXTURE code, 2026-01-01.")

@@ -488,6 +488,8 @@ export interface DiagnosisResult {
   /** The KB card the rules come from, and how far they were verified. */
   cardPageId: string;
   verifiedOn: string;
+  /** The Apty version the pack's rules come from; its cards live in that version's space. Absent: 5.x. */
+  aptyVersion?: "4.x" | "5.x";
   /** `name` is the item's own name when the query resolved to exactly one. */
   subject: {
     kind: ContentKind | "widget" | "logs" | "page" | "dapty";
