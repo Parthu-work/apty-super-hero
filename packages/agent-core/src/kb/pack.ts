@@ -26,6 +26,8 @@ const cardSchema = z.object({
   title: z.string(),
   group: z.string(),
   verifiedOn: z.string().nullable(),
+  /** Schema 2: the card's "Symptom:" line, the problem in the user's words. */
+  symptom: z.string().max(300).nullable().optional(),
   notVerifiedCount: z.number().int().nonnegative(),
   url: z
     .string()
@@ -65,6 +67,11 @@ const packSchema = z.object({
         minIdf: z.number().nonnegative(),
         minTerms: z.number().int().nonnegative(),
       })
+      .optional(),
+    /** Schema 2: the KB owner's own synonym groups, added to the built-in ones (`synonyms.ts`). */
+    synonyms: z
+      .array(z.array(z.string().min(1).max(60)).min(2).max(30))
+      .max(200)
       .optional(),
     dense: z
       .object({

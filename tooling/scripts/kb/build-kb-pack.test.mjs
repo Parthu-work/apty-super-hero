@@ -45,8 +45,9 @@ function cardBody({
   layers = 4,
   verified = true,
   layer2 = "FIXTURE: open the invented Glow panel.",
+  symptom = "the FIXTURE banner never glows.",
 } = {}) {
-  const intro = `<h1>KB card: FIXTURE banner never glows</h1><p>Symptom: the FIXTURE banner never glows.<br/>${
+  const intro = `<h1>KB card: FIXTURE banner never glows</h1><p>${symptom === null ? "" : `Symptom: ${symptom}<br/>`}${
     verified ? "Verified on: FIXTURE code, commit 0000000, 2026-01-01." : ""
   }</p>`;
   const all = [
@@ -188,6 +189,7 @@ describe("parseCard", () => {
       title: "FIXTURE card 101",
       group: "FIXTURE group",
       verifiedOn: "Verified on: FIXTURE code, commit 0000000, 2026-01-01.",
+      symptom: "the FIXTURE banner never glows.",
       notVerifiedCount: 1,
       url: `https://${SITE}/wiki/spaces/FX/pages/101`,
       updatedAt: "2026-02-01T00:00:00.000Z",
@@ -225,6 +227,23 @@ describe("parseCard", () => {
       parseCard(page("3", { body: long }), options).skipped,
       /layer 2 has 1003 characters, over 1000/,
     );
+  });
+
+  it("reads the Symptom line, at most 300 characters, or null without one", () => {
+    const options = { site: SITE, space: "FX" };
+    const none = parseCard(
+      page("5", { body: cardBody({ symptom: null }) }),
+      options,
+    );
+    assert.equal(none.card.symptom, null);
+    const long = parseCard(
+      page("6", {
+        body: cardBody({ symptom: `  FIXTURE ${"y".repeat(400)}` }),
+      }),
+      options,
+    );
+    assert.equal(long.card.symptom.length, 300);
+    assert.ok(long.card.symptom.startsWith("FIXTURE y"));
   });
 
   it("gives null for a card with no Verified on line", () => {
@@ -585,6 +604,32 @@ describe("the CLI", () => {
     assert.equal(noToken.code, 1);
     assert.match(noToken.err, /Set CONFLUENCE_EMAIL and CONFLUENCE_TOKEN/);
     assert.equal(calls.length, 0);
+  });
+
+  it("names the cards with no Symptom line, and adds the owner's synonym groups", async () => {
+    const dir = tempDir();
+    const out = join(dir, "p.kbpack.json");
+    const synonyms = join(dir, "synonyms.txt");
+    writeFileSync(
+      synonyms,
+      "# FIXTURE vocabulary\nFIXTURE gizmo, gadget,  widgetry\n\nlonely\nsprocket,cog\n",
+    );
+    const { fetchImpl } = fakeConfluence({
+      ids: ["7", "8"],
+      bodies: { 8: cardBody({ symptom: null }) },
+    });
+    const result = await runWith({
+      argv: ["--space", "FX", "--out", out, "--synonyms", synonyms],
+      fetchImpl,
+    });
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /no Symptom line in 8\b/);
+    assert.doesNotMatch(result.out, /no Symptom line in 7\b/);
+    const pack = JSON.parse(readFileSync(out, "utf8"));
+    assert.deepEqual(pack.retrieval.synonyms, [
+      ["FIXTURE gizmo", "gadget", "widgetry"],
+      ["sprocket", "cog"],
+    ]);
   });
 
   it("writes the calibrated coverage settings into the pack", async () => {

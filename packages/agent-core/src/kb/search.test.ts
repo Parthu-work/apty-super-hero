@@ -4,7 +4,7 @@ import {
   type SyntheticCard,
   syntheticPack,
 } from "./kb-test-utils.js";
-import { createKbIndex } from "./search.js";
+import { createKbIndex, layerHint } from "./search.js";
 
 function card(
   pageId: string,
@@ -314,5 +314,148 @@ describe("coverage (schema v2)", () => {
     expect(index.search("surv").hits[0]?.chunk.pageId).toBe("303");
     expect(index.search("prog").hits[0]?.chunk.pageId).toBe("404");
     expect(index.search("pro").status).toBe("not_covered");
+  });
+});
+
+function symptomCard(
+  pageId: string,
+  title: string,
+  symptom: string,
+  layers: [string, string, string, string],
+): SyntheticCard {
+  return { pageId, title, symptom, layers };
+}
+
+const USER_WORDS = [
+  symptomCard(
+    "11",
+    "FIXTURE badge is the wrong colour",
+    "The FIXTURE badge shows grey instead of the brand colour.",
+    [
+      "- In Studio, pick the FIXTURE Badge Palette.",
+      "- The FIXTURE badge element carries a colour class.",
+      "- badge.json lists paletteId (FIXTURE).",
+      "- Contact support with the FIXTURE badge id.",
+    ],
+  ),
+  symptomCard(
+    "12",
+    "FIXTURE badge flickers on hover",
+    "The FIXTURE marker keeps blinking whenever the mouse passes over it.",
+    [
+      "- In Studio, turn off FIXTURE Hover Pulse.",
+      "- Two FIXTURE hover handlers on the element cause it.",
+      "- pulse.json lists pulseRate (FIXTURE).",
+      "- Contact support with the FIXTURE pulse id.",
+    ],
+  ),
+  symptomCard(
+    "13",
+    "FIXTURE tour stops after a page reload",
+    "After the user presses reload the FIXTURE tour does not continue.",
+    [
+      "- In Studio, turn on FIXTURE Resume Tour.",
+      "- Session storage must keep the FIXTURE tour key.",
+      "- resume.json lists resumeStep (FIXTURE).",
+      "- Contact support with the FIXTURE tour id.",
+    ],
+  ),
+  symptomCard(
+    "14",
+    "FIXTURE flow-ID.json response, what it means",
+    "The Network tab lists flow-<id>.json and the user wants to read its answer.",
+    [
+      "- In Studio, publish the FIXTURE flow before reading flow-ID.json.",
+      "- In the Console, the FIXTURE player logs the flow id.",
+      "- flow-ID.json holds the FIXTURE steps; a 404 means the flow is not published; [] means it has no steps.",
+      "- Send support the FIXTURE flow-ID.json response and its status.",
+    ],
+  ),
+  symptomCard(
+    "15",
+    "FIXTURE one user cannot see the panel",
+    "A single FIXTURE user is missing the panel while colleagues have it.",
+    [
+      "- In Admin, add the FIXTURE user to the panel group.",
+      "- The FIXTURE panel container is hidden for that user.",
+      "- panel.json lists groupIds (FIXTURE).",
+      "- Contact support with the FIXTURE user id.",
+    ],
+  ),
+  symptomCard(
+    "16",
+    "FIXTURE panel shows for every user",
+    "Everyone sees the FIXTURE panel although it is limited to a group.",
+    [
+      "- In Admin, turn off FIXTURE Show To All.",
+      "- The FIXTURE panel renders before the group check.",
+      "- groups.json lists allowAll (FIXTURE).",
+      "- Contact support with the FIXTURE group id.",
+    ],
+  ),
+];
+
+describe("what the user says (schema v2)", () => {
+  const index = createKbIndex(syntheticPack(USER_WORDS, {}, V2));
+  const top = (query: string) =>
+    index.search(query, { onePerCard: true, topK: 3 });
+
+  it("ranks first the card whose symptom line, not its title, says it", () => {
+    expect(
+      top("the badge keeps blinking when the mouse passes").hits[0]?.chunk
+        .pageId,
+    ).toBe("12");
+  });
+
+  it("does not let a shared title word win over the symptom", () => {
+    expect(top("everyone can see the panel").hits[0]?.chunk.pageId).toBe("16");
+  });
+
+  it("finds a card by another form of its words", () => {
+    expect(top("badge flickering").hits[0]?.chunk.pageId).toBe("12");
+    expect(top("badge flickered on hover").hits[0]?.chunk.pageId).toBe("12");
+  });
+
+  it("finds a card by a synonym, and counts the synonym toward coverage", () => {
+    const result = top("the walkthrough halts on refresh");
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("13");
+    expect(result.coverage).toBeGreaterThan(0.5);
+  });
+
+  it("finds the flow-ID.json card from a numbered or uuid file name", () => {
+    for (const name of [
+      "flow-123.json",
+      "flow-0c000000-0000-7000-8000-000000000002.json",
+    ]) {
+      const result = top(`what does ${name} tell me`);
+      expect(result.status, name).toBe("ok");
+      expect(result.hits[0]?.chunk.pageId, name).toBe("14");
+    }
+  });
+
+  it("ranks layer 3 first for a status code or a file's meaning, layer 1 for a symptom", () => {
+    expect(top("flow-ID.json returned 404").hits[0]?.chunk.id).toBe("14#L3");
+    expect(
+      top("what does the flow-ID.json response mean").hits[0]?.chunk.id,
+    ).toBe("14#L3");
+    expect(top("badge flickers on hover").hits[0]?.chunk.id).toBe("12#L1");
+    expect(
+      top("badge flickers, which hover handlers are on the element").hits[0]
+        ?.chunk.id,
+    ).toBe("12#L2");
+  });
+});
+
+describe("layerHint", () => {
+  it.each([
+    ["segments.json returned 403", 3],
+    ["what does flow.json mean", 3],
+    ["which selector in the Console", 2],
+    ["where is the setting in Studio", 1],
+    ["who do I contact in support", 4],
+    ["the tooltip flickers", 1],
+  ] as const)("%s → layer %i", (query, layer) => {
+    expect(layerHint(query)).toBe(layer);
   });
 });

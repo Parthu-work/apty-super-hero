@@ -10,7 +10,7 @@
  *   CONFLUENCE_EMAIL=… CONFLUENCE_TOKEN=… pnpm kb:pack [--site apty.atlassian.net]
  *     [--space JA] [--root <pageId> | --label <label>] [--out <file>]
  *     [--coverage-min <0-1>] [--coverage-min-idf <idf>]
- *     [--customer-names <file>] [--diff <old pack>]
+ *     [--synonyms <file>] [--customer-names <file>] [--diff <old pack>]
  *
  * The cards are the pages titled "RAG Card: …" under the RAG Answer Cards
  * page (`--root`, default 1496711169 in JA), each group page's title as
@@ -29,6 +29,8 @@ export const BUILDER = "build-kb-pack 1.0.0";
 const PACK_KIND = "apty-kb-pack";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const MAX_CHUNK_CHARS = 1000;
+const MAX_SYMPTOM_CHARS = 300;
+const SYMPTOM_LINE = /^Symptom:\s*/i;
 const MAX_RETRIES = 3;
 const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
 const NOT_VERIFIED = /\bNOT VERIFIED\b/g;
@@ -216,6 +218,13 @@ export function parseCard(page, { site, space, group = "" }) {
   const intro = storageToText(html.slice(0, layers[0].match.index));
   const verifiedOn =
     intro.split("\n").find((line) => /^Verified on:/i.test(line)) ?? null;
+  const symptomLine = intro.split("\n").find((line) => SYMPTOM_LINE.test(line));
+  const symptom = symptomLine
+    ? symptomLine
+        .replace(SYMPTOM_LINE, "")
+        .trim()
+        .slice(0, MAX_SYMPTOM_CHARS) || null
+    : null;
 
   const chunks = [];
   for (const [i, { match, heading }] of layers.entries()) {
@@ -247,6 +256,7 @@ export function parseCard(page, { site, space, group = "" }) {
       title: page.title.replace(TITLE_PREFIX, "").trim(),
       group,
       verifiedOn,
+      symptom,
       notVerifiedCount,
       url: `https://${site}/wiki/spaces/${space}/pages/${page.id}`,
       updatedAt: page.updatedAt ?? "",
@@ -364,7 +374,15 @@ export async function fetchCardPages({
 }
 
 /** The pack for these pages, sorted by page id, with its checksum; and the pages skipped. */
-export function buildPack({ pages, site, space, label, builtAt, coverage }) {
+export function buildPack({
+  pages,
+  site,
+  space,
+  label,
+  builtAt,
+  coverage,
+  synonyms,
+}) {
   const cards = [];
   const chunks = [];
   const skipped = [];
@@ -383,6 +401,7 @@ export function buildPack({ pages, site, space, label, builtAt, coverage }) {
   }
   const retrieval = { bm25: true };
   if (coverage !== undefined) retrieval.coverage = coverage;
+  if (synonyms?.length) retrieval.synonyms = synonyms;
   const pack = {
     kind: PACK_KIND,
     schemaVersion: 2,
@@ -395,6 +414,24 @@ export function buildPack({ pages, site, space, label, builtAt, coverage }) {
     chunks,
   };
   return { pack: { ...pack, sha256: packSha256(pack) }, skipped };
+}
+
+/**
+ * The KB owner's synonym groups from a local file: one group per line,
+ * members separated by commas, `#` starts a comment; a line with fewer
+ * than two members is not a group.
+ */
+export function readSynonymGroups(text) {
+  return text
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/#.*/, "")
+        .split(",")
+        .map((member) => member.trim())
+        .filter(Boolean),
+    )
+    .filter((group) => group.length >= 2);
 }
 
 /** Customer names from a local file: one per line, `#` starts a comment. */
@@ -482,6 +519,7 @@ function parseArgs(argv) {
     "--coverage-min": "coverageMin",
     "--coverage-min-idf": "coverageMinIdf",
     "--customer-names": "customerNames",
+    "--synonyms": "synonyms",
     "--diff": "diff",
   };
   for (let i = 0; i < argv.length; i++) {
@@ -561,6 +599,9 @@ export async function run({
     const names = options.customerNames
       ? readNameList(readFileSync(resolve(cwd, options.customerNames), "utf8"))
       : [];
+    const synonyms = options.synonyms
+      ? readSynonymGroups(readFileSync(resolve(cwd, options.synonyms), "utf8"))
+      : undefined;
     const previous = options.diff
       ? JSON.parse(readFileSync(resolve(cwd, options.diff), "utf8"))
       : undefined;
@@ -589,6 +630,7 @@ export async function run({
       space: options.space,
       label: options.label ?? `ancestor:${options.root}`,
       builtAt,
+      synonyms,
       coverage:
         options.coverageMin === undefined &&
         options.coverageMinIdf === undefined
@@ -622,6 +664,9 @@ export async function run({
       print(
         `  ${flagged.length} cards carry NOT VERIFIED statements: ${flagged.map((card) => card.pageId).join(", ")}`,
       );
+    }
+    for (const card of pack.cards.filter((c) => c.symptom === null)) {
+      print(`  no Symptom line in ${card.pageId} "${card.title}"`);
     }
     const unverified = pack.cards.filter((card) => card.verifiedOn === null);
     if (unverified.length > 0) {

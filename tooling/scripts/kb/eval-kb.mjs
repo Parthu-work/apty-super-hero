@@ -12,9 +12,10 @@
  * outside this repository and runs this locally. A synthetic set runs in CI.
  *
  * Usage: pnpm kb:eval --pack <file> --questions <file> [--calibrate]
- *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>] [--json]
+ *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>]
+ *   [--by-category] [--json]
  *
- * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"? }]`;
+ * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"? }]`;
  * an empty `expectedPageIds` means the KB should not cover the question.
  */
 import { createHash } from "node:crypto";
@@ -60,6 +61,7 @@ export function readQuestions(text) {
       q: item.q,
       expectedPageIds: item.expectedPageIds.map(String),
       expectedLayer: item.expectedLayer,
+      ...(typeof item.category === "string" ? { category: item.category } : {}),
     };
   });
 }
@@ -183,6 +185,28 @@ export function calibrate(core, pack, questions) {
   };
 }
 
+/** The metrics per question category (`category`, or "none"), in name order. */
+export function byCategory(core, pack, questions, options = {}) {
+  const groups = new Map();
+  for (const question of questions) {
+    const name = question.category ?? "none";
+    groups.set(name, [...(groups.get(name) ?? []), question]);
+  }
+  return [...groups.keys()].sort().map((name) => {
+    const report = evaluate(core, pack, groups.get(name), options);
+    return {
+      category: name,
+      questions: report.questions,
+      recallAt1: report.recallAt1,
+      recallAt3: report.recallAt3,
+      layerAccuracy: report.layerAccuracy,
+      notCoveredPrecision: report.notCoveredPrecision,
+      notCoveredRecall: report.notCoveredRecall,
+      misses: report.misses.map((miss) => miss.id),
+    };
+  });
+}
+
 const UNCAPPED = { min: 0, minIdf: 0, minTerms: 0 };
 
 /** The idf at each 10th percentile from the 10th to the 90th, nearest rank, rounded as printed. */
@@ -258,11 +282,12 @@ function format(report) {
 }
 
 function parseArgs(argv) {
-  const options = { calibrate: false, json: false };
+  const options = { calibrate: false, json: false, byCategory: false };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === "--calibrate") options.calibrate = true;
     else if (flag === "--json") options.json = true;
+    else if (flag === "--by-category") options.byCategory = true;
     else if (flag === "--pack" || flag === "--questions") {
       options[flag.slice(2)] = argv[++i];
     } else if (flag === "--coverage-min" || flag === "--coverage-min-idf") {
@@ -322,6 +347,14 @@ export async function run({
         threshold: options.threshold,
         coverage,
       }),
+      ...(options.byCategory
+        ? {
+            byCategory: byCategory(core, pack, questions, {
+              threshold: options.threshold,
+              coverage,
+            }),
+          }
+        : {}),
       ...(options.calibrate && v2
         ? { suggestedCoverage: calibrateCoverage(core, pack, questions) }
         : {}),
@@ -333,6 +366,12 @@ export async function run({
       out(JSON.stringify(report, null, 2));
     } else {
       out(format(report));
+      const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(0)}%`);
+      for (const c of report.byCategory ?? []) {
+        out(
+          `  ${c.category}: ${c.questions} q, R@1 ${pct(c.recallAt1)}, R@3 ${pct(c.recallAt3)}, layer ${pct(c.layerAccuracy)}, not covered P ${pct(c.notCoveredPrecision)} R ${pct(c.notCoveredRecall)}${c.misses.length ? `, misses ${c.misses.join(",")}` : ""}`,
+        );
+      }
       if (report.suggestedCoverage) {
         const c = report.suggestedCoverage;
         out(

@@ -95,7 +95,10 @@ export {
   type KbSearchHit,
   type KbSearchOptions,
   type KbSearchResult,
+  layerHint,
 } from "./kb/search.js";
+export { KB_SYNONYM_GROUPS } from "./kb/synonyms.js";
+export { NOT_A_SETTING, namedPhrases } from "./kb/text.js";
 // Generic Storage
 export type {
   BaseKeyValueStorage,

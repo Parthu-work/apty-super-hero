@@ -8,6 +8,8 @@ export interface SyntheticCard {
   layers: [string, string, string, string];
   headings?: [string, string, string, string];
   verifiedOn?: string | null;
+  /** The card's symptom line (schema 2). */
+  symptom?: string | null;
 }
 
 export const nodeSha256 = async (text: string) =>
@@ -60,6 +62,7 @@ export function syntheticPack(
       notVerifiedCount: card.layers.filter((text) =>
         text.includes("NOT VERIFIED"),
       ).length,
+      ...(card.symptom !== undefined ? { symptom: card.symptom } : {}),
       url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${card.pageId}`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     })),

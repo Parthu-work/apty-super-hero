@@ -198,6 +198,41 @@ describe("the CLI", () => {
     );
   });
 
+  it("prints the metrics per category, by id only", async () => {
+    const file = join(dir, "categorized.json");
+    writeFileSync(
+      file,
+      JSON.stringify([
+        {
+          id: "a1",
+          q: "the banner never glows",
+          expectedPageIds: ["1001"],
+          category: "short",
+        },
+        {
+          id: "b1",
+          q: "kubernetes helm chart rollout",
+          expectedPageIds: [],
+          category: "not-covered-domain",
+        },
+      ]),
+    );
+    const lines = [];
+    const code = await run({
+      argv: ["--pack", v2File, "--questions", file, "--by-category"],
+      out: (line) => lines.push(line),
+      err: (line) => lines.push(line),
+    });
+    const text = lines.join("\n");
+    assert.equal(code, 0, text);
+    assert.match(
+      text,
+      /^ {2}not-covered-domain: 1 q, .*not covered P 100% R 100%$/m,
+    );
+    assert.match(text, /^ {2}short: 1 q, R@1 100%, R@3 100%/m);
+    assert.ok(!text.includes("kubernetes"));
+  });
+
   it("names a refused pack and a bad questions file", async () => {
     const errors = [];
     writeFileSync(join(dir, "bad.json"), "{");

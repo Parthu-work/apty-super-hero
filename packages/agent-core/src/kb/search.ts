@@ -6,12 +6,17 @@ import {
   type KbLayer,
   type KbPack,
 } from "./pack.js";
+import { KB_SYNONYM_GROUPS, SYNONYM_MATCH } from "./synonyms.js";
 import {
   analyze,
   containsPhrase,
+  createSynonymTable,
   editDistance,
+  hasPhrase,
   namedPhrases,
+  normalize,
   queryTerms,
+  type SynonymTable,
 } from "./text.js";
 
 export interface KbSearchOptions {
@@ -371,34 +376,36 @@ const maxEdits = (term: string) => Math.round(term.length * FUZZY_FRACTION);
 
 /**
  * What the coverage decision reads: each term's document frequency over
- * the chunks (a card's title counts once, with its lowest layer) and each
- * card's own terms, in order.
+ * the chunks (a card's title and symptom count once, with its lowest
+ * layer) and each card's own terms, in order, and its text.
  */
 function corpusOf(
   chunks: KbChunk[],
   cards: Map<string, KbCard>,
   indexedText: (chunk: KbChunk) => { heading: string; text: string },
+  synonyms: SynonymTable,
 ) {
-  const lowest = new Map<string, number>();
-  for (const chunk of chunks) {
-    const seen = lowest.get(chunk.pageId);
-    if (seen === undefined || chunk.layer < seen) {
-      lowest.set(chunk.pageId, chunk.layer);
-    }
-  }
+  const lowest = lowestLayers(chunks);
   const df = new Map<string, number>();
   const cardTerms = new Map<string, string[]>();
+  const cardText = new Map<string, string>();
   for (const chunk of chunks) {
     const card = cards.get(chunk.pageId) as KbCard;
     const { heading, text } = indexedText(chunk);
     const own =
-      lowest.get(chunk.pageId) === chunk.layer ? analyze(card.title) : [];
-    const terms = [...own, ...analyze(heading), ...analyze(text)];
+      lowest.get(chunk.pageId) === chunk.layer
+        ? `${card.title}\n${card.symptom ?? ""}`
+        : "";
+    const terms = analyze(`${own}\n${heading}\n${text}`);
     for (const term of new Set(terms)) df.set(term, (df.get(term) ?? 0) + 1);
     cardTerms.set(chunk.pageId, [
       ...(cardTerms.get(chunk.pageId) ?? []),
       ...terms,
     ]);
+    cardText.set(
+      chunk.pageId,
+      `${cardText.get(chunk.pageId) ?? ""}\n${normalize(`${own}\n${heading}\n${text}`).replace(/\s+/g, " ")}`,
+    );
   }
   const cardSets = new Map(
     [...cardTerms].map(([pageId, terms]) => [pageId, new Set(terms)]),
@@ -406,21 +413,33 @@ function corpusOf(
   const n = chunks.length;
   const idf = (term: string) => Math.log(1 + n / (1 + (df.get(term) ?? 0)));
 
-  function matchWeight(term: string, own: Set<string>): number {
-    if (own.has(term)) return 1;
+  function approximate(term: string, own: Set<string>): boolean {
     const fuzzy = term.length >= FUZZY_MIN_CHARS && !df.has(term);
     for (const candidate of own) {
       if (term.length >= PREFIX_MIN_CHARS && candidate.startsWith(term)) {
-        return APPROXIMATE_MATCH;
+        return true;
       }
       if (
         fuzzy &&
         editDistance(term, candidate, maxEdits(term)) <= maxEdits(term)
       ) {
-        return APPROXIMATE_MATCH;
+        return true;
       }
     }
-    return 0;
+    return false;
+  }
+
+  /** Whether the card holds another member of one of `groups`. */
+  function synonymIn(groups: Iterable<number>, pageId: string): boolean {
+    const own = cardSets.get(pageId) ?? new Set<string>();
+    const text = cardText.get(pageId) ?? "";
+    for (const group of groups) {
+      if (synonyms.words(group).some((word) => own.has(word))) return true;
+      if (synonyms.phrases(group).some((phrase) => hasPhrase(text, phrase))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   return {
@@ -429,29 +448,88 @@ function corpusOf(
     vocabularyIdf: () => [...df.keys()].map(idf).sort((a, b) => a - b),
     assess(query: string, pageId: string, minIdf: number): Assessment {
       const own = cardSets.get(pageId) ?? new Set<string>();
+      const terms = queryTerms(query);
+      const lower = normalize(query).replace(/\s+/g, " ");
       let weighted = 0;
       let total = 0;
       let strongTerms = 0;
-      for (const term of queryTerms(query)) {
+      for (const term of terms) {
         const weight = idf(term);
-        const match = matchWeight(term, own);
+        const inPhrase = [...synonyms.groupsIn([], lower)].filter((group) =>
+          synonyms
+            .phrases(group)
+            .some(
+              (phrase) =>
+                hasPhrase(lower, phrase) && analyze(phrase).includes(term),
+            ),
+        );
+        const match = own.has(term)
+          ? 1
+          : synonymIn([...synonyms.groupsOf(term), ...inPhrase], pageId)
+            ? SYNONYM_MATCH
+            : approximate(term, own)
+              ? APPROXIMATE_MATCH
+              : 0;
         weighted += weight * match;
         total += weight;
         if (match > 0 && weight >= minIdf) strongTerms++;
       }
       const stream = cardTerms.get(pageId) ?? [];
-      const titleTerms = analyze(cards.get(pageId)?.title ?? "");
       return {
         coverage: total === 0 ? 0 : weighted / total,
         strongTerms,
         missingPhrases: namedPhrases(query).filter(
-          (phrase) =>
-            !containsPhrase(stream, phrase) &&
-            !containsPhrase(titleTerms, phrase),
+          (phrase) => !containsPhrase(stream, phrase),
         ),
       };
     },
   };
+}
+
+function lowestLayers(chunks: KbChunk[]): Map<string, number> {
+  const lowest = new Map<string, number>();
+  for (const chunk of chunks) {
+    const seen = lowest.get(chunk.pageId);
+    if (seen === undefined || chunk.layer < seen) {
+      lowest.set(chunk.pageId, chunk.layer);
+    }
+  }
+  return lowest;
+}
+
+const LAYER_HINTS: [KbLayer, RegExp][] = [
+  [
+    3,
+    /network tab|\bstatus\b|\b[1-5]\d\d\b|\brespon(?:se|ses|ded)?\b|\brequests?\b|\bpayloads?\b|\.json\b|\bhar\b|\bmeans?\b|\breturn(?:s|ed|ing)?\b/g,
+  ],
+  [
+    2,
+    /\bconsole\b|\belements?\b|\bdevtools\b|\bselectors?\b|\bxpath\b|\bdom\b|\binspect/g,
+  ],
+  [1, /\bstudio\b|\badmin\b|\bsettings?\b|\bconfigur|\bpublish|\btoggles?\b/g],
+  [4, /\bsupport\b|\btickets?\b|\bescalat|\bcontact|\bsend (?:it )?to\b/g],
+];
+const LAYER_HINT_BOOST = 1.3;
+const FILE_IN_QUERY = /\.(?:json|js)\b/;
+
+/**
+ * The card layer a question asks about: the one whose words it uses most
+ * (network data, then Console and Elements, then settings, then support on
+ * a tie); with none, a question about a file asks for layer 3 and any
+ * other for layer 1.
+ */
+export function layerHint(query: string): KbLayer {
+  const lower = query.toLowerCase();
+  let best: KbLayer | undefined;
+  let bestCount = 0;
+  for (const [layer, pattern] of LAYER_HINTS) {
+    const count = lower.match(pattern)?.length ?? 0;
+    if (count > bestCount) {
+      best = layer;
+      bestCount = count;
+    }
+  }
+  return best ?? (FILE_IN_QUERY.test(lower) ? 3 : 1);
 }
 
 function uniqueChunks(pack: KbPack) {
@@ -483,7 +561,12 @@ const splitQuery = (text: string) => text.split(" ").filter(Boolean);
 const asIs = (term: string) => term;
 
 /**
- * The schema 2 index. BM25 (MiniSearch) ranks; a length-independent
+ * The schema 2 index. BM25 (MiniSearch) ranks a chunk by its card's score
+ * over the title (boost 2) and the symptom line (2.5), indexed once per
+ * card, plus its own score over the heading (1.5) and the text, the layer
+ * the question asks about (`layerHint`) boosted 1.3 there, so the hint
+ * chooses among a card's layers without being outweighed by what all of
+ * them share. Terms are stemmed and synonyms count 0.8. A length-independent
  * coverage decides whether the top card covers the question at all:
  * `coverage = Σ idf(t)·match(t) / Σ idf(t)` over the question's distinct
  * terms, with `idf(t) = ln(1 + N / (1 + df(t)))`, so a word no card holds
@@ -500,36 +583,70 @@ function createV2Index(pack: KbPack): KbIndex {
     heading: headingTerms(chunk, cards.get(chunk.pageId) as KbCard, shared),
     text: bodyTerms(chunk.text),
   });
-  const corpus = corpusOf(chunks, cards, indexedText);
+  const synonyms = createSynonymTable([
+    ...KB_SYNONYM_GROUPS,
+    ...(pack.retrieval.synonyms ?? []),
+  ]);
+  const corpus = corpusOf(chunks, cards, indexedText, synonyms);
   const settings = pack.retrieval.coverage ?? KB_COVERAGE_DEFAULTS;
 
-  const mini = new MiniSearch<{
+  const searchOptions = {
+    tokenize: splitQuery,
+    processTerm: asIs,
+    prefix: (term: string) => term.length >= PREFIX_MIN_CHARS,
+    fuzzy: (term: string) =>
+      term.length >= FUZZY_MIN_CHARS && !corpus.vocabulary.has(term)
+        ? FUZZY_FRACTION
+        : false,
+  };
+  /** Which card: its title and symptom line, once per card. */
+  const cardIndex = new MiniSearch<{
     id: string;
     title: string;
+    symptom: string;
+  }>({
+    fields: ["title", "symptom"],
+    tokenize: analyze,
+    processTerm: asIs,
+    searchOptions: { ...searchOptions, boost: { title: 2, symptom: 2.5 } },
+  });
+  cardIndex.addAll(
+    [...cards.values()].map((card) => ({
+      id: card.pageId,
+      title: card.title,
+      symptom: card.symptom ?? "",
+    })),
+  );
+  /** Which layer: the chunk's heading and text. */
+  const chunkIndex = new MiniSearch<{
+    id: string;
     heading: string;
     text: string;
   }>({
-    fields: ["title", "heading", "text"],
+    fields: ["heading", "text"],
     tokenize: analyze,
     processTerm: asIs,
-    searchOptions: {
-      boost: { title: 3, heading: 1.5 },
-      tokenize: splitQuery,
-      processTerm: asIs,
-      prefix: (term) => term.length >= PREFIX_MIN_CHARS,
-      fuzzy: (term) =>
-        term.length >= FUZZY_MIN_CHARS && !corpus.vocabulary.has(term)
-          ? FUZZY_FRACTION
-          : false,
-    },
+    searchOptions: { ...searchOptions, boost: { heading: 1.5 } },
   });
-  mini.addAll(
-    chunks.map((chunk) => ({
-      id: chunk.id,
-      title: (cards.get(chunk.pageId) as KbCard).title,
-      ...indexedText(chunk),
-    })),
+  chunkIndex.addAll(
+    chunks.map((chunk) => ({ id: chunk.id, ...indexedText(chunk) })),
   );
+  const chunksOf = new Map<string, KbChunk[]>();
+  for (const chunk of chunks) {
+    chunksOf.set(chunk.pageId, [...(chunksOf.get(chunk.pageId) ?? []), chunk]);
+  }
+
+  /** The question's terms, then the other members of the synonym groups it names. */
+  function expand(query: string, terms: string[]): string[] {
+    const asked = new Set(terms);
+    const extra = new Set<string>();
+    for (const group of synonyms.groupsIn(terms, query)) {
+      for (const word of synonyms.words(group)) {
+        if (!asked.has(word)) extra.add(word);
+      }
+    }
+    return [...terms, ...extra];
+  }
 
   const dense = pack.retrieval.dense;
   const hybrid = dense !== undefined && vectorsByChunk.size === chunks.length;
@@ -550,14 +667,39 @@ function createV2Index(pack: KbPack): KbIndex {
     const allowed = options.layers ? new Set(options.layers) : undefined;
     const inLayers = (chunk: KbChunk) => !allowed || allowed.has(chunk.layer);
     const terms = queryTerms(query);
+    const searched = expand(query, terms);
+    const hinted = layerHint(query);
 
-    const keyword = (terms.length > 0 ? mini.search(terms.join(" ")) : [])
-      .map((result) => {
-        const chunk = byId.get(String(result.id));
-        return chunk && inLayers(chunk) ? hit(chunk, result.score) : undefined;
-      })
-      .filter((h): h is KbSearchHit => h !== undefined)
-      .sort(compareHits);
+    const scores = new Map<string, number>();
+    if (terms.length > 0) {
+      const options = {
+        boostTerm: (_term: string, i: number) =>
+          i < terms.length ? 1 : SYNONYM_MATCH,
+      };
+      const text = searched.join(" ");
+      for (const result of cardIndex.search(text, options)) {
+        for (const chunk of chunksOf.get(String(result.id)) ?? []) {
+          scores.set(chunk.id, (scores.get(chunk.id) ?? 0) + result.score);
+        }
+      }
+      for (const result of chunkIndex.search(text, options)) {
+        const chunk = byId.get(String(result.id)) as KbChunk;
+        const boost = chunk.layer === hinted ? LAYER_HINT_BOOST : 1;
+        scores.set(
+          chunk.id,
+          (scores.get(chunk.id) ?? 0) + result.score * boost,
+        );
+      }
+    }
+    const preferHinted = (a: KbSearchHit, b: KbSearchHit) =>
+      b.score - a.score ||
+      comparePageIds(a.chunk.pageId, b.chunk.pageId) ||
+      Number(b.chunk.layer === hinted) - Number(a.chunk.layer === hinted) ||
+      a.chunk.layer - b.chunk.layer;
+    const keyword = [...scores]
+      .map(([id, score]) => hit(byId.get(id) as KbChunk, score))
+      .filter((h) => inLayers(h.chunk))
+      .sort(preferHinted);
 
     let ranked = keyword;
     let denseCovered = false;
@@ -657,10 +799,15 @@ export function createKbIndex(pack: KbPack): KbIndex {
   if (pack.schemaVersion === 2) return createV2Index(pack);
   const { cards, chunks } = uniqueChunks(pack);
   const shared = sharedLayerDescriptions(chunks, cards);
-  const corpus = corpusOf(chunks, cards, (chunk) => ({
-    heading: headingTerms(chunk, cards.get(chunk.pageId) as KbCard, shared),
-    text: bodyTerms(chunk.text),
-  }));
+  const corpus = corpusOf(
+    chunks,
+    cards,
+    (chunk) => ({
+      heading: headingTerms(chunk, cards.get(chunk.pageId) as KbCard, shared),
+      text: bodyTerms(chunk.text),
+    }),
+    createSynonymTable(KB_SYNONYM_GROUPS),
+  );
   const index = createLegacyIndex(pack, (query, top) =>
     top ? corpus.assess(query, top.chunk.pageId, 0).coverage : 0,
   );

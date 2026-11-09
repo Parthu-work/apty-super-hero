@@ -2,10 +2,11 @@
  * The text analysis a schema v2 pack's index and its coverage decision
  * share, so a word is the same term on both sides.
  */
+import { stem } from "./stem.js";
 
 /** Function words and question words: they carry no topic, so they are neither indexed nor counted. */
 const STOP_WORDS = new Set(
-  `a about above after again all also am an and any are as at be been before being below both but by
+  `a about above after all also am an and any are as at be been before being below both but by
   can cannot could did do does doing done down during each either else even ever for from further get gets
   got had has have having he her here hers him his how however i if in into is it its itself just let me
   might more most must my myself no nor not now of off on once only or other our ours out over own please
@@ -27,13 +28,41 @@ export function keepTerm(term: string): boolean {
 }
 
 /** Lower case, "doesn't" as "does not", "user's" as "user". */
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text.toLowerCase().replace(NEGATION, " not").replace(POSSESSIVE, "");
 }
 
-/** The terms of a text, in order, repeats kept: what is indexed and searched. */
+const FILE_NAME =
+  /(?<![\p{L}\p{N}_.-])[a-z0-9_]+(?:-[a-z0-9_]+)*\.(?:json|js)(?![\p{L}\p{N}_])/gu;
+const FILE_ID =
+  /^(.+?)-(?:\d+|id|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(json|js)$/;
+
+/** `flow-123.json`, `flow-<uuid>.json` and `flow-ID.json` are one file: `flow-id.json`. */
+export function normalizeFileName(name: string): string {
+  const match = FILE_ID.exec(name);
+  return match ? `${match[1]}-id.${match[2]}` : name;
+}
+
+const words = (text: string) =>
+  text.split(WORD_SPLIT).filter(keepTerm).map(stem);
+
+/**
+ * The terms of a text, in order, repeats kept: what is indexed and
+ * searched. Words are stemmed; a file name is kept whole, its id
+ * normalized, and its parts follow it.
+ */
 export function analyze(text: string): string[] {
-  return normalize(text).split(WORD_SPLIT).filter(keepTerm);
+  const lower = normalize(text);
+  const terms: string[] = [];
+  let from = 0;
+  for (const match of lower.matchAll(FILE_NAME)) {
+    terms.push(...words(lower.slice(from, match.index)));
+    const name = normalizeFileName(match[0]);
+    terms.push(name, ...words(name));
+    from = match.index + match[0].length;
+  }
+  terms.push(...words(lower.slice(from)));
+  return terms;
 }
 
 /** The distinct terms of a query, in the order they first appear. */
@@ -128,4 +157,76 @@ export function containsPhrase(terms: string[], phrase: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Synonym groups as the search uses them: a one-word member by its stem,
+ * any other member (several words, or a hyphen) by its lower-case text.
+ */
+export interface SynonymTable {
+  /** The groups a query or card text names, by a member's stem or text. */
+  groupsIn(terms: readonly string[], text: string): Set<number>;
+  /** The groups a term belongs to, as a one-word member. */
+  groupsOf(term: string): readonly number[];
+  /** A group's one-word members, stemmed. */
+  words(group: number): readonly string[];
+  /** A group's other members, lower case. */
+  phrases(group: number): readonly string[];
+}
+
+const SINGLE_WORD = /^[\p{L}\p{N}]+$/u;
+
+/** Whether `phrase` is in `text` with no letter or digit on either side. */
+export function hasPhrase(text: string, phrase: string): boolean {
+  let at = text.indexOf(phrase);
+  while (at !== -1) {
+    const before = text.charAt(at - 1);
+    const after = text.charAt(at + phrase.length);
+    if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) {
+      return true;
+    }
+    at = text.indexOf(phrase, at + 1);
+  }
+  return false;
+}
+
+export function createSynonymTable(
+  groups: readonly (readonly string[])[],
+): SynonymTable {
+  const wordsOf: string[][] = [];
+  const phrasesOf: string[][] = [];
+  const byWord = new Map<string, number[]>();
+  groups.forEach((group, i) => {
+    const single: string[] = [];
+    const multi: string[] = [];
+    for (const member of group) {
+      const lower = member.trim().toLowerCase().replace(/\s+/g, " ");
+      if (!lower) continue;
+      if (SINGLE_WORD.test(lower)) {
+        const term = stem(lower);
+        single.push(term);
+        byWord.set(term, [...(byWord.get(term) ?? []), i]);
+      } else multi.push(lower);
+    }
+    wordsOf.push([...new Set(single)]);
+    phrasesOf.push([...new Set(multi)]);
+  });
+  return {
+    groupsIn(terms, text) {
+      const found = new Set<number>();
+      for (const term of terms) {
+        for (const group of byWord.get(term) ?? []) found.add(group);
+      }
+      const lower = normalize(text).replace(/\s+/g, " ");
+      phrasesOf.forEach((phrases, group) => {
+        if (phrases.some((phrase) => hasPhrase(lower, phrase))) {
+          found.add(group);
+        }
+      });
+      return found;
+    },
+    groupsOf: (term) => byWord.get(term) ?? [],
+    words: (group) => wordsOf[group] ?? [],
+    phrases: (group) => phrasesOf[group] ?? [],
+  };
 }
