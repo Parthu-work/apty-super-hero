@@ -15,7 +15,10 @@
  *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>]
  *   [--by-category] [--json]
  *
- * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"? }]`;
+ * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"?, "surface"? }]`;
+ * a "multi" question needs all its cards in the top 3, and one with
+ * `"surface": "responder"` (a bare how-to, a question in another script) is
+ * left to the responder's own tests, not scored here;
  * an empty `expectedPageIds` means the KB should not cover the question.
  */
 import { createHash } from "node:crypto";
@@ -62,6 +65,7 @@ export function readQuestions(text) {
       expectedPageIds: item.expectedPageIds.map(String),
       expectedLayer: item.expectedLayer,
       ...(typeof item.category === "string" ? { category: item.category } : {}),
+      ...(item.surface === "responder" ? { surface: "responder" } : {}),
     };
   });
 }
@@ -86,7 +90,8 @@ const ratio = (part, whole) => (whole === 0 ? null : round(part / whole));
  * The metrics for `questions` against `pack`, with the pack's threshold or
  * `threshold` in its place (null: none). Same pack and questions, same numbers.
  */
-export function evaluate(core, pack, questions, { threshold, coverage } = {}) {
+export function evaluate(core, pack, all, { threshold, coverage } = {}) {
+  const questions = all.filter((q) => q.surface !== "responder");
   const tuned = withCoverage(withThreshold(pack, threshold), coverage);
   const index = core.createKbIndex(tuned);
   const covered = questions.filter((q) => q.expectedPageIds.length > 0);
@@ -118,7 +123,14 @@ export function evaluate(core, pack, questions, { threshold, coverage } = {}) {
       continue;
     }
     if (!notCovered) coveredAnswered++;
-    const rank = ranked.findIndex((pageId) => expected.has(pageId));
+    // A question naming two symptoms ("multi") needs every card: its rank is the last one's.
+    const ranks = [...expected].map((pageId) => ranked.indexOf(pageId));
+    const rank =
+      question.category === "multi"
+        ? ranks.includes(-1)
+          ? -1
+          : Math.max(...ranks)
+        : ranked.findIndex((pageId) => expected.has(pageId));
     if (rank === 0) hit1++;
     if (rank >= 0 && rank < 3) hit3++;
     if (rank >= 0) reciprocal += 1 / (rank + 1);
@@ -127,7 +139,9 @@ export function evaluate(core, pack, questions, { threshold, coverage } = {}) {
       if (result.hits[rank]?.chunk.layer === question.expectedLayer)
         layerHits++;
     }
-    if (rank !== 0) {
+    const missed =
+      question.category === "multi" ? rank < 0 || rank > 2 : rank !== 0;
+    if (missed) {
       misses.push({
         id: question.id,
         expected: [...expected].sort(),

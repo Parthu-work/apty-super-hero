@@ -1,0 +1,252 @@
+[
+  {
+    "id": "d4-01",
+    "category": "paraphrase",
+    "q": "the flow goes from step one directly to step three",
+    "expectedPageIds": ["4001"]
+  },
+  {
+    "id": "d4-02",
+    "category": "paraphrase",
+    "q": "the application stops responding when the player starts",
+    "expectedPageIds": ["4003"]
+  },
+  {
+    "id": "d4-03",
+    "category": "symptom-line",
+    "q": "no balloon appears when I click into the field",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-04",
+    "category": "symptom-line",
+    "q": "the widget appears on the staging site but not the live one",
+    "expectedPageIds": ["4006"]
+  },
+  {
+    "id": "d4-05",
+    "category": "collision",
+    "q": "the flow shows the same step twice",
+    "expectedPageIds": ["4008"]
+  },
+  {
+    "id": "d4-06",
+    "category": "collision",
+    "q": "the flow skips a step",
+    "expectedPageIds": ["4001"]
+  },
+  {
+    "id": "d4-07",
+    "category": "stem",
+    "q": "the player freezing the page",
+    "expectedPageIds": ["4003"]
+  },
+  {
+    "id": "d4-08",
+    "category": "stem",
+    "q": "the hint gets cropped",
+    "expectedPageIds": ["4007"]
+  },
+  {
+    "id": "d4-09",
+    "category": "synonym",
+    "q": "the tooltip does not appear on the field",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-10",
+    "category": "synonym",
+    "q": "the widget works in test but not in prod",
+    "expectedPageIds": ["4006"]
+  },
+  {
+    "id": "d4-11",
+    "category": "typo",
+    "q": "the player freezs the page",
+    "expectedPageIds": ["4003"]
+  },
+  {
+    "id": "d4-12",
+    "category": "typo",
+    "q": "duplicte steps in the flow",
+    "expectedPageIds": ["4008"]
+  },
+  {
+    "id": "d4-13",
+    "category": "short",
+    "q": "cropped hint",
+    "expectedPageIds": ["4007"]
+  },
+  {
+    "id": "d4-14",
+    "category": "short",
+    "q": "CSP blocks player",
+    "expectedPageIds": ["4011"]
+  },
+  {
+    "id": "d4-15",
+    "category": "multi",
+    "q": "the flow skips a step and the hint is cropped",
+    "expectedPageIds": ["4001", "4007"]
+  },
+  {
+    "id": "d4-16",
+    "category": "multi",
+    "q": "the player freezes and the balloon does not appear",
+    "expectedPageIds": ["4003", "4002"]
+  },
+  {
+    "id": "d4-17",
+    "category": "network-file",
+    "q": "what does the app-urls.json response mean",
+    "expectedPageIds": ["4005"],
+    "expectedLayer": 3
+  },
+  {
+    "id": "d4-18",
+    "category": "network-file",
+    "q": "flow-123.json returned 404",
+    "expectedPageIds": ["4004"],
+    "expectedLayer": 3
+  },
+  {
+    "id": "d4-19",
+    "category": "network-file",
+    "q": "app-urls.json returned 500",
+    "expectedPageIds": ["4005"],
+    "expectedLayer": 3
+  },
+  {
+    "id": "d4-20",
+    "category": "layer",
+    "q": "which Studio setting stops the flow skipping a step",
+    "expectedPageIds": ["4001"],
+    "expectedLayer": 1
+  },
+  {
+    "id": "d4-21",
+    "category": "layer",
+    "q": "what should I send support about the CSP block",
+    "expectedPageIds": ["4011"],
+    "expectedLayer": 4
+  },
+  {
+    "id": "d4-22",
+    "category": "layer",
+    "q": "which Elements check for the cropped hint",
+    "expectedPageIds": ["4007"],
+    "expectedLayer": 2
+  },
+  {
+    "id": "d4-23",
+    "category": "stub",
+    "q": "analytics events missing in the dashboard",
+    "expectedPageIds": ["4012"]
+  },
+  {
+    "id": "d4-24",
+    "category": "stub",
+    "q": "analytics events never show in the reports",
+    "expectedPageIds": ["4012"]
+  },
+  {
+    "id": "d4-25",
+    "category": "version",
+    "q": "the beacon hides behind the menu",
+    "expectedPageIds": ["4010"]
+  },
+  {
+    "id": "d4-26",
+    "category": "version",
+    "q": "nobody can click the beacon under the navigation menu",
+    "expectedPageIds": ["4010"]
+  },
+  {
+    "id": "d4-27",
+    "category": "paraphrase",
+    "q": "only some users of the group get the flow",
+    "expectedPageIds": ["4009"]
+  },
+  {
+    "id": "d4-n1",
+    "category": "not-covered-long",
+    "q": "our kubernetes cluster restarts the payroll pod with CrashLoopBackOff after every helm upgrade so the managers in each region cannot approve overtime before the weekly deadline closes",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n2",
+    "category": "not-covered-long",
+    "q": "the finance team wants a quarterly export of every invoice with currency conversion and tax codes merged into one spreadsheet for the auditors next month please",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n3",
+    "category": "not-covered-setting",
+    "q": "where is the Widget Activation toggle and the Allowed Domains list",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n4",
+    "category": "not-covered-setting",
+    "q": "turn on the Smart Glow Mode for the panel",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n5",
+    "category": "not-covered-domain",
+    "q": "does Apty support SAML single sign-on with Okta",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n6",
+    "category": "not-covered-domain",
+    "q": "how much does the licence cost per seat",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n7",
+    "category": "not-covered-domain",
+    "q": "is there an iOS app for phones",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n8",
+    "category": "not-covered-domain",
+    "q": "kubernetes pod CrashLoopBackOff",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-n9",
+    "category": "not-covered-domain",
+    "q": "chrome is not opening on my laptop",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-r1",
+    "category": "how-to",
+    "q": "how do I configure a new launcher",
+    "expectedPageIds": [],
+    "surface": "responder"
+  },
+  {
+    "id": "d4-r2",
+    "category": "how-to",
+    "q": "how to create a survey for new hires",
+    "expectedPageIds": [],
+    "surface": "responder"
+  },
+  {
+    "id": "d4-r3",
+    "category": "non-english",
+    "q": "小部件的提示框一直闪烁",
+    "expectedPageIds": [],
+    "surface": "responder"
+  },
+  {
+    "id": "d4-r4",
+    "category": "non-english",
+    "q": "面板没有显示给新用户",
+    "expectedPageIds": [],
+    "surface": "responder"
+  }
+]
