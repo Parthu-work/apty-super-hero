@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { KB_SYNONYM_GROUPS } from "./synonyms.js";
-import { analyze, createSynonymTable, normalizeFileName } from "./text.js";
+import { analyze, createSynonymTable } from "./text.js";
 
 describe("analyze", () => {
   it("keeps a file name whole, with its id normalized, and its parts", () => {
@@ -18,10 +18,10 @@ describe("analyze", () => {
       "json",
     ]);
     expect(
-      normalizeFileName("workflow-0c000000-0000-7000-8000-000000000002.json"),
+      analyze("workflow-0c000000-0000-7000-8000-000000000002.json")[0],
     ).toBe("workflow-id.json");
-    expect(normalizeFileName("flow-id.json")).toBe("flow-id.json");
-    expect(normalizeFileName("player.js")).toBe("player.js");
+    expect(analyze("flow-ID.json")[0]).toBe("flow-id.json");
+    expect(analyze("player.js")[0]).toBe("player.js");
   });
 
   it("stems words, and reads doesn't as does not", () => {

@@ -18,7 +18,7 @@ export const searchKbTool = tool({
       .min(1)
       .max(300)
       .describe(
-        "The symptom or finding in the user's words, at most 300 characters.",
+        "The symptom or finding in the user's words, in English (the cards are English: translate a question asked in another language), at most 300 characters.",
       ),
     topK: z
       .number()

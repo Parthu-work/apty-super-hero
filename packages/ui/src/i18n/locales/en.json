@@ -2414,6 +2414,7 @@
     "title": "KB cards that match",
     "layer": "Layer {{layer}} of the card",
     "stub": "The KB has a card for this, but its {{version}} text is not written yet.",
+    "nonEnglish": "The KB cards are in English. Ask in English, or send the question to the model.",
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card."
   }
 }

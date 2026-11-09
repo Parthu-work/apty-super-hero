@@ -208,6 +208,12 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
 
       "If search_kb returns not_covered or no_pack, say the KB does not cover it, and suggest Ask Dapty, or the card's send-support list when a result named one. Do not answer from general knowledge instead.",
 
+      "On unknown_setting, say the KB has no setting with that name, name the missing phrase, and do not suggest a similar one. On stub, say the card exists but its text is not written yet and give its link.",
+
+      "State the Apty version (4.x or 5.x) the answer is for. Never merge statements from cards of two versions into one instruction.",
+
+      "The cards are in English: for a question in another language, call search_kb with an English query and answer in the user's language.",
+
       "A general 'how do I configure X' question with no finding or symptom belongs to Ask Dapty, as the core prompt says.",
     ],
   },

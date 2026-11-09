@@ -1,6 +1,6 @@
 import type { LocalResponder } from "@apty/agent-core";
 import type { KbToolResult } from "../../kb/kb-index.js";
-import { localKbMatches } from "../../kb/kb-matches.js";
+import { type KbMatchesOptions, localKbMatches } from "../../kb/kb-matches.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
 import { currentValuePolicy } from "../../runtime/value-policy.js";
@@ -375,8 +375,13 @@ export interface ResponderSources {
     clientExtensionId: string | undefined,
     trace?: DaptyTrace,
   ) => Promise<ClientEvidence>;
-  /** The KB pack's cards for a symptom no check pack claims (KB-RAG K6). */
-  kbMatchesOf?: (input: string) => Promise<KbToolResult | undefined>;
+  /** The KB pack's cards for a message no check pack claims (KB-RAG K6, K16). */
+  kbMatchesOf?: (
+    input: string,
+    options: KbMatchesOptions,
+  ) => Promise<KbToolResult | undefined>;
+  /** Whether a model is configured: a question the cards cannot match then goes to it. */
+  modelAvailable?: () => boolean;
   /** Every other check's content files for the tab; undefined reads the Apty Client's. */
   filesOf?: (
     runContext: unknown,
@@ -395,17 +400,16 @@ const DEFAULT_SOURCES: ResponderSources = {
   daptyOf: readDaptyForTab,
   daptyFilesOf: readDaptyFilesForTab,
   filesOf: readAptyFilesForTab,
-  kbMatchesOf: (input) => localKbMatches(input),
+  kbMatchesOf: (input, options) => localKbMatches(input, undefined, options),
 };
 
 const SEARCH_KB = "search_kb";
 
-/** A symptom no check pack claims, answered from the KB pack's cards with no model call. */
-async function kbAnswer(
-  input: string,
-  kbMatchesOf: ResponderSources["kbMatchesOf"],
-) {
-  const matches = await kbMatchesOf?.(input);
+/** A message no check pack claims, answered from the KB pack's cards with no model call. */
+async function kbAnswer(input: string, sources: ResponderSources) {
+  const matches = await sources.kbMatchesOf?.(input, {
+    modelAvailable: sources.modelAvailable?.() ?? false,
+  });
   if (!matches) return undefined;
   await getRedactionMode();
   const policy = currentValuePolicy();
@@ -435,7 +439,7 @@ export function createDiagnosisResponder(
     const route: CheckRoute | undefined = asksAboutDapty(input)
       ? { packId: "dapty-conversation" }
       : routeSymptom(input);
-    if (!route) return kbAnswer(input, sources.kbMatchesOf);
+    if (!route) return kbAnswer(input, sources);
     const trace =
       route.packId === "dapty-conversation" ? createDaptyTrace() : undefined;
     const clientExtensionId = await sources.clientExtensionId();

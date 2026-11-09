@@ -64,7 +64,8 @@ export interface KbStubHit {
 }
 
 export interface KbToolResult {
-  status: "ok" | "not_covered" | "stub" | "no_pack";
+  /** `non_english`: the local answer only, for a question the English cards cannot match. */
+  status: "ok" | "not_covered" | "stub" | "no_pack" | "non_english";
   /** With `stub`: the card; say it exists, that its text is not written yet, and give its link. */
   stub?: KbStubHit;
   /** With `not_covered`: nothing matched, too little of the question matched, or it names a setting the best card lacks. */

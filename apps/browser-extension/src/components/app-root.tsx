@@ -127,13 +127,19 @@ function ChatApp() {
     autoLoad: true,
   });
 
+  // Keep a ref to settings so the auth check and the local answers always see latest values
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
   const storage = useBrowserStorage();
   const modelFactory = useBrowserModelFactory();
   const contextProviders = useBrowserContextProviders();
   const tools = useBrowserTools();
   const selectTools = useSelectRelevantTools();
   const outboundFilters = useOutboundFilters();
-  const localResponder = useLocalResponder();
+  const localResponder = useLocalResponder(() =>
+    isProviderConfigured(settingsRef.current),
+  );
 
   const { agent, error } = useAgent({
     settings,
@@ -155,10 +161,6 @@ function ChatApp() {
   });
 
   const heartbeat = useConversationHeartbeat();
-
-  // Keep a ref to settings so the auth check always sees latest values
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
 
   const handleCheckAuth = useCallback(
     async (text: string) =>

@@ -29,7 +29,7 @@ import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-st
 import { tabConsoleOf } from "@apty/browser-runtime/tools/apty";
 import { tabDomHealthOf } from "@apty/browser-runtime/tools/dom-health";
 import { SYSTEM_PROMPT_CORE } from "@apty/ui/components/chatbot/constants";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   createAIProvider,
   isProviderConfigured,
@@ -156,12 +156,17 @@ export function useOutboundFilters(): OutboundFilter[] {
 }
 
 /** Answers a recognised visibility, logs, selector or page question, or a bare request for one of the Apty Client's files, with no model call. Stable across renders. */
-export function useLocalResponder(): LocalResponder {
+export function useLocalResponder(
+  modelAvailable: () => boolean = () => false,
+): LocalResponder {
+  const modelAvailableRef = useRef(modelAvailable);
+  modelAvailableRef.current = modelAvailable;
   return useMemo(() => {
     const responders = [
       createDiagnosisResponder({
         pageConsoleOf: tabConsoleOf,
         domHealthOf: tabDomHealthOf,
+        modelAvailable: () => modelAvailableRef.current(),
       }),
       createFileFetchResponder(),
     ];

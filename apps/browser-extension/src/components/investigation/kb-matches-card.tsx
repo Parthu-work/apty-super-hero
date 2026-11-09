@@ -30,7 +30,11 @@ function isKbStub(result: Partial<KbToolResult>): boolean {
 /** A search_kb result with cards to show; anything else keeps the default display. */
 export function isKbMatches(output: unknown): output is KbToolResult {
   const result = output as Partial<KbToolResult> | null;
-  if (typeof result === "object" && result !== null && isKbStub(result)) {
+  if (
+    typeof result === "object" &&
+    result !== null &&
+    (isKbStub(result) || result.status === "non_english")
+  ) {
     return true;
   }
   return (
@@ -57,6 +61,16 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
   if (!isKbMatches(tool.output)) return null;
   const title = t("kbMatches.title");
   const { stub } = tool.output;
+  if (tool.output.status === "non_english") {
+    return (
+      <section
+        aria-label={title}
+        className="rounded-lg border border-border bg-card p-3"
+      >
+        <p className="text-sm text-foreground">{t("kbMatches.nonEnglish")}</p>
+      </section>
+    );
+  }
   if (tool.output.status === "stub" && stub) {
     return (
       <section

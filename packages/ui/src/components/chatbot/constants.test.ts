@@ -75,3 +75,22 @@ describe("the KB section (KB-RAG K4)", () => {
     expect(prompt).toMatch(/notVerified true or says NOT VERIFIED/);
   });
 });
+
+describe("the KB section (KB-RAG K16)", () => {
+  it("tells the model what to do with an unknown setting, a stub, two versions and another language", () => {
+    const prompt = composeSystemPrompt(tools("search_kb"));
+    expect(prompt).toContain(
+      "On unknown_setting, say the KB has no setting with that name, name the missing phrase, and do not suggest a similar one.",
+    );
+    expect(prompt).toContain(
+      "On stub, say the card exists but its text is not written yet and give its link.",
+    );
+    expect(prompt).toContain(
+      "Never merge statements from cards of two versions into one instruction.",
+    );
+    expect(prompt).toContain("call search_kb with an English query");
+    expect(composeSystemPrompt(tools("click"))).not.toContain(
+      "unknown_setting",
+    );
+  });
+});

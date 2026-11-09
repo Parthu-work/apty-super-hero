@@ -134,7 +134,7 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
       /Never name an Apty setting, field or menu that is not in a returned chunk/,
     );
     assert.deepEqual(toolResults(second), [
-      { status: "not_covered", results: [] },
+      { status: "not_covered", reason: "no_match", results: [] },
     ]);
     assert.equal(
       await panel.getByRole("button", { name: /^KB card / }).count(),

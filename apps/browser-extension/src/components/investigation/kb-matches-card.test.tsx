@@ -31,6 +31,17 @@ const hit = (
 });
 
 describe("KbMatchesCard", () => {
+  it("tells the user the cards are in English when the question is not", () => {
+    render(
+      <AptyToolDisplay tool={tool({ status: "non_english", results: [] })} />,
+    );
+    expect(
+      screen.getByText(
+        "The KB cards are in English. Ask in English, or send the question to the model.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("says the KB has a card whose text is not written yet, with its link", () => {
     render(
       <AptyToolDisplay

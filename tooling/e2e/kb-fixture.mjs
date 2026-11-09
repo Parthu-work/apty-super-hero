@@ -40,10 +40,17 @@ export const FIXTURE_PAGES = [
   ]),
 ];
 
+/**
+ * The coverage settings a KB owner would calibrate for a pack this small:
+ * the defaults assume hundreds of chunks, where a card's own words reach an
+ * idf of 1.5; in a few cards none does.
+ */
+export const FIXTURE_COVERAGE = { min: 0.4, minIdf: 0.5, minTerms: 1 };
+
 /** Writes the synthetic pack to `dir` and returns its path and the pack. */
 export function writeFixturePack(
   dir,
-  { pages = FIXTURE_PAGES, threshold } = {},
+  { pages = FIXTURE_PAGES, coverage = FIXTURE_COVERAGE } = {},
 ) {
   const { pack } = buildPack({
     pages,
@@ -51,7 +58,7 @@ export function writeFixturePack(
     space: "FX",
     label: "rag-card",
     builtAt: new Date().toISOString(),
-    threshold,
+    coverage,
   });
   const file = join(dir, "apty-kb-FX-fixture.kbpack.json");
   writeFileSync(file, JSON.stringify(pack));

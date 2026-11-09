@@ -23,7 +23,7 @@ const POSSESSIVE = /['’]s\b/g;
 const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
 
 /** A term the index can hold: at least two characters, not a function word. */
-export function keepTerm(term: string): boolean {
+function keepTerm(term: string): boolean {
   return term.length >= 2 && !STOP_WORDS.has(term);
 }
 
@@ -38,7 +38,7 @@ const FILE_ID =
   /^(.+?)-(?:\d+|id|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(json|js)$/;
 
 /** `flow-123.json`, `flow-<uuid>.json` and `flow-ID.json` are one file: `flow-id.json`. */
-export function normalizeFileName(name: string): string {
+function normalizeFileName(name: string): string {
   const match = FILE_ID.exec(name);
   return match ? `${match[1]}-id.${match[2]}` : name;
 }

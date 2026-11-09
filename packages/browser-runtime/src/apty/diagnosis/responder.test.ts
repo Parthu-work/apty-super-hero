@@ -432,6 +432,7 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     const answer = await respond("the tooltip opens twice on the page", {});
     expect(kbMatchesOf).toHaveBeenCalledWith(
       "the tooltip opens twice on the page",
+      { modelAvailable: false },
     );
     expect(answer).toMatchObject({
       toolName: "search_kb",
@@ -451,6 +452,18 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     );
     expect(answer?.toolName).toBe(RUN_DIAGNOSIS);
     expect(kbMatchesOf).not.toHaveBeenCalled();
+  });
+
+  it("tells the KB search whether a model can take what the cards cannot match", async () => {
+    const kbMatchesOf = vi.fn(async () => undefined);
+    const respond = createDiagnosisResponder({
+      kbMatchesOf,
+      modelAvailable: () => true,
+    });
+    await respond("小部件没有显示", {});
+    expect(kbMatchesOf).toHaveBeenCalledWith("小部件没有显示", {
+      modelAvailable: true,
+    });
   });
 
   it("leaves the message to the model when the KB has nothing above its threshold", async () => {
