@@ -32,15 +32,29 @@ const AGENT_CORE = new URL(
 );
 const RANK_DEPTH = 10;
 
-export async function loadAgentCore() {
+/** A workspace package's built module; a clear message when it is not built yet. */
+export async function loadBuilt(url, packageName) {
   try {
-    return await import(AGENT_CORE.href);
+    return await import(url.href);
   } catch (error) {
+    if (error?.code !== "ERR_MODULE_NOT_FOUND") throw error;
     throw new Error(
-      `Build @apty/agent-core first (npm run typecheck or npm run build): ${error?.code ?? error?.name}`,
+      `Build ${packageName} first (npm run build): ${error.code}`,
     );
   }
 }
+
+export const loadAgentCore = () => loadBuilt(AGENT_CORE, "@apty/agent-core");
+
+/** A module of @apty/browser-runtime's build, by its path under dist/src. */
+export const loadBrowserRuntime = (path) =>
+  loadBuilt(
+    new URL(
+      `../../../packages/browser-runtime/dist/src/${path}`,
+      import.meta.url,
+    ),
+    "@apty/browser-runtime",
+  );
 
 const sha256 = async (text) => createHash("sha256").update(text).digest("hex");
 

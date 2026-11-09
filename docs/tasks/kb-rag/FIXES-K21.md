@@ -487,12 +487,12 @@ Routing pages, never a `cardPageId`: 1509785663, 1509752991, 1509753248,
 
 ## Status
 
-IN PROGRESS: F12 done.
+IN PROGRESS: F12, F10 done.
 
 | Fix | State |
 | --- | --- |
 | F12 | done |
-| F10 | not started |
+| F10 | done |
 | F3 | not started |
 | F4 | not started |
 | F1 | not started |

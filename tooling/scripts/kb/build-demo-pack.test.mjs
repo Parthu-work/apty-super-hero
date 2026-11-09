@@ -15,15 +15,13 @@ import { demoQuestionsFile, run } from "./build-demo-pack.mjs";
 import {
   evaluate,
   loadAgentCore,
+  loadBrowserRuntime,
+  loadBuilt,
   readPack,
   readQuestions,
 } from "./eval-kb.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const INTENT = new URL(
-  "../../../packages/browser-runtime/dist/src/kb/kb-intent.js",
-  import.meta.url,
-);
 
 let home;
 let core;
@@ -106,7 +104,8 @@ describe("kb:demo-pack", () => {
   });
 
   it("leaves the how-to and non-English questions to the responder, which declines them", async () => {
-    const { isBareHowTo, isMostlyNonLatin } = await import(INTENT.href);
+    const { isBareHowTo, isMostlyNonLatin } =
+      await loadBrowserRuntime("kb/kb-intent.js");
     for (const version of ["4.x", "5.x"]) {
       for (const q of readQuestions(
         readFileSync(demoQuestionsFile(version), "utf8"),
@@ -116,6 +115,23 @@ describe("kb:demo-pack", () => {
           assert.ok(isMostlyNonLatin(q.q), q.id);
       }
     }
+  });
+
+  it("F10: names the package to build when its dist is missing", async () => {
+    await assert.rejects(
+      loadBuilt(
+        new URL(
+          "../../../packages/browser-runtime/dist/src/missing.js",
+          import.meta.url,
+        ),
+        "@apty/browser-runtime",
+      ),
+      /^Error: Build @apty\/browser-runtime first \(npm run build\): ERR_MODULE_NOT_FOUND$/,
+    );
+    await assert.rejects(
+      loadBrowserRuntime("kb/not-built-yet.js"),
+      /Build @apty\/browser-runtime first \(npm run build\)/,
+    );
   });
 
   it("refuses to write inside the repository, and names a bad version", async () => {
