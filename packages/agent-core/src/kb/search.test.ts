@@ -312,6 +312,7 @@ describe("coverage (schema v2)", () => {
     expect(index.search("glowz banner").coverage).toBeLessThan(1);
     expect(index.search("glowz").status).toBe("not_covered");
     expect(index.search("surv").hits[0]?.chunk.pageId).toBe("303");
-    expect(index.search("sur").status).toBe("not_covered");
+    expect(index.search("prog").hits[0]?.chunk.pageId).toBe("404");
+    expect(index.search("pro").status).toBe("not_covered");
   });
 });
