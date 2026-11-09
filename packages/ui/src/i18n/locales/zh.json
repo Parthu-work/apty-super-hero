@@ -1302,6 +1302,9 @@
     "tokensOf": "{{used}} / {{max}} 个令牌",
     "promptCompletion": "提示：{{prompt}} | 补全：{{completion}}",
     "summarizing": "正在总结...",
+    "kbUnknownCitation": "未知引用",
+    "kbUngroundedTitle": "在引用的 KB 卡片中未找到",
+    "kbUngrounded": "在引用的 KB 卡片中未找到：{{phrases}}",
     "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层"
   },
   "investigation": {

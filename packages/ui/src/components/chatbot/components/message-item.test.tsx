@@ -419,3 +419,67 @@ describe("DefaultMessageItem — actions on every answer", () => {
     await waitFor(() => expect(onCopy).toHaveBeenCalledWith("first\nsecond"));
   });
 });
+
+describe("DefaultMessageItem — KB grounding (K18)", () => {
+  const searched: UIMessage = {
+    id: "msg-kb",
+    role: "assistant",
+    timestamp: Date.now(),
+    parts: [
+      {
+        type: "tool",
+        toolName: "search_kb",
+        toolCallId: "c1",
+        state: "completed",
+        input: { query: "banner" },
+        output: {
+          status: "ok",
+          results: [
+            {
+              cite: "kb://101#L1",
+              site: "fixture.atlassian.net",
+              space: "FX",
+              text: "- In Studio, turn on the FIXTURE Glowing Banner setting.",
+            },
+          ],
+        },
+      },
+      {
+        type: "text",
+        text: "Turn on Glowing Banner (kb://101#L1), then open Widget Activation (kb://999#L2).",
+      },
+    ],
+  };
+
+  it("names and underlines a setting no returned card holds, and does not link a citation the turn did not return", async () => {
+    render(<DefaultMessageItem message={searched} isLast />);
+    expect(
+      await screen.findByText(
+        "Not found in the cited KB cards: Widget Activation",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.querySelector("[data-kb-ungrounded]")?.textContent).toBe(
+        "Widget Activation",
+      ),
+    );
+    expect(
+      document.querySelector("[data-kb-ungrounded]")?.getAttribute("title"),
+    ).toBe("Not found in the cited KB cards");
+    expect(screen.getByText(/unknown citation/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /999/ }) ??
+        screen.queryByRole("button", { name: /999/ }),
+    ).toBeNull();
+  });
+
+  it("checks nothing in a turn that did not search the KB", () => {
+    render(
+      <DefaultMessageItem
+        message={assistantMessage("Open Widget Activation in Admin.")}
+        isLast
+      />,
+    );
+    expect(screen.queryByText(/Not found in the cited KB cards/)).toBeNull();
+  });
+});

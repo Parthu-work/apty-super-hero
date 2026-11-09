@@ -125,22 +125,24 @@ export function namedPhrases(text: string): string[] {
   }
   const unquoted = text.replace(QUOTED, " . ");
   for (const sentence of unquoted.split(SENTENCE_SPLIT)) {
-    const words = sentence.split(/\s+/).filter(Boolean);
     let run: string[] = [];
     const flush = () => {
       if (run.length >= 2) found.push(run.join(" "));
       run = [];
     };
-    words.forEach((raw, i) => {
+    let position = 0;
+    for (const raw of sentence.split(/\s+/)) {
       const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+      if (!word) continue;
       const title =
-        i > 0 &&
+        position > 0 &&
         TITLE_WORD.test(word) &&
         !NOT_A_SETTING.has(word.toLowerCase());
+      position++;
       if (title) run.push(word);
       else flush();
       if (title && /[,;:!?]$/.test(raw)) flush();
-    });
+    }
     flush();
   }
   return [...new Set(found)];

@@ -103,7 +103,12 @@ export {
 } from "./kb/search.js";
 export { stem } from "./kb/stem.js";
 export { KB_SYNONYM_GROUPS } from "./kb/synonyms.js";
-export { analyze as kbTerms, NOT_A_SETTING, namedPhrases } from "./kb/text.js";
+export {
+  analyze as kbTerms,
+  containsPhrase as kbContainsPhrase,
+  NOT_A_SETTING,
+  namedPhrases,
+} from "./kb/text.js";
 // Generic Storage
 export type {
   BaseKeyValueStorage,

@@ -1302,6 +1302,9 @@
     "tokensOf": "{{used}} / {{max}} tokens",
     "promptCompletion": "Prompt: {{prompt}} | Completion: {{completion}}",
     "summarizing": "Summarizing...",
+    "kbUnknownCitation": "unknown citation",
+    "kbUngroundedTitle": "Not found in the cited KB cards",
+    "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
     "kbCitation": "KB card {{pageId}}, layer {{layer}}"
   },
   "investigation": {

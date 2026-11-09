@@ -35,6 +35,23 @@ describe("linkKbCitations", () => {
     );
   });
 
+  it("does not link a citation the turn's search did not return (K18)", () => {
+    const urlOf = (pageId: string) =>
+      pageId === "401"
+        ? "https://fixture.example/wiki/spaces/A4X/pages/401"
+        : undefined;
+    expect(
+      linkKbCitations(
+        "Set it (kb://401#L1), then (kb://999#L2) and [the card](kb://998#L1).",
+        undefined,
+        urlOf,
+        () => "unknown citation",
+      ),
+    ).toBe(
+      "Set it ([kb://401#L1](https://fixture.example/wiki/spaces/A4X/pages/401)), then (unknown citation) and the card (unknown citation).",
+    );
+  });
+
   it("leaves code, other schemes and incomplete citations as written", () => {
     const text =
       "`kb://1#L1` and\n```\nkb://2#L2\n```\nkb://3#L9, kb://abc#L1, kb://4";
