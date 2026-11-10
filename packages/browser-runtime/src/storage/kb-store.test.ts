@@ -7,17 +7,35 @@ import {
   webCryptoSha256,
 } from "./kb-store.js";
 
-function memoryRecords(): KbRecords & { data: Map<string, unknown> } {
+/** An in-memory `KbRecords`: each putAll or moveAll applies all or nothing, and fails when it touches `failOn`. */
+function memoryRecords(): KbRecords & {
+  data: Map<string, unknown>;
+  failOn: Set<string>;
+} {
   const data = new Map<string, unknown>();
+  const failOn = new Set<string>();
+  const writeAll = async (
+    puts: ReadonlyArray<readonly [string, unknown]>,
+    deletes: readonly string[],
+  ) => {
+    const staged = new Map(data);
+    for (const [key, value] of puts) {
+      if (failOn.has(key)) throw new Error(`FIXTURE write of ${key} failed`);
+      staged.set(key, structuredClone(value));
+    }
+    for (const key of deletes) {
+      if (failOn.has(key)) throw new Error(`FIXTURE delete of ${key} failed`);
+      staged.delete(key);
+    }
+    data.clear();
+    for (const [key, value] of staged) data.set(key, value);
+  };
   return {
     data,
+    failOn,
     get: async (key) => structuredClone(data.get(key)) as never,
-    put: async (key, value) => {
-      data.set(key, structuredClone(value));
-    },
-    delete: async (key) => {
-      data.delete(key);
-    },
+    putAll: (entries) => writeAll(entries, []),
+    moveAll: writeAll,
   };
 }
 
@@ -186,5 +204,47 @@ describe("createKbPackStore", () => {
     expect(await webCryptoSha256("abc")).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     );
+  });
+
+  it("F8: keeps the previous pack when the meta write of a replace fails", async () => {
+    const records = memoryRecords();
+    const store = createKbPackStore({ records, now: () => NOW });
+    await store.replace(packText("101"));
+    records.failOn.add("meta:5.x");
+    await expect(
+      store.replace(packText("202", "2026-03-02T00:00:00.000Z")),
+    ).rejects.toThrow(/meta:5\.x/);
+    expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("101");
+  });
+
+  it("F8: leaves the legacy pack loadable when its migration fails", async () => {
+    const records = memoryRecords();
+    const store = createKbPackStore({ records, now: () => NOW });
+    await store.replace(packText("101"));
+    const oldMeta = records.data.get("meta:5.x");
+    const body = records.data.get("pack:5.x");
+    records.data.clear();
+    records.data.set("meta", oldMeta);
+    records.data.set("pack", body);
+    records.failOn.add("pack");
+    const failing = createKbPackStore({ records, now: () => NOW });
+    await expect(failing.load("5.x")).rejects.toThrow(/delete of pack/);
+    expect(records.data.has("meta")).toBe(true);
+    expect(records.data.has("pack")).toBe(true);
+    expect(records.data.has("meta:5.x")).toBe(false);
+    records.failOn.clear();
+    expect((await failing.load("5.x"))?.cards[0]?.pageId).toBe("101");
+  });
+
+  it("F8: removes a version's pack and meta together, or neither", async () => {
+    const records = memoryRecords();
+    const store = createKbPackStore({ records, now: () => NOW });
+    await store.replace(packText("101"));
+    records.failOn.add("pack:5.x");
+    await expect(store.remove("5.x")).rejects.toThrow();
+    expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("101");
+    records.failOn.clear();
+    await store.remove("5.x");
+    expect(records.data.size).toBe(0);
   });
 });

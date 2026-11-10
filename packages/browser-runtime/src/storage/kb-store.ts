@@ -27,13 +27,18 @@ export interface KbPackStore {
 }
 
 /**
- * The three operations the store needs from a key-value database.
+ * The operations the store needs from a key-value database. `putAll` and
+ * `moveAll` write all or nothing, in one read-write transaction (K21 F8),
+ * so a stop between two writes never leaves a pack without its meta.
  * @internal exported for tests, which use an in-memory one.
  */
 export interface KbRecords {
   get<T>(key: string): Promise<T | undefined>;
-  put(key: string, value: unknown): Promise<void>;
-  delete(key: string): Promise<void>;
+  putAll(entries: ReadonlyArray<readonly [string, unknown]>): Promise<void>;
+  moveAll(
+    puts: ReadonlyArray<readonly [string, unknown]>,
+    deletes: readonly string[],
+  ): Promise<void>;
 }
 
 /** The keys of the one pack an earlier version of the Agent stored, always 5.x. */
@@ -80,17 +85,36 @@ function indexedDbRecords(dbName?: string, factory?: IDBFactory): KbRecords {
     });
     return opened;
   };
-  const store = async (mode: IDBTransactionMode) =>
-    (await db()).transaction(STORE, mode).objectStore(STORE);
+  /** Every put and delete in one read-write transaction: resolves on complete, rejects on error or abort. */
+  const writeAll = async (
+    puts: ReadonlyArray<readonly [string, unknown]>,
+    deletes: readonly string[],
+  ) => {
+    const transaction = (await db()).transaction(STORE, "readwrite");
+    const done = new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error("The KB write was aborted."));
+    });
+    const store = transaction.objectStore(STORE);
+    try {
+      for (const [key, value] of puts) store.put(value, key);
+      for (const key of deletes) store.delete(key);
+    } catch (error) {
+      transaction.abort();
+      await done.catch(() => undefined);
+      throw error;
+    }
+    await done;
+  };
   return {
     get: async <T>(key: string) =>
-      (await request((await store("readonly")).get(key))) as T | undefined,
-    put: async (key, value) => {
-      await request((await store("readwrite")).put(value, key));
-    },
-    delete: async (key) => {
-      await request((await store("readwrite")).delete(key));
-    },
+      (await request(
+        (await db()).transaction(STORE, "readonly").objectStore(STORE).get(key),
+      )) as T | undefined,
+    putAll: (entries) => writeAll(entries, []),
+    moveAll: (puts, deletes) => writeAll(puts, deletes),
   };
 }
 
@@ -104,9 +128,9 @@ export function createKbPackStore({
   now?: () => Date;
 } = {}): KbPackStore {
   /**
-   * Moves the earlier single pack to the 5.x keys, once: the body first,
-   * then its meta, then the old keys go, so a stop between the writes
-   * leaves either the old record or a pair `load` checks by sha256.
+   * Moves the earlier single pack to the 5.x keys, once, in one
+   * transaction: the 5.x pair is written and the old keys go together, or
+   * nothing changes and the legacy pack stays loadable.
    */
   let migrated: Promise<void> | undefined;
   const migrate = () => {
@@ -116,23 +140,31 @@ export function createKbPackStore({
         records.get<KbPack>(LEGACY_PACK),
       ]);
       if (oldMeta === undefined && oldPack === undefined) return;
-      if (oldMeta && oldPack && oldMeta.sha256 === oldPack.sha256) {
-        await records.put(pack("5.x"), {
-          ...oldPack,
-          cards: oldPack.cards.map((card) => ({
-            ...card,
-            status: card.status ?? "full",
-            symptom: card.symptom ?? null,
-          })),
-        });
-        await records.put(meta("5.x"), {
-          ...oldMeta,
-          aptyVersion: "5.x",
-          stubCount: 0,
-        } satisfies KbPackInfo);
-      }
-      await records.delete(LEGACY_META);
-      await records.delete(LEGACY_PACK);
+      const puts: Array<readonly [string, unknown]> =
+        oldMeta && oldPack && oldMeta.sha256 === oldPack.sha256
+          ? [
+              [
+                pack("5.x"),
+                {
+                  ...oldPack,
+                  cards: oldPack.cards.map((card) => ({
+                    ...card,
+                    status: card.status ?? "full",
+                    symptom: card.symptom ?? null,
+                  })),
+                },
+              ],
+              [
+                meta("5.x"),
+                {
+                  ...oldMeta,
+                  aptyVersion: "5.x",
+                  stubCount: 0,
+                } satisfies KbPackInfo,
+              ],
+            ]
+          : [];
+      await records.moveAll(puts, [LEGACY_META, LEGACY_PACK]);
     })().catch((error) => {
       migrated = undefined;
       throw error;
@@ -156,7 +188,7 @@ export function createKbPackStore({
         records.get<KbPackInfo>(meta(version)),
         records.get<KbPack>(pack(version)),
       ]);
-      // A replace that stopped between its two writes leaves them apart.
+      // Written together; the check still refuses a pair that disagrees.
       return info && body && info.sha256 === body.sha256 ? body : null;
     },
     async replace(text) {
@@ -164,14 +196,15 @@ export function createKbPackStore({
       const parsed = await parseKbPack(text, { sha256 });
       if (!parsed.ok) return { ok: false, code: parsed.code };
       const info = describeKbPack(parsed.pack, now().toISOString());
-      await records.put(pack(info.aptyVersion), parsed.pack);
-      await records.put(meta(info.aptyVersion), info);
+      await records.putAll([
+        [pack(info.aptyVersion), parsed.pack],
+        [meta(info.aptyVersion), info],
+      ]);
       return { ok: true, info };
     },
     async remove(version) {
       await migrate();
-      await records.delete(meta(version));
-      await records.delete(pack(version));
+      await records.moveAll([], [meta(version), pack(version)]);
     },
   };
 }

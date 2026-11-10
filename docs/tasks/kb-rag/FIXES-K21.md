@@ -487,7 +487,7 @@ Routing pages, never a `cardPageId`: 1509785663, 1509752991, 1509753248,
 
 ## Status
 
-IN PROGRESS: F12, F10, F3, F1, F2, F5, F6, F7, recalibration done; F4 partial.
+IN PROGRESS: F12, F10, F3, F1, F2, F5, F6, F7, recalibration, F8 done; F4 partial.
 
 | Fix | State |
 | --- | --- |
@@ -501,6 +501,6 @@ IN PROGRESS: F12, F10, F3, F1, F2, F5, F6, F7, recalibration done; F4 partial.
 | F6 | done |
 | F7 | done |
 | Recalibrate | done: 4.x min 0.35 minIdf 2.024, 5.x min 0.35 minIdf 2.234 |
-| F8 | not started |
+| F8 | done |
 | F9 | not started |
 | F11 | not started |
