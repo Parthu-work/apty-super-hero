@@ -15,7 +15,7 @@ finishes it.
   open a new PR and never commit to main.
 - **Base:** `origin/main` at `11d2200`. Merge the latest `origin/main` into
   the branch first if it has moved.
-- **Status:** IN PROGRESS. See [Status](#status).
+- **Status:** DONE except F4, which is partial (needs read access to aptyInc/apty-assist). See [Status](#status).
 - Re-read this file after any context compaction; never guess scope.
 
 Every bug here was reproduced on 10 Nov 2026 with the PR's own synthetic demo
@@ -487,7 +487,23 @@ Routing pages, never a `cardPageId`: 1509785663, 1509752991, 1509753248,
 
 ## Status
 
-IN PROGRESS: F12, F10, F3, F1, F2, F5, F6, F7, recalibration, F8, F9, F11 done; F4 partial.
+DONE except F4 (partial). F12, F10, F3, F1, F2, F5, F6, F7, the
+recalibration, F8, F9 and F11 are done; each has a test named after it.
+
+Left, and what finishes it:
+
+- **F4**: someone with read access to aptyInc/apty-assist runs
+  `git clone git@github.com:aptyInc/apty-assist.git ../apty-assist`, pins a
+  `player3.0` commit and checks each W4X and C4X rule (list in
+  `docs/STATUS.md`). Then `FOUR_X_VERIFIED_ON` and `FOUR_X_CONFIDENCE` in
+  `widget-not-visible-4x.ts` change as the F4 row says.
+- **F3**: the KB owner confirms the `CARD_4X` mapping in
+  `packages/browser-runtime/src/apty/diagnosis/cards-4x.ts` (asked in the
+  PR #101 comment).
+- **Manual Chrome check** ("How to test"): not run here (no display). The
+  same paths run in the E2E files above, headless.
+- **Real-card evaluation**: out of scope (needs the KB owner's Confluence
+  token, FIXES.md 7.3).
 
 | Fix | State |
 | --- | --- |
