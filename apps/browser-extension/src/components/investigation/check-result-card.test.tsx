@@ -190,10 +190,10 @@ describe("CheckResultCard", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(
-      within(card).getAllByRole("link", { name: /KB card 1509786000/ })[0],
+      within(card).getAllByRole("link", { name: /KB card 1509785878/ })[0],
     ).toHaveAttribute(
       "href",
-      "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509786000",
+      "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509785878",
     );
     expect(within(card).getByText(/W4X-02/)).toBeInTheDocument();
   });

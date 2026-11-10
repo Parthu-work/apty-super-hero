@@ -10,6 +10,7 @@
  * checkout. Every finding comes from 4.x code and is not runtime-verified.
  * Only workflows (flows) are ported; another kind keeps the version gate.
  */
+import { CARD_4X, card4x } from "./cards-4x.js";
 import {
   FILE_PROBLEMS,
   fileOf,
@@ -37,9 +38,6 @@ import type {
 } from "./types.js";
 import { FOUR_X_VERIFIED_ON } from "./widget-not-visible-4x.js";
 
-/** The 4.x RAG Answer Cards tree in A4PKH, until the KB owner names each cause's card. */
-const CARD_4X_TREE = "1509720081";
-
 export const CONTENT_FILES_4X = ["flow.json", "segments.json", "rules.json"];
 
 /** The steps file the 4.x player loads for one flow. */
@@ -54,7 +52,16 @@ const gate = (
   params: Params = {},
   evidence: string[] = [],
 ): GateResult =>
-  makeGate(CARD_4X_TREE, id, status, ruleId, reason, detail, params, evidence);
+  makeGate(
+    card4x(ruleId),
+    id,
+    status,
+    ruleId,
+    reason,
+    detail,
+    params,
+    evidence,
+  );
 
 /** A flow's names: `name` as a string, or one per locale in an object. */
 export function flowNames(flow: Rec): string[] {
@@ -95,7 +102,7 @@ function finish(
 ): DiagnosisResult {
   return {
     packId: "content-not-visible",
-    cardPageId: CARD_4X_TREE,
+    cardPageId: CARD_4X["C4X-02"],
     verifiedOn: FOUR_X_VERIFIED_ON,
     aptyVersion: "4.x",
     subject: {
@@ -171,7 +178,7 @@ const causeOf = (
   evidence: string[],
 ): Cause => ({
   ruleId,
-  cardPageId: CARD_4X_TREE,
+  cardPageId: card4x(ruleId),
   params,
   summary,
   fix,

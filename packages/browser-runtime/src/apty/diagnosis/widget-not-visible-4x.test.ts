@@ -30,7 +30,7 @@ describe("widget-not-visible for a 4.x tenant (K14)", () => {
     expect(result.verifiedOn).toMatch(
       /^4\.x code, apty-assist .*not runtime-verified/,
     );
-    expect(result.cardPageId).toBe("1509786000");
+    expect(result.cardPageId).toBe("1509785878");
     expect(result.files.map((f) => f.name)).toEqual([
       "app-urls.json",
       "app-data.json",

@@ -542,6 +542,7 @@ describe("with a KB pack loaded (KB-RAG K5)", () => {
 });
 
 describe("a 4.x tenant (KB-RAG K14)", () => {
+  const HIDDEN_4X_LAYER_1 = "FIXTURE: clear the 4.x hide-in-widget option.";
   const FOUR_X = join(
     ROOT,
     "packages/browser-runtime/src/apty/diagnosis/fixtures/content-4x",
@@ -573,6 +574,19 @@ describe("a 4.x tenant (KB-RAG K14)", () => {
       .click();
     await options.getByText("Answering").waitFor({ timeout: 30_000 });
     await options.close();
+    const { file } = writeFixturePack(tempDir("apty-kb-visibility-4x-"), {
+      aptyVersion: "4.x",
+      space: "A4PKH",
+      pages: [
+        fixturePage("1509720308", "FIXTURE 4.x flow not in the widget", [
+          HIDDEN_4X_LAYER_1,
+          "FIXTURE 4.x page checks.",
+          "FIXTURE 4.x data to read.",
+          "Send support: the FIXTURE 4.x version.",
+        ]),
+      ],
+    });
+    await importPack(browser4x, file);
   });
 
   after(async () => {
@@ -632,6 +646,13 @@ describe("a 4.x tenant (KB-RAG K14)", () => {
       .getByText("“Close a deal” is hidden from the widget.")
       .first()
       .waitFor({ timeout: 30_000 });
+    // F3: the cause cites its own 4.x card, so the loaded pack's text shows.
+    await card.getByRole("button", { name: "From the KB card" }).click();
+    await card.getByText(HIDDEN_4X_LAYER_1).waitFor();
+    assert.ok(
+      (await card.getByRole("link", { name: /KB card 1509720308/ }).count()) >
+        0,
+    );
     assert.equal(model.requests.length, before, "the model was not asked");
     await panel.close();
     await app.close();

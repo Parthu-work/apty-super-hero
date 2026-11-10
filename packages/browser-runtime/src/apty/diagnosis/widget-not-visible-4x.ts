@@ -7,6 +7,7 @@
  * be confirmed. Every finding says it comes from 4.x code and is not
  * runtime-verified, so none is more certain than "likely".
  */
+import { CARD_4X, card4x } from "./cards-4x.js";
 import {
   FILE_PROBLEMS,
   fileOf,
@@ -33,14 +34,6 @@ import type {
 } from "./types.js";
 import { patternMatches } from "./url-patterns.js";
 
-/** 4.x mirror card for the app-urls.json response (A4PKH 1509786000). */
-const CARD_4X_APP_URLS = "1509786000";
-/**
- * The 4.x RAG Answer Cards tree in A4PKH: the cause's own card until the
- * KB owner names it (FIXES.md K14 lists only the app-urls.json card).
- */
-const CARD_4X_TREE = "1509720081";
-
 export const FOUR_X_VERIFIED_ON =
   "4.x code, apty-assist player3.0 (commit not pinned: ported from the behaviour FIXES.md K14 describes, file and line to be confirmed against a checkout); from code, not runtime-verified";
 
@@ -58,9 +51,17 @@ const gate = (
   detail: string,
   params: Params = {},
   evidence: string[] = [],
-  cardPageId = CARD_4X_APP_URLS,
 ): GateResult =>
-  makeGate(cardPageId, id, status, ruleId, reason, detail, params, evidence);
+  makeGate(
+    card4x(ruleId),
+    id,
+    status,
+    ruleId,
+    reason,
+    detail,
+    params,
+    evidence,
+  );
 
 function finish(
   evidence: ClientEvidence,
@@ -69,7 +70,7 @@ function finish(
 ): DiagnosisResult {
   return {
     packId: "widget-not-visible",
-    cardPageId: CARD_4X_APP_URLS,
+    cardPageId: CARD_4X["W4X-02"],
     verifiedOn: FOUR_X_VERIFIED_ON,
     aptyVersion: "4.x",
     subject: { kind: "widget", matched: [] },
@@ -200,7 +201,7 @@ export function diagnoseWidgetNotVisible4x(
     // confirmed): a failed content request resolves to an empty list.
     const cause: Cause = {
       ruleId: "W4X-01",
-      cardPageId: CARD_4X_APP_URLS,
+      cardPageId: CARD_4X["W4X-01"],
       params: { variant: "failed", httpStatus: appUrls.httpStatus ?? 0 },
       summary: `app-urls.json failed${appUrls.httpStatus ? ` (HTTP ${appUrls.httpStatus})` : ""}; the 4.x player reads a failed request as an empty list, so no application loads and the widget does not show.`,
       fix: "Fix the failing request (its status and the Console say why), then reload.",
@@ -227,7 +228,7 @@ export function diagnoseWidgetNotVisible4x(
   if (appUrls.status === "empty") {
     const cause: Cause = {
       ruleId: "W4X-01",
-      cardPageId: CARD_4X_APP_URLS,
+      cardPageId: CARD_4X["W4X-01"],
       params: { variant: "empty", httpStatus: appUrls.httpStatus ?? 0 },
       summary:
         "app-urls.json is an empty list: no application is published for this tenant, so the widget does not show on any page.",
@@ -328,7 +329,7 @@ export function diagnoseWidgetNotVisible4x(
     const envs = allEnvironments(appUrls.json);
     const cause: Cause = {
       ruleId: "W4X-02",
-      cardPageId: CARD_4X_APP_URLS,
+      cardPageId: CARD_4X["W4X-02"],
       params: { envs },
       summary:
         "No environment's URL pattern matches this page, so the 4.x player loads nothing here.",
@@ -375,15 +376,13 @@ export function diagnoseWidgetNotVisible4x(
         "appDataUnread",
         "app-data.json was not read for this environment, so whether the player and the widget are on is unknown.",
         { env: chosen.label },
-        [],
-        CARD_4X_TREE,
       ),
     );
   } else {
     if (data.enablePlayer === false) {
       causes.push({
         ruleId: "W4X-04",
-        cardPageId: CARD_4X_TREE,
+        cardPageId: CARD_4X["W4X-04"],
         params: { env: chosen.label },
         summary: `The player is switched off for ${chosen.label} (app-data.json enablePlayer is false), so nothing from Apty runs on this page.`,
         fix: "In 4.x Admin, turn the player on for this environment, publish and reload.",
@@ -394,7 +393,7 @@ export function diagnoseWidgetNotVisible4x(
     if (widget.enabled === false || widget.enableWidget === false) {
       causes.push({
         ruleId: "W4X-05",
-        cardPageId: CARD_4X_TREE,
+        cardPageId: CARD_4X["W4X-05"],
         params: { env: chosen.label },
         summary: `The widget is switched off for ${chosen.label} (app-data.json widgetConfig), so it does not show although the player runs.`,
         fix: "In 4.x Admin, turn the widget on for this environment, publish and reload.",
@@ -411,7 +410,6 @@ export function diagnoseWidgetNotVisible4x(
           cause.summary,
           cause.params,
           cause.evidence,
-          CARD_4X_TREE,
         ),
       );
     }
