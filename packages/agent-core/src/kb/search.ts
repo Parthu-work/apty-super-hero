@@ -404,7 +404,7 @@ interface Assessment {
 }
 
 /** Words most symptoms share (stemmed): a stub needs a match beyond them. */
-export const GENERIC_SYMPTOM_TERMS: ReadonlySet<string> = new Set(
+const GENERIC_SYMPTOM_TERMS: ReadonlySet<string> = new Set(
   [
     "show",
     "appear",
