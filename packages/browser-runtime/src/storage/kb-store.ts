@@ -66,8 +66,14 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
-/** `KbRecords` on an IndexedDB database with one object store, opened on first use. */
-function indexedDbRecords(dbName?: string, factory?: IDBFactory): KbRecords {
+/**
+ * `KbRecords` on an IndexedDB database with one object store, opened on first use.
+ * @internal exported for tests, which pass an in-memory IndexedDB factory.
+ */
+export function indexedDbRecords(
+  dbName?: string,
+  factory?: IDBFactory,
+): KbRecords {
   let opened: Promise<IDBDatabase> | undefined;
   const db = () => {
     opened ??= new Promise((resolve, reject) => {

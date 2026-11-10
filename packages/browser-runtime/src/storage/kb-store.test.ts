@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { canonicalJson, KB_PACK_KIND } from "@apty/agent-core";
+import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it } from "vitest";
 import {
   createKbPackStore,
+  indexedDbRecords,
   type KbRecords,
   webCryptoSha256,
 } from "./kb-store.js";
@@ -246,5 +248,70 @@ describe("createKbPackStore", () => {
     records.failOn.clear();
     await store.remove("5.x");
     expect(records.data.size).toBe(0);
+  });
+});
+
+describe("F8: the store on IndexedDB (fake-indexeddb)", () => {
+  const records = () => indexedDbRecords("kb-test", new IDBFactory());
+  /** A value IndexedDB cannot store: its put throws a DataCloneError. */
+  const unstorable = { invalid: () => undefined };
+
+  it("imports, loads, replaces and removes a pack through one database", async () => {
+    const store = createKbPackStore({ records: records(), now: () => NOW });
+    await store.replace(packText("101"));
+    expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("101");
+    await store.replace(packText("202", "2026-03-02T00:00:00.000Z"));
+    expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("202");
+    await store.remove("5.x");
+    expect(await store.load("5.x")).toBeNull();
+    expect(await store.info()).toEqual([]);
+  });
+
+  it("writes all of a putAll or none of it", async () => {
+    const db = records();
+    await db.putAll([
+      ["pack:5.x", { v: "old" }],
+      ["meta:5.x", { v: "old" }],
+    ]);
+    await expect(
+      db.putAll([
+        ["pack:5.x", { v: "new" }],
+        ["meta:5.x", unstorable],
+      ]),
+    ).rejects.toThrow();
+    expect(await db.get("pack:5.x")).toEqual({ v: "old" });
+    expect(await db.get("meta:5.x")).toEqual({ v: "old" });
+  });
+
+  it("moves the legacy pack in one transaction, or leaves it where it was", async () => {
+    const db = records();
+    const legacy = createKbPackStore({
+      records: memoryRecords(),
+      now: () => NOW,
+    });
+    await legacy.replace(packText("101"));
+    const body = JSON.parse(packText("101"));
+    const meta = (await legacy.info())[0];
+    await db.putAll([
+      ["pack", body],
+      ["meta", meta],
+    ]);
+    await expect(
+      db.moveAll(
+        [
+          ["pack:5.x", body],
+          ["meta:5.x", unstorable],
+        ],
+        ["meta", "pack"],
+      ),
+    ).rejects.toThrow();
+    expect(await db.get("pack")).toEqual(body);
+    expect(await db.get("meta")).toEqual(meta);
+    expect(await db.get("pack:5.x")).toBeUndefined();
+
+    const store = createKbPackStore({ records: db, now: () => NOW });
+    expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("101");
+    expect(await db.get("pack")).toBeUndefined();
+    expect(await db.get("meta")).toBeUndefined();
   });
 });
