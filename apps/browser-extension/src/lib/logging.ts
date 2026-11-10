@@ -1,9 +1,8 @@
+import { type AppSettings, type LogLevel, setLogLevel } from "@apty/agent-core";
 import {
-  type AppSettings,
-  type LogLevel,
-  STORAGE_KEYS,
-  setLogLevel,
-} from "@apty/agent-core";
+  loadSettings,
+  watchEffectiveSettings,
+} from "@apty/browser-runtime/runtime/effective-settings";
 
 /**
  * Production builds log warnings and errors only; development builds log
@@ -24,13 +23,8 @@ export function initLogging({ followSettings = true } = {}): void {
         : base,
     );
 
-  chrome.storage.local
-    .get(STORAGE_KEYS.SETTINGS)
-    .then((result) => apply(result[STORAGE_KEYS.SETTINGS]))
+  loadSettings()
+    .then(apply)
     .catch(() => {});
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes[STORAGE_KEYS.SETTINGS]) {
-      apply(changes[STORAGE_KEYS.SETTINGS]?.newValue);
-    }
-  });
+  watchEffectiveSettings(({ settings }) => apply(settings));
 }

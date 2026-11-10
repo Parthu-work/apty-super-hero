@@ -23,8 +23,11 @@ export function ChatErrorNotice({
   onOpenSettings?: () => void;
 }) {
   const { t } = useTranslation();
-  const body =
-    error.kind === "rateLimit" && error.retryAfterMs
+  // The organization policy's refusal names what is allowed: shown as it is.
+  const refusal = error.kind === "destinationRefused" && error.message;
+  const body = refusal
+    ? error.message
+    : error.kind === "rateLimit" && error.retryAfterMs
       ? t("chatErrors.rateLimitRetry", {
           seconds: Math.ceil(error.retryAfterMs / 1000),
         })
@@ -54,7 +57,7 @@ export function ChatErrorNotice({
       }
     >
       <p>{body}</p>
-      {error.message && (
+      {error.message && !refusal && (
         <details className="mt-2">
           <summary className="w-fit cursor-pointer rounded-sm text-small font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t("chatErrors.details")}

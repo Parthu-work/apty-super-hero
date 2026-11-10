@@ -68,6 +68,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { AptyCdnCard } from "./apty-cdn-card";
 import { DataHandlingCard } from "./data-handling-card";
 import { KnowledgeBaseCard } from "./knowledge-base-card";
+import {
+  aiFieldsLocked,
+  LockedAiCard,
+  OrgPolicyBanner,
+} from "./org-policy-notice";
 import { RequestLimitsCard } from "./request-limits-card";
 import { TroubleshootingCard } from "./troubleshooting-card";
 import type { SaveStatus, SettingsPageProps, SettingsTab } from "./types";
@@ -375,6 +380,8 @@ export function SettingsPage({
   redactionPreview,
   recentRequests,
   knowledgeBase,
+  orgPolicy,
+  kbEgressLog,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
   void _initialSkill;
@@ -1054,6 +1061,8 @@ export function SettingsPage({
         </div>
       )}
 
+      <OrgPolicyBanner policy={orgPolicy} />
+
       <Tabs
         value={activeTab}
         onValueChange={(value: string) => {
@@ -1188,6 +1197,8 @@ export function SettingsPage({
               onChange={saveGeneralSetting}
               redactionPreview={redactionPreview}
               recentRequests={recentRequests}
+              redactionFloor={orgPolicy?.redactionFloor}
+              kbEgressLog={kbEgressLog}
             />
 
             <TroubleshootingCard
@@ -1401,540 +1412,559 @@ export function SettingsPage({
               </Card>
             </div>
 
-            {/* overflow-clip, not overflow-hidden: it rounds the corners
-                without breaking the sticky footer below. */}
-            <Card id="ai-provider" className="scroll-mt-4 overflow-clip">
-              <div className="flex" style={{ minHeight: "500px" }}>
-                {/* Left Sidebar - Custom Model List */}
-                <div className="w-72 border-r flex flex-col">
-                  {/* Search + Add */}
-                  <div className="p-3 border-b space-y-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        value={searchTerm}
-                        placeholder={t("settings.searchProviders")}
-                        className="pl-9"
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={handleAddModel}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      {t("settings.addModel")}
-                    </Button>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex-1"
-                        onClick={handleExportModels}
-                        disabled={customModels.length === 0}
-                      >
-                        <Download className="h-4 w-4 mr-1" />
-                        {t("settings.export")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => importFileInputRef.current?.click()}
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        {t("settings.import")}
-                      </Button>
-                      <input
-                        ref={importFileInputRef}
-                        type="file"
-                        accept="application/json"
-                        className="hidden"
-                        onChange={handleImportFileSelected}
-                      />
-                    </div>
-                    <SettingRow
-                      label={t("settings.includeKeysOnExport")}
-                      control={
-                        <Switch
-                          aria-label={t("settings.includeKeysOnExport")}
-                          checked={includeKeysOnExport}
-                          onCheckedChange={setIncludeKeysOnExport}
+            {orgPolicy && aiFieldsLocked(orgPolicy) ? (
+              <LockedAiCard
+                policy={orgPolicy}
+                onSave={async (changes) => {
+                  const next = { ...settings, ...changes };
+                  await storageAdapter.save(storageKey, next);
+                  setSettings(next);
+                  onSave?.(next);
+                }}
+              />
+            ) : (
+              // overflow-clip, not overflow-hidden: it rounds the corners
+              // without breaking the sticky footer below.
+              <Card id="ai-provider" className="scroll-mt-4 overflow-clip">
+                <div className="flex" style={{ minHeight: "500px" }}>
+                  {/* Left Sidebar - Custom Model List */}
+                  <div className="w-72 border-r flex flex-col">
+                    {/* Search + Add */}
+                    <div className="p-3 border-b space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          value={searchTerm}
+                          placeholder={t("settings.searchProviders")}
+                          className="pl-9"
+                          onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                      }
-                    />
-                    {importError && (
-                      <Alert variant="destructive">
-                        <AlertDescription className="text-xs">
-                          {t("settings.importFailed")} {importError}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-
-                  {/* Model List */}
-                  <div className="flex-1 overflow-y-auto">
-                    {filteredModels.length === 0 ? (
-                      <div className="p-8 text-center text-muted-foreground space-y-3">
-                        <Search className="w-12 h-12 mx-auto text-muted-foreground" />
-                        <p className="text-sm">
-                          {t("settings.noProvidersFound")}
-                        </p>
-                        <Button size="sm" onClick={handleAddModel}>
-                          {t("settings.createModel")}
-                        </Button>
                       </div>
-                    ) : (
-                      filteredModels.map((model) => {
-                        const providerKey = resolveProviderKey(model);
-                        const provider = AI_PROVIDERS[providerKey];
-                        const isSelected = selectedModelId === model.id;
-                        const displayName =
-                          model.name?.trim() ||
-                          model.aiModel ||
-                          provider.name ||
-                          t("settings.aiModel");
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleAddModel}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        {t("settings.addModel")}
+                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-1"
+                          onClick={handleExportModels}
+                          disabled={customModels.length === 0}
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          {t("settings.export")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => importFileInputRef.current?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-1" />
+                          {t("settings.import")}
+                        </Button>
+                        <input
+                          ref={importFileInputRef}
+                          type="file"
+                          accept="application/json"
+                          className="hidden"
+                          onChange={handleImportFileSelected}
+                        />
+                      </div>
+                      <SettingRow
+                        label={t("settings.includeKeysOnExport")}
+                        control={
+                          <Switch
+                            aria-label={t("settings.includeKeysOnExport")}
+                            checked={includeKeysOnExport}
+                            onCheckedChange={setIncludeKeysOnExport}
+                          />
+                        }
+                      />
+                      {importError && (
+                        <Alert variant="destructive">
+                          <AlertDescription className="text-xs">
+                            {t("settings.importFailed")} {importError}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
 
-                        return (
-                          <div
-                            key={model.id}
-                            className={cn(
-                              "flex items-center group border-b border-border/40",
-                              isSelected ? "bg-primary/5" : "",
-                            )}
-                          >
-                            <Button
-                              variant="ghost"
-                              onClick={() => handleSelectModel(model.id)}
-                              className={cn(
-                                "w-full justify-start h-auto p-4 border-l-2 rounded-none text-left",
-                                isSelected
-                                  ? "border-primary bg-primary/5"
-                                  : "border-transparent",
-                              )}
-                            >
-                              <div className="flex items-center w-full gap-3">
-                                <div
-                                  className={cn(
-                                    "w-8 h-8 rounded-lg flex items-center justify-center text-title",
-                                    isSelected ? "bg-primary/10" : "bg-muted",
-                                  )}
-                                >
-                                  {provider.icon}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="text-sm font-medium">
-                                    {displayName}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {provider.name}
-                                  </div>
-                                </div>
-                                {failedToolProbe(model) && (
-                                  <Badge variant="destructive">
-                                    {t("settings.noTools")}
-                                  </Badge>
-                                )}
-                                {model.enabled && (
-                                  <Badge variant="default">
-                                    {t("settings.current")}
-                                  </Badge>
-                                )}
-                              </div>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                              aria-label={`${t("settings.deleteModel")} ${model.name || model.aiModel || ""}`.trim()}
-                              onClick={() => handleDeleteModel(model.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {/* Right Panel - Configuration Details */}
-                <div className="flex-1 flex flex-col">
-                  {/* Header */}
-                  <div className="p-6 border-b">
-                    <div className="flex items-center justify-between">
-                      {selectedModel ? (
-                        <>
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-display">
-                              {selectedProviderMeta.icon}
-                            </div>
-                            <div>
-                              <h3 className="text-title font-semibold">
-                                {selectedModel.name?.trim() ||
-                                  selectedModel.aiModel ||
-                                  t("settings.aiModel")}
-                              </h3>
-                              <p className="text-sm text-muted-foreground">
-                                {selectedProviderMeta.name}
-                              </p>
-                              {"experimental" in selectedProviderMeta &&
-                                selectedProviderMeta.experimental && (
-                                  <p
-                                    role="note"
-                                    className="text-xs text-destructive"
-                                  >
-                                    {t("settings.experimental")}{" "}
-                                    {selectedProviderMeta.experimental}
-                                  </p>
-                                )}
-                              {!PHI_APPROVED_PROVIDERS.has(
-                                selectedProviderKey,
-                              ) && (
-                                <p role="note" className="text-xs text-warning">
-                                  {t("settings.phiProviderWarning")}
-                                </p>
-                              )}
-                              {selectedProviderMeta.docs && (
-                                <Button
-                                  variant="link"
-                                  size="sm"
-                                  asChild
-                                  className="h-auto p-0"
-                                >
-                                  <a
-                                    href={selectedProviderMeta.docs}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1"
-                                  >
-                                    {t("settings.getApiKey")}
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {t("settings.enable")}
-                            </span>
-                            <Switch
-                              aria-label={t("settings.enable")}
-                              checked={selectedModel.enabled}
-                              onCheckedChange={(checked) =>
-                                handleModelFieldChange("enabled", checked)
-                              }
-                            />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-muted-foreground">
-                          {t("settings.selectOrCreateModel")}
+                    {/* Model List */}
+                    <div className="flex-1 overflow-y-auto">
+                      {filteredModels.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground space-y-3">
+                          <Search className="w-12 h-12 mx-auto text-muted-foreground" />
+                          <p className="text-sm">
+                            {t("settings.noProvidersFound")}
+                          </p>
+                          <Button size="sm" onClick={handleAddModel}>
+                            {t("settings.createModel")}
+                          </Button>
                         </div>
+                      ) : (
+                        filteredModels.map((model) => {
+                          const providerKey = resolveProviderKey(model);
+                          const provider = AI_PROVIDERS[providerKey];
+                          const isSelected = selectedModelId === model.id;
+                          const displayName =
+                            model.name?.trim() ||
+                            model.aiModel ||
+                            provider.name ||
+                            t("settings.aiModel");
+
+                          return (
+                            <div
+                              key={model.id}
+                              className={cn(
+                                "flex items-center group border-b border-border/40",
+                                isSelected ? "bg-primary/5" : "",
+                              )}
+                            >
+                              <Button
+                                variant="ghost"
+                                onClick={() => handleSelectModel(model.id)}
+                                className={cn(
+                                  "w-full justify-start h-auto p-4 border-l-2 rounded-none text-left",
+                                  isSelected
+                                    ? "border-primary bg-primary/5"
+                                    : "border-transparent",
+                                )}
+                              >
+                                <div className="flex items-center w-full gap-3">
+                                  <div
+                                    className={cn(
+                                      "w-8 h-8 rounded-lg flex items-center justify-center text-title",
+                                      isSelected ? "bg-primary/10" : "bg-muted",
+                                    )}
+                                  >
+                                    {provider.icon}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium">
+                                      {displayName}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {provider.name}
+                                    </div>
+                                  </div>
+                                  {failedToolProbe(model) && (
+                                    <Badge variant="destructive">
+                                      {t("settings.noTools")}
+                                    </Badge>
+                                  )}
+                                  {model.enabled && (
+                                    <Badge variant="default">
+                                      {t("settings.current")}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                                aria-label={`${t("settings.deleteModel")} ${model.name || model.aiModel || ""}`.trim()}
+                                onClick={() => handleDeleteModel(model.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   </div>
 
-                  {/* Configuration Form */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                    {selectedModel ? (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="modelName">
-                            {t("settings.displayName")}
-                          </Label>
-                          <Input
-                            id="modelName"
-                            type="text"
-                            value={selectedModel.name || ""}
-                            onChange={(e) =>
-                              handleModelFieldChange("name", e.target.value)
-                            }
-                            placeholder={t("settings.displayNamePlaceholder")}
-                          />
-                        </div>
-
-                        {/* Provider Type */}
-                        <div className="space-y-2">
-                          <Label htmlFor="providerType">
-                            {t("settings.providerType")}
-                            <span className="text-destructive ml-1">*</span>
-                          </Label>
-                          <Select
-                            value={selectedModel.providerType}
-                            onValueChange={(value: ProviderType) =>
-                              handleModelFieldChange("providerType", value)
-                            }
-                          >
-                            <SelectTrigger id="providerType">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="openai">OpenAI</SelectItem>
-                              <SelectItem value="claude">Claude</SelectItem>
-                              <SelectItem value="google">Google</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* API Host */}
-                        <div className="space-y-2">
-                          <Label htmlFor="aiHost">{t("settings.aiHost")}</Label>
-                          <Input
-                            id="aiHost"
-                            className="font-mono"
-                            type="url"
-                            value={selectedModel.aiHost || ""}
-                            onChange={(e) =>
-                              handleModelFieldChange("aiHost", e.target.value)
-                            }
-                            placeholder={
-                              "host" in selectedProviderMeta
-                                ? (selectedProviderMeta.host ?? "")
-                                : ""
-                            }
-                          />
-                          {isLikelyLoopbackHost(selectedModel.aiHost || "") && (
-                            <Alert>
-                              <AlertDescription className="text-xs leading-relaxed">
-                                {t("settings.localAddressNotice")}
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-
-                        {/* API Token */}
-                        <div className="space-y-2">
-                          <Label htmlFor="aiToken">
-                            {t("settings.aiToken")}
-                            <span className="text-destructive ml-1">*</span>
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              id="aiToken"
-                              type={showToken ? "text" : "password"}
-                              value={selectedModel.aiToken || ""}
-                              onChange={(e) =>
-                                handleModelFieldChange(
-                                  "aiToken",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder={
-                                selectedProviderMeta.tokenPlaceholder
-                              }
-                              className="font-mono pr-10"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setShowToken(!showToken)}
-                              aria-label={t(
-                                showToken
-                                  ? "settings.hideApiKey"
-                                  : "settings.showApiKey",
-                              )}
-                              aria-pressed={showToken}
-                              className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            >
-                              {showToken ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {selectedProviderKey === "anthropic" && (
-                          <div className="space-y-2">
-                            <Label htmlFor="aiWorkspaceId">
-                              {t("settings.aiWorkspaceId")}
-                            </Label>
-                            <Input
-                              id="aiWorkspaceId"
-                              className="font-mono"
-                              value={selectedModel.aiWorkspaceId || ""}
-                              onChange={(e) =>
-                                handleModelFieldChange(
-                                  "aiWorkspaceId",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder="wrkspc_…"
-                              aria-describedby="aiWorkspaceIdHint"
-                              autoComplete="off"
-                              spellCheck={false}
-                            />
-                            <p
-                              id="aiWorkspaceIdHint"
-                              className="text-xs text-muted-foreground"
-                            >
-                              {t("settings.aiWorkspaceIdHint")}
-                            </p>
+                  {/* Right Panel - Configuration Details */}
+                  <div className="flex-1 flex flex-col">
+                    {/* Header */}
+                    <div className="p-6 border-b">
+                      <div className="flex items-center justify-between">
+                        {selectedModel ? (
+                          <>
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-display">
+                                {selectedProviderMeta.icon}
+                              </div>
+                              <div>
+                                <h3 className="text-title font-semibold">
+                                  {selectedModel.name?.trim() ||
+                                    selectedModel.aiModel ||
+                                    t("settings.aiModel")}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {selectedProviderMeta.name}
+                                </p>
+                                {"experimental" in selectedProviderMeta &&
+                                  selectedProviderMeta.experimental && (
+                                    <p
+                                      role="note"
+                                      className="text-xs text-destructive"
+                                    >
+                                      {t("settings.experimental")}{" "}
+                                      {selectedProviderMeta.experimental}
+                                    </p>
+                                  )}
+                                {!PHI_APPROVED_PROVIDERS.has(
+                                  selectedProviderKey,
+                                ) && (
+                                  <p
+                                    role="note"
+                                    className="text-xs text-warning"
+                                  >
+                                    {t("settings.phiProviderWarning")}
+                                  </p>
+                                )}
+                                {selectedProviderMeta.docs && (
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    asChild
+                                    className="h-auto p-0"
+                                  >
+                                    <a
+                                      href={selectedProviderMeta.docs}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1"
+                                    >
+                                      {t("settings.getApiKey")}
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">
+                                {t("settings.enable")}
+                              </span>
+                              <Switch
+                                aria-label={t("settings.enable")}
+                                checked={selectedModel.enabled}
+                                onCheckedChange={(checked) =>
+                                  handleModelFieldChange("enabled", checked)
+                                }
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-muted-foreground">
+                            {t("settings.selectOrCreateModel")}
                           </div>
                         )}
+                      </div>
+                    </div>
 
-                        {/* Model Selection — a free-text combobox: presets
+                    {/* Configuration Form */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                      {selectedModel ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="modelName">
+                              {t("settings.displayName")}
+                            </Label>
+                            <Input
+                              id="modelName"
+                              type="text"
+                              value={selectedModel.name || ""}
+                              onChange={(e) =>
+                                handleModelFieldChange("name", e.target.value)
+                              }
+                              placeholder={t("settings.displayNamePlaceholder")}
+                            />
+                          </div>
+
+                          {/* Provider Type */}
+                          <div className="space-y-2">
+                            <Label htmlFor="providerType">
+                              {t("settings.providerType")}
+                              <span className="text-destructive ml-1">*</span>
+                            </Label>
+                            <Select
+                              value={selectedModel.providerType}
+                              onValueChange={(value: ProviderType) =>
+                                handleModelFieldChange("providerType", value)
+                              }
+                            >
+                              <SelectTrigger id="providerType">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="openai">OpenAI</SelectItem>
+                                <SelectItem value="claude">Claude</SelectItem>
+                                <SelectItem value="google">Google</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* API Host */}
+                          <div className="space-y-2">
+                            <Label htmlFor="aiHost">
+                              {t("settings.aiHost")}
+                            </Label>
+                            <Input
+                              id="aiHost"
+                              className="font-mono"
+                              type="url"
+                              value={selectedModel.aiHost || ""}
+                              onChange={(e) =>
+                                handleModelFieldChange("aiHost", e.target.value)
+                              }
+                              placeholder={
+                                "host" in selectedProviderMeta
+                                  ? (selectedProviderMeta.host ?? "")
+                                  : ""
+                              }
+                            />
+                            {isLikelyLoopbackHost(
+                              selectedModel.aiHost || "",
+                            ) && (
+                              <Alert>
+                                <AlertDescription className="text-xs leading-relaxed">
+                                  {t("settings.localAddressNotice")}
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
+
+                          {/* API Token */}
+                          <div className="space-y-2">
+                            <Label htmlFor="aiToken">
+                              {t("settings.aiToken")}
+                              <span className="text-destructive ml-1">*</span>
+                            </Label>
+                            <div className="relative">
+                              <Input
+                                id="aiToken"
+                                type={showToken ? "text" : "password"}
+                                value={selectedModel.aiToken || ""}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "aiToken",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder={
+                                  selectedProviderMeta.tokenPlaceholder
+                                }
+                                className="font-mono pr-10"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowToken(!showToken)}
+                                aria-label={t(
+                                  showToken
+                                    ? "settings.hideApiKey"
+                                    : "settings.showApiKey",
+                                )}
+                                aria-pressed={showToken}
+                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                              >
+                                {showToken ? (
+                                  <EyeOff className="h-4 w-4" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {selectedProviderKey === "anthropic" && (
+                            <div className="space-y-2">
+                              <Label htmlFor="aiWorkspaceId">
+                                {t("settings.aiWorkspaceId")}
+                              </Label>
+                              <Input
+                                id="aiWorkspaceId"
+                                className="font-mono"
+                                value={selectedModel.aiWorkspaceId || ""}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "aiWorkspaceId",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="wrkspc_…"
+                                aria-describedby="aiWorkspaceIdHint"
+                                autoComplete="off"
+                                spellCheck={false}
+                              />
+                              <p
+                                id="aiWorkspaceIdHint"
+                                className="text-xs text-muted-foreground"
+                              >
+                                {t("settings.aiWorkspaceIdHint")}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Model Selection — a free-text combobox: presets
                             (when the provider has any) show as native
                             suggestions, but typing an arbitrary model id
                             always works, for providers/models not in the
                             preset list. */}
-                        <div className="space-y-2">
-                          <Label htmlFor="aiModel">
-                            {t("settings.aiModel")}
-                            <span className="text-destructive ml-1">*</span>
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="aiModel"
-                              className="font-mono"
-                              type="text"
-                              list={`aiModel-suggestions-${selectedModel.id}`}
-                              value={selectedModel.aiModel || ""}
-                              onChange={(e) =>
-                                handleModelFieldChange(
-                                  "aiModel",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder={t("settings.modelPlaceholder")}
-                            />
-                            {onFetchModels && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={handleFetchModels}
-                                disabled={
-                                  !selectedModel.aiToken?.trim() ||
-                                  modelFetch.state === "loading"
+                          <div className="space-y-2">
+                            <Label htmlFor="aiModel">
+                              {t("settings.aiModel")}
+                              <span className="text-destructive ml-1">*</span>
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id="aiModel"
+                                className="font-mono"
+                                type="text"
+                                list={`aiModel-suggestions-${selectedModel.id}`}
+                                value={selectedModel.aiModel || ""}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "aiModel",
+                                    e.target.value,
+                                  )
                                 }
-                              >
-                                {t(
-                                  modelFetch.state === "loading"
-                                    ? "providerErrors.fetchingModels"
-                                    : "providerErrors.fetchModels",
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                          {modelFetch.message && (
-                            <p
-                              role={
-                                modelFetch.state === "error"
-                                  ? "alert"
-                                  : "status"
-                              }
-                              className={cn(
-                                "text-xs",
-                                modelFetch.state === "error"
-                                  ? "text-destructive"
-                                  : "text-muted-foreground",
+                                placeholder={t("settings.modelPlaceholder")}
+                              />
+                              {onFetchModels && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={handleFetchModels}
+                                  disabled={
+                                    !selectedModel.aiToken?.trim() ||
+                                    modelFetch.state === "loading"
+                                  }
+                                >
+                                  {t(
+                                    modelFetch.state === "loading"
+                                      ? "providerErrors.fetchingModels"
+                                      : "providerErrors.fetchModels",
+                                  )}
+                                </Button>
                               )}
-                            >
-                              {modelFetch.message}
-                              {modelFetch.state === "error" &&
-                                ` ${t("providerErrors.fetchFallback")}`}
-                            </p>
-                          )}
-                          {(fetchedModels[selectedModel.id]?.length ?? 0) +
-                            selectedProviderMeta.models.length >
-                            0 && (
-                            <datalist
-                              id={`aiModel-suggestions-${selectedModel.id}`}
-                            >
-                              {[
-                                ...new Set([
-                                  ...(fetchedModels[selectedModel.id] ?? []),
-                                  ...selectedProviderMeta.models,
-                                ]),
-                              ].map((model: string) => (
-                                <option key={model} value={model} />
-                              ))}
-                            </datalist>
-                          )}
-                          {selectedModel.toolCalling?.model ===
-                            selectedModel.aiModel &&
-                            selectedModel.toolCalling && (
-                              <Badge
-                                variant={
-                                  selectedModel.toolCalling.support === "no"
-                                    ? "destructive"
-                                    : selectedModel.toolCalling.support ===
-                                        "yes"
-                                      ? "default"
-                                      : "secondary"
+                            </div>
+                            {modelFetch.message && (
+                              <p
+                                role={
+                                  modelFetch.state === "error"
+                                    ? "alert"
+                                    : "status"
                                 }
-                              >
-                                {toolProbeLabel(
-                                  selectedModel.toolCalling.support,
-                                  t,
+                                className={cn(
+                                  "text-xs",
+                                  modelFetch.state === "error"
+                                    ? "text-destructive"
+                                    : "text-muted-foreground",
                                 )}
-                              </Badge>
+                              >
+                                {modelFetch.message}
+                                {modelFetch.state === "error" &&
+                                  ` ${t("providerErrors.fetchFallback")}`}
+                              </p>
                             )}
-                          <p className="text-xs text-muted-foreground">
-                            {t("settings.modelTip")}
-                          </p>
+                            {(fetchedModels[selectedModel.id]?.length ?? 0) +
+                              selectedProviderMeta.models.length >
+                              0 && (
+                              <datalist
+                                id={`aiModel-suggestions-${selectedModel.id}`}
+                              >
+                                {[
+                                  ...new Set([
+                                    ...(fetchedModels[selectedModel.id] ?? []),
+                                    ...selectedProviderMeta.models,
+                                  ]),
+                                ].map((model: string) => (
+                                  <option key={model} value={model} />
+                                ))}
+                              </datalist>
+                            )}
+                            {selectedModel.toolCalling?.model ===
+                              selectedModel.aiModel &&
+                              selectedModel.toolCalling && (
+                                <Badge
+                                  variant={
+                                    selectedModel.toolCalling.support === "no"
+                                      ? "destructive"
+                                      : selectedModel.toolCalling.support ===
+                                          "yes"
+                                        ? "default"
+                                        : "secondary"
+                                  }
+                                >
+                                  {toolProbeLabel(
+                                    selectedModel.toolCalling.support,
+                                    t,
+                                  )}
+                                </Badge>
+                              )}
+                            <p className="text-xs text-muted-foreground">
+                              {t("settings.modelTip")}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center text-muted-foreground py-12">
+                          {t("settings.selectOrCreateModelLeft")}
                         </div>
-                      </>
-                    ) : (
-                      <div className="text-center text-muted-foreground py-12">
-                        {t("settings.selectOrCreateModelLeft")}
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
 
-                  {/* Action Buttons - Footer, kept in view while the
+                    {/* Action Buttons - Footer, kept in view while the
                       provider list scrolls the page */}
-                  <div className="sticky bottom-0 z-10 border-t bg-muted p-6">
-                    <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={handleTestConnection}
-                        disabled={isTesting || !canTest}
-                        className="flex-1"
-                      >
-                        {isTesting ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2" />
-                            {t("settings.testing")}
-                          </>
-                        ) : (
-                          t("settings.testConnection")
-                        )}
-                      </Button>
+                    <div className="sticky bottom-0 z-10 border-t bg-muted p-6">
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={handleTestConnection}
+                          disabled={isTesting || !canTest}
+                          className="flex-1"
+                        >
+                          {isTesting ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2" />
+                              {t("settings.testing")}
+                            </>
+                          ) : (
+                            t("settings.testConnection")
+                          )}
+                        </Button>
 
-                      <Button
-                        onClick={handleSaveSettings}
-                        disabled={isSaving || !canSave}
-                        className="flex-1"
-                      >
-                        {isSaving ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                            {t("common.saving")}
-                          </>
-                        ) : (
-                          t("common.save")
-                        )}
-                      </Button>
+                        <Button
+                          onClick={handleSaveSettings}
+                          disabled={isSaving || !canSave}
+                          className="flex-1"
+                        >
+                          {isSaving ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                              {t("common.saving")}
+                            </>
+                          ) : (
+                            t("common.save")
+                          )}
+                        </Button>
 
-                      <Button
-                        variant="outline"
-                        onClick={handleReset}
-                        disabled={isSaving}
-                      >
-                        {t("settings.reset")}
-                      </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleReset}
+                          disabled={isSaving}
+                        >
+                          {t("settings.reset")}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            )}
 
             <RequestLimitsCard
               settings={settings}
@@ -1963,7 +1993,9 @@ export function SettingsPage({
 }
 
 export type {
+  KbEgressLogAdapter,
   KnowledgeBaseAdapter,
+  OrgPolicyView,
   SettingsPageProps,
   STTConfigAdapter,
 } from "./types";

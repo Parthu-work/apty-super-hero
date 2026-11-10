@@ -407,3 +407,12 @@ export function createStickyToolSelector({
     return toolsOf(groups);
   };
 }
+
+/**
+ * `tools` without search_kb, for a turn where KB text may not reach the
+ * model (KB-RAG K22, D-SEC1): its prompt section goes with it, since the
+ * system prompt is composed from the tools offered.
+ */
+export function withoutKbSearch(tools: FunctionTool[]): FunctionTool[] {
+  return tools.filter((tool) => tool.name !== "search_kb");
+}

@@ -10,13 +10,31 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { type AppSettings, detectProviderFromHost } from "@apty/agent-core";
+import {
+  type AiDestination,
+  type AppSettings,
+  type DestinationVerdict,
+  destinationAllowed,
+  destinationOf,
+  detectProviderFromHost,
+  type OrgPolicyState,
+  originOf,
+} from "@apty/agent-core";
+import {
+  loadOrgPolicy,
+  peekOrgPolicy,
+} from "@apty/browser-runtime/runtime/org-policy";
 import {
   isIPv4,
   isPrivateIPv4,
   isPrivateIPv6,
 } from "@apty/browser-runtime/vm/url-guard";
+import { createTranslationFunction } from "@apty/ui/i18n/index";
+import type { I18nContextValue } from "@apty/ui/i18n/types";
 import { type LanguageModelMiddleware, wrapLanguageModel } from "ai";
+
+type Translate = I18nContextValue["t"];
+const englishTranslate: Translate = createTranslationFunction("en");
 
 const CLOUD_METADATA_HOSTNAMES = new Set([
   "metadata.google.internal",
@@ -253,8 +271,94 @@ const anthropicPromptCacheMiddleware: LanguageModelMiddleware = {
   },
 };
 
+type Refusal = Exclude<DestinationVerdict, { allowed: true }>;
+
+/** What the chat shows when the organization policy refuses a destination (KB-RAG K22, S3). */
+export function destinationRefusalMessage(
+  verdict: Refusal,
+  policyReason?: string,
+  t: Translate = englishTranslate,
+): string {
+  if (verdict.reason === "invalid-policy") {
+    return t("orgPolicy.invalidNoRequests", { reason: policyReason ?? "" });
+  }
+  return t("orgPolicy.destinationRefused", {
+    allowed: verdict.allowedValues.join(", ") || t("orgPolicy.none"),
+  });
+}
+
+/** The organization policy refused the request's destination; nothing was sent. */
+export class AiDestinationRefusedError extends Error {
+  readonly verdict: Refusal;
+  readonly policyReason?: string;
+  constructor(verdict: Refusal, policyReason?: string, t?: Translate) {
+    super(destinationRefusalMessage(verdict, policyReason, t));
+    this.name = "AiDestinationRefusedError";
+    this.verdict = verdict;
+    this.policyReason = policyReason;
+  }
+}
+
+function refuseUnlessAllowed(
+  state: OrgPolicyState,
+  destination: AiDestination,
+): void {
+  const verdict = destinationAllowed(state, destination);
+  if (!verdict.allowed) {
+    throw new AiDestinationRefusedError(
+      verdict,
+      state.kind === "invalid" ? state.reason : undefined,
+    );
+  }
+}
+
+/** The `model` of a JSON request body, when it names one. */
+function modelInBody(body: unknown): string | undefined {
+  if (typeof body !== "string") return undefined;
+  try {
+    const model = (JSON.parse(body) as { model?: unknown }).model;
+    return typeof model === "string" ? model : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function urlOf(input: Parameters<typeof fetch>[0]): string {
+  if (typeof input === "string") return input;
+  return input instanceof URL ? input.href : input.url;
+}
+
 /**
- * Create an AI SDK provider for BYOK mode.
+ * `fetch` that checks every request against the policy as it is read now
+ * (hard rule 2): the URL's origin, the provider and the body's model must
+ * be allowed, or nothing is sent.
+ * @internal exported for tests; `createAIProvider` uses it.
+ */
+export function policyGuardedFetch(
+  settings: AppSettings,
+  base: typeof fetch | undefined,
+  loadPolicy: () => Promise<OrgPolicyState> = loadOrgPolicy,
+): typeof fetch {
+  const destination = destinationOf(settings);
+  return async (input, init) => {
+    const url = urlOf(input);
+    const origin = originOf(url);
+    refuseUnlessAllowed(await loadPolicy(), {
+      provider: destination.provider,
+      ...(origin ? { origin } : {}),
+      ...((modelInBody(init?.body) ?? destination.model)
+        ? { model: modelInBody(init?.body) ?? destination.model }
+        : {}),
+    });
+    return (base ?? globalThis.fetch)(input, init);
+  };
+}
+
+/**
+ * Create an AI SDK provider for BYOK mode. Refuses, with
+ * `AiDestinationRefusedError` and before any request, a destination the
+ * organization policy does not allow: when the provider is built, for each
+ * model id it builds, and again on every request it sends.
  */
 export type ProviderModelFactory = (
   modelId: string,
@@ -262,8 +366,34 @@ export type ProviderModelFactory = (
 
 export function createAIProvider(
   settings: AppSettings,
-  options: { fetch?: typeof fetch } = {},
+  options: {
+    fetch?: typeof fetch;
+    /** The policy to check against; by default the one read from managed storage. */
+    policy?: OrgPolicyState;
+  } = {},
 ): ProviderModelFactory {
+  const policyNow = () => options.policy ?? peekOrgPolicy();
+  const destination = destinationOf(settings);
+  const known = policyNow();
+  if (known) refuseUnlessAllowed(known, destination);
+  const fetchImpl = policyGuardedFetch(
+    settings,
+    options.fetch,
+    options.policy ? async () => options.policy as OrgPolicyState : undefined,
+  );
+  const factory = buildProvider(settings, fetchImpl);
+  return (modelId: string) => {
+    const state = policyNow();
+    if (state) refuseUnlessAllowed(state, { ...destination, model: modelId });
+    return factory(modelId);
+  };
+}
+
+function buildProvider(
+  settings: AppSettings,
+  fetchImpl: typeof fetch,
+): ProviderModelFactory {
+  const options = { fetch: fetchImpl };
   const provider = settings.aiProvider ?? "openai";
   const apiKey = settings.aiToken ?? "";
   const baseURL = validateHostUrl(settings.aiHost || undefined);

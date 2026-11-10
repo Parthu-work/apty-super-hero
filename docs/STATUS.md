@@ -76,6 +76,17 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
+- KB text leaves only to an approved destination (KB-RAG K22,
+  [`FIXES-K22.md`](tasks/kb-rag/FIXES-K22.md)): an organization policy in
+  Chrome's managed storage ([`ORG_POLICY.md`](security/ORG_POLICY.md)) is
+  read, validated and applied to every settings reader; KB card text stays
+  in the panel unless only demo packs are loaded or the policy approves the
+  destination; a request to a provider, origin or model off the policy's
+  lists is not sent; redaction is never weaker than Standard while an Apty
+  KB pack is loaded; the MCP bridge gets no KB text without `kbToMcp`; each
+  request that carried KB text is recorded (ids only). Tested in Chromium
+  through an E2E-only policy build (`tooling/e2e/policy-build.mjs`); not yet
+  run with a real Chrome policy file (FIXES-K22 "How to test").
 - KB retrieval (KB-RAG, K0 to K6, K8, K10 to K20): Options → Settings →
   General → Knowledge base imports one KB pack per Apty version (4.x, 5.x,
   common) that the KB owner builds with `pnpm kb:pack` (never in this
@@ -229,6 +240,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
 | 4.x check packs: confirm each rule against apty-assist and pin the commit (K21 F4, partial) | Someone with read access to aptyInc/apty-assist pins a `player3.0` commit and, for each rule, confirms the behaviour at the cited file and line: W4X-00 and W4X-01 (app-urls.json missing, failed or empty; `api/http.ts`), W4X-02 (environment pick by URL pattern; `shared/helpers/cdn-helpers.ts`), W4X-03 (regex URL flag; `feature-flag.effects.ts`), W4X-04 and W4X-05 (player or widget off in app-data.json; `cdn-helpers.ts`), C4X-00 and C4X-01 (flow.json missing, failed or empty), C4X-02 and C4X-03 (flow not published or hidden from the widget), C4X-04 (every segment inactive), C4X-05 (a segment's rule missing from rules.json), C4X-06 (the flow's steps file). Then the version line becomes "4.x code, apty-assist `<commit>` (`<player version>`); from code, not runtime-verified" and the 4.x confidence returns to "likely" (`FOUR_X_VERIFIED_ON`, `FOUR_X_CONFIDENCE` in `widget-not-visible-4x.ts`) |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
+| Organization policy on a real deployment (KB-RAG K22, partial) | Apty IT writes the policy (the recommended one is in [`ORG_POLICY.md`](security/ORG_POLICY.md)), deploys it to SE machines, and someone runs FIXES-K22's manual steps with a real Chrome policy file. The organization gateway (D-SEC7) is Apty IT's to build |
 | KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above; [`FIXES.md`](tasks/kb-rag/FIXES.md#status)). Still open: the KB owner builds the real 4.x (A4PKH, root 1509720081) and 5.x (JA, root 1496711169) packs, writes 60-question sets per version and runs `pnpm kb:eval --calibrate --by-category`; the D-KB8 numbers (ids only) go on the handbook page F15. The 4.x check packs' apty-assist citations are to be confirmed against a checkout, and the KB owner confirms the card each 4.x rule cites (`CARD_4X` in `cards-4x.ts`, K21 F3); the 4.x Client bridge ships in apty-assist ([`4X-BRIDGE.md`](integrations/apty/4X-BRIDGE.md)). K7 (dense vectors) waits on the real sets ([`kb-rag.md`](development/kb-rag.md)) |
 
 

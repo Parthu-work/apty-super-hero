@@ -371,7 +371,8 @@
     "stepLimit": "Reached the step limit for this turn before finishing.",
     "unknown": "Something went wrong with the request.",
     "details": "Details",
-    "openSettings": "Open AI provider settings"
+    "openSettings": "Open AI provider settings",
+    "destinationRefused": "Your organization does not allow this AI destination, so nothing was sent."
   },
   "conversationHistory": {
     "title": "Conversation History",
@@ -1178,6 +1179,27 @@
         "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
         "stale": "Loaded: {{count}} cards from space {{space}}, built {{date}}, {{days}} days ago.",
         "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base."
+      },
+      "orgPolicy": {
+        "label": "Organization policy",
+        "none": "None: no policy is set for this extension. KB text stays in the panel unless only demo packs are loaded.",
+        "active": "Active: set by your organization.",
+        "invalid": "Invalid: {{reason}}. No AI request is made and KB text is withheld until it is fixed.",
+        "invalidFix": "Ask IT to fix the policy for this extension (check chrome://policy), then reload policies."
+      },
+      "aiDestination": {
+        "label": "AI destination",
+        "noPolicy": "{{destination}}: no policy restricts it.",
+        "allowed": "{{destination}}: allowed by your organization.",
+        "refused": "{{destination}}: {{reason}}",
+        "refusedFix": "Choose a provider, host and model your organization allows in Settings → AI provider."
+      },
+      "kbToAi": {
+        "label": "KB text to AI",
+        "withheld": "Withheld: card text is shown in the panel only; the model gets the card ids.",
+        "allowed": "Allowed to {{destination}} by your organization's policy, and recorded in Data handling.",
+        "demo": "Demo packs only: card text goes to the model, as no Apty KB pack is loaded.",
+        "noPack": "No KB pack is loaded."
       }
     }
   },
@@ -1649,7 +1671,8 @@
     "tokenHintAfter": "and copy the token from that file. It is never shown in logs or exported from here.",
     "exposesBefore": "The bridge exposes",
     "exposesAnd": "and",
-    "exposesAfter": "over the MCP protocol, allowing external agents to use Apty Agent's browser automation tools."
+    "exposesAfter": "over the MCP protocol, allowing external agents to use Apty Agent's browser automation tools.",
+    "lockedOff": "Off. Your organization does not allow the MCP bridge, so it cannot connect."
   },
   "permissions": {
     "title": "Optional permissions",
@@ -2498,6 +2521,32 @@
     "nonEnglish": "The KB cards are in English. Ask in English, or send the question to the model.",
     "mixedVersions": "These cards are for different Apty versions; which does this tenant run?",
     "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
-    "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card."
+    "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card.",
+    "notSent": "Shown here only; not sent to the AI model.",
+    "sentTo": "Also sent to the AI model at {{destination}}."
+  },
+  "orgPolicy": {
+    "setByOrg": "Set by your organization",
+    "invalid": "Your organization's policy for this extension cannot be used: {{reason}}. Until IT fixes it, no AI request is made and KB text is withheld.",
+    "aiTitle": "AI provider",
+    "aiDescription": "Your organization sets some of these settings. Fields it sets cannot be changed here.",
+    "tokenSet": "A key is set",
+    "notSet": "Not set",
+    "save": "Save",
+    "saved": "Saved",
+    "provider": "Provider",
+    "redactionFloorPolicy": "Required by your organization: weaker modes cannot be chosen.",
+    "redactionFloorKbPack": "Required while an Apty KB pack is loaded: Off cannot be chosen.",
+    "destinationRefused": "This AI provider is not allowed by your organization. Allowed: {{allowed}}.",
+    "invalidNoRequests": "Your organization's policy for this extension cannot be used ({{reason}}), so no AI request is made until IT fixes it.",
+    "none": "none"
+  },
+  "kbEgressLog": {
+    "title": "KB text sent to AI",
+    "count": "Requests that carried KB card text in the last 30 days: {{count}}.",
+    "what": "Each record holds the time, the AI provider, origin and model, and the card ids and layers sent: never the card text, your question or the answer.",
+    "export": "Export (JSON)",
+    "clear": "Clear",
+    "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
   }
 }

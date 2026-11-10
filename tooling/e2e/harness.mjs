@@ -77,18 +77,20 @@ export function startPageServer(pages) {
 }
 
 /**
- * Launch Chromium with the built Agent extension and any `extraExtensions`
+ * Launch Chromium with the built Agent extension (or `extensionDir`, such
+ * as the E2E policy build from policy-build.mjs) and any `extraExtensions`
  * (directories). Resolves the Agent's extension id from its service worker.
  */
 export async function launchBrowser({
   extraExtensions = [],
   extraArgs = [],
+  extensionDir = EXTENSION_DIR,
 } = {}) {
-  if (!existsSync(join(EXTENSION_DIR, "manifest.json"))) {
+  if (!existsSync(join(extensionDir, "manifest.json"))) {
     throw new Error("Build the extension first (npm run build).");
   }
   const userDataDir = tempDir("apty-e2e-profile-");
-  const all = [EXTENSION_DIR, ...extraExtensions].join(",");
+  const all = [extensionDir, ...extraExtensions].join(",");
   const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath: chromiumPath(),
     // E2E_HEADED=1 shows the browser while debugging a test.

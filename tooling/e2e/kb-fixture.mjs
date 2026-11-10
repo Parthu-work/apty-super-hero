@@ -47,6 +47,14 @@ export const FIXTURE_PAGES = [
  */
 export const FIXTURE_COVERAGE = { min: 0.4, minIdf: 0.5, minTerms: 1 };
 
+/**
+ * A fixture pack's Confluence site. Under `.invalid` it is a demo pack, whose
+ * card text may reach the model with no policy (KB-RAG K22, D-SEC1); the
+ * suites that check KB text is withheld build theirs on NON_DEMO_SITE.
+ */
+export const DEMO_SITE = "fixture.atlassian.invalid";
+export const NON_DEMO_SITE = "synthetic.atlassian.example";
+
 /** Writes the synthetic pack to `dir` and returns its path and the pack. */
 export function writeFixturePack(
   dir,
@@ -55,11 +63,12 @@ export function writeFixturePack(
     coverage = FIXTURE_COVERAGE,
     aptyVersion = "5.x",
     space = "FX",
+    site = DEMO_SITE,
   } = {},
 ) {
   const { pack } = buildPack({
     pages,
-    site: "fixture.atlassian.net",
+    site,
     space,
     label: "rag-card",
     builtAt: new Date().toISOString(),

@@ -9,9 +9,9 @@ configure yourself.
 
 | Destination | What is sent | When |
 |---|---|---|
-| The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings. A check answered without the model (such as "my workflow is not visible") sends nothing itself; its result goes with your next message, masked like a tool result. With a KB pack imported, the text of the KB cards that a `search_kb` call or a KB matches answer returned, masked like any tool result: any message about Apty, the network, DevTools, selectors or a symptom can offer `search_kb`, and any message no check pack claims can get a KB matches answer, but never a bare how-to, a file request or casual chat. With **Summarize earlier turns** on (Settings → AI → Request size; off by default), one more request asks the model to summarize a long chat's earlier messages, masked the same way | Only while you chat. Nothing is sent before you configure a provider; checks that need no model run without one. |
+| The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings. A check answered without the model (such as "my workflow is not visible") sends nothing itself; its result goes with your next message, masked like a tool result. **Apty KB card text is not sent** (see [KB card text](#kb-card-text-and-your-organizations-policy)): a KB matches answer goes with your next message as "KB card text withheld by organization policy. Cards shown to the user: <ids>.", and `search_kb` is not offered, unless your organization's policy approves the destination or only demo packs are loaded. With **Summarize earlier turns** on (Settings → AI → Request size; off by default), one more request asks the model to summarize a long chat's earlier messages, masked the same way | Only while you chat. Nothing is sent before you configure a provider; checks that need no model run without one. |
 | The Apty Client extension you connect | Requests for its own service-worker logs, status and observed resources | Only when the agent investigates the Client. |
-| A local MCP daemon you connect (`localhost` only) | Tool results for the MCP client you run, such as Claude Code, filtered exactly like the results sent to the AI provider (see below) | Only while you keep the bridge connected. |
+| A local MCP daemon you connect (`localhost` only) | Tool results for the MCP client you run, such as Claude Code, filtered exactly like the results sent to the AI provider (see below). A KB result arrives as "KB result withheld by policy" with its card ids unless your organization's policy sets `kbToMcp` | Only while you keep the bridge connected, and never when your organization's policy turns the bridge off. |
 | A diagnostic HTTP endpoint built into your build (`VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT`) | Requests for service-worker diagnostics | Only if your build sets it; empty by default. |
 
 There is no analytics, telemetry, crash reporting or advertising. Apty does
@@ -30,6 +30,37 @@ A HAR file you pick on **Check a HAR file** is read in the side panel only:
 it is never stored or sent. "Ask about this result" there puts the check's
 result, not the file or its name, in a new chat as a chip, sent only when
 you press Send.
+
+## KB card text and your organization's policy
+
+The KB packs you import hold Apty's own internal knowledge. Its text stays in
+the side panel: the KB matches card and the "From the KB card" excerpt show
+it to you, with the line "Shown here only; not sent to the AI model." The
+model gets the ids of the cards you were shown, never their text.
+
+KB card text goes to the model only when:
+
+- every loaded pack is a demo pack (its Confluence site ends in `.invalid`),
+  so developers can test the full path; or
+- your organization's IT has set a policy for this extension
+  ([docs/security/ORG_POLICY.md](docs/security/ORG_POLICY.md)) that sets
+  `kbToModel` to `"approved"`, and the request goes to a provider, origin and
+  model the policy allows. The KB matches card then names that destination.
+
+Each request that carries KB text is recorded on your device: the time, the
+provider, origin and model, and the ids and layers of the cards sent (never
+their text, your question or the answer). **Settings → General → Data
+handling → KB text sent to AI** shows the count for the last 30 days and can
+export the record. The record is kept for the policy's retention (30 days by
+default); under a policy it cannot be cleared.
+
+A policy set by your organization also wins over your own settings: a field
+it sets is shown read-only with "Set by your organization", a request to a
+provider, origin or model outside its allow-lists is not sent (the chat says
+which are allowed), and a policy that cannot be read or is malformed stops
+every AI request until IT fixes it. Without a policy, the extension behaves
+as before, except that KB text stays in the panel and redaction is never
+weaker than Standard while an Apty KB pack is loaded.
 
 ## What your AI provider keeps
 
@@ -60,7 +91,10 @@ regulated data:
 
 Every tool result goes through the same filter before it reaches the AI
 provider or an MCP client. Its strength is set in **Settings → General →
-Data handling → Redaction**:
+Data handling → Redaction**. While a KB pack that is not a demo pack is
+loaded, the mode in force is never weaker than Standard (Off cannot be
+chosen), and your organization's policy can require Strict or Standard;
+Options says which applies:
 
 | | Strict (default) | Standard | Off (development only) |
 |---|---|---|---|
@@ -165,6 +199,7 @@ must not reach your AI provider.
 | Evidence and investigations from the current session | `chrome.storage.session` | Cleared when the browser closes |
 | Remembered approvals ("Allow on this site for 15 min") | `chrome.storage.local` | 15 minutes, or until revoked |
 | The KB packs you import (Apty's internal RAG Answer Cards), one per Apty version (4.x, 5.x, common) | The extension's IndexedDB (`apty-kb-db`) | Until you remove or replace each in Settings → General → Knowledge base, or remove the extension |
+| The record of requests that carried KB text: time, provider, origin, model, card ids and layers, pack versions (never text) | The extension's IndexedDB (`apty-kb-egress-db`) | Your organization's `auditRetentionDays`, 30 days by default; Clear in Data handling when no policy is set |
 | The Apty content calls a page network capture saw, with their whole redacted bodies (for the checks; **Capture and reload** makes one on click) | The service worker's memory | 15 minutes after the capture stops, or until the browser closes |
 | A HAR file you check, including one saved from the 4.x Client's service worker | The side panel's memory | While the HAR page is open |
 

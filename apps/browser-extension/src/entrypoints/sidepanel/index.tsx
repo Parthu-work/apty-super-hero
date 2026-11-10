@@ -1,15 +1,22 @@
-import type { AppSettings } from "@apty/agent-core";
-import { createLogger, STORAGE_KEYS } from "@apty/agent-core";
-import { ChromeStorageAdapter, zenfs } from "@apty/browser-runtime";
+import { createLogger } from "@apty/agent-core";
+import { zenfs } from "@apty/browser-runtime";
+import { loadSettings } from "@apty/browser-runtime/runtime/effective-settings";
 import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { quickjs } from "@apty/browser-runtime/vm/quickjs-manager";
 import { applyRememberedTheme } from "@apty/ui/theme/index";
 import { renderChatApp } from "../../components/app-root";
 import { initLogging } from "../../lib/logging";
+import { kbEgressLog } from "../../services/kb-egress-log";
+import { installOrgPolicySource } from "../../services/org-policy";
 
 const log = createLogger("Sidepanel");
 
+installOrgPolicySource();
 initLogging();
+// The KB send record keeps only the policy's retention (D-SEC6).
+void kbEgressLog()
+  .prune()
+  .catch(() => undefined);
 applyRememberedTheme();
 // Read the redaction mode now, so the first tool result is redacted in it.
 void getRedactionMode();
@@ -22,9 +29,7 @@ void getRedactionMode();
 // sandbox resident, for a feature that's off.
 const initializeVM = async () => {
   try {
-    const settings = await new ChromeStorageAdapter<AppSettings>().load(
-      STORAGE_KEYS.SETTINGS,
-    );
+    const settings = await loadSettings();
     if (settings?.skillExecutionEnabled !== true) {
       log.debug("Skill execution disabled, skipping VM init");
       return;

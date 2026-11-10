@@ -44,14 +44,13 @@
  * inventing history either way.
  */
 
-import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
 import { MAX_REDACT_INPUT_LENGTH } from "@apty/debug-contract";
+import { loadSettings } from "../runtime/effective-settings.js";
 import {
   getRedactionMode,
   redactLargeJson,
   redactText,
 } from "../runtime/redaction-mode.js";
-import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { recordEvidence } from "./evidence-store.js";
 import {
   type JsonBodySummary,
@@ -721,13 +720,9 @@ export interface InspectResourceResult {
   error?: string;
 }
 
-const settingsStorage = new ChromeStorageAdapter<AppSettings>();
-
 /** Settings → Data handling's body deny list, which covers Apty Client bodies as well as page capture. */
 export async function loadBodyDenyList(): Promise<readonly string[]> {
-  const settings = await settingsStorage
-    .load(STORAGE_KEYS.SETTINGS)
-    .catch(() => null);
+  const settings = await loadSettings().catch(() => null);
   return settings?.networkBodyCaptureDenyList ?? [];
 }
 

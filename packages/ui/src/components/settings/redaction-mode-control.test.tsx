@@ -13,6 +13,40 @@ afterEach(() => {
 const fakePreview = (text: string, mode: string) => `[${mode}] ${text.length}`;
 
 describe("RedactionModeControl", () => {
+  it("disables Off while a KB pack is loaded, and says why (D-SEC3)", () => {
+    const onChange = vi.fn();
+    render(
+      <RedactionModeControl
+        mode="standard"
+        onChange={onChange}
+        floor={{ mode: "standard", reason: "kb-pack" }}
+      />,
+    );
+    const off = screen.getByLabelText("Off (development only)");
+    expect(off).toBeDisabled();
+    expect(off).toHaveAccessibleDescription(
+      /Required while an Apty KB pack is loaded/,
+    );
+    expect(screen.getByLabelText("Strict (recommended)")).toBeEnabled();
+    fireEvent.click(off);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("leaves only Strict under a strict policy floor", () => {
+    render(
+      <RedactionModeControl
+        mode="strict"
+        onChange={vi.fn()}
+        floor={{ mode: "strict", reason: "policy" }}
+      />,
+    );
+    expect(screen.getByLabelText("Standard")).toBeDisabled();
+    expect(screen.getByLabelText("Off (development only)")).toBeDisabled();
+    expect(screen.getByTestId("redaction-floor-note")).toHaveTextContent(
+      "Required by your organization",
+    );
+  });
+
   it("offers the three modes with the current one selected", () => {
     render(<RedactionModeControl mode="standard" onChange={vi.fn()} />);
 

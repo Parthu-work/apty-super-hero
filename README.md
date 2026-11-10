@@ -54,6 +54,7 @@ On first use, open the side panel: the composer's "Set up AI provider" chip and 
 - Grounds the model's answers in the cards: `search_kb`, citations that link to each card, and a check that marks setting names the cited cards do not hold.
 - Says "not covered" for a question the cards do not answer, names a setting no card has, and points to a card whose text is not written yet.
 - Runs entirely in the browser from a pack file each SE imports per Apty version; no card text is ever in this public repository.
+- Keeps card text in the side panel: it reaches an AI model only when your organization's policy approves the destination (or only demo packs are loaded), and each request that carries it is recorded. IT sets the policy in Chrome's managed storage: [`docs/security/ORG_POLICY.md`](docs/security/ORG_POLICY.md).
 
 Design, lifecycle, evaluation and troubleshooting: [`docs/development/kb-rag.md`](docs/development/kb-rag.md). The extension's KB surfaces: [`apps/browser-extension/README.md`](apps/browser-extension/README.md#knowledge-base). 4.x tenants: [`docs/integrations/apty/README.md`](docs/integrations/apty/README.md#4x-tenants).
 

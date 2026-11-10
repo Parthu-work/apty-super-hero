@@ -111,6 +111,10 @@ describe("PreflightPanel", () => {
       pageTab: async () => null,
       bridgeRegistered: async () => true,
       clipboardPermission: async () => "granted",
+      orgPolicy: async () => ({ kind: "none" }),
+      kbEgress: async () => ({
+        decision: { allowed: false, reason: "no-pack" },
+      }),
     } as unknown as PreflightDeps;
     const languageStorage = {
       load: vi.fn().mockResolvedValue("zh"),

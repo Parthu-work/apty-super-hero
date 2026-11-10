@@ -8,7 +8,7 @@
  * e.g. "check DOM health" or "why is the readiness score low" — it must
  * never invent a different score, only report what this tool returns.
  */
-import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import type { DomHealthAuditOutcome } from "../apty/dom-health.js";
 import { REDACTED_TITLE } from "../apty/dom-health-redaction.js";
@@ -18,7 +18,7 @@ import {
   runApplicationDomHealthAudit,
   runDomHealthAudit,
 } from "../apty/index.js";
-import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
+import { loadSettings } from "../runtime/effective-settings.js";
 import { gateRiskyAction } from "./approval.js";
 import {
   describeTabForMeta,
@@ -35,16 +35,12 @@ function describeTabForReport(tab: chrome.tabs.Tab) {
   };
 }
 
-const settingsStorage = new ChromeStorageAdapter<AppSettings>();
-
 /** Settings → Troubleshooting: overlays the user added to DOM Health's built-in exclusion list, and Developer tools' threshold overrides. */
 async function userAuditSettings(): Promise<{
   ignoredRoots: string[];
   thresholdOverrides: Record<string, number> | undefined;
 }> {
-  const settings = await settingsStorage
-    .load(STORAGE_KEYS.SETTINGS)
-    .catch(() => null);
+  const settings = await loadSettings().catch(() => null);
   return {
     ignoredRoots: settings?.domHealthIgnoredRoots ?? [],
     thresholdOverrides:

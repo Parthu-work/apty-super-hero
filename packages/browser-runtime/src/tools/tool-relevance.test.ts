@@ -14,9 +14,8 @@ import { describe, expect, it } from "vitest";
 };
 
 const { allBrowserTools, browserToolGroups } = await import("./index.js");
-const { createStickyToolSelector, selectRelevantTools } = await import(
-  "./tool-relevance.js"
-);
+const { createStickyToolSelector, selectRelevantTools, withoutKbSearch } =
+  await import("./tool-relevance.js");
 
 function names(tools: { name: string }[]): string[] {
   return tools.map((t) => t.name).sort();
@@ -314,5 +313,17 @@ describe("search_kb (KB-RAG K4)", () => {
     const select = createStickyToolSelector();
     select("the workflow is not showing in the widget", "s-kb");
     expect(names(select("ok, and then?", "s-kb"))).toContain("search_kb");
+  });
+});
+
+describe("withoutKbSearch (KB-RAG K22)", () => {
+  it("drops search_kb and keeps every other tool", () => {
+    const tools = selectRelevantTools(
+      "the Apty widget does not show on this page",
+    );
+    expect(tools.map((t) => t.name)).toContain("search_kb");
+    const without = withoutKbSearch(tools);
+    expect(without.map((t) => t.name)).not.toContain("search_kb");
+    expect(without).toHaveLength(tools.length - 1);
   });
 });

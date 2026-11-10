@@ -106,7 +106,13 @@ export class ConversationCompressor {
     };
   }
 
-  private async generateSummary(items: AgentInputItem[]): Promise<string> {
+  private async generateSummary(source: AgentInputItem[]): Promise<string> {
+    let items = source;
+    for (const filter of this.outboundFilters) {
+      if (filter.onSummarySource) {
+        items = await filter(items, { purpose: "summary", tools: [] });
+      }
+    }
     // One message per turn, the ask last: a request budget can then leave
     // out the oldest turns instead of failing on one oversized message.
     const lines = items.flatMap((item): string[] => {
@@ -135,7 +141,11 @@ export class ConversationCompressor {
     const result = await run(this.agent, input, {
       callModelInputFilter: async ({ modelData }) => {
         let input = modelData.input;
-        const request = { instructions: modelData.instructions, tools: [] };
+        const request = {
+          purpose: "summary" as const,
+          instructions: modelData.instructions,
+          tools: [],
+        };
         for (const filter of this.outboundFilters) {
           input = await filter(input, request);
         }

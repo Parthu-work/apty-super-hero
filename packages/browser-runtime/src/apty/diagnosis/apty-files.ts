@@ -6,8 +6,7 @@
  * Client answers at all.
  */
 
-import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
-import { ChromeStorageAdapter } from "../../storage/storage-adapter.js";
+import { loadSettings } from "../../runtime/effective-settings.js";
 import {
   type CdnResourceSource,
   createCdnResourceSource,
@@ -215,13 +214,9 @@ export function createAptyFiles(readers: AptyFilesReaders) {
   return { cdnFor, clientIdFor, files };
 }
 
-const settingsStorage = new ChromeStorageAdapter<AppSettings>();
-
 /** Settings → Apty Integration's content CDN fallback: on unless turned off. */
 async function loadAptyCdnFallback(): Promise<boolean> {
-  const settings = await settingsStorage
-    .load(STORAGE_KEYS.SETTINGS)
-    .catch(() => null);
+  const settings = await loadSettings().catch(() => null);
   return settings?.aptyCdnFallback !== false;
 }
 

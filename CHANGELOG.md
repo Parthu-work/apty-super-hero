@@ -6,6 +6,17 @@ full commit-level history.
 
 ## Unreleased
 
+- **KB-RAG K22: KB text leaves only to an approved destination** ([`FIXES-K22.md`](docs/tasks/kb-rag/FIXES-K22.md); owner decisions D-SEC1 to D-SEC7):
+  - **S1**: an organization policy in Chrome's managed storage (`managed-schema.json`, named by the manifest's `storage.managed_schema`), parsed strictly; one that cannot be read or does not parse acts as the most restrictive policy.
+  - **S2**: every settings reader gets the settings with the policy applied (`loadEffectiveSettings()`, `npm run audit:settings-readers`); Options shows a policy-set field read-only with "Set by your organization", and a write to it is ignored.
+  - **S4**: KB card text is withheld from the model by default: `search_kb` is not offered, and a KB matches answer goes as "KB card text withheld by organization policy. Cards shown to the user: <ids>.", unless only demo packs are loaded or the policy sets `kbToModel: "approved"` for the destination. The KB matches card says whether its text is sent.
+  - **S3**: a request to a provider, origin or model outside the policy's allow-lists is not sent (chat, custom models, the summary model, the connection test, Fetch models); the chat names what is allowed.
+  - **S5**: redaction is never weaker than Standard while an Apty KB pack (not a demo pack) is loaded; a policy can require Strict.
+  - **S6**: the MCP bridge gets no KB text unless the policy sets `kbToMcp`, and does not connect with `allowMcpBridge: false`.
+  - **S7**: each model request that carried KB text is recorded on the device (ids, never text), shown in Data handling with Export; under a policy it cannot be cleared.
+  - **S8**: Preflight rows for the organization policy, the AI destination and KB text to AI; [`docs/security/ORG_POLICY.md`](docs/security/ORG_POLICY.md).
+  - The E2E fixture packs are demo packs (`fixture.atlassian.invalid`); E2E tests set a policy only through an E2E-only build, and `npm run build` fails if the production `dist/` holds that seam.
+
 - **KB-RAG K10–K20: a RAG that answers from the cards, for 4.x and 5.x** ([`FIXES.md`](docs/tasks/kb-rag/FIXES.md); owner decisions D-KB6 to D-KB9):
   - **K13**: 4.x and 5.x are told apart by the files only one player reads; `app-urls.json` and `app-data.json` no longer mark a tenant as 5.x.
   - **K10**: a schema 2 pack decides "not covered" by a length-independent, idf-weighted coverage of the question by the top card, plus a setting-name guard (`unknown_setting` with the missing phrase); fuzzy matching only for unseen words of 6+ characters, prefixes from 4. `kb:eval --calibrate` grid-searches the coverage settings; `kb:pack --coverage-min --coverage-min-idf`. Schema 1 packs search exactly as before.

@@ -4,6 +4,7 @@ import type {
   KbImportResult,
   KbPackInfo,
   KeyValueStorage,
+  RedactionFloor,
   RedactionModeSetting,
   RequestReport,
   ToolCallingSupport,
@@ -59,6 +60,30 @@ export interface SettingsPageProps {
   recentRequests?: RequestReport[];
   /** The KB pack store; when provided the Knowledge base card is shown. */
   knowledgeBase?: KnowledgeBaseAdapter;
+  /** What the organization policy sets (KB-RAG K22); absent shows nothing locked. */
+  orgPolicy?: OrgPolicyView;
+  /** The record of KB text sent to AI (KB-RAG K22, S7); shown in Data handling when given. */
+  kbEgressLog?: KbEgressLogAdapter;
+}
+
+/** The record of requests that carried KB text; the host app keeps it. */
+export interface KbEgressLogAdapter {
+  countLast30Days(): Promise<number>;
+  exportJson(): Promise<string>;
+  clearAllowed(): Promise<boolean>;
+  clear(): Promise<void>;
+}
+
+/** The organization policy as Options shows it; the host app reads it. */
+export interface OrgPolicyView {
+  /** The effective settings: the stored ones with the policy applied. */
+  settings: AppSettings;
+  /** Fields the policy sets: read-only, with "Set by your organization". */
+  locked: ReadonlySet<keyof AppSettings>;
+  /** Why the policy cannot be used, when it is invalid. */
+  invalidReason?: string;
+  /** The weakest redaction mode allowed, and why. */
+  redactionFloor?: RedactionFloor;
 }
 
 /** Reads, imports and removes the KB packs this browser holds, one per Apty version; supplied by the host app. */

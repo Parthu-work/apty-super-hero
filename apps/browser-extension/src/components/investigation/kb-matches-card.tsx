@@ -16,6 +16,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
+import { KbEgressNote } from "./kb-egress-note";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
 const CITE = /^kb:\/\/(\d+)#L([1-4])$/;
@@ -191,6 +192,7 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
       <p className="text-xs text-muted-foreground">
         {t("kbMatches.provenance")}
       </p>
+      <KbEgressNote />
     </section>
   );
 }

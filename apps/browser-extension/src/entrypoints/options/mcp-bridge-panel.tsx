@@ -3,7 +3,12 @@
  * UI for connecting/disconnecting the extension to the apty-mcp-bridge.
  */
 
+import { mcpBridgeAllowed } from "@apty/agent-core";
 import type { WsMcpServerState } from "@apty/browser-runtime";
+import {
+  loadOrgPolicy,
+  watchOrgPolicy,
+} from "@apty/browser-runtime/runtime/org-policy";
 import { Alert, AlertDescription } from "@apty/ui/components/ui/alert";
 import { StatusBadge, type StatusTone } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
@@ -18,7 +23,7 @@ import { Input } from "@apty/ui/components/ui/input";
 import { Label } from "@apty/ui/components/ui/label";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { TranslationKey } from "@apty/ui/i18n/types";
-import { Cable, Loader2, XCircle } from "lucide-react";
+import { Building2, Cable, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 const DEFAULT_URL = "ws://localhost:9223";
@@ -44,8 +49,26 @@ const STATUS_TONE: Record<ConnectionStatus, StatusTone> = {
 // implementation detail, not part of its public API surface.
 const STORAGE_KEY_WS_TOKEN = "ws-mcp-token";
 
+/** Whether the organization policy lets the bridge connect (KB-RAG K22, S6); undefined until read. */
+function useMcpBridgeAllowed(): boolean | undefined {
+  const [allowed, setAllowed] = useState<boolean>();
+  useEffect(() => {
+    let live = true;
+    void loadOrgPolicy().then((state) => {
+      if (live) setAllowed(mcpBridgeAllowed(state));
+    });
+    const stop = watchOrgPolicy((state) => setAllowed(mcpBridgeAllowed(state)));
+    return () => {
+      live = false;
+      stop();
+    };
+  }, []);
+  return allowed;
+}
+
 export function McpBridgePanel() {
   const { t } = useTranslation();
+  const allowed = useMcpBridgeAllowed();
   const [url, setUrl] = useState(DEFAULT_URL);
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -152,67 +175,81 @@ export function McpBridgePanel() {
           </p>
         )}
 
-        <div className="space-y-2">
-          <Label htmlFor="mcp-bridge-url">{t("mcpBridge.url")}</Label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              id="mcp-bridge-url"
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={DEFAULT_URL}
-              disabled={isBusy}
-              className="flex-1"
-            />
-            {status === "connected" ? (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDisconnect}
-              >
-                {t("aptyPeer.disconnect")}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onClick={handleConnect}
-                disabled={
-                  status === "connecting" || !url.trim() || !token.trim()
-                }
-              >
-                {status === "connecting" && (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                )}
-                {t(
-                  status === "connecting"
-                    ? "aptyPeer.connecting"
-                    : "aptyPeer.connect",
-                )}
-              </Button>
-            )}
+        {allowed === false ? (
+          <div className="space-y-1" data-testid="mcp-bridge-locked">
+            <p className="text-sm font-medium">{t("mcpBridge.lockedOff")}</p>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Building2 className="h-3 w-3" aria-hidden="true" />
+              {t("orgPolicy.setByOrg")}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {t("mcpBridge.localhostOnly")}
-          </p>
-        </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="mcp-bridge-url">{t("mcpBridge.url")}</Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="mcp-bridge-url"
+                  type="text"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder={DEFAULT_URL}
+                  disabled={isBusy}
+                  className="flex-1"
+                />
+                {status === "connected" ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleDisconnect}
+                  >
+                    {t("aptyPeer.disconnect")}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={handleConnect}
+                    disabled={
+                      status === "connecting" || !url.trim() || !token.trim()
+                    }
+                  >
+                    {status === "connecting" && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                    {t(
+                      status === "connecting"
+                        ? "aptyPeer.connecting"
+                        : "aptyPeer.connect",
+                    )}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("mcpBridge.localhostOnly")}
+              </p>
+            </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="mcp-bridge-token">{t("mcpBridge.token")}</Label>
-          <Input
-            id="mcp-bridge-token"
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder={t("mcpBridge.tokenPlaceholder")}
-            disabled={isBusy}
-          />
-          <p className="text-xs text-muted-foreground">
-            {t("mcpBridge.tokenHintBefore")}{" "}
-            <code>node apps/mcp-bridge/dist/daemon.js --print-token-path</code>{" "}
-            {t("mcpBridge.tokenHintAfter")}
-          </p>
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="mcp-bridge-token">{t("mcpBridge.token")}</Label>
+              <Input
+                id="mcp-bridge-token"
+                type="password"
+                autoComplete="off"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder={t("mcpBridge.tokenPlaceholder")}
+                disabled={isBusy}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("mcpBridge.tokenHintBefore")}{" "}
+                <code>
+                  node apps/mcp-bridge/dist/daemon.js --print-token-path
+                </code>{" "}
+                {t("mcpBridge.tokenHintAfter")}
+              </p>
+            </div>
+          </>
+        )}
 
         {error && (
           <Alert variant="destructive">

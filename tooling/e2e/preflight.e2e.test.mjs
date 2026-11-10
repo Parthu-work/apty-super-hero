@@ -114,6 +114,10 @@ describe("preflight (C2)", () => {
         Object.entries(checks).map(([id, c]) => [id, c.status]),
       ),
       {
+        // KB-RAG K22: no organization policy and no KB pack are not faults.
+        "org-policy": "info",
+        "ai-destination": "info",
+        "kb-to-ai": "info",
         "ai-provider": "pass",
         "apty-client": "pass",
         "agent-id": "pass",
@@ -132,6 +136,11 @@ describe("preflight (C2)", () => {
       /mock-model answered in \d+ ms and calls tools/,
     );
     assert.match(checks["bound-tab"].text, /all 2 frame\(s\) answer/);
+    assert.match(checks["org-policy"].text, /no policy is set/);
+    assert.match(
+      checks["ai-destination"].text,
+      /custom, http:\/\/127\.0\.0\.1:\d+, mock-model: no policy restricts it/,
+    );
     assert.match(checks["agent-id"].text, new RegExp(AGENT_EXTENSION_ID));
     await options.getByText("All checks passed.").waitFor();
     await options.close();

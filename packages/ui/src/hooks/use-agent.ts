@@ -134,6 +134,9 @@ export function useAgent({
   const aiToken = settings.aiToken;
   const aiModel = settings.aiModel;
   const aiProvider = settings.aiProvider;
+  // A new host is a new destination: the organization policy checks it
+  // when the model is built (KB-RAG K22).
+  const aiHost = settings.aiHost;
   const summarizeEarlierTurns = settings.summarizeEarlierTurns;
   const summaryModel = settings.summaryModel;
 
@@ -166,6 +169,7 @@ export function useAgent({
       aiToken,
       aiModel,
       aiProvider,
+      aiHost,
       summarizeEarlierTurns,
       summaryModel,
     };
@@ -235,6 +239,7 @@ export function useAgent({
     aiToken,
     aiModel,
     aiProvider,
+    aiHost,
     summarizeEarlierTurns,
     summaryModel,
     instructions,

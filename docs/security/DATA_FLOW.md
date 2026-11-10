@@ -20,37 +20,62 @@ and passes the same steps, in this order, before it leaves the browser:
    `applyResultPrivacy` before it is kept in the session, and a failed call's
    error text is redacted where it is read (`quotedErrorText`). Nothing is
    sent for the answer itself; it goes with the next model request.
-3. **KB card text** (KB-RAG) reaches the model only as a `search_kb` result
-   (`packages/browser-runtime/src/tools/kb.ts`, wrapped like every tool) or as
-   the KB matches answer the responder keeps in the session (step 2), at
-   most 4,000 characters of the imported pack's text per result. The pack
-   comes from IndexedDB (`apty-kb-db`, one pack per Apty version); nothing is
-   fetched. `applyResultPrivacy` keeps a whole `kb://<digits>#L<1-4>`
-   citation as it is and masks the rest as usual; a hit names its card's
-   Confluence site and space rather than a URL, so the URL policy does not
-   take it for a visited page. Since K16 the KB matches answer covers any
-   message no check pack claims (not only short symptom phrases), and
-   `search_kb` is offered with any Apty, network, DevTools, selector or
-   symptom question, so card text reaches the provider in more chats than
-   before; never for a bare how-to, a file request or casual chat.
+3. **KB card text** (KB-RAG) is withheld from the model by default (KB-RAG
+   K22, D-SEC1). It can only ever be in a request as a `search_kb` result
+   (`packages/browser-runtime/src/tools/kb.ts`) or as the KB matches answer
+   the responder keeps in the session (step 2), at most 4,000 characters of
+   the imported pack's text per result. Each such result carries the KB
+   source tag (`source: "kb"` and its card ids and layers,
+   `packages/agent-core/src/kb/egress.ts`), set where it is made
+   (`kbToolResult`). The first outbound filter (step 5.1) replaces every
+   tagged result's text with "KB card text withheld by organization policy.
+   Cards shown to the user: <ids>." unless `kbEgressAllowed` allows it: only
+   when every loaded pack is a demo pack (its site ends in `.invalid`), or
+   an organization policy sets `kbToModel: "approved"` and the request's
+   destination is on its allow-lists ([ORG_POLICY.md](ORG_POLICY.md)). When
+   KB text may not go, `search_kb` is not offered at all, and its prompt
+   section is left out. The pack comes from IndexedDB (`apty-kb-db`, one
+   pack per Apty version); nothing is fetched. When card text is allowed,
+   `applyResultPrivacy` keeps a whole `kb://<digits>#L<1-4>` citation as it
+   is and masks the rest as usual; a hit names its card's Confluence site and
+   space rather than a URL, so the URL policy does not take it for a visited
+   page.
 4. **Attached contexts** (page, tab, HAR or DOM Health chips) are worded under
    the URL and title policy (`formatContextsPrivately`,
    `apps/browser-extension/src/hooks/outbound-filters.ts`).
 5. **The outbound filters** (`createOutboundFilters`, same file) run on the
    whole request on every model call:
-   1. `createOutboundSanitizer`: tool results redacted in the current mode,
-      user messages' structural secrets masked in Strict and Standard.
-   2. `createRequestBudgetFilter`: a result over 2,000 tokens is cut, and
+   1. `createKbEgressFilter` (`packages/browser-runtime/src/runtime/kb-egress.ts`):
+      withholds tagged KB text as in step 3, failing closed when the check
+      cannot run. A request that leaves with KB text is recorded first
+      (`apps/browser-extension/src/services/kb-egress-log.ts`: time,
+      provider, origin, model, card ids and layers, pack versions and
+      sha256 values, chat or summary; never text); if the record cannot be
+      written, the KB text does not go.
+   2. `createOutboundSanitizer`: tool results redacted in the effective
+      mode, user messages' structural secrets masked in Strict and Standard.
+      The effective mode is never weaker than Standard while a non-demo KB
+      pack is loaded, nor than an organization policy's `redactionFloor`
+      (D-SEC3; `effectiveSettings`, `packages/agent-core/src/config/effective-settings.ts`).
+   3. `createRequestBudgetFilter`: a result over 2,000 tokens is cut, and
       results older than the newest 4 become stubs.
-   3. `createContextBudgetFilter`: the request budget from Settings, if set.
-   4. `createRequestReportFilter`: counts only, kept in
+   4. `createContextBudgetFilter`: the request budget from Settings, if set.
+   5. `createRequestReportFilter`: counts only, kept in
       `chrome.storage.session` for the Data handling card.
 6. **The provider wrapper** (`apps/browser-extension/src/services/ai-provider.ts`)
-   adds `store: false` for OpenAI and cache breakpoints for Anthropic.
+   refuses a destination an organization policy does not allow, before any
+   request: `createAIProvider` checks the provider, origin and model when it
+   is built and for each model id, and its `fetch` checks every request
+   again against the policy as read then (D-SEC4). An invalid policy allows
+   no destination. The wrapper also adds `store: false` for OpenAI and cache
+   breakpoints for Anthropic.
 
 The summary request of **Summarize earlier turns** (off by default) runs the
 same outbound filters inside `ConversationCompressor`
-(`packages/agent-core/src/conversation/compressor.ts`). It carries the
+(`packages/agent-core/src/conversation/compressor.ts`); the KB filter also
+runs over the earlier turns before they become the summary request's text,
+so a KB matches answer in them is withheld the same way, judged for the
+summary model. It carries the
 earlier user and assistant messages and the results of checks answered
 without the model, never other tool results. It goes to the same provider with the
 same key; only its model id can differ (`summaryModel`, by default
@@ -63,7 +88,12 @@ default); a denied screenshot sends no image.
 
 The local bridge (`apps/mcp-bridge`) receives tool results after the same
 masking, in the same redaction mode, as PRIVACY.md states. It never
-receives chat messages.
+receives chat messages. A tool result with the KB source tag reaches it as
+"KB result withheld by policy. Cards: <ids>." unless an organization policy
+sets `kbToMcp: true` (D-SEC5; `resultForMcp` in
+`packages/browser-runtime/src/ws-bridge/ws-mcp-server.ts`); `search_kb` is
+not among the tools the bridge publishes. With `allowMcpBridge: false` the
+extension opens no connection to the bridge.
 
 ## To the Apty Client and Studio
 
@@ -107,9 +137,11 @@ is made.
   open in this tab", and only matched locally.
 - A KB pack: read from the file you pick in Options and kept in IndexedDB,
   one per Apty version (4.x, 5.x, common).
-  Only the chunks a search returns go to the model (above); the verdict
-  card's "From the KB card" and the KB matches card show it in the panel
-  only. The pack builder (`tooling/scripts/kb/build-kb-pack.mjs`) is the
+  Its text goes to the model only as step 3 allows; the verdict card's
+  "From the KB card" excerpt never enters the session, and the KB matches
+  card says whether its text goes and where.
+- The record of KB text sent (`apty-kb-egress-db`): ids, never text; saved
+  only when you click Export. The pack builder (`tooling/scripts/kb/build-kb-pack.mjs`) is the
   only code that talks to Confluence, run by the KB owner, not the extension.
 
 ## Kept on the device
@@ -128,5 +160,10 @@ way out, every time.
   messages, typed values, screenshots and the request reports.
 - `tooling/e2e/request-limits.e2e.test.mjs`: the summary request is masked.
 - `tooling/e2e/kb-answer.e2e.test.mjs`: a `search_kb` result reaches the model
-  with its citation; `kb-matches.e2e.test.mjs`: the KB matches card makes no
-  model request.
+  with its citation from a demo pack, and is withheld (and `search_kb` not
+  offered) once a non-demo pack is loaded; `kb-matches.e2e.test.mjs`: the KB
+  matches card makes no model request, and a non-demo pack's excerpt goes
+  as card ids only.
+- `tooling/e2e/org-policy.e2e.test.mjs` (the E2E-only policy build): locked
+  fields, a refused AI host gets no request, the MCP bridge kept off, and
+  KB text to an approved destination with its send record.

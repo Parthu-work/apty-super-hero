@@ -53,3 +53,6 @@ keys.json
 # (docs/tasks/kb-rag/MASTER.md, rule 2). `npm run audit:kb-pack` fails on them.
 *.kbpack.json
 kb-pack*/
+
+# The E2E-only policy build (tooling/e2e/policy-build.mjs)
+apps/browser-extension/dist-e2e/
