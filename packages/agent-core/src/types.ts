@@ -158,6 +158,8 @@ export type LocalResponder = (
 
 /** What a call sends besides its input items. */
 export interface OutboundRequestContext {
+  /** "summary" for the Summarize earlier turns request; absent or "chat" otherwise. */
+  purpose?: "chat" | "summary";
   instructions?: string;
   tools: ReadonlyArray<{
     name: string;
@@ -167,10 +169,17 @@ export interface OutboundRequestContext {
 }
 
 /** Returns the items to send; must not drop a function_call or its result. */
-export type OutboundFilter = (
+export type OutboundFilter = ((
   items: AgentInputItem[],
   request: OutboundRequestContext,
-) => AgentInputItem[] | Promise<AgentInputItem[]>;
+) => AgentInputItem[] | Promise<AgentInputItem[]>) & {
+  /**
+   * Also run over the conversation a summary is written from, before it is
+   * turned into the summary request's text (the KB filter, KB-RAG K22):
+   * that text no longer carries the tags the filter acts on.
+   */
+  readonly onSummarySource?: boolean;
+};
 
 /**
  * Counts and estimated tokens (characters / 4) of one model request. Holds no

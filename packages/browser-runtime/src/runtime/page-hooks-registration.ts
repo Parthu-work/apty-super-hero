@@ -11,6 +11,10 @@
  * Registrations persist across browser sessions.
  */
 import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
+import {
+  loadSettings as loadEffective,
+  watchEffectiveSettings,
+} from "./effective-settings.js";
 
 export const CONSOLE_BRIDGE_SCRIPT_ID = "apty-console-bridge";
 export const CONSOLE_BRIDGE_FILE = "content/console-bridge.js";
@@ -141,8 +145,7 @@ async function loadSettings(): Promise<
   AppSettings | null | typeof SETTINGS_UNREADABLE
 > {
   try {
-    const stored = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
-    return (stored?.[STORAGE_KEYS.SETTINGS] as AppSettings | undefined) ?? null;
+    return await loadEffective();
   } catch {
     return SETTINGS_UNREADABLE;
   }
@@ -194,18 +197,21 @@ export function reconcilePageHooks(
 /** Reconcile now and whenever the switch or the excluded-sites list changes. */
 export function watchPageHookSettings(): void {
   void reconcilePageHooks();
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") return;
-    const change = changes[STORAGE_KEYS.SETTINGS];
-    if (!change) return;
-    const before = change.oldValue as PageHookSettings | undefined;
-    const after = change.newValue as PageHookSettings | undefined;
+  let before: PageHookSettings | undefined;
+  void loadEffective()
+    .then((settings) => {
+      before ??= settings;
+    })
+    .catch(() => undefined);
+  watchEffectiveSettings(({ settings: after }) => {
+    const previous = before;
+    before = after;
     if (
-      pageHooksEnabled(before ?? null) !== pageHooksEnabled(after ?? null) ||
-      JSON.stringify(before?.pageHooksExcludedSites ?? []) !==
-        JSON.stringify(after?.pageHooksExcludedSites ?? [])
+      pageHooksEnabled(previous ?? null) !== pageHooksEnabled(after) ||
+      JSON.stringify(previous?.pageHooksExcludedSites ?? []) !==
+        JSON.stringify(after.pageHooksExcludedSites ?? [])
     ) {
-      void reconcilePageHooks(after ?? null);
+      void reconcilePageHooks(after);
     }
   });
 }

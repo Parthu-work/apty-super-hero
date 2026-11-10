@@ -6,12 +6,19 @@
  * the key is only ever sent in the provider's auth header, never logged.
  * On any failure the presets and manual entry stay available.
  */
-import type { AppSettings } from "@apty/agent-core";
+import {
+  type AppSettings,
+  destinationAllowed,
+  destinationOf,
+  type OrgPolicyState,
+} from "@apty/agent-core";
+import { loadOrgPolicy } from "@apty/browser-runtime/runtime/org-policy";
 import { createTranslationFunction } from "@apty/ui/i18n/index";
 import type { I18nContextValue } from "@apty/ui/i18n/types";
 import {
   anthropicBaseUrl,
   anthropicHeaders,
+  destinationRefusalMessage,
   validateHostUrl,
 } from "./ai-provider";
 
@@ -154,15 +161,38 @@ export async function fetchModelList(
     fetchImpl = fetch,
     now = Date.now,
     translate: t = englishTranslate,
+    loadPolicy = loadOrgPolicy,
   }: {
     fetchImpl?: typeof fetch;
     now?: () => number;
     /** Turns message keys into the user's language; English by default. */
     translate?: Translate;
+    /** The organization policy (KB-RAG K22); by default the managed one. */
+    loadPolicy?: () => Promise<OrgPolicyState>;
   } = {},
 ): Promise<ModelListResult> {
   const apiKey = settings.aiToken?.trim();
   if (!apiKey) return { ok: false, error: t("providerErrors.enterApiKey") };
+
+  // The key goes only where the policy allows; a policy that lists the
+  // models gives the list itself, with no request.
+  const policy = await loadPolicy();
+  const destination = destinationOf(settings);
+  const { model: _model, ...withoutModel } = destination;
+  const verdict = destinationAllowed(policy, withoutModel);
+  if (!verdict.allowed && verdict.reason !== "model") {
+    return {
+      ok: false,
+      error: destinationRefusalMessage(
+        verdict,
+        policy.kind === "invalid" ? policy.reason : undefined,
+        t,
+      ),
+    };
+  }
+  const listed =
+    policy.kind === "active" ? policy.policy.allowedModels : undefined;
+  if (listed) return { ok: true, models: [...listed], cached: false };
 
   const kind = modelListKind(settings);
   let base: string;

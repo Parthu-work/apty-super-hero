@@ -10,8 +10,10 @@ import type {
   OutboundFilter,
 } from "@apty/agent-core";
 import {
+  AgentError,
   type AutomationMode,
   aisdk,
+  ErrorCode,
   SessionStorage,
   STORAGE_KEYS,
   validateAutomationMode,
@@ -25,15 +27,19 @@ import {
   IndexedDBStorage,
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
+import { decideKbEgress } from "@apty/browser-runtime/runtime/kb-egress";
 import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-store";
 import { tabConsoleOf } from "@apty/browser-runtime/tools/apty";
 import { tabDomHealthOf } from "@apty/browser-runtime/tools/dom-health";
+import { withoutKbSearch } from "@apty/browser-runtime/tools/tool-relevance";
 import { SYSTEM_PROMPT_CORE } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  AiDestinationRefusedError,
   createAIProvider,
   isProviderConfigured,
 } from "../services/ai-provider";
+import type { Translate } from "../services/model-list";
 import { createOutboundFilters } from "./outbound-filters";
 
 /**
@@ -52,20 +58,47 @@ export function useBrowserStorage() {
  * Requires BYOK (Bring Your Own Key) to be configured — Apty's agent talks
  * directly to the configured provider, never through a third-party proxy.
  */
-export function useBrowserModelFactory() {
-  return useCallback((settings: AppSettings) => {
-    if (!isProviderConfigured(settings)) {
-      throw new Error(
-        "AI provider is not configured. Set an API key and model in Settings.",
-      );
-    }
-    const provider = createAIProvider(settings);
-    const modelId = settings.aiModel;
-    if (!modelId) {
-      throw new Error("AI model is not configured");
-    }
-    return aisdk(provider(modelId));
-  }, []);
+export function useBrowserModelFactory(t?: Translate) {
+  return useCallback(
+    (settings: AppSettings) => {
+      if (!isProviderConfigured(settings)) {
+        throw new Error(
+          "AI provider is not configured. Set an API key and model in Settings.",
+        );
+      }
+      const modelId = settings.aiModel;
+      if (!modelId) {
+        throw new Error("AI model is not configured");
+      }
+      try {
+        return aisdk(createAIProvider(settings)(modelId));
+      } catch (error) {
+        if (!(error instanceof AiDestinationRefusedError)) throw error;
+        // Local answers still work; every model call fails with why.
+        return refusingModel(
+          new AiDestinationRefusedError(error.verdict, error.policyReason, t),
+        );
+      }
+    },
+    [t],
+  );
+}
+
+/** Stands in for a model the organization policy refuses: every call fails with the refusal, and nothing is sent (KB-RAG K22, S3). */
+function refusingModel(refused: AiDestinationRefusedError) {
+  const error = new AgentError(
+    refused.message,
+    ErrorCode.DESTINATION_REFUSED,
+    false,
+  );
+  return {
+    async getResponse(): Promise<never> {
+      throw error;
+    },
+    getStreamedResponse(): never {
+      throw error;
+    },
+  } as unknown as ReturnType<typeof aisdk>;
 }
 
 /**
@@ -144,8 +177,16 @@ export function useSelectRelevantTools() {
   const [selectSticky] = useState(createStickyToolSelector);
 
   return useCallback(
-    (text: string, sessionId: string | null) =>
-      filterToolsByMode(selectSticky(text, sessionId), automationMode),
+    async (text: string, sessionId: string | null) => {
+      const tools = filterToolsByMode(
+        selectSticky(text, sessionId),
+        automationMode,
+      );
+      if (!tools.some((tool) => tool.name === "search_kb")) return tools;
+      // Not offered when its result's text could not reach the model.
+      const { decision } = await decideKbEgress("chat");
+      return decision.allowed ? tools : withoutKbSearch(tools);
+    },
     [selectSticky, automationMode],
   );
 }

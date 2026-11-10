@@ -59,6 +59,8 @@ describe("search_kb", () => {
     kbSource.current.mockResolvedValue(null);
     expect(await run(searchKbTool, { query: "banner" })).toEqual({
       status: "no_pack",
+      source: "kb",
+      cards: [],
       results: [],
     });
     await loadPack();
@@ -68,6 +70,9 @@ describe("search_kb", () => {
     });
     expect(result.status).toBe("ok");
     expect(result.results[0].cite).toBe("kb://202#L1");
+    expect(result.source).toBe("kb");
+    expect(result.cards[0]).toEqual({ pageId: "202", layer: 1 });
+    expect(result.cards).toHaveLength(result.results.length);
     expect(result.results.every((r: { layer: number }) => r.layer === 1)).toBe(
       true,
     );

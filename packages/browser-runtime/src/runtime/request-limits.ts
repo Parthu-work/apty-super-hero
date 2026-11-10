@@ -9,6 +9,7 @@ import {
   REQUEST_TOKEN_BUDGET_RANGE,
   STORAGE_KEYS,
 } from "@apty/agent-core";
+import { loadSettings, watchEffectiveSettings } from "./effective-settings.js";
 
 export interface RequestLimits {
   requestTokenBudget?: number;
@@ -72,10 +73,8 @@ function listenForChanges(): void {
   const onChanged = chrome.storage?.onChanged;
   if (!onChanged) return;
   listening = true;
-  onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") return;
-    const change = changes[STORAGE_KEYS.SETTINGS];
-    if (change) cached = limitsFromSettings(change.newValue);
+  watchEffectiveSettings(({ settings }) => {
+    cached = limitsFromSettings(settings);
   });
 }
 
@@ -85,11 +84,9 @@ export function getRequestLimits(): Promise<RequestLimits> {
   if (cached !== null) return Promise.resolve(cached);
   loading ??= (async () => {
     try {
-      const area =
-        typeof chrome !== "undefined" ? chrome.storage?.local : undefined;
-      const stored = area ? await area.get(STORAGE_KEYS.SETTINGS) : undefined;
+      const settings = await loadSettings();
       // A change event that arrived while reading is newer than the read.
-      cached ??= limitsFromSettings(stored?.[STORAGE_KEYS.SETTINGS]);
+      cached ??= limitsFromSettings(settings);
     } catch {
       cached ??= {};
     }

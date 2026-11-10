@@ -371,7 +371,8 @@
     "stepLimit": "本轮在完成前已达到步骤上限。",
     "unknown": "请求出现了问题。",
     "details": "详细信息",
-    "openSettings": "打开 AI 服务提供方设置"
+    "openSettings": "打开 AI 服务提供方设置",
+    "destinationRefused": "您的组织不允许此 AI 目标，因此未发送任何内容。"
   },
   "conversationHistory": {
     "title": "对话历史",
@@ -1178,6 +1179,27 @@
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
         "stale": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}，{{days}} 天前。",
         "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。"
+      },
+      "orgPolicy": {
+        "label": "组织策略",
+        "none": "无：此扩展未设置策略。除非只加载了演示包，否则 KB 文本只显示在面板中。",
+        "active": "生效中：由您的组织设置。",
+        "invalid": "无效：{{reason}}。在修复之前，不会发出任何 AI 请求，KB 文本也会被保留。",
+        "invalidFix": "请 IT 修复此扩展的策略（查看 chrome://policy），然后重新加载策略。"
+      },
+      "aiDestination": {
+        "label": "AI 目标",
+        "noPolicy": "{{destination}}：没有策略限制它。",
+        "allowed": "{{destination}}：您的组织允许。",
+        "refused": "{{destination}}：{{reason}}",
+        "refusedFix": "在“设置 → AI 提供商”中选择您的组织允许的提供商、主机和模型。"
+      },
+      "kbToAi": {
+        "label": "发送给 AI 的 KB 文本",
+        "withheld": "已保留：卡片文本只显示在面板中；模型只获得卡片 ID。",
+        "allowed": "根据您的组织策略允许发送到 {{destination}}，并记录在“数据处理”中。",
+        "demo": "仅演示包：卡片文本会发送给模型，因为未加载 Apty KB 包。",
+        "noPack": "未加载 KB 包。"
       }
     }
   },
@@ -1649,7 +1671,8 @@
     "tokenHintAfter": "然后从该文件中复制令牌。它绝不会显示在日志中，也不会从这里导出。",
     "exposesBefore": "桥接通过 MCP 协议开放",
     "exposesAnd": "和",
-    "exposesAfter": "，让外部 Agent 可以使用 Apty Agent 的浏览器自动化工具。"
+    "exposesAfter": "，让外部 Agent 可以使用 Apty Agent 的浏览器自动化工具。",
+    "lockedOff": "已关闭。您的组织不允许使用 MCP 桥，因此无法连接。"
   },
   "permissions": {
     "title": "可选权限",
@@ -2518,6 +2541,32 @@
     "nonEnglish": "KB 卡片是英文的。请用英文提问，或把问题发送给模型。",
     "mixedVersions": "这些卡片属于不同的 Apty 版本；此租户运行的是哪个版本？",
     "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
-    "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。"
+    "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。",
+    "notSent": "仅在此处显示；不会发送给 AI 模型。",
+    "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。"
+  },
+  "orgPolicy": {
+    "setByOrg": "由您的组织设置",
+    "invalid": "无法使用您的组织为此扩展设置的策略：{{reason}}。在 IT 修复之前，不会发出任何 AI 请求，KB 文本也会被保留。",
+    "aiTitle": "AI 提供商",
+    "aiDescription": "其中部分设置由您的组织设置。组织设置的字段无法在此更改。",
+    "tokenSet": "已设置密钥",
+    "notSet": "未设置",
+    "save": "保存",
+    "saved": "已保存",
+    "provider": "提供商",
+    "redactionFloorPolicy": "您的组织要求：无法选择更弱的模式。",
+    "redactionFloorKbPack": "加载 Apty KB 包时必需：无法选择“关闭”。",
+    "destinationRefused": "您的组织不允许使用此 AI 提供商。允许：{{allowed}}。",
+    "invalidNoRequests": "无法使用您的组织为此扩展设置的策略（{{reason}}），因此在 IT 修复之前不会发出任何 AI 请求。",
+    "none": "无"
+  },
+  "kbEgressLog": {
+    "title": "发送给 AI 的 KB 文本",
+    "count": "过去 30 天内携带 KB 卡片文本的请求：{{count}}。",
+    "what": "每条记录包含时间、AI 提供商、来源和模型，以及发送的卡片 ID 和层级：从不包含卡片文本、您的问题或回答。",
+    "export": "导出（JSON）",
+    "clear": "清除",
+    "clearLocked": "您的组织保留此记录，因此无法在此清除。"
   }
 }

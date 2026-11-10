@@ -22,6 +22,7 @@ import {
 import { useTranslation } from "@apty/ui/i18n/context";
 import { ChevronRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { KbShownHereOnly } from "./kb-egress-note";
 
 interface Excerpt {
   card: KbCard;
@@ -112,6 +113,7 @@ export function KbCardExcerpt({
         <p className="text-xs text-muted-foreground">
           {card.verifiedOn ?? t("checkPack.kbCard.noVerifiedLine")}
         </p>
+        <KbShownHereOnly />
       </CollapsibleContent>
     </Collapsible>
   );

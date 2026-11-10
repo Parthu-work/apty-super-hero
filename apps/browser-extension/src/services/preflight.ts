@@ -6,10 +6,15 @@
  * Connection, the Apty Client handshake, the DOM Health frame ping).
  */
 import {
+  type AiDestination,
   type AppSettings,
+  destinationAllowed,
+  destinationOf,
   KB_PACK_STALE_DAYS,
+  type KbEgressDecision,
   type KbPackInfo,
   kbPackAgeDays,
+  type OrgPolicyState,
   type ToolCallingSupport,
 } from "@apty/agent-core";
 import { CHECK_PACK_FILES } from "@apty/browser-runtime/apty/diagnosis/pack-files";
@@ -19,7 +24,7 @@ import {
 } from "@apty/browser-runtime/apty/resource-body-utils";
 import type { AptyServiceWorkerStatus } from "@apty/browser-runtime/apty/types";
 import type { TranslationKey } from "@apty/ui/i18n/types";
-import { isProviderConfigured } from "./ai-provider";
+import { destinationRefusalMessage, isProviderConfigured } from "./ai-provider";
 import { englishTranslate, type Translate } from "./model-list";
 
 /** `info` reports a choice, such as no knowledge base, that is not a fault. */
@@ -27,6 +32,9 @@ export type CheckStatus = "pass" | "warn" | "fail" | "info";
 
 export interface PreflightCheck {
   id:
+    | "org-policy"
+    | "ai-destination"
+    | "kb-to-ai"
     | "ai-provider"
     | "apty-client"
     | "agent-id"
@@ -80,6 +88,13 @@ export interface PreflightDeps {
   ): Promise<"blocked" | "readable" | "unknown">;
   /** The loaded KB packs, one per Apty version. */
   knowledgeBase(): Promise<KbPackInfo[]>;
+  /** The organization policy (KB-RAG K22). */
+  orgPolicy(): Promise<OrgPolicyState>;
+  /** Whether KB text may go with a chat request, and where. */
+  kbEgress(): Promise<{
+    decision: KbEgressDecision;
+    destination?: AiDestination;
+  }>;
   now?(): Date;
 }
 
@@ -143,6 +158,121 @@ async function aiProviderCheck(
       fix: t("preflight.checks.aiProvider.noAnswerFix"),
     };
   }
+}
+
+function orgPolicyCheck(policy: OrgPolicyState, t: Translate): PreflightCheck {
+  const base = {
+    id: "org-policy" as const,
+    label: t("preflight.checks.orgPolicy.label"),
+  };
+  if (policy.kind === "invalid") {
+    return {
+      ...base,
+      status: "fail",
+      detail: t("preflight.checks.orgPolicy.invalid", {
+        reason: policy.reason,
+      }),
+      fix: t("preflight.checks.orgPolicy.invalidFix"),
+    };
+  }
+  return {
+    ...base,
+    status: policy.kind === "active" ? "pass" : "info",
+    detail: t(
+      policy.kind === "active"
+        ? "preflight.checks.orgPolicy.active"
+        : "preflight.checks.orgPolicy.none",
+    ),
+  };
+}
+
+function describeDestination(destination: AiDestination): string {
+  return [destination.provider, destination.origin, destination.model]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function aiDestinationCheck(
+  policy: OrgPolicyState,
+  settings: AppSettings,
+  t: Translate,
+): PreflightCheck {
+  const destination = destinationOf(settings);
+  const base = {
+    id: "ai-destination" as const,
+    label: t("preflight.checks.aiDestination.label"),
+    section: "ai-provider",
+  };
+  const shown = describeDestination(destination);
+  const verdict = destinationAllowed(policy, destination);
+  if (!verdict.allowed) {
+    return {
+      ...base,
+      status: "fail",
+      detail: t("preflight.checks.aiDestination.refused", {
+        destination: shown,
+        reason: destinationRefusalMessage(
+          verdict,
+          policy.kind === "invalid" ? policy.reason : undefined,
+          t,
+        ),
+      }),
+      fix: t("preflight.checks.aiDestination.refusedFix"),
+    };
+  }
+  return {
+    ...base,
+    status: policy.kind === "active" ? "pass" : "info",
+    detail: t(
+      policy.kind === "active"
+        ? "preflight.checks.aiDestination.allowed"
+        : "preflight.checks.aiDestination.noPolicy",
+      { destination: shown },
+    ),
+  };
+}
+
+async function kbToAiCheck(
+  deps: PreflightDeps,
+  t: Translate,
+): Promise<PreflightCheck> {
+  const base = {
+    id: "kb-to-ai" as const,
+    label: t("preflight.checks.kbToAi.label"),
+    section: "data-handling",
+  };
+  const { decision, destination } = await deps.kbEgress().catch(() => ({
+    decision: { allowed: false, reason: "check-failed" as const },
+    destination: undefined,
+  }));
+  if (decision.reason === "no-pack") {
+    return {
+      ...base,
+      status: "info",
+      detail: t("preflight.checks.kbToAi.noPack"),
+    };
+  }
+  if (decision.reason === "demo") {
+    return {
+      ...base,
+      status: "info",
+      detail: t("preflight.checks.kbToAi.demo"),
+    };
+  }
+  if (decision.allowed && destination) {
+    return {
+      ...base,
+      status: "pass",
+      detail: t("preflight.checks.kbToAi.allowed", {
+        destination: describeDestination(destination),
+      }),
+    };
+  }
+  return {
+    ...base,
+    status: "pass",
+    detail: t("preflight.checks.kbToAi.withheld"),
+  };
 }
 
 const CLIENT_FIXES: Record<
@@ -284,7 +414,14 @@ export async function runPreflight(
   const frames = tab ? await deps.frames(tab.id) : null;
 
   const client = await aptyClientCheck(deps, agentId, t);
+  const policy: OrgPolicyState = await deps.orgPolicy().catch(() => ({
+    kind: "invalid",
+    reason: "the policy could not be read",
+  }));
   const checks: PreflightCheck[] = [
+    orgPolicyCheck(policy, t),
+    aiDestinationCheck(policy, settings, t),
+    await kbToAiCheck(deps, t),
     await aiProviderCheck(deps, settings, t),
     client.check,
     {

@@ -86,6 +86,11 @@ function buildCommit(): string {
 export default defineConfig(() => ({
   define: {
     "import.meta.env.VITE_APTY_AGENT_COMMIT": JSON.stringify(buildCommit()),
+    // "1" only in the E2E policy build (tooling/e2e/policy-build.mjs): a
+    // literal either way, so a production build drops the seam's code.
+    "import.meta.env.VITE_APTY_E2E_POLICY_SEAM": JSON.stringify(
+      process.env.VITE_APTY_E2E_POLICY_SEAM === "1" ? "1" : "",
+    ),
   },
   plugins: [
     react(),
@@ -98,6 +103,8 @@ export default defineConfig(() => ({
           src: "assets/*",
           dest: "assets",
         },
+        // manifest.json's storage.managed_schema (KB-RAG K22).
+        { src: "managed-schema.json", dest: "." },
       ],
     }),
   ],

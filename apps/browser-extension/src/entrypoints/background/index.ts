@@ -7,6 +7,7 @@ import { createLogger } from "@apty/agent-core";
 import { watchPageHookSettings } from "@apty/browser-runtime/runtime/page-hooks-registration";
 import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { initLogging } from "../../lib/logging";
+import { installOrgPolicySource } from "../../services/org-policy";
 import { registerCommandHandlers } from "./commands";
 import "./dapty-capture-registration";
 import { registerGlobalDownloadHelper } from "./downloads";
@@ -20,6 +21,7 @@ import { lockdownStorageAccess } from "./storage-lockdown";
 const log = createLogger("Background");
 
 registerGlobalErrorHandlers();
+installOrgPolicySource();
 initLogging();
 lockdownStorageAccess();
 // Read the redaction mode now, so the first MCP tool result is redacted in it.

@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
+  chatAndWait,
   describeViolations,
   extensionPage,
   launchBrowser,
@@ -22,6 +23,7 @@ import {
   FIXTURE_PAGES,
   fixturePage,
   importPack,
+  NON_DEMO_SITE,
   writeFixturePack,
 } from "./kb-fixture.mjs";
 
@@ -111,7 +113,7 @@ describe("KB matches card (KB-RAG K6)", () => {
       });
       assert.equal(
         await link.first().getAttribute("href"),
-        "https://fixture.atlassian.net/wiki/spaces/FX/pages/202",
+        "https://fixture.atlassian.invalid/wiki/spaces/FX/pages/202",
       );
       await card
         .getByText("Verified on: FIXTURE code, 2026-01-01.")
@@ -171,6 +173,52 @@ describe("KB matches card (KB-RAG K6)", () => {
       0,
     );
     assert.equal(model.requests.length, 0);
+    await panel.close();
+    await app.close();
+  });
+});
+
+describe("KB matches from a non-demo pack (KB-RAG K22, D-SEC1)", () => {
+  let real;
+
+  before(async () => {
+    real = await launchBrowser();
+    const { file } = writeFixturePack(tempDir("apty-kb-matches-real-"), {
+      pages: [...FIXTURE_PAGES, ...SYMPTOM_PAGES],
+      site: NON_DEMO_SITE,
+    });
+    await importPack(real, file);
+  });
+
+  after(async () => {
+    await real?.close();
+  });
+
+  it("shows the excerpt in the panel only, and the next request carries the card ids, not the text", async () => {
+    model.script(() => ({ text: "RESULT: answered" }));
+    const app = await real.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(real, model, app);
+    await sendChat(panel, "the tooltip opens twice when I hover the help icon");
+    const card = panel.getByRole("region", { name: "KB cards that match" });
+    await card.waitFor({ timeout: 30_000 });
+    // Whichever layer the card shows, it is card 202's text, in the panel.
+    const card202 = /Double Trigger|anchor element must be unique|triggerCount/;
+    await card.getByText(card202).first().waitFor();
+    await card
+      .getByText("Shown here only; not sent to the AI model.")
+      .waitFor();
+    assert.equal(model.requests.length, 0, "the KB answer is local");
+
+    await chatAndWait(panel, "thanks, what should I try first?");
+    const body = JSON.stringify(model.requests.at(-1));
+    assert.doesNotMatch(body, card202);
+    assert.match(
+      body,
+      /KB card text withheld by organization policy\. Cards shown to the user: 202/,
+    );
+    const violations = await runAxe(panel);
+    assert.deepEqual(violations, [], describeViolations(violations));
     await panel.close();
     await app.close();
   });

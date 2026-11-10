@@ -1,19 +1,18 @@
 /**
- * The one place diagnostic data is redacted with the user's chosen mode
- * (Settings → Data handling → Redaction).
+ * The one place diagnostic data is redacted with the effective mode: the
+ * user's choice (Settings → Data handling → Redaction), raised to the
+ * organization policy's floor and to Standard while a non-demo KB pack is
+ * loaded (KB-RAG K22, D-SEC3).
  *
  * Every caller in the side panel and the service worker goes through
  * `redactText` / `redactLogEntries` instead of calling `@apty/debug-contract`
  * directly; `redaction-mode.test.ts` fails if one does not. The mode is read
- * once from settings, kept in memory, and updated from
- * `chrome.storage.onChanged`, so redaction stays synchronous. Until the first
+ * once (`loadEffectiveSettings`), kept in memory, and updated on every
+ * change to the settings, the policy or the packs, so redaction stays
+ * synchronous. Until the first
  * read completes it is "strict", the most protective mode.
  */
-import {
-  type AppSettings,
-  type RedactionModeSetting,
-  STORAGE_KEYS,
-} from "@apty/agent-core";
+import type { RedactionModeSetting } from "@apty/agent-core";
 import {
   MAX_REDACT_INPUT_LENGTH,
   type RedactionMode,
@@ -22,6 +21,10 @@ import {
   redactSensitiveText,
   unboundedPatternMatches,
 } from "@apty/debug-contract";
+import {
+  loadEffectiveSettings,
+  watchEffectiveSettings,
+} from "./effective-settings.js";
 
 const DEFAULT_MODE: RedactionMode = "strict";
 
@@ -34,40 +37,28 @@ export function parseRedactionMode(value: unknown): RedactionMode {
   return value === "standard" || value === "off" ? value : DEFAULT_MODE;
 }
 
-function modeFromSettings(settings: unknown): RedactionMode {
-  return parseRedactionMode(
-    (settings as AppSettings | undefined)?.redactionMode,
-  );
-}
-
-function storageArea(): chrome.storage.StorageArea | null {
-  return typeof chrome !== "undefined" && chrome.storage?.local
-    ? chrome.storage.local
-    : null;
-}
-
 function listenForChanges(): void {
   if (listening || typeof chrome === "undefined") return;
-  const onChanged = chrome.storage?.onChanged;
-  if (!onChanged) return;
+  if (!chrome.storage?.onChanged) return;
   listening = true;
-  onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") return;
-    const change = changes[STORAGE_KEYS.SETTINGS];
-    if (change) cached = modeFromSettings(change.newValue);
+  watchEffectiveSettings((effective) => {
+    cached = parseRedactionMode(effective.settings.redactionMode);
   });
 }
 
-/** The current mode, read from settings on first use and cached after. */
+/**
+ * The current mode, read on first use and cached after: the effective
+ * mode (KB-RAG K22, S5), never weaker than the policy's floor or than
+ * Standard while a non-demo KB pack is loaded.
+ */
 export function getRedactionMode(): Promise<RedactionMode> {
   listenForChanges();
   if (cached !== null) return Promise.resolve(cached);
   loading ??= (async () => {
     try {
-      const area = storageArea();
-      const stored = area ? await area.get(STORAGE_KEYS.SETTINGS) : undefined;
+      const { settings } = await loadEffectiveSettings();
       // A change event that arrived while reading is newer than the read.
-      cached ??= modeFromSettings(stored?.[STORAGE_KEYS.SETTINGS]);
+      cached ??= parseRedactionMode(settings.redactionMode);
     } catch {
       cached ??= DEFAULT_MODE;
     }

@@ -61,6 +61,7 @@ class FakeWebSocket {
 const storage: Record<string, unknown> = {};
 const alarms = { create: vi.fn(), clear: vi.fn() };
 
+import { loadOrgPolicy, resetOrgPolicyForTests } from "../runtime/org-policy";
 import { callMac, daemonProof, sessionKey } from "./handshake";
 import { WsMcpServer } from "./ws-mcp-server";
 
@@ -138,7 +139,7 @@ async function call(socket: FakeWebSocket, message: RpcMessage) {
   return socket.sent.at(-1);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   FakeWebSocket.instances = [];
   tools.invoke.mockReset();
   for (const key of Object.keys(storage)) delete storage[key];
@@ -158,6 +159,10 @@ beforeEach(() => {
       },
     },
   });
+  // No organization policy: read before each test, as the service worker
+  // reads it at start-up.
+  resetOrgPolicyForTests();
+  await loadOrgPolicy();
 });
 
 afterEach(() => {

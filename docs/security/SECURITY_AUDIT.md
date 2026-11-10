@@ -190,6 +190,47 @@ the authoritative source; the Confluence page is a navigable summary of it.
   own secret scanning and push protection in the repository settings too.
 - **Status**: Fixed.
 
+### 19. Apty KB text could reach any AI destination, and no admin could stop it (KB-RAG K22)
+
+- **Severity**: High (was) → Fixed
+- **Affected components**: `packages/agent-core/src/config/` (`org-policy.ts`,
+  `effective-settings.ts`, `destination.ts`), `packages/agent-core/src/kb/egress.ts`,
+  `packages/browser-runtime/src/runtime/` (`org-policy.ts`,
+  `effective-settings.ts`, `kb-egress.ts`), `apps/browser-extension/src/services/`
+  (`ai-provider.ts`, `kb-egress-log.ts`, `org-policy.ts`),
+  `packages/browser-runtime/src/ws-bridge/ws-mcp-server.ts`, the manifest's
+  `storage.managed_schema`.
+- **Risk**: masking targets secrets and personal data, so internal KB card
+  text left unchanged (G1) with any `search_kb` result or KB matches answer
+  (G2), to any of 15 providers, any custom host or custom model (G3), with
+  redaction possibly Off (G4), to the MCP bridge too (G6), with no admin
+  control (G5) and no record of what was sent (G7).
+- **Fix**: KB results carry a source tag set where they are made; the first
+  outbound filter (also run over the summary request's source) withholds
+  their text unless only demo packs are loaded or a managed policy approves
+  the destination (D-SEC1), failing closed when the check cannot run or the
+  send cannot be recorded. `createAIProvider` refuses, when built, for each
+  model id and in `fetch` on every request, a destination off the policy's
+  allow-lists (D-SEC4); an invalid policy allows none. The effective
+  redaction mode is never weaker than Standard while a non-demo pack is
+  loaded, nor than the policy's floor (D-SEC3). Every settings reader goes
+  through `loadEffectiveSettings()` (`npm run audit:settings-readers`), so a
+  policy-set field cannot be changed in Options or by writing storage
+  (D-SEC2). The MCP bridge gets no KB text without `kbToMcp`, and no
+  connection with `allowMcpBridge: false` (D-SEC5). Each request that carried
+  KB text is recorded on the device, ids only (D-SEC6).
+- **Test-only seam**: E2E tests set a policy through
+  `chrome.storage.local` only in a build made with
+  `VITE_APTY_E2E_POLICY_SEAM=1` (`tooling/e2e/policy-build.mjs`); in a
+  production build the branch is dropped, and `npm run build` fails if
+  `dist/` holds it (`check-dist-policy.mjs`).
+- **Residual risk**: a key pushed by `preset.aiToken` is visible to the user
+  in chrome://policy (D-SEC7 prefers a gateway that needs no shared key);
+  anyone with the browser profile can read the imported pack and the
+  record; a user who can uninstall the extension or edit the machine's
+  policy files is outside what an extension can enforce.
+- **Status**: Fixed. See [ORG_POLICY.md](ORG_POLICY.md).
+
 ### 18. Clicks and new tabs ran without approval
 
 - **Severity**: High (was) → Fixed

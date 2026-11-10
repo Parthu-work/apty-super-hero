@@ -1,0 +1,69 @@
+{
+  "type": "object",
+  "properties": {
+    "kbToModel": {
+      "title": "KB text to the AI model",
+      "description": "\"approved\": Apty KB card text may go to an AI destination the allow-lists permit. \"off\" (the default): card text is shown in the panel only.",
+      "type": "string",
+      "enum": ["off", "approved"]
+    },
+    "kbToMcp": {
+      "title": "KB text to the MCP bridge",
+      "description": "Whether search_kb results reach a local MCP client with their card text. Default false.",
+      "type": "boolean"
+    },
+    "allowedProviders": {
+      "title": "Allowed AI providers",
+      "description": "Provider keys the user may choose, for example \"azure\". Absent: any provider.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "allowedOrigins": {
+      "title": "Allowed AI origins",
+      "description": "Base URL origins, https only (http only for a loopback host), no path. Absent: any origin.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "allowedModels": {
+      "title": "Allowed model ids",
+      "description": "Model ids the user may use. Absent: any model at an allowed origin.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "preset": {
+      "title": "Preset AI settings",
+      "description": "Values written into the user's settings and locked. A token set here is visible to the user in chrome://policy.",
+      "type": "object",
+      "properties": {
+        "aiProvider": { "type": "string" },
+        "aiHost": { "type": "string" },
+        "aiModel": { "type": "string" },
+        "aiToken": { "type": "string" },
+        "aiWorkspaceId": { "type": "string" }
+      }
+    },
+    "redactionFloor": {
+      "title": "Weakest redaction allowed",
+      "description": "The weakest redaction mode the user may choose.",
+      "type": "string",
+      "enum": ["strict", "standard"]
+    },
+    "allowCustomModels": {
+      "title": "Allow custom models",
+      "description": "Whether the user may add their own models. Absent: false when any allow-list is set.",
+      "type": "boolean"
+    },
+    "allowMcpBridge": {
+      "title": "Allow the MCP bridge",
+      "description": "Whether the MCP bridge may connect at all. Default true.",
+      "type": "boolean"
+    },
+    "auditRetentionDays": {
+      "title": "Days to keep the KB send record",
+      "description": "1 to 365. Default 30.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 365
+    }
+  }
+}

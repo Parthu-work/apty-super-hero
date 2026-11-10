@@ -76,6 +76,17 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
+- KB text leaves only to an approved destination (KB-RAG K22,
+  [`FIXES-K22.md`](tasks/kb-rag/FIXES-K22.md)): an organization policy in
+  Chrome's managed storage ([`ORG_POLICY.md`](security/ORG_POLICY.md)) is
+  read, validated and applied to every settings reader; KB card text stays
+  in the panel unless only demo packs are loaded or the policy approves the
+  destination; a request to a provider, origin or model off the policy's
+  lists is not sent; redaction is never weaker than Standard while an Apty
+  KB pack is loaded; the MCP bridge gets no KB text without `kbToMcp`; each
+  request that carried KB text is recorded (ids only). Tested in Chromium
+  through an E2E-only policy build (`tooling/e2e/policy-build.mjs`); not yet
+  run with a real Chrome policy file (FIXES-K22 "How to test").
 - KB retrieval (KB-RAG, K0 to K6, K8, K10 to K20): Options → Settings →
   General → Knowledge base imports one KB pack per Apty version (4.x, 5.x,
   common) that the KB owner builds with `pnpm kb:pack` (never in this
@@ -227,6 +238,7 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Ask Dapty check on live chats (partial) | Extension mode: the Client adopts the reference module's `recordWidgetChatTurn` and routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)); until then SEs can test the record path with the test-only recorder build (W7). Then the live-tenant run, in both modes, with a known failing chat, sending the evidence bundle (W1), HARs and content files: those become the live fixtures (W2), and any check they break is fixed there. The chat panel reader is untested against the real widget's DOM |
 | Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
+| Organization policy on a real deployment (KB-RAG K22, partial) | Apty IT writes the policy (the recommended one is in [`ORG_POLICY.md`](security/ORG_POLICY.md)), deploys it to SE machines, and someone runs FIXES-K22's manual steps with a real Chrome policy file. The organization gateway (D-SEC7) is Apty IT's to build |
 | KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above; [`FIXES.md`](tasks/kb-rag/FIXES.md#status)). Still open: the KB owner builds the real 4.x (A4PKH, root 1509720081) and 5.x (JA, root 1496711169) packs, writes 60-question sets per version and runs `pnpm kb:eval --calibrate --by-category`; the D-KB8 numbers (ids only) go on the handbook page F15. The 4.x check packs' apty-assist citations are to be confirmed against a checkout, and the KB owner confirms the card each 4.x rule cites (`CARD_4X` in `cards-4x.ts`, K21 F3); the 4.x Client bridge ships in apty-assist ([`4X-BRIDGE.md`](integrations/apty/4X-BRIDGE.md)). K7 (dense vectors) waits on the real sets ([`kb-rag.md`](development/kb-rag.md)) |
 
 

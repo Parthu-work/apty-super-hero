@@ -23,6 +23,8 @@ export enum ErrorCode {
   TURN_CANCELLED = "TURN_CANCELLED",
   /** The request would not fit the request budget even with the older history left out. */
   REQUEST_OVER_BUDGET = "REQUEST_OVER_BUDGET",
+  /** The organization policy does not allow the request's AI destination; nothing was sent (KB-RAG K22). */
+  DESTINATION_REFUSED = "DESTINATION_REFUSED",
 }
 
 export class AgentError extends Error {

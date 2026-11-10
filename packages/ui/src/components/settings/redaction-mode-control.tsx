@@ -1,5 +1,6 @@
-import type { RedactionModeSetting } from "@apty/agent-core";
+import type { RedactionFloor, RedactionModeSetting } from "@apty/agent-core";
 import { useState } from "react";
+import { useTranslation } from "../../i18n/context";
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 
@@ -78,15 +79,27 @@ export interface RedactionModeControlProps {
   /** Redacts the preview sample in a given mode; Preview is hidden without it. */
   preview?: (text: string, mode: RedactionModeSetting) => string;
   language?: string;
+  /** The weakest mode allowed (KB-RAG K22, D-SEC3); weaker ones are disabled. */
+  floor?: RedactionFloor;
 }
+
+const STRENGTH: Record<RedactionModeSetting, number> = {
+  off: 0,
+  standard: 1,
+  strict: 2,
+};
 
 export function RedactionModeControl({
   mode,
   onChange,
   preview,
   language,
+  floor,
 }: RedactionModeControlProps) {
+  const { t } = useTranslation();
   const zh = language === "zh";
+  const belowFloor = (value: RedactionModeSetting) =>
+    floor !== undefined && STRENGTH[value] < STRENGTH[floor.mode];
   const [previewing, setPreviewing] = useState<RedactionModeSetting | null>(
     null,
   );
@@ -111,6 +124,19 @@ export function RedactionModeControl({
           ? "应用于发送给 AI 服务商、显示在侧边栏以及导出的诊断数据。"
           : "Applies to diagnostic data sent to your AI provider, shown in the side panel and exported."}
       </p>
+      {floor && (
+        <p
+          id="redaction-floor-note"
+          className="text-xs font-medium"
+          data-testid="redaction-floor-note"
+        >
+          {t(
+            floor.reason === "policy"
+              ? "orgPolicy.redactionFloorPolicy"
+              : "orgPolicy.redactionFloorKbPack",
+          )}
+        </p>
+      )}
       {modeOptions(zh).map((option) => {
         const id = `redaction-mode-${option.value}`;
         return (
@@ -122,8 +148,13 @@ export function RedactionModeControl({
                 name="redaction-mode"
                 value={option.value}
                 checked={mode === option.value}
+                disabled={belowFloor(option.value)}
                 onChange={() => choose(option.value)}
-                aria-describedby={`${id}-description`}
+                aria-describedby={
+                  belowFloor(option.value)
+                    ? `${id}-description redaction-floor-note`
+                    : `${id}-description`
+                }
                 className="mt-1"
               />
               <div className="flex-1">

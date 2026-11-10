@@ -17,7 +17,7 @@ import type { Theme } from "@apty/ui/theme/types";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { AGENT_ACTIVITY_REQUEST } from "../entrypoints/content/agent-activity";
-import { chromeStorageAdapter } from "../hooks";
+import { settingsStorageAdapter } from "../hooks";
 import {
   BROWSER_AGENT_CONFIG,
   useBrowserContextProviders,
@@ -123,7 +123,7 @@ function useConversationHeartbeat() {
 function ChatApp() {
   const { t } = useTranslation();
   const { settings, isLoading } = useChatConfig({
-    storageAdapter: chromeStorageAdapter,
+    storageAdapter: settingsStorageAdapter,
     autoLoad: true,
   });
 
@@ -132,7 +132,7 @@ function ChatApp() {
   settingsRef.current = settings;
 
   const storage = useBrowserStorage();
-  const modelFactory = useBrowserModelFactory();
+  const modelFactory = useBrowserModelFactory(t);
   const contextProviders = useBrowserContextProviders();
   const tools = useBrowserTools();
   const selectTools = useSelectRelevantTools();
@@ -239,7 +239,7 @@ function ChatApp() {
           agent={agent}
           configError={error}
           initialSettings={settings}
-          storageAdapter={chromeStorageAdapter}
+          storageAdapter={settingsStorageAdapter}
           config={{
             getRunContext: resolveConversationRunContext,
             selectTools,

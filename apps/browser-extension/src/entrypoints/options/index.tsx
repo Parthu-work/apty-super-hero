@@ -1,5 +1,6 @@
 import type { AppSettings, KbAptyVersion } from "@apty/agent-core";
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
+import { noteKbPacksChanged } from "@apty/browser-runtime/runtime/effective-settings";
 import { previewRedaction } from "@apty/browser-runtime/runtime/redaction-mode";
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import { SettingsPage } from "@apty/ui";
@@ -10,7 +11,8 @@ import { applyRememberedTheme } from "@apty/ui/theme/index";
 import type { Theme } from "@apty/ui/theme/types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { chromeStorageAdapter } from "../../hooks";
+import { settingsStorageAdapter } from "../../hooks";
+import { useOrgPolicyView } from "../../hooks/use-org-policy";
 import { useRequestReports } from "../../hooks/use-request-reports";
 import { initLogging } from "../../lib/logging";
 import {
@@ -19,8 +21,10 @@ import {
   type OptionsTab,
 } from "../../lib/open-options";
 import { testConnection } from "../../services/connection-check";
+import { kbEgressLog } from "../../services/kb-egress-log";
 import { kbPackStore } from "../../services/kb-pack";
 import { fetchModelList } from "../../services/model-list";
+import { installOrgPolicySource } from "../../services/org-policy";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
 import { AptyClientPanel, AptyStudioPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
@@ -104,13 +108,30 @@ function parseUrlParams() {
 
 import "../../styles/tailwind.css";
 
+installOrgPolicySource();
 initLogging();
 applyRememberedTheme();
 
+/** Every import or removal is announced: the redaction floor follows the loaded packs (D-SEC3). */
 const knowledgeBase = {
   info: () => kbPackStore().info(),
-  importPack: (text: string) => kbPackStore().replace(text),
-  remove: (version: KbAptyVersion) => kbPackStore().remove(version),
+  async importPack(text: string) {
+    const result = await kbPackStore().replace(text);
+    if (result.ok) await noteKbPacksChanged();
+    return result;
+  },
+  async remove(version: KbAptyVersion) {
+    await kbPackStore().remove(version);
+    await noteKbPacksChanged();
+  },
+};
+
+/** The KB send record (KB-RAG K22, S7) as Data handling shows it. */
+const kbEgressLogAdapter = {
+  countLast30Days: () => kbEgressLog().countSince(30),
+  exportJson: () => kbEgressLog().exportJson(),
+  clearAllowed: () => kbEgressLog().clearAllowed(),
+  clear: () => kbEgressLog().clear(),
 };
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
@@ -140,9 +161,13 @@ function OptionsPageContent() {
     [t],
   );
 
+  const orgPolicy = useOrgPolicyView();
+
   return (
     <SettingsPage
-      storageAdapter={chromeStorageAdapter}
+      storageAdapter={settingsStorageAdapter}
+      orgPolicy={orgPolicy}
+      kbEgressLog={kbEgressLogAdapter}
       onTestConnection={handleTestConnection}
       onFetchModels={handleFetchModels}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}

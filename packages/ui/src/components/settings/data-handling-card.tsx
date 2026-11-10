@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  RedactionFloor,
   RedactionModeSetting,
   RequestReport,
 } from "@apty/agent-core";
@@ -19,9 +20,11 @@ import {
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
+import { KbEgressRecord } from "./kb-egress-record";
 import { RecentRequests } from "./recent-requests";
 import { RedactionModeControl } from "./redaction-mode-control";
 import { ScreenshotPolicyControl } from "./screenshot-policy-control";
+import type { KbEgressLogAdapter } from "./types";
 
 export interface DataHandlingCardProps {
   settings: AppSettings;
@@ -31,6 +34,10 @@ export interface DataHandlingCardProps {
   redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
   /** The last requests sent to the AI provider, when the host app can read them. */
   recentRequests?: RequestReport[];
+  /** The weakest redaction mode the policy or a loaded KB pack allows. */
+  redactionFloor?: RedactionFloor;
+  /** The record of KB text sent to AI, when the host app keeps one. */
+  kbEgressLog?: KbEgressLogAdapter;
 }
 
 function parseDenyList(text: string): string[] {
@@ -46,6 +53,8 @@ export function DataHandlingCard({
   language,
   redactionPreview,
   recentRequests,
+  redactionFloor,
+  kbEgressLog,
 }: DataHandlingCardProps) {
   const { t } = useTranslation();
   const [denyListText, setDenyListText] = useState(
@@ -87,6 +96,7 @@ export function DataHandlingCard({
           onChange={(redactionMode) => onChange({ redactionMode })}
           preview={redactionPreview}
           language={language}
+          floor={redactionFloor}
         />
         <ScreenshotPolicyControl
           policy={settings.screenshotPolicy ?? "ask"}
@@ -127,6 +137,7 @@ export function DataHandlingCard({
           />
         </div>
         {recentRequests && <RecentRequests reports={recentRequests} />}
+        {kbEgressLog && <KbEgressRecord log={kbEgressLog} />}
       </CardContent>
     </Card>
   );
