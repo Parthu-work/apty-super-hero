@@ -5,6 +5,7 @@ import {
   syntheticPack,
 } from "./kb-test-utils.js";
 import { createKbIndex, layerHint } from "./search.js";
+import { KB_SYNONYM_GROUPS } from "./synonyms.js";
 
 function card(
   pageId: string,
@@ -600,5 +601,210 @@ describe("F5: short typos match on the word as typed", () => {
     expect(index.search("kubernetes pod CrashLoopBackOff").status).toBe(
       "not_covered",
     );
+  });
+});
+
+/** F7: [group, question using a member in its ordinary sense, the group's card, the card the question is about]. */
+const COLLISIONS: [string, string, string, string][] = [
+  [
+    "balloon",
+    "the browser blocks the popup window for payroll",
+    "FIXTURE balloon flickers on hover",
+    "FIXTURE browser blocks the payroll window",
+  ],
+  [
+    "workflow",
+    "the approval flow in our ERP sends no email",
+    "FIXTURE walkthrough stops after reload",
+    "FIXTURE ERP approval sends no email",
+  ],
+  [
+    "reload",
+    "I pressed refresh on the report and its numbers are stale",
+    "FIXTURE tour stops after a reload",
+    "FIXTURE report numbers are stale",
+  ],
+  [
+    "production",
+    "the live chat vendor script fails",
+    "FIXTURE widget missing in production",
+    "FIXTURE chat vendor script fails",
+  ],
+  [
+    "test",
+    "the qa team cannot log in to jira",
+    "FIXTURE widget works in uat only",
+    "FIXTURE team cannot log in to jira",
+  ],
+  [
+    "freeze",
+    "the salary freeze letter template is missing",
+    "FIXTURE player hangs the page",
+    "FIXTURE salary letter template missing",
+  ],
+  [
+    "crash",
+    "out of memory errors in our database server",
+    "FIXTURE tab crashed with the player",
+    "FIXTURE database server errors",
+  ],
+  [
+    "slow",
+    "the performance review form will not submit",
+    "FIXTURE widget is sluggish",
+    "FIXTURE review form will not submit",
+  ],
+  [
+    "disappear",
+    "missing invoices in the finance report",
+    "FIXTURE beacon vanishes",
+    "FIXTURE finance report invoices",
+  ],
+  [
+    "repeat",
+    "I tried again and the export failed",
+    "FIXTURE checklist repeats",
+    "FIXTURE export failed",
+  ],
+  [
+    "language",
+    "the french keyboard layout types wrong letters",
+    "FIXTURE survey untranslated",
+    "FIXTURE keyboard layout types wrong letters",
+  ],
+  [
+    "split step",
+    "the git branch cannot be merged",
+    "FIXTURE decision step goes the wrong way",
+    "FIXTURE git cannot be merged",
+  ],
+  [
+    "launcher",
+    "the save button on the form is disabled",
+    "FIXTURE launcher missing after publish",
+    "FIXTURE save form disabled",
+  ],
+  [
+    "segment",
+    "the audience of the town hall meeting",
+    "FIXTURE segment ignores the user group",
+    "FIXTURE town hall meeting",
+  ],
+  [
+    "publish",
+    "the release notes page is empty",
+    "FIXTURE content missing after publish",
+    "FIXTURE notes page is empty",
+  ],
+  [
+    "selector",
+    "the css file of our intranet theme is huge",
+    "FIXTURE xpath matches nothing",
+    "FIXTURE intranet theme file is huge",
+  ],
+  [
+    "csp",
+    "the nonce in the oauth request is reused",
+    "FIXTURE content-security-policy blocks the player",
+    "FIXTURE oauth request reused",
+  ],
+  [
+    "cors",
+    "the vendor api refuses cross-origin calls from the mobile app",
+    "FIXTURE cors blocks the player",
+    "FIXTURE vendor api mobile app calls",
+  ],
+  [
+    "iframe",
+    "the embedded video in the newsletter does not play",
+    "FIXTURE iframe hides the player",
+    "FIXTURE newsletter video does not play",
+  ],
+  [
+    "shadow dom",
+    "the lwc developer certification exam",
+    "FIXTURE shadow root hides the element",
+    "FIXTURE developer certification exam",
+  ],
+  [
+    "skip",
+    "jump to the next chapter of the training video",
+    "FIXTURE flow skips a step",
+    "FIXTURE training video next chapter",
+  ],
+  [
+    "widget",
+    "the weather widget on the intranet home page is blank",
+    "FIXTURE help panel is empty",
+    "FIXTURE weather on the intranet home is blank",
+  ],
+];
+
+describe("F7: synonym groups that do not collide", () => {
+  const index = createKbIndex(
+    syntheticPack(
+      COLLISIONS.flatMap(([, , group, about], i) =>
+        [group, about].map((title, j) =>
+          card(String(900 + i * 2 + j), title, [
+            `- In Studio, check the setting for: ${title}.`,
+            `- The element for: ${title}.`,
+            `- data.json lists: ${title}.`,
+            `- Send support the id for: ${title}.`,
+          ]),
+        ),
+      ),
+      { coverage: { min: 0.35, minIdf: 0.5, minTerms: 1 } },
+      V2,
+    ),
+  );
+
+  it("covers every synonym group", () => {
+    const named = new Set(COLLISIONS.map(([group]) => group));
+    for (const group of KB_SYNONYM_GROUPS) {
+      expect(
+        group.some((member) => named.has(member)),
+        group.join(","),
+      ).toBe(true);
+    }
+  });
+
+  it.each(
+    COLLISIONS.map(([group, q], i) => [group, q, i] as const),
+  )("%s: %s does not rank the group's card first", (_group, q, i) => {
+    const result = index.search(q, { onePerCard: true });
+    expect(result.hits[0]?.chunk.pageId).not.toBe(String(900 + i * 2));
+  });
+
+  it('the required cases: a help icon is the widget, and a bare "again" is no repeat', () => {
+    const small = createKbIndex(
+      syntheticPack(
+        [
+          card("951", "FIXTURE launcher missing after publish", [
+            "- In Studio, assign the FIXTURE launcher before publishing.",
+            "- The FIXTURE launcher container must be on the page.",
+            "- launcher.json lists the FIXTURE launcher ids.",
+            "- Send support the FIXTURE launcher id.",
+          ]),
+          card("952", "FIXTURE widget is empty", [
+            "- In Admin, assign content to the FIXTURE widget.",
+            "- The FIXTURE widget container must be on the page.",
+            "- widget.json lists the FIXTURE widget items.",
+            "- Send support the FIXTURE widget id.",
+          ]),
+          card("953", "FIXTURE checklist repeats at each login", [
+            "- In Admin, turn on FIXTURE Remember Completion.",
+            "- Local storage must keep the FIXTURE completion key.",
+            "- progress.json lists the FIXTURE completed steps.",
+            "- Send support the FIXTURE checklist id.",
+          ]),
+        ],
+        { coverage: { min: 0.35, minIdf: 0.5, minTerms: 1 } },
+        V2,
+      ),
+    );
+    const top = (q: string) => small.search(q, { onePerCard: true });
+    expect(top("the help icon is gone").hits[0]?.chunk.pageId).toBe("952");
+    expect(top("I tried it again").hits[0]?.chunk.pageId).not.toBe("953");
+    expect(top("the checklist shows again").hits[0]?.chunk.pageId).toBe("953");
   });
 });

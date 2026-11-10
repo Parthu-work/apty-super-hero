@@ -252,6 +252,12 @@
     "expectedPageIds": ["2005"]
   },
   {
+    "id": "d5-f7b",
+    "category": "collision",
+    "q": "I tried again and the DEMO survey is untranslated",
+    "expectedPageIds": ["2006"]
+  },
+  {
     "id": "d5-r1",
     "category": "how-to",
     "q": "how do I configure a new launcher",

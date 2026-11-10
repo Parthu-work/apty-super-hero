@@ -238,5 +238,25 @@ describe("K21 reproductions on the demo packs", () => {
       }
     }
   });
-});
 
+  it("F7: a synonym used in its ordinary sense does not pick the group's card", () => {
+    const icon = search(["4.x"], "the help icon is gone");
+    assert.ok(
+      icon.status === "not_covered" || top(icon) === "4006",
+      `${icon.status} ${top(icon)}`,
+    );
+    assert.notEqual(top(icon), "4010");
+    for (const version of ["4.x", "5.x"]) {
+      const again = search(
+        [version],
+        "I tried again and the DEMO balloon does not appear",
+      );
+      assert.notEqual(top(again), "2010", version);
+      const button = search(
+        [version],
+        "the DEMO button on the form is disabled",
+      );
+      assert.ok(!["2007", "2012", "4010"].includes(top(button)), version);
+    }
+  });
+});

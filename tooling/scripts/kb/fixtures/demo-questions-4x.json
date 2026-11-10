@@ -276,6 +276,18 @@
     "expectedPageIds": []
   },
   {
+    "id": "d4-f7a",
+    "category": "collision",
+    "q": "the help icon is gone",
+    "expectedPageIds": ["4006"]
+  },
+  {
+    "id": "d4-f7b",
+    "category": "collision",
+    "q": "I tried again and the DEMO balloon does not appear",
+    "expectedPageIds": ["4002"]
+  },
+  {
     "id": "d4-r1",
     "category": "how-to",
     "q": "how do I configure a new launcher",

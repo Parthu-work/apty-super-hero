@@ -127,12 +127,16 @@ workflow/walkthrough/guide/flow/tour; reload/refresh/F5;
 production/prod/live; test/UAT/staging/QA/sandbox;
 freeze/hang/unresponsive/stuck; crash/tab crashed/out of memory;
 slow/sluggish/lag/laggy/performance; disappear/vanish/missing/gone;
-repeat/again/keeps coming back/every time/each login; language names and
+repeat/again and again/shows again/appears again/keeps coming back/every
+time/each login; language names and
 locale/translation; split step/decision step/branch/condition;
-launcher/button/icon/beacon; segment/audience/user group/targeting;
+launcher/button/beacon; widget/help icon/help panel/help widget/self-help;
+segment/audience/user group/targeting;
 publish/release/go live/deploy content; selector/XPath/CSS/locator;
 CSP/Content-Security-Policy/nonce; CORS/cross-origin; iframe/frame/embedded;
-shadow DOM/shadow root/LWC; skip/jump/starts at step.
+shadow DOM/shadow root/LWC; skip/jump/starts at step. A bare "icon" and a
+bare "again" are not synonyms: each matched an unrelated card (K21 F7), and
+`search.test.ts` holds a collision question for every group.
 
 **Coverage (is the question covered at all?).** BM25 sums over terms, so a
 long off-topic question can outscore a short covered one; coverage does not
