@@ -198,7 +198,7 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
   },
   {
     // KB-RAG K4. A bare "how do I configure X" with no finding or symptom
-    // still goes to Ask Dapty (D-KB1).
+    // is not a KB question (D-KB1, K21 F11).
     heading: "\n=== APTY PRODUCT FACTS COME FROM THE KB CARDS ===",
     tools: ["search_kb"],
     lines: [
@@ -206,7 +206,7 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
 
       "Cite each claim with the chunk's cite id, written as it is (kb://<pageId>#L<layer>), right after the claim. When a chunk has notVerified true or says NOT VERIFIED, say the statement is not verified.",
 
-      "If search_kb returns not_covered or no_pack, say the KB does not cover it, and suggest Ask Dapty, or the card's send-support list when a result named one. Do not answer from general knowledge instead.",
+      "If search_kb returns not_covered or no_pack, say the KB does not cover it, and suggest the Apty product documentation or the KB owner, or the card's send-support list when a result named one. Do not answer from general knowledge instead.",
 
       "On unknown_setting, say the KB has no setting with that name, name the missing phrase, and do not suggest a similar one. On stub, say the card exists but its text is not written yet and give its link.",
 
@@ -214,7 +214,7 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
 
       "The cards are in English: for a question in another language, call search_kb with an English query and answer in the user's language.",
 
-      "A general 'how do I configure X' question with no finding or symptom belongs to Ask Dapty, as the core prompt says.",
+      "The KB answers symptoms, not how-to questions: for a general 'how do I configure X' with no finding or symptom, point to the Apty product documentation or the KB owner.",
     ],
   },
 ];

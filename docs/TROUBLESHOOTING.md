@@ -176,7 +176,7 @@ check, and the HAR page offers "The Ask Dapty chat". See
 | Import refused (too large, not a pack, schema version, malformed, checksum) | The file is not a pack this Agent reads, or was changed or cut | See the error table in [`kb-rag.md`](development/kb-rag.md#troubleshooting) |
 | Every question is "not covered" | Coverage settings too strict, or no pack for the tab's Apty version | Ask the KB owner for a calibrated pack; import the tab's version, or pick "Not sure" |
 | Cards of the wrong Apty version | The tab's version is unknown or was picked wrongly | Pick the version on the KB matches or verdict card |
-| No KB card although no AI key is needed | The message reads as a bare how-to, or nothing covers it | Name the symptom; how-tos belong to Ask Dapty |
+| No KB card although no AI key is needed | The message reads as a bare how-to, or nothing covers it | Name the symptom. The KB answers symptoms, not how-to questions (D-KB1); for how to configure something, use the Apty product documentation or ask the KB owner. |
 | "Not found in the cited KB cards: …" under an answer | The model named a setting no returned card holds | Treat that setting as unverified; ask again naming the card's own words |
 | "unknown citation" in an answer | The model cited a card its search did not return | Ignore that citation |
 

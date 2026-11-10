@@ -1,7 +1,7 @@
 /**
  * What a chat message asks of the KB (KB-RAG K16): whether it reports a
- * symptom, whether it is a bare "how do I configure X" that D-KB1 leaves
- * to Ask Dapty, and whether it is written mostly outside the Latin script,
+ * symptom, whether it is a bare "how do I configure X", which is not a KB
+ * question (D-KB1), and whether it is written mostly outside the Latin script,
  * which English cards cannot match.
  */
 import { kbTerms, stem } from "@apty/agent-core";
@@ -64,8 +64,8 @@ const HOW_TO =
 
 /**
  * A how-to with no symptom: "how do I configure X", "where is the setting
- * for Y". D-KB1 leaves these to Ask Dapty, so no KB card answers them and
- * they do not pull `search_kb` in.
+ * for Y". The KB answers symptoms, not how-to questions (D-KB1), so no KB
+ * card answers them and they do not pull `search_kb` in.
  */
 export function isBareHowTo(text: string): boolean {
   return HOW_TO.test(text) && !hasSymptomWord(text);

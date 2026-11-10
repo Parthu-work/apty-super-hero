@@ -332,7 +332,7 @@ question passes.
 | Import refused: "checksum" | Changed or truncated in transit | Download it again |
 | Everything is "not covered" | Coverage settings too strict for the pack, or the tab's version has no pack loaded | Rebuild with the calibrated flags; import the tab's version, or choose "Not sure" |
 | Cards of the wrong version | The tab's version is unknown or was chosen wrongly | Pick the version on the KB matches or verdict card; a check's files decide it when one runs |
-| No KB card with no AI key | The message reads as a bare how-to, or nothing covers it | Name the symptom ("…does not show", "…flickers"); how-tos belong to Ask Dapty (D-KB1) |
+| No KB card with no AI key | The message reads as a bare how-to, or nothing covers it | Name the symptom ("…does not show", "…flickers"). The KB answers symptoms, not how-to questions (D-KB1); for how to configure something, use the Apty product documentation or ask the KB owner. |
 | The model does not call `search_kb` | The message is casual, a bare how-to or a file request | Name the symptom or the Apty item; `tool-relevance.ts` lists the words |
 | Links open the wrong space | A schema 1 pack (always JA) | Rebuild the pack with this builder |
 | "Older than 30 days" | Stale pack | Ask the KB owner for a newer one |
