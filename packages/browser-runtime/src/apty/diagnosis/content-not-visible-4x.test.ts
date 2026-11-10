@@ -14,18 +14,24 @@ const check = (name: string, evidence = files4x()) =>
 const causes = (result: ReturnType<typeof check>) =>
   result.verdict.causes.map((c) => c.ruleId);
 
-describe("content-not-visible for a 4.x tenant (K14)", () => {
-  it("finds a published, visible flow in an active segment, and leaves membership open", () => {
+const LINE =
+  "4.x code, apty-assist bbb4cbc (player 4.30.0); from code, not runtime-verified";
+
+describe("content-not-visible for a 4.x tenant (K14, checked against apty-assist in K21 F4)", () => {
+  it("finds a published, visible flow, and leaves its segments to the browser", () => {
     const result = check("Create a lead");
     expect(result.aptyVersion).toBe("4.x");
-    expect(result.verifiedOn).toBe(
-      "4.x behaviour as described in FIXES.md K14, not yet checked against apty-assist code; not runtime-verified",
-    );
+    expect(result.verifiedOn).toBe(LINE);
     expect(result.subject.name).toBe("Create a lead");
     expect(causes(result)).toEqual([]);
     expect(result.gates.map((g) => g.reason)).toContain("found");
-    expect(result.verdict.status).not.toBe("cause_found");
+    expect(result.gates.find((g) => g.ruleId === "C4X-04")).toMatchObject({
+      status: "unknown",
+      reason: "flowSegments4x",
+    });
+    expect(result.verdict.status).toBe("candidates");
     expect(result.notChecked).toContain("membership");
+    expect(result.files.map((f) => f.name)).toContain("feature-flag.json");
   });
 
   it("C4X-00: flow.json was not seen", () => {
@@ -39,6 +45,23 @@ describe("content-not-visible for a 4.x tenant (K14)", () => {
       status: "no_data",
       nextCheck: "reload",
     });
+  });
+
+  it("F4: with the publishing flag off, the flows come from the Assist server, not flow.json", () => {
+    const result = check(
+      "Create a lead",
+      files4x((f) => {
+        delete f["flow.json"];
+        f["feature-flag.json"] = {
+          publishingSystem: { key: "PublishingSystem", status: false },
+        };
+      }),
+    );
+    expect(result.verdict).toMatchObject({
+      status: "out_of_scope",
+      nextCheck: "manual4x",
+    });
+    expect(result.gates[0]?.reason).toBe("flowsFromServer4x");
   });
 
   it("C4X-01: flow.json is empty: no flow is published in this environment", () => {
@@ -59,26 +82,95 @@ describe("content-not-visible for a 4.x tenant (K14)", () => {
     );
   });
 
-  it("C4X-03: the flow is hidden from the widget", () => {
+  it("F4: names the locales a flow is listed under, as the widget lists it by the user's locale", () => {
+    const result = check("Book a meeting");
+    expect(
+      result.gates.find((g) => g.reason === "flowLocales4x")?.params,
+    ).toMatchObject({ locales: "1, 3" });
+  });
+
+  it("C4X-03: the flow is hidden from the widget, by any truthy hideInWidget", () => {
     expect(causes(check("Close a deal"))).toEqual(["C4X-03"]);
+    const truthy = check(
+      "Create a lead",
+      files4x((f) => {
+        (f["flow.json"] as Rec[])[0] = {
+          ...((f["flow.json"] as Rec[])[0] as Rec),
+          hideInWidget: 1,
+        };
+      }),
+    );
+    expect(causes(truthy)).toEqual(["C4X-03"]);
   });
 
-  it("C4X-04: every segment that lists the flow is turned off", () => {
-    expect(causes(check("Log a call"))).toEqual(["C4X-04"]);
+  it("F4: segments carry conditions, not an on/off switch, so an old isActive false is no cause", () => {
+    const old = check(
+      "Log a call",
+      files4x((f) => {
+        for (const s of f["segments.json"] as Rec[]) s.isActive = false;
+      }),
+    );
+    expect(causes(old)).toEqual([]);
+    expect(old.gates.find((g) => g.ruleId === "C4X-04")).toMatchObject({
+      status: "unknown",
+      reason: "flowSegments4x",
+      params: { segments: "Call centre" },
+    });
   });
 
-  it("C4X-05: its segment's rule is missing from rules.json", () => {
-    expect(causes(check("Book a meeting"))).toEqual(["C4X-05"]);
+  it("C4X-04: a flow no segment lists reaches only users of no segment, and every user when there is no segment", () => {
+    const listedByNone = check("Book a meeting");
+    expect(listedByNone.gates.find((g) => g.ruleId === "C4X-04")?.reason).toBe(
+      "flowInNoSegment4x",
+    );
+    const noSegments = check(
+      "Book a meeting",
+      files4x((f) => {
+        f["segments.json"] = [];
+      }),
+    );
+    expect(noSegments.gates.find((g) => g.ruleId === "C4X-04")).toMatchObject({
+      status: "pass",
+      reason: "noSegments",
+    });
   });
 
-  it("C4X-06: the flow's own file has no steps, and an unloaded one stays open", () => {
+  it("F4: a rule the flow names but rules.json lacks never runs, so the flow stays visible", () => {
+    const result = check("Book a meeting");
+    expect(causes(result)).toEqual([]);
+    expect(result.gates.find((g) => g.ruleId === "C4X-05")).toMatchObject({
+      status: "pass",
+      reason: "ruleNotInRules4x",
+      params: { rule: "78" },
+    });
+  });
+
+  it("C4X-05: a rule rules.json holds decides in the browser", () => {
+    expect(
+      check("Log a call").gates.find((g) => g.ruleId === "C4X-05"),
+    ).toMatchObject({
+      status: "unknown",
+      reason: "ruleDecides4x",
+      params: { rule: "FIXTURE sales role" },
+    });
+  });
+
+  it("C4X-06: the steps file is a bare array; an empty one plays nothing, an object fails to load, an unloaded one stays open", () => {
     const empty = check(
       "Create a lead",
       files4x((f) => {
-        f["flow-18515.json"] = { id: 18515, steps: [] };
+        f["flow-18515.json"] = [];
       }),
     );
     expect(causes(empty)).toEqual(["C4X-06"]);
+    const object = check(
+      "Create a lead",
+      files4x((f) => {
+        f["flow-18515.json"] = { id: 18515, steps: [{ id: 1 }] };
+      }),
+    );
+    expect(causes(object)).toEqual(["C4X-06"]);
+    expect(object.verdict.causes[0]?.params.variant).toBe("notList");
     const unread = check(
       "Create a lead",
       files4x((f) => {

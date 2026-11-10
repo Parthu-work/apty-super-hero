@@ -7,6 +7,7 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   cardTitleCommentProblems,
+  cardTitleQuoteLines,
   hasPackMarker,
   kbPackProblems,
   quotesCardTitle,
@@ -135,6 +136,42 @@ describe("F12: quotesCardTitle", () => {
     assert.ok(
       !quotesCardTitle(`const url = "https://x.example/${ID}"; // "${TITLE}"`),
     );
+  });
+});
+
+describe("F12: cardTitleQuoteLines", () => {
+  const [head, tail] = [
+    ["FIXTURE", "widget", "is"].join(" "),
+    ["not", "showing", "anywhere"].join(" "),
+  ];
+
+  it("follows a quoted title over a line break to the page id", () => {
+    const split = [
+      "/**",
+      ` * From the card "${head}`,
+      ` * ${tail}" (A4PKH ${ID}) and more.`,
+      " */",
+    ].join("\n");
+    assert.deepEqual(cardTitleQuoteLines(split), [2]);
+    const idNextLine = [
+      `// the card "${TITLE}"`,
+      `// (A4PKH ${ID}) says so`,
+    ].join("\n");
+    assert.deepEqual(cardTitleQuoteLines(idNextLine), [1]);
+  });
+
+  it("passes a description, a short quote, and an id far from any quote", () => {
+    const fine = [
+      "/**",
+      ` * The widget card for the whole application (A4PKH ${ID}), and the`,
+      ' * "flow.json" mirror card; a later line names',
+      ` * "${TITLE}" with no id near it.`,
+      " *",
+      " * Some more words here that push the next id away from the quote.",
+      ` * See also A4PKH ${ID}.`,
+      " */",
+    ].join("\n");
+    assert.deepEqual(cardTitleQuoteLines(fine), []);
   });
 });
 

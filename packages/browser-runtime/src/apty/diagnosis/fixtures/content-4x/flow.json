@@ -1,6 +1,22 @@
 [
   { "id": 18515, "name": { "1": "Create a lead" }, "hideInWidget": false },
   { "id": 18516, "name": { "1": "Close a deal" }, "hideInWidget": true },
-  { "id": 18517, "name": { "1": "Log a call" }, "hideInWidget": false },
-  { "id": 18518, "name": { "1": "Book a meeting" }, "hideInWidget": false }
+  {
+    "id": 18517,
+    "name": { "1": "Log a call" },
+    "hideInWidget": false,
+    "attachedRule": {
+      "id": 77,
+      "ruleAction": { "metaData": { "action": "Show" } }
+    }
+  },
+  {
+    "id": 18518,
+    "name": { "1": "Book a meeting", "3": "Réserver une réunion" },
+    "hideInWidget": false,
+    "attachedRule": {
+      "id": 78,
+      "ruleAction": { "metaData": { "action": "Hide" } }
+    }
+  }
 ]

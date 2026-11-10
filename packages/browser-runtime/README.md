@@ -143,9 +143,9 @@ KB-RAG ([`docs/development/kb-rag.md`](../../docs/development/kb-rag.md)):
 The **4.x check packs** (`apty/diagnosis/widget-not-visible-4x.ts`, rules
 `W4X-…`, and `content-not-visible-4x.ts`, rules `C4X-…`) run when a check's
 files are 4.x (`playerVersionOf`); a 5.x or unknown tenant runs the 5.x
-packs. Every 4.x finding says it follows the 4.x behaviour FIXES.md K14
-describes, not yet checked against apty-assist code nor runtime-verified,
-and is at most "possible".
+packs. The 4.x rules were checked against apty-assist `player3.0` at
+`bbb4cbc` (player 4.30.0); every 4.x finding says so and that it is not
+runtime-verified.
 
 **Where a check's files come from**, in order:
 

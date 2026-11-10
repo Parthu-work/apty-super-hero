@@ -14,9 +14,11 @@
  * with the literal string.
  *
  * It also fails on a source comment (`.ts`, `.tsx`, `.mjs` under packages/,
- * apps/ and tooling/) that quotes a phrase of four or more words on the
- * same line as a 10-digit page id: that is a card title, and a comment
- * names a card by its page id and a description in its own words. Only node_modules and .git are skipped: run it
+ * apps/ and tooling/) that quotes a phrase of four or more words with a
+ * 10-digit page id on the same line, or, for a quote that runs over several
+ * comment lines or ends at a line break, on a line it spans or just after
+ * it: that is a card title, and a comment names a card by its page id and a
+ * description in its own words. Only node_modules and .git are skipped: run it
  * after the build, so the extension's dist, which the release zips are
  * made from, is scanned as well. It prints paths and reasons, never a
  * file's contents.
@@ -64,6 +66,69 @@ export function quotesCardTitle(line) {
   return false;
 }
 
+const MULTI_LINE_QUOTE = /"([^"]{1,300})"|“([^”]{1,300})”|`([^`]{1,300})`/g;
+/** How far after a closing quote a page id still names the quoted card. */
+const ID_AFTER_QUOTE = 30;
+const COMMENT_MARK = /^\s*(?:\/\*\*?|\*\/?|\/\/)?\s?|\s*\*\/\s*$/g;
+
+const words = (phrase) => phrase.trim().split(/\s+/).filter(Boolean).length;
+
+/**
+ * The lines (1-based) where a comment quotes a card title: a quoted phrase
+ * of 4+ words with a page id on its line (`quotesCardTitle`), or a quote
+ * that runs over several comment lines, or is followed on the next one, by
+ * a page id on a line it spans or just after it closes.
+ */
+export function cardTitleQuoteLines(source) {
+  const lines = source.split("\n");
+  const found = new Set();
+  lines.forEach((line, i) => {
+    if (quotesCardTitle(line)) found.add(i + 1);
+  });
+  let block = [];
+  const flush = () => {
+    if (block.length > 1) checkBlock(block, found);
+    block = [];
+  };
+  lines.forEach((line, i) => {
+    const comment = commentOf(line);
+    if (comment)
+      block.push({ line: i + 1, text: comment.replace(COMMENT_MARK, "") });
+    else flush();
+  });
+  flush();
+  return [...found].sort((a, b) => a - b);
+}
+
+/** A comment block's quotes that cross a line break, or end next to an id on the next line. */
+function checkBlock(block, found) {
+  const starts = [];
+  let text = "";
+  for (const { text: part } of block) {
+    starts.push(text.length);
+    text += `${part}\n`;
+  }
+  const lineAt = (offset) => {
+    let index = 0;
+    while (index + 1 < starts.length && starts[index + 1] <= offset) index++;
+    return index;
+  };
+  for (const match of text.matchAll(MULTI_LINE_QUOTE)) {
+    const phrase = match[1] ?? match[2] ?? match[3] ?? "";
+    if (words(phrase) < 4) continue;
+    const first = lineAt(match.index);
+    const end = match.index + match[0].length;
+    const last = lineAt(end - 1);
+    const after = text.slice(end, end + ID_AFTER_QUOTE);
+    const spanned = block
+      .slice(first, last + 1)
+      .some(({ text: part }) => PAGE_ID.test(part));
+    const crosses = last > first || after.includes("\n");
+    if (crosses && (spanned || PAGE_ID.test(after)))
+      found.add(block[first].line);
+  }
+}
+
 function* sourceFiles(dir) {
   let entries;
   try {
@@ -86,16 +151,12 @@ export function cardTitleCommentProblems(root) {
   for (const top of SOURCE_ROOTS) {
     for (const full of sourceFiles(join(root, top))) {
       const path = relative(root, full).split(sep).join("/");
-      readFileSync(full, "utf8")
-        .split("\n")
-        .forEach((line, i) => {
-          if (quotesCardTitle(line)) {
-            problems.push({
-              path: `${path}:${i + 1}`,
-              reason: "a comment quotes a card title next to a page id",
-            });
-          }
+      for (const line of cardTitleQuoteLines(readFileSync(full, "utf8"))) {
+        problems.push({
+          path: `${path}:${line}`,
+          reason: "a comment quotes a card title next to a page id",
         });
+      }
     }
   }
   return problems.sort((a, b) => a.path.localeCompare(b.path));

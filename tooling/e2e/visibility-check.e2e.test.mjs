@@ -558,8 +558,11 @@ describe("a 4.x tenant (KB-RAG K14)", () => {
       ]),
     );
     const apps = JSON.parse(files4x["app-urls.json"]);
-    apps[0].environments[1].urls = [`${site.origin}/app`];
+    apps[0].environments["2"].url = `${site.origin}/app`;
     files4x["app-urls.json"] = JSON.stringify(apps);
+    const appData = JSON.parse(files4x["app-data.json"]);
+    appData.environments["2"].url = `${site.origin}/app`;
+    files4x["app-data.json"] = JSON.stringify(appData);
     const dir = join(tempDir("apty-e2e-content-4x-"), "client");
     client4xId = unpackedExtensionId(dir);
     writeContentClient(dir, AGENT_EXTENSION_ID, files4x);

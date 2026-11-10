@@ -17,8 +17,10 @@ function files4x(change?: (f: Files) => void) {
   return evidenceFrom(files);
 }
 const UAT_PAGE = "https://uat.crm.example.com/leads/42";
-const env0 = (f: Files) =>
-  ((f["app-urls.json"] as Rec[])[0]?.environments as Rec[])[0] as Rec;
+const envOf = (f: Files, env: string) =>
+  ((f["app-urls.json"] as Rec[])[0]?.environments as Rec)[env] as Rec;
+const dataEnv = (f: Files, env: string) =>
+  ((f["app-data.json"] as Rec).environments as Rec)[env] as Rec;
 
 /** One verdict per 4.x rule's cause, from the synthetic 4.x fixture. */
 function every4xResult(): DiagnosisResult[] {
@@ -36,14 +38,22 @@ function every4xResult(): DiagnosisResult[] {
     }),
     widget(undefined, "https://other.example.org/x"),
     widget((f) => {
-      f["feature-flag.json"] = { urlRegex: true };
-      env0(f).urls = ["(unclosed"];
+      f["feature-flag.json"] = {
+        regExpUrl: { key: "RegExpURL", status: true },
+      };
+      envOf(f, "1").url = "(unclosed";
     }),
     widget((f) => {
-      for (const entry of f["app-data.json"] as Rec[]) {
-        entry.enablePlayer = false;
-        entry.widgetConfig = { enabled: false };
-      }
+      dataEnv(f, "2").enablePlayer = false;
+    }),
+    widget((f) => {
+      dataEnv(f, "2").widgetConfig = {
+        display: "Specific",
+        selectedSegments: [],
+      };
+    }),
+    widget((f) => {
+      delete (f["app-data.json"] as Rec).config;
     }),
     flow("Create a lead"),
     flow("Create a lead", (f) => {
@@ -54,14 +64,10 @@ function every4xResult(): DiagnosisResult[] {
     }),
     flow("No such flow"),
     flow("Close a deal"),
-    flow("Create a lead", (f) => {
-      for (const s of f["segments.json"] as Rec[]) s.isActive = false;
-    }),
+    flow("Log a call"),
     flow("Book a meeting"),
     flow("Create a lead", (f) => {
-      for (const key of Object.keys(f)) {
-        if (/^flow-\d+\.json$/.test(key)) f[key] = { steps: [] };
-      }
+      f["flow-18515.json"] = [];
     }),
   ];
 }
@@ -89,13 +95,13 @@ describe("F3: every 4.x cause cites a 4.x card", () => {
       "C4X-01",
       "C4X-02",
       "C4X-03",
-      "C4X-04",
-      "C4X-05",
       "C4X-06",
       "W4X-01",
       "W4X-02",
+      "W4X-03",
       "W4X-04",
       "W4X-05",
+      "W4X-06",
     ]);
     for (const result of results) {
       const cited = [
@@ -131,29 +137,20 @@ describe("F3: every 4.x cause cites a 4.x card", () => {
 
 describe("F4: the 4.x rules say where they come from", () => {
   const LINE =
-    "4.x behaviour as described in FIXES.md K14, not yet checked against apty-assist code; not runtime-verified";
+    "4.x code, apty-assist bbb4cbc (player 4.30.0); from code, not runtime-verified";
 
-  it('gives the description\'s version line, never "from code", while no commit is pinned', () => {
+  it("names the pinned apty-assist commit and player version on every 4.x result", () => {
     for (const result of every4xResult()) {
       expect(result.verifiedOn).toBe(LINE);
-      expect(JSON.stringify(result)).not.toMatch(/from code/i);
     }
   });
 
-  it("is one step less certain than the 5.x rules: possible where 5.x says likely", () => {
-    const results = every4xResult();
-    for (const result of results) {
-      expect(result.confidence).not.toBe("likely");
-    }
-    expect(
-      results
-        .filter((r) => r.verdict.status === "cause_found")
-        .map((r) => r.confidence),
-    ).toEqual(
-      results
-        .filter((r) => r.verdict.status === "cause_found")
-        .map(() => "possible"),
+  it("is as certain as the 5.x rules once read from code: likely where 5.x says likely", () => {
+    const found = every4xResult().filter(
+      (r) => r.verdict.status === "cause_found",
     );
+    expect(found.length).toBeGreaterThan(0);
+    for (const result of found) expect(result.confidence).toBe("likely");
     expect(
       diagnoseWidgetNotVisible(
         evidenceFrom(capture()),

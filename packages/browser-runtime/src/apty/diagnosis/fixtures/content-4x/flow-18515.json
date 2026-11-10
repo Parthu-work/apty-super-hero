@@ -1,7 +1,4 @@
-{
-  "id": 18515,
-  "steps": [
-    { "id": 1, "title": "FIXTURE step one" },
-    { "id": 2, "title": "FIXTURE step two" }
-  ]
-}
+[
+  { "id": 1, "title": "FIXTURE step one" },
+  { "id": 2, "title": "FIXTURE step two" }
+]
