@@ -15,7 +15,7 @@ import {
   tempDir,
   toolResults,
 } from "./harness.mjs";
-import { importPack, writeFixturePack } from "./kb-fixture.mjs";
+import { importPack, NON_DEMO_SITE, writeFixturePack } from "./kb-fixture.mjs";
 
 let browser;
 let model;
@@ -88,7 +88,7 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
     const [result] = toolResults(second);
     assert.equal(result.status, "ok");
     assert.equal(result.results[0].cite, "kb://101#L1");
-    assert.equal(result.results[0].site, "fixture.atlassian.net");
+    assert.equal(result.results[0].site, "fixture.atlassian.invalid");
     assert.equal(result.results[0].space, "FX");
     assert.equal(result.results[0].aptyVersion, "5.x");
     assert.match(result.results[0].text, /Glowing Banner setting/);
@@ -101,7 +101,7 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
     const link = panel.getByRole("button", { name: "KB card 101, layer 1" });
     await link.click();
     await panel
-      .getByText("https://fixture.atlassian.net/wiki/spaces/FX/pages/101")
+      .getByText("https://fixture.atlassian.invalid/wiki/spaces/FX/pages/101")
       .waitFor();
     await panel.close();
     await app.close();
@@ -137,11 +137,56 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
       /Never name an Apty setting, field or menu that is not in a returned chunk/,
     );
     assert.deepEqual(toolResults(second), [
-      { status: "not_covered", reason: "no_match", results: [] },
+      {
+        status: "not_covered",
+        source: "kb",
+        cards: [],
+        reason: "no_match",
+        results: [],
+      },
     ]);
     assert.equal(
       await panel.getByRole("button", { name: /^KB card / }).count(),
       0,
+    );
+    await panel.close();
+    await app.close();
+  });
+
+  it("withholds card text once a non-demo pack is loaded, earlier results included, and offers no search_kb (KB-RAG K22)", async () => {
+    model.script((request) => {
+      const results = toolResults(request);
+      if (results.length === 0 && toolNames(request).includes("search_kb")) {
+        return { tool: "search_kb", args: { query: "turn on banner glow" } };
+      }
+      return { text: "RESULT: answered" };
+    });
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    // A demo pack: search_kb is offered and its text reaches the model.
+    await chatAndWait(panel, "how do I turn the banner glow on in Studio?");
+    assert.match(JSON.stringify(model.requests.at(-1)), /Glowing Banner/);
+
+    const { file } = writeFixturePack(tempDir("apty-kb-answer-real-"), {
+      site: NON_DEMO_SITE,
+    });
+    await importPack(browser, file);
+    model.requests.length = 0;
+    // A bare how-to, so the model answers it, not the local KB matches.
+    await chatAndWait(panel, "how do I turn the banner glow off in Studio?");
+
+    const [request] = model.requests;
+    assert.equal(toolNames(request).includes("search_kb"), false);
+    assert.doesNotMatch(
+      request.messages[0].content,
+      /APTY PRODUCT FACTS COME FROM THE KB CARDS/,
+    );
+    const body = JSON.stringify(request);
+    assert.doesNotMatch(body, /Glowing Banner/);
+    assert.match(
+      body,
+      /KB card text withheld by organization policy\. Cards shown to the user: 101/,
     );
     await panel.close();
     await app.close();

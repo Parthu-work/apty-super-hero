@@ -6,7 +6,9 @@ import {
   type KbNotCoveredReason,
   type KbPack,
   type KbSearchHit,
+  type KbSourceTag,
   kbCardLocation,
+  kbSourceTag,
 } from "@apty/agent-core";
 import { createKbPackStore, type KbPackStore } from "../storage/kb-store.js";
 
@@ -85,7 +87,12 @@ export interface KbStubHit {
   aptyVersion: string;
 }
 
-export interface KbToolResult {
+/**
+ * Every result carries the KB source tag (KB-RAG K22, hard rule 3): the
+ * outbound filter and the MCP bridge withhold the text of a tagged result
+ * unless the policy lets it go.
+ */
+export interface KbToolResult extends KbSourceTag {
   /** `non_english`: the local answer only, for a question the English cards cannot match. */
   status: "ok" | "not_covered" | "stub" | "no_pack" | "non_english";
   /** With `stub`: the card; say it exists, that its text is not written yet, and give its link. */
@@ -132,11 +139,12 @@ export function kbToolResult(
     onePerCard?: boolean;
   } = {},
 ): KbToolResult {
-  if (!index) return { status: "no_pack", results: [] };
+  if (!index) return { status: "no_pack", ...kbSourceTag([]), results: [] };
   const found = index.search(query, options);
   if (found.status === "stub" && found.card) {
     return {
       status: "stub",
+      ...kbSourceTag([{ pageId: found.card.pageId }]),
       stub: {
         cite: `kb://${found.card.pageId}`,
         title: found.card.title,
@@ -150,6 +158,7 @@ export function kbToolResult(
   if (found.status === "not_covered") {
     return {
       status: "not_covered",
+      ...kbSourceTag([]),
       ...(found.reason ? { reason: found.reason } : {}),
       ...(found.missingPhrases ? { missingPhrases: found.missingPhrases } : {}),
       results: [],
@@ -162,5 +171,14 @@ export function kbToolResult(
     total += hit.chunk.text.length;
     results.push(toolHit(hit));
   }
-  return { status: "ok", mixedVersions: found.mixedVersions ?? false, results };
+  return {
+    status: "ok",
+    ...kbSourceTag(
+      found.hits
+        .slice(0, results.length)
+        .map((hit) => ({ pageId: hit.chunk.pageId, layer: hit.chunk.layer })),
+    ),
+    mixedVersions: found.mixedVersions ?? false,
+    results,
+  };
 }

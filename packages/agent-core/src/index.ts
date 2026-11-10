@@ -3,6 +3,16 @@ export { aisdk } from "@openai/agents-extensions/ai-sdk";
 // Agent
 export { AptyAgent } from "./agent/index.js";
 export {
+  type AiDestination,
+  type DestinationVerdict,
+  destinationAllowed,
+  destinationOf,
+  type KbEgressDecision,
+  type KbEgressReason,
+  kbEgressAllowed,
+  requestUrlAllowed,
+} from "./config/destination.js";
+export {
   type EffectiveSettings,
   effectiveSettings,
   isDemoKbPack,
@@ -91,6 +101,18 @@ export { ConversationManager } from "./conversation/manager.js";
 export { Session } from "./conversation/session.js";
 export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
+export {
+  KB_SOURCE,
+  type KbCardRef,
+  type KbSourceTag,
+  kbCardIds,
+  kbCardsIn,
+  kbSourceTag,
+  kbTagOf,
+  kbWithheldForMcp,
+  kbWithheldText,
+  withholdKbText,
+} from "./kb/egress.js";
 export { createKbIndexSet } from "./kb/index-set.js";
 // KB packs and search
 export {

@@ -7,6 +7,7 @@
  * script cannot match the English cards: with no model to take it, the
  * user is told so.
  */
+import { kbSourceTag } from "@apty/agent-core";
 import {
   type KbIndexSource,
   type KbTabVersion,
@@ -39,7 +40,7 @@ export async function localKbMatches(
     if (isMostlyNonLatin(text)) {
       return modelAvailable
         ? undefined
-        : { status: "non_english", results: [] };
+        : { status: "non_english", ...kbSourceTag([]), results: [] };
     }
     const result = kbToolResult(index, text.slice(0, MAX_QUERY_CHARS), {
       topK: KB_MATCHES,

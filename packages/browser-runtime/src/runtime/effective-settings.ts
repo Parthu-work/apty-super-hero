@@ -74,6 +74,13 @@ async function nonDemoPackLoaded(deps: EffectiveSettingsDeps) {
   }
 }
 
+/** The loaded KB packs' descriptions (no card text). */
+export function loadKbPackInfos(
+  deps: EffectiveSettingsDeps = browserDeps,
+): Promise<KbPackInfo[]> {
+  return deps.packs();
+}
+
 /** The policy and pack state the settings were last merged with. */
 interface Overlay {
   policy: OrgPolicyState;

@@ -40,6 +40,8 @@ describe("localKbMatches", () => {
     const kb = await source();
     expect(await localKbMatches("小部件没有显示", kb)).toEqual({
       status: "non_english",
+      source: "kb",
+      cards: [],
       results: [],
     });
     expect(

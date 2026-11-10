@@ -2,6 +2,7 @@ import type { AgentInputItem } from "@openai/agents";
 import { Agent, run } from "@openai/agents";
 import type { AiSdkModel } from "@openai/agents-extensions/ai-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { kbSourceTag, withholdKbText } from "../kb/egress.js";
 import type { OutboundFilter } from "../types.js";
 import { ConversationCompressor } from "./compressor.js";
 
@@ -340,6 +341,53 @@ describe("summaries offered as a setting", () => {
     expect(JSON.stringify(sent?.input)).toContain("[email]");
     expect(sent?.instructions).toBe("summarize");
     expect(seen).toEqual([{ instructions: "summarize", tools: [] }]);
+  });
+
+  it("runs a summary-source filter over the conversation before it becomes text (KB-RAG K22)", async () => {
+    const kbAnswer = JSON.stringify({
+      status: "ok",
+      ...kbSourceTag([{ pageId: "101", layer: 1 }]),
+      results: [{ text: "FIXTURE Quillfeather setting" }],
+    });
+    const purposes: unknown[] = [];
+    const kbFilter = Object.assign(
+      (input: AgentInputItem[], request: { purpose?: string }) => {
+        purposes.push(request.purpose);
+        return withholdKbText(input);
+      },
+      { onSummarySource: true },
+    );
+    const compressor = new ConversationCompressor(
+      mockModel,
+      { summarizeAfterItems: 2, keepRecentItems: 2 },
+      [kbFilter],
+    );
+
+    await compressor.compressItems([
+      createUserMessage("banner never glows"),
+      {
+        type: "function_call",
+        callId: "local-1",
+        name: "search_kb",
+        arguments: "{}",
+        status: "completed",
+      },
+      {
+        type: "function_call_result",
+        callId: "local-1",
+        name: "search_kb",
+        status: "completed",
+        output: { type: "text", text: kbAnswer },
+      },
+      ...chatOf(4),
+    ]);
+
+    const asked = vi.mocked(run).mock.calls[0]?.[1] as AgentInputItem[];
+    expect(JSON.stringify(asked)).not.toContain("Quillfeather");
+    expect(JSON.stringify(asked)).toContain(
+      "KB card text withheld by organization policy. Cards shown to the user: 101.",
+    );
+    expect(purposes).toEqual(["summary"]);
   });
 
   it("asks for no summary when nothing is older than the protected messages", async () => {

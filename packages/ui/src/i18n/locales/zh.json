@@ -2498,7 +2498,9 @@
     "nonEnglish": "KB 卡片是英文的。请用英文提问，或把问题发送给模型。",
     "mixedVersions": "这些卡片属于不同的 Apty 版本；此租户运行的是哪个版本？",
     "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
-    "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。"
+    "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。",
+    "notSent": "仅在此处显示；不会发送给 AI 模型。",
+    "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。"
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",

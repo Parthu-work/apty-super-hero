@@ -25,9 +25,11 @@ import {
   IndexedDBStorage,
 } from "@apty/browser-runtime";
 import { useStorage } from "@apty/browser-runtime/hooks";
+import { decideKbEgress } from "@apty/browser-runtime/runtime/kb-egress";
 import { AGENT_SESSION_DB } from "@apty/browser-runtime/storage/agent-session-store";
 import { tabConsoleOf } from "@apty/browser-runtime/tools/apty";
 import { tabDomHealthOf } from "@apty/browser-runtime/tools/dom-health";
+import { withoutKbSearch } from "@apty/browser-runtime/tools/tool-relevance";
 import { SYSTEM_PROMPT_CORE } from "@apty/ui/components/chatbot/constants";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -144,8 +146,16 @@ export function useSelectRelevantTools() {
   const [selectSticky] = useState(createStickyToolSelector);
 
   return useCallback(
-    (text: string, sessionId: string | null) =>
-      filterToolsByMode(selectSticky(text, sessionId), automationMode),
+    async (text: string, sessionId: string | null) => {
+      const tools = filterToolsByMode(
+        selectSticky(text, sessionId),
+        automationMode,
+      );
+      if (!tools.some((tool) => tool.name === "search_kb")) return tools;
+      // Not offered when its result's text could not reach the model.
+      const { decision } = await decideKbEgress("chat");
+      return decision.allowed ? tools : withoutKbSearch(tools);
+    },
     [selectSticky, automationMode],
   );
 }

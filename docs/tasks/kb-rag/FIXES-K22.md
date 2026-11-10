@@ -480,12 +480,26 @@ Where the code differs from the file list above, and why:
   audit:settings-readers` (also a `test:scripts` test) fails on any other
   reader. The redaction floor's UI (S5) landed with the Data handling card
   in S2, since the S2 E2E asserts it.
+- **S4:** the tag is `source: "kb"` plus `cards` (page id and layer) on
+  every `KbToolResult` (`kbToolResult`, `localKbMatches`), defined in
+  `packages/agent-core/src/kb/egress.ts`; the filter is
+  `createKbEgressFilter` (`packages/browser-runtime/src/runtime/kb-egress.ts`),
+  first in `createOutboundFilters` and marked `onSummarySource`, so
+  `ConversationCompressor` runs it over a summary's source before the
+  conversation becomes text. The verdict card's "From the KB card" excerpt
+  never enters the session (it is read from the pack in the panel), so its
+  note is the fixed "Shown here only" line. The E2E fixture packs now sit on
+  `fixture.atlassian.invalid` (demo packs, so the earlier suites keep
+  checking the full path) and the new withheld cases build theirs on
+  `synthetic.atlassian.example`. The summary request's withholding is
+  covered by unit tests (`compressor.test.ts`, `kb-egress.test.ts`), not an
+  E2E.
 
 | Package | Status |
 | --- | --- |
 | S1 Managed policy: schema and reader | Done |
 | S2 Effective settings and locked fields | Done |
-| S4 KB text off by default | Not started |
+| S4 KB text off by default | Done |
 | S3 Allowed destinations only | Not started |
 | S5 Redaction floor | Not started |
 | S6 MCP bridge | Not started |

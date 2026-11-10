@@ -20,11 +20,15 @@ describe("kbToolResult", () => {
   it("names no pack and an uncovered question", async () => {
     expect(kbToolResult(null, "banner")).toEqual({
       status: "no_pack",
+      source: "kb",
+      cards: [],
       results: [],
     });
     const index = await (await source()).source.current();
     expect(kbToolResult(index, "kubernetes helm chart")).toEqual({
       status: "not_covered",
+      source: "kb",
+      cards: [],
       reason: "no_match",
       results: [],
     });
@@ -41,6 +45,8 @@ describe("kbToolResult", () => {
       kbToolResult(index, "where is the Glowing Toggle for the banner"),
     ).toEqual({
       status: "not_covered",
+      source: "kb",
+      cards: [],
       reason: "unknown_setting",
       missingPhrases: ["Glowing Toggle"],
       results: [],
@@ -58,6 +64,8 @@ describe("kbToolResult", () => {
     const index = await (await source(fixtureV2PackText())).source.current();
     expect(kbToolResult(index, "the gadget export never finishes")).toEqual({
       status: "stub",
+      source: "kb",
+      cards: [{ pageId: "303" }],
       stub: {
         cite: "kb://303",
         title: "FIXTURE gadget export never finishes",
@@ -75,6 +83,8 @@ describe("kbToolResult", () => {
     const result = kbToolResult(index, "glow.json glowIds", { topK: 1 });
     expect(result).toEqual({
       status: "ok",
+      source: "kb",
+      cards: [{ pageId: "101", layer: 3 }],
       mixedVersions: false,
       results: [
         {
