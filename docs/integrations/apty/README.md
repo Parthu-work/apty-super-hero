@@ -205,9 +205,8 @@ the Agent reads a 4.x tenant's content files from:
      A service-worker HAR has no page request, so tick "Use the page open in
      this tab: …" to check the widget against the page you confirm.
 
-The 4.x checks (`W4X-…` widget rules, `C4X-…` flow rules) follow the 4.x
-behaviour FIXES.md K14 describes; they are not yet checked against
-apty-assist code nor runtime-verified (owner decision D-KB7), so a 4.x
-finding is at most "possible" (K21 F4). The bridge
+The 4.x checks (`W4X-…` widget rules, `C4X-…` flow rules) were checked
+against apty-assist `player3.0` at `bbb4cbc` (player 4.30.0) and are not
+runtime-verified (owner decision D-KB7, K21 F4). The bridge
 that would let the Agent read a 4.x Client like a 5.x one is described,
 ready to apply in apty-assist, in [`4X-BRIDGE.md`](4X-BRIDGE.md).

@@ -51,8 +51,11 @@ before(async () => {
   };
   site = await startPageServer(pages);
   const apps = JSON.parse(files["app-urls.json"]);
-  apps[0].environments[1].urls = [`${site.origin}/app`];
+  apps[0].environments["2"].url = `${site.origin}/app`;
   files["app-urls.json"] = JSON.stringify(apps);
+  const appData = JSON.parse(files["app-data.json"]);
+  appData.environments["2"].url = `${site.origin}/app`;
+  files["app-data.json"] = JSON.stringify(appData);
   for (const [name, body] of Object.entries(files)) {
     pages[`${BASE}/${name}`] = body;
   }

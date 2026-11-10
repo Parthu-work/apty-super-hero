@@ -2068,12 +2068,23 @@
       "suggestionsLaunch": "全部 {{count}} 个推荐都已在此发布且没有可见性规则，点击即可打开。",
       "appUrlsFailed4x": "app-urls.json 请求失败（HTTP {{httpStatus}}）；4.x 播放器将其视为空列表",
       "envRegexInvalid4x": "{{env}} 的 URL 模式“{{pattern}}”不是有效的正则表达式；租户的正则 URL 开关已打开",
-      "playerOff4x": "{{env}} 的播放器已关闭",
-      "widgetOff4x": "{{env}} 的小组件已关闭",
+      "playerOff4x": "{{env}} 的播放器未打开",
+      "widgetOff4x": "{{env}} 中没有人能看到小组件",
       "flowHidden4x": "“{{name}}”在小组件中被隐藏",
-      "rulesMissing4x": "其分组的规则在 rules.json 中缺失",
       "flowSteps4x": "{{file}} 中没有步骤",
-      "flowStepsUnread4x": "未读取 {{file}}：播放器在流程播放时才加载它"
+      "flowStepsUnread4x": "未读取 {{file}}：播放器在流程播放时才加载它",
+      "appUrlsFromSnippet4x": "仅当页面的 Apty 脚本标签没有 data-app-urls 列表时，4.x 播放器才会请求 app-urls.json",
+      "appDataOtherApp4x": "读取到的 app-data.json 属于应用 {{app}}，而不是此页面的应用",
+      "appDataIncomplete4x": "app-data.json 缺少 config.customConfig，因此 4.x 播放器在启动时停止",
+      "widgetForAll4x": "{{env}} 的所有用户都能看到小组件",
+      "widgetSegments4x": "小组件仅显示给 {{segments}} 的用户",
+      "widgetSegmentsOrNone4x": "小组件显示给 {{segments}} 的用户，以及不属于任何分组的用户",
+      "flowsFromServer4x": "发布开关已关闭，因此 4.x 播放器从 Assist 服务器读取流程，而不是从 flow.json",
+      "flowLocales4x": "“{{name}}”只对语言为区域 {{locales}} 之一的用户列出",
+      "flowInNoSegment4x": "没有分组列出“{{name}}”，因此只有不属于任何分组的用户能看到它",
+      "flowSegments4x": "“{{name}}”面向 {{segments}} 的用户，以及不属于任何分组的用户",
+      "ruleNotInRules4x": "“{{name}}”引用的规则 {{rule}} 不在 rules.json 中，因此该规则从不运行，流程保持可见",
+      "ruleDecides4x": "规则 {{rule}} 在浏览器中决定是否显示“{{name}}”"
     },
     "rule": {
       "CNV-02": {
@@ -2256,7 +2267,7 @@
         "fix": "Dapty 根据 ai-service 自己缓存的内容文件列出环境中的项目，可能比发布晚几分钟；也可能是模型给出了它没有拿到的项目。请把该项目发布到此环境，或等 ai-service 拿到最新内容后再问。"
       },
       "W4X-01": {
-        "summary": "app-urls.json 请求失败（HTTP {{httpStatus}}）；4.x 播放器把失败的请求当作空列表，因此不加载任何应用，小组件也不显示。",
+        "summary": "app-urls.json 请求失败（HTTP {{httpStatus}}）；4.x 播放器在失败的响应中找不到任何应用，因此小组件不显示。",
         "fix": "修复失败的请求（其状态码和控制台会说明原因），然后重新加载。"
       },
       "W4X-01-empty": {
@@ -2265,15 +2276,11 @@
       },
       "W4X-02": {
         "summary": "没有任何环境的 URL 模式匹配此页面，因此 4.x 播放器在此不加载任何内容。",
-        "fix": "在 4.x Admin 中为正确的环境添加覆盖此页面的 URL 模式（* 匹配任意字符），发布并重新加载。"
+        "fix": "在 4.x Admin 中为正确的环境设置覆盖此页面的 URL（* 匹配任意字符），发布并重新加载。"
       },
       "W4X-04": {
-        "summary": "{{env}} 的播放器已关闭，因此此页面上不运行任何 Apty 内容。",
+        "summary": "{{env}} 的播放器未打开，因此小组件不显示。",
         "fix": "在 4.x Admin 中为此环境打开播放器，发布并重新加载。"
-      },
-      "W4X-05": {
-        "summary": "{{env}} 的小组件已关闭，因此即使播放器运行，小组件也不显示。",
-        "fix": "在 4.x Admin 中为此环境打开小组件，发布并重新加载。"
       },
       "C4X-01": {
         "summary": "flow.json 是空列表：此环境中没有发布任何流程。",
@@ -2287,17 +2294,29 @@
         "summary": "“{{name}}”在小组件中被隐藏。",
         "fix": "在 4.x Studio 中清除该流程的“在小组件中隐藏”选项，发布并重新加载。"
       },
-      "C4X-04": {
-        "summary": "列出“{{name}}”的所有分组都已关闭（{{segments}}），因此没有人能看到它。",
-        "fix": "在 4.x Admin 中打开其中一个分组，或将流程加入一个已启用的分组，然后发布。"
-      },
-      "C4X-05": {
-        "summary": "列出“{{name}}”的分组的规则在 rules.json 中缺失（{{segments}}），因此它们永远无法匹配。",
-        "fix": "在 4.x Admin 中修复或重新创建分组的规则，发布并重新加载。"
-      },
       "C4X-06": {
         "summary": "{{file}} 中没有“{{name}}”的步骤，因此没有可播放的内容。",
         "fix": "在 4.x Studio 中检查流程的步骤，发布并重新加载。"
+      },
+      "W4X-03": {
+        "summary": "{{env}} 的 URL“{{pattern}}”不是有效的正则表达式；租户的正则 URL 开关已打开，4.x 播放器在此停止查找应用，因此此页面不加载任何内容。",
+        "fix": "在 4.x Admin 中更正该环境的 URL（或关闭正则 URL 开关），发布并重新加载。"
+      },
+      "W4X-05-display": {
+        "summary": "{{env}} 的小组件受众为“{{display}}”，4.x 播放器不会显示它。",
+        "fix": "在 4.x Admin 中设置谁能看到小组件（所有用户或所选分组），发布并重新加载。"
+      },
+      "W4X-05-nobody": {
+        "summary": "{{env}} 的小组件仅限所选分组，但没有选择任何分组，且排除了分组以外的用户，因此没有人能看到它。",
+        "fix": "在 4.x Admin 中选择应看到小组件的分组，或向所有用户显示，发布并重新加载。"
+      },
+      "W4X-06": {
+        "summary": "app-data.json 缺少 config.customConfig，因此 4.x 播放器在启动时停止，小组件不会加载。",
+        "fix": "在 4.x Admin 中重新发布应用，使 app-data.json 完整，然后重新加载。"
+      },
+      "C4X-06-notList": {
+        "summary": "{{file}} 不是步骤列表，因此 4.x 播放器无法加载“{{name}}”。",
+        "fix": "在 4.x Studio 中重新发布流程以重建其步骤文件，然后重新加载。"
       }
     },
     "ruleLabel": "规则 {{ruleId}}",
@@ -2343,7 +2362,8 @@
       "screen-token": "当前显示的屏幕是否具有选取元素时的屏幕令牌，该令牌由应用自己的脚本计算",
       "canvas": "在 canvas 上绘制的内容，没有可选择的元素",
       "kb-contents": "已索引文档的内容，只有 ai-service 能搜索",
-      "suggestion-ids": "推荐的 ID：聊天面板不显示它们，因此按名称匹配"
+      "suggestion-ids": "推荐的 ID：聊天面板不显示它们，因此按名称匹配",
+      "player-filters-4x": "4.x 播放器自身的筛选：小组件登录、流程的时间安排和标签、无内容时隐藏小组件，以及顶层窗口以外的框架"
     },
     "blocker": {
       "hidden": "在小组件中隐藏",

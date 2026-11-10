@@ -1,14 +1,12 @@
 /**
  * Check pack for "my flow is not showing" on a 4.x tenant (KB-RAG K14,
- * D-KB7): the 4.x counterpart of the 5.x workflow checks, from 4.x
- * content files. flow.json lists the published flows (a flow's `name` per
- * locale, `hideInWidget`), `flow-<id>.json` a flow's steps, segments.json
- * the segments (`isActive`, `ruleId` and the `flows` each lists) and
- * rules.json their rules. Ported from the behaviour FIXES.md K14
- * describes (apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts`
- * reads these files, per FIXES.md); not yet checked against apty-assist
- * code and not runtime-verified, so no finding is more certain than
- * "possible".
+ * D-KB7), checked against apty-assist `player3.0` at the commit in
+ * `FOUR_X_VERIFIED_ON` (K21 F4); paths below are under `player3.0/src/`.
+ * With the `publishingSystem` flag on, flow.json lists the environment's
+ * flows (a `name` per locale, `hideInWidget`, an optional `attachedRule`)
+ * and `flow-<id>.json` is a flow's steps, a bare array. segments.json's
+ * segments hold `conditions`, decided in the browser, and the `flows` each
+ * lists; rules.json holds the rules flows attach. Not runtime-verified.
  * Only workflows (flows) are ported; another kind keeps the version gate.
  */
 import { CARD_4X, card4x } from "./cards-4x.js";
@@ -40,9 +38,15 @@ import type {
 import {
   FOUR_X_CONFIDENCE,
   FOUR_X_VERIFIED_ON,
+  flagOn,
 } from "./widget-not-visible-4x.js";
 
-export const CONTENT_FILES_4X = ["flow.json", "segments.json", "rules.json"];
+export const CONTENT_FILES_4X = [
+  "flow.json",
+  "segments.json",
+  "rules.json",
+  "feature-flag.json",
+];
 
 /** The steps file the 4.x player loads for one flow. */
 export const flowStepsFile = (id: string) => `flow-${id}.json`;
@@ -132,7 +136,7 @@ function finish(
     notChecked:
       verdict.status === "no_data" || verdict.status === "out_of_scope"
         ? []
-        : ["membership", "runtime-rules"],
+        : ["membership", "runtime-rules", "player-filters-4x"],
   };
 }
 
@@ -170,8 +174,6 @@ const REASON: Partial<Record<RuleId, GateReason>> = {
   "C4X-01": "emptyList",
   "C4X-02": "notPublished",
   "C4X-03": "flowHidden4x",
-  "C4X-04": "allInactive",
-  "C4X-05": "rulesMissing4x",
   "C4X-06": "flowSteps4x",
 };
 
@@ -213,6 +215,28 @@ export function diagnoseContentNotVisible4x(
   }
 
   const flowFile = fileOf(evidence, "flow.json");
+  const flags = fileOf(evidence, "feature-flag.json");
+  if (
+    flowFile.status === "not_observed" &&
+    flags.status === "ok" &&
+    !flagOn(flags.json, "publishingSystem")
+  ) {
+    // cdn-helpers.ts, feature-flag.types.ts:100-103: without publishingSystem
+    // the flows and their steps come from the Assist server, not flow.json.
+    const server = gate(
+      "data",
+      "info",
+      "C4X-00",
+      "flowsFromServer4x",
+      "This tenant's publishing flag is off, so the 4.x player reads its flows from the Assist server, not from flow.json; the files cannot show them.",
+    );
+    return finish(draft, [server], {
+      status: "out_of_scope",
+      headline: server.detail,
+      causes: [],
+      nextCheck: "manual4x",
+    });
+  }
   if (flowFile.status === "empty") {
     return found(
       draft,
@@ -310,8 +334,24 @@ export function diagnoseContentNotVisible4x(
       file: "flow.json",
     }),
   );
+  const locales = nameLocales(flow);
+  if (locales.length > 0) {
+    // tool-list.selectors.ts:33-38: the widget lists the flow only under the
+    // user's locale id, with no fallback to another locale.
+    gates.push(
+      gate(
+        "published",
+        "info",
+        "C4X-02",
+        "flowLocales4x",
+        `"${name}" is listed only for users whose language is one of locale ${locales.join(", ")}.`,
+        { name, locales: locales.join(", ") },
+      ),
+    );
+  }
 
-  if (flow.hideInWidget === true) {
+  // tool-list.component.tsx:114-124: any truthy hideInWidget hides it.
+  if (flow.hideInWidget) {
     return found(
       draft,
       gates,
@@ -320,73 +360,36 @@ export function diagnoseContentNotVisible4x(
         `"${name}" is hidden from the widget (flow.json hideInWidget).`,
         "In 4.x Studio, clear the flow's hide-in-widget option, publish and reload.",
         { name },
-        ["flow.json: hideInWidget = true"],
+        [`flow.json: hideInWidget = ${String(flow.hideInWidget)}`],
       ),
       name,
     );
   }
 
-  const segments = records(jsonOf(evidence, "segments.json")).filter((s) =>
-    (Array.isArray(s.flows) ? s.flows : []).some((f) => String(f) === id),
-  );
-  if (segments.length > 0 && segments.every((s) => s.isActive !== true)) {
-    const names = segments.map((s) => text(s.name) ?? String(s.id)).join(", ");
-    return found(
-      draft,
-      gates,
-      causeOf(
-        "C4X-04",
-        `Every segment that lists "${name}" is turned off (${names}), so nobody gets it.`,
-        "In 4.x Admin, turn one of its segments on, or add the flow to an active segment, then publish.",
-        { name, segments: names },
-        segments.map((s) => `segment ${text(s.name) ?? s.id}: turned off`),
-      ),
-      name,
-    );
-  }
-  const rulesFile = fileOf(evidence, "rules.json");
-  if (rulesFile.status === "ok") {
-    const ruleIds = new Set(records(rulesFile.json).map((r) => String(r.id)));
-    const active = segments.filter((s) => s.isActive === true);
-    const broken = active.filter(
-      (s) => s.ruleId != null && !ruleIds.has(String(s.ruleId)),
-    );
-    if (active.length > 0 && broken.length === active.length) {
-      const names = broken.map((s) => text(s.name) ?? String(s.id)).join(", ");
+  gates.push(segmentGate(evidence, id, name));
+  const ruleGate = attachedRuleGate(evidence, flow, name);
+  if (ruleGate) gates.push(ruleGate);
+
+  const stepsFile = fileOf(evidence, flowStepsFile(id));
+  let next: NextCheck | undefined;
+  if (stepsFile.status === "ok" || stepsFile.status === "empty") {
+    // flows.effects.ts:158-186, 282-285: a bare array of steps; an empty one
+    // plays nothing, and anything else fails to load (loadStepsFailed).
+    const steps = stepsFile.json;
+    if (!Array.isArray(steps)) {
       return found(
         draft,
         gates,
         causeOf(
-          "C4X-05",
-          `The rules of the segments that list "${name}" are missing from rules.json (${names}), so they can never match.`,
-          "In 4.x Admin, fix or re-create the segment's rule, publish and reload.",
-          { name, segments: names },
-          broken.map(
-            (s) =>
-              `segment ${text(s.name) ?? s.id}: rule ${s.ruleId} not in rules.json`,
-          ),
+          "C4X-06",
+          `${flowStepsFile(id)} is not a list of steps, so the 4.x player fails to load "${name}".`,
+          "In 4.x Studio, publish the flow again so its steps file is rebuilt, then reload.",
+          { name, file: flowStepsFile(id), variant: "notList" },
+          [`${flowStepsFile(id)}: not a list`],
         ),
         name,
       );
     }
-  }
-  gates.push(
-    gate(
-      "segments",
-      "unknown",
-      "C4X-04",
-      segments.length === 0 ? "noSegments" : "mustMatch",
-      segments.length === 0
-        ? `No segment lists "${name}", so every user can get it.`
-        : `"${name}" is for the users of its active segments; whether this user is one is decided in the browser.`,
-      { name },
-    ),
-  );
-
-  const stepsFile = fileOf(evidence, flowStepsFile(id));
-  let next: NextCheck | undefined;
-  if (stepsFile.status === "ok") {
-    const steps = records((stepsFile.json as Rec | undefined)?.steps);
     if (steps.length === 0) {
       return found(
         draft,
@@ -425,5 +428,101 @@ export function diagnoseContentNotVisible4x(
       nextCheck: next ?? "testAsMember",
     },
     name,
+  );
+}
+
+/** The locale ids a flow has a name under, when `name` is per locale. */
+function nameLocales(flow: Rec): string[] {
+  const name = flow.name;
+  if (!name || typeof name !== "object") return [];
+  return Object.entries(name as Rec)
+    .filter(([, value]) => typeof value === "string" && value.trim())
+    .map(([locale]) => locale);
+}
+
+/**
+ * Who gets the flow (`segments.selectors.ts:55-70`): a user who matches
+ * any segment gets only the flows those segments list; a user who matches
+ * none gets every flow. A segment's `conditions` are decided in the
+ * browser, so this stays open unless there is no segment at all.
+ */
+function segmentGate(
+  evidence: ClientEvidence,
+  id: string,
+  name: string,
+): GateResult {
+  const all = records(jsonOf(evidence, "segments.json"));
+  if (all.length === 0) {
+    return gate(
+      "segments",
+      "pass",
+      "C4X-04",
+      "noSegments",
+      `No segment is defined, so every user can get "${name}".`,
+      { name },
+    );
+  }
+  const listing = all.filter((s) =>
+    (Array.isArray(s.flows) ? s.flows : []).some((f) => String(f) === id),
+  );
+  const names = listing.map((s) => text(s.name) ?? String(s.id)).join(", ");
+  return listing.length === 0
+    ? gate(
+        "segments",
+        "unknown",
+        "C4X-04",
+        "flowInNoSegment4x",
+        `No segment lists "${name}", so only users who match no segment get it; whether this user matches one is decided in the browser.`,
+        { name },
+      )
+    : gate(
+        "segments",
+        "unknown",
+        "C4X-04",
+        "flowSegments4x",
+        `"${name}" is for users of ${names}, and for users who match no segment; whether this user does is decided in the browser.`,
+        { name, segments: names },
+      );
+}
+
+/**
+ * A flow's own rule (`rule-engine.helpers.ts:46-61`): `attachedRule.id`
+ * names a rule in rules.json, run in the browser to show or hide the flow.
+ * A rule rules.json does not hold never runs, so the flow stays visible.
+ */
+function attachedRuleGate(
+  evidence: ClientEvidence,
+  flow: Rec,
+  name: string,
+): GateResult | undefined {
+  const attached = flow.attachedRule as Rec | undefined;
+  if (attached?.id == null) return undefined;
+  const ruleId = String(attached.id);
+  const rulesFile = fileOf(evidence, "rules.json");
+  const rule =
+    rulesFile.status === "ok"
+      ? records(rulesFile.json).find((r) => String(r.id) === ruleId)
+      : undefined;
+  if (rulesFile.status === "ok" && !rule) {
+    return gate(
+      "segments",
+      "pass",
+      "C4X-05",
+      "ruleNotInRules4x",
+      `"${name}" names rule ${ruleId}, which rules.json does not hold, so it never runs and the flow stays visible.`,
+      { name, rule: ruleId },
+    );
+  }
+  const action = text(
+    ((attached.ruleAction as Rec | undefined)?.metaData as Rec | undefined)
+      ?.action,
+  );
+  return gate(
+    "segments",
+    "unknown",
+    "C4X-05",
+    "ruleDecides4x",
+    `Rule ${text(rule?.name) ?? ruleId} decides in the browser whether "${name}" is shown${action ? ` (action: ${action})` : ""}.`,
+    { name, rule: text(rule?.name) ?? ruleId },
   );
 }

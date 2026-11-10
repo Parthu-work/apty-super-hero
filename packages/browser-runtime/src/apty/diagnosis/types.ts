@@ -127,6 +127,7 @@ export type RuleId =
   | "W4X-03"
   | "W4X-04"
   | "W4X-05"
+  | "W4X-06"
   | "C4X-00"
   | "C4X-01"
   | "C4X-02"
@@ -215,7 +216,18 @@ export type GateReason =
   | "playerOff4x"
   | "widgetOff4x"
   | "flowHidden4x"
-  | "rulesMissing4x"
+  | "appUrlsFromSnippet4x"
+  | "appDataOtherApp4x"
+  | "appDataIncomplete4x"
+  | "widgetForAll4x"
+  | "widgetSegments4x"
+  | "widgetSegmentsOrNone4x"
+  | "flowsFromServer4x"
+  | "flowLocales4x"
+  | "flowInNoSegment4x"
+  | "flowSegments4x"
+  | "ruleNotInRules4x"
+  | "ruleDecides4x"
   | "flowSteps4x"
   | "flowStepsUnread4x"
   | "clientUnreachable"
@@ -394,7 +406,8 @@ export type NotChecked =
   | "screen-token"
   | "canvas"
   | "kb-contents"
-  | "suggestion-ids";
+  | "suggestion-ids"
+  | "player-filters-4x";
 
 export type PackId =
   | "content-not-visible"
