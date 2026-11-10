@@ -120,8 +120,18 @@ export async function saveSettings(
   next: AppSettings,
   deps: EffectiveSettingsDeps = browserDeps,
 ): Promise<(keyof AppSettings)[]> {
+  // What may be written depends on the policy alone (the packs only raise
+  // the redaction floor, which is applied on read). With nothing locked the
+  // write goes out at once, as it did before policies: a page that saves
+  // and then closes or reloads must not lose the write.
+  const policy = await deps.policy();
+  const bare = effectiveSettings({}, policy);
+  if (bare.locked.size === 0 && bare.customModelsAllowed) {
+    await deps.writeSettings(next);
+    return [];
+  }
   const stored = await deps.storedSettings();
-  const effective = await loadEffectiveSettings(deps);
+  const effective = effectiveSettings(stored, policy);
   const { settings, ignored } = settingsForWrite(stored, next, effective);
   if (ignored.length > 0) {
     log.warn(
@@ -161,12 +171,18 @@ export function watchEffectiveSettings(
 ): () => void {
   let live = true;
   let overlay: Overlay | undefined;
+  // Each update takes a number; a re-read that a newer update overtook is
+  // dropped, so an older value never overwrites a newer one.
+  let latest = 0;
   const reload = () => {
+    const mine = ++latest;
     void loadOverlay(deps)
       .then(async (next) => {
         overlay = next;
         const stored = await deps.storedSettings().catch(() => ({}));
-        if (live) onChange(effectiveSettings(stored, next.policy, next));
+        if (live && mine === latest) {
+          onChange(effectiveSettings(stored, next.policy, next));
+        }
       })
       .catch(() => undefined);
   };
@@ -186,6 +202,7 @@ export function watchEffectiveSettings(
     const change = changes[STORAGE_KEYS.SETTINGS];
     if (!change) return;
     if (!overlay) return reload();
+    latest += 1;
     const stored = (change.newValue as AppSettings | undefined) ?? {};
     onChange(effectiveSettings(stored, overlay.policy, overlay));
   };

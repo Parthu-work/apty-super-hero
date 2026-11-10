@@ -108,6 +108,28 @@ describe("effective settings in the browser", () => {
     expect(settings.aiModel).toBe("gpt-org");
   });
 
+  it("writes at once with no policy: no stored read and no pack read before the write", async () => {
+    const deps = depsWith({ redactionMode: "strict" }, { kind: "none" });
+    const order: string[] = [];
+    const read = deps.storedSettings;
+    deps.storedSettings = async () => {
+      order.push("read");
+      return read();
+    };
+    deps.packs = async () => {
+      order.push("packs");
+      return [];
+    };
+    const write = deps.writeSettings;
+    deps.writeSettings = async (next) => {
+      order.push("write");
+      return write(next);
+    };
+    expect(await saveSettings({ redactionMode: "standard" }, deps)).toEqual([]);
+    expect(order).toEqual(["write"]);
+    expect(deps.stored().redactionMode).toBe("standard");
+  });
+
   it("serves the settings UI the effective settings through its adapter", async () => {
     const base = {
       load: vi.fn(async () => "base"),
@@ -126,6 +148,47 @@ describe("effective settings in the browser", () => {
     await adapter.save(STORAGE_KEYS.SETTINGS, { aiProvider: "groq" });
     expect(deps.stored().aiProvider).toBe("openai");
     expect(base.save).not.toHaveBeenCalled();
+  });
+
+  it("never lets an older re-read overwrite a newer change", async () => {
+    let finishSlowRead: (() => void) | undefined;
+    let reads = 0;
+    const deps: EffectiveSettingsDeps = {
+      // The re-read's storage read starts before the newer write and ends
+      // after it, as a slow chrome.storage read can.
+      storedSettings: () => {
+        reads += 1;
+        if (reads > 1) return Promise.resolve({ redactionMode: "standard" });
+        return new Promise((resolve) => {
+          finishSlowRead = () => resolve({ redactionMode: "strict" });
+        });
+      },
+      writeSettings: async () => {},
+      policy: async () => ({ kind: "none" }),
+      packs: async () => [],
+    };
+    const seen: string[] = [];
+    watchEffectiveSettings(
+      (effective) => seen.push(String(effective.settings.redactionMode)),
+      deps,
+    );
+    const change = (redactionMode: string) => {
+      for (const l of listeners) {
+        l(
+          { [STORAGE_KEYS.SETTINGS]: { newValue: { redactionMode } } },
+          "local",
+        );
+      }
+    };
+    // Before the policy and packs are known: a re-read that reads slowly.
+    change("strict");
+    await vi.waitFor(() => expect(finishSlowRead).toBeDefined());
+    // Now known: the newer change applies at once.
+    change("standard");
+    expect(seen.at(-1)).toBe("standard");
+    finishSlowRead?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(seen.at(-1)).toBe("standard");
   });
 
   it("re-merges a settings change with the last policy, and re-reads on a pack change", async () => {
