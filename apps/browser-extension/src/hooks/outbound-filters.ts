@@ -16,6 +16,7 @@ import {
 } from "@apty/browser-runtime/runtime/request-limits";
 import { createRequestReportFilter } from "@apty/browser-runtime/runtime/request-reports";
 import { currentValuePolicy } from "@apty/browser-runtime/runtime/value-policy";
+import { kbEgressLog } from "../services/kb-egress-log";
 
 /**
  * What runs over every request before it leaves the extension, in order:
@@ -29,7 +30,9 @@ import { currentValuePolicy } from "@apty/browser-runtime/runtime/value-policy";
  */
 export function createOutboundFilters(): OutboundFilter[] {
   return [
-    createKbEgressFilter(),
+    // A request that leaves with KB text is recorded (D-SEC6); one that
+    // cannot be recorded does not carry it.
+    createKbEgressFilter({ onSent: (sent) => kbEgressLog().append(sent) }),
     createOutboundSanitizer({ getMode: currentRedactionMode }),
     createRequestBudgetFilter(),
     createContextBudgetFilter({

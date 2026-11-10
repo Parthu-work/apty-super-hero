@@ -5,9 +5,13 @@
  * direct write to chrome.storage.local does not change them, and the side
  * panel's requests use the preset values. S3: a host outside the allowed
  * origins gets no request, and the chat says why. S6: with the bridge
- * forbidden, Options shows it locked off and a connect is refused.
+ * forbidden, Options shows it locked off and a connect is refused. S4 and
+ * S7: with kbToModel approved for the fake provider's origin, card text
+ * goes, each request that carries it is recorded, and the record's export
+ * holds ids, not text.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, before, describe, it } from "node:test";
 import {
   chatAndWait,
@@ -17,7 +21,9 @@ import {
   sendChat,
   startMockModel,
   startPageServer,
+  tempDir,
 } from "./harness.mjs";
+import { importPack, NON_DEMO_SITE, writeFixturePack } from "./kb-fixture.mjs";
 import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 let browser;
@@ -38,7 +44,7 @@ after(async () => {
   site?.close();
 });
 
-describe("organization policy: locked fields (KB-RAG K22 S2)", () => {
+describe("organization policy (KB-RAG K22)", () => {
   it("shows the preset AI fields and the redaction floor locked, and the panel uses them", async () => {
     await setTestPolicy(browser, {
       preset: {
@@ -143,6 +149,69 @@ describe("organization policy: locked fields (KB-RAG K22 S2)", () => {
       success: false,
       error: "Your organization does not allow the MCP bridge.",
     });
+    await options.close();
+  });
+
+  it("sends KB text to an approved destination, records each request, and exports the record with no text (S4, S7)", async () => {
+    await setTestPolicy(browser, {
+      kbToModel: "approved",
+      allowedOrigins: [model.server.origin],
+    });
+    const { file } = writeFixturePack(tempDir("apty-policy-kb-"), {
+      site: NON_DEMO_SITE,
+    });
+    await importPack(browser, file);
+    model.script(() => ({ text: "RESULT: answered" }));
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    const panel = await openSidePanel(browser, model, app);
+    await sendChat(panel, "the tooltip opens twice when I hover the help icon");
+    const card = panel.getByRole("region", { name: "KB cards that match" });
+    await card.waitFor({ timeout: 30_000 });
+    await card
+      .getByText(
+        `Also sent to the AI model at ${model.server.origin}, mock-model.`,
+      )
+      .waitFor();
+    await chatAndWait(panel, "thanks, what should I try first?");
+    await chatAndWait(panel, "and if that does not help?");
+    const card202 = /Double Trigger|anchor element must be unique|triggerCount/;
+    assert.equal(model.requests.length, 2);
+    for (const request of model.requests) {
+      assert.match(JSON.stringify(request), card202);
+    }
+    await panel.close();
+    await app.close();
+
+    const options = await extensionPage(
+      browser,
+      "src/entrypoints/options/index.html?tab=general#data-handling",
+    );
+    const record = options.getByTestId("kb-egress-record");
+    await record
+      .getByText("Requests that carried KB card text in the last 30 days: 2.")
+      .waitFor();
+    assert.equal(
+      await record.getByRole("button", { name: "Clear" }).isDisabled(),
+      true,
+    );
+    const [download] = await Promise.all([
+      options.waitForEvent("download"),
+      record.getByRole("button", { name: "Export (JSON)" }).click(),
+    ]);
+    const exported = readFileSync(await download.path(), "utf8");
+    const { records } = JSON.parse(exported);
+    assert.equal(records.length, 2);
+    assert.deepEqual(
+      records.map((r) => [r.request, r.origin, r.model]),
+      [
+        ["chat", model.server.origin, "mock-model"],
+        ["chat", model.server.origin, "mock-model"],
+      ],
+    );
+    assert.ok(records.every((r) => r.cards.some((c) => c.pageId === "202")));
+    assert.doesNotMatch(exported, card202);
+    assert.doesNotMatch(exported, /tooltip opens twice/);
     await options.close();
   });
 });

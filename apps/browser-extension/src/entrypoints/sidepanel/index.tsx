@@ -6,12 +6,17 @@ import { quickjs } from "@apty/browser-runtime/vm/quickjs-manager";
 import { applyRememberedTheme } from "@apty/ui/theme/index";
 import { renderChatApp } from "../../components/app-root";
 import { initLogging } from "../../lib/logging";
+import { kbEgressLog } from "../../services/kb-egress-log";
 import { installOrgPolicySource } from "../../services/org-policy";
 
 const log = createLogger("Sidepanel");
 
 installOrgPolicySource();
 initLogging();
+// The KB send record keeps only the policy's retention (D-SEC6).
+void kbEgressLog()
+  .prune()
+  .catch(() => undefined);
 applyRememberedTheme();
 // Read the redaction mode now, so the first tool result is redacted in it.
 void getRedactionMode();

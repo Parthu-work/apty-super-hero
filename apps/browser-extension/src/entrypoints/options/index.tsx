@@ -21,6 +21,7 @@ import {
   type OptionsTab,
 } from "../../lib/open-options";
 import { testConnection } from "../../services/connection-check";
+import { kbEgressLog } from "../../services/kb-egress-log";
 import { kbPackStore } from "../../services/kb-pack";
 import { fetchModelList } from "../../services/model-list";
 import { installOrgPolicySource } from "../../services/org-policy";
@@ -125,6 +126,14 @@ const knowledgeBase = {
   },
 };
 
+/** The KB send record (KB-RAG K22, S7) as Data handling shows it. */
+const kbEgressLogAdapter = {
+  countLast30Days: () => kbEgressLog().countSince(30),
+  exportJson: () => kbEgressLog().exportJson(),
+  clearAllowed: () => kbEgressLog().clearAllowed(),
+  clear: () => kbEgressLog().clear(),
+};
+
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();
 const themeStorageAdapter = new ChromeStorageAdapter<Theme>();
 
@@ -158,6 +167,7 @@ function OptionsPageContent() {
     <SettingsPage
       storageAdapter={settingsStorageAdapter}
       orgPolicy={orgPolicy}
+      kbEgressLog={kbEgressLogAdapter}
       onTestConnection={handleTestConnection}
       onFetchModels={handleFetchModels}
       skillsContent={<SkillsOptionsTab initialSkill={initialSkill} />}

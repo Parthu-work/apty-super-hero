@@ -2519,5 +2519,13 @@
     "destinationRefused": "This AI provider is not allowed by your organization. Allowed: {{allowed}}.",
     "invalidNoRequests": "Your organization's policy for this extension cannot be used ({{reason}}), so no AI request is made until IT fixes it.",
     "none": "none"
+  },
+  "kbEgressLog": {
+    "title": "KB text sent to AI",
+    "count": "Requests that carried KB card text in the last 30 days: {{count}}.",
+    "what": "Each record holds the time, the AI provider, origin and model, and the card ids and layers sent: never the card text, your question or the answer.",
+    "export": "Export (JSON)",
+    "clear": "Clear",
+    "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
   }
 }

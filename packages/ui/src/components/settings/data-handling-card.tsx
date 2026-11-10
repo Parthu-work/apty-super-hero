@@ -20,9 +20,11 @@ import {
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
+import { KbEgressRecord } from "./kb-egress-record";
 import { RecentRequests } from "./recent-requests";
 import { RedactionModeControl } from "./redaction-mode-control";
 import { ScreenshotPolicyControl } from "./screenshot-policy-control";
+import type { KbEgressLogAdapter } from "./types";
 
 export interface DataHandlingCardProps {
   settings: AppSettings;
@@ -34,6 +36,8 @@ export interface DataHandlingCardProps {
   recentRequests?: RequestReport[];
   /** The weakest redaction mode the policy or a loaded KB pack allows. */
   redactionFloor?: RedactionFloor;
+  /** The record of KB text sent to AI, when the host app keeps one. */
+  kbEgressLog?: KbEgressLogAdapter;
 }
 
 function parseDenyList(text: string): string[] {
@@ -50,6 +54,7 @@ export function DataHandlingCard({
   redactionPreview,
   recentRequests,
   redactionFloor,
+  kbEgressLog,
 }: DataHandlingCardProps) {
   const { t } = useTranslation();
   const [denyListText, setDenyListText] = useState(
@@ -132,6 +137,7 @@ export function DataHandlingCard({
           />
         </div>
         {recentRequests && <RecentRequests reports={recentRequests} />}
+        {kbEgressLog && <KbEgressRecord log={kbEgressLog} />}
       </CardContent>
     </Card>
   );

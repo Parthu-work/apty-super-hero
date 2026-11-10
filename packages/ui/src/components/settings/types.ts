@@ -62,6 +62,16 @@ export interface SettingsPageProps {
   knowledgeBase?: KnowledgeBaseAdapter;
   /** What the organization policy sets (KB-RAG K22); absent shows nothing locked. */
   orgPolicy?: OrgPolicyView;
+  /** The record of KB text sent to AI (KB-RAG K22, S7); shown in Data handling when given. */
+  kbEgressLog?: KbEgressLogAdapter;
+}
+
+/** The record of requests that carried KB text; the host app keeps it. */
+export interface KbEgressLogAdapter {
+  countLast30Days(): Promise<number>;
+  exportJson(): Promise<string>;
+  clearAllowed(): Promise<boolean>;
+  clear(): Promise<void>;
 }
 
 /** The organization policy as Options shows it; the host app reads it. */

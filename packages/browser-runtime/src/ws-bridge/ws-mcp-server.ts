@@ -171,7 +171,10 @@ export function resultForMcp(result: unknown, policy: OrgPolicyState): unknown {
   return redactToolOutput(result, currentRedactionMode());
 }
 
-/** Said when the policy sets `allowMcpBridge: false`; no connection is opened. */
+/**
+ * Said when the policy sets `allowMcpBridge: false`; no connection is opened.
+ * @internal exported for tests.
+ */
 export const MCP_BRIDGE_NOT_ALLOWED =
   "Your organization does not allow the MCP bridge.";
 

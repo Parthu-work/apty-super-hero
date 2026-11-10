@@ -519,6 +519,11 @@ Where the code differs from the file list above, and why:
   publishes today (`mcp-tool-names.ts`), so no KB result reaches an MCP
   client now; the filter covers any tool that returns tagged KB content
   later.
+- **S7:** the record is one list in its own IndexedDB database,
+  `apty-kb-egress-db`. It is written by the KB egress filter's `onSent`, so
+  a request is recorded as it leaves; if the record cannot be written, the
+  request goes without the KB text. `clear()` itself refuses under a policy,
+  not only the disabled button. The record is not part of Settings' purge.
 
 | Package | Status |
 | --- | --- |
@@ -528,5 +533,5 @@ Where the code differs from the file list above, and why:
 | S3 Allowed destinations only | Done (Preflight row with S8) |
 | S5 Redaction floor | Done |
 | S6 MCP bridge | Done |
-| S7 Record of KB text sent | Not started |
+| S7 Record of KB text sent | Done |
 | S8 Documentation and Preflight | Not started |

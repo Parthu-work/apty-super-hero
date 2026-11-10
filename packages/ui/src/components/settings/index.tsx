@@ -381,6 +381,7 @@ export function SettingsPage({
   recentRequests,
   knowledgeBase,
   orgPolicy,
+  kbEgressLog,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
   void _initialSkill;
@@ -1197,6 +1198,7 @@ export function SettingsPage({
               redactionPreview={redactionPreview}
               recentRequests={recentRequests}
               redactionFloor={orgPolicy?.redactionFloor}
+              kbEgressLog={kbEgressLog}
             />
 
             <TroubleshootingCard
@@ -1991,6 +1993,7 @@ export function SettingsPage({
 }
 
 export type {
+  KbEgressLogAdapter,
   KnowledgeBaseAdapter,
   OrgPolicyView,
   SettingsPageProps,

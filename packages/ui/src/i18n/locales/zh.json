@@ -2519,5 +2519,13 @@
     "destinationRefused": "您的组织不允许使用此 AI 提供商。允许：{{allowed}}。",
     "invalidNoRequests": "无法使用您的组织为此扩展设置的策略（{{reason}}），因此在 IT 修复之前不会发出任何 AI 请求。",
     "none": "无"
+  },
+  "kbEgressLog": {
+    "title": "发送给 AI 的 KB 文本",
+    "count": "过去 30 天内携带 KB 卡片文本的请求：{{count}}。",
+    "what": "每条记录包含时间、AI 提供商、来源和模型，以及发送的卡片 ID 和层级：从不包含卡片文本、您的问题或回答。",
+    "export": "导出（JSON）",
+    "clear": "清除",
+    "clearLocked": "您的组织保留此记录，因此无法在此清除。"
   }
 }
