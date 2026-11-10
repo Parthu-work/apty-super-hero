@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { kbPackProblems } from "../check-no-kb-pack.mjs";
-import { demoQuestionsFile, run } from "./build-demo-pack.mjs";
+import { DEMO_COVERAGE, demoQuestionsFile, run } from "./build-demo-pack.mjs";
 import {
   evaluate,
   loadAgentCore,
@@ -64,6 +64,15 @@ describe("kb:demo-pack", () => {
       assert.ok(pack.cards.every((card) => /DEMO/.test(card.title)));
       assert.ok(pack.chunks.every((chunk) => chunk.text.includes("FIXTURE")));
     }
+  });
+
+  it("calibrates to the recorded coverage settings, never below the floor (K21)", () => {
+    for (const [version, pack] of Object.entries(packs)) {
+      const { min, minIdf } = pack.retrieval.coverage;
+      assert.deepEqual({ min, minIdf }, DEMO_COVERAGE[version], version);
+      assert.ok(min >= 0.35, version);
+    }
+    assert.ok(!lines.some((line) => /Calibration moved/.test(line)));
   });
 
   it("passes every question of the synthetic edge-case set (FIXES.md 7.2), per version", () => {

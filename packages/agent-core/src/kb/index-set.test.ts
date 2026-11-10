@@ -142,7 +142,7 @@ describe("createKbIndexSet", () => {
   });
 
   it("F1: a setting another pack's card holds is not an unknown setting", () => {
-    const set = createKbIndexSet([FIVE, COMMON]);
+    const set = createKbIndexSet([FIVE, COMMON], { tabVersion: "5.x" });
     const result = set.search(
       "the checklist resets after I turn on the FIXTURE Policy Switch",
     );
@@ -173,5 +173,39 @@ describe("createKbIndexSet", () => {
     );
     expect(result.status).toBe("ok");
     expect(result.hits[0]?.chunk.pageId).toBe("41");
+  });
+
+  it("F9: merges packs by rank, not by raw score, in pack order", () => {
+    const filler = Array.from({ length: 30 }, (_, i) =>
+      card(String(700 + i), `FIXTURE filler topic ${i} item`, `Filler${i}`),
+    );
+    const big = pack("5.x", [
+      card("71", "FIXTURE gizmo tray rattles loudly", "Gizmo"),
+      card("72", "FIXTURE gizmo dial sticks", "Dial"),
+      ...filler,
+    ]);
+    const small = pack("4.x", [
+      card("81", "FIXTURE gizmo tray rattles loudly", "Tray"),
+    ]);
+    const query = "gizmo tray rattles loudly";
+    const unknown = createKbIndexSet([big, small]);
+    const first = unknown.search(query, { topK: 3, onePerCard: true });
+    expect(first.hits.slice(0, 2).map((h) => h.chunk.pageId)).toEqual([
+      "81",
+      "71",
+    ]);
+    expect(first.mixedVersions).toBe(true);
+    for (let run = 0; run < 3; run++) {
+      expect(unknown.search(query, { topK: 3, onePerCard: true })).toEqual(
+        first,
+      );
+    }
+    const tab5 = createKbIndexSet([big, small], { tabVersion: "5.x" });
+    expect(
+      tab5
+        .search(query, { topK: 3, onePerCard: true })
+        .hits.slice(0, 2)
+        .map((h) => h.chunk.pageId),
+    ).toEqual(["71", "81"]);
   });
 });

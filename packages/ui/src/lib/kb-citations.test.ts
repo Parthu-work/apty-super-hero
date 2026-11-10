@@ -52,6 +52,16 @@ describe("linkKbCitations", () => {
     );
   });
 
+  it("stays linear on a long run of brackets (CodeQL polynomial regex)", () => {
+    const attack = `kb:// ${"[\\".repeat(100_000)}`;
+    const started = performance.now();
+    expect(linkKbCitations(attack)).toBe(attack);
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(linkKbCitations("[[the card](kb://101#L1)")).toBe(
+      "[[the card](https://apty.atlassian.net/wiki/spaces/JA/pages/101)",
+    );
+  });
+
   it("leaves code, other schemes and incomplete citations as written", () => {
     const text =
       "`kb://1#L1` and\n```\nkb://2#L2\n```\nkb://3#L9, kb://abc#L1, kb://4";

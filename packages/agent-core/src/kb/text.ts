@@ -108,7 +108,7 @@ export function editDistance(a: string, b: string, max: number): number {
 }
 
 /** Browser and platform terms a question names that are never Apty settings. */
-export const BROWSER_TERMS = [
+const BROWSER_TERMS = [
   "Developer Mode",
   "Service Worker",
   "Preserve Log",
@@ -126,7 +126,7 @@ export const BROWSER_TERMS = [
 ];
 
 /** Customer applications Apty runs on, never Apty settings. */
-export const CUSTOMER_APPLICATIONS = [
+const CUSTOMER_APPLICATIONS = [
   "Salesforce",
   "Lightning",
   "Workday",

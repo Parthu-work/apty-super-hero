@@ -2,8 +2,8 @@
  * The KB matches card (KB-RAG K6, K16): for any message no check pack
  * claims, the loaded pack's best cards, one chunk each, answered with no
  * model call when the pack covers it (or a stub when only a card not yet
- * written does). A bare "how do I configure X" with no symptom is left to
- * the model or Ask Dapty (D-KB1). A question mostly outside the Latin
+ * written does). A bare "how do I configure X" with no symptom is not a KB
+ * question (D-KB1): it is left to the model. A question mostly outside the Latin
  * script cannot match the English cards: with no model to take it, the
  * user is told so.
  */

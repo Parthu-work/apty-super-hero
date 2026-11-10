@@ -29,6 +29,17 @@ const SITE = "demo.atlassian.invalid";
 const SPACE = "DEMO";
 const ROOT_PAGE = "1000";
 const PAGES = { "4.x": DEMO_PAGES_4X, "5.x": DEMO_PAGES_5X };
+
+/**
+ * What `kb:eval --calibrate --by-category` gives on each demo question set,
+ * recorded after the K21 ranking changes (F2, F5, F6, F7). The build
+ * calibrates the same way and warns when it lands elsewhere, so a ranking
+ * change shows up here in review.
+ */
+export const DEMO_COVERAGE = {
+  "4.x": { min: 0.35, minIdf: 2.024 },
+  "5.x": { min: 0.35, minIdf: 2.234 },
+};
 const json = (body) => ({
   ok: true,
   status: 200,
@@ -142,6 +153,12 @@ export async function run({
     );
     const warning = floorWarning(coverage);
     if (warning) err(warning);
+    const recorded = DEMO_COVERAGE[options.version];
+    if (recorded.min !== coverage.min || recorded.minIdf !== coverage.minIdf) {
+      err(
+        `Calibration moved from the recorded min ${recorded.min}, minIdf ${recorded.minIdf}: update DEMO_COVERAGE in build-demo-pack.mjs with the before and after numbers.`,
+      );
+    }
     const code = await build(
       [
         "--coverage-min",

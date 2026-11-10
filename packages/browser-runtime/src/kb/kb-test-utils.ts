@@ -6,11 +6,12 @@ export function memoryRecords(): KbRecords {
   const data = new Map<string, unknown>();
   return {
     get: async (key) => structuredClone(data.get(key)) as never,
-    put: async (key, value) => {
-      data.set(key, structuredClone(value));
+    putAll: async (entries) => {
+      for (const [key, value] of entries) data.set(key, structuredClone(value));
     },
-    delete: async (key) => {
-      data.delete(key);
+    moveAll: async (puts, deletes) => {
+      for (const [key, value] of puts) data.set(key, structuredClone(value));
+      for (const key of deletes) data.delete(key);
     },
   };
 }

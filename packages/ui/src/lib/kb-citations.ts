@@ -1,7 +1,8 @@
 import { kbCardUrl } from "@apty/agent-core";
 
 const CODE = /(```[\s\S]*?(?:```|$)|`[^`\n]*`)/;
-const LINKED = /\[([^\]\n]*)\]\(kb:\/\/(\d+)#L([1-4])\)/g;
+/** Link text holds no "[": each match attempt stops at the next one, so a run of brackets stays linear. */
+const LINKED = /\[([^[\]\n]*)\]\(kb:\/\/(\d+)#L([1-4])\)/g;
 const BARE = /(?<![[/\w])kb:\/\/(\d+)#L([1-4])\b/g;
 
 export type KbCitationLabel = (pageId: string, layer: string) => string;

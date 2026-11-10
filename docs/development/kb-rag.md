@@ -182,8 +182,9 @@ card takes part in ranking and is never returned.
 ## Versions
 
 - **Packs per version.** One active pack per version in IndexedDB
-  (`pack:<version>`, `meta:<version>`); the one pack an earlier Agent stored
-  moves to 5.x on first open.
+  (`pack:<version>`, `meta:<version>`), each pair written, replaced or
+  removed in one IndexedDB transaction (K21 F8); the one pack an earlier
+  Agent stored moves to 5.x on first open, in one transaction too.
 - **Tab version.** A check's files decide it (`playerVersionOf`: 4.x reads
   `flow.json`, `segments.json`, `rules.json`, `feature-flag.json`,
   `flow-<id>.json`; 5.x reads `workflow.json`, `segment.json`, `rule.json`;
@@ -192,7 +193,10 @@ card takes part in ranking and is never returned.
   side panel's memory per site host, never in `chrome.storage`. `search_kb`
   takes an optional `aptyVersion` the model sets only when the user said it.
 - **What is searched.** The tab's version and the common pack, or every pack
-  when the version is unknown. Each hit carries its version; when the top
+  when the version is unknown. Each pack is searched with its own index;
+  BM25 scores from separate indexes are not comparable, so covered packs'
+  hits are merged by rank, the packs taking turns: the tab's version, then
+  common, then any other version (K21 F9). Each hit carries its version; when the top
   two differ, the card labels both and asks "These cards are for different
   Apty versions; which does this tenant run?", and the prompt forbids
   merging two versions' statements into one instruction.
@@ -361,7 +365,7 @@ question passes.
 | Import refused: "checksum" | Changed or truncated in transit | Download it again |
 | Everything is "not covered" | Coverage settings too strict for the pack, or the tab's version has no pack loaded | Rebuild with the calibrated flags; import the tab's version, or choose "Not sure" |
 | Cards of the wrong version | The tab's version is unknown or was chosen wrongly | Pick the version on the KB matches or verdict card; a check's files decide it when one runs |
-| No KB card with no AI key | The message reads as a bare how-to, or nothing covers it | Name the symptom ("…does not show", "…flickers"); how-tos belong to Ask Dapty (D-KB1) |
+| No KB card with no AI key | The message reads as a bare how-to, or nothing covers it | Name the symptom ("…does not show", "…flickers"). The KB answers symptoms, not how-to questions (D-KB1); for how to configure something, use the Apty product documentation or ask the KB owner. |
 | The model does not call `search_kb` | The message is casual, a bare how-to or a file request | Name the symptom or the Apty item; `tool-relevance.ts` lists the words |
 | Links open the wrong space | A schema 1 pack (always JA) | Rebuild the pack with this builder |
 | "Older than 30 days" | Stale pack | Ask the KB owner for a newer one |

@@ -43,7 +43,7 @@ export function createKbIndexSource(store: KbPackStore): KbIndexSource {
         await Promise.all(infos.map((info) => store.load(info.aptyVersion)))
       ).filter((pack): pack is KbPack => pack !== null);
       if (packs.length === 0) return null;
-      const index = createKbIndexSet(packs);
+      const index = createKbIndexSet(packs, { tabVersion: version });
       cached.set(version, { key, index });
       return index;
     },
