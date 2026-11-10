@@ -506,6 +506,10 @@ Where the code differs from the file list above, and why:
   `allowedModels` itself when the policy sets them. The agent is now also
   rebuilt when `aiHost` changes. The Preflight "AI destination" row lands
   with the other Preflight rows in S8.
+- **S5:** the floor itself, the Data handling card's disabled modes and
+  `currentRedactionMode` reading the effective mode landed with S2; S5 adds
+  the proof. The E2E witness is a typed form value, not an email: Off masks
+  an email by its shape too, so an email could not show the floor.
 
 | Package | Status |
 | --- | --- |
@@ -513,7 +517,7 @@ Where the code differs from the file list above, and why:
 | S2 Effective settings and locked fields | Done |
 | S4 KB text off by default | Done |
 | S3 Allowed destinations only | Done (Preflight row with S8) |
-| S5 Redaction floor | Not started |
+| S5 Redaction floor | Done |
 | S6 MCP bridge | Not started |
 | S7 Record of KB text sent | Not started |
 | S8 Documentation and Preflight | Not started |

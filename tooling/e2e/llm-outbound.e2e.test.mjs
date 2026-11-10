@@ -12,8 +12,10 @@ import {
   openSidePanel,
   startMockModel,
   startPageServer,
+  tempDir,
   toolResults,
 } from "./harness.mjs";
+import { importPack, NON_DEMO_SITE, writeFixturePack } from "./kb-fixture.mjs";
 
 const PAGE_TOKEN = `ghp_${"Ab12Cd34Ef".repeat(3)}`;
 const TYPED_TOKEN = `ghp_${"Zy98Xw76Vu".repeat(3)}`;
@@ -366,5 +368,20 @@ describe("what was sent (O5)", () => {
     await options.close();
     await panel.close();
     await app.close();
+  });
+});
+
+describe("redaction floor while an Apty KB pack is loaded (KB-RAG K22, D-SEC3)", () => {
+  it("runs a stored Off as Standard once a non-demo pack is loaded", async () => {
+    const { file } = writeFixturePack(tempDir("apty-kb-floor-"), {
+      site: NON_DEMO_SITE,
+    });
+    await importPack(browser, file);
+    const { search, editor } = await readForm("off");
+    for (const marker of VALUE_MARKERS) {
+      assert.ok(!search.includes(marker), `${marker} reached the model`);
+      assert.ok(!editor.includes(marker), `${marker} reached the model`);
+    }
+    assert.match(search, /\[masked\]/);
   });
 });
