@@ -510,6 +510,15 @@ Where the code differs from the file list above, and why:
   `currentRedactionMode` reading the effective mode landed with S2; S5 adds
   the proof. The E2E witness is a typed form value, not an email: Off masks
   an email by its shape too, so an email could not show the floor.
+- **S6:** the policy is only known in the browser, so both rules are on the
+  browser side of the bridge (`packages/browser-runtime/src/ws-bridge/ws-mcp-server.ts`),
+  not in `apps/mcp-bridge`: `resultForMcp` withholds a tagged KB result's
+  text unless `kbToMcp` is true, and `connect` opens no socket while
+  `allowMcpBridge` is false (the service worker also disconnects when the
+  policy turns it off). `search_kb` is not among the tools the bridge
+  publishes today (`mcp-tool-names.ts`), so no KB result reaches an MCP
+  client now; the filter covers any tool that returns tagged KB content
+  later.
 
 | Package | Status |
 | --- | --- |
@@ -518,6 +527,6 @@ Where the code differs from the file list above, and why:
 | S4 KB text off by default | Done |
 | S3 Allowed destinations only | Done (Preflight row with S8) |
 | S5 Redaction floor | Done |
-| S6 MCP bridge | Not started |
+| S6 MCP bridge | Done |
 | S7 Record of KB text sent | Not started |
 | S8 Documentation and Preflight | Not started |

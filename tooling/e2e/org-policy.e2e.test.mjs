@@ -4,7 +4,8 @@
  * Options shows the preset AI fields and the redaction floor read-only, a
  * direct write to chrome.storage.local does not change them, and the side
  * panel's requests use the preset values. S3: a host outside the allowed
- * origins gets no request, and the chat says why.
+ * origins gets no request, and the chat says why. S6: with the bridge
+ * forbidden, Options shows it locked off and a connect is refused.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -118,5 +119,30 @@ describe("organization policy: locked fields (KB-RAG K22 S2)", () => {
     } finally {
       other.close();
     }
+  });
+
+  it("keeps the MCP bridge off when the policy forbids it (S6)", async () => {
+    await setTestPolicy(browser, { allowMcpBridge: false });
+    const options = await extensionPage(
+      browser,
+      "src/entrypoints/options/index.html?tab=connection#mcp-bridge",
+    );
+    const locked = options.getByTestId("mcp-bridge-locked");
+    await locked.waitFor();
+    assert.match(await locked.innerText(), /does not allow the MCP bridge/);
+    assert.match(await locked.innerText(), /Set by your organization/);
+    assert.equal(await options.locator("#mcp-bridge-token").count(), 0);
+    const answer = await options.evaluate(() =>
+      chrome.runtime.sendMessage({
+        request: "ws-bridge-connect",
+        url: "ws://localhost:9223",
+        token: "a".repeat(43),
+      }),
+    );
+    assert.deepEqual(answer, {
+      success: false,
+      error: "Your organization does not allow the MCP bridge.",
+    });
+    await options.close();
   });
 });

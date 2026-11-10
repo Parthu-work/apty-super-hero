@@ -1650,7 +1650,8 @@
     "tokenHintAfter": "然后从该文件中复制令牌。它绝不会显示在日志中，也不会从这里导出。",
     "exposesBefore": "桥接通过 MCP 协议开放",
     "exposesAnd": "和",
-    "exposesAfter": "，让外部 Agent 可以使用 Apty Agent 的浏览器自动化工具。"
+    "exposesAfter": "，让外部 Agent 可以使用 Apty Agent 的浏览器自动化工具。",
+    "lockedOff": "已关闭。您的组织不允许使用 MCP 桥，因此无法连接。"
   },
   "permissions": {
     "title": "可选权限",

@@ -1650,7 +1650,8 @@
     "tokenHintAfter": "and copy the token from that file. It is never shown in logs or exported from here.",
     "exposesBefore": "The bridge exposes",
     "exposesAnd": "and",
-    "exposesAfter": "over the MCP protocol, allowing external agents to use Apty Agent's browser automation tools."
+    "exposesAfter": "over the MCP protocol, allowing external agents to use Apty Agent's browser automation tools.",
+    "lockedOff": "Off. Your organization does not allow the MCP bridge, so it cannot connect."
   },
   "permissions": {
     "title": "Optional permissions",

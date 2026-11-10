@@ -1,7 +1,8 @@
 /** WebSocket MCP Bridge: connect/disconnect messaging, badge, keepalive alarms, auto-connect. */
 
-import { createLogger } from "@apty/agent-core";
+import { createLogger, mcpBridgeAllowed } from "@apty/agent-core";
 import { wsMcpServer } from "@apty/browser-runtime";
+import { watchOrgPolicy } from "@apty/browser-runtime/runtime/org-policy";
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 
 const log = createLogger("McpBridge");
@@ -82,7 +83,17 @@ export function registerMcpBridge(): void {
     updateMcpBadge(state.status === "connected");
   });
 
-  // Auto-connect to saved URL on startup
+  // The organization policy can turn the bridge off at any time (KB-RAG K22).
+  watchOrgPolicy((state) => {
+    if (
+      !mcpBridgeAllowed(state) &&
+      wsMcpServer.getStatus().status !== "disconnected"
+    ) {
+      void wsMcpServer.disconnect().catch(() => undefined);
+    }
+  });
+
+  // Auto-connect to saved URL on startup (refused while the policy forbids it)
   Promise.all([wsMcpServer.getSavedUrl(), wsMcpServer.getSavedToken()])
     .then(([url, token]) => {
       if (url && token) {
