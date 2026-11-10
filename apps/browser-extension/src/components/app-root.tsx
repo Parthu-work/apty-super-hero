@@ -132,7 +132,7 @@ function ChatApp() {
   settingsRef.current = settings;
 
   const storage = useBrowserStorage();
-  const modelFactory = useBrowserModelFactory();
+  const modelFactory = useBrowserModelFactory(t);
   const contextProviders = useBrowserContextProviders();
   const tools = useBrowserTools();
   const selectTools = useSelectRelevantTools();

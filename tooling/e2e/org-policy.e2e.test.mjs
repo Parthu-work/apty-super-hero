@@ -3,7 +3,8 @@
  * seam, since Playwright cannot set managed storage) locks what it presets.
  * Options shows the preset AI fields and the redaction floor read-only, a
  * direct write to chrome.storage.local does not change them, and the side
- * panel's requests use the preset values.
+ * panel's requests use the preset values. S3: a host outside the allowed
+ * origins gets no request, and the chat says why.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -12,6 +13,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  sendChat,
   startMockModel,
   startPageServer,
 } from "./harness.mjs";
@@ -87,5 +89,34 @@ describe("organization policy: locked fields (KB-RAG K22 S2)", () => {
     assert.equal(request.model, "org-model");
     await panel.close();
     await app.close();
+  });
+
+  it("refuses an AI host outside the allowed origins: no request, and the chat says why (S3)", async () => {
+    const other = await startMockModel();
+    try {
+      other.script(() => ({ text: "RESULT: should not be asked" }));
+      model.script(() => ({ text: "RESULT: should not be asked" }));
+      await setTestPolicy(browser, {
+        allowedOrigins: [model.server.origin],
+      });
+      const app = await browser.context.newPage();
+      await app.goto(`${site.origin}/app.html`);
+      const panel = await openSidePanel(browser, model, app, {
+        aiHost: other.baseUrl,
+      });
+      await sendChat(panel, "hello there");
+      await panel
+        .getByText(
+          `This AI provider is not allowed by your organization. Allowed: ${model.server.origin}.`,
+        )
+        .first()
+        .waitFor({ timeout: 30_000 });
+      assert.equal(other.requests.length, 0, "no request to the refused host");
+      assert.equal(model.requests.length, 0);
+      await panel.close();
+      await app.close();
+    } finally {
+      other.close();
+    }
   });
 });

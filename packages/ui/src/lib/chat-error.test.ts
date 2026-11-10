@@ -135,3 +135,20 @@ describe("settingsCanFix", () => {
     ]);
   });
 });
+
+describe("an organization policy refusal (KB-RAG K22)", () => {
+  it("is its own kind, with the refusal as the message", () => {
+    const info = chatErrorInfo(
+      new AgentError(
+        "This AI provider is not allowed by your organization. Allowed: azure.",
+        ErrorCode.DESTINATION_REFUSED,
+      ),
+    );
+    expect(info).toEqual({
+      kind: "destinationRefused",
+      message:
+        "This AI provider is not allowed by your organization. Allowed: azure.",
+    });
+    expect(settingsCanFix(info.kind)).toBe(false);
+  });
+});

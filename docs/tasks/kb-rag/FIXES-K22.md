@@ -494,13 +494,25 @@ Where the code differs from the file list above, and why:
   `synthetic.atlassian.example`. The summary request's withholding is
   covered by unit tests (`compressor.test.ts`, `kb-egress.test.ts`), not an
   E2E.
+- **S3:** `createAIProvider` checks the destination when it is built and
+  for each model id it builds (the summary model, a custom model), and its
+  `fetch` (`policyGuardedFetch`) checks every request against the policy as
+  read at that moment: the URL's origin, the provider and the body's model.
+  A refused chat model is replaced by one that fails every call with
+  `ErrorCode.DESTINATION_REFUSED`, so local answers still work and the chat
+  shows the refusal with the allowed list; a refused summary model makes the
+  summary fail (the chat is kept whole, as for any summary failure). Fetch
+  models sends the key nowhere the policy refuses, and lists
+  `allowedModels` itself when the policy sets them. The agent is now also
+  rebuilt when `aiHost` changes. The Preflight "AI destination" row lands
+  with the other Preflight rows in S8.
 
 | Package | Status |
 | --- | --- |
 | S1 Managed policy: schema and reader | Done |
 | S2 Effective settings and locked fields | Done |
 | S4 KB text off by default | Done |
-| S3 Allowed destinations only | Not started |
+| S3 Allowed destinations only | Done (Preflight row with S8) |
 | S5 Redaction floor | Not started |
 | S6 MCP bridge | Not started |
 | S7 Record of KB text sent | Not started |

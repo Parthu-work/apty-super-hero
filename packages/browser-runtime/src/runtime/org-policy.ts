@@ -89,10 +89,22 @@ export function loadOrgPolicy(): Promise<OrgPolicyState> {
   return loading;
 }
 
-/** The last state read, or invalid while the first read is pending (which this starts). */
+/**
+ * The last state read, or invalid while the first read is pending (which this starts).
+ * @internal
+ */
 export function currentOrgPolicy(): OrgPolicyState {
+  return peekOrgPolicy() ?? NOT_READ;
+}
+
+/**
+ * The last state read, or undefined while the first read is pending (which
+ * this starts): for a check that can wait for the request itself, where
+ * `loadOrgPolicy()` decides.
+ */
+export function peekOrgPolicy(): OrgPolicyState | undefined {
   if (!cached) void loadOrgPolicy();
-  return cached ?? NOT_READ;
+  return cached ?? undefined;
 }
 
 /** Calls `onChange` with each new state; returns the unsubscribe. */

@@ -13,6 +13,7 @@ export type ChatErrorKind =
   | "timeout"
   | "cancelled"
   | "stepLimit"
+  | "destinationRefused"
   | "unknown";
 
 /** A failed chat turn as the transcript keeps it: what kind of failure, and the provider's own words. */
@@ -71,6 +72,8 @@ function kindOf(error: AgentError, online: boolean): ChatErrorKind {
       return "stepLimit";
     case "REQUEST_OVER_BUDGET":
       return "overBudget";
+    case "DESTINATION_REFUSED":
+      return "destinationRefused";
   }
   const status = statusCodeOf(error);
   if (status === 413 || CONTEXT_TOO_LONG.test(message)) {
@@ -125,6 +128,7 @@ export const CHAT_ERROR_TEXT: Record<ChatErrorKind, TranslationKey> = {
   timeout: "chatErrors.timeout",
   cancelled: "chatErrors.cancelled",
   stepLimit: "chatErrors.stepLimit",
+  destinationRefused: "chatErrors.destinationRefused",
   unknown: "chatErrors.unknown",
 };
 

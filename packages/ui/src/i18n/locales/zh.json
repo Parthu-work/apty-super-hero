@@ -371,7 +371,8 @@
     "stepLimit": "本轮在完成前已达到步骤上限。",
     "unknown": "请求出现了问题。",
     "details": "详细信息",
-    "openSettings": "打开 AI 服务提供方设置"
+    "openSettings": "打开 AI 服务提供方设置",
+    "destinationRefused": "您的组织不允许此 AI 目标，因此未发送任何内容。"
   },
   "conversationHistory": {
     "title": "对话历史",
@@ -2513,6 +2514,9 @@
     "saved": "已保存",
     "provider": "提供商",
     "redactionFloorPolicy": "您的组织要求：无法选择更弱的模式。",
-    "redactionFloorKbPack": "加载 Apty KB 包时必需：无法选择“关闭”。"
+    "redactionFloorKbPack": "加载 Apty KB 包时必需：无法选择“关闭”。",
+    "destinationRefused": "您的组织不允许使用此 AI 提供商。允许：{{allowed}}。",
+    "invalidNoRequests": "无法使用您的组织为此扩展设置的策略（{{reason}}），因此在 IT 修复之前不会发出任何 AI 请求。",
+    "none": "无"
   }
 }

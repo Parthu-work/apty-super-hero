@@ -371,7 +371,8 @@
     "stepLimit": "Reached the step limit for this turn before finishing.",
     "unknown": "Something went wrong with the request.",
     "details": "Details",
-    "openSettings": "Open AI provider settings"
+    "openSettings": "Open AI provider settings",
+    "destinationRefused": "Your organization does not allow this AI destination, so nothing was sent."
   },
   "conversationHistory": {
     "title": "Conversation History",
@@ -2513,6 +2514,9 @@
     "saved": "Saved",
     "provider": "Provider",
     "redactionFloorPolicy": "Required by your organization: weaker modes cannot be chosen.",
-    "redactionFloorKbPack": "Required while an Apty KB pack is loaded: Off cannot be chosen."
+    "redactionFloorKbPack": "Required while an Apty KB pack is loaded: Off cannot be chosen.",
+    "destinationRefused": "This AI provider is not allowed by your organization. Allowed: {{allowed}}.",
+    "invalidNoRequests": "Your organization's policy for this extension cannot be used ({{reason}}), so no AI request is made until IT fixes it.",
+    "none": "none"
   }
 }

@@ -5,7 +5,12 @@
  */
 import type { AppSettings, ToolCallingSupport } from "@apty/agent-core";
 import { generateText, type LanguageModel } from "ai";
-import { createAIProvider, describeConnectionTestError } from "./ai-provider";
+import {
+  AiDestinationRefusedError,
+  createAIProvider,
+  describeConnectionTestError,
+  destinationRefusalMessage,
+} from "./ai-provider";
 import { englishTranslate, type Translate } from "./model-list";
 import { probeToolCalling } from "./tool-probe";
 
@@ -27,7 +32,18 @@ export async function testConnection(
     throw new Error(t("providerErrors.noModelSelected"));
   }
 
-  const provider = createAIProvider(settings);
+  let provider: ReturnType<typeof createAIProvider>;
+  try {
+    provider = createAIProvider(settings);
+  } catch (error) {
+    // The policy refused the destination: no request was made (KB-RAG K22).
+    if (error instanceof AiDestinationRefusedError) {
+      throw new Error(
+        destinationRefusalMessage(error.verdict, error.policyReason, t),
+      );
+    }
+    throw error;
+  }
   const started = now();
   try {
     await generateText({
