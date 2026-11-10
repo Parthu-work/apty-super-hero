@@ -377,15 +377,22 @@ question passes.
   60-question sets have not been run in this repository's work (no classic
   Confluence token here). The KB owner runs the commands above and records
   the numbers (ids only) on the handbook page F15.
-- **4.x check packs from a checkout.** The 4.x widget and flow checks were
-  ported from the behaviour FIXES.md K14 describes, not from apty-assist
-  code. Their version line says so ("4.x behaviour as described in FIXES.md
-  K14, not yet checked against apty-assist code; not runtime-verified"), and
-  a 4.x finding is at most "possible", one step below the 5.x rules
-  (K21 F4). Each rule cites its own A4PKH card (`CARD_4X` in
-  `cards-4x.ts`, K21 F3), for the KB owner to confirm. Checking each rule
-  against a pinned apty-assist commit is open (`docs/STATUS.md`). A 4.x port
-  of the selector and page checks is later work.
+- **4.x check packs.** The 4.x widget and flow checks were checked against
+  apty-assist `player3.0` at `bbb4cbc518a9` (player 4.30.0) (K21 F4); each
+  rule's comment names the player file and line it mirrors. Their version
+  line is "4.x code, apty-assist bbb4cbc (player 4.30.0); from code, not runtime-verified", and a 4.x finding is as certain as a 5.x one
+  ("likely"). The code changed several rules: environments are an object
+  keyed by id with one `url`, tried in text order; the regex flag is
+  `regExpUrl.status`, and an invalid regex stops the whole search;
+  `enablePlayer` must be truthy, with production as the fallback
+  environment; `widgetConfig.display` decides the widget's audience;
+  app-data.json without `config.customConfig` stops the player (W4X-06);
+  segments hold `conditions`, decided in the browser, and rules attach to a
+  flow (`attachedRule`), so neither is a cause from the files; a flow's steps
+  file is a bare array; and without the `publishingSystem` flag the flows come
+  from the Assist server, not flow.json. Each rule cites its own A4PKH card
+  (`CARD_4X` in `cards-4x.ts`, K21 F3), for the KB owner to confirm. A 4.x
+  port of the selector and page checks is later work.
 - **The 4.x Client bridge** is described in
   [`4X-BRIDGE.md`](../integrations/apty/4X-BRIDGE.md), not yet in apty-assist.
 - **K7, dense vectors.** Not shipped; decide again on the real sets.

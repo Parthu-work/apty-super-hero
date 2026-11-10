@@ -1,1 +1,4 @@
-[{ "key": "urlRegex", "enabled": false }]
+{
+  "regExpUrl": { "key": "RegExpURL", "status": false },
+  "publishingSystem": { "key": "PublishingSystem", "status": true }
+}

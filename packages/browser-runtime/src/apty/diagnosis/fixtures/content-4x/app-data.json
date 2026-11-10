@@ -1,17 +1,22 @@
-[
-  {
-    "environmentId": 3011,
-    "enablePlayer": true,
-    "widgetConfig": { "enabled": true }
-  },
-  {
-    "environmentId": 3012,
-    "enablePlayer": true,
-    "widgetConfig": { "enabled": true }
-  },
-  {
-    "environmentId": 3021,
-    "enablePlayer": true,
-    "widgetConfig": { "enabled": true }
+{
+  "id": 301,
+  "name": "FIXTURE CRM",
+  "config": { "customConfig": { "baseTag": "FIXTURE" } },
+  "environments": {
+    "1": {
+      "name": "Production",
+      "url": "https://crm.example.com/*",
+      "enablePlayer": true,
+      "widgetConfig": {
+        "display": "All",
+        "selectedSegments": [],
+        "enabledForOtherUser": false
+      }
+    },
+    "2": {
+      "name": "UAT",
+      "url": "uat.crm.example.com",
+      "enablePlayer": true
+    }
   }
-]
+}

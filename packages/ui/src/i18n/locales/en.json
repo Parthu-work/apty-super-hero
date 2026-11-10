@@ -2091,12 +2091,23 @@
       "suggestionsLaunch": "All {{count}} suggestion(s) are published here with no visibility rule, so a click opens them.",
       "appUrlsFailed4x": "app-urls.json failed (HTTP {{httpStatus}}); the 4.x player reads it as an empty list",
       "envRegexInvalid4x": "{{env}} has the URL pattern “{{pattern}}”, not a valid regular expression; the tenant's regex URL flag is on",
-      "playerOff4x": "The player is switched off for {{env}}",
-      "widgetOff4x": "The widget is switched off for {{env}}",
+      "playerOff4x": "The player is not switched on for {{env}}",
+      "widgetOff4x": "Nobody sees the widget in {{env}}",
       "flowHidden4x": "“{{name}}” is hidden from the widget",
-      "rulesMissing4x": "The rules of its segments are missing from rules.json",
       "flowSteps4x": "{{file}} has no steps",
-      "flowStepsUnread4x": "{{file}} was not read: the player loads it when the flow plays"
+      "flowStepsUnread4x": "{{file}} was not read: the player loads it when the flow plays",
+      "appUrlsFromSnippet4x": "The 4.x player fetches app-urls.json only when the page's Apty script tag has no data-app-urls list",
+      "appDataOtherApp4x": "The app-data.json read is for application {{app}}, not this page's",
+      "appDataIncomplete4x": "app-data.json has no config.customConfig, so the 4.x player stops while it starts",
+      "widgetForAll4x": "The widget is shown to every user of {{env}}",
+      "widgetSegments4x": "The widget is shown only to users of {{segments}}",
+      "widgetSegmentsOrNone4x": "The widget is shown to users of {{segments}}, and to users who match no segment",
+      "flowsFromServer4x": "The publishing flag is off, so the 4.x player reads its flows from the Assist server, not flow.json",
+      "flowLocales4x": "“{{name}}” is listed only for users whose language is one of locale {{locales}}",
+      "flowInNoSegment4x": "No segment lists “{{name}}”, so only users who match no segment get it",
+      "flowSegments4x": "“{{name}}” is for users of {{segments}}, and for users who match no segment",
+      "ruleNotInRules4x": "“{{name}}” names rule {{rule}}, which rules.json does not hold, so it never runs and the flow stays visible",
+      "ruleDecides4x": "Rule {{rule}} decides in the browser whether “{{name}}” is shown"
     },
     "rule": {
       "CNV-02": {
@@ -2279,7 +2290,7 @@
         "fix": "Dapty lists the environment's items from ai-service's own copy of the content files, which can lag a publish by a few minutes, or the model named an item it was not given. Publish the item to this environment, or ask again once ai-service has the newest content."
       },
       "W4X-01": {
-        "summary": "app-urls.json failed (HTTP {{httpStatus}}); the 4.x player reads a failed request as an empty list, so no application loads and the widget does not show.",
+        "summary": "app-urls.json failed (HTTP {{httpStatus}}); the 4.x player finds no application in a failed answer, so the widget does not show.",
         "fix": "Fix the failing request (its status and the Console say why), then reload."
       },
       "W4X-01-empty": {
@@ -2288,15 +2299,11 @@
       },
       "W4X-02": {
         "summary": "No environment's URL pattern matches this page, so the 4.x player loads nothing here.",
-        "fix": "In 4.x Admin, add a URL pattern that covers this page (a * covers any run of characters) to the right environment, publish and reload."
+        "fix": "In 4.x Admin, give the right environment a URL that covers this page (a * covers any run of characters), publish and reload."
       },
       "W4X-04": {
-        "summary": "The player is switched off for {{env}}, so nothing from Apty runs on this page.",
+        "summary": "The player is not switched on for {{env}}, so the widget does not show.",
         "fix": "In 4.x Admin, turn the player on for this environment, publish and reload."
-      },
-      "W4X-05": {
-        "summary": "The widget is switched off for {{env}}, so it does not show although the player runs.",
-        "fix": "In 4.x Admin, turn the widget on for this environment, publish and reload."
       },
       "C4X-01": {
         "summary": "flow.json is an empty list: no flow is published in this environment.",
@@ -2310,17 +2317,29 @@
         "summary": "“{{name}}” is hidden from the widget.",
         "fix": "In 4.x Studio, clear the flow's hide-in-widget option, publish and reload."
       },
-      "C4X-04": {
-        "summary": "Every segment that lists “{{name}}” is turned off ({{segments}}), so nobody gets it.",
-        "fix": "In 4.x Admin, turn one of its segments on, or add the flow to an active segment, then publish."
-      },
-      "C4X-05": {
-        "summary": "The rules of the segments that list “{{name}}” are missing from rules.json ({{segments}}), so they can never match.",
-        "fix": "In 4.x Admin, fix or re-create the segment's rule, publish and reload."
-      },
       "C4X-06": {
         "summary": "{{file}} has no steps for “{{name}}”, so it has nothing to play.",
         "fix": "In 4.x Studio, check the flow's steps, publish and reload."
+      },
+      "W4X-03": {
+        "summary": "{{env}} has the URL “{{pattern}}”, which is not a valid regular expression; with the tenant's regex URL flag on, the 4.x player stops looking for the application there, so nothing loads on this page.",
+        "fix": "In 4.x Admin, correct the environment's URL (or turn the regex URL flag off), publish and reload."
+      },
+      "W4X-05-display": {
+        "summary": "The widget's audience for {{env}} is “{{display}}”, which the 4.x player does not show.",
+        "fix": "In 4.x Admin, set who sees the widget (all users or selected segments), publish and reload."
+      },
+      "W4X-05-nobody": {
+        "summary": "The widget for {{env}} is limited to selected segments, but none is selected and users outside segments are left out, so nobody sees it.",
+        "fix": "In 4.x Admin, select the segments that should see the widget, or show it to all users, publish and reload."
+      },
+      "W4X-06": {
+        "summary": "app-data.json has no config.customConfig, so the 4.x player stops while it starts and the widget does not load.",
+        "fix": "In 4.x Admin, publish the application again so app-data.json is complete, then reload."
+      },
+      "C4X-06-notList": {
+        "summary": "{{file}} is not a list of steps, so the 4.x player fails to load “{{name}}”.",
+        "fix": "In 4.x Studio, publish the flow again so its steps file is rebuilt, then reload."
       }
     },
     "ruleLabel": "Rule {{ruleId}}",
@@ -2366,7 +2385,8 @@
       "screen-token": "Whether the screen on display has the screen token an element was captured with, which the application's own script computes",
       "canvas": "Content drawn on a canvas, which has no elements to select",
       "kb-contents": "What the indexed documents say, which only ai-service can search",
-      "suggestion-ids": "The suggestions' ids, which the chat panel does not show, so they were matched by name"
+      "suggestion-ids": "The suggestions' ids, which the chat panel does not show, so they were matched by name",
+      "player-filters-4x": "The 4.x player's own filters: widget sign-in, a flow's schedule and tags, a widget hidden when it has no content, and frames other than the top window"
     },
     "blocker": {
       "hidden": "Hidden from the widget",

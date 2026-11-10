@@ -129,6 +129,8 @@ const NOT_CHECKED_TEXT: Record<NotChecked, string> = {
     "what the indexed documents say, which only ai-service can search",
   "suggestion-ids":
     "the suggestions' ids, which the chat panel does not show, so they were matched by name",
+  "player-filters-4x":
+    "the 4.x player's own filters: widget sign-in, a flow's schedule and tags, a widget hidden when it has no content, and frames other than the top window",
 };
 
 function subjectLine(result: DiagnosisResult): string {
