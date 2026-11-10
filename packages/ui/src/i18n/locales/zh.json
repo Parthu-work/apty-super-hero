@@ -138,27 +138,30 @@
     },
     "knowledgeBase": {
       "title": "知识库",
-      "description": "知识库负责人共享的 KB 包：检查和回答所引用的 RAG 答案卡片。它只保存在此浏览器中；只有当回答用到卡片时，卡片文本才会发送给你的 AI 提供方。",
+      "description": "知识库负责人共享的 KB 包，每个 Apty 版本一个（4.x、5.x、common）：检查和回答所引用的 RAG 答案卡片。它只保存在此浏览器中；只有当回答用到卡片时，卡片文本才会发送给你的 AI 提供方。",
       "notLoaded": "尚未加载知识库。请从知识库负责人共享的内部页面导入 .kbpack.json 文件。",
-      "loadedLabel": "已加载的知识库",
+      "loadedLabelVersion": "已加载的知识库（{{version}}）",
+      "versionHeading": "Apty {{version}}",
+      "replaceVersion": "替换 {{version}} 包…",
+      "removeVersion": "移除 {{version}} 包",
       "space": "空间",
       "cards": "卡片",
+      "cardsWithStubs": "{{count}}，其中 {{stubs}} 张尚未编写",
       "built": "构建于",
       "imported": "导入于",
       "retrieval": "检索方式",
       "modeBm25": "关键词（BM25）",
       "modeHybrid": "关键词和向量",
-      "calibrated": "已校准阈值",
-      "uncalibrated": "未校准阈值：任何匹配都视为已覆盖",
+      "calibrated": "已校准",
+      "uncalibrated": "未校准：使用默认覆盖设置",
       "stale": "此包构建于 {{days}} 天前。请向知识库负责人索取更新的包并导入。",
       "import": "导入包…",
-      "replace": "替换包…",
       "remove": "移除",
       "fileLabel": "KB 包文件",
-      "removeTitle": "移除知识库？",
-      "removeDescription": "该包将从此浏览器中删除。在你再次导入包之前，检查只会链接到卡片，不显示卡片文本。",
-      "importedStatus": "已从空间 {{space}} 导入 {{count}} 张卡片。",
-      "removedStatus": "知识库已移除。",
+      "removeTitle": "移除 {{version}} 知识库？",
+      "removeDescription": "该包将从此浏览器中删除，其他版本的包保留。在你再次导入此版本的包之前，关于此版本的问题只会链接到卡片，不显示卡片文本。",
+      "importedStatus": "已从空间 {{space}} 导入 Apty {{version}} 的 {{count}} 张卡片。",
+      "removedStatus": "{{version}} 知识库已移除。",
       "errors": {
         "tooLarge": "此文件对于 KB 包来说过大（超过 25 MB 或 5,000 个片段）。",
         "notJson": "此文件不是 JSON，因此不是 KB 包。",
@@ -1169,6 +1172,7 @@
       },
       "knowledgeBase": {
         "label": "知识库",
+        "labelVersion": "知识库（{{version}}）",
         "loaded": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}。",
         "notLoaded": "未加载。检查会链接到 KB 卡片，但不显示其文本。",
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
@@ -1298,6 +1302,9 @@
     "tokensOf": "{{used}} / {{max}} 个令牌",
     "promptCompletion": "提示：{{prompt}} | 补全：{{completion}}",
     "summarizing": "正在总结...",
+    "kbUnknownCitation": "未知引用",
+    "kbUngroundedTitle": "在引用的 KB 卡片中未找到",
+    "kbUngrounded": "在引用的 KB 卡片中未找到：{{phrases}}",
     "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层"
   },
   "investigation": {
@@ -2058,7 +2065,15 @@
       "suggestionsNone": "Dapty 没有推荐任何工作流或知识内容。",
       "suggestionsMissing": "{{count}} 个推荐中有 {{missing}} 个未在此环境发布。",
       "suggestionsOpen": "{{count}} 个推荐中有 {{open}} 个取决于可见性规则或无法检查。",
-      "suggestionsLaunch": "全部 {{count}} 个推荐都已在此发布且没有可见性规则，点击即可打开。"
+      "suggestionsLaunch": "全部 {{count}} 个推荐都已在此发布且没有可见性规则，点击即可打开。",
+      "appUrlsFailed4x": "app-urls.json 请求失败（HTTP {{httpStatus}}）；4.x 播放器将其视为空列表",
+      "envRegexInvalid4x": "{{env}} 的 URL 模式“{{pattern}}”不是有效的正则表达式；租户的正则 URL 开关已打开",
+      "playerOff4x": "{{env}} 的播放器已关闭",
+      "widgetOff4x": "{{env}} 的小组件已关闭",
+      "flowHidden4x": "“{{name}}”在小组件中被隐藏",
+      "rulesMissing4x": "其分组的规则在 rules.json 中缺失",
+      "flowSteps4x": "{{file}} 中没有步骤",
+      "flowStepsUnread4x": "未读取 {{file}}：播放器在流程播放时才加载它"
     },
     "rule": {
       "CNV-02": {
@@ -2239,6 +2254,50 @@
       "DAP-06": {
         "summary": "Dapty 推荐了“{{name}}”，但此环境没有发布它，因此点击后什么也不会打开。",
         "fix": "Dapty 根据 ai-service 自己缓存的内容文件列出环境中的项目，可能比发布晚几分钟；也可能是模型给出了它没有拿到的项目。请把该项目发布到此环境，或等 ai-service 拿到最新内容后再问。"
+      },
+      "W4X-01": {
+        "summary": "app-urls.json 请求失败（HTTP {{httpStatus}}）；4.x 播放器把失败的请求当作空列表，因此不加载任何应用，小组件也不显示。",
+        "fix": "修复失败的请求（其状态码和控制台会说明原因），然后重新加载。"
+      },
+      "W4X-01-empty": {
+        "summary": "app-urls.json 是空列表：此租户没有发布任何应用，因此小组件在任何页面都不显示。",
+        "fix": "在 4.x Admin 中发布应用及其环境，然后重新加载。"
+      },
+      "W4X-02": {
+        "summary": "没有任何环境的 URL 模式匹配此页面，因此 4.x 播放器在此不加载任何内容。",
+        "fix": "在 4.x Admin 中为正确的环境添加覆盖此页面的 URL 模式（* 匹配任意字符），发布并重新加载。"
+      },
+      "W4X-04": {
+        "summary": "{{env}} 的播放器已关闭，因此此页面上不运行任何 Apty 内容。",
+        "fix": "在 4.x Admin 中为此环境打开播放器，发布并重新加载。"
+      },
+      "W4X-05": {
+        "summary": "{{env}} 的小组件已关闭，因此即使播放器运行，小组件也不显示。",
+        "fix": "在 4.x Admin 中为此环境打开小组件，发布并重新加载。"
+      },
+      "C4X-01": {
+        "summary": "flow.json 是空列表：此环境中没有发布任何流程。",
+        "fix": "在 4.x Studio 中将流程发布到此环境，然后重新加载。"
+      },
+      "C4X-02": {
+        "summary": "flow.json 中没有名为“{{name}}”的流程：它没有发布到此环境。",
+        "fix": "在 4.x Studio 中将流程发布到此环境（检查其名称），然后重新加载。"
+      },
+      "C4X-03": {
+        "summary": "“{{name}}”在小组件中被隐藏。",
+        "fix": "在 4.x Studio 中清除该流程的“在小组件中隐藏”选项，发布并重新加载。"
+      },
+      "C4X-04": {
+        "summary": "列出“{{name}}”的所有分组都已关闭（{{segments}}），因此没有人能看到它。",
+        "fix": "在 4.x Admin 中打开其中一个分组，或将流程加入一个已启用的分组，然后发布。"
+      },
+      "C4X-05": {
+        "summary": "列出“{{name}}”的分组的规则在 rules.json 中缺失（{{segments}}），因此它们永远无法匹配。",
+        "fix": "在 4.x Admin 中修复或重新创建分组的规则，发布并重新加载。"
+      },
+      "C4X-06": {
+        "summary": "{{file}} 中没有“{{name}}”的步骤，因此没有可播放的内容。",
+        "fix": "在 4.x Studio 中检查流程的步骤，发布并重新加载。"
       }
     },
     "ruleLabel": "规则 {{ruleId}}",
@@ -2364,6 +2423,23 @@
       "notVerified": "未验证",
       "layer": "“{{title}}”的第 {{layer}} 层",
       "noVerifiedLine": "该卡片没有“验证于”行。"
+    },
+    "filesFromCapture": "从页面的网络捕获中读取。",
+    "getFiles": "无法读取任何 Apty 文件。仍可读取 4.x 租户的文件：",
+    "captureReload": "捕获并重新加载",
+    "capturing": "正在页面重新加载时捕获其网络…",
+    "captureNone": "页面没有发出任何 Apty 内容请求。在扩展模式下，这些请求由 4.x Client 发出：请从其 service worker 保存 HAR。",
+    "captureFailed": "无法在此标签页上运行捕获。请改为保存 HAR。",
+    "captured": "已捕获 {{calls}} 个 Apty 请求。检查已在其上运行：",
+    "harSteps": {
+      "title": "从 4.x Client 的 service worker 保存 HAR",
+      "extensions": "打开 chrome://extensions 并开启开发者模式。",
+      "serviceWorker": "找到 Apty 扩展（4.x Client），在“检查视图”下点击“service worker”。",
+      "network": "在该 DevTools 窗口中打开“网络”，勾选“保留日志”。",
+      "reproduce": "重新加载应用标签页并重现问题。",
+      "save": "在 service worker 的“网络”面板中右键，选择“以 HAR 格式保存所有内容”。",
+      "drop": "在侧边栏打开 HAR 检查并选择该 HAR；确认要对照检查的页面。",
+      "copyExtensions": "复制 chrome://extensions"
     }
   },
   "harCheck": {
@@ -2407,11 +2483,21 @@
       "check-failed": "无法对此文件运行检查。"
     },
     "daptyFound": "Ask Dapty：{{calls}} 个聊天请求和 {{stored}} 个已保存的聊天。",
-    "noDapty": "此 HAR 不包含 Ask Dapty 聊天请求。请在打开小组件聊天并重新提问时录制。"
+    "noDapty": "此 HAR 不包含 Ask Dapty 聊天请求。请在打开小组件聊天并重新提问时录制。",
+    "useTabPage": "使用此标签页中打开的页面：{{page}}"
+  },
+  "kbVersion": {
+    "label": "Apty 版本",
+    "notSure": "不确定",
+    "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
   },
   "kbMatches": {
     "title": "匹配的 KB 卡片",
     "layer": "卡片的第 {{layer}} 层",
+    "stub": "KB 中有这张卡片，但其 {{version}} 版本的内容尚未编写。",
+    "nonEnglish": "KB 卡片是英文的。请用英文提问，或把问题发送给模型。",
+    "mixedVersions": "这些卡片属于不同的 Apty 版本；此租户运行的是哪个版本？",
+    "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
     "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。"
   }
 }

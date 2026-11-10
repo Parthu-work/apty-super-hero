@@ -312,18 +312,16 @@ describe("content-not-visible: when the data is not there", () => {
     expect(result.gates[0]?.reason).toBe("clientUnreachable");
   });
 
-  it("refuses to judge a 4.x tenant", () => {
+  it("judges a 4.x tenant with the 4.x pack (K14)", () => {
     const result = diagnoseContentNotVisible(
       evidenceFrom(capture("content-4x")),
       "workflow",
       "Create a lead",
     );
 
-    expect(result.verdict).toMatchObject({
-      status: "out_of_scope",
-      nextCheck: "manual4x",
-    });
-    expect(result.gates[0]?.reason).toBe("version4x");
+    expect(result.aptyVersion).toBe("4.x");
+    expect(result.verdict.status).not.toBe("out_of_scope");
+    expect(result.gates.map((g) => g.reason)).not.toContain("version4x");
   });
 
   const problems: Array<[FileStatus, string, string]> = [

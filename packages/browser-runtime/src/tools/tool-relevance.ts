@@ -21,6 +21,11 @@
  */
 
 import type { FunctionTool } from "@apty/agent-core";
+import {
+  hasSymptomWord,
+  isBareHowTo,
+  isMostlyNonLatin,
+} from "../kb/kb-intent.js";
 import { type BrowserToolGroupName, browserToolGroups } from "./index.js";
 
 const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
@@ -199,9 +204,6 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
   // Product facts behind a finding (KB-RAG K4): the card's settings,
   // checks, data and support contacts.
   kb: [
-    "how do i",
-    "how can i",
-    "how to",
     "turn off",
     "turn on",
     "turn it off",
@@ -241,11 +243,17 @@ const DEFAULT_FALLBACK_GROUPS: BrowserToolGroupName[] = ["tabs", "page"];
 // pulled in by these categories even when the wording doesn't literally
 // say "investigate" — an Apty/network/extension question about *why*
 // something happens is a debugging request either way.
-// A check pack's symptom is where card text helps: its fix, checks and
-// support contacts are product facts the model must not invent (KB-RAG
-// K4). Not every Apty question: a 10-turn investigation must still fit an
-// 8,000-token request budget.
-const GROUPS_THAT_IMPLY_KB: BrowserToolGroupName[] = ["diagnosis"];
+// Apty product facts come from the KB cards (KB-RAG K4, K16): any Apty,
+// network, DevTools, selector or symptom question gets search_kb, so the
+// model does not answer it from general knowledge. A bare how-to does not
+// (D-KB1: Ask Dapty answers those), nor a request to fetch a file.
+const GROUPS_THAT_IMPLY_KB: BrowserToolGroupName[] = [
+  "apty",
+  "extensionNetwork",
+  "devtools",
+  "selector",
+  "diagnosis",
+];
 
 const GROUPS_THAT_IMPLY_INVESTIGATION: BrowserToolGroupName[] = [
   "apty",
@@ -276,6 +284,8 @@ function isLikelyCasualMessage(lowerText: string): boolean {
   const trimmed = lowerText.trim();
   if (trimmed.length === 0) return true;
   if (CASUAL_PATTERNS.some((re) => re.test(trimmed))) return true;
+  // A script written without spaces, such as Chinese, is not counted in words.
+  if (isMostlyNonLatin(trimmed)) return [...trimmed].length < 4;
   return trimmed.split(/\s+/).length <= 3;
 }
 
@@ -300,7 +310,11 @@ function selectRelevantGroups(userMessage: string): Set<BrowserToolGroupName> {
 
   if (
     !RETRIEVAL_REQUEST.test(text.trim()) &&
-    GROUPS_THAT_IMPLY_KB.some((g) => matchedGroups.has(g))
+    !isBareHowTo(userMessage) &&
+    !isLikelyCasualMessage(text) &&
+    (GROUPS_THAT_IMPLY_KB.some((g) => matchedGroups.has(g)) ||
+      hasSymptomWord(userMessage) ||
+      isMostlyNonLatin(userMessage))
   ) {
     matchedGroups.add("kb");
   }

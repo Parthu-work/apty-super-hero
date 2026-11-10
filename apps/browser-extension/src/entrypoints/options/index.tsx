@@ -1,4 +1,4 @@
-import type { AppSettings } from "@apty/agent-core";
+import type { AppSettings, KbAptyVersion } from "@apty/agent-core";
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import { previewRedaction } from "@apty/browser-runtime/runtime/redaction-mode";
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
@@ -110,7 +110,7 @@ applyRememberedTheme();
 const knowledgeBase = {
   info: () => kbPackStore().info(),
   importPack: (text: string) => kbPackStore().replace(text),
-  remove: () => kbPackStore().remove(),
+  remove: (version: KbAptyVersion) => kbPackStore().remove(version),
 };
 
 const i18nStorageAdapter = new ChromeStorageAdapter<Language>();

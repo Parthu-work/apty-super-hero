@@ -15,8 +15,14 @@ import {
   tabAptyPage,
 } from "../apty-cdn-source.js";
 import { sendExternalMessageDetailed } from "../external-messaging.js";
+import { aptyContentCalls } from "../network-capture-session.js";
+import type { AptyObservedResource } from "../types.js";
 import type { ClientPing, DaptyTrace } from "./dapty-evidence.js";
-import { loadClientEvidence, loadEvidenceFrom } from "./loader.js";
+import {
+  loadClientEvidence,
+  loadEvidenceFrom,
+  type ResourceSource,
+} from "./loader.js";
 import type { ClientEvidence } from "./types.js";
 
 export interface AptyFilesReaders {
@@ -47,6 +53,26 @@ export interface AptyFilesReaders {
     extensionId: string | undefined,
     names: readonly string[],
   ) => Promise<ClientEvidence>;
+  /** The Apty content calls the tab's page network capture saw (KB-RAG K15). */
+  capture?: (tabId: number) => CapturedAptyCalls | undefined;
+}
+
+export interface CapturedAptyCalls {
+  resources: AptyObservedResource[];
+  bodies: ReadonlyMap<string, string>;
+}
+
+/** A capture's Apty calls as a source the loader reads like the Client's. */
+export function captureSource(calls: CapturedAptyCalls): ResourceSource {
+  return {
+    listResources: async () => ({ ok: true, resources: calls.resources }),
+    getResourceBody: async (requestId) => {
+      const body = calls.bodies.get(requestId);
+      return body === undefined
+        ? { found: false, reason: "none" }
+        : { found: true, body, base64Encoded: false };
+    },
+  };
 }
 
 export const tabOf = (runContext: unknown) => {
@@ -161,6 +187,16 @@ export function createAptyFiles(readers: AptyFilesReaders) {
     };
     if (fromClient.connection.ok) return done(fromClient);
     if (trace) trace.filesConnection = fromClient.connection.failure;
+    const captured = tab === undefined ? undefined : readers.capture?.(tab);
+    if (captured && captured.resources.length > 0) {
+      const fromCapture = await loadEvidenceFrom(
+        captureSource(captured),
+        names,
+      ).catch(() => undefined);
+      if (fromCapture?.connection.ok) {
+        return done({ ...fromCapture, fromCapture: true });
+      }
+    }
     const cdn = await cdnFor(tab, names, storedChats);
     if (!cdn) return done(fromClient);
     const fromCdn = await loadEvidenceFrom(cdn, names).catch(() => undefined);
@@ -190,6 +226,7 @@ async function loadAptyCdnFallback(): Promise<boolean> {
 }
 
 export const DEFAULT_APTY_FILES_READERS: AptyFilesReaders = {
+  capture: aptyContentCalls,
   cdnFallback: loadAptyCdnFallback,
   detectClient: detectClientExtensionId,
   clientAnswers: async (extensionId) =>

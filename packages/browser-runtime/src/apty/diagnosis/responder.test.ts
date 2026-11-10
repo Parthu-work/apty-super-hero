@@ -24,6 +24,7 @@ const settings = vi.hoisted(() => ({
   tabs: { get: mockTabsGet },
 };
 
+import { forgetKbVersions, kbVersionForHost } from "../../kb/kb-version";
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
 import { runDiagnosisTool } from "../../tools/diagnosis";
 import {
@@ -151,6 +152,51 @@ describe("createDiagnosisResponder", () => {
     expect(answer?.transcript).toContain("Visibility check of workflow");
     expect(answer?.transcript).not.toContain("mrn=12345");
     expect(JSON.stringify(answer?.result)).not.toContain("mrn=12345");
+  });
+
+  it("asks a source for the 4.x files only once its calls show a 4.x tenant", async () => {
+    const fiveX = vi.fn(async () => evidenceFrom(capture()));
+    await createDiagnosisResponder({ filesOf: fiveX })(
+      "the Apty widget is not appearing",
+      {},
+    );
+    await createDiagnosisResponder({ filesOf: fiveX })(
+      "My workflow 'Take a tour' is not visible in the widget",
+      {},
+    );
+    for (const [, , names] of fiveX.mock.calls as unknown as [
+      unknown,
+      unknown,
+      string[],
+    ][]) {
+      expect(names).not.toContain("feature-flag.json");
+      expect(names).not.toContain("flow.json");
+    }
+    const fourX = vi.fn(async () => evidenceFrom(capture("content-4x")));
+    await createDiagnosisResponder({ filesOf: fourX })(
+      "the Apty widget is not appearing",
+      {},
+    );
+    expect(fourX.mock.calls.map((call) => call[2])).toContainEqual(
+      expect.arrayContaining(["feature-flag.json"]),
+    );
+  });
+
+  it("says when a 4.x check read its files from the page's network capture (K15)", async () => {
+    const filesOf = vi.fn(async () => ({
+      ...evidenceFrom(capture("content-4x")),
+      fromCapture: true,
+    }));
+    const respond = createDiagnosisResponder({ filesOf });
+    const answer = await respond("the Apty widget is not appearing", {
+      runContext: { conversationId: "s-9", tabId: 9 },
+    });
+    const result = answer?.result as DiagnosisResult;
+    expect(result.aptyVersion).toBe("4.x");
+    expect(result.filesFromCapture).toBe(true);
+    expect(answer?.transcript.split("\n")[0]).toMatch(
+      /from the Apty files in the page's network capture/,
+    );
   });
 
   it("reads every check's files for the conversation's tab, and says when they came from Apty's content CDN", async () => {
@@ -432,6 +478,7 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     const answer = await respond("the tooltip opens twice on the page", {});
     expect(kbMatchesOf).toHaveBeenCalledWith(
       "the tooltip opens twice on the page",
+      { modelAvailable: false, version: "unknown" },
     );
     expect(answer).toMatchObject({
       toolName: "search_kb",
@@ -451,6 +498,38 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     );
     expect(answer?.toolName).toBe(RUN_DIAGNOSIS);
     expect(kbMatchesOf).not.toHaveBeenCalled();
+  });
+
+  it("tells the KB search whether a model can take what the cards cannot match", async () => {
+    const kbMatchesOf = vi.fn(async () => undefined);
+    const respond = createDiagnosisResponder({
+      kbMatchesOf,
+      modelAvailable: () => true,
+    });
+    await respond("小部件没有显示", {});
+    expect(kbMatchesOf).toHaveBeenCalledWith("小部件没有显示", {
+      modelAvailable: true,
+      version: "unknown",
+    });
+  });
+
+  it("searches the KB for the version a check's files showed on this site (K12)", async () => {
+    forgetKbVersions();
+    const pageUrlOf = async () => "https://crm.example.com/leads/42";
+    const kbMatchesOf = vi.fn(async () => undefined);
+    const respond = createDiagnosisResponder({ pageUrlOf, kbMatchesOf });
+    await respond("the tooltip opens twice", {});
+    expect(kbMatchesOf).toHaveBeenLastCalledWith("the tooltip opens twice", {
+      modelAvailable: false,
+      version: "unknown",
+    });
+    await respond("the widget is not showing", {});
+    expect(kbVersionForHost("crm.example.com")).toBe("5.x");
+    await respond("the tooltip opens twice", {});
+    expect(kbMatchesOf).toHaveBeenLastCalledWith("the tooltip opens twice", {
+      modelAvailable: false,
+      version: "5.x",
+    });
   });
 
   it("leaves the message to the model when the KB has nothing above its threshold", async () => {

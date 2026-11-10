@@ -2,6 +2,7 @@
 # Exclude README files from typos checking (they contain multiple languages)
 # Exclude bundled-modules directory (contains third-party bundled code)
 # Exclude mcp-bridge directory (tool schemas contain glob patterns that trigger false positives)
+# Exclude the KB-RAG synthetic questions (deliberate misspellings)
 # Exclude the generated third-party notices and the Inter licence: licence
 # texts and copyright holders' names must stay exactly as their authors wrote
 # them (typos once "corrected" a name in them).
@@ -11,6 +12,9 @@ extend-exclude = [
   "apps/mcp-bridge/**",
   "apps/browser-extension/THIRD_PARTY_NOTICES.txt",
   "apps/browser-extension/assets/Inter-OFL.txt",
+  # The KB-RAG synthetic questions misspell words on purpose: the "typo"
+  # category checks that search still finds the card.
+  "tooling/scripts/kb/fixtures/demo-questions-*.json",
 ]
 
 [default]
@@ -43,3 +47,10 @@ rememberable = "rememberable"
 # "unparseable" is the accepted spelling for a URL that cannot be parsed
 # (click-risk.test.ts); it is not a misspelling of "unparsable".
 unparseable = "unparseable"
+# KB-RAG K21 F5: the KB search's typo tests and the task prompt quote these
+# misspellings on purpose, to check that search still finds the card.
+apear = "apear"
+apearing = "apearing"
+baloon = "baloon"
+balon = "balon"
+widgt = "widgt"

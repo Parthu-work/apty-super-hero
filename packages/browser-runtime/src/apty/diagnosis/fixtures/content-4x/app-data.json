@@ -1,0 +1,17 @@
+[
+  {
+    "environmentId": 3011,
+    "enablePlayer": true,
+    "widgetConfig": { "enabled": true }
+  },
+  {
+    "environmentId": 3012,
+    "enablePlayer": true,
+    "widgetConfig": { "enabled": true }
+  },
+  {
+    "environmentId": 3021,
+    "enablePlayer": true,
+    "widgetConfig": { "enabled": true }
+  }
+]

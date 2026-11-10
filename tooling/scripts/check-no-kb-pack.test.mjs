@@ -5,7 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { hasPackMarker, kbPackProblems } from "./check-no-kb-pack.mjs";
+import {
+  cardTitleCommentProblems,
+  hasPackMarker,
+  kbPackProblems,
+  quotesCardTitle,
+} from "./check-no-kb-pack.mjs";
 
 const SCRIPT = fileURLToPath(
   new URL("./check-no-kb-pack.mjs", import.meta.url),
@@ -104,6 +109,66 @@ describe("kbPackProblems", () => {
       kbPackProblems(root).map(({ path }) => path),
       ["docs/tasks/kb-rag/other.md"],
     );
+  });
+});
+
+// Built from parts so this file does not trip the check it tests.
+const ID = ["15097", "20000"].join("");
+const TITLE = ["FIXTURE", "widget", "is", "not", "showing"].join(" ");
+
+describe("F12: quotesCardTitle", () => {
+  it("flags a comment quoting four or more words on a page id's line", () => {
+    assert.ok(quotesCardTitle(` * the card "${TITLE}" (A4PKH ${ID}).`));
+    assert.ok(quotesCardTitle(`// “${TITLE}” ${ID}`));
+    assert.ok(quotesCardTitle(`const x = 1; // '${TITLE}' (${ID})`));
+  });
+
+  it("passes a description without quotes, short quotes, code strings and other lines", () => {
+    assert.ok(
+      !quotesCardTitle(
+        ` * 4.x mirror card for the app-urls.json response (A4PKH ${ID}).`,
+      ),
+    );
+    assert.ok(!quotesCardTitle(` * the "flow.json" card (${ID})`));
+    assert.ok(!quotesCardTitle(`fixturePage("${ID}", "${TITLE}", []);`));
+    assert.ok(!quotesCardTitle(` * "${TITLE}" has no page id here`));
+    assert.ok(
+      !quotesCardTitle(`const url = "https://x.example/${ID}"; // "${TITLE}"`),
+    );
+  });
+});
+
+describe("F12: cardTitleCommentProblems", () => {
+  it("names the file and line of a quoted title under packages/, apps/ and tooling/ only", () => {
+    const root = tree({
+      "packages/a/src/bad.ts": `export {};\n/** "${TITLE}" (A4PKH ${ID}). */\n`,
+      "packages/a/src/good.ts": `/** Widget missing on the whole application (A4PKH ${ID}). */\n`,
+      "packages/a/dist/bad.js.ts": `// "${TITLE}" ${ID}\n`,
+      "docs/notes.ts": `// "${TITLE}" ${ID}\n`,
+      "tooling/x.mjs": `// "${TITLE}" ${ID}\n`,
+    });
+    assert.deepEqual(cardTitleCommentProblems(root), [
+      {
+        path: "packages/a/src/bad.ts:2",
+        reason: "a comment quotes a card title next to a page id",
+      },
+      {
+        path: "tooling/x.mjs:1",
+        reason: "a comment quotes a card title next to a page id",
+      },
+    ]);
+  });
+
+  it("finds none in this repository", () => {
+    assert.deepEqual(cardTitleCommentProblems(ROOT), []);
+  });
+
+  it("fails the CLI with the line, never the quoted text", () => {
+    const root = tree({ "apps/x/src/a.tsx": `// "${TITLE}" ${ID}\n` });
+    const run = spawnSync("node", [SCRIPT, root], { encoding: "utf8" });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /apps\/x\/src\/a\.tsx:1/);
+    assert.ok(!run.stderr.includes(TITLE));
   });
 });
 

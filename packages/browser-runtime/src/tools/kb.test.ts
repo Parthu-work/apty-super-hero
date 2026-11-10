@@ -73,16 +73,22 @@ describe("search_kb", () => {
     );
   });
 
-  it("takes only a query, a topK of 1 to 5 and layers: no pack, URL or page id", async () => {
+  it("takes only a query, a topK of 1 to 5, layers and an Apty version: no pack, URL or page id", async () => {
     const { properties } = searchKbTool.parameters as {
       properties: Record<string, unknown>;
     };
-    expect(Object.keys(properties).sort()).toEqual(["layers", "query", "topK"]);
+    expect(Object.keys(properties).sort()).toEqual([
+      "aptyVersion",
+      "layers",
+      "query",
+      "topK",
+    ]);
     for (const args of [
       { query: "x".repeat(301) },
       { query: "" },
       { query: "a", topK: 6 },
       { query: "a", layers: [5] },
+      { query: "a", aptyVersion: "6.x" },
     ]) {
       const out = await (searchKbTool as unknown as ToolLike).invoke(
         {},
@@ -91,6 +97,14 @@ describe("search_kb", () => {
       expect(String(out)).toMatch(/error/i);
     }
     expect(kbSource.current).not.toHaveBeenCalled();
+  });
+
+  it("searches the version the model names, else the tab's, else every pack", async () => {
+    kbSource.current.mockResolvedValue(null);
+    await run(searchKbTool, { query: "banner", aptyVersion: "4.x" });
+    expect(kbSource.current).toHaveBeenLastCalledWith("4.x");
+    await run(searchKbTool, { query: "banner" });
+    expect(kbSource.current).toHaveBeenLastCalledWith("unknown");
   });
 
   it("is offered through the result-privacy filter, like every other tool", async () => {
@@ -111,6 +125,11 @@ describe("search_kb", () => {
     expect(registered?.name).toBe("search_kb");
     const wrapped = await run(registered, { query: "portal link" });
     expect(JSON.stringify(wrapped)).not.toContain("884213");
+    expect(wrapped.results[0]).toMatchObject({
+      title: "FIXTURE portal link",
+      site: "fixture.atlassian.net",
+      space: "FX",
+    });
     const direct = await run(searchKbTool, { query: "portal link" });
     expect(JSON.stringify(direct)).toContain("884213");
   });

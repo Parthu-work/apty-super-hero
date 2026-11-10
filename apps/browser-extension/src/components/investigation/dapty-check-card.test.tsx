@@ -13,9 +13,15 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const recordDaptyChat = vi.hoisted(() => vi.fn());
-vi.mock("@apty/browser-runtime/apty/dapty-page-capture", () => ({
-  recordDaptyChat,
-}));
+vi.mock(
+  "@apty/browser-runtime/apty/dapty-page-capture",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@apty/browser-runtime/apty/dapty-page-capture")
+    >()),
+    recordDaptyChat,
+  }),
+);
 
 import { CheckResultCard } from "./check-result-card";
 

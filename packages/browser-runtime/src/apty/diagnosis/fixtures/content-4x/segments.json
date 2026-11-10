@@ -3,7 +3,24 @@
     "id": 4219,
     "name": "Sales team",
     "isActive": true,
+    "ruleId": 77,
     "conditions": [],
-    "flows": [18515]
+    "flows": [18515, 18516]
+  },
+  {
+    "id": 4220,
+    "name": "Call centre",
+    "isActive": false,
+    "ruleId": 77,
+    "conditions": [],
+    "flows": [18517]
+  },
+  {
+    "id": 4221,
+    "name": "Meeting planners",
+    "isActive": true,
+    "ruleId": 78,
+    "conditions": [],
+    "flows": [18518]
   }
 ]

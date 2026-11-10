@@ -9,7 +9,7 @@ configure yourself.
 
 | Destination | What is sent | When |
 |---|---|---|
-| The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings. A check answered without the model (such as "my workflow is not visible") sends nothing itself; its result goes with your next message, masked like a tool result. With a KB pack imported, the text of the KB cards that a `search_kb` call or a KB matches answer returned, masked like any tool result. With **Summarize earlier turns** on (Settings → AI → Request size; off by default), one more request asks the model to summarize a long chat's earlier messages, masked the same way | Only while you chat. Nothing is sent before you configure a provider; checks that need no model run without one. |
+| The AI provider you configure (your own API key) | Your messages, and the results of the tools the agent runs: page text and structure, console output, network request details, screenshots you ask the agent to look at, DOM Health findings. A check answered without the model (such as "my workflow is not visible") sends nothing itself; its result goes with your next message, masked like a tool result. With a KB pack imported, the text of the KB cards that a `search_kb` call or a KB matches answer returned, masked like any tool result: any message about Apty, the network, DevTools, selectors or a symptom can offer `search_kb`, and any message no check pack claims can get a KB matches answer, but never a bare how-to, a file request or casual chat. With **Summarize earlier turns** on (Settings → AI → Request size; off by default), one more request asks the model to summarize a long chat's earlier messages, masked the same way | Only while you chat. Nothing is sent before you configure a provider; checks that need no model run without one. |
 | The Apty Client extension you connect | Requests for its own service-worker logs, status and observed resources | Only when the agent investigates the Client. |
 | A local MCP daemon you connect (`localhost` only) | Tool results for the MCP client you run, such as Claude Code, filtered exactly like the results sent to the AI provider (see below) | Only while you keep the bridge connected. |
 | A diagnostic HTTP endpoint built into your build (`VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT`) | Requests for service-worker diagnostics | Only if your build sets it; empty by default. |
@@ -164,7 +164,9 @@ must not reach your AI provider.
 | Screenshots | The extension's IndexedDB | Deleted after 7 days without use; at most 50 are kept |
 | Evidence and investigations from the current session | `chrome.storage.session` | Cleared when the browser closes |
 | Remembered approvals ("Allow on this site for 15 min") | `chrome.storage.local` | 15 minutes, or until revoked |
-| The KB pack you import (Apty's internal RAG Answer Cards) | The extension's IndexedDB (`apty-kb-db`) | Until you remove or replace it in Settings → General → Knowledge base, or remove the extension |
+| The KB packs you import (Apty's internal RAG Answer Cards), one per Apty version (4.x, 5.x, common) | The extension's IndexedDB (`apty-kb-db`) | Until you remove or replace each in Settings → General → Knowledge base, or remove the extension |
+| The Apty content calls a page network capture saw, with their whole redacted bodies (for the checks; **Capture and reload** makes one on click) | The service worker's memory | 15 minutes after the capture stops, or until the browser closes |
+| A HAR file you check, including one saved from the 4.x Client's service worker | The side panel's memory | While the HAR page is open |
 
 **Settings → General → Stored conversations and screenshots → Delete stored
 data now** removes conversations, the agent's history and screenshots at

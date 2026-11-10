@@ -28,7 +28,7 @@ import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { UIToolPart } from "@apty/ui/types";
 import { FileUpIcon } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { chatHandoff } from "../../../state/chat-handoff";
 import { ToolPageShell } from "../../shell/tool-page-shell";
 import { CheckResultCard } from "../check-result-card";
@@ -130,6 +130,41 @@ function Summary({ loaded }: { loaded: LoadedHar }) {
   );
 }
 
+/**
+ * The page open in the active tab: a HAR saved from a service worker (the
+ * 4.x Client's, K15 B) has none, so the widget check can use this one once
+ * the user confirms it. It is only matched here, never sent.
+ */
+function useActiveTabPage(readAgain: unknown): string | undefined {
+  const [page, setPage] = useState<string | undefined>();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read again when another HAR is chosen
+  useEffect(() => {
+    let live = true;
+    setPage(undefined);
+    if (typeof chrome === "undefined" || !chrome.tabs?.query) return;
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(([tab]) => {
+        if (live && tab?.url && /^https?:\/\//.test(tab.url)) setPage(tab.url);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [readAgain]);
+  return page;
+}
+
+/** The page as the user confirms it: its address without the query or fragment. */
+function shownPage(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url;
+  }
+}
+
 export function HarCheckPage() {
   const { t } = useTranslation();
   const id = useId();
@@ -178,13 +213,20 @@ export function HarCheckPage() {
     });
   };
 
+  const tabPage = useActiveTabPage(loaded);
+  const [useTabPage, setUseTabPage] = useState(false);
+
   const check = async () => {
     if (!loaded) return;
     const token = ++run.current;
     setRunning(true);
     setError(null);
     try {
-      const checked = await runHarCheck(loaded.har, checkFor(target, name));
+      const checked = await runHarCheck(
+        loaded.har,
+        checkFor(target, name),
+        useTabPage && tabPage ? { pageUrl: tabPage } : {},
+      );
       if (token === run.current) setResult(checked);
     } catch {
       if (token === run.current) setError("check-failed");
@@ -310,6 +352,19 @@ export function HarCheckPage() {
               !loaded.summary.hasPage && (
                 <Notice tone="info">{t("harCheck.noPage")}</Notice>
               )
+            )}
+            {target !== "dapty" && !loaded.summary.hasPage && tabPage && (
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={useTabPage}
+                  onChange={(event) => setUseTabPage(event.target.checked)}
+                  className="mt-0.5 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                />
+                <span className="break-all">
+                  {t("harCheck.useTabPage", { page: shownPage(tabPage) })}
+                </span>
+              </label>
             )}
           </div>
         )}

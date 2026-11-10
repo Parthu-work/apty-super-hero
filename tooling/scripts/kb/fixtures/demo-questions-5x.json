@@ -1,0 +1,288 @@
+[
+  {
+    "id": "d5-01",
+    "category": "paraphrase",
+    "q": "the help bubble keeps blinking when I rest the mouse on the field",
+    "expectedPageIds": ["2001"]
+  },
+  {
+    "id": "d5-02",
+    "category": "paraphrase",
+    "q": "people outside the group can see the panel too",
+    "expectedPageIds": ["2004"]
+  },
+  {
+    "id": "d5-03",
+    "category": "symptom-line",
+    "q": "the tour does not continue after F5",
+    "expectedPageIds": ["2002"]
+  },
+  {
+    "id": "d5-04",
+    "category": "symptom-line",
+    "q": "a single person is missing the panel while colleagues have it",
+    "expectedPageIds": ["2003"]
+  },
+  {
+    "id": "d5-05",
+    "category": "collision",
+    "q": "everyone sees the panel",
+    "expectedPageIds": ["2004"]
+  },
+  {
+    "id": "d5-06",
+    "category": "collision",
+    "q": "one user cannot see the panel",
+    "expectedPageIds": ["2003"]
+  },
+  {
+    "id": "d5-07",
+    "category": "stem",
+    "q": "tooltip flickering on hover",
+    "expectedPageIds": ["2001"]
+  },
+  {
+    "id": "d5-08",
+    "category": "stem",
+    "q": "the widget opens slower than before",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-09",
+    "category": "synonym",
+    "q": "the walkthrough stops after a refresh",
+    "expectedPageIds": ["2002"]
+  },
+  {
+    "id": "d5-10",
+    "category": "synonym",
+    "q": "the checklist shows again at each sign in",
+    "expectedPageIds": ["2010"]
+  },
+  {
+    "id": "d5-11",
+    "category": "typo",
+    "q": "the launcher icon is mising after publish",
+    "expectedPageIds": ["2007"]
+  },
+  {
+    "id": "d5-12",
+    "category": "typo",
+    "q": "validaton rejects a valid email",
+    "expectedPageIds": ["2011"]
+  },
+  {
+    "id": "d5-13",
+    "category": "short",
+    "q": "slow widget",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-14",
+    "category": "short",
+    "q": "survey untranslated",
+    "expectedPageIds": ["2006"]
+  },
+  {
+    "id": "d5-15",
+    "category": "multi",
+    "q": "the tooltip flickers and the widget is slow",
+    "expectedPageIds": ["2001", "2005"]
+  },
+  {
+    "id": "d5-16",
+    "category": "multi",
+    "q": "the launcher icon is missing and the checklist repeats",
+    "expectedPageIds": ["2007", "2010"]
+  },
+  {
+    "id": "d5-17",
+    "category": "network-file",
+    "q": "what does the segments.json response mean",
+    "expectedPageIds": ["2008"],
+    "expectedLayer": 3
+  },
+  {
+    "id": "d5-18",
+    "category": "network-file",
+    "q": "workflow-123.json returned 404",
+    "expectedPageIds": ["2009"],
+    "expectedLayer": 3
+  },
+  {
+    "id": "d5-19",
+    "category": "network-file",
+    "q": "segments.json returned an empty list []",
+    "expectedPageIds": ["2008"],
+    "expectedLayer": 3
+  },
+  {
+    "id": "d5-20",
+    "category": "layer",
+    "q": "which Studio setting stops the tooltip flickering",
+    "expectedPageIds": ["2001"],
+    "expectedLayer": 1
+  },
+  {
+    "id": "d5-21",
+    "category": "layer",
+    "q": "what should I send support when the checklist repeats",
+    "expectedPageIds": ["2010"],
+    "expectedLayer": 4
+  },
+  {
+    "id": "d5-22",
+    "category": "layer",
+    "q": "which Elements check shows the beacon under the menu",
+    "expectedPageIds": ["2012"],
+    "expectedLayer": 2
+  },
+  {
+    "id": "d5-23",
+    "category": "stub",
+    "q": "bulk export of guides never finishes",
+    "expectedPageIds": ["2013"]
+  },
+  {
+    "id": "d5-24",
+    "category": "stub",
+    "q": "exporting many guides times out",
+    "expectedPageIds": ["2013"]
+  },
+  {
+    "id": "d5-25",
+    "category": "version",
+    "q": "the beacon hides behind the menu",
+    "expectedPageIds": ["2012"]
+  },
+  {
+    "id": "d5-26",
+    "category": "version",
+    "q": "nobody can click the beacon under the navigation menu",
+    "expectedPageIds": ["2012"]
+  },
+  {
+    "id": "d5-n1",
+    "category": "not-covered-long",
+    "q": "our kubernetes cluster restarts the payroll pod with CrashLoopBackOff after every helm upgrade so the managers in each region cannot approve overtime before the weekly deadline closes",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n2",
+    "category": "not-covered-long",
+    "q": "the finance team wants a quarterly export of every invoice with currency conversion and tax codes merged into one spreadsheet for the auditors next month please",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n3",
+    "category": "not-covered-setting",
+    "q": "where is the Widget Activation toggle and the Allowed Domains list",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n4",
+    "category": "not-covered-setting",
+    "q": "turn on the Smart Glow Mode for the panel",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n5",
+    "category": "not-covered-domain",
+    "q": "does Apty support SAML single sign-on with Okta",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n6",
+    "category": "not-covered-domain",
+    "q": "how much does the licence cost per seat",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n7",
+    "category": "not-covered-domain",
+    "q": "is there an iOS app for phones",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n8",
+    "category": "not-covered-domain",
+    "q": "kubernetes pod CrashLoopBackOff",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-n9",
+    "category": "not-covered-domain",
+    "q": "chrome is not opening on my laptop",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-f1a",
+    "category": "product-name",
+    "q": "the DEMO widget is slow on the Admin Portal page",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-f1b",
+    "category": "product-name",
+    "q": "I turned on Developer Mode and the DEMO widget is slow to open",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-f1d",
+    "category": "setting-other-card",
+    "q": "the DEMO help bubble keeps blinking on hover, with the DEMO Resume Tour option on",
+    "expectedPageIds": ["2001"]
+  },
+  {
+    "id": "d5-f1e",
+    "category": "not-covered-setting",
+    "q": "the 'Smart Sync' option",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-f1f",
+    "category": "not-covered-setting",
+    "q": "turn on the Allowed Domains setting",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-f5a",
+    "category": "typo",
+    "q": "the DEMO widgt is slow to open",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-f7b",
+    "category": "collision",
+    "q": "I tried again and the DEMO survey is untranslated",
+    "expectedPageIds": ["2006"]
+  },
+  {
+    "id": "d5-r1",
+    "category": "how-to",
+    "q": "how do I configure a new launcher",
+    "expectedPageIds": [],
+    "surface": "responder"
+  },
+  {
+    "id": "d5-r2",
+    "category": "how-to",
+    "q": "how to create a survey for new hires",
+    "expectedPageIds": [],
+    "surface": "responder"
+  },
+  {
+    "id": "d5-r3",
+    "category": "non-english",
+    "q": "小部件的提示框一直闪烁",
+    "expectedPageIds": [],
+    "surface": "responder"
+  },
+  {
+    "id": "d5-r4",
+    "category": "non-english",
+    "q": "面板没有显示给新用户",
+    "expectedPageIds": [],
+    "surface": "responder"
+  }
+]

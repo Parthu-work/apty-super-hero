@@ -11,11 +11,12 @@ import {
   RefreshCcwIcon,
   WrenchIcon,
 } from "lucide-react";
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
-import { linkKbCitations } from "../../../lib/kb-citations";
+import { kbReturnedCards, linkKbCitations } from "../../../lib/kb-citations";
+import { markUngrounded, ungroundedPhrases } from "../../../lib/kb-grounding";
 import { isLocalImageUrl } from "../../../lib/safe-media";
 import {
   resolveScreenshotUrls,
@@ -64,6 +65,47 @@ function getContextIcon(contextType: string) {
 /**
  * Default MessageItem component
  */
+/**
+ * An answer that rests on KB cards (K18): each setting-like phrase no
+ * returned chunk holds is underlined, with a tooltip, and named under the
+ * answer. The answer's text is never changed.
+ */
+function GroundedResponse({
+  text,
+  ungrounded,
+}: {
+  text: string;
+  ungrounded: string[];
+}) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLDivElement>(null);
+  const title = t("chat.kbUngroundedTitle");
+  const key = ungrounded.join("\n");
+  useEffect(() => {
+    const root = ref.current;
+    if (!root || !key) return;
+    const phrases = key.split("\n");
+    markUngrounded(root, phrases, title);
+    const observer = new MutationObserver(() =>
+      markUngrounded(root, phrases, title),
+    );
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [key, title]);
+  return (
+    <>
+      <div ref={ref}>
+        <Response>{text}</Response>
+      </div>
+      {ungrounded.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {t("chat.kbUngrounded", { phrases: ungrounded.join(", ") })}
+        </p>
+      )}
+    </>
+  );
+}
+
 export function DefaultMessageItem({
   message,
   isLast = false,
@@ -72,6 +114,7 @@ export function DefaultMessageItem({
   onCopy,
   formatExport,
   onOpenProviderSettings,
+  kbCards: turnKbCards,
   className,
   ...props
 }: MessageItemProps) {
@@ -109,6 +152,9 @@ export function DefaultMessageItem({
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
 
+  // The cards this turn's search_kb calls returned: the citations link to them.
+  const kbCards = turnKbCards ?? kbReturnedCards(message.parts);
+
   // The user's chips and attachments sit under their words.
   const parts =
     message.role === "user"
@@ -143,8 +189,11 @@ export function DefaultMessageItem({
             // base64 data URLs when available for inline rendering.
             let processedText =
               message.role === "assistant"
-                ? linkKbCitations(part.text, (pageId, layer) =>
-                    t("chat.kbCitation", { pageId, layer }),
+                ? linkKbCitations(
+                    part.text,
+                    (pageId, layer) => t("chat.kbCitation", { pageId, layer }),
+                    (pageId) => kbCards.urls.get(pageId),
+                    () => t("chat.kbUnknownCitation"),
                   )
                 : part.text;
             if (screenshotUidList.length > 0) {
@@ -163,7 +212,18 @@ export function DefaultMessageItem({
                 from={message.role as "user" | "assistant" | "system"}
               >
                 <MessageContent>
-                  <Response>{processedText}</Response>
+                  {message.role === "assistant" && kbCards.searched ? (
+                    <GroundedResponse
+                      text={processedText}
+                      ungrounded={
+                        isStreaming && isLast
+                          ? []
+                          : ungroundedPhrases(part.text, kbCards.texts)
+                      }
+                    />
+                  ) : (
+                    <Response>{processedText}</Response>
+                  )}
                 </MessageContent>
               </Message>
             );

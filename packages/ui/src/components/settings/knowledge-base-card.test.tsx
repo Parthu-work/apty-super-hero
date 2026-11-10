@@ -11,10 +11,12 @@ import { KnowledgeBaseCard } from "./knowledge-base-card";
 import type { KnowledgeBaseAdapter } from "./types";
 
 const INFO: KbPackInfo = {
+  aptyVersion: "5.x",
   site: "fixture.atlassian.net",
   space: "FX",
   label: "rag-card",
   cardCount: 12,
+  stubCount: 0,
   chunkCount: 48,
   builtAt: "2026-03-01T00:00:00.000Z",
   importedAt: "2026-03-02T09:00:00.000Z",
@@ -24,20 +26,30 @@ const INFO: KbPackInfo = {
 };
 const NOW = () => new Date("2026-03-10T00:00:00.000Z");
 
+/** An adapter over an in-memory list of packs, one per version, as the store keeps them. */
 function adapter(
-  loaded: KbPackInfo | null,
+  loaded: KbPackInfo | KbPackInfo[] | null,
   importResult?: KbImportResult,
 ): KnowledgeBaseAdapter & {
   importPack: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
 } {
+  let packs = loaded === null ? [] : Array.isArray(loaded) ? loaded : [loaded];
   return {
-    info: vi.fn(async () => loaded),
-    importPack: vi.fn(
-      async (): Promise<KbImportResult> =>
-        importResult ?? { ok: true, info: INFO },
-    ),
-    remove: vi.fn(async () => {}),
+    info: vi.fn(async () => packs),
+    importPack: vi.fn(async (): Promise<KbImportResult> => {
+      const result = importResult ?? { ok: true, info: INFO };
+      if (result.ok) {
+        packs = [
+          ...packs.filter((p) => p.aptyVersion !== result.info.aptyVersion),
+          result.info,
+        ];
+      }
+      return result;
+    }),
+    remove: vi.fn(async (version: string) => {
+      packs = packs.filter((p) => p.aptyVersion !== version);
+    }),
   };
 }
 
@@ -60,16 +72,18 @@ describe("KnowledgeBaseCard", () => {
 
     pick("apty-kb-FX-20260301.kbpack.json", '{"FIXTURE":true}');
     expect(
-      await screen.findByText("Imported 12 cards from space FX."),
+      await screen.findByText("Imported 12 cards for Apty 5.x from space FX."),
     ).toBeInTheDocument();
     expect(kb.importPack).toHaveBeenCalledWith('{"FIXTURE":true}');
-    const details = screen.getByLabelText("Loaded knowledge base");
+    const details = await screen.findByRole("region", {
+      name: "Loaded knowledge base (5.x)",
+    });
     expect(
       within(details).getByText("FX · fixture.atlassian.net"),
     ).toBeInTheDocument();
     expect(within(details).getByText("12")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Replace pack/ }),
+      within(details).getByRole("button", { name: "Replace 5.x pack…" }),
     ).toBeInTheDocument();
   });
 
@@ -80,13 +94,28 @@ describe("KnowledgeBaseCard", () => {
         now={NOW}
       />,
     );
-    const list = await screen.findByLabelText("Loaded knowledge base");
+    const list = await screen.findByRole("region", {
+      name: "Loaded knowledge base (5.x)",
+    });
     expect(within(list).getByText("2026-03-01")).toBeInTheDocument();
     expect(within(list).getByText("2026-03-02")).toBeInTheDocument();
     expect(
-      within(list).getByText("Keyword and vectors · calibrated threshold"),
+      within(list).getByText("Keyword and vectors · calibrated"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/days ago/)).toBeNull();
+  });
+
+  it("counts the cards whose text is not written yet", async () => {
+    render(
+      <KnowledgeBaseCard
+        adapter={adapter({ ...INFO, stubCount: 3 })}
+        now={NOW}
+      />,
+    );
+    const list = await screen.findByRole("region", {
+      name: "Loaded knowledge base (5.x)",
+    });
+    expect(within(list).getByText("12, 3 not yet written")).toBeInTheDocument();
   });
 
   it("warns when the pack is older than 30 days", async () => {
@@ -124,24 +153,67 @@ describe("KnowledgeBaseCard", () => {
   it("removes the pack only after confirmation", async () => {
     const kb = adapter(INFO);
     render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Remove/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove 5.x pack" }),
+    );
     const dialog = await screen.findByRole("alertdialog");
     expect(
-      within(dialog).getByText("Remove the knowledge base?"),
+      within(dialog).getByText("Remove the 5.x knowledge base?"),
     ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(kb.remove).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove 5.x pack" }));
     fireEvent.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
         name: "Remove",
       }),
     );
-    await waitFor(() => expect(kb.remove).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(kb.remove).toHaveBeenCalledWith("5.x"));
     expect(
-      await screen.findByText("Knowledge base removed."),
+      await screen.findByText("The 5.x knowledge base was removed."),
     ).toBeInTheDocument();
     expect(screen.getByText(/No knowledge base loaded/)).toBeInTheDocument();
+  });
+
+  it("lists a 4.x and a 5.x pack side by side, and removing 4.x leaves 5.x", async () => {
+    const four: KbPackInfo = {
+      ...INFO,
+      aptyVersion: "4.x",
+      space: "A4PKH",
+      stubCount: 23,
+    };
+    const kb = adapter([four, INFO]);
+    render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
+    const fourRow = await screen.findByRole("region", {
+      name: "Loaded knowledge base (4.x)",
+    });
+    expect(
+      within(fourRow).getByText("A4PKH · fixture.atlassian.net"),
+    ).toBeInTheDocument();
+    expect(
+      within(fourRow).getByText("12, 23 not yet written"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Loaded knowledge base (5.x)" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(fourRow).getByRole("button", { name: "Remove 4.x pack" }),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Remove",
+      }),
+    );
+    await waitFor(() => expect(kb.remove).toHaveBeenCalledWith("4.x"));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "Loaded knowledge base (4.x)" }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.getByRole("region", { name: "Loaded knowledge base (5.x)" }),
+    ).toBeInTheDocument();
   });
 });

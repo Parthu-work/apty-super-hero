@@ -5,15 +5,22 @@
  * questions it misses, by id only. It runs the same search the extension
  * runs (`createKbIndex` from @apty/agent-core's build output, which
  * `npm run typecheck` or `npm run build` writes). `--calibrate` suggests the
- * threshold to store in the pack (`build-kb-pack --threshold`).
+ * coverage settings to build a schema 2 pack with (`kb:pack --coverage-min
+ * --coverage-min-idf`), or for a schema 1 pack the score threshold.
  *
  * The real 40-question set is internal: the KB owner keeps it and the pack
  * outside this repository and runs this locally. A synthetic set runs in CI.
  *
- * Usage: pnpm kb:eval --pack <file> --questions <file> [--threshold <n>]
- *   [--calibrate] [--json]
+ * Usage: pnpm kb:eval --pack <file> --questions <file> [--calibrate]
+ *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>]
+ *   [--coverage-min-floor <f>] (default 0.35: --calibrate never suggests a
+ *   lower coverage min, and warns when the best Youden J sits below it)
+ *   [--by-category] [--json]
  *
- * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"? }]`;
+ * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"?, "surface"? }]`;
+ * a "multi" question needs all its cards in the top 3, and one with
+ * `"surface": "responder"` (a bare how-to, a question in another script) is
+ * left to the responder's own tests, not scored here;
  * an empty `expectedPageIds` means the KB should not cover the question.
  */
 import { createHash } from "node:crypto";
@@ -26,16 +33,32 @@ const AGENT_CORE = new URL(
   import.meta.url,
 );
 const RANK_DEPTH = 10;
+/** The lowest coverage min calibration suggests (K21 F2): below it one shared word covers a question. */
+export const COVERAGE_MIN_FLOOR = 0.35;
 
-export async function loadAgentCore() {
+/** A workspace package's built module; a clear message when it is not built yet. */
+export async function loadBuilt(url, packageName) {
   try {
-    return await import(AGENT_CORE.href);
+    return await import(url.href);
   } catch (error) {
+    if (error?.code !== "ERR_MODULE_NOT_FOUND") throw error;
     throw new Error(
-      `Build @apty/agent-core first (npm run typecheck or npm run build): ${error?.code ?? error?.name}`,
+      `Build ${packageName} first (npm run build): ${error.code}`,
     );
   }
 }
+
+export const loadAgentCore = () => loadBuilt(AGENT_CORE, "@apty/agent-core");
+
+/** A module of @apty/browser-runtime's build, by its path under dist/src. */
+export const loadBrowserRuntime = (path) =>
+  loadBuilt(
+    new URL(
+      `../../../packages/browser-runtime/dist/src/${path}`,
+      import.meta.url,
+    ),
+    "@apty/browser-runtime",
+  );
 
 const sha256 = async (text) => createHash("sha256").update(text).digest("hex");
 
@@ -59,8 +82,15 @@ export function readQuestions(text) {
       q: item.q,
       expectedPageIds: item.expectedPageIds.map(String),
       expectedLayer: item.expectedLayer,
+      ...(typeof item.category === "string" ? { category: item.category } : {}),
+      ...(item.surface === "responder" ? { surface: "responder" } : {}),
     };
   });
+}
+
+function withCoverage(pack, coverage) {
+  if (coverage === undefined) return pack;
+  return { ...pack, retrieval: { ...pack.retrieval, coverage } };
 }
 
 function withThreshold(pack, threshold) {
@@ -78,8 +108,10 @@ const ratio = (part, whole) => (whole === 0 ? null : round(part / whole));
  * The metrics for `questions` against `pack`, with the pack's threshold or
  * `threshold` in its place (null: none). Same pack and questions, same numbers.
  */
-export function evaluate(core, pack, questions, { threshold } = {}) {
-  const index = core.createKbIndex(withThreshold(pack, threshold));
+export function evaluate(core, pack, all, { threshold, coverage } = {}) {
+  const questions = all.filter((q) => q.surface !== "responder");
+  const tuned = withCoverage(withThreshold(pack, threshold), coverage);
+  const index = core.createKbIndex(tuned);
   const covered = questions.filter((q) => q.expectedPageIds.length > 0);
   let hit1 = 0;
   let hit3 = 0;
@@ -88,13 +120,17 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
   let layerHits = 0;
   let predictedNotCovered = 0;
   let correctNotCovered = 0;
+  let coveredAnswered = 0;
   const misses = [];
   for (const question of questions) {
     const result = index.search(question.q, {
       topK: RANK_DEPTH,
       onePerCard: true,
     });
-    const ranked = result.hits.map((hit) => hit.chunk.pageId);
+    const ranked =
+      result.status === "stub" && result.card
+        ? [result.card.pageId]
+        : result.hits.map((hit) => hit.chunk.pageId);
     const expected = new Set(question.expectedPageIds);
     const notCovered = result.status === "not_covered";
     if (notCovered) predictedNotCovered++;
@@ -104,7 +140,15 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
         misses.push({ id: question.id, expected: [], got: ranked.slice(0, 3) });
       continue;
     }
-    const rank = ranked.findIndex((pageId) => expected.has(pageId));
+    if (!notCovered) coveredAnswered++;
+    // A question naming two symptoms ("multi") needs every card: its rank is the last one's.
+    const ranks = [...expected].map((pageId) => ranked.indexOf(pageId));
+    const rank =
+      question.category === "multi"
+        ? ranks.includes(-1)
+          ? -1
+          : Math.max(...ranks)
+        : ranked.findIndex((pageId) => expected.has(pageId));
     if (rank === 0) hit1++;
     if (rank >= 0 && rank < 3) hit3++;
     if (rank >= 0) reciprocal += 1 / (rank + 1);
@@ -113,7 +157,9 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
       if (result.hits[rank]?.chunk.layer === question.expectedLayer)
         layerHits++;
     }
-    if (rank !== 0) {
+    const missed =
+      question.category === "multi" ? rank < 0 || rank > 2 : rank !== 0;
+    if (missed) {
       misses.push({
         id: question.id,
         expected: [...expected].sort(),
@@ -125,9 +171,13 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
   return {
     questions: questions.length,
     covered: covered.length,
-    threshold: index.info.calibrated
-      ? withThreshold(pack, threshold).retrieval.threshold
-      : null,
+    schemaVersion: pack.schemaVersion,
+    threshold:
+      pack.schemaVersion === 1 && index.info.calibrated
+        ? tuned.retrieval.threshold
+        : null,
+    coverage:
+      pack.schemaVersion === 2 ? (tuned.retrieval.coverage ?? null) : null,
     mode: index.info.mode,
     recallAt1: ratio(hit1, covered.length),
     recallAt3: ratio(hit3, covered.length),
@@ -135,6 +185,7 @@ export function evaluate(core, pack, questions, { threshold } = {}) {
     layerAccuracy: ratio(layerHits, layerTotal),
     notCoveredPrecision: ratio(correctNotCovered, predictedNotCovered),
     notCoveredRecall: ratio(correctNotCovered, trueNotCovered),
+    coveredRecall: ratio(coveredAnswered, covered.length),
     misses,
   };
 }
@@ -169,10 +220,121 @@ export function calibrate(core, pack, questions) {
   };
 }
 
+/** The metrics per question category (`category`, or "none"), in name order. */
+export function byCategory(core, pack, questions, options = {}) {
+  const groups = new Map();
+  for (const question of questions) {
+    const name = question.category ?? "none";
+    groups.set(name, [...(groups.get(name) ?? []), question]);
+  }
+  return [...groups.keys()].sort().map((name) => {
+    const report = evaluate(core, pack, groups.get(name), options);
+    return {
+      category: name,
+      responder: groups.get(name).every((q) => q.surface === "responder"),
+      questions: report.questions,
+      recallAt1: report.recallAt1,
+      recallAt3: report.recallAt3,
+      layerAccuracy: report.layerAccuracy,
+      notCoveredPrecision: report.notCoveredPrecision,
+      notCoveredRecall: report.notCoveredRecall,
+      misses: report.misses.map((miss) => miss.id),
+    };
+  });
+}
+
+const UNCAPPED = { min: 0, minIdf: 0, minTerms: 0 };
+
+/** The idf at each 10th percentile from the 10th to the 90th, nearest rank, rounded as printed. */
+export function idfPercentiles(index) {
+  const idf = index.vocabularyIdf();
+  if (idf.length === 0) return [0];
+  return [10, 20, 30, 40, 50, 60, 70, 80, 90].map((p) =>
+    round(idf[Math.min(idf.length - 1, Math.ceil((p / 100) * idf.length) - 1)]),
+  );
+}
+
+/**
+ * The coverage settings for a schema 2 pack: the grid of `min` 0.05 to
+ * 0.95 (step 0.05) and `minIdf` at the vocabulary's idf percentiles, best
+ * by Youden's J (covered recall + not-covered recall - 1), among the
+ * settings that lose at most 0.02 of Recall@3 against the uncapped
+ * ranking. Ties go to the higher Recall@3, then the lower `min` and
+ * `minIdf`. `minTerms` stays at the pack's (default 1). The suggested
+ * `min` is never below `floor` (default 0.35, K21 F2); `bestBelowFloor`
+ * names a better J below it, for `floorWarning`.
+ */
+export function calibrateCoverage(
+  core,
+  pack,
+  questions,
+  { floor = COVERAGE_MIN_FLOOR } = {},
+) {
+  const minTerms = pack.retrieval.coverage?.minTerms ?? 1;
+  const baseline = evaluate(core, pack, questions, { coverage: UNCAPPED });
+  const recallFloor = (baseline.recallAt3 ?? 0) - 0.02;
+  const percentiles = [...new Set(idfPercentiles(core.createKbIndex(pack)))];
+  const score = (min, minIdf) => {
+    const report = evaluate(core, pack, questions, {
+      coverage: { min, minIdf, minTerms },
+    });
+    return {
+      min,
+      minIdf,
+      minTerms,
+      j: round(
+        (report.coveredRecall ?? 0) + (report.notCoveredRecall ?? 0) - 1,
+      ),
+      recallAt3: report.recallAt3 ?? 0,
+      notCoveredPrecision: report.notCoveredPrecision,
+      notCoveredRecall: report.notCoveredRecall,
+    };
+  };
+  const better = (candidate, best) =>
+    !best ||
+    candidate.j > best.j ||
+    (candidate.j === best.j && candidate.recallAt3 > best.recallAt3);
+  let best;
+  let bestAtFloor;
+  for (let step = 1; step <= 19; step++) {
+    const min = round(step * 0.05);
+    for (const minIdf of percentiles) {
+      const candidate = score(min, minIdf);
+      if (candidate.recallAt3 < recallFloor - 1e-9) continue;
+      if (better(candidate, best)) best = candidate;
+      if (min >= floor - 1e-9 && better(candidate, bestAtFloor)) {
+        bestAtFloor = candidate;
+      }
+    }
+  }
+  const chosen =
+    bestAtFloor ?? score(round(floor), best?.minIdf ?? percentiles[0] ?? 0);
+  return {
+    ...chosen,
+    uncappedRecallAt3: baseline.recallAt3,
+    floor,
+    ...(best && best.min < floor && best.j > chosen.j
+      ? { bestBelowFloor: { min: best.min, minIdf: best.minIdf, j: best.j } }
+      : {}),
+  };
+}
+
+/** The calibration warning, when the best Youden J sits below the floor. */
+export function floorWarning(suggested) {
+  const below = suggested.bestBelowFloor;
+  return below
+    ? `Warning: the best Youden J (${below.j}) is at coverage min ${below.min}, below the floor ${suggested.floor}; using min ${suggested.min} (J ${suggested.j}). Add questions, or check the cards, before lowering the floor.`
+    : undefined;
+}
+
 function format(report) {
   const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(1)}%`);
   const lines = [
-    `${report.questions} questions (${report.covered} the KB should cover), ${report.mode}, threshold ${report.threshold ?? "none"}`,
+    `${report.questions} questions (${report.covered} the KB should cover), ${report.mode}, ${
+      report.schemaVersion === 2
+        ? `coverage ${report.coverage ? `min ${report.coverage.min}, minIdf ${report.coverage.minIdf}, minTerms ${report.coverage.minTerms}` : "defaults"}`
+        : `threshold ${report.threshold ?? "none"}`
+    }`,
     `Recall@1 ${pct(report.recallAt1)}  Recall@3 ${pct(report.recallAt3)}  MRR ${report.mrr ?? "n/a"}  layer ${pct(report.layerAccuracy)}`,
     `"not covered" precision ${pct(report.notCoveredPrecision)}  recall ${pct(report.notCoveredRecall)}`,
   ];
@@ -185,13 +347,27 @@ function format(report) {
 }
 
 function parseArgs(argv) {
-  const options = { calibrate: false, json: false };
+  const options = { calibrate: false, json: false, byCategory: false };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === "--calibrate") options.calibrate = true;
     else if (flag === "--json") options.json = true;
+    else if (flag === "--by-category") options.byCategory = true;
     else if (flag === "--pack" || flag === "--questions") {
       options[flag.slice(2)] = argv[++i];
+    } else if (flag === "--coverage-min-floor") {
+      const value = Number(argv[++i]);
+      if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error("--coverage-min-floor takes a number from 0 to 1.");
+      }
+      options.coverageMinFloor = value;
+    } else if (flag === "--coverage-min" || flag === "--coverage-min-idf") {
+      const value = Number(argv[++i]);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error(`${flag} takes a number of 0 or more.`);
+      }
+      options[flag === "--coverage-min" ? "coverageMin" : "coverageMinIdf"] =
+        value;
     } else if (flag === "--threshold") {
       const value = Number(argv[++i]);
       if (!Number.isFinite(value) || value < 0) {
@@ -223,9 +399,41 @@ export async function run({
     const questions = readQuestions(
       readFileSync(resolve(cwd, options.questions), "utf8"),
     );
+    const coverage =
+      options.coverageMin !== undefined || options.coverageMinIdf !== undefined
+        ? {
+            ...core.KB_COVERAGE_DEFAULTS,
+            ...pack.retrieval.coverage,
+            ...(options.coverageMin !== undefined
+              ? { min: options.coverageMin }
+              : {}),
+            ...(options.coverageMinIdf !== undefined
+              ? { minIdf: options.coverageMinIdf }
+              : {}),
+          }
+        : undefined;
+    const v2 = pack.schemaVersion === 2;
     const report = {
-      ...evaluate(core, pack, questions, { threshold: options.threshold }),
-      ...(options.calibrate
+      ...evaluate(core, pack, questions, {
+        threshold: options.threshold,
+        coverage,
+      }),
+      ...(options.byCategory
+        ? {
+            byCategory: byCategory(core, pack, questions, {
+              threshold: options.threshold,
+              coverage,
+            }),
+          }
+        : {}),
+      ...(options.calibrate && v2
+        ? {
+            suggestedCoverage: calibrateCoverage(core, pack, questions, {
+              floor: options.coverageMinFloor ?? COVERAGE_MIN_FLOOR,
+            }),
+          }
+        : {}),
+      ...(options.calibrate && !v2
         ? { suggestedThreshold: calibrate(core, pack, questions) }
         : {}),
     };
@@ -233,6 +441,24 @@ export async function run({
       out(JSON.stringify(report, null, 2));
     } else {
       out(format(report));
+      const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(0)}%`);
+      for (const c of report.byCategory ?? []) {
+        if (c.responder) {
+          out(`  ${c.category}: left to the responder's tests`);
+          continue;
+        }
+        out(
+          `  ${c.category}: ${c.questions} q, R@1 ${pct(c.recallAt1)}, R@3 ${pct(c.recallAt3)}, layer ${pct(c.layerAccuracy)}, not covered P ${pct(c.notCoveredPrecision)} R ${pct(c.notCoveredRecall)}${c.misses.length ? `, misses ${c.misses.join(",")}` : ""}`,
+        );
+      }
+      if (report.suggestedCoverage) {
+        const c = report.suggestedCoverage;
+        out(
+          `Suggested coverage: min ${c.min}, minIdf ${c.minIdf} (Youden J ${c.j}, Recall@3 ${c.recallAt3} against ${c.uncappedRecallAt3} uncapped). Build with --coverage-min ${c.min} --coverage-min-idf ${c.minIdf}.`,
+        );
+        const warning = floorWarning(c);
+        if (warning) err(warning);
+      }
       if (report.suggestedThreshold) {
         const s = report.suggestedThreshold;
         out(

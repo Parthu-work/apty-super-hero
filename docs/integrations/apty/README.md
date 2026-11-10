@@ -175,3 +175,39 @@ Widget/Client diagnostics (`window.__APTY_WIDGET__` /
 `packages/browser-runtime/src/apty/widget-diagnostics.ts` and
 `client-diagnostics.ts` for those contracts; they don't need anything from
 this folder.
+
+## 4.x tenants
+
+The 4.x Client cannot be messaged by the Agent today: its manifests have no
+`externally_connectable`, and in Extension mode its player fetches content
+through its own background, which the tab's network capture does not see.
+Until the bridge in [`4X-BRIDGE.md`](4X-BRIDGE.md) ships in apty-assist,
+the Agent reads a 4.x tenant's content files from:
+
+- **Injected mode:** the page's own network capture. The player fetches
+  from the page, so a check reads the files from the tab's capture (running,
+  or stopped in the last 15 minutes). With none, a widget or content
+  verdict with no files offers **Capture and reload**: the Agent captures
+  the tab, reloads it, waits until the Apty calls stop (2 s with no new one,
+  at most 20 s) and runs the same check on what it captured. It keeps whole
+  bodies of Apty content calls only (a `tenant-…` path), through the body
+  deny list and redaction.
+- **Extension mode:** a HAR saved from the 4.x Client's service worker. The
+  verdict card lists the steps:
+  1. Open `chrome://extensions`, turn on **Developer mode**.
+  2. Find the Apty extension (the 4.x Client) and click **service worker**
+     under "Inspect views".
+  3. In that DevTools window open **Network** and tick **Preserve log**.
+  4. Reload the application tab and reproduce the problem.
+  5. In the service worker's Network panel, right-click → **Save all as HAR
+     with content**.
+  6. Open Menu › **Check a HAR file** in the side panel and choose the HAR.
+     A service-worker HAR has no page request, so tick "Use the page open in
+     this tab: …" to check the widget against the page you confirm.
+
+The 4.x checks (`W4X-…` widget rules, `C4X-…` flow rules) follow the 4.x
+behaviour FIXES.md K14 describes; they are not yet checked against
+apty-assist code nor runtime-verified (owner decision D-KB7), so a 4.x
+finding is at most "possible" (K21 F4). The bridge
+that would let the Agent read a 4.x Client like a 5.x one is described,
+ready to apply in apty-assist, in [`4X-BRIDGE.md`](4X-BRIDGE.md).

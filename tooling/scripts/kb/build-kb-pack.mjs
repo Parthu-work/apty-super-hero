@@ -8,8 +8,10 @@
  *
  * Usage:
  *   CONFLUENCE_EMAIL=… CONFLUENCE_TOKEN=… pnpm kb:pack [--site apty.atlassian.net]
- *     [--space JA] [--root <pageId> | --label <label>] [--out <file>]
- *     [--threshold <score>] [--customer-names <file>] [--diff <old pack>]
+ *     [--space JA] [--root <pageId> | --label <label>] [--version 4.x|5.x|common]
+ *     [--out <file>]
+ *     [--coverage-min <0-1>] [--coverage-min-idf <idf>]
+ *     [--synonyms <file>] [--customer-names <file>] [--diff <old pack>]
  *
  * The cards are the pages titled "RAG Card: …" under the RAG Answer Cards
  * page (`--root`, default 1496711169 in JA), each group page's title as
@@ -28,6 +30,13 @@ export const BUILDER = "build-kb-pack 1.0.0";
 const PACK_KIND = "apty-kb-pack";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const MAX_CHUNK_CHARS = 1000;
+const MAX_SYMPTOM_CHARS = 300;
+const SYMPTOM_LINE = /^Symptom:\s*/i;
+const NOT_YET_WRITTEN = [
+  /\b(?:4|5)\.x version not yet written\b/i,
+  /not yet written/i,
+];
+const ROUTING_TITLE = /^start here\b/i;
 const MAX_RETRIES = 3;
 const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
 const NOT_VERIFIED = /\bNOT VERIFIED\b/g;
@@ -35,6 +44,15 @@ const TITLE_PREFIX = /^RAG Card:\s*/i;
 const GROUP_PREFIX = /^RAG Cards:\s*/i;
 /** The RAG Answer Cards page in JA, whose descendants are the cards. */
 export const RAG_ANSWER_CARDS_PAGE = "1496711169";
+/**
+ * The Apty version a space's cards are for, when the space holds one
+ * version only (D-KB6); JA and any other space need `--version`.
+ */
+const SPACE_VERSIONS = { A4PKH: "4.x" };
+const VERSIONS = ["4.x", "5.x", "common"];
+
+/** The search's own defaults (agent-core `KB_COVERAGE_DEFAULTS`), for a flag given alone. */
+const COVERAGE_DEFAULTS = { min: 0.5, minIdf: 1.5, minTerms: 1 };
 const DEFAULTS = {
   site: "apty.atlassian.net",
   space: "JA",
@@ -204,6 +222,36 @@ export function parseCard(page, { site, space, group = "" }) {
   const numbers = layers.map(
     ({ heading }) => Number(LAYER_HEADING.exec(heading)[1]) || 0,
   );
+  const title = page.title.replace(TITLE_PREFIX, "").trim();
+  const card = (intro, status) => {
+    const lines = intro.split("\n");
+    const symptomLine = lines.find((line) => SYMPTOM_LINE.test(line));
+    return {
+      pageId: page.id,
+      title,
+      group,
+      verifiedOn: lines.find((line) => /^Verified on:/i.test(line)) ?? null,
+      symptom: symptomLine
+        ? symptomLine
+            .replace(SYMPTOM_LINE, "")
+            .trim()
+            .slice(0, MAX_SYMPTOM_CHARS) || null
+        : null,
+      notVerifiedCount: 0,
+      status,
+      url: `https://${site}/wiki/spaces/${space}/pages/${page.id}`,
+      updatedAt: page.updatedAt ?? "",
+    };
+  };
+  if (layers.length === 0) {
+    const text = storageToText(html);
+    if (ROUTING_TITLE.test(title)) {
+      return { card: card(text, "routing"), chunks: [] };
+    }
+    if (NOT_YET_WRITTEN.some((pattern) => pattern.test(text))) {
+      return { card: card(text, "stub"), chunks: [] };
+    }
+  }
   if (layers.length !== 4) {
     return { skipped: `has ${layers.length} layers, not 4` };
   }
@@ -213,6 +261,13 @@ export function parseCard(page, { site, space, group = "" }) {
   const intro = storageToText(html.slice(0, layers[0].match.index));
   const verifiedOn =
     intro.split("\n").find((line) => /^Verified on:/i.test(line)) ?? null;
+  const symptomLine = intro.split("\n").find((line) => SYMPTOM_LINE.test(line));
+  const symptom = symptomLine
+    ? symptomLine
+        .replace(SYMPTOM_LINE, "")
+        .trim()
+        .slice(0, MAX_SYMPTOM_CHARS) || null
+    : null;
 
   const chunks = [];
   for (const [i, { match, heading }] of layers.entries()) {
@@ -239,15 +294,7 @@ export function parseCard(page, { site, space, group = "" }) {
     0,
   );
   return {
-    card: {
-      pageId: page.id,
-      title: page.title.replace(TITLE_PREFIX, "").trim(),
-      group,
-      verifiedOn,
-      notVerifiedCount,
-      url: `https://${site}/wiki/spaces/${space}/pages/${page.id}`,
-      updatedAt: page.updatedAt ?? "",
-    },
+    card: { ...card(intro, "full"), notVerifiedCount },
     chunks,
   };
 }
@@ -360,8 +407,17 @@ export async function fetchCardPages({
   return pages;
 }
 
-/** The pack for these pages, sorted by page id, with its checksum; and the pages skipped. */
-export function buildPack({ pages, site, space, label, builtAt, threshold }) {
+/** The pack for these pages, sorted by page id, with its checksum; and the pages skipped (malformed). */
+export function buildPack({
+  pages,
+  site,
+  space,
+  label,
+  builtAt,
+  coverage,
+  synonyms,
+  aptyVersion = "5.x",
+}) {
   const cards = [];
   const chunks = [];
   const skipped = [];
@@ -379,19 +435,38 @@ export function buildPack({ pages, site, space, label, builtAt, threshold }) {
     chunks.push(...parsed.chunks);
   }
   const retrieval = { bm25: true };
-  if (threshold !== undefined) retrieval.threshold = threshold;
+  if (coverage !== undefined) retrieval.coverage = coverage;
+  if (synonyms?.length) retrieval.synonyms = synonyms;
   const pack = {
     kind: PACK_KIND,
-    schemaVersion: 1,
+    schemaVersion: 2,
     builtAt,
     builder: BUILDER,
     source: { site, space, label, cardCount: cards.length },
-    aptyVersion: "5.x",
+    aptyVersion,
     retrieval,
     cards,
     chunks,
   };
   return { pack: { ...pack, sha256: packSha256(pack) }, skipped };
+}
+
+/**
+ * The KB owner's synonym groups from a local file: one group per line,
+ * members separated by commas, `#` starts a comment; a line with fewer
+ * than two members is not a group.
+ */
+export function readSynonymGroups(text) {
+  return text
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/#.*/, "")
+        .split(",")
+        .map((member) => member.trim())
+        .filter(Boolean),
+    )
+    .filter((group) => group.length >= 2);
 }
 
 /** Customer names from a local file: one per line, `#` starts a comment. */
@@ -476,8 +551,11 @@ function parseArgs(argv) {
     "--root": "root",
     "--label": "label",
     "--out": "out",
-    "--threshold": "threshold",
+    "--coverage-min": "coverageMin",
+    "--coverage-min-idf": "coverageMinIdf",
     "--customer-names": "customerNames",
+    "--synonyms": "synonyms",
+    "--version": "version",
     "--diff": "diff",
   };
   for (let i = 0; i < argv.length; i++) {
@@ -496,12 +574,28 @@ function parseArgs(argv) {
   if (options.label !== undefined && !/^[\w.-]+$/.test(options.label)) {
     throw new BuildError("--label takes one label.");
   }
-  if (options.threshold !== undefined) {
-    const threshold = Number(options.threshold);
-    if (!Number.isFinite(threshold) || threshold < 0) {
-      throw new BuildError("--threshold takes a score of 0 or more.");
+  if (options.version !== undefined && !VERSIONS.includes(options.version)) {
+    throw new BuildError("--version takes 4.x, 5.x or common.");
+  }
+  options.version ??= SPACE_VERSIONS[options.space];
+  if (options.version === undefined) {
+    throw new BuildError(
+      `Pass --version 4.x, 5.x or common: space ${options.space} holds cards of more than one version, or of an unknown one.`,
+    );
+  }
+  if (options.coverageMin !== undefined) {
+    const min = Number(options.coverageMin);
+    if (!Number.isFinite(min) || min < 0 || min > 1) {
+      throw new BuildError("--coverage-min takes a number from 0 to 1.");
     }
-    options.threshold = threshold;
+    options.coverageMin = min;
+  }
+  if (options.coverageMinIdf !== undefined) {
+    const minIdf = Number(options.coverageMinIdf);
+    if (!Number.isFinite(minIdf) || minIdf < 0) {
+      throw new BuildError("--coverage-min-idf takes a number of 0 or more.");
+    }
+    options.coverageMinIdf = minIdf;
   }
   return options;
 }
@@ -539,7 +633,7 @@ export async function run({
         join(
           home,
           "apty-kb",
-          `apty-kb-${options.space}-${builtAt.slice(0, 10).replace(/-/g, "")}.kbpack.json`,
+          `apty-kb-${options.space}-${options.version}-${builtAt.slice(0, 10).replace(/-/g, "")}.kbpack.json`,
         ),
     );
     if (insideRepository(outPath)) {
@@ -550,6 +644,9 @@ export async function run({
     const names = options.customerNames
       ? readNameList(readFileSync(resolve(cwd, options.customerNames), "utf8"))
       : [];
+    const synonyms = options.synonyms
+      ? readSynonymGroups(readFileSync(resolve(cwd, options.synonyms), "utf8"))
+      : undefined;
     const previous = options.diff
       ? JSON.parse(readFileSync(resolve(cwd, options.diff), "utf8"))
       : undefined;
@@ -578,7 +675,21 @@ export async function run({
       space: options.space,
       label: options.label ?? `ancestor:${options.root}`,
       builtAt,
-      threshold: options.threshold,
+      synonyms,
+      aptyVersion: options.version,
+      coverage:
+        options.coverageMin === undefined &&
+        options.coverageMinIdf === undefined
+          ? undefined
+          : {
+              ...COVERAGE_DEFAULTS,
+              ...(options.coverageMin !== undefined
+                ? { min: options.coverageMin }
+                : {}),
+              ...(options.coverageMinIdf !== undefined
+                ? { minIdf: options.coverageMinIdf }
+                : {}),
+            },
     });
 
     const hits = customerNameHits(pack, names);
@@ -588,11 +699,16 @@ export async function run({
       );
     }
 
+    const count = (status) =>
+      pack.cards.filter((card) => card.status === status).length;
     print(
-      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks) from ${options.site}, space ${options.space}, ${selection}.`,
+      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing; ${skipped.length} malformed skipped. Apty ${options.version}, from ${options.site}, space ${options.space}, ${selection}.`,
     );
+    for (const card of pack.cards.filter((c) => c.status === "stub")) {
+      print(`  stub ${card.pageId} "${card.title}": not yet written`);
+    }
     for (const { pageId, title, reason } of skipped) {
-      print(`  skipped ${pageId} "${title}": ${reason}`);
+      print(`  malformed, skipped ${pageId} "${title}": ${reason}`);
     }
     const flagged = pack.cards.filter((card) => card.notVerifiedCount > 0);
     if (flagged.length > 0) {
@@ -600,15 +716,20 @@ export async function run({
         `  ${flagged.length} cards carry NOT VERIFIED statements: ${flagged.map((card) => card.pageId).join(", ")}`,
       );
     }
+    for (const card of pack.cards.filter(
+      (c) => c.symptom === null && c.status !== "routing",
+    )) {
+      print(`  no Symptom line in ${card.pageId} "${card.title}"`);
+    }
     const unverified = pack.cards.filter((card) => card.verifiedOn === null);
     if (unverified.length > 0) {
       print(
         `  warning: no "Verified on" line in ${unverified.map((card) => card.pageId).join(", ")}`,
       );
     }
-    if (pack.retrieval.threshold === undefined) {
+    if (pack.retrieval.coverage === undefined) {
       print(
-        "  warning: no --threshold; every match counts as covered until K8 calibrates one.",
+        "  warning: no --coverage-min or --coverage-min-idf; the default coverage settings apply until kb:eval --calibrate suggests values.",
       );
     }
     if (previous) {

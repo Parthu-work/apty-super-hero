@@ -1,7 +1,7 @@
 /**
  * Check pack for "Apty cannot find the element" and "the tooltip is on the
- * wrong element", from the RAG cards that "start here, an element or
- * selector problem" (JA 1496875202) routes to. It reads the item's stored
+ * wrong element", from the RAG cards that the element and selector routing
+ * page (JA 1496875202) points to. It reads the item's stored
  * element from its content file and runs the active selector in every frame
  * of the user's tab the way the 5.x player does: the shadow hosts first,
  * then the first rendered match, else the first match. Every rule is from
@@ -865,7 +865,7 @@ export async function diagnoseElementNotFound(
         "fail",
         "SEL-00",
         "version4x",
-        "This tenant uses 4.x content files (flow.json, segments.json). The checks are verified for 5.x only.",
+        "This tenant uses 4.x content files (flow.json, segments.json). The selector check is ported for 5.x only; a 4.x port is future work after KB-RAG K14, which covers the widget and flow checks.",
       ),
       "out_of_scope",
       "manual4x",

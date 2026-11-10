@@ -86,6 +86,8 @@ export interface ClientEvidence {
   /** Every resource name the Client reported, to tell a 4.x tenant from a 5.x one. */
   observedNames: string[];
   files: Record<string, LoadedFile>;
+  /** The files came from the page's network capture (KB-RAG K15). */
+  fromCapture?: boolean;
   /** The `env-<id>` segment of the content files' path. */
   envId?: string;
   /** How many Apty environments the calls came from, when more than one; the files are the newest one's. */
@@ -119,6 +121,19 @@ export type RuleId =
   | "WNV-06"
   | "WNV-07"
   | "WNV-08"
+  | "W4X-00"
+  | "W4X-01"
+  | "W4X-02"
+  | "W4X-03"
+  | "W4X-04"
+  | "W4X-05"
+  | "C4X-00"
+  | "C4X-01"
+  | "C4X-02"
+  | "C4X-03"
+  | "C4X-04"
+  | "C4X-05"
+  | "C4X-06"
   | "LOG-00"
   | "LOG-01"
   | "LOG-02"
@@ -195,6 +210,14 @@ export type GateStatus = "pass" | "fail" | "unknown" | "info";
 
 export type GateReason =
   | "filesRead"
+  | "appUrlsFailed4x"
+  | "envRegexInvalid4x"
+  | "playerOff4x"
+  | "widgetOff4x"
+  | "flowHidden4x"
+  | "rulesMissing4x"
+  | "flowSteps4x"
+  | "flowStepsUnread4x"
   | "clientUnreachable"
   | "notObserved"
   | "emptyList"
@@ -488,6 +511,8 @@ export interface DiagnosisResult {
   /** The KB card the rules come from, and how far they were verified. */
   cardPageId: string;
   verifiedOn: string;
+  /** The Apty version the pack's rules come from; its cards live in that version's space. Absent: 5.x. */
+  aptyVersion?: "4.x" | "5.x";
   /** `name` is the item's own name when the query resolved to exactly one. */
   subject: {
     kind: ContentKind | "widget" | "logs" | "page" | "dapty";
@@ -500,7 +525,7 @@ export interface DiagnosisResult {
   gates: GateResult[];
   verdict: Verdict;
   /** Never "confirmed" while the rules are verified from code only (P2). */
-  confidence: "likely" | "unknown";
+  confidence: "likely" | "possible" | "unknown";
   files: Array<{ name: string; status: FileStatus; httpStatus?: number }>;
   notChecked: NotChecked[];
   scan?: {
@@ -512,6 +537,8 @@ export interface DiagnosisResult {
   dapty?: DaptySummary;
   /** The content files came from Apty's content CDN, as the Apty Client does not report its calls. */
   filesFromCdn?: boolean;
+  /** The content files were read from the page's network capture (KB-RAG K15). */
+  filesFromCapture?: boolean;
   /**
    * Ask Dapty only, when the chat answered it without the model: how each
    * source was read, as counts and reasons, for the evidence bundle. Never

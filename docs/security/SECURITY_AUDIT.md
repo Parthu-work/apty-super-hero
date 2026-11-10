@@ -374,6 +374,26 @@ diagnostic isolation) is now Fixed above.
   internal text is kept to the SE's own browser and the provider they chose,
   under the existing masking. Accepted as reviewed, no new finding.
 
+- **K10–K20 (2026-11-09), reviewed, no new finding.** Packs now carry an
+  Apty version and are stored one per version (`pack:<version>`,
+  `meta:<version>`); the earlier single pack moves to 5.x, its body checked
+  against its meta's sha256 before the move. A schema 2 pack is untrusted
+  input like schema 1 (size, kind, schema, shape, references, checksum, and
+  chunks refused on stub and routing cards); the owner's synonym groups are
+  bounded (200 groups, 30 members, 60 characters). Card links are built
+  from a site and space key validated against `[a-z0-9.-]` and
+  `[A-Za-z0-9~_-]`, falling back to the version's Apty space. Tool results
+  name the card's site and space instead of a URL, so the Strict URL policy
+  keeps the card's title (it had read `{ url, title }` as a browser tab);
+  redaction semantics are unchanged. The grounding check marks text in the
+  rendered answer without changing it or injecting markup through Markdown.
+  The page capture a check uses keeps whole Apty content bodies (a
+  `tenant-…` path only, deny list and redaction applied) in memory, never
+  in a tool result, for 15 minutes; Capture and reload runs only on a
+  click. The 4.x Client bridge (`docs/integrations/apty/4X-BRIDGE.md`)
+  requires the Client to check `sender.id` against the Agent's two IDs and
+  apply the same deny list and size caps; it is not in this repository.
+
 ### 13. Apty Client extension Service Worker network inspection (this session)
 
 - **Affected component**: `packages/browser-runtime/src/apty/extension-network-inspector.ts`,

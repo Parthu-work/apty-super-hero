@@ -91,7 +91,8 @@ export async function launchBrowser({
   const all = [EXTENSION_DIR, ...extraExtensions].join(",");
   const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath: chromiumPath(),
-    headless: true,
+    // E2E_HEADED=1 shows the browser while debugging a test.
+    headless: process.env.E2E_HEADED !== "1",
     acceptDownloads: true,
     args: [
       `--disable-extensions-except=${all}`,
@@ -104,11 +105,22 @@ export async function launchBrowser({
   );
   const extensionId = new URL(agentWorker.url()).host;
   await closeInstallOptionsTab(context, extensionId);
+  // E2E_TRACE=<dir> records a Playwright trace of each browser into <dir>.
+  const traceDir = process.env.E2E_TRACE;
+  if (traceDir) {
+    await context.tracing.start({ screenshots: true, snapshots: true });
+  }
   return {
     context,
     extensionId,
     agentWorker,
     async close() {
+      if (traceDir) {
+        mkdirSync(traceDir, { recursive: true });
+        await context.tracing.stop({
+          path: join(traceDir, `trace-${Date.now()}.zip`),
+        });
+      }
       await context.close();
       rmSync(userDataDir, { recursive: true, force: true });
     },

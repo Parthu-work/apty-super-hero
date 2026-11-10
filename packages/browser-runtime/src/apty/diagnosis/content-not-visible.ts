@@ -1,6 +1,6 @@
 /**
  * Check pack for "my <content> is not visible in the widget", from the RAG
- * card "workflow is not showing in the widget" (JA 1496842241) and the
+ * card on a workflow missing from the widget list (JA 1496842241) and the
  * segmentation reference behind it (JA 1477640228, 1477836862). Every rule
  * here is from 5.x code at 4c406d5, not runtime-verified, so a finding is
  * never more certain than "likely".
@@ -11,6 +11,8 @@
  * user matches a segment's rule, a visibility rule's result) is reported as
  * candidates, never guessed.
  */
+
+import { diagnoseContentNotVisible4x } from "./content-not-visible-4x.js";
 import { languageName } from "./languages.js";
 import {
   FILE_PROBLEMS,
@@ -689,25 +691,7 @@ export function diagnoseContentNotVisible(
     );
   }
   if (looks4x(evidence)) {
-    return finish(
-      draft,
-      [
-        gate(
-          "version",
-          "fail",
-          "CNV-V5",
-          "version4x",
-          "This tenant uses 4.x content files (flow.json, segments.json). The checks are verified for 5.x only.",
-        ),
-      ],
-      {
-        status: "out_of_scope",
-        headline:
-          "This looks like a 4.x tenant. The KB cards are not verified for 4.x, so nothing was concluded.",
-        causes: [],
-        nextCheck: "manual4x",
-      },
-    );
+    return diagnoseContentNotVisible4x(evidence, kind, query);
   }
 
   const kindFile = fileOf(evidence, spec.file);

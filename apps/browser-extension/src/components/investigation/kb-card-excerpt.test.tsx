@@ -3,9 +3,11 @@ import {
   canonicalJson,
   createKbIndex,
   KB_PACK_KIND,
+  type KbAptyVersion,
   type KbPack,
 } from "@apty/agent-core";
 import { diagnoseContentNotVisible } from "@apty/browser-runtime/apty/diagnosis/content-not-visible";
+import { diagnoseContentNotVisible4x } from "@apty/browser-runtime/apty/diagnosis/content-not-visible-4x";
 import {
   capture,
   evidenceFrom,
@@ -23,7 +25,10 @@ import { CheckResultCard } from "./check-result-card";
 
 const CARD = "1496842241";
 
-function pack(layer1: string): KbPack {
+function pack(
+  layer1: string,
+  { card = CARD, aptyVersion = "5.x" as KbAptyVersion } = {},
+): KbPack {
   const body = {
     kind: KB_PACK_KIND,
     schemaVersion: 1,
@@ -35,24 +40,24 @@ function pack(layer1: string): KbPack {
       label: "rag-card",
       cardCount: 1,
     },
-    aptyVersion: "5.x",
+    aptyVersion,
     retrieval: { bm25: true },
     cards: [
       {
-        pageId: CARD,
+        pageId: card,
         title: "FIXTURE workflow not in the widget",
         group: "FIXTURE",
         verifiedOn: "Verified on: FIXTURE code, 2026-01-01.",
         notVerifiedCount: 0,
-        url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${CARD}`,
+        url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${card}`,
         updatedAt: "2026-02-01T00:00:00.000Z",
       },
     ],
     chunks: [1, 2, 3, 4].map((layer) => {
       const text = layer === 1 ? layer1 : `- FIXTURE layer ${layer}.`;
       return {
-        id: `${CARD}#L${layer}`,
-        pageId: CARD,
+        id: `${card}#L${layer}`,
+        pageId: card,
         layer,
         heading: `Layer ${layer}: FIXTURE`,
         text,
@@ -64,16 +69,18 @@ function pack(layer1: string): KbPack {
   return { ...body, sha256 } as KbPack;
 }
 
-const tool = (): UIToolPart => ({
-  type: "tool",
-  toolName: "run_diagnosis",
-  toolCallId: "call-1",
-  input: { kind: "workflow" },
-  output: diagnoseContentNotVisible(
+const tool = (
+  output: unknown = diagnoseContentNotVisible(
     evidenceFrom(capture()),
     "workflow",
     "Take a tour",
   ),
+): UIToolPart => ({
+  type: "tool",
+  toolName: "run_diagnosis",
+  toolCallId: "call-1",
+  input: { kind: "workflow" },
+  output,
   state: "completed",
 });
 
@@ -137,5 +144,44 @@ describe("From the KB card", () => {
       unmount();
       source.current.mockReset();
     }
+  });
+
+  it("F3: shows a 4.x cause's own card from a 4.x pack, not the tree root", async () => {
+    const hidden = "1509720308";
+    source.current.mockResolvedValue(
+      createKbIndex(
+        pack("- FIXTURE: clear the 4.x hide-in-widget option.", {
+          card: hidden,
+          aptyVersion: "4.x",
+        }),
+      ),
+    );
+    render(
+      <CheckResultCard
+        tool={tool(
+          diagnoseContentNotVisible4x(
+            evidenceFrom(capture("content-4x")),
+            "workflow",
+            "Close a deal",
+          ),
+        )}
+      />,
+    );
+    const trigger = await screen.findByRole("button", {
+      name: "From the KB card",
+    });
+    fireEvent.click(trigger);
+    const region = trigger.closest("li") as HTMLElement;
+    expect(within(region).getByText(/C4X-03/)).toBeInTheDocument();
+    expect(
+      within(region).getByText(
+        "- FIXTURE: clear the 4.x hide-in-widget option.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getAllByRole("link", {
+        name: new RegExp(`KB card ${hidden}`),
+      }),
+    ).not.toHaveLength(0);
   });
 });

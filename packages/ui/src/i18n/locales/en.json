@@ -138,27 +138,30 @@
     },
     "knowledgeBase": {
       "title": "Knowledge base",
-      "description": "The KB pack your KB owner shared: the RAG Answer Cards the checks and answers quote. It stays in this browser; card text goes to your AI provider only when an answer uses it.",
+      "description": "The KB packs your KB owner shared, one per Apty version (4.x, 5.x, common): the RAG Answer Cards the checks and answers quote. It stays in this browser; card text goes to your AI provider only when an answer uses it.",
       "notLoaded": "No knowledge base loaded. Import the .kbpack.json file from the internal page your KB owner shared.",
-      "loadedLabel": "Loaded knowledge base",
+      "loadedLabelVersion": "Loaded knowledge base ({{version}})",
+      "versionHeading": "Apty {{version}}",
+      "replaceVersion": "Replace {{version}} pack…",
+      "removeVersion": "Remove {{version}} pack",
       "space": "Space",
       "cards": "Cards",
+      "cardsWithStubs": "{{count}}, {{stubs}} not yet written",
       "built": "Built",
       "imported": "Imported",
       "retrieval": "Retrieval",
       "modeBm25": "Keyword (BM25)",
       "modeHybrid": "Keyword and vectors",
-      "calibrated": "calibrated threshold",
-      "uncalibrated": "no calibrated threshold: every match counts as covered",
+      "calibrated": "calibrated",
+      "uncalibrated": "not calibrated: default coverage settings",
       "stale": "This pack was built {{days}} days ago. Ask the KB owner for a newer one and import it.",
       "import": "Import pack…",
-      "replace": "Replace pack…",
       "remove": "Remove",
       "fileLabel": "KB pack file",
-      "removeTitle": "Remove the knowledge base?",
-      "removeDescription": "The pack is deleted from this browser. Checks then link to the cards without their text until you import a pack again.",
-      "importedStatus": "Imported {{count}} cards from space {{space}}.",
-      "removedStatus": "Knowledge base removed.",
+      "removeTitle": "Remove the {{version}} knowledge base?",
+      "removeDescription": "The pack is deleted from this browser; the packs of other versions stay. Questions about this version then link to the cards without their text until you import its pack again.",
+      "importedStatus": "Imported {{count}} cards for Apty {{version}} from space {{space}}.",
+      "removedStatus": "The {{version}} knowledge base was removed.",
       "errors": {
         "tooLarge": "This file is too large for a KB pack (over 25 MB or 5,000 chunks).",
         "notJson": "This file is not JSON, so it is not a KB pack.",
@@ -1169,6 +1172,7 @@
       },
       "knowledgeBase": {
         "label": "Knowledge base",
+        "labelVersion": "Knowledge base ({{version}})",
         "loaded": "Loaded: {{count}} cards from space {{space}}, built {{date}}.",
         "notLoaded": "Not loaded. Checks link to the KB cards without their text.",
         "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
@@ -1298,6 +1302,9 @@
     "tokensOf": "{{used}} / {{max}} tokens",
     "promptCompletion": "Prompt: {{prompt}} | Completion: {{completion}}",
     "summarizing": "Summarizing...",
+    "kbUnknownCitation": "unknown citation",
+    "kbUngroundedTitle": "Not found in the cited KB cards",
+    "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
     "kbCitation": "KB card {{pageId}}, layer {{layer}}"
   },
   "investigation": {
@@ -2058,7 +2065,15 @@
       "suggestionsNone": "Dapty suggested no workflow or knowledge item.",
       "suggestionsMissing": "{{missing}} of {{count}} suggestion(s) are not published in this environment.",
       "suggestionsOpen": "{{open}} of {{count}} suggestion(s) depend on a visibility rule or could not be checked.",
-      "suggestionsLaunch": "All {{count}} suggestion(s) are published here with no visibility rule, so a click opens them."
+      "suggestionsLaunch": "All {{count}} suggestion(s) are published here with no visibility rule, so a click opens them.",
+      "appUrlsFailed4x": "app-urls.json failed (HTTP {{httpStatus}}); the 4.x player reads it as an empty list",
+      "envRegexInvalid4x": "{{env}} has the URL pattern “{{pattern}}”, not a valid regular expression; the tenant's regex URL flag is on",
+      "playerOff4x": "The player is switched off for {{env}}",
+      "widgetOff4x": "The widget is switched off for {{env}}",
+      "flowHidden4x": "“{{name}}” is hidden from the widget",
+      "rulesMissing4x": "The rules of its segments are missing from rules.json",
+      "flowSteps4x": "{{file}} has no steps",
+      "flowStepsUnread4x": "{{file}} was not read: the player loads it when the flow plays"
     },
     "rule": {
       "CNV-02": {
@@ -2239,6 +2254,50 @@
       "DAP-06": {
         "summary": "Dapty suggested “{{name}}”, which this environment does not publish, so clicking it opens nothing.",
         "fix": "Dapty lists the environment's items from ai-service's own copy of the content files, which can lag a publish by a few minutes, or the model named an item it was not given. Publish the item to this environment, or ask again once ai-service has the newest content."
+      },
+      "W4X-01": {
+        "summary": "app-urls.json failed (HTTP {{httpStatus}}); the 4.x player reads a failed request as an empty list, so no application loads and the widget does not show.",
+        "fix": "Fix the failing request (its status and the Console say why), then reload."
+      },
+      "W4X-01-empty": {
+        "summary": "app-urls.json is an empty list: no application is published for this tenant, so the widget does not show on any page.",
+        "fix": "In 4.x Admin, publish the application and its environments, then reload."
+      },
+      "W4X-02": {
+        "summary": "No environment's URL pattern matches this page, so the 4.x player loads nothing here.",
+        "fix": "In 4.x Admin, add a URL pattern that covers this page (a * covers any run of characters) to the right environment, publish and reload."
+      },
+      "W4X-04": {
+        "summary": "The player is switched off for {{env}}, so nothing from Apty runs on this page.",
+        "fix": "In 4.x Admin, turn the player on for this environment, publish and reload."
+      },
+      "W4X-05": {
+        "summary": "The widget is switched off for {{env}}, so it does not show although the player runs.",
+        "fix": "In 4.x Admin, turn the widget on for this environment, publish and reload."
+      },
+      "C4X-01": {
+        "summary": "flow.json is an empty list: no flow is published in this environment.",
+        "fix": "In 4.x Studio, publish the flow to this environment, then reload."
+      },
+      "C4X-02": {
+        "summary": "No flow named “{{name}}” is in flow.json: it is not published in this environment.",
+        "fix": "In 4.x Studio, publish the flow to this environment (check its name), then reload."
+      },
+      "C4X-03": {
+        "summary": "“{{name}}” is hidden from the widget.",
+        "fix": "In 4.x Studio, clear the flow's hide-in-widget option, publish and reload."
+      },
+      "C4X-04": {
+        "summary": "Every segment that lists “{{name}}” is turned off ({{segments}}), so nobody gets it.",
+        "fix": "In 4.x Admin, turn one of its segments on, or add the flow to an active segment, then publish."
+      },
+      "C4X-05": {
+        "summary": "The rules of the segments that list “{{name}}” are missing from rules.json ({{segments}}), so they can never match.",
+        "fix": "In 4.x Admin, fix or re-create the segment's rule, publish and reload."
+      },
+      "C4X-06": {
+        "summary": "{{file}} has no steps for “{{name}}”, so it has nothing to play.",
+        "fix": "In 4.x Studio, check the flow's steps, publish and reload."
       }
     },
     "ruleLabel": "Rule {{ruleId}}",
@@ -2364,6 +2423,23 @@
       "notVerified": "Not verified",
       "layer": "Layer {{layer}} of “{{title}}”",
       "noVerifiedLine": "The card has no “Verified on” line."
+    },
+    "filesFromCapture": "Read from the page's network capture.",
+    "getFiles": "No Apty file could be read. A 4.x tenant's files can still be read:",
+    "captureReload": "Capture and reload",
+    "capturing": "Capturing the page's network while it reloads…",
+    "captureNone": "The page made no Apty content call. In Extension mode the 4.x Client makes them: save a HAR from its service worker.",
+    "captureFailed": "The capture could not run on this tab. Save a HAR instead.",
+    "captured": "Captured {{calls}} Apty calls. The check ran on them:",
+    "harSteps": {
+      "title": "Save a HAR from the 4.x Client's service worker",
+      "extensions": "Open chrome://extensions and turn on Developer mode.",
+      "serviceWorker": "Find the Apty extension (the 4.x Client) and click “service worker” under “Inspect views”.",
+      "network": "In that DevTools window, open Network and tick Preserve log.",
+      "reproduce": "Reload the application tab and reproduce the problem.",
+      "save": "In the service worker's Network panel, right-click and choose “Save all as HAR with content”.",
+      "drop": "Open the HAR check in the side panel and choose the HAR; confirm the page it should be checked against.",
+      "copyExtensions": "Copy chrome://extensions"
     }
   },
   "harCheck": {
@@ -2407,11 +2483,21 @@
       "check-failed": "The check could not run on this file."
     },
     "daptyFound": "Ask Dapty: {{calls}} chat call(s) and {{stored}} stored chat(s).",
-    "noDapty": "This HAR holds no Ask Dapty chat call. Record one with the widget's chat open, asking the question again."
+    "noDapty": "This HAR holds no Ask Dapty chat call. Record one with the widget's chat open, asking the question again.",
+    "useTabPage": "Use the page open in this tab: {{page}}"
+  },
+  "kbVersion": {
+    "label": "Apty version",
+    "notSure": "Not sure",
+    "fromCheck": "Apty version: {{version}}, from the check's files."
   },
   "kbMatches": {
     "title": "KB cards that match",
     "layer": "Layer {{layer}} of the card",
+    "stub": "The KB has a card for this, but its {{version}} text is not written yet.",
+    "nonEnglish": "The KB cards are in English. Ask in English, or send the question to the model.",
+    "mixedVersions": "These cards are for different Apty versions; which does this tenant run?",
+    "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card."
   }
 }

@@ -78,8 +78,8 @@ export interface PreflightDeps {
   contentScriptStorage(
     tabId: number,
   ): Promise<"blocked" | "readable" | "unknown">;
-  /** The loaded KB pack, or null when none is loaded. */
-  knowledgeBase(): Promise<KbPackInfo | null>;
+  /** The loaded KB packs, one per Apty version. */
+  knowledgeBase(): Promise<KbPackInfo[]>;
   now?(): Date;
 }
 
@@ -460,15 +460,12 @@ export async function runPreflight(
       : {}),
   });
   if (client.urls) checks.push(checkFilesCheck(client.urls, denyList, t));
-  checks.push(
-    knowledgeBaseCheck(
-      await Promise.resolve()
-        .then(() => deps.knowledgeBase())
-        .catch(() => null),
-      deps.now?.() ?? new Date(),
-      t,
-    ),
-  );
+  const packs = await Promise.resolve()
+    .then(() => deps.knowledgeBase())
+    .catch(() => []);
+  const now = deps.now?.() ?? new Date();
+  if (packs.length === 0) checks.push(knowledgeBaseCheck(null, now, t));
+  for (const info of packs) checks.push(knowledgeBaseCheck(info, now, t));
 
   return checks;
 }
@@ -480,7 +477,11 @@ function knowledgeBaseCheck(
 ): PreflightCheck {
   const base = {
     id: "knowledge-base" as const,
-    label: t("preflight.checks.knowledgeBase.label"),
+    label: info
+      ? t("preflight.checks.knowledgeBase.labelVersion", {
+          version: info.aptyVersion,
+        })
+      : t("preflight.checks.knowledgeBase.label"),
     section: "knowledge-base",
   };
   if (!info) {

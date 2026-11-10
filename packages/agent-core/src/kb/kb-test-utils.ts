@@ -1,18 +1,17 @@
 import { createHash } from "node:crypto";
-import {
-  canonicalJson,
-  KB_PACK_KIND,
-  KB_PACK_SCHEMA_VERSION,
-  type KbPack,
-} from "./pack.js";
+import { canonicalJson, KB_PACK_KIND, type KbPack } from "./pack.js";
 
 export interface SyntheticCard {
   pageId: string;
   title: string;
-  /** The four layers' text; FIXTURE content only. */
-  layers: [string, string, string, string];
+  /** The four layers' text; FIXTURE content only. A stub or routing card has none. */
+  layers?: [string, string, string, string];
+  /** Schema 2: a stub or routing card carries no chunks. */
+  status?: "full" | "stub" | "routing";
   headings?: [string, string, string, string];
   verifiedOn?: string | null;
+  /** The card's symptom line (schema 2). */
+  symptom?: string | null;
 }
 
 export const nodeSha256 = async (text: string) =>
@@ -35,7 +34,7 @@ const DEFAULT_HEADINGS = (title: string): [string, string, string, string] => [
   `Layer 4: ${title}, when to contact support`,
 ];
 
-/** A synthetic pack, checksummed, with `retrieval` overrides; never real card text. */
+/** A synthetic pack, checksummed, with `retrieval` overrides; schema 1 unless `extra` says otherwise; never real card text. */
 export function syntheticPack(
   cards: SyntheticCard[],
   retrieval: Partial<KbPack["retrieval"]> = {},
@@ -43,7 +42,7 @@ export function syntheticPack(
 ): KbPack {
   const body = {
     kind: KB_PACK_KIND,
-    schemaVersion: KB_PACK_SCHEMA_VERSION,
+    schemaVersion: 1,
     builtAt: "2026-03-01T00:00:00.000Z",
     builder: "build-kb-pack 1.0.0",
     source: {
@@ -62,14 +61,16 @@ export function syntheticPack(
         card.verifiedOn === undefined
           ? "Verified on: FIXTURE code, 2026-01-01."
           : card.verifiedOn,
-      notVerifiedCount: card.layers.filter((text) =>
+      notVerifiedCount: (card.layers ?? []).filter((text) =>
         text.includes("NOT VERIFIED"),
       ).length,
+      ...(card.status !== undefined ? { status: card.status } : {}),
+      ...(card.symptom !== undefined ? { symptom: card.symptom } : {}),
       url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${card.pageId}`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     })),
     chunks: cards.flatMap((card) =>
-      card.layers.map((text, i) => ({
+      (card.layers ?? []).map((text, i) => ({
         id: `${card.pageId}#L${i + 1}`,
         pageId: card.pageId,
         layer: (i + 1) as 1 | 2 | 3 | 4,

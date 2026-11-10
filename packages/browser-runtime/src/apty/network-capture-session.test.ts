@@ -57,6 +57,7 @@ vi.mock("../automation/debugger-manager.js", () => ({
 
 import {
   __simulateForcedCleanupForTab,
+  aptyContentCalls,
   CAPTURE_KEEPALIVE_ALARM_NAME,
   getActiveCaptureCount,
   getNetworkCaptureStatus,
@@ -824,5 +825,91 @@ describe("network-capture-session — service-worker keepalive", () => {
     expect(mockSafeAttachDebugger).not.toHaveBeenCalled();
 
     await stopNetworkCapture("conv-a");
+  });
+});
+
+describe("network-capture-session — Apty content calls for a check (KB-RAG K15)", () => {
+  const CONTENT =
+    "https://cdn.apty.example/tenant-7/app-1/env-2/flow.json?timestamp=5";
+  const long = JSON.stringify(
+    Array.from({ length: 900 }, (_, id) => ({
+      id,
+      name: { 1: `FIXTURE ${id}` },
+    })),
+  );
+
+  function loadContent(requestId: string, url: string) {
+    fireDebuggerEvent("Network.requestWillBeSent", {
+      requestId,
+      request: { url, method: "GET" },
+      type: "Fetch",
+    });
+    fireDebuggerEvent("Network.responseReceived", {
+      requestId,
+      response: { status: 200, mimeType: "application/json" },
+    });
+    fireDebuggerEvent("Network.loadingFinished", {
+      requestId,
+      encodedDataLength: 100,
+    });
+  }
+
+  it("keeps the whole body of each Apty content call, without the body opt-in, and none of anything else", async () => {
+    mockSendCommand.mockImplementation(async (method: string) =>
+      method === "Network.getResponseBody"
+        ? { body: long, base64Encoded: false }
+        : undefined,
+    );
+    await startNetworkCapture("check-4x", TAB_ID, { aptyContentBodies: true });
+    loadContent("c1", CONTENT);
+    loadContent("c2", "https://example.com/api/leads.json");
+    await flushMicrotasks();
+
+    const calls = aptyContentCalls(TAB_ID);
+    expect(calls?.resources.map((r) => r.url)).toEqual([CONTENT]);
+    expect(calls?.resources[0]).toMatchObject({
+      method: "GET",
+      status: 200,
+      hasBody: true,
+    });
+    expect(calls?.bodies.get("c1")).toBe(long);
+    expect(long.length).toBeGreaterThan(MAX_INLINE_BODY_CHARS);
+
+    const stopped = await stopNetworkCapture("check-4x");
+    expect(JSON.stringify(stopped.requests)).not.toContain("FIXTURE 899");
+    expect(
+      mockSendCommand.mock.calls.filter(
+        ([m]) => m === "Network.getResponseBody",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps a stopped capture's Apty calls for 15 minutes, per tab", async () => {
+    mockSendCommand.mockImplementation(async (method: string) =>
+      method === "Network.getResponseBody"
+        ? { body: "[]", base64Encoded: false }
+        : undefined,
+    );
+    await startNetworkCapture("check-4x", TAB_ID, { aptyContentBodies: true });
+    loadContent("c1", CONTENT);
+    await flushMicrotasks();
+    await stopNetworkCapture("check-4x");
+    expect(aptyContentCalls(TAB_ID)?.resources).toHaveLength(1);
+    expect(aptyContentCalls(7777)).toBeUndefined();
+    vi.advanceTimersByTime(15 * 60_000 + 1);
+    expect(aptyContentCalls(TAB_ID)).toBeUndefined();
+  });
+
+  it("does not keep the body of a denied content host", async () => {
+    await startNetworkCapture("check-4x", TAB_ID, {
+      aptyContentBodies: true,
+      bodyDenyList: ["cdn.apty.example"],
+    });
+    loadContent("c1", CONTENT);
+    await flushMicrotasks();
+    const calls = aptyContentCalls(TAB_ID);
+    expect(calls?.resources[0]?.hasBody).toBe(false);
+    expect(calls?.bodies.size).toBe(0);
+    await stopNetworkCapture("check-4x");
   });
 });

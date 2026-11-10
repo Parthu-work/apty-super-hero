@@ -2,7 +2,7 @@
 
 An AI agent, packaged as a Chrome extension, that helps an Apty engineer debug a live issue in their actual browser — "why isn't the Apty widget showing?", "why can't Studio select this element?" — by inspecting the current page's DOM, console, network activity, and Apty's own runtime state, then giving an evidence-first diagnosis.
 
-Forked from [the AIPex project](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a RAG/knowledge-base system** — see [`DECISIONS.md`](DECISIONS.md) for the reasoning behind that scope.
+Forked from [the AIPex project](https://github.com/AIPexStudio/AIPex) (MIT licensed), which already solved the hard browser-control infrastructure problems (Manifest V3 extension, MCP bridge, DOM snapshotting, CDP automation). **This is not a generic browser agent or a general RAG/knowledge-base system**: its one retrieval feature finds the RAG Answer Card for a finding or symptom (owner decision D-KB1; see [Knowledge base](#knowledge-base-kb-rag)). See [`DECISIONS.md`](DECISIONS.md) for the reasoning behind that scope.
 
 **Start here for the real state of the project**: [`docs/STATUS.md`](docs/STATUS.md) (what works and what's open), `ARCHITECTURE.md` (what's actually implemented), `docs/security/SECURITY_AUDIT.md`, `DECISIONS.md`, `CHANGELOG.md`. Those files, not this README, are the source of truth across coding sessions. Something not working? See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md). What data goes where: [`PRIVACY.md`](PRIVACY.md).
 
@@ -39,6 +39,7 @@ See `CHANGELOG.md` for the full list with commit references.
 
 ```bash
 pnpm install
+pnpm --dir apps/mcp-bridge install --ignore-workspace   # the MCP bridge is its own project
 pnpm build   # builds workspace packages, then the extension into apps/browser-extension/dist
 pnpm dev     # or: watch mode with HMR
 ```
@@ -46,6 +47,55 @@ pnpm dev     # or: watch mode with HMR
 Load `apps/browser-extension/dist` as an unpacked extension via `chrome://extensions` → Developer mode → Load unpacked.
 
 On first use, open the side panel: the composer's "Set up AI provider" chip and the Connections page (Menu › Connections) link to the AI provider settings, where you add your own API key and model (BYOK) — there is no login/proxy fallback.
+
+## Knowledge base (KB-RAG)
+
+- Finds the Apty RAG Answer Card (4.x, 5.x or common) for a check's finding or a symptom you type, and shows its text in the side panel, with no AI key needed.
+- Grounds the model's answers in the cards: `search_kb`, citations that link to each card, and a check that marks setting names the cited cards do not hold.
+- Says "not covered" for a question the cards do not answer, names a setting no card has, and points to a card whose text is not written yet.
+- Runs entirely in the browser from a pack file each SE imports per Apty version; no card text is ever in this public repository.
+
+Design, lifecycle, evaluation and troubleshooting: [`docs/development/kb-rag.md`](docs/development/kb-rag.md). The extension's KB surfaces: [`apps/browser-extension/README.md`](apps/browser-extension/README.md#knowledge-base). 4.x tenants: [`docs/integrations/apty/README.md`](docs/integrations/apty/README.md#4x-tenants).
+
+### Try it locally in 10 minutes
+
+Prerequisites: Node `^20.19.0 || >=22.12.0`, pnpm 10.33, Chrome or Chromium.
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+The MCP bridge is its own pnpm project, which `pnpm build` also builds:
+
+```bash
+pnpm --dir apps/mcp-bridge install --frozen-lockfile --ignore-workspace
+```
+
+```bash
+pnpm build
+```
+
+Load the extension: open `chrome://extensions`, turn on **Developer mode** (top right), click **Load unpacked** and choose `apps/browser-extension/dist`. After every later `pnpm build`, click the reload icon on the extension's card.
+
+Build the two demo packs (synthetic DEMO cards only; written to `~/apty-kb/`, outside the repository):
+
+```bash
+pnpm kb:demo-pack --version 4.x
+```
+
+```bash
+pnpm kb:demo-pack --version 5.x
+```
+
+Import them: right-click the toolbar icon → **Options** → **Settings** → **General** → **Knowledge base** → **Import pack…**, once for `apty-kb-DEMO-4.x.kbpack.json` and once for `apty-kb-DEMO-5.x.kbpack.json`. Two rows appear, "Apty 4.x" and "Apty 5.x". Options → **Connection** → **Preflight** → **Run all checks** shows a "Knowledge base (4.x)" and a "Knowledge base (5.x)" row, both passing.
+
+Open any web page, open the side panel and ask, with or without an AI key:
+
+| Ask | You should see |
+|---|---|
+| `the help bubble keeps blinking when I rest the mouse on the field` | A **KB cards that match** card: "DEMO tooltip flickers on hover" first, labelled 5.x, its layer text and "Verified on" line, and "Apty version: 4.x / 5.x / Not sure"; no request to any model |
+| `does Apty support SAML single sign-on with Okta` | No KB card (not covered). With no AI key the panel asks you to connect a provider; with one, the model says the KB does not cover it |
+| `bulk export of guides never finishes` | "The KB has a card for this, but its 5.x text is not written yet." and the card's link |
 
 ## Configuring Apty Studio/Widget/Client/Service-Worker integration
 

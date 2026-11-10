@@ -41,17 +41,19 @@ function deps(overrides: Partial<PreflightDeps> = {}): PreflightDeps {
     bridgeAllowedOn: () => true,
     clipboardPermission: async () => "granted",
     contentScriptStorage: async () => "blocked",
-    knowledgeBase: async () => PACK_INFO,
+    knowledgeBase: async () => [PACK_INFO],
     now: () => new Date("2026-03-10T00:00:00.000Z"),
     ...overrides,
   };
 }
 
 const PACK_INFO = {
+  aptyVersion: "5.x" as const,
   site: "fixture.atlassian.net",
   space: "FX",
   label: "rag-card",
   cardCount: 12,
+  stubCount: 0,
   chunkCount: 48,
   builtAt: "2026-03-01T00:00:00.000Z",
   importedAt: "2026-03-02T00:00:00.000Z",
@@ -252,17 +254,45 @@ describe("runPreflight", () => {
 });
 
 describe("the knowledge base check", () => {
-  it("names the loaded pack, with its card count, space and build date", async () => {
+  it("names the loaded pack, with its version, card count, space and build date", async () => {
     expect(await check("knowledge-base")).toMatchObject({
       status: "pass",
+      label: "Knowledge base (5.x)",
       detail: "Loaded: 12 cards from space FX, built 2026-03-01.",
       section: "knowledge-base",
     });
   });
 
+  it("gives each loaded version its own row", async () => {
+    const checks = await runPreflight(
+      deps({
+        knowledgeBase: async () => [
+          { ...PACK_INFO, aptyVersion: "4.x", space: "A4PKH", stubCount: 3 },
+          PACK_INFO,
+        ],
+      }),
+    );
+    expect(
+      checks
+        .filter((c) => c.id === "knowledge-base")
+        .map((c) => [c.label, c.status, c.detail]),
+    ).toEqual([
+      [
+        "Knowledge base (4.x)",
+        "pass",
+        "Loaded: 12 cards from space A4PKH, built 2026-03-01.",
+      ],
+      [
+        "Knowledge base (5.x)",
+        "pass",
+        "Loaded: 12 cards from space FX, built 2026-03-01.",
+      ],
+    ]);
+  });
+
   it("reports no pack as information, not a fault, with where to import one", async () => {
     for (const knowledgeBase of [
-      async () => null,
+      async () => [],
       async () => {
         throw new Error("IndexedDB blocked");
       },

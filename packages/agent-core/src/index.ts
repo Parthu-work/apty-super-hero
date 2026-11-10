@@ -63,15 +63,18 @@ export { ConversationManager } from "./conversation/manager.js";
 export { Session } from "./conversation/session.js";
 export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
+export { createKbIndexSet } from "./kb/index-set.js";
 // KB packs and search
 export {
   canonicalJson,
   describeKbPack,
+  KB_APTY_VERSIONS,
   KB_LAYERS,
   KB_PACK_KIND,
   KB_PACK_LIMITS,
   KB_PACK_SCHEMA_VERSION,
   KB_PACK_STALE_DAYS,
+  type KbAptyVersion,
   type KbCard,
   type KbChunk,
   type KbImportResult,
@@ -80,6 +83,7 @@ export {
   type KbPackErrorCode,
   type KbPackInfo,
   type KbPackParseResult,
+  kbCardLocation,
   kbCardUrl,
   kbPackAgeDays,
   parseKbPack,
@@ -87,12 +91,24 @@ export {
 } from "./kb/pack.js";
 export {
   createKbIndex,
+  KB_COVERAGE_DEFAULTS,
+  type KbCoverageSettings,
   type KbIndex,
   type KbIndexInfo,
+  type KbNotCoveredReason,
   type KbSearchHit,
   type KbSearchOptions,
   type KbSearchResult,
+  layerHint,
 } from "./kb/search.js";
+export { stem } from "./kb/stem.js";
+export { KB_SYNONYM_GROUPS } from "./kb/synonyms.js";
+export {
+  analyze as kbTerms,
+  containsPhrase as kbContainsPhrase,
+  NOT_A_SETTING,
+  namedPhrases,
+} from "./kb/text.js";
 // Generic Storage
 export type {
   BaseKeyValueStorage,

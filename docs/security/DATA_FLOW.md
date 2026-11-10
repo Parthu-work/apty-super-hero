@@ -24,9 +24,15 @@ and passes the same steps, in this order, before it leaves the browser:
    (`packages/browser-runtime/src/tools/kb.ts`, wrapped like every tool) or as
    the KB matches answer the responder keeps in the session (step 2), at
    most 4,000 characters of the imported pack's text per result. The pack
-   comes from IndexedDB (`apty-kb-db`); nothing is fetched. `applyResultPrivacy`
-   keeps a whole `kb://<digits>#L<1-4>` citation as it is and masks the rest
-   as usual.
+   comes from IndexedDB (`apty-kb-db`, one pack per Apty version); nothing is
+   fetched. `applyResultPrivacy` keeps a whole `kb://<digits>#L<1-4>`
+   citation as it is and masks the rest as usual; a hit names its card's
+   Confluence site and space rather than a URL, so the URL policy does not
+   take it for a visited page. Since K16 the KB matches answer covers any
+   message no check pack claims (not only short symptom phrases), and
+   `search_kb` is offered with any Apty, network, DevTools, selector or
+   symptom question, so card text reaches the provider in more chats than
+   before; never for a bare how-to, a file request or casual chat.
 4. **Attached contexts** (page, tab, HAR or DOM Health chips) are worded under
    the URL and title policy (`formatContextsPrivately`,
    `apps/browser-extension/src/hooks/outbound-filters.ts`).
@@ -88,7 +94,19 @@ is made.
   handed to a new chat as a chip; the file and its name are not.
 - The DOM Health validation bundle and other exports: saved or copied only
   when you click.
-- A KB pack: read from the file you pick in Options and kept in IndexedDB.
+- The **page network capture a check uses** (K15): a capture of the tab
+  keeps the whole redacted body of each Apty content call (a `tenant-…`
+  path), through the body deny list, in the service worker's memory only,
+  for 15 minutes after it stops. A check reads its files from it; the
+  bodies are never part of a tool result. **Capture and reload** on the
+  verdict card starts such a capture only when clicked.
+- A HAR saved from the **4.x Client's service worker** (K15): it holds that
+  extension's own content calls and their bodies; it is read in the panel
+  like any HAR, through the same deny list and redaction, and never stored.
+  The tab's page is used for it only after the user ticks "Use the page
+  open in this tab", and only matched locally.
+- A KB pack: read from the file you pick in Options and kept in IndexedDB,
+  one per Apty version (4.x, 5.x, common).
   Only the chunks a search returns go to the model (above); the verdict
   card's "From the KB card" and the KB matches card show it in the panel
   only. The pack builder (`tooling/scripts/kb/build-kb-pack.mjs`) is the

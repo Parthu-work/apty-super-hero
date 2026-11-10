@@ -232,7 +232,7 @@ export function PreflightPanel({
             </p>
             <ul aria-label={t("preflight.resultsLabel")} className="space-y-2">
               {checks.map((check) => (
-                <CheckRow key={check.id} check={check} />
+                <CheckRow key={`${check.id} ${check.label}`} check={check} />
               ))}
             </ul>
           </>

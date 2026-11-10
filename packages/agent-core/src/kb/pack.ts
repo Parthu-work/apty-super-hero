@@ -2,7 +2,9 @@ import { z } from "zod";
 
 /** The marker every KB pack carries; `tooling/scripts/check-no-kb-pack.mjs` fails the repository on it. */
 export const KB_PACK_KIND = "apty-kb-pack";
-export const KB_PACK_SCHEMA_VERSION = 1;
+/** The schema the builder writes; `parseKbPack` also reads schema 1. */
+export const KB_PACK_SCHEMA_VERSION = 2;
+const KB_PACK_SCHEMA_VERSIONS: readonly unknown[] = [1, 2];
 export const KB_PACK_LIMITS = {
   maxChunks: 5000,
   maxBytes: 25 * 1024 * 1024,
@@ -24,7 +26,11 @@ const cardSchema = z.object({
   title: z.string(),
   group: z.string(),
   verifiedOn: z.string().nullable(),
+  /** Schema 2: the card's "Symptom:" line, the problem in the user's words. */
+  symptom: z.string().max(300).nullable().optional(),
   notVerifiedCount: z.number().int().nonnegative(),
+  /** Schema 2: a stub ("not yet written") or routing ("start here") card has no chunks. */
+  status: z.enum(["full", "stub", "routing"]).optional(),
   url: z
     .string()
     .regex(/^https:\/\/[^/\s]+\/wiki\/spaces\/[^/\s]+\/pages\/\d+$/),
@@ -42,7 +48,7 @@ const chunkSchema = z.object({
 
 const packSchema = z.object({
   kind: z.literal(KB_PACK_KIND),
-  schemaVersion: z.literal(KB_PACK_SCHEMA_VERSION),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   builtAt: z.string(),
   builder: z.string(),
   source: z.object({
@@ -51,11 +57,25 @@ const packSchema = z.object({
     label: z.string(),
     cardCount: z.number().int().nonnegative(),
   }),
-  aptyVersion: z.literal("5.x"),
+  /** Schema 1 packs are 5.x; schema 2 names the version its cards are for. */
+  aptyVersion: z.enum(["4.x", "5.x", "common"]),
   retrieval: z.object({
     bm25: z.literal(true),
     /** The lowest top BM25 score that counts as covered, calibrated by `eval-kb.mjs`. */
     threshold: z.number().nonnegative().optional(),
+    /** Schema 2: when the top card covers a question (`search.ts`), calibrated by `eval-kb.mjs`. */
+    coverage: z
+      .object({
+        min: z.number().min(0).max(1),
+        minIdf: z.number().nonnegative(),
+        minTerms: z.number().int().nonnegative(),
+      })
+      .optional(),
+    /** Schema 2: the KB owner's own synonym groups, added to the built-in ones (`synonyms.ts`). */
+    synonyms: z
+      .array(z.array(z.string().min(1).max(60)).min(2).max(30))
+      .max(200)
+      .optional(),
     dense: z
       .object({
         model: z.string(),
@@ -72,6 +92,12 @@ const packSchema = z.object({
 });
 
 export type KbPack = z.infer<typeof packSchema>;
+export type KbAptyVersion = KbPack["aptyVersion"];
+export const KB_APTY_VERSIONS: readonly KbAptyVersion[] = [
+  "4.x",
+  "5.x",
+  "common",
+];
 export type KbCard = z.infer<typeof cardSchema>;
 export type KbChunk = z.infer<typeof chunkSchema>;
 
@@ -106,9 +132,13 @@ export function canonicalJson(value: unknown): string {
 
 function integrityProblem(pack: KbPack): string | undefined {
   const cardIds = new Set<string>();
+  const chunkless = new Map<string, string>();
   for (const card of pack.cards) {
     if (cardIds.has(card.pageId)) return `card ${card.pageId} appears twice`;
     cardIds.add(card.pageId);
+    if (card.status === "stub" || card.status === "routing") {
+      chunkless.set(card.pageId, card.status);
+    }
   }
   if (pack.source.cardCount !== pack.cards.length) {
     return "source.cardCount does not match the cards";
@@ -116,6 +146,10 @@ function integrityProblem(pack: KbPack): string | undefined {
   for (const chunk of pack.chunks) {
     if (!cardIds.has(chunk.pageId)) {
       return `chunk ${chunk.id} names no card`;
+    }
+    const status = chunkless.get(chunk.pageId);
+    if (status) {
+      return `card ${chunk.pageId} is a${status === "stub" ? "" : "n"} ${status === "stub" ? "stub" : "routing card"} and has chunks`;
     }
     if (chunk.id !== `${chunk.pageId}#L${chunk.layer}`) {
       return `chunk ${chunk.id} does not match its page and layer`;
@@ -152,6 +186,18 @@ export function decodeVectors(pack: KbPack): Float32Array[] {
   );
 }
 
+/** Every card with a status and a symptom: a schema 1 card is a full card with no symptom line. */
+function normalized(pack: KbPack): KbPack {
+  return {
+    ...pack,
+    cards: pack.cards.map((card) => ({
+      ...card,
+      symptom: card.symptom ?? null,
+      status: card.status ?? "full",
+    })),
+  };
+}
+
 /**
  * Parses an imported pack file. The pack is untrusted input: its size is
  * checked before parsing, then its kind, schema version, shape, limits,
@@ -175,7 +221,7 @@ export async function parseKbPack(
       ? (raw as Record<string, unknown>)
       : {};
   if (record.kind !== KB_PACK_KIND) return { ok: false, code: "wrong_kind" };
-  if (record.schemaVersion !== KB_PACK_SCHEMA_VERSION) {
+  if (!KB_PACK_SCHEMA_VERSIONS.includes(record.schemaVersion)) {
     return { ok: false, code: "wrong_schema_version" };
   }
   const parsed = packSchema.safeParse(raw);
@@ -187,7 +233,7 @@ export async function parseKbPack(
       detail: issue ? `${issue.path.join(".")}: ${issue.message}` : undefined,
     };
   }
-  const pack = parsed.data;
+  const pack = normalized(parsed.data);
   if (pack.chunks.length > KB_PACK_LIMITS.maxChunks) {
     return { ok: false, code: "too_large" };
   }
@@ -202,15 +248,18 @@ export async function parseKbPack(
 
 /** What the Options card and Preflight show about the loaded pack: no card text. */
 export interface KbPackInfo {
+  aptyVersion: KbAptyVersion;
   site: string;
   space: string;
   label: string;
   cardCount: number;
+  /** Cards whose text for this version is not written yet. */
+  stubCount: number;
   chunkCount: number;
   builtAt: string;
   importedAt: string;
   mode: "bm25" | "hybrid";
-  /** Whether the pack carries a calibrated "not covered" threshold. */
+  /** Whether the pack carries a calibrated "not covered" threshold (schema 1) or coverage settings (schema 2). */
   calibrated: boolean;
   sha256: string;
 }
@@ -223,16 +272,20 @@ export const KB_PACK_STALE_DAYS = 30;
 
 export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
   return {
+    aptyVersion: pack.aptyVersion,
     site: pack.source.site,
     space: pack.source.space,
     label: pack.source.label,
     cardCount: pack.cards.length,
+    stubCount: pack.cards.filter((card) => card.status === "stub").length,
     chunkCount: pack.chunks.length,
     builtAt: pack.builtAt,
     importedAt,
     mode:
       pack.retrieval.dense && pack.vectors !== undefined ? "hybrid" : "bm25",
-    calibrated: pack.retrieval.threshold !== undefined,
+    calibrated:
+      pack.retrieval.threshold !== undefined ||
+      pack.retrieval.coverage !== undefined,
     sha256: pack.sha256,
   };
 }
@@ -244,9 +297,52 @@ export function kbPackAgeDays(info: Pick<KbPackInfo, "builtAt">, now: Date) {
   return Math.max(0, Math.floor((now.getTime() - built) / 86_400_000));
 }
 
-/** The Confluence page of a KB card, as the check packs and `kb://` citations link to it. */
-const KB_CARD_PAGE_BASE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
+/** Where a version's cards live when a link has no card to read its URL from. */
+const KB_CARD_SPACE: Record<KbAptyVersion, string> = {
+  "4.x": "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/",
+  "5.x": "https://apty.atlassian.net/wiki/spaces/JA/pages/",
+  common: "https://apty.atlassian.net/wiki/spaces/JA/pages/",
+};
 
-export function kbCardUrl(pageId: string): string {
-  return `${KB_CARD_PAGE_BASE}${pageId}`;
+/**
+ * The Confluence page of a KB card: the card's own `url` when the pack
+ * holds it (page ids are unique across spaces), else the space its
+ * version's cards live in (JA for 5.x and a schema 1 pack).
+ */
+export function kbCardUrl(
+  pageId: string,
+  {
+    url,
+    site,
+    space,
+    aptyVersion = "5.x",
+  }: {
+    url?: string;
+    site?: string;
+    space?: string;
+    aptyVersion?: KbAptyVersion;
+  } = {},
+): string {
+  if (url) return url;
+  if (site && space && SITE.test(site) && SPACE.test(space)) {
+    return `https://${site}/wiki/spaces/${space}/pages/${pageId}`;
+  }
+  return `${KB_CARD_SPACE[aptyVersion]}${pageId}`;
+}
+
+const SITE = /^[a-z0-9.-]+$/i;
+const SPACE = /^[A-Za-z0-9~_-]+$/;
+const CARD_URL = /^https:\/\/([^/\s]+)\/wiki\/spaces\/([^/\s]+)\/pages\/\d+$/;
+
+/**
+ * Where a card lives, as a site and a space key rather than a URL: a tool
+ * result passes them to the model and the side panel without being read as
+ * a visited page by the URL policy, and `kbCardUrl` builds the link back.
+ */
+export function kbCardLocation(card: Pick<KbCard, "url">): {
+  site: string;
+  space: string;
+} {
+  const [, site = "", space = ""] = CARD_URL.exec(card.url) ?? [];
+  return { site, space };
 }

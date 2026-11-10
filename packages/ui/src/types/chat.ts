@@ -1,5 +1,6 @@
 import type { AgentMetrics, FunctionTool } from "@apty/agent-core";
 import type { ComponentType, HTMLAttributes, ReactNode } from "react";
+import type { KbReturnedCards } from "../lib/kb-citations";
 import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "./ui";
 
 // ============ Chat Configuration ============
@@ -70,6 +71,8 @@ export interface MessageItemProps
   formatExport?: (text: string) => string;
   /** Opens the AI provider settings, offered under failures they can fix. */
   onOpenProviderSettings?: () => void;
+  /** The cards the turn's search_kb calls returned, across its messages; by default the message's own. */
+  kbCards?: KbReturnedCards;
 }
 
 export interface InputAreaProps

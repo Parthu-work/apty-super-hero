@@ -3,10 +3,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { buildPack } from "./build-kb-pack.mjs";
+import { buildPack, packSha256 } from "./build-kb-pack.mjs";
 import {
   calibrate,
+  calibrateCoverage,
   evaluate,
+  floorWarning,
+  idfPercentiles,
   loadAgentCore,
   readPack,
   readQuestions,
@@ -23,6 +26,14 @@ let core;
 let dir;
 let packFile;
 let pack;
+let v2File;
+let v2;
+
+/** The same cards as a schema 1 pack, which keeps its score threshold. */
+function asSchema1(built) {
+  const { sha256: _old, ...rest } = { ...built, schemaVersion: 1 };
+  return { ...rest, sha256: packSha256(rest) };
+}
 const questions = readQuestions(readFileSync(QUESTIONS_FILE, "utf8"));
 
 before(async () => {
@@ -36,8 +47,11 @@ before(async () => {
     builtAt: "2026-03-01T00:00:00.000Z",
   });
   packFile = join(dir, "pack.json");
-  writeFileSync(packFile, JSON.stringify(built.pack));
+  writeFileSync(packFile, JSON.stringify(asSchema1(built.pack)));
   pack = await readPack(core, readFileSync(packFile, "utf8"));
+  v2File = join(dir, "pack-v2.json");
+  writeFileSync(v2File, JSON.stringify(built.pack));
+  v2 = await readPack(core, readFileSync(v2File, "utf8"));
 });
 
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -95,6 +109,80 @@ describe("calibrate", () => {
   });
 });
 
+describe("calibrateCoverage (schema 2)", () => {
+  it("finds the coverage settings that sort every synthetic question, without losing Recall@3", () => {
+    const suggested = calibrateCoverage(core, v2, questions);
+    assert.equal(suggested.j, 1);
+    assert.equal(suggested.recallAt3, suggested.uncappedRecallAt3);
+    assert.ok(
+      idfPercentiles(core.createKbIndex(v2)).includes(suggested.minIdf),
+    );
+    const report = evaluate(core, v2, questions, {
+      coverage: {
+        min: suggested.min,
+        minIdf: suggested.minIdf,
+        minTerms: suggested.minTerms,
+      },
+    });
+    assert.equal(report.recallAt3, 1);
+    assert.equal(report.notCoveredPrecision, 1);
+    assert.equal(report.notCoveredRecall, 1);
+    assert.equal(report.threshold, null);
+    assert.deepEqual(calibrateCoverage(core, v2, questions), suggested);
+  });
+
+  it("F2: never suggests a coverage min below the floor, and warns when the best J is below it", () => {
+    const suggested = calibrateCoverage(core, v2, questions);
+    assert.ok(suggested.min >= 0.35, String(suggested.min));
+    assert.equal(suggested.floor, 0.35);
+    const high = calibrateCoverage(core, v2, questions, { floor: 0.9 });
+    assert.ok(high.min >= 0.9, String(high.min));
+    assert.ok(high.bestBelowFloor.j > high.j);
+    assert.match(floorWarning(high), /below the floor 0\.9/);
+    const low = calibrateCoverage(core, v2, questions, { floor: 0 });
+    assert.equal(floorWarning(low), undefined);
+  });
+
+  it("counts a stub as a hit when it is the expected card", async () => {
+    const withStub = buildPack({
+      pages: [
+        ...SYNTHETIC_PAGES,
+        {
+          id: "1099",
+          title: "RAG Card: FIXTURE gadget export never finishes",
+          group: "FIXTURE group",
+          updatedAt: "2026-02-01T00:00:00.000Z",
+          body: "<p>Symptom: exporting FIXTURE gadgets hangs.</p><p>The 5.x version not yet written.</p>",
+        },
+      ],
+      site: "fixture.atlassian.net",
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-01T00:00:00.000Z",
+    }).pack;
+    const report = evaluate(
+      core,
+      await readPack(core, JSON.stringify(withStub)),
+      [
+        {
+          id: "st1",
+          q: "gadget export never finishes",
+          expectedPageIds: ["1099"],
+        },
+      ],
+    );
+    assert.equal(report.recallAt1, 1);
+    assert.deepEqual(report.misses, []);
+  });
+
+  it("does not let a threshold change a schema 2 pack's answers", () => {
+    assert.deepEqual(
+      evaluate(core, v2, questions, { threshold: 1_000 }).misses,
+      evaluate(core, v2, questions).misses,
+    );
+  });
+});
+
 describe("the CLI", () => {
   it("prints the metrics and question ids, never question or card text", async () => {
     const lines = [];
@@ -117,6 +205,86 @@ describe("the CLI", () => {
     for (const secret of ["kubernetes", "Glowing Banner", "glowIds"]) {
       assert.ok(!text.includes(secret), secret);
     }
+  });
+
+  it("suggests the coverage flags for a schema 2 pack, and evaluates with them", async () => {
+    const lines = [];
+    const out = (line) => lines.push(line);
+    const argv = ["--pack", v2File, "--questions", QUESTIONS_FILE.pathname];
+    assert.equal(
+      await run({ argv: [...argv, "--calibrate"], out, err: out }),
+      0,
+    );
+    const flags =
+      /Build with --coverage-min ([\d.]+) --coverage-min-idf ([\d.]+)\./.exec(
+        lines.join("\n"),
+      );
+    assert.ok(flags, lines.join("\n"));
+    lines.length = 0;
+    const code = await run({
+      argv: [
+        ...argv,
+        "--coverage-min",
+        flags[1],
+        "--coverage-min-idf",
+        flags[2],
+      ],
+      out,
+      err: out,
+    });
+    assert.equal(code, 0);
+    assert.match(
+      lines.join("\n"),
+      new RegExp(`coverage min ${flags[1]}, minIdf ${flags[2]}, minTerms 1`),
+    );
+    assert.match(
+      lines.join("\n"),
+      /"not covered" precision 100\.0% {2}recall 100\.0%/,
+    );
+  });
+
+  it("prints the metrics per category, by id only", async () => {
+    const file = join(dir, "categorized.json");
+    writeFileSync(
+      file,
+      JSON.stringify([
+        {
+          id: "a1",
+          q: "the banner never glows",
+          expectedPageIds: ["1001"],
+          category: "short",
+        },
+        {
+          id: "b1",
+          q: "kubernetes helm chart rollout",
+          expectedPageIds: [],
+          category: "not-covered-domain",
+        },
+        {
+          id: "c1",
+          q: "how do I configure a launcher",
+          expectedPageIds: [],
+          category: "how-to",
+          surface: "responder",
+        },
+      ]),
+    );
+    const lines = [];
+    const code = await run({
+      argv: ["--pack", v2File, "--questions", file, "--by-category"],
+      out: (line) => lines.push(line),
+      err: (line) => lines.push(line),
+    });
+    const text = lines.join("\n");
+    assert.equal(code, 0, text);
+    assert.match(
+      text,
+      /^ {2}not-covered-domain: 1 q, .*not covered P 100% R 100%$/m,
+    );
+    assert.match(text, /^ {2}short: 1 q, R@1 100%, R@3 100%/m);
+    assert.match(text, /^ {2}how-to: left to the responder's tests$/m);
+    assert.match(text, /^2 questions \(1 the KB should cover\)/m);
+    assert.ok(!text.includes("kubernetes"));
   });
 
   it("names a refused pack and a bad questions file", async () => {

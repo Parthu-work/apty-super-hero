@@ -45,8 +45,9 @@ function cardBody({
   layers = 4,
   verified = true,
   layer2 = "FIXTURE: open the invented Glow panel.",
+  symptom = "the FIXTURE banner never glows.",
 } = {}) {
-  const intro = `<h1>KB card: FIXTURE banner never glows</h1><p>Symptom: the FIXTURE banner never glows.<br/>${
+  const intro = `<h1>KB card: FIXTURE banner never glows</h1><p>${symptom === null ? "" : `Symptom: ${symptom}<br/>`}${
     verified ? "Verified on: FIXTURE code, commit 0000000, 2026-01-01." : ""
   }</p>`;
   const all = [
@@ -188,7 +189,9 @@ describe("parseCard", () => {
       title: "FIXTURE card 101",
       group: "FIXTURE group",
       verifiedOn: "Verified on: FIXTURE code, commit 0000000, 2026-01-01.",
+      symptom: "the FIXTURE banner never glows.",
       notVerifiedCount: 1,
+      status: "full",
       url: `https://${SITE}/wiki/spaces/FX/pages/101`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     });
@@ -224,6 +227,55 @@ describe("parseCard", () => {
     assert.match(
       parseCard(page("3", { body: long }), options).skipped,
       /layer 2 has 1003 characters, over 1000/,
+    );
+  });
+
+  it("reads the Symptom line, at most 300 characters, or null without one", () => {
+    const options = { site: SITE, space: "FX" };
+    const none = parseCard(
+      page("5", { body: cardBody({ symptom: null }) }),
+      options,
+    );
+    assert.equal(none.card.symptom, null);
+    const long = parseCard(
+      page("6", {
+        body: cardBody({ symptom: `  FIXTURE ${"y".repeat(400)}` }),
+      }),
+      options,
+    );
+    assert.equal(long.card.symptom.length, 300);
+    assert.ok(long.card.symptom.startsWith("FIXTURE y"));
+  });
+
+  it("keeps a stub and a routing card with no chunks, and skips a malformed one with its reason", () => {
+    const options = { site: SITE, space: "FX" };
+    const intro = (text) =>
+      `<p>Symptom: FIXTURE gadgets cannot be exported.</p><p>${text}</p>`;
+    const stub = parseCard(
+      page("31", { body: intro("The 4.x version not yet written (FIXTURE).") }),
+      options,
+    );
+    assert.equal(stub.card.status, "stub");
+    assert.equal(stub.card.symptom, "FIXTURE gadgets cannot be exported.");
+    assert.deepEqual(stub.chunks, []);
+    const generic = parseCard(
+      page("32", { body: intro("FIXTURE: this card is not yet written.") }),
+      options,
+    );
+    assert.equal(generic.card.status, "stub");
+    const routing = parseCard(
+      page("33", {
+        title: "RAG Card: Start here: FIXTURE gadget questions",
+        body: "<p>FIXTURE: read the gadget cards below.</p>",
+      }),
+      options,
+    );
+    assert.equal(routing.card.status, "routing");
+    assert.equal(routing.card.title, "Start here: FIXTURE gadget questions");
+    assert.deepEqual(routing.chunks, []);
+    assert.deepEqual(
+      parseCard(page("34", { body: "<p>FIXTURE: nothing here.</p>" }), options),
+      { skipped: "has 0 layers, not 4" },
     );
   });
 
@@ -359,7 +411,9 @@ describe("buildPack", () => {
       page("3", { body: cardBody({ layers: 2 }) }),
       page("100"),
     ];
-    const { pack, skipped } = buildPack({ ...args, pages, threshold: 1.5 });
+    const coverage = { min: 0.45, minIdf: 2.1, minTerms: 1 };
+    const { pack, skipped } = buildPack({ ...args, pages, coverage });
+    assert.equal(pack.schemaVersion, 2);
     assert.deepEqual(
       pack.cards.map((card) => card.pageId),
       ["20", "100"],
@@ -390,13 +444,13 @@ describe("buildPack", () => {
       label: "rag-card",
       cardCount: 2,
     });
-    assert.deepEqual(pack.retrieval, { bm25: true, threshold: 1.5 });
+    assert.deepEqual(pack.retrieval, { bm25: true, coverage });
     const { sha256, ...rest } = pack;
     assert.equal(
       sha256,
       createHash("sha256").update(canonicalJson(rest)).digest("hex"),
     );
-    assert.deepEqual(buildPack({ ...args, pages, threshold: 1.5 }).pack, pack);
+    assert.deepEqual(buildPack({ ...args, pages, coverage }).pack, pack);
   });
 
   it("uses the canonical JSON agent-core checks: keys sorted at every level, no whitespace", () => {
@@ -466,9 +520,14 @@ describe("the CLI", () => {
   };
   const now = () => new Date("2026-03-04T05:06:07.000Z");
 
-  function runWith(options) {
+  /** The CLI with `--version 5.x` unless the test passes its own (or `version: null` for none). */
+  function runWith({ version = "5.x", ...options }) {
     const out = [];
     const err = [];
+    const argv =
+      version === null || options.argv?.includes("--version")
+        ? options.argv
+        : [...(options.argv ?? []), "--version", version];
     const result = run({
       env,
       now,
@@ -476,6 +535,7 @@ describe("the CLI", () => {
       out: (line) => out.push(line),
       err: (line) => err.push(line),
       ...options,
+      argv,
     });
     return result.then((code) => ({
       code,
@@ -493,15 +553,18 @@ describe("the CLI", () => {
       home,
     });
     assert.equal(result.code, 0, result.err);
-    const file = join(home, "apty-kb", "apty-kb-FX-20260304.kbpack.json");
+    const file = join(home, "apty-kb", "apty-kb-FX-5.x-20260304.kbpack.json");
     const pack = JSON.parse(readFileSync(file, "utf8"));
     assert.equal(pack.cards.length, 2);
     assert.equal(pack.builtAt, "2026-03-04T05:06:07.000Z");
     assert.equal(packSha256(pack), pack.sha256);
     assert.equal(statSync(file).mode & 0o777, 0o600);
-    assert.match(result.out, /Built 2 cards \(8 chunks\)/);
+    assert.match(
+      result.out,
+      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing; 0 malformed skipped\./,
+    );
     assert.match(result.out, /NOT VERIFIED statements: 7, 8/);
-    assert.match(result.out, /no --threshold/);
+    assert.match(result.out, /no --coverage-min/);
     for (const secret of [
       "Glowing Banner",
       "glowIds",
@@ -585,6 +648,108 @@ describe("the CLI", () => {
     assert.equal(calls.length, 0);
   });
 
+  it("names the cards with no Symptom line, and adds the owner's synonym groups", async () => {
+    const dir = tempDir();
+    const out = join(dir, "p.kbpack.json");
+    const synonyms = join(dir, "synonyms.txt");
+    writeFileSync(
+      synonyms,
+      "# FIXTURE vocabulary\nFIXTURE gizmo, gadget,  widgetry\n\nlonely\nsprocket,cog\n",
+    );
+    const { fetchImpl } = fakeConfluence({
+      ids: ["7", "8"],
+      bodies: { 8: cardBody({ symptom: null }) },
+    });
+    const result = await runWith({
+      argv: ["--space", "FX", "--out", out, "--synonyms", synonyms],
+      fetchImpl,
+    });
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /no Symptom line in 8\b/);
+    assert.doesNotMatch(result.out, /no Symptom line in 7\b/);
+    const pack = JSON.parse(readFileSync(out, "utf8"));
+    assert.deepEqual(pack.retrieval.synonyms, [
+      ["FIXTURE gizmo", "gadget", "widgetry"],
+      ["sprocket", "cog"],
+    ]);
+  });
+
+  it("labels the pack with its Apty version: 4.x for A4PKH by default, and asks for it for JA or another space", async () => {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const fourX = await runWith({
+      argv: ["--space", "A4PKH", "--root", "1509720081", "--site", SITE],
+      version: null,
+      fetchImpl,
+      home,
+    });
+    assert.equal(fourX.code, 0, fourX.err);
+    const file = join(
+      home,
+      "apty-kb",
+      "apty-kb-A4PKH-4.x-20260304.kbpack.json",
+    );
+    const pack = JSON.parse(readFileSync(file, "utf8"));
+    assert.equal(pack.aptyVersion, "4.x");
+    assert.equal(
+      pack.cards[0].url,
+      `https://${SITE}/wiki/spaces/A4PKH/pages/7`,
+    );
+
+    for (const space of ["JA", "FX"]) {
+      const missing = await runWith({
+        argv: ["--space", space],
+        version: null,
+        fetchImpl,
+      });
+      assert.equal(missing.code, 1);
+      assert.match(
+        missing.err,
+        new RegExp(
+          `Pass --version 4\\.x, 5\\.x or common: space ${space} holds cards of more than one version`,
+        ),
+      );
+    }
+    const common = await runWith({
+      argv: ["--space", "FX", "--out", join(tempDir(), "c.kbpack.json")],
+      version: "common",
+      fetchImpl,
+    });
+    assert.equal(common.code, 0, common.err);
+    const wrong = await runWith({
+      argv: ["--space", "FX"],
+      version: "6.x",
+      fetchImpl,
+    });
+    assert.match(wrong.err, /--version takes 4\.x, 5\.x or common/);
+  });
+
+  it("writes the calibrated coverage settings into the pack", async () => {
+    const out = join(tempDir(), "p.kbpack.json");
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const result = await runWith({
+      argv: [
+        "--space",
+        "FX",
+        "--out",
+        out,
+        "--coverage-min",
+        "0.35",
+        "--coverage-min-idf",
+        "2.4",
+      ],
+      fetchImpl,
+    });
+    assert.equal(result.code, 0, result.err);
+    const pack = JSON.parse(readFileSync(out, "utf8"));
+    assert.deepEqual(pack.retrieval.coverage, {
+      min: 0.35,
+      minIdf: 2.4,
+      minTerms: 1,
+    });
+    assert.doesNotMatch(result.out, /no --coverage-min/);
+  });
+
   it("names an empty label and a bad option", async () => {
     const { fetchImpl } = fakeConfluence({ ids: [] });
     const empty = await runWith({
@@ -604,8 +769,18 @@ describe("the CLI", () => {
       const refused = await runWith({ argv: [flag, value], fetchImpl });
       assert.match(refused.err, message);
     }
-    const bad = await runWith({ argv: ["--threshold", "-1"], fetchImpl });
-    assert.match(bad.err, /--threshold takes a score of 0 or more/);
+    for (const [flag, value, message] of [
+      ["--coverage-min", "1.5", /--coverage-min takes a number from 0 to 1/],
+      [
+        "--coverage-min-idf",
+        "-1",
+        /--coverage-min-idf takes a number of 0 or more/,
+      ],
+      ["--threshold", "2", /Unknown or incomplete option: --threshold/],
+    ]) {
+      const bad = await runWith({ argv: [flag, value], fetchImpl });
+      assert.match(bad.err, message);
+    }
     const unknown = await runWith({ argv: ["--token", "x"], fetchImpl });
     assert.match(unknown.err, /Unknown or incomplete option: --token/);
   });

@@ -9,6 +9,11 @@
 import { resourceNameFor } from "../resource-body-utils.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import {
+  CONTENT_FILES_4X,
+  flowNames,
+  flowStepsFile,
+} from "./content-not-visible-4x.js";
+import {
   DAPTY_FILES,
   diagnoseDaptyConversation,
 } from "./dapty-conversation.js";
@@ -20,12 +25,19 @@ import {
   pageUrlOfHar,
 } from "./har.js";
 import { environmentsIn } from "./loader.js";
-import { type Rec, records } from "./pack-kit.js";
+import {
+  jsonOf,
+  looks4x,
+  playerVersionOf,
+  type Rec,
+  records,
+} from "./pack-kit.js";
 import { type ContentKind, type DiagnosisResult, KINDS } from "./types.js";
 import {
   diagnoseWidgetNotVisible,
   WIDGET_FILES,
 } from "./widget-not-visible.js";
+import { WIDGET_FILES_4X } from "./widget-not-visible-4x.js";
 
 /** Larger than any capture seen (3.8 MB), small enough to parse in the panel. */
 const MAX_HAR_CHARS = 50_000_000;
@@ -36,8 +48,13 @@ const FILES_5X = new Set([
   ...Object.values(KINDS).map((k) => k.file),
   ...WIDGET_FILES,
 ]);
-const FILES_4X = new Set(["flow.json", "segments.json", "rules.json"]);
-const STEPS_FILE = /^workflow-[\w-]+\.json$/;
+const FILES_4X = new Set([
+  "flow.json",
+  "segments.json",
+  "rules.json",
+  "feature-flag.json",
+]);
+const STEPS_FILE = /^(?:workflow|flow)-[\w-]+\.json$/;
 
 export type HarRead =
   | { ok: true; har: unknown }
@@ -97,17 +114,18 @@ export function summarizeHar(har: unknown): HarSummary {
   });
   const names = aptyCalls.filter((c) => c.hasFile).map((c) => c.name);
   const contentFiles = [...new Set(names)].sort();
-  const has5x = contentFiles.some((n) => FILES_5X.has(n));
+  const player = playerVersionOf({
+    connection: { ok: true },
+    observedNames: contentFiles,
+    files: {},
+  });
   return {
     calls: entries.length,
     contentFiles,
     callsWithoutFile: aptyCalls.filter((c) => !c.hasFile).length,
     environments: environmentsIn(aptyCalls.map((c) => c.url)),
-    version: has5x
-      ? "5.x"
-      : contentFiles.some((n) => FILES_4X.has(n))
-        ? "4.x"
-        : "none",
+    version:
+      player === "4.x" ? "4.x" : contentFiles.length > 0 ? "5.x" : "none",
     hasPage: pageUrlOfHar(har) !== undefined,
     daptyCalls: dapty.filter((k) => k === "chat").length,
     daptyStoredChats: dapty.filter((k) => k === "stored-chat").length,
@@ -119,27 +137,48 @@ export type HarCheck =
   | { packId: "widget-not-visible" }
   | { packId: "dapty-conversation" };
 
-/** Runs a visibility or widget check on a HAR, the page it was recorded on standing in for the tab. */
+/**
+ * Runs a visibility or widget check on a HAR, the page it was recorded on
+ * standing in for the tab; a HAR with no page (saved from a service worker,
+ * K15 B) uses `pageUrl`, the tab's page the user confirmed.
+ */
 export async function runHarCheck(
   har: unknown,
   check: HarCheck,
+  { pageUrl }: { pageUrl?: string } = {},
 ): Promise<DiagnosisResult> {
+  const page = pageUrlOfHar(har) ?? pageUrl;
   if (check.packId === "dapty-conversation") {
     const [chat, files] = await Promise.all([
       daptyFromHar(har),
       evidenceFromHar(har, DAPTY_FILES),
     ]);
-    return diagnoseDaptyConversation(chat, files, pageUrlOfHar(har));
+    return diagnoseDaptyConversation(chat, files, page);
   }
   if (check.packId === "widget-not-visible") {
     return diagnoseWidgetNotVisible(
-      await evidenceFromHar(har, WIDGET_FILES),
-      pageUrlOfHar(har),
+      await evidenceFromHar(har, [...WIDGET_FILES, ...WIDGET_FILES_4X]),
+      page,
     );
   }
-  return diagnoseContentNotVisible(
-    await evidenceFromHar(har, filesFor(check.kind)),
-    check.kind,
-    check.query,
-  );
+  let evidence = await evidenceFromHar(har, [
+    ...filesFor(check.kind),
+    ...CONTENT_FILES_4X,
+  ]);
+  const flow =
+    check.kind === "workflow" && check.query && looks4x(evidence)
+      ? records(jsonOf(evidence, "flow.json")).find(
+          (f) =>
+            String(f.id) === check.query?.trim() ||
+            flowNames(f).some(
+              (n) =>
+                n.trim().toLowerCase() === check.query?.trim().toLowerCase(),
+            ),
+        )
+      : undefined;
+  if (flow) {
+    const steps = await evidenceFromHar(har, [flowStepsFile(String(flow.id))]);
+    evidence = { ...evidence, files: { ...evidence.files, ...steps.files } };
+  }
+  return diagnoseContentNotVisible(evidence, check.kind, check.query);
 }

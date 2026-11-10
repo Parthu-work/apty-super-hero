@@ -14,13 +14,17 @@ how its size is measured and gated. Sizes are estimated tokens: characters
 | Tool results | Each cut to 2,000 tokens; results older than the newest 4 become stubs | `createRequestBudgetFilter` in `packages/browser-runtime/src/runtime/request-budget.ts` |
 | Request budget | When set in Settings: older results, messages and turns give way until the request fits, or it stops before it is sent | `createContextBudgetFilter` in `packages/browser-runtime/src/runtime/context-budget.ts` |
 
-`search_kb` (KB-RAG K4) and its prompt section ("APTY PRODUCT FACTS COME
-FROM THE KB CARDS") are offered with a check pack's symptom (the
-`diagnosis` group) or a product follow-up ("how do I", "setting", "in
-Studio", "send support"), not with every Apty question, so a 10-turn
-investigation still fits an 8,000-token budget. Its result is at most
-4,000 characters of card text. The `kb-followup` scenario measures a
-follow-up after a full result.
+`search_kb` (KB-RAG K4, K16) and its prompt section ("APTY PRODUCT FACTS
+COME FROM THE KB CARDS") are offered with any Apty, network, DevTools,
+selector or check-pack question, any message naming a symptom, a question
+mostly in another script, and a product follow-up ("setting", "in Studio",
+"send support"); not with a bare "how do I configure X" (D-KB1), a request
+to fetch a file or casual chat (`tool-relevance.ts`, `kb/kb-intent.ts`).
+That costs about 690 tokens on an Apty question (7,174 before): `apty-question` is 7,866
+(budget 8,653 since K16), under an 8,000-token request budget, and a
+10-turn investigation 11,306. Its result is
+at most 4,000 characters of card text. The `kb-followup` scenario measures
+a follow-up after a full result.
 
 On Anthropic, the system prompt (which covers the tools before it) and the
 newest message are cache breakpoints (`ai-provider.ts`). The fixed tool

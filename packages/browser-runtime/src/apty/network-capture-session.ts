@@ -44,6 +44,7 @@
  * it to that alone would leak a `setInterval` forever and permanently wedge
  * the conversation's capture slot into "busy" if the tab closes mid-capture.
  */
+
 import { generateId } from "@apty/agent-core";
 import { redactHeaders, redactUrl } from "@apty/debug-contract";
 import { CdpCommander } from "../automation/cdp-commander.js";
@@ -54,16 +55,24 @@ import { recordEvidence } from "./evidence-store.js";
 import { getInvestigation } from "./investigation-session.js";
 import {
   decodeBase64Utf8,
+  isAptyContentUrl,
   isTextualMime,
   isUrlDenied,
   MAX_INLINE_BODY_CHARS,
 } from "./resource-body-utils.js";
+import type { AptyObservedResource } from "./types.js";
 
 export interface NetworkCaptureOptions {
   /** Fetch response bodies. Off unless the user enabled it in Settings. */
   captureBodies?: boolean;
   /** Hosts or URL substrings whose bodies are never fetched. */
   bodyDenyList?: readonly string[];
+  /**
+   * Keep the whole (redacted) body of each Apty content call for a check
+   * to read (KB-RAG K15), apart from `captureBodies`. Those bodies never
+   * reach a tool result; only `aptyContentCalls` hands them out.
+   */
+  aptyContentBodies?: boolean;
 }
 
 export interface CapturedNetworkRequest {
@@ -113,6 +122,8 @@ export interface NetworkCaptureSession {
 interface ActiveCapture {
   session: Omit<NetworkCaptureSession, "requestCount" | "truncated">;
   requests: Map<string, CapturedNetworkRequest>;
+  /** Whole redacted bodies of Apty content calls, by request id. */
+  aptyBodies: Map<string, string>;
   truncated: boolean;
   listener: (
     source: chrome.debugger.Debuggee,
@@ -208,7 +219,28 @@ function toPublicSession(active: ActiveCapture): NetworkCaptureSession {
 }
 
 /** Tear down a capture's resources (interval, listener, map entry) without attempting further CDP calls — used both by the normal stop path and by forced cleanup when the tab/debugger is already gone. */
+/** A stopped capture's Apty content calls, by tab, kept for the checks for a while. */
+const stoppedAptyCalls = new Map<
+  number,
+  {
+    at: number;
+    requests: CapturedNetworkRequest[];
+    bodies: Map<string, string>;
+  }
+>();
+const APTY_CALLS_KEPT_MS = 15 * 60_000;
+
 function teardown(key: string, active: ActiveCapture): void {
+  const aptyRequests = [...active.requests.values()].filter((r) =>
+    isAptyContentUrl(r.url),
+  );
+  if (aptyRequests.length > 0) {
+    stoppedAptyCalls.set(active.session.tabId, {
+      at: Date.now(),
+      requests: aptyRequests,
+      bodies: new Map(active.aptyBodies),
+    });
+  }
   activeByConversation.delete(key);
   clearInterval(active.heartbeat);
   chrome.debugger.onEvent.removeListener(active.listener);
@@ -344,6 +376,7 @@ export async function startNetworkCapture(
   options: NetworkCaptureOptions = {},
 ): Promise<StartCaptureResult> {
   const captureBodies = options.captureBodies === true;
+  const aptyContentBodies = options.aptyContentBodies === true;
   const bodyDenyList = options.bodyDenyList ?? [];
   ensureCleanupListenersRegistered();
 
@@ -364,6 +397,7 @@ export async function startNetworkCapture(
   }
 
   const requests = new Map<string, CapturedNetworkRequest>();
+  const aptyBodies = new Map<string, string>();
   let truncated = false;
   const listener = (
     source: chrome.debugger.Debuggee,
@@ -405,8 +439,16 @@ export async function startNetworkCapture(
         req.errorText = p.errorText;
       }
     } else if (method === "Network.loadingFinished") {
-      if (!captureBodies) return;
       const url = requests.get(p.requestId)?.url;
+      if (
+        url &&
+        (captureBodies || aptyContentBodies) &&
+        isAptyContentUrl(url) &&
+        !isUrlDenied(url, bodyDenyList)
+      ) {
+        void fetchAptyBody(tabId, aptyBodies, p.requestId, p.encodedDataLength);
+      }
+      if (!captureBodies) return;
       if (url && isUrlDenied(url, bodyDenyList)) return;
       void maybeFetchResponseBody(
         tabId,
@@ -446,6 +488,7 @@ export async function startNetworkCapture(
   const active: ActiveCapture = {
     session,
     requests,
+    aptyBodies,
     get truncated() {
       return truncated;
     },
@@ -562,6 +605,77 @@ export function peekTabRequests(
       resourceType,
       timestamp,
     }));
+}
+
+/** Reads one Apty content call's whole body, redacted, for the checks; never throws. */
+async function fetchAptyBody(
+  tabId: number,
+  bodies: Map<string, string>,
+  requestId: string,
+  encodedDataLength: number | undefined,
+): Promise<void> {
+  if (
+    typeof encodedDataLength === "number" &&
+    encodedDataLength > MAX_BODY_FETCH_BYTES
+  ) {
+    return;
+  }
+  try {
+    const result = (await new CdpCommander(tabId).sendCommand(
+      "Network.getResponseBody",
+      { requestId },
+    )) as { body?: string; base64Encoded?: boolean } | undefined;
+    if (!result || result.body === undefined) return;
+    const decoded = result.base64Encoded
+      ? decodeBase64Utf8(result.body)
+      : result.body;
+    bodies.set(requestId, redactText(decoded));
+  } catch {
+    // The body stays unread; the check names it.
+  }
+}
+
+/** The Apty content calls a check can read for a tab: a running capture's, else the last stopped one's, for 15 minutes. */
+export function aptyContentCalls(
+  tabId: number,
+):
+  | { resources: AptyObservedResource[]; bodies: Map<string, string> }
+  | undefined {
+  const active = [...activeByConversation.values()].find(
+    (capture) => capture.session.tabId === tabId,
+  );
+  const source = active
+    ? {
+        requests: [...active.requests.values()].filter((r) =>
+          isAptyContentUrl(r.url),
+        ),
+        bodies: active.aptyBodies,
+      }
+    : stoppedAptyCalls.get(tabId);
+  if (!source) return undefined;
+  if (
+    !active &&
+    Date.now() - (stoppedAptyCalls.get(tabId)?.at ?? 0) > APTY_CALLS_KEPT_MS
+  ) {
+    stoppedAptyCalls.delete(tabId);
+    return undefined;
+  }
+  return {
+    resources: source.requests.map((request) => ({
+      requestId: request.requestId,
+      url: request.url,
+      method: request.method ?? "GET",
+      ...(request.failed
+        ? { failed: true, errorText: request.errorText ?? "failed" }
+        : request.status !== undefined
+          ? { status: request.status }
+          : {}),
+      mimeType: request.mimeType ?? "",
+      timestamp: request.timestamp,
+      hasBody: source.bodies.has(request.requestId),
+    })),
+    bodies: source.bodies,
+  };
 }
 
 /** Test/debug helper: how many conversations currently have a capture running. */

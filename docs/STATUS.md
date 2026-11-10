@@ -76,15 +76,24 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
-- KB retrieval (KB-RAG, K0 to K6, K8): Options → Settings → General →
-  Knowledge base imports a KB pack the KB owner builds with `pnpm kb:pack`
-  (never in this public repository: `npm run audit:kb-pack`). With a pack
-  loaded, a check-pack cause shows its card's text ("From the KB card"), a
-  symptom no check pack claims gets a KB matches card, both with no model
-  request and no AI key, and follow-up answers use `search_kb` and cite
-  `kb://` cards. `pnpm kb:eval` measures retrieval. Tested in Chromium with
-  synthetic cards and a mock model, not a real pack or provider
-  ([`kb-rag.md`](development/kb-rag.md)).
+- KB retrieval (KB-RAG, K0 to K6, K8, K10 to K20): Options → Settings →
+  General → Knowledge base imports one KB pack per Apty version (4.x, 5.x,
+  common) that the KB owner builds with `pnpm kb:pack` (never in this
+  public repository: `npm run audit:kb-pack`); `pnpm kb:demo-pack` builds
+  synthetic demo packs to try it. A check-pack cause shows its card's text,
+  any message no check pack claims gets a KB matches card (or a "not yet
+  written" stub), both with no model request and no AI key; `search_kb`
+  grounds answers with citations to each card's own page, a grounding note
+  marks setting names the cited cards lack. Coverage, not a score
+  threshold, decides "not covered"; a setting no card holds is named. The
+  tab's version comes from a check's files or the user's choice. The
+  widget and flow checks run on 4.x tenants (the 4.x behaviour FIXES.md
+  K14 describes, not yet checked against apty-assist code nor
+  runtime-verified, so at most "possible"), reading a 4.x tenant's files from the page's network
+  capture ("Capture and reload") or a HAR saved from the 4.x Client's
+  service worker. Synthetic set: every question passes for both versions.
+  Tested in Chromium with synthetic cards and a mock model, not a real pack
+  or provider ([`kb-rag.md`](development/kb-rag.md)).
 - The dependency check (`knip --strict`) blocks CI; exports kept only for
   tests are tagged `@internal`, which it skips.
 - Data stored under the AIPex names is no longer migrated: a developer
@@ -218,8 +227,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Visibility, selector and page checks on a real tenant (partial) | The real Client answering the network messages (above), then a run on a real 5.x tenant whose cause is known; membership and runtime rules stay open checks until the Client reports them. The selector check also needs a capture with a played workflow, to confirm the steps file's name and shape |
 | Ask Dapty check on live chats (partial) | Extension mode: the Client adopts the reference module's `recordWidgetChatTurn` and routes `sendWidgetChatMessage` and `getWidgetChatData` through `observedFetch` ([`docs/integrations/apty`](integrations/apty/README.md)); until then SEs can test the record path with the test-only recorder build (W7). Then the live-tenant run, in both modes, with a known failing chat, sending the evidence bundle (W1), HARs and content files: those become the live fixtures (W2), and any check they break is fixed there. The chat panel reader is untested against the real widget's DOM |
 | Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
+| 4.x check packs: confirm each rule against apty-assist and pin the commit (K21 F4, partial) | Someone with read access to aptyInc/apty-assist pins a `player3.0` commit and, for each rule, confirms the behaviour at the cited file and line: W4X-00 and W4X-01 (app-urls.json missing, failed or empty; `api/http.ts`), W4X-02 (environment pick by URL pattern; `shared/helpers/cdn-helpers.ts`), W4X-03 (regex URL flag; `feature-flag.effects.ts`), W4X-04 and W4X-05 (player or widget off in app-data.json; `cdn-helpers.ts`), C4X-00 and C4X-01 (flow.json missing, failed or empty), C4X-02 and C4X-03 (flow not published or hidden from the widget), C4X-04 (every segment inactive), C4X-05 (a segment's rule missing from rules.json), C4X-06 (the flow's steps file). Then the version line becomes "4.x code, apty-assist `<commit>` (`<player version>`); from code, not runtime-verified" and the 4.x confidence returns to "likely" (`FOUR_X_VERIFIED_ON`, `FOUR_X_CONFIDENCE` in `widget-not-visible-4x.ts`) |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
-| KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above). Still open: the KB owner builds the first real pack from the 125 "RAG Card:" pages under RAG Answer Cards in JA (the builder's default since 2026-11-07) and runs `pnpm kb:eval --calibrate` on the 40-question set; its numbers and threshold go in the pack and on the handbook page F15. K7 (dense vectors) waits on that baseline and is not shipped ([`kb-rag.md`](development/kb-rag.md)) |
+| KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above; [`FIXES.md`](tasks/kb-rag/FIXES.md#status)). Still open: the KB owner builds the real 4.x (A4PKH, root 1509720081) and 5.x (JA, root 1496711169) packs, writes 60-question sets per version and runs `pnpm kb:eval --calibrate --by-category`; the D-KB8 numbers (ids only) go on the handbook page F15. The 4.x check packs' apty-assist citations are to be confirmed against a checkout, and the KB owner confirms the card each 4.x rule cites (`CARD_4X` in `cards-4x.ts`, K21 F3); the 4.x Client bridge ships in apty-assist ([`4X-BRIDGE.md`](integrations/apty/4X-BRIDGE.md)). K7 (dense vectors) waits on the real sets ([`kb-rag.md`](development/kb-rag.md)) |
 
 
 ### Ask Dapty production readiness

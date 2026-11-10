@@ -12,6 +12,8 @@ type RuleFamily = RuleId extends `${infer Family}-${string}` ? Family : never;
 const FAMILY_LAYER: Record<RuleFamily, KbLayer> = {
   CNV: 1,
   WNV: 1,
+  W4X: 1,
+  C4X: 1,
   LOG: 3,
   SEL: 2,
   DOM: 2,
@@ -26,6 +28,14 @@ const RULE_LAYER: Partial<Record<RuleId, KbLayer>> = {
   // No environment's URL pattern matches: the patterns are Admin settings.
   "LOG-01": 1,
   "LOG-03": 1,
+  // A 4.x cause citing a file's mirror card reads that card's network data.
+  "W4X-00": 3,
+  "W4X-01": 3,
+  "W4X-03": 3,
+  "C4X-00": 3,
+  "C4X-01": 3,
+  "C4X-05": 3,
+  "C4X-06": 3,
   // A CSP block is read in the page's Console.
   "LOG-04": 2,
 };

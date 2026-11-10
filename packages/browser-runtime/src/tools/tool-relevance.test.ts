@@ -283,6 +283,33 @@ describe("search_kb (KB-RAG K4)", () => {
     }
   });
 
+  it("is offered for any Apty question or symptom, a file's meaning and a question in another script (K16)", () => {
+    for (const message of [
+      "the tooltip flickers on the page",
+      "the page freezes after I click save",
+      "what does flow.json mean",
+      "segments.json returned 403, what does that mean",
+      "which selector does the launcher use",
+      "小部件没有显示出来",
+    ]) {
+      expect(names(selectRelevantTools(message)), message).toContain(
+        "search_kb",
+      );
+    }
+  });
+
+  it("is not offered for a bare how-to or a request to fetch a file (D-KB1)", () => {
+    for (const message of [
+      "how do I configure a launcher for my app",
+      "how to create a workflow in this application",
+      "give me segments.json",
+    ]) {
+      expect(names(selectRelevantTools(message)), message).not.toContain(
+        "search_kb",
+      );
+    }
+  });
+
   it("stays offered for a short follow-up to a check", () => {
     const select = createStickyToolSelector();
     select("the workflow is not showing in the widget", "s-kb");

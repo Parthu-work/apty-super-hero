@@ -5,7 +5,13 @@
  * Options. Nothing is shown without a pack, or when the pack does not hold
  * the card; the card link stays either way. The text is rendered as text.
  */
-import type { KbCard, KbChunk, KbLayer } from "@apty/agent-core";
+import {
+  type KbAptyVersion,
+  type KbCard,
+  type KbChunk,
+  type KbLayer,
+  kbCardUrl,
+} from "@apty/agent-core";
 import { sharedKbIndexSource } from "@apty/browser-runtime/kb/kb-index";
 import { StatusBadge } from "@apty/ui/components/ui/badge";
 import {
@@ -41,6 +47,33 @@ function useKbExcerpt(pageId: string, layer: KbLayer): Excerpt | undefined {
     };
   }, [pageId, layer]);
   return excerpt;
+}
+
+/**
+ * A card's link: its own page when a loaded pack holds it (each version's
+ * cards live in their own space), else its version's space.
+ */
+export function useKbCardUrl(
+  pageId: string,
+  aptyVersion?: KbAptyVersion,
+): string {
+  const fallback = kbCardUrl(pageId, { aptyVersion });
+  const [url, setUrl] = useState(fallback);
+  useEffect(() => {
+    let live = true;
+    setUrl(fallback);
+    sharedKbIndexSource()
+      .current()
+      .then((index) => {
+        const own = index?.card(pageId)?.url;
+        if (live && own) setUrl(own);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [pageId, fallback]);
+  return url;
 }
 
 export function KbCardExcerpt({

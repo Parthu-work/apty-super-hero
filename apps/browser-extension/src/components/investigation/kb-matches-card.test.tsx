@@ -1,7 +1,17 @@
 import type { UIToolPart } from "@apty/ui/types";
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const localKbMatches = vi.hoisted(() => vi.fn());
+vi.mock("@apty/browser-runtime/kb/kb-matches", () => ({ localKbMatches }));
+
+import { forgetKbVersions } from "@apty/browser-runtime/kb/kb-version";
 import { AptyToolDisplay } from "./apty-tool-display";
+
+beforeEach(() => {
+  localKbMatches.mockReset();
+  forgetKbVersions();
+});
 
 function tool(output: unknown): UIToolPart {
   return {
@@ -19,9 +29,13 @@ const hit = (
   layer: number,
   text: string,
   notVerified = false,
+  aptyVersion = "5.x",
 ) => ({
   cite: `kb://${pageId}#L${layer}`,
   title: `FIXTURE card ${pageId}`,
+  site: "fixture.atlassian.net",
+  space: aptyVersion === "4.x" ? "A4X" : "JX",
+  aptyVersion,
   layer,
   heading: `Layer ${layer}: FIXTURE`,
   verifiedOn: "Verified on: FIXTURE code, 2026-01-01.",
@@ -31,6 +45,109 @@ const hit = (
 });
 
 describe("KbMatchesCard", () => {
+  it("labels each card with its version and asks which one the tenant runs when they differ (K12)", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "ok",
+          mixedVersions: true,
+          results: [
+            hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x"),
+            hit("501", 1, "- FIXTURE 5.x setting.", false, "5.x"),
+          ],
+        })}
+      />,
+    );
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    const [four, five] = within(card).getAllByRole("listitem");
+    expect(within(four as HTMLElement).getByText("4.x")).toBeInTheDocument();
+    expect(
+      within(four as HTMLElement).getByRole("link", {
+        name: /FIXTURE card 401/,
+      }),
+    ).toHaveAttribute(
+      "href",
+      "https://fixture.atlassian.net/wiki/spaces/A4X/pages/401",
+    );
+    expect(within(five as HTMLElement).getByText("5.x")).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "These cards are for different Apty versions; which does this tenant run?",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("searches again for the version the user picks", async () => {
+    localKbMatches.mockResolvedValue({
+      status: "ok",
+      mixedVersions: false,
+      results: [hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x")],
+    });
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "ok",
+          mixedVersions: true,
+          results: [
+            hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x"),
+            hit("501", 1, "- FIXTURE 5.x setting.", false, "5.x"),
+          ],
+        })}
+      />,
+    );
+    const versions = screen.getByRole("radiogroup", { name: "Apty version" });
+    fireEvent.click(within(versions).getByRole("radio", { name: "4.x" }));
+    await screen.findByRole("link", { name: /FIXTURE card 401/ });
+    expect(localKbMatches).toHaveBeenCalledWith(
+      "the tooltip opens twice",
+      undefined,
+      { version: "4.x", modelAvailable: true },
+    );
+    expect(screen.queryByRole("link", { name: /FIXTURE card 501/ })).toBeNull();
+    expect(screen.queryByText(/different Apty versions/)).toBeNull();
+  });
+
+  it("tells the user the cards are in English when the question is not", () => {
+    render(
+      <AptyToolDisplay tool={tool({ status: "non_english", results: [] })} />,
+    );
+    expect(
+      screen.getByText(
+        "The KB cards are in English. Ask in English, or send the question to the model.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says the KB has a card whose text is not written yet, with its link", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "stub",
+          stub: {
+            cite: "kb://303",
+            title: "FIXTURE gadget export never finishes",
+            site: "fixture.atlassian.net",
+            space: "A4X",
+            aptyVersion: "4.x",
+          },
+          results: [],
+        })}
+      />,
+    );
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    expect(
+      within(card).getByText(
+        "The KB has a card for this, but its 4.x text is not written yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByRole("link", { name: /FIXTURE gadget export/ }),
+    ).toHaveAttribute(
+      "href",
+      "https://fixture.atlassian.net/wiki/spaces/A4X/pages/303",
+    );
+  });
+
   it("lists each card with its link, layer, text, Verified on line and Not verified badge", () => {
     render(
       <AptyToolDisplay
@@ -55,7 +172,7 @@ describe("KbMatchesCard", () => {
       first.getByRole("link", { name: /FIXTURE card 202/ }),
     ).toHaveAttribute(
       "href",
-      "https://apty.atlassian.net/wiki/spaces/JA/pages/202",
+      "https://fixture.atlassian.net/wiki/spaces/JX/pages/202",
     );
     expect(first.getByText("Layer 1 of the card")).toBeInTheDocument();
     expect(

@@ -5,20 +5,23 @@
  */
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { tabUrlOf } from "../apty/diagnosis/responder.js";
 import { kbToolResult, sharedKbIndexSource } from "../kb/kb-index.js";
+import { kbVersionForUrl } from "../kb/kb-version.js";
+import type { ToolRunContext } from "./tab-utils.js";
 
 /** @internal */
 export const searchKbTool = tool({
   name: "search_kb",
   description:
-    "Searches the KB pack of Apty RAG Answer Cards loaded in this browser for the settings, page checks, data to read or support contacts behind a finding or symptom. Results are chunks of cards, each with a cite id (kb://<pageId>#L<layer>), its card's 'Verified on' line and a notVerified mark. Answer Apty product questions only from these results and cite each claim with its cite id. status 'not_covered': the KB does not cover the question; 'no_pack': no KB pack is loaded.",
+    "Searches the loaded KB packs of Apty RAG Answer Cards for the settings, page checks, data or support contacts behind a finding or symptom. Each result is a card chunk with its cite id (kb://<pageId>#L<layer>), Apty version, 'Verified on' line and notVerified mark; mixedVersions: the top cards are for different versions. status: 'ok'; 'not_covered' with reason no_match, low_coverage or unknown_setting (missingPhrases: settings no card has); 'stub' (a card whose text is not written yet); 'no_pack'.",
   parameters: z.object({
     query: z
       .string()
       .min(1)
       .max(300)
       .describe(
-        "The symptom or finding in the user's words, at most 300 characters.",
+        "The symptom or finding in the user's words, in English, at most 300 characters.",
       ),
     topK: z
       .number()
@@ -34,12 +37,22 @@ export const searchKbTool = tool({
       .describe(
         "Only these card layers: 1 product settings, 2 Console and Elements, 3 network data, 4 contacting support.",
       ),
+    aptyVersion: z
+      .enum(["4.x", "5.x"])
+      .optional()
+      .describe("The tenant's Apty version, only when the user said it."),
   }),
-  execute: async ({ query, topK, layers }) =>
-    kbToolResult(await sharedKbIndexSource().current(), query, {
+  execute: async ({ query, topK, layers, aptyVersion }, context) => {
+    const version =
+      aptyVersion ??
+      kbVersionForUrl(
+        await tabUrlOf((context as ToolRunContext | undefined)?.context),
+      );
+    return kbToolResult(await sharedKbIndexSource().current(version), query, {
       topK: topK ?? 3,
       ...(layers ? { layers } : {}),
-    }),
+    });
+  },
 });
 
 export const kbTools = [searchKbTool];

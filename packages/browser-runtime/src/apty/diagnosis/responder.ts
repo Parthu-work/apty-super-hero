@@ -1,6 +1,8 @@
 import type { LocalResponder } from "@apty/agent-core";
+import { siteHostOf } from "../../conversation/site-host.js";
 import type { KbToolResult } from "../../kb/kb-index.js";
-import { localKbMatches } from "../../kb/kb-matches.js";
+import { type KbMatchesOptions, localKbMatches } from "../../kb/kb-matches.js";
+import { kbVersionForUrl, rememberKbVersion } from "../../kb/kb-version.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
 import { currentValuePolicy } from "../../runtime/value-policy.js";
@@ -9,6 +11,11 @@ import type { DomHealthAuditOutcome } from "../dom-health.js";
 import { tabElementProbeOf } from "../element-probe.js";
 import { readAptyFilesForTab } from "./apty-files.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
+import {
+  CONTENT_FILES_4X,
+  flowNames,
+  flowStepsFile,
+} from "./content-not-visible-4x.js";
 import {
   DAPTY_FILES,
   diagnoseDaptyConversation,
@@ -32,10 +39,12 @@ import { languageName } from "./languages.js";
 import { loadClientEvidence } from "./loader.js";
 import { loadLogEvidence } from "./log-loader.js";
 import { diagnoseLogsAndErrors } from "./logs-and-errors.js";
+import { jsonOf, looks4x, playerVersionOf, records } from "./pack-kit.js";
 import { diagnosePageReadiness } from "./page-readiness.js";
 import { type Route, routeSymptom } from "./router.js";
 import type {
   ClientEvidence,
+  ContentKind,
   DiagnosisResult,
   LogEvidence,
   NextCheck,
@@ -45,6 +54,7 @@ import {
   diagnoseWidgetNotVisible,
   WIDGET_FILES,
 } from "./widget-not-visible.js";
+import { WIDGET_FILES_4X } from "./widget-not-visible-4x.js";
 
 export const RUN_DIAGNOSIS = "run_diagnosis";
 
@@ -162,6 +172,9 @@ function readFrom(result: DiagnosisResult, source: EvidenceSource): string {
     return `${DAPTY_CHAT_FROM[result.dapty.source]} and ${files}`;
   }
   if (source === "har") return "the HAR file's Apty files";
+  if (result.filesFromCapture) {
+    return "the Apty files in the page's network capture";
+  }
   return result.filesFromCdn ? CDN_FILES : "the Apty Client's files";
 }
 
@@ -252,9 +265,67 @@ async function elementEvidence(
   return { ...evidence, files: { ...evidence.files, ...steps.files } };
 }
 
-/** The result, saying when its files came from Apty's content CDN. */
+/** What the files tell of the tenant's Apty version, kept for the KB searches on this site (K12). */
+async function noteVersion(
+  evidence: ClientEvidence,
+  pageUrl: () => Promise<string | undefined>,
+): Promise<void> {
+  rememberKbVersion(
+    siteHostOf(await pageUrl()),
+    playerVersionOf(evidence),
+    "evidence",
+  );
+}
+
+/**
+ * A source's 4.x files, asked for only once its calls show a 4.x tenant
+ * (KB-RAG K14): the content CDN is 5.x only, and asking it for a 4.x name
+ * would fail in the page.
+ */
+async function withFiles4x(
+  load: (names: readonly string[]) => Promise<ClientEvidence>,
+  evidence: ClientEvidence,
+  names: readonly string[],
+): Promise<ClientEvidence> {
+  if (!looks4x(evidence)) return evidence;
+  const more = await load(names);
+  return { ...evidence, files: { ...evidence.files, ...more.files } };
+}
+
+/**
+ * The content check's files: the 5.x ones, then the 4.x ones (KB-RAG K14),
+ * and for a 4.x flow named in the question, that flow's steps file.
+ */
+async function contentEvidence(
+  load: (names: readonly string[]) => Promise<ClientEvidence>,
+  kind: ContentKind,
+  query: string | undefined,
+): Promise<ClientEvidence> {
+  const evidence = await withFiles4x(
+    load,
+    await load(filesFor(kind)),
+    CONTENT_FILES_4X,
+  );
+  if (!looks4x(evidence) || kind !== "workflow" || !query) return evidence;
+  const flows = records(jsonOf(evidence, "flow.json"));
+  const wanted = query.trim().toLowerCase();
+  const flow =
+    flows.find((f) => String(f.id) === query.trim()) ??
+    flows.find((f) =>
+      flowNames(f).some((n) => n.trim().toLowerCase() === wanted),
+    );
+  if (!flow) return evidence;
+  const steps = await load([flowStepsFile(String(flow.id))]);
+  return { ...evidence, files: { ...evidence.files, ...steps.files } };
+}
+
+/** The result, saying when its files came from Apty's content CDN or the page's network capture. */
 const fromCdn = (result: DiagnosisResult, evidence: ClientEvidence) =>
-  evidence.fromCdn ? { ...result, filesFromCdn: true } : result;
+  evidence.fromCdn
+    ? { ...result, filesFromCdn: true }
+    : evidence.fromCapture
+      ? { ...result, filesFromCapture: true }
+      : result;
 
 /**
  * Runs the routed pack on the Client's files, logs and calls, and the page.
@@ -296,6 +367,7 @@ export async function runPack(
   }
   if (route.packId === "element-not-found") {
     const evidence = await elementEvidence(load, route.kind, route.query);
+    await noteVersion(evidence, pageUrl);
     return fromCdn(
       await diagnoseElementNotFound(
         evidence,
@@ -314,13 +386,17 @@ export async function runPack(
     return diagnoseLogsAndErrors(evidence, route.about404);
   }
   if (route.packId === "widget-not-visible") {
-    const evidence = await load(WIDGET_FILES);
+    const evidence = await withFiles4x(load, await load(WIDGET_FILES), [
+      ...WIDGET_FILES_4X,
+    ]);
+    await noteVersion(evidence, pageUrl);
     return fromCdn(
       diagnoseWidgetNotVisible(evidence, await pageUrl()),
       evidence,
     );
   }
-  const evidence = await load(filesFor(route.kind));
+  const evidence = await contentEvidence(load, route.kind, route.query);
+  await noteVersion(evidence, pageUrl);
   return fromCdn(
     diagnoseContentNotVisible(
       evidence,
@@ -375,8 +451,13 @@ export interface ResponderSources {
     clientExtensionId: string | undefined,
     trace?: DaptyTrace,
   ) => Promise<ClientEvidence>;
-  /** The KB pack's cards for a symptom no check pack claims (KB-RAG K6). */
-  kbMatchesOf?: (input: string) => Promise<KbToolResult | undefined>;
+  /** The KB pack's cards for a message no check pack claims (KB-RAG K6, K16). */
+  kbMatchesOf?: (
+    input: string,
+    options: KbMatchesOptions,
+  ) => Promise<KbToolResult | undefined>;
+  /** Whether a model is configured: a question the cards cannot match then goes to it. */
+  modelAvailable?: () => boolean;
   /** Every other check's content files for the tab; undefined reads the Apty Client's. */
   filesOf?: (
     runContext: unknown,
@@ -395,17 +476,21 @@ const DEFAULT_SOURCES: ResponderSources = {
   daptyOf: readDaptyForTab,
   daptyFilesOf: readDaptyFilesForTab,
   filesOf: readAptyFilesForTab,
-  kbMatchesOf: (input) => localKbMatches(input),
+  kbMatchesOf: (input, options) => localKbMatches(input, undefined, options),
 };
 
 const SEARCH_KB = "search_kb";
 
-/** A symptom no check pack claims, answered from the KB pack's cards with no model call. */
+/** A message no check pack claims, answered from the KB pack's cards with no model call. */
 async function kbAnswer(
   input: string,
-  kbMatchesOf: ResponderSources["kbMatchesOf"],
+  sources: ResponderSources,
+  runContext: unknown,
 ) {
-  const matches = await kbMatchesOf?.(input);
+  const matches = await sources.kbMatchesOf?.(input, {
+    modelAvailable: sources.modelAvailable?.() ?? false,
+    version: kbVersionForUrl(await sources.pageUrlOf(runContext)),
+  });
   if (!matches) return undefined;
   await getRedactionMode();
   const policy = currentValuePolicy();
@@ -435,7 +520,7 @@ export function createDiagnosisResponder(
     const route: CheckRoute | undefined = asksAboutDapty(input)
       ? { packId: "dapty-conversation" }
       : routeSymptom(input);
-    if (!route) return kbAnswer(input, sources.kbMatchesOf);
+    if (!route) return kbAnswer(input, sources, runContext);
     const trace =
       route.packId === "dapty-conversation" ? createDaptyTrace() : undefined;
     const clientExtensionId = await sources.clientExtensionId();

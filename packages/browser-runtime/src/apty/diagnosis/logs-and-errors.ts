@@ -1,9 +1,8 @@
 /**
  * Check pack for "what do the logs say", from the Console texts the RAG
- * cards name: "No active application found" (JA 1496645690), "Error
- * fetching data" and "Error parsing response" (JA 1496253321), "[Apty] No
- * matching version found" and "[Apty] Failed to load widget snippet"
- * (JA 1496678479), CSP violations (JA 1496612958), failed content requests
+ * cards name: the player's no-active-application log (JA 1496645690), its
+ * fetch and parse errors (JA 1496253321), the loader's missing-version and
+ * failed-snippet logs (JA 1496678479), CSP violations (JA 1496612958), failed content requests
  * (JA 1496351651) and suspected Apty 404s (JA 1496645781). Every rule is from
  * 5.x code at 4c406d5 or support cases, not runtime-verified, so a finding
  * is never more certain than "likely".

@@ -88,6 +88,9 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
     const [result] = toolResults(second);
     assert.equal(result.status, "ok");
     assert.equal(result.results[0].cite, "kb://101#L1");
+    assert.equal(result.results[0].site, "fixture.atlassian.net");
+    assert.equal(result.results[0].space, "FX");
+    assert.equal(result.results[0].aptyVersion, "5.x");
     assert.match(result.results[0].text, /Glowing Banner setting/);
     assert.equal(
       result.results[0].verifiedOn,
@@ -98,7 +101,7 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
     const link = panel.getByRole("button", { name: "KB card 101, layer 1" });
     await link.click();
     await panel
-      .getByText("https://apty.atlassian.net/wiki/spaces/JA/pages/101")
+      .getByText("https://fixture.atlassian.net/wiki/spaces/FX/pages/101")
       .waitFor();
     await panel.close();
     await app.close();
@@ -134,7 +137,7 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
       /Never name an Apty setting, field or menu that is not in a returned chunk/,
     );
     assert.deepEqual(toolResults(second), [
-      { status: "not_covered", results: [] },
+      { status: "not_covered", reason: "no_match", results: [] },
     ]);
     assert.equal(
       await panel.getByRole("button", { name: /^KB card / }).count(),

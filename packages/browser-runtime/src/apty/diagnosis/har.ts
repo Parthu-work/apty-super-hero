@@ -5,10 +5,15 @@
  * redaction as the Client's, so a HAR's content is read exactly as the
  * Client's would be. Nothing here is sent anywhere.
  */
+
+import { isAptyContentUrl } from "../resource-body-utils.js";
 import { type DaptyResource, loadDaptyFrom } from "./dapty-loader.js";
 import { daptyKindOf } from "./dapty-parse.js";
 import type { DaptyEvidence } from "./dapty-types.js";
 import { loadEvidenceFrom, type ResourceSource } from "./loader.js";
+
+export { isAptyContentUrl };
+
 import type { ClientEvidence } from "./types.js";
 
 type Rec = Record<string, unknown>;
@@ -33,15 +38,6 @@ function entriesOf(har: unknown): Rec[] {
  * 5.x keep theirs, so an `app-data.json` or `segment.json` of another
  * service is never read as the Client's.
  */
-export function isAptyContentUrl(url: string): boolean {
-  let path: string;
-  try {
-    path = new URL(url).pathname;
-  } catch {
-    return false;
-  }
-  return path.split("/").some((segment) => /^tenant-[\w-]+$/.test(segment));
-}
 
 function headerOf(request: Rec, name: string): string | undefined {
   const headers = Array.isArray(request.headers) ? request.headers : [];
