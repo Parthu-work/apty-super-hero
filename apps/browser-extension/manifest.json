@@ -57,6 +57,9 @@
     "ids": []
   },
   "host_permissions": ["<all_urls>"],
+  "storage": {
+    "managed_schema": "managed-schema.json"
+  },
   "commands": {
     "open-apty-agent": {
       "suggested_key": {

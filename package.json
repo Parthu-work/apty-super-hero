@@ -12,7 +12,7 @@
   },
   "scripts": {
     "postinstall": "prek install",
-    "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources && npm run check:dist-licences",
+    "build": "pnpm -r --if-present build && npm run build:mcp-bridge && npm run check:tailwind-sources && npm run check:dist-licences && npm run check:dist-policy",
     "dev": "pnpm --filter @apty/browser-extension dev",
     "preflight": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:coverage",
     "ci:local": "node tooling/scripts/ci-local.mjs",
@@ -45,6 +45,7 @@
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",
     "check:dist-licences": "node tooling/scripts/check-dist-licences.mjs",
+    "check:dist-policy": "node tooling/scripts/check-dist-policy.mjs",
     "audit:notices": "node tooling/scripts/third-party-notices.mjs --check",
     "audit:kb-pack": "node tooling/scripts/check-no-kb-pack.mjs",
     "kb:pack": "node tooling/scripts/kb/build-kb-pack.mjs",

@@ -67,3 +67,10 @@ document they concern.
 | [D-KB7: the Agent diagnoses 4.x tenants from 4.x code](docs/tasks/kb-rag/decisions.md#d-kb7-the-agent-diagnoses-4x-tenants) | 2026-11-09 | Accepted |
 | [D-KB8: retrieval quality gate per version](docs/tasks/kb-rag/decisions.md#d-kb8-retrieval-quality-gate-per-version) | 2026-11-09 | Accepted |
 | [D-KB9: 4.x evidence from page capture and the service-worker HAR; the Client bridge in apty-assist](docs/tasks/kb-rag/decisions.md#d-kb9-how-the-agent-gets-a-4x-tenants-calls) | 2026-11-09 | Accepted |
+| [D-SEC1: KB text never reaches a model by default; demo packs excepted](docs/tasks/kb-rag/decisions.md#d-sec1-kb-text-never-reaches-a-model-by-default) | 2026-11-10 | Accepted |
+| [D-SEC2: an admin policy in managed storage beats user settings](docs/tasks/kb-rag/decisions.md#d-sec2-admin-policy-beats-user-settings) | 2026-11-10 | Accepted |
+| [D-SEC3: redaction never weaker than Standard while an Apty KB pack is loaded](docs/tasks/kb-rag/decisions.md#d-sec3-no-redaction-off-while-an-apty-kb-pack-is-loaded) | 2026-11-10 | Accepted |
+| [D-SEC4: approved AI destinations are provider, origin and model allow-lists](docs/tasks/kb-rag/decisions.md#d-sec4-an-approved-destination-is-a-provider-origin-and-model-allow-list) | 2026-11-10 | Accepted |
+| [D-SEC5: the MCP bridge gets no KB text unless the policy allows it](docs/tasks/kb-rag/decisions.md#d-sec5-the-mcp-bridge-gets-no-kb-text-unless-the-policy-allows-it) | 2026-11-10 | Accepted |
+| [D-SEC6: a local record of every model request that carried KB text](docs/tasks/kb-rag/decisions.md#d-sec6-a-local-record-of-every-request-that-carried-kb-text) | 2026-11-10 | Accepted |
+| [D-SEC7: an organization gateway is the preferred AI destination](docs/tasks/kb-rag/decisions.md#d-sec7-an-organization-gateway-is-the-preferred-destination) | 2026-11-10 | Accepted |

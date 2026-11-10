@@ -21,6 +21,7 @@ import {
 import { testConnection } from "../../services/connection-check";
 import { kbPackStore } from "../../services/kb-pack";
 import { fetchModelList } from "../../services/model-list";
+import { installOrgPolicySource } from "../../services/org-policy";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
 import { AptyClientPanel, AptyStudioPanel } from "./apty-client-panel";
 import { McpBridgePanel } from "./mcp-bridge-panel";
@@ -104,6 +105,7 @@ function parseUrlParams() {
 
 import "../../styles/tailwind.css";
 
+installOrgPolicySource();
 initLogging();
 applyRememberedTheme();
 

@@ -14,6 +14,8 @@ interface ImportMetaEnv {
   readonly VITE_APTY_SERVICE_WORKER_DIAGNOSTIC_ENDPOINT?: string;
   /** The commit the build was made from (vite.config.ts); empty when unknown. */
   readonly VITE_APTY_AGENT_COMMIT?: string;
+  /** "1" only in the E2E policy build: the test policy seam (services/org-policy.ts). */
+  readonly VITE_APTY_E2E_POLICY_SEAM?: string;
 }
 
 interface ImportMeta {

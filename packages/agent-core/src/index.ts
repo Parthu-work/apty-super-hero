@@ -40,6 +40,25 @@ export {
   validateAutomationMode,
   withSettingsDefaults,
 } from "./config/index.js";
+export {
+  AUDIT_RETENTION_RANGE,
+  auditRetentionDays,
+  customModelsAllowed,
+  hasAllowList,
+  isLoopbackHost,
+  type KbToModel,
+  kbToMcpAllowed,
+  mcpBridgeAllowed,
+  ORG_POLICY_DEFAULTS,
+  type OrgPolicy,
+  type OrgPolicyPreset,
+  type OrgPolicyState,
+  orgPolicyStateOf,
+  originOf,
+  parseOrgPolicy,
+  policyOf,
+  RESTRICTIVE_ORG_POLICY,
+} from "./config/org-policy.js";
 
 // Context
 export { ContextManager } from "./context/manager.js";

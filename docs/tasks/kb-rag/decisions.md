@@ -93,3 +93,49 @@ bridge is a separate change to `aptyInc/apty-assist`; without access to that
 repository it is described, ready to apply, in
 [`docs/integrations/apty/4X-BRIDGE.md`](../../integrations/apty/4X-BRIDGE.md),
 with no apty-assist code copied here.
+
+## D-SEC1: KB text never reaches a model by default
+
+Accepted 2026-11-10 with [`FIXES-K22.md`](FIXES-K22.md). Card excerpts are
+shown in the panel only. KB text goes to a model only when a managed policy
+sets `kbToModel` to `"approved"` and the request goes to a destination that
+policy allows. The one exception is a demo pack (its `source.site` ends in
+`.invalid`), so developers can still test the full path.
+
+## D-SEC2: admin policy beats user settings
+
+Accepted 2026-11-10. A value set in `chrome.storage.managed` cannot be
+changed in Options; the field shows "Set by your organization". With no
+policy, the extension behaves as before except for D-SEC1 and D-SEC3.
+
+## D-SEC3: no redaction Off while an Apty KB pack is loaded
+
+Accepted 2026-11-10. While any non-demo pack is in IndexedDB, the effective
+redaction mode is never weaker than Standard, with no policy needed. A
+policy can raise the floor to Strict.
+
+## D-SEC4: an approved destination is a provider, origin and model allow-list
+
+Accepted 2026-11-10. A policy names the allowed provider keys, the allowed
+base URL origins (https only, or loopback for a local model), and optionally
+the allowed model ids. A request outside the lists is not sent, and the
+panel says why. This covers custom models, the summary model and the
+connection test too.
+
+## D-SEC5: the MCP bridge gets no KB text unless the policy allows it
+
+Accepted 2026-11-10. Without `kbToMcp: true`, KB tool results reach the
+bridge as "KB result withheld by policy" plus card ids.
+
+## D-SEC6: a local record of every request that carried KB text
+
+Accepted 2026-11-10. Time, provider, origin, model, and the card ids and
+layers sent (never text), kept for the policy's retention (default 30 days)
+and exportable.
+
+## D-SEC7: an organization gateway is the preferred destination
+
+Accepted 2026-11-10. The extension supports it as an OpenAI-compatible
+origin set by policy. A key pushed by policy is visible to the user in
+chrome://policy, so a gateway that authenticates without a long-lived shared
+key is preferred; building the gateway is outside this repository.

@@ -6,9 +6,11 @@ import { quickjs } from "@apty/browser-runtime/vm/quickjs-manager";
 import { applyRememberedTheme } from "@apty/ui/theme/index";
 import { renderChatApp } from "../../components/app-root";
 import { initLogging } from "../../lib/logging";
+import { installOrgPolicySource } from "../../services/org-policy";
 
 const log = createLogger("Sidepanel");
 
+installOrgPolicySource();
 initLogging();
 applyRememberedTheme();
 // Read the redaction mode now, so the first tool result is redacted in it.
