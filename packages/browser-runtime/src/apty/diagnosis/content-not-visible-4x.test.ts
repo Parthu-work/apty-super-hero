@@ -18,8 +18,8 @@ describe("content-not-visible for a 4.x tenant (K14)", () => {
   it("finds a published, visible flow in an active segment, and leaves membership open", () => {
     const result = check("Create a lead");
     expect(result.aptyVersion).toBe("4.x");
-    expect(result.verifiedOn).toMatch(
-      /^4\.x code, apty-assist .*not runtime-verified/,
+    expect(result.verifiedOn).toBe(
+      "4.x behaviour as described in FIXES.md K14, not yet checked against apty-assist code; not runtime-verified",
     );
     expect(result.subject.name).toBe("Create a lead");
     expect(causes(result)).toEqual([]);

@@ -5,9 +5,10 @@
  * locale, `hideInWidget`), `flow-<id>.json` a flow's steps, segments.json
  * the segments (`isActive`, `ruleId` and the `flows` each lists) and
  * rules.json their rules. Ported from the behaviour FIXES.md K14
- * describes, citing apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts`,
- * which reads these files; the lines are to be confirmed against a
- * checkout. Every finding comes from 4.x code and is not runtime-verified.
+ * describes (apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts`
+ * reads these files, per FIXES.md); not yet checked against apty-assist
+ * code and not runtime-verified, so no finding is more certain than
+ * "possible".
  * Only workflows (flows) are ported; another kind keeps the version gate.
  */
 import { CARD_4X, card4x } from "./cards-4x.js";
@@ -36,7 +37,10 @@ import type {
   RuleId,
   Verdict,
 } from "./types.js";
-import { FOUR_X_VERIFIED_ON } from "./widget-not-visible-4x.js";
+import {
+  FOUR_X_CONFIDENCE,
+  FOUR_X_VERIFIED_ON,
+} from "./widget-not-visible-4x.js";
 
 export const CONTENT_FILES_4X = ["flow.json", "segments.json", "rules.json"];
 
@@ -113,7 +117,8 @@ function finish(
     },
     gates,
     verdict,
-    confidence: verdict.status === "cause_found" ? "likely" : "unknown",
+    confidence:
+      verdict.status === "cause_found" ? FOUR_X_CONFIDENCE : "unknown",
     files: CONTENT_FILES_4X.map((file) => {
       const loaded = fileOf(draft.evidence, file);
       return {

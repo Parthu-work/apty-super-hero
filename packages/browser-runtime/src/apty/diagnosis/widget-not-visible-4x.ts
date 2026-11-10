@@ -1,11 +1,11 @@
 /**
  * Check pack for "the Apty widget is not showing" on a 4.x tenant (KB-RAG
  * K14, owner decision D-KB7). Ported from the 4.x player's behaviour as
- * FIXES.md K14 states it, citing apty-assist `player3.0`; apty-assist was
- * not readable where this was written, so each citation names the file
- * and, where FIXES.md gives one, the line, and says the line is still to
- * be confirmed. Every finding says it comes from 4.x code and is not
- * runtime-verified, so none is more certain than "likely".
+ * FIXES.md K14 describes it; apty-assist was not readable where this was
+ * written, so each apty-assist file and line below is FIXES.md's, still to
+ * be checked against a pinned commit (docs/STATUS.md). Every finding says
+ * so, and none is more certain than "possible": one step below the 5.x
+ * rules, which were read from code (K21 F4).
  */
 import { CARD_4X, card4x } from "./cards-4x.js";
 import {
@@ -35,7 +35,10 @@ import type {
 import { patternMatches } from "./url-patterns.js";
 
 export const FOUR_X_VERIFIED_ON =
-  "4.x code, apty-assist player3.0 (commit not pinned: ported from the behaviour FIXES.md K14 describes, file and line to be confirmed against a checkout); from code, not runtime-verified";
+  "4.x behaviour as described in FIXES.md K14, not yet checked against apty-assist code; not runtime-verified";
+
+/** A 4.x finding's confidence: one step below the 5.x rules' "likely", until a commit is pinned. */
+export const FOUR_X_CONFIDENCE = "possible";
 
 export const WIDGET_FILES_4X = [
   "app-urls.json",
@@ -76,7 +79,7 @@ function finish(
     subject: { kind: "widget", matched: [] },
     gates,
     verdict,
-    confidence: verdict.status === "no_data" ? "unknown" : "likely",
+    confidence: verdict.status === "no_data" ? "unknown" : FOUR_X_CONFIDENCE,
     files: WIDGET_FILES_4X.map((name) => {
       const file = fileOf(evidence, name);
       return {

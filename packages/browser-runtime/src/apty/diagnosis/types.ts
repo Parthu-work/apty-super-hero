@@ -525,7 +525,7 @@ export interface DiagnosisResult {
   gates: GateResult[];
   verdict: Verdict;
   /** Never "confirmed" while the rules are verified from code only (P2). */
-  confidence: "likely" | "unknown";
+  confidence: "likely" | "possible" | "unknown";
   files: Array<{ name: string; status: FileStatus; httpStatus?: number }>;
   notChecked: NotChecked[];
   scan?: {

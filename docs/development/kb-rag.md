@@ -315,10 +315,14 @@ question passes.
   Confluence token here). The KB owner runs the commands above and records
   the numbers (ids only) on the handbook page F15.
 - **4.x check packs from a checkout.** The 4.x widget and flow checks were
-  ported from the behaviour FIXES.md K14 describes; their apty-assist file
-  and line citations are to be confirmed against a checkout, and causes
-  other than `app-urls.json` cite the A4PKH tree until the KB owner names
-  their cards. A 4.x port of the selector and page checks is later work.
+  ported from the behaviour FIXES.md K14 describes, not from apty-assist
+  code. Their version line says so ("4.x behaviour as described in FIXES.md
+  K14, not yet checked against apty-assist code; not runtime-verified"), and
+  a 4.x finding is at most "possible", one step below the 5.x rules
+  (K21 F4). Each rule cites its own A4PKH card (`CARD_4X` in
+  `cards-4x.ts`, K21 F3), for the KB owner to confirm. Checking each rule
+  against a pinned apty-assist commit is open (`docs/STATUS.md`). A 4.x port
+  of the selector and page checks is later work.
 - **The 4.x Client bridge** is described in
   [`4X-BRIDGE.md`](../integrations/apty/4X-BRIDGE.md), not yet in apty-assist.
 - **K7, dense vectors.** Not shipped; decide again on the real sets.

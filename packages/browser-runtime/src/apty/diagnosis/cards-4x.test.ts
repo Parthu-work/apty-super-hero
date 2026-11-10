@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { cardLayerOf } from "./card-layers";
 import { CARD_4X, KNOWN_4X_CARD_IDS, NOT_A_4X_CARD } from "./cards-4x";
+import { diagnoseContentNotVisible } from "./content-not-visible";
 import { diagnoseContentNotVisible4x } from "./content-not-visible-4x";
 import { capture, evidenceFrom } from "./diagnosis-test-utils";
 import type { Rec } from "./pack-kit";
 import type { DiagnosisResult } from "./types";
+import { diagnoseWidgetNotVisible } from "./widget-not-visible";
 import { diagnoseWidgetNotVisible4x } from "./widget-not-visible-4x";
 
 type Files = Record<string, unknown>;
@@ -124,5 +126,46 @@ describe("F3: every 4.x cause cites a 4.x card", () => {
         mirrors.has(pageId) ? 3 : 1,
       );
     }
+  });
+});
+
+describe("F4: the 4.x rules say where they come from", () => {
+  const LINE =
+    "4.x behaviour as described in FIXES.md K14, not yet checked against apty-assist code; not runtime-verified";
+
+  it('gives the description\'s version line, never "from code", while no commit is pinned', () => {
+    for (const result of every4xResult()) {
+      expect(result.verifiedOn).toBe(LINE);
+      expect(JSON.stringify(result)).not.toMatch(/from code/i);
+    }
+  });
+
+  it("is one step less certain than the 5.x rules: possible where 5.x says likely", () => {
+    const results = every4xResult();
+    for (const result of results) {
+      expect(result.confidence).not.toBe("likely");
+    }
+    expect(
+      results
+        .filter((r) => r.verdict.status === "cause_found")
+        .map((r) => r.confidence),
+    ).toEqual(
+      results
+        .filter((r) => r.verdict.status === "cause_found")
+        .map(() => "possible"),
+    );
+    expect(
+      diagnoseWidgetNotVisible(
+        evidenceFrom(capture()),
+        "https://other.example.org/x",
+      ).confidence,
+    ).toBe("likely");
+    expect(
+      diagnoseContentNotVisible(
+        evidenceFrom(capture()),
+        "workflow",
+        "Take a tour",
+      ).confidence,
+    ).toBe("likely");
   });
 });

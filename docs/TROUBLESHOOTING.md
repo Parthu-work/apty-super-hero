@@ -190,7 +190,7 @@ side, is in [`docs/development/kb-rag.md`](development/kb-rag.md#troubleshooting
 | The verdict has no data and the Apty Client cannot be reached | The 4.x Client has no Agent bridge | Injected mode: **Capture and reload** on the verdict card. Extension mode: save a HAR from the 4.x Client's service worker (the card lists the steps) and check it on the HAR page |
 | "Captured 0 Apty calls" | The player runs in Extension mode, so the page makes no content call | Use the service-worker HAR |
 | The HAR check cannot match the widget to an environment | A service-worker HAR has no page request | Tick "Use the page open in this tab" before **Check** |
-| A 4.x finding says "not runtime-verified" | The 4.x checks are ported from 4.x code (D-KB7) | Confirm the cause on the tenant; report a wrong one with its rule id |
+| A 4.x finding says "not runtime-verified" | The 4.x checks follow the 4.x behaviour FIXES.md K14 describes, not yet checked against apty-assist code (D-KB7, K21 F4), so a finding is at most "possible" | Confirm the cause on the tenant; report a wrong one with its rule id |
 | A selector check stops at "4.x content files" | The selector check is not ported to 4.x yet | Use the widget and flow checks, or check the element by hand |
 
 See [`docs/integrations/apty/README.md`](integrations/apty/README.md#4x-tenants).

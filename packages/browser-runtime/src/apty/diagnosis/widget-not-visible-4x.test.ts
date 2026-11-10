@@ -24,11 +24,11 @@ const causes = (result: ReturnType<typeof diagnoseWidgetNotVisible4x>) =>
   result.verdict.causes.map((c) => c.ruleId);
 
 describe("widget-not-visible for a 4.x tenant (K14)", () => {
-  it("says every finding comes from 4.x code and is not runtime-verified, and cites a 4.x card", () => {
+  it("says every finding follows the K14 description, not apty-assist code, and cites a 4.x card", () => {
     const result = diagnoseWidgetNotVisible4x(files4x(), UAT_PAGE);
     expect(result.aptyVersion).toBe("4.x");
-    expect(result.verifiedOn).toMatch(
-      /^4\.x code, apty-assist .*not runtime-verified/,
+    expect(result.verifiedOn).toBe(
+      "4.x behaviour as described in FIXES.md K14, not yet checked against apty-assist code; not runtime-verified",
     );
     expect(result.cardPageId).toBe("1509785878");
     expect(result.files.map((f) => f.name)).toEqual([

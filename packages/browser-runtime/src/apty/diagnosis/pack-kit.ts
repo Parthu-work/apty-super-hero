@@ -169,13 +169,13 @@ export function fileParams(file: LoadedFile): Params {
 
 /**
  * The files only one player reads. Both players read `app-urls.json` and
- * `app-data.json` (apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts`
- * lines 17 and 23; apty-dap's player CDN service, `cdn.service.ts`), so
- * they tell nothing. The 5.x player reads `workflow.json`, `segment.json`
- * and `rule.json` and a `workflow-<uuid>.json` per workflow; the 4.x player
- * reads `flow.json`, `segments.json`, `rules.json`, `feature-flag.json`
- * (`feature-flag.effects.ts`) and a `flow-<id>.json` per flow
- * (`cdn-helpers.ts`). `config.json` is read by the 4.x Studio from its own
+ * `app-data.json` (apty-dap's player CDN service, `cdn.service.ts`; for
+ * 4.x, apty-assist `player3.0/src/shared/helpers/cdn-helpers.ts` as
+ * FIXES.md K14 describes it, not yet checked against its code), so they
+ * tell nothing. The 5.x player reads `workflow.json`, `segment.json` and
+ * `rule.json` and a `workflow-<uuid>.json` per workflow; per FIXES.md K14
+ * the 4.x player reads `flow.json`, `segments.json`, `rules.json`,
+ * `feature-flag.json` and a `flow-<id>.json` per flow. `config.json` is read by the 4.x Studio from its own
  * extension, never in a tenant's calls, so it is not a marker.
  */
 const FIVE_X_MARKERS = new Set(["workflow.json", "segment.json", "rule.json"]);
