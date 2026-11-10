@@ -43,13 +43,34 @@ function suffix(word: string, ending: string, minStem: number): string {
   return rest.length >= minStem && hasVowel(rest) ? rest : word;
 }
 
-function degree(word: string): string {
-  for (const ending of ["est", "er"]) {
-    const rest = suffix(word, ending, 4);
-    if (rest !== word) return undouble(rest);
+/**
+ * Comparatives and superlatives, mapped to their adjective (K21 F6). -er
+ * and -est are stripped only for these: as a general rule they merged
+ * nouns with unrelated words ("player" with "play", "header" with "head").
+ */
+const ADJECTIVES =
+  `slow fast late early large big small old new long short high low wide
+  narrow dark light quick easy hard`.split(/\s+/);
+
+function degreesOf(adjective: string): string[] {
+  if (adjective.endsWith("e")) return [`${adjective}r`, `${adjective}st`];
+  if (adjective.endsWith("y")) {
+    const rest = adjective.slice(0, -1);
+    return [`${rest}ier`, `${rest}iest`];
   }
-  return word;
+  const forms = [`${adjective}er`, `${adjective}est`];
+  if (/[^aeiou][aeiou][b-df-hj-np-tv-z]$/.test(adjective)) {
+    const last = adjective.slice(-1);
+    forms.push(`${adjective}${last}er`, `${adjective}${last}est`);
+  }
+  return forms;
 }
+
+const COMPARATIVES = new Map(
+  ADJECTIVES.flatMap((adjective) =>
+    degreesOf(adjective).map((form) => [form, adjective] as const),
+  ),
+);
 
 function finalE(word: string): string {
   return word.length >= 3 && word.endsWith("e") && !word.endsWith("ee")
@@ -58,6 +79,7 @@ function finalE(word: string): string {
 }
 
 export function stem(term: string): string {
-  if (term.length <= 3 || /[\d.]/.test(term)) return term;
-  return finalE(degree(suffix(verb(plural(term)), "ly", 4)));
+  const word = COMPARATIVES.get(term) ?? term;
+  if (word.length <= 3 || /[\d.]/.test(word)) return word;
+  return finalE(suffix(verb(plural(word)), "ly", 4));
 }

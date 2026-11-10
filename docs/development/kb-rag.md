@@ -110,7 +110,9 @@ layer 1. Ties go to the lower page id, then the lower layer.
 
 **Terms.** Lower case, "doesn't" as "does not", function words dropped,
 then a light deterministic stemmer (`stem.ts`: plurals, `-ing`, `-ed`,
-`-er`/`-est`, `-ly`, a final `e`; never a token with digits or dots). A
+`-ly`, a final `e`; `-er`/`-est` only for a listed comparative such as
+"slower" or "bigger", so "player" and "header" stay nouns (K21 F6); never a
+token with digits or dots). A
 file name stays whole, its id normalized (`flow-123.json`,
 `flow-<uuid>.json` and `flow-ID.json` are all `flow-id.json`), and its
 parts follow it. Prefixes match from 4 characters. A typo is judged on the

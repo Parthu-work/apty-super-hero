@@ -7,6 +7,11 @@ const SAME: [string, string][] = [
   ["flicker", "flickered"],
   ["slower", "slow"],
   ["slowest", "slow"],
+  ["bigger", "big"],
+  ["biggest", "big"],
+  ["later", "late"],
+  ["easier", "easy"],
+  ["wider", "wide"],
   ["slowly", "slow"],
   ["stopped", "stop"],
   ["stopping", "stops"],
@@ -57,6 +62,27 @@ const KEPT: [string, string][] = [
   ["need", "need"],
 ];
 
+/** F6: nouns ending in -er keep their -er; only listed comparatives lose it. */
+const NOUNS = [
+  "player",
+  "header",
+  "container",
+  "trigger",
+  "browser",
+  "server",
+  "filter",
+  "layer",
+  "marker",
+  "banner",
+  "owner",
+  "viewer",
+  "folder",
+  "number",
+  "user",
+  "order",
+  "error",
+];
+
 describe("stem", () => {
   it.each(SAME)("stems %s and %s alike", (a, b) => {
     expect(stem(a)).toBe(stem(b));
@@ -64,6 +90,19 @@ describe("stem", () => {
 
   it.each(KEPT)("keeps %s as %s", (word, stemmed) => {
     expect(stem(word)).toBe(stemmed);
+  });
+
+  it.each(NOUNS)("F6: leaves the noun %s unchanged", (noun) => {
+    expect(stem(noun)).toBe(noun);
+  });
+
+  it("F6: strips -er and -est only from listed comparatives", () => {
+    expect(stem("slower")).toBe("slow");
+    expect(stem("slowest")).toBe("slow");
+    expect(stem("bigger")).toBe("big");
+    expect(stem("later")).toBe(stem("late"));
+    expect(stem("player")).not.toBe(stem("play"));
+    expect(stem("header")).not.toBe(stem("head"));
   });
 
   it("does not merge words that only look alike", () => {
