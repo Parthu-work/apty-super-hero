@@ -7,15 +7,10 @@
  * build: `VITE_APTY_E2E_POLICY_SEAM`, set by tooling/e2e/policy-build.mjs)
  * reads the policy from a chrome.storage.local key the test writes. In a
  * production build the condition is the literal `"" === "1"` and the whole
- * branch, key included, is dropped; org-policy-seam.test.ts checks dist/.
+ * branch, key included, is dropped; tooling/scripts/check-dist-policy.mjs
+ * (run by `npm run build`) checks dist/.
  */
-import {
-  loadOrgPolicy,
-  setOrgPolicySource,
-  watchOrgPolicy,
-} from "@apty/browser-runtime/runtime/org-policy";
-
-export { loadOrgPolicy, watchOrgPolicy };
+import { setOrgPolicySource } from "@apty/browser-runtime/runtime/org-policy";
 
 /** Call once at the start of each extension page and the service worker. */
 export function installOrgPolicySource(): void {

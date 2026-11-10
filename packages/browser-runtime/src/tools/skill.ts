@@ -1,13 +1,10 @@
-import type { AppSettings } from "@apty/agent-core";
-import { STORAGE_KEYS, tool } from "@apty/agent-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
+import { loadSettings } from "../runtime/effective-settings.js";
 import { skillManager } from "../skills/lib/services/skill-manager";
 import { getSkillInfo as getSkillInfoImpl } from "../skills/mcp-servers/skills";
-import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import { gateRiskyAction } from "./approval.js";
 import type { ToolRunContext } from "./tab-utils";
-
-const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 /**
  * Skill *scripts* run in a QuickJS sandbox that can import CDN packages
@@ -18,7 +15,7 @@ const settingsStorage = new ChromeStorageAdapter<AppSettings>();
  * listing skills below is unaffected, since none of that executes code.
  */
 async function isSkillExecutionEnabled(): Promise<boolean> {
-  const settings = await settingsStorage.load(STORAGE_KEYS.SETTINGS);
+  const settings = await loadSettings();
   return settings?.skillExecutionEnabled === true;
 }
 

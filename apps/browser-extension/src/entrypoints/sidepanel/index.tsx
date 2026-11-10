@@ -1,6 +1,6 @@
-import type { AppSettings } from "@apty/agent-core";
-import { createLogger, STORAGE_KEYS } from "@apty/agent-core";
-import { ChromeStorageAdapter, zenfs } from "@apty/browser-runtime";
+import { createLogger } from "@apty/agent-core";
+import { zenfs } from "@apty/browser-runtime";
+import { loadSettings } from "@apty/browser-runtime/runtime/effective-settings";
 import { getRedactionMode } from "@apty/browser-runtime/runtime/redaction-mode";
 import { quickjs } from "@apty/browser-runtime/vm/quickjs-manager";
 import { applyRememberedTheme } from "@apty/ui/theme/index";
@@ -24,9 +24,7 @@ void getRedactionMode();
 // sandbox resident, for a feature that's off.
 const initializeVM = async () => {
   try {
-    const settings = await new ChromeStorageAdapter<AppSettings>().load(
-      STORAGE_KEYS.SETTINGS,
-    );
+    const settings = await loadSettings();
     if (settings?.skillExecutionEnabled !== true) {
       log.debug("Skill execution disabled, skipping VM init");
       return;

@@ -4,11 +4,8 @@
  * risky tools, "allow" sends without asking, "never" refuses. Only screenshots
  * the model would see are gated; one kept on the device is not.
  */
-import {
-  type AppSettings,
-  type ScreenshotPolicySetting,
-  STORAGE_KEYS,
-} from "@apty/agent-core";
+import type { ScreenshotPolicySetting } from "@apty/agent-core";
+import { loadSettings } from "../runtime/effective-settings.js";
 import { type ApprovalDeniedResult, gateRiskyAction } from "./approval.js";
 
 export interface ScreenshotRefusal {
@@ -29,11 +26,7 @@ export function parseScreenshotPolicy(value: unknown): ScreenshotPolicySetting {
  */
 export async function getScreenshotPolicy(): Promise<ScreenshotPolicySetting> {
   try {
-    const stored = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
-    return parseScreenshotPolicy(
-      (stored?.[STORAGE_KEYS.SETTINGS] as AppSettings | undefined)
-        ?.screenshotPolicy,
-    );
+    return parseScreenshotPolicy((await loadSettings()).screenshotPolicy);
   } catch {
     return "ask";
   }

@@ -1,0 +1,91 @@
+/**
+ * KB-RAG K22 S2: an organization policy (set through the E2E build's test
+ * seam, since Playwright cannot set managed storage) locks what it presets.
+ * Options shows the preset AI fields and the redaction floor read-only, a
+ * direct write to chrome.storage.local does not change them, and the side
+ * panel's requests use the preset values.
+ */
+import assert from "node:assert/strict";
+import { after, before, describe, it } from "node:test";
+import {
+  chatAndWait,
+  extensionPage,
+  launchBrowser,
+  openSidePanel,
+  startMockModel,
+  startPageServer,
+} from "./harness.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
+
+let browser;
+let model;
+let site;
+
+before(async () => {
+  model = await startMockModel();
+  site = await startPageServer({
+    "/app.html": "<!doctype html><title>App</title><main>FIXTURE app</main>",
+  });
+  browser = await launchBrowser({ extensionDir: ensurePolicyBuild() });
+});
+
+after(async () => {
+  await browser?.close();
+  model?.close();
+  site?.close();
+});
+
+describe("organization policy: locked fields (KB-RAG K22 S2)", () => {
+  it("shows the preset AI fields and the redaction floor locked, and the panel uses them", async () => {
+    await setTestPolicy(browser, {
+      preset: {
+        aiProvider: "custom",
+        aiHost: model.baseUrl,
+        aiModel: "org-model",
+        aiToken: "org-key-not-shown",
+      },
+      redactionFloor: "strict",
+    });
+
+    const options = await extensionPage(
+      browser,
+      "src/entrypoints/options/index.html?tab=ai",
+    );
+    const card = options.getByTestId("org-policy-ai-card");
+    await card.waitFor();
+    assert.equal(await card.getByText("Set by your organization").count(), 4);
+    assert.match(await card.innerText(), /org-model/);
+    assert.doesNotMatch(await card.innerText(), /org-key-not-shown/);
+    assert.equal(
+      await card.getByRole("textbox", { name: "AI Model" }).count(),
+      0,
+    );
+
+    await options.goto(
+      options.url().replace("?tab=ai", "?tab=general#data-handling"),
+    );
+    const radio = (name) => options.getByRole("radio", { name });
+    const off = radio("Off (development only)");
+    await off.waitFor();
+    assert.equal(await off.isDisabled(), true);
+    assert.equal(await radio("Standard").isDisabled(), true);
+    assert.equal(await radio("Strict (recommended)").isChecked(), true);
+    await options.close();
+
+    model.script(() => ({ text: "RESULT: answered" }));
+    const app = await browser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    // openSidePanel writes its own provider, model and key to storage, as a
+    // direct write would: the policy's values still win.
+    const panel = await openSidePanel(browser, model, app, {
+      aiModel: "mine",
+      aiToken: "mine-key",
+      redactionMode: "off",
+    });
+    await chatAndWait(panel, "hello there");
+    const [request] = model.requests;
+    assert.equal(request.model, "org-model");
+    await panel.close();
+    await app.close();
+  });
+});

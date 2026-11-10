@@ -37,6 +37,7 @@
     "audit:design-tokens": "node tooling/scripts/check-design-tokens.mjs",
     "audit:architecture": "node tooling/scripts/check-architecture.mjs",
     "audit:tools": "node tooling/scripts/audit-tools.mjs",
+    "audit:settings-readers": "node tooling/scripts/check-settings-readers.mjs",
     "audit:test-skips": "node tooling/scripts/check-test-skips.mjs",
     "audit:any": "node tooling/scripts/check-any-baseline.mjs",
     "audit:i18n": "node tooling/scripts/check-i18n-baseline.mjs",

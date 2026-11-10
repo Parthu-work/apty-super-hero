@@ -1,11 +1,10 @@
-/** `PreflightDeps` on the real Chrome APIs, for the Options page. */
-import { STORAGE_KEYS } from "@apty/agent-core";
 import { getAptyIntegrationConfig } from "@apty/browser-runtime";
 import {
   getFrameTree,
   sendFrameMessage,
 } from "@apty/browser-runtime/apty/frame-tree";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "@apty/browser-runtime/apty/service-worker-diagnostics";
+import { loadSettings } from "@apty/browser-runtime/runtime/effective-settings";
 import {
   CONSOLE_BRIDGE_SCRIPT_ID,
   pageHooksAllowedOn,
@@ -42,10 +41,7 @@ async function frames(tabId: number): Promise<FrameAnswer[] | null> {
 }
 
 export const browserPreflightDeps: PreflightDeps = {
-  async loadSettings() {
-    const stored = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
-    return stored[STORAGE_KEYS.SETTINGS] ?? {};
-  },
+  loadSettings,
   testConnection: (settings) => testConnection(settings),
   async clientId() {
     return (await getAptyIntegrationConfig()).clientExtensionId || undefined;

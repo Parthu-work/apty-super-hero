@@ -2,7 +2,16 @@
 export { aisdk } from "@openai/agents-extensions/ai-sdk";
 // Agent
 export { AptyAgent } from "./agent/index.js";
-
+export {
+  type EffectiveSettings,
+  effectiveSettings,
+  isDemoKbPack,
+  isUserCustomModel,
+  type RedactionFloor,
+  type RedactionFloorReason,
+  settingsForWrite,
+  strongerRedaction,
+} from "./config/effective-settings.js";
 // Config
 export {
   AI_PROVIDERS,

@@ -4,18 +4,19 @@
  * leaves the browser. Only with Settings → Troubleshooting → Developer tools
  * on.
  */
-import { type AppSettings, STORAGE_KEYS } from "@apty/agent-core";
+import type { AppSettings } from "@apty/agent-core";
 import { buildDaptyEvidenceBundle } from "@apty/browser-runtime/apty/diagnosis/dapty-evidence";
 import type { DiagnosisResult } from "@apty/browser-runtime/apty/diagnosis/types";
-import { ChromeStorageAdapter } from "@apty/browser-runtime/storage/storage-adapter";
+import {
+  loadSettings,
+  watchEffectiveSettings,
+} from "@apty/browser-runtime/runtime/effective-settings";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { DownloadIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { agentBuild } from "./agent-build";
 import { BundleReviewDialog } from "./bundle-review-dialog";
-
-const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 /** Settings → Troubleshooting → Developer tools, kept current. */
 function useDeveloperTools(): boolean {
@@ -25,13 +26,10 @@ function useDeveloperTools(): boolean {
     const read = (settings: AppSettings | null | undefined) => {
       if (live) setOn(settings?.developerTools === true);
     };
-    void settingsStorage
-      .load(STORAGE_KEYS.SETTINGS)
+    void loadSettings()
       .then(read)
       .catch(() => undefined);
-    const unwatch = settingsStorage.watch(STORAGE_KEYS.SETTINGS, (change) =>
-      read(change.newValue),
-    );
+    const unwatch = watchEffectiveSettings(({ settings }) => read(settings));
     return () => {
       live = false;
       unwatch();

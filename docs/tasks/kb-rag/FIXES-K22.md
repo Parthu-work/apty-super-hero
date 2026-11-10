@@ -464,10 +464,27 @@ contain only invented text.
 
 IN PROGRESS.
 
+Where the code differs from the file list above, and why:
+
+- **S1:** the reader (`loadOrgPolicy`, `watchOrgPolicy`) is in
+  `packages/browser-runtime/src/runtime/org-policy.ts`, because
+  browser-runtime's own settings readers need it and cannot import the app.
+  `apps/browser-extension/src/services/org-policy.ts` re-exports it and holds
+  the E2E-only seam (`installOrgPolicySource`, called at the start of the
+  service worker, the side panel and Options).
+- **S2:** `loadEffectiveSettings()` is in
+  `packages/browser-runtime/src/runtime/effective-settings.ts` for the same
+  reason. `@apty/ui` reads the settings through the `KeyValueStorage` the
+  extension injects (`settingsStorageAdapter`), which serves the effective
+  settings and drops writes to locked fields; `npm run
+  audit:settings-readers` (also a `test:scripts` test) fails on any other
+  reader. The redaction floor's UI (S5) landed with the Data handling card
+  in S2, since the S2 E2E asserts it.
+
 | Package | Status |
 | --- | --- |
 | S1 Managed policy: schema and reader | Done |
-| S2 Effective settings and locked fields | Not started |
+| S2 Effective settings and locked fields | Done |
 | S4 KB text off by default | Not started |
 | S3 Allowed destinations only | Not started |
 | S5 Redaction floor | Not started |

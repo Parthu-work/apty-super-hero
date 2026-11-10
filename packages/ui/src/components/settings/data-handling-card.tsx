@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  RedactionFloor,
   RedactionModeSetting,
   RequestReport,
 } from "@apty/agent-core";
@@ -31,6 +32,8 @@ export interface DataHandlingCardProps {
   redactionPreview?: (text: string, mode: RedactionModeSetting) => string;
   /** The last requests sent to the AI provider, when the host app can read them. */
   recentRequests?: RequestReport[];
+  /** The weakest redaction mode the policy or a loaded KB pack allows. */
+  redactionFloor?: RedactionFloor;
 }
 
 function parseDenyList(text: string): string[] {
@@ -46,6 +49,7 @@ export function DataHandlingCard({
   language,
   redactionPreview,
   recentRequests,
+  redactionFloor,
 }: DataHandlingCardProps) {
   const { t } = useTranslation();
   const [denyListText, setDenyListText] = useState(
@@ -87,6 +91,7 @@ export function DataHandlingCard({
           onChange={(redactionMode) => onChange({ redactionMode })}
           preview={redactionPreview}
           language={language}
+          floor={redactionFloor}
         />
         <ScreenshotPolicyControl
           policy={settings.screenshotPolicy ?? "ask"}

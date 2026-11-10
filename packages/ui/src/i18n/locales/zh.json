@@ -2499,5 +2499,18 @@
     "mixedVersions": "这些卡片属于不同的 Apty 版本；此租户运行的是哪个版本？",
     "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
     "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。"
+  },
+  "orgPolicy": {
+    "setByOrg": "由您的组织设置",
+    "invalid": "无法使用您的组织为此扩展设置的策略：{{reason}}。在 IT 修复之前，不会发出任何 AI 请求，KB 文本也会被保留。",
+    "aiTitle": "AI 提供商",
+    "aiDescription": "其中部分设置由您的组织设置。组织设置的字段无法在此更改。",
+    "tokenSet": "已设置密钥",
+    "notSet": "未设置",
+    "save": "保存",
+    "saved": "已保存",
+    "provider": "提供商",
+    "redactionFloorPolicy": "您的组织要求：无法选择更弱的模式。",
+    "redactionFloorKbPack": "加载 Apty KB 包时必需：无法选择“关闭”。"
   }
 }

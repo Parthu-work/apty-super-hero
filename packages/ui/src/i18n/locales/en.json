@@ -2499,5 +2499,18 @@
     "mixedVersions": "These cards are for different Apty versions; which does this tenant run?",
     "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card."
+  },
+  "orgPolicy": {
+    "setByOrg": "Set by your organization",
+    "invalid": "Your organization's policy for this extension cannot be used: {{reason}}. Until IT fixes it, no AI request is made and KB text is withheld.",
+    "aiTitle": "AI provider",
+    "aiDescription": "Your organization sets some of these settings. Fields it sets cannot be changed here.",
+    "tokenSet": "A key is set",
+    "notSet": "Not set",
+    "save": "Save",
+    "saved": "Saved",
+    "provider": "Provider",
+    "redactionFloorPolicy": "Required by your organization: weaker modes cannot be chosen.",
+    "redactionFloorKbPack": "Required while an Apty KB pack is loaded: Off cannot be chosen."
   }
 }

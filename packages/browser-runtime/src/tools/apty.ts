@@ -21,7 +21,7 @@
  * output or Apty's own log messages.
  */
 
-import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import type { LogEvidence } from "../apty/diagnosis/types.js";
 import {
@@ -40,13 +40,13 @@ import {
   ScriptingWidgetDiagnosticsProvider,
   summarizeLogCategories,
 } from "../apty/index.js";
+import { loadSettings } from "../runtime/effective-settings.js";
 import {
   CONSOLE_BRIDGE_FILE,
   pageHooksAllowedOn,
   SETTINGS_UNREADABLE,
 } from "../runtime/page-hooks-registration.js";
 import { redactLogEntries } from "../runtime/redaction-mode.js";
-import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
 import {
   type DiagnosticTabFailureCode,
   describeTabForMeta,
@@ -54,8 +54,6 @@ import {
   resolveDiagnosticTab,
   type ToolRunContext,
 } from "./tab-utils";
-
-const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 type AptyConsoleLevel =
   | "log"
@@ -461,9 +459,7 @@ async function readTabConsole(
     tabId,
     pageHooksAllowedOn(
       url,
-      await settingsStorage
-        .load(STORAGE_KEYS.SETTINGS)
-        .catch(() => SETTINGS_UNREADABLE),
+      await loadSettings().catch(() => SETTINGS_UNREADABLE),
     ),
   );
   if (errorCode) {

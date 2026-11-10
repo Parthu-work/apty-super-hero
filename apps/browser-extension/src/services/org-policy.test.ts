@@ -1,6 +1,9 @@
-import { resetOrgPolicyForTests } from "@apty/browser-runtime/runtime/org-policy";
+import {
+  loadOrgPolicy,
+  resetOrgPolicyForTests,
+} from "@apty/browser-runtime/runtime/org-policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installOrgPolicySource, loadOrgPolicy } from "./org-policy";
+import { installOrgPolicySource } from "./org-policy";
 
 const managedGet = vi.fn();
 const localGet = vi.fn();

@@ -94,6 +94,7 @@
     "includes": [
       "**",
       "!**/dist",
+      "!**/dist-e2e",
       "!**/coverage",
       "!**/build",
       "!**/assets",

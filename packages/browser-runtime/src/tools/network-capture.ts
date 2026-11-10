@@ -11,7 +11,7 @@
  * `../apty/network-capture-session.ts` for the session mechanics, including
  * its request-count cap and forced-cleanup-on-tab-close/detach handling.
  */
-import { type AppSettings, STORAGE_KEYS, tool } from "@apty/agent-core";
+import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { recordToolCall } from "../apty/index.js";
 import {
@@ -19,15 +19,13 @@ import {
   startNetworkCapture,
   stopNetworkCapture,
 } from "../apty/network-capture-session.js";
-import { ChromeStorageAdapter } from "../storage/storage-adapter.js";
+import { loadSettings } from "../runtime/effective-settings.js";
 import {
   describeTabForMeta,
   describeTabResolutionFailure,
   resolveDiagnosticTab,
   type ToolRunContext,
 } from "./tab-utils";
-
-const settingsStorage = new ChromeStorageAdapter<AppSettings>();
 
 /** @internal */
 export const startNetworkCaptureTool = tool({
@@ -48,7 +46,7 @@ export const startNetworkCaptureTool = tool({
       };
     }
     const tab = resolution.tab;
-    const settings = await settingsStorage.load(STORAGE_KEYS.SETTINGS);
+    const settings = await loadSettings();
     return {
       ...(await startNetworkCapture(conversationId, tab.id as number, {
         captureBodies: settings?.networkBodyCaptureEnabled === true,
