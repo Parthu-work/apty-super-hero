@@ -65,6 +65,20 @@ export function analyze(text: string): string[] {
   return terms;
 }
 
+/** A word as typed (lower case) and its term: what typo matching compares. */
+export interface TypedWord {
+  typed: string;
+  term: string;
+}
+
+/** The words of a text as typed, with their stems; no file names, numbers or function words. */
+export function typedWords(text: string): TypedWord[] {
+  return normalize(text)
+    .split(WORD_SPLIT)
+    .filter((word) => keepTerm(word) && !/\d/.test(word))
+    .map((typed) => ({ typed, term: stem(typed) }));
+}
+
 /** The distinct terms of a query, in the order they first appear. */
 export function queryTerms(text: string): string[] {
   return [...new Set(analyze(text))];

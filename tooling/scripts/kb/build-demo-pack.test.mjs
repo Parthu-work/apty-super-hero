@@ -214,4 +214,29 @@ describe("K21 reproductions on the demo packs", () => {
     assert.equal(analytics.status, "stub");
     assert.equal(analytics.card?.pageId, "4012");
   });
+
+  it("F5: a short typo reaches its card, and off-topic questions stay not covered", () => {
+    for (const q of [
+      "DEMO baloon does not apear",
+      "the balloon is not apearing on the DEMO field",
+    ]) {
+      const result = search(["4.x"], q);
+      assert.equal(result.status, "ok", q);
+      assert.equal(top(result), "4002", q);
+    }
+    const widget = search(["4.x"], "widgt not showing");
+    assert.ok(
+      widget.status === "not_covered" || top(widget) === "4006",
+      `${widget.status} ${top(widget)}`,
+    );
+    for (const q of [
+      "kubernetes pod CrashLoopBackOff",
+      "how do I configure SAML SSO",
+    ]) {
+      for (const version of ["4.x", "5.x"]) {
+        assert.equal(search([version], q).status, "not_covered", q);
+      }
+    }
+  });
 });
+

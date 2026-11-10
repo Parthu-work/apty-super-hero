@@ -19,6 +19,8 @@ import {
   normalize,
   queryTerms,
   type SynonymTable,
+  type TypedWord,
+  typedWords,
 } from "./text.js";
 
 export interface KbSearchOptions {
@@ -425,13 +427,23 @@ export const GENERIC_SYMPTOM_TERMS: ReadonlySet<string> = new Set(
 const STUB_MIN_COVERAGE = 0.5;
 const STUB_MIN_STRONG_TERMS = 2;
 
-/** A typo or a prefix: fuzzy from six characters for a word the KB does not hold, a prefix from four. */
-const FUZZY_MIN_CHARS = 6;
-const FUZZY_FRACTION = 0.2;
+/**
+ * A typo or a prefix (K21 F5). Fuzzy matching is decided on the word as
+ * typed, not on its stem: 5 to 7 letters allow one edit, 8 or more two; a
+ * word the KB holds, or one of 4 letters or fewer, is never fuzzy-matched.
+ * A prefix matches from four characters.
+ */
+const FUZZY_MIN_CHARS = 5;
+const FUZZY_TWO_EDITS_CHARS = 8;
 const PREFIX_MIN_CHARS = 4;
 const APPROXIMATE_MATCH = 0.5;
 
-const maxEdits = (term: string) => Math.round(term.length * FUZZY_FRACTION);
+const maxEdits = (typed: string) =>
+  typed.length >= FUZZY_TWO_EDITS_CHARS
+    ? 2
+    : typed.length >= FUZZY_MIN_CHARS
+      ? 1
+      : 0;
 
 /**
  * What the coverage decision reads: each term's document frequency over
@@ -446,6 +458,13 @@ function corpusOf(
 ) {
   const lowest = lowestLayers(chunks);
   const df = new Map<string, number>();
+  /** Each word as the cards spell it, before stemming, and its stem. */
+  const typedVocabulary = new Map<string, string>();
+  const addTyped = (text: string) => {
+    for (const { typed, term } of typedWords(text)) {
+      typedVocabulary.set(typed, term);
+    }
+  };
   const cardTerms = new Map<string, string[]>();
   const cardText = new Map<string, string>();
   for (const chunk of chunks) {
@@ -456,6 +475,7 @@ function corpusOf(
         ? `${card.title}\n${card.symptom ?? ""}`
         : "";
     const terms = analyze(`${own}\n${heading}\n${text}`);
+    addTyped(`${own}\n${heading}\n${text}`);
     for (const term of new Set(terms)) df.set(term, (df.get(term) ?? 0) + 1);
     cardTerms.set(chunk.pageId, [
       ...(cardTerms.get(chunk.pageId) ?? []),
@@ -471,6 +491,7 @@ function corpusOf(
     if (cardTerms.has(card.pageId)) continue;
     const own = `${card.title}\n${card.symptom ?? ""}`;
     const terms = analyze(own);
+    addTyped(own);
     for (const term of new Set(terms)) df.set(term, (df.get(term) ?? 0) + 1);
     cardTerms.set(card.pageId, terms);
     cardText.set(card.pageId, normalize(own).replace(/\s+/g, " "));
@@ -482,18 +503,54 @@ function corpusOf(
   const n = documents;
   const idf = (term: string) => Math.log(1 + n / (1 + (df.get(term) ?? 0)));
 
-  function approximate(term: string, own: Set<string>): boolean {
-    const fuzzy = term.length >= FUZZY_MIN_CHARS && !df.has(term);
+  const stems = [...df.keys()].filter((term) => !/[\d.]/.test(term));
+  const typoCache = new Map<string, readonly string[]>();
+
+  /**
+   * The terms a typed word may be a typo of: the stems of the card words
+   * within its edit distance, as typed, and the stems within that distance
+   * of its own stem. None for a word the KB holds or a short word.
+   */
+  function typosOf({ typed, term }: TypedWord): readonly string[] {
+    const cached = typoCache.get(typed);
+    if (cached) return cached;
+    const max = maxEdits(typed);
+    const found = new Set<string>();
+    if (max > 0 && !typedVocabulary.has(typed) && !df.has(term)) {
+      for (const [word, wordTerm] of typedVocabulary) {
+        if (editDistance(typed, word, max) <= max) found.add(wordTerm);
+      }
+      for (const candidate of stems) {
+        if (editDistance(term, candidate, max) <= max) found.add(candidate);
+      }
+    }
+    const list = [...found].sort();
+    typoCache.set(typed, list);
+    return list;
+  }
+
+  /** Each query term's possible typos, from every way it was typed. */
+  function typosIn(query: string): Map<string, readonly string[]> {
+    const byTerm = new Map<string, Set<string>>();
+    for (const word of typedWords(query)) {
+      for (const candidate of typosOf(word)) {
+        const set = byTerm.get(word.term) ?? new Set<string>();
+        set.add(candidate);
+        byTerm.set(word.term, set);
+      }
+    }
+    return new Map([...byTerm].map(([term, set]) => [term, [...set].sort()]));
+  }
+
+  function approximate(
+    term: string,
+    own: Set<string>,
+    typos: readonly string[],
+  ): boolean {
+    if (typos.some((candidate) => own.has(candidate))) return true;
+    if (term.length < PREFIX_MIN_CHARS) return false;
     for (const candidate of own) {
-      if (term.length >= PREFIX_MIN_CHARS && candidate.startsWith(term)) {
-        return true;
-      }
-      if (
-        fuzzy &&
-        editDistance(term, candidate, maxEdits(term)) <= maxEdits(term)
-      ) {
-        return true;
-      }
+      if (candidate.startsWith(term)) return true;
     }
     return false;
   }
@@ -517,10 +574,12 @@ function corpusOf(
     vocabulary: df,
     idf,
     holdsPhrase,
+    typosIn,
     vocabularyIdf: () => [...df.keys()].map(idf).sort((a, b) => a - b),
     assess(query: string, pageId: string, minIdf: number): Assessment {
       const own = cardSets.get(pageId) ?? new Set<string>();
       const terms = queryTerms(query);
+      const typos = typosIn(query);
       const lower = normalize(query).replace(/\s+/g, " ");
       let weighted = 0;
       let total = 0;
@@ -541,7 +600,7 @@ function corpusOf(
           ? 1
           : synonymIn([...synonyms.groupsOf(term), ...inPhrase], pageId)
             ? SYNONYM_MATCH
-            : approximate(term, own)
+            : approximate(term, own, typos.get(term) ?? [])
               ? APPROXIMATE_MATCH
               : 0;
         weighted += weight * match;
@@ -687,10 +746,7 @@ function createV2Index(pack: KbPack): KbIndex {
     tokenize: splitQuery,
     processTerm: asIs,
     prefix: (term: string) => term.length >= PREFIX_MIN_CHARS,
-    fuzzy: (term: string) =>
-      term.length >= FUZZY_MIN_CHARS && !corpus.vocabulary.has(term)
-        ? FUZZY_FRACTION
-        : false,
+    fuzzy: false,
   };
   /** Which card: its title and symptom line, once per card. */
   const cardIndex = new MiniSearch<{
@@ -729,16 +785,23 @@ function createV2Index(pack: KbPack): KbIndex {
     chunksOf.set(chunk.pageId, [...(chunksOf.get(chunk.pageId) ?? []), chunk]);
   }
 
-  /** The question's terms, then the other members of the synonym groups it names. */
-  function expand(query: string, terms: string[]): string[] {
-    const asked = new Set(terms);
-    const extra = new Set<string>();
+  /**
+   * The terms to search, each with its weight: the question's own (1), the
+   * other members of the synonym groups it names (0.8), and the card terms
+   * a typed word may be a typo of (0.5, as in coverage).
+   */
+  function expand(query: string, terms: string[]): Map<string, number> {
+    const weights = new Map(terms.map((term) => [term, 1]));
+    const add = (term: string, weight: number) => {
+      if ((weights.get(term) ?? 0) < weight) weights.set(term, weight);
+    };
     for (const group of synonyms.groupsIn(terms, query)) {
-      for (const word of synonyms.words(group)) {
-        if (!asked.has(word)) extra.add(word);
-      }
+      for (const word of synonyms.words(group)) add(word, SYNONYM_MATCH);
     }
-    return [...terms, ...extra];
+    for (const typos of corpus.typosIn(query).values()) {
+      for (const candidate of typos) add(candidate, APPROXIMATE_MATCH);
+    }
+    return weights;
   }
 
   const dense = pack.retrieval.dense;
@@ -768,10 +831,9 @@ function createV2Index(pack: KbPack): KbIndex {
     const chunklessScores = new Map<string, number>();
     if (terms.length > 0) {
       const options = {
-        boostTerm: (_term: string, i: number) =>
-          i < terms.length ? 1 : SYNONYM_MATCH,
+        boostTerm: (term: string) => searched.get(term) ?? 1,
       };
-      const text = searched.join(" ");
+      const text = [...searched.keys()].join(" ");
       for (const result of cardIndex.search(text, options)) {
         const pageId = String(result.id);
         const own = chunksOf.get(pageId);

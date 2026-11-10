@@ -258,6 +258,24 @@
     "expectedPageIds": []
   },
   {
+    "id": "d4-f5a",
+    "category": "typo",
+    "q": "DEMO baloon does not apear",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-f5b",
+    "category": "typo",
+    "q": "the balloon is not apearing on the DEMO field",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-f2a",
+    "category": "not-covered-short",
+    "q": "widgt not showing",
+    "expectedPageIds": []
+  },
+  {
     "id": "d4-r1",
     "category": "how-to",
     "q": "how do I configure a new launcher",

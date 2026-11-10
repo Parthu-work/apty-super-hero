@@ -113,8 +113,12 @@ then a light deterministic stemmer (`stem.ts`: plurals, `-ing`, `-ed`,
 `-er`/`-est`, `-ly`, a final `e`; never a token with digits or dots). A
 file name stays whole, its id normalized (`flow-123.json`,
 `flow-<uuid>.json` and `flow-ID.json` are all `flow-id.json`), and its
-parts follow it. Prefixes match from 4 characters; typos (one edit per five
-characters) from 6, and only for a word no card holds.
+parts follow it. Prefixes match from 4 characters. A typo is judged on the
+word as typed, not its stem (K21 F5): 5 to 7 letters allow one edit, 8 or
+more two, and only for a word no card holds; it is compared with the cards'
+words before stemming and after (an unstemmed vocabulary is kept per
+index). Ranking searches the matched card terms at weight 0.5 and coverage
+counts them 0.5, so the two agree.
 
 **Synonyms** (`synonyms.ts`, weight 0.8): balloon/tooltip/popup/bubble/hint;
 workflow/walkthrough/guide/flow/tour; reload/refresh/F5;

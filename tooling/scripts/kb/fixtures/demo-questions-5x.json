@@ -246,6 +246,12 @@
     "expectedPageIds": []
   },
   {
+    "id": "d5-f5a",
+    "category": "typo",
+    "q": "the DEMO widgt is slow to open",
+    "expectedPageIds": ["2005"]
+  },
+  {
     "id": "d5-r1",
     "category": "how-to",
     "q": "how do I configure a new launcher",

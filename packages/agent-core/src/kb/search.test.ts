@@ -309,10 +309,11 @@ describe("coverage (schema v2)", () => {
     expect(strict.search("survey blank").status).toBe("not_covered");
   });
 
-  it("matches a typo only from six characters, and a prefix only from four", () => {
+  it("matches a typo from five typed characters, and a prefix only from four", () => {
     expect(index.search("tooltp opens").hits[0]?.chunk.pageId).toBe("202");
     expect(index.search("glowz banner").coverage).toBeLessThan(1);
-    expect(index.search("glowz").status).toBe("not_covered");
+    expect(index.search("glowz").hits[0]?.chunk.pageId).toBe("101");
+    expect(index.search("glox").status).toBe("not_covered");
     expect(index.search("surv").hits[0]?.chunk.pageId).toBe("303");
     expect(index.search("prog").hits[0]?.chunk.pageId).toBe("404");
     expect(index.search("pro").status).toBe("not_covered");
@@ -555,3 +556,49 @@ const CARDS_FOR_STUB: SyntheticCard[] = [
     "- Contact support when the survey stays blank.",
   ]),
 ];
+
+describe("F5: short typos match on the word as typed", () => {
+  const index = createKbIndex(
+    syntheticPack(
+      [
+        card("71", "FIXTURE balloon does not appear on the field", [
+          "- In Studio, set the FIXTURE Balloon Trigger to focus.",
+          "- The FIXTURE field must be on the page.",
+          "- flow.json lists triggerType (FIXTURE).",
+          "- Send support the FIXTURE balloon id.",
+        ]),
+        card("72", "FIXTURE survey is blank", [
+          "- In Admin, set the FIXTURE Survey Locale.",
+          "- The FIXTURE survey frame must load.",
+          "- survey.json lists questions per locale (FIXTURE).",
+          "- Send support the FIXTURE survey id.",
+        ]),
+      ],
+      { coverage: { min: 0.35, minIdf: 0.5, minTerms: 1 } },
+      V2,
+    ),
+  );
+
+  it("finds the card through a typo whose stem is shorter than the word typed", () => {
+    for (const query of [
+      "FIXTURE baloon does not apear",
+      "the balloon is not apearing on the FIXTURE field",
+    ]) {
+      const result = index.search(query, { onePerCard: true });
+      expect(result.status, query).toBe("ok");
+      expect(result.hits[0]?.chunk.pageId, query).toBe("71");
+    }
+  });
+
+  it("weighs a typo-only match 0.5 in coverage, as in ranking", () => {
+    expect(index.search("baloon").coverage).toBeCloseTo(0.5, 10);
+    expect(index.search("balloon").coverage).toBe(1);
+  });
+
+  it("never fuzzy-matches a word of four letters or fewer, or a word the cards hold", () => {
+    expect(index.search("baln").status).toBe("not_covered");
+    expect(index.search("kubernetes pod CrashLoopBackOff").status).toBe(
+      "not_covered",
+    );
+  });
+});
