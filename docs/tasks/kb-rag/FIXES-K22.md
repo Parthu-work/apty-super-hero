@@ -462,7 +462,14 @@ contain only invented text.
 
 ## Status
 
-IN PROGRESS.
+DONE, except acceptance check 12 (partial): the manual run with a real
+Chrome policy file. In the coding container the bundled Chromium reads
+`/etc/chromium/policies/managed/` (its other policies show in
+chrome://policy) but does not deliver a 3rd party policy to an extension
+loaded with `--load-extension`, so `chrome.storage.managed` stayed empty.
+What is left: on a machine with Chrome, follow "With a real Chrome policy
+(manual)" above with `apps/browser-extension/dist`. Every other check is
+automated, through the E2E-only policy build.
 
 Where the code differs from the file list above, and why:
 
@@ -524,6 +531,9 @@ Where the code differs from the file list above, and why:
   a request is recorded as it leaves; if the record cannot be written, the
   request goes without the KB text. `clear()` itself refuses under a policy,
   not only the disabled button. The record is not part of Settings' purge.
+- **S8:** the three Preflight rows (organization policy, AI destination, KB
+  text to AI) come first in Preflight; `runPreflight` treats a policy it
+  cannot read as invalid.
 
 | Package | Status |
 | --- | --- |
@@ -534,4 +544,4 @@ Where the code differs from the file list above, and why:
 | S5 Redaction floor | Done |
 | S6 MCP bridge | Done |
 | S7 Record of KB text sent | Done |
-| S8 Documentation and Preflight | Not started |
+| S8 Documentation and Preflight | Done |

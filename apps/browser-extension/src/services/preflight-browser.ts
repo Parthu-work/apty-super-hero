@@ -5,6 +5,8 @@ import {
 } from "@apty/browser-runtime/apty/frame-tree";
 import { ConfiguredServiceWorkerDiagnosticsProvider } from "@apty/browser-runtime/apty/service-worker-diagnostics";
 import { loadSettings } from "@apty/browser-runtime/runtime/effective-settings";
+import { decideKbEgress } from "@apty/browser-runtime/runtime/kb-egress";
+import { loadOrgPolicy } from "@apty/browser-runtime/runtime/org-policy";
 import {
   CONSOLE_BRIDGE_SCRIPT_ID,
   pageHooksAllowedOn,
@@ -108,4 +110,6 @@ export const browserPreflightDeps: PreflightDeps = {
     }
   },
   knowledgeBase: () => kbPackStore().info(),
+  orgPolicy: loadOrgPolicy,
+  kbEgress: () => decideKbEgress("chat"),
 };

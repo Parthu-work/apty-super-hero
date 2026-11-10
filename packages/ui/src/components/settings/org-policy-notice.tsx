@@ -76,17 +76,13 @@ function LockedValue({
 }) {
   return (
     <div className="space-y-1" data-testid={`locked-${id}`}>
-      <p className="text-sm font-medium" id={`${id}-label`}>
-        {label}
-      </p>
-      <p
-        className="rounded-md border bg-muted px-3 py-2 text-sm break-all"
-        aria-labelledby={`${id}-label`}
-        aria-describedby={`${id}-note`}
-      >
-        {value}
-      </p>
-      <SetByOrganization id={`${id}-note`} />
+      <dt className="text-sm font-medium">{label}</dt>
+      <dd className="space-y-1">
+        <p className="rounded-md border bg-muted px-3 py-2 text-sm break-all">
+          {value}
+        </p>
+        <SetByOrganization id={`${id}-note`} />
+      </dd>
     </div>
   );
 }
@@ -109,9 +105,9 @@ export function LockedAiCard({
   );
   const [saved, setSaved] = useState(false);
 
-  const valueOf = (key: AiField) => policy.settings[key] ?? "";
+  const currentValue = (key: AiField) => policy.settings[key] ?? "";
   const shown = (key: AiField) => {
-    const value = valueOf(key);
+    const value = currentValue(key);
     if (!value) return t("orgPolicy.notSet");
     return key === "aiToken" ? t("orgPolicy.tokenSet") : value;
   };
@@ -132,23 +128,25 @@ export function LockedAiCard({
         <CardDescription>{t("orgPolicy.aiDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {AI_FIELDS.filter(([key]) => policy.locked.has(key)).map(
-          ([key, label]) => (
-            <LockedValue
-              key={key}
-              id={`${baseId}-${key}`}
-              label={t(label)}
-              value={shown(key)}
-            />
-          ),
-        )}
+        <dl className="space-y-4">
+          {AI_FIELDS.filter(([key]) => policy.locked.has(key)).map(
+            ([key, label]) => (
+              <LockedValue
+                key={key}
+                id={`${baseId}-${key}`}
+                label={t(label)}
+                value={shown(key)}
+              />
+            ),
+          )}
+        </dl>
         {editable.map(({ key, label }) => (
           <div key={key} className="space-y-1">
             <Label htmlFor={`${baseId}-${key}-input`}>{t(label)}</Label>
             <Input
               id={`${baseId}-${key}-input`}
               type={key === "aiToken" ? "password" : "text"}
-              value={edits[key] ?? valueOf(key)}
+              value={edits[key] ?? currentValue(key)}
               onChange={(e) => {
                 setSaved(false);
                 setEdits((prev) => ({ ...prev, [key]: e.target.value }));

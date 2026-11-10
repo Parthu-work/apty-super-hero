@@ -56,7 +56,9 @@ describe("LockedAiCard", () => {
       />,
     );
     expect(screen.getAllByText("Set by your organization")).toHaveLength(5);
-    expect(screen.getByText("azure")).toHaveAccessibleName("Provider");
+    const provider = screen.getByText("Provider");
+    expect(provider.tagName).toBe("DT");
+    expect(provider.nextElementSibling).toHaveTextContent("azure");
     expect(screen.queryByText("org-secret-token")).toBeNull();
     expect(screen.getByText("A key is set")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();

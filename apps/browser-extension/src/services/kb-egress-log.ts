@@ -7,6 +7,7 @@
  * apty-kb-db) for the policy's `auditRetentionDays` (30 by default), pruned
  * on every write and at start-up. Under an organization policy it cannot be
  * cleared.
+ * @internal exported for tests.
  */
 import {
   type AiDestination,
@@ -18,6 +19,10 @@ import {
 import { loadOrgPolicy } from "@apty/browser-runtime/runtime/org-policy";
 import { KB_EGRESS_DB } from "@apty/browser-runtime/storage/database-names";
 
+/**
+ * One request that carried KB text: ids, never text.
+ * @internal exported for tests.
+ */
 export interface KbEgressRecord {
   /** ISO time the request left. */
   at: string;
@@ -29,7 +34,8 @@ export interface KbEgressRecord {
   packs: { aptyVersion: string; sha256: string }[];
 }
 
-/** What the outbound filter reports for a request that carries KB text. */
+/** What the outbound filter reports for a request that carries KB text. * @internal exported for tests.
+ */
 export interface KbEgressSent {
   purpose: "chat" | "summary";
   destination?: AiDestination;
@@ -37,7 +43,8 @@ export interface KbEgressSent {
   packs: KbPackInfo[];
 }
 
-/** Where the records live: one list under one key. Tests use memory. */
+/** Where the records live: one list under one key. Tests use memory. * @internal exported for tests.
+ */
 export interface KbEgressRecords {
   read(): Promise<KbEgressRecord[]>;
   write(records: KbEgressRecord[]): Promise<void>;
@@ -100,7 +107,7 @@ function indexedDbRecords(): KbEgressRecords {
 }
 
 /** One record of `sent`: ids, layers, packs and the destination; no text. */
-export function kbEgressRecordOf(sent: KbEgressSent, at: Date): KbEgressRecord {
+function kbEgressRecordOf(sent: KbEgressSent, at: Date): KbEgressRecord {
   const { destination } = sent;
   return {
     at: at.toISOString(),
@@ -119,6 +126,7 @@ export function kbEgressRecordOf(sent: KbEgressSent, at: Date): KbEgressRecord {
   };
 }
 
+/** @internal exported for tests, which give it records in memory. */
 export function createKbEgressLog({
   records = indexedDbRecords(),
   now = () => new Date(),

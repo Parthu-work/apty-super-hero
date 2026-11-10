@@ -1179,6 +1179,27 @@
         "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
         "stale": "Loaded: {{count}} cards from space {{space}}, built {{date}}, {{days}} days ago.",
         "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base."
+      },
+      "orgPolicy": {
+        "label": "Organization policy",
+        "none": "None: no policy is set for this extension. KB text stays in the panel unless only demo packs are loaded.",
+        "active": "Active: set by your organization.",
+        "invalid": "Invalid: {{reason}}. No AI request is made and KB text is withheld until it is fixed.",
+        "invalidFix": "Ask IT to fix the policy for this extension (check chrome://policy), then reload policies."
+      },
+      "aiDestination": {
+        "label": "AI destination",
+        "noPolicy": "{{destination}}: no policy restricts it.",
+        "allowed": "{{destination}}: allowed by your organization.",
+        "refused": "{{destination}}: {{reason}}",
+        "refusedFix": "Choose a provider, host and model your organization allows in Settings → AI provider."
+      },
+      "kbToAi": {
+        "label": "KB text to AI",
+        "withheld": "Withheld: card text is shown in the panel only; the model gets the card ids.",
+        "allowed": "Allowed to {{destination}} by your organization's policy, and recorded in Data handling.",
+        "demo": "Demo packs only: card text goes to the model, as no Apty KB pack is loaded.",
+        "noPack": "No KB pack is loaded."
       }
     }
   },

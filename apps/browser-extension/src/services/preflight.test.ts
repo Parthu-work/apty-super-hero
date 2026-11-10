@@ -42,6 +42,18 @@ function deps(overrides: Partial<PreflightDeps> = {}): PreflightDeps {
     clipboardPermission: async () => "granted",
     contentScriptStorage: async () => "blocked",
     knowledgeBase: async () => [PACK_INFO],
+    orgPolicy: async () => ({
+      kind: "active",
+      policy: { kbToModel: "approved", allowedProviders: ["openai"] },
+    }),
+    kbEgress: async () => ({
+      decision: { allowed: true, reason: "approved" },
+      destination: {
+        provider: "openai",
+        origin: "https://api.openai.com",
+        model: "model-x",
+      },
+    }),
     now: () => new Date("2026-03-10T00:00:00.000Z"),
     ...overrides,
   };
@@ -69,10 +81,77 @@ async function check(id: string, overrides: Partial<PreflightDeps> = {}) {
   return found;
 }
 
+describe("runPreflight: the organization policy rows (KB-RAG K22)", () => {
+  it("names an invalid policy's reason, and refuses every destination", async () => {
+    const policy = {
+      orgPolicy: async () => ({
+        kind: "invalid" as const,
+        reason: '"typo" is not a policy key',
+      }),
+      kbEgress: async () => ({
+        decision: { allowed: false, reason: "invalid-policy" as const },
+      }),
+    };
+    const org = await check("org-policy", policy);
+    expect(org.status).toBe("fail");
+    expect(org.detail).toBe(
+      'Invalid: "typo" is not a policy key. No AI request is made and KB text is withheld until it is fixed.',
+    );
+    const destination = await check("ai-destination", policy);
+    expect(destination.status).toBe("fail");
+    expect(destination.detail).toMatch(/cannot be used/);
+    expect((await check("kb-to-ai", policy)).detail).toMatch(/^Withheld/);
+  });
+
+  it("says when there is no policy, and that the destination is not restricted", async () => {
+    const none = {
+      orgPolicy: async () => ({ kind: "none" as const }),
+      kbEgress: async () => ({
+        decision: { allowed: false, reason: "policy-off" as const },
+      }),
+    };
+    expect((await check("org-policy", none)).status).toBe("info");
+    expect((await check("ai-destination", none)).detail).toBe(
+      "openai, https://api.openai.com, model-x: no policy restricts it.",
+    );
+    expect((await check("kb-to-ai", none)).detail).toBe(
+      "Withheld: card text is shown in the panel only; the model gets the card ids.",
+    );
+  });
+
+  it("names a destination off the allow-lists, and where KB text may go", async () => {
+    const refused = await check("ai-destination", {
+      orgPolicy: async () => ({
+        kind: "active" as const,
+        policy: { allowedProviders: ["azure" as const] },
+      }),
+    });
+    expect(refused.status).toBe("fail");
+    expect(refused.detail).toBe(
+      "openai, https://api.openai.com, model-x: This AI provider is not allowed by your organization. Allowed: azure.",
+    );
+    expect((await check("kb-to-ai")).detail).toBe(
+      "Allowed to openai, https://api.openai.com, model-x by your organization's policy, and recorded in Data handling.",
+    );
+    expect(
+      (
+        await check("kb-to-ai", {
+          kbEgress: async () => ({
+            decision: { allowed: true, reason: "demo" as const },
+          }),
+        })
+      ).detail,
+    ).toMatch(/^Demo packs only/);
+  });
+});
+
 describe("runPreflight", () => {
   it("passes everything when every dependency is healthy", async () => {
     const checks = await runPreflight(deps());
     expect(checks.map((c) => [c.id, c.status])).toEqual([
+      ["org-policy", "pass"],
+      ["ai-destination", "pass"],
+      ["kb-to-ai", "pass"],
       ["ai-provider", "pass"],
       ["apty-client", "pass"],
       ["agent-id", "pass"],
@@ -83,10 +162,10 @@ describe("runPreflight", () => {
       ["data-handling", "pass"],
       ["knowledge-base", "pass"],
     ]);
-    expect(checks[0]?.detail).toBe(
+    expect(checks[3]?.detail).toBe(
       "model-x answered in 120 ms and calls tools.",
     );
-    expect(checks[2]?.fix).toBe(AGENT_ID);
+    expect(checks[5]?.fix).toBe(AGENT_ID);
   });
 
   it("fails without an API key, before calling the provider", async () => {
@@ -393,6 +472,7 @@ describe("preflightJson", () => {
     expect(json.schema).toBe("apty-preflight/1");
     expect(json.generatedAt).toBe("1970-01-01T00:00:00.000Z");
     expect(JSON.stringify(json)).not.toContain("example.com");
-    expect(json.checks[0]).toMatchObject({ id: "ai-provider", status: "pass" });
+    expect(json.checks[0]).toMatchObject({ id: "org-policy", status: "pass" });
+    expect(json.checks[3]).toMatchObject({ id: "ai-provider", status: "pass" });
   });
 });

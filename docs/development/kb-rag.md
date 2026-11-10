@@ -228,6 +228,37 @@ card takes part in ranking and is never returned.
   under the answer; a `kb://` cite the turn did not return reads "unknown
   citation". Deterministic, no model call, the text unchanged.
 
+## Where KB text may go (K22)
+
+KB card text stays in the panel unless the organization's policy approves
+the destination ([D-SEC1](../tasks/kb-rag/decisions.md#d-sec1-kb-text-never-reaches-a-model-by-default),
+[ORG_POLICY.md](../security/ORG_POLICY.md)):
+
+- **The tag.** `kbToolResult` (and `localKbMatches`) put `source: "kb"` and
+  `cards` (page id and layer) on every result
+  (`packages/agent-core/src/kb/egress.ts`). Every rule below acts on the
+  tag, never on the text.
+- **The decision.** `kbEgressAllowed(policy, destination, packs)`
+  (`packages/agent-core/src/config/destination.ts`): allowed when every
+  loaded pack is a demo pack (site under `.invalid`), or the policy sets
+  `kbToModel: "approved"` and the destination is on its allow-lists.
+  `decideKbEgress` (`packages/browser-runtime/src/runtime/kb-egress.ts`)
+  makes it per request, for the chat or the summary model.
+- **When withheld.** `search_kb` is not offered (`withoutKbSearch`), and the
+  first outbound filter (`createKbEgressFilter`) turns each tagged result
+  into "KB card text withheld by organization policy. Cards shown to the
+  user: <ids>.", in the chat request and in the summary's source. The KB
+  matches card says "Shown here only; not sent to the AI model.", or names
+  the destination when allowed.
+- **When sent.** One record per request in `apty-kb-egress-db`
+  (`kb-egress-log.ts`), ids only, shown in Data handling.
+- **Redaction.** While a non-demo pack is loaded, redaction is never weaker
+  than Standard (D-SEC3); importing or removing a pack updates it at once
+  (`noteKbPacksChanged`).
+- **Tests.** The E2E fixture packs are demo packs (`fixture.atlassian.invalid`),
+  so the earlier suites keep testing the full path; the withheld cases use
+  `NON_DEMO_SITE` (`synthetic.atlassian.example`) in `tooling/e2e/kb-fixture.mjs`.
+
 ## Lifecycle: the KB owner
 
 Needs a read-only service account's **classic** Confluence API token (a
@@ -287,7 +318,9 @@ per version; the file names its version. Each loaded pack has a row
 (version, space, cards and how many are not yet written, build and import
 dates, retrieval, calibration) with **Replace** and **Remove** (after a
 confirmation; the other versions stay). A pack older than 30 days gets a
-warning, in Options and in Preflight (one row per version).
+warning, in Options and in Preflight (one row per version). Preflight's
+"KB text to AI" row says whether card text is withheld, allowed (and to
+where), or sent because only demo packs are loaded.
 
 ## Evaluation
 

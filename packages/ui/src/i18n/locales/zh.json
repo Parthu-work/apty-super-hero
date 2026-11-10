@@ -1179,6 +1179,27 @@
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
         "stale": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}，{{days}} 天前。",
         "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。"
+      },
+      "orgPolicy": {
+        "label": "组织策略",
+        "none": "无：此扩展未设置策略。除非只加载了演示包，否则 KB 文本只显示在面板中。",
+        "active": "生效中：由您的组织设置。",
+        "invalid": "无效：{{reason}}。在修复之前，不会发出任何 AI 请求，KB 文本也会被保留。",
+        "invalidFix": "请 IT 修复此扩展的策略（查看 chrome://policy），然后重新加载策略。"
+      },
+      "aiDestination": {
+        "label": "AI 目标",
+        "noPolicy": "{{destination}}：没有策略限制它。",
+        "allowed": "{{destination}}：您的组织允许。",
+        "refused": "{{destination}}：{{reason}}",
+        "refusedFix": "在“设置 → AI 提供商”中选择您的组织允许的提供商、主机和模型。"
+      },
+      "kbToAi": {
+        "label": "发送给 AI 的 KB 文本",
+        "withheld": "已保留：卡片文本只显示在面板中；模型只获得卡片 ID。",
+        "allowed": "根据您的组织策略允许发送到 {{destination}}，并记录在“数据处理”中。",
+        "demo": "仅演示包：卡片文本会发送给模型，因为未加载 Apty KB 包。",
+        "noPack": "未加载 KB 包。"
       }
     }
   },
