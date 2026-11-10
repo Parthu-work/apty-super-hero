@@ -10,7 +10,7 @@ import {
 import { KB_SYNONYM_GROUPS, SYNONYM_MATCH } from "./synonyms.js";
 import {
   analyze,
-  containsPhrase,
+  createPhraseLookup,
   createSynonymTable,
   editDistance,
   hasPhrase,
@@ -29,6 +29,11 @@ export interface KbSearchOptions {
   onePerCard?: boolean;
   /** The query embedded with the pack's dense model, for hybrid ranking. */
   queryVector?: Float32Array;
+  /**
+   * Whether any card being searched holds a phrase; an index set passes
+   * one over all its packs, so a setting another pack's card names is known.
+   */
+  holdsPhrase?: (phrase: string) => boolean;
 }
 
 export interface KbSearchHit {
@@ -64,7 +69,7 @@ export interface KbSearchResult {
    */
   coverage: number;
   reason?: KbNotCoveredReason;
-  /** With `unknown_setting`: the phrases the question names that the top card does not have. */
+  /** With `unknown_setting`: the setting-like phrases the question names that no card searched holds. */
   missingPhrases?: string[];
 }
 
@@ -101,6 +106,8 @@ export interface KbIndex {
   /** Each indexed term's idf, `ln(1 + N / (1 + df))`, sorted: what calibration picks `minIdf` from. */
   vocabularyIdf(): number[];
   search(query: string, options?: KbSearchOptions): KbSearchResult;
+  /** Whether any card's title, symptom or text holds the phrase's terms in a row. */
+  holdsPhrase(phrase: string): boolean;
   /** A card's own chunks, by layer: for a finding that already names its card. */
   cardChunks(pageId: string): KbChunk[];
   card(pageId: string): KbCard | undefined;
@@ -371,6 +378,7 @@ function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
   return {
     info,
     vocabularyIdf: () => [],
+    holdsPhrase: () => false,
     search,
     cardChunks: (pageId) =>
       chunks
@@ -386,7 +394,6 @@ interface Assessment {
   coverage: number;
   /** Matched terms with an idf of at least `minIdf`. */
   strongTerms: number;
-  missingPhrases: string[];
 }
 
 /** A typo or a prefix: fuzzy from six characters for a word the KB does not hold, a prefix from four. */
@@ -475,9 +482,12 @@ function corpusOf(
     return false;
   }
 
+  const holdsPhrase = createPhraseLookup(cardTerms.values());
+
   return {
     vocabulary: df,
     idf,
+    holdsPhrase,
     vocabularyIdf: () => [...df.keys()].map(idf).sort((a, b) => a - b),
     assess(query: string, pageId: string, minIdf: number): Assessment {
       const own = cardSets.get(pageId) ?? new Set<string>();
@@ -507,13 +517,9 @@ function corpusOf(
         total += weight;
         if (match > 0 && weight >= minIdf) strongTerms++;
       }
-      const stream = cardTerms.get(pageId) ?? [];
       return {
         coverage: total === 0 ? 0 : weighted / total,
         strongTerms,
-        missingPhrases: namedPhrases(query).filter(
-          (phrase) => !containsPhrase(stream, phrase),
-        ),
       };
     },
   };
@@ -605,7 +611,7 @@ const asIs = (term: string) => term;
  * terms, with `idf(t) = ln(1 + N / (1 + df(t)))`, so a word no card holds
  * weighs most. The question is covered when coverage reaches
  * `coverage.min` and `coverage.minTerms` matched terms have an idf of at
- * least `coverage.minIdf`, and the top card holds every setting-like phrase
+ * least `coverage.minIdf`, and some card holds every setting-like phrase
  * the question names (`namedPhrases`).
  */
 function createV2Index(pack: KbPack): KbIndex {
@@ -787,10 +793,14 @@ function createV2Index(pack: KbPack): KbIndex {
         reason: "no_match",
       };
     }
-    const { coverage, strongTerms, missingPhrases } = corpus.assess(
+    const { coverage, strongTerms } = corpus.assess(
       query,
       stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
       settings.minIdf,
+    );
+    const holds = options.holdsPhrase ?? corpus.holdsPhrase;
+    const missingPhrases = namedPhrases(query).filter(
+      (phrase) => !holds(phrase),
     );
     if (missingPhrases.length > 0) {
       return {
@@ -836,6 +846,7 @@ function createV2Index(pack: KbPack): KbIndex {
       calibrated: pack.retrieval.coverage !== undefined,
     },
     vocabularyIdf: corpus.vocabularyIdf,
+    holdsPhrase: corpus.holdsPhrase,
     search,
     cardChunks: (pageId) =>
       chunks
@@ -868,5 +879,9 @@ export function createKbIndex(pack: KbPack): KbIndex {
   const index = createLegacyIndex(pack, (query, top) =>
     top ? corpus.assess(query, top.chunk.pageId, 0).coverage : 0,
   );
-  return { ...index, vocabularyIdf: corpus.vocabularyIdf };
+  return {
+    ...index,
+    vocabularyIdf: corpus.vocabularyIdf,
+    holdsPhrase: corpus.holdsPhrase,
+  };
 }

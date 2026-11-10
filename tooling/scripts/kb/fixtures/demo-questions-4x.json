@@ -222,6 +222,42 @@
     "expectedPageIds": []
   },
   {
+    "id": "d4-f1a",
+    "category": "product-name",
+    "q": "DEMO balloon does not appear on the Admin Portal page",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-f1b",
+    "category": "product-name",
+    "q": "DEMO hint text is cropped, the Service Worker shows nothing",
+    "expectedPageIds": ["4007"]
+  },
+  {
+    "id": "d4-f1c",
+    "category": "product-name",
+    "q": "I turned on Developer Mode and the DEMO player freezes the page",
+    "expectedPageIds": ["4003"]
+  },
+  {
+    "id": "d4-f1d",
+    "category": "setting-other-card",
+    "q": "DEMO hint cut off at the window edge although the DEMO Deep Scan option is off",
+    "expectedPageIds": ["4007"]
+  },
+  {
+    "id": "d4-f1e",
+    "category": "not-covered-setting",
+    "q": "the 'Smart Sync' option",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-f1f",
+    "category": "not-covered-setting",
+    "q": "turn on the Allowed Domains setting",
+    "expectedPageIds": []
+  },
+  {
     "id": "d4-r1",
     "category": "how-to",
     "q": "how do I configure a new launcher",

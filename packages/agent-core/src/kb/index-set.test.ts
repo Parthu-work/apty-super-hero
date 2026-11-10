@@ -140,4 +140,16 @@ describe("createKbIndexSet", () => {
       hits: [],
     });
   });
+
+  it("F1: a setting another pack's card holds is not an unknown setting", () => {
+    const set = createKbIndexSet([FIVE, COMMON]);
+    const result = set.search(
+      "the checklist resets after I turn on the FIXTURE Policy Switch",
+    );
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("52");
+    expect(set.search("turn on the FIXTURE Glow Pulse Switch").reason).toBe(
+      "unknown_setting",
+    );
+  });
 });

@@ -23,7 +23,7 @@ export function ungroundedPhrases(
     .replace(CITATION, " ")
     .replace(HEADING_MARK, "");
   const chunkTerms = chunks.map(kbTerms);
-  return namedPhrases(prose).filter(
+  return namedPhrases(prose, { everyRun: true }).filter(
     (phrase) => !chunkTerms.some((terms) => kbContainsPhrase(terms, phrase)),
   );
 }

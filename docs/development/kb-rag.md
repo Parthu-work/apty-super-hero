@@ -144,11 +144,19 @@ A word no card holds gets the highest idf, so "saml", "kubernetes" or
 ≥ `coverage.minIdf` (so "apty widget" alone is never covered).
 Not covered: `reason: "no_match" | "low_coverage" | "unknown_setting"`.
 
-**Setting-name guard.** Each quoted phrase and each run of two or more Title
-Case words (not a sentence's first word, not names such as Apty, Chrome,
-Google, Microsoft, Salesforce, Network, Console, Elements, DevTools) must
-appear, stemmed, in the top card. Otherwise: `unknown_setting` with
-`missingPhrases`, e.g. "Widget Activation".
+**Setting-name guard.** It stops invented settings, and only those (K21
+F1). A phrase is checked when it is quoted, or when it is a run of two or
+more Title Case words (not a sentence's first word) within three words of a
+setting cue: setting(s), toggle, option, checkbox, switch, flag, field,
+enable, disable, turn on, turn off, set, configure. A run made only of
+browser and platform terms (Developer Mode, Service Worker, Preserve Log,
+Inspect Views, Network Tab, Console, Elements, DevTools, Chrome, Edge,
+Google, Microsoft, Windows, macOS) or customer applications (Salesforce,
+Lightning, Workday, SAP, ServiceNow, Oracle, Dynamics, SuccessFactors) is
+never checked. A checked phrase must appear, stemmed, in some card of any
+pack being searched (title, symptom or text; the lookup is built once per
+index). Otherwise: `unknown_setting` with `missingPhrases`, e.g. "Widget
+Activation".
 
 **Stubs and routing.** A stub is searched on its title and symptom; when it
 is the best covered match the result is `status: "stub"` with the card

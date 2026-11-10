@@ -166,3 +166,42 @@ describe("kb:demo-pack", () => {
     rmSync(tree, { recursive: true, force: true });
   });
 });
+
+describe("K21 reproductions on the demo packs", () => {
+  const search = (versions, q) =>
+    core
+      .createKbIndexSet(versions.map((v) => packs[v]))
+      .search(q, { onePerCard: true });
+  const top = (result) => result.hits[0]?.chunk.pageId;
+
+  it("F1: the setting guard leaves product and browser names alone", () => {
+    for (const [q, pageId] of [
+      ["DEMO balloon does not appear on the Admin Portal page", "4002"],
+      ["DEMO hint text is cropped, the Service Worker shows nothing", "4007"],
+      [
+        "I turned on Developer Mode and the DEMO player freezes the page",
+        "4003",
+      ],
+      [
+        "DEMO hint cut off at the window edge although the DEMO Deep Scan option is off",
+        "4007",
+      ],
+    ]) {
+      const result = search(["4.x"], q);
+      assert.equal(result.status, "ok", q);
+      assert.equal(top(result), pageId, q);
+    }
+  });
+
+  it("F1: the setting guard still refuses an invented setting", () => {
+    for (const [q, phrase] of [
+      ["where is the Widget Activation toggle", "Widget Activation"],
+      ["turn on the Allowed Domains setting", "Allowed Domains"],
+      ["the 'Smart Sync' option", "Smart Sync"],
+    ]) {
+      const result = search(["4.x"], q);
+      assert.equal(result.reason, "unknown_setting", q);
+      assert.deepEqual(result.missingPhrases, [phrase], q);
+    }
+  });
+});

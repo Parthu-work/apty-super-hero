@@ -41,13 +41,16 @@ export function createKbIndexSet(packs: readonly KbPack[]): KbIndex {
     };
   }
 
+  const holdsPhrase = (phrase: string) =>
+    indexes.some((index) => index.holdsPhrase(phrase));
+
   function search(
     query: string,
     options: KbSearchOptions = {},
   ): KbSearchResult {
     const topK = options.topK ?? 3;
     const results = indexes.map((index) =>
-      index.search(query, { ...options, topK: ALL_HITS }),
+      index.search(query, { holdsPhrase, ...options, topK: ALL_HITS }),
     );
     const closest = (list: KbSearchResult[]) =>
       [...list].sort(
@@ -87,6 +90,7 @@ export function createKbIndexSet(packs: readonly KbPack[]): KbIndex {
     info,
     vocabularyIdf: () =>
       indexes.flatMap((index) => index.vocabularyIdf()).sort((a, b) => a - b),
+    holdsPhrase,
     search,
     cardChunks: (pageId): KbChunk[] => owner(pageId)?.cardChunks(pageId) ?? [],
     card: (pageId): KbCard | undefined => owner(pageId)?.card(pageId),

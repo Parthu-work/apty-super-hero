@@ -216,6 +216,36 @@
     "expectedPageIds": []
   },
   {
+    "id": "d5-f1a",
+    "category": "product-name",
+    "q": "the DEMO widget is slow on the Admin Portal page",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-f1b",
+    "category": "product-name",
+    "q": "I turned on Developer Mode and the DEMO widget is slow to open",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-f1d",
+    "category": "setting-other-card",
+    "q": "the DEMO help bubble keeps blinking on hover, with the DEMO Resume Tour option on",
+    "expectedPageIds": ["2001"]
+  },
+  {
+    "id": "d5-f1e",
+    "category": "not-covered-setting",
+    "q": "the 'Smart Sync' option",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-f1f",
+    "category": "not-covered-setting",
+    "q": "turn on the Allowed Domains setting",
+    "expectedPageIds": []
+  },
+  {
     "id": "d5-r1",
     "category": "how-to",
     "q": "how do I configure a new launcher",

@@ -93,31 +93,120 @@ export function editDistance(a: string, b: string, max: number): number {
   return previous[b.length] ?? max + 1;
 }
 
-/** Proper nouns that are not Apty settings: a phrase of them is not checked against the cards. */
-export const NOT_A_SETTING = new Set([
-  "apty",
-  "chrome",
-  "google",
-  "microsoft",
-  "salesforce",
-  "network",
-  "console",
-  "elements",
-  "devtools",
-  "i",
-]);
+/** Browser and platform terms a question names that are never Apty settings. */
+export const BROWSER_TERMS = [
+  "Developer Mode",
+  "Service Worker",
+  "Preserve Log",
+  "Inspect Views",
+  "Network Tab",
+  "Console",
+  "Elements",
+  "DevTools",
+  "Chrome",
+  "Edge",
+  "Google",
+  "Microsoft",
+  "Windows",
+  "macOS",
+];
+
+/** Customer applications Apty runs on, never Apty settings. */
+export const CUSTOMER_APPLICATIONS = [
+  "Salesforce",
+  "Lightning",
+  "Workday",
+  "SAP",
+  "ServiceNow",
+  "Oracle",
+  "Dynamics",
+  "SuccessFactors",
+];
+
+/** Phrases, lower case, that are never Apty settings: a Title Case run made only of them is not checked. */
+export const NOT_A_SETTING: ReadonlySet<string> = new Set(
+  ["Apty", ...BROWSER_TERMS, ...CUSTOMER_APPLICATIONS].map((term) =>
+    term.toLowerCase(),
+  ),
+);
+const LONGEST_NOT_A_SETTING = Math.max(
+  ...[...NOT_A_SETTING].map((phrase) => phrase.split(" ").length),
+);
+
+/** Words that name a setting: a Title Case run is checked only within three words of one. */
+const SETTING_CUES = new Set(
+  [
+    "setting",
+    "settings",
+    "toggle",
+    "option",
+    "checkbox",
+    "switch",
+    "flag",
+    "field",
+    "enable",
+    "disable",
+    "set",
+    "configure",
+  ].map(stem),
+);
+/** Two-word cues, by the stems of their words: "turn on", "turned off". */
+const SETTING_CUE_PAIRS = [
+  ["turn", "on"],
+  ["turn", "off"],
+];
+const CUE_DISTANCE = 3;
 
 const QUOTED =
   /"([^"\n]{2,80})"|“([^”\n]{2,80})”|(?:^|\s)'([^'\n]{2,80})'(?=[\s.,;:!?)]|$)/g;
 const SENTENCE_SPLIT = /(?<=[.!?])\s+|\n+/;
 const TITLE_WORD = /^\p{Lu}[\p{L}\p{N}-]*$/u;
 
+/** Whether the run's words are all covered by phrases that are never settings. */
+function onlyNotASetting(words: string[]): boolean {
+  let at = 0;
+  outer: while (at < words.length) {
+    for (let size = LONGEST_NOT_A_SETTING; size >= 1; size--) {
+      const phrase = words
+        .slice(at, at + size)
+        .join(" ")
+        .toLowerCase();
+      if (at + size <= words.length && NOT_A_SETTING.has(phrase)) {
+        at += size;
+        continue outer;
+      }
+    }
+    return false;
+  }
+  return true;
+}
+
+/** The positions of the setting cues among a sentence's words. */
+function cuePositions(words: string[]): number[] {
+  const stems = words.map((word) => stem(word.toLowerCase()));
+  const found: number[] = [];
+  stems.forEach((term, i) => {
+    if (SETTING_CUES.has(term)) found.push(i);
+    if (SETTING_CUE_PAIRS.some(([a, b]) => term === a && stems[i + 1] === b)) {
+      found.push(i, i + 1);
+    }
+  });
+  return found;
+}
+
 /**
- * The phrases a question names as if they were settings: each quoted
- * phrase, and each run of two or more Title Case words, not counting a
- * sentence's first word or a proper noun such as "Chrome".
+ * The phrases a question names as if they were Apty settings: each quoted
+ * phrase, and each run of two or more Title Case words (not a sentence's
+ * first word) within three words of a setting cue such as "toggle",
+ * "option" or "turn on". A run made only of browser, platform or customer
+ * application names ("Developer Mode", "Salesforce Lightning") is never one.
+ * `everyRun` drops the cue condition: an answer's grounding check (K18)
+ * reads every Title Case run it names.
  */
-export function namedPhrases(text: string): string[] {
+export function namedPhrases(
+  text: string,
+  { everyRun = false }: { everyRun?: boolean } = {},
+): string[] {
   const found: string[] = [];
   for (const match of text.matchAll(QUOTED)) {
     const phrase = (match[1] ?? match[2] ?? match[3] ?? "").trim();
@@ -125,25 +214,35 @@ export function namedPhrases(text: string): string[] {
   }
   const unquoted = text.replace(QUOTED, " . ");
   for (const sentence of unquoted.split(SENTENCE_SPLIT)) {
-    let run: string[] = [];
-    const flush = () => {
-      if (run.length >= 2) found.push(run.join(" "));
-      run = [];
-    };
-    let position = 0;
+    const words: string[] = [];
+    const breakAfter: boolean[] = [];
     for (const raw of sentence.split(/\s+/)) {
       const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
       if (!word) continue;
-      const title =
-        position > 0 &&
-        TITLE_WORD.test(word) &&
-        !NOT_A_SETTING.has(word.toLowerCase());
-      position++;
-      if (title) run.push(word);
-      else flush();
-      if (title && /[,;:!?]$/.test(raw)) flush();
+      words.push(word);
+      breakAfter.push(/[,;:!?]$/.test(raw));
     }
-    flush();
+    const cues = cuePositions(words);
+    let start = -1;
+    const flush = (end: number) => {
+      if (start >= 0 && end - start >= 2) {
+        const run = words.slice(start, end);
+        const nearCue =
+          everyRun ||
+          cues.some(
+            (cue) => cue >= start - CUE_DISTANCE && cue < end + CUE_DISTANCE,
+          );
+        if (nearCue && !onlyNotASetting(run)) found.push(run.join(" "));
+      }
+      start = -1;
+    };
+    words.forEach((word, i) => {
+      const title = i > 0 && TITLE_WORD.test(word) && word !== "I";
+      if (title && start < 0) start = i;
+      if (!title) flush(i);
+      else if (breakAfter[i]) flush(i + 1);
+    });
+    flush(words.length);
   }
   return [...new Set(found)];
 }
@@ -159,6 +258,31 @@ export function containsPhrase(terms: string[], phrase: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Whether a phrase's terms appear in a row in any of `streams` (each card's
+ * terms, in order): built once per index, each term's positions indexed.
+ */
+export function createPhraseLookup(
+  streams: Iterable<readonly string[]>,
+): (phrase: string) => boolean {
+  const all = [...streams];
+  const at = new Map<string, Array<[number, number]>>();
+  all.forEach((terms, s) => {
+    terms.forEach((term, i) => {
+      const list = at.get(term);
+      if (list) list.push([s, i]);
+      else at.set(term, [[s, i]]);
+    });
+  });
+  return (phrase) => {
+    const wanted = analyze(phrase);
+    if (wanted.length === 0) return true;
+    return (at.get(wanted[0] as string) ?? []).some(([s, i]) =>
+      wanted.every((term, j) => all[s]?.[i + j] === term),
+    );
+  };
 }
 
 /**
