@@ -47,3 +47,10 @@ rememberable = "rememberable"
 # "unparseable" is the accepted spelling for a URL that cannot be parsed
 # (click-risk.test.ts); it is not a misspelling of "unparsable".
 unparseable = "unparseable"
+# KB-RAG K21 F5: the KB search's typo tests and the task prompt quote these
+# misspellings on purpose, to check that search still finds the card.
+apear = "apear"
+apearing = "apearing"
+baloon = "baloon"
+balon = "balon"
+widgt = "widgt"
