@@ -8,6 +8,7 @@ import {
   calibrate,
   calibrateCoverage,
   evaluate,
+  floorWarning,
   idfPercentiles,
   loadAgentCore,
   readPack,
@@ -128,6 +129,18 @@ describe("calibrateCoverage (schema 2)", () => {
     assert.equal(report.notCoveredRecall, 1);
     assert.equal(report.threshold, null);
     assert.deepEqual(calibrateCoverage(core, v2, questions), suggested);
+  });
+
+  it("F2: never suggests a coverage min below the floor, and warns when the best J is below it", () => {
+    const suggested = calibrateCoverage(core, v2, questions);
+    assert.ok(suggested.min >= 0.35, String(suggested.min));
+    assert.equal(suggested.floor, 0.35);
+    const high = calibrateCoverage(core, v2, questions, { floor: 0.9 });
+    assert.ok(high.min >= 0.9, String(high.min));
+    assert.ok(high.bestBelowFloor.j > high.j);
+    assert.match(floorWarning(high), /below the floor 0\.9/);
+    const low = calibrateCoverage(core, v2, questions, { floor: 0 });
+    assert.equal(floorWarning(low), undefined);
   });
 
   it("counts a stub as a hit when it is the expected card", async () => {

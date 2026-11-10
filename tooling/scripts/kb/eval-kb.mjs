@@ -13,6 +13,8 @@
  *
  * Usage: pnpm kb:eval --pack <file> --questions <file> [--calibrate]
  *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>]
+ *   [--coverage-min-floor <f>] (default 0.35: --calibrate never suggests a
+ *   lower coverage min, and warns when the best Youden J sits below it)
  *   [--by-category] [--json]
  *
  * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"?, "surface"? }]`;
@@ -31,6 +33,8 @@ const AGENT_CORE = new URL(
   import.meta.url,
 );
 const RANK_DEPTH = 10;
+/** The lowest coverage min calibration suggests (K21 F2): below it one shared word covers a question. */
+export const COVERAGE_MIN_FLOOR = 0.35;
 
 /** A workspace package's built module; a clear message when it is not built yet. */
 export async function loadBuilt(url, packageName) {
@@ -256,42 +260,71 @@ export function idfPercentiles(index) {
  * by Youden's J (covered recall + not-covered recall - 1), among the
  * settings that lose at most 0.02 of Recall@3 against the uncapped
  * ranking. Ties go to the higher Recall@3, then the lower `min` and
- * `minIdf`. `minTerms` stays at the pack's (default 1).
+ * `minIdf`. `minTerms` stays at the pack's (default 1). The suggested
+ * `min` is never below `floor` (default 0.35, K21 F2); `bestBelowFloor`
+ * names a better J below it, for `floorWarning`.
  */
-export function calibrateCoverage(core, pack, questions) {
+export function calibrateCoverage(
+  core,
+  pack,
+  questions,
+  { floor = COVERAGE_MIN_FLOOR } = {},
+) {
   const minTerms = pack.retrieval.coverage?.minTerms ?? 1;
   const baseline = evaluate(core, pack, questions, { coverage: UNCAPPED });
-  const floor = (baseline.recallAt3 ?? 0) - 0.02;
+  const recallFloor = (baseline.recallAt3 ?? 0) - 0.02;
   const percentiles = [...new Set(idfPercentiles(core.createKbIndex(pack)))];
+  const score = (min, minIdf) => {
+    const report = evaluate(core, pack, questions, {
+      coverage: { min, minIdf, minTerms },
+    });
+    return {
+      min,
+      minIdf,
+      minTerms,
+      j: round(
+        (report.coveredRecall ?? 0) + (report.notCoveredRecall ?? 0) - 1,
+      ),
+      recallAt3: report.recallAt3 ?? 0,
+      notCoveredPrecision: report.notCoveredPrecision,
+      notCoveredRecall: report.notCoveredRecall,
+    };
+  };
+  const better = (candidate, best) =>
+    !best ||
+    candidate.j > best.j ||
+    (candidate.j === best.j && candidate.recallAt3 > best.recallAt3);
   let best;
+  let bestAtFloor;
   for (let step = 1; step <= 19; step++) {
     const min = round(step * 0.05);
     for (const minIdf of percentiles) {
-      const report = evaluate(core, pack, questions, {
-        coverage: { min, minIdf, minTerms },
-      });
-      if ((report.recallAt3 ?? 0) < floor - 1e-9) continue;
-      const j = round(
-        (report.coveredRecall ?? 0) + (report.notCoveredRecall ?? 0) - 1,
-      );
-      const better =
-        !best ||
-        j > best.j ||
-        (j === best.j && (report.recallAt3 ?? 0) > best.recallAt3);
-      if (better) {
-        best = {
-          min,
-          minIdf,
-          minTerms,
-          j,
-          recallAt3: report.recallAt3 ?? 0,
-          notCoveredPrecision: report.notCoveredPrecision,
-          notCoveredRecall: report.notCoveredRecall,
-        };
+      const candidate = score(min, minIdf);
+      if (candidate.recallAt3 < recallFloor - 1e-9) continue;
+      if (better(candidate, best)) best = candidate;
+      if (min >= floor - 1e-9 && better(candidate, bestAtFloor)) {
+        bestAtFloor = candidate;
       }
     }
   }
-  return { ...best, uncappedRecallAt3: baseline.recallAt3 };
+  const chosen =
+    bestAtFloor ?? score(round(floor), best?.minIdf ?? percentiles[0] ?? 0);
+  return {
+    ...chosen,
+    uncappedRecallAt3: baseline.recallAt3,
+    floor,
+    ...(best && best.min < floor && best.j > chosen.j
+      ? { bestBelowFloor: { min: best.min, minIdf: best.minIdf, j: best.j } }
+      : {}),
+  };
+}
+
+/** The calibration warning, when the best Youden J sits below the floor. */
+export function floorWarning(suggested) {
+  const below = suggested.bestBelowFloor;
+  return below
+    ? `Warning: the best Youden J (${below.j}) is at coverage min ${below.min}, below the floor ${suggested.floor}; using min ${suggested.min} (J ${suggested.j}). Add questions, or check the cards, before lowering the floor.`
+    : undefined;
 }
 
 function format(report) {
@@ -322,6 +355,12 @@ function parseArgs(argv) {
     else if (flag === "--by-category") options.byCategory = true;
     else if (flag === "--pack" || flag === "--questions") {
       options[flag.slice(2)] = argv[++i];
+    } else if (flag === "--coverage-min-floor") {
+      const value = Number(argv[++i]);
+      if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error("--coverage-min-floor takes a number from 0 to 1.");
+      }
+      options.coverageMinFloor = value;
     } else if (flag === "--coverage-min" || flag === "--coverage-min-idf") {
       const value = Number(argv[++i]);
       if (!Number.isFinite(value) || value < 0) {
@@ -388,7 +427,11 @@ export async function run({
           }
         : {}),
       ...(options.calibrate && v2
-        ? { suggestedCoverage: calibrateCoverage(core, pack, questions) }
+        ? {
+            suggestedCoverage: calibrateCoverage(core, pack, questions, {
+              floor: options.coverageMinFloor ?? COVERAGE_MIN_FLOOR,
+            }),
+          }
         : {}),
       ...(options.calibrate && !v2
         ? { suggestedThreshold: calibrate(core, pack, questions) }
@@ -413,6 +456,8 @@ export async function run({
         out(
           `Suggested coverage: min ${c.min}, minIdf ${c.minIdf} (Youden J ${c.j}, Recall@3 ${c.recallAt3} against ${c.uncappedRecallAt3} uncapped). Build with --coverage-min ${c.min} --coverage-min-idf ${c.minIdf}.`,
         );
+        const warning = floorWarning(c);
+        if (warning) err(warning);
       }
       if (report.suggestedThreshold) {
         const s = report.suggestedThreshold;

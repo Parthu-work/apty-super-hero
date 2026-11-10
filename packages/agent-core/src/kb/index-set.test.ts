@@ -152,4 +152,26 @@ describe("createKbIndexSet", () => {
       "unknown_setting",
     );
   });
+
+  it("F2: another pack's stub sharing one generic word does not beat a covering card", () => {
+    const stubOnly = syntheticPack(
+      [
+        card("53", "FIXTURE checklist resets every week", "Checklist"),
+        {
+          pageId: "58",
+          title: "FIXTURE analytics missing in the dashboard",
+          symptom: "FIXTURE analytics never show in the reports.",
+          status: "stub",
+        },
+      ],
+      COVERAGE,
+      { schemaVersion: 2, aptyVersion: "5.x" } as never,
+    );
+    const result = createKbIndexSet([FOUR, stubOnly]).search(
+      "the beacon hides behind the menu and does not show",
+      { onePerCard: true },
+    );
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("41");
+  });
 });

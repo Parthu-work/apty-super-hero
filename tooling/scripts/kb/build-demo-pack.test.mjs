@@ -204,4 +204,14 @@ describe("K21 reproductions on the demo packs", () => {
       assert.deepEqual(result.missingPhrases, [phrase], q);
     }
   });
+
+  it("F2: a stub needs the question's own words, not one shared generic word", () => {
+    assert.notEqual(search(["4.x"], "widgt not showing").status, "stub");
+    const analytics = search(
+      ["4.x"],
+      "DEMO analytics events missing in the dashboard",
+    );
+    assert.equal(analytics.status, "stub");
+    assert.equal(analytics.card?.pageId, "4012");
+  });
 });

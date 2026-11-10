@@ -510,4 +510,48 @@ describe("stub and routing cards (schema v2)", () => {
     expect(result.status).toBe("ok");
     expect(result.hits[0]?.chunk.pageId).toBe("12");
   });
+
+  it("F2: a stub never wins on one generic shared word", () => {
+    const withShowStub = createKbIndex(
+      syntheticPack(
+        [
+          ...CARDS_FOR_STUB,
+          {
+            pageId: "19",
+            title: "FIXTURE gadget analytics missing in the dashboard",
+            symptom: "FIXTURE gadget analytics never show in the reports.",
+            status: "stub",
+          },
+        ],
+        { coverage: { min: 0.25, minIdf: 0.5, minTerms: 1 } },
+        V2,
+      ),
+    );
+    const generic = withShowStub.search("the doohickey does not show", {
+      onePerCard: true,
+    });
+    expect(generic.status).toBe("not_covered");
+    expect(generic.card).toBeUndefined();
+    const real = withShowStub.search(
+      "gadget analytics missing in the dashboard",
+      { onePerCard: true },
+    );
+    expect(real.status).toBe("stub");
+    expect(real.card?.pageId).toBe("19");
+  });
 });
+
+const CARDS_FOR_STUB: SyntheticCard[] = [
+  card("31", "FIXTURE banner never glows", [
+    "- In Studio, turn on the FIXTURE Glowing Banner setting.",
+    "- The FIXTURE banner slot must be on the page.",
+    "- glow.json lists glowIds (FIXTURE).",
+    "- Contact support when the banner still does not glow.",
+  ]),
+  card("32", "FIXTURE survey is blank", [
+    "- In Admin, set the FIXTURE Survey Locale for the user's language.",
+    "- The FIXTURE survey frame must load.",
+    "- survey.json lists questions per locale (FIXTURE).",
+    "- Contact support when the survey stays blank.",
+  ]),
+];

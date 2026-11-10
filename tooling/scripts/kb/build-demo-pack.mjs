@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { run as buildRun } from "./build-kb-pack.mjs";
 import {
   calibrateCoverage,
+  floorWarning,
   loadAgentCore,
   readPack,
   readQuestions,
@@ -139,6 +140,8 @@ export async function run({
       await readPack(core, readFileSync(first, "utf8")),
       questions,
     );
+    const warning = floorWarning(coverage);
+    if (warning) err(warning);
     const code = await build(
       [
         "--coverage-min",

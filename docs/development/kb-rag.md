@@ -160,7 +160,13 @@ Activation".
 
 **Stubs and routing.** A stub is searched on its title and symptom; when it
 is the best covered match the result is `status: "stub"` with the card
-(title, link, version, no text), never the nearest other card. A routing
+(title, link, version, no text), never the nearest other card. A stub wins
+only when it matches the question itself (K21 F2): it outscores the top
+full card, its own coverage reaches `max(coverage.min, 0.5)`, it matches two
+terms with idf ≥ `minIdf` (or the only one the question has), and one
+matched term is not a generic symptom word (`GENERIC_SYMPTOM_TERMS`: show,
+appear, work, load, open, display, see, missing, not, never, error, issue,
+problem, page, user). Otherwise the full cards decide alone. A routing
 card takes part in ranking and is never returned.
 
 ## Versions
@@ -276,7 +282,7 @@ warning, in Options and in Preflight (one row per version).
 ## Evaluation
 
 ```bash
-pnpm kb:eval --pack <file> --questions <file> [--calibrate] [--coverage-min <x>] [--coverage-min-idf <y>] [--by-category] [--json]
+pnpm kb:eval --pack <file> --questions <file> [--calibrate] [--coverage-min-floor <f>] [--coverage-min <x>] [--coverage-min-idf <y>] [--by-category] [--json]
 ```
 
 A questions file is a list of `{ "id", "category"?, "q", "expectedPageIds",
@@ -290,7 +296,9 @@ prints question or card text. `--by-category` prints the same per category.
 `--calibrate` grid-searches `coverage.min` (0.05 to 0.95) and `minIdf` (the
 vocabulary idf's 10th to 90th percentiles) for the best Youden J (covered
 recall + not-covered recall − 1), keeping Recall@3 within 0.02 of the
-uncapped ranking, and prints the `kb:pack` flags.
+uncapped ranking, and prints the `kb:pack` flags. It never suggests a
+`coverage.min` below `--coverage-min-floor` (default 0.35), and warns when
+the best J sits below the floor (K21 F2).
 
 **Gate (D-KB8), per version, on the real sets** (60 or more questions, at
 least 9 not covered, every category of FIXES.md 7.2, written in the owner's

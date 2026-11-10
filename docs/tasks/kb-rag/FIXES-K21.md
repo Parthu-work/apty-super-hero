@@ -487,7 +487,7 @@ Routing pages, never a `cardPageId`: 1509785663, 1509752991, 1509753248,
 
 ## Status
 
-IN PROGRESS: F12, F10, F3, F1 done; F4 partial.
+IN PROGRESS: F12, F10, F3, F1, F2 done; F4 partial.
 
 | Fix | State |
 | --- | --- |
@@ -496,7 +496,7 @@ IN PROGRESS: F12, F10, F3, F1 done; F4 partial.
 | F3 | done (KB owner to confirm the mapping) |
 | F4 | **partial**: no read access to aptyInc/apty-assist here. Done: the honest version line, 4.x confidence capped at "possible", the STATUS.md open item. Left: pin a `player3.0` commit and confirm each W4X/C4X rule (list in docs/STATUS.md), then set `FOUR_X_VERIFIED_ON` to "4.x code, apty-assist `<commit>` (`<player version>`); from code, not runtime-verified" and `FOUR_X_CONFIDENCE` to "likely". Needs: `git clone git@github.com:aptyInc/apty-assist.git ../apty-assist` |
 | F1 | done |
-| F2 | not started |
+| F2 | done |
 | F5 | not started |
 | F6 | not started |
 | F7 | not started |

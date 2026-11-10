@@ -7,6 +7,7 @@ import {
   type KbLayer,
   type KbPack,
 } from "./pack.js";
+import { stem } from "./stem.js";
 import { KB_SYNONYM_GROUPS, SYNONYM_MATCH } from "./synonyms.js";
 import {
   analyze,
@@ -394,7 +395,35 @@ interface Assessment {
   coverage: number;
   /** Matched terms with an idf of at least `minIdf`. */
   strongTerms: number;
+  /** The question's terms with an idf of at least `minIdf`, matched or not. */
+  strongQueryTerms: number;
+  /** The question's terms the card matches, in full, by synonym or approximately. */
+  matched: string[];
 }
+
+/** Words most symptoms share (stemmed): a stub needs a match beyond them. */
+export const GENERIC_SYMPTOM_TERMS: ReadonlySet<string> = new Set(
+  [
+    "show",
+    "appear",
+    "work",
+    "load",
+    "open",
+    "display",
+    "see",
+    "missing",
+    "not",
+    "never",
+    "error",
+    "issue",
+    "problem",
+    "page",
+    "user",
+  ].map(stem),
+);
+/** A stub has no layer text, so its title and symptom must carry at least this much of the question. */
+const STUB_MIN_COVERAGE = 0.5;
+const STUB_MIN_STRONG_TERMS = 2;
 
 /** A typo or a prefix: fuzzy from six characters for a word the KB does not hold, a prefix from four. */
 const FUZZY_MIN_CHARS = 6;
@@ -496,6 +525,8 @@ function corpusOf(
       let weighted = 0;
       let total = 0;
       let strongTerms = 0;
+      let strongQueryTerms = 0;
+      const matched: string[] = [];
       for (const term of terms) {
         const weight = idf(term);
         const inPhrase = [...synonyms.groupsIn([], lower)].filter((group) =>
@@ -515,11 +546,15 @@ function corpusOf(
               : 0;
         weighted += weight * match;
         total += weight;
+        if (weight >= minIdf) strongQueryTerms++;
+        if (match > 0) matched.push(term);
         if (match > 0 && weight >= minIdf) strongTerms++;
       }
       return {
         coverage: total === 0 ? 0 : weighted / total,
         strongTerms,
+        strongQueryTerms,
+        matched,
       };
     },
   };
@@ -598,6 +633,25 @@ function onePerCardOnly(hits: KbSearchHit[]): KbSearchHit[] {
 
 const splitQuery = (text: string) => text.split(" ").filter(Boolean);
 const asIs = (term: string) => term;
+
+/**
+ * Whether a stub matches the question itself, not one generic shared word
+ * (K21 F2): its title and symptom cover at least `max(min, 0.5)` of it, it
+ * matches two terms with an idf of at least `minIdf` (or the only one the
+ * question has), and one matched term is not a generic symptom word.
+ */
+function stubMatches(
+  assessment: Assessment,
+  settings: KbCoverageSettings,
+): boolean {
+  const { coverage, strongTerms, strongQueryTerms, matched } = assessment;
+  return (
+    coverage >= Math.max(settings.min, STUB_MIN_COVERAGE) &&
+    strongTerms >=
+      Math.min(STUB_MIN_STRONG_TERMS, Math.max(1, strongQueryTerms)) &&
+    matched.some((term) => !GENERIC_SYMPTOM_TERMS.has(term))
+  );
+}
 
 /**
  * The schema 2 index. BM25 (MiniSearch) ranks a chunk by its card's score
@@ -782,7 +836,9 @@ function createV2Index(pack: KbPack): KbIndex {
       .filter(([pageId]) => cards.get(pageId)?.status === "stub")
       .sort(([a, x], [b, y]) => y - x || comparePageIds(a, b))[0];
     const stubFirst =
-      stub !== undefined && (!top || stub[1] > top.score)
+      stub !== undefined &&
+      (!top || stub[1] > top.score) &&
+      stubMatches(corpus.assess(query, stub[0], settings.minIdf), settings)
         ? (cards.get(stub[0]) as KbCard)
         : undefined;
     if (!top && !stubFirst) {
