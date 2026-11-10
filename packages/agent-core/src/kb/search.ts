@@ -136,7 +136,7 @@ function comparePageIds(a: string, b: string): number {
   return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
 }
 
-export function compareHits(a: KbSearchHit, b: KbSearchHit): number {
+function compareHits(a: KbSearchHit, b: KbSearchHit): number {
   return (
     b.score - a.score ||
     comparePageIds(a.chunk.pageId, b.chunk.pageId) ||

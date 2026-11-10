@@ -1,6 +1,11 @@
-import type { KbAptyVersion, KbCard, KbChunk, KbPack } from "./pack.js";
 import {
-  compareHits,
+  KB_APTY_VERSIONS,
+  type KbAptyVersion,
+  type KbCard,
+  type KbChunk,
+  type KbPack,
+} from "./pack.js";
+import {
   createKbIndex,
   type KbIndex,
   type KbIndexInfo,
@@ -11,18 +16,41 @@ import {
 const ALL_HITS = 20;
 
 /**
+ * The order packs take turns in a merged result: the tab's version, then
+ * the common cards, then any other version (4.x before 5.x).
+ */
+function packOrder(
+  version: KbAptyVersion,
+  tabVersion: KbAptyVersion | "unknown",
+): number {
+  if (version === tabVersion) return 0;
+  if (version === "common") return 1;
+  return 2 + KB_APTY_VERSIONS.indexOf(version);
+}
+
+/**
  * One search over several packs (KB-RAG K12): a tab's version and the
  * common cards, or every loaded pack when the version is unknown. Each
  * pack is searched with its own index and settings, and the results are
  * merged the same way every time: when the best covered result (by
  * coverage) is a stub, that stub; otherwise the covered packs' hits by
- * score (ties by page id, then layer); else the uncovered result that came
- * closest. Page ids are unique across spaces, so a card
- * is in one pack only. Each hit carries its pack's version, and
- * `mixedVersions` says when the top two come from different versions.
+ * rank (K21 F9): BM25 scores from separate indexes are not comparable, so
+ * each pack's hits keep their own order and the packs take turns, in
+ * `packOrder`; else the uncovered result that came closest. Page ids are
+ * unique across spaces, so a card is in one pack only. Each hit carries its
+ * pack's version, and `mixedVersions` says when the top two come from
+ * different versions.
  */
-export function createKbIndexSet(packs: readonly KbPack[]): KbIndex {
-  const indexes = packs.map(createKbIndex);
+export function createKbIndexSet(
+  packs: readonly KbPack[],
+  { tabVersion = "unknown" }: { tabVersion?: KbAptyVersion | "unknown" } = {},
+): KbIndex {
+  const ordered = [...packs].sort(
+    (a, b) =>
+      packOrder(a.aptyVersion, tabVersion) -
+      packOrder(b.aptyVersion, tabVersion),
+  );
+  const indexes = ordered.map(createKbIndex);
   const info: KbIndexInfo = {
     aptyVersions: packs.map((pack) => pack.aptyVersion),
     cardCount: sum(indexes.map((index) => index.info.cardCount)),
@@ -63,10 +91,10 @@ export function createKbIndexSet(packs: readonly KbPack[]): KbIndex {
     if (best?.status === "stub") return { ...best, mixedVersions: false };
     const covered = results.filter((r) => r.status === "ok");
     if (covered.length > 0) {
-      const hits = covered
-        .flatMap((r) => r.hits)
-        .sort(compareHits)
-        .slice(0, Math.max(1, Math.floor(topK)));
+      const hits = roundRobin(covered.map((r) => r.hits)).slice(
+        0,
+        Math.max(1, Math.floor(topK)),
+      );
       return withMixed({
         status: "ok",
         hits,
@@ -95,6 +123,19 @@ export function createKbIndexSet(packs: readonly KbPack[]): KbIndex {
     cardChunks: (pageId): KbChunk[] => owner(pageId)?.cardChunks(pageId) ?? [],
     card: (pageId): KbCard | undefined => owner(pageId)?.card(pageId),
   };
+}
+
+/** Each list's first item, then each list's second, and so on: lists in the order given. */
+function roundRobin<T>(lists: readonly (readonly T[])[]): T[] {
+  const merged: T[] = [];
+  const longest = Math.max(0, ...lists.map((list) => list.length));
+  for (let rank = 0; rank < longest; rank++) {
+    for (const list of lists) {
+      const item = list[rank];
+      if (item !== undefined) merged.push(item);
+    }
+  }
+  return merged;
 }
 
 function withMixed(result: KbSearchResult): KbSearchResult {
