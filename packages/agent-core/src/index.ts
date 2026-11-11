@@ -155,6 +155,7 @@ export { stem } from "./kb/stem.js";
 export { KB_SYNONYM_GROUPS } from "./kb/synonyms.js";
 export {
   analyze as kbTerms,
+  CONTEXT_WORDS,
   containsPhrase as kbContainsPhrase,
   NOT_A_SETTING,
   namedPhrases,

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { KB_SYNONYM_GROUPS } from "./synonyms.js";
 import {
   analyze,
+  CONTEXT_WORDS,
   createPhraseLookup,
   createSynonymTable,
+  NOT_A_SETTING,
   namedPhrases,
 } from "./text.js";
 
@@ -111,5 +113,121 @@ describe("createPhraseLookup", () => {
     expect(holds("banner glows")).toBe(true);
     expect(holds("Setting Glowing")).toBe(false);
     expect(holds("Smart Sync")).toBe(false);
+  });
+});
+
+describe("K24-1: context words", () => {
+  const applications = [
+    "Salesforce",
+    "Lightning",
+    "Workday",
+    "SAP",
+    "S/4HANA",
+    "Fiori",
+    "SuccessFactors",
+    "Ariba",
+    "Concur",
+    "ServiceNow",
+    "Oracle",
+    "NetSuite",
+    "Dynamics",
+    "Dynamics 365",
+    "D365",
+    "Coupa",
+    "Veeva",
+    "Jira",
+    "Confluence",
+    "Zendesk",
+    "HubSpot",
+    "Epic",
+    "Cerner",
+    "Guidewire",
+    "Kronos",
+    "UKG",
+    "ADP",
+  ];
+  const places = [
+    "page",
+    "screen",
+    "form",
+    "record",
+    "incident",
+    "ticket",
+    "case",
+    "module",
+    "view",
+    "tab",
+    "window",
+    "section",
+    "list",
+    "grid",
+    "table",
+    "tile",
+    "home",
+    "dashboard",
+    "portal",
+    "app",
+    "application",
+    "site",
+    "tenant",
+    "org",
+  ];
+
+  it("holds every application and page-location word, stemmed as the index stems it", () => {
+    for (const word of [...applications, ...places]) {
+      const terms = analyze(word);
+      expect(terms.length, word).toBeGreaterThan(0);
+      for (const term of terms)
+        expect(CONTEXT_WORDS.has(term), word).toBe(true);
+    }
+    expect(CONTEXT_WORDS.has("pag")).toBe(true);
+    expect(CONTEXT_WORDS.has("salesforc")).toBe(true);
+  });
+
+  it("turns multi-word and punctuated names into their terms", () => {
+    expect(analyze("S/4HANA")).toEqual(["4hana"]);
+    expect(analyze("Dynamics 365")).toEqual(["dynamic", "365"]);
+    expect(analyze("SuccessFactors")).toEqual(["successfactor"]);
+  });
+
+  it("leaves browser and platform names out, so an off-topic browser question still counts them", () => {
+    for (const word of ["Chrome", "Edge", "Google", "Microsoft", "macOS"]) {
+      for (const term of analyze(word))
+        expect(CONTEXT_WORDS.has(term), word).toBe(false);
+    }
+    // "Windows" stems to "window", a page-location word.
+    expect(analyze("Windows")).toEqual(analyze("window"));
+  });
+
+  it("holds only single stemmed terms", () => {
+    for (const term of CONTEXT_WORDS) expect(analyze(term)).toEqual([term]);
+  });
+
+  it("keeps NOT_A_SETTING exactly as before (the setting-name guard does not change)", () => {
+    expect([...NOT_A_SETTING]).toEqual([
+      "apty",
+      "developer mode",
+      "service worker",
+      "preserve log",
+      "inspect views",
+      "network tab",
+      "console",
+      "elements",
+      "devtools",
+      "chrome",
+      "edge",
+      "google",
+      "microsoft",
+      "windows",
+      "macos",
+      "salesforce",
+      "lightning",
+      "workday",
+      "sap",
+      "servicenow",
+      "oracle",
+      "dynamics",
+      "successfactors",
+    ]);
   });
 });
