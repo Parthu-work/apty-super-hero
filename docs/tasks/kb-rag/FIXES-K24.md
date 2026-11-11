@@ -2,7 +2,9 @@
 
 11 Nov 2026 · Apty Customer Success
 
-**Status: IN PROGRESS** (K24-1 to K24-4 done; K24-5 next)
+**Status: DONE** (K24-1 to K24-5). Left to the KB owner, out of scope here:
+the real-card evaluation on the 4.x and 5.x packs, with names questions
+added to the real question sets.
 
 **This is a complete, self-contained implementation prompt for a coding
 agent.** Do every work package below, in order, until every acceptance check

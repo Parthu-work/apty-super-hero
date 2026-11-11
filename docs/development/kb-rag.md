@@ -154,6 +154,38 @@ A word no card holds gets the highest idf, so "saml", "kubernetes" or
 ≥ `coverage.minIdf` (so "apty widget" alone is never covered).
 Not covered: `reason: "no_match" | "low_coverage" | "unknown_setting"`.
 
+**Context words (K24).** SEs name the customer's application and where on
+it the problem is ("…on the ServiceNow incident form"). Such a word counts
+only when the top card holds it; when the card does not, it is left out of
+both sums, so it can raise coverage but never lower it. `CONTEXT_WORDS` in
+`packages/agent-core/src/kb/text.ts` holds two groups, stemmed as the index
+stems them:
+
+- customer applications: Salesforce, Lightning, Workday, SAP, S/4HANA,
+  Fiori, SuccessFactors, Ariba, Concur, ServiceNow, Oracle, NetSuite,
+  Dynamics (365), D365, Coupa, Veeva, Jira, Confluence, Zendesk, HubSpot,
+  Epic, Cerner, Guidewire, Kronos, UKG, ADP;
+- places on the page: page, screen, form, record, incident, ticket, case,
+  module, view, tab, window, section, list, grid, table, tile, home,
+  dashboard, portal, app, application, site, tenant, org, and the UI
+  element "button".
+
+A context word is left out only once the top card holds one of the
+question's other terms with idf ≥ `coverage.minIdf` exactly; a synonym
+alone does not put the card on the question's topic, so "the button on the
+form is disabled" stays not covered by the launcher card. A question made
+only of context words no card holds is `no_match`. The words left out come
+back as `contextIgnored` on the search result, for the eval and debugging;
+`search_kb` does not pass them to the model.
+
+Browser and platform names (Chrome, Edge, Google, Microsoft, Windows,
+macOS) are not context words: "chrome is not opening on my laptop" is
+off-topic, and leaving "chrome" out let it through. They stay in
+`NOT_A_SETTING`, which only the setting-name guard reads. ("Windows" stems
+to the page word "window", so it is left out like one; "Windows update
+fails on my laptop" stays not covered.) Every other word the KB has never
+seen keeps its full weight: that is how off-topic questions are caught.
+
 **Setting-name guard.** It stops invented settings, and only those (K21
 F1). A phrase is checked when it is quoted, or when it is a run of two or
 more Title Case words (not a sentence's first word) within three words of a
@@ -339,7 +371,10 @@ should not cover it; a stub counts as a hit when it is the expected card; a
 (a bare how-to, a question in another script) is left to the responder's
 tests. The report gives Recall@1, Recall@3, MRR, layer accuracy, "not
 covered" precision and recall, covered recall and each miss by id; it never
-prints question or card text. `--by-category` prints the same per category.
+prints question or card text. `--by-category` prints the same per category,
+and the share of answered questions without a layer hint (`hasLayerHint`)
+whose first hit is layer 4, the support layer (K24-4; measured, ranking
+unchanged).
 `--calibrate` grid-searches `coverage.min` (0.05 to 0.95) and `minIdf` (the
 vocabulary idf's 10th to 90th percentiles) for the best Youden J (covered
 recall + not-covered recall − 1), keeping Recall@3 within 0.02 of the
@@ -364,6 +399,7 @@ question passes.
 | Import refused: "malformed" | The file was edited or cut | Download it again; the owner rebuilds if it persists |
 | Import refused: "checksum" | Changed or truncated in transit | Download it again |
 | Everything is "not covered" | Coverage settings too strict for the pack, or the tab's version has no pack loaded | Rebuild with the calibrated flags; import the tab's version, or choose "Not sure" |
+| A question with an application name is not covered | The name is missing from `CONTEXT_WORDS`, so the word the KB has never seen pulls coverage down | Add it to `CUSTOMER_APPLICATIONS` in `packages/agent-core/src/kb/text.ts` (product names only, never card text) and re-run `pnpm kb:eval --by-category` |
 | Cards of the wrong version | The tab's version is unknown or was chosen wrongly | Pick the version on the KB matches or verdict card; a check's files decide it when one runs |
 | No KB card with no AI key | The message reads as a bare how-to, or nothing covers it | Name the symptom ("…does not show", "…flickers"). The KB answers symptoms, not how-to questions (D-KB1); for how to configure something, use the Apty product documentation or ask the KB owner. |
 | The model does not call `search_kb` | The message is casual, a bare how-to or a file request | Name the symptom or the Apty item; `tool-relevance.ts` lists the words |

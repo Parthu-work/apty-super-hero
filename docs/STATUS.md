@@ -76,6 +76,13 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
+- Application names and page places do not lower KB coverage (KB-RAG
+  K24, [`FIXES-K24.md`](tasks/kb-rag/FIXES-K24.md)): a context word (a
+  customer application or a place on the page, `CONTEXT_WORDS`) counts only
+  when the top card holds it, once the card already matches the question's
+  own topic; off-topic words keep their full weight. Both demo packs pass
+  every question, including the new `names` category; the real-card
+  evaluation is still the KB owner's.
 - KB text leaves only to an approved destination (KB-RAG K22,
   [`FIXES-K22.md`](tasks/kb-rag/FIXES-K22.md)): an organization policy in
   Chrome's managed storage ([`ORG_POLICY.md`](security/ORG_POLICY.md)) is

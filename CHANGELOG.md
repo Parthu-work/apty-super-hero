@@ -6,6 +6,11 @@ full commit-level history.
 
 ## Unreleased
 
+- **KB-RAG K24: application names and page places do not lower coverage** ([`FIXES-K24.md`](docs/tasks/kb-rag/FIXES-K24.md)):
+  - **K24-1**: `CONTEXT_WORDS` in `kb/text.ts`: 27 customer applications and the page-location words, stemmed as the index stems them; browser and platform names left out. `NOT_A_SETTING` (the setting-name guard) is unchanged.
+  - **K24-2**: coverage leaves out a context word the top card does not hold, once the card holds one of the question's other terms with idf ≥ `minIdf` exactly; a held one counts as before, and every other unknown word keeps its full weight. "DEMO balloon missing on the ServiceNow incident form" goes from not covered (0.17) to covered (0.49); off-topic questions, with or without an application name, stay not covered. The words left out are `contextIgnored` on the search result; `search_kb` does not send them to the model.
+  - **K24-3**: a `names` category in both demo question sets and the synthetic CI set.
+  - **K24-4**: the demo packs recalibrate to the same settings; `kb:eval --by-category` prints the share of unhinted questions whose first hit is layer 4 (4.x 4 of 31, 5.x 0 of 26).
 - **KB-RAG K22: KB text leaves only to an approved destination** ([`FIXES-K22.md`](docs/tasks/kb-rag/FIXES-K22.md); owner decisions D-SEC1 to D-SEC7):
   - **S1**: an organization policy in Chrome's managed storage (`managed-schema.json`, named by the manifest's `storage.managed_schema`), parsed strictly; one that cannot be read or does not parse acts as the most restrictive policy.
   - **S2**: every settings reader gets the settings with the policy applied (`loadEffectiveSettings()`, `npm run audit:settings-readers`); Options shows a policy-set field read-only with "Set by your organization", and a write to it is ignored.
