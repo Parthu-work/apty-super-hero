@@ -159,8 +159,12 @@ helper), `search.test.ts`.
   the card on the question's topic (4.x). (2) "button" is a context word, a
   UI element like "tab" or "tile": it counts when the card holds it but
   cannot put the card on the topic by itself (5.x, whose launcher card says
-  "launcher button"). Both are stricter than the rule above; every row of
-  "The bug" and every guard gives the result the brief expects.
+  "launcher button"). (3) After the PR's first CI run, the question's other
+  terms must also reach `coverage.min` on their own, or coverage is computed
+  as before: an E2E question ("check the form field values on this page")
+  became covered by a fixture card about page checks, from "check" and the
+  held word "page" alone. All three are stricter than the rule above; every
+  row of "The bug" and every guard gives the result the brief expects.
 - Return the skipped terms as `contextIgnored: string[]` on the assessment,
   and pass them through `KbSearchResult` (optional field) so the eval and the
   search_kb tool can show them. In search_kb's result text, say nothing new

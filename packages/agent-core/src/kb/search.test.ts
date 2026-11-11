@@ -954,6 +954,33 @@ describe("K24-2: context words count only when the card holds them", () => {
     expect(ordinary.contextIgnored).toBeUndefined();
   });
 
+  it("counts context words as before when the question's other words do not cover it", () => {
+    const small = createKbIndex(
+      syntheticPack(
+        [
+          card("101", "FIXTURE banner never glows", [
+            "- In Studio, turn on the FIXTURE Glowing Banner setting.",
+            "- FIXTURE page checks for the banner slot.",
+            "- FIXTURE glow.json lists glowIds.",
+            "- Send support: the FIXTURE version.",
+          ]),
+          card("202", "FIXTURE tooltip opens twice", [
+            "- In Studio, clear the FIXTURE Double Trigger setting.",
+            "- FIXTURE anchor element must be unique.",
+            "- FIXTURE tooltip.json lists triggerCount.",
+            "- Send support: the FIXTURE version.",
+          ]),
+        ],
+        { coverage: { min: 0.4, minIdf: 0.5, minTerms: 1 } },
+        V2,
+      ),
+    );
+    expect(small.search("check the field values").status).toBe("not_covered");
+    const withPlaces = small.search("check the form field values on this page");
+    expect(withPlaces.status).toBe("not_covered");
+    expect(withPlaces.contextIgnored).toBeUndefined();
+  });
+
   it("is no_match when the only words are context words no card holds", () => {
     expect(search("ServiceNow incident form")).toMatchObject({
       status: "not_covered",

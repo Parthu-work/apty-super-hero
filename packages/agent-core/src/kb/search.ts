@@ -581,7 +581,7 @@ function corpusOf(
     holdsPhrase,
     typosIn,
     vocabularyIdf: () => [...df.keys()].map(idf).sort((a, b) => a - b),
-    assess(query: string, pageId: string, minIdf: number): Assessment {
+    assess(query: string, pageId: string, minIdf: number, min = 0): Assessment {
       const own = cardSets.get(pageId) ?? new Set<string>();
       const terms = queryTerms(query);
       const typos = typosIn(query);
@@ -604,12 +604,18 @@ function corpusOf(
               : 0;
         return { term, weight: idf(term), match };
       });
+      const ownTerms = weighed.filter(({ term }) => !CONTEXT_WORDS.has(term));
+      const ownTotal = ownTerms.reduce((sum, { weight }) => sum + weight, 0);
+      const ownWeighted = ownTerms.reduce(
+        (sum, { weight, match }) => sum + weight * match,
+        0,
+      );
       const onTopic =
-        weighed.every(({ term }) => CONTEXT_WORDS.has(term)) ||
-        weighed.some(
-          ({ term, weight, match }) =>
-            match === 1 && weight >= minIdf && !CONTEXT_WORDS.has(term),
-        );
+        ownTerms.length === 0 ||
+        (ownTerms.some(
+          ({ weight, match }) => match === 1 && weight >= minIdf,
+        ) &&
+          ownWeighted >= min * ownTotal);
       let weighted = 0;
       let total = 0;
       let strongTerms = 0;
@@ -754,12 +760,13 @@ function stubMatches(
  * terms, with `idf(t) = ln(1 + N / (1 + df(t)))`, so a word no card holds
  * weighs most. A context word (`CONTEXT_WORDS`: the customer's application
  * or a place on its page) the card does not hold is left out of both sums
- * (K24), once the card holds one of the question's other terms with an idf
- * of at least `coverage.minIdf` exactly: a synonym alone does not put the
- * card on the question's topic. The question is covered when coverage reaches
- * `coverage.min` and `coverage.minTerms` matched terms have an idf of at
- * least `coverage.minIdf`, and some card holds every setting-like phrase
- * the question names (`namedPhrases`).
+ * (K24), once the question's other terms cover it on their own: the card
+ * holds one of them with an idf of at least `coverage.minIdf` exactly (a
+ * synonym alone does not put the card on the question's topic), and they
+ * reach `coverage.min` without the context words. The question is covered
+ * when coverage reaches `coverage.min` and `coverage.minTerms` matched terms
+ * have an idf of at least `coverage.minIdf`, and some card holds every
+ * setting-like phrase the question names (`namedPhrases`).
  */
 function createV2Index(pack: KbPack): KbIndex {
   const { cards, chunks, vectorsByChunk } = uniqueChunks(pack);
@@ -934,7 +941,10 @@ function createV2Index(pack: KbPack): KbIndex {
     const stubFirst =
       stub !== undefined &&
       (!top || stub[1] > top.score) &&
-      stubMatches(corpus.assess(query, stub[0], settings.minIdf), settings)
+      stubMatches(
+        corpus.assess(query, stub[0], settings.minIdf, settings.min),
+        settings,
+      )
         ? (cards.get(stub[0]) as KbCard)
         : undefined;
     if (!top && !stubFirst) {
@@ -949,6 +959,7 @@ function createV2Index(pack: KbPack): KbIndex {
       query,
       stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
       settings.minIdf,
+      settings.min,
     );
     const ignored =
       contextIgnored.length > 0 ? { contextIgnored } : ({} as const);

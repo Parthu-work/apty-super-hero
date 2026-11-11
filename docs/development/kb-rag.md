@@ -170,10 +170,14 @@ stems them:
   dashboard, portal, app, application, site, tenant, org, and the UI
   element "button".
 
-A context word is left out only once the top card holds one of the
-question's other terms with idf ≥ `coverage.minIdf` exactly; a synonym
-alone does not put the card on the question's topic, so "the button on the
-form is disabled" stays not covered by the launcher card. A question made
+A context word is left out only once the question's other terms cover it
+on their own: the top card holds one of them with idf ≥ `coverage.minIdf`
+exactly, and they reach `coverage.min` without the context words.
+Otherwise coverage is computed as before K24. So a synonym alone does not
+put the card on the question's topic ("the button on the form is disabled"
+stays not covered by the launcher card), and a held page word plus one
+shared verb does not either ("check the form field values on this page"
+against a card about page checks). A question made
 only of context words no card holds is `no_match`. The words left out come
 back as `contextIgnored` on the search result, for the eval and debugging;
 `search_kb` does not pass them to the model.
