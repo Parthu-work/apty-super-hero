@@ -63,12 +63,49 @@ const browserDeps: EffectiveSettingsDeps = {
 };
 
 /**
+ * The loaded packs, read once per page and kept until a pack is imported or
+ * removed (`noteKbPacksChanged`): reading them opens IndexedDB, which must
+ * not sit on the path of a save that a closing or reloading page waits on.
+ * A read that fails is not kept, so the next read tries again.
+ */
+let packCache = new WeakMap<EffectiveSettingsDeps, Promise<KbPackInfo[]>>();
+let packListener = false;
+
+function listenForPackChanges(): void {
+  if (packListener) return;
+  const onChanged =
+    typeof chrome !== "undefined" ? chrome.storage?.onChanged : undefined;
+  if (!onChanged) return;
+  packListener = true;
+  onChanged.addListener((changes, area) => {
+    if (area === "local" && KB_PACKS_CHANGED_KEY in changes) {
+      packCache = new WeakMap();
+    }
+  });
+}
+
+function packsOf(
+  deps: EffectiveSettingsDeps,
+  fresh = false,
+): Promise<KbPackInfo[]> {
+  listenForPackChanges();
+  const cached = fresh ? undefined : packCache.get(deps);
+  if (cached) return cached;
+  const read = deps.packs();
+  packCache.set(deps, read);
+  read.catch(() => {
+    if (packCache.get(deps) === read) packCache.delete(deps);
+  });
+  return read;
+}
+
+/**
  * Whether a pack that is not a demo pack is loaded. A store that cannot be
  * read counts as one: the floor it implies is the safer side.
  */
-async function nonDemoPackLoaded(deps: EffectiveSettingsDeps) {
+async function nonDemoPackLoaded(deps: EffectiveSettingsDeps, fresh = false) {
   try {
-    return (await deps.packs()).some((pack) => !isDemoKbPack(pack));
+    return (await packsOf(deps, fresh)).some((pack) => !isDemoKbPack(pack));
   } catch {
     return true;
   }
@@ -78,7 +115,7 @@ async function nonDemoPackLoaded(deps: EffectiveSettingsDeps) {
 export function loadKbPackInfos(
   deps: EffectiveSettingsDeps = browserDeps,
 ): Promise<KbPackInfo[]> {
-  return deps.packs();
+  return packsOf(deps);
 }
 
 /** The policy and pack state the settings were last merged with. */
@@ -87,10 +124,13 @@ interface Overlay {
   nonDemoPackLoaded: boolean;
 }
 
-async function loadOverlay(deps: EffectiveSettingsDeps): Promise<Overlay> {
+async function loadOverlay(
+  deps: EffectiveSettingsDeps,
+  fresh = false,
+): Promise<Overlay> {
   const [policy, nonDemo] = await Promise.all([
     deps.policy(),
-    nonDemoPackLoaded(deps),
+    nonDemoPackLoaded(deps, fresh),
   ]);
   return { policy, nonDemoPackLoaded: nonDemo };
 }
@@ -120,18 +160,14 @@ export async function saveSettings(
   next: AppSettings,
   deps: EffectiveSettingsDeps = browserDeps,
 ): Promise<(keyof AppSettings)[]> {
-  // What may be written depends on the policy alone (the packs only raise
-  // the redaction floor, which is applied on read). With nothing locked the
-  // write goes out at once, as it did before policies: a page that saves
-  // and then closes or reloads must not lose the write.
-  const policy = await deps.policy();
-  const bare = effectiveSettings({}, policy);
-  if (bare.locked.size === 0 && bare.customModelsAllowed) {
-    await deps.writeSettings(next);
-    return [];
-  }
-  const stored = await deps.storedSettings();
-  const effective = effectiveSettings(stored, policy);
+  // One storage read and the cached overlay, then the write: a page that
+  // saves and then closes or reloads must not lose it, so nothing slow
+  // (IndexedDB) is on this path.
+  const [stored, overlay] = await Promise.all([
+    deps.storedSettings(),
+    loadOverlay(deps),
+  ]);
+  const effective = effectiveSettings(stored, overlay.policy, overlay);
   const { settings, ignored } = settingsForWrite(stored, next, effective);
   if (ignored.length > 0) {
     log.warn(
@@ -176,7 +212,7 @@ export function watchEffectiveSettings(
   let latest = 0;
   const reload = () => {
     const mine = ++latest;
-    void loadOverlay(deps)
+    void loadOverlay(deps, true)
       .then(async (next) => {
         overlay = next;
         const stored = await deps.storedSettings().catch(() => ({}));
@@ -245,4 +281,10 @@ export function effectiveSettingsStorage(
       );
     },
   };
+}
+
+/** @internal Forgets the cached packs and their change listener. */
+export function resetEffectiveSettingsForTests(): void {
+  packCache = new WeakMap();
+  packListener = false;
 }

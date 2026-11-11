@@ -125,8 +125,9 @@ export function effectiveSettings(
 
 /**
  * What to store when Options (or any writer) saves `next`: a locked field
- * keeps its stored value, and custom models the policy forbids are not
- * kept. `ignored` names the locked fields the write tried to change to
+ * keeps its stored value, a field the overlay raised and the write leaves
+ * as raised keeps its stored value, and custom models the policy forbids
+ * are not kept. `ignored` names the locked fields the write tried to change to
  * something other than their stored or effective value (writing back the
  * settings as read is not an attempt).
  */
@@ -141,12 +142,23 @@ export function settingsForWrite(
   const settings: AppSettings = { ...next };
   const kept = settings as Record<string, unknown>;
   const ignored: (keyof AppSettings)[] = [];
+  const keepStored = (key: keyof AppSettings) => {
+    if (stored[key] === undefined) delete kept[key];
+    else kept[key] = stored[key];
+  };
   for (const key of effective.locked) {
     if (next[key] !== stored[key] && next[key] !== effective.settings[key]) {
       ignored.push(key);
     }
-    if (stored[key] === undefined) delete kept[key];
-    else kept[key] = stored[key];
+    keepStored(key);
+  }
+  // A field the overlay raised (the redaction floor) that the write leaves
+  // as the overlay set it is the SE's stored choice, not a new one: a save
+  // made from the effective settings must not turn the floor into it.
+  for (const key of Object.keys(effective.settings) as (keyof AppSettings)[]) {
+    if (effective.locked.has(key)) continue;
+    const raised = effective.settings[key];
+    if (raised !== stored[key] && next[key] === raised) keepStored(key);
   }
   if (!effective.customModelsAllowed && settings.customModels) {
     settings.customModels = settings.customModels.filter(
