@@ -2,7 +2,7 @@
 
 11 Nov 2026 · Apty Customer Success
 
-**Status: IN PROGRESS** (K24-1 done; K24-2 next)
+**Status: IN PROGRESS** (K24-1 and K24-2 done; K24-3 next)
 
 **This is a complete, self-contained implementation prompt for a coding
 agent.** Do every work package below, in order, until every acceptance check
@@ -64,7 +64,8 @@ Three more guards, which must stay not_covered: "Salesforce licence price for
 5.x demo question d5-n9, "chrome is not opening on my laptop".
 
 *As run:* on a fresh `239ea68` build the probe gives 0.12 and 0.19 for those
-two guards (not 0.16 and 0.27); both are not_covered either way.
+two guards; 0.16 and 0.27 are what they give after K24-2. Both are
+not_covered either way.
 
 **Prototype result** (11 Nov 2026, on a scratch build of `239ea68`, not
 committed). Skipping unmatched context words, with the K24-1 list minus
@@ -146,6 +147,18 @@ helper), `search.test.ts`.
 - If every query term is a context word the card does not hold, coverage is
   0 and the result is `no_match`, as today for a question with no matching
   terms.
+- *As run:* two additions keep an existing off-topic guard (K21 F7 in
+  `build-demo-pack.test.mjs`, "the DEMO button on the form is disabled")
+  not covered. On `239ea68` that question stayed below the minimum only
+  because "form" counted against it; without "form" the same question was
+  already covered by the launcher and beacon cards. (1) Unheld context words
+  are left out only once the card holds one of the question's other terms,
+  with an idf of at least `minIdf`, exactly: a synonym alone does not put
+  the card on the question's topic (4.x). (2) "button" is a context word, a
+  UI element like "tab" or "tile": it counts when the card holds it but
+  cannot put the card on the topic by itself (5.x, whose launcher card says
+  "launcher button"). Both are stricter than the rule above; every row of
+  "The bug" and every guard gives the result the brief expects.
 - Return the skipped terms as `contextIgnored: string[]` on the assessment,
   and pass them through `KbSearchResult` (optional field) so the eval and the
   search_kb tool can show them. In search_kb's result text, say nothing new

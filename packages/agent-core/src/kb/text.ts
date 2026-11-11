@@ -187,6 +187,7 @@ const PAGE_LOCATIONS = [
   "site",
   "tenant",
   "org",
+  "button",
 ];
 
 /**

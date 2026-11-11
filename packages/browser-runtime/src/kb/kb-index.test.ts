@@ -60,6 +60,23 @@ describe("kbToolResult", () => {
     expect(kbToolResult(index, "tooltip opens twice").status).toBe("ok");
   });
 
+  it("K24-2: keeps the context words coverage left out to diagnostics, never in the model's result", async () => {
+    const v2 = fixturePackText(
+      FIXTURE_CARDS,
+      { coverage: { min: 0.5, minIdf: 1, minTerms: 1 } },
+      { schemaVersion: 2 },
+    );
+    const index = await (await source(v2)).source.current();
+    const query = "tooltip opens twice on the ServiceNow form";
+    expect(index?.search(query).contextIgnored).toEqual(["servicenow", "form"]);
+    const result = kbToolResult(index, query);
+    expect(result.status).toBe("ok");
+    expect(JSON.stringify(result)).not.toMatch(/contextIgnored|servicenow/i);
+    expect(kbToolResult(index, "ServiceNow incident form").status).toBe(
+      "not_covered",
+    );
+  });
+
   it("names a card whose text is not written yet, with its link and no text", async () => {
     const index = await (await source(fixtureV2PackText())).source.current();
     expect(kbToolResult(index, "the gadget export never finishes")).toEqual({

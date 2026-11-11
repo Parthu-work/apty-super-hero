@@ -208,4 +208,17 @@ describe("createKbIndexSet", () => {
         .map((h) => h.chunk.pageId),
     ).toEqual(["71", "81"]);
   });
+
+  it("K24-2: reports the context words the top card's own pack left out", () => {
+    const query = "FIXTURE beacon hides behind the menu on the ServiceNow form";
+    const merged = createKbIndexSet([FOUR, FIVE, COMMON], {
+      tabVersion: "4.x",
+    }).search(query, { onePerCard: true });
+    expect(merged.status).toBe("ok");
+    expect(merged.hits[0]?.chunk.pageId).toBe("41");
+    expect(merged.contextIgnored).toEqual(["servicenow", "form"]);
+    expect(merged.contextIgnored).toEqual(
+      createKbIndex(FOUR).search(query).contextIgnored,
+    );
+  });
 });

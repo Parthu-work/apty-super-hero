@@ -171,6 +171,7 @@ describe("K24-1: context words", () => {
     "site",
     "tenant",
     "org",
+    "button",
   ];
 
   it("holds every application and page-location word, stemmed as the index stems it", () => {
