@@ -4,7 +4,7 @@ import {
   type SyntheticCard,
   syntheticPack,
 } from "./kb-test-utils.js";
-import { createKbIndex, layerHint } from "./search.js";
+import { createKbIndex, hasLayerHint, layerHint } from "./search.js";
 import { KB_SYNONYM_GROUPS } from "./synonyms.js";
 
 function card(
@@ -461,6 +461,20 @@ describe("layerHint", () => {
     ["the tooltip flickers", 1],
   ] as const)("%s → layer %i", (query, layer) => {
     expect(layerHint(query)).toBe(layer);
+  });
+
+  it("K24-4: tells a question that names a layer from one that does not", () => {
+    for (const query of [
+      "segments.json returned 403",
+      "what does flow.json mean",
+      "which selector in the Console",
+      "who do I contact in support",
+      "where is the setting in Studio",
+    ]) {
+      expect(hasLayerHint(query), query).toBe(true);
+    }
+    expect(hasLayerHint("the tooltip flickers")).toBe(false);
+    expect(hasLayerHint("DEMO player freezes the page on Workday")).toBe(false);
   });
 });
 

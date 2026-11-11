@@ -141,6 +141,7 @@ export {
 } from "./kb/pack.js";
 export {
   createKbIndex,
+  hasLayerHint,
   KB_COVERAGE_DEFAULTS,
   type KbCoverageSettings,
   type KbIndex,

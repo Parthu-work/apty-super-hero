@@ -664,14 +664,8 @@ const LAYER_HINTS: [KbLayer, RegExp][] = [
 const LAYER_HINT_BOOST = 1.3;
 const FILE_IN_QUERY = /\.(?:json|js)\b/;
 
-/**
- * The card layer a question asks about: the one whose words it uses most
- * (network data, then Console and Elements, then settings, then support on
- * a tie); with none, a question about a file asks for layer 3 and any
- * other for layer 1.
- */
-export function layerHint(query: string): KbLayer {
-  const lower = query.toLowerCase();
+/** The layer whose hint words the question uses most, if it uses any. */
+function hintedLayer(lower: string): KbLayer | undefined {
   let best: KbLayer | undefined;
   let bestCount = 0;
   for (const [layer, pattern] of LAYER_HINTS) {
@@ -681,7 +675,24 @@ export function layerHint(query: string): KbLayer {
       bestCount = count;
     }
   }
-  return best ?? (FILE_IN_QUERY.test(lower) ? 3 : 1);
+  return best;
+}
+
+/**
+ * The card layer a question asks about: the one whose words it uses most
+ * (network data, then Console and Elements, then settings, then support on
+ * a tie); with none, a question about a file asks for layer 3 and any
+ * other for layer 1.
+ */
+export function layerHint(query: string): KbLayer {
+  const lower = query.toLowerCase();
+  return hintedLayer(lower) ?? (FILE_IN_QUERY.test(lower) ? 3 : 1);
+}
+
+/** Whether the question names a layer: a layer's hint words, or a file. */
+export function hasLayerHint(query: string): boolean {
+  const lower = query.toLowerCase();
+  return hintedLayer(lower) !== undefined || FILE_IN_QUERY.test(lower);
 }
 
 function uniqueChunks(pack: KbPack) {

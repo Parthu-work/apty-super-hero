@@ -99,6 +99,41 @@ describe("evaluate", () => {
   });
 });
 
+describe("K24-4: layer 4 first", () => {
+  it("counts the answered questions without a layer hint whose first hit is layer 4", () => {
+    const layers = {
+      "the player freezes": 4,
+      "the hint is cropped": 1,
+      "who do I contact about the player": 4,
+      "kubernetes helm chart": undefined,
+    };
+    const stubCore = {
+      ...core,
+      createKbIndex: () => ({
+        info: { calibrated: false, mode: "bm25" },
+        search: (q) =>
+          layers[q] === undefined
+            ? { status: "not_covered", hits: [], coverage: 0 }
+            : {
+                status: "ok",
+                coverage: 1,
+                hits: [{ chunk: { pageId: "1", layer: layers[q] } }],
+              },
+      }),
+    };
+    const report = evaluate(
+      stubCore,
+      { schemaVersion: 2, retrieval: {} },
+      Object.keys(layers).map((q, i) => ({
+        id: `q${i}`,
+        q,
+        expectedPageIds: layers[q] === undefined ? [] : ["1"],
+      })),
+    );
+    assert.deepEqual(report.layer4First, { count: 1, of: 2, share: 0.5 });
+  });
+});
+
 describe("calibrate", () => {
   it("picks the lowest threshold that sorts the most questions correctly", () => {
     const result = calibrate(core, pack, questions);
@@ -284,6 +319,10 @@ describe("the CLI", () => {
     assert.match(text, /^ {2}short: 1 q, R@1 100%, R@3 100%/m);
     assert.match(text, /^ {2}how-to: left to the responder's tests$/m);
     assert.match(text, /^2 questions \(1 the KB should cover\)/m);
+    assert.match(
+      text,
+      /^Layer 4 first, questions without a layer hint: \d+ of 1 \(\d+%\)$/m,
+    );
     assert.ok(!text.includes("kubernetes"));
   });
 

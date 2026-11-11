@@ -121,6 +121,8 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
   let predictedNotCovered = 0;
   let correctNotCovered = 0;
   let coveredAnswered = 0;
+  let unhinted = 0;
+  let unhintedLayer4 = 0;
   const misses = [];
   for (const question of questions) {
     const result = index.search(question.q, {
@@ -133,6 +135,10 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
         : result.hits.map((hit) => hit.chunk.pageId);
     const expected = new Set(question.expectedPageIds);
     const notCovered = result.status === "not_covered";
+    if (result.hits.length > 0 && !core.hasLayerHint(question.q)) {
+      unhinted++;
+      if (result.hits[0].chunk.layer === 4) unhintedLayer4++;
+    }
     if (notCovered) predictedNotCovered++;
     if (expected.size === 0) {
       if (notCovered) correctNotCovered++;
@@ -186,6 +192,11 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
     notCoveredPrecision: ratio(correctNotCovered, predictedNotCovered),
     notCoveredRecall: ratio(correctNotCovered, trueNotCovered),
     coveredRecall: ratio(coveredAnswered, covered.length),
+    layer4First: {
+      count: unhintedLayer4,
+      of: unhinted,
+      share: ratio(unhintedLayer4, unhinted),
+    },
     misses,
   };
 }
@@ -442,6 +453,12 @@ export async function run({
     } else {
       out(format(report));
       const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(0)}%`);
+      if (report.byCategory) {
+        const l4 = report.layer4First;
+        out(
+          `Layer 4 first, questions without a layer hint: ${l4.count} of ${l4.of} (${pct(l4.share)})`,
+        );
+      }
       for (const c of report.byCategory ?? []) {
         if (c.responder) {
           out(`  ${c.category}: left to the responder's tests`);
