@@ -59,8 +59,8 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 describe("evaluate", () => {
   it("scores the synthetic set with the extension's own search, the same every run", () => {
     const report = evaluate(core, pack, questions);
-    assert.equal(report.questions, 10);
-    assert.equal(report.covered, 8);
+    assert.equal(report.questions, 13);
+    assert.equal(report.covered, 10);
     assert.equal(report.mode, "bm25");
     assert.equal(report.threshold, null);
     assert.equal(report.recallAt3, 1);
@@ -89,7 +89,7 @@ describe("evaluate", () => {
     assert.equal(strict.notCoveredRecall, 1);
     assert.deepEqual(
       strict.misses.map((m) => m.id),
-      ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"],
+      ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"],
     );
     assert.deepEqual(strict.misses[0], {
       id: "s1",
@@ -102,8 +102,8 @@ describe("evaluate", () => {
 describe("calibrate", () => {
   it("picks the lowest threshold that sorts the most questions correctly", () => {
     const result = calibrate(core, pack, questions);
-    assert.equal(result.questions, 10);
-    assert.equal(result.correctlySorted, 10);
+    assert.equal(result.questions, 13);
+    assert.equal(result.correctlySorted, 13);
     assert.ok(result.threshold > 0);
     assert.deepEqual(calibrate(core, pack, questions), result);
   });
@@ -199,9 +199,9 @@ describe("the CLI", () => {
     });
     const text = lines.join("\n");
     assert.equal(code, 0, text);
-    assert.match(text, /10 questions \(8 the KB should cover\), bm25/);
+    assert.match(text, /13 questions \(10 the KB should cover\), bm25/);
     assert.match(text, /Recall@1 .*Recall@3 100\.0%/);
-    assert.match(text, /Suggested threshold [\d.]+: sorts 10 of 10/);
+    assert.match(text, /Suggested threshold [\d.]+: sorts 13 of 13/);
     for (const secret of ["kubernetes", "Glowing Banner", "glowIds"]) {
       assert.ok(!text.includes(secret), secret);
     }

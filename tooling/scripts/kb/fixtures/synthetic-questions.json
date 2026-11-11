@@ -11,7 +11,11 @@
     "expectedPageIds": ["1001"],
     "expectedLayer": 3
   },
-  { "id": "s3", "q": "tooltip opens two times", "expectedPageIds": ["1002"] },
+  {
+    "id": "s3",
+    "q": "tooltip opens two times",
+    "expectedPageIds": ["1002"]
+  },
   {
     "id": "s4",
     "q": "Double Trigger option",
@@ -40,10 +44,32 @@
     "expectedPageIds": ["1002"],
     "expectedLayer": 2
   },
-  { "id": "n1", "q": "kubernetes helm chart rollout", "expectedPageIds": [] },
+  {
+    "id": "s9",
+    "category": "names",
+    "q": "the banner never glows on the Salesforce home page",
+    "expectedPageIds": ["1001"]
+  },
+  {
+    "id": "s10",
+    "category": "names",
+    "q": "survey is blank on the Workday dashboard tile",
+    "expectedPageIds": ["1003"]
+  },
+  {
+    "id": "n1",
+    "q": "kubernetes helm chart rollout",
+    "expectedPageIds": []
+  },
   {
     "id": "n2",
     "q": "which colour is the payroll banner",
+    "expectedPageIds": []
+  },
+  {
+    "id": "n3",
+    "category": "names",
+    "q": "Salesforce licence price for 50 users",
     "expectedPageIds": []
   }
 ]

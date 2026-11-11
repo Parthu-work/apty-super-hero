@@ -2,7 +2,7 @@
 
 11 Nov 2026 · Apty Customer Success
 
-**Status: IN PROGRESS** (K24-1 and K24-2 done; K24-3 next)
+**Status: IN PROGRESS** (K24-1 to K24-3 done; K24-4 next)
 
 **This is a complete, self-contained implementation prompt for a coding
 agent.** Do every work package below, in order, until every acceptance check
