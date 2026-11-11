@@ -284,5 +284,59 @@
     "q": "面板没有显示给新用户",
     "expectedPageIds": [],
     "surface": "responder"
+  },
+  {
+    "id": "d5-k1",
+    "category": "names",
+    "q": "DEMO widget slow on the ServiceNow incident form list view",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-k2",
+    "category": "names",
+    "q": "Salesforce Lightning page, DEMO widget is slow to open",
+    "expectedPageIds": ["2005"]
+  },
+  {
+    "id": "d5-k3",
+    "category": "names",
+    "q": "DEMO survey shows untranslated on the SuccessFactors home page",
+    "expectedPageIds": ["2006"]
+  },
+  {
+    "id": "d5-k4",
+    "category": "names",
+    "q": "DEMO tour stops on the Workday tenant home dashboard tile",
+    "expectedPageIds": ["2002"]
+  },
+  {
+    "id": "d5-k5",
+    "category": "names",
+    "q": "DEMO checklist repeats at each login in the Concur portal",
+    "expectedPageIds": ["2010"]
+  },
+  {
+    "id": "d5-k6",
+    "category": "names",
+    "q": "Salesforce licence price for 50 users",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-k7",
+    "category": "names",
+    "q": "Workday payroll tax rules",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-k8",
+    "category": "names",
+    "q": "the DEMO button on the form is disabled",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d5-k9",
+    "category": "names",
+    "q": "Windows update fails on my laptop",
+    "expectedPageIds": []
   }
 ]

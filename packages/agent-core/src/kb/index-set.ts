@@ -95,10 +95,12 @@ export function createKbIndexSet(
         0,
         Math.max(1, Math.floor(topK)),
       );
+      const contextIgnored = covered[0]?.contextIgnored;
       return withMixed({
         status: "ok",
         hits,
         coverage: Math.max(...covered.map((r) => r.coverage)),
+        ...(contextIgnored ? { contextIgnored } : {}),
       });
     }
     return (

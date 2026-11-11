@@ -11,6 +11,7 @@ import { stem } from "./stem.js";
 import { KB_SYNONYM_GROUPS, SYNONYM_MATCH } from "./synonyms.js";
 import {
   analyze,
+  CONTEXT_WORDS,
   createPhraseLookup,
   createSynonymTable,
   editDistance,
@@ -74,6 +75,8 @@ export interface KbSearchResult {
   reason?: KbNotCoveredReason;
   /** With `unknown_setting`: the setting-like phrases the question names that no card searched holds. */
   missingPhrases?: string[];
+  /** Diagnostics: the question's context words (application or page place) the top card does not hold, left out of coverage. */
+  contextIgnored?: string[];
 }
 
 /** When the top card covers a question (schema 2); calibrated per pack by `eval-kb.mjs`. */
@@ -401,6 +404,8 @@ interface Assessment {
   strongQueryTerms: number;
   /** The question's terms the card matches, in full, by synonym or approximately. */
   matched: string[];
+  /** The question's context words the card does not hold: left out of coverage. */
+  contextIgnored: string[];
 }
 
 /** Words most symptoms share (stemmed): a stub needs a match beyond them. */
@@ -576,18 +581,12 @@ function corpusOf(
     holdsPhrase,
     typosIn,
     vocabularyIdf: () => [...df.keys()].map(idf).sort((a, b) => a - b),
-    assess(query: string, pageId: string, minIdf: number): Assessment {
+    assess(query: string, pageId: string, minIdf: number, min = 0): Assessment {
       const own = cardSets.get(pageId) ?? new Set<string>();
       const terms = queryTerms(query);
       const typos = typosIn(query);
       const lower = normalize(query).replace(/\s+/g, " ");
-      let weighted = 0;
-      let total = 0;
-      let strongTerms = 0;
-      let strongQueryTerms = 0;
-      const matched: string[] = [];
-      for (const term of terms) {
-        const weight = idf(term);
+      const weighed = terms.map((term) => {
         const inPhrase = [...synonyms.groupsIn([], lower)].filter((group) =>
           synonyms
             .phrases(group)
@@ -603,6 +602,31 @@ function corpusOf(
             : approximate(term, own, typos.get(term) ?? [])
               ? APPROXIMATE_MATCH
               : 0;
+        return { term, weight: idf(term), match };
+      });
+      const ownTerms = weighed.filter(({ term }) => !CONTEXT_WORDS.has(term));
+      const ownTotal = ownTerms.reduce((sum, { weight }) => sum + weight, 0);
+      const ownWeighted = ownTerms.reduce(
+        (sum, { weight, match }) => sum + weight * match,
+        0,
+      );
+      const onTopic =
+        ownTerms.length === 0 ||
+        (ownTerms.some(
+          ({ weight, match }) => match === 1 && weight >= minIdf,
+        ) &&
+          ownWeighted >= min * ownTotal);
+      let weighted = 0;
+      let total = 0;
+      let strongTerms = 0;
+      let strongQueryTerms = 0;
+      const matched: string[] = [];
+      const contextIgnored: string[] = [];
+      for (const { term, weight, match } of weighed) {
+        if (onTopic && match === 0 && CONTEXT_WORDS.has(term)) {
+          contextIgnored.push(term);
+          continue;
+        }
         weighted += weight * match;
         total += weight;
         if (weight >= minIdf) strongQueryTerms++;
@@ -614,6 +638,7 @@ function corpusOf(
         strongTerms,
         strongQueryTerms,
         matched,
+        contextIgnored,
       };
     },
   };
@@ -645,14 +670,8 @@ const LAYER_HINTS: [KbLayer, RegExp][] = [
 const LAYER_HINT_BOOST = 1.3;
 const FILE_IN_QUERY = /\.(?:json|js)\b/;
 
-/**
- * The card layer a question asks about: the one whose words it uses most
- * (network data, then Console and Elements, then settings, then support on
- * a tie); with none, a question about a file asks for layer 3 and any
- * other for layer 1.
- */
-export function layerHint(query: string): KbLayer {
-  const lower = query.toLowerCase();
+/** The layer whose hint words the question uses most, if it uses any. */
+function hintedLayer(lower: string): KbLayer | undefined {
   let best: KbLayer | undefined;
   let bestCount = 0;
   for (const [layer, pattern] of LAYER_HINTS) {
@@ -662,7 +681,24 @@ export function layerHint(query: string): KbLayer {
       bestCount = count;
     }
   }
-  return best ?? (FILE_IN_QUERY.test(lower) ? 3 : 1);
+  return best;
+}
+
+/**
+ * The card layer a question asks about: the one whose words it uses most
+ * (network data, then Console and Elements, then settings, then support on
+ * a tie); with none, a question about a file asks for layer 3 and any
+ * other for layer 1.
+ */
+export function layerHint(query: string): KbLayer {
+  const lower = query.toLowerCase();
+  return hintedLayer(lower) ?? (FILE_IN_QUERY.test(lower) ? 3 : 1);
+}
+
+/** Whether the question names a layer: a layer's hint words, or a file. */
+export function hasLayerHint(query: string): boolean {
+  const lower = query.toLowerCase();
+  return hintedLayer(lower) !== undefined || FILE_IN_QUERY.test(lower);
 }
 
 function uniqueChunks(pack: KbPack) {
@@ -722,10 +758,15 @@ function stubMatches(
  * coverage decides whether the top card covers the question at all:
  * `coverage = Σ idf(t)·match(t) / Σ idf(t)` over the question's distinct
  * terms, with `idf(t) = ln(1 + N / (1 + df(t)))`, so a word no card holds
- * weighs most. The question is covered when coverage reaches
- * `coverage.min` and `coverage.minTerms` matched terms have an idf of at
- * least `coverage.minIdf`, and some card holds every setting-like phrase
- * the question names (`namedPhrases`).
+ * weighs most. A context word (`CONTEXT_WORDS`: the customer's application
+ * or a place on its page) the card does not hold is left out of both sums
+ * (K24), once the question's other terms cover it on their own: the card
+ * holds one of them with an idf of at least `coverage.minIdf` exactly (a
+ * synonym alone does not put the card on the question's topic), and they
+ * reach `coverage.min` without the context words. The question is covered
+ * when coverage reaches `coverage.min` and `coverage.minTerms` matched terms
+ * have an idf of at least `coverage.minIdf`, and some card holds every
+ * setting-like phrase the question names (`namedPhrases`).
  */
 function createV2Index(pack: KbPack): KbIndex {
   const { cards, chunks, vectorsByChunk } = uniqueChunks(pack);
@@ -900,7 +941,10 @@ function createV2Index(pack: KbPack): KbIndex {
     const stubFirst =
       stub !== undefined &&
       (!top || stub[1] > top.score) &&
-      stubMatches(corpus.assess(query, stub[0], settings.minIdf), settings)
+      stubMatches(
+        corpus.assess(query, stub[0], settings.minIdf, settings.min),
+        settings,
+      )
         ? (cards.get(stub[0]) as KbCard)
         : undefined;
     if (!top && !stubFirst) {
@@ -911,11 +955,14 @@ function createV2Index(pack: KbPack): KbIndex {
         reason: "no_match",
       };
     }
-    const { coverage, strongTerms } = corpus.assess(
+    const { coverage, strongTerms, contextIgnored } = corpus.assess(
       query,
       stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
       settings.minIdf,
+      settings.min,
     );
+    const ignored =
+      contextIgnored.length > 0 ? { contextIgnored } : ({} as const);
     const holds = options.holdsPhrase ?? corpus.holdsPhrase;
     const missingPhrases = namedPhrases(query).filter(
       (phrase) => !holds(phrase),
@@ -927,6 +974,7 @@ function createV2Index(pack: KbPack): KbIndex {
         coverage,
         reason: "unknown_setting",
         missingPhrases,
+        ...ignored,
       };
     }
     const covered =
@@ -937,7 +985,9 @@ function createV2Index(pack: KbPack): KbIndex {
         status: "not_covered",
         hits: [],
         coverage,
-        reason: "low_coverage",
+        reason:
+          contextIgnored.length === terms.length ? "no_match" : "low_coverage",
+        ...ignored,
       };
     }
     if (stubFirst) {
@@ -947,10 +997,11 @@ function createV2Index(pack: KbPack): KbIndex {
         coverage,
         card: stubFirst,
         cardVersion: pack.aptyVersion,
+        ...ignored,
       };
     }
     const hits = options.onePerCard ? onePerCardOnly(ranked) : ranked;
-    return { status: "ok", hits: hits.slice(0, topK), coverage };
+    return { status: "ok", hits: hits.slice(0, topK), coverage, ...ignored };
   }
 
   return {

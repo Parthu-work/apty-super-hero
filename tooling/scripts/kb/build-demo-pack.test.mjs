@@ -99,6 +99,7 @@ describe("kb:demo-pack", () => {
         "not-covered-domain",
         "how-to",
         "non-english",
+        "names",
       ]) {
         assert.ok(categories.has(category), `${version}: ${category}`);
       }

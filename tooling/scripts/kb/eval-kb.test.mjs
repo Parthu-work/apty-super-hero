@@ -59,8 +59,8 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 describe("evaluate", () => {
   it("scores the synthetic set with the extension's own search, the same every run", () => {
     const report = evaluate(core, pack, questions);
-    assert.equal(report.questions, 10);
-    assert.equal(report.covered, 8);
+    assert.equal(report.questions, 13);
+    assert.equal(report.covered, 10);
     assert.equal(report.mode, "bm25");
     assert.equal(report.threshold, null);
     assert.equal(report.recallAt3, 1);
@@ -89,7 +89,7 @@ describe("evaluate", () => {
     assert.equal(strict.notCoveredRecall, 1);
     assert.deepEqual(
       strict.misses.map((m) => m.id),
-      ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"],
+      ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"],
     );
     assert.deepEqual(strict.misses[0], {
       id: "s1",
@@ -99,11 +99,46 @@ describe("evaluate", () => {
   });
 });
 
+describe("K24-4: layer 4 first", () => {
+  it("counts the answered questions without a layer hint whose first hit is layer 4", () => {
+    const layers = {
+      "the player freezes": 4,
+      "the hint is cropped": 1,
+      "who do I contact about the player": 4,
+      "kubernetes helm chart": undefined,
+    };
+    const stubCore = {
+      ...core,
+      createKbIndex: () => ({
+        info: { calibrated: false, mode: "bm25" },
+        search: (q) =>
+          layers[q] === undefined
+            ? { status: "not_covered", hits: [], coverage: 0 }
+            : {
+                status: "ok",
+                coverage: 1,
+                hits: [{ chunk: { pageId: "1", layer: layers[q] } }],
+              },
+      }),
+    };
+    const report = evaluate(
+      stubCore,
+      { schemaVersion: 2, retrieval: {} },
+      Object.keys(layers).map((q, i) => ({
+        id: `q${i}`,
+        q,
+        expectedPageIds: layers[q] === undefined ? [] : ["1"],
+      })),
+    );
+    assert.deepEqual(report.layer4First, { count: 1, of: 2, share: 0.5 });
+  });
+});
+
 describe("calibrate", () => {
   it("picks the lowest threshold that sorts the most questions correctly", () => {
     const result = calibrate(core, pack, questions);
-    assert.equal(result.questions, 10);
-    assert.equal(result.correctlySorted, 10);
+    assert.equal(result.questions, 13);
+    assert.equal(result.correctlySorted, 13);
     assert.ok(result.threshold > 0);
     assert.deepEqual(calibrate(core, pack, questions), result);
   });
@@ -199,9 +234,9 @@ describe("the CLI", () => {
     });
     const text = lines.join("\n");
     assert.equal(code, 0, text);
-    assert.match(text, /10 questions \(8 the KB should cover\), bm25/);
+    assert.match(text, /13 questions \(10 the KB should cover\), bm25/);
     assert.match(text, /Recall@1 .*Recall@3 100\.0%/);
-    assert.match(text, /Suggested threshold [\d.]+: sorts 10 of 10/);
+    assert.match(text, /Suggested threshold [\d.]+: sorts 13 of 13/);
     for (const secret of ["kubernetes", "Glowing Banner", "glowIds"]) {
       assert.ok(!text.includes(secret), secret);
     }
@@ -284,6 +319,10 @@ describe("the CLI", () => {
     assert.match(text, /^ {2}short: 1 q, R@1 100%, R@3 100%/m);
     assert.match(text, /^ {2}how-to: left to the responder's tests$/m);
     assert.match(text, /^2 questions \(1 the KB should cover\)/m);
+    assert.match(
+      text,
+      /^Layer 4 first, questions without a layer hint: \d+ of 1 \(\d+%\)$/m,
+    );
     assert.ok(!text.includes("kubernetes"));
   });
 

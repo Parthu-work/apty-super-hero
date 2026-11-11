@@ -4,7 +4,7 @@ import {
   type SyntheticCard,
   syntheticPack,
 } from "./kb-test-utils.js";
-import { createKbIndex, layerHint } from "./search.js";
+import { createKbIndex, hasLayerHint, layerHint } from "./search.js";
 import { KB_SYNONYM_GROUPS } from "./synonyms.js";
 
 function card(
@@ -462,6 +462,20 @@ describe("layerHint", () => {
   ] as const)("%s → layer %i", (query, layer) => {
     expect(layerHint(query)).toBe(layer);
   });
+
+  it("K24-4: tells a question that names a layer from one that does not", () => {
+    for (const query of [
+      "segments.json returned 403",
+      "what does flow.json mean",
+      "which selector in the Console",
+      "who do I contact in support",
+      "where is the setting in Studio",
+    ]) {
+      expect(hasLayerHint(query), query).toBe(true);
+    }
+    expect(hasLayerHint("the tooltip flickers")).toBe(false);
+    expect(hasLayerHint("DEMO player freezes the page on Workday")).toBe(false);
+  });
 });
 
 describe("stub and routing cards (schema v2)", () => {
@@ -806,5 +820,226 @@ describe("F7: synonym groups that do not collide", () => {
     expect(top("the help icon is gone").hits[0]?.chunk.pageId).toBe("952");
     expect(top("I tried it again").hits[0]?.chunk.pageId).not.toBe("953");
     expect(top("the checklist shows again").hits[0]?.chunk.pageId).toBe("953");
+  });
+});
+
+describe("K24-2: context words count only when the card holds them", () => {
+  const CONTEXT_CARDS = [
+    card("901", "FIXTURE balloon missing on the field", [
+      "- In Studio, set the FIXTURE Balloon Trigger to focus.",
+      "- The FIXTURE field must hold the balloon anchor.",
+      "- balloon.json lists triggerType (FIXTURE).",
+      "- Send support the FIXTURE balloon id.",
+    ]),
+    card("902", "FIXTURE flow skips a step", [
+      "- In Studio, check the FIXTURE Step Order.",
+      "- The FIXTURE step anchor must be unique.",
+      "- flow.json lists steps (FIXTURE).",
+      "- Send support the FIXTURE flow id.",
+    ]),
+    card("903", "FIXTURE player freezes the page", [
+      "- In Admin, lower the FIXTURE Player Polling setting.",
+      "- The FIXTURE page must not reload the player.",
+      "- player.json lists pollMs (FIXTURE).",
+      "- Send support the FIXTURE player log.",
+    ]),
+    card("904", "FIXTURE widget survey is blank", [
+      "- In Admin, set the FIXTURE Survey Locale.",
+      "- The FIXTURE survey frame must load.",
+      "- survey.json lists questions per locale (FIXTURE).",
+      "- Send support the FIXTURE survey id.",
+    ]),
+    card("905", "FIXTURE hint is cropped", [
+      "- In Studio, set the FIXTURE Hint Width.",
+      "- The FIXTURE hint container must not clip.",
+      "- hint.json lists width (FIXTURE).",
+      "- Send support a FIXTURE screenshot.",
+    ]),
+  ];
+  const index = createKbIndex(
+    syntheticPack(
+      CONTEXT_CARDS,
+      { coverage: { min: 0.35, minIdf: 0.5, minTerms: 1 } },
+      V2,
+    ),
+  );
+  const search = (query: string) => index.search(query, { onePerCard: true });
+
+  it("covers a covered symptom when the question also names the application and the place", () => {
+    const plain = search("FIXTURE balloon missing");
+    expect(plain.status).toBe("ok");
+    expect(plain.hits[0]?.chunk.pageId).toBe("901");
+    for (const query of [
+      "FIXTURE balloon missing on the ServiceNow incident form",
+      "Salesforce Lightning page, FIXTURE balloon missing",
+      "FIXTURE balloon missing on the SuccessFactors page",
+    ]) {
+      const result = search(query);
+      expect(result.status, query).toBe("ok");
+      expect(result.hits[0]?.chunk.pageId, query).toBe("901");
+      expect(result.coverage, query).toBeGreaterThanOrEqual(plain.coverage);
+    }
+    const workday = search(
+      "FIXTURE balloon does not appear on the field in Workday",
+    );
+    expect(workday.status).toBe("ok");
+    expect(workday.hits[0]?.chunk.pageId).toBe("901");
+    expect(workday.coverage).toBe(
+      search("FIXTURE balloon does not appear on the field").coverage,
+    );
+  });
+
+  it("keeps off-topic questions, with or without an application name, not covered", () => {
+    for (const query of [
+      "kubernetes pod CrashLoopBackOff",
+      "how do I configure SAML SSO",
+      "Salesforce licence price for 50 users",
+      "Workday payroll tax rules",
+      "chrome is not opening on my laptop",
+    ]) {
+      expect(search(query).status, query).toBe("not_covered");
+    }
+    expect(search("kubernetes pod CrashLoopBackOff").reason).toBe("no_match");
+    expect(search("where is the Widget Activation toggle")).toMatchObject({
+      status: "not_covered",
+      reason: "unknown_setting",
+    });
+  });
+
+  it("lists exactly the context words it left out, and none the card holds", () => {
+    expect(
+      search("FIXTURE balloon missing on the ServiceNow incident form")
+        .contextIgnored,
+    ).toEqual(["servicenow", "incident", "form"]);
+    expect(
+      search("Salesforce Lightning page, FIXTURE balloon missing")
+        .contextIgnored,
+    ).toEqual(["salesforc", "lightn", "pag"]);
+    const held = search("FIXTURE player freezes the page in Workday");
+    expect(held.hits[0]?.chunk.pageId).toBe("903");
+    expect(held.contextIgnored).toEqual(["workday"]);
+    expect(search("FIXTURE balloon missing").contextIgnored).toBeUndefined();
+  });
+
+  it("gives a left-out context word no weight at all: coverage is that of the question without it", () => {
+    expect(
+      search("FIXTURE balloon missing on the ServiceNow incident form")
+        .coverage,
+    ).toBe(search("FIXTURE balloon missing").coverage);
+  });
+
+  it("counts a context word as before when the card matches nothing of the question's own topic exactly", () => {
+    const launcher = createKbIndex(
+      syntheticPack(
+        [
+          ...CONTEXT_CARDS,
+          card("908", "FIXTURE launcher button missing", [
+            "- In Studio, turn on the FIXTURE Launcher Icon.",
+            "- The FIXTURE launcher slot must be visible.",
+            "- launcher.json lists iconUrl (FIXTURE).",
+            "- Send support the FIXTURE launcher id.",
+          ]),
+        ],
+        { coverage: { min: 0.6, minIdf: 1, minTerms: 1 } },
+        V2,
+      ),
+    );
+    const ordinary = launcher.search(
+      "the FIXTURE button on the form is disabled",
+      {
+        onePerCard: true,
+      },
+    );
+    expect(ordinary.status).toBe("not_covered");
+    expect(ordinary.contextIgnored).toBeUndefined();
+  });
+
+  it("counts context words as before when the question's other words do not cover it", () => {
+    const small = createKbIndex(
+      syntheticPack(
+        [
+          card("101", "FIXTURE banner never glows", [
+            "- In Studio, turn on the FIXTURE Glowing Banner setting.",
+            "- FIXTURE page checks for the banner slot.",
+            "- FIXTURE glow.json lists glowIds.",
+            "- Send support: the FIXTURE version.",
+          ]),
+          card("202", "FIXTURE tooltip opens twice", [
+            "- In Studio, clear the FIXTURE Double Trigger setting.",
+            "- FIXTURE anchor element must be unique.",
+            "- FIXTURE tooltip.json lists triggerCount.",
+            "- Send support: the FIXTURE version.",
+          ]),
+        ],
+        { coverage: { min: 0.4, minIdf: 0.5, minTerms: 1 } },
+        V2,
+      ),
+    );
+    expect(small.search("check the field values").status).toBe("not_covered");
+    const withPlaces = small.search("check the form field values on this page");
+    expect(withPlaces.status).toBe("not_covered");
+    expect(withPlaces.contextIgnored).toBeUndefined();
+  });
+
+  it("is no_match when the only words are context words no card holds", () => {
+    expect(search("ServiceNow incident form")).toMatchObject({
+      status: "not_covered",
+      reason: "no_match",
+      coverage: 0,
+    });
+  });
+
+  it("credits a card that names the application over an otherwise equal card that does not", () => {
+    const twins = createKbIndex(
+      syntheticPack(
+        [
+          ...CONTEXT_CARDS,
+          card("906", "FIXTURE launcher icon missing", [
+            "- In Studio, turn on the FIXTURE Launcher Icon.",
+            "- The FIXTURE launcher slot must be visible.",
+            "- launcher.json lists iconUrl (FIXTURE).",
+            "- Send support the FIXTURE launcher id.",
+          ]),
+          card("907", "FIXTURE launcher icon missing", [
+            "- In Studio, turn on the FIXTURE Launcher Icon in Workday.",
+            "- The FIXTURE launcher slot must be visible.",
+            "- launcher.json lists iconUrl (FIXTURE).",
+            "- Send support the FIXTURE launcher id.",
+          ]),
+        ],
+        { coverage: { min: 0.35, minIdf: 0.5, minTerms: 1 } },
+        V2,
+      ),
+    );
+    const result = twins.search("FIXTURE launcher icon missing in Workday", {
+      onePerCard: true,
+    });
+    expect(result.status).toBe("ok");
+    expect(result.hits.map((hit) => hit.chunk.pageId).slice(0, 2)).toEqual([
+      "907",
+      "906",
+    ]);
+    expect(result.coverage).toBe(1);
+    expect(result.contextIgnored).toBeUndefined();
+
+    const withoutName = createKbIndex(
+      syntheticPack(
+        CONTEXT_CARDS.concat(
+          card("906", "FIXTURE launcher icon missing", [
+            "- In Studio, turn on the FIXTURE Launcher Icon.",
+            "- The FIXTURE launcher slot must be visible.",
+            "- launcher.json lists iconUrl (FIXTURE).",
+            "- Send support the FIXTURE launcher id.",
+          ]),
+        ),
+        { coverage: { min: 0.35, minIdf: 0.5, minTerms: 1 } },
+        V2,
+      ),
+    ).search("FIXTURE launcher icon missing in Workday", { onePerCard: true });
+    expect(withoutName).toMatchObject({
+      status: "ok",
+      coverage: 1,
+      contextIgnored: ["workday"],
+    });
   });
 });

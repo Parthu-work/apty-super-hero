@@ -125,8 +125,8 @@ const BROWSER_TERMS = [
   "macOS",
 ];
 
-/** Customer applications Apty runs on, never Apty settings. */
-const CUSTOMER_APPLICATIONS = [
+/** The customer applications the setting-name guard reads (K24 keeps this set as it was). */
+const GUARDED_APPLICATIONS = [
   "Salesforce",
   "Lightning",
   "Workday",
@@ -137,9 +137,72 @@ const CUSTOMER_APPLICATIONS = [
   "SuccessFactors",
 ];
 
+/** Customer applications Apty runs on: never Apty settings, and never the topic of a question. */
+const CUSTOMER_APPLICATIONS = [
+  ...GUARDED_APPLICATIONS,
+  "S/4HANA",
+  "Fiori",
+  "Ariba",
+  "Concur",
+  "NetSuite",
+  "Dynamics 365",
+  "D365",
+  "Coupa",
+  "Veeva",
+  "Jira",
+  "Confluence",
+  "Zendesk",
+  "HubSpot",
+  "Epic",
+  "Cerner",
+  "Guidewire",
+  "Kronos",
+  "UKG",
+  "ADP",
+];
+
+/** Words that say where on the customer's application a problem is. */
+const PAGE_LOCATIONS = [
+  "page",
+  "screen",
+  "form",
+  "record",
+  "incident",
+  "ticket",
+  "case",
+  "module",
+  "view",
+  "tab",
+  "window",
+  "section",
+  "list",
+  "grid",
+  "table",
+  "tile",
+  "home",
+  "dashboard",
+  "portal",
+  "app",
+  "application",
+  "site",
+  "tenant",
+  "org",
+  "button",
+];
+
+/**
+ * Terms that name the customer's application or a place on it (K24): they
+ * count toward coverage only when the card holds them. Browser and platform
+ * names are left out on purpose: "chrome is not opening" is off-topic, and
+ * skipping "chrome" would let it through.
+ */
+export const CONTEXT_WORDS: ReadonlySet<string> = new Set(
+  [...CUSTOMER_APPLICATIONS, ...PAGE_LOCATIONS].flatMap(analyze),
+);
+
 /** Phrases, lower case, that are never Apty settings: a Title Case run made only of them is not checked. */
 export const NOT_A_SETTING: ReadonlySet<string> = new Set(
-  ["Apty", ...BROWSER_TERMS, ...CUSTOMER_APPLICATIONS].map((term) =>
+  ["Apty", ...BROWSER_TERMS, ...GUARDED_APPLICATIONS].map((term) =>
     term.toLowerCase(),
   ),
 );

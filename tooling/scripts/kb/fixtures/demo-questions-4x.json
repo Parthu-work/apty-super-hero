@@ -314,5 +314,59 @@
     "q": "面板没有显示给新用户",
     "expectedPageIds": [],
     "surface": "responder"
+  },
+  {
+    "id": "d4-k1",
+    "category": "names",
+    "q": "DEMO balloon missing on the ServiceNow incident form",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-k2",
+    "category": "names",
+    "q": "Salesforce Lightning page, DEMO balloon missing",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-k3",
+    "category": "names",
+    "q": "DEMO balloon missing on the SuccessFactors page",
+    "expectedPageIds": ["4002"]
+  },
+  {
+    "id": "d4-k4",
+    "category": "names",
+    "q": "DEMO hint text is cropped on the Workday dashboard tile",
+    "expectedPageIds": ["4007"]
+  },
+  {
+    "id": "d4-k5",
+    "category": "names",
+    "q": "the DEMO flow skips the second step on the Salesforce record page",
+    "expectedPageIds": ["4001"]
+  },
+  {
+    "id": "d4-k6",
+    "category": "names",
+    "q": "Salesforce licence price for 50 users",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-k7",
+    "category": "names",
+    "q": "Workday payroll tax rules",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-k8",
+    "category": "names",
+    "q": "the DEMO button on the form is disabled",
+    "expectedPageIds": []
+  },
+  {
+    "id": "d4-k9",
+    "category": "names",
+    "q": "Windows update fails on my laptop",
+    "expectedPageIds": []
   }
 ]

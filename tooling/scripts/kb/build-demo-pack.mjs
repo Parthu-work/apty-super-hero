@@ -32,7 +32,8 @@ const PAGES = { "4.x": DEMO_PAGES_4X, "5.x": DEMO_PAGES_5X };
 
 /**
  * What `kb:eval --calibrate --by-category` gives on each demo question set,
- * recorded after the K21 ranking changes (F2, F5, F6, F7). The build
+ * recorded after the K21 ranking changes (F2, F5, F6, F7) and checked again
+ * after K24 (context words, the names questions): unchanged. The build
  * calibrates the same way and warns when it lands elsewhere, so a ranking
  * change shows up here in review.
  */
