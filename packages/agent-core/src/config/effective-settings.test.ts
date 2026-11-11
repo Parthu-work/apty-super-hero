@@ -178,6 +178,29 @@ describe("settingsForWrite", () => {
     expect(settings.redactionMode).toBe("off");
   });
 
+  it("keeps the stored choice for a field the KB-pack floor raised, unless the write changes it", () => {
+    const effective = effectiveSettings(LOCAL, NONE, {
+      nonDemoPackLoaded: true,
+    });
+    expect(effective.settings.redactionMode).toBe("standard");
+    // Saving another setting from the effective settings, as Options does.
+    const unchanged = settingsForWrite(
+      LOCAL,
+      { ...effective.settings, screenshotPolicy: "never" },
+      effective,
+    );
+    expect(unchanged.settings.redactionMode).toBe("off");
+    expect(unchanged.settings.screenshotPolicy).toBe("never");
+    expect(unchanged.ignored).toEqual([]);
+    // The SE's own new choice over the floor is written.
+    const chosen = settingsForWrite(
+      LOCAL,
+      { ...effective.settings, redactionMode: "strict" },
+      effective,
+    );
+    expect(chosen.settings.redactionMode).toBe("strict");
+  });
+
   it("does not store custom models the policy forbids", () => {
     const effective = effectiveSettings(LOCAL, active({ allowedModels: [] }));
     const { settings } = settingsForWrite(LOCAL, LOCAL, effective);

@@ -9,6 +9,7 @@ import {
   type EffectiveSettingsDeps,
   effectiveSettingsStorage,
   loadEffectiveSettings,
+  resetEffectiveSettingsForTests,
   saveSettings,
   watchEffectiveSettings,
 } from "./effective-settings";
@@ -47,6 +48,7 @@ const PRESET: OrgPolicyState = {
 describe("effective settings in the browser", () => {
   beforeEach(() => {
     listeners = [];
+    resetEffectiveSettingsForTests();
     vi.stubGlobal("chrome", {
       storage: {
         onChanged: {
@@ -108,7 +110,7 @@ describe("effective settings in the browser", () => {
     expect(settings.aiModel).toBe("gpt-org");
   });
 
-  it("writes at once with no policy: no stored read and no pack read before the write", async () => {
+  it("saves with one storage read and no pack read once the packs are known", async () => {
     const deps = depsWith({ redactionMode: "strict" }, { kind: "none" });
     const order: string[] = [];
     const read = deps.storedSettings;
@@ -125,9 +127,61 @@ describe("effective settings in the browser", () => {
       order.push("write");
       return write(next);
     };
+    await loadEffectiveSettings(deps);
+    order.length = 0;
     expect(await saveSettings({ redactionMode: "standard" }, deps)).toEqual([]);
-    expect(order).toEqual(["write"]);
+    expect(order).toEqual(["read", "write"]);
     expect(deps.stored().redactionMode).toBe("standard");
+  });
+
+  it("reads the packs again after a pack is imported or removed, and after a failed read", async () => {
+    const deps = depsWith({ redactionMode: "off" }, { kind: "none" });
+    let reads = 0;
+    let fail = true;
+    deps.packs = async () => {
+      reads += 1;
+      if (fail) throw new Error("IndexedDB blocked");
+      return [];
+    };
+    expect((await loadEffectiveSettings(deps)).settings.redactionMode).toBe(
+      "standard",
+    );
+    fail = false;
+    await loadEffectiveSettings(deps);
+    await loadEffectiveSettings(deps);
+    expect(reads).toBe(2);
+    for (const l of listeners)
+      l({ apty_kb_packs_changed: { newValue: 1 } }, "local");
+    await loadEffectiveSettings(deps);
+    expect(reads).toBe(3);
+  });
+
+  it("does not store the pack floor as the SE's choice when another setting is saved", async () => {
+    const deps = depsWith({ redactionMode: "off" }, { kind: "none" }, [
+      pack("synthetic.atlassian.example"),
+    ]);
+    const adapter = effectiveSettingsStorage(
+      {
+        load: vi.fn(),
+        save: vi.fn(),
+        delete: vi.fn(),
+        listAll: vi.fn(),
+        query: vi.fn(),
+        watch: vi.fn(() => () => {}),
+      },
+      deps,
+    );
+    // Options reads the effective settings, patches one field, saves.
+    const shown = (await adapter.load(STORAGE_KEYS.SETTINGS)) as AppSettings;
+    expect(shown.redactionMode).toBe("standard");
+    await adapter.save(STORAGE_KEYS.SETTINGS, {
+      ...shown,
+      screenshotPolicy: "never",
+    });
+    expect(deps.stored()).toMatchObject({
+      redactionMode: "off",
+      screenshotPolicy: "never",
+    });
   });
 
   it("serves the settings UI the effective settings through its adapter", async () => {
