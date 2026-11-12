@@ -42,7 +42,7 @@ const PAGES = { "4.x": DEMO_PAGES_4X, "5.x": DEMO_PAGES_5X };
  * change shows up here in review.
  */
 export const DEMO_COVERAGE = {
-  "4.x": { min: 0.35, minIdf: 2.024 },
+  "4.x": { min: 0.35, minIdf: 2.043 },
   "5.x": { min: 0.35, minIdf: 2.234 },
 };
 const json = (body) => ({

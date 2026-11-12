@@ -129,6 +129,7 @@ export async function localKbMatches(
     const result = kbToolResultOf(found);
     if (
       result.status === "stub" ||
+      result.status === "not_in_version" ||
       (result.status === "ok" && result.results.length > 0)
     ) {
       return { kind: "answer", result, packs };

@@ -4,7 +4,7 @@
  * settings and files, every card marked DEMO and FIXTURE. Never real card
  * text. Each version has full cards, one stub (its text not yet written),
  * one routing card ("Start here") and one title shared with the other
- * version.
+ * version; 4.x also has one "No 4.x equivalent" card (K25, A4).
  */
 function page(id, title, symptom, layers, { status = "full", version } = {}) {
   const intro = `<p>Symptom: ${symptom}</p><p>Verified on: FIXTURE demo, 2026-11-01.</p>`;
@@ -20,6 +20,13 @@ function page(id, title, symptom, layers, { status = "full", version } = {}) {
       id,
       title,
       `${intro}<p>FIXTURE: read the DEMO cards below.</p>`,
+    );
+  }
+  if (status === "absent") {
+    return card(
+      id,
+      title,
+      `${intro}<p>No ${version} equivalent: ${layers[0]} (FIXTURE).</p><p>This page is not an answer card.</p>`,
     );
   }
   const headings = [
@@ -337,5 +344,19 @@ export const DEMO_PAGES_4X = [
     "Which DEMO flow card to read first.",
     [],
     { status: "routing" },
+  ),
+  page(
+    "4014",
+    "DEMO drop-off funnel chart for walkthroughs",
+    "The DEMO funnel chart that shows where users leave a walkthrough.",
+    ["the DEMO funnel chart arrived with the 5.x analytics"],
+    { status: "absent", version: "4.x" },
+  ),
+  page(
+    "4014",
+    "DEMO drop-off funnel chart for walkthroughs",
+    "The DEMO funnel chart that shows where users leave a walkthrough.",
+    ["the DEMO funnel chart arrived with the 5.x analytics"],
+    { status: "absent", version: "4.x" },
   ),
 ];

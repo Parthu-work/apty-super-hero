@@ -578,7 +578,7 @@ describe("the CLI", () => {
     assert.equal(statSync(file).mode & 0o777, 0o600);
     assert.match(
       result.out,
-      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing; skipped 0 malformed, 0 other_format\./,
+      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing, 0 not in this version; skipped 0 malformed, 0 other_format\./,
     );
     assert.match(result.out, /NOT VERIFIED statements: 7, 8/);
     assert.match(result.out, /no --coverage-min/);
@@ -1136,5 +1136,58 @@ describe("kb:keygen (KB-RAG K23 P2)", async () => {
       keyId,
     );
     assert.ok(!out.join("\n").includes("PRIVATE KEY"));
+  });
+});
+
+describe('"not in this version" pages (KB-RAG K25, A4)', () => {
+  it("classifies a page whose text before any heading says there is no 4.x equivalent as absent, with its reason", () => {
+    const parsed = parseCard(
+      page("51", {
+        body: "<p>Symptom: FIXTURE funnel chart for workflows.</p><p>No 4.x equivalent: the FIXTURE funnel chart arrived with 5.x analytics. There is no setting for it.</p><p>This page is not an answer card.</p><h2>FIXTURE See also</h2>",
+      }),
+      { site: SITE, space: "FX" },
+    );
+    assert.equal(parsed.card.status, "absent");
+    assert.equal(
+      parsed.card.absentReason,
+      "the FIXTURE funnel chart arrived with 5.x analytics.",
+    );
+    assert.equal(parsed.card.symptom, "FIXTURE funnel chart for workflows.");
+    assert.deepEqual(parsed.chunks, []);
+  });
+
+  it("counts absent cards on the summary line, and the pack verifies with them", async () => {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({
+      ids: ["7", "8"],
+      bodies: {
+        8: "<p>Symptom: FIXTURE x.</p><p>No 5.x equivalent: FIXTURE gone in 5.x.</p>",
+      },
+    });
+    const out = [];
+    const code = await run({
+      argv: [
+        "--space",
+        "FX",
+        "--site",
+        SITE,
+        "--version",
+        "5.x",
+        "--sign-key",
+        TEST_KEY.file,
+      ],
+      env: {
+        CONFLUENCE_EMAIL: "svc@example.com",
+        CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+      },
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      out: (line) => out.push(line),
+      err: () => {},
+    });
+    assert.equal(code, 0);
+    assert.match(out.join("\n"), /0 routing, 1 not in this version; skipped/);
+    assert.match(out.join("\n"), /not in this version 8 "FIXTURE card 8"/);
   });
 });

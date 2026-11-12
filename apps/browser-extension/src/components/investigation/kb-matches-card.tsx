@@ -40,7 +40,9 @@ export function isKbMatches(output: unknown): output is KbToolResult {
     result !== null &&
     (isKbStub(result) ||
       result.status === "non_english" ||
-      (result.status === "pack_unusable" && result.unusable !== undefined))
+      (result.status === "pack_unusable" && result.unusable !== undefined) ||
+      (result.status === "not_in_version" &&
+        STUB_CITE.test(String(result.absent?.cite))))
   ) {
     return true;
   }
@@ -153,12 +155,40 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
       </section>
     );
   }
+  const absent = output.status === "not_in_version" ? output.absent : undefined;
   return (
     <section
       aria-label={title}
       className="space-y-2 rounded-lg border border-border bg-card p-3"
     >
       <h3 className="text-sm font-medium text-foreground">{title}</h3>
+      {absent && (
+        <div className="space-y-1" data-testid="kb-not-in-version">
+          <p className="text-sm font-medium text-foreground">
+            {t("kbMatches.notInVersion", { version: absent.aptyVersion })}
+          </p>
+          {absent.absentReason && (
+            <p className="text-sm text-foreground">{absent.absentReason}</p>
+          )}
+          <a
+            href={kbCardUrl(STUB_CITE.exec(absent.cite)?.[1] ?? "", {
+              site: absent.site,
+              space: absent.space,
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={LINK_CLASS}
+          >
+            {absent.title}
+            <ExternalLinkIcon aria-hidden="true" className="size-3" />
+          </a>
+          {output.results.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("kbMatches.otherVersions")}
+            </p>
+          )}
+        </div>
+      )}
       <ul className="space-y-2">
         {output.results.map((hit) => {
           const [, pageId = "", layer = ""] = CITE.exec(hit.cite) ?? [];

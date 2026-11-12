@@ -141,6 +141,11 @@ function PackRow({
                 stubs: info.stubCount,
               })
             : info.cardCount}
+          {info.absentCount
+            ? ` · ${t("settings.knowledgeBase.absentCards", {
+                absent: info.absentCount,
+              })}`
+            : ""}
         </dd>
         <dt className="text-muted-foreground">
           {t("settings.knowledgeBase.built")}

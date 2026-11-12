@@ -273,3 +273,53 @@ describe("kbCardUrl", () => {
     ).toEqual({ site: "fixture.atlassian.net", space: "A4X" });
   });
 });
+
+describe("absent cards in schema 3 (KB-RAG K25, A4)", () => {
+  const absentCard = {
+    pageId: "9",
+    title: "FIXTURE drop-off funnel",
+    symptom: "FIXTURE funnel chart",
+    status: "absent" as const,
+  };
+  const v3 = (cards: Parameters<typeof syntheticPack>[0]) =>
+    syntheticPack(cards, {}, {
+      schemaVersion: 3,
+      expiresAt: "2099-01-01T00:00:00.000Z",
+    } as never);
+
+  it("reads an absent card with its reason, and counts it", async () => {
+    const pack = v3([absentCard]);
+    pack.cards[0] = {
+      ...pack.cards[0],
+      absentReason: "FIXTURE: 5.x only.",
+    } as never;
+    const { sha256: _s, ...rest } = pack;
+    const resummed = { ...rest, sha256: await nodeSha256(canonicalJson(rest)) };
+    const parsed = await parseKbPack(JSON.stringify(resummed), {
+      sha256: nodeSha256,
+    });
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.pack.cards[0]).toMatchObject({
+        status: "absent",
+        absentReason: "FIXTURE: 5.x only.",
+      });
+      expect(describeKbPack(parsed.pack, "x").absentCount).toBe(1);
+    }
+  });
+
+  it("refuses chunks on an absent card, and an absent card before schema 3", async () => {
+    const withChunks = v3([{ ...absentCard, layers: ["a", "b", "c", "d"] }]);
+    expect(
+      await parseKbPack(JSON.stringify(withChunks), { sha256: nodeSha256 }),
+    ).toMatchObject({
+      ok: false,
+      code: "invalid",
+      detail: expect.stringMatching(/absent card and has chunks/),
+    });
+    const old = syntheticPack([absentCard], {}, { schemaVersion: 2 });
+    expect(
+      await parseKbPack(JSON.stringify(old), { sha256: nodeSha256 }),
+    ).toMatchObject({ ok: false, code: "invalid" });
+  });
+});

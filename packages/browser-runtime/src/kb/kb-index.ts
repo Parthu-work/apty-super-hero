@@ -121,7 +121,10 @@ export interface KbToolResult extends KbSourceTag {
     | "stub"
     | "no_pack"
     | "non_english"
-    | "pack_unusable";
+    | "pack_unusable"
+    | "not_in_version";
+  /** With `not_in_version` (K25, A4): the card saying the feature has no equivalent in its version, with the reason and link; never other text. */
+  absent?: KbAbsentHit;
   /** With `pack_unusable` (K23 P4): why the loaded pack is not used, its version and the date that applies; never its text. */
   unusable?: KbUnusablePack;
   /** With `stub`: the card; say it exists, that its text is not written yet, and give its link. */
@@ -133,6 +136,17 @@ export interface KbToolResult extends KbSourceTag {
   /** The top two cards are for different Apty versions: ask which one the tenant runs. */
   mixedVersions?: boolean;
   results: KbToolHit[];
+}
+
+/** A card saying a feature has no equivalent in its Apty version. */
+export interface KbAbsentHit {
+  /** `kb://<pageId>`: the card, with no layer. */
+  cite: string;
+  title: string;
+  site: string;
+  space: string;
+  aptyVersion: KbAptyVersion;
+  absentReason: string | null;
 }
 
 /** A loaded pack that is not used, as a result names it. */
@@ -211,6 +225,28 @@ export function kbToolResultOf(found: KbSearchResult): KbToolResult {
       },
       mixedVersions: false,
       results: [],
+    };
+  }
+  if (found.status === "not_in_version" && found.card) {
+    const beside = found.hits.map(toolHit);
+    return {
+      status: "not_in_version",
+      ...kbSourceTag([
+        { pageId: found.card.pageId },
+        ...found.hits.map((hit) => ({
+          pageId: hit.chunk.pageId,
+          layer: hit.chunk.layer,
+        })),
+      ]),
+      absent: {
+        cite: `kb://${found.card.pageId}`,
+        title: found.card.title,
+        ...kbCardLocation(found.card),
+        aptyVersion: found.cardVersion ?? "4.x",
+        absentReason: found.card.absentReason ?? null,
+      },
+      mixedVersions: beside.length > 0,
+      results: beside,
     };
   }
   if (found.status === "not_covered") {

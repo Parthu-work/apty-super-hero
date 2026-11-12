@@ -68,7 +68,7 @@ export interface KbSearchResult {
    * question, or it names a setting the card does not have. `stub`: the
    * card that covers it is not written yet for this version (`card`).
    */
-  status: "ok" | "not_covered" | "stub";
+  status: "ok" | "not_covered" | "stub" | "not_in_version";
   hits: KbSearchHit[];
   /** With `stub`: the card, with no text, and its pack's version. */
   card?: KbCard;
@@ -977,8 +977,13 @@ function createV2Index(pack: KbPack): KbIndex {
     }
 
     const top = ranked[0];
+    // A stub, or a card saying the feature has no equivalent in this
+    // version (K25, A4), is found by its title and symptom alone.
     const stub = [...chunklessScores]
-      .filter(([pageId]) => cards.get(pageId)?.status === "stub")
+      .filter(([pageId]) => {
+        const status = cards.get(pageId)?.status;
+        return status === "stub" || status === "absent";
+      })
       .sort(([a, x], [b, y]) => y - x || comparePageIds(a, b))[0];
     const stubAssessment =
       stub !== undefined
@@ -1053,7 +1058,7 @@ function createV2Index(pack: KbPack): KbIndex {
     }
     if (stubFirst) {
       return {
-        status: "stub",
+        status: stubFirst.status === "absent" ? "not_in_version" : "stub",
         hits: [],
         coverage,
         card: stubFirst,

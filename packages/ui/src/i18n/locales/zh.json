@@ -193,7 +193,8 @@
         "revoked": "由已吊销的密钥签名"
       },
       "notUsed": "此知识包未被使用。请向 KB 负责人索取新的知识包。",
-      "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。"
+      "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。",
+      "absentCards": "{{absent}} 张在此版本中不存在"
     }
   },
   "theme": {
@@ -2576,7 +2577,9 @@
     "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。",
     "notSent": "仅在此处显示；不会发送给 AI 模型。",
     "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。",
-    "askForNewPack": "请向 KB 负责人索取新的知识包。"
+    "askForNewPack": "请向 KB 负责人索取新的知识包。",
+    "notInVersion": "Apty {{version}} 中没有此功能。",
+    "otherVersions": "其他 Apty 版本的卡片："
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",

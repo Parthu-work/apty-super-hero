@@ -243,3 +243,36 @@ describe("KB matches card for a pack that is not used (KB-RAG K23 P5)", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 });
+
+describe("KB matches card for a feature not in this version (KB-RAG K25, A4)", () => {
+  it("says it does not exist in that version, with the reason and the card's link, and no other card", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "not_in_version",
+          absent: {
+            cite: "kb://909",
+            title: "FIXTURE drop-off funnel chart",
+            site: "fixture.atlassian.invalid",
+            space: "FX",
+            aptyVersion: "4.x",
+            absentReason: "FIXTURE: the funnel chart arrived with 5.x.",
+          },
+          results: [],
+        })}
+      />,
+    );
+    const block = screen.getByTestId("kb-not-in-version");
+    expect(block).toHaveTextContent("This does not exist in Apty 4.x.");
+    expect(block).toHaveTextContent(
+      "FIXTURE: the funnel chart arrived with 5.x.",
+    );
+    expect(
+      screen.getByRole("link", { name: /FIXTURE drop-off funnel chart/ }),
+    ).toHaveAttribute(
+      "href",
+      "https://fixture.atlassian.invalid/wiki/spaces/FX/pages/909",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+});

@@ -342,3 +342,17 @@ describe("KnowledgeBaseCard: who signed each pack and whether it is used (KB-RAG
     expect(await screen.findByText(message)).toBeInTheDocument();
   });
 });
+
+describe("KnowledgeBaseCard: cards not in this version (KB-RAG K25, A4)", () => {
+  it('shows "N not in this version" on the pack row', async () => {
+    render(
+      <KnowledgeBaseCard
+        adapter={adapter({ ...INFO, absentCount: 5 } as KbPackInfo)}
+        now={NOW}
+      />,
+    );
+    expect(
+      await screen.findByText(/5 not in this version/),
+    ).toBeInTheDocument();
+  });
+});

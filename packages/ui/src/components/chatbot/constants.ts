@@ -210,6 +210,8 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
 
       "On unknown_setting, say the KB has no setting with that name, name the missing phrase, and do not suggest a similar one. On stub, say the card exists but its text is not written yet and give its link.",
 
+      "On not_in_version, tell the user the feature does not exist in that Apty version, with the card's reason and link; do not answer from another version's card.",
+
       "State the Apty version (4.x or 5.x) the answer is for. Never merge statements from cards of two versions into one instruction.",
 
       "The cards are in English: for a question in another language, call search_kb with an English query and answer in the user's language.",

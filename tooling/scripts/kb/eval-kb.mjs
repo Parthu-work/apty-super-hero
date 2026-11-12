@@ -135,9 +135,11 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
       topK: RANK_DEPTH,
       onePerCard: true,
     });
+    // A stub or a "not in this version" card (K25, A4) is a hit when it is the expected card.
     const ranked =
-      result.status === "stub" && result.card
-        ? [result.card.pageId]
+      (result.status === "stub" || result.status === "not_in_version") &&
+      result.card
+        ? [result.card.pageId, ...result.hits.map((hit) => hit.chunk.pageId)]
         : result.hits.map((hit) => hit.chunk.pageId);
     const expected = new Set(question.expectedPageIds);
     const notCovered = result.status === "not_covered";

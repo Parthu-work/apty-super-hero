@@ -7,7 +7,7 @@ export interface SyntheticCard {
   /** The four layers' text; FIXTURE content only. A stub or routing card has none. */
   layers?: [string, string, string, string];
   /** Schema 2: a stub or routing card carries no chunks. */
-  status?: "full" | "stub" | "routing";
+  status?: "full" | "stub" | "routing" | "absent";
   headings?: [string, string, string, string];
   verifiedOn?: string | null;
   /** The card's symptom line (schema 2). */

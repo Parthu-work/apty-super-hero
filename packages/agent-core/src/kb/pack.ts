@@ -30,8 +30,10 @@ const cardSchema = z.object({
   /** Schema 2: the card's "Symptom:" line, the problem in the user's words. */
   symptom: z.string().max(300).nullable().optional(),
   notVerifiedCount: z.number().int().nonnegative(),
-  /** Schema 2: a stub ("not yet written") or routing ("start here") card has no chunks. */
-  status: z.enum(["full", "stub", "routing"]).optional(),
+  /** Schema 2: a stub ("not yet written") or routing ("start here") card has no chunks; schema 3 (K25, A4): an `absent` card says the feature has no equivalent in this version, and has none either. */
+  status: z.enum(["full", "stub", "routing", "absent"]).optional(),
+  /** Schema 3, an `absent` card: why there is no equivalent, at most 300 characters. */
+  absentReason: z.string().max(300).optional(),
   url: z
     .string()
     .regex(/^https:\/\/[^/\s]+\/wiki\/spaces\/[^/\s]+\/pages\/\d+$/),
@@ -160,8 +162,18 @@ function integrityProblem(pack: KbPack): string | undefined {
   for (const card of pack.cards) {
     if (cardIds.has(card.pageId)) return `card ${card.pageId} appears twice`;
     cardIds.add(card.pageId);
-    if (card.status === "stub" || card.status === "routing") {
+    if (
+      card.status === "stub" ||
+      card.status === "routing" ||
+      card.status === "absent"
+    ) {
       chunkless.set(card.pageId, card.status);
+    }
+    if (card.status === "absent" && pack.schemaVersion !== 3) {
+      return `card ${card.pageId}: only a schema 3 pack has absent cards`;
+    }
+    if (card.absentReason !== undefined && card.status !== "absent") {
+      return `card ${card.pageId} has an absentReason but is not absent`;
     }
   }
   if (pack.source.cardCount !== pack.cards.length) {
@@ -173,7 +185,7 @@ function integrityProblem(pack: KbPack): string | undefined {
     }
     const status = chunkless.get(chunk.pageId);
     if (status) {
-      return `card ${chunk.pageId} is a${status === "stub" ? "" : "n"} ${status === "stub" ? "stub" : "routing card"} and has chunks`;
+      return `card ${chunk.pageId} is ${status === "stub" ? "a stub" : status === "absent" ? "an absent card" : "a routing card"} and has chunks`;
     }
     if (chunk.id !== `${chunk.pageId}#L${chunk.layer}`) {
       return `chunk ${chunk.id} does not match its page and layer`;
@@ -281,6 +293,8 @@ export interface KbPackInfo {
   cardCount: number;
   /** Cards whose text for this version is not written yet. */
   stubCount: number;
+  /** K25, A4: cards for features with no equivalent in this version. */
+  absentCount?: number;
   chunkCount: number;
   builtAt: string;
   importedAt: string;
@@ -316,6 +330,7 @@ export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
     label: pack.source.label,
     cardCount: pack.cards.length,
     stubCount: pack.cards.filter((card) => card.status === "stub").length,
+    absentCount: pack.cards.filter((card) => card.status === "absent").length,
     chunkCount: pack.chunks.length,
     builtAt: pack.builtAt,
     importedAt,

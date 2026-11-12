@@ -117,6 +117,21 @@ describe("selfCheck", () => {
     }
   });
 
+  it("counts a not-in-this-version card as found when not_in_version comes back with it", () => {
+    const pack = build(LARGE_SYNTHETIC_PAGES);
+    const absentIds = new Set(
+      pack.cards.filter((c) => c.status === "absent").map((c) => c.pageId),
+    );
+    const report = selfCheck(core, pack);
+    const absentTitles = report.queries.filter(
+      (q) => q.kind === "title" && absentIds.has(q.pageId),
+    );
+    assert.equal(absentTitles.length, 5);
+    assert.ok(
+      absentTitles.every((q) => q.status === "not_in_version" && q.rank === 1),
+    );
+  });
+
   it("counts a stub as found when its own stub status comes back", () => {
     const report = selfCheck(core, build(LARGE_SYNTHETIC_PAGES));
     const stubIds = new Set(
@@ -143,7 +158,7 @@ describe("selfCheck", () => {
       0,
     );
     const text = out.join("\n");
-    assert.match(text, /Titles: rank 1 \d+ of 99/);
+    assert.match(text, /Titles: rank 1 \d+ of 104/);
     for (const page of LARGE_SYNTHETIC_PAGES.slice(0, 20)) {
       const title = page.title.replace(/^RAG Card:\s*/, "");
       assert.ok(!text.includes(title), "no card title in the output");

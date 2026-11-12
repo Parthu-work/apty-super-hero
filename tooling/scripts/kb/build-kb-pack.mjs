@@ -50,6 +50,9 @@ const NOT_YET_WRITTEN = [
   /not yet written/i,
 ];
 const ROUTING_TITLE = /^start here\b/i;
+/** A page saying the feature has no equivalent in this version (K25, A4). */
+const NO_EQUIVALENT = /\bNo (4|5)\.x equivalent\b/i;
+const MAX_ABSENT_REASON_CHARS = 300;
 const MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
@@ -265,6 +268,26 @@ export function parseCard(page, { site, space, group = "" }) {
     }
     if (NOT_YET_WRITTEN.some((pattern) => pattern.test(text))) {
       return { card: card(text, "stub"), chunks: [] };
+    }
+  }
+  if (layers.length === 0) {
+    const before = storageToText(
+      headings[0] ? html.slice(0, headings[0].index) : html,
+    );
+    if (NO_EQUIVALENT.test(before)) {
+      const after = before.split(NO_EQUIVALENT).slice(2).join("");
+      const reason = after
+        .replace(/^\s*:\s*/, "")
+        .split(/(?<=[.!?])\s/)[0]
+        ?.trim()
+        .slice(0, MAX_ABSENT_REASON_CHARS);
+      return {
+        card: {
+          ...card(before, "absent"),
+          ...(reason ? { absentReason: reason } : {}),
+        },
+        chunks: [],
+      };
     }
   }
   if (layers.length === 0 && headings.length > 0) {
@@ -887,10 +910,13 @@ export async function run({
       pack.cards.filter((card) => card.status === status).length;
     const skippedAs = (kind) => skipped.filter((s) => s.kind === kind);
     print(
-      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing; skipped ${skippedAs("malformed").length} malformed, ${skippedAs("other_format").length} other_format. Apty ${options.version}, from ${options.site}, space ${options.space}, ${selection}.`,
+      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing, ${count("absent")} not in this version; skipped ${skippedAs("malformed").length} malformed, ${skippedAs("other_format").length} other_format. Apty ${options.version}, from ${options.site}, space ${options.space}, ${selection}.`,
     );
     for (const card of pack.cards.filter((c) => c.status === "stub")) {
       print(`  stub ${card.pageId} "${card.title}": not yet written`);
+    }
+    for (const card of pack.cards.filter((c) => c.status === "absent")) {
+      print(`  not in this version ${card.pageId} "${card.title}"`);
     }
     for (const { pageId, title, reason } of skippedAs("malformed")) {
       print(`  malformed, skipped ${pageId} "${title}": ${reason}`);

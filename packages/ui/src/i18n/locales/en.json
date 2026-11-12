@@ -193,7 +193,8 @@
         "revoked": "Signed by a revoked key"
       },
       "notUsed": "This pack is not used. Ask the KB owner for a new pack.",
-      "expiringSoon": "This pack expires in {{days}} days. Ask the KB owner for a new one."
+      "expiringSoon": "This pack expires in {{days}} days. Ask the KB owner for a new one.",
+      "absentCards": "{{absent}} not in this version"
     }
   },
   "theme": {
@@ -2576,7 +2577,9 @@
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card.",
     "notSent": "Shown here only; not sent to the AI model.",
     "sentTo": "Also sent to the AI model at {{destination}}.",
-    "askForNewPack": "Ask the KB owner for a new one."
+    "askForNewPack": "Ask the KB owner for a new one.",
+    "notInVersion": "This does not exist in Apty {{version}}.",
+    "otherVersions": "Cards for other Apty versions:"
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",

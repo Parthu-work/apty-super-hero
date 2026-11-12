@@ -85,9 +85,10 @@ under a policy with `allowUnsignedPacks`.
 | `cards[].pageId`, `.title`, `.group`, `.url`, `.updatedAt` | The card; `url` is its own page in its own space |
 | `cards[].verifiedOn` | The card's "Verified on" line, verbatim, or null |
 | `cards[].symptom` | The card's "Symptom:" line (at most 300 characters), or null |
-| `cards[].status` | `"full"`, `"stub"` (its text for this version is not written yet) or `"routing"` ("Start here") |
+| `cards[].status` | `"full"`, `"stub"` (its text for this version is not written yet), `"routing"` ("Start here") or, schema 3 (K25, A4), `"absent"`: the page says "No 4.x equivalent" (or 5.x) before any heading; the feature does not exist in this version |
+| `cards[].absentReason` | Schema 3, an absent card: the first sentence after "No 4.x equivalent:", at most 300 characters |
 | `cards[].notVerifiedCount` | NOT VERIFIED statements in the card |
-| `chunks[]` | One per layer of a full card: `id` (`<pageId>#L<layer>`), `pageId`, `layer` 1–4, `heading`, `text` (at most 1,000 characters), `notVerified`; none for a stub or routing card |
+| `chunks[]` | One per layer of a full card: `id` (`<pageId>#L<layer>`), `pageId`, `layer` 1–4, `heading`, `text` (at most 1,000 characters), `notVerified`; none for a stub, routing or absent card |
 | `sha256` | Over the canonical JSON (keys sorted, no whitespace) without itself and without `signature` |
 
 Limits: 25 MB, 5,000 chunks. Import errors: `too_large`, `not_json`,

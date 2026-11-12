@@ -218,3 +218,66 @@ describe("at every use, with no re-import (K23 P4, acceptance 3, 6, 10)", () => 
     });
   });
 });
+
+describe('"not in this version" through the store and the KB matches (KB-RAG K25, A4)', () => {
+  it("search_kb's result names the absent card, its reason and link, and no text", async () => {
+    const { store, source } = storeWith(trusting);
+    const pack = JSON.parse(signedPackText(null));
+    pack.aptyVersion = "4.x";
+    pack.cards.push({
+      pageId: "909",
+      title: "FIXTURE drop-off funnel chart for walkthroughs",
+      group: "FIXTURE group",
+      verifiedOn: null,
+      symptom: "the FIXTURE funnel chart that shows where users leave",
+      notVerifiedCount: 0,
+      status: "absent",
+      absentReason: "FIXTURE: the funnel chart arrived with 5.x.",
+      url: "https://fixture.atlassian.net/wiki/spaces/FX/pages/909",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+    });
+    pack.source.cardCount = pack.cards.length;
+    const { createHash, sign } = await import("node:crypto");
+    const { canonicalJson, kbSignedMessage } = await import("@apty/agent-core");
+    const { sha256: _old, ...body } = pack;
+    const sha256 = createHash("sha256")
+      .update(canonicalJson(body))
+      .digest("hex");
+    const value = sign("sha256", kbSignedMessage(sha256, owner.key.keyId), {
+      key: owner.privateKey,
+      dsaEncoding: "ieee-p1363",
+    }).toString("base64");
+    const text = JSON.stringify({
+      ...body,
+      sha256,
+      signature: { alg: "ES256", keyId: owner.key.keyId, value },
+    });
+    expect((await store.replace(text)).ok).toBe(true);
+    expect((await store.info())[0]?.absentCount).toBe(1);
+
+    const result = kbToolResult(
+      await source.current("4.x"),
+      "where is the drop-off funnel chart for walkthroughs",
+    );
+    expect(result).toMatchObject({
+      status: "not_in_version",
+      absent: {
+        cite: "kb://909",
+        aptyVersion: "4.x",
+        absentReason: "FIXTURE: the funnel chart arrived with 5.x.",
+        site: "fixture.atlassian.net",
+        space: "FX",
+      },
+      results: [],
+    });
+    const outcome = await localKbMatches(
+      "where is the drop-off funnel chart for walkthroughs",
+      source,
+      { version: "4.x" },
+    );
+    expect(outcome).toMatchObject({
+      kind: "answer",
+      result: { status: "not_in_version" },
+    });
+  });
+});
