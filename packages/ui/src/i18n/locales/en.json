@@ -2568,5 +2568,39 @@
     "export": "Export (JSON)",
     "clear": "Clear",
     "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
+  },
+  "turnDecision": {
+    "why": "Why this answer",
+    "notCovered": "No KB card matched (coverage {{coverage}}, needs {{min}}).",
+    "unknownSetting": "No KB card names that setting.",
+    "noPack": "No {{version}} pack is loaded.",
+    "noPackAny": "No KB pack is loaded.",
+    "error": "The KB could not be searched ({{code}}).",
+    "askedModel": "Asked the AI model.",
+    "noModel": "Connect an AI provider to ask the AI model.",
+    "routeLine": "Answered by: {{route}}",
+    "route": {
+      "check": "the check pack {{pack}}",
+      "kb": "the KB cards",
+      "file_fetch": "a file fetch from the Apty Client",
+      "model": "the AI model"
+    },
+    "versionLine": "Apty version: {{version}} ({{source}})",
+    "source": {
+      "files": "from the Apty Client's files",
+      "user": "your choice",
+      "unknown": "not known"
+    },
+    "packsLine": "Packs searched: {{packs}}",
+    "packsNone": "Packs searched: none",
+    "kbLine": "KB: {{outcome}}",
+    "outcome": {
+      "answer": "{{status}}, cards {{pageIds}}",
+      "notCovered": "not covered ({{reason}}), coverage {{coverage}}, needs {{min}}, closest card {{top}}",
+      "noPack": "no pack for {{version}}",
+      "error": "could not be searched ({{code}})",
+      "howTo": "a how-to question, left to the AI model",
+      "nonEnglish": "not in English, left to the AI model"
+    }
   }
 }

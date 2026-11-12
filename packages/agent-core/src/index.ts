@@ -102,6 +102,15 @@ export { Session } from "./conversation/session.js";
 export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
 export {
+  type DecisionPack,
+  type KbDecision,
+  packIdOf,
+  type TabVersion,
+  type TabVersionSource,
+  type TurnDecision,
+  type TurnRoute,
+} from "./kb/decision.js";
+export {
   KB_SOURCE,
   type KbCardRef,
   type KbSourceTag,
@@ -209,6 +218,7 @@ export type {
   FunctionTool,
   ImageInput,
   LocalAnswer,
+  LocalDecision,
   LocalResponder,
   MetricsPayload,
   OpenAIAgent,
@@ -222,6 +232,7 @@ export type {
   SessionTree,
   ToolEventPayload,
 } from "./types.js";
+export { isLocalAnswer } from "./types.js";
 export {
   CancellationError,
   CancellationToken,

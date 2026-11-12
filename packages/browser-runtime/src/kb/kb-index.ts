@@ -6,6 +6,7 @@ import {
   type KbNotCoveredReason,
   type KbPack,
   type KbSearchHit,
+  type KbSearchResult,
   type KbSourceTag,
   kbCardLocation,
   kbSourceTag,
@@ -140,7 +141,11 @@ export function kbToolResult(
   } = {},
 ): KbToolResult {
   if (!index) return { status: "no_pack", ...kbSourceTag([]), results: [] };
-  const found = index.search(query, options);
+  return kbToolResultOf(index.search(query, options));
+}
+
+/** A search's result as `search_kb` returns it. */
+export function kbToolResultOf(found: KbSearchResult): KbToolResult {
   if (found.status === "stub" && found.card) {
     return {
       status: "stub",

@@ -138,6 +138,7 @@ describe("createKbIndex search", () => {
       chunkCount: 4,
       mode: "bm25",
       calibrated: false,
+      packs: [{ aptyVersion: "5.x", sha256: pack.sha256 }],
     });
     expect(once.search("copy").status).toBe("not_covered");
     expect(once.cardChunks("101").map((chunk) => chunk.layer)).toEqual([
@@ -272,6 +273,13 @@ describe("coverage (schema v2)", () => {
     const result = index.search("apty widget");
     expect(result.status).toBe("not_covered");
     expect(result.reason).toBe("low_coverage");
+  });
+
+  it("a not covered result names the coverage it needed and the card that came closest (K25, A2)", () => {
+    const result = index.search("apty widget");
+    expect(result.min).toBe(0.5);
+    expect(result.topPageId).toMatch(/^\d+$/);
+    expect(index.search("zzqx").min).toBe(0.5);
   });
 
   it("gives the same coverage, to the last digit, every time", () => {

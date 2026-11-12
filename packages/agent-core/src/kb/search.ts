@@ -77,6 +77,9 @@ export interface KbSearchResult {
   missingPhrases?: string[];
   /** Diagnostics: the question's context words (application or page place) the top card does not hold, left out of coverage. */
   contextIgnored?: string[];
+  /** With `not_covered`: the coverage the pack needs, and the card that came closest. */
+  min?: number;
+  topPageId?: string;
 }
 
 /** When the top card covers a question (schema 2); calibrated per pack by `eval-kb.mjs`. */
@@ -105,6 +108,8 @@ export interface KbIndexInfo {
   mode: "bm25" | "hybrid";
   /** Whether the pack carries a calibrated threshold; without one, any match counts as covered. */
   calibrated: boolean;
+  /** The packs searched, by version and sha256. */
+  packs: Array<{ aptyVersion: KbAptyVersion; sha256: string }>;
 }
 
 export interface KbIndex {
@@ -288,6 +293,7 @@ function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
     chunkCount: chunks.length,
     mode: hybrid ? "hybrid" : "bm25",
     calibrated: pack.retrieval.threshold !== undefined,
+    packs: [{ aptyVersion: pack.aptyVersion, sha256: pack.sha256 }],
   };
 
   function hit(chunk: KbChunk, score: number): KbSearchHit {
@@ -953,6 +959,7 @@ function createV2Index(pack: KbPack): KbIndex {
         hits: [],
         coverage: 0,
         reason: "no_match",
+        min: settings.min,
       };
     }
     const { coverage, strongTerms, contextIgnored } = corpus.assess(
@@ -974,6 +981,8 @@ function createV2Index(pack: KbPack): KbIndex {
         coverage,
         reason: "unknown_setting",
         missingPhrases,
+        min: settings.min,
+        topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,
       };
     }
@@ -987,6 +996,8 @@ function createV2Index(pack: KbPack): KbIndex {
         coverage,
         reason:
           contextIgnored.length === terms.length ? "no_match" : "low_coverage",
+        min: settings.min,
+        topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,
       };
     }
@@ -1013,6 +1024,7 @@ function createV2Index(pack: KbPack): KbIndex {
       chunkCount: chunks.length,
       mode: hybrid ? "hybrid" : "bm25",
       calibrated: pack.retrieval.coverage !== undefined,
+      packs: [{ aptyVersion: pack.aptyVersion, sha256: pack.sha256 }],
     },
     vocabularyIdf: corpus.vocabularyIdf,
     holdsPhrase: corpus.holdsPhrase,

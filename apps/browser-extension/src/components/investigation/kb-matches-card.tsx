@@ -10,7 +10,10 @@ import type {
   KbTabVersion,
   KbToolResult,
 } from "@apty/browser-runtime/kb/kb-index";
-import { localKbMatches } from "@apty/browser-runtime/kb/kb-matches";
+import {
+  kbAnswerOf,
+  localKbMatches,
+} from "@apty/browser-runtime/kb/kb-matches";
 import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
@@ -74,7 +77,7 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
       host={host}
       onChange={(version) => {
         localKbMatches(query, undefined, { version, modelAvailable: true })
-          .then((result) => setRerun({ version, result }))
+          .then((outcome) => setRerun({ version, result: kbAnswerOf(outcome) }))
           .catch(() => setRerun({ version, result: undefined }));
       }}
     />

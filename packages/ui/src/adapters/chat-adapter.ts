@@ -185,6 +185,14 @@ export class ChatAdapter {
         this.updateStatus("streaming");
         break;
 
+      case "turn_decision":
+        this.ensureAssistantMessage();
+        this.updateCurrentAssistantMessage((message) => ({
+          ...message,
+          metadata: { ...message.metadata, decision: event.decision },
+        }));
+        break;
+
       case "execution_complete":
         this.updateStatus("idle");
         this.state.currentAssistantMessageId = null;

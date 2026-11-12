@@ -38,3 +38,21 @@ describe("SetupNeededCard", () => {
     );
   });
 });
+
+describe("SetupNeededCard with the KB's reason (KB-RAG K25, A2)", () => {
+  it("shows why no card answered in place of the generic text", () => {
+    render(
+      <SetupNeededCard
+        draftText="how much does it cost"
+        kbLine="No KB card matched (coverage 0.12, needs 0.50)."
+        onOpenSettings={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(
+      "No KB card matched (coverage 0.12, needs 0.50). Connect an AI provider to ask the AI model.",
+    );
+    expect(notice).not.toHaveTextContent("Add your own API key");
+  });
+});

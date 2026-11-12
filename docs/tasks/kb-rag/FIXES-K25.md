@@ -339,7 +339,7 @@ IN PROGRESS.
 | Package | Status |
 | --- | --- |
 | A1 Tool schemas every provider accepts | Done |
-| A2 Make every KB decision visible | Not started |
+| A2 Make every KB decision visible | Done |
 | A3 Every card finds itself | Not started |
 | A6 Honest "not covered" reasons | Not started |
 | A5 A builder that says what it is doing | Not started |

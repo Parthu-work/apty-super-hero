@@ -16,6 +16,7 @@ import { EphemeralSession } from "../conversation/ephemeral-session.js";
 import { ConversationManager } from "../conversation/manager.js";
 import type { Session } from "../conversation/session.js";
 import { SessionStorage } from "../conversation/storage.js";
+import type { TurnDecision } from "../kb/decision.js";
 import { InMemoryStorage } from "../storage/memory.js";
 import type {
   AfterResponsePayload,
@@ -33,6 +34,7 @@ import type {
   SessionStorageAdapter,
   ToolEventPayload,
 } from "../types.js";
+import { isLocalAnswer } from "../types.js";
 import { AgentError, classifyLlmError, ErrorCode } from "../utils/errors.js";
 import { generateId } from "../utils/id-generator.js";
 import { safeJsonParse } from "../utils/json.js";
@@ -681,12 +683,15 @@ export class AptyAgent {
     }
 
     let local: LocalAnswer | undefined;
+    let decision: TurnDecision | undefined;
     if (typeof input === "string" && !chatOptions?.images?.length) {
       try {
-        local = await this.localResponder?.(input, {
+        const responded = await this.localResponder?.(input, {
           runContext: chatOptions?.runContext,
           sessionId: chatOptions?.sessionId,
         });
+        local = isLocalAnswer(responded) ? responded : undefined;
+        decision = responded?.decision;
       } catch (error) {
         yield { type: "error", error: this.normalizeError(error) };
         return;
@@ -719,6 +724,7 @@ export class AptyAgent {
         itemCount: session.getItemCount(),
       };
 
+      if (decision) yield { type: "turn_decision", decision };
       yield* local
         ? this.runLocalAnswer(localTurnInput, local, session)
         : this.runExecution(
@@ -738,6 +744,7 @@ export class AptyAgent {
       yield { type: "session_created", sessionId: session.id };
     }
 
+    if (decision) yield { type: "turn_decision", decision };
     yield* local
       ? this.runLocalAnswer(localTurnInput, local, session)
       : this.runExecution(

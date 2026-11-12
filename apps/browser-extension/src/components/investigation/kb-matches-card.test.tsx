@@ -3,7 +3,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const localKbMatches = vi.hoisted(() => vi.fn());
-vi.mock("@apty/browser-runtime/kb/kb-matches", () => ({ localKbMatches }));
+vi.mock("@apty/browser-runtime/kb/kb-matches", () => ({
+  localKbMatches,
+  kbAnswerOf: (outcome: { kind: string; result?: unknown }) =>
+    outcome.kind === "answer" ? outcome.result : undefined,
+}));
 
 import { forgetKbVersions } from "@apty/browser-runtime/kb/kb-version";
 import { AptyToolDisplay } from "./apty-tool-display";
@@ -79,9 +83,13 @@ describe("KbMatchesCard", () => {
 
   it("searches again for the version the user picks", async () => {
     localKbMatches.mockResolvedValue({
-      status: "ok",
-      mixedVersions: false,
-      results: [hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x")],
+      kind: "answer",
+      packs: [],
+      result: {
+        status: "ok",
+        mixedVersions: false,
+        results: [hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x")],
+      },
     });
     render(
       <AptyToolDisplay

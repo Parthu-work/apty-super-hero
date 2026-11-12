@@ -47,6 +47,7 @@ import { useCopiedFlag } from "../../ui/copy-button";
 import { useComponentsContext } from "../context";
 import { ChatErrorNotice } from "./chat-error-notice";
 import { DefaultToolDisplay } from "./slots/tool-display";
+import { TurnDecisionDetails, TurnDecisionLine } from "./turn-decision-note";
 
 /**
  * Get icon for context type
@@ -176,6 +177,10 @@ export function DefaultMessageItem({
             </SourcesContent>
           ))}
         </Sources>
+      )}
+
+      {message.role === "assistant" && message.metadata?.decision && (
+        <TurnDecisionLine decision={message.metadata.decision} />
       )}
 
       {/* Message parts */}
@@ -335,6 +340,9 @@ export function DefaultMessageItem({
             return null;
         }
       })}
+      {message.role === "assistant" && message.metadata?.decision && (
+        <TurnDecisionDetails decision={message.metadata.decision} />
+      )}
       {message.metadata?.error && (
         <ChatErrorNotice
           error={message.metadata.error}

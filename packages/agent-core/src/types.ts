@@ -5,6 +5,7 @@ import type {
 } from "@openai/agents";
 import type { AiSdkModel } from "@openai/agents-extensions/ai-sdk";
 import type { Context, ContextManager } from "./context/index.js";
+import type { TurnDecision } from "./kb/decision.js";
 import type { AgentError } from "./utils/errors.js";
 
 // Re-export types from @openai/agents for convenient access
@@ -149,12 +150,30 @@ export interface LocalAnswer {
   result: unknown;
   /** The tool output the session keeps for the model to read on later turns. */
   transcript: string;
+  /** What decided the turn (KB-RAG K25, A2), shown with it; never sent to the model. */
+  decision?: TurnDecision;
+}
+
+/** No local answer: the model takes the turn, and the chat shows why. */
+export interface LocalDecision {
+  decision: TurnDecision;
 }
 
 export type LocalResponder = (
   input: string,
   context: { runContext?: unknown; sessionId?: string },
-) => LocalAnswer | undefined | Promise<LocalAnswer | undefined>;
+) =>
+  | LocalAnswer
+  | LocalDecision
+  | undefined
+  | Promise<LocalAnswer | LocalDecision | undefined>;
+
+/** Whether a local responder's result answers the turn itself. */
+export function isLocalAnswer(
+  value: LocalAnswer | LocalDecision | undefined,
+): value is LocalAnswer {
+  return value !== undefined && "toolName" in value;
+}
 
 /** What a call sends besides its input items. */
 export interface OutboundRequestContext {
@@ -278,6 +297,7 @@ export type AgentEvent =
   | { type: "context_error"; providerId: string; error: Error }
   | { type: "metrics_update"; metrics: AgentMetrics; sessionId?: string }
   | { type: "error"; error: AgentError }
+  | { type: "turn_decision"; decision: TurnDecision }
   | {
       type: "execution_complete";
       finalOutput: string;

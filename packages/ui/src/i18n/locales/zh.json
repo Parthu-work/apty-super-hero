@@ -2568,5 +2568,39 @@
     "export": "导出（JSON）",
     "clear": "清除",
     "clearLocked": "您的组织保留此记录，因此无法在此清除。"
+  },
+  "turnDecision": {
+    "why": "为什么是这个回答",
+    "notCovered": "没有匹配的 KB 卡片（覆盖率 {{coverage}}，需要 {{min}}）。",
+    "unknownSetting": "没有 KB 卡片提到该设置。",
+    "noPack": "未加载 {{version}} 知识包。",
+    "noPackAny": "未加载任何 KB 知识包。",
+    "error": "无法搜索 KB（{{code}}）。",
+    "askedModel": "已询问 AI 模型。",
+    "noModel": "连接 AI 提供商即可询问 AI 模型。",
+    "routeLine": "回答来源：{{route}}",
+    "route": {
+      "check": "检查包 {{pack}}",
+      "kb": "KB 卡片",
+      "file_fetch": "从 Apty Client 获取的文件",
+      "model": "AI 模型"
+    },
+    "versionLine": "Apty 版本：{{version}}（{{source}}）",
+    "source": {
+      "files": "来自 Apty Client 的文件",
+      "user": "您的选择",
+      "unknown": "未知"
+    },
+    "packsLine": "已搜索的知识包：{{packs}}",
+    "packsNone": "已搜索的知识包：无",
+    "kbLine": "KB：{{outcome}}",
+    "outcome": {
+      "answer": "{{status}}，卡片 {{pageIds}}",
+      "notCovered": "未覆盖（{{reason}}），覆盖率 {{coverage}}，需要 {{min}}，最接近的卡片 {{top}}",
+      "noPack": "没有 {{version}} 的知识包",
+      "error": "无法搜索（{{code}}）",
+      "howTo": "操作类问题，交给 AI 模型",
+      "nonEnglish": "非英文，交给 AI 模型"
+    }
   }
 }

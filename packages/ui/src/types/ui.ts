@@ -1,4 +1,4 @@
-import type { ContextType } from "@apty/agent-core";
+import type { ContextType, TurnDecision } from "@apty/agent-core";
 import type { ReactNode } from "react";
 import type { ChatErrorInfo } from "../lib/chat-error";
 
@@ -77,6 +77,8 @@ export interface UIMessageMetadata {
   errorCode?: string;
   /** Set when the turn failed: the message item shows it as an error notice. */
   error?: ChatErrorInfo;
+  /** What decided the turn (KB-RAG K25, A2): ids, numbers and codes only. */
+  decision?: TurnDecision;
 }
 
 export interface UIMessage {

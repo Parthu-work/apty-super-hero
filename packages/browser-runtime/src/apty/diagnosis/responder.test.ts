@@ -1,3 +1,4 @@
+import { isLocalAnswer } from "@apty/agent-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const EXT_ID = "abcdefghijklmnopabcdefghijklmnop";
@@ -24,7 +25,11 @@ const settings = vi.hoisted(() => ({
   tabs: { get: mockTabsGet },
 };
 
-import { forgetKbVersions, kbVersionForHost } from "../../kb/kb-version";
+import {
+  forgetKbVersions,
+  kbVersionForHost,
+  rememberKbVersion,
+} from "../../kb/kb-version";
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
 import { runDiagnosisTool } from "../../tools/diagnosis";
 import {
@@ -95,8 +100,10 @@ describe("createDiagnosisResponder", () => {
   it("leaves anything it does not recognise to the model, without contacting the Client", async () => {
     const respond = createDiagnosisResponder();
 
-    expect(await respond("How do I publish a workflow?", {})).toBeUndefined();
-    expect(await respond("get segments.json", {})).toBeUndefined();
+    expect(
+      isLocalAnswer(await respond("How do I publish a workflow?", {})),
+    ).toBe(false);
+    expect(isLocalAnswer(await respond("get segments.json", {}))).toBe(false);
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
@@ -472,36 +479,67 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     ],
   };
 
+  const answer = {
+    kind: "answer" as const,
+    result: {
+      ...matches,
+      source: "kb" as const,
+      cards: [{ pageId: "202", layer: 1 as const }],
+    },
+    packs: [{ version: "5.x", sha256: "0123456789ab" }],
+  };
+  const noMatch = {
+    kind: "not_covered" as const,
+    reason: "low_coverage" as const,
+    coverage: 0.42,
+    min: 0.5,
+    topPageId: "202",
+    version: "unknown" as const,
+    packs: [{ version: "5.x", sha256: "0123456789ab" }],
+  };
+
   it("answers a symptom no check pack claims from the KB pack, as a search_kb call", async () => {
-    const kbMatchesOf = vi.fn(async () => matches);
+    const kbMatchesOf = vi.fn(async () => answer);
     const respond = createDiagnosisResponder({ kbMatchesOf });
-    const answer = await respond("the tooltip opens twice on the page", {});
+    const answered = await respond("the tooltip opens twice on the page", {});
     expect(kbMatchesOf).toHaveBeenCalledWith(
       "the tooltip opens twice on the page",
       { modelAvailable: false, version: "unknown" },
     );
-    expect(answer).toMatchObject({
+    expect(answered).toMatchObject({
       toolName: "search_kb",
       params: { query: "the tooltip opens twice on the page", topK: 3 },
-      result: matches,
+      result: answer.result,
+      decision: {
+        route: "kb",
+        version: "unknown",
+        versionSource: "unknown",
+        packs: [{ version: "5.x", sha256: "0123456789ab" }],
+        kb: { kind: "answer", status: "ok", pageIds: ["202"] },
+      },
     });
-    expect(JSON.parse(answer?.transcript ?? "{}")).toEqual(matches);
+    expect(
+      JSON.parse((answered as { transcript?: string })?.transcript ?? "{}"),
+    ).toEqual(answer.result);
   });
 
   it("never answers in place of a check pack", async () => {
     serveCapture();
-    const kbMatchesOf = vi.fn(async () => matches);
+    const kbMatchesOf = vi.fn(async () => answer);
     const respond = createDiagnosisResponder({ kbMatchesOf });
-    const answer = await respond(
+    const answered = await respond(
       "My workflow 'Take a tour' is not visible in the widget",
       {},
     );
-    expect(answer?.toolName).toBe(RUN_DIAGNOSIS);
+    expect(answered).toMatchObject({
+      toolName: RUN_DIAGNOSIS,
+      decision: { route: "check", checkPackId: "content-not-visible" },
+    });
     expect(kbMatchesOf).not.toHaveBeenCalled();
   });
 
   it("tells the KB search whether a model can take what the cards cannot match", async () => {
-    const kbMatchesOf = vi.fn(async () => undefined);
+    const kbMatchesOf = vi.fn(async () => noMatch);
     const respond = createDiagnosisResponder({
       kbMatchesOf,
       modelAvailable: () => true,
@@ -516,7 +554,7 @@ describe("the KB matches answer (KB-RAG K6)", () => {
   it("searches the KB for the version a check's files showed on this site (K12)", async () => {
     forgetKbVersions();
     const pageUrlOf = async () => "https://crm.example.com/leads/42";
-    const kbMatchesOf = vi.fn(async () => undefined);
+    const kbMatchesOf = vi.fn(async () => noMatch);
     const respond = createDiagnosisResponder({ pageUrlOf, kbMatchesOf });
     await respond("the tooltip opens twice", {});
     expect(kbMatchesOf).toHaveBeenLastCalledWith("the tooltip opens twice", {
@@ -532,10 +570,46 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     });
   });
 
-  it("leaves the message to the model when the KB has nothing above its threshold", async () => {
+  it("leaves the message to the model when the KB has nothing above its threshold, with the reason", async () => {
     const respond = createDiagnosisResponder({
-      kbMatchesOf: async () => undefined,
+      kbMatchesOf: async () => noMatch,
     });
-    expect(await respond("the tooltip opens twice", {})).toBeUndefined();
+    expect(await respond("the tooltip opens twice", {})).toEqual({
+      decision: {
+        route: "model",
+        version: "unknown",
+        versionSource: "unknown",
+        packs: [{ version: "5.x", sha256: "0123456789ab" }],
+        kb: {
+          kind: "not_covered",
+          reason: "low_coverage",
+          coverage: 0.42,
+          min: 0.5,
+          topPageId: "202",
+          version: "unknown",
+        },
+      },
+    });
+  });
+
+  it("names the version's source: a check's files, then the user's choice", async () => {
+    forgetKbVersions();
+    const pageUrlOf = async () => "https://crm.example.com/leads/42";
+    const respond = createDiagnosisResponder({
+      pageUrlOf,
+      kbMatchesOf: async () => ({ kind: "how_to" }),
+    });
+    rememberKbVersion("crm.example.com", "4.x", "user");
+    expect(await respond("how do I set X", {})).toMatchObject({
+      decision: {
+        version: "4.x",
+        versionSource: "user",
+        kb: { kind: "how_to" },
+      },
+    });
+    rememberKbVersion("crm.example.com", "5.x", "evidence");
+    expect(await respond("how do I set X", {})).toMatchObject({
+      decision: { version: "5.x", versionSource: "files" },
+    });
   });
 });

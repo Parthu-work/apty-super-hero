@@ -242,3 +242,35 @@ describe("AptyAgent local answers", () => {
     expect(seen).toEqual(["tool_call_start", "tool_call_complete"]);
   });
 });
+
+describe("the turn's decision record (KB-RAG K25, A2)", () => {
+  const DECISION = {
+    route: "model" as const,
+    version: "4.x" as const,
+    versionSource: "user" as const,
+    packs: [],
+    kb: { kind: "no_pack" as const, version: "4.x" as const },
+  };
+
+  it("a decision with no answer sends the turn to the model and reports the decision first", async () => {
+    const { agent, requests } = agentWith(() => ({ decision: DECISION }));
+    const events = await collect(agent.chat("the banner is gone"));
+    expect(requests).toHaveLength(1);
+    const types = events.map((e) => e.type);
+    expect(types.indexOf("turn_decision")).toBeLessThan(
+      types.indexOf("content_delta"),
+    );
+    expect(events).toContainEqual({
+      type: "turn_decision",
+      decision: DECISION,
+    });
+  });
+
+  it("a local answer carries its decision, and the model never sees it", async () => {
+    const decision = { ...DECISION, route: "kb" as const, kb: undefined };
+    const { agent, requests } = agentWith(() => ({ ...ANSWER, decision }));
+    const events = await collect(agent.chat("the banner is gone"));
+    expect(requests).toHaveLength(0);
+    expect(events[1]).toEqual({ type: "turn_decision", decision });
+  });
+});

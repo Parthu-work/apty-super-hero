@@ -60,6 +60,7 @@ export function createKbIndexSet(
       ? "hybrid"
       : "bm25",
     calibrated: indexes.every((index) => index.info.calibrated),
+    packs: indexes.flatMap((index) => index.info.packs),
   };
   if (indexes.length === 1) {
     const [only] = indexes as [KbIndex];

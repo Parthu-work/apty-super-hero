@@ -483,3 +483,96 @@ describe("DefaultMessageItem — KB grounding (K18)", () => {
     expect(screen.queryByText(/Not found in the cited KB cards/)).toBeNull();
   });
 });
+
+describe("DefaultMessageItem — the turn's decision (KB-RAG K25, A2)", () => {
+  const base = {
+    version: "4.x" as const,
+    versionSource: "user" as const,
+    packs: [{ version: "4.x" as const, sha256: "0123456789ab" }],
+  };
+  const withDecision = (
+    decision: NonNullable<UIMessage["metadata"]>["decision"],
+  ) => ({
+    ...assistantMessage("From the model"),
+    metadata: { decision },
+  });
+
+  it.each([
+    [
+      {
+        kind: "not_covered",
+        reason: "low_coverage",
+        coverage: 0.42,
+        min: 0.5,
+        version: "4.x",
+      },
+      "No KB card matched (coverage 0.42, needs 0.50). Asked the AI model.",
+    ],
+    [
+      { kind: "no_pack", version: "4.x" },
+      "No 4.x pack is loaded. Asked the AI model.",
+    ],
+    [
+      { kind: "error", code: "pack_read_failed" },
+      "The KB could not be searched (pack_read_failed). Asked the AI model.",
+    ],
+  ] as const)("the model's reply shows why the KB did not answer: %j", (kb, line) => {
+    render(
+      <DefaultMessageItem
+        message={withDecision({ ...base, route: "model", kb })}
+      />,
+    );
+    expect(screen.getByTestId("kb-decision-line")).toHaveTextContent(line);
+  });
+
+  it("a how-to shows no line, and a KB answer none either", () => {
+    const { rerender } = render(
+      <DefaultMessageItem
+        message={withDecision({
+          ...base,
+          route: "model",
+          kb: { kind: "how_to" },
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("kb-decision-line")).toBeNull();
+    rerender(
+      <DefaultMessageItem
+        message={withDecision({
+          ...base,
+          route: "kb",
+          kb: { kind: "answer", status: "ok", pageIds: ["202"] },
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("kb-decision-line")).toBeNull();
+  });
+
+  it("Why this answer is collapsed and lists the route, version, packs and KB outcome", () => {
+    render(
+      <DefaultMessageItem
+        message={withDecision({
+          ...base,
+          route: "model",
+          kb: {
+            kind: "not_covered",
+            reason: "low_coverage",
+            coverage: 0.42,
+            min: 0.5,
+            topPageId: "202",
+            version: "4.x",
+          },
+        })}
+      />,
+    );
+    const details = screen.getByTestId("turn-decision");
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details).getByText("Why this answer")).toBeInTheDocument();
+    expect(details).toHaveTextContent("Answered by: the AI model");
+    expect(details).toHaveTextContent("Apty version: 4.x (your choice)");
+    expect(details).toHaveTextContent("Packs searched: 4.x 0123456789ab");
+    expect(details).toHaveTextContent(
+      "KB: not covered (low_coverage), coverage 0.42, needs 0.50, closest card 202",
+    );
+  });
+});
