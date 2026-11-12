@@ -94,7 +94,8 @@ describe("wrong-card feedback (KB-RAG K25, L3)", () => {
       }
     });
     const card = options.locator("#feedback");
-    await card.getByTestId("feedback-count").waitFor();
+    // The card reads the log after it renders: wait for the count, not the element.
+    await card.getByTestId("feedback-count").getByText("2 entries").waitFor();
     assert.equal(
       await card.getByTestId("feedback-count").innerText(),
       "2 entries",
