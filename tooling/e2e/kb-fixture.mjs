@@ -85,6 +85,11 @@ const testKey = (() => {
 
 /** The trusted key entry of the run-time test key. */
 export const TEST_KEY = testKey.entry;
+/** `pack` signed with the run-time test key. */
+export function signWithTestKey(pack) {
+  return signPack(pack, testKey.pem);
+}
+
 /** The policy that trusts the test key, for a suite on the E2E policy build. */
 export const TEST_KEY_POLICY = { trustedPackKeys: [TEST_KEY] };
 

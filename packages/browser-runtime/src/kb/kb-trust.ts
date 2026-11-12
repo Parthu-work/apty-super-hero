@@ -24,7 +24,10 @@ const hex = (bytes: ArrayBuffer) =>
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 
-/** WebCrypto ECDSA P-256 / SHA-256, as every Chrome the manifest allows has it. */
+/**
+ * WebCrypto ECDSA P-256 / SHA-256, as every Chrome the manifest allows has it.
+ * @internal exported for tests
+ */
 export const webCryptoSignature: KbSignatureCrypto = {
   async verify(spki, message, signature) {
     const key = await crypto.subtle.importKey(
@@ -51,7 +54,10 @@ export type { KbPackState } from "@apty/agent-core";
 /** How a pack is judged; injected so tests can trust a key of their own. */
 export type KbPackAssessor = (info: KbPackInfo) => Promise<KbPackUsability>;
 
-/** The assessor for a policy, a clock and the crypto; a check that throws makes the pack unusable. */
+/**
+ * The assessor for a policy, a clock and the crypto; a check that throws makes the pack unusable.
+ * @internal exported for tests, which trust keys of their own
+ */
 export function createKbPackAssessor({
   policy = loadOrgPolicy,
   now = () => new Date(),

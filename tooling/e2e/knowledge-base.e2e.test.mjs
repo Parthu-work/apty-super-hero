@@ -20,6 +20,8 @@ import {
   tempDir,
   writeRestartHelper,
 } from "./harness.mjs";
+import { signWithTestKey, TEST_KEY_POLICY } from "./kb-fixture.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 const OPTIONS = "src/entrypoints/options/index.html?tab=general#knowledge-base";
 
@@ -56,7 +58,7 @@ before(async () => {
     aptyVersion: "5.x",
   });
   packFile = join(dir, "apty-kb-FX-5.x-fixture.kbpack.json");
-  writeFileSync(packFile, JSON.stringify(pack));
+  writeFileSync(packFile, JSON.stringify(signWithTestKey(pack)));
   const fourX = buildPack({
     pages: [
       syntheticPage("401", "Beacon Glow"),
@@ -70,16 +72,25 @@ before(async () => {
     aptyVersion: "4.x",
   }).pack;
   fourXFile = join(dir, "apty-kb-A4X-4.x-fixture.kbpack.json");
-  writeFileSync(fourXFile, JSON.stringify(fourX));
+  writeFileSync(fourXFile, JSON.stringify(signWithTestKey(fourX)));
   const { sha256: _sha, ...v1 } = { ...pack, schemaVersion: 1 };
   legacyPack = { ...v1, sha256: packSha256(v1) };
   tamperedFile = join(dir, "tampered.kbpack.json");
   writeFileSync(
     tamperedFile,
-    JSON.stringify(pack).replace("Glowing Banner", "Glowing Banner edited"),
+    JSON.stringify(signWithTestKey(pack)).replace(
+      "Glowing Banner",
+      "Glowing Banner edited",
+    ),
   );
   helperDir = writeRestartHelper(tempDir("apty-restart-helper-"));
-  browser = await launchBrowser({ extraExtensions: [helperDir] });
+  // Non-demo packs are signed with the run-time test key, which the E2E
+  // policy build trusts (KB-RAG K23 P2).
+  browser = await launchBrowser({
+    extensionDir: ensurePolicyBuild(),
+    extraExtensions: [helperDir],
+  });
+  await setTestPolicy(browser, TEST_KEY_POLICY);
 });
 
 after(async () => {
