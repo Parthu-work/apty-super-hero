@@ -67,6 +67,7 @@ export {
   isLoopbackHost,
   type KbToModel,
   kbToMcpAllowed,
+  MAX_PACK_AGE_RANGE,
   mcpBridgeAllowed,
   ORG_POLICY_DEFAULTS,
   type OrgPolicy,
@@ -142,12 +143,34 @@ export {
   type KbPackErrorCode,
   type KbPackInfo,
   type KbPackParseResult,
+  type KbPackState,
   kbCardLocation,
   kbCardUrl,
   kbPackAgeDays,
   parseKbPack,
   type Sha256Hex,
 } from "./kb/pack.js";
+export {
+  base64ToBytes,
+  isInvalidSite,
+  KB_PACK_EXPIRING_DAYS,
+  KB_SIGNATURE_ALG,
+  KB_SIGNATURE_CONTEXT,
+  type KbPackSignature,
+  type KbPackUnusableReason,
+  type KbPackUsability,
+  type KbPackValidity,
+  type KbPackValidityState,
+  type KbSignatureCrypto,
+  type KbSignedFields,
+  type KbTrustResult,
+  kbKeyIdOf,
+  kbPackUsability,
+  kbPackValidity,
+  kbSignedMessage,
+  type TrustedPackKey,
+  verifyKbPackSignature,
+} from "./kb/pack-signature.js";
 export {
   createKbIndex,
   hasLayerHint,
@@ -170,6 +193,13 @@ export {
   NOT_A_SETTING,
   namedPhrases,
 } from "./kb/text.js";
+export {
+  BUILT_IN_PACK_KEYS,
+  DEMO_PACK_KEY,
+  KB_OWNER_PACK_KEYS,
+  type KbTrustPolicy,
+  kbTrustPolicyOf,
+} from "./kb/trusted-keys.js";
 // Generic Storage
 export type {
   BaseKeyValueStorage,

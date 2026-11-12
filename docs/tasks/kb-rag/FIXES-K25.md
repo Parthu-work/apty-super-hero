@@ -343,7 +343,7 @@ IN PROGRESS.
 | A3 Every card finds itself | Done; the real-pack self-check (acceptance 4) is partial: KB owner to run `pnpm -s kb:eval --self-check --pack <pack>` on both packs |
 | A6 Honest "not covered" reasons | Done |
 | A5 A builder that says what it is doing | Done |
-| A7 Signed packs with expiry (K23) | Not started |
+| A7 Signed packs with expiry (K23) | Done; the KB owner's built-in key is empty until they run `pnpm kb:keygen` |
 | A4 "Not in this version" cards | Not started |
 | L1 A case for every debugging session | Not started |
 | L2 A support bundle the Agent assembles | Not started |

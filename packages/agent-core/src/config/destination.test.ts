@@ -125,8 +125,21 @@ describe("kbEgressAllowed (D-SEC1)", () => {
     origin: "https://ai.example.com",
     model: "gpt-5",
   };
-  const real = [{ site: "synthetic.atlassian.example" }];
-  const demo = [{ site: "demo.atlassian.invalid" }];
+  const validity = { state: "current" as const, date: null };
+  const signedBy = (demoKey: boolean) => ({
+    usable: true,
+    validity,
+    trust: {
+      status: "trusted" as const,
+      keyId: demoKey ? "8db33081c3ea74eb" : "0123456789abcdef",
+      name: demoKey ? "Apty demo key" : "KB owner",
+      demo: demoKey,
+    },
+  });
+  const real = [
+    { site: "synthetic.atlassian.example", usability: signedBy(false) },
+  ];
+  const demo = [{ site: "demo.atlassian.invalid", usability: signedBy(true) }];
 
   it("withholds KB text with no policy and a non-demo pack", () => {
     expect(kbEgressAllowed(NONE, dest, real)).toEqual({
@@ -162,6 +175,31 @@ describe("kbEgressAllowed (D-SEC1)", () => {
     expect(kbEgressAllowed(active({ kbToModel: "off" }), dest, real)).toEqual({
       allowed: false,
       reason: "policy-off",
+    });
+  });
+
+  it("a .invalid site signed with a key that is not the demo key gets no demo exception (D-SEC10)", () => {
+    const named = [
+      { site: "demo.atlassian.invalid", usability: signedBy(false) },
+    ];
+    expect(kbEgressAllowed(NONE, dest, named)).toEqual({
+      allowed: false,
+      reason: "policy-off",
+    });
+  });
+
+  it("counts only packs in use: an unusable pack sends nothing and blocks nothing (K23 P4)", () => {
+    const expired = {
+      site: "synthetic.atlassian.example",
+      usability: { ...signedBy(false), usable: false },
+    };
+    expect(kbEgressAllowed(NONE, dest, [expired])).toEqual({
+      allowed: false,
+      reason: "no-pack",
+    });
+    expect(kbEgressAllowed(NONE, dest, [...demo, expired])).toEqual({
+      allowed: true,
+      reason: "demo",
     });
   });
 

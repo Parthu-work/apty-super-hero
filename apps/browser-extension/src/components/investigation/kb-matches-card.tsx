@@ -38,7 +38,9 @@ export function isKbMatches(output: unknown): output is KbToolResult {
   if (
     typeof result === "object" &&
     result !== null &&
-    (isKbStub(result) || result.status === "non_english")
+    (isKbStub(result) ||
+      result.status === "non_english" ||
+      (result.status === "pack_unusable" && result.unusable !== undefined))
   ) {
     return true;
   }
@@ -99,6 +101,22 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
     );
   }
   const { stub } = output;
+  if (output.status === "pack_unusable" && output.unusable) {
+    const { reason, aptyVersion, date } = output.unusable;
+    return (
+      <section
+        aria-label={title}
+        className="rounded-lg border border-border bg-card p-3"
+      >
+        <p className="text-sm text-foreground" data-testid="kb-pack-unusable">
+          {`${t(`turnDecision.packUnusable.${reason}`, {
+            version: aptyVersion,
+            date: date?.slice(0, 10) ?? "",
+          })} ${t("kbMatches.askForNewPack")}`}
+        </p>
+      </section>
+    );
+  }
   if (output.status === "non_english") {
     return (
       <section

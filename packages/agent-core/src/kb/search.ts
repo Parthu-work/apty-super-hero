@@ -117,8 +117,13 @@ export interface KbIndexInfo {
   mode: "bm25" | "hybrid";
   /** Whether the pack carries a calibrated threshold; without one, any match counts as covered. */
   calibrated: boolean;
-  /** The packs searched, by version and sha256. */
-  packs: Array<{ aptyVersion: KbAptyVersion; sha256: string }>;
+  /** The packs searched, by version and sha256, with their signing key and expiry (K23). */
+  packs: Array<{
+    aptyVersion: KbAptyVersion;
+    sha256: string;
+    keyId: string | null;
+    expiresAt: string | null;
+  }>;
 }
 
 export interface KbIndex {
@@ -302,7 +307,7 @@ function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
     chunkCount: chunks.length,
     mode: hybrid ? "hybrid" : "bm25",
     calibrated: pack.retrieval.threshold !== undefined,
-    packs: [{ aptyVersion: pack.aptyVersion, sha256: pack.sha256 }],
+    packs: [packIdentity(pack)],
   };
 
   function hit(chunk: KbChunk, score: number): KbSearchHit {
@@ -1069,7 +1074,7 @@ function createV2Index(pack: KbPack): KbIndex {
       chunkCount: chunks.length,
       mode: hybrid ? "hybrid" : "bm25",
       calibrated: pack.retrieval.coverage !== undefined,
-      packs: [{ aptyVersion: pack.aptyVersion, sha256: pack.sha256 }],
+      packs: [packIdentity(pack)],
     },
     vocabularyIdf: corpus.vocabularyIdf,
     holdsPhrase: corpus.holdsPhrase,
@@ -1089,8 +1094,17 @@ function createV2Index(pack: KbPack): KbIndex {
  * query give the same result: ties go to the lower page id, then the lower
  * layer, and chunks are unique by page and layer.
  */
+function packIdentity(pack: KbPack): KbIndexInfo["packs"][number] {
+  return {
+    aptyVersion: pack.aptyVersion,
+    sha256: pack.sha256,
+    keyId: pack.signature?.keyId ?? null,
+    expiresAt: pack.expiresAt ?? null,
+  };
+}
+
 export function createKbIndex(pack: KbPack): KbIndex {
-  if (pack.schemaVersion === 2) return createV2Index(pack);
+  if (pack.schemaVersion !== 1) return createV2Index(pack);
   const { cards, chunks } = uniqueChunks(pack);
   const shared = sharedLayerDescriptions(chunks, cards);
   const corpus = corpusOf(

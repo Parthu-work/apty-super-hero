@@ -52,6 +52,7 @@
     "kb:pack": "node tooling/scripts/kb/build-kb-pack.mjs",
     "kb:eval": "node tooling/scripts/kb/eval-kb.mjs",
     "kb:demo-pack": "node tooling/scripts/kb/build-demo-pack.mjs",
+    "kb:keygen": "node tooling/scripts/kb/kb-keygen.mjs",
     "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",
     "generate:extension-key": "node tooling/scripts/generate-extension-key.mjs"
   },

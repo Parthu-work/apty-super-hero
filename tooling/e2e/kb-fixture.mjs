@@ -3,9 +3,16 @@
  * itself so its checksum is the one the extension checks. FIXTURE cards
  * only: no real card text belongs in this repository.
  */
-import { writeFileSync } from "node:fs";
+import { generateKeyPairSync } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildPack } from "../scripts/kb/build-kb-pack.mjs";
+import { DEMO_SIGNING_KEY } from "../scripts/kb/build-demo-pack.mjs";
+import {
+  buildPack,
+  keyIdOf,
+  packSha256,
+  signPack,
+} from "../scripts/kb/build-kb-pack.mjs";
 import { extensionPage } from "./harness.mjs";
 
 /** A synthetic Confluence card page: four layers of FIXTURE text. */
@@ -55,7 +62,37 @@ export const FIXTURE_COVERAGE = { min: 0.4, minIdf: 0.5, minTerms: 1 };
 export const DEMO_SITE = "fixture.atlassian.invalid";
 export const NON_DEMO_SITE = "synthetic.atlassian.example";
 
-/** Writes the synthetic pack to `dir` and returns its path and the pack. */
+/**
+ * The key non-demo fixture packs are signed with (KB-RAG K23 P2): made at
+ * run time, never written to the repository; a suite that imports such a
+ * pack trusts it through the E2E policy build (`TEST_KEY_POLICY`).
+ */
+const testKey = (() => {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
+  return {
+    pem: privateKey.export({ type: "pkcs8", format: "pem" }),
+    entry: {
+      keyId: keyIdOf(publicKey),
+      spki: publicKey
+        .export({ type: "spki", format: "der" })
+        .toString("base64"),
+      name: "E2E test key",
+    },
+  };
+})();
+
+/** The trusted key entry of the run-time test key. */
+export const TEST_KEY = testKey.entry;
+/** The policy that trusts the test key, for a suite on the E2E policy build. */
+export const TEST_KEY_POLICY = { trustedPackKeys: [TEST_KEY] };
+
+/**
+ * Writes the synthetic pack to `dir` and returns its path and the pack,
+ * signed with the demo key for a `.invalid` site and with the test key
+ * otherwise (or `signer`: "demo", "test" or "none").
+ */
 export function writeFixturePack(
   dir,
   {
@@ -64,18 +101,35 @@ export function writeFixturePack(
     aptyVersion = "5.x",
     space = "FX",
     site = DEMO_SITE,
+    signer = site.endsWith(".invalid") ? "demo" : "test",
+    builtAt = new Date().toISOString(),
+    expiresAt,
+    name,
   } = {},
 ) {
-  const { pack } = buildPack({
+  const built = buildPack({
     pages,
     site,
     space,
     label: "rag-card",
-    builtAt: new Date().toISOString(),
+    builtAt,
+    ...(expiresAt ? { expiresAt } : {}),
     coverage,
     aptyVersion,
-  });
-  const file = join(dir, `apty-kb-${space}-${aptyVersion}-fixture.kbpack.json`);
+  }).pack;
+  const pack =
+    signer === "none"
+      ? built
+      : signPack(
+          built,
+          signer === "demo"
+            ? readFileSync(DEMO_SIGNING_KEY, "utf8")
+            : testKey.pem,
+        );
+  const file = join(
+    dir,
+    name ?? `apty-kb-${space}-${aptyVersion}-fixture.kbpack.json`,
+  );
   writeFileSync(file, JSON.stringify(pack));
   return { file, pack };
 }
@@ -94,4 +148,15 @@ export async function importPack(browser, file) {
     )
     .waitFor();
   await options.close();
+}
+
+/** The pack with one card's text changed after it was signed, its checksum recomputed: the signature no longer matches. */
+export function tamperedPack(pack) {
+  const chunks = pack.chunks.map((chunk, i) =>
+    i === 0
+      ? { ...chunk, text: `${chunk.text} (edited after signing)` }
+      : chunk,
+  );
+  const edited = { ...pack, chunks };
+  return { ...edited, sha256: packSha256(edited) };
 }

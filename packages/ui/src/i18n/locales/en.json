@@ -169,8 +169,31 @@
         "wrongSchemaVersion": "This KB pack uses a schema version this Agent does not read. Update the Agent or ask for a pack built for it.",
         "invalid": "This KB pack is malformed. Ask the KB owner to build it again.",
         "checksumMismatch": "This KB pack's checksum does not match its contents: it was changed or cut short. Download it again.",
-        "readFailed": "The file could not be read. Try again."
-      }
+        "readFailed": "The file could not be read. Try again.",
+        "notTrusted": "This pack is not signed by a key this extension trusts.",
+        "revokedKey": "This pack is signed by a key your organization revoked.",
+        "badSignature": "This pack's signature does not match its content.",
+        "expired": "This pack expired on {{date}}.",
+        "notYetValid": "This pack was built in the future ({{date}}); check this device's clock."
+      },
+      "signature": "Signature",
+      "signedBy": "Signed by {{name}} (key {{keyId}})",
+      "notSigned": "Not signed",
+      "signedByUnknown": "Signed by key {{keyId}}, which this extension does not trust",
+      "expires": "Expires",
+      "noExpiry": "No expiry date (built before signing)",
+      "stateLabel": "State",
+      "state": {
+        "current": "Current",
+        "expiring": "Expires in {{days}} days",
+        "expired": "Expired on {{date}}",
+        "notYetValid": "Built in the future ({{date}})",
+        "unsigned": "Not signed",
+        "untrusted": "Signed by a key this extension does not trust",
+        "revoked": "Signed by a revoked key"
+      },
+      "notUsed": "This pack is not used. Ask the KB owner for a new pack.",
+      "expiringSoon": "This pack expires in {{days}} days. Ask the KB owner for a new one."
     }
   },
   "theme": {
@@ -1178,7 +1201,16 @@
         "notLoaded": "Not loaded. Checks link to the KB cards without their text.",
         "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
         "stale": "Loaded: {{count}} cards from space {{space}}, built {{date}}, {{days}} days ago.",
-        "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base."
+        "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base.",
+        "expiring": "Loaded: {{count}} cards from space {{space}}, built {{date}}; it expires in {{days}} days.",
+        "unusable": {
+          "expired": "Not used: the {{version}} pack expired on {{until}}.",
+          "not_yet_valid": "Not used: the {{version}} pack was built in the future ({{until}}); check this device's clock.",
+          "unsigned": "Not used: the {{version}} pack is not signed.",
+          "untrusted": "Not used: the {{version}} pack is not signed by a key this extension trusts.",
+          "revoked": "Not used: the {{version}} pack is signed by a revoked key."
+        },
+        "unusableFix": "Ask the KB owner for a new, signed pack and import it in Settings → General → Knowledge base."
       },
       "orgPolicy": {
         "label": "Organization policy",
@@ -2543,7 +2575,8 @@
     "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card.",
     "notSent": "Shown here only; not sent to the AI model.",
-    "sentTo": "Also sent to the AI model at {{destination}}."
+    "sentTo": "Also sent to the AI model at {{destination}}.",
+    "askForNewPack": "Ask the KB owner for a new one."
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",
@@ -2601,7 +2634,15 @@
       "noPack": "no pack for {{version}}",
       "error": "could not be searched ({{code}})",
       "howTo": "a how-to question, left to the AI model",
-      "nonEnglish": "not in English, left to the AI model"
+      "nonEnglish": "not in English, left to the AI model",
+      "packUnusable": "pack for {{version}} not used ({{reason}})"
+    },
+    "packUnusable": {
+      "expired": "The {{version}} pack expired on {{date}}.",
+      "not_yet_valid": "The {{version}} pack was built in the future ({{date}}).",
+      "unsigned": "The {{version}} pack is not signed.",
+      "untrusted": "The {{version}} pack is not signed by a key this extension trusts.",
+      "revoked": "The {{version}} pack is signed by a revoked key."
     }
   }
 }

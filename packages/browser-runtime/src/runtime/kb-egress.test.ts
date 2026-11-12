@@ -1,11 +1,11 @@
 import {
   type AgentInputItem,
   type AppSettings,
-  type KbPackInfo,
   kbSourceTag,
   type OrgPolicyState,
 } from "@apty/agent-core";
 import { describe, expect, it, vi } from "vitest";
+import type { KbPackState } from "../kb/kb-trust.js";
 import type { EffectiveSettingsDeps } from "./effective-settings";
 import { createKbEgressFilter, decideKbEgress } from "./kb-egress";
 
@@ -45,12 +45,27 @@ const SETTINGS: AppSettings = {
   aiModel: "gpt-chat",
   summaryModel: "gpt-summary",
 };
-const REAL = { site: "synthetic.atlassian.example" } as KbPackInfo;
-const DEMO = { site: "demo.atlassian.invalid" } as KbPackInfo;
+/** Packs in use: one signed by a non-demo key, one by the demo key on a .invalid site (D-SEC10). */
+const signed = (site: string, demo: boolean) =>
+  ({
+    site,
+    usability: {
+      usable: true,
+      validity: { state: "current", date: null },
+      trust: {
+        status: "trusted",
+        keyId: "0123456789abcdef",
+        name: "FIXTURE",
+        demo,
+      },
+    },
+  }) as unknown as KbPackState;
+const REAL = signed("synthetic.atlassian.example", false);
+const DEMO = signed("demo.atlassian.invalid", true);
 
 function deps(
   policy: OrgPolicyState,
-  packs: KbPackInfo[],
+  packs: KbPackState[],
 ): EffectiveSettingsDeps {
   return {
     storedSettings: async () => SETTINGS,
@@ -62,7 +77,7 @@ function deps(
 
 async function send(
   policy: OrgPolicyState,
-  packs: KbPackInfo[],
+  packs: KbPackState[],
   purpose: "chat" | "summary" = "chat",
 ) {
   const onSent = vi.fn();

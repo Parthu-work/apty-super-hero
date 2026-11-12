@@ -59,18 +59,22 @@ Options → Settings → General → Knowledge base → IndexedDB apty-kb-db
 | Evaluation | `tooling/scripts/kb/eval-kb.mjs` (`pnpm kb:eval`) |
 | Repository guard | `tooling/scripts/check-no-kb-pack.mjs` (`npm run audit:kb-pack`) |
 
-## The pack (schema 2)
+## The pack (schema 3)
 
-One JSON file per version. `parseKbPack` reads schema 1 and 2 and returns
-the schema 2 shape: a schema 1 pack is a 5.x pack of full cards with no
-symptom, and keeps its `retrieval.threshold` and its search exactly as
-before.
+One JSON file per version. The builder writes schema 3 (K23): signed, with
+an expiry. `parseKbPack` reads schema 1, 2 and 3 and returns one shape: a
+schema 1 pack is a 5.x pack of full cards with no symptom, and keeps its
+`retrieval.threshold` and its search exactly as before; schema 1 and 2 packs
+carry no signature and no `expiresAt`, so they are `unsigned` and used only
+under a policy with `allowUnsignedPacks`.
 
 | Field | Meaning |
 |---|---|
 | `kind` | `"apty-kb-pack"`, the marker `audit:kb-pack` fails the repository on |
-| `schemaVersion` | `2` (the builder's); `1` is still read |
+| `schemaVersion` | `3` (the builder's); `1` and `2` are still read |
 | `builtAt`, `builder` | ISO time, builder version |
+| `expiresAt` | Schema 3: when the pack stops being used; `--expires-days`, default 60, at most 180 (D-SEC11) |
+| `signature` | Schema 3: `{ alg: "ES256", keyId, value }`: ECDSA P-256 / SHA-256 over `apty-kb-pack-signature/1\n<sha256>\n<keyId>`; `keyId` is the first 16 hex characters of the SHA-256 of the key's SPKI DER; `value` the raw 64-byte (IEEE P1363) signature in base64 (D-SEC8). Absent on a `--unsigned` pack |
 | `source.site`, `.space`, `.label`, `.cardCount` | Where the cards came from; `label` is `ancestor:<root>` for the tree |
 | `aptyVersion` | `"4.x"`, `"5.x"` or `"common"` |
 | `retrieval.bm25` | `true` |
@@ -84,11 +88,28 @@ before.
 | `cards[].status` | `"full"`, `"stub"` (its text for this version is not written yet) or `"routing"` ("Start here") |
 | `cards[].notVerifiedCount` | NOT VERIFIED statements in the card |
 | `chunks[]` | One per layer of a full card: `id` (`<pageId>#L<layer>`), `pageId`, `layer` 1–4, `heading`, `text` (at most 1,000 characters), `notVerified`; none for a stub or routing card |
-| `sha256` | Over the canonical JSON (keys sorted, no whitespace) without itself |
+| `sha256` | Over the canonical JSON (keys sorted, no whitespace) without itself and without `signature` |
 
 Limits: 25 MB, 5,000 chunks. Import errors: `too_large`, `not_json`,
 `wrong_kind`, `wrong_schema_version`, `invalid` (with the field),
-`checksum_mismatch`, `read_failed`.
+`checksum_mismatch`, `read_failed`, and (K23) `unsigned`, `untrusted_key`,
+`revoked_key`, `bad_signature`, `expired`, `not_yet_valid`.
+
+### Which packs are used (K23)
+
+A pack is used only when it is signed by a trusted key (or unsigned under
+`allowUnsignedPacks`) and within its dates: the earliest of `expiresAt` and
+`builtAt + maxPackAgeDays`; a pack built more than a day in the future is
+refused. Trusted keys are the built-in ones (`trusted-keys.ts`: the demo key,
+for `.invalid` sites only, and the KB owner's) and a policy's
+`trustedPackKeys`, less `revokedPackKeyIds`. The check runs at import and
+again every time a pack is read (the index source, the KB matches card,
+`search_kb`, the verdict excerpt, the KB egress decision), so a revoked key or
+an expired pack stops at the next question with no reload. A loaded pack
+that is not used answers nothing: `search_kb` returns `pack_unusable` with
+the reason (`expired`, `not_yet_valid`, `unsigned`, `untrusted`, `revoked`),
+the version and the date, and the chat says so. It still raises the
+redaction floor while it sits in IndexedDB (D-SEC3).
 
 ## Retrieval
 
@@ -302,7 +323,23 @@ the destination ([D-SEC1](../tasks/kb-rag/decisions.md#d-sec1-kb-text-never-reac
 ## Lifecycle: the KB owner
 
 Needs a read-only service account's **classic** Confluence API token (a
-scoped token cannot use CQL search, and the builder says so).
+scoped token cannot use CQL search, and the builder says so), and a signing
+key (K23), made once:
+
+```bash
+pnpm kb:keygen --out ~/apty-kb-signing-key
+```
+
+It writes the private key (PKCS#8 PEM, mode 600; a path inside this
+repository is refused) and `kb-signing-key-<keyId>.public.json`. Send the
+public key (keyId, spki, name) to the extension's maintainers for
+`KB_OWNER_PACK_KEYS`, or to IT for the policy's `trustedPackKeys`. Keep the
+private key off shared drives and out of CI. If it leaks: IT revokes its id
+at once (`revokedPackKeyIds`), the next release removes it from the built-in
+list, and the KB owner makes a new key and rebuilds every pack. Every build
+signs (`--sign-key <file>` or `KB_PACK_SIGNING_KEY`); the builder refuses to
+write an unsigned pack unless given `--unsigned`, and never prints the key.
+Rebuild before `expiresAt` (Options and Preflight warn 7 days ahead).
 
 ```bash
 mkdir -p ~/apty-kb
@@ -313,11 +350,11 @@ export CONFLUENCE_EMAIL=<service-account-email> CONFLUENCE_TOKEN=<classic-read-o
 ```
 
 ```bash
-pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x
+pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
 ```
 
 ```bash
-pnpm kb:pack --space JA --root 1496711169 --version 5.x
+pnpm kb:pack --space JA --root 1496711169 --version 5.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
 ```
 
 ```bash
@@ -357,8 +394,15 @@ Options → Settings → General → **Knowledge base** → **Import pack…**, 
 per version; the file names its version. Each loaded pack has a row
 (version, space, cards and how many are not yet written, build and import
 dates, retrieval, calibration) with **Replace** and **Remove** (after a
-confirmation; the other versions stay). A pack older than 30 days gets a
-warning, in Options and in Preflight (one row per version). Preflight's
+confirmation; the other versions stay). Each row also says who signed the
+pack, when it expires and its state: current, expires in N days, expired,
+not signed, or signed by a key that is not trusted or is revoked; a pack that
+is not used says so and asks for a new one, and Preflight fails its row. A
+pack that expires within 7 days gets a warning, in Options and in Preflight
+(one row per version); a pack with no expiry date (built before K23) keeps
+the 30-day age warning. Import errors name the K23 codes in plain words
+("This pack is not signed by a key this extension trusts.", "This pack's
+signature does not match its content.", "This pack expired on <date>."). Preflight's
 "KB text to AI" row says whether card text is withheld, allowed (and to
 where), or sent because only demo packs are loaded.
 

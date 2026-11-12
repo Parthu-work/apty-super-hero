@@ -16,8 +16,10 @@ import {
   type KbIndexSource,
   type KbTabVersion,
   type KbToolResult,
+  type KbUnusablePack,
   kbToolResultOf,
   sharedKbIndexSource,
+  unusablePackOf,
 } from "./kb-index.js";
 import { isBareHowTo, isMostlyNonLatin } from "./kb-intent.js";
 
@@ -35,6 +37,8 @@ export interface KbMatchesOptions {
 export interface KbSearchedPack {
   version: string;
   sha256: string;
+  keyId?: string | null;
+  expiresAt?: string | null;
 }
 
 export type KbOutcome =
@@ -55,6 +59,12 @@ export type KbOutcome =
       kind: "error";
       code: "pack_read_failed" | "search_failed";
       message: string;
+    }
+  | {
+      kind: "pack_unusable";
+      reason: KbUnusablePack["reason"];
+      version: KbUnusablePack["aptyVersion"];
+      date: string | null;
     };
 
 function failed(
@@ -82,10 +92,27 @@ export async function localKbMatches(
   } catch (error) {
     return failed("pack_read_failed", error);
   }
-  if (!index) return { kind: "no_pack", version };
+  if (!index) {
+    let blocked: KbUnusablePack | undefined;
+    try {
+      blocked = unusablePackOf((await source.unusable?.(version)) ?? []);
+    } catch (error) {
+      return failed("pack_read_failed", error);
+    }
+    return blocked
+      ? {
+          kind: "pack_unusable",
+          reason: blocked.reason,
+          version: blocked.aptyVersion,
+          date: blocked.date,
+        }
+      : { kind: "no_pack", version };
+  }
   const packs = index.info.packs.map((pack) => ({
     version: pack.aptyVersion,
     sha256: packIdOf(pack.sha256),
+    keyId: pack.keyId,
+    expiresAt: pack.expiresAt,
   }));
   if (isMostlyNonLatin(text)) {
     return modelAvailable

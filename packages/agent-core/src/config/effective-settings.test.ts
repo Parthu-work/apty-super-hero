@@ -215,10 +215,36 @@ describe("helpers", () => {
     expect(strongerRedaction("off", "off")).toBe("off");
   });
 
-  it("knows a demo pack by its .invalid site", () => {
-    expect(isDemoKbPack({ site: "demo.atlassian.invalid" })).toBe(true);
-    expect(isDemoKbPack({ site: "Demo.Atlassian.INVALID." })).toBe(true);
-    expect(isDemoKbPack({ site: "synthetic.atlassian.example" })).toBe(false);
-    expect(isDemoKbPack({ site: "invalid.atlassian.net" })).toBe(false);
+  it("knows a demo pack by its verified demo-key signature on a .invalid site (D-SEC10)", () => {
+    const demoKey = {
+      trust: {
+        status: "trusted" as const,
+        keyId: "8db33081c3ea74eb",
+        name: "Apty demo key",
+        demo: true,
+      },
+    };
+    const ownerKey = {
+      trust: { ...demoKey.trust, keyId: "0123456789abcdef", demo: false },
+    };
+    expect(
+      isDemoKbPack({ site: "demo.atlassian.invalid", usability: demoKey }),
+    ).toBe(true);
+    expect(
+      isDemoKbPack({ site: "Demo.Atlassian.INVALID.", usability: demoKey }),
+    ).toBe(true);
+    expect(isDemoKbPack({ site: "demo.atlassian.invalid" })).toBe(false);
+    expect(
+      isDemoKbPack({ site: "demo.atlassian.invalid", usability: ownerKey }),
+    ).toBe(false);
+    expect(
+      isDemoKbPack({
+        site: "demo.atlassian.invalid",
+        usability: { trust: { status: "unsigned" } },
+      }),
+    ).toBe(false);
+    expect(
+      isDemoKbPack({ site: "invalid.atlassian.net", usability: demoKey }),
+    ).toBe(false);
   });
 });

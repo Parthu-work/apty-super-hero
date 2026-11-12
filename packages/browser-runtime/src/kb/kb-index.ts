@@ -12,32 +12,52 @@ import {
   kbSourceTag,
 } from "@apty/agent-core";
 import { createKbPackStore, type KbPackStore } from "../storage/kb-store.js";
+import type { KbPackState } from "./kb-trust.js";
 
 /** The Apty version a tab runs, as far as the Agent knows. */
 export type KbTabVersion = "4.x" | "5.x" | "unknown";
 
 /** The search index over the loaded packs a tab's version reads, rebuilt only when those packs change. */
 export interface KbIndexSource {
-  /** The tab's version and the common cards, or every loaded pack for `unknown` (the default). */
+  /**
+   * The tab's version and the common cards, or every loaded pack for
+   * `unknown` (the default): only the packs in use, judged at every call
+   * (K23 P4), so a revoked key or an expired pack stops at the next search.
+   */
   current(version?: KbTabVersion): Promise<KbIndex | null>;
+  /** When no pack is in use for the version: the loaded ones that are not, and why. */
+  unusable?(version?: KbTabVersion): Promise<KbPackState[]>;
 }
+
+const forVersion = (version: KbTabVersion) => (info: KbPackState) =>
+  version === "unknown" ||
+  info.aptyVersion === version ||
+  info.aptyVersion === "common";
 
 /** @internal exported for tests, which give it a store of their own. */
 export function createKbIndexSource(store: KbPackStore): KbIndexSource {
   const cached = new Map<KbTabVersion, { key: string; index: KbIndex }>();
   return {
+    async unusable(version = "unknown") {
+      const states = (await store.info()).filter(forVersion(version));
+      return states.some((state) => state.usability.usable)
+        ? []
+        : states.filter((state) => !state.usability.usable);
+    },
     async current(version = "unknown") {
-      const infos = (await store.info()).filter(
-        (info) =>
-          version === "unknown" ||
-          info.aptyVersion === version ||
-          info.aptyVersion === "common",
-      );
+      const infos = (await store.info())
+        .filter(forVersion(version))
+        .filter((info) => info.usability.usable);
       if (infos.length === 0) {
         cached.delete(version);
         return null;
       }
-      const key = infos.map((info) => info.sha256).join(",");
+      const key = infos
+        .map(
+          (info) =>
+            `${info.sha256}:${info.usability.trust.status}:${info.usability.validity.state}`,
+        )
+        .join(",");
       const hit = cached.get(version);
       if (hit?.key === key) return hit.index;
       const packs = (
@@ -95,7 +115,15 @@ export interface KbStubHit {
  */
 export interface KbToolResult extends KbSourceTag {
   /** `non_english`: the local answer only, for a question the English cards cannot match. */
-  status: "ok" | "not_covered" | "stub" | "no_pack" | "non_english";
+  status:
+    | "ok"
+    | "not_covered"
+    | "stub"
+    | "no_pack"
+    | "non_english"
+    | "pack_unusable";
+  /** With `pack_unusable` (K23 P4): why the loaded pack is not used, its version and the date that applies; never its text. */
+  unusable?: KbUnusablePack;
   /** With `stub`: the card; say it exists, that its text is not written yet, and give its link. */
   stub?: KbStubHit;
   /** With `not_covered`: nothing matched, too little of the question matched, or it names a setting the best card lacks. */
@@ -105,6 +133,31 @@ export interface KbToolResult extends KbSourceTag {
   /** The top two cards are for different Apty versions: ask which one the tenant runs. */
   mixedVersions?: boolean;
   results: KbToolHit[];
+}
+
+/** A loaded pack that is not used, as a result names it. */
+export interface KbUnusablePack {
+  reason: "expired" | "not_yet_valid" | "unsigned" | "untrusted" | "revoked";
+  aptyVersion: KbAptyVersion;
+  date: string | null;
+}
+
+/** The first unusable pack's reason, version and date, for a result. */
+export function unusablePackOf(
+  states: readonly KbPackState[],
+): KbUnusablePack | undefined {
+  const [first] = states;
+  if (!first?.usability.reason) return undefined;
+  return {
+    reason: first.usability.reason,
+    aptyVersion: first.aptyVersion,
+    date: first.usability.validity.date,
+  };
+}
+
+/** The search_kb result when the version's packs are loaded but none is used. */
+export function packUnusableResult(unusable: KbUnusablePack): KbToolResult {
+  return { status: "pack_unusable", ...kbSourceTag([]), unusable, results: [] };
 }
 
 function kbCite(pageId: string, layer: number): string {

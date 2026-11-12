@@ -221,3 +221,25 @@ describe("KbMatchesCard", () => {
     }
   });
 });
+
+describe("KB matches card for a pack that is not used (KB-RAG K23 P5)", () => {
+  it("shows one line with the reason and the date, and no card", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "pack_unusable",
+          unusable: {
+            reason: "expired",
+            aptyVersion: "4.x",
+            date: "2027-01-10T00:00:00.000Z",
+          },
+          results: [],
+        })}
+      />,
+    );
+    expect(screen.getByTestId("kb-pack-unusable")).toHaveTextContent(
+      "The 4.x pack expired on 2027-01-10. Ask the KB owner for a new one.",
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});

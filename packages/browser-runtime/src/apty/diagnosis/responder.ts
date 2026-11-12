@@ -536,6 +536,8 @@ async function kbAnswer(
         ? outcome.packs.map((pack) => ({
             version: pack.version as TurnDecision["packs"][number]["version"],
             sha256: pack.sha256,
+            ...(pack.keyId ? { keyId: pack.keyId } : {}),
+            ...(pack.expiresAt ? { expiresAt: pack.expiresAt } : {}),
           }))
         : [],
     kb: kbDecisionOf(outcome),

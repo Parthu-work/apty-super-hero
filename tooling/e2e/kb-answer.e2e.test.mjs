@@ -15,7 +15,13 @@ import {
   tempDir,
   toolResults,
 } from "./harness.mjs";
-import { importPack, NON_DEMO_SITE, writeFixturePack } from "./kb-fixture.mjs";
+import {
+  importPack,
+  NON_DEMO_SITE,
+  TEST_KEY_POLICY,
+  writeFixturePack,
+} from "./kb-fixture.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 let browser;
 let model;
@@ -26,7 +32,8 @@ before(async () => {
   site = await startPageServer({
     "/app.html": "<!doctype html><title>App</title><main>FIXTURE app</main>",
   });
-  browser = await launchBrowser();
+  // The E2E policy build: the non-demo pack test trusts its run-time key (K23 P2).
+  browser = await launchBrowser({ extensionDir: ensurePolicyBuild() });
 });
 
 after(async () => {
@@ -168,6 +175,7 @@ describe("search_kb in a follow-up answer (KB-RAG K4)", () => {
     await chatAndWait(panel, "how do I turn the banner glow on in Studio?");
     assert.match(JSON.stringify(model.requests.at(-1)), /Glowing Banner/);
 
+    await setTestPolicy(browser, TEST_KEY_POLICY);
     const { file } = writeFixturePack(tempDir("apty-kb-answer-real-"), {
       site: NON_DEMO_SITE,
     });

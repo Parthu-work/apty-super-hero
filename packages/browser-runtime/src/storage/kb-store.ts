@@ -8,6 +8,12 @@ import {
   parseKbPack,
   type Sha256Hex,
 } from "@apty/agent-core";
+import {
+  type KbPackAssessor,
+  type KbPackState,
+  sharedKbPackAssessor,
+  withUsability,
+} from "../kb/kb-trust.js";
 import { KB_DB } from "./database-names.js";
 
 /**
@@ -18,10 +24,14 @@ import { KB_DB } from "./database-names.js";
  * without reading the body.
  */
 export interface KbPackStore {
-  /** The loaded packs, in version order (4.x, 5.x, common). */
-  info(): Promise<KbPackInfo[]>;
+  /** The loaded packs, in version order (4.x, 5.x, common), each with whether it is used, judged now (K23 P4). */
+  info(): Promise<KbPackState[]>;
   load(version: KbAptyVersion): Promise<KbPack | null>;
-  /** Validates the file's text and, if it passes, replaces the loaded pack of the file's own version. */
+  /**
+   * Validates the file's text, its signature against the current trust and
+   * its dates (K23 P4) and, if it passes, replaces the loaded pack of the
+   * file's own version. A refused file keeps the loaded pack.
+   */
   replace(text: string): Promise<KbImportResult>;
   remove(version: KbAptyVersion): Promise<void>;
 }
@@ -124,14 +134,40 @@ export function indexedDbRecords(
   };
 }
 
+/** Why an import is refused, from a pack's usability (K23 P4): the P1 codes. */
+function refusalOf(
+  state: KbPackState["usability"],
+): KbImportResult | undefined {
+  if (state.usable) return undefined;
+  const trust = state.trust.status;
+  if (trust === "unsigned" && state.reason === "unsigned") {
+    return { ok: false, code: "unsigned" };
+  }
+  if (
+    trust === "untrusted_key" ||
+    trust === "revoked_key" ||
+    trust === "bad_signature"
+  ) {
+    return { ok: false, code: trust };
+  }
+  if (state.reason === "expired" || state.reason === "not_yet_valid") {
+    const date = state.validity.date;
+    return { ok: false, code: state.reason, ...(date ? { date } : {}) };
+  }
+  return { ok: false, code: "untrusted_key" };
+}
+
 export function createKbPackStore({
   records = indexedDbRecords(),
   sha256 = webCryptoSha256,
   now = () => new Date(),
+  assess = sharedKbPackAssessor(),
 }: {
   records?: KbRecords;
   sha256?: Sha256Hex;
   now?: () => Date;
+  /** Whether a pack is used: the managed policy's trust and the clock by default. */
+  assess?: KbPackAssessor;
 } = {}): KbPackStore {
   /**
    * Moves the earlier single pack to the 5.x keys, once, in one
@@ -186,7 +222,10 @@ export function createKbPackStore({
           records.get<KbPackInfo>(meta(version)),
         ),
       );
-      return all.filter((info): info is KbPackInfo => info !== undefined);
+      return withUsability(
+        all.filter((info): info is KbPackInfo => info !== undefined),
+        assess,
+      );
     },
     async load(version) {
       await migrate();
@@ -202,6 +241,13 @@ export function createKbPackStore({
       const parsed = await parseKbPack(text, { sha256 });
       if (!parsed.ok) return { ok: false, code: parsed.code };
       const info = describeKbPack(parsed.pack, now().toISOString());
+      let refusal: KbImportResult | undefined;
+      try {
+        refusal = refusalOf(await assess(info));
+      } catch {
+        refusal = { ok: false, code: "bad_signature" };
+      }
+      if (refusal) return refusal;
       await records.putAll([
         [pack(info.aptyVersion), parsed.pack],
         [meta(info.aptyVersion), info],

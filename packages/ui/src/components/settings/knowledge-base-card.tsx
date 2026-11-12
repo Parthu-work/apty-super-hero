@@ -4,6 +4,7 @@ import {
   type KbAptyVersion,
   type KbImportResult,
   type KbPackInfo,
+  type KbPackUsability,
   kbPackAgeDays,
 } from "@apty/agent-core";
 import { BookOpen, Trash2, Upload } from "lucide-react";
@@ -38,13 +39,56 @@ const ERROR_KEYS: Record<ErrorCode, TranslationKey> = {
   invalid: "settings.knowledgeBase.errors.invalid",
   checksum_mismatch: "settings.knowledgeBase.errors.checksumMismatch",
   read_failed: "settings.knowledgeBase.errors.readFailed",
+  unsigned: "settings.knowledgeBase.errors.notTrusted",
+  untrusted_key: "settings.knowledgeBase.errors.notTrusted",
+  revoked_key: "settings.knowledgeBase.errors.revokedKey",
+  bad_signature: "settings.knowledgeBase.errors.badSignature",
+  expired: "settings.knowledgeBase.errors.expired",
+  not_yet_valid: "settings.knowledgeBase.errors.notYetValid",
 };
+
+/** Who signed a pack and whether it is used, in words (K23 P5). */
+function trustWords(
+  usability: KbPackUsability,
+  t: ReturnType<typeof useTranslation>["t"],
+): { signer: string; state: string } {
+  const { trust, validity } = usability;
+  const signer =
+    trust.status === "trusted"
+      ? t("settings.knowledgeBase.signedBy", {
+          name: trust.name,
+          keyId: trust.keyId,
+        })
+      : trust.status === "unsigned"
+        ? t("settings.knowledgeBase.notSigned")
+        : t("settings.knowledgeBase.signedByUnknown", {
+            keyId: trust.keyId ?? "",
+          });
+  const date = validity.date?.slice(0, 10) ?? "";
+  const state =
+    usability.reason === "unsigned"
+      ? t("settings.knowledgeBase.state.unsigned")
+      : usability.reason === "untrusted"
+        ? t("settings.knowledgeBase.state.untrusted")
+        : usability.reason === "revoked"
+          ? t("settings.knowledgeBase.state.revoked")
+          : validity.state === "expired"
+            ? t("settings.knowledgeBase.state.expired", { date })
+            : validity.state === "not_yet_valid"
+              ? t("settings.knowledgeBase.state.notYetValid", { date })
+              : validity.state === "expiring"
+                ? t("settings.knowledgeBase.state.expiring", {
+                    days: validity.daysLeft ?? 0,
+                  })
+                : t("settings.knowledgeBase.state.current");
+  return { signer, state };
+}
 
 type Status =
   | { kind: "idle" }
   | { kind: "imported"; cardCount: number; space: string; version: string }
   | { kind: "removed"; version: string }
-  | { kind: "error"; code: ErrorCode };
+  | { kind: "error"; code: ErrorCode; date?: string };
 
 export interface KnowledgeBaseCardProps {
   adapter: KnowledgeBaseAdapter;
@@ -59,7 +103,7 @@ function PackRow({
   onReplace,
   onRemove,
 }: {
-  info: KbPackInfo;
+  info: KbPackInfo & { usability?: KbPackUsability };
   now: Date;
   busy: boolean;
   onReplace: () => void;
@@ -68,7 +112,10 @@ function PackRow({
   const { t } = useTranslation();
   const version = info.aptyVersion;
   const age = kbPackAgeDays(info, now);
-  const stale = age !== undefined && age > KB_PACK_STALE_DAYS;
+  // The 30-day warning is for packs with no expiry date; K23's dates replace it.
+  const stale =
+    !info.expiresAt && age !== undefined && age > KB_PACK_STALE_DAYS;
+  const trust = info.usability ? trustWords(info.usability, t) : undefined;
   return (
     <section
       aria-label={t("settings.knowledgeBase.loadedLabelVersion", { version })}
@@ -103,6 +150,26 @@ function PackRow({
           {t("settings.knowledgeBase.imported")}
         </dt>
         <dd>{info.importedAt.slice(0, 10)}</dd>
+        {trust && (
+          <>
+            <dt className="text-muted-foreground">
+              {t("settings.knowledgeBase.signature")}
+            </dt>
+            <dd>{trust.signer}</dd>
+            <dt className="text-muted-foreground">
+              {t("settings.knowledgeBase.expires")}
+            </dt>
+            <dd>
+              {info.expiresAt
+                ? info.expiresAt.slice(0, 10)
+                : t("settings.knowledgeBase.noExpiry")}
+            </dd>
+            <dt className="text-muted-foreground">
+              {t("settings.knowledgeBase.stateLabel")}
+            </dt>
+            <dd data-testid="kb-pack-state">{trust.state}</dd>
+          </>
+        )}
         <dt className="text-muted-foreground">
           {t("settings.knowledgeBase.retrieval")}
         </dt>
@@ -120,6 +187,16 @@ function PackRow({
           )}
         </dd>
       </dl>
+      {info.usability && !info.usability.usable && (
+        <Notice tone="error">{t("settings.knowledgeBase.notUsed")}</Notice>
+      )}
+      {info.usability?.validity.state === "expiring" && (
+        <Notice tone="warning">
+          {t("settings.knowledgeBase.expiringSoon", {
+            days: info.usability.validity.daysLeft ?? 0,
+          })}
+        </Notice>
+      )}
       {stale && (
         <Notice tone="warning">
           {t("settings.knowledgeBase.stale", { days: age ?? 0 })}
@@ -206,7 +283,11 @@ export function KnowledgeBaseCard({
             version: result.info.aptyVersion,
           });
         } else {
-          setStatus({ kind: "error", code: result.code });
+          setStatus({
+            kind: "error",
+            code: result.code,
+            ...(result.date ? { date: result.date } : {}),
+          });
         }
       } catch {
         setStatus({ kind: "error", code: "read_failed" });
@@ -279,7 +360,11 @@ export function KnowledgeBaseCard({
           </Notice>
         )}
         {status.kind === "error" && (
-          <Notice tone="error">{t(ERROR_KEYS[status.code])}</Notice>
+          <Notice tone="error">
+            {t(ERROR_KEYS[status.code], {
+              date: status.date?.slice(0, 10) ?? "",
+            })}
+          </Notice>
         )}
 
         <div className="flex flex-wrap gap-2">

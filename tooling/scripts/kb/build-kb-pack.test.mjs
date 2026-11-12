@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import {
   mkdtempSync,
   readFileSync,
@@ -413,7 +413,7 @@ describe("buildPack", () => {
     ];
     const coverage = { min: 0.45, minIdf: 2.1, minTerms: 1 };
     const { pack, skipped } = buildPack({ ...args, pages, coverage });
-    assert.equal(pack.schemaVersion, 2);
+    assert.equal(pack.schemaVersion, 3);
     assert.deepEqual(
       pack.cards.map((card) => card.pageId),
       ["20", "100"],
@@ -514,6 +514,18 @@ describe("customer names and diff", () => {
   });
 });
 
+/** A signing key made for these tests, written outside the repository. */
+const TEST_KEY = (() => {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
+  const dir = mkdtempSync(join(tmpdir(), "kb-test-key-"));
+  const file = join(dir, "test-key.pem");
+  const pem = privateKey.export({ type: "pkcs8", format: "pem" });
+  writeFileSync(file, pem, { mode: 0o600 });
+  return { file, pem, publicKey };
+})();
+
 describe("the CLI", () => {
   const env = {
     CONFLUENCE_EMAIL: "svc@example.com",
@@ -521,14 +533,18 @@ describe("the CLI", () => {
   };
   const now = () => new Date("2026-03-04T05:06:07.000Z");
 
-  /** The CLI with `--version 5.x` unless the test passes its own (or `version: null` for none). */
+  /** The CLI with `--version 5.x` unless the test passes its own (or `version: null` for none), signed with a test key unless `--unsigned`. */
   function runWith({ version = "5.x", ...options }) {
     const out = [];
     const err = [];
-    const argv =
+    const versioned =
       version === null || options.argv?.includes("--version")
         ? options.argv
         : [...(options.argv ?? []), "--version", version];
+    const argv =
+      versioned.includes("--unsigned") || versioned.includes("--sign-key")
+        ? versioned
+        : [...versioned, "--sign-key", TEST_KEY.file];
     const result = run({
       env,
       now,
@@ -835,7 +851,7 @@ describe("a builder that says what it is doing (KB-RAG K25, A5)", () => {
     const err = [];
     let tick = 0;
     const code = await run({
-      argv: ["--space", "FX", "--site", SITE, "--version", "5.x"],
+      argv: ["--space", "FX", "--site", SITE, "--version", "5.x", "--unsigned"],
       env: {
         CONFLUENCE_EMAIL: "svc@example.com",
         CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
@@ -867,7 +883,16 @@ describe("a builder that says what it is doing (KB-RAG K25, A5)", () => {
 
     const quiet = [];
     await run({
-      argv: ["--space", "FX", "--site", SITE, "--version", "5.x", "--quiet"],
+      argv: [
+        "--space",
+        "FX",
+        "--site",
+        SITE,
+        "--version",
+        "5.x",
+        "--quiet",
+        "--unsigned",
+      ],
       env: {
         CONFLUENCE_EMAIL: "svc@example.com",
         CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
@@ -946,5 +971,170 @@ describe("a builder that says what it is doing (KB-RAG K25, A5)", () => {
     });
     assert.equal(code, 1);
     assert.match(err.join("\n"), /--timeout takes a number of seconds/);
+  });
+});
+
+describe("signing in the builder (KB-RAG K23 P2)", () => {
+  const env = {
+    CONFLUENCE_EMAIL: "svc@example.com",
+    CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+  };
+  const now = () => new Date("2026-11-12T00:00:00.000Z");
+
+  async function build(extra, environment = env) {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const out = [];
+    const err = [];
+    const code = await run({
+      argv: ["--space", "FX", "--site", SITE, "--version", "5.x", ...extra],
+      env: environment,
+      now,
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      out: (line) => out.push(line),
+      err: (line) => err.push(line),
+    });
+    const file = join(home, "apty-kb", "apty-kb-FX-5.x-20261112.kbpack.json");
+    return { code, out: out.join("\n"), err: err.join("\n"), file };
+  }
+
+  it("writes schema 3, signed, expiring in 60 days, and the signature verifies with the public key", async () => {
+    const result = await build(["--sign-key", TEST_KEY.file]);
+    assert.equal(result.code, 0, result.err);
+    const pack = JSON.parse(readFileSync(result.file, "utf8"));
+    assert.equal(pack.schemaVersion, 3);
+    assert.equal(pack.expiresAt, "2027-01-11T00:00:00.000Z");
+    assert.equal(packSha256(pack), pack.sha256);
+    const der = TEST_KEY.publicKey.export({ type: "spki", format: "der" });
+    const keyId = createHash("sha256").update(der).digest("hex").slice(0, 16);
+    assert.deepEqual(Object.keys(pack.signature).sort(), [
+      "alg",
+      "keyId",
+      "value",
+    ]);
+    assert.equal(pack.signature.keyId, keyId);
+    assert.ok(
+      verify(
+        "sha256",
+        Buffer.from(`apty-kb-pack-signature/1\n${pack.sha256}\n${keyId}`),
+        { key: TEST_KEY.publicKey, dsaEncoding: "ieee-p1363" },
+        Buffer.from(pack.signature.value, "base64"),
+      ),
+    );
+    assert.match(
+      result.out,
+      new RegExp(`signed with key ${keyId}; expires 2027-01-11`),
+    );
+    for (const text of [result.out, result.err]) {
+      assert.ok(!text.includes("PRIVATE KEY"), "never prints the key");
+      assert.ok(
+        !text.includes(TEST_KEY.pem.split("\n")[1]),
+        "never prints the key",
+      );
+    }
+  });
+
+  it("reads the key from KB_PACK_SIGNING_KEY too, and takes --expires-days", async () => {
+    const result = await build(["--expires-days", "180"], {
+      ...env,
+      KB_PACK_SIGNING_KEY: TEST_KEY.file,
+    });
+    assert.equal(result.code, 0, result.err);
+    assert.equal(
+      JSON.parse(readFileSync(result.file, "utf8")).expiresAt,
+      "2027-05-11T00:00:00.000Z",
+    );
+  });
+
+  it("refuses a pack valid for more than 180 days, and an unsigned pack without --unsigned", async () => {
+    const long = await build([
+      "--sign-key",
+      TEST_KEY.file,
+      "--expires-days",
+      "181",
+    ]);
+    assert.equal(long.code, 1);
+    assert.match(
+      long.err,
+      /--expires-days takes a whole number of days, 1 to 180/,
+    );
+    const unsigned = await build([]);
+    assert.equal(unsigned.code, 1);
+    assert.match(unsigned.err, /Pass --sign-key/);
+  });
+
+  it("--unsigned writes a schema 3 pack with no signature and says no extension uses it without allowUnsignedPacks", async () => {
+    const result = await build(["--unsigned"]);
+    assert.equal(result.code, 0, result.err);
+    const pack = JSON.parse(readFileSync(result.file, "utf8"));
+    assert.equal(pack.schemaVersion, 3);
+    assert.equal(pack.signature, undefined);
+    assert.match(
+      result.out,
+      /unsigned \(--unsigned\): no SE's extension uses it unless the policy sets allowUnsignedPacks/,
+    );
+  });
+
+  it("refuses a key that is not ECDSA P-256", async () => {
+    const dir = tempDir();
+    const rsa = join(dir, "rsa.pem");
+    writeFileSync(
+      rsa,
+      generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({
+        type: "pkcs8",
+        format: "pem",
+      }),
+    );
+    const result = await build(["--sign-key", rsa]);
+    assert.equal(result.code, 1);
+    assert.match(result.err, /not an ECDSA P-256 key/);
+  });
+});
+
+describe("kb:keygen (KB-RAG K23 P2)", async () => {
+  const { run: keygen } = await import("./kb-keygen.mjs");
+
+  it("refuses a directory inside the repository", () => {
+    const err = [];
+    assert.equal(
+      keygen({
+        argv: ["--out", "tmp-keys"],
+        cwd: REPO_ROOT,
+        err: (l) => err.push(l),
+        out: () => {},
+      }),
+      1,
+    );
+    assert.match(err.join("\n"), /never goes in this repository/);
+  });
+
+  it("writes the private key with mode 600 and the public key with its keyId; prints no private key", () => {
+    const dir = join(tempDir(), "keys");
+    const out = [];
+    assert.equal(
+      keygen({
+        argv: ["--out", dir, "--name", "FIXTURE owner"],
+        out: (l) => out.push(l),
+      }),
+      0,
+    );
+    const keyId = /keyId: ([0-9a-f]{16})/.exec(out.join("\n"))?.[1];
+    assert.ok(keyId);
+    const privatePath = join(dir, `kb-signing-key-${keyId}.pem`);
+    assert.equal(statSync(privatePath).mode & 0o777, 0o600);
+    const entry = JSON.parse(
+      readFileSync(join(dir, `kb-signing-key-${keyId}.public.json`), "utf8"),
+    );
+    assert.deepEqual(Object.keys(entry).sort(), ["keyId", "name", "spki"]);
+    assert.equal(
+      createHash("sha256")
+        .update(Buffer.from(entry.spki, "base64"))
+        .digest("hex")
+        .slice(0, 16),
+      keyId,
+    );
+    assert.ok(!out.join("\n").includes("PRIVATE KEY"));
   });
 });

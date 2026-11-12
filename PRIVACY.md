@@ -40,8 +40,9 @@ model gets the ids of the cards you were shown, never their text.
 
 KB card text goes to the model only when:
 
-- every loaded pack is a demo pack (its Confluence site ends in `.invalid`),
-  so developers can test the full path; or
+- every pack in use is a demo pack (signed with the published demo key and
+  its Confluence site ends in `.invalid`), so developers can test the full
+  path; or
 - your organization's IT has set a policy for this extension
   ([docs/security/ORG_POLICY.md](docs/security/ORG_POLICY.md)) that sets
   `kbToModel` to `"approved"`, and the request goes to a provider, origin and
@@ -198,7 +199,7 @@ must not reach your AI provider.
 | Screenshots | The extension's IndexedDB | Deleted after 7 days without use; at most 50 are kept |
 | Evidence and investigations from the current session | `chrome.storage.session` | Cleared when the browser closes |
 | Remembered approvals ("Allow on this site for 15 min") | `chrome.storage.local` | 15 minutes, or until revoked |
-| The KB packs you import (Apty's internal RAG Answer Cards), one per Apty version (4.x, 5.x, common) | The extension's IndexedDB (`apty-kb-db`) | Until you remove or replace each in Settings → General → Knowledge base, or remove the extension |
+| The KB packs you import (Apty's internal RAG Answer Cards), one per Apty version (4.x, 5.x, common). Only a pack signed by a key the extension or your organization's policy trusts, and not past its expiry date, is used (KB-RAG K23); one that is not used stays until you remove it but answers nothing | The extension's IndexedDB (`apty-kb-db`) | Until you remove or replace each in Settings → General → Knowledge base, or remove the extension |
 | The record of requests that carried KB text: time, provider, origin, model, card ids and layers, pack versions (never text) | The extension's IndexedDB (`apty-kb-egress-db`) | Your organization's `auditRetentionDays`, 30 days by default; Clear in Data handling when no policy is set |
 | The Apty content calls a page network capture saw, with their whole redacted bodies (for the checks; **Capture and reload** makes one on click) | The service worker's memory | 15 minutes after the capture stops, or until the browser closes |
 | A HAR file you check, including one saved from the 4.x Client's service worker | The side panel's memory | While the HAR page is open |

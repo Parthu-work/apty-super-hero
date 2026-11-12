@@ -513,6 +513,15 @@ describe("DefaultMessageItem — the turn's decision (KB-RAG K25, A2)", () => {
       "No 4.x pack is loaded. Asked the AI model.",
     ],
     [
+      {
+        kind: "pack_unusable",
+        reason: "expired",
+        version: "4.x",
+        date: "2027-01-10T00:00:00.000Z",
+      },
+      "The 4.x pack expired on 2027-01-10. Asked the AI model.",
+    ],
+    [
       { kind: "error", code: "pack_read_failed" },
       "The KB could not be searched (pack_read_failed). Asked the AI model.",
     ],

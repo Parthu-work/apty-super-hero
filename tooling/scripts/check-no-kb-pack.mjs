@@ -23,6 +23,12 @@
  * made from, is scanned as well. It prints paths and reasons, never a
  * file's contents.
  *
+ * It also fails on a file holding a PEM private key block (KB-RAG K23
+ * P2): a BEGIN … PRIVATE KEY line followed by lines of base64, as a key
+ * file has. Only the published demo key is allowed
+ * (tooling/scripts/kb/demo-signing-key.pem, trusted for .invalid sites
+ * only); the KB owner's key never enters the repository.
+ *
  * Usage: node tooling/scripts/check-no-kb-pack.mjs [root]
  */
 import { lstatSync, readdirSync, readFileSync } from "node:fs";
@@ -37,6 +43,18 @@ const QUOTE = `\\\\?["'\`]`;
 const MARKER = new RegExp(
   `(?<![\\w$])${QUOTE}?kind${QUOTE}?\\s*:\\s*${QUOTE}${PACK_KIND}${QUOTE}`,
 );
+/** A PEM private key block as a key file holds it: the BEGIN line, then base64 lines. */
+const PRIVATE_KEY_BLOCK = new RegExp(
+  `-----${"BEGIN"} (?:[A-Z]+ )*PRIVATE KEY-----\\r?\\n(?:[A-Za-z0-9+/=]{40,}\\r?\\n){2,}`,
+);
+/** The published demo key (D-SEC10). */
+export const DEMO_KEY_PATH = "tooling/scripts/kb/demo-signing-key.pem";
+
+/** Whether `text` holds a PEM private key block. */
+export function hasPrivateKeyBlock(text) {
+  return PRIVATE_KEY_BLOCK.test(text);
+}
+
 /** The owner prompt quotes the schema, marker included; it holds no card text. */
 const MARKER_ALLOWED = new Set(["docs/tasks/kb-rag/MASTER.md"]);
 
@@ -173,6 +191,12 @@ function fileHasMarker(path) {
   return hasPackMarker(bytes.toString("utf8"));
 }
 
+function fileHasPrivateKey(path) {
+  const bytes = readFileSync(path);
+  if (!bytes.includes("PRIVATE KEY-----")) return false;
+  return hasPrivateKeyBlock(bytes.toString("utf8"));
+}
+
 function* walk(root, dir, problems) {
   for (const entry of readdirSync(dir)) {
     if (SKIP_DIRS.has(entry)) continue;
@@ -199,6 +223,12 @@ export function kbPackProblems(root) {
       problems.push({ path, reason: "a *.kbpack.json file" });
     } else if (followable && !MARKER_ALLOWED.has(path) && fileHasMarker(full)) {
       problems.push({ path, reason: "carries the KB pack kind marker" });
+    } else if (
+      followable &&
+      path !== DEMO_KEY_PATH &&
+      fileHasPrivateKey(full)
+    ) {
+      problems.push({ path, reason: "holds a PEM private key block" });
     }
   }
   return problems.sort((a, b) => a.path.localeCompare(b.path));
@@ -223,7 +253,7 @@ if (
   }
   if (problems.length > 0) {
     console.error(
-      "KB packs hold internal card text and must never be in this public repository or its builds:",
+      "KB packs hold internal card text, and private keys are secret: neither may be in this public repository or its builds:",
     );
     for (const { path, reason } of problems) {
       console.error(`  ${path}: ${reason}`);

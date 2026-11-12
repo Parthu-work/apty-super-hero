@@ -3,6 +3,7 @@ import type {
   KbAptyVersion,
   KbImportResult,
   KbPackInfo,
+  KbPackUsability,
   KeyValueStorage,
   RedactionFloor,
   RedactionModeSetting,
@@ -88,7 +89,8 @@ export interface OrgPolicyView {
 
 /** Reads, imports and removes the KB packs this browser holds, one per Apty version; supplied by the host app. */
 export interface KnowledgeBaseAdapter {
-  info(): Promise<KbPackInfo[]>;
+  /** Each loaded pack, with whether it is used when the host judges it (K23). */
+  info(): Promise<Array<KbPackInfo & { usability?: KbPackUsability }>>;
   /** Stores the file's pack under the version it names. */
   importPack(text: string): Promise<KbImportResult>;
   remove(version: KbAptyVersion): Promise<void>;

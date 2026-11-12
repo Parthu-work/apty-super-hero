@@ -13,6 +13,7 @@ import {
   KB_PACK_STALE_DAYS,
   type KbEgressDecision,
   type KbPackInfo,
+  type KbPackUsability,
   kbPackAgeDays,
   type OrgPolicyState,
   type ToolCallingSupport,
@@ -87,7 +88,7 @@ export interface PreflightDeps {
     tabId: number,
   ): Promise<"blocked" | "readable" | "unknown">;
   /** The loaded KB packs, one per Apty version. */
-  knowledgeBase(): Promise<KbPackInfo[]>;
+  knowledgeBase(): Promise<Array<KbPackInfo & { usability?: KbPackUsability }>>;
   /** The organization policy (KB-RAG K22). */
   orgPolicy(): Promise<OrgPolicyState>;
   /** Whether KB text may go with a chat request, and where. */
@@ -608,7 +609,7 @@ export async function runPreflight(
 }
 
 function knowledgeBaseCheck(
-  info: KbPackInfo | null,
+  info: (KbPackInfo & { usability?: KbPackUsability }) | null,
   now: Date,
   t: Translate,
 ): PreflightCheck {
@@ -634,8 +635,36 @@ function knowledgeBaseCheck(
     space: info.space,
     date: info.builtAt.slice(0, 10),
   };
+  const usability = info.usability;
+  if (usability && !usability.usable) {
+    return {
+      ...base,
+      status: "fail",
+      detail: t(
+        `preflight.checks.knowledgeBase.unusable.${usability.reason ?? "untrusted"}`,
+        {
+          ...params,
+          version: info.aptyVersion,
+          until: usability.validity.date?.slice(0, 10) ?? "",
+        },
+      ),
+      fix: t("preflight.checks.knowledgeBase.unusableFix"),
+    };
+  }
+  if (usability?.validity.state === "expiring") {
+    return {
+      ...base,
+      status: "warn",
+      detail: t("preflight.checks.knowledgeBase.expiring", {
+        ...params,
+        days: usability.validity.daysLeft ?? 0,
+      }),
+      fix: t("preflight.checks.knowledgeBase.staleFix"),
+    };
+  }
+  // The 30-day stale warning stays only for packs with no expiry date (K23 P5).
   const days = kbPackAgeDays(info, now);
-  if (days !== undefined && days > KB_PACK_STALE_DAYS) {
+  if (!info.expiresAt && days !== undefined && days > KB_PACK_STALE_DAYS) {
     return {
       ...base,
       status: "warn",

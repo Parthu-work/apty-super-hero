@@ -14,7 +14,6 @@ import {
   type EffectiveSettings,
   effectiveSettings,
   isDemoKbPack,
-  type KbPackInfo,
   type KeyValueStorage,
   migrateSettings,
   type OrgPolicyState,
@@ -22,6 +21,7 @@ import {
   settingsForWrite,
   type WatchCallback,
 } from "@apty/agent-core";
+import type { KbPackState } from "../kb/kb-trust.js";
 import { createKbPackStore } from "../storage/kb-store.js";
 import { loadOrgPolicy, watchOrgPolicy } from "./org-policy.js";
 
@@ -35,7 +35,8 @@ export interface EffectiveSettingsDeps {
   storedSettings(): Promise<AppSettings>;
   writeSettings(settings: AppSettings): Promise<void>;
   policy(): Promise<OrgPolicyState>;
-  packs(): Promise<KbPackInfo[]>;
+  /** The loaded packs, each with whether it is used (K23). */
+  packs(): Promise<KbPackState[]>;
 }
 
 function localArea(): chrome.storage.StorageArea | undefined {
@@ -68,7 +69,7 @@ const browserDeps: EffectiveSettingsDeps = {
  * not sit on the path of a save that a closing or reloading page waits on.
  * A read that fails is not kept, so the next read tries again.
  */
-let packCache = new WeakMap<EffectiveSettingsDeps, Promise<KbPackInfo[]>>();
+let packCache = new WeakMap<EffectiveSettingsDeps, Promise<KbPackState[]>>();
 let packListener = false;
 
 function listenForPackChanges(): void {
@@ -87,7 +88,7 @@ function listenForPackChanges(): void {
 function packsOf(
   deps: EffectiveSettingsDeps,
   fresh = false,
-): Promise<KbPackInfo[]> {
+): Promise<KbPackState[]> {
   listenForPackChanges();
   const cached = fresh ? undefined : packCache.get(deps);
   if (cached) return cached;
@@ -100,8 +101,10 @@ function packsOf(
 }
 
 /**
- * Whether a pack that is not a demo pack is loaded. A store that cannot be
- * read counts as one: the floor it implies is the safer side.
+ * Whether a pack that is not a verified demo pack is loaded, used or not
+ * (K23 P3: an unsigned or expired pack still raises the floor while it sits
+ * in IndexedDB). A store that cannot be read counts as one: the floor it
+ * implies is the safer side.
  */
 async function nonDemoPackLoaded(deps: EffectiveSettingsDeps, fresh = false) {
   try {
@@ -111,11 +114,14 @@ async function nonDemoPackLoaded(deps: EffectiveSettingsDeps, fresh = false) {
   }
 }
 
-/** The loaded KB packs' descriptions (no card text). */
+/**
+ * The loaded KB packs' descriptions (no card text), each judged now: read
+ * afresh every time, since trust and dates change after import (K23 P4).
+ */
 export function loadKbPackInfos(
   deps: EffectiveSettingsDeps = browserDeps,
-): Promise<KbPackInfo[]> {
-  return packsOf(deps);
+): Promise<KbPackState[]> {
+  return packsOf(deps, true);
 }
 
 /** The policy and pack state the settings were last merged with. */

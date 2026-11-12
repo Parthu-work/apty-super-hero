@@ -35,6 +35,11 @@ export function kbOutcomeLine(
         : t("turnDecision.noPack", { version: kb.version });
     case "error":
       return t("turnDecision.error", { code: kb.code });
+    case "pack_unusable":
+      return t(`turnDecision.packUnusable.${kb.reason}`, {
+        version: kb.version,
+        date: kb.date?.slice(0, 10) ?? "",
+      });
     default:
       return undefined;
   }
@@ -58,6 +63,11 @@ function outcomeWords(kb: KbDecision, t: Translate): string {
       return t("turnDecision.outcome.noPack", { version: kb.version });
     case "error":
       return t("turnDecision.outcome.error", { code: kb.code });
+    case "pack_unusable":
+      return t("turnDecision.outcome.packUnusable", {
+        version: kb.version,
+        reason: kb.reason,
+      });
     case "how_to":
       return t("turnDecision.outcome.howTo");
     case "non_english":

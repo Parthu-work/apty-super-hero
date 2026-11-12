@@ -14,6 +14,11 @@
  *     [--synonyms <file>] [--customer-names <file>] [--diff <old pack>]
  *     [--timeout <seconds>] (each request, default 30) [--quiet] (no
  *     progress lines on stderr)
+ *     --sign-key <PKCS#8 PEM file> (or KB_PACK_SIGNING_KEY) [--expires-days
+ *     <1-180>, default 60] | --unsigned
+ *
+ * Writes schema 3 (K23): signed with the KB owner's key (pnpm kb:keygen),
+ * with an expiresAt. The key is read from the file and never printed.
  *
  * The cards are the pages titled "RAG Card: …" under the RAG Answer Cards
  * page (`--root`, default 1496711169 in JA), each group page's title as
@@ -22,7 +27,12 @@
  * The token is a read-only service account's classic API token, read from the
  * environment, never written or logged.
  */
-import { createHash } from "node:crypto";
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  sign,
+} from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -200,8 +210,9 @@ export function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
+/** The checksum: the canonical JSON of the pack without itself and without the signature (K23 P1). */
 export function packSha256(pack) {
-  const { sha256: _ignored, ...rest } = pack;
+  const { sha256: _ignored, signature: _signature, ...rest } = pack;
   return createHash("sha256").update(canonicalJson(rest)).digest("hex");
 }
 
@@ -301,6 +312,46 @@ export function parseCard(page, { site, space, group = "" }) {
     card: { ...card(intro, "full"), notVerifiedCount },
     chunks,
   };
+}
+
+/** How long a pack is used by default, and at most (D-SEC11). */
+export const EXPIRES_DAYS = { default: 60, max: 180 };
+const DAY_MS = 86_400_000;
+const SIGNATURE_CONTEXT = "apty-kb-pack-signature/1";
+
+function defaultExpiry(builtAt) {
+  const built = Date.parse(builtAt);
+  return new Date(
+    (Number.isNaN(built) ? 0 : built) + EXPIRES_DAYS.default * DAY_MS,
+  ).toISOString();
+}
+
+/** A public key's id: the first 16 hex characters of the SHA-256 of its SPKI DER. */
+export function keyIdOf(publicKey) {
+  const der = publicKey.export({ type: "spki", format: "der" });
+  return createHash("sha256").update(der).digest("hex").slice(0, 16);
+}
+
+/**
+ * The pack signed with an ECDSA P-256 private key (PKCS#8 PEM text): ES256
+ * over "apty-kb-pack-signature/1\n<sha256>\n<keyId>", the raw 64-byte
+ * signature in base64, the form WebCrypto checks (K23 P1).
+ */
+export function signPack(pack, privateKeyPem) {
+  const privateKey = createPrivateKey(privateKeyPem);
+  if (
+    privateKey.asymmetricKeyType !== "ec" ||
+    privateKey.asymmetricKeyDetails?.namedCurve !== "prime256v1"
+  ) {
+    throw new BuildError("The signing key is not an ECDSA P-256 key.");
+  }
+  const keyId = keyIdOf(createPublicKey(privateKey));
+  const value = sign(
+    "sha256",
+    Buffer.from(`${SIGNATURE_CONTEXT}\n${pack.sha256}\n${keyId}`, "utf8"),
+    { key: privateKey, dsaEncoding: "ieee-p1363" },
+  ).toString("base64");
+  return { ...pack, signature: { alg: "ES256", keyId, value } };
 }
 
 /** Thrown for a failure the KB owner has to act on; the message holds no card text. */
@@ -483,6 +534,7 @@ export function buildPack({
   coverage,
   synonyms,
   aptyVersion = "5.x",
+  expiresAt = defaultExpiry(builtAt),
 }) {
   const cards = [];
   const chunks = [];
@@ -507,8 +559,9 @@ export function buildPack({
   if (synonyms?.length) retrieval.synonyms = synonyms;
   const pack = {
     kind: PACK_KIND,
-    schemaVersion: 2,
+    schemaVersion: 3,
     builtAt,
+    expiresAt,
     builder: BUILDER,
     source: { site, space, label, cardCount: cards.length },
     aptyVersion,
@@ -626,10 +679,12 @@ function parseArgs(argv) {
     "--version": "version",
     "--diff": "diff",
     "--timeout": "timeout",
+    "--sign-key": "signKey",
+    "--expires-days": "expiresDays",
   };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--quiet") {
-      options.quiet = true;
+    if (argv[i] === "--quiet" || argv[i] === "--unsigned") {
+      options[argv[i].slice(2)] = true;
       continue;
     }
     const key = flags[argv[i]];
@@ -655,6 +710,15 @@ function parseArgs(argv) {
     throw new BuildError(
       `Pass --version 4.x, 5.x or common: space ${options.space} holds cards of more than one version, or of an unknown one.`,
     );
+  }
+  if (options.expiresDays !== undefined) {
+    const days = Number(options.expiresDays);
+    if (!Number.isInteger(days) || days < 1 || days > EXPIRES_DAYS.max) {
+      throw new BuildError(
+        `--expires-days takes a whole number of days, 1 to ${EXPIRES_DAYS.max}.`,
+      );
+    }
+    options.expiresDays = days;
   }
   if (options.timeout !== undefined) {
     const seconds = Number(options.timeout);
@@ -684,18 +748,17 @@ function parseArgs(argv) {
  * The self-check (KB-RAG K25, A3) on the pack just written: its two totals
  * and the titles that do not find their own card. Never stops the build.
  */
-async function printSelfCheck(pack, print) {
+async function selfCheckLines(pack) {
   let core;
   try {
     core = await loadAgentCore();
   } catch {
-    print(
+    return [
       "  self-check skipped: build @apty/agent-core first (npm run build), then run pnpm kb:eval --self-check --pack <file>.",
-    );
-    return;
+    ];
   }
   const lines = formatSelfCheck(selfCheck(core, pack)).split("\n");
-  for (const line of lines.slice(1, 4)) print(`  ${line}`);
+  return lines.slice(1, 4).map((line) => `  ${line}`);
 }
 
 function insideRepository(path) {
@@ -726,6 +789,19 @@ export async function run({
       );
     }
     const builtAt = now().toISOString();
+    const signKeyPath = options.signKey ?? env.KB_PACK_SIGNING_KEY;
+    if (!signKeyPath && !options.unsigned) {
+      throw new BuildError(
+        "Pass --sign-key <private key file> (or set KB_PACK_SIGNING_KEY): an unsigned pack is used by no SE's extension. --unsigned builds one anyway, for a policy with allowUnsignedPacks.",
+      );
+    }
+    const signingKey = signKeyPath
+      ? readFileSync(resolve(cwd, signKeyPath), "utf8")
+      : undefined;
+    const expiresAt = new Date(
+      Date.parse(builtAt) +
+        (options.expiresDays ?? EXPIRES_DAYS.default) * DAY_MS,
+    ).toISOString();
     const outPath = resolve(
       cwd,
       options.out ??
@@ -773,8 +849,9 @@ export async function run({
         `No page in space ${options.space} matches: ${selection}.`,
       );
     }
-    const { pack, skipped } = buildPack({
+    const built = buildPack({
       pages,
+      expiresAt,
       site: options.site,
       space: options.space,
       label: options.label ?? `ancestor:${options.root}`,
@@ -796,6 +873,9 @@ export async function run({
             },
     });
 
+    const { skipped } = built;
+    const selfChecked = await selfCheckLines(built.pack);
+    const pack = signingKey ? signPack(built.pack, signingKey) : built.pack;
     const hits = customerNameHits(pack, names);
     if (hits.length > 0) {
       throw new BuildError(
@@ -860,7 +940,12 @@ export async function run({
     print(
       `Wrote ${outPath} (${Buffer.byteLength(body)} bytes, sha256 ${pack.sha256.slice(0, 12)}…). Share it on the restricted internal page only.`,
     );
-    await printSelfCheck(pack, print);
+    print(
+      pack.signature
+        ? `  signed with key ${pack.signature.keyId}; expires ${pack.expiresAt.slice(0, 10)}.`
+        : "  warning: unsigned (--unsigned): no SE's extension uses it unless the policy sets allowUnsignedPacks.",
+    );
+    for (const line of selfChecked) print(line);
     return 0;
   } catch (error) {
     if (error instanceof BuildError) {

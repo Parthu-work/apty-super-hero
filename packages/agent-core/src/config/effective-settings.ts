@@ -3,6 +3,7 @@
  * settings with the organization policy applied over them. Pure; the
  * browser helper `loadEffectiveSettings()` feeds it what is stored.
  */
+import { isInvalidSite, type KbTrustResult } from "../kb/pack-signature.js";
 import {
   customModelsAllowed,
   type OrgPolicyPreset,
@@ -54,9 +55,17 @@ export function strongerRedaction(
   return STRENGTH[a] >= STRENGTH[b] ? a : b;
 }
 
-/** Whether a pack is a demo pack: its Confluence site is under `.invalid` (D-SEC1). */
-export function isDemoKbPack(pack: { site: string }): boolean {
-  return /\.invalid\.?$/i.test(pack.site.trim());
+/**
+ * Whether a pack is a demo pack (D-SEC10, replacing D-SEC1's site test): it
+ * is signed with the demo key, verified, and its site ends in `.invalid`. A
+ * pack that only names a `.invalid` site is not a demo pack.
+ */
+export function isDemoKbPack(pack: {
+  site: string;
+  usability?: { trust: KbTrustResult };
+}): boolean {
+  const trust = pack.usability?.trust;
+  return trust?.status === "trusted" && trust.demo && isInvalidSite(pack.site);
 }
 
 /** Whether a model config is one the SE added, not a built-in provider entry. */

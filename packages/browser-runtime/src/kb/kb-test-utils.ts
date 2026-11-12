@@ -1,6 +1,12 @@
-import { createHash } from "node:crypto";
-import { canonicalJson, KB_PACK_KIND } from "@apty/agent-core";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import {
+  canonicalJson,
+  KB_PACK_KIND,
+  kbSignedMessage,
+  type TrustedPackKey,
+} from "@apty/agent-core";
 import type { KbRecords } from "../storage/kb-store.js";
+import { createKbPackAssessor, type KbPackAssessor } from "./kb-trust.js";
 
 export function memoryRecords(): KbRecords {
   const data = new Map<string, unknown>();
@@ -126,4 +132,69 @@ export function versionPackText(
     { schemaVersion: 2, aptyVersion: version },
     space,
   );
+}
+
+/**
+ * Judges packs as a policy with `allowUnsignedPacks: true` does (the K23
+ * transition), for tests about retrieval rather than trust; the trust
+ * tests build their own assessor with keys made in the test.
+ */
+export const unsignedAllowed: KbPackAssessor = createKbPackAssessor({
+  policy: async () => ({
+    kind: "active",
+    policy: { allowUnsignedPacks: true },
+  }),
+});
+
+/** A P-256 key made in the test, as a trusted key entry and its private half. */
+export function testSigningKey(name = "FIXTURE test key") {
+  const { publicKey, privateKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
+  const der = publicKey.export({ type: "spki", format: "der" });
+  return {
+    key: {
+      keyId: createHash("sha256").update(der).digest("hex").slice(0, 16),
+      spki: der.toString("base64"),
+      name,
+    } satisfies TrustedPackKey,
+    privateKey,
+  };
+}
+
+/** A schema 3 pack of the fixture cards, valid until `expiresAt`, signed by `signer` (or unsigned). */
+export function signedPackText(
+  signer: ReturnType<typeof testSigningKey> | null,
+  {
+    cards = FIXTURE_CARDS,
+    expiresAt = "2099-01-01T00:00:00.000Z",
+    builtAt = "2026-03-01T00:00:00.000Z",
+    site,
+  }: {
+    cards?: FixtureCard[];
+    expiresAt?: string;
+    builtAt?: string;
+    site?: string;
+  } = {},
+): string {
+  const unsigned = JSON.parse(
+    fixturePackText(
+      cards,
+      { coverage: { min: 0.5, minIdf: 1, minTerms: 1 } },
+      { schemaVersion: 3, expiresAt, builtAt },
+    ),
+  );
+  const { sha256: _old, ...body } = unsigned;
+  if (site) body.source = { ...body.source, site };
+  const sha256 = createHash("sha256").update(canonicalJson(body)).digest("hex");
+  if (!signer) return JSON.stringify({ ...body, sha256 });
+  const value = sign("sha256", kbSignedMessage(sha256, signer.key.keyId), {
+    key: signer.privateKey,
+    dsaEncoding: "ieee-p1363",
+  }).toString("base64");
+  return JSON.stringify({
+    ...body,
+    sha256,
+    signature: { alg: "ES256", keyId: signer.key.keyId, value },
+  });
 }

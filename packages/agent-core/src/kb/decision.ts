@@ -32,7 +32,18 @@ export type KbDecision =
       topPageId?: string;
       version: TabVersion;
     }
-  | { kind: "error"; code: string };
+  | { kind: "error"; code: string }
+  | {
+      kind: "pack_unusable";
+      reason:
+        | "expired"
+        | "not_yet_valid"
+        | "unsigned"
+        | "untrusted"
+        | "revoked";
+      version: KbAptyVersion;
+      date: string | null;
+    };
 
 /** The first 12 hex characters of a pack's sha256: enough to tell packs apart in a report. */
 export function packIdOf(sha256: string): string {

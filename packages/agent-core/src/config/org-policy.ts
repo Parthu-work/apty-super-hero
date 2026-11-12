@@ -32,6 +32,14 @@ export interface OrgPolicy {
   allowCustomModels?: boolean;
   allowMcpBridge?: boolean;
   auditRetentionDays?: number;
+  /** KB-RAG K23 (D-SEC9): keys trusted for packs besides the built-in ones. An entry whose keyId does not match its spki trusts nothing. */
+  trustedPackKeys?: Array<{ keyId: string; spki: string; name: string }>;
+  /** Key ids never trusted, built-in ones included. */
+  revokedPackKeyIds?: string[];
+  /** Use unsigned packs (schema 1 and 2, or built with --unsigned), for a transition. */
+  allowUnsignedPacks?: boolean;
+  /** No pack is used more than this many days after it was built (D-SEC11). */
+  maxPackAgeDays?: number;
 }
 
 /** What the extension knows of the policy: none set, one in force, or one it could not use. */
@@ -48,6 +56,9 @@ export const ORG_POLICY_DEFAULTS = {
 } as const satisfies Partial<OrgPolicy>;
 
 export const AUDIT_RETENTION_RANGE = { min: 1, max: 365 } as const;
+export const MAX_PACK_AGE_RANGE = { min: 1, max: 365 } as const;
+const PACK_KEY_ID = /^[0-9a-f]{16}$/;
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 /** What an invalid or unread policy means: no KB text anywhere, no model destination, the strictest masking. */
 export const RESTRICTIVE_ORG_POLICY: Readonly<OrgPolicy> = Object.freeze({
@@ -231,6 +242,66 @@ export function parseOrgPolicy(raw: unknown): Parsed {
           return fail("auditRetentionDays must be a whole number, 1 to 365");
         }
         policy.auditRetentionDays = value;
+        break;
+      case "trustedPackKeys": {
+        if (!Array.isArray(value))
+          return fail("trustedPackKeys must be a list");
+        const keys: NonNullable<OrgPolicy["trustedPackKeys"]> = [];
+        for (const entry of value) {
+          if (typeof entry !== "object" || entry === null) {
+            return fail("trustedPackKeys entries must be objects");
+          }
+          const { keyId, spki, name, ...extra } = entry as Record<
+            string,
+            unknown
+          >;
+          if (Object.keys(extra).length > 0) {
+            return fail(
+              `trustedPackKeys: "${Object.keys(extra)[0]}" is not a key field`,
+            );
+          }
+          if (typeof keyId !== "string" || !PACK_KEY_ID.test(keyId)) {
+            return fail("trustedPackKeys: keyId must be 16 hex characters");
+          }
+          if (
+            typeof spki !== "string" ||
+            spki.length < 40 ||
+            spki.length > 400 ||
+            !BASE64.test(spki)
+          ) {
+            return fail("trustedPackKeys: spki must be a base64 public key");
+          }
+          if (typeof name !== "string" || !name.trim() || name.length > 100) {
+            return fail("trustedPackKeys: name must be 1 to 100 characters");
+          }
+          keys.push({ keyId, spki, name });
+        }
+        policy.trustedPackKeys = keys;
+        break;
+      }
+      case "revokedPackKeyIds":
+        if (
+          !isStringArray(value) ||
+          !value.every((id) => PACK_KEY_ID.test(id))
+        ) {
+          return fail("revokedPackKeyIds must be a list of 16-hex key ids");
+        }
+        policy.revokedPackKeyIds = value;
+        break;
+      case "allowUnsignedPacks":
+        if (typeof value !== "boolean") return fail(`${key} must be a boolean`);
+        policy.allowUnsignedPacks = value;
+        break;
+      case "maxPackAgeDays":
+        if (
+          typeof value !== "number" ||
+          !Number.isInteger(value) ||
+          value < MAX_PACK_AGE_RANGE.min ||
+          value > MAX_PACK_AGE_RANGE.max
+        ) {
+          return fail("maxPackAgeDays must be a whole number, 1 to 365");
+        }
+        policy.maxPackAgeDays = value;
         break;
       default:
         return fail(`"${key}" is not a policy key`);

@@ -14,6 +14,31 @@ the authoritative source; the Confluence page is a navigable summary of it.
 
 ## Fixed
 
+### K23. A KB pack proved it was whole, not who built it, and never expired
+
+- **Severity**: High
+- **Affected component**: `packages/agent-core/src/kb/pack.ts`,
+  `effective-settings.ts` (`isDemoKbPack`), the KB store and index source
+- **Risk** (G1 to G4 in `docs/tasks/kb-rag/FIXES-K23.md`): anyone could edit
+  a pack and recompute its checksum, so a pack with changed card text (wrong
+  settings, or text written to steer the model) imported like the KB
+  owner's own; any pack naming a `.invalid` site got the demo exception
+  (its text to the model with no policy, D-SEC1, and no redaction floor,
+  D-SEC3); a pack was used forever; IT could not say whose packs to trust.
+- **Fix** (KB-RAG K25, A7; D-SEC8 to D-SEC11): schema 3 packs carry an
+  ECDSA P-256 signature over their checksum and an `expiresAt`. A pack is
+  used only when signed by a trusted key (built-in, or the policy's
+  `trustedPackKeys`, less `revokedPackKeyIds`) and within its dates
+  (`maxPackAgeDays` can shorten them), checked at import and at every read;
+  a check that throws counts as a failure. A demo pack is one signed with
+  the published demo key on a `.invalid` site. Unsigned packs are used only
+  under `allowUnsignedPacks`. `npm run audit:kb-pack` fails on any PEM
+  private key in the tree but the demo key.
+- **Verification**: `packages/agent-core/src/kb/pack-signature.test.ts`,
+  `packages/browser-runtime/src/kb/kb-trust.test.ts`,
+  `tooling/scripts/check-no-kb-pack.test.mjs`,
+  `tooling/e2e/kb-signing.e2e.test.mjs`.
+
 ### 0. Risky-action approval could be granted by the model itself
 
 - **Severity**: Critical

@@ -148,7 +148,7 @@ describe("parseKbPack", () => {
     expect(await parse({ ...pack, kind: "other" })).toMatchObject({
       code: "wrong_kind",
     });
-    expect(await parse({ ...pack, schemaVersion: 3 })).toMatchObject({
+    expect(await parse({ ...pack, schemaVersion: 4 })).toMatchObject({
       code: "wrong_schema_version",
     });
     const tampered = structuredClone(pack);

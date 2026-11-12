@@ -1,10 +1,10 @@
 import {
   type AppSettings,
-  type KbPackInfo,
   type OrgPolicyState,
   STORAGE_KEYS,
 } from "@apty/agent-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KbPackState } from "../kb/kb-trust.js";
 import {
   type EffectiveSettingsDeps,
   effectiveSettingsStorage,
@@ -20,12 +20,26 @@ type ChangeListener = (
 ) => void;
 let listeners: ChangeListener[] = [];
 
-const pack = (site: string) => ({ site }) as KbPackInfo;
+/** A loaded pack, signed by the demo key on a .invalid site or by a non-demo key otherwise (D-SEC10). */
+const pack = (site: string) =>
+  ({
+    site,
+    usability: {
+      usable: true,
+      validity: { state: "current", date: null },
+      trust: {
+        status: "trusted",
+        keyId: "0123456789abcdef",
+        name: "FIXTURE",
+        demo: site.endsWith(".invalid"),
+      },
+    },
+  }) as unknown as KbPackState;
 
 function depsWith(
   initial: AppSettings,
   policy: OrgPolicyState,
-  packs: KbPackInfo[] = [],
+  packs: KbPackState[] = [],
 ) {
   let stored: AppSettings = { ...initial };
   const deps: EffectiveSettingsDeps & { stored(): AppSettings } = {

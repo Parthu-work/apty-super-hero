@@ -138,7 +138,14 @@ describe("createKbIndex search", () => {
       chunkCount: 4,
       mode: "bm25",
       calibrated: false,
-      packs: [{ aptyVersion: "5.x", sha256: pack.sha256 }],
+      packs: [
+        {
+          aptyVersion: "5.x",
+          sha256: pack.sha256,
+          keyId: null,
+          expiresAt: null,
+        },
+      ],
     });
     expect(once.search("copy").status).toBe("not_covered");
     expect(once.cardChunks("101").map((chunk) => chunk.layer)).toEqual([

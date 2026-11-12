@@ -56,7 +56,7 @@ describe("kb:demo-pack", () => {
   it("builds a calibrated pack per version outside the repository, with a stub and a routing card", () => {
     for (const [version, pack] of Object.entries(packs)) {
       assert.equal(pack.aptyVersion, version);
-      assert.equal(pack.schemaVersion, 2);
+      assert.equal(pack.schemaVersion, 3);
       assert.ok(pack.retrieval.coverage, "calibrated coverage settings");
       const statuses = pack.cards.map((card) => card.status);
       assert.equal(statuses.filter((s) => s === "stub").length, 1);

@@ -169,8 +169,31 @@
         "wrongSchemaVersion": "此 KB 包使用的架构版本此 Agent 无法读取。请更新 Agent，或索取为其构建的包。",
         "invalid": "此 KB 包格式错误。请让知识库负责人重新构建。",
         "checksumMismatch": "此 KB 包的校验和与其内容不符：它已被更改或被截断。请重新下载。",
-        "readFailed": "无法读取该文件。请重试。"
-      }
+        "readFailed": "无法读取该文件。请重试。",
+        "notTrusted": "此知识包未由本扩展信任的密钥签名。",
+        "revokedKey": "此知识包由贵组织已吊销的密钥签名。",
+        "badSignature": "此知识包的签名与其内容不符。",
+        "expired": "此知识包已于 {{date}} 到期。",
+        "notYetValid": "此知识包的构建日期在未来（{{date}}）；请检查本设备的时钟。"
+      },
+      "signature": "签名",
+      "signedBy": "由 {{name}} 签名（密钥 {{keyId}}）",
+      "notSigned": "未签名",
+      "signedByUnknown": "由本扩展不信任的密钥 {{keyId}} 签名",
+      "expires": "到期",
+      "noExpiry": "无到期日期（签名前构建）",
+      "stateLabel": "状态",
+      "state": {
+        "current": "有效",
+        "expiring": "{{days}} 天后到期",
+        "expired": "已于 {{date}} 到期",
+        "notYetValid": "构建日期在未来（{{date}}）",
+        "unsigned": "未签名",
+        "untrusted": "由本扩展不信任的密钥签名",
+        "revoked": "由已吊销的密钥签名"
+      },
+      "notUsed": "此知识包未被使用。请向 KB 负责人索取新的知识包。",
+      "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。"
     }
   },
   "theme": {
@@ -1178,7 +1201,16 @@
         "notLoaded": "未加载。检查会链接到 KB 卡片，但不显示其文本。",
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
         "stale": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}，{{days}} 天前。",
-        "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。"
+        "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。",
+        "expiring": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}；将在 {{days}} 天后到期。",
+        "unusable": {
+          "expired": "未使用：{{version}} 知识包已于 {{until}} 到期。",
+          "not_yet_valid": "未使用：{{version}} 知识包的构建日期在未来（{{until}}）；请检查本设备的时钟。",
+          "unsigned": "未使用：{{version}} 知识包未签名。",
+          "untrusted": "未使用：{{version}} 知识包未由本扩展信任的密钥签名。",
+          "revoked": "未使用：{{version}} 知识包由已吊销的密钥签名。"
+        },
+        "unusableFix": "请向 KB 负责人索取新的已签名知识包，并在 设置 → 常规 → 知识库 中导入。"
       },
       "orgPolicy": {
         "label": "组织策略",
@@ -2543,7 +2575,8 @@
     "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
     "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。",
     "notSent": "仅在此处显示；不会发送给 AI 模型。",
-    "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。"
+    "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。",
+    "askForNewPack": "请向 KB 负责人索取新的知识包。"
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",
@@ -2601,7 +2634,15 @@
       "noPack": "没有 {{version}} 的知识包",
       "error": "无法搜索（{{code}}）",
       "howTo": "操作类问题，交给 AI 模型",
-      "nonEnglish": "非英文，交给 AI 模型"
+      "nonEnglish": "非英文，交给 AI 模型",
+      "packUnusable": "{{version}} 知识包未使用（{{reason}}）"
+    },
+    "packUnusable": {
+      "expired": "{{version}} 知识包已于 {{date}} 到期。",
+      "not_yet_valid": "{{version}} 知识包的构建日期在未来（{{date}}）。",
+      "unsigned": "{{version}} 知识包未签名。",
+      "untrusted": "{{version}} 知识包未由本扩展信任的密钥签名。",
+      "revoked": "{{version}} 知识包由已吊销的密钥签名。"
     }
   }
 }

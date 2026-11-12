@@ -135,3 +135,50 @@ describe("what a policy state means", () => {
     expect(auditRetentionDays(active({ auditRetentionDays: 7 }))).toBe(7);
   });
 });
+
+describe("KB pack trust keys (KB-RAG K23 P3)", () => {
+  const key = {
+    keyId: "0123456789abcdef",
+    spki: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHBwOeyZu0yluxkZg5U2pwvFhCdoC354HQpxyEYHwLYYrKnTlX4N1NS5x9MNEoSMTRJ26NcGyZgat2qVfPlnCfw==",
+    name: "IT KB owner",
+  };
+
+  it("parses the four keys", () => {
+    expect(
+      parseOrgPolicy({
+        trustedPackKeys: [key],
+        revokedPackKeyIds: ["8db33081c3ea74eb"],
+        allowUnsignedPacks: false,
+        maxPackAgeDays: 90,
+      }),
+    ).toEqual({
+      ok: true,
+      policy: {
+        trustedPackKeys: [key],
+        revokedPackKeyIds: ["8db33081c3ea74eb"],
+        allowUnsignedPacks: false,
+        maxPackAgeDays: 90,
+      },
+    });
+  });
+
+  it.each([
+    [{ trustedPackKeys: key }, /must be a list/],
+    [{ trustedPackKeys: [{ ...key, keyId: "XYZ" }] }, /16 hex/],
+    [
+      { trustedPackKeys: [{ ...key, spki: "not base64!" }] },
+      /base64 public key/,
+    ],
+    [{ trustedPackKeys: [{ ...key, name: "" }] }, /1 to 100/],
+    [{ trustedPackKeys: [{ ...key, extra: 1 }] }, /"extra" is not a key field/],
+    [{ revokedPackKeyIds: ["short"] }, /16-hex/],
+    [{ allowUnsignedPacks: "yes" }, /must be a boolean/],
+    [{ maxPackAgeDays: 0 }, /1 to 365/],
+    [{ maxPackAgeDays: 366 }, /1 to 365/],
+    [{ maxPackAgeDays: 1.5 }, /1 to 365/],
+  ])("refuses %j", (raw, reason) => {
+    const parsed = parseOrgPolicy(raw);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toMatch(reason);
+  });
+});

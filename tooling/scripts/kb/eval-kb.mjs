@@ -189,7 +189,7 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
         ? tuned.retrieval.threshold
         : null,
     coverage:
-      pack.schemaVersion === 2 ? (tuned.retrieval.coverage ?? null) : null,
+      pack.schemaVersion !== 1 ? (tuned.retrieval.coverage ?? null) : null,
     mode: index.info.mode,
     recallAt1: ratio(hit1, covered.length),
     recallAt3: ratio(hit3, covered.length),
@@ -438,7 +438,7 @@ function format(report) {
   const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(1)}%`);
   const lines = [
     `${report.questions} questions (${report.covered} the KB should cover), ${report.mode}, ${
-      report.schemaVersion === 2
+      report.schemaVersion !== 1
         ? `coverage ${report.coverage ? `min ${report.coverage.min}, minIdf ${report.coverage.minIdf}, minTerms ${report.coverage.minTerms}` : "defaults"}`
         : `threshold ${report.threshold ?? "none"}`
     }`,
@@ -536,7 +536,7 @@ export async function run({
               : {}),
           }
         : undefined;
-    const v2 = pack.schemaVersion === 2;
+    const v2 = pack.schemaVersion !== 1;
     const report = {
       ...evaluate(core, pack, questions, {
         threshold: options.threshold,

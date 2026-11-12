@@ -6,6 +6,15 @@ full commit-level history.
 
 ## Unreleased
 
+- **KB-RAG K25: what the first real packs asked for, signed packs, and cases** ([`FIXES-K25.md`](docs/tasks/kb-rag/FIXES-K25.md)):
+  - **A1**: tool schemas every provider accepts. Anthropic's strict tool use refuses `minimum`, `maximum` and the other limits its JSON Schema subset does not support; a provider middleware now removes them and states each limit in the property's description (`provider-schema.ts`). Tools still validate their input with their own Zod schema.
+  - **A2**: every KB decision is visible: a typed outcome per search, one quiet line above the model's reply when no card answered (not covered with its numbers, no pack for the version, an error code), the same reason on the setup card without a key, and "Why this answer" on every turn (route, version, packs, outcome; no card text, no question).
+  - **A3**: `kb:eval --self-check` and the builder's self-check totals; a 110-card synthetic pack; two scoring causes fixed (a title of common words, a stub extending a full card's title).
+  - **A6**: honest reasons: `no_strong_term` when coverage reaches the minimum but only common words matched.
+  - **A5**: the builder names `other_format` pages with their headings, prints progress on stderr, and cuts off a stalled request after 30 seconds.
+  - **A7 (K23, D-SEC8 to D-SEC11)**: only signed, current KB packs are used. Schema 3 packs carry an ECDSA P-256 signature and an `expiresAt`; `pnpm kb:keygen`, `kb:pack --sign-key`, the published demo key; trust from the built-in keys and the policy (`trustedPackKeys`, `revokedPackKeyIds`, `allowUnsignedPacks`, `maxPackAgeDays`), checked at import and at every use; Options, Preflight and the panel say who signed a pack, when it expires and why one is not used.
+  - **Release note:** packs built before this release are unsigned and stop being used once it ships, unless a policy sets `allowUnsignedPacks`. The KB owner must run `pnpm kb:keygen`, send the public key, and rebuild and redistribute every pack, signed, before the release.
+
 - **KB-RAG K24: application names and page places do not lower coverage** ([`FIXES-K24.md`](docs/tasks/kb-rag/FIXES-K24.md)):
   - **K24-1**: `CONTEXT_WORDS` in `kb/text.ts`: 27 customer applications and the page-location words, stemmed as the index stems them; browser and platform names left out. `NOT_A_SETTING` (the setting-name guard) is unchanged.
   - **K24-2**: coverage leaves out a context word the top card does not hold, once the question's other terms cover it on their own (the card holds one of them with idf ≥ `minIdf` exactly, and they reach `coverage.min`); a held one counts as before, and every other unknown word keeps its full weight. "DEMO balloon missing on the ServiceNow incident form" goes from not covered (0.17) to covered (0.49); off-topic questions, with or without an application name, stay not covered. The words left out are `contextIgnored` on the search result; `search_kb` does not send them to the model.

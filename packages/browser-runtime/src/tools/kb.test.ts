@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { unsignedAllowed } from "../kb/kb-test-utils.js";
 
 const mockPolicy = vi.hoisted(() => vi.fn());
-const kbSource = vi.hoisted(() => ({ current: vi.fn() }));
+const kbSource = vi.hoisted(() => ({ current: vi.fn(), unusable: vi.fn() }));
 
 vi.mock("../runtime/value-policy", () => ({
   currentValuePolicy: mockPolicy,
@@ -42,7 +43,10 @@ async function run(tool: unknown, args: unknown) {
 }
 
 async function loadPack(cards = FIXTURE_CARDS) {
-  const store = createKbPackStore({ records: memoryRecords() });
+  const store = createKbPackStore({
+    assess: unsignedAllowed,
+    records: memoryRecords(),
+  });
   await store.replace(fixturePackText(cards));
   kbSource.current.mockImplementation(() =>
     createKbIndexSource(store).current(),
@@ -52,6 +56,8 @@ async function loadPack(cards = FIXTURE_CARDS) {
 beforeEach(() => {
   mockPolicy.mockReset();
   kbSource.current.mockReset();
+  kbSource.unusable.mockReset();
+  kbSource.unusable.mockResolvedValue([]);
 });
 
 describe("search_kb", () => {
@@ -137,5 +143,36 @@ describe("search_kb", () => {
     });
     const direct = await run(searchKbTool, { query: "portal link" });
     expect(JSON.stringify(direct)).toContain("884213");
+  });
+});
+
+describe("search_kb with a loaded pack that is not used (K23 P4)", () => {
+  it("returns pack_unusable with the reason, version and date, and no text", async () => {
+    kbSource.current.mockResolvedValue(null);
+    kbSource.unusable.mockResolvedValue([
+      {
+        aptyVersion: "4.x",
+        usability: {
+          usable: false,
+          reason: "expired",
+          trust: { status: "trusted" },
+          validity: { state: "expired", date: "2027-01-10T00:00:00.000Z" },
+        },
+      },
+    ]);
+    expect(
+      await run(searchKbTool, { query: "banner", aptyVersion: "4.x" }),
+    ).toEqual({
+      status: "pack_unusable",
+      source: "kb",
+      cards: [],
+      unusable: {
+        reason: "expired",
+        aptyVersion: "4.x",
+        date: "2027-01-10T00:00:00.000Z",
+      },
+      results: [],
+    });
+    expect(kbSource.unusable).toHaveBeenCalledWith("4.x");
   });
 });

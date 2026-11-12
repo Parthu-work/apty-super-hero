@@ -26,6 +26,10 @@ import {
 import { DEMO_PAGES_4X, DEMO_PAGES_5X } from "./fixtures/demo-cards.mjs";
 
 const SITE = "demo.atlassian.invalid";
+/** The published demo key (D-SEC10): trusted only for .invalid sites. */
+export const DEMO_SIGNING_KEY = fileURLToPath(
+  new URL("./demo-signing-key.pem", import.meta.url),
+);
 const SPACE = "DEMO";
 const ROOT_PAGE = "1000";
 const PAGES = { "4.x": DEMO_PAGES_4X, "5.x": DEMO_PAGES_5X };
@@ -126,6 +130,8 @@ export async function run({
           options.version,
           "--out",
           file,
+          "--sign-key",
+          DEMO_SIGNING_KEY,
           ...extra,
         ],
         env: {

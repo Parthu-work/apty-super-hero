@@ -6,6 +6,7 @@ import {
   kbDecisionOf,
   localKbMatches as outcomeOf,
 } from "./kb-matches.js";
+import { unsignedAllowed } from "./kb-test-utils.js";
 
 const localKbMatches = async (...args: Parameters<typeof outcomeOf>) =>
   kbAnswerOf(await outcomeOf(...args));
@@ -18,7 +19,10 @@ import {
 } from "./kb-test-utils.js";
 
 async function source(retrieval: Record<string, unknown> = {}) {
-  const store = createKbPackStore({ records: memoryRecords() });
+  const store = createKbPackStore({
+    assess: unsignedAllowed,
+    records: memoryRecords(),
+  });
   await store.replace(fixturePackText(FIXTURE_CARDS, retrieval));
   return createKbIndexSource(store);
 }
@@ -56,13 +60,16 @@ describe("localKbMatches", () => {
       await localKbMatches("小部件没有显示", kb, { modelAvailable: true }),
     ).toBeUndefined();
     const empty = createKbIndexSource(
-      createKbPackStore({ records: memoryRecords() }),
+      createKbPackStore({ assess: unsignedAllowed, records: memoryRecords() }),
     );
     expect(await localKbMatches("小部件没有显示", empty)).toBeUndefined();
   });
 
   it("shows a stub when only a card not written yet covers the symptom", async () => {
-    const store = createKbPackStore({ records: memoryRecords() });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
     await store.replace(fixtureV2PackText());
     const result = await localKbMatches(
       "the gadget export never finishes",
@@ -86,7 +93,7 @@ describe("localKbMatches", () => {
       ),
     ).toBeUndefined();
     const empty = createKbIndexSource(
-      createKbPackStore({ records: memoryRecords() }),
+      createKbPackStore({ assess: unsignedAllowed, records: memoryRecords() }),
     );
     expect(
       await localKbMatches("the tooltip opens twice", empty),
@@ -108,7 +115,12 @@ describe("every KB outcome is typed (KB-RAG K25, A2)", () => {
     expect(outcome.kind).toBe("answer");
     if (outcome.kind !== "answer") return;
     expect(outcome.packs).toEqual([
-      { version: "5.x", sha256: expect.stringMatching(/^[0-9a-f]{12}$/) },
+      {
+        version: "5.x",
+        sha256: expect.stringMatching(/^[0-9a-f]{12}$/),
+        keyId: null,
+        expiresAt: null,
+      },
     ]);
   });
 
@@ -120,7 +132,7 @@ describe("every KB outcome is typed (KB-RAG K25, A2)", () => {
 
   it("no_pack: no pack for the tab's version", async () => {
     const empty = createKbIndexSource(
-      createKbPackStore({ records: memoryRecords() }),
+      createKbPackStore({ assess: unsignedAllowed, records: memoryRecords() }),
     );
     expect(
       await outcomeOf("the tooltip opens twice", empty, { version: "4.x" }),
@@ -128,7 +140,10 @@ describe("every KB outcome is typed (KB-RAG K25, A2)", () => {
   });
 
   it("not_covered: the reason, the coverage and the minimum, the closest card and the packs", async () => {
-    const store = createKbPackStore({ records: memoryRecords() });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
     await store.replace(fixtureV2PackText());
     const outcome = await outcomeOf(
       "the tooltip opens twice and the banner is red in the payroll app",
