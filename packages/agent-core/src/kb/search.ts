@@ -412,7 +412,16 @@ interface Assessment {
   matched: string[];
   /** The question's context words the card does not hold: left out of coverage. */
   contextIgnored: string[];
+  /**
+   * The question holds every term of the card's own title, and the title
+   * has at least `TITLE_MIN_TERMS` of them (K25, A3): the question names the
+   * card, even when each of its words is common in the pack.
+   */
+  holdsTitle: boolean;
 }
+
+/** The fewest distinct terms a title needs for holding it to name the card. */
+const TITLE_MIN_TERMS = 3;
 
 /** Words most symptoms share (stemmed): a stub needs a match beyond them. */
 const GENERIC_SYMPTOM_TERMS: ReadonlySet<string> = new Set(
@@ -511,6 +520,9 @@ function corpusOf(
   const cardSets = new Map(
     [...cardTerms].map(([pageId, terms]) => [pageId, new Set(terms)]),
   );
+  const titleTerms = new Map(
+    [...cards.values()].map((card) => [card.pageId, queryTerms(card.title)]),
+  );
   const n = documents;
   const idf = (term: string) => Math.log(1 + n / (1 + (df.get(term) ?? 0)));
 
@@ -590,6 +602,11 @@ function corpusOf(
     assess(query: string, pageId: string, minIdf: number, min = 0): Assessment {
       const own = cardSets.get(pageId) ?? new Set<string>();
       const terms = queryTerms(query);
+      const asked = new Set(terms);
+      const title = titleTerms.get(pageId) ?? [];
+      const holdsTitle =
+        title.length >= TITLE_MIN_TERMS &&
+        title.every((term) => asked.has(term));
       const typos = typosIn(query);
       const lower = normalize(query).replace(/\s+/g, " ");
       const weighed = terms.map((term) => {
@@ -645,6 +662,7 @@ function corpusOf(
         strongQueryTerms,
         matched,
         contextIgnored,
+        holdsTitle,
       };
     },
   };
@@ -745,12 +763,14 @@ function stubMatches(
   assessment: Assessment,
   settings: KbCoverageSettings,
 ): boolean {
-  const { coverage, strongTerms, strongQueryTerms, matched } = assessment;
+  const { coverage, strongTerms, strongQueryTerms, matched, holdsTitle } =
+    assessment;
   return (
     coverage >= Math.max(settings.min, STUB_MIN_COVERAGE) &&
-    strongTerms >=
-      Math.min(STUB_MIN_STRONG_TERMS, Math.max(1, strongQueryTerms)) &&
-    matched.some((term) => !GENERIC_SYMPTOM_TERMS.has(term))
+    (holdsTitle ||
+      (strongTerms >=
+        Math.min(STUB_MIN_STRONG_TERMS, Math.max(1, strongQueryTerms)) &&
+        matched.some((term) => !GENERIC_SYMPTOM_TERMS.has(term))))
   );
 }
 
@@ -771,7 +791,9 @@ function stubMatches(
  * synonym alone does not put the card on the question's topic), and they
  * reach `coverage.min` without the context words. The question is covered
  * when coverage reaches `coverage.min` and `coverage.minTerms` matched terms
- * have an idf of at least `coverage.minIdf`, and some card holds every
+ * have an idf of at least `coverage.minIdf`, or the question holds every
+ * term of the card's own title (K25, A3: a title made only of words most
+ * cards share still names its card), and some card holds every
  * setting-like phrase the question names (`namedPhrases`).
  */
 function createV2Index(pack: KbPack): KbIndex {
@@ -944,13 +966,22 @@ function createV2Index(pack: KbPack): KbIndex {
     const stub = [...chunklessScores]
       .filter(([pageId]) => cards.get(pageId)?.status === "stub")
       .sort(([a, x], [b, y]) => y - x || comparePageIds(a, b))[0];
+    const stubAssessment =
+      stub !== undefined
+        ? corpus.assess(query, stub[0], settings.minIdf, settings.min)
+        : undefined;
+    // A question holding the top card's whole title names that card: a stub
+    // whose title only extends it (K25, A3) does not take its place.
+    const topNamed =
+      top !== undefined &&
+      !stubAssessment?.holdsTitle &&
+      corpus.assess(query, top.chunk.pageId, settings.minIdf).holdsTitle;
     const stubFirst =
       stub !== undefined &&
+      stubAssessment !== undefined &&
       (!top || stub[1] > top.score) &&
-      stubMatches(
-        corpus.assess(query, stub[0], settings.minIdf, settings.min),
-        settings,
-      )
+      !topNamed &&
+      stubMatches(stubAssessment, settings)
         ? (cards.get(stub[0]) as KbCard)
         : undefined;
     if (!top && !stubFirst) {
@@ -962,7 +993,7 @@ function createV2Index(pack: KbPack): KbIndex {
         min: settings.min,
       };
     }
-    const { coverage, strongTerms, contextIgnored } = corpus.assess(
+    const { coverage, strongTerms, contextIgnored, holdsTitle } = corpus.assess(
       query,
       stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
       settings.minIdf,
@@ -988,7 +1019,8 @@ function createV2Index(pack: KbPack): KbIndex {
     }
     const covered =
       denseCovered ||
-      (coverage >= settings.min && strongTerms >= settings.minTerms);
+      (coverage >= settings.min &&
+        (strongTerms >= settings.minTerms || holdsTitle));
     if (!covered) {
       return {
         status: "not_covered",

@@ -1051,3 +1051,114 @@ describe("K24-2: context words count only when the card holds them", () => {
     });
   });
 });
+
+describe("a card finds itself by its title (KB-RAG K25, A3)", () => {
+  // Every card shares the words of a KB about visibility, as a real pack does.
+  const COMMON =
+    "- FIXTURE: the workflow content is visible to users in the segment after publish.";
+  const plain = (
+    pageId: string,
+    title: string,
+    own: string,
+  ): SyntheticCard => ({
+    pageId,
+    title,
+    symptom: null,
+    layers: [
+      `${COMMON} ${own} Studio setting.`,
+      `${COMMON} ${own} element.`,
+      `${COMMON} ${own} json entry.`,
+      `${COMMON} ${own} support.`,
+    ],
+  });
+  const PLAIN_CARDS = [
+    plain("301", "Workflow content is not visible to users", "FIXTURE Ardent"),
+    ...["Bramble", "Cinder", "Dune", "Ember", "Flint", "Grove", "Heath"].map(
+      (word, i) =>
+        plain(
+          String(302 + i),
+          `FIXTURE ${word} panel misbehaves`,
+          `FIXTURE ${word}`,
+        ),
+    ),
+  ];
+  const plainIndex = createKbIndex(syntheticPack(PLAIN_CARDS, {}, V2));
+
+  it("cause found: a title made only of words most cards share has no term above minIdf, yet names its card", () => {
+    const result = plainIndex.search(
+      "Workflow content is not visible to users",
+    );
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("301");
+  });
+
+  it("a question with only part of such a title, and no strong word, is still not covered", () => {
+    const result = plainIndex.search("content not visible");
+    expect(result.status).toBe("not_covered");
+  });
+
+  it("ruled out: the default min is not too strict for a long title of its own card", () => {
+    const title =
+      "FIXTURE Juniper help panel opens twice when the page reloads in the payroll app for new users";
+    const index = createKbIndex(
+      syntheticPack(
+        [...PLAIN_CARDS, plain("311", title, "FIXTURE Juniper reloads")],
+        {},
+        V2,
+      ),
+    );
+    const long = index.search(title);
+    expect(long.status).toBe("ok");
+    expect(long.hits[0]?.chunk.pageId).toBe("311");
+    expect(long.coverage).toBeGreaterThan(0.9);
+  });
+
+  it("cause found: a stub whose title extends a full card's title took that card's own title; a routing card never did", () => {
+    const index = createKbIndex(
+      syntheticPack(
+        [
+          ...PLAIN_CARDS,
+          {
+            pageId: "399",
+            title: "FIXTURE Bramble panel misbehaves on phones",
+            status: "stub",
+            symptom: "FIXTURE Bramble panel misbehaves on phones",
+          },
+          {
+            pageId: "398",
+            title: "Start here: FIXTURE Bramble",
+            status: "routing",
+          },
+        ],
+        {},
+        V2,
+      ),
+    );
+    const result = index.search("FIXTURE Bramble panel misbehaves");
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("302");
+  });
+
+  it("ruled out: a title with 'turned off' is not taken for a setting name or a context word", () => {
+    const index = createKbIndex(
+      syntheticPack(
+        [
+          ...PLAIN_CARDS,
+          plain(
+            "310",
+            "FIXTURE Quillon stays visible after the rule is turned off",
+            "FIXTURE Quillon rule turned off",
+          ),
+        ],
+        {},
+        V2,
+      ),
+    );
+    const result = index.search(
+      "FIXTURE Quillon stays visible after the rule is turned off",
+    );
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("310");
+    expect(result.missingPhrases).toBeUndefined();
+  });
+});

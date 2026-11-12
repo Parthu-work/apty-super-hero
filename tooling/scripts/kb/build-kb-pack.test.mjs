@@ -565,6 +565,11 @@ describe("the CLI", () => {
     );
     assert.match(result.out, /NOT VERIFIED statements: 7, 8/);
     assert.match(result.out, /no --coverage-min/);
+    assert.match(
+      result.out,
+      /Titles: rank 1 \d+ of 2 \([\d.]+%\), top 3 \d+ of 2/,
+    );
+    assert.match(result.out, /Symptom lines: rank 1 \d+ of \d+/);
     for (const secret of [
       "Glowing Banner",
       "glowIds",

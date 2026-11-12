@@ -25,6 +25,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { formatSelfCheck, loadAgentCore, selfCheck } from "./eval-kb.mjs";
 
 export const BUILDER = "build-kb-pack 1.0.0";
 const PACK_KIND = "apty-kb-pack";
@@ -600,6 +601,24 @@ function parseArgs(argv) {
   return options;
 }
 
+/**
+ * The self-check (KB-RAG K25, A3) on the pack just written: its two totals
+ * and the titles that do not find their own card. Never stops the build.
+ */
+async function printSelfCheck(pack, print) {
+  let core;
+  try {
+    core = await loadAgentCore();
+  } catch {
+    print(
+      "  self-check skipped: build @apty/agent-core first (npm run build), then run pnpm kb:eval --self-check --pack <file>.",
+    );
+    return;
+  }
+  const lines = formatSelfCheck(selfCheck(core, pack)).split("\n");
+  for (const line of lines.slice(1, 4)) print(`  ${line}`);
+}
+
 function insideRepository(path) {
   const rel = relative(REPO_ROOT, path);
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
@@ -750,6 +769,7 @@ export async function run({
     print(
       `Wrote ${outPath} (${Buffer.byteLength(body)} bytes, sha256 ${pack.sha256.slice(0, 12)}…). Share it on the restricted internal page only.`,
     );
+    await printSelfCheck(pack, print);
     return 0;
   } catch (error) {
     if (error instanceof BuildError) {
