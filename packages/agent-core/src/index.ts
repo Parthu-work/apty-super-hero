@@ -174,6 +174,15 @@ export { calculatorTool } from "./tools/calculator.js";
 export { httpFetchTool } from "./tools/http-fetch.js";
 export { tool } from "./tools/index.js";
 export {
+  hasNoProperties,
+  PROVIDER_SCHEMA_RULES,
+  type ProviderSchemaRules,
+  type RewrittenToolSchema,
+  rewriteToolSchema,
+  type SchemaProvider,
+  schemaViolations,
+} from "./tools/provider-schema.js";
+export {
   type ToolExecutionContext,
   type ToolMetadata,
   ToolRegistry,

@@ -28,7 +28,13 @@ vi.hoisted(() => {
   };
 });
 
-import { AptyAgent, aisdk } from "@apty/agent-core";
+import {
+  AptyAgent,
+  aisdk,
+  PROVIDER_SCHEMA_RULES,
+  type SchemaProvider,
+  schemaViolations,
+} from "@apty/agent-core";
 import { allBrowserTools } from "@apty/browser-runtime/tools";
 import { createOutboundFilters } from "../hooks/outbound-filters";
 import { createAIProvider } from "./ai-provider";
@@ -56,6 +62,7 @@ function requiredWithoutProperties(schema: unknown, path = "$"): string[] {
 /** The body of the first request the agent sends through this provider. */
 async function requestBody(
   settings: Record<string, string>,
+  model = "m",
 ): Promise<Record<string, unknown>> {
   let body: Record<string, unknown> | undefined;
   const fetch = (async (_url: string, init: RequestInit) => {
@@ -63,12 +70,12 @@ async function requestBody(
     return new Response('{"error":{"message":"captured"}}', { status: 400 });
   }) as typeof globalThis.fetch;
   const provider = createAIProvider(
-    { ...settings, aiToken: "test", aiModel: "m" } as never,
+    { ...settings, aiToken: "test", aiModel: model } as never,
     { fetch },
   );
   const agent = AptyAgent.create({
     instructions: "Test",
-    model: aisdk(provider("m")),
+    model: aisdk(provider(model)),
     tools: allBrowserTools,
     outboundFilters: createOutboundFilters(),
   });
@@ -82,10 +89,20 @@ async function requestBody(
 /** Each tool's parameters in the request, by tool name, whatever the provider's format. */
 function sentSchemas(body: Record<string, unknown>): Map<string, unknown> {
   const schemas = new Map<string, unknown>();
-  for (const entry of (body.tools as Schema[] | undefined) ?? []) {
+  const tools = (body.tools as Schema[] | undefined) ?? [];
+  const declarations = tools.flatMap(
+    (entry) => (entry.functionDeclarations as Schema[] | undefined) ?? [],
+  );
+  for (const entry of declarations.length > 0 ? declarations : tools) {
     const fn = entry.function as Schema | undefined;
     const name = (fn?.name ?? entry.name) as string;
-    schemas.set(name, fn?.parameters ?? entry.parameters ?? entry.input_schema);
+    schemas.set(
+      name,
+      fn?.parameters ??
+        entry.parameters ??
+        entry.input_schema ??
+        entry.parametersJsonSchema,
+    );
   }
   return schemas;
 }
@@ -193,5 +210,100 @@ describe("strict on tools without parameters", () => {
     const tools = body.tools as Array<{ name: string; strict?: boolean }>;
     expect(tools).toHaveLength(allBrowserTools.length);
     for (const tool of tools) expect(tool.strict, tool.name).toBe(true);
+  });
+});
+
+/** Each provider path the chat can take, with the schema rules it must obey. */
+const CONFORMANCE: Array<
+  [string, Record<string, string>, SchemaProvider, string]
+> = [
+  ["Anthropic", PROVIDERS.Anthropic, "anthropic", "claude-sonnet-4-5"],
+  ["Groq", PROVIDERS["OpenAI-compatible (custom, e.g. Groq)"], "groq", "m"],
+  ["OpenAI", PROVIDERS.OpenAI, "openai", "m"],
+  [
+    "Google",
+    {
+      aiProvider: "google",
+      aiHost: "https://generativelanguage.googleapis.com/v1beta",
+    },
+    "google",
+    "m",
+  ],
+  [
+    "OpenRouter",
+    { aiProvider: "openrouter", aiHost: "https://openrouter.ai/api/v1" },
+    "openai-compatible",
+    "m",
+  ],
+];
+
+describe("provider schema conformance (KB-RAG K25, A1)", () => {
+  it.each(
+    CONFORMANCE,
+  )("%s: every tool is sent and obeys the provider's schema rules", async (_label, settings, provider, model) => {
+    const schemas = sentSchemas(await requestBody(settings, model));
+    expect([...schemas.keys()].sort()).toEqual(
+      allBrowserTools.map((t) => t.name).sort(),
+    );
+    for (const [name, schema] of schemas) {
+      expect(
+        schemaViolations(schema, PROVIDER_SCHEMA_RULES[provider]),
+        name,
+      ).toEqual([]);
+    }
+  });
+
+  it("Anthropic: bounded tools keep strict and say their limits in words", async () => {
+    const body = await requestBody(PROVIDERS.Anthropic, "claude-sonnet-4-5");
+    const tools = body.tools as Array<{
+      name: string;
+      strict?: boolean;
+      input_schema: { properties: Record<string, { description?: string }> };
+    }>;
+    const evidence = tools.find((t) => t.name === "get_evidence_json");
+    expect(evidence?.strict).toBe(true);
+    expect(evidence?.input_schema.properties.limit?.description).toMatch(
+      /\(at most 50, greater than 0\)$/,
+    );
+    for (const tool of tools) expect(tool.strict, tool.name).toBe(true);
+  });
+
+  it("every keyword a registered tool uses is known to the rewrite, so a new one needs a decision", () => {
+    const known = new Set([
+      "$schema",
+      "type",
+      "properties",
+      "required",
+      "additionalProperties",
+      "description",
+      "items",
+      "anyOf",
+      "enum",
+      "const",
+      "default",
+      "format",
+      "pattern",
+      "minItems",
+      ...Object.values(PROVIDER_SCHEMA_RULES).flatMap(
+        (rules) => rules.unsupportedKeywords,
+      ),
+    ]);
+    const unknown = new Set<string>();
+    const walk = (node: unknown, inProperties = false): void => {
+      if (Array.isArray(node)) {
+        for (const n of node) walk(n);
+        return;
+      }
+      if (!node || typeof node !== "object") return;
+      for (const [key, value] of Object.entries(node)) {
+        if (!inProperties && !known.has(key)) unknown.add(key);
+        if (key === "enum" || key === "const") continue;
+        walk(value, key === "properties" && !inProperties);
+      }
+    };
+    for (const tool of allBrowserTools as Array<{ parameters?: unknown }>) {
+      walk(tool.parameters);
+    }
+    expect([...unknown]).toEqual([]);
   });
 });

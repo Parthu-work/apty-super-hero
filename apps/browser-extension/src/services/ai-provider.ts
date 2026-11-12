@@ -13,12 +13,16 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   type AiDestination,
   type AppSettings,
+  createLogger,
   type DestinationVerdict,
   destinationAllowed,
   destinationOf,
   detectProviderFromHost,
   type OrgPolicyState,
   originOf,
+  PROVIDER_SCHEMA_RULES,
+  rewriteToolSchema,
+  type SchemaProvider,
 } from "@apty/agent-core";
 import {
   loadOrgPolicy,
@@ -34,6 +38,7 @@ import type { I18nContextValue } from "@apty/ui/i18n/types";
 import { type LanguageModelMiddleware, wrapLanguageModel } from "ai";
 
 type Translate = I18nContextValue["t"];
+const log = createLogger("ai-provider");
 const englishTranslate: Translate = createTranslationFunction("en");
 
 const CLOUD_METADATA_HOSTNAMES = new Set([
@@ -200,36 +205,38 @@ const openAINoStoreMiddleware: LanguageModelMiddleware = {
   }),
 };
 
-/** True when a tool's JSON schema declares no properties (empty or absent). */
-function hasNoProperties(inputSchema: unknown): boolean {
-  const properties = (inputSchema as { properties?: unknown } | null)
-    ?.properties;
-  return (
-    !properties ||
-    typeof properties !== "object" ||
-    Object.keys(properties).length === 0
-  );
-}
-
 /**
- * Groq rejects a `strict: true` function whose parameters have no properties
- * ("'required' present but 'properties' is missing") while accepting the same
- * schema without `strict`. The SDK marks every tool strict, so a tool with no
- * arguments is sent without it; tools with parameters keep their setting.
+ * Rewrites each tool's JSON schema to what the provider accepts (KB-RAG K25,
+ * A1): keywords it rejects are removed and their limits stated in the
+ * description, and a tool that still cannot be strict is sent without
+ * `strict`. Tools validate their input with their own Zod schema when they
+ * run, so nothing the model sends is accepted that was refused before.
+ * @internal exported for tests
  */
-const groqEmptyToolsNotStrictMiddleware: LanguageModelMiddleware = {
-  specificationVersion: "v3",
-  transformParams: async ({ params }) => ({
-    ...params,
-    tools: params.tools?.map((tool) => {
-      if (tool.type !== "function" || !hasNoProperties(tool.inputSchema)) {
-        return tool;
-      }
-      const { strict: _strict, ...withoutStrict } = tool;
-      return withoutStrict;
+export function providerSchemaMiddleware(
+  provider: SchemaProvider,
+): LanguageModelMiddleware {
+  const rules = PROVIDER_SCHEMA_RULES[provider];
+  return {
+    specificationVersion: "v3",
+    transformParams: async ({ params }) => ({
+      ...params,
+      tools: params.tools?.map((tool) => {
+        if (tool.type !== "function") return tool;
+        const rewritten = rewriteToolSchema(tool.inputSchema, rules);
+        const { strict, ...withoutStrict } = tool;
+        const inputSchema = rewritten.schema as typeof tool.inputSchema;
+        if (strict === undefined || rewritten.strict) {
+          return { ...tool, inputSchema };
+        }
+        log.debug(
+          `${provider}: tool ${tool.name} is sent without strict; its schema cannot be strict for this provider.`,
+        );
+        return { ...withoutStrict, inputSchema };
+      }),
     }),
-  }),
-};
+  };
+}
 
 type PromptMessage = Parameters<
   NonNullable<LanguageModelMiddleware["transformParams"]>
@@ -409,7 +416,10 @@ function buildProvider(
       return (modelId: string) =>
         wrapLanguageModel({
           model: anthropic(modelId),
-          middleware: anthropicPromptCacheMiddleware,
+          middleware: [
+            providerSchemaMiddleware("anthropic"),
+            anthropicPromptCacheMiddleware,
+          ],
         });
     }
     case "google":
@@ -443,7 +453,7 @@ function buildProvider(
       return (modelId: string) =>
         wrapLanguageModel({
           model: compatible(modelId),
-          middleware: groqEmptyToolsNotStrictMiddleware,
+          middleware: providerSchemaMiddleware("groq"),
         });
     }
   }
