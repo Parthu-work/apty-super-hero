@@ -2693,5 +2693,33 @@
     "noneMissing": "没有缺少的内容。",
     "copyText": "复制为文本",
     "noCase": "此对话还没有案例。"
+  },
+  "feedback": {
+    "wrongCard": "卡片有误",
+    "wrongCardFor": "卡片有误：{{pageId}}",
+    "rightCard": "哪张卡片是正确的？（页面编号，可选）",
+    "save": "保存",
+    "recorded": "已记录，谢谢。",
+    "closeCase": "结束案例",
+    "outcomeLabel": "结果如何？",
+    "findingRight": "结论正确吗？",
+    "answer": {
+      "yes": "是",
+      "partly": "部分正确",
+      "no": "否"
+    },
+    "confirmClose": "结束",
+    "title": "反馈",
+    "description": "给 KB 负责人的卡片有误标记和案例结果：仅编号、数字和代码；只有在您选择包含时才含有您的问题。保存在本设备上，不会发送。",
+    "count": "{{count}} 条",
+    "includeQuestion": "包含我的问题",
+    "exportCsv": "导出跟踪表（CSV）",
+    "exportQuestions": "导出 kb:eval 问题",
+    "clear": "清除",
+    "clearLocked": "已设置贵组织的策略：无法在此清除反馈记录。",
+    "csvLabel": "跟踪表",
+    "csvDescription": "每条一行：日期、案例编号、Apty 版本、知识包构建日期、显示的卡片、正确的卡片、结果、覆盖率、原因、备注。请先查看，再复制或下载。",
+    "questionsLabel": "kb:eval 问题",
+    "questionsDescription": "已知正确卡片且您选择包含问题的条目，采用 kb:eval 问题格式。请先查看，再复制或下载。"
   }
 }

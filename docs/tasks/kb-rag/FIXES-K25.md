@@ -347,5 +347,5 @@ IN PROGRESS.
 | A4 "Not in this version" cards | Done |
 | L1 A case for every debugging session | Done |
 | L2 A support bundle the Agent assembles | Done |
-| L3 Outcomes and wrong-card feedback | Not started |
+| L3 Outcomes and wrong-card feedback | Done |
 | L4 Documentation | Not started |

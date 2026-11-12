@@ -2693,5 +2693,33 @@
     "noneMissing": "Nothing is missing.",
     "copyText": "Copy as text",
     "noCase": "There is no case for this conversation yet."
+  },
+  "feedback": {
+    "wrongCard": "Wrong card",
+    "wrongCardFor": "Wrong card: {{pageId}}",
+    "rightCard": "Which card was right? (page id, optional)",
+    "save": "Save",
+    "recorded": "Recorded. Thank you.",
+    "closeCase": "Close case",
+    "outcomeLabel": "How did it end?",
+    "findingRight": "Was the finding right?",
+    "answer": {
+      "yes": "Yes",
+      "partly": "Partly",
+      "no": "No"
+    },
+    "confirmClose": "Close",
+    "title": "Feedback",
+    "description": "Wrong-card marks and how cases ended, for the KB owner: ids, numbers and codes; your questions only if you include them. Kept on this device; nothing is sent.",
+    "count": "{{count}} entries",
+    "includeQuestion": "Include my question",
+    "exportCsv": "Export tracking sheet (CSV)",
+    "exportQuestions": "Export questions for kb:eval",
+    "clear": "Clear",
+    "clearLocked": "Your organization's policy is set: the feedback log cannot be cleared here.",
+    "csvLabel": "Tracking sheet",
+    "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note. Review it, then copy or download it.",
+    "questionsLabel": "Questions for kb:eval",
+    "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it."
   }
 }

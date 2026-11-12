@@ -19,6 +19,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
+import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbEgressNote } from "./kb-egress-note";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
@@ -230,6 +231,16 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
                   {hit.verifiedOn}
                 </p>
               )}
+              <WrongCardButton
+                pageId={pageId}
+                layer={Number(layer)}
+                aptyVersion={hit.aptyVersion}
+                question={query}
+                otherCards={output.results.map((other) => ({
+                  pageId: CITE.exec(other.cite)?.[1] ?? "",
+                  title: other.title,
+                }))}
+              />
             </li>
           );
         })}

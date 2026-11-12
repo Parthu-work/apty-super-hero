@@ -10,6 +10,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import { useEffect, useState } from "react";
 import { caseRecorder, setActiveConversation } from "../../services/cases";
 import { useReadiness } from "../connections/use-readiness";
+import { CloseCaseForm } from "./close-case-form";
 
 /** Whether the panel already offered a case to continue: once per panel. */
 let offered = false;
@@ -47,6 +48,7 @@ export function CaseStrip({ children }: { children?: React.ReactNode }) {
   const { target } = useReadiness();
   const [copied, setCopied] = useState(false);
   const [offer, setOffer] = useState<CaseRecord | undefined>();
+  const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     if (offered || record || !target.hostname) return;
@@ -120,11 +122,19 @@ export function CaseStrip({ children }: { children?: React.ReactNode }) {
         {t(copied ? "common.copied" : "common.copy")}
       </Button>
       {record.outcome !== "open" && (
-        <span className="text-muted-foreground">
+        <span className="text-muted-foreground" data-testid="case-outcome">
           {t(`cases.outcome.${record.outcome}`)}
         </span>
       )}
+      {record.outcome === "open" && !closing && (
+        <Button size="sm" variant="ghost" onClick={() => setClosing(true)}>
+          {t("feedback.closeCase")}
+        </Button>
+      )}
       {children}
+      {closing && (
+        <CloseCaseForm record={record} onDone={() => setClosing(false)} />
+      )}
     </div>
   );
 }
