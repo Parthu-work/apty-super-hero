@@ -3,6 +3,26 @@ export { aisdk } from "@openai/agents-extensions/ai-sdk";
 // Agent
 export { AptyAgent } from "./agent/index.js";
 export {
+  CASE_CONTINUE_HOURS,
+  CASE_NOTE_MAX,
+  CASE_OUTCOMES,
+  CASE_RETENTION_DAYS,
+  CASE_SYMPTOM_MAX,
+  type CaseCheck,
+  type CaseFinding,
+  type CaseKbShown,
+  type CaseOutcome,
+  type CaseRecord,
+  type CaseTurn,
+  caseExpired,
+  caseToContinue,
+  closeCase,
+  newCase,
+  newCaseId,
+  turnStartsCase,
+  withTurn,
+} from "./case/case.js";
+export {
   type AiDestination,
   type DestinationVerdict,
   destinationAllowed,
@@ -62,6 +82,7 @@ export {
 export {
   AUDIT_RETENTION_RANGE,
   auditRetentionDays,
+  caseRetentionDays,
   customModelsAllowed,
   hasAllowList,
   isLoopbackHost,
@@ -79,7 +100,6 @@ export {
   policyOf,
   RESTRICTIVE_ORG_POLICY,
 } from "./config/org-policy.js";
-
 // Context
 export { ContextManager } from "./context/manager.js";
 export type {
@@ -95,7 +115,6 @@ export {
   isContext,
   resolveContexts,
 } from "./context/utils.js";
-
 // Conversation
 export { ConversationCompressor } from "./conversation/compressor.js";
 export { ConversationManager } from "./conversation/manager.js";

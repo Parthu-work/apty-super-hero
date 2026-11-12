@@ -40,6 +40,8 @@ export interface OrgPolicy {
   allowUnsignedPacks?: boolean;
   /** No pack is used more than this many days after it was built (D-SEC11). */
   maxPackAgeDays?: number;
+  /** KB-RAG K25 (L1, D-CASE1): how many days a case record is kept on the device. */
+  caseRetentionDays?: number;
 }
 
 /** What the extension knows of the policy: none set, one in force, or one it could not use. */
@@ -292,6 +294,17 @@ export function parseOrgPolicy(raw: unknown): Parsed {
         if (typeof value !== "boolean") return fail(`${key} must be a boolean`);
         policy.allowUnsignedPacks = value;
         break;
+      case "caseRetentionDays":
+        if (
+          typeof value !== "number" ||
+          !Number.isInteger(value) ||
+          value < 1 ||
+          value > 365
+        ) {
+          return fail("caseRetentionDays must be a whole number, 1 to 365");
+        }
+        policy.caseRetentionDays = value;
+        break;
       case "maxPackAgeDays":
         if (
           typeof value !== "number" ||
@@ -364,4 +377,9 @@ export function auditRetentionDays(state: OrgPolicyState): number {
     policyOf(state)?.auditRetentionDays ??
     ORG_POLICY_DEFAULTS.auditRetentionDays
   );
+}
+
+/** How many days a case record is kept (KB-RAG K25, L1): the policy's, or 90. */
+export function caseRetentionDays(state: OrgPolicyState): number {
+  return policyOf(state)?.caseRetentionDays ?? 90;
 }

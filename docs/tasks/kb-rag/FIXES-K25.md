@@ -345,7 +345,7 @@ IN PROGRESS.
 | A5 A builder that says what it is doing | Done |
 | A7 Signed packs with expiry (K23) | Done; the KB owner's built-in key is empty until they run `pnpm kb:keygen` |
 | A4 "Not in this version" cards | Done |
-| L1 A case for every debugging session | Not started |
+| L1 A case for every debugging session | Done |
 | L2 A support bundle the Agent assembles | Not started |
 | L3 Outcomes and wrong-card feedback | Not started |
 | L4 Documentation | Not started |

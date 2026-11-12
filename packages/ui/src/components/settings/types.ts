@@ -65,6 +65,8 @@ export interface SettingsPageProps {
   orgPolicy?: OrgPolicyView;
   /** The record of KB text sent to AI (KB-RAG K22, S7); shown in Data handling when given. */
   kbEgressLog?: KbEgressLogAdapter;
+  /** The host app's cards after the Knowledge base card: cases and feedback (KB-RAG K25, L1, L3). */
+  knowledgeBaseExtras?: ReactNode;
 }
 
 /** The record of requests that carried KB text; the host app keeps it. */

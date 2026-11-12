@@ -382,6 +382,7 @@ export function SettingsPage({
   knowledgeBase,
   orgPolicy,
   kbEgressLog,
+  knowledgeBaseExtras,
 }: SettingsPageProps) {
   // initialSkill is reserved for future use (pre-select a skill when initialTab="skills")
   void _initialSkill;
@@ -1208,6 +1209,7 @@ export function SettingsPage({
             />
 
             {knowledgeBase && <KnowledgeBaseCard adapter={knowledgeBase} />}
+            {knowledgeBaseExtras}
 
             {/* Skill execution toggle — off by default. Running a skill
                 script executes untrusted, author-supplied code in a QuickJS

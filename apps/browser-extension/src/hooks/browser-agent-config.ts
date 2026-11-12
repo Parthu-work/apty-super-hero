@@ -41,6 +41,7 @@ import {
   createAIProvider,
   isProviderConfigured,
 } from "../services/ai-provider";
+import { caseRecorder } from "../services/cases";
 import type { Translate } from "../services/model-list";
 import { createOutboundFilters } from "./outbound-filters";
 
@@ -213,7 +214,8 @@ export function useLocalResponder(
       }),
       createFileFetchResponder(),
     ];
-    return combineResponders(responders);
+    // Each turn lands in the conversation's case (KB-RAG K25, L1).
+    return caseRecorder().wrap(combineResponders(responders));
   }, []);
 }
 

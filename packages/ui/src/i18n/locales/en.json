@@ -22,7 +22,9 @@
     "edit": "Edit",
     "view": "View",
     "refresh": "Refresh",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "open": "Open",
+    "actions": "Actions"
   },
   "settings": {
     "title": "Settings",
@@ -2646,6 +2648,41 @@
       "unsigned": "The {{version}} pack is not signed.",
       "untrusted": "The {{version}} pack is not signed by a key this extension trusts.",
       "revoked": "The {{version}} pack is signed by a revoked key."
+    }
+  },
+  "cases": {
+    "label": "Case",
+    "copyId": "Copy case id {{id}}",
+    "continue": "Continue {{id}}",
+    "continueText": "A case on this site is still open from the last 24 hours: {{id}}.",
+    "outcome": {
+      "open": "Open",
+      "resolved": "Resolved",
+      "escalated": "Escalated",
+      "not_covered": "Not covered",
+      "abandoned": "Abandoned"
+    },
+    "title": "Cases",
+    "description": "One case per debugging conversation: its id, symptom, Apty version, checks, finding, KB cards shown (ids only) and how it ended. Kept on this device only, for {{days}} days; nothing is sent anywhere.",
+    "empty": "No cases yet.",
+    "open": "Open {{id}}",
+    "delete": "Delete {{id}}",
+    "deleteAll": "Delete all cases",
+    "deleteAllConfirm": "Delete every case on this device?",
+    "columns": {
+      "id": "Case",
+      "date": "Date",
+      "version": "Version",
+      "symptom": "Symptom",
+      "outcome": "Outcome"
+    },
+    "details": {
+      "checks": "Checks",
+      "finding": "Finding",
+      "kbShown": "KB cards shown",
+      "decisions": "Turns",
+      "none": "None",
+      "close": "Close details"
     }
   }
 }

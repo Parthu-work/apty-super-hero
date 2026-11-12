@@ -40,6 +40,7 @@ import {
 } from "../hooks/outbound-filters";
 import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
+import { recordModelToolResult } from "../services/cases";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
 import { checkAuth } from "../services/send-gate";
 import { InputModeProvider } from "../state/input-mode-context";
@@ -273,6 +274,7 @@ function ChatApp() {
           }}
           handlers={{
             onStatusChange: handleStatusChange,
+            onToolComplete: recordModelToolResult,
             checkAuthBeforeSend: handleCheckAuth,
             onNeedsAuth: handleNeedsAuth,
             onOpenProviderSettings: handleOpenProviderSettings,

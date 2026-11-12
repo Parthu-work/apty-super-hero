@@ -22,7 +22,9 @@
     "edit": "编辑",
     "view": "查看",
     "refresh": "刷新",
-    "dismiss": "关闭"
+    "dismiss": "关闭",
+    "open": "打开",
+    "actions": "操作"
   },
   "settings": {
     "title": "设置",
@@ -2646,6 +2648,41 @@
       "unsigned": "{{version}} 知识包未签名。",
       "untrusted": "{{version}} 知识包未由本扩展信任的密钥签名。",
       "revoked": "{{version}} 知识包由已吊销的密钥签名。"
+    }
+  },
+  "cases": {
+    "label": "案例",
+    "copyId": "复制案例编号 {{id}}",
+    "continue": "继续 {{id}}",
+    "continueText": "此站点上有一个过去 24 小时内仍未结束的案例：{{id}}。",
+    "outcome": {
+      "open": "进行中",
+      "resolved": "已解决",
+      "escalated": "已上报",
+      "not_covered": "未覆盖",
+      "abandoned": "已放弃"
+    },
+    "title": "案例",
+    "description": "每次调试对话一个案例：编号、症状、Apty 版本、检查、结论、显示过的 KB 卡片（仅编号）以及结果。仅保存在本设备上，保留 {{days}} 天；不会发送到任何地方。",
+    "empty": "还没有案例。",
+    "open": "打开 {{id}}",
+    "delete": "删除 {{id}}",
+    "deleteAll": "删除所有案例",
+    "deleteAllConfirm": "删除本设备上的所有案例？",
+    "columns": {
+      "id": "案例",
+      "date": "日期",
+      "version": "版本",
+      "symptom": "症状",
+      "outcome": "结果"
+    },
+    "details": {
+      "checks": "检查",
+      "finding": "结论",
+      "kbShown": "显示过的 KB 卡片",
+      "decisions": "回合",
+      "none": "无",
+      "close": "关闭详情"
     }
   }
 }

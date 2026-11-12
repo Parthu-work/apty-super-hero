@@ -11,6 +11,7 @@ import { applyRememberedTheme } from "@apty/ui/theme/index";
 import type { Theme } from "@apty/ui/theme/types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { CasesCard } from "../../components/cases/cases-card";
 import { settingsStorageAdapter } from "../../hooks";
 import { useOrgPolicyView } from "../../hooks/use-org-policy";
 import { useRequestReports } from "../../hooks/use-request-reports";
@@ -192,6 +193,7 @@ function OptionsPageContent() {
       redactionPreview={previewRedaction}
       recentRequests={requestReports}
       knowledgeBase={knowledgeBase}
+      knowledgeBaseExtras={<CasesCard />}
     />
   );
 }
