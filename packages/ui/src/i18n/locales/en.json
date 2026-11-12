@@ -2684,5 +2684,14 @@
       "none": "None",
       "close": "Close details"
     }
+  },
+  "supportBundle": {
+    "prepare": "Prepare support bundle",
+    "label": "Support bundle",
+    "description": "What Apty support needs for this case, with Strict redaction: KB cards as ids and links only, and no customer names, user ids, emails or tokens. Review it, then copy or download it; the extension sends nothing.",
+    "missing": "Add before sending: {{fields}}.",
+    "noneMissing": "Nothing is missing.",
+    "copyText": "Copy as text",
+    "noCase": "There is no case for this conversation yet."
   }
 }
