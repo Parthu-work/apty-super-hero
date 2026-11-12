@@ -21,6 +21,7 @@ export function kbOutcomeLine(
   if (!kb) return undefined;
   switch (kb.kind) {
     case "not_covered":
+      if (kb.reason === "no_strong_term") return t("turnDecision.noStrongTerm");
       if (kb.reason === "unknown_setting") {
         return t("turnDecision.unknownSetting");
       }

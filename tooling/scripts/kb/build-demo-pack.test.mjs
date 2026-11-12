@@ -270,3 +270,15 @@ describe("K21 reproductions on the demo packs", () => {
     }
   });
 });
+
+describe("honest reasons on the demo packs (KB-RAG K25, A6)", () => {
+  it('"the Workday home page tab" on the 4.x pack is no_strong_term, with its coverage', () => {
+    const result = core
+      .createKbIndex(packs["4.x"])
+      .search("the Workday home page tab");
+    assert.equal(result.status, "not_covered");
+    assert.equal(result.reason, "no_strong_term");
+    assert.ok(result.coverage >= packs["4.x"].retrieval.coverage.min);
+    assert.equal(result.min, packs["4.x"].retrieval.coverage.min);
+  });
+});

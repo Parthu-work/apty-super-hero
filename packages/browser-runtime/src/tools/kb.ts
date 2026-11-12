@@ -14,7 +14,7 @@ import type { ToolRunContext } from "./tab-utils.js";
 export const searchKbTool = tool({
   name: "search_kb",
   description:
-    "Searches the loaded KB packs of Apty RAG Answer Cards for the settings, page checks, data or support contacts behind a finding or symptom. Each result is a card chunk with its cite id (kb://<pageId>#L<layer>), Apty version, 'Verified on' line and notVerified mark; mixedVersions: the top cards are for different versions. status: 'ok'; 'not_covered' with reason no_match, low_coverage or unknown_setting (missingPhrases: settings no card has); 'stub' (a card whose text is not written yet); 'no_pack'.",
+    "Searches the loaded KB packs of Apty RAG Answer Cards for the settings, page checks, data or support contacts behind a finding or symptom. Each result is a card chunk with its cite id (kb://<pageId>#L<layer>), Apty version, 'Verified on' line and notVerified mark; mixedVersions: the top cards are for different versions. status: 'ok'; 'not_covered' with reason no_match (no card word matched), low_coverage (the best card covers too little of the question), no_strong_term (only words most cards share matched) or unknown_setting (missingPhrases: settings no card has); 'stub' (a card whose text is not written yet); 'no_pack'.",
   parameters: z.object({
     query: z
       .string()

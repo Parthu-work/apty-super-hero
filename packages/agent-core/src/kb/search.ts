@@ -48,9 +48,18 @@ export interface KbSearchHit {
   aptyVersion: KbAptyVersion;
 }
 
+/**
+ * Why a question is not covered (K25, A6): `no_match`, no term matched any
+ * card, or every term was a context word left out; `low_coverage`, the top
+ * card covers less than the minimum; `no_strong_term`, coverage reached the
+ * minimum but too few matched terms are rare enough (idf below `minIdf`):
+ * only common words matched; `unknown_setting`, the question names a
+ * setting no card holds.
+ */
 export type KbNotCoveredReason =
   | "no_match"
   | "low_coverage"
+  | "no_strong_term"
   | "unknown_setting";
 
 export interface KbSearchResult {
@@ -1027,7 +1036,11 @@ function createV2Index(pack: KbPack): KbIndex {
         hits: [],
         coverage,
         reason:
-          contextIgnored.length === terms.length ? "no_match" : "low_coverage",
+          contextIgnored.length === terms.length || coverage === 0
+            ? "no_match"
+            : coverage < settings.min
+              ? "low_coverage"
+              : "no_strong_term",
         min: settings.min,
         topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,

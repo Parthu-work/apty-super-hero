@@ -1162,3 +1162,61 @@ describe("a card finds itself by its title (KB-RAG K25, A3)", () => {
     expect(result.missingPhrases).toBeUndefined();
   });
 });
+
+describe("honest not-covered reasons (KB-RAG K25, A6)", () => {
+  const COMMON =
+    "- FIXTURE: the workflow content is visible to users on the page.";
+  const cards: SyntheticCard[] = [
+    "Ardent",
+    "Bramble",
+    "Cinder",
+    "Dune",
+    "Ember",
+  ].map((word, i) => ({
+    pageId: String(401 + i),
+    title: `FIXTURE ${word} panel misbehaves`,
+    symptom: null,
+    layers: [
+      `${COMMON} FIXTURE ${word} Studio setting.`,
+      `${COMMON} FIXTURE ${word} element.`,
+      `${COMMON} FIXTURE ${word} json entry.`,
+      `${COMMON} FIXTURE ${word} support.`,
+    ],
+  }));
+  const index = createKbIndex(syntheticPack(cards, {}, V2));
+
+  it("no_match: no term matches any card", () => {
+    expect(index.search("kubernetes helm rollout")).toMatchObject({
+      status: "not_covered",
+      reason: "no_match",
+      coverage: 0,
+    });
+  });
+
+  it("no_match: every term is a context word the cards do not hold", () => {
+    expect(index.search("Workday dashboard tab").reason).toBe("no_match");
+  });
+
+  it("low_coverage: the top card covers less than the minimum", () => {
+    const result = index.search(
+      "FIXTURE Ardent kubernetes helm rollout canary",
+    );
+    expect(result.reason).toBe("low_coverage");
+    expect(result.coverage).toBeLessThan(0.5);
+  });
+
+  it("no_strong_term: coverage reaches the minimum but only common words matched", () => {
+    const result = index.search("content visible to users");
+    expect(result).toMatchObject({
+      status: "not_covered",
+      reason: "no_strong_term",
+    });
+    expect(result.coverage).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it("unknown_setting: the question names a setting no card holds", () => {
+    expect(index.search('FIXTURE Ardent "Zephyr Toggle" is off').reason).toBe(
+      "unknown_setting",
+    );
+  });
+});

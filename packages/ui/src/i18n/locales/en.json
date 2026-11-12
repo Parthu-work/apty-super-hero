@@ -2572,6 +2572,7 @@
   "turnDecision": {
     "why": "Why this answer",
     "notCovered": "No KB card matched (coverage {{coverage}}, needs {{min}}).",
+    "noStrongTerm": "No KB card matched: only common words matched.",
     "unknownSetting": "No KB card names that setting.",
     "noPack": "No {{version}} pack is loaded.",
     "noPackAny": "No KB pack is loaded.",

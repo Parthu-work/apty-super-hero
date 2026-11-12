@@ -2572,6 +2572,7 @@
   "turnDecision": {
     "why": "为什么是这个回答",
     "notCovered": "没有匹配的 KB 卡片（覆盖率 {{coverage}}，需要 {{min}}）。",
+    "noStrongTerm": "没有匹配的 KB 卡片：只匹配到常用词。",
     "unknownSetting": "没有 KB 卡片提到该设置。",
     "noPack": "未加载 {{version}} 知识包。",
     "noPackAny": "未加载任何 KB 知识包。",
