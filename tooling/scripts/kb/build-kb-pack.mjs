@@ -12,6 +12,8 @@
  *     [--out <file>]
  *     [--coverage-min <0-1>] [--coverage-min-idf <idf>]
  *     [--synonyms <file>] [--customer-names <file>] [--diff <old pack>]
+ *     [--timeout <seconds>] (each request, default 30) [--quiet] (no
+ *     progress lines on stderr)
  *
  * The cards are the pages titled "RAG Card: …" under the RAG Answer Cards
  * page (`--root`, default 1496711169 in JA), each group page's title as
@@ -39,6 +41,7 @@ const NOT_YET_WRITTEN = [
 ];
 const ROUTING_TITLE = /^start here\b/i;
 const MAX_RETRIES = 3;
+const DEFAULT_TIMEOUT_SECONDS = 30;
 const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
 const NOT_VERIFIED = /\bNOT VERIFIED\b/g;
 const TITLE_PREFIX = /^RAG Card:\s*/i;
@@ -213,7 +216,7 @@ function comparePageIds(a, b) {
  */
 export function parseCard(page, { site, space, group = "" }) {
   const html = page.body ?? "";
-  const headings = [...html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)];
+  const headings = [...html.matchAll(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi)];
   const layers = headings
     .map((match) => ({
       match,
@@ -253,6 +256,15 @@ export function parseCard(page, { site, space, group = "" }) {
       return { card: card(text, "stub"), chunks: [] };
     }
   }
+  if (layers.length === 0 && headings.length > 0) {
+    return {
+      skipped: "has headings but no Layer N: headings",
+      kind: "other_format",
+      headings: headings
+        .slice(0, 5)
+        .map((match) => storageToText(match[1]).replace(/\n/g, " ")),
+    };
+  }
   if (layers.length !== 4) {
     return { skipped: `has ${layers.length} layers, not 4` };
   }
@@ -260,15 +272,6 @@ export function parseCard(page, { site, space, group = "" }) {
     return { skipped: `layers are numbered ${numbers.join(", ")}, not 1-4` };
   }
   const intro = storageToText(html.slice(0, layers[0].match.index));
-  const verifiedOn =
-    intro.split("\n").find((line) => /^Verified on:/i.test(line)) ?? null;
-  const symptomLine = intro.split("\n").find((line) => SYMPTOM_LINE.test(line));
-  const symptom = symptomLine
-    ? symptomLine
-        .replace(SYMPTOM_LINE, "")
-        .trim()
-        .slice(0, MAX_SYMPTOM_CHARS) || null
-    : null;
 
   const chunks = [];
   for (const [i, { match, heading }] of layers.entries()) {
@@ -303,6 +306,18 @@ export function parseCard(page, { site, space, group = "" }) {
 /** Thrown for a failure the KB owner has to act on; the message holds no card text. */
 export class BuildError extends Error {}
 
+/** A request that timed out or could not be sent; retried, then a BuildError. */
+class RequestFailed extends Error {
+  constructor(kind) {
+    super(kind);
+    this.kind = kind;
+  }
+}
+
+/** How the KB owner checks the credentials; in docs/development/kb-rag.md too. */
+const ACCESS_CHECK =
+  'Check access with: curl -s -o /dev/null -w "%{http_code}\\n" -u "$CONFLUENCE_EMAIL:$CONFLUENCE_TOKEN" "https://<site>/wiki/rest/api/search?cql=type=page&limit=1" (200: access works; 401: wrong email or token; 403: a scoped token, use a classic one).';
+
 /**
  * Fetches the cards: by default every "RAG Card: …" page under `root` in
  * the space, or with `label` every page carrying it; CQL search for ids,
@@ -318,6 +333,8 @@ export async function fetchCardPages({
   token,
   fetchImpl = fetch,
   sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  timeoutMs = DEFAULT_TIMEOUT_SECONDS * 1000,
+  progress = () => {},
 }) {
   const origin = `https://${site}`;
   const headers = {
@@ -325,9 +342,52 @@ export async function fetchCardPages({
     Authorization: `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`,
   };
 
+  /** One request, cut off after `timeoutMs`; a timeout or network error is retried like a 429. */
+  async function fetchOnce(url) {
+    const controller = new AbortController();
+    let timer;
+    const timedOut = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new RequestFailed("timeout"));
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([
+        fetchImpl(url, { headers, signal: controller.signal }).catch(
+          (error) => {
+            throw error instanceof RequestFailed
+              ? error
+              : new RequestFailed("network");
+          },
+        ),
+        timedOut,
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function getJson(url, { search = false } = {}) {
     for (let attempt = 0; ; attempt++) {
-      const response = await fetchImpl(url, { headers });
+      let response;
+      try {
+        response = await fetchOnce(url);
+      } catch (error) {
+        if (!(error instanceof RequestFailed)) throw error;
+        if (attempt < MAX_RETRIES) {
+          await sleep(2 ** attempt * 1000);
+          continue;
+        }
+        const path = new URL(url).pathname;
+        throw new BuildError(
+          `${path} ${
+            error.kind === "timeout"
+              ? `did not answer within ${timeoutMs / 1000} seconds`
+              : "could not be reached"
+          } after ${MAX_RETRIES} retries. ${ACCESS_CHECK.replace("<site>", site)}`,
+        );
+      }
       if (response.status === 429 && attempt < MAX_RETRIES) {
         const header = response.headers?.get?.("Retry-After");
         const seconds = header ? Number(header) : Number.NaN;
@@ -361,6 +421,7 @@ export async function fetchCardPages({
     : `space="${space}" AND ancestor=${root} AND type=page`;
   let next = `${origin}/wiki/rest/api/search?cql=${encodeURIComponent(cql)}&limit=50`;
   const ids = [];
+  progress("Listing pages…");
   while (next) {
     const page = await getJson(next, { search: true });
     for (const result of page.results ?? []) {
@@ -380,7 +441,8 @@ export async function fetchCardPages({
 
   const parents = new Map();
   const pages = [];
-  for (const id of ids.sort(comparePageIds)) {
+  const sorted = ids.sort(comparePageIds);
+  for (const id of sorted) {
     const page = await getJson(
       `${origin}/wiki/api/v2/pages/${id}?body-format=storage`,
     );
@@ -404,11 +466,14 @@ export async function fetchCardPages({
       updatedAt: page.version?.createdAt ?? "",
       group,
     });
+    if (pages.length % 10 === 0 || pages.length === sorted.length) {
+      progress(`Fetched ${pages.length} of ${sorted.length} pages`);
+    }
   }
   return pages;
 }
 
-/** The pack for these pages, sorted by page id, with its checksum; and the pages skipped (malformed). */
+/** The pack for these pages, sorted by page id, with its checksum; and the pages skipped (malformed, or in another format). */
 export function buildPack({
   pages,
   site,
@@ -429,6 +494,8 @@ export function buildPack({
         pageId: page.id,
         title: page.title,
         reason: parsed.skipped,
+        kind: parsed.kind ?? "malformed",
+        ...(parsed.headings ? { headings: parsed.headings } : {}),
       });
       continue;
     }
@@ -558,8 +625,13 @@ function parseArgs(argv) {
     "--synonyms": "synonyms",
     "--version": "version",
     "--diff": "diff",
+    "--timeout": "timeout",
   };
   for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--quiet") {
+      options.quiet = true;
+      continue;
+    }
     const key = flags[argv[i]];
     if (!key || argv[i + 1] === undefined) {
       throw new BuildError(`Unknown or incomplete option: ${argv[i]}`);
@@ -583,6 +655,13 @@ function parseArgs(argv) {
     throw new BuildError(
       `Pass --version 4.x, 5.x or common: space ${options.space} holds cards of more than one version, or of an unknown one.`,
     );
+  }
+  if (options.timeout !== undefined) {
+    const seconds = Number(options.timeout);
+    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 600) {
+      throw new BuildError("--timeout takes a number of seconds, 1 to 600.");
+    }
+    options.timeout = seconds;
   }
   if (options.coverageMin !== undefined) {
     const min = Number(options.coverageMin);
@@ -631,6 +710,7 @@ export async function run({
   fetchImpl = fetch,
   sleep,
   now = () => new Date(),
+  clock = () => Date.now(),
   home = homedir(),
   cwd = process.cwd(),
   out: print = (line) => console.log(line),
@@ -673,6 +753,8 @@ export async function run({
     const selection = options.label
       ? `label "${options.label}"`
       : `"RAG Card:" pages under page ${options.root}`;
+    const started = clock();
+    const progress = options.quiet ? () => {} : printError;
     const pages = await fetchCardPages({
       site: options.site,
       space: options.space,
@@ -682,7 +764,10 @@ export async function run({
       token,
       fetchImpl,
       sleep,
+      timeoutMs: (options.timeout ?? DEFAULT_TIMEOUT_SECONDS) * 1000,
+      progress,
     });
+    progress(`Fetched in ${((clock() - started) / 1000).toFixed(1)} s`);
     if (pages.length === 0) {
       throw new BuildError(
         `No page in space ${options.space} matches: ${selection}.`,
@@ -720,14 +805,20 @@ export async function run({
 
     const count = (status) =>
       pack.cards.filter((card) => card.status === status).length;
+    const skippedAs = (kind) => skipped.filter((s) => s.kind === kind);
     print(
-      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing; ${skipped.length} malformed skipped. Apty ${options.version}, from ${options.site}, space ${options.space}, ${selection}.`,
+      `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing; skipped ${skippedAs("malformed").length} malformed, ${skippedAs("other_format").length} other_format. Apty ${options.version}, from ${options.site}, space ${options.space}, ${selection}.`,
     );
     for (const card of pack.cards.filter((c) => c.status === "stub")) {
       print(`  stub ${card.pageId} "${card.title}": not yet written`);
     }
-    for (const { pageId, title, reason } of skipped) {
+    for (const { pageId, title, reason } of skippedAs("malformed")) {
       print(`  malformed, skipped ${pageId} "${title}": ${reason}`);
+    }
+    for (const { pageId, title, headings } of skippedAs("other_format")) {
+      print(
+        `  other_format, skipped ${pageId} "${title}": no Layer N: headings; its headings: ${headings.join(" | ")}`,
+      );
     }
     const flagged = pack.cards.filter((card) => card.notVerifiedCount > 0);
     if (flagged.length > 0) {

@@ -410,6 +410,8 @@ question passes.
 | Links open the wrong space | A schema 1 pack (always JA) | Rebuild the pack with this builder |
 | "Older than 30 days" | Stale pack | Ask the KB owner for a newer one |
 | "The KB cards are in English" | The question is mostly in another script and no model is configured | Ask in English, or configure a model |
+| `kb:pack`: "… did not answer within 30 seconds after 3 retries" or "… could not be reached" | Confluence did not answer, or the network or credentials block it | Check access with `curl -s -o /dev/null -w "%{http_code}\n" -u "$CONFLUENCE_EMAIL:$CONFLUENCE_TOKEN" "https://<site>/wiki/rest/api/search?cql=type=page&limit=1"`: 200 means access works (raise `--timeout`), 401 a wrong email or token, 403 a scoped token (use a classic one) |
+| `kb:pack` reports pages as `other_format` | The page has headings but no `Layer N:` headings (another section layout) | Rewrite it in the four-layer format in Confluence; the summary lists its first five headings |
 
 ## Not done
 

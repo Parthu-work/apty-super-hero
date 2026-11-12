@@ -436,6 +436,7 @@ describe("buildPack", () => {
         pageId: "3",
         title: "RAG Card: FIXTURE card 3",
         reason: "has 2 layers, not 4",
+        kind: "malformed",
       },
     ]);
     assert.deepEqual(pack.source, {
@@ -561,7 +562,7 @@ describe("the CLI", () => {
     assert.equal(statSync(file).mode & 0o777, 0o600);
     assert.match(
       result.out,
-      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing; 0 malformed skipped\./,
+      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing; skipped 0 malformed, 0 other_format\./,
     );
     assert.match(result.out, /NOT VERIFIED statements: 7, 8/);
     assert.match(result.out, /no --coverage-min/);
@@ -788,5 +789,162 @@ describe("the CLI", () => {
     }
     const unknown = await runWith({ argv: ["--token", "x"], fetchImpl });
     assert.match(unknown.err, /Unknown or incomplete option: --token/);
+  });
+});
+
+describe("a builder that says what it is doing (KB-RAG K25, A5)", () => {
+  const options = { site: SITE, space: "FX" };
+
+  it("a page with headings but no Layer N: headings is other_format, with its first five headings", () => {
+    const body = [
+      "What to copy",
+      "Where it lives",
+      "Mirror of the 4.x card",
+      "Redaction",
+      "Glossary",
+      "Sixth heading",
+    ]
+      .map((h) => `<h2>FIXTURE ${h}</h2><p>FIXTURE text.</p>`)
+      .join("");
+    assert.deepEqual(parseCard(page("41", { body }), options), {
+      skipped: "has headings but no Layer N: headings",
+      kind: "other_format",
+      headings: [
+        "FIXTURE What to copy",
+        "FIXTURE Where it lives",
+        "FIXTURE Mirror of the 4.x card",
+        "FIXTURE Redaction",
+        "FIXTURE Glossary",
+      ],
+    });
+    assert.deepEqual(
+      parseCard(page("42", { body: cardBody({ layers: 3 }) }), options),
+      { skipped: "has 3 layers, not 4" },
+    );
+  });
+
+  it("names other_format pages with their headings on the summary, and progress goes to stderr only", async () => {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({
+      ids: Array.from({ length: 12 }, (_, i) => String(i + 1)),
+      bodies: {
+        5: "<h3>FIXTURE Section A</h3><p>x</p><h3>FIXTURE Section B</h3>",
+      },
+    });
+    const out = [];
+    const err = [];
+    let tick = 0;
+    const code = await run({
+      argv: ["--space", "FX", "--site", SITE, "--version", "5.x"],
+      env: {
+        CONFLUENCE_EMAIL: "svc@example.com",
+        CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+      },
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      clock: () => {
+        tick += 1500;
+        return tick;
+      },
+      out: (line) => out.push(line),
+      err: (line) => err.push(line),
+    });
+    assert.equal(code, 0, err.join("\n"));
+    assert.match(out.join("\n"), /skipped 0 malformed, 1 other_format\./);
+    assert.match(
+      out.join("\n"),
+      /other_format, skipped 5 "RAG Card: FIXTURE card 5": no Layer N: headings; its headings: FIXTURE Section A \| FIXTURE Section B/,
+    );
+    assert.deepEqual(err, [
+      "Listing pages…",
+      "Fetched 10 of 12 pages",
+      "Fetched 12 of 12 pages",
+      "Fetched in 1.5 s",
+    ]);
+    for (const line of out)
+      assert.doesNotMatch(line, /Listing pages|Fetched \d+ of/);
+
+    const quiet = [];
+    await run({
+      argv: ["--space", "FX", "--site", SITE, "--version", "5.x", "--quiet"],
+      env: {
+        CONFLUENCE_EMAIL: "svc@example.com",
+        CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+      },
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      out: () => {},
+      err: (line) => quiet.push(line),
+    });
+    assert.deepEqual(quiet, []);
+  });
+
+  it("cuts off a request that never answers, retries it, then names the path and how to check access", async () => {
+    let calls = 0;
+    const slept = [];
+    const never = async () => {
+      calls++;
+      return new Promise(() => {});
+    };
+    await assert.rejects(
+      fetchCardPages({
+        site: SITE,
+        space: "FX",
+        label: "rag-card",
+        email: "svc@example.com",
+        token: "FIXTURE-TOKEN",
+        fetchImpl: never,
+        sleep: async (ms) => slept.push(ms),
+        timeoutMs: 20,
+      }),
+      (error) => {
+        assert.match(
+          error.message,
+          /^\/wiki\/rest\/api\/search did not answer within 0\.02 seconds after 3 retries\. Check access with: curl/,
+        );
+        assert.match(
+          error.message,
+          /200: access works; 401: wrong email or token; 403: a scoped token/,
+        );
+        assert.doesNotMatch(
+          error.message,
+          /FIXTURE-TOKEN|space%3D|rag-card|svc@example/,
+        );
+        return true;
+      },
+    );
+    assert.equal(calls, 4);
+    assert.deepEqual(slept, [1000, 2000, 4000]);
+  });
+
+  it("retries a network error, and --timeout takes seconds", async () => {
+    let calls = 0;
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const flaky = async (url, init) => {
+      calls++;
+      if (calls === 1) throw new TypeError("fetch failed");
+      return fetchImpl(url, init);
+    };
+    const pages = await fetchCardPages({
+      site: SITE,
+      space: "FX",
+      label: "rag-card",
+      email: "svc@example.com",
+      token: "FIXTURE-TOKEN",
+      fetchImpl: flaky,
+      sleep: async () => {},
+    });
+    assert.equal(pages.length, 1);
+    const err = [];
+    const code = await run({
+      argv: ["--space", "FX", "--version", "5.x", "--timeout", "0"],
+      env: { CONFLUENCE_EMAIL: "a", CONFLUENCE_TOKEN: "b" },
+      out: () => {},
+      err: (line) => err.push(line),
+    });
+    assert.equal(code, 1);
+    assert.match(err.join("\n"), /--timeout takes a number of seconds/);
   });
 });
