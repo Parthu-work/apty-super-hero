@@ -14,6 +14,23 @@ the authoritative source; the Confluence page is a navigable summary of it.
 
 ## Fixed
 
+### K25. Cases, support bundles and feedback: what may leave the device
+
+- **Severity**: Medium (by design, nothing leaves without the SE)
+- **Affected component**: `packages/browser-runtime/src/case/*`,
+  `storage/case-store.ts`, the review dialog
+- **Risk**: a case or bundle could carry KB card text, customer names, user
+  ids, emails or tokens to wherever the SE pastes it.
+- **Fix** (D-CASE1, D-CASE2): records hold ids, numbers, codes and the SE's
+  own Strict-redacted symptom; bundles pass Strict redaction, the content
+  deny list, an email and long-id pass, and a URL pass (origin and path,
+  ids as `:id`, a customer's host as `customer-app`); everything is shown in
+  full before Copy or Download; the extension sends nothing.
+- **Verification**: `support-bundle.test.ts` (planted email, token, user
+  id, customer host and a chunk's unique word absent from every format),
+  `case-recorder.test.ts`, `feedback-store.test.ts`, and the E2E files
+  `support-bundle`, `feedback` (no request while exporting).
+
 ### K23. A KB pack proved it was whole, not who built it, and never expired
 
 - **Severity**: High

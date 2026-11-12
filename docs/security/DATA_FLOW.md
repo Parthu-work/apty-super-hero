@@ -172,3 +172,18 @@ way out, every time.
 - `tooling/e2e/org-policy.e2e.test.mjs` (the E2E-only policy build): locked
   fields, a refused AI host gets no request, the MCP bridge kept off, and
   KB text to an approved destination with its send record.
+
+## Cases, support bundles and feedback (KB-RAG K25)
+
+The decision record of each turn (route, version, packs, KB outcome: ids,
+numbers and codes) is a `turn_decision` event the side panel keeps with the
+turn; it is not a session item, so no model request carries it. Cases and
+feedback are written to IndexedDB `apty-cases-db` (stores `cases` and
+`feedback`) by the side panel only. A support bundle, the tracking-sheet CSV
+and the `kb:eval` questions file are built from those stores on the device,
+pass Strict redaction and the content deny list, and are shown in the review
+dialog; only Copy or Download moves them, and the extension makes no network
+request for any of them (tested in `support-bundle.e2e.test.mjs` and
+`feedback.e2e.test.mjs`). Tool schemas sent to Anthropic and Groq are
+rewritten to what those providers accept (`provider-schema.ts`); the tools
+still validate their input with their own schemas.

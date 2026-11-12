@@ -41,6 +41,7 @@ Preflight names the reason (fail closed).
 | `trustedPackKeys` | array of `{ keyId, spki, name }` | none | KB pack signing keys trusted besides the built-in ones (KB-RAG K23, D-SEC9). `keyId`: 16 hex characters; `spki`: the public key's SPKI DER in base64, as `pnpm kb:keygen` prints them. An entry whose `keyId` does not match its `spki` trusts nothing. |
 | `revokedPackKeyIds` | string array | none | Key ids never trusted, built-in ones included. A loaded pack signed by one stops being used at the next question. |
 | `allowUnsignedPacks` | boolean | `false` | Use unsigned packs (built before K23, or with `--unsigned`), for a transition only. |
+| `caseRetentionDays` | integer, 1 to 365 | `90` | How long a case record (KB-RAG K25, D-CASE1) is kept on the device after its last update. |
 | `maxPackAgeDays` | integer, 1 to 365 | none | No pack is used more than this many days after it was built, whatever its own `expiresAt` (D-SEC11). |
 
 A request outside the allow-lists is not sent: not a chat, a custom model,

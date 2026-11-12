@@ -12,7 +12,11 @@ full commit-level history.
   - **A3**: `kb:eval --self-check` and the builder's self-check totals; a 110-card synthetic pack; two scoring causes fixed (a title of common words, a stub extending a full card's title).
   - **A6**: honest reasons: `no_strong_term` when coverage reaches the minimum but only common words matched.
   - **A5**: the builder names `other_format` pages with their headings, prints progress on stderr, and cuts off a stalled request after 30 seconds.
+  - **A4**: "not in this version" cards: a page saying "No 4.x equivalent" becomes an absent card; a question only it covers gets "This does not exist in Apty 4.x." with the reason and link, never a nearby card.
   - **A7 (K23, D-SEC8 to D-SEC11)**: only signed, current KB packs are used. Schema 3 packs carry an ECDSA P-256 signature and an `expiresAt`; `pnpm kb:keygen`, `kb:pack --sign-key`, the published demo key; trust from the built-in keys and the policy (`trustedPackKeys`, `revokedPackKeyIds`, `allowUnsignedPacks`, `maxPackAgeDays`), checked at import and at every use; Options, Preflight and the panel say who signed a pack, when it expires and why one is not used.
+  - **L1**: a case for every debugging session (`CASE-<yyyymmdd>-<4>`), kept on the device in `apty-cases-db` for the policy's `caseRetentionDays` (default 90); the context bar shows its id, reopening a chat continues it, Options → Cases lists it (D-CASE1).
+  - **L2**: "Prepare support bundle" on the verdict's support step and the case: the fields each rule declares, filled or marked missing, Strict-redacted, reviewed before Copy or Download (D-CASE2).
+  - **L3**: Close case (Resolved, Escalated, Not covered, Abandoned) and Wrong card; Options → Feedback exports a tracking sheet (CSV) and questions for `kb:eval`. Nothing is sent by the extension.
   - **Release note:** packs built before this release are unsigned and stop being used once it ships, unless a policy sets `allowUnsignedPacks`. The KB owner must run `pnpm kb:keygen`, send the public key, and rebuild and redistribute every pack, signed, before the release.
 
 - **KB-RAG K24: application names and page places do not lower coverage** ([`FIXES-K24.md`](docs/tasks/kb-rag/FIXES-K24.md)):

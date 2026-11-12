@@ -179,3 +179,29 @@ most 180. An expired pack is kept but not used; Options, Preflight and the
 panel say it expired and ask for a new one. A policy can shorten the life of
 every pack (`maxPackAgeDays`, counted from `builtAt`). A pack built more than
 one day in the future (by the device's clock) is refused.
+
+## D-CASE1: cases, bundles and feedback stay on the device
+
+Accepted with K25 (L1 to L3). A case record, a support bundle and the
+feedback log are kept only in the extension's IndexedDB (`apty-cases-db`)
+and are never sent anywhere by the extension: no email, upload, ticket or
+post. A case is kept for `caseRetentionDays` (organization policy, default
+90, 1 to 365) after its last update and deleted on start-up and on each
+write; the SE can delete one or all in Options. Something leaves the browser
+only when the SE copies or downloads it after reviewing it in the review
+dialog. The feedback log cannot be cleared while a policy is set, like the
+K22 send record.
+
+## D-CASE2: what a support bundle may and may not contain
+
+Accepted with K25 (L2). A support bundle may contain: the case id and times,
+the fields each rule declares (`support-fields.ts`) with their values or a
+"missing" mark and hint, the finding (rule, cause key, confidence,
+verification), KB card ids and links, the checks run, the file entries the
+finding names (each at most 4 KB) and their status codes, Apty console
+errors (at most 50 lines), and the browser and extension versions; at most
+200 KB. It may not contain KB card text, screenshots, customer names (a
+host that is not an Apty or Atlassian domain becomes `customer-app`), user
+ids, emails or tokens, page queries or fragments, or ids in a path (`:id`).
+Every value goes through the content deny list and Strict redaction before
+the SE sees it.

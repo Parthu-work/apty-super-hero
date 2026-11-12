@@ -334,7 +334,18 @@ the Apty Client bridges; people-side steps.
 
 ## Status
 
-IN PROGRESS.
+DONE in code, with two partial steps that need people or real data:
+
+- Acceptance 4 (real packs): the KB owner runs
+  `pnpm -s kb:eval --self-check --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1)"`
+  and the same for `apty-kb-JA-5.x-*`, and pastes the totals and failing
+  ids into the PR. The packs are not in this environment.
+- L4's smoke-test rows 18 to 25 (`docs/release/SMOKE_TEST.md`) are written
+  but not yet run by hand in a branded Chrome; each is covered by an E2E
+  in Chromium.
+- K23: the KB owner's built-in key (`KB_OWNER_PACK_KEYS`) is empty until
+  they run `pnpm kb:keygen` and send the public key; D-SEC8 to D-SEC11 are
+  Proposed for the owner to confirm.
 
 | Package | Status |
 | --- | --- |
@@ -348,4 +359,4 @@ IN PROGRESS.
 | L1 A case for every debugging session | Done |
 | L2 A support bundle the Agent assembles | Done |
 | L3 Outcomes and wrong-card feedback | Done |
-| L4 Documentation | Not started |
+| L4 Documentation | Done; smoke-test rows not yet run by hand |

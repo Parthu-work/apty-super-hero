@@ -78,3 +78,5 @@ document they concern.
 | [D-SEC9: trusted pack keys are built in or set by policy; a policy can revoke any](docs/tasks/kb-rag/decisions.md#d-sec9-trusted-keys-are-built-in-or-set-by-policy-and-a-policy-can-revoke-any) | 2026-11-12 | Proposed with K23 |
 | [D-SEC10: a demo pack is one signed with the demo key on a .invalid site](docs/tasks/kb-rag/decisions.md#d-sec10-a-demo-pack-is-one-signed-with-the-demo-key-on-a-invalid-site) | 2026-11-12 | Proposed with K23 |
 | [D-SEC11: every KB pack expires](docs/tasks/kb-rag/decisions.md#d-sec11-every-pack-expires) | 2026-11-12 | Proposed with K23 |
+| [D-CASE1: cases, bundles and feedback stay on the device](docs/tasks/kb-rag/decisions.md#d-case1-cases-bundles-and-feedback-stay-on-the-device) | 2026-11-12 | Accepted with K25 |
+| [D-CASE2: what a support bundle may and may not contain](docs/tasks/kb-rag/decisions.md#d-case2-what-a-support-bundle-may-and-may-not-contain) | 2026-11-12 | Accepted with K25 |

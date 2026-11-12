@@ -431,12 +431,125 @@ uncapped ranking, and prints the `kb:pack` flags. It never suggests a
 `coverage.min` below `--coverage-min-floor` (default 0.35), and warns when
 the best J sits below the floor (K21 F2).
 
+An absent ("not in this version") card counts as a hit when it is the
+expected card (K25, A4).
+
+### Self-check (K25, A3)
+
+```bash
+pnpm -s kb:eval --self-check --pack <file> [--json]
+```
+
+Needs no questions file. For every card but routing pages it searches the
+card's own title and, when present, its Symptom line, with the pack's own
+version and settings, and prints per query the card's own rank, the status,
+the reason, the coverage, the coverage minimum and the top hit's page id,
+with totals at rank 1 and in the top 3 for titles and for Symptom lines
+(ids, numbers and codes only, safe to paste into an issue). A stub or an
+absent card counts as found when its own status comes back. It exits 1 when
+a title is not in the top 3. `kb:pack` prints the two totals and the failing
+ids after it writes a pack, and never refuses to write because of them.
+
+On the 110-card synthetic pack (`fixtures/large-synthetic-cards.mjs`) the
+builder's defaults (min 0.5, minIdf 1.5) give every title at rank 1. Two
+causes found there are fixed in `search.ts`: a title made only of words most
+cards share has no term with idf ≥ minIdf, so a question holding every term
+of the top card's own title (3 or more) is covered once coverage reaches the
+minimum; and a stub whose title extends a full card's title no longer takes
+that card's own title.
+
+### Not covered: the reasons (K25, A6)
+
+| Reason | Meaning |
+| --- | --- |
+| `no_match` | No term matched any card, or every term was a context word left out |
+| `low_coverage` | The best card covers less than `coverage.min` of the question |
+| `no_strong_term` | Coverage reached the minimum, but fewer than `minTerms` matched terms have idf ≥ `minIdf`: only common words matched |
+| `unknown_setting` | The question names a setting no card holds (`missingPhrases`) |
+
 **Gate (D-KB8), per version, on the real sets** (60 or more questions, at
 least 9 not covered, every category of FIXES.md 7.2, written in the owner's
 own words and kept in `~/apty-kb/`): Recall@3 ≥ 0.90, "not covered"
 precision ≥ 0.90 and recall ≥ 0.80, layer accuracy ≥ 0.70. On the synthetic
 set (`tooling/scripts/kb/fixtures/demo-questions-4x.json`, `-5x.json`) every
 question passes.
+
+## Every decision is visible (K25, A2)
+
+`localKbMatches` returns a typed outcome: `answer`, `how_to`,
+`non_english`, `no_pack` (with the version), `not_covered` (reason,
+coverage, minimum, closest card, version, packs), `pack_unusable` (reason,
+version, date) or `error` (a code; the stack goes to the extension console).
+Every turn carries a decision record (`TurnDecision` in agent-core): the
+route that answered (check pack, KB, file fetch or model), the tab's version
+and its source (files, the SE's choice, unknown), the packs searched (version,
+sha256 prefix, key id, expiry) and the KB outcome. It is kept with the turn
+in the side panel, holds ids, numbers and codes only, and is never sent to
+the model. When the model takes a message the KB did not answer, one quiet
+line sits above its reply ("No KB card matched (coverage 0.42, needs 0.50).
+Asked the AI model.", "No 4.x pack is loaded. …", "No KB card matched: only
+common words matched. …", "The 4.x pack expired on 2027-01-10. …", "The KB
+could not be searched (<code>). …"); a how-to has none (D-KB1). With no key,
+the same reason replaces the generic setup text. "Why this answer", under
+every assistant turn, shows the record in plain words.
+
+## Builder flags (K25)
+
+| Flag | Effect |
+| --- | --- |
+| `--sign-key <file>` or `KB_PACK_SIGNING_KEY` | Signs the pack (schema 3); required unless `--unsigned` |
+| `--unsigned` | Writes an unsigned schema 3 pack, used only under `allowUnsignedPacks` |
+| `--expires-days <n>` | 1 to 180, default 60 |
+| `--timeout <seconds>` | Each Confluence request, default 30; retried like a network error |
+| `--quiet` | No progress lines on stderr |
+
+The summary counts each class: full, stub, routing, not in this version
+(absent), and the pages skipped as `malformed` (wrong layer numbers, order or
+count) or `other_format` (headings but no `Layer N:` headings, listed with
+their first five headings). Progress ("Listing pages…", "Fetched 40 of 118
+pages", the time taken) goes to stderr; stdout keeps the summary.
+
+## Cases, support bundles and feedback (K25, L1 to L3)
+
+- **Case.** The first message in a conversation that runs a check, shows a
+  KB card or names a symptom opens a case (`CASE-<yyyymmdd>-<4 base32>`); a
+  how-to or casual message does not. It records the SE's first symptom
+  (Strict-redacted, 300 characters), the version and its source, mode,
+  environment and Client version when the evidence shows them, each check
+  (pack, time, status, rules), the finding (rule, cause, card, confidence,
+  verification), the KB cards shown (ids and layers, pack version and sha256
+  prefix), the turns' decision records, the outcome and a note. No card
+  text, file bodies or screenshots. It lives in IndexedDB `apty-cases-db`
+  (store `cases`) for the policy's `caseRetentionDays` (default 90), pruned
+  on every write. The context bar shows its id with Copy; reopening the
+  conversation continues it; a new chat on a site with a case open in the
+  last 24 hours offers "Continue CASE-…" once. Options → General → Cases
+  lists, opens and deletes them (D-CASE1).
+- **Support bundle.** The verdict's support step and the case view offer
+  "Prepare support bundle": `apty-support-bundle` version 1 with the fields
+  each rule declares (`support-fields.ts`), each filled or marked missing
+  with a hint, the finding with card ids and links only, the checks, the
+  trimmed file entries the finding names (4 KB each), status codes, Apty
+  console errors (50 lines), browser and extension versions, at most
+  200 KB. Strict redaction and the deny list apply; page addresses keep
+  origin and path with ids as `:id`, and a customer's host becomes
+  `customer-app`. It opens in the review dialog with the missing fields,
+  Copy, Download (`apty-support-<case id>.json`) and Copy as text (D-CASE2).
+- **Feedback.** "Close case" (Resolved, Escalated, Not covered, Abandoned;
+  for the first two, whether the finding was right and which card was) and
+  "Wrong card" on each KB matches hit and verdict excerpt write rows to
+  `apty-cases-db` store `feedback`. Options → General → Feedback exports the
+  tracking sheet (CSV: date, case id, Apty version, pack built, card shown,
+  right card, outcome, coverage, reason, note) and the questions for
+  `kb:eval` (`{ id, category: "field", q, expectedPageIds }`, only the
+  questions the SE includes), through the review dialog. Clear is off
+  while a policy is set. The KB owner runs:
+
+```bash
+pnpm -s kb:eval --pack <pack> --questions <exported questions file>
+```
+
+Nothing in this section is sent anywhere by the extension.
 
 ## Troubleshooting
 
@@ -456,6 +569,14 @@ question passes.
 | "Older than 30 days" | Stale pack | Ask the KB owner for a newer one |
 | "The KB cards are in English" | The question is mostly in another script and no model is configured | Ask in English, or configure a model |
 | `kb:pack`: "… did not answer within 30 seconds after 3 retries" or "… could not be reached" | Confluence did not answer, or the network or credentials block it | Check access with `curl -s -o /dev/null -w "%{http_code}\n" -u "$CONFLUENCE_EMAIL:$CONFLUENCE_TOKEN" "https://<site>/wiki/rest/api/search?cql=type=page&limit=1"`: 200 means access works (raise `--timeout`), 401 a wrong email or token, 403 a scoped token (use a classic one) |
+| A line above the reply: "No KB card matched (coverage x, needs y)" | The question is too far from every card (`low_coverage`) | Name the symptom in the card's words; if the right card exists, mark it with Wrong card so the KB owner sees the miss |
+| "No KB card matched: only common words matched." | `no_strong_term`: only words most cards share matched | Add the item or setting the question is about |
+| "No 4.x pack is loaded." | The tab's version has no pack | Import that version's pack, or set the version to "Not sure" |
+| "The KB could not be searched (pack_read_failed)" | IndexedDB could not be read | Reload the panel; the extension console has the stack |
+| "The 4.x pack expired on …" / "is not signed by a key this extension trusts" | The pack is past its date, unsigned, or its key is not trusted or revoked (K23) | Ask the KB owner for a new, signed pack |
+| `kb:eval --self-check` exits 1 | A card's own title does not find it in the top 3 | Read the failing ids' reason and top hit: a near-duplicate title, or a title made only of common words |
+| "This does not exist in Apty 4.x." | The KB has a "No 4.x equivalent" page for the feature | Expected: the feature is 5.x only |
+| The support bundle lists missing fields | The case did not see them (no check read that file, no version chosen) | Add them by hand before sending, or run the check the hint names |
 | `kb:pack` reports pages as `other_format` | The page has headings but no `Layer N:` headings (another section layout) | Rewrite it in the four-layer format in Confluence; the summary lists its first five headings |
 
 ## Not done
