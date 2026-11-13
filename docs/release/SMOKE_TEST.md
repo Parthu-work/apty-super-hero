@@ -30,6 +30,14 @@ Use a fresh browser profile. About 25 minutes per browser.
 | 15 | Side panel: `bulk export of guides never finishes` | "The KB has a card for this, but its 5.x text is not written yet." with the card's link |
 | 16 | A 4.x tenant in Injected mode (or a test page whose script fetches synthetic 4.x files from a `tenant-…` path), with no Apty Client: "the widget is not showing", then **Capture and reload** on the verdict card | The page reloads; "Captured N Apty calls"; a second verdict "Read from the page's network capture" with 4.x rules (`W4X-…`) and 4.x card links |
 | 17 | A HAR saved from a 4.x Client's service worker (the steps on the verdict card): Menu › Check a HAR file, choose it, What is missing? → the widget, tick "Use the page open in this tab", **Check** | A 4.x widget verdict against the tab's page |
+| 18 | Settings → AI: an Anthropic key and a Claude model with tool use (for example `claude-sonnet-4-5`); with the demo packs loaded, side panel: `how do I turn the banner glow on in Studio?` | An answer, no "tools.0.custom … maximum, minimum are not supported" error (KB-RAG K25, A1) |
+| 19 | With no AI key: `how much does an Apty licence cost per seat` | The setup card says "No KB card matched (coverage x, needs y). Connect an AI provider to ask the AI model."; with a key, the same line sits above the model's reply, and "Why this answer" lists the route, version, packs and outcome |
+| 20 | On a development machine: `pnpm -s kb:eval --self-check --pack ~/apty-kb/apty-kb-DEMO-4.x.kbpack.json` | "Titles: rank 1 13 of 13", "Every title finds its own card in the top 3."; exit code 0 |
+| 21 | Import a pack signed with a trusted key (or the demo pack), then a copy of it with one card's text changed | The first row says who signed it and when it expires; the copy is refused with "This pack's signature does not match its content." and the loaded pack stays |
+| 22 | Import a pack whose `expiresAt` has passed (or set the policy's `maxPackAgeDays` below its age) | Refused at import with "This pack expired on <date>.", or, when already loaded, Options says it is not used and the chat says "The 5.x pack expired on <date>." |
+| 23 | Ask a symptom that runs a check; note the case id in the bar; close and reopen the side panel and open the chat from the menu | The same case id; Settings → General → Cases lists it with its check |
+| 24 | On the case (Cases → Open, or a verdict's support step), **Prepare support bundle** | The review dialog with the JSON, the missing fields, Copy, Download (`apty-support-<case id>.json`) and Copy as text; no KB card text, email or token in it |
+| 25 | On a KB matches card, **Wrong card**, enter the right card's page id, **Save**; then Settings → General → Feedback, tick "Include my question", **Export questions for kb:eval**, Download; run `pnpm -s kb:eval --pack <demo pack> --questions <downloaded file>` | "Recorded"; the file lists the question with the right card; kb:eval prints its report |
 
 ## Results
 
@@ -41,7 +49,7 @@ with the ID from step 2. Mark a step ✗ with a note on what happened; any ✗
 blocks the release until understood. Screenshots of a ✗ go in the pull
 request, never with customer data in them.
 
-| Release | Browser and version | OS | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | Tester | Date | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| | Chrome stable | | | | | | | | | | | | | | | | | | | | | |
-| | Edge stable | | | | | | | | | | | | | | | | | | | | | |
+| Release | Browser and version | OS | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | Tester | Date | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| | Chrome stable | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |
+| | Edge stable | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |

@@ -76,6 +76,21 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
+- What the first real packs asked for, and cases (KB-RAG K25,
+  [`FIXES-K25.md`](tasks/kb-rag/FIXES-K25.md)): Anthropic works with every
+  tool offered; every KB decision is visible (a line above the reply, "Why
+  this answer"); `kb:eval --self-check`, honest "not covered" reasons, a
+  builder with progress, `other_format` and timeouts; "not in this version"
+  cards; a case per debugging session with a support bundle and wrong-card
+  feedback, all on the device. Partial: the real packs' self-check totals
+  are the KB owner's to run.
+- Only signed, current KB packs are used (KB-RAG K23, implemented in K25
+  A7, [`FIXES-K23.md`](tasks/kb-rag/FIXES-K23.md)): schema 3 packs carry an
+  ECDSA P-256 signature and an expiry; trust comes from the built-in keys
+  and the policy, and is checked at import and at every use. The KB owner's
+  built-in key is empty until they run `pnpm kb:keygen`; until then SEs can
+  use demo packs, packs a policy's `trustedPackKeys` covers, or unsigned
+  packs under `allowUnsignedPacks`.
 - Application names and page places do not lower KB coverage (KB-RAG
   K24, [`FIXES-K24.md`](tasks/kb-rag/FIXES-K24.md)): a context word (a
   customer application or a place on the page, `CONTEXT_WORDS`) counts only

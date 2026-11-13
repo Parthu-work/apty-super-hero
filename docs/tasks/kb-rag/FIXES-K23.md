@@ -12,7 +12,7 @@ say exactly what is left and the command that finishes it.
   `claude/kb-rag-k23-pack-signing` from it, or use the branch your session is
   assigned and say so in the PR body. One commit per work package, each
   green on its own; one PR against `main`.
-- **Status:** NOT STARTED. Keep the [Status](#status) section current.
+- **Status:** Implemented in K25 (FIXES-K25.md), package A7.
 - Re-read this file after any context compaction; never guess scope.
 
 **The rule this prompt enforces:** the Agent uses a KB pack only when it can
@@ -334,13 +334,16 @@ By hand, with a key of your own:
 
 ## Status
 
-NOT STARTED.
+Implemented in K25 (FIXES-K25.md), package A7, on branch
+`claude/kb-rag-k25-all-fixes-3jn8kf`. D-SEC8 to D-SEC11 are recorded as
+Proposed with K23 for the owner to confirm. The KB owner's built-in key is
+empty until the KB owner runs `pnpm kb:keygen` and sends the public key.
 
 | Package | Status |
 | --- | --- |
-| P1 Pack schema 3: expiry and signature | Not started |
-| P2 Signing in the builder, keys and the demo key | Not started |
-| P3 Trust from the extension and from the policy | Not started |
-| P4 Import and use | Not started |
-| P5 Options, Preflight and the panel | Not started |
-| P6 Documentation | Not started |
+| P1 Pack schema 3: expiry and signature | Done |
+| P2 Signing in the builder, keys and the demo key | Done |
+| P3 Trust from the extension and from the policy | Done |
+| P4 Import and use | Done |
+| P5 Options, Preflight and the panel | Done |
+| P6 Documentation | Done |

@@ -22,7 +22,9 @@
     "edit": "编辑",
     "view": "查看",
     "refresh": "刷新",
-    "dismiss": "关闭"
+    "dismiss": "关闭",
+    "open": "打开",
+    "actions": "操作"
   },
   "settings": {
     "title": "设置",
@@ -169,8 +171,32 @@
         "wrongSchemaVersion": "此 KB 包使用的架构版本此 Agent 无法读取。请更新 Agent，或索取为其构建的包。",
         "invalid": "此 KB 包格式错误。请让知识库负责人重新构建。",
         "checksumMismatch": "此 KB 包的校验和与其内容不符：它已被更改或被截断。请重新下载。",
-        "readFailed": "无法读取该文件。请重试。"
-      }
+        "readFailed": "无法读取该文件。请重试。",
+        "notTrusted": "此知识包未由本扩展信任的密钥签名。",
+        "revokedKey": "此知识包由贵组织已吊销的密钥签名。",
+        "badSignature": "此知识包的签名与其内容不符。",
+        "expired": "此知识包已于 {{date}} 到期。",
+        "notYetValid": "此知识包的构建日期在未来（{{date}}）；请检查本设备的时钟。"
+      },
+      "signature": "签名",
+      "signedBy": "由 {{name}} 签名（密钥 {{keyId}}）",
+      "notSigned": "未签名",
+      "signedByUnknown": "由本扩展不信任的密钥 {{keyId}} 签名",
+      "expires": "到期",
+      "noExpiry": "无到期日期（签名前构建）",
+      "stateLabel": "状态",
+      "state": {
+        "current": "有效",
+        "expiring": "{{days}} 天后到期",
+        "expired": "已于 {{date}} 到期",
+        "notYetValid": "构建日期在未来（{{date}}）",
+        "unsigned": "未签名",
+        "untrusted": "由本扩展不信任的密钥签名",
+        "revoked": "由已吊销的密钥签名"
+      },
+      "notUsed": "此知识包未被使用。请向 KB 负责人索取新的知识包。",
+      "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。",
+      "absentCards": "{{absent}} 张在此版本中不存在"
     }
   },
   "theme": {
@@ -1178,7 +1204,16 @@
         "notLoaded": "未加载。检查会链接到 KB 卡片，但不显示其文本。",
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
         "stale": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}，{{days}} 天前。",
-        "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。"
+        "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。",
+        "expiring": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}；将在 {{days}} 天后到期。",
+        "unusable": {
+          "expired": "未使用：{{version}} 知识包已于 {{until}} 到期。",
+          "not_yet_valid": "未使用：{{version}} 知识包的构建日期在未来（{{until}}）；请检查本设备的时钟。",
+          "unsigned": "未使用：{{version}} 知识包未签名。",
+          "untrusted": "未使用：{{version}} 知识包未由本扩展信任的密钥签名。",
+          "revoked": "未使用：{{version}} 知识包由已吊销的密钥签名。"
+        },
+        "unusableFix": "请向 KB 负责人索取新的已签名知识包，并在 设置 → 常规 → 知识库 中导入。"
       },
       "orgPolicy": {
         "label": "组织策略",
@@ -2543,7 +2578,10 @@
     "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
     "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。",
     "notSent": "仅在此处显示；不会发送给 AI 模型。",
-    "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。"
+    "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。",
+    "askForNewPack": "请向 KB 负责人索取新的知识包。",
+    "notInVersion": "Apty {{version}} 中没有此功能。",
+    "otherVersions": "其他 Apty 版本的卡片："
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",
@@ -2568,5 +2606,120 @@
     "export": "导出（JSON）",
     "clear": "清除",
     "clearLocked": "您的组织保留此记录，因此无法在此清除。"
+  },
+  "turnDecision": {
+    "why": "为什么是这个回答",
+    "notCovered": "没有匹配的 KB 卡片（覆盖率 {{coverage}}，需要 {{min}}）。",
+    "noStrongTerm": "没有匹配的 KB 卡片：只匹配到常用词。",
+    "unknownSetting": "没有 KB 卡片提到该设置。",
+    "noPack": "未加载 {{version}} 知识包。",
+    "noPackAny": "未加载任何 KB 知识包。",
+    "error": "无法搜索 KB（{{code}}）。",
+    "askedModel": "已询问 AI 模型。",
+    "noModel": "连接 AI 提供商即可询问 AI 模型。",
+    "routeLine": "回答来源：{{route}}",
+    "route": {
+      "check": "检查包 {{pack}}",
+      "kb": "KB 卡片",
+      "file_fetch": "从 Apty Client 获取的文件",
+      "model": "AI 模型"
+    },
+    "versionLine": "Apty 版本：{{version}}（{{source}}）",
+    "source": {
+      "files": "来自 Apty Client 的文件",
+      "user": "您的选择",
+      "unknown": "未知"
+    },
+    "packsLine": "已搜索的知识包：{{packs}}",
+    "packsNone": "已搜索的知识包：无",
+    "kbLine": "KB：{{outcome}}",
+    "outcome": {
+      "answer": "{{status}}，卡片 {{pageIds}}",
+      "notCovered": "未覆盖（{{reason}}），覆盖率 {{coverage}}，需要 {{min}}，最接近的卡片 {{top}}",
+      "noPack": "没有 {{version}} 的知识包",
+      "error": "无法搜索（{{code}}）",
+      "howTo": "操作类问题，交给 AI 模型",
+      "nonEnglish": "非英文，交给 AI 模型",
+      "packUnusable": "{{version}} 知识包未使用（{{reason}}）"
+    },
+    "packUnusable": {
+      "expired": "{{version}} 知识包已于 {{date}} 到期。",
+      "not_yet_valid": "{{version}} 知识包的构建日期在未来（{{date}}）。",
+      "unsigned": "{{version}} 知识包未签名。",
+      "untrusted": "{{version}} 知识包未由本扩展信任的密钥签名。",
+      "revoked": "{{version}} 知识包由已吊销的密钥签名。"
+    }
+  },
+  "cases": {
+    "label": "案例",
+    "copyId": "复制案例编号 {{id}}",
+    "continue": "继续 {{id}}",
+    "continueText": "此站点上有一个过去 24 小时内仍未结束的案例：{{id}}。",
+    "outcome": {
+      "open": "进行中",
+      "resolved": "已解决",
+      "escalated": "已上报",
+      "not_covered": "未覆盖",
+      "abandoned": "已放弃"
+    },
+    "title": "案例",
+    "description": "每次调试对话一个案例：编号、症状、Apty 版本、检查、结论、显示过的 KB 卡片（仅编号）以及结果。仅保存在本设备上，保留 {{days}} 天；不会发送到任何地方。",
+    "empty": "还没有案例。",
+    "open": "打开 {{id}}",
+    "delete": "删除 {{id}}",
+    "deleteAll": "删除所有案例",
+    "deleteAllConfirm": "删除本设备上的所有案例？",
+    "columns": {
+      "id": "案例",
+      "date": "日期",
+      "version": "版本",
+      "symptom": "症状",
+      "outcome": "结果"
+    },
+    "details": {
+      "checks": "检查",
+      "finding": "结论",
+      "kbShown": "显示过的 KB 卡片",
+      "decisions": "回合",
+      "none": "无",
+      "close": "关闭详情"
+    }
+  },
+  "supportBundle": {
+    "prepare": "准备支持包",
+    "label": "支持包",
+    "description": "Apty 支持处理此案例所需的信息，已按严格模式脱敏：KB 卡片仅含编号和链接，不含客户名称、用户编号、邮箱或令牌。请先查看，再复制或下载；扩展不会发送任何内容。",
+    "missing": "发送前请补充：{{fields}}。",
+    "noneMissing": "没有缺少的内容。",
+    "copyText": "复制为文本",
+    "noCase": "此对话还没有案例。"
+  },
+  "feedback": {
+    "wrongCard": "卡片有误",
+    "wrongCardFor": "卡片有误：{{pageId}}",
+    "rightCard": "哪张卡片是正确的？（页面编号，可选）",
+    "save": "保存",
+    "recorded": "已记录，谢谢。",
+    "closeCase": "结束案例",
+    "outcomeLabel": "结果如何？",
+    "findingRight": "结论正确吗？",
+    "answer": {
+      "yes": "是",
+      "partly": "部分正确",
+      "no": "否"
+    },
+    "confirmClose": "结束",
+    "title": "反馈",
+    "description": "给 KB 负责人的卡片有误标记和案例结果：仅编号、数字和代码；只有在您选择包含时才含有您的问题。保存在本设备上，不会发送。",
+    "count": "{{count}} 条",
+    "includeQuestion": "包含我的问题",
+    "exportCsv": "导出跟踪表（CSV）",
+    "exportQuestions": "导出 kb:eval 问题",
+    "clear": "清除",
+    "clearLocked": "已设置贵组织的策略：无法在此清除反馈记录。",
+    "csvLabel": "跟踪表",
+    "csvDescription": "每条一行：日期、案例编号、Apty 版本、知识包构建日期、显示的卡片、正确的卡片、结果、覆盖率、原因、备注。请先查看，再复制或下载。",
+    "questionsLabel": "kb:eval 问题",
+    "questionsDescription": "已知正确卡片且您选择包含问题的条目，采用 kb:eval 问题格式。请先查看，再复制或下载。"
   }
 }

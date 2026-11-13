@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createKbIndexSet } from "./index-set.js";
 import {
   encodeVectors,
   type SyntheticCard,
@@ -138,6 +139,14 @@ describe("createKbIndex search", () => {
       chunkCount: 4,
       mode: "bm25",
       calibrated: false,
+      packs: [
+        {
+          aptyVersion: "5.x",
+          sha256: pack.sha256,
+          keyId: null,
+          expiresAt: null,
+        },
+      ],
     });
     expect(once.search("copy").status).toBe("not_covered");
     expect(once.cardChunks("101").map((chunk) => chunk.layer)).toEqual([
@@ -272,6 +281,13 @@ describe("coverage (schema v2)", () => {
     const result = index.search("apty widget");
     expect(result.status).toBe("not_covered");
     expect(result.reason).toBe("low_coverage");
+  });
+
+  it("a not covered result names the coverage it needed and the card that came closest (K25, A2)", () => {
+    const result = index.search("apty widget");
+    expect(result.min).toBe(0.5);
+    expect(result.topPageId).toMatch(/^\d+$/);
+    expect(index.search("zzqx").min).toBe(0.5);
   });
 
   it("gives the same coverage, to the last digit, every time", () => {
@@ -1041,5 +1057,262 @@ describe("K24-2: context words count only when the card holds them", () => {
       coverage: 1,
       contextIgnored: ["workday"],
     });
+  });
+});
+
+describe("a card finds itself by its title (KB-RAG K25, A3)", () => {
+  // Every card shares the words of a KB about visibility, as a real pack does.
+  const COMMON =
+    "- FIXTURE: the workflow content is visible to users in the segment after publish.";
+  const plain = (
+    pageId: string,
+    title: string,
+    own: string,
+  ): SyntheticCard => ({
+    pageId,
+    title,
+    symptom: null,
+    layers: [
+      `${COMMON} ${own} Studio setting.`,
+      `${COMMON} ${own} element.`,
+      `${COMMON} ${own} json entry.`,
+      `${COMMON} ${own} support.`,
+    ],
+  });
+  const PLAIN_CARDS = [
+    plain("301", "Workflow content is not visible to users", "FIXTURE Ardent"),
+    ...["Bramble", "Cinder", "Dune", "Ember", "Flint", "Grove", "Heath"].map(
+      (word, i) =>
+        plain(
+          String(302 + i),
+          `FIXTURE ${word} panel misbehaves`,
+          `FIXTURE ${word}`,
+        ),
+    ),
+  ];
+  const plainIndex = createKbIndex(syntheticPack(PLAIN_CARDS, {}, V2));
+
+  it("cause found: a title made only of words most cards share has no term above minIdf, yet names its card", () => {
+    const result = plainIndex.search(
+      "Workflow content is not visible to users",
+    );
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("301");
+  });
+
+  it("a question with only part of such a title, and no strong word, is still not covered", () => {
+    const result = plainIndex.search("content not visible");
+    expect(result.status).toBe("not_covered");
+  });
+
+  it("ruled out: the default min is not too strict for a long title of its own card", () => {
+    const title =
+      "FIXTURE Juniper help panel opens twice when the page reloads in the payroll app for new users";
+    const index = createKbIndex(
+      syntheticPack(
+        [...PLAIN_CARDS, plain("311", title, "FIXTURE Juniper reloads")],
+        {},
+        V2,
+      ),
+    );
+    const long = index.search(title);
+    expect(long.status).toBe("ok");
+    expect(long.hits[0]?.chunk.pageId).toBe("311");
+    expect(long.coverage).toBeGreaterThan(0.9);
+  });
+
+  it("cause found: a stub whose title extends a full card's title took that card's own title; a routing card never did", () => {
+    const index = createKbIndex(
+      syntheticPack(
+        [
+          ...PLAIN_CARDS,
+          {
+            pageId: "399",
+            title: "FIXTURE Bramble panel misbehaves on phones",
+            status: "stub",
+            symptom: "FIXTURE Bramble panel misbehaves on phones",
+          },
+          {
+            pageId: "398",
+            title: "Start here: FIXTURE Bramble",
+            status: "routing",
+          },
+        ],
+        {},
+        V2,
+      ),
+    );
+    const result = index.search("FIXTURE Bramble panel misbehaves");
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("302");
+  });
+
+  it("ruled out: a title with 'turned off' is not taken for a setting name or a context word", () => {
+    const index = createKbIndex(
+      syntheticPack(
+        [
+          ...PLAIN_CARDS,
+          plain(
+            "310",
+            "FIXTURE Quillon stays visible after the rule is turned off",
+            "FIXTURE Quillon rule turned off",
+          ),
+        ],
+        {},
+        V2,
+      ),
+    );
+    const result = index.search(
+      "FIXTURE Quillon stays visible after the rule is turned off",
+    );
+    expect(result.status).toBe("ok");
+    expect(result.hits[0]?.chunk.pageId).toBe("310");
+    expect(result.missingPhrases).toBeUndefined();
+  });
+});
+
+describe("honest not-covered reasons (KB-RAG K25, A6)", () => {
+  const COMMON =
+    "- FIXTURE: the workflow content is visible to users on the page.";
+  const cards: SyntheticCard[] = [
+    "Ardent",
+    "Bramble",
+    "Cinder",
+    "Dune",
+    "Ember",
+  ].map((word, i) => ({
+    pageId: String(401 + i),
+    title: `FIXTURE ${word} panel misbehaves`,
+    symptom: null,
+    layers: [
+      `${COMMON} FIXTURE ${word} Studio setting.`,
+      `${COMMON} FIXTURE ${word} element.`,
+      `${COMMON} FIXTURE ${word} json entry.`,
+      `${COMMON} FIXTURE ${word} support.`,
+    ],
+  }));
+  const index = createKbIndex(syntheticPack(cards, {}, V2));
+
+  it("no_match: no term matches any card", () => {
+    expect(index.search("kubernetes helm rollout")).toMatchObject({
+      status: "not_covered",
+      reason: "no_match",
+      coverage: 0,
+    });
+  });
+
+  it("no_match: every term is a context word the cards do not hold", () => {
+    expect(index.search("Workday dashboard tab").reason).toBe("no_match");
+  });
+
+  it("low_coverage: the top card covers less than the minimum", () => {
+    const result = index.search(
+      "FIXTURE Ardent kubernetes helm rollout canary",
+    );
+    expect(result.reason).toBe("low_coverage");
+    expect(result.coverage).toBeLessThan(0.5);
+  });
+
+  it("no_strong_term: coverage reaches the minimum but only common words matched", () => {
+    const result = index.search("content visible to users");
+    expect(result).toMatchObject({
+      status: "not_covered",
+      reason: "no_strong_term",
+    });
+    expect(result.coverage).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it("unknown_setting: the question names a setting no card holds", () => {
+    expect(index.search('FIXTURE Ardent "Zephyr Toggle" is off').reason).toBe(
+      "unknown_setting",
+    );
+  });
+});
+
+describe('"not in this version" cards (KB-RAG K25, A4)', () => {
+  const absent = (pageId: string, title: string, symptom: string) =>
+    ({
+      pageId,
+      title,
+      symptom,
+      status: "absent",
+    }) as SyntheticCard;
+  const COMMON = "- FIXTURE: the workflow content is visible to users.";
+  const full = (pageId: string, word: string): SyntheticCard => ({
+    pageId,
+    title: `FIXTURE ${word} panel misbehaves`,
+    symptom: null,
+    layers: [
+      `${COMMON} FIXTURE ${word} Studio setting.`,
+      `${COMMON} FIXTURE ${word} element.`,
+      `${COMMON} FIXTURE ${word} json entry.`,
+      `${COMMON} FIXTURE ${word} support.`,
+    ],
+  });
+  const cards = [
+    full("501", "Bramble"),
+    full("502", "Cinder"),
+    absent(
+      "509",
+      "FIXTURE drop-off funnel chart for workflows",
+      "the funnel chart showing where users leave a workflow",
+    ),
+  ];
+  const pack = (version: "4.x" | "5.x" = "4.x") =>
+    syntheticPack(cards, {}, {
+      schemaVersion: 3,
+      aptyVersion: version,
+      expiresAt: "2099-01-01T00:00:00.000Z",
+    } as never);
+
+  it("a question only the absent card covers returns not_in_version with that card, and no other card", () => {
+    const result = createKbIndex(pack()).search(
+      "where is the drop-off funnel chart for workflows",
+    );
+    expect(result.status).toBe("not_in_version");
+    expect(result.card?.pageId).toBe("509");
+    expect(result.hits).toEqual([]);
+  });
+
+  it("is never a normal hit", () => {
+    const index = createKbIndex(pack());
+    const result = index.search("FIXTURE Bramble panel misbehaves");
+    expect(result.status).toBe("ok");
+    expect(result.hits.map((hit) => hit.chunk.pageId)).not.toContain("509");
+    expect(index.cardChunks("509")).toEqual([]);
+  });
+
+  it("with an unknown tab version, the other version's matching card comes beside it", () => {
+    const five = syntheticPack(
+      [
+        {
+          pageId: "601",
+          title: "FIXTURE drop-off funnel chart for workflows",
+          symptom: "the funnel chart showing where users leave a workflow",
+          layers: [
+            "- FIXTURE: open the funnel chart in Analytics.",
+            "- FIXTURE funnel element.",
+            "- FIXTURE funnel.json entry.",
+            "- FIXTURE funnel support.",
+          ],
+        },
+        full("602", "Dune"),
+      ],
+      { coverage: { min: 0.4, minIdf: 0.5, minTerms: 1 } },
+      { schemaVersion: 2, aptyVersion: "5.x" },
+    );
+    const unknown = createKbIndexSet([pack(), five], { tabVersion: "unknown" });
+    const result = unknown.search(
+      "where is the drop-off funnel chart for workflows",
+    );
+    expect(result.status).toBe("not_in_version");
+    expect(result.card?.pageId).toBe("509");
+    expect(result.cardVersion).toBe("4.x");
+    expect(result.hits[0]?.chunk.pageId).toBe("601");
+    expect(result.hits[0]?.aptyVersion).toBe("5.x");
+    const fourTab = createKbIndexSet([pack(), five], { tabVersion: "4.x" });
+    expect(
+      fourTab.search("where is the drop-off funnel chart for workflows").hits,
+    ).toEqual([]);
   });
 });

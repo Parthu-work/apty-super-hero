@@ -24,8 +24,10 @@ import {
   fixturePage,
   importPack,
   NON_DEMO_SITE,
+  TEST_KEY_POLICY,
   writeFixturePack,
 } from "./kb-fixture.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 const SYMPTOM_PAGES = [
   fixturePage("303", "FIXTURE badge flickers on hover", [
@@ -182,7 +184,10 @@ describe("KB matches from a non-demo pack (KB-RAG K22, D-SEC1)", () => {
   let real;
 
   before(async () => {
-    real = await launchBrowser();
+    // A non-demo pack is signed with the run-time test key, which the E2E
+    // policy build trusts (KB-RAG K23 P2).
+    real = await launchBrowser({ extensionDir: ensurePolicyBuild() });
+    await setTestPolicy(real, TEST_KEY_POLICY);
     const { file } = writeFixturePack(tempDir("apty-kb-matches-real-"), {
       pages: [...FIXTURE_PAGES, ...SYMPTOM_PAGES],
       site: NON_DEMO_SITE,

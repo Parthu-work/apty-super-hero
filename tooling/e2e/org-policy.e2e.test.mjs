@@ -23,7 +23,12 @@ import {
   startPageServer,
   tempDir,
 } from "./harness.mjs";
-import { importPack, NON_DEMO_SITE, writeFixturePack } from "./kb-fixture.mjs";
+import {
+  importPack,
+  NON_DEMO_SITE,
+  TEST_KEY_POLICY,
+  writeFixturePack,
+} from "./kb-fixture.mjs";
 import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 let browser;
@@ -156,6 +161,7 @@ describe("organization policy (KB-RAG K22)", () => {
     await setTestPolicy(browser, {
       kbToModel: "approved",
       allowedOrigins: [model.server.origin],
+      ...TEST_KEY_POLICY,
     });
     const { file } = writeFixturePack(tempDir("apty-policy-kb-"), {
       site: NON_DEMO_SITE,

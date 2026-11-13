@@ -30,12 +30,17 @@ and passes the same steps, in this order, before it leaves the browser:
    (`kbToolResult`). The first outbound filter (step 5.1) replaces every
    tagged result's text with "KB card text withheld by organization policy.
    Cards shown to the user: <ids>." unless `kbEgressAllowed` allows it: only
-   when every loaded pack is a demo pack (its site ends in `.invalid`), or
+   when every pack in use is a verified demo pack (signed with the demo key,
+   its site ends in `.invalid`, D-SEC10), or
    an organization policy sets `kbToModel: "approved"` and the request's
    destination is on its allow-lists ([ORG_POLICY.md](ORG_POLICY.md)). When
    KB text may not go, `search_kb` is not offered at all, and its prompt
    section is left out. The pack comes from IndexedDB (`apty-kb-db`, one
-   pack per Apty version); nothing is fetched. When card text is allowed,
+   pack per Apty version); nothing is fetched. Only packs in use count: a
+   pack is used when a trusted key signed it and it is within its dates
+   (KB-RAG K23, D-SEC8, D-SEC11), checked at import and at every read, so an
+   unsigned, untrusted, revoked or expired pack answers nothing and adds no
+   text to any request. When card text is allowed,
    `applyResultPrivacy` keeps a whole `kb://<digits>#L<1-4>` citation as it
    is and masks the rest as usual; a hit names its card's Confluence site and
    space rather than a URL, so the URL policy does not take it for a visited
@@ -167,3 +172,18 @@ way out, every time.
 - `tooling/e2e/org-policy.e2e.test.mjs` (the E2E-only policy build): locked
   fields, a refused AI host gets no request, the MCP bridge kept off, and
   KB text to an approved destination with its send record.
+
+## Cases, support bundles and feedback (KB-RAG K25)
+
+The decision record of each turn (route, version, packs, KB outcome: ids,
+numbers and codes) is a `turn_decision` event the side panel keeps with the
+turn; it is not a session item, so no model request carries it. Cases and
+feedback are written to IndexedDB `apty-cases-db` (stores `cases` and
+`feedback`) by the side panel only. A support bundle, the tracking-sheet CSV
+and the `kb:eval` questions file are built from those stores on the device,
+pass Strict redaction and the content deny list, and are shown in the review
+dialog; only Copy or Download moves them, and the extension makes no network
+request for any of them (tested in `support-bundle.e2e.test.mjs` and
+`feedback.e2e.test.mjs`). Tool schemas sent to Anthropic and Groq are
+rewritten to what those providers accept (`provider-schema.ts`); the tools
+still validate their input with their own schemas.

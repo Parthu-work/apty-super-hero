@@ -3,6 +3,26 @@ export { aisdk } from "@openai/agents-extensions/ai-sdk";
 // Agent
 export { AptyAgent } from "./agent/index.js";
 export {
+  CASE_CONTINUE_HOURS,
+  CASE_NOTE_MAX,
+  CASE_OUTCOMES,
+  CASE_RETENTION_DAYS,
+  CASE_SYMPTOM_MAX,
+  type CaseCheck,
+  type CaseFinding,
+  type CaseKbShown,
+  type CaseOutcome,
+  type CaseRecord,
+  type CaseTurn,
+  caseExpired,
+  caseToContinue,
+  closeCase,
+  newCase,
+  newCaseId,
+  turnStartsCase,
+  withTurn,
+} from "./case/case.js";
+export {
   type AiDestination,
   type DestinationVerdict,
   destinationAllowed,
@@ -62,11 +82,13 @@ export {
 export {
   AUDIT_RETENTION_RANGE,
   auditRetentionDays,
+  caseRetentionDays,
   customModelsAllowed,
   hasAllowList,
   isLoopbackHost,
   type KbToModel,
   kbToMcpAllowed,
+  MAX_PACK_AGE_RANGE,
   mcpBridgeAllowed,
   ORG_POLICY_DEFAULTS,
   type OrgPolicy,
@@ -78,7 +100,6 @@ export {
   policyOf,
   RESTRICTIVE_ORG_POLICY,
 } from "./config/org-policy.js";
-
 // Context
 export { ContextManager } from "./context/manager.js";
 export type {
@@ -94,13 +115,21 @@ export {
   isContext,
   resolveContexts,
 } from "./context/utils.js";
-
 // Conversation
 export { ConversationCompressor } from "./conversation/compressor.js";
 export { ConversationManager } from "./conversation/manager.js";
 export { Session } from "./conversation/session.js";
 export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
+export {
+  type DecisionPack,
+  type KbDecision,
+  packIdOf,
+  type TabVersion,
+  type TabVersionSource,
+  type TurnDecision,
+  type TurnRoute,
+} from "./kb/decision.js";
 export {
   KB_SOURCE,
   type KbCardRef,
@@ -133,12 +162,34 @@ export {
   type KbPackErrorCode,
   type KbPackInfo,
   type KbPackParseResult,
+  type KbPackState,
   kbCardLocation,
   kbCardUrl,
   kbPackAgeDays,
   parseKbPack,
   type Sha256Hex,
 } from "./kb/pack.js";
+export {
+  base64ToBytes,
+  isInvalidSite,
+  KB_PACK_EXPIRING_DAYS,
+  KB_SIGNATURE_ALG,
+  KB_SIGNATURE_CONTEXT,
+  type KbPackSignature,
+  type KbPackUnusableReason,
+  type KbPackUsability,
+  type KbPackValidity,
+  type KbPackValidityState,
+  type KbSignatureCrypto,
+  type KbSignedFields,
+  type KbTrustResult,
+  kbKeyIdOf,
+  kbPackUsability,
+  kbPackValidity,
+  kbSignedMessage,
+  type TrustedPackKey,
+  verifyKbPackSignature,
+} from "./kb/pack-signature.js";
 export {
   createKbIndex,
   hasLayerHint,
@@ -161,6 +212,13 @@ export {
   NOT_A_SETTING,
   namedPhrases,
 } from "./kb/text.js";
+export {
+  BUILT_IN_PACK_KEYS,
+  DEMO_PACK_KEY,
+  KB_OWNER_PACK_KEYS,
+  type KbTrustPolicy,
+  kbTrustPolicyOf,
+} from "./kb/trusted-keys.js";
 // Generic Storage
 export type {
   BaseKeyValueStorage,
@@ -173,6 +231,15 @@ export { InMemoryStorage } from "./storage/memory.js";
 export { calculatorTool } from "./tools/calculator.js";
 export { httpFetchTool } from "./tools/http-fetch.js";
 export { tool } from "./tools/index.js";
+export {
+  hasNoProperties,
+  PROVIDER_SCHEMA_RULES,
+  type ProviderSchemaRules,
+  type RewrittenToolSchema,
+  rewriteToolSchema,
+  type SchemaProvider,
+  schemaViolations,
+} from "./tools/provider-schema.js";
 export {
   type ToolExecutionContext,
   type ToolMetadata,
@@ -200,6 +267,7 @@ export type {
   FunctionTool,
   ImageInput,
   LocalAnswer,
+  LocalDecision,
   LocalResponder,
   MetricsPayload,
   OpenAIAgent,
@@ -213,6 +281,7 @@ export type {
   SessionTree,
   ToolEventPayload,
 } from "./types.js";
+export { isLocalAnswer } from "./types.js";
 export {
   CancellationError,
   CancellationToken,

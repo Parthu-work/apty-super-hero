@@ -139,3 +139,69 @@ Accepted 2026-11-10. The extension supports it as an OpenAI-compatible
 origin set by policy. A key pushed by policy is visible to the user in
 chrome://policy, so a gateway that authenticates without a long-lived shared
 key is preferred; building the gateway is outside this repository.
+
+## D-SEC8: a KB pack is used only when a trusted key signed it
+
+Proposed with K23 (implemented in K25, A7). A KB pack is used only when it is
+signed by a trusted key. Signing is ECDSA P-256 with SHA-256 (WebCrypto
+`ECDSA`, `namedCurve: "P-256"`): every Chrome the manifest allows
+(`minimum_chrome_version` 116) and Node verify it with no new dependency;
+Ed25519 would need a newer Chrome. The signature covers
+`apty-kb-pack-signature/1\n<sha256>\n<keyId>`, and the checksum covers the
+pack without itself and without the signature. An unsigned pack, a bad
+signature, or a key that is not trusted or is revoked is refused at import,
+and a loaded pack in that state is not used. Only an organization policy can
+allow unsigned packs (`allowUnsignedPacks: true`), for a transition.
+
+## D-SEC9: trusted keys are built in or set by policy, and a policy can revoke any
+
+Proposed with K23 (implemented in K25, A7). Trusted keys: the Apty KB owner's
+public key(s), built into the extension (`KB_OWNER_PACK_KEYS` in
+`packages/agent-core/src/kb/trusted-keys.ts`, empty until the KB owner sends
+one), plus any `trustedPackKeys` a policy adds; a policy can revoke any key by
+id (`revokedPackKeyIds`), built-in ones included. The private key stays with
+the KB owner, never in this repository and never in CI.
+
+## D-SEC10: a demo pack is one signed with the demo key on a .invalid site
+
+Proposed with K23 (implemented in K25, A7). The demo key's private half is
+published on purpose (`tooling/scripts/kb/demo-signing-key.pem`) so anyone can
+build demo packs, and the extension trusts it only for packs whose
+`source.site` ends in `.invalid`. A pack that only names a `.invalid` site is
+not a demo pack. This replaces the site test behind D-SEC1's exception and
+D-SEC3's floor.
+
+## D-SEC11: every pack expires
+
+Proposed with K23 (implemented in K25, A7). Every pack carries `expiresAt`,
+set by the KB owner when building: by default 60 days after `builtAt`, at
+most 180. An expired pack is kept but not used; Options, Preflight and the
+panel say it expired and ask for a new one. A policy can shorten the life of
+every pack (`maxPackAgeDays`, counted from `builtAt`). A pack built more than
+one day in the future (by the device's clock) is refused.
+
+## D-CASE1: cases, bundles and feedback stay on the device
+
+Accepted with K25 (L1 to L3). A case record, a support bundle and the
+feedback log are kept only in the extension's IndexedDB (`apty-cases-db`)
+and are never sent anywhere by the extension: no email, upload, ticket or
+post. A case is kept for `caseRetentionDays` (organization policy, default
+90, 1 to 365) after its last update and deleted on start-up and on each
+write; the SE can delete one or all in Options. Something leaves the browser
+only when the SE copies or downloads it after reviewing it in the review
+dialog. The feedback log cannot be cleared while a policy is set, like the
+K22 send record.
+
+## D-CASE2: what a support bundle may and may not contain
+
+Accepted with K25 (L2). A support bundle may contain: the case id and times,
+the fields each rule declares (`support-fields.ts`) with their values or a
+"missing" mark and hint, the finding (rule, cause key, confidence,
+verification), KB card ids and links, the checks run, the file entries the
+finding names (each at most 4 KB) and their status codes, Apty console
+errors (at most 50 lines), and the browser and extension versions; at most
+200 KB. It may not contain KB card text, screenshots, customer names (a
+host that is not an Apty or Atlassian domain becomes `customer-app`), user
+ids, emails or tokens, page queries or fragments, or ids in a path (`:id`).
+Every value goes through the content deny list and Strict redaction before
+the SE sees it.

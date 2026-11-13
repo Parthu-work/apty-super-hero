@@ -60,6 +60,7 @@ export function createKbIndexSet(
       ? "hybrid"
       : "bm25",
     calibrated: indexes.every((index) => index.info.calibrated),
+    packs: indexes.flatMap((index) => index.info.packs),
   };
   if (indexes.length === 1) {
     const [only] = indexes as [KbIndex];
@@ -90,6 +91,32 @@ export function createKbIndexSet(
     const best = closest(results.filter((r) => r.status !== "not_covered"));
     if (best?.status === "stub") return { ...best, mixedVersions: false };
     const covered = results.filter((r) => r.status === "ok");
+    const absent = closest(
+      results.filter((r) => r.status === "not_in_version"),
+    );
+    const bestCovered = closest(covered);
+    if (
+      absent &&
+      (tabVersion === "unknown" ||
+        !bestCovered ||
+        absent.coverage >= bestCovered.coverage)
+    ) {
+      // K25, A4: the feature has no equivalent in the card's version. With
+      // the tab's version known, that is the answer, alone; with it unknown,
+      // the other versions' cards that match come beside it.
+      const beside =
+        tabVersion === "unknown"
+          ? roundRobin(covered.map((r) => r.hits)).slice(
+              0,
+              Math.max(1, Math.floor(topK)),
+            )
+          : [];
+      return {
+        ...absent,
+        hits: beside,
+        mixedVersions: beside.length > 0,
+      };
+    }
     if (covered.length > 0) {
       const hits = roundRobin(covered.map((r) => r.hits)).slice(
         0,

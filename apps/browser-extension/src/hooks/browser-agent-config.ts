@@ -8,12 +8,14 @@ import type {
   FunctionTool,
   LocalResponder,
   OutboundFilter,
+  TurnDecision,
 } from "@apty/agent-core";
 import {
   AgentError,
   type AutomationMode,
   aisdk,
   ErrorCode,
+  isLocalAnswer,
   SessionStorage,
   STORAGE_KEYS,
   validateAutomationMode,
@@ -39,6 +41,7 @@ import {
   createAIProvider,
   isProviderConfigured,
 } from "../services/ai-provider";
+import { caseRecorder } from "../services/cases";
 import type { Translate } from "../services/model-list";
 import { createOutboundFilters } from "./outbound-filters";
 
@@ -211,13 +214,8 @@ export function useLocalResponder(
       }),
       createFileFetchResponder(),
     ];
-    return async (input, context) => {
-      for (const respond of responders) {
-        const answer = await respond(input, context);
-        if (answer) return answer;
-      }
-      return undefined;
-    };
+    // Each turn lands in the conversation's case (KB-RAG K25, L1).
+    return caseRecorder().wrap(combineResponders(responders));
   }, []);
 }
 
@@ -236,3 +234,31 @@ export const BROWSER_AGENT_CONFIG = {
   // defeated that fix for the actual shipped extension the whole time.
   maxTurns: 30,
 } as const;
+
+/**
+ * The first responder that answers takes the turn. The diagnosis responder
+ * records what it decided even when it does not answer (KB-RAG K25, A2), so
+ * a later responder's answer, which records nothing, is a file fetch with
+ * that decision, and no answer leaves the decision for the model's turn.
+ * @internal exported for tests
+ */
+export function combineResponders(
+  responders: readonly LocalResponder[],
+): LocalResponder {
+  return async (input, context) => {
+    let decision: TurnDecision | undefined;
+    for (const respond of responders) {
+      const answer = await respond(input, context);
+      if (isLocalAnswer(answer)) {
+        const own =
+          answer.decision ??
+          (decision
+            ? { ...decision, route: "file_fetch" as const }
+            : undefined);
+        return own ? { ...answer, decision: own } : answer;
+      }
+      decision ??= answer?.decision;
+    }
+    return decision ? { decision } : undefined;
+  };
+}

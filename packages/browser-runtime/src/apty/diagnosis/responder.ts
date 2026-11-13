@@ -1,8 +1,21 @@
-import type { LocalResponder } from "@apty/agent-core";
+import type {
+  LocalResponder,
+  TabVersionSource,
+  TurnDecision,
+} from "@apty/agent-core";
 import { siteHostOf } from "../../conversation/site-host.js";
-import type { KbToolResult } from "../../kb/kb-index.js";
-import { type KbMatchesOptions, localKbMatches } from "../../kb/kb-matches.js";
-import { kbVersionForUrl, rememberKbVersion } from "../../kb/kb-version.js";
+import type { KbTabVersion, KbToolResult } from "../../kb/kb-index.js";
+import {
+  type KbMatchesOptions,
+  type KbOutcome,
+  kbDecisionOf,
+  localKbMatches,
+} from "../../kb/kb-matches.js";
+import {
+  kbVersionForHost,
+  kbVersionFromEvidence,
+  rememberKbVersion,
+} from "../../kb/kb-version.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
 import { currentValuePolicy } from "../../runtime/value-policy.js";
@@ -457,7 +470,7 @@ export interface ResponderSources {
   kbMatchesOf?: (
     input: string,
     options: KbMatchesOptions,
-  ) => Promise<KbToolResult | undefined>;
+  ) => Promise<KbOutcome>;
   /** Whether a model is configured: a question the cards cannot match then goes to it. */
   modelAvailable?: () => boolean;
   /** Every other check's content files for the tab; undefined reads the Apty Client's. */
@@ -483,20 +496,56 @@ const DEFAULT_SOURCES: ResponderSources = {
 
 const SEARCH_KB = "search_kb";
 
-/** A message no check pack claims, answered from the KB pack's cards with no model call. */
+/** The tab's Apty version and what decided it (KB-RAG K12, K25 A2). */
+export function tabVersionOf(url: string | undefined): {
+  version: KbTabVersion;
+  versionSource: TabVersionSource;
+} {
+  const host = siteHostOf(url);
+  const version = kbVersionForHost(host);
+  return {
+    version,
+    versionSource: kbVersionFromEvidence(host)
+      ? "files"
+      : version === "unknown"
+        ? "unknown"
+        : "user",
+  };
+}
+
+/**
+ * A message no check pack claims: answered from the KB pack's cards with no
+ * model call, or left to the model with the KB's outcome as the decision.
+ */
 async function kbAnswer(
   input: string,
   sources: ResponderSources,
   runContext: unknown,
 ) {
-  const matches = await sources.kbMatchesOf?.(input, {
+  const tab = tabVersionOf(await sources.pageUrlOf(runContext));
+  const outcome = (await sources.kbMatchesOf?.(input, {
     modelAvailable: sources.modelAvailable?.() ?? false,
-    version: kbVersionForUrl(await sources.pageUrlOf(runContext)),
-  });
-  if (!matches) return undefined;
+    version: tab.version,
+  })) ?? { kind: "no_pack" as const, version: tab.version };
+  const answered = outcome.kind === "answer";
+  const decision: TurnDecision = {
+    route: answered ? "kb" : "model",
+    ...tab,
+    packs:
+      outcome.kind === "answer" || outcome.kind === "not_covered"
+        ? outcome.packs.map((pack) => ({
+            version: pack.version as TurnDecision["packs"][number]["version"],
+            sha256: pack.sha256,
+            ...(pack.keyId ? { keyId: pack.keyId } : {}),
+            ...(pack.expiresAt ? { expiresAt: pack.expiresAt } : {}),
+          }))
+        : [],
+    kb: kbDecisionOf(outcome),
+  };
+  if (outcome.kind !== "answer") return { decision };
   await getRedactionMode();
   const policy = currentValuePolicy();
-  const shown = applyResultPrivacy(matches, policy) as KbToolResult;
+  const shown = applyResultPrivacy(outcome.result, policy) as KbToolResult;
   return {
     toolName: SEARCH_KB,
     params: applyResultPrivacy(
@@ -505,6 +554,7 @@ async function kbAnswer(
     ) as { query: string; topK: number },
     result: shown,
     transcript: JSON.stringify(shown),
+    decision,
   };
 }
 
@@ -568,6 +618,12 @@ export function createDiagnosisResponder(
       >,
       result: shown,
       transcript: applyResultPrivacy(transcriptOf(shown), policy) as string,
+      decision: {
+        route: "check",
+        ...tabVersionOf(await sources.pageUrlOf(runContext)),
+        packs: [],
+        checkPackId: route.packId,
+      } satisfies TurnDecision,
     };
   };
 }

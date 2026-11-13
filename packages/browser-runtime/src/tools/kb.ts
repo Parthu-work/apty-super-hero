@@ -6,7 +6,12 @@
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import { tabUrlOf } from "../apty/diagnosis/responder.js";
-import { kbToolResult, sharedKbIndexSource } from "../kb/kb-index.js";
+import {
+  kbToolResult,
+  packUnusableResult,
+  sharedKbIndexSource,
+  unusablePackOf,
+} from "../kb/kb-index.js";
 import { kbVersionForUrl } from "../kb/kb-version.js";
 import type { ToolRunContext } from "./tab-utils.js";
 
@@ -14,7 +19,7 @@ import type { ToolRunContext } from "./tab-utils.js";
 export const searchKbTool = tool({
   name: "search_kb",
   description:
-    "Searches the loaded KB packs of Apty RAG Answer Cards for the settings, page checks, data or support contacts behind a finding or symptom. Each result is a card chunk with its cite id (kb://<pageId>#L<layer>), Apty version, 'Verified on' line and notVerified mark; mixedVersions: the top cards are for different versions. status: 'ok'; 'not_covered' with reason no_match, low_coverage or unknown_setting (missingPhrases: settings no card has); 'stub' (a card whose text is not written yet); 'no_pack'.",
+    "Searches the loaded KB packs of Apty RAG Answer Cards for the settings, page checks, data or support contacts behind a finding or symptom. Each result is a card chunk with its cite id (kb://<pageId>#L<layer>), Apty version, 'Verified on' line and notVerified mark; mixedVersions: the top cards are for different versions. status: 'ok'; 'not_covered' with reason no_match (no card word matched), low_coverage (the best card covers too little of the question), no_strong_term (only words most cards share matched) or unknown_setting (missingPhrases: settings no card has); 'stub' (a card whose text is not written yet); 'no_pack'; 'not_in_version' (absent: the feature has no equivalent in that Apty version, with absentReason and its link; results, if any, are other versions' cards); 'pack_unusable' (the version's pack is loaded but not used: expired, unsigned, untrusted or revoked; say so and ask for a new pack).",
   parameters: z.object({
     query: z
       .string()
@@ -48,7 +53,13 @@ export const searchKbTool = tool({
       kbVersionForUrl(
         await tabUrlOf((context as ToolRunContext | undefined)?.context),
       );
-    return kbToolResult(await sharedKbIndexSource().current(version), query, {
+    const source = sharedKbIndexSource();
+    const index = await source.current(version);
+    if (!index) {
+      const unusable = unusablePackOf((await source.unusable?.(version)) ?? []);
+      if (unusable) return packUnusableResult(unusable);
+    }
+    return kbToolResult(index, query, {
       topK: topK ?? 3,
       ...(layers ? { layers } : {}),
     });

@@ -59,18 +59,22 @@ Options → Settings → General → Knowledge base → IndexedDB apty-kb-db
 | Evaluation | `tooling/scripts/kb/eval-kb.mjs` (`pnpm kb:eval`) |
 | Repository guard | `tooling/scripts/check-no-kb-pack.mjs` (`npm run audit:kb-pack`) |
 
-## The pack (schema 2)
+## The pack (schema 3)
 
-One JSON file per version. `parseKbPack` reads schema 1 and 2 and returns
-the schema 2 shape: a schema 1 pack is a 5.x pack of full cards with no
-symptom, and keeps its `retrieval.threshold` and its search exactly as
-before.
+One JSON file per version. The builder writes schema 3 (K23): signed, with
+an expiry. `parseKbPack` reads schema 1, 2 and 3 and returns one shape: a
+schema 1 pack is a 5.x pack of full cards with no symptom, and keeps its
+`retrieval.threshold` and its search exactly as before; schema 1 and 2 packs
+carry no signature and no `expiresAt`, so they are `unsigned` and used only
+under a policy with `allowUnsignedPacks`.
 
 | Field | Meaning |
 |---|---|
 | `kind` | `"apty-kb-pack"`, the marker `audit:kb-pack` fails the repository on |
-| `schemaVersion` | `2` (the builder's); `1` is still read |
+| `schemaVersion` | `3` (the builder's); `1` and `2` are still read |
 | `builtAt`, `builder` | ISO time, builder version |
+| `expiresAt` | Schema 3: when the pack stops being used; `--expires-days`, default 60, at most 180 (D-SEC11) |
+| `signature` | Schema 3: `{ alg: "ES256", keyId, value }`: ECDSA P-256 / SHA-256 over `apty-kb-pack-signature/1\n<sha256>\n<keyId>`; `keyId` is the first 16 hex characters of the SHA-256 of the key's SPKI DER; `value` the raw 64-byte (IEEE P1363) signature in base64 (D-SEC8). Absent on a `--unsigned` pack |
 | `source.site`, `.space`, `.label`, `.cardCount` | Where the cards came from; `label` is `ancestor:<root>` for the tree |
 | `aptyVersion` | `"4.x"`, `"5.x"` or `"common"` |
 | `retrieval.bm25` | `true` |
@@ -81,14 +85,32 @@ before.
 | `cards[].pageId`, `.title`, `.group`, `.url`, `.updatedAt` | The card; `url` is its own page in its own space |
 | `cards[].verifiedOn` | The card's "Verified on" line, verbatim, or null |
 | `cards[].symptom` | The card's "Symptom:" line (at most 300 characters), or null |
-| `cards[].status` | `"full"`, `"stub"` (its text for this version is not written yet) or `"routing"` ("Start here") |
+| `cards[].status` | `"full"`, `"stub"` (its text for this version is not written yet), `"routing"` ("Start here") or, schema 3 (K25, A4), `"absent"`: the page says "No 4.x equivalent" (or 5.x) before any heading; the feature does not exist in this version |
+| `cards[].absentReason` | Schema 3, an absent card: the first sentence after "No 4.x equivalent:", at most 300 characters |
 | `cards[].notVerifiedCount` | NOT VERIFIED statements in the card |
-| `chunks[]` | One per layer of a full card: `id` (`<pageId>#L<layer>`), `pageId`, `layer` 1–4, `heading`, `text` (at most 1,000 characters), `notVerified`; none for a stub or routing card |
-| `sha256` | Over the canonical JSON (keys sorted, no whitespace) without itself |
+| `chunks[]` | One per layer of a full card: `id` (`<pageId>#L<layer>`), `pageId`, `layer` 1–4, `heading`, `text` (at most 1,000 characters), `notVerified`; none for a stub, routing or absent card |
+| `sha256` | Over the canonical JSON (keys sorted, no whitespace) without itself and without `signature` |
 
 Limits: 25 MB, 5,000 chunks. Import errors: `too_large`, `not_json`,
 `wrong_kind`, `wrong_schema_version`, `invalid` (with the field),
-`checksum_mismatch`, `read_failed`.
+`checksum_mismatch`, `read_failed`, and (K23) `unsigned`, `untrusted_key`,
+`revoked_key`, `bad_signature`, `expired`, `not_yet_valid`.
+
+### Which packs are used (K23)
+
+A pack is used only when it is signed by a trusted key (or unsigned under
+`allowUnsignedPacks`) and within its dates: the earliest of `expiresAt` and
+`builtAt + maxPackAgeDays`; a pack built more than a day in the future is
+refused. Trusted keys are the built-in ones (`trusted-keys.ts`: the demo key,
+for `.invalid` sites only, and the KB owner's) and a policy's
+`trustedPackKeys`, less `revokedPackKeyIds`. The check runs at import and
+again every time a pack is read (the index source, the KB matches card,
+`search_kb`, the verdict excerpt, the KB egress decision), so a revoked key or
+an expired pack stops at the next question with no reload. A loaded pack
+that is not used answers nothing: `search_kb` returns `pack_unusable` with
+the reason (`expired`, `not_yet_valid`, `unsigned`, `untrusted`, `revoked`),
+the version and the date, and the chat says so. It still raises the
+redaction floor while it sits in IndexedDB (D-SEC3).
 
 ## Retrieval
 
@@ -302,7 +324,23 @@ the destination ([D-SEC1](../tasks/kb-rag/decisions.md#d-sec1-kb-text-never-reac
 ## Lifecycle: the KB owner
 
 Needs a read-only service account's **classic** Confluence API token (a
-scoped token cannot use CQL search, and the builder says so).
+scoped token cannot use CQL search, and the builder says so), and a signing
+key (K23), made once:
+
+```bash
+pnpm kb:keygen --out ~/apty-kb-signing-key
+```
+
+It writes the private key (PKCS#8 PEM, mode 600; a path inside this
+repository is refused) and `kb-signing-key-<keyId>.public.json`. Send the
+public key (keyId, spki, name) to the extension's maintainers for
+`KB_OWNER_PACK_KEYS`, or to IT for the policy's `trustedPackKeys`. Keep the
+private key off shared drives and out of CI. If it leaks: IT revokes its id
+at once (`revokedPackKeyIds`), the next release removes it from the built-in
+list, and the KB owner makes a new key and rebuilds every pack. Every build
+signs (`--sign-key <file>` or `KB_PACK_SIGNING_KEY`); the builder refuses to
+write an unsigned pack unless given `--unsigned`, and never prints the key.
+Rebuild before `expiresAt` (Options and Preflight warn 7 days ahead).
 
 ```bash
 mkdir -p ~/apty-kb
@@ -313,11 +351,11 @@ export CONFLUENCE_EMAIL=<service-account-email> CONFLUENCE_TOKEN=<classic-read-o
 ```
 
 ```bash
-pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x
+pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
 ```
 
 ```bash
-pnpm kb:pack --space JA --root 1496711169 --version 5.x
+pnpm kb:pack --space JA --root 1496711169 --version 5.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
 ```
 
 ```bash
@@ -357,8 +395,15 @@ Options → Settings → General → **Knowledge base** → **Import pack…**, 
 per version; the file names its version. Each loaded pack has a row
 (version, space, cards and how many are not yet written, build and import
 dates, retrieval, calibration) with **Replace** and **Remove** (after a
-confirmation; the other versions stay). A pack older than 30 days gets a
-warning, in Options and in Preflight (one row per version). Preflight's
+confirmation; the other versions stay). Each row also says who signed the
+pack, when it expires and its state: current, expires in N days, expired,
+not signed, or signed by a key that is not trusted or is revoked; a pack that
+is not used says so and asks for a new one, and Preflight fails its row. A
+pack that expires within 7 days gets a warning, in Options and in Preflight
+(one row per version); a pack with no expiry date (built before K23) keeps
+the 30-day age warning. Import errors name the K23 codes in plain words
+("This pack is not signed by a key this extension trusts.", "This pack's
+signature does not match its content.", "This pack expired on <date>."). Preflight's
 "KB text to AI" row says whether card text is withheld, allowed (and to
 where), or sent because only demo packs are loaded.
 
@@ -386,12 +431,125 @@ uncapped ranking, and prints the `kb:pack` flags. It never suggests a
 `coverage.min` below `--coverage-min-floor` (default 0.35), and warns when
 the best J sits below the floor (K21 F2).
 
+An absent ("not in this version") card counts as a hit when it is the
+expected card (K25, A4).
+
+### Self-check (K25, A3)
+
+```bash
+pnpm -s kb:eval --self-check --pack <file> [--json]
+```
+
+Needs no questions file. For every card but routing pages it searches the
+card's own title and, when present, its Symptom line, with the pack's own
+version and settings, and prints per query the card's own rank, the status,
+the reason, the coverage, the coverage minimum and the top hit's page id,
+with totals at rank 1 and in the top 3 for titles and for Symptom lines
+(ids, numbers and codes only, safe to paste into an issue). A stub or an
+absent card counts as found when its own status comes back. It exits 1 when
+a title is not in the top 3. `kb:pack` prints the two totals and the failing
+ids after it writes a pack, and never refuses to write because of them.
+
+On the 110-card synthetic pack (`fixtures/large-synthetic-cards.mjs`) the
+builder's defaults (min 0.5, minIdf 1.5) give every title at rank 1. Two
+causes found there are fixed in `search.ts`: a title made only of words most
+cards share has no term with idf ≥ minIdf, so a question holding every term
+of the top card's own title (3 or more) is covered once coverage reaches the
+minimum; and a stub whose title extends a full card's title no longer takes
+that card's own title.
+
+### Not covered: the reasons (K25, A6)
+
+| Reason | Meaning |
+| --- | --- |
+| `no_match` | No term matched any card, or every term was a context word left out |
+| `low_coverage` | The best card covers less than `coverage.min` of the question |
+| `no_strong_term` | Coverage reached the minimum, but fewer than `minTerms` matched terms have idf ≥ `minIdf`: only common words matched |
+| `unknown_setting` | The question names a setting no card holds (`missingPhrases`) |
+
 **Gate (D-KB8), per version, on the real sets** (60 or more questions, at
 least 9 not covered, every category of FIXES.md 7.2, written in the owner's
 own words and kept in `~/apty-kb/`): Recall@3 ≥ 0.90, "not covered"
 precision ≥ 0.90 and recall ≥ 0.80, layer accuracy ≥ 0.70. On the synthetic
 set (`tooling/scripts/kb/fixtures/demo-questions-4x.json`, `-5x.json`) every
 question passes.
+
+## Every decision is visible (K25, A2)
+
+`localKbMatches` returns a typed outcome: `answer`, `how_to`,
+`non_english`, `no_pack` (with the version), `not_covered` (reason,
+coverage, minimum, closest card, version, packs), `pack_unusable` (reason,
+version, date) or `error` (a code; the stack goes to the extension console).
+Every turn carries a decision record (`TurnDecision` in agent-core): the
+route that answered (check pack, KB, file fetch or model), the tab's version
+and its source (files, the SE's choice, unknown), the packs searched (version,
+sha256 prefix, key id, expiry) and the KB outcome. It is kept with the turn
+in the side panel, holds ids, numbers and codes only, and is never sent to
+the model. When the model takes a message the KB did not answer, one quiet
+line sits above its reply ("No KB card matched (coverage 0.42, needs 0.50).
+Asked the AI model.", "No 4.x pack is loaded. …", "No KB card matched: only
+common words matched. …", "The 4.x pack expired on 2027-01-10. …", "The KB
+could not be searched (<code>). …"); a how-to has none (D-KB1). With no key,
+the same reason replaces the generic setup text. "Why this answer", under
+every assistant turn, shows the record in plain words.
+
+## Builder flags (K25)
+
+| Flag | Effect |
+| --- | --- |
+| `--sign-key <file>` or `KB_PACK_SIGNING_KEY` | Signs the pack (schema 3); required unless `--unsigned` |
+| `--unsigned` | Writes an unsigned schema 3 pack, used only under `allowUnsignedPacks` |
+| `--expires-days <n>` | 1 to 180, default 60 |
+| `--timeout <seconds>` | Each Confluence request, default 30; retried like a network error |
+| `--quiet` | No progress lines on stderr |
+
+The summary counts each class: full, stub, routing, not in this version
+(absent), and the pages skipped as `malformed` (wrong layer numbers, order or
+count) or `other_format` (headings but no `Layer N:` headings, listed with
+their first five headings). Progress ("Listing pages…", "Fetched 40 of 118
+pages", the time taken) goes to stderr; stdout keeps the summary.
+
+## Cases, support bundles and feedback (K25, L1 to L3)
+
+- **Case.** The first message in a conversation that runs a check, shows a
+  KB card or names a symptom opens a case (`CASE-<yyyymmdd>-<4 base32>`); a
+  how-to or casual message does not. It records the SE's first symptom
+  (Strict-redacted, 300 characters), the version and its source, mode,
+  environment and Client version when the evidence shows them, each check
+  (pack, time, status, rules), the finding (rule, cause, card, confidence,
+  verification), the KB cards shown (ids and layers, pack version and sha256
+  prefix), the turns' decision records, the outcome and a note. No card
+  text, file bodies or screenshots. It lives in IndexedDB `apty-cases-db`
+  (store `cases`) for the policy's `caseRetentionDays` (default 90), pruned
+  on every write. The context bar shows its id with Copy; reopening the
+  conversation continues it; a new chat on a site with a case open in the
+  last 24 hours offers "Continue CASE-…" once. Options → General → Cases
+  lists, opens and deletes them (D-CASE1).
+- **Support bundle.** The verdict's support step and the case view offer
+  "Prepare support bundle": `apty-support-bundle` version 1 with the fields
+  each rule declares (`support-fields.ts`), each filled or marked missing
+  with a hint, the finding with card ids and links only, the checks, the
+  trimmed file entries the finding names (4 KB each), status codes, Apty
+  console errors (50 lines), browser and extension versions, at most
+  200 KB. Strict redaction and the deny list apply; page addresses keep
+  origin and path with ids as `:id`, and a customer's host becomes
+  `customer-app`. It opens in the review dialog with the missing fields,
+  Copy, Download (`apty-support-<case id>.json`) and Copy as text (D-CASE2).
+- **Feedback.** "Close case" (Resolved, Escalated, Not covered, Abandoned;
+  for the first two, whether the finding was right and which card was) and
+  "Wrong card" on each KB matches hit and verdict excerpt write rows to
+  `apty-cases-db` store `feedback`. Options → General → Feedback exports the
+  tracking sheet (CSV: date, case id, Apty version, pack built, card shown,
+  right card, outcome, coverage, reason, note) and the questions for
+  `kb:eval` (`{ id, category: "field", q, expectedPageIds }`, only the
+  questions the SE includes), through the review dialog. Clear is off
+  while a policy is set. The KB owner runs:
+
+```bash
+pnpm -s kb:eval --pack <pack> --questions <exported questions file>
+```
+
+Nothing in this section is sent anywhere by the extension.
 
 ## Troubleshooting
 
@@ -410,6 +568,16 @@ question passes.
 | Links open the wrong space | A schema 1 pack (always JA) | Rebuild the pack with this builder |
 | "Older than 30 days" | Stale pack | Ask the KB owner for a newer one |
 | "The KB cards are in English" | The question is mostly in another script and no model is configured | Ask in English, or configure a model |
+| `kb:pack`: "… did not answer within 30 seconds after 3 retries" or "… could not be reached" | Confluence did not answer, or the network or credentials block it | Check access with `curl -s -o /dev/null -w "%{http_code}\n" -u "$CONFLUENCE_EMAIL:$CONFLUENCE_TOKEN" "https://<site>/wiki/rest/api/search?cql=type=page&limit=1"`: 200 means access works (raise `--timeout`), 401 a wrong email or token, 403 a scoped token (use a classic one) |
+| A line above the reply: "No KB card matched (coverage x, needs y)" | The question is too far from every card (`low_coverage`) | Name the symptom in the card's words; if the right card exists, mark it with Wrong card so the KB owner sees the miss |
+| "No KB card matched: only common words matched." | `no_strong_term`: only words most cards share matched | Add the item or setting the question is about |
+| "No 4.x pack is loaded." | The tab's version has no pack | Import that version's pack, or set the version to "Not sure" |
+| "The KB could not be searched (pack_read_failed)" | IndexedDB could not be read | Reload the panel; the extension console has the stack |
+| "The 4.x pack expired on …" / "is not signed by a key this extension trusts" | The pack is past its date, unsigned, or its key is not trusted or revoked (K23) | Ask the KB owner for a new, signed pack |
+| `kb:eval --self-check` exits 1 | A card's own title does not find it in the top 3 | Read the failing ids' reason and top hit: a near-duplicate title, or a title made only of common words |
+| "This does not exist in Apty 4.x." | The KB has a "No 4.x equivalent" page for the feature | Expected: the feature is 5.x only |
+| The support bundle lists missing fields | The case did not see them (no check read that file, no version chosen) | Add them by hand before sending, or run the check the hint names |
+| `kb:pack` reports pages as `other_format` | The page has headings but no `Layer N:` headings (another section layout) | Rewrite it in the four-layer format in Confluence; the summary lists its first five headings |
 
 ## Not done
 

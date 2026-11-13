@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import {
   mkdtempSync,
   readFileSync,
@@ -413,7 +413,7 @@ describe("buildPack", () => {
     ];
     const coverage = { min: 0.45, minIdf: 2.1, minTerms: 1 };
     const { pack, skipped } = buildPack({ ...args, pages, coverage });
-    assert.equal(pack.schemaVersion, 2);
+    assert.equal(pack.schemaVersion, 3);
     assert.deepEqual(
       pack.cards.map((card) => card.pageId),
       ["20", "100"],
@@ -436,6 +436,7 @@ describe("buildPack", () => {
         pageId: "3",
         title: "RAG Card: FIXTURE card 3",
         reason: "has 2 layers, not 4",
+        kind: "malformed",
       },
     ]);
     assert.deepEqual(pack.source, {
@@ -513,6 +514,18 @@ describe("customer names and diff", () => {
   });
 });
 
+/** A signing key made for these tests, written outside the repository. */
+const TEST_KEY = (() => {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
+  const dir = mkdtempSync(join(tmpdir(), "kb-test-key-"));
+  const file = join(dir, "test-key.pem");
+  const pem = privateKey.export({ type: "pkcs8", format: "pem" });
+  writeFileSync(file, pem, { mode: 0o600 });
+  return { file, pem, publicKey };
+})();
+
 describe("the CLI", () => {
   const env = {
     CONFLUENCE_EMAIL: "svc@example.com",
@@ -520,14 +533,18 @@ describe("the CLI", () => {
   };
   const now = () => new Date("2026-03-04T05:06:07.000Z");
 
-  /** The CLI with `--version 5.x` unless the test passes its own (or `version: null` for none). */
+  /** The CLI with `--version 5.x` unless the test passes its own (or `version: null` for none), signed with a test key unless `--unsigned`. */
   function runWith({ version = "5.x", ...options }) {
     const out = [];
     const err = [];
-    const argv =
+    const versioned =
       version === null || options.argv?.includes("--version")
         ? options.argv
         : [...(options.argv ?? []), "--version", version];
+    const argv =
+      versioned.includes("--unsigned") || versioned.includes("--sign-key")
+        ? versioned
+        : [...versioned, "--sign-key", TEST_KEY.file];
     const result = run({
       env,
       now,
@@ -561,10 +578,15 @@ describe("the CLI", () => {
     assert.equal(statSync(file).mode & 0o777, 0o600);
     assert.match(
       result.out,
-      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing; 0 malformed skipped\./,
+      /Built 2 cards \(8 chunks\): 2 full, 0 stubs \(not yet written\), 0 routing, 0 not in this version; skipped 0 malformed, 0 other_format\./,
     );
     assert.match(result.out, /NOT VERIFIED statements: 7, 8/);
     assert.match(result.out, /no --coverage-min/);
+    assert.match(
+      result.out,
+      /Titles: rank 1 \d+ of 2 \([\d.]+%\), top 3 \d+ of 2/,
+    );
+    assert.match(result.out, /Symptom lines: rank 1 \d+ of \d+/);
     for (const secret of [
       "Glowing Banner",
       "glowIds",
@@ -783,5 +805,389 @@ describe("the CLI", () => {
     }
     const unknown = await runWith({ argv: ["--token", "x"], fetchImpl });
     assert.match(unknown.err, /Unknown or incomplete option: --token/);
+  });
+});
+
+describe("a builder that says what it is doing (KB-RAG K25, A5)", () => {
+  const options = { site: SITE, space: "FX" };
+
+  it("a page with headings but no Layer N: headings is other_format, with its first five headings", () => {
+    const body = [
+      "What to copy",
+      "Where it lives",
+      "Mirror of the 4.x card",
+      "Redaction",
+      "Glossary",
+      "Sixth heading",
+    ]
+      .map((h) => `<h2>FIXTURE ${h}</h2><p>FIXTURE text.</p>`)
+      .join("");
+    assert.deepEqual(parseCard(page("41", { body }), options), {
+      skipped: "has headings but no Layer N: headings",
+      kind: "other_format",
+      headings: [
+        "FIXTURE What to copy",
+        "FIXTURE Where it lives",
+        "FIXTURE Mirror of the 4.x card",
+        "FIXTURE Redaction",
+        "FIXTURE Glossary",
+      ],
+    });
+    assert.deepEqual(
+      parseCard(page("42", { body: cardBody({ layers: 3 }) }), options),
+      { skipped: "has 3 layers, not 4" },
+    );
+  });
+
+  it("names other_format pages with their headings on the summary, and progress goes to stderr only", async () => {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({
+      ids: Array.from({ length: 12 }, (_, i) => String(i + 1)),
+      bodies: {
+        5: "<h3>FIXTURE Section A</h3><p>x</p><h3>FIXTURE Section B</h3>",
+      },
+    });
+    const out = [];
+    const err = [];
+    let tick = 0;
+    const code = await run({
+      argv: ["--space", "FX", "--site", SITE, "--version", "5.x", "--unsigned"],
+      env: {
+        CONFLUENCE_EMAIL: "svc@example.com",
+        CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+      },
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      clock: () => {
+        tick += 1500;
+        return tick;
+      },
+      out: (line) => out.push(line),
+      err: (line) => err.push(line),
+    });
+    assert.equal(code, 0, err.join("\n"));
+    assert.match(out.join("\n"), /skipped 0 malformed, 1 other_format\./);
+    assert.match(
+      out.join("\n"),
+      /other_format, skipped 5 "RAG Card: FIXTURE card 5": no Layer N: headings; its headings: FIXTURE Section A \| FIXTURE Section B/,
+    );
+    assert.deepEqual(err, [
+      "Listing pages…",
+      "Fetched 10 of 12 pages",
+      "Fetched 12 of 12 pages",
+      "Fetched in 1.5 s",
+    ]);
+    for (const line of out)
+      assert.doesNotMatch(line, /Listing pages|Fetched \d+ of/);
+
+    const quiet = [];
+    await run({
+      argv: [
+        "--space",
+        "FX",
+        "--site",
+        SITE,
+        "--version",
+        "5.x",
+        "--quiet",
+        "--unsigned",
+      ],
+      env: {
+        CONFLUENCE_EMAIL: "svc@example.com",
+        CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+      },
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      out: () => {},
+      err: (line) => quiet.push(line),
+    });
+    assert.deepEqual(quiet, []);
+  });
+
+  it("cuts off a request that never answers, retries it, then names the path and how to check access", async () => {
+    let calls = 0;
+    const slept = [];
+    const never = async () => {
+      calls++;
+      return new Promise(() => {});
+    };
+    await assert.rejects(
+      fetchCardPages({
+        site: SITE,
+        space: "FX",
+        label: "rag-card",
+        email: "svc@example.com",
+        token: "FIXTURE-TOKEN",
+        fetchImpl: never,
+        sleep: async (ms) => slept.push(ms),
+        timeoutMs: 20,
+      }),
+      (error) => {
+        assert.match(
+          error.message,
+          /^\/wiki\/rest\/api\/search did not answer within 0\.02 seconds after 3 retries\. Check access with: curl/,
+        );
+        assert.match(
+          error.message,
+          /200: access works; 401: wrong email or token; 403: a scoped token/,
+        );
+        assert.doesNotMatch(
+          error.message,
+          /FIXTURE-TOKEN|space%3D|rag-card|svc@example/,
+        );
+        return true;
+      },
+    );
+    assert.equal(calls, 4);
+    assert.deepEqual(slept, [1000, 2000, 4000]);
+  });
+
+  it("retries a network error, and --timeout takes seconds", async () => {
+    let calls = 0;
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const flaky = async (url, init) => {
+      calls++;
+      if (calls === 1) throw new TypeError("fetch failed");
+      return fetchImpl(url, init);
+    };
+    const pages = await fetchCardPages({
+      site: SITE,
+      space: "FX",
+      label: "rag-card",
+      email: "svc@example.com",
+      token: "FIXTURE-TOKEN",
+      fetchImpl: flaky,
+      sleep: async () => {},
+    });
+    assert.equal(pages.length, 1);
+    const err = [];
+    const code = await run({
+      argv: ["--space", "FX", "--version", "5.x", "--timeout", "0"],
+      env: { CONFLUENCE_EMAIL: "a", CONFLUENCE_TOKEN: "b" },
+      out: () => {},
+      err: (line) => err.push(line),
+    });
+    assert.equal(code, 1);
+    assert.match(err.join("\n"), /--timeout takes a number of seconds/);
+  });
+});
+
+describe("signing in the builder (KB-RAG K23 P2)", () => {
+  const env = {
+    CONFLUENCE_EMAIL: "svc@example.com",
+    CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+  };
+  const now = () => new Date("2026-11-12T00:00:00.000Z");
+
+  async function build(extra, environment = env) {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const out = [];
+    const err = [];
+    const code = await run({
+      argv: ["--space", "FX", "--site", SITE, "--version", "5.x", ...extra],
+      env: environment,
+      now,
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      out: (line) => out.push(line),
+      err: (line) => err.push(line),
+    });
+    const file = join(home, "apty-kb", "apty-kb-FX-5.x-20261112.kbpack.json");
+    return { code, out: out.join("\n"), err: err.join("\n"), file };
+  }
+
+  it("writes schema 3, signed, expiring in 60 days, and the signature verifies with the public key", async () => {
+    const result = await build(["--sign-key", TEST_KEY.file]);
+    assert.equal(result.code, 0, result.err);
+    const pack = JSON.parse(readFileSync(result.file, "utf8"));
+    assert.equal(pack.schemaVersion, 3);
+    assert.equal(pack.expiresAt, "2027-01-11T00:00:00.000Z");
+    assert.equal(packSha256(pack), pack.sha256);
+    const der = TEST_KEY.publicKey.export({ type: "spki", format: "der" });
+    const keyId = createHash("sha256").update(der).digest("hex").slice(0, 16);
+    assert.deepEqual(Object.keys(pack.signature).sort(), [
+      "alg",
+      "keyId",
+      "value",
+    ]);
+    assert.equal(pack.signature.keyId, keyId);
+    assert.ok(
+      verify(
+        "sha256",
+        Buffer.from(`apty-kb-pack-signature/1\n${pack.sha256}\n${keyId}`),
+        { key: TEST_KEY.publicKey, dsaEncoding: "ieee-p1363" },
+        Buffer.from(pack.signature.value, "base64"),
+      ),
+    );
+    assert.match(
+      result.out,
+      new RegExp(`signed with key ${keyId}; expires 2027-01-11`),
+    );
+    for (const text of [result.out, result.err]) {
+      assert.ok(!text.includes("PRIVATE KEY"), "never prints the key");
+      assert.ok(
+        !text.includes(TEST_KEY.pem.split("\n")[1]),
+        "never prints the key",
+      );
+    }
+  });
+
+  it("reads the key from KB_PACK_SIGNING_KEY too, and takes --expires-days", async () => {
+    const result = await build(["--expires-days", "180"], {
+      ...env,
+      KB_PACK_SIGNING_KEY: TEST_KEY.file,
+    });
+    assert.equal(result.code, 0, result.err);
+    assert.equal(
+      JSON.parse(readFileSync(result.file, "utf8")).expiresAt,
+      "2027-05-11T00:00:00.000Z",
+    );
+  });
+
+  it("refuses a pack valid for more than 180 days, and an unsigned pack without --unsigned", async () => {
+    const long = await build([
+      "--sign-key",
+      TEST_KEY.file,
+      "--expires-days",
+      "181",
+    ]);
+    assert.equal(long.code, 1);
+    assert.match(
+      long.err,
+      /--expires-days takes a whole number of days, 1 to 180/,
+    );
+    const unsigned = await build([]);
+    assert.equal(unsigned.code, 1);
+    assert.match(unsigned.err, /Pass --sign-key/);
+  });
+
+  it("--unsigned writes a schema 3 pack with no signature and says no extension uses it without allowUnsignedPacks", async () => {
+    const result = await build(["--unsigned"]);
+    assert.equal(result.code, 0, result.err);
+    const pack = JSON.parse(readFileSync(result.file, "utf8"));
+    assert.equal(pack.schemaVersion, 3);
+    assert.equal(pack.signature, undefined);
+    assert.match(
+      result.out,
+      /unsigned \(--unsigned\): no SE's extension uses it unless the policy sets allowUnsignedPacks/,
+    );
+  });
+
+  it("refuses a key that is not ECDSA P-256", async () => {
+    const dir = tempDir();
+    const rsa = join(dir, "rsa.pem");
+    writeFileSync(
+      rsa,
+      generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({
+        type: "pkcs8",
+        format: "pem",
+      }),
+    );
+    const result = await build(["--sign-key", rsa]);
+    assert.equal(result.code, 1);
+    assert.match(result.err, /not an ECDSA P-256 key/);
+  });
+});
+
+describe("kb:keygen (KB-RAG K23 P2)", async () => {
+  const { run: keygen } = await import("./kb-keygen.mjs");
+
+  it("refuses a directory inside the repository", () => {
+    const err = [];
+    assert.equal(
+      keygen({
+        argv: ["--out", "tmp-keys"],
+        cwd: REPO_ROOT,
+        err: (l) => err.push(l),
+        out: () => {},
+      }),
+      1,
+    );
+    assert.match(err.join("\n"), /never goes in this repository/);
+  });
+
+  it("writes the private key with mode 600 and the public key with its keyId; prints no private key", () => {
+    const dir = join(tempDir(), "keys");
+    const out = [];
+    assert.equal(
+      keygen({
+        argv: ["--out", dir, "--name", "FIXTURE owner"],
+        out: (l) => out.push(l),
+      }),
+      0,
+    );
+    const keyId = /keyId: ([0-9a-f]{16})/.exec(out.join("\n"))?.[1];
+    assert.ok(keyId);
+    const privatePath = join(dir, `kb-signing-key-${keyId}.pem`);
+    assert.equal(statSync(privatePath).mode & 0o777, 0o600);
+    const entry = JSON.parse(
+      readFileSync(join(dir, `kb-signing-key-${keyId}.public.json`), "utf8"),
+    );
+    assert.deepEqual(Object.keys(entry).sort(), ["keyId", "name", "spki"]);
+    assert.equal(
+      createHash("sha256")
+        .update(Buffer.from(entry.spki, "base64"))
+        .digest("hex")
+        .slice(0, 16),
+      keyId,
+    );
+    assert.ok(!out.join("\n").includes("PRIVATE KEY"));
+  });
+});
+
+describe('"not in this version" pages (KB-RAG K25, A4)', () => {
+  it("classifies a page whose text before any heading says there is no 4.x equivalent as absent, with its reason", () => {
+    const parsed = parseCard(
+      page("51", {
+        body: "<p>Symptom: FIXTURE funnel chart for workflows.</p><p>No 4.x equivalent: the FIXTURE funnel chart arrived with 5.x analytics. There is no setting for it.</p><p>This page is not an answer card.</p><h2>FIXTURE See also</h2>",
+      }),
+      { site: SITE, space: "FX" },
+    );
+    assert.equal(parsed.card.status, "absent");
+    assert.equal(
+      parsed.card.absentReason,
+      "the FIXTURE funnel chart arrived with 5.x analytics.",
+    );
+    assert.equal(parsed.card.symptom, "FIXTURE funnel chart for workflows.");
+    assert.deepEqual(parsed.chunks, []);
+  });
+
+  it("counts absent cards on the summary line, and the pack verifies with them", async () => {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({
+      ids: ["7", "8"],
+      bodies: {
+        8: "<p>Symptom: FIXTURE x.</p><p>No 5.x equivalent: FIXTURE gone in 5.x.</p>",
+      },
+    });
+    const out = [];
+    const code = await run({
+      argv: [
+        "--space",
+        "FX",
+        "--site",
+        SITE,
+        "--version",
+        "5.x",
+        "--sign-key",
+        TEST_KEY.file,
+      ],
+      env: {
+        CONFLUENCE_EMAIL: "svc@example.com",
+        CONFLUENCE_TOKEN: "FIXTURE-TOKEN",
+      },
+      fetchImpl,
+      home,
+      sleep: async () => {},
+      out: (line) => out.push(line),
+      err: () => {},
+    });
+    assert.equal(code, 0);
+    assert.match(out.join("\n"), /0 routing, 1 not in this version; skipped/);
+    assert.match(out.join("\n"), /not in this version 8 "FIXTURE card 8"/);
   });
 });

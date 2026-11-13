@@ -10,7 +10,6 @@ import {
   destinationOf,
   type KbCardRef,
   type KbEgressDecision,
-  type KbPackInfo,
   kbCardsIn,
   kbEgressAllowed,
   type OrgPolicyState,
@@ -18,6 +17,7 @@ import {
   summaryModelFor,
   withholdKbText,
 } from "@apty/agent-core";
+import type { KbPackState } from "../kb/kb-trust.js";
 import {
   type EffectiveSettingsDeps,
   loadEffectiveSettings,
@@ -29,7 +29,7 @@ export type KbEgressPurpose = "chat" | "summary";
 export interface KbEgressState {
   decision: KbEgressDecision;
   destination?: AiDestination;
-  packs: KbPackInfo[];
+  packs: KbPackState[];
   policy?: OrgPolicyState;
 }
 

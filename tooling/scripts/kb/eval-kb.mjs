@@ -11,7 +11,13 @@
  * The real 40-question set is internal: the KB owner keeps it and the pack
  * outside this repository and runs this locally. A synthetic set runs in CI.
  *
- * Usage: pnpm kb:eval --pack <file> --questions <file> [--calibrate]
+ * `--self-check` needs no questions file (KB-RAG K25, A3): every card's own
+ * title, and its Symptom line, must find the card itself; it prints ids,
+ * numbers and codes only, and exits 1 when a title is not in the top 3 or
+ * not covered.
+ *
+ * Usage: pnpm kb:eval --pack <file> --self-check [--json]
+ *        pnpm kb:eval --pack <file> --questions <file> [--calibrate]
  *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>]
  *   [--coverage-min-floor <f>] (default 0.35: --calibrate never suggests a
  *   lower coverage min, and warns when the best Youden J sits below it)
@@ -129,9 +135,11 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
       topK: RANK_DEPTH,
       onePerCard: true,
     });
+    // A stub or a "not in this version" card (K25, A4) is a hit when it is the expected card.
     const ranked =
-      result.status === "stub" && result.card
-        ? [result.card.pageId]
+      (result.status === "stub" || result.status === "not_in_version") &&
+      result.card
+        ? [result.card.pageId, ...result.hits.map((hit) => hit.chunk.pageId)]
         : result.hits.map((hit) => hit.chunk.pageId);
     const expected = new Set(question.expectedPageIds);
     const notCovered = result.status === "not_covered";
@@ -183,7 +191,7 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
         ? tuned.retrieval.threshold
         : null,
     coverage:
-      pack.schemaVersion === 2 ? (tuned.retrieval.coverage ?? null) : null,
+      pack.schemaVersion !== 1 ? (tuned.retrieval.coverage ?? null) : null,
     mode: index.info.mode,
     recallAt1: ratio(hit1, covered.length),
     recallAt3: ratio(hit3, covered.length),
@@ -229,6 +237,96 @@ export function calibrate(core, pack, questions) {
     correctlySorted: best.correct,
     questions: questions.length,
   };
+}
+
+/** A card's own status coming back counts as finding it (a stub, a "not in this version" card). */
+const OWN_STATUS = { stub: "stub", absent: "not_in_version" };
+
+/**
+ * Self-retrieval (KB-RAG K25, A3): each card's title, and its Symptom line
+ * when it has one, searched as a question with the pack's own settings.
+ * Routing pages are not answers and are left out. Per query: the card's
+ * own rank (1-based, 0 when absent from the top 10), the status, reason,
+ * coverage, the coverage minimum and the top hit's page id.
+ */
+export function selfCheck(core, pack, { coverage } = {}) {
+  const tuned = withCoverage(pack, coverage);
+  const index = core.createKbIndex(tuned);
+  const settings = {
+    ...core.KB_COVERAGE_DEFAULTS,
+    ...(tuned.retrieval.coverage ?? {}),
+  };
+  const queries = [];
+  for (const card of tuned.cards) {
+    if (card.status === "routing") continue;
+    const asked = [["title", card.title]];
+    if (card.symptom) asked.push(["symptom", card.symptom]);
+    for (const [kind, text] of asked) {
+      const result = index.search(text, { topK: RANK_DEPTH, onePerCard: true });
+      const ranked =
+        result.card && result.status !== "ok"
+          ? [result.card.pageId]
+          : result.hits.map((hit) => hit.chunk.pageId);
+      const position = ranked.indexOf(card.pageId);
+      const ownStatus = OWN_STATUS[card.status];
+      const found =
+        position >= 0 &&
+        (ownStatus ? result.status === ownStatus : result.status === "ok");
+      queries.push({
+        pageId: card.pageId,
+        kind,
+        rank: found ? position + 1 : 0,
+        status: result.status,
+        ...(result.reason ? { reason: result.reason } : {}),
+        coverage: round(result.coverage),
+        min: settings.min,
+        topPageId: ranked[0] ?? result.topPageId ?? null,
+      });
+    }
+  }
+  const totals = (kind) => {
+    const list = queries.filter((q) => q.kind === kind);
+    return {
+      of: list.length,
+      rank1: list.filter((q) => q.rank === 1).length,
+      top3: list.filter((q) => q.rank >= 1 && q.rank <= 3).length,
+    };
+  };
+  const failing = queries
+    .filter((q) => q.kind === "title" && (q.rank < 1 || q.rank > 3))
+    .map((q) => q.pageId);
+  return {
+    cards: tuned.cards.length,
+    routing: tuned.cards.filter((card) => card.status === "routing").length,
+    coverage: settings,
+    titles: totals("title"),
+    symptoms: totals("symptom"),
+    failingTitles: failing,
+    queries,
+  };
+}
+
+/** The self-check's two totals and the ids that fail, for the builder and the CLI. */
+export function formatSelfCheck(report, { all = false } = {}) {
+  const pct = (part, whole) =>
+    whole === 0 ? "n/a" : `${((part / whole) * 100).toFixed(1)}%`;
+  const line = (name, t) =>
+    `${name}: rank 1 ${t.rank1} of ${t.of} (${pct(t.rank1, t.of)}), top 3 ${t.top3} of ${t.of} (${pct(t.top3, t.of)})`;
+  const lines = [
+    `Self-check of ${report.cards} cards (${report.routing} routing left out), coverage min ${report.coverage.min}, minIdf ${report.coverage.minIdf}, minTerms ${report.coverage.minTerms}`,
+    line("Titles", report.titles),
+    line("Symptom lines", report.symptoms),
+    report.failingTitles.length > 0
+      ? `Titles not found in the top 3: ${report.failingTitles.join(", ")}`
+      : "Every title finds its own card in the top 3.",
+  ];
+  for (const q of report.queries) {
+    if (!all && q.rank === 1) continue;
+    lines.push(
+      `  ${q.kind} ${q.pageId}: rank ${q.rank || "-"}, ${q.status}${q.reason ? ` (${q.reason})` : ""}, coverage ${q.coverage} of ${q.min}, top ${q.topPageId ?? "-"}`,
+    );
+  }
+  return lines.join("\n");
 }
 
 /** The metrics per question category (`category`, or "none"), in name order. */
@@ -342,7 +440,7 @@ function format(report) {
   const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(1)}%`);
   const lines = [
     `${report.questions} questions (${report.covered} the KB should cover), ${report.mode}, ${
-      report.schemaVersion === 2
+      report.schemaVersion !== 1
         ? `coverage ${report.coverage ? `min ${report.coverage.min}, minIdf ${report.coverage.minIdf}, minTerms ${report.coverage.minTerms}` : "defaults"}`
         : `threshold ${report.threshold ?? "none"}`
     }`,
@@ -358,12 +456,18 @@ function format(report) {
 }
 
 function parseArgs(argv) {
-  const options = { calibrate: false, json: false, byCategory: false };
+  const options = {
+    calibrate: false,
+    json: false,
+    byCategory: false,
+    selfCheck: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === "--calibrate") options.calibrate = true;
     else if (flag === "--json") options.json = true;
     else if (flag === "--by-category") options.byCategory = true;
+    else if (flag === "--self-check") options.selfCheck = true;
     else if (flag === "--pack" || flag === "--questions") {
       options[flag.slice(2)] = argv[++i];
     } else if (flag === "--coverage-min-floor") {
@@ -387,8 +491,10 @@ function parseArgs(argv) {
       options.threshold = value;
     } else throw new Error(`Unknown option: ${flag}`);
   }
-  if (!options.pack || !options.questions) {
-    throw new Error("Pass --pack <file> and --questions <file>.");
+  if (!options.pack || (!options.questions && !options.selfCheck)) {
+    throw new Error(
+      "Pass --pack <file> and --questions <file>, or --pack <file> --self-check.",
+    );
   }
   return options;
 }
@@ -407,6 +513,15 @@ export async function run({
       core,
       readFileSync(resolve(cwd, options.pack), "utf8"),
     );
+    if (options.selfCheck) {
+      const report = selfCheck(core, pack);
+      out(
+        options.json
+          ? JSON.stringify(report, null, 2)
+          : formatSelfCheck(report),
+      );
+      return report.failingTitles.length > 0 ? 1 : 0;
+    }
     const questions = readQuestions(
       readFileSync(resolve(cwd, options.questions), "utf8"),
     );
@@ -423,7 +538,7 @@ export async function run({
               : {}),
           }
         : undefined;
-    const v2 = pack.schemaVersion === 2;
+    const v2 = pack.schemaVersion !== 1;
     const report = {
       ...evaluate(core, pack, questions, {
         threshold: options.threshold,

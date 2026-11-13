@@ -48,9 +48,18 @@ export interface KbSearchHit {
   aptyVersion: KbAptyVersion;
 }
 
+/**
+ * Why a question is not covered (K25, A6): `no_match`, no term matched any
+ * card, or every term was a context word left out; `low_coverage`, the top
+ * card covers less than the minimum; `no_strong_term`, coverage reached the
+ * minimum but too few matched terms are rare enough (idf below `minIdf`):
+ * only common words matched; `unknown_setting`, the question names a
+ * setting no card holds.
+ */
 export type KbNotCoveredReason =
   | "no_match"
   | "low_coverage"
+  | "no_strong_term"
   | "unknown_setting";
 
 export interface KbSearchResult {
@@ -59,7 +68,7 @@ export interface KbSearchResult {
    * question, or it names a setting the card does not have. `stub`: the
    * card that covers it is not written yet for this version (`card`).
    */
-  status: "ok" | "not_covered" | "stub";
+  status: "ok" | "not_covered" | "stub" | "not_in_version";
   hits: KbSearchHit[];
   /** With `stub`: the card, with no text, and its pack's version. */
   card?: KbCard;
@@ -77,6 +86,9 @@ export interface KbSearchResult {
   missingPhrases?: string[];
   /** Diagnostics: the question's context words (application or page place) the top card does not hold, left out of coverage. */
   contextIgnored?: string[];
+  /** With `not_covered`: the coverage the pack needs, and the card that came closest. */
+  min?: number;
+  topPageId?: string;
 }
 
 /** When the top card covers a question (schema 2); calibrated per pack by `eval-kb.mjs`. */
@@ -105,6 +117,13 @@ export interface KbIndexInfo {
   mode: "bm25" | "hybrid";
   /** Whether the pack carries a calibrated threshold; without one, any match counts as covered. */
   calibrated: boolean;
+  /** The packs searched, by version and sha256, with their signing key and expiry (K23). */
+  packs: Array<{
+    aptyVersion: KbAptyVersion;
+    sha256: string;
+    keyId: string | null;
+    expiresAt: string | null;
+  }>;
 }
 
 export interface KbIndex {
@@ -288,6 +307,7 @@ function createLegacyIndex(pack: KbPack, coverageOf: CoverageOf): KbIndex {
     chunkCount: chunks.length,
     mode: hybrid ? "hybrid" : "bm25",
     calibrated: pack.retrieval.threshold !== undefined,
+    packs: [packIdentity(pack)],
   };
 
   function hit(chunk: KbChunk, score: number): KbSearchHit {
@@ -406,7 +426,16 @@ interface Assessment {
   matched: string[];
   /** The question's context words the card does not hold: left out of coverage. */
   contextIgnored: string[];
+  /**
+   * The question holds every term of the card's own title, and the title
+   * has at least `TITLE_MIN_TERMS` of them (K25, A3): the question names the
+   * card, even when each of its words is common in the pack.
+   */
+  holdsTitle: boolean;
 }
+
+/** The fewest distinct terms a title needs for holding it to name the card. */
+const TITLE_MIN_TERMS = 3;
 
 /** Words most symptoms share (stemmed): a stub needs a match beyond them. */
 const GENERIC_SYMPTOM_TERMS: ReadonlySet<string> = new Set(
@@ -505,6 +534,9 @@ function corpusOf(
   const cardSets = new Map(
     [...cardTerms].map(([pageId, terms]) => [pageId, new Set(terms)]),
   );
+  const titleTerms = new Map(
+    [...cards.values()].map((card) => [card.pageId, queryTerms(card.title)]),
+  );
   const n = documents;
   const idf = (term: string) => Math.log(1 + n / (1 + (df.get(term) ?? 0)));
 
@@ -584,6 +616,11 @@ function corpusOf(
     assess(query: string, pageId: string, minIdf: number, min = 0): Assessment {
       const own = cardSets.get(pageId) ?? new Set<string>();
       const terms = queryTerms(query);
+      const asked = new Set(terms);
+      const title = titleTerms.get(pageId) ?? [];
+      const holdsTitle =
+        title.length >= TITLE_MIN_TERMS &&
+        title.every((term) => asked.has(term));
       const typos = typosIn(query);
       const lower = normalize(query).replace(/\s+/g, " ");
       const weighed = terms.map((term) => {
@@ -639,6 +676,7 @@ function corpusOf(
         strongQueryTerms,
         matched,
         contextIgnored,
+        holdsTitle,
       };
     },
   };
@@ -739,12 +777,14 @@ function stubMatches(
   assessment: Assessment,
   settings: KbCoverageSettings,
 ): boolean {
-  const { coverage, strongTerms, strongQueryTerms, matched } = assessment;
+  const { coverage, strongTerms, strongQueryTerms, matched, holdsTitle } =
+    assessment;
   return (
     coverage >= Math.max(settings.min, STUB_MIN_COVERAGE) &&
-    strongTerms >=
-      Math.min(STUB_MIN_STRONG_TERMS, Math.max(1, strongQueryTerms)) &&
-    matched.some((term) => !GENERIC_SYMPTOM_TERMS.has(term))
+    (holdsTitle ||
+      (strongTerms >=
+        Math.min(STUB_MIN_STRONG_TERMS, Math.max(1, strongQueryTerms)) &&
+        matched.some((term) => !GENERIC_SYMPTOM_TERMS.has(term))))
   );
 }
 
@@ -765,7 +805,9 @@ function stubMatches(
  * synonym alone does not put the card on the question's topic), and they
  * reach `coverage.min` without the context words. The question is covered
  * when coverage reaches `coverage.min` and `coverage.minTerms` matched terms
- * have an idf of at least `coverage.minIdf`, and some card holds every
+ * have an idf of at least `coverage.minIdf`, or the question holds every
+ * term of the card's own title (K25, A3: a title made only of words most
+ * cards share still names its card), and some card holds every
  * setting-like phrase the question names (`namedPhrases`).
  */
 function createV2Index(pack: KbPack): KbIndex {
@@ -935,16 +977,30 @@ function createV2Index(pack: KbPack): KbIndex {
     }
 
     const top = ranked[0];
+    // A stub, or a card saying the feature has no equivalent in this
+    // version (K25, A4), is found by its title and symptom alone.
     const stub = [...chunklessScores]
-      .filter(([pageId]) => cards.get(pageId)?.status === "stub")
+      .filter(([pageId]) => {
+        const status = cards.get(pageId)?.status;
+        return status === "stub" || status === "absent";
+      })
       .sort(([a, x], [b, y]) => y - x || comparePageIds(a, b))[0];
+    const stubAssessment =
+      stub !== undefined
+        ? corpus.assess(query, stub[0], settings.minIdf, settings.min)
+        : undefined;
+    // A question holding the top card's whole title names that card: a stub
+    // whose title only extends it (K25, A3) does not take its place.
+    const topNamed =
+      top !== undefined &&
+      !stubAssessment?.holdsTitle &&
+      corpus.assess(query, top.chunk.pageId, settings.minIdf).holdsTitle;
     const stubFirst =
       stub !== undefined &&
+      stubAssessment !== undefined &&
       (!top || stub[1] > top.score) &&
-      stubMatches(
-        corpus.assess(query, stub[0], settings.minIdf, settings.min),
-        settings,
-      )
+      !topNamed &&
+      stubMatches(stubAssessment, settings)
         ? (cards.get(stub[0]) as KbCard)
         : undefined;
     if (!top && !stubFirst) {
@@ -953,9 +1009,10 @@ function createV2Index(pack: KbPack): KbIndex {
         hits: [],
         coverage: 0,
         reason: "no_match",
+        min: settings.min,
       };
     }
-    const { coverage, strongTerms, contextIgnored } = corpus.assess(
+    const { coverage, strongTerms, contextIgnored, holdsTitle } = corpus.assess(
       query,
       stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
       settings.minIdf,
@@ -974,25 +1031,34 @@ function createV2Index(pack: KbPack): KbIndex {
         coverage,
         reason: "unknown_setting",
         missingPhrases,
+        min: settings.min,
+        topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,
       };
     }
     const covered =
       denseCovered ||
-      (coverage >= settings.min && strongTerms >= settings.minTerms);
+      (coverage >= settings.min &&
+        (strongTerms >= settings.minTerms || holdsTitle));
     if (!covered) {
       return {
         status: "not_covered",
         hits: [],
         coverage,
         reason:
-          contextIgnored.length === terms.length ? "no_match" : "low_coverage",
+          contextIgnored.length === terms.length || coverage === 0
+            ? "no_match"
+            : coverage < settings.min
+              ? "low_coverage"
+              : "no_strong_term",
+        min: settings.min,
+        topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,
       };
     }
     if (stubFirst) {
       return {
-        status: "stub",
+        status: stubFirst.status === "absent" ? "not_in_version" : "stub",
         hits: [],
         coverage,
         card: stubFirst,
@@ -1013,6 +1079,7 @@ function createV2Index(pack: KbPack): KbIndex {
       chunkCount: chunks.length,
       mode: hybrid ? "hybrid" : "bm25",
       calibrated: pack.retrieval.coverage !== undefined,
+      packs: [packIdentity(pack)],
     },
     vocabularyIdf: corpus.vocabularyIdf,
     holdsPhrase: corpus.holdsPhrase,
@@ -1032,8 +1099,17 @@ function createV2Index(pack: KbPack): KbIndex {
  * query give the same result: ties go to the lower page id, then the lower
  * layer, and chunks are unique by page and layer.
  */
+function packIdentity(pack: KbPack): KbIndexInfo["packs"][number] {
+  return {
+    aptyVersion: pack.aptyVersion,
+    sha256: pack.sha256,
+    keyId: pack.signature?.keyId ?? null,
+    expiresAt: pack.expiresAt ?? null,
+  };
+}
+
 export function createKbIndex(pack: KbPack): KbIndex {
-  if (pack.schemaVersion === 2) return createV2Index(pack);
+  if (pack.schemaVersion !== 1) return createV2Index(pack);
   const { cards, chunks } = uniqueChunks(pack);
   const shared = sharedLayerDescriptions(chunks, cards);
   const corpus = corpusOf(

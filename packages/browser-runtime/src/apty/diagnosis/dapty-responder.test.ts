@@ -1,3 +1,4 @@
+import { isLocalAnswer } from "@apty/agent-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const EXT_ID = "abcdefghijklmnopabcdefghijklmnop";
@@ -151,7 +152,9 @@ describe("the Ask Dapty check in the chat", () => {
   it("leaves a how-to question about Dapty to the model", async () => {
     const respond = createDiagnosisResponder();
 
-    expect(await respond("How do I turn on Dapty?", {})).toBeUndefined();
+    expect(isLocalAnswer(await respond("How do I turn on Dapty?", {}))).toBe(
+      false,
+    );
   });
 });
 

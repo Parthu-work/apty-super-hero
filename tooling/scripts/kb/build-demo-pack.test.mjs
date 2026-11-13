@@ -56,7 +56,7 @@ describe("kb:demo-pack", () => {
   it("builds a calibrated pack per version outside the repository, with a stub and a routing card", () => {
     for (const [version, pack] of Object.entries(packs)) {
       assert.equal(pack.aptyVersion, version);
-      assert.equal(pack.schemaVersion, 2);
+      assert.equal(pack.schemaVersion, 3);
       assert.ok(pack.retrieval.coverage, "calibrated coverage settings");
       const statuses = pack.cards.map((card) => card.status);
       assert.equal(statuses.filter((s) => s === "stub").length, 1);
@@ -268,5 +268,17 @@ describe("K21 reproductions on the demo packs", () => {
       );
       assert.ok(!["2007", "2012", "4010"].includes(top(button)), version);
     }
+  });
+});
+
+describe("honest reasons on the demo packs (KB-RAG K25, A6)", () => {
+  it('"the Workday home page tab" on the 4.x pack is no_strong_term, with its coverage', () => {
+    const result = core
+      .createKbIndex(packs["4.x"])
+      .search("the Workday home page tab");
+    assert.equal(result.status, "not_covered");
+    assert.equal(result.reason, "no_strong_term");
+    assert.ok(result.coverage >= packs["4.x"].retrieval.coverage.min);
+    assert.equal(result.min, packs["4.x"].retrieval.coverage.min);
   });
 });

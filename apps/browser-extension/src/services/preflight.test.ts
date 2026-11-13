@@ -476,3 +476,75 @@ describe("preflightJson", () => {
     expect(json.checks[3]).toMatchObject({ id: "ai-provider", status: "pass" });
   });
 });
+
+describe("the Knowledge base row with signed packs (KB-RAG K23 P5)", () => {
+  const trusted = {
+    status: "trusted" as const,
+    keyId: "0123456789abcdef",
+    name: "Apty KB owner",
+    demo: false,
+  };
+
+  it("fails for a pack that is not used, with the reason", async () => {
+    const result = await check("knowledge-base", {
+      knowledgeBase: async () => [
+        {
+          ...PACK_INFO,
+          expiresAt: "2026-03-05T00:00:00.000Z",
+          usability: {
+            trust: trusted,
+            validity: { state: "expired", date: "2026-03-05T00:00:00.000Z" },
+            usable: false,
+            reason: "expired",
+          },
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      status: "fail",
+      detail: "Not used: the 5.x pack expired on 2026-03-05.",
+    });
+    expect(result.fix).toMatch(/new, signed pack/);
+  });
+
+  it("warns when a pack expires within 7 days, and drops the 30-day warning for a pack with an expiry date", async () => {
+    const expiring = await check("knowledge-base", {
+      knowledgeBase: async () => [
+        {
+          ...PACK_INFO,
+          expiresAt: "2026-04-05T00:00:00.000Z",
+          usability: {
+            trust: trusted,
+            validity: {
+              state: "expiring",
+              date: "2026-04-05T00:00:00.000Z",
+              daysLeft: 4,
+            },
+            usable: true,
+          },
+        },
+      ],
+      now: () => new Date("2026-04-01T00:00:00.000Z"),
+    });
+    expect(expiring).toMatchObject({
+      status: "warn",
+      detail:
+        "Loaded: 12 cards from space FX, built 2026-03-01; it expires in 4 days.",
+    });
+    const current = await check("knowledge-base", {
+      knowledgeBase: async () => [
+        {
+          ...PACK_INFO,
+          expiresAt: "2026-06-01T00:00:00.000Z",
+          usability: {
+            trust: trusted,
+            validity: { state: "current", date: "2026-06-01T00:00:00.000Z" },
+            usable: true,
+          },
+        },
+      ],
+      now: () => new Date("2026-04-15T00:00:00.000Z"),
+    });
+    expect(current.status).toBe("pass");
+  });
+});

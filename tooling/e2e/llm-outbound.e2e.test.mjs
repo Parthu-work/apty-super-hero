@@ -15,7 +15,13 @@ import {
   tempDir,
   toolResults,
 } from "./harness.mjs";
-import { importPack, NON_DEMO_SITE, writeFixturePack } from "./kb-fixture.mjs";
+import {
+  importPack,
+  NON_DEMO_SITE,
+  TEST_KEY_POLICY,
+  writeFixturePack,
+} from "./kb-fixture.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 const PAGE_TOKEN = `ghp_${"Ab12Cd34Ef".repeat(3)}`;
 const TYPED_TOKEN = `ghp_${"Zy98Xw76Vu".repeat(3)}`;
@@ -51,7 +57,9 @@ before(async () => {
     "/medium.html": MEDIUM_PAGE,
     "/form.html": FORM_PAGE,
   });
-  browser = await launchBrowser();
+  // The E2E policy build, with no policy until a test sets one: the floor
+  // test trusts the run-time key its non-demo pack is signed with (K23 P2).
+  browser = await launchBrowser({ extensionDir: ensurePolicyBuild() });
 });
 
 after(async () => {
@@ -373,6 +381,7 @@ describe("what was sent (O5)", () => {
 
 describe("redaction floor while an Apty KB pack is loaded (KB-RAG K22, D-SEC3)", () => {
   it("runs a stored Off as Standard once a non-demo pack is loaded", async () => {
+    await setTestPolicy(browser, TEST_KEY_POLICY);
     const { file } = writeFixturePack(tempDir("apty-kb-floor-"), {
       site: NON_DEMO_SITE,
     });

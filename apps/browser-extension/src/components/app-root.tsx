@@ -4,7 +4,11 @@
  */
 
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
-import { localKbMatches } from "@apty/browser-runtime/kb/kb-matches";
+import { tabVersionOf } from "@apty/browser-runtime/apty/diagnosis/responder";
+import {
+  kbDecisionOf,
+  localKbMatches,
+} from "@apty/browser-runtime/kb/kb-matches";
 import { useAgent, useChatConfig } from "@apty/ui";
 import ChatBot from "@apty/ui/components/chatbot";
 import { composeSystemPrompt } from "@apty/ui/components/chatbot/constants";
@@ -12,6 +16,7 @@ import { ErrorBoundary } from "@apty/ui/components/error/ErrorBoundary";
 import type { InterventionMode } from "@apty/ui/components/intervention";
 import { I18nProvider, useTranslation } from "@apty/ui/i18n/context";
 import type { Language } from "@apty/ui/i18n/types";
+import { kbOutcomeLine } from "@apty/ui/lib/turn-decision";
 import { ThemeProvider } from "@apty/ui/theme/context";
 import type { Theme } from "@apty/ui/theme/types";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -35,6 +40,7 @@ import {
 } from "../hooks/outbound-filters";
 import { openOptions } from "../lib/open-options";
 import { isProviderConfigured } from "../services/ai-provider";
+import { recordModelToolResult } from "../services/cases";
 import { resolveConversationRunContext } from "../services/conversation-tab-binding";
 import { checkAuth } from "../services/send-gate";
 import { InputModeProvider } from "../state/input-mode-context";
@@ -120,6 +126,19 @@ function useConversationHeartbeat() {
   return { start, stop };
 }
 
+/** The URL of the tab the side panel sits beside, when Chrome gives it. */
+async function activeTabUrl(): Promise<string | undefined> {
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    return tab?.url;
+  } catch {
+    return undefined;
+  }
+}
+
 function ChatApp() {
   const { t } = useTranslation();
   const { settings, isLoading } = useChatConfig({
@@ -162,23 +181,32 @@ function ChatApp() {
 
   const heartbeat = useConversationHeartbeat();
 
+  // Without a provider, the KB's reason for not answering (KB-RAG K25,
+  // A2) takes the generic setup text's place on the card.
+  const kbLineRef = useRef<string | undefined>(undefined);
   const handleCheckAuth = useCallback(
-    async (text: string) =>
-      checkAuth(
-        settingsRef.current,
-        text,
-        !isProviderConfigured(settingsRef.current) &&
-          (await localKbMatches(text)) !== undefined,
-      ),
-    [],
+    async (text: string) => {
+      kbLineRef.current = undefined;
+      if (isProviderConfigured(settingsRef.current)) {
+        return checkAuth(settingsRef.current, text);
+      }
+      const outcome = await localKbMatches(text, undefined, {
+        version: tabVersionOf(await activeTabUrl()).version,
+      });
+      kbLineRef.current = kbOutcomeLine(kbDecisionOf(outcome), t);
+      return checkAuth(settingsRef.current, text, outcome.kind === "answer");
+    },
+    [t],
   );
 
   // First-run / not-configured dead end: instead of injecting messages into
   // the conversation, show one dismissible setup card that carries the
   // draft the user tried to send.
   const [authDraft, setAuthDraft] = useState<string | null>(null);
+  const [authKbLine, setAuthKbLine] = useState<string | undefined>();
   const handleNeedsAuth = useCallback((draftText: string) => {
     setAuthDraft(draftText);
+    setAuthKbLine(kbLineRef.current);
   }, []);
   const handleOpenProviderSettings = useCallback(() => {
     void openOptions({ section: "ai-provider" });
@@ -246,6 +274,7 @@ function ChatApp() {
           }}
           handlers={{
             onStatusChange: handleStatusChange,
+            onToolComplete: recordModelToolResult,
             checkAuthBeforeSend: handleCheckAuth,
             onNeedsAuth: handleNeedsAuth,
             onOpenProviderSettings: handleOpenProviderSettings,
@@ -260,6 +289,7 @@ function ChatApp() {
               authDraft !== null ? (
                 <SetupNeededCard
                   draftText={authDraft}
+                  kbLine={authKbLine}
                   onOpenSettings={handleOpenProviderSettings}
                   onDismiss={() => setAuthDraft(null)}
                 />

@@ -11,12 +11,15 @@ import { useTranslation } from "@apty/ui/i18n/context";
 export interface SetupNeededCardProps {
   /** The message the user typed before the send was blocked. */
   draftText: string;
+  /** Why the KB did not answer (KB-RAG K25, A2), shown in place of the generic text. */
+  kbLine?: string;
   onOpenSettings: () => void;
   onDismiss: () => void;
 }
 
 export function SetupNeededCard({
   draftText,
+  kbLine,
   onOpenSettings,
   onDismiss,
 }: SetupNeededCardProps) {
@@ -40,7 +43,13 @@ export function SetupNeededCard({
         </div>
       }
     >
-      <p>{t("setupNeeded.description")}</p>
+      {kbLine ? (
+        <p data-testid="kb-decision-line">
+          {`${kbLine} ${t("turnDecision.noModel")}`}
+        </p>
+      ) : (
+        <p>{t("setupNeeded.description")}</p>
+      )}
       {preview && (
         <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-small text-muted-foreground">
           {t("setupNeeded.notSent", { preview })}

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { canonicalJson, KB_PACK_KIND } from "@apty/agent-core";
 import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it } from "vitest";
+import { unsignedAllowed } from "../kb/kb-test-utils.js";
 import {
   createKbPackStore,
   indexedDbRecords,
@@ -88,7 +89,11 @@ const NOW = new Date("2026-03-05T10:00:00.000Z");
 describe("createKbPackStore", () => {
   it("imports a valid pack and reports what is loaded, without the card text", async () => {
     const records = memoryRecords();
-    const store = createKbPackStore({ records, now: () => NOW });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records,
+      now: () => NOW,
+    });
     expect(await store.info()).toEqual([]);
     expect(await store.load("5.x")).toBeNull();
 
@@ -102,24 +107,39 @@ describe("createKbPackStore", () => {
         label: "rag-card",
         cardCount: 1,
         stubCount: 0,
+        absentCount: 0,
         chunkCount: 4,
         builtAt: "2026-03-01T00:00:00.000Z",
         importedAt: NOW.toISOString(),
         mode: "bm25",
         calibrated: true,
         sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        expiresAt: null,
+        signature: null,
       },
     });
     expect(JSON.stringify(records.data.get("meta:5.x"))).not.toContain(
       "FIXTURE",
     );
-    expect(await store.info()).toEqual([result.ok && result.info]);
+    expect(await store.info()).toEqual([
+      {
+        ...(result.ok && result.info),
+        usability: {
+          trust: { status: "unsigned" },
+          validity: { state: "current", date: null },
+          usable: true,
+        },
+      },
+    ]);
     expect((await store.load("5.x"))?.chunks).toHaveLength(4);
     expect(await store.load("4.x")).toBeNull();
   });
 
   it("keeps the loaded pack when an import is refused, and names why", async () => {
-    const store = createKbPackStore({ records: memoryRecords() });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
     await store.replace(packText("101"));
     const tampered = packText("202").replace("layer 2 text", "layer 2 edited");
     expect(await store.replace(tampered)).toEqual({
@@ -131,7 +151,10 @@ describe("createKbPackStore", () => {
   });
 
   it("replaces a version's pack with the next, and removes it", async () => {
-    const store = createKbPackStore({ records: memoryRecords() });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
     await store.replace(packText("101"));
     await store.replace(packText("202"));
     expect((await store.load("5.x"))?.cards.map((card) => card.pageId)).toEqual(
@@ -143,7 +166,10 @@ describe("createKbPackStore", () => {
   });
 
   it("holds a 4.x, a 5.x and a common pack side by side, and removing 4.x leaves the others", async () => {
-    const store = createKbPackStore({ records: memoryRecords() });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
     await store.replace(packText("501"));
     await store.replace(packText("401", undefined, "4.x"));
     await store.replace(packText("601", undefined, "common"));
@@ -163,7 +189,11 @@ describe("createKbPackStore", () => {
 
   it("moves the one pack an earlier version stored to 5.x, once, and searches it as before", async () => {
     const records = memoryRecords();
-    const older = createKbPackStore({ records, now: () => NOW });
+    const older = createKbPackStore({
+      assess: unsignedAllowed,
+      records,
+      now: () => NOW,
+    });
     const imported = await older.replace(packText("101"));
     const {
       aptyVersion: _v,
@@ -175,9 +205,14 @@ describe("createKbPackStore", () => {
     records.data.set("meta", oldMeta);
     records.data.set("pack", pack);
 
-    const store = createKbPackStore({ records });
+    const store = createKbPackStore({ assess: unsignedAllowed, records });
     expect(await store.info()).toEqual([
-      { ...oldMeta, aptyVersion: "5.x", stubCount: 0 },
+      {
+        ...oldMeta,
+        aptyVersion: "5.x",
+        stubCount: 0,
+        usability: expect.objectContaining({ usable: true }),
+      },
     ]);
     expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("101");
     expect(records.data.has("meta")).toBe(false);
@@ -188,14 +223,14 @@ describe("createKbPackStore", () => {
     const records = memoryRecords();
     records.data.set("meta", { sha256: "0".repeat(64) });
     records.data.set("pack", JSON.parse(packText("101")));
-    const store = createKbPackStore({ records });
+    const store = createKbPackStore({ assess: unsignedAllowed, records });
     expect(await store.info()).toEqual([]);
     expect(records.data.size).toBe(0);
   });
 
   it("does not hand out a body that does not match its meta record", async () => {
     const records = memoryRecords();
-    const store = createKbPackStore({ records });
+    const store = createKbPackStore({ assess: unsignedAllowed, records });
     await store.replace(packText("101"));
     const meta = records.data.get("meta:5.x") as { sha256: string };
     records.data.set("meta:5.x", { ...meta, sha256: "0".repeat(64) });
@@ -210,7 +245,11 @@ describe("createKbPackStore", () => {
 
   it("F8: keeps the previous pack when the meta write of a replace fails", async () => {
     const records = memoryRecords();
-    const store = createKbPackStore({ records, now: () => NOW });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records,
+      now: () => NOW,
+    });
     await store.replace(packText("101"));
     records.failOn.add("meta:5.x");
     await expect(
@@ -221,7 +260,11 @@ describe("createKbPackStore", () => {
 
   it("F8: leaves the legacy pack loadable when its migration fails", async () => {
     const records = memoryRecords();
-    const store = createKbPackStore({ records, now: () => NOW });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records,
+      now: () => NOW,
+    });
     await store.replace(packText("101"));
     const oldMeta = records.data.get("meta:5.x");
     const body = records.data.get("pack:5.x");
@@ -229,7 +272,11 @@ describe("createKbPackStore", () => {
     records.data.set("meta", oldMeta);
     records.data.set("pack", body);
     records.failOn.add("pack");
-    const failing = createKbPackStore({ records, now: () => NOW });
+    const failing = createKbPackStore({
+      assess: unsignedAllowed,
+      records,
+      now: () => NOW,
+    });
     await expect(failing.load("5.x")).rejects.toThrow(/delete of pack/);
     expect(records.data.has("meta")).toBe(true);
     expect(records.data.has("pack")).toBe(true);
@@ -240,7 +287,11 @@ describe("createKbPackStore", () => {
 
   it("F8: removes a version's pack and meta together, or neither", async () => {
     const records = memoryRecords();
-    const store = createKbPackStore({ records, now: () => NOW });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records,
+      now: () => NOW,
+    });
     await store.replace(packText("101"));
     records.failOn.add("pack:5.x");
     await expect(store.remove("5.x")).rejects.toThrow();
@@ -257,7 +308,11 @@ describe("F8: the store on IndexedDB (fake-indexeddb)", () => {
   const unstorable = { invalid: () => undefined };
 
   it("imports, loads, replaces and removes a pack through one database", async () => {
-    const store = createKbPackStore({ records: records(), now: () => NOW });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: records(),
+      now: () => NOW,
+    });
     await store.replace(packText("101"));
     expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("101");
     await store.replace(packText("202", "2026-03-02T00:00:00.000Z"));
@@ -286,6 +341,7 @@ describe("F8: the store on IndexedDB (fake-indexeddb)", () => {
   it("moves the legacy pack in one transaction, or leaves it where it was", async () => {
     const db = records();
     const legacy = createKbPackStore({
+      assess: unsignedAllowed,
       records: memoryRecords(),
       now: () => NOW,
     });
@@ -309,7 +365,11 @@ describe("F8: the store on IndexedDB (fake-indexeddb)", () => {
     expect(await db.get("meta")).toEqual(meta);
     expect(await db.get("pack:5.x")).toBeUndefined();
 
-    const store = createKbPackStore({ records: db, now: () => NOW });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: db,
+      now: () => NOW,
+    });
     expect((await store.load("5.x"))?.cards[0]?.pageId).toBe("101");
     expect(await db.get("pack")).toBeUndefined();
     expect(await db.get("meta")).toBeUndefined();

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import {
   cardTitleCommentProblems,
   cardTitleQuoteLines,
+  DEMO_KEY_PATH,
   hasPackMarker,
+  hasPrivateKeyBlock,
   kbPackProblems,
   quotesCardTitle,
 } from "./check-no-kb-pack.mjs";
@@ -241,6 +244,40 @@ describe(".gitignore", () => {
     assert.ok(ignored("tooling/kb-pack/cards.json"));
     assert.ok(
       !ignored("packages/browser-runtime/src/storage/kb-pack-store.ts"),
+    );
+  });
+});
+
+describe("private keys (KB-RAG K23 P2)", () => {
+  const pem = () =>
+    generateKeyPairSync("ec", { namedCurve: "P-256" })
+      .privateKey.export({ type: "pkcs8", format: "pem" })
+      .toString();
+
+  it("fails on a planted private key file, anywhere and under any name", () => {
+    const root = tree({
+      "keys/kb-signing.pem": pem(),
+      "notes/backup.txt": `the key:\n${pem()}`,
+    });
+    assert.deepEqual(kbPackProblems(root), [
+      { path: "keys/kb-signing.pem", reason: "holds a PEM private key block" },
+      { path: "notes/backup.txt", reason: "holds a PEM private key block" },
+    ]);
+  });
+
+  it("passes the published demo key at its own path, and a redaction test's fake marker", () => {
+    const root = tree({
+      [DEMO_KEY_PATH]: pem(),
+      "src/redact.test.ts": `const x = "-----BEGIN PRIVATE KEY-----\\nMIIE\\n-----END PRIVATE KEY-----";`,
+    });
+    assert.deepEqual(kbPackProblems(root), []);
+    assert.equal(hasPrivateKeyBlock(pem()), true);
+  });
+
+  it("the repository's own tree passes", () => {
+    assert.deepEqual(
+      kbPackProblems(ROOT).filter((p) => p.reason.includes("private key")),
+      [],
     );
   });
 });

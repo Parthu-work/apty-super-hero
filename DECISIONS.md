@@ -74,3 +74,9 @@ document they concern.
 | [D-SEC5: the MCP bridge gets no KB text unless the policy allows it](docs/tasks/kb-rag/decisions.md#d-sec5-the-mcp-bridge-gets-no-kb-text-unless-the-policy-allows-it) | 2026-11-10 | Accepted |
 | [D-SEC6: a local record of every model request that carried KB text](docs/tasks/kb-rag/decisions.md#d-sec6-a-local-record-of-every-request-that-carried-kb-text) | 2026-11-10 | Accepted |
 | [D-SEC7: an organization gateway is the preferred AI destination](docs/tasks/kb-rag/decisions.md#d-sec7-an-organization-gateway-is-the-preferred-destination) | 2026-11-10 | Accepted |
+| [D-SEC8: a KB pack is used only when a trusted key signed it](docs/tasks/kb-rag/decisions.md#d-sec8-a-kb-pack-is-used-only-when-a-trusted-key-signed-it) | 2026-11-12 | Proposed with K23 |
+| [D-SEC9: trusted pack keys are built in or set by policy; a policy can revoke any](docs/tasks/kb-rag/decisions.md#d-sec9-trusted-keys-are-built-in-or-set-by-policy-and-a-policy-can-revoke-any) | 2026-11-12 | Proposed with K23 |
+| [D-SEC10: a demo pack is one signed with the demo key on a .invalid site](docs/tasks/kb-rag/decisions.md#d-sec10-a-demo-pack-is-one-signed-with-the-demo-key-on-a-invalid-site) | 2026-11-12 | Proposed with K23 |
+| [D-SEC11: every KB pack expires](docs/tasks/kb-rag/decisions.md#d-sec11-every-pack-expires) | 2026-11-12 | Proposed with K23 |
+| [D-CASE1: cases, bundles and feedback stay on the device](docs/tasks/kb-rag/decisions.md#d-case1-cases-bundles-and-feedback-stay-on-the-device) | 2026-11-12 | Accepted with K25 |
+| [D-CASE2: what a support bundle may and may not contain](docs/tasks/kb-rag/decisions.md#d-case2-what-a-support-bundle-may-and-may-not-contain) | 2026-11-12 | Accepted with K25 |

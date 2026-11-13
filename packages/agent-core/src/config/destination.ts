@@ -3,6 +3,8 @@
  * (KB-RAG K22, D-SEC4). Pure; `createAIProvider` and the outbound filters
  * call it on every request.
  */
+
+import type { KbTrustResult } from "../kb/pack-signature.js";
 import { AI_PROVIDERS, type AIProviderKey } from "./ai-providers.js";
 import { isDemoKbPack } from "./effective-settings.js";
 import { type OrgPolicyState, originOf } from "./org-policy.js";
@@ -121,16 +123,22 @@ export interface KbEgressDecision {
 
 /**
  * Whether KB card text may go with a request to `destination` (D-SEC1): only
- * when every loaded pack is a demo pack, or the policy sets `kbToModel` to
- * "approved" and allows the destination.
+ * when every pack in use is a verified demo pack (D-SEC10), or the policy
+ * sets `kbToModel` to "approved" and allows the destination. Only packs in
+ * use count (K23 P4): an unsigned, untrusted or expired pack answers
+ * nothing, so it sends nothing.
  */
 export function kbEgressAllowed(
   state: OrgPolicyState,
   destination: AiDestination,
-  packs: readonly { site: string }[],
+  packs: readonly {
+    site: string;
+    usability?: { usable: boolean; trust: KbTrustResult };
+  }[],
 ): KbEgressDecision {
-  if (packs.length === 0) return { allowed: false, reason: "no-pack" };
-  if (packs.every(isDemoKbPack)) return { allowed: true, reason: "demo" };
+  const used = packs.filter((pack) => pack.usability?.usable === true);
+  if (used.length === 0) return { allowed: false, reason: "no-pack" };
+  if (used.every(isDemoKbPack)) return { allowed: true, reason: "demo" };
   if (state.kind === "invalid") {
     return { allowed: false, reason: "invalid-policy" };
   }

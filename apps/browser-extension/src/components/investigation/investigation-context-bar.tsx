@@ -17,6 +17,7 @@ import { cn } from "@apty/ui/lib/utils";
 import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { navigationStore, useNavigation } from "../../state/navigation-store";
+import { CaseStrip, InlineCaseId } from "../cases/case-strip";
 import { SetupBadge } from "../connections/setup-badge";
 import { useReadiness } from "../connections/use-readiness";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
@@ -60,54 +61,57 @@ export function InvestigationContextBar() {
         ? CheckIcon
         : TriangleAlertIcon;
     return (
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
-        <StateIcon
-          aria-hidden="true"
-          className={cn(
-            "size-4 shrink-0",
-            target.checking
-              ? "text-muted-foreground"
-              : target.inspectable
-                ? "text-success"
-                : "text-warning",
-          )}
-        />
-        <span className="sr-only">
-          {t(
-            target.checking
-              ? "readiness.state.checking"
-              : target.inspectable
-                ? "shell.canInspect"
-                : "shell.cantInspect",
-          )}
-        </span>
-        <span className="min-w-0 truncate text-sm font-medium text-foreground">
-          {target.hostname ??
-            (target.checking
-              ? ""
-              : t(target.tabId === null ? "shell.noPage" : "shell.thisPage"))}
-        </span>
-        {target.title && (
-          <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
-            {target.title}
+      <>
+        <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
+          <StateIcon
+            aria-hidden="true"
+            className={cn(
+              "size-4 shrink-0",
+              target.checking
+                ? "text-muted-foreground"
+                : target.inspectable
+                  ? "text-success"
+                  : "text-warning",
+            )}
+          />
+          <span className="sr-only">
+            {t(
+              target.checking
+                ? "readiness.state.checking"
+                : target.inspectable
+                  ? "shell.canInspect"
+                  : "shell.cantInspect",
+            )}
           </span>
-        )}
-        {setupCount > 0 && page !== "connections" && (
-          <span className="ml-auto shrink-0">
-            <SetupBadge
-              count={setupCount}
-              onClick={() => navigationStore.openPage("connections")}
-            />
+          <span className="min-w-0 truncate text-sm font-medium text-foreground">
+            {target.hostname ??
+              (target.checking
+                ? ""
+                : t(target.tabId === null ? "shell.noPage" : "shell.thisPage"))}
           </span>
-        )}
-      </div>
+          {target.title && (
+            <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
+              {target.title}
+            </span>
+          )}
+          {setupCount > 0 && page !== "connections" && (
+            <span className="ml-auto shrink-0">
+              <SetupBadge
+                count={setupCount}
+                onClick={() => navigationStore.openPage("connections")}
+              />
+            </span>
+          )}
+        </div>
+        <CaseStrip />
+      </>
     );
   }
 
   const meta = describeInvestigationStatus(investigation.status, t);
 
   return (
-    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-200 motion-reduce:animate-none">
+    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2 duration-200 motion-reduce:animate-none">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-1.5">
@@ -121,24 +125,32 @@ export function InvestigationContextBar() {
             />
             <span
               className={cn(
-                "rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
+                "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
                 toneBadgeClass(meta.tone),
               )}
             >
               {t("investigation.live")}
             </span>
+            {target.hostname && (
+              <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                {target.hostname}
+              </p>
+            )}
           </div>
-          {target.hostname && (
-            <p className="truncate text-sm font-medium text-foreground">
-              {target.hostname}
-            </p>
-          )}
           <p className="line-clamp-2 text-xs text-muted-foreground">
             {investigation.userProblem}
           </p>
-          <p className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
-            {meta.label}
-          </p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p
+              className={cn(
+                "shrink-0 text-xs font-medium",
+                toneTextClass(meta.tone),
+              )}
+            >
+              {meta.label}
+            </p>
+            <InlineCaseId />
+          </div>
         </div>
         <Button
           size="sm"

@@ -3,7 +3,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const localKbMatches = vi.hoisted(() => vi.fn());
-vi.mock("@apty/browser-runtime/kb/kb-matches", () => ({ localKbMatches }));
+vi.mock("@apty/browser-runtime/kb/kb-matches", () => ({
+  localKbMatches,
+  kbAnswerOf: (outcome: { kind: string; result?: unknown }) =>
+    outcome.kind === "answer" ? outcome.result : undefined,
+}));
 
 import { forgetKbVersions } from "@apty/browser-runtime/kb/kb-version";
 import { AptyToolDisplay } from "./apty-tool-display";
@@ -79,9 +83,13 @@ describe("KbMatchesCard", () => {
 
   it("searches again for the version the user picks", async () => {
     localKbMatches.mockResolvedValue({
-      status: "ok",
-      mixedVersions: false,
-      results: [hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x")],
+      kind: "answer",
+      packs: [],
+      result: {
+        status: "ok",
+        mixedVersions: false,
+        results: [hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x")],
+      },
     });
     render(
       <AptyToolDisplay
@@ -211,5 +219,60 @@ describe("KbMatchesCard", () => {
       ).toBeNull();
       unmount();
     }
+  });
+});
+
+describe("KB matches card for a pack that is not used (KB-RAG K23 P5)", () => {
+  it("shows one line with the reason and the date, and no card", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "pack_unusable",
+          unusable: {
+            reason: "expired",
+            aptyVersion: "4.x",
+            date: "2027-01-10T00:00:00.000Z",
+          },
+          results: [],
+        })}
+      />,
+    );
+    expect(screen.getByTestId("kb-pack-unusable")).toHaveTextContent(
+      "The 4.x pack expired on 2027-01-10. Ask the KB owner for a new one.",
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("KB matches card for a feature not in this version (KB-RAG K25, A4)", () => {
+  it("says it does not exist in that version, with the reason and the card's link, and no other card", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "not_in_version",
+          absent: {
+            cite: "kb://909",
+            title: "FIXTURE drop-off funnel chart",
+            site: "fixture.atlassian.invalid",
+            space: "FX",
+            aptyVersion: "4.x",
+            absentReason: "FIXTURE: the funnel chart arrived with 5.x.",
+          },
+          results: [],
+        })}
+      />,
+    );
+    const block = screen.getByTestId("kb-not-in-version");
+    expect(block).toHaveTextContent("This does not exist in Apty 4.x.");
+    expect(block).toHaveTextContent(
+      "FIXTURE: the funnel chart arrived with 5.x.",
+    );
+    expect(
+      screen.getByRole("link", { name: /FIXTURE drop-off funnel chart/ }),
+    ).toHaveAttribute(
+      "href",
+      "https://fixture.atlassian.invalid/wiki/spaces/FX/pages/909",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 });

@@ -16,6 +16,7 @@ packages/*/coverage/
 # misc
 .DS_Store
 *.pem
+!tooling/scripts/kb/demo-signing-key.pem
 
 # debug
 npm-debug.log*

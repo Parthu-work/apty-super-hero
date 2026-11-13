@@ -639,3 +639,27 @@ describe("CheckResultCard", () => {
     expect(screen.getByText("Cause found")).toBeInTheDocument();
   });
 });
+
+describe("the verdict's support step (KB-RAG K25, L2)", () => {
+  it("is a Prepare support bundle button, with the old sentence as its explanation", () => {
+    const result = check("Take a tour");
+    const withSupport = {
+      ...result,
+      verdict: { ...result.verdict, nextCheck: "sendSupport" as const },
+    };
+    render(<CheckResultCard tool={tool(withSupport)} />);
+    expect(
+      screen.getByRole("button", { name: "Prepare support bundle" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Send support the Apty version/),
+    ).toBeInTheDocument();
+  });
+
+  it("is not offered for any other next step", () => {
+    render(<CheckResultCard tool={tool(check("Take a tour"))} />);
+    expect(
+      screen.queryByRole("button", { name: "Prepare support bundle" }),
+    ).toBeNull();
+  });
+});

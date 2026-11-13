@@ -88,7 +88,7 @@ pnpm kb:demo-pack --version 4.x
 pnpm kb:demo-pack --version 5.x
 ```
 
-Import them: right-click the toolbar icon → **Options** → **Settings** → **General** → **Knowledge base** → **Import pack…**, once for `apty-kb-DEMO-4.x.kbpack.json` and once for `apty-kb-DEMO-5.x.kbpack.json`. Two rows appear, "Apty 4.x" and "Apty 5.x". Options → **Connection** → **Preflight** → **Run all checks** shows a "Knowledge base (4.x)" and a "Knowledge base (5.x)" row, both passing.
+Import them: right-click the toolbar icon → **Options** → **Settings** → **General** → **Knowledge base** → **Import pack…**, once for `apty-kb-DEMO-4.x.kbpack.json` and once for `apty-kb-DEMO-5.x.kbpack.json`. Two rows appear, "Apty 4.x" and "Apty 5.x", each "Signed by Apty demo key" with its expiry date (demo packs are signed with the published demo key, which the extension trusts only for demo `.invalid` sites; a real pack must be signed by the KB owner's key, KB-RAG K23). A question no card covers says why in one line ("No KB card matched (coverage …)"), and each reply has "Why this answer". The KB owner checks a pack with `pnpm -s kb:eval --self-check --pack <file>`. A debugging conversation gets a case id (Settings → General → Cases), a **Prepare support bundle** button on the verdict, and **Wrong card** on each KB card; Settings → General → Feedback exports them for the KB owner. Nothing of this leaves the browser unless you copy or download it. Options → **Connection** → **Preflight** → **Run all checks** shows a "Knowledge base (4.x)" and a "Knowledge base (5.x)" row, both passing.
 
 Open any web page, open the side panel and ask, with or without an AI key:
 

@@ -819,3 +819,24 @@ describe("ChatAdapter", () => {
     });
   });
 });
+
+describe("ChatAdapter turn_decision (KB-RAG K25, A2)", () => {
+  it("keeps the decision on the turn's assistant message, before its text", () => {
+    const adapter = new ChatAdapter();
+    adapter.addUserMessage("the banner is gone");
+    const decision = {
+      route: "model" as const,
+      version: "unknown" as const,
+      versionSource: "unknown" as const,
+      packs: [],
+      kb: { kind: "no_pack" as const, version: "unknown" as const },
+    };
+    adapter.processEvent({ type: "turn_decision", decision });
+    adapter.processEvent({ type: "content_delta", delta: "From the model" });
+    const [, assistant] = adapter.getMessages();
+    expect(assistant?.metadata?.decision).toEqual(decision);
+    expect(assistant?.parts).toEqual([
+      { type: "text", text: "From the model" },
+    ]);
+  });
+});

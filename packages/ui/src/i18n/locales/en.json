@@ -22,7 +22,9 @@
     "edit": "Edit",
     "view": "View",
     "refresh": "Refresh",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "open": "Open",
+    "actions": "Actions"
   },
   "settings": {
     "title": "Settings",
@@ -169,8 +171,32 @@
         "wrongSchemaVersion": "This KB pack uses a schema version this Agent does not read. Update the Agent or ask for a pack built for it.",
         "invalid": "This KB pack is malformed. Ask the KB owner to build it again.",
         "checksumMismatch": "This KB pack's checksum does not match its contents: it was changed or cut short. Download it again.",
-        "readFailed": "The file could not be read. Try again."
-      }
+        "readFailed": "The file could not be read. Try again.",
+        "notTrusted": "This pack is not signed by a key this extension trusts.",
+        "revokedKey": "This pack is signed by a key your organization revoked.",
+        "badSignature": "This pack's signature does not match its content.",
+        "expired": "This pack expired on {{date}}.",
+        "notYetValid": "This pack was built in the future ({{date}}); check this device's clock."
+      },
+      "signature": "Signature",
+      "signedBy": "Signed by {{name}} (key {{keyId}})",
+      "notSigned": "Not signed",
+      "signedByUnknown": "Signed by key {{keyId}}, which this extension does not trust",
+      "expires": "Expires",
+      "noExpiry": "No expiry date (built before signing)",
+      "stateLabel": "State",
+      "state": {
+        "current": "Current",
+        "expiring": "Expires in {{days}} days",
+        "expired": "Expired on {{date}}",
+        "notYetValid": "Built in the future ({{date}})",
+        "unsigned": "Not signed",
+        "untrusted": "Signed by a key this extension does not trust",
+        "revoked": "Signed by a revoked key"
+      },
+      "notUsed": "This pack is not used. Ask the KB owner for a new pack.",
+      "expiringSoon": "This pack expires in {{days}} days. Ask the KB owner for a new one.",
+      "absentCards": "{{absent}} not in this version"
     }
   },
   "theme": {
@@ -1178,7 +1204,16 @@
         "notLoaded": "Not loaded. Checks link to the KB cards without their text.",
         "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
         "stale": "Loaded: {{count}} cards from space {{space}}, built {{date}}, {{days}} days ago.",
-        "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base."
+        "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base.",
+        "expiring": "Loaded: {{count}} cards from space {{space}}, built {{date}}; it expires in {{days}} days.",
+        "unusable": {
+          "expired": "Not used: the {{version}} pack expired on {{until}}.",
+          "not_yet_valid": "Not used: the {{version}} pack was built in the future ({{until}}); check this device's clock.",
+          "unsigned": "Not used: the {{version}} pack is not signed.",
+          "untrusted": "Not used: the {{version}} pack is not signed by a key this extension trusts.",
+          "revoked": "Not used: the {{version}} pack is signed by a revoked key."
+        },
+        "unusableFix": "Ask the KB owner for a new, signed pack and import it in Settings → General → Knowledge base."
       },
       "orgPolicy": {
         "label": "Organization policy",
@@ -2543,7 +2578,10 @@
     "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
     "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card.",
     "notSent": "Shown here only; not sent to the AI model.",
-    "sentTo": "Also sent to the AI model at {{destination}}."
+    "sentTo": "Also sent to the AI model at {{destination}}.",
+    "askForNewPack": "Ask the KB owner for a new one.",
+    "notInVersion": "This does not exist in Apty {{version}}.",
+    "otherVersions": "Cards for other Apty versions:"
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",
@@ -2568,5 +2606,120 @@
     "export": "Export (JSON)",
     "clear": "Clear",
     "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
+  },
+  "turnDecision": {
+    "why": "Why this answer",
+    "notCovered": "No KB card matched (coverage {{coverage}}, needs {{min}}).",
+    "noStrongTerm": "No KB card matched: only common words matched.",
+    "unknownSetting": "No KB card names that setting.",
+    "noPack": "No {{version}} pack is loaded.",
+    "noPackAny": "No KB pack is loaded.",
+    "error": "The KB could not be searched ({{code}}).",
+    "askedModel": "Asked the AI model.",
+    "noModel": "Connect an AI provider to ask the AI model.",
+    "routeLine": "Answered by: {{route}}",
+    "route": {
+      "check": "the check pack {{pack}}",
+      "kb": "the KB cards",
+      "file_fetch": "a file fetch from the Apty Client",
+      "model": "the AI model"
+    },
+    "versionLine": "Apty version: {{version}} ({{source}})",
+    "source": {
+      "files": "from the Apty Client's files",
+      "user": "your choice",
+      "unknown": "not known"
+    },
+    "packsLine": "Packs searched: {{packs}}",
+    "packsNone": "Packs searched: none",
+    "kbLine": "KB: {{outcome}}",
+    "outcome": {
+      "answer": "{{status}}, cards {{pageIds}}",
+      "notCovered": "not covered ({{reason}}), coverage {{coverage}}, needs {{min}}, closest card {{top}}",
+      "noPack": "no pack for {{version}}",
+      "error": "could not be searched ({{code}})",
+      "howTo": "a how-to question, left to the AI model",
+      "nonEnglish": "not in English, left to the AI model",
+      "packUnusable": "pack for {{version}} not used ({{reason}})"
+    },
+    "packUnusable": {
+      "expired": "The {{version}} pack expired on {{date}}.",
+      "not_yet_valid": "The {{version}} pack was built in the future ({{date}}).",
+      "unsigned": "The {{version}} pack is not signed.",
+      "untrusted": "The {{version}} pack is not signed by a key this extension trusts.",
+      "revoked": "The {{version}} pack is signed by a revoked key."
+    }
+  },
+  "cases": {
+    "label": "Case",
+    "copyId": "Copy case id {{id}}",
+    "continue": "Continue {{id}}",
+    "continueText": "A case on this site is still open from the last 24 hours: {{id}}.",
+    "outcome": {
+      "open": "Open",
+      "resolved": "Resolved",
+      "escalated": "Escalated",
+      "not_covered": "Not covered",
+      "abandoned": "Abandoned"
+    },
+    "title": "Cases",
+    "description": "One case per debugging conversation: its id, symptom, Apty version, checks, finding, KB cards shown (ids only) and how it ended. Kept on this device only, for {{days}} days; nothing is sent anywhere.",
+    "empty": "No cases yet.",
+    "open": "Open {{id}}",
+    "delete": "Delete {{id}}",
+    "deleteAll": "Delete all cases",
+    "deleteAllConfirm": "Delete every case on this device?",
+    "columns": {
+      "id": "Case",
+      "date": "Date",
+      "version": "Version",
+      "symptom": "Symptom",
+      "outcome": "Outcome"
+    },
+    "details": {
+      "checks": "Checks",
+      "finding": "Finding",
+      "kbShown": "KB cards shown",
+      "decisions": "Turns",
+      "none": "None",
+      "close": "Close details"
+    }
+  },
+  "supportBundle": {
+    "prepare": "Prepare support bundle",
+    "label": "Support bundle",
+    "description": "What Apty support needs for this case, with Strict redaction: KB cards as ids and links only, and no customer names, user ids, emails or tokens. Review it, then copy or download it; the extension sends nothing.",
+    "missing": "Add before sending: {{fields}}.",
+    "noneMissing": "Nothing is missing.",
+    "copyText": "Copy as text",
+    "noCase": "There is no case for this conversation yet."
+  },
+  "feedback": {
+    "wrongCard": "Wrong card",
+    "wrongCardFor": "Wrong card: {{pageId}}",
+    "rightCard": "Which card was right? (page id, optional)",
+    "save": "Save",
+    "recorded": "Recorded. Thank you.",
+    "closeCase": "Close case",
+    "outcomeLabel": "How did it end?",
+    "findingRight": "Was the finding right?",
+    "answer": {
+      "yes": "Yes",
+      "partly": "Partly",
+      "no": "No"
+    },
+    "confirmClose": "Close",
+    "title": "Feedback",
+    "description": "Wrong-card marks and how cases ended, for the KB owner: ids, numbers and codes; your questions only if you include them. Kept on this device; nothing is sent.",
+    "count": "{{count}} entries",
+    "includeQuestion": "Include my question",
+    "exportCsv": "Export tracking sheet (CSV)",
+    "exportQuestions": "Export questions for kb:eval",
+    "clear": "Clear",
+    "clearLocked": "Your organization's policy is set: the feedback log cannot be cleared here.",
+    "csvLabel": "Tracking sheet",
+    "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note. Review it, then copy or download it.",
+    "questionsLabel": "Questions for kb:eval",
+    "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it."
   }
 }

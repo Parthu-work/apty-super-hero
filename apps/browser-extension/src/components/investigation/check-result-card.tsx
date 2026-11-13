@@ -26,7 +26,7 @@ import type {
   DaptyRow,
   DaptySummary,
 } from "@apty/browser-runtime/apty/diagnosis/types";
-import { DefaultToolDisplay } from "@apty/ui/components/chatbot";
+import { ChatContext, DefaultToolDisplay } from "@apty/ui/components/chatbot";
 import { StatusBadge, type StatusTone } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import { CopyButton } from "@apty/ui/components/ui/copy-button";
@@ -42,7 +42,9 @@ import {
   InfoIcon,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useContext, useState } from "react";
+import { caseRecorder } from "../../services/cases";
+import { SupportBundleButton } from "../cases/support-bundle-button";
 import { DaptyEvidenceExport } from "./dapty-evidence-export";
 import { KbCardExcerpt, useKbCardUrl } from "./kb-card-excerpt";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
@@ -823,6 +825,8 @@ function DaptySection({
 }
 
 export function CheckResultCard(props: ToolDisplaySlotProps) {
+  // Outside the chat (a test, a stored card) there is no session and no case.
+  const sessionId = useContext(ChatContext)?.sessionId ?? null;
   const t = useCheckText();
   const result = props.tool.output;
   if (!isDiagnosisResult(result)) return <DefaultToolDisplay {...props} />;
@@ -935,6 +939,16 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           <span className="font-medium">{t("checkPack.nextCheck")}: </span>
           {t(`checkPack.next.${verdict.nextCheck}`)}
         </p>
+      )}
+      {verdict.nextCheck === "sendSupport" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SupportBundleButton
+            result={result}
+            loadRecord={async () =>
+              sessionId ? caseRecorder().current(sessionId) : undefined
+            }
+          />
+        </div>
       )}
 
       <div>

@@ -10,12 +10,16 @@ import type {
   KbTabVersion,
   KbToolResult,
 } from "@apty/browser-runtime/kb/kb-index";
-import { localKbMatches } from "@apty/browser-runtime/kb/kb-matches";
+import {
+  kbAnswerOf,
+  localKbMatches,
+} from "@apty/browser-runtime/kb/kb-matches";
 import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { useTranslation } from "@apty/ui/i18n/context";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
+import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbEgressNote } from "./kb-egress-note";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
@@ -35,7 +39,11 @@ export function isKbMatches(output: unknown): output is KbToolResult {
   if (
     typeof result === "object" &&
     result !== null &&
-    (isKbStub(result) || result.status === "non_english")
+    (isKbStub(result) ||
+      result.status === "non_english" ||
+      (result.status === "pack_unusable" && result.unusable !== undefined) ||
+      (result.status === "not_in_version" &&
+        STUB_CITE.test(String(result.absent?.cite))))
   ) {
     return true;
   }
@@ -74,7 +82,7 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
       host={host}
       onChange={(version) => {
         localKbMatches(query, undefined, { version, modelAvailable: true })
-          .then((result) => setRerun({ version, result }))
+          .then((outcome) => setRerun({ version, result: kbAnswerOf(outcome) }))
           .catch(() => setRerun({ version, result: undefined }));
       }}
     />
@@ -96,6 +104,22 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
     );
   }
   const { stub } = output;
+  if (output.status === "pack_unusable" && output.unusable) {
+    const { reason, aptyVersion, date } = output.unusable;
+    return (
+      <section
+        aria-label={title}
+        className="rounded-lg border border-border bg-card p-3"
+      >
+        <p className="text-sm text-foreground" data-testid="kb-pack-unusable">
+          {`${t(`turnDecision.packUnusable.${reason}`, {
+            version: aptyVersion,
+            date: date?.slice(0, 10) ?? "",
+          })} ${t("kbMatches.askForNewPack")}`}
+        </p>
+      </section>
+    );
+  }
   if (output.status === "non_english") {
     return (
       <section
@@ -132,12 +156,40 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
       </section>
     );
   }
+  const absent = output.status === "not_in_version" ? output.absent : undefined;
   return (
     <section
       aria-label={title}
       className="space-y-2 rounded-lg border border-border bg-card p-3"
     >
       <h3 className="text-sm font-medium text-foreground">{title}</h3>
+      {absent && (
+        <div className="space-y-1" data-testid="kb-not-in-version">
+          <p className="text-sm font-medium text-foreground">
+            {t("kbMatches.notInVersion", { version: absent.aptyVersion })}
+          </p>
+          {absent.absentReason && (
+            <p className="text-sm text-foreground">{absent.absentReason}</p>
+          )}
+          <a
+            href={kbCardUrl(STUB_CITE.exec(absent.cite)?.[1] ?? "", {
+              site: absent.site,
+              space: absent.space,
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={LINK_CLASS}
+          >
+            {absent.title}
+            <ExternalLinkIcon aria-hidden="true" className="size-3" />
+          </a>
+          {output.results.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("kbMatches.otherVersions")}
+            </p>
+          )}
+        </div>
+      )}
       <ul className="space-y-2">
         {output.results.map((hit) => {
           const [, pageId = "", layer = ""] = CITE.exec(hit.cite) ?? [];
@@ -179,6 +231,16 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
                   {hit.verifiedOn}
                 </p>
               )}
+              <WrongCardButton
+                pageId={pageId}
+                layer={Number(layer)}
+                aptyVersion={hit.aptyVersion}
+                question={query}
+                otherCards={output.results.map((other) => ({
+                  pageId: CITE.exec(other.cite)?.[1] ?? "",
+                  title: other.title,
+                }))}
+              />
             </li>
           );
         })}

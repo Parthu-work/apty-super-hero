@@ -368,5 +368,11 @@
     "category": "names",
     "q": "Windows update fails on my laptop",
     "expectedPageIds": []
+  },
+  {
+    "id": "d4-a1",
+    "category": "not-in-version",
+    "q": "where is the drop-off funnel chart for walkthroughs",
+    "expectedPageIds": ["4014"]
   }
 ]

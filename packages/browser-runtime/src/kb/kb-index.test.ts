@@ -7,11 +7,15 @@ import {
   fixturePackText,
   fixtureV2PackText,
   memoryRecords,
+  unsignedAllowed,
   versionPackText,
 } from "./kb-test-utils.js";
 
 async function source(text = fixturePackText(FIXTURE_CARDS)) {
-  const store = createKbPackStore({ records: memoryRecords() });
+  const store = createKbPackStore({
+    assess: unsignedAllowed,
+    records: memoryRecords(),
+  });
   await store.replace(text);
   return { store, source: createKbIndexSource(store) };
 }
@@ -150,7 +154,10 @@ describe("createKbIndexSource per version (K12)", () => {
     pageId,
   });
   async function threePacks() {
-    const store = createKbPackStore({ records: memoryRecords() });
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
     await store.replace(versionPackText("4.x", [banner("401")], "A4X"));
     await store.replace(
       versionPackText(
