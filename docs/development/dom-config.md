@@ -534,12 +534,15 @@ changed; a new one is returned.
 
 ### Known limits
 
-- In deep mode the nav anchors inside a `<nav>` are also click candidates,
-  as in the audit. A click on one starts a navigation that the crawl does
-  not wait for, so the fingerprint taken after it depends on timing: the
-  page it leads to can appear again as `<page> [state-N]`, and its fresh
-  visit usually comes back `state-mismatch` (kept out of the rules). It
-  also makes a deep crawl several times slower than a safe one.
+- In deep mode a control that is itself a discovered `<a href>` link (a
+  nav anchor) is not clicked (KB-RAG K26 C2, `skipLinkClicks`, DOM Config
+  only): the link is visited by URL, which waits for the page like any
+  fresh visit. A click's navigation is not waited for, so before K26 the
+  page it led to could come back as `<page> [state-N]` with a
+  `state-mismatch` revisit. Unit-tested (`crawl.test.ts`); on the E2E
+  application shapes such duplicates were already dropped by the page
+  identity check, and the deep-mode E2E now asserts that none appears.
+  Audit Application still clicks nav anchors in deep mode.
 - Since KB-RAG K26 (C1, D-DOM1) the held capture is also kept on the
   device; see "Kept on the device" below.
 

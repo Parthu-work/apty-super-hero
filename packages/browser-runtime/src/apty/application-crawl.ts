@@ -387,6 +387,14 @@ export interface CrawlOptions<V> extends ApplicationAuditLimits {
   ignoredRoots?: readonly string[];
   /** Checked between states; the crawl stops and returns what it has. */
   signal?: AbortSignal;
+  /**
+   * In deep mode, do not click a control that is itself a discovered
+   * `<a href>` link (a nav anchor): the link is visited by URL, which waits
+   * for the page like any fresh visit, while a click's navigation is not
+   * waited for (KB-RAG K26 C2). Off by default, so Audit Application is
+   * unchanged.
+   */
+  skipLinkClicks?: boolean;
   /** The per-state work, called once the live tab shows a new state and the DOM has settled. */
   visit: (context: CrawlVisitContext) => Promise<CrawlVisit<V>>;
 }
@@ -658,10 +666,20 @@ export async function crawlApplication<V>(
       graph.getCurrentStateId() === currentStateId
         ? await collectSafeNavigationCandidates(tabId).catch(() => [])
         : [];
+    const linkPaths = new Set(
+      links.map((link) => `${link.frameId}:${link.domPath}`),
+    );
     for (const candidate of candidates) {
       if (queue.length >= limits.maxQueueSize) break;
       const key = `${currentStateId}:${candidate.frameId}:${candidate.domPath}`;
       if (skippedCandidates.has(key)) continue;
+      if (
+        options.skipLinkClicks &&
+        linkPaths.has(`${candidate.frameId}:${candidate.domPath}`)
+      ) {
+        skippedCandidates.add(key);
+        continue;
+      }
 
       if (!isSafeNavigationCandidate(candidate)) {
         if (skippedCandidates.size < limits.maxSkipRows) {

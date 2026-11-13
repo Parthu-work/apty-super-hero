@@ -642,4 +642,5 @@ partial: what is left, and the command that finishes it, is in each row.
 | E0 to E5 | Not started |
 | T0 to T5 | Not started |
 | C1 Keep a capture across restarts | Done: `capture-keeper.ts` (`apty-dom-config-db`), `domConfigRetentionDays`, Resume and Discard capture, Clear results deletes it; D12 updated. Tested in unit and component tests; no browser-restart E2E yet (partial: add one that relaunches the same profile) |
-| C2 to C5 | Not started |
+| C2 Deep crawl and nav clicks | Done, by the second option: DOM Config's deep crawl does not click a control that is itself a discovered link (it is visited by URL instead), so no `[state-N]` duplicate or state-mismatch revisit comes from a nav click. Unit test fails without the change; the deep-mode E2E asserts none appears (on those shapes the page identity check already dropped them). Audit Application unchanged |
+| C3 to C5 | Not started |
