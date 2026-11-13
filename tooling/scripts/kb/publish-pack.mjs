@@ -4,9 +4,10 @@
  * D-DEL4) with the publish token, a bearer token from the environment
  * (`KB_PUBLISH_TOKEN`) that is never printed.
  *
- *   download --url <url> --out <file>: the last published pack, for --diff
- *     and the card-count gate. A 404 (the first run) writes nothing and
- *     succeeds.
+ *   download --url <url> --out <file> --kind pack|names: the last published
+ *     pack (for --diff and the card-count gate) or the customer-name list.
+ *     The body is written only if it is that kind of file (checkedDownload).
+ *     A 404 (the first run) writes nothing and succeeds.
  *   upload --url <url> --pack <file>: PUT the pack, then GET it back and
  *     compare its sha256 with the file's. With KB_PUBLISH_DRY_RUN=1 nothing
  *     is sent.
@@ -21,6 +22,33 @@ import { fileURLToPath } from "node:url";
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const TIMEOUT_MS = 120_000;
+/** The pack limit (KB_PACK_LIMITS.maxBytes) and a generous cap for a name list. */
+const MAX_BYTES = { pack: 25 * 1024 * 1024, names: 1024 * 1024 };
+
+/**
+ * The downloaded body as text, only if it is what the caller asked for: a
+ * pack is a JSON object of kind "apty-kb-pack", a name list is UTF-8 text;
+ * both within their size cap. Anything else is not written.
+ */
+export function checkedDownload(bytes, kind) {
+  if (bytes.length > MAX_BYTES[kind]) return { error: "too_large" };
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return { error: "not_utf8" };
+  }
+  if (kind === "names") return { text };
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed?.kind !== "apty-kb-pack" || Array.isArray(parsed)) {
+      return { error: "not_a_pack" };
+    }
+  } catch {
+    return { error: "not_json" };
+  }
+  return { text };
+}
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -28,7 +56,7 @@ function parseArgs(argv) {
   for (let i = 0; i < rest.length; i += 2) {
     const flag = rest[i];
     if (
-      !["--url", "--out", "--pack"].includes(flag) ||
+      !["--url", "--out", "--pack", "--kind"].includes(flag) ||
       rest[i + 1] === undefined
     ) {
       throw new Error(`Unknown or incomplete option: ${flag}`);
@@ -94,9 +122,14 @@ export async function run({
         return 1;
       }
       const bytes = Buffer.from(await response.arrayBuffer());
-      writeFileSync(resolve(cwd, options.out), bytes, { mode: 0o600 });
+      const checked = checkedDownload(bytes, options.kind);
+      if ("error" in checked) {
+        err(`The file from ${host} was not written: ${checked.error}.`);
+        return 1;
+      }
+      writeFileSync(resolve(cwd, options.out), checked.text, { mode: 0o600 });
       out(
-        `Downloaded the published pack from ${host} (sha256 ${sha256(bytes).slice(0, 12)}).`,
+        `Downloaded the ${options.kind === "pack" ? "published pack" : "name list"} from ${host} (sha256 ${sha256(bytes).slice(0, 12)}).`,
       );
       return 0;
     }
