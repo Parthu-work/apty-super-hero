@@ -84,6 +84,8 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   downgrades; the background runs it at start-up, on its alarm and on Check
   now. Options, Preflight ("KB packs up to date") and the chat's KB line
   show where a delivered pack comes from and why its last update failed.
+  A nightly job (`kb-packs.yml`) builds, gates, signs and publishes the
+  packs; its first real run waits on IT's host and secrets.
 - What the first real packs asked for, and cases (KB-RAG K25,
   [`FIXES-K25.md`](tasks/kb-rag/FIXES-K25.md)): Anthropic works with every
   tool offered; every KB decision is visible (a line above the reply, "Why

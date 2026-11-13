@@ -1,0 +1,15 @@
+{
+  "$comment": "Where each version's KB cards live (KB-RAG K26, D5). Read by .github/workflows/kb-packs.yml and the docs; the one place these ids are kept.",
+  "4.x": {
+    "site": "apty.atlassian.net",
+    "space": "A4PKH",
+    "root": "1509720081",
+    "args": []
+  },
+  "5.x": {
+    "site": "apty.atlassian.net",
+    "space": "JA",
+    "root": "1496711169",
+    "args": ["--version", "5.x"]
+  }
+}

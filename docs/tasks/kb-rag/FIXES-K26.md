@@ -636,7 +636,7 @@ partial: what is left, and the command that finishes it, is in each row.
 | D2 The fetcher | Done. A 304 is recorded as `not_modified` (the code list's name for it); import refusals keep their existing codes (`untrusted_key`, `revoked_key`, …). Check now skips the backoff |
 | D3 When it runs | Done. The policy watch (`watchOrgPolicy`, which listens to `storage.managed` changes) recreates the alarm |
 | D4 What the SE sees | Done. "Last update" is when the stored pack was last replaced (its import time). Import pack… stays while any version is still importable; a hand import of a delivered version is refused (`policy_managed`) |
-| D5 The scheduled build job | Not started |
+| D5 The scheduled build job | Done, two steps partial. **actionlint** could not be run here (downloading its binary was not allowed in this environment); the YAML parses, every `run:` passes `bash -n` and every action is pinned to a SHA. To finish: `actionlint .github/workflows/kb-packs.yml`. **First real run**: partial until IT sets the host, secrets and variables (KB_PACK_DELIVERY.md). Deviations, both stricter: the self-check runs inside `publish-gate.mjs` (the same `selfCheck` as `kb:eval --self-check`); a failed run's pack is kept as an artifact only when the repository is private, because this repository is public and its artifacts are visible to any GitHub user; the job never prints the pack host |
 | D6 Key and hosting setup (runbook) | Not started |
 | D7 Tests | Not started |
 | E0 to E5 | Not started |

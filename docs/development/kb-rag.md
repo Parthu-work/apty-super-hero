@@ -350,6 +350,13 @@ mkdir -p ~/apty-kb
 export CONFLUENCE_EMAIL=<service-account-email> CONFLUENCE_TOKEN=<classic-read-only-token>
 ```
 
+The space and root of each version are kept in one place,
+[`tooling/scripts/kb/sources.json`](../../tooling/scripts/kb/sources.json),
+which the nightly job (`.github/workflows/kb-packs.yml`, K26) also reads.
+The nightly job builds, gates, signs with the CI key and publishes both packs
+to the pack host.
+By hand:
+
 ```bash
 pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
 ```
