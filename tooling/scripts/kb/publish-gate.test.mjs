@@ -13,7 +13,7 @@ import { buildPack, signPack } from "./build-kb-pack.mjs";
 import { calibrateCoverage, loadAgentCore, readQuestions } from "./eval-kb.mjs";
 import { SYNTHETIC_PAGES } from "./fixtures/synthetic-cards.mjs";
 import { cardDrop, gate, qualityMisses, run } from "./publish-gate.mjs";
-import { run as transfer } from "./publish-pack.mjs";
+import { checkedDownload, run as transfer } from "./publish-pack.mjs";
 
 const QUESTIONS = new URL(
   "./fixtures/synthetic-questions.json",
@@ -268,7 +268,7 @@ describe("publish-pack", () => {
     const out = join(dir, "previous.json");
     assert.equal(
       await transfer({
-        argv: ["download", "--url", url, "--out", out],
+        argv: ["download", "--url", url, "--out", out, "--kind", "pack"],
         env,
         fetchImpl: fake.fetchImpl,
         out: (line) => lines.push(line),
@@ -296,7 +296,7 @@ describe("publish-pack", () => {
     );
     const printed = lines.join("\n");
     assert.match(printed, /Published to the pack host: HTTP 201/);
-    assert.ok(!printed.includes("packs.example.com"));
+    assert.doesNotMatch(printed, /packs\.example\.com/);
     assert.ok(!printed.includes("SECRET"));
     assert.ok(!printed.includes("FIXTURE-token"));
     assert.ok(!printed.includes("/kb/"));
@@ -358,5 +358,61 @@ describe("publish-pack", () => {
       }),
       2,
     );
+  });
+});
+
+describe("checkedDownload", () => {
+  const bytes = (text) => Buffer.from(text);
+
+  it("keeps a pack only when it is a JSON object of kind apty-kb-pack", () => {
+    assert.deepEqual(
+      checkedDownload(bytes('{"kind":"apty-kb-pack"}'), "pack"),
+      {
+        text: '{"kind":"apty-kb-pack"}',
+      },
+    );
+    assert.deepEqual(checkedDownload(bytes("<html>sign in</html>"), "pack"), {
+      error: "not_json",
+    });
+    assert.deepEqual(checkedDownload(bytes('{"kind":"other"}'), "pack"), {
+      error: "not_a_pack",
+    });
+  });
+
+  it("keeps a name list only as UTF-8 text, and refuses either past its cap", () => {
+    assert.deepEqual(checkedDownload(bytes("FIXTURE Name\n"), "names"), {
+      text: "FIXTURE Name\n",
+    });
+    assert.deepEqual(checkedDownload(Buffer.from([0xff, 0xfe]), "names"), {
+      error: "not_utf8",
+    });
+    assert.deepEqual(
+      checkedDownload(Buffer.alloc(1024 * 1024 + 1, 0x61), "names"),
+      { error: "too_large" },
+    );
+  });
+
+  it("does not write a host's sign-in page as the previous pack", async () => {
+    const out = join(dir, "not-written.json");
+    const errors = [];
+    assert.equal(
+      await transfer({
+        argv: [
+          "download",
+          "--url",
+          "https://packs.example.com/p",
+          "--out",
+          out,
+          "--kind",
+          "pack",
+        ],
+        env: { KB_PUBLISH_TOKEN: "t" },
+        fetchImpl: async () => new Response("<html>FIXTURE sign in</html>"),
+        err: (line) => errors.push(line),
+      }),
+      1,
+    );
+    assert.match(errors.at(-1), /was not written: not_json/);
+    assert.throws(() => readFileSync(out));
   });
 });
