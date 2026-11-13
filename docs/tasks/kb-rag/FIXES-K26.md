@@ -639,6 +639,7 @@ partial: what is left, and the command that finishes it, is in each row.
 | D5 The scheduled build job | Done, two steps partial. **actionlint** could not be run here (downloading its binary was not allowed in this environment); the YAML parses, every `run:` passes `bash -n` and every action is pinned to a SHA. To finish: `actionlint .github/workflows/kb-packs.yml`. **First real run**: partial until IT sets the host, secrets and variables (KB_PACK_DELIVERY.md). Deviations, both stricter: the self-check runs inside `publish-gate.mjs` (the same `selfCheck` as `kb:eval --self-check`); a failed run's pack is kept as an artifact only when the repository is private, because this repository is public and its artifacts are visible to any GitHub user; the job never prints the pack host |
 | D6 Key and hosting setup (runbook) | Done ([KB_PACK_DELIVERY.md](../../release/KB_PACK_DELIVERY.md)); carrying it out is IT's and the KB owner's (partial until then) |
 | D7 Tests | Done: unit tests for every outcome code, the 304, backoff, lock, D-DEL5 and refusals; `tooling/e2e/kb-delivery.e2e.test.mjs` (5 tests, pass in Chromium); the gate and transfer in `publish-gate.test.mjs`. actionlint: partial (see D5) |
-| E0 to E5 | Not started |
+| E0 Read the 4.x player | Partial: apty-assist could not be attached or cloned here, and this repository holds no 4.x stored-element shape (`flow-18515.json` has ids and titles only). [`4x-element-rules.md`](../../development/4x-element-rules.md) records what is known, what E0 must find and the commands that finish it |
+| E1 to E5 | Not started: each depends on E0's shape (hard rule: no invented shapes). 5.x element-not-found and page-readiness are unchanged |
 | T0 to T5 | Not started |
 | C1 to C5 | Not started |
