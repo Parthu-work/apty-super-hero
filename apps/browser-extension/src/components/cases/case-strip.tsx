@@ -64,6 +64,7 @@ export function InlineCaseId() {
       <Button
         size="icon-sm"
         variant="ghost"
+        className="-my-1.5 size-6"
         aria-label={t("cases.copyId", { id: record.id })}
         onClick={() => {
           void navigator.clipboard
