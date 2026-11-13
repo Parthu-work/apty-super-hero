@@ -170,6 +170,7 @@ export {
   type KbPackInfo,
   type KbPackParseResult,
   type KbPackState,
+  type KbReplaceStop,
   kbCardLocation,
   kbCardUrl,
   kbPackAgeDays,
@@ -197,6 +198,16 @@ export {
   type TrustedPackKey,
   verifyKbPackSignature,
 } from "./kb/pack-signature.js";
+export {
+  isKbSyncSuccess,
+  type KbPackSync,
+  type KbSyncOutcome,
+  type KbSyncReason,
+  type KbSyncRecord,
+  type KbSyncResult,
+  type KbSyncSendRow,
+  kbSyncBackoffMs,
+} from "./kb/pack-sync.js";
 export {
   createKbIndex,
   hasLayerHint,

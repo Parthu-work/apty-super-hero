@@ -176,7 +176,10 @@
         "revokedKey": "This pack is signed by a key your organization revoked.",
         "badSignature": "This pack's signature does not match its content.",
         "expired": "This pack expired on {{date}}.",
-        "notYetValid": "This pack was built in the future ({{date}}); check this device's clock."
+        "notYetValid": "This pack was built in the future ({{date}}); check this device's clock.",
+        "versionMismatch": "This pack is for another Apty version than its source names.",
+        "unchanged": "This pack is the one already in use.",
+        "older": "This pack is older than the one in use, so the one in use was kept."
       },
       "signature": "Signature",
       "signedBy": "Signed by {{name}} (key {{keyId}})",
@@ -196,7 +199,23 @@
       },
       "notUsed": "This pack is not used. Ask the KB owner for a new pack.",
       "expiringSoon": "This pack expires in {{days}} days. Ask the KB owner for a new one.",
-      "absentCards": "{{absent}} not in this version"
+      "absentCards": "{{absent}} not in this version",
+      "sync": {
+        "outcome": {
+          "updated": "Updated to a newer pack.",
+          "unchanged": "Up to date: the host has the same pack.",
+          "notModified": "Up to date: the pack has not changed on the host.",
+          "older": "The host's pack is older than the one in use; the one in use was kept.",
+          "http": "HTTP {{status}} from the pack host.",
+          "httpAuth": "HTTP {{status}}: sign in to the pack host.",
+          "httpNotFound": "HTTP 404: the pack host has no pack at this address yet.",
+          "network": "The pack host could not be reached.",
+          "timeout": "The pack host did not answer within 60 seconds.",
+          "tooLarge": "The host's file is larger than 25 MB, so it is not a pack.",
+          "wrongType": "The host did not send a JSON file (it may have shown a sign-in page): sign in to the pack host.",
+          "versionMismatch": "The host's pack is for another Apty version than this source."
+        }
+      }
     }
   },
   "theme": {

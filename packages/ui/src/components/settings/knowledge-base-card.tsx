@@ -45,6 +45,9 @@ const ERROR_KEYS: Record<ErrorCode, TranslationKey> = {
   bad_signature: "settings.knowledgeBase.errors.badSignature",
   expired: "settings.knowledgeBase.errors.expired",
   not_yet_valid: "settings.knowledgeBase.errors.notYetValid",
+  version_mismatch: "settings.knowledgeBase.errors.versionMismatch",
+  unchanged: "settings.knowledgeBase.errors.unchanged",
+  older: "settings.knowledgeBase.errors.older",
 };
 
 /** Who signed a pack and whether it is used, in words (K23 P5). */

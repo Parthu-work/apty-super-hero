@@ -6,7 +6,9 @@
  * question or the answer. Kept in the extension's IndexedDB (not
  * apty-kb-db) for the policy's `auditRetentionDays` (30 by default), pruned
  * on every write and at start-up. Under an organization policy it cannot be
- * cleared.
+ * cleared. Since KB-RAG K26 (D2) it also holds one row per KB pack request
+ * the extension made to a policy source: time, version, origin, status and
+ * outcome; no path, no body.
  * @internal exported for tests.
  */
 import {
@@ -34,6 +36,21 @@ export interface KbEgressRecord {
   packs: { aptyVersion: string; sha256: string }[];
 }
 
+/**
+ * One KB pack request to a policy source (K26, D2): no path, no body.
+ * @internal exported for tests.
+ */
+export interface KbPackFetchRecord {
+  at: string;
+  request: "pack_fetch";
+  version: string;
+  origin: string;
+  status: number | null;
+  outcome: string;
+}
+
+type KbSendRecord = KbEgressRecord | KbPackFetchRecord;
+
 /** What the outbound filter reports for a request that carries KB text. * @internal exported for tests.
  */
 export interface KbEgressSent {
@@ -46,15 +63,17 @@ export interface KbEgressSent {
 /** Where the records live: one list under one key. Tests use memory. * @internal exported for tests.
  */
 export interface KbEgressRecords {
-  read(): Promise<KbEgressRecord[]>;
-  write(records: KbEgressRecord[]): Promise<void>;
+  read(): Promise<KbSendRecord[]>;
+  write(records: KbSendRecord[]): Promise<void>;
 }
 
 export interface KbEgressLog {
   append(sent: KbEgressSent): Promise<void>;
+  /** One KB pack request (K26, D2). */
+  appendPackFetch(row: Omit<KbPackFetchRecord, "request">): Promise<void>;
   prune(): Promise<void>;
-  list(): Promise<KbEgressRecord[]>;
-  /** How many requests carried KB text in the last `days` days. */
+  list(): Promise<KbSendRecord[]>;
+  /** How many requests carried KB text in the last `days` days; pack requests carry none. */
   countSince(days: number): Promise<number>;
   exportJson(): Promise<string>;
   /** Whether the SE may clear the record: not under a policy. */
@@ -95,7 +114,7 @@ function indexedDbRecords(): KbEgressRecords {
   return {
     async read() {
       const store = (await db()).transaction(STORE).objectStore(STORE);
-      return ((await request(store.get(KEY))) as KbEgressRecord[]) ?? [];
+      return ((await request(store.get(KEY))) as KbSendRecord[]) ?? [];
     },
     async write(records) {
       const store = (await db())
@@ -136,7 +155,7 @@ export function createKbEgressLog({
   now?: () => Date;
   policy?: () => Promise<OrgPolicyState>;
 } = {}): KbEgressLog {
-  const kept = async (list: KbEgressRecord[]) => {
+  const kept = async (list: KbSendRecord[]) => {
     const days = auditRetentionDays(await policy());
     const oldest = now().getTime() - days * DAY_MS;
     return list.filter((record) => Date.parse(record.at) >= oldest);
@@ -145,6 +164,18 @@ export function createKbEgressLog({
     async append(sent) {
       const list = await kept(await records.read());
       list.push(kbEgressRecordOf(sent, now()));
+      await records.write(list);
+    },
+    async appendPackFetch(row) {
+      const list = await kept(await records.read());
+      list.push({
+        at: row.at,
+        request: "pack_fetch",
+        version: row.version,
+        origin: row.origin,
+        status: row.status,
+        outcome: row.outcome,
+      });
       await records.write(list);
     },
     async prune() {
@@ -156,7 +187,8 @@ export function createKbEgressLog({
     async countSince(days) {
       const since = now().getTime() - days * DAY_MS;
       return (await records.read()).filter(
-        (record) => Date.parse(record.at) >= since,
+        (record) =>
+          record.request !== "pack_fetch" && Date.parse(record.at) >= since,
       ).length;
     },
     async exportJson() {

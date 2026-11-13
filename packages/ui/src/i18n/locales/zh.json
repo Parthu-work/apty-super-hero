@@ -176,7 +176,10 @@
         "revokedKey": "此知识包由贵组织已吊销的密钥签名。",
         "badSignature": "此知识包的签名与其内容不符。",
         "expired": "此知识包已于 {{date}} 到期。",
-        "notYetValid": "此知识包的构建日期在未来（{{date}}）；请检查本设备的时钟。"
+        "notYetValid": "此知识包的构建日期在未来（{{date}}）；请检查本设备的时钟。",
+        "versionMismatch": "此知识包的 Apty 版本与其来源指定的版本不同。",
+        "unchanged": "此知识包就是正在使用的那个。",
+        "older": "此知识包比正在使用的旧，因此保留了正在使用的知识包。"
       },
       "signature": "签名",
       "signedBy": "由 {{name}} 签名（密钥 {{keyId}}）",
@@ -196,7 +199,23 @@
       },
       "notUsed": "此知识包未被使用。请向 KB 负责人索取新的知识包。",
       "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。",
-      "absentCards": "{{absent}} 张在此版本中不存在"
+      "absentCards": "{{absent}} 张在此版本中不存在",
+      "sync": {
+        "outcome": {
+          "updated": "已更新为较新的知识包。",
+          "unchanged": "已是最新：主机上是同一个知识包。",
+          "notModified": "已是最新：主机上的知识包没有变化。",
+          "older": "主机上的知识包比正在使用的旧；保留了正在使用的知识包。",
+          "http": "知识包主机返回 HTTP {{status}}。",
+          "httpAuth": "HTTP {{status}}：请登录知识包主机。",
+          "httpNotFound": "HTTP 404：知识包主机在此地址上还没有知识包。",
+          "network": "无法连接知识包主机。",
+          "timeout": "知识包主机在 60 秒内没有响应。",
+          "tooLarge": "主机上的文件超过 25 MB，不是知识包。",
+          "wrongType": "主机没有发送 JSON 文件（可能显示了登录页面）：请登录知识包主机。",
+          "versionMismatch": "主机上的知识包与此来源的 Apty 版本不同。"
+        }
+      }
     }
   },
   "theme": {

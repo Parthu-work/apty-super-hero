@@ -79,7 +79,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 - Automatic KB pack delivery (KB-RAG K26 Part D, in progress,
   [`FIXES-K26.md`](tasks/kb-rag/FIXES-K26.md)): the organization policy can
   name where each version's pack comes from (`kbPackSources`,
-  `kbPackCheckHours`, `allowManualPackImport`).
+  `kbPackCheckHours`, `allowManualPackImport`); the fetcher checks each
+  source, stores a newer trusted pack through the import path and never
+  downgrades (unit-tested; not yet wired to the background).
 - What the first real packs asked for, and cases (KB-RAG K25,
   [`FIXES-K25.md`](tasks/kb-rag/FIXES-K25.md)): Anthropic works with every
   tool offered; every KB decision is visible (a line above the reply, "Why
