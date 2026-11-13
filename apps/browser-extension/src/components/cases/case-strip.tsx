@@ -7,6 +7,7 @@ import { type CaseRecord, caseToContinue } from "@apty/agent-core";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { caseRecorder, setActiveConversation } from "../../services/cases";
 import { useReadiness } from "../connections/use-readiness";
@@ -39,6 +40,41 @@ function useConversationCase(sessionId: string | null) {
     };
   }, [sessionId]);
   return record;
+}
+
+/** The case id with an icon Copy button, for the live investigation's badge row, where a strip would cost the chat its height. */
+export function InlineCaseId() {
+  const { sessionId } = useChatContext();
+  const { t } = useTranslation();
+  const record = useConversationCase(sessionId);
+  const [copied, setCopied] = useState(false);
+  if (!record) return null;
+  const Icon = copied ? CheckIcon : CopyIcon;
+  return (
+    <span
+      className="flex min-w-0 items-center gap-0.5"
+      data-testid="case-inline"
+    >
+      <code
+        className="truncate font-mono text-xs text-muted-foreground"
+        data-testid="case-id"
+      >
+        {record.id}
+      </code>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        aria-label={t("cases.copyId", { id: record.id })}
+        onClick={() => {
+          void navigator.clipboard
+            .writeText(record.id)
+            .then(() => setCopied(true));
+        }}
+      >
+        <Icon aria-hidden="true" />
+      </Button>
+    </span>
+  );
 }
 
 export function CaseStrip({ children }: { children?: React.ReactNode }) {

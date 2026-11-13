@@ -17,7 +17,7 @@ import { cn } from "@apty/ui/lib/utils";
 import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { navigationStore, useNavigation } from "../../state/navigation-store";
-import { CaseStrip } from "../cases/case-strip";
+import { CaseStrip, InlineCaseId } from "../cases/case-strip";
 import { SetupBadge } from "../connections/setup-badge";
 import { useReadiness } from "../connections/use-readiness";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
@@ -111,60 +111,58 @@ export function InvestigationContextBar() {
   const meta = describeInvestigationStatus(investigation.status, t);
 
   return (
-    <>
-      <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2.5 duration-200 motion-reduce:animate-none">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex items-center gap-1.5">
-              <span
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  toneDotClass(meta.tone),
-                  meta.inProgress && "animate-pulse motion-reduce:animate-none",
-                )}
-                aria-hidden="true"
-              />
-              <span
-                className={cn(
-                  "rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
-                  toneBadgeClass(meta.tone),
-                )}
-              >
-                {t("investigation.live")}
-              </span>
-            </div>
-            {target.hostname && (
-              <p className="truncate text-sm font-medium text-foreground">
-                {target.hostname}
-              </p>
-            )}
-            <p className="line-clamp-2 text-xs text-muted-foreground">
-              {investigation.userProblem}
-            </p>
-            <p className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
-              {meta.label}
-            </p>
+    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2 duration-200 motion-reduce:animate-none">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                toneDotClass(meta.tone),
+                meta.inProgress && "animate-pulse motion-reduce:animate-none",
+              )}
+              aria-hidden="true"
+            />
+            <span
+              className={cn(
+                "rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
+                toneBadgeClass(meta.tone),
+              )}
+            >
+              {t("investigation.live")}
+            </span>
+            <InlineCaseId />
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="shrink-0"
-            onClick={() => setConfirmOpen(true)}
-          >
-            {t("common.stop")}
-          </Button>
+          {target.hostname && (
+            <p className="truncate text-sm font-medium text-foreground">
+              {target.hostname}
+            </p>
+          )}
+          <p className="line-clamp-2 text-xs text-muted-foreground">
+            {investigation.userProblem}
+          </p>
+          <p className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
+            {meta.label}
+          </p>
         </div>
-
-        <ConfirmDialog
-          open={confirmOpen}
-          onOpenChange={setConfirmOpen}
-          title={t("investigation.stopTitle")}
-          description={t("investigation.stopDescription")}
-          confirmLabel={t("common.stop")}
-          onConfirm={() => void handleStop()}
-        />
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shrink-0"
+          onClick={() => setConfirmOpen(true)}
+        >
+          {t("common.stop")}
+        </Button>
       </div>
-      <CaseStrip />
-    </>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t("investigation.stopTitle")}
+        description={t("investigation.stopDescription")}
+        confirmLabel={t("common.stop")}
+        onConfirm={() => void handleStop()}
+      />
+    </div>
   );
 }

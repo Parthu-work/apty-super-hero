@@ -96,7 +96,7 @@ describe("Connections, the setup badge and settings links", () => {
     assert.equal(await panel.getByText("Connect an AI provider").count(), 0);
 
     await sendChat(panel, "hello, what can you do?");
-    await panel.getByText("Connect an AI provider").waitFor();
+    await panel.getByText("Connect an AI provider", { exact: true }).waitFor();
     assert.equal(model.requests.length, 0, "still no model request");
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();

@@ -9,7 +9,7 @@
  * Usage: pnpm kb:keygen --out <directory> [--name <key name>]
  */
 import { generateKeyPairSync } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { keyIdOf } from "./build-kb-pack.mjs";
@@ -62,14 +62,18 @@ export function run({
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     const privatePath = join(dir, `kb-signing-key-${keyId}.pem`);
     const publicPath = join(dir, `kb-signing-key-${keyId}.public.json`);
-    if (existsSync(privatePath)) {
-      throw new Error(`${privatePath} exists; it is not overwritten.`);
+    try {
+      writeFileSync(
+        privatePath,
+        privateKey.export({ type: "pkcs8", format: "pem" }),
+        { mode: 0o600, flag: "wx" },
+      );
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        throw new Error(`${privatePath} exists; it is not overwritten.`);
+      }
+      throw error;
     }
-    writeFileSync(
-      privatePath,
-      privateKey.export({ type: "pkcs8", format: "pem" }),
-      { mode: 0o600 },
-    );
     const entry = { keyId, spki, name: options.name };
     writeFileSync(publicPath, `${JSON.stringify(entry, null, 2)}\n`);
     out(
