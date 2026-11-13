@@ -18,6 +18,7 @@ full commit-level history.
 - **KB-RAG K26 Part C: DOM Config gaps**:
   - **C1 (D-DOM1)**: the held DOM Config capture is kept on the device (`apty-dom-config-db`), as the panel holds it, for the policy's `domConfigRetentionDays` (default 30, 1 to 365); the page offers Resume capture or Discard capture, and Clear results deletes it.
   - **C2**: DOM Config's deep crawl visits a nav anchor by its URL instead of clicking it, so no `[state-N]` duplicate or state-mismatch revisit comes from a navigation it did not wait for. Audit Application unchanged.
+  - **C3**: the three open questions (max z-index ceiling, unconfirmed noise entries, Apty's persistence across restarts) stay open: apty-dap was not available; `dom-config.md` says how to finish.
 
 - **KB-RAG K25: what the first real packs asked for, signed packs, and cases** ([`FIXES-K25.md`](docs/tasks/kb-rag/FIXES-K25.md)):
   - **A1**: tool schemas every provider accepts. Anthropic's strict tool use refuses `minimum`, `maximum` and the other limits its JSON Schema subset does not support; a provider middleware now removes them and states each limit in the property's description (`provider-schema.ts`). Tools still validate their input with their own Zod schema.

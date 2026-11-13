@@ -697,6 +697,26 @@ The report lists those Apty's source does not answer:
 - the unconfirmed noise entries;
 - persistence across restarts.
 
+KB-RAG K26 C3 (13 Nov 2026) was to look for each in apty-dap at `4c406d5`
+again. **All three are still open:** apty-dap could not be attached to that
+session (no access) and was not checked out next to this repository, so
+nothing was searched and no value was set. To finish, check it out
+read-only and look for the `maxZIndex` default and its upper bound, the
+roots `DEFAULT_IGNORED_ROOTS` marks unconfirmed, and whether the player
+keeps its DOM settings across a browser restart; record each with file and
+line here, or as still open with what was searched.
+
+```bash
+git clone --no-checkout https://github.com/aptyInc/apty-dap ../apty-dap
+```
+
+```bash
+git -C ../apty-dap checkout 4c406d5 -- player
+```
+
+(This is about Apty's own DOM settings. The Agent's held DOM Config
+capture is kept across restarts since K26 C1; see "Kept on the device".)
+
 The format of rules, the Regex flavor, `In`, Ignore DOM events, the
 container score threshold, how DOM Settings combines with the defaults
 and the export format are now confirmed.
