@@ -5,20 +5,28 @@
  * it is signed (outside a dry run); the self-check passes; the card count has
  * not dropped more than 10% from the last published pack (a manual run may
  * override this rule only, with a reason); and, where the repository holds a
- * question set for the version, the D-KB8 quality gate passes.
+ * question set for the version, the D-KB8 quality gate passes; and no card
+ * names a customer from the customer-name list.
  *
- * It writes the job summary: counts, ids, numbers and codes only, never a
- * card title or card text, because the job's log and summary may be public.
+ * In CI the last published pack and the customer-name list are fetched
+ * from the pack host with the publish token (`KB_PUBLISH_TOKEN`) into
+ * memory only: nothing downloaded is written to a file. The previous pack
+ * is read with the extension's own parser before it is compared.
+ *
+ * It prints the job summary on stdout (the workflow appends it to
+ * $GITHUB_STEP_SUMMARY): counts, ids, numbers and codes only, never a card
+ * title or card text, because the job's log and summary may be public.
  *
  * Usage: node tooling/scripts/kb/publish-gate.mjs --version 5.x --pack <file>
- *   [--previous <file>] [--questions <file>]
- *   [--override-card-drop --reason <text>] [--dry-run] [--summary <file>]
+ *   [--previous <file> | --previous-url <https url>]
+ *   [--customer-names <file> | --names-url <https url>] [--questions <file>]
+ *   [--override-card-drop --reason <text>] [--dry-run]
  * Exits 1 when a gate fails, 2 on a usage error.
  */
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { diffPacks } from "./build-kb-pack.mjs";
+import { customerNameHits, diffPacks, readNameList } from "./build-kb-pack.mjs";
 import {
   evaluate,
   loadAgentCore,
@@ -28,6 +36,43 @@ import {
 } from "./eval-kb.mjs";
 
 export const MAX_CARD_DROP = 0.1;
+const FETCH_TIMEOUT_MS = 120_000;
+/** The pack limit (KB_PACK_LIMITS.maxBytes) and a generous cap for a name list. */
+const MAX_FETCH_BYTES = { pack: 25 * 1024 * 1024, names: 1024 * 1024 };
+
+/**
+ * A file on the pack host, read into memory with the publish token: its
+ * text, or undefined for a 404 (the first run). Throws, naming only the
+ * HTTP status or the limit, on anything else; never the URL or the token.
+ */
+export async function fetchText(
+  url,
+  kind,
+  { token, fetchImpl = globalThis.fetch },
+) {
+  if (new URL(url).protocol !== "https:") {
+    throw new Error(`the ${kind} URL must be https`);
+  }
+  if (!token) throw new Error("KB_PUBLISH_TOKEN is not set");
+  const response = await fetchImpl(url, {
+    headers: { Authorization: `Bearer ${token}`, "Cache-Control": "no-cache" },
+    redirect: "error",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (response.status === 404) return undefined;
+  if (!response.ok) {
+    throw new Error(`the ${kind} could not be read (HTTP ${response.status})`);
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > MAX_FETCH_BYTES[kind]) {
+    throw new Error(`the ${kind} is too large`);
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`the ${kind} is not UTF-8 text`);
+  }
+}
 /** D-KB8, per version. */
 export const QUALITY_GATE = {
   recallAt3: 0.9,
@@ -67,6 +112,7 @@ export function gate({
   overrideCardDrop = false,
   reason = "",
   dryRun = false,
+  customerNames,
 }) {
   const failures = [];
   const lines = [`### KB pack ${version}`, ""];
@@ -118,6 +164,16 @@ export function gate({
       "- Quality gate: no question set for this version in the repository.",
     );
   }
+  if (customerNames) {
+    const hits = customerNameHits(pack, customerNames);
+    lines.push(
+      `- Customer names: ${customerNames.length} checked, ${hits.length > 0 ? `found in pages ${hits.join(", ")}` : "none found"}`,
+    );
+    if (hits.length > 0)
+      failures.push(`customer_names (pages ${hits.join(", ")})`);
+  } else {
+    lines.push("- Customer names: no list given.");
+  }
   lines.push(`- Pack sha256 (its checksum): ${pack.sha256}`);
   lines.push(`- Key id: ${pack.signature?.keyId ?? "unsigned"}`);
   lines.push(`- Expires: ${pack.expiresAt ?? "never"}`);
@@ -135,9 +191,11 @@ function parseArgs(argv) {
     "--version": "version",
     "--pack": "pack",
     "--previous": "previous",
+    "--previous-url": "previousUrl",
+    "--customer-names": "customerNames",
+    "--names-url": "namesUrl",
     "--questions": "questions",
     "--reason": "reason",
-    "--summary": "summary",
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--override-card-drop") options.overrideCardDrop = true;
@@ -150,6 +208,12 @@ function parseArgs(argv) {
     throw new Error("--version takes 4.x, 5.x or common.");
   }
   if (!options.pack) throw new Error("--pack is required.");
+  if (options.previous && options.previousUrl) {
+    throw new Error("Pass --previous or --previous-url, not both.");
+  }
+  if (options.customerNames && options.namesUrl) {
+    throw new Error("Pass --customer-names or --names-url, not both.");
+  }
   if (options.overrideCardDrop && !options.reason?.trim()) {
     throw new Error("--override-card-drop needs --reason.");
   }
@@ -161,7 +225,8 @@ export async function run({
   cwd = process.cwd(),
   out = (line) => console.log(line),
   err = (line) => console.error(line),
-  summary = process.env.GITHUB_STEP_SUMMARY,
+  env = process.env,
+  fetchImpl = globalThis.fetch,
 }) {
   let options;
   try {
@@ -171,18 +236,39 @@ export async function run({
     return 2;
   }
   const write = (lines) => {
-    for (const line of lines) out(line);
-    const target = options.summary ?? summary;
-    if (target) appendFileSync(target, `${lines.join("\n")}\n\n`);
+    for (const line of [...lines, ""]) out(line);
   };
   try {
     const core = await loadAgentCore();
     const read = (path) => readFileSync(resolve(cwd, path), "utf8");
     const pack = await readPack(core, read(options.pack));
-    const previous =
-      options.previous && existsSync(resolve(cwd, options.previous))
-        ? JSON.parse(read(options.previous))
+    const fetched = (url, kind) =>
+      fetchText(url, kind, { token: env.KB_PUBLISH_TOKEN, fetchImpl });
+    const previousText = options.previousUrl
+      ? await fetched(options.previousUrl, "pack")
+      : options.previous && existsSync(resolve(cwd, options.previous))
+        ? read(options.previous)
         : undefined;
+    let previous;
+    if (previousText !== undefined) {
+      try {
+        previous = await readPack(core, previousText);
+      } catch (error) {
+        throw new Error(`the last published pack: ${error.message}`);
+      }
+    }
+    const namesText = options.namesUrl
+      ? await fetched(options.namesUrl, "names")
+      : options.customerNames
+        ? read(options.customerNames)
+        : undefined;
+    if (options.namesUrl && namesText === undefined) {
+      throw new Error(
+        "the customer-name list is not on the pack host (HTTP 404)",
+      );
+    }
+    const customerNames =
+      namesText === undefined ? undefined : readNameList(namesText);
     const quality =
       options.questions && existsSync(resolve(cwd, options.questions))
         ? evaluate(core, pack, readQuestions(read(options.questions)))
@@ -196,6 +282,7 @@ export async function run({
       overrideCardDrop: options.overrideCardDrop,
       reason: options.reason,
       dryRun: options.dryRun,
+      customerNames,
     });
     write(result.lines);
     return result.ok ? 0 : 1;
