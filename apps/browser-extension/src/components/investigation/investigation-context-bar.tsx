@@ -125,25 +125,32 @@ export function InvestigationContextBar() {
             />
             <span
               className={cn(
-                "rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
+                "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
                 toneBadgeClass(meta.tone),
               )}
             >
               {t("investigation.live")}
             </span>
-            <InlineCaseId />
+            {target.hostname && (
+              <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                {target.hostname}
+              </p>
+            )}
           </div>
-          {target.hostname && (
-            <p className="truncate text-sm font-medium text-foreground">
-              {target.hostname}
-            </p>
-          )}
           <p className="line-clamp-2 text-xs text-muted-foreground">
             {investigation.userProblem}
           </p>
-          <p className={cn("text-xs font-medium", toneTextClass(meta.tone))}>
-            {meta.label}
-          </p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p
+              className={cn(
+                "shrink-0 text-xs font-medium",
+                toneTextClass(meta.tone),
+              )}
+            >
+              {meta.label}
+            </p>
+            <InlineCaseId />
+          </div>
         </div>
         <Button
           size="sm"
