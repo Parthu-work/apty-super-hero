@@ -13,7 +13,7 @@ import { buildPack, signPack } from "./build-kb-pack.mjs";
 import { calibrateCoverage, loadAgentCore, readQuestions } from "./eval-kb.mjs";
 import { SYNTHETIC_PAGES } from "./fixtures/synthetic-cards.mjs";
 import { cardDrop, gate, qualityMisses, run } from "./publish-gate.mjs";
-import { checkedDownload, run as transfer } from "./publish-pack.mjs";
+import { run as transfer } from "./publish-pack.mjs";
 
 const QUESTIONS = new URL(
   "./fixtures/synthetic-questions.json",
@@ -197,7 +197,7 @@ describe("run", () => {
         ),
       ),
     );
-    const summary = join(dir, "summary.md");
+    const lines = [];
     const code = await run({
       argv: [
         "--version",
@@ -206,12 +206,10 @@ describe("run", () => {
         pack,
         "--questions",
         QUESTIONS.pathname,
-        "--summary",
-        summary,
       ],
-      out: () => undefined,
+      out: (line) => lines.push(line),
     });
-    const text = readFileSync(summary, "utf8");
+    const text = lines.join("\n");
     assert.match(text, /Quality gate \(\d+ questions\)/);
     assert.equal(code, 0, text);
   });
@@ -224,7 +222,6 @@ describe("run", () => {
       await run({
         argv: ["--version", "5.x", "--pack", pack],
         out: (line) => lines.push(line),
-        summary: undefined,
       }),
       1,
     );
@@ -261,20 +258,10 @@ describe("publish-pack", () => {
     return { fetchImpl, calls, stored: () => stored };
   }
 
-  it("downloads nothing on a 404, and uploads then reads back the same bytes", async () => {
+  it("uploads then reads back the same bytes", async () => {
     const fake = host(undefined);
     const lines = [];
     const env = { KB_PUBLISH_TOKEN: "FIXTURE-token" };
-    const out = join(dir, "previous.json");
-    assert.equal(
-      await transfer({
-        argv: ["download", "--url", url, "--out", out, "--kind", "pack"],
-        env,
-        fetchImpl: fake.fetchImpl,
-        out: (line) => lines.push(line),
-      }),
-      0,
-    );
     const pack = join(dir, "upload.json");
     writeFileSync(pack, '{"FIXTURE":true}');
     assert.equal(
@@ -288,16 +275,15 @@ describe("publish-pack", () => {
     );
     assert.deepEqual(
       fake.calls.map((call) => call.init.method),
-      ["GET", "PUT", "GET"],
+      ["PUT", "GET"],
     );
     assert.equal(
-      fake.calls[1].init.headers.Authorization,
+      fake.calls[0].init.headers.Authorization,
       "Bearer FIXTURE-token",
     );
     // Exactly these lines: no URL, host, query or token is printed.
     const sha = createHash("sha256").update('{"FIXTURE":true}').digest("hex");
     assert.deepEqual(lines, [
-      "No published pack on the pack host yet (404).",
       `Published to the pack host: HTTP 201, read back with the same file sha256 ${sha}.`,
     ]);
   });
@@ -346,13 +332,7 @@ describe("publish-pack", () => {
     assert.equal(called, false);
     assert.equal(
       await transfer({
-        argv: [
-          "download",
-          "--url",
-          "http://packs.example.com/x",
-          "--out",
-          pack,
-        ],
+        argv: ["upload", "--url", "http://packs.example.com/x", "--pack", pack],
         env: { KB_PUBLISH_TOKEN: "t" },
         err: () => undefined,
       }),
@@ -361,58 +341,108 @@ describe("publish-pack", () => {
   });
 });
 
-describe("checkedDownload", () => {
-  const bytes = (text) => Buffer.from(text);
+describe("the gate's in-memory reads (no file is written)", () => {
+  const PREVIOUS_URL = "https://packs.example.com/kb/5x.json?sig=SECRET";
+  const NAMES_URL = "https://packs.example.com/kb/names.txt";
 
-  it("keeps a pack only when it is a JSON object of kind apty-kb-pack", () => {
-    assert.deepEqual(
-      checkedDownload(bytes('{"kind":"apty-kb-pack"}'), "pack"),
-      {
-        text: '{"kind":"apty-kb-pack"}',
+  function hostWith(files) {
+    const calls = [];
+    return {
+      calls,
+      fetchImpl: async (target, init) => {
+        calls.push({ target: String(target), init });
+        const body = files[String(target)];
+        if (body === undefined) return new Response("", { status: 404 });
+        if (typeof body === "number") return new Response("", { status: body });
+        return new Response(body, { status: 200 });
       },
+    };
+  }
+
+  async function runGate(
+    files,
+    extra,
+    env = { KB_PUBLISH_TOKEN: "FIXTURE-token" },
+  ) {
+    const pack = join(dir, "gate-pack.json");
+    writeFileSync(pack, JSON.stringify(signPack(build(), KEY)));
+    const lines = [];
+    const fake = hostWith(files);
+    const code = await run({
+      argv: ["--version", "5.x", "--pack", pack, ...extra],
+      env,
+      fetchImpl: fake.fetchImpl,
+      out: (line) => lines.push(line),
+      err: (line) => lines.push(line),
+    });
+    return { code, text: lines.join("\n"), calls: fake.calls };
+  }
+
+  it("reads the last published pack with the token, and compares against it", async () => {
+    const previous = JSON.stringify(
+      signPack(build(SYNTHETIC_PAGES.slice(0, -1)), KEY),
     );
-    assert.deepEqual(checkedDownload(bytes("<html>sign in</html>"), "pack"), {
-      error: "not_json",
-    });
-    assert.deepEqual(checkedDownload(bytes('{"kind":"other"}'), "pack"), {
-      error: "not_a_pack",
-    });
+    const { code, text, calls } = await runGate({ [PREVIOUS_URL]: previous }, [
+      "--previous-url",
+      PREVIOUS_URL,
+    ]);
+    assert.equal(code, 0, text);
+    assert.match(
+      text,
+      new RegExp(`- Added: ${SYNTHETIC_PAGES.at(-1).id}$`, "m"),
+    );
+    assert.equal(calls[0].init.headers.Authorization, "Bearer FIXTURE-token");
   });
 
-  it("keeps a name list only as UTF-8 text, and refuses either past its cap", () => {
-    assert.deepEqual(checkedDownload(bytes("FIXTURE Name\n"), "names"), {
-      text: "FIXTURE Name\n",
-    });
-    assert.deepEqual(checkedDownload(Buffer.from([0xff, 0xfe]), "names"), {
-      error: "not_utf8",
-    });
-    assert.deepEqual(
-      checkedDownload(Buffer.alloc(1024 * 1024 + 1, 0x61), "names"),
-      { error: "too_large" },
+  it("treats a 404 as the first run, and refuses a previous pack that does not parse or cannot be read", async () => {
+    const first = await runGate({}, ["--previous-url", PREVIOUS_URL]);
+    assert.equal(first.code, 0, first.text);
+    assert.match(first.text, /No previous published pack/);
+    const signIn = await runGate(
+      { [PREVIOUS_URL]: "<html>FIXTURE sign in</html>" },
+      ["--previous-url", PREVIOUS_URL],
     );
+    assert.equal(signIn.code, 1);
+    assert.match(
+      signIn.text,
+      /the last published pack: The pack was refused: not_json/,
+    );
+    const refused = await runGate({ [PREVIOUS_URL]: 403 }, [
+      "--previous-url",
+      PREVIOUS_URL,
+    ]);
+    assert.equal(refused.code, 1);
+    assert.match(refused.text, /the pack could not be read \(HTTP 403\)/);
   });
 
-  it("does not write a host's sign-in page as the previous pack", async () => {
-    const out = join(dir, "not-written.json");
-    const errors = [];
-    assert.equal(
-      await transfer({
-        argv: [
-          "download",
-          "--url",
-          "https://packs.example.com/p",
-          "--out",
-          out,
-          "--kind",
-          "pack",
-        ],
-        env: { KB_PUBLISH_TOKEN: "t" },
-        fetchImpl: async () => new Response("<html>FIXTURE sign in</html>"),
-        err: (line) => errors.push(line),
-      }),
-      1,
-    );
-    assert.match(errors.at(-1), /was not written: not_json/);
-    assert.throws(() => readFileSync(out));
+  it("fails a card that names a customer from the list, and a list that is missing", async () => {
+    const named = SYNTHETIC_PAGES[0].title
+      .split(/\s+/)
+      .find((word) => word.length > 5);
+    const hit = await runGate({ [NAMES_URL]: `${named}\n` }, [
+      "--names-url",
+      NAMES_URL,
+    ]);
+    assert.equal(hit.code, 1, hit.text);
+    assert.match(hit.text, /Failed: customer_names \(pages \d+/);
+    const clean = await runGate({ [NAMES_URL]: "FIXTURE Nobody Corp\n" }, [
+      "--names-url",
+      NAMES_URL,
+    ]);
+    assert.equal(clean.code, 0, clean.text);
+    assert.match(clean.text, /- Customer names: 1 checked, none found/);
+    const missing = await runGate({}, ["--names-url", NAMES_URL]);
+    assert.equal(missing.code, 1);
+    assert.match(missing.text, /customer-name list is not on the pack host/);
+  });
+
+  it("needs the token, and prints neither the URL nor the token", async () => {
+    const noToken = await runGate({}, ["--previous-url", PREVIOUS_URL], {});
+    assert.equal(noToken.code, 1);
+    assert.match(noToken.text, /KB_PUBLISH_TOKEN is not set/);
+    const { text } = await runGate({}, ["--previous-url", PREVIOUS_URL]);
+    for (const secret of ["SECRET", "FIXTURE-token", "/kb/"]) {
+      assert.equal(text.split(secret).length, 1, secret);
+    }
   });
 });

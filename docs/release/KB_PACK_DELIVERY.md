@@ -42,7 +42,10 @@ nothing is uploaded:
   quality gate (Recall@3 ≥ 0.90, "not covered" precision ≥ 0.90 and recall
   ≥ 0.80, layer accuracy ≥ 0.70).
 
-After the upload the job reads the pack back and compares its sha256.
+The gate reads the last published pack and the customer-name list from the
+pack host into memory with the publish token; nothing it downloads is
+written to a file. After the upload the job reads the pack back and
+compares its sha256.
 
 **This repository is public.** The job never prints a card title, card text
 or the pack host: the builder's own output goes to a temporary file that is
@@ -83,8 +86,8 @@ Choose an internal HTTPS host behind Apty SSO; never a public URL. It needs:
   The extension sends the session with `credentials: "include"`; a host that
   answers a signed-out request with a sign-in page is reported to the SE as
   "sign in to the pack host";
-- for the job: a token that may **only** `GET` and `PUT` those two URLs
-  (`Authorization: Bearer <token>`).
+- for the job: a token that may **only** `GET` and `PUT` those two URLs, and
+  `GET` the customer-name list (`Authorization: Bearer <token>`).
 
 In the repository settings (Settings → Secrets and variables → Actions):
 
