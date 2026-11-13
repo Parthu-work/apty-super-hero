@@ -10,11 +10,17 @@ import {
   type AppSettings,
   destinationAllowed,
   destinationOf,
+  isKbSyncSuccess,
+  KB_PACK_SOURCE_VERSIONS,
   KB_PACK_STALE_DAYS,
   type KbEgressDecision,
   type KbPackInfo,
+  type KbPackSourceVersion,
   type KbPackUsability,
+  type KbSyncRecord,
   kbPackAgeDays,
+  kbPackCheckHours,
+  kbPackSources,
   type OrgPolicyState,
   type ToolCallingSupport,
 } from "@apty/agent-core";
@@ -25,6 +31,7 @@ import {
 } from "@apty/browser-runtime/apty/resource-body-utils";
 import type { AptyServiceWorkerStatus } from "@apty/browser-runtime/apty/types";
 import type { TranslationKey } from "@apty/ui/i18n/types";
+import { kbSyncOutcomeMessage } from "@apty/ui/lib/kb-sync-outcome";
 import { destinationRefusalMessage, isProviderConfigured } from "./ai-provider";
 import { englishTranslate, type Translate } from "./model-list";
 
@@ -45,7 +52,8 @@ export interface PreflightCheck {
     | "storage-access"
     | "data-handling"
     | "check-files"
-    | "knowledge-base";
+    | "knowledge-base"
+    | "kb-delivery";
   label: string;
   status: CheckStatus;
   detail: string;
@@ -96,6 +104,8 @@ export interface PreflightDeps {
     decision: KbEgressDecision;
     destination?: AiDestination;
   }>;
+  /** K26 (D4): the last check of each version the policy delivers. */
+  kbSyncRecords?(): Promise<Partial<Record<KbPackSourceVersion, KbSyncRecord>>>;
   now?(): Date;
 }
 
@@ -604,6 +614,11 @@ export async function runPreflight(
   const now = deps.now?.() ?? new Date();
   if (packs.length === 0) checks.push(knowledgeBaseCheck(null, now, t));
   for (const info of packs) checks.push(knowledgeBaseCheck(info, now, t));
+  const records = await Promise.resolve()
+    .then(() => deps.kbSyncRecords?.() ?? {})
+    .catch(() => ({}));
+  const delivery = kbDeliveryCheck(policy, packs, records, now, t);
+  if (delivery) checks.push(delivery);
 
   return checks;
 }
@@ -676,6 +691,109 @@ function knowledgeBaseCheck(
     ...base,
     status: "pass",
     detail: t("preflight.checks.knowledgeBase.loaded", params),
+  };
+}
+
+const minute = (iso: string) => iso.slice(0, 16).replace("T", " ");
+
+/** Why a stored pack is not used, in the words Options uses. */
+function unusableWords(usability: KbPackUsability, t: Translate): string {
+  const date = usability.validity.date?.slice(0, 10) ?? "";
+  switch (usability.reason) {
+    case "expired":
+      return t("settings.knowledgeBase.state.expired", { date });
+    case "not_yet_valid":
+      return t("settings.knowledgeBase.state.notYetValid", { date });
+    case "revoked":
+      return t("settings.knowledgeBase.state.revoked");
+    case "unsigned":
+      return t("settings.knowledgeBase.state.unsigned");
+    default:
+      return t("settings.knowledgeBase.state.untrusted");
+  }
+}
+
+/**
+ * "KB packs up to date" (K26, D4): only when the policy delivers a version.
+ * Red when a delivered version has no usable pack; amber when one is
+ * expiring, its last check failed, or it has not been checked successfully
+ * in twice the check interval; green otherwise. Each line names the version
+ * and the reason.
+ */
+function kbDeliveryCheck(
+  policy: OrgPolicyState,
+  packs: Array<KbPackInfo & { usability?: KbPackUsability }>,
+  records: Partial<Record<KbPackSourceVersion, KbSyncRecord>>,
+  now: Date,
+  t: Translate,
+): PreflightCheck | undefined {
+  const sources = kbPackSources(policy);
+  const versions = KB_PACK_SOURCE_VERSIONS.filter(
+    (version) => sources[version],
+  );
+  if (versions.length === 0) return undefined;
+  const fresh = 2 * kbPackCheckHours(policy) * 3_600_000;
+  const rank = { pass: 0, warn: 1, fail: 2 } as const;
+  let status: keyof typeof rank = "pass";
+  const lines = versions.map((version) => {
+    const info = packs.find((pack) => pack.aptyVersion === version);
+    const record = records[version];
+    const failed =
+      record && !isKbSyncSuccess(record.outcome)
+        ? kbSyncOutcomeMessage(record.outcome, t).replace(/[.。]$/u, "")
+        : undefined;
+    const raise = (next: keyof typeof rank) => {
+      if (rank[next] > rank[status]) status = next;
+    };
+    if (!info || info.usability?.usable === false) {
+      raise("fail");
+      const reason = [
+        info?.usability ? unusableWords(info.usability, t) : undefined,
+        failed ??
+          (info ? undefined : t("preflight.checks.kbDelivery.notDelivered")),
+      ]
+        .filter(Boolean)
+        .join("; ");
+      return t("preflight.checks.kbDelivery.noPack", { version, reason });
+    }
+    if (info.usability?.validity.state === "expiring") {
+      raise("warn");
+      return t("preflight.checks.kbDelivery.expiring", {
+        version,
+        days: info.usability.validity.daysLeft ?? 0,
+      });
+    }
+    if (!record) {
+      raise("warn");
+      return t("preflight.checks.kbDelivery.neverChecked", { version });
+    }
+    if (failed) {
+      raise("warn");
+      return t("preflight.checks.kbDelivery.checkFailed", {
+        version,
+        reason: failed,
+      });
+    }
+    const success = Date.parse(record.lastSuccessAt ?? record.lastCheckAt);
+    if (now.getTime() - success > fresh) {
+      raise("warn");
+      return t("preflight.checks.kbDelivery.stale", {
+        version,
+        when: minute(record.lastSuccessAt ?? record.lastCheckAt),
+      });
+    }
+    return t("preflight.checks.kbDelivery.current", {
+      version,
+      when: minute(record.lastCheckAt),
+    });
+  });
+  return {
+    id: "kb-delivery",
+    label: t("preflight.checks.kbDelivery.label"),
+    status,
+    detail: lines.join(" "),
+    section: "knowledge-base",
+    ...(status === "pass" ? {} : { fix: t("preflight.checks.kbDelivery.fix") }),
   };
 }
 

@@ -23,7 +23,7 @@ export type KbDecision =
   | { kind: "answer"; status: string; pageIds: string[] }
   | { kind: "how_to" }
   | { kind: "non_english" }
-  | { kind: "no_pack"; version: TabVersion }
+  | { kind: "no_pack"; version: TabVersion; delivery?: KbDeliveryFailure }
   | {
       kind: "not_covered";
       reason: KbNotCoveredReason;
@@ -43,7 +43,14 @@ export type KbDecision =
         | "revoked";
       version: KbAptyVersion;
       date: string | null;
+      delivery?: KbDeliveryFailure;
     };
+
+/** K26 (D4): the version's pack is delivered by the policy and its last check failed, with the outcome code. */
+export interface KbDeliveryFailure {
+  version: KbAptyVersion;
+  outcome: string;
+}
 
 /** The first 12 hex characters of a pack's sha256: enough to tell packs apart in a report. */
 export function packIdOf(sha256: string): string {

@@ -19,7 +19,7 @@ export type KbSyncOutcome =
   | "timeout"
   | "wrong_type"
   | Exclude<ImportRefusal, KbReplaceStop | "read_failed">
-  | KbReplaceStop;
+  | Exclude<KbReplaceStop, "policy_managed">;
 
 /** What is kept per version under `sync:<version>`: no body, no query, no cookie. */
 export interface KbSyncRecord {

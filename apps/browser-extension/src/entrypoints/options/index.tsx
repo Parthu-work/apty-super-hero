@@ -1,6 +1,13 @@
-import type { AppSettings, KbAptyVersion } from "@apty/agent-core";
+import {
+  type AppSettings,
+  KB_PACK_SOURCE_VERSIONS,
+  type KbAptyVersion,
+  kbPackManaged,
+  kbPackSources,
+} from "@apty/agent-core";
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
 import { noteKbPacksChanged } from "@apty/browser-runtime/runtime/effective-settings";
+import { loadOrgPolicy } from "@apty/browser-runtime/runtime/org-policy";
 import { previewRedaction } from "@apty/browser-runtime/runtime/redaction-mode";
 import { isOwnExtensionPage } from "@apty/browser-runtime/runtime/trusted-sender";
 import { SettingsPage } from "@apty/ui";
@@ -26,6 +33,7 @@ import {
 import { testConnection } from "../../services/connection-check";
 import { kbEgressLog } from "../../services/kb-egress-log";
 import { kbPackStore } from "../../services/kb-pack";
+import { kbSyncRecords, requestKbPackCheck } from "../../services/kb-pack-sync";
 import { fetchModelList } from "../../services/model-list";
 import { installOrgPolicySource } from "../../services/org-policy";
 import { ApprovalGrantsPanel } from "./approval-grants-panel";
@@ -115,14 +123,43 @@ installOrgPolicySource();
 initLogging();
 applyRememberedTheme();
 
-/** Every import or removal is announced: the redaction floor follows the loaded packs (D-SEC3). */
+/**
+ * Every import or removal is announced: the redaction floor follows the
+ * loaded packs (D-SEC3). A version the policy delivers cannot be imported by
+ * hand unless the policy allows it (K26, D-DEL5).
+ */
 const knowledgeBase = {
   info: () => kbPackStore().info(),
   async importPack(text: string) {
-    const result = await kbPackStore().replace(text);
+    const policy = await loadOrgPolicy();
+    const result = await kbPackStore().replace(text, {
+      guard: (incoming) =>
+        kbPackManaged(policy, incoming.aptyVersion)
+          ? "policy_managed"
+          : undefined,
+    });
     if (result.ok) await noteKbPacksChanged();
     return result;
   },
+  async delivery() {
+    const policy = await loadOrgPolicy();
+    const sources = kbPackSources(policy);
+    const records = await kbSyncRecords();
+    return KB_PACK_SOURCE_VERSIONS.flatMap((version) => {
+      const url = sources[version];
+      if (!url) return [];
+      const record = records[version];
+      return [
+        {
+          version,
+          host: new URL(url).host,
+          managed: kbPackManaged(policy, version),
+          ...(record ? { record } : {}),
+        },
+      ];
+    });
+  },
+  checkNow: requestKbPackCheck,
   async remove(version: KbAptyVersion) {
     await kbPackStore().remove(version);
     await noteKbPacksChanged();

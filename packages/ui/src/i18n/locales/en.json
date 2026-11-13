@@ -179,7 +179,8 @@
         "notYetValid": "This pack was built in the future ({{date}}); check this device's clock.",
         "versionMismatch": "This pack is for another Apty version than its source names.",
         "unchanged": "This pack is the one already in use.",
-        "older": "This pack is older than the one in use, so the one in use was kept."
+        "older": "This pack is older than the one in use, so the one in use was kept.",
+        "policyManaged": "Your organization delivers this version's pack, so it cannot be imported by hand."
       },
       "signature": "Signature",
       "signedBy": "Signed by {{name}} (key {{keyId}})",
@@ -215,6 +216,18 @@
           "wrongType": "The host did not send a JSON file (it may have shown a sign-in page): sign in to the pack host.",
           "versionMismatch": "The host's pack is for another Apty version than this source."
         }
+      },
+      "delivery": {
+        "by": "Delivered by your organization",
+        "from": "From",
+        "lastCheck": "Last check",
+        "lastUpdate": "Last update",
+        "latest": "Latest check",
+        "never": "Not checked yet",
+        "notYet": "No pack delivered yet",
+        "checkNow": "Check now",
+        "checked": "Every delivered pack was checked.",
+        "checkFailed": "The check could not run. Reload the extension and try again."
       }
     }
   },
@@ -1254,6 +1267,18 @@
         "allowed": "Allowed to {{destination}} by your organization's policy, and recorded in Data handling.",
         "demo": "Demo packs only: card text goes to the model, as no Apty KB pack is loaded.",
         "noPack": "No KB pack is loaded."
+      },
+      "kbDelivery": {
+        "label": "KB packs up to date",
+        "current": "{{version}}: current, checked {{when}} (UTC).",
+        "noPack": "{{version}}: no usable pack ({{reason}}).",
+        "notDelivered": "nothing delivered yet",
+        "expiring": "{{version}}: the pack expires in {{days}} days.",
+        "neverChecked": "{{version}}: not checked yet.",
+        "checkFailed": "{{version}}: the last check failed ({{reason}}); the stored pack still works.",
+        "stale": "{{version}}: no successful check since {{when}} (UTC).",
+        "fix": "Press Check now. If it still fails, sign in to the pack host in this browser, or ask IT to check the pack host and the policy (docs/release/KB_PACK_DELIVERY.md).",
+        "checkNow": "Check now"
       }
     }
   },
@@ -2659,7 +2684,8 @@
       "error": "could not be searched ({{code}})",
       "howTo": "a how-to question, left to the AI model",
       "nonEnglish": "not in English, left to the AI model",
-      "packUnusable": "pack for {{version}} not used ({{reason}})"
+      "packUnusable": "pack for {{version}} not used ({{reason}})",
+      "deliveryFailed": ", last update failed ({{outcome}})"
     },
     "packUnusable": {
       "expired": "The {{version}} pack expired on {{date}}.",
@@ -2667,7 +2693,8 @@
       "unsigned": "The {{version}} pack is not signed.",
       "untrusted": "The {{version}} pack is not signed by a key this extension trusts.",
       "revoked": "The {{version}} pack is signed by a revoked key."
-    }
+    },
+    "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}})."
   },
   "cases": {
     "label": "Case",

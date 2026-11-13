@@ -6,7 +6,9 @@ import type { OrgPolicy, OrgPolicyState } from "@apty/agent-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createKbPackStore } from "../storage/kb-store.js";
 import { createKbIndexSource } from "./kb-index.js";
+import { localKbMatches } from "./kb-matches.js";
 import {
+  createKbDeliveryNote,
   createKbPackSync,
   type KbSyncRecord,
   type KbSyncSendRow,
@@ -395,5 +397,61 @@ describe("createKbPackSync", () => {
     const [result] = await env.sync.syncAll({ reason: "manual" });
     expect(env.calls[1]?.init.headers).toEqual({});
     expect(result?.outcome).toBe("updated");
+  });
+});
+
+describe("createKbDeliveryNote (K26 D4)", () => {
+  const sourced = async (): Promise<OrgPolicyState> => ({
+    kind: "active",
+    policy: { kbPackSources: { "5.x": SOURCE_5X } },
+  });
+
+  it("names a sourced version whose last check failed, and nothing otherwise", async () => {
+    const records = memoryRecords();
+    const note = createKbDeliveryNote({
+      records: () => records,
+      policy: sourced,
+    });
+    expect(await note("5.x")).toBeUndefined();
+    await records.putAll([
+      ["sync:5.x", { version: "5.x", outcome: "http_403", failures: 1 }],
+    ]);
+    expect(await note("5.x")).toEqual({ version: "5.x", outcome: "http_403" });
+    expect(await note("unknown")).toEqual({
+      version: "5.x",
+      outcome: "http_403",
+    });
+    expect(await note("4.x")).toBeUndefined();
+    await records.putAll([
+      ["sync:5.x", { version: "5.x", outcome: "not_modified", failures: 0 }],
+    ]);
+    expect(await note("5.x")).toBeUndefined();
+  });
+
+  it("reads no record without a source", async () => {
+    const get = vi.fn();
+    const note = createKbDeliveryNote({
+      records: () => ({ ...memoryRecords(), get }),
+      policy: async () => ({ kind: "none" }),
+    });
+    expect(await note("5.x")).toBeUndefined();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("puts the failure on the KB outcome when no pack is usable", async () => {
+    const env = setup();
+    const outcome = await localKbMatches(
+      "FIXTURE banner never glows",
+      env.source,
+      {
+        version: "5.x",
+        delivery: async () => ({ version: "5.x", outcome: "http_403" }),
+      },
+    );
+    expect(outcome).toEqual({
+      kind: "no_pack",
+      version: "5.x",
+      delivery: { version: "5.x", outcome: "http_403" },
+    });
   });
 });

@@ -5,6 +5,7 @@ vi.mock("../../services/preflight-browser", () => ({
   browserPreflightDeps: {},
 }));
 vi.mock("../../services/stored-data", () => ({ purgeStoredData: vi.fn() }));
+vi.mock("../../services/kb-pack-sync", () => ({ requestKbPackCheck: vi.fn() }));
 vi.mock("@apty/browser-runtime/runtime/redaction-mode", () => ({
   redactTextStrict: (text: string) => text,
 }));
@@ -77,6 +78,25 @@ describe("PreflightPanel", () => {
       screen.getByRole("button", { name: "Copy the fix for Apty Client" }),
     );
     expect(writeText).toHaveBeenCalledWith("Add the ID");
+  });
+
+  it("runs Check now from KB packs up to date, then the checks again (K26 D4)", async () => {
+    runPreflight.mockReset();
+    runPreflight.mockResolvedValue([
+      {
+        id: "kb-delivery",
+        label: "KB packs up to date",
+        status: "warn",
+        detail: "5.x: the last check failed (network).",
+        fix: "Press Check now.",
+      },
+    ]);
+    const checkKbPacks = vi.fn(async () => {});
+    render(<PreflightPanel deps={{} as never} checkKbPacks={checkKbPacks} />);
+    fireEvent.click(screen.getByRole("button", { name: "Run all checks" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check now" }));
+    await vi.waitFor(() => expect(runPreflight).toHaveBeenCalledTimes(2));
+    expect(checkKbPacks).toHaveBeenCalledTimes(1);
   });
 
   it("resets demo data only after confirmation", async () => {

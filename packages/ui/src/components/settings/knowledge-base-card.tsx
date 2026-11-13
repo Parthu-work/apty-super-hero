@@ -7,7 +7,7 @@ import {
   type KbPackUsability,
   kbPackAgeDays,
 } from "@apty/agent-core";
-import { BookOpen, Trash2, Upload } from "lucide-react";
+import { BookOpen, RefreshCw, Trash2, Upload } from "lucide-react";
 import {
   type ChangeEvent,
   useCallback,
@@ -17,6 +17,7 @@ import {
 } from "react";
 import { useTranslation } from "../../i18n/context";
 import type { TranslationKey } from "../../i18n/types";
+import { kbSyncOutcomeMessage } from "../../lib/kb-sync-outcome";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -27,7 +28,7 @@ import {
 } from "../ui/card";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Notice } from "../ui/notice";
-import type { KnowledgeBaseAdapter } from "./types";
+import type { KbDeliveryView, KnowledgeBaseAdapter } from "./types";
 
 type ErrorCode = Extract<KbImportResult, { ok: false }>["code"];
 
@@ -48,7 +49,64 @@ const ERROR_KEYS: Record<ErrorCode, TranslationKey> = {
   version_mismatch: "settings.knowledgeBase.errors.versionMismatch",
   unchanged: "settings.knowledgeBase.errors.unchanged",
   older: "settings.knowledgeBase.errors.older",
+  policy_managed: "settings.knowledgeBase.errors.policyManaged",
 };
+
+const KB_VERSIONS: readonly KbAptyVersion[] = ["4.x", "5.x", "common"];
+
+/** An ISO time as "YYYY-MM-DD HH:MM" (UTC). */
+const minute = (iso: string) => iso.slice(0, 16).replace("T", " ");
+
+/** Where a delivered version comes from and how its last check went (K26, D4). */
+function DeliveryDetails({
+  delivery,
+  importedAt,
+}: {
+  delivery: KbDeliveryView;
+  importedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const record = delivery.record;
+  return (
+    <div className="space-y-1" data-testid="kb-delivery">
+      <p className="text-sm font-medium text-foreground">
+        {t("settings.knowledgeBase.delivery.by")}
+      </p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.delivery.from")}
+        </dt>
+        <dd>{delivery.host}</dd>
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.delivery.lastCheck")}
+        </dt>
+        <dd>
+          {record
+            ? minute(record.lastCheckAt)
+            : t("settings.knowledgeBase.delivery.never")}
+        </dd>
+        <dt className="text-muted-foreground">
+          {t("settings.knowledgeBase.delivery.lastUpdate")}
+        </dt>
+        <dd>
+          {importedAt
+            ? minute(importedAt)
+            : t("settings.knowledgeBase.delivery.notYet")}
+        </dd>
+        {record && (
+          <>
+            <dt className="text-muted-foreground">
+              {t("settings.knowledgeBase.delivery.latest")}
+            </dt>
+            <dd data-testid="kb-delivery-outcome">
+              {kbSyncOutcomeMessage(record.outcome, t)}
+            </dd>
+          </>
+        )}
+      </dl>
+    </div>
+  );
+}
 
 /** Who signed a pack and whether it is used, in words (K23 P5). */
 function trustWords(
@@ -91,7 +149,9 @@ type Status =
   | { kind: "idle" }
   | { kind: "imported"; cardCount: number; space: string; version: string }
   | { kind: "removed"; version: string }
-  | { kind: "error"; code: ErrorCode; date?: string };
+  | { kind: "error"; code: ErrorCode; date?: string }
+  | { kind: "checked" }
+  | { kind: "checkFailed" };
 
 export interface KnowledgeBaseCardProps {
   adapter: KnowledgeBaseAdapter;
@@ -103,12 +163,14 @@ function PackRow({
   info,
   now,
   busy,
+  delivery,
   onReplace,
   onRemove,
 }: {
   info: KbPackInfo & { usability?: KbPackUsability };
   now: Date;
   busy: boolean;
+  delivery?: KbDeliveryView;
   onReplace: () => void;
   onRemove: () => void;
 }) {
@@ -210,16 +272,21 @@ function PackRow({
           {t("settings.knowledgeBase.stale", { days: age ?? 0 })}
         </Notice>
       )}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="secondary" disabled={busy} onClick={onReplace}>
-          <Upload aria-hidden="true" className="h-4 w-4" />
-          {t("settings.knowledgeBase.replaceVersion", { version })}
-        </Button>
-        <Button variant="danger" disabled={busy} onClick={onRemove}>
-          <Trash2 aria-hidden="true" className="h-4 w-4" />
-          {t("settings.knowledgeBase.removeVersion", { version })}
-        </Button>
-      </div>
+      {delivery && (
+        <DeliveryDetails delivery={delivery} importedAt={info.importedAt} />
+      )}
+      {!delivery?.managed && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" disabled={busy} onClick={onReplace}>
+            <Upload aria-hidden="true" className="h-4 w-4" />
+            {t("settings.knowledgeBase.replaceVersion", { version })}
+          </Button>
+          <Button variant="danger" disabled={busy} onClick={onRemove}>
+            <Trash2 aria-hidden="true" className="h-4 w-4" />
+            {t("settings.knowledgeBase.removeVersion", { version })}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }
@@ -235,6 +302,7 @@ export function KnowledgeBaseCard({
 }: KnowledgeBaseCardProps) {
   const { t } = useTranslation();
   const [packs, setPacks] = useState<KbPackInfo[] | undefined>(undefined);
+  const [deliveries, setDeliveries] = useState<KbDeliveryView[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState<KbAptyVersion | null>(null);
@@ -242,10 +310,15 @@ export function KnowledgeBaseCard({
 
   const reload = useCallback(
     () =>
-      adapter
-        .info()
-        .then((loaded) => setPacks(loaded))
-        .catch(() => setPacks([])),
+      Promise.all([
+        adapter
+          .info()
+          .then((loaded) => setPacks(loaded))
+          .catch(() => setPacks([])),
+        (adapter.delivery?.() ?? Promise.resolve([]))
+          .then((found) => setDeliveries(found))
+          .catch(() => setDeliveries([])),
+      ]),
     [adapter],
   );
 
@@ -255,10 +328,26 @@ export function KnowledgeBaseCard({
       .info()
       .then((loaded) => live && setPacks(loaded))
       .catch(() => live && setPacks([]));
+    (adapter.delivery?.() ?? Promise.resolve([]))
+      .then((found) => live && setDeliveries(found))
+      .catch(() => live && setDeliveries([]));
     return () => {
       live = false;
     };
   }, [adapter]);
+
+  const onCheckNow = useCallback(async () => {
+    setBusy(true);
+    try {
+      await adapter.checkNow?.();
+      await reload();
+      setStatus({ kind: "checked" });
+    } catch {
+      setStatus({ kind: "checkFailed" });
+    } finally {
+      setBusy(false);
+    }
+  }, [adapter, reload]);
 
   const onFile = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -321,6 +410,14 @@ export function KnowledgeBaseCard({
   }, [adapter, confirming, reload]);
 
   const today = now();
+  const deliveryOf = (version: KbAptyVersion) =>
+    deliveries.find((delivery) => delivery.version === version);
+  const undelivered = deliveries.filter(
+    (delivery) => !packs?.some((info) => info.aptyVersion === delivery.version),
+  );
+  const importable = KB_VERSIONS.some(
+    (version) => !deliveryOf(version)?.managed,
+  );
 
   return (
     <Card id="knowledge-base" className="scroll-mt-4">
@@ -334,7 +431,8 @@ export function KnowledgeBaseCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {packs === undefined ? null : packs.length === 0 ? (
+        {packs === undefined ? null : packs.length === 0 &&
+          undelivered.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t("settings.knowledgeBase.notLoaded")}
           </p>
@@ -345,11 +443,29 @@ export function KnowledgeBaseCard({
               info={info}
               now={today}
               busy={busy}
+              delivery={deliveryOf(info.aptyVersion)}
               onReplace={() => fileInput.current?.click()}
               onRemove={() => setConfirming(info.aptyVersion)}
             />
           ))
         )}
+        {packs !== undefined &&
+          undelivered.map((delivery) => (
+            <section
+              key={delivery.version}
+              aria-label={t("settings.knowledgeBase.loadedLabelVersion", {
+                version: delivery.version,
+              })}
+              className="space-y-2 rounded-md border border-border p-3"
+            >
+              <h3 className="text-sm font-medium text-foreground">
+                {t("settings.knowledgeBase.versionHeading", {
+                  version: delivery.version,
+                })}
+              </h3>
+              <DeliveryDetails delivery={delivery} />
+            </section>
+          ))}
 
         {status.kind === "imported" && (
           <Notice tone="success">
@@ -367,6 +483,16 @@ export function KnowledgeBaseCard({
             })}
           </Notice>
         )}
+        {status.kind === "checked" && (
+          <Notice tone="info">
+            {t("settings.knowledgeBase.delivery.checked")}
+          </Notice>
+        )}
+        {status.kind === "checkFailed" && (
+          <Notice tone="error">
+            {t("settings.knowledgeBase.delivery.checkFailed")}
+          </Notice>
+        )}
         {status.kind === "error" && (
           <Notice tone="error">
             {t(ERROR_KEYS[status.code], {
@@ -376,14 +502,22 @@ export function KnowledgeBaseCard({
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onClick={() => fileInput.current?.click()}
-          >
-            <Upload aria-hidden="true" className="h-4 w-4" />
-            {t("settings.knowledgeBase.import")}
-          </Button>
+          {deliveries.length > 0 && adapter.checkNow && (
+            <Button variant="secondary" disabled={busy} onClick={onCheckNow}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              {t("settings.knowledgeBase.delivery.checkNow")}
+            </Button>
+          )}
+          {importable && (
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
+            >
+              <Upload aria-hidden="true" className="h-4 w-4" />
+              {t("settings.knowledgeBase.import")}
+            </Button>
+          )}
           <input
             ref={fileInput}
             type="file"

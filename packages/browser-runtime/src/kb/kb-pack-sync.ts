@@ -15,6 +15,7 @@ import {
   isKbSyncSuccess,
   KB_PACK_LIMITS,
   KB_PACK_SOURCE_VERSIONS,
+  type KbDeliveryFailure,
   type KbPackInfo,
   type KbPackSourceVersion,
   type KbPackSync,
@@ -29,7 +30,12 @@ import {
   kbSyncBackoffMs,
   type OrgPolicyState,
 } from "@apty/agent-core";
-import type { KbPackStore, KbRecords } from "../storage/kb-store.js";
+import { loadOrgPolicy } from "../runtime/org-policy.js";
+import {
+  indexedDbRecords,
+  type KbPackStore,
+  type KbRecords,
+} from "../storage/kb-store.js";
 
 export type {
   KbPackSync,
@@ -63,7 +69,7 @@ function newerGuard(version: KbPackSourceVersion) {
   return (
     incoming: KbPackInfo,
     stored: KbPackInfo | undefined,
-  ): KbReplaceStop | undefined => {
+  ): Exclude<KbReplaceStop, "policy_managed"> | undefined => {
     if (incoming.aptyVersion !== version) return "version_mismatch";
     if (!stored) return undefined;
     if (incoming.sha256 === stored.sha256) return "unchanged";
@@ -215,8 +221,10 @@ export function createKbPackSync({
           ...validators,
         };
       }
-      if (result.code === "read_failed")
+      // Neither arises here: the text is in hand and the guard is the source's.
+      if (result.code === "read_failed" || result.code === "policy_managed") {
         return { outcome: "network", httpStatus };
+      }
       // The stored pack is the source's: keep the validators so the next check is a 304.
       return result.code === "unchanged"
         ? { outcome: "unchanged", httpStatus, ...validators }
@@ -319,4 +327,54 @@ export function createKbPackSync({
       return running;
     },
   };
+}
+
+/** For a version the KB has no usable pack for: the policy delivers it and its last check failed. */
+export type KbDeliveryNote = (
+  version: "4.x" | "5.x" | "common" | "unknown",
+) => Promise<KbDeliveryFailure | undefined>;
+
+/** @internal exported for tests, which give it records and a policy of their own. */
+export function createKbDeliveryNote({
+  records,
+  policy,
+}: {
+  records: () => KbRecords;
+  policy: () => Promise<OrgPolicyState>;
+}): KbDeliveryNote {
+  return async (version) => {
+    try {
+      const sources = kbPackSources(await policy());
+      const versions = KB_PACK_SOURCE_VERSIONS.filter(
+        (sourced) =>
+          sources[sourced] && (version === "unknown" || sourced === version),
+      );
+      if (versions.length === 0) return undefined;
+      const kept = await readKbSyncRecords(records());
+      for (const sourced of versions) {
+        const last = kept[sourced];
+        if (last && !isKbSyncSuccess(last.outcome)) {
+          return { version: sourced, outcome: last.outcome };
+        }
+      }
+    } catch {
+      // A note that cannot be read is left out; the KB line still says why.
+    }
+    return undefined;
+  };
+}
+
+let sharedRecords: KbRecords | undefined;
+let sharedNote: KbDeliveryNote | undefined;
+
+/** The note over this browser's KB database and managed policy. */
+export function sharedKbDeliveryNote(): KbDeliveryNote {
+  sharedNote ??= createKbDeliveryNote({
+    records: () => {
+      sharedRecords ??= indexedDbRecords();
+      return sharedRecords;
+    },
+    policy: loadOrgPolicy,
+  });
+  return sharedNote;
 }

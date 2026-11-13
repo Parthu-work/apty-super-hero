@@ -2,19 +2,7 @@ import { describe, expect, it } from "vitest";
 import en from "../i18n/locales/en.json";
 import zh from "../i18n/locales/zh.json";
 import { kbSyncOutcomeMessage } from "./kb-sync-outcome";
-
-function translator(locale: Record<string, unknown>) {
-  return (key: string, params: Record<string, unknown> = {}) => {
-    const value = key
-      .split(".")
-      .reduce<unknown>(
-        (node, part) => (node as Record<string, unknown>)?.[part],
-        locale,
-      );
-    if (typeof value !== "string") throw new Error(`missing ${key}`);
-    return value.replace(/\{\{(\w+)\}\}/g, (_, name) => String(params[name]));
-  };
-}
+import { translatorFor as translator } from "./test-translator";
 
 const CODES = [
   "updated",

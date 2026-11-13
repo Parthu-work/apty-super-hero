@@ -312,11 +312,16 @@ export interface KbPackInfo {
 export type KbPackState = KbPackInfo & { usability: KbPackUsability };
 
 /**
- * Why a fetched pack is not stored though it is valid (KB-RAG K26, D-DEL6):
- * it names another version than its source, it is the stored pack again, or
- * it is not newer by `builtAt`.
+ * Why a valid pack is not stored (KB-RAG K26): fetched, it names another
+ * version than its source, it is the stored pack again, or it is not newer by
+ * `builtAt` (D-DEL6); imported by hand, the policy delivers its version
+ * (D-DEL5).
  */
-export type KbReplaceStop = "version_mismatch" | "unchanged" | "older";
+export type KbReplaceStop =
+  | "version_mismatch"
+  | "unchanged"
+  | "older"
+  | "policy_managed";
 
 export type KbImportResult =
   | { ok: true; info: KbPackInfo }

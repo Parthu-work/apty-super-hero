@@ -131,6 +131,7 @@ export { isSummaryItem } from "./conversation/summary-item.js";
 export {
   type DecisionPack,
   type KbDecision,
+  type KbDeliveryFailure,
   packIdOf,
   type TabVersion,
   type TabVersionSource,

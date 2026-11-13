@@ -1,3 +1,4 @@
+import type { KbPackUsability } from "@apty/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import { type PreflightDeps, preflightJson, runPreflight } from "./preflight";
 
@@ -546,5 +547,156 @@ describe("the Knowledge base row with signed packs (KB-RAG K23 P5)", () => {
       now: () => new Date("2026-04-15T00:00:00.000Z"),
     });
     expect(current.status).toBe("pass");
+  });
+});
+
+describe("KB packs up to date (KB-RAG K26 D4)", () => {
+  const NOW = new Date("2026-03-10T00:00:00.000Z");
+  const sourced =
+    (extra = {}) =>
+    async () =>
+      ({
+        kind: "active",
+        policy: {
+          kbPackSources: { "5.x": "https://packs.example.com/5x.json" },
+          ...extra,
+        },
+      }) as const;
+  const usable: KbPackUsability = {
+    usable: true,
+    trust: {
+      status: "trusted",
+      keyId: "0123456789abcdef",
+      name: "CI",
+      demo: false,
+    },
+    validity: { state: "current", date: null, daysLeft: 50 },
+  };
+  const record = (outcome: string, at = "2026-03-09T20:00:00.000Z") => ({
+    "5.x": {
+      version: "5.x" as const,
+      host: "packs.example.com",
+      lastCheckAt: at,
+      lastSuccessAt: "2026-03-09T20:00:00.000Z",
+      outcome: outcome as never,
+      failures: 0,
+    },
+  });
+
+  it("is absent with no delivered version", async () => {
+    const checks = await runPreflight(
+      deps({ kbSyncRecords: async () => ({}) }),
+    );
+    expect(checks.find((c) => c.id === "kb-delivery")).toBeUndefined();
+  });
+
+  it("passes when the delivered pack is current and was checked recently", async () => {
+    const result = await check("kb-delivery", {
+      orgPolicy: sourced(),
+      knowledgeBase: async () => [{ ...PACK_INFO, usability: usable }],
+      kbSyncRecords: async () => record("not_modified"),
+      now: () => NOW,
+    });
+    expect(result).toMatchObject({
+      label: "KB packs up to date",
+      status: "pass",
+      detail: "5.x: current, checked 2026-03-09 20:00 (UTC).",
+    });
+    expect(result.fix).toBeUndefined();
+  });
+
+  it("warns when the last check failed while the stored pack works, naming why", async () => {
+    const result = await check("kb-delivery", {
+      orgPolicy: sourced(),
+      knowledgeBase: async () => [{ ...PACK_INFO, usability: usable }],
+      kbSyncRecords: async () => record("http_403"),
+      now: () => NOW,
+    });
+    expect(result.status).toBe("warn");
+    expect(result.detail).toBe(
+      "5.x: the last check failed (HTTP 403: sign in to the pack host); the stored pack still works.",
+    );
+    expect(result.fix).toMatch(/Check now/);
+  });
+
+  it("warns when the pack is expiring, or no check succeeded in twice the interval", async () => {
+    expect(
+      (
+        await check("kb-delivery", {
+          orgPolicy: sourced(),
+          knowledgeBase: async () => [
+            {
+              ...PACK_INFO,
+              usability: {
+                ...usable,
+                validity: { state: "expiring", date: null, daysLeft: 4 },
+              },
+            },
+          ],
+          kbSyncRecords: async () => record("not_modified"),
+          now: () => NOW,
+        })
+      ).detail,
+    ).toBe("5.x: the pack expires in 4 days.");
+    const stale = await check("kb-delivery", {
+      orgPolicy: sourced({ kbPackCheckHours: 1 }),
+      knowledgeBase: async () => [{ ...PACK_INFO, usability: usable }],
+      kbSyncRecords: async () => record("unchanged"),
+      now: () => NOW,
+    });
+    expect(stale).toMatchObject({
+      status: "warn",
+      detail: "5.x: no successful check since 2026-03-09 20:00 (UTC).",
+    });
+  });
+
+  it("fails when a delivered version has no usable pack, with the pack's and the check's reasons", async () => {
+    expect(
+      (
+        await check("kb-delivery", {
+          orgPolicy: sourced(),
+          knowledgeBase: async () => [],
+          kbSyncRecords: async () => record("timeout"),
+          now: () => NOW,
+        })
+      ).detail,
+    ).toBe(
+      "5.x: no usable pack (The pack host did not answer within 60 seconds).",
+    );
+    const expired = await check("kb-delivery", {
+      orgPolicy: sourced(),
+      knowledgeBase: async () => [
+        {
+          ...PACK_INFO,
+          usability: {
+            ...usable,
+            usable: false,
+            reason: "expired",
+            validity: {
+              state: "expired",
+              date: "2026-03-01T00:00:00.000Z",
+              daysLeft: 0,
+            },
+          },
+        },
+      ],
+      kbSyncRecords: async () => record("http_403"),
+      now: () => NOW,
+    });
+    expect(expired).toMatchObject({
+      status: "fail",
+      detail:
+        "5.x: no usable pack (Expired on 2026-03-01; HTTP 403: sign in to the pack host).",
+    });
+    expect(
+      (
+        await check("kb-delivery", {
+          orgPolicy: sourced(),
+          knowledgeBase: async () => [],
+          kbSyncRecords: async () => ({}),
+          now: () => NOW,
+        })
+      ).detail,
+    ).toBe("5.x: no usable pack (nothing delivered yet).");
   });
 });

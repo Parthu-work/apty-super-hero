@@ -3,6 +3,7 @@
  * demo depends on, each with its exact fix and a copy button; export the
  * results as redacted JSON; reset demo data. See docs/demo/DEMO.md.
  */
+
 import type { RequestReport } from "@apty/agent-core";
 import { redactTextStrict } from "@apty/browser-runtime/runtime/redaction-mode";
 import { RecentRequests } from "@apty/ui/components/settings/recent-requests";
@@ -26,6 +27,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { requestKbPackCheck } from "../../services/kb-pack-sync";
 import {
   type CheckStatus,
   type PreflightCheck,
@@ -73,7 +75,16 @@ function download(json: string) {
   URL.revokeObjectURL(url);
 }
 
-function CheckRow({ check }: { check: PreflightCheck }) {
+function CheckRow({
+  check,
+  onCheckNow,
+  busy,
+}: {
+  check: PreflightCheck;
+  /** K26 (D4): Check now on "KB packs up to date". */
+  onCheckNow?: () => void;
+  busy?: boolean;
+}) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const status = STATUS[check.status];
@@ -104,6 +115,17 @@ function CheckRow({ check }: { check: PreflightCheck }) {
             </p>
           )}
         </div>
+        {onCheckNow && check.id === "kb-delivery" && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={onCheckNow}
+          >
+            {t("preflight.checks.kbDelivery.checkNow")}
+          </Button>
+        )}
         {check.fix && (
           <Button
             type="button"
@@ -133,9 +155,12 @@ export function PreflightPanel({
   deps = browserPreflightDeps,
   purge = purgeStoredData,
   requestReports = [],
+  checkKbPacks = requestKbPackCheck,
 }: {
   deps?: PreflightDeps;
   purge?: () => Promise<void>;
+  /** K26 (D3): asks the background to check every delivered pack. */
+  checkKbPacks?: () => Promise<void>;
   /** The last requests sent to the AI provider (sizes and counts only). */
   requestReports?: RequestReport[];
 }) {
@@ -149,6 +174,16 @@ export function PreflightPanel({
   const run = async () => {
     setRunning(true);
     try {
+      setChecks(await runPreflight(deps, t));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const checkNow = async () => {
+    setRunning(true);
+    try {
+      await checkKbPacks().catch(() => undefined);
       setChecks(await runPreflight(deps, t));
     } finally {
       setRunning(false);
@@ -232,7 +267,12 @@ export function PreflightPanel({
             </p>
             <ul aria-label={t("preflight.resultsLabel")} className="space-y-2">
               {checks.map((check) => (
-                <CheckRow key={`${check.id} ${check.label}`} check={check} />
+                <CheckRow
+                  key={`${check.id} ${check.label}`}
+                  check={check}
+                  busy={running}
+                  onCheckNow={() => void checkNow()}
+                />
               ))}
             </ul>
           </>

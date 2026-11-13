@@ -41,3 +41,11 @@ export function kbSyncRecords() {
 
 /** The message Options and Preflight send for Check now. */
 export const KB_PACK_SYNC_NOW = "kb-pack-sync-now";
+
+/** Asks the background to check every source now (Check now in Options and Preflight). */
+export async function requestKbPackCheck(): Promise<void> {
+  const answer = (await chrome.runtime.sendMessage({
+    request: KB_PACK_SYNC_NOW,
+  })) as { ok: boolean; error?: string } | undefined;
+  if (!answer?.ok) throw new Error(answer?.error ?? "No answer");
+}

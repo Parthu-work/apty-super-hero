@@ -11,7 +11,12 @@
  * say why no card was shown: no pack, not covered with its numbers, or an
  * error with its code. Nothing is swallowed.
  */
-import { type KbDecision, kbSourceTag, packIdOf } from "@apty/agent-core";
+import {
+  type KbDecision,
+  type KbDeliveryFailure,
+  kbSourceTag,
+  packIdOf,
+} from "@apty/agent-core";
 import {
   type KbIndexSource,
   type KbTabVersion,
@@ -22,6 +27,7 @@ import {
   unusablePackOf,
 } from "./kb-index.js";
 import { isBareHowTo, isMostlyNonLatin } from "./kb-intent.js";
+import { type KbDeliveryNote, sharedKbDeliveryNote } from "./kb-pack-sync.js";
 
 const MAX_QUERY_CHARS = 300;
 const KB_MATCHES = 3;
@@ -31,6 +37,8 @@ export interface KbMatchesOptions {
   modelAvailable?: boolean;
   /** The tab's Apty version: its pack and the common cards, or every pack when unknown. */
   version?: KbTabVersion;
+  /** K26 (D4): why a policy-delivered pack is missing; this browser's record by default. */
+  delivery?: KbDeliveryNote;
 }
 
 /** A pack a search read: its version and sha256 prefix. */
@@ -45,7 +53,7 @@ export type KbOutcome =
   | { kind: "answer"; result: KbToolResult; packs: KbSearchedPack[] }
   | { kind: "how_to" }
   | { kind: "non_english" }
-  | { kind: "no_pack"; version: KbTabVersion }
+  | { kind: "no_pack"; version: KbTabVersion; delivery?: KbDeliveryFailure }
   | {
       kind: "not_covered";
       reason: NonNullable<KbToolResult["reason"]>;
@@ -65,6 +73,7 @@ export type KbOutcome =
       reason: KbUnusablePack["reason"];
       version: KbUnusablePack["aptyVersion"];
       date: string | null;
+      delivery?: KbDeliveryFailure;
     };
 
 function failed(
@@ -83,7 +92,11 @@ function failed(
 export async function localKbMatches(
   text: string,
   source: KbIndexSource = sharedKbIndexSource(),
-  { modelAvailable = false, version = "unknown" }: KbMatchesOptions = {},
+  {
+    modelAvailable = false,
+    version = "unknown",
+    delivery = sharedKbDeliveryNote(),
+  }: KbMatchesOptions = {},
 ): Promise<KbOutcome> {
   if (isBareHowTo(text)) return { kind: "how_to" };
   let index: Awaited<ReturnType<KbIndexSource["current"]>>;
@@ -99,14 +112,17 @@ export async function localKbMatches(
     } catch (error) {
       return failed("pack_read_failed", error);
     }
+    const missed = await delivery(blocked?.aptyVersion ?? version);
+    const note = missed ? { delivery: missed } : {};
     return blocked
       ? {
           kind: "pack_unusable",
           reason: blocked.reason,
           version: blocked.aptyVersion,
           date: blocked.date,
+          ...note,
         }
-      : { kind: "no_pack", version };
+      : { kind: "no_pack", version, ...note };
   }
   const packs = index.info.packs.map((pack) => ({
     version: pack.aptyVersion,
