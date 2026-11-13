@@ -12,6 +12,7 @@ import { registerCommandHandlers } from "./commands";
 import "./dapty-capture-registration";
 import { registerGlobalDownloadHelper } from "./downloads";
 import { registerGlobalErrorHandlers } from "./global-errors";
+import { registerKbPackSync } from "./kb-pack-sync";
 import { registerInstallHandler, seedAptyIntegrationConfig } from "./lifecycle";
 import { registerMcpBridge } from "./mcp-bridge";
 import { registerMessageRouter } from "./message-router";
@@ -36,5 +37,6 @@ registerInstallHandler();
 registerMessageRouter();
 registerGlobalDownloadHelper();
 registerMcpBridge();
+registerKbPackSync();
 
 log.debug("Apty Agent background service worker started");

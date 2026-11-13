@@ -634,7 +634,7 @@ partial: what is left, and the command that finishes it, is in each row.
 | --- | --- |
 | D1 Policy keys | Done |
 | D2 The fetcher | Done. A 304 is recorded as `not_modified` (the code list's name for it); import refusals keep their existing codes (`untrusted_key`, `revoked_key`, …). Check now skips the backoff |
-| D3 When it runs | Not started |
+| D3 When it runs | Done. The policy watch (`watchOrgPolicy`, which listens to `storage.managed` changes) recreates the alarm |
 | D4 What the SE sees | Not started |
 | D5 The scheduled build job | Not started |
 | D6 Key and hosting setup (runbook) | Not started |
