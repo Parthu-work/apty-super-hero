@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   auditRetentionDays,
   customModelsAllowed,
+  kbPackCheckHours,
+  kbPackManaged,
+  kbPackSources,
   kbToMcpAllowed,
   mcpBridgeAllowed,
   orgPolicyStateOf,
@@ -180,5 +183,95 @@ describe("KB pack trust keys (KB-RAG K23 P3)", () => {
     const parsed = parseOrgPolicy(raw);
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.reason).toMatch(reason);
+  });
+});
+
+describe("KB pack delivery keys (KB-RAG K26 D1)", () => {
+  const sources = {
+    "4.x": "https://packs.example.com/apty-kb-4.x.kbpack.json",
+    "5.x": "https://packs.example.com/kb/5x.json?v=1",
+    common: "https://packs.example.com/common.json",
+  };
+
+  it("parses the three keys", () => {
+    expect(
+      parseOrgPolicy({
+        kbPackSources: sources,
+        kbPackCheckHours: 24,
+        allowManualPackImport: true,
+      }),
+    ).toEqual({
+      ok: true,
+      policy: {
+        kbPackSources: sources,
+        kbPackCheckHours: 24,
+        allowManualPackImport: true,
+      },
+    });
+  });
+
+  it.each([
+    [{ kbPackSources: ["https://a.example.com/p.json"] }, /must be an object/],
+    [
+      { kbPackSources: { "6.x": "https://a.example.com/p.json" } },
+      /"6.x" is not/,
+    ],
+    [{ kbPackSources: { "5.x": "http://a.example.com/p.json" } }, /not https/],
+    [
+      { kbPackSources: { "5.x": "https://user:pass@a.example.com/p.json" } },
+      /user info/,
+    ],
+    [
+      { kbPackSources: { "5.x": "https://a.example.com/p.json#x" } },
+      /fragment/,
+    ],
+    [{ kbPackSources: { "5.x": "https://a.example.com/p.json#" } }, /fragment/],
+    [
+      { kbPackSources: { "5.x": `https://a.example.com/${"p".repeat(2048)}` } },
+      /2,048/,
+    ],
+    [{ kbPackSources: { "5.x": 42 } }, /must be a string/],
+    [{ kbPackSources: { "5.x": "not a url" } }, /not a URL/],
+    [{ kbPackSources: { "5.x": "ftp://a.example.com/p.json" } }, /not https/],
+    [{ kbPackCheckHours: 0 }, /1 to 168/],
+    [{ kbPackCheckHours: 169 }, /1 to 168/],
+    [{ kbPackCheckHours: 2.5 }, /1 to 168/],
+    [{ allowManualPackImport: "yes" }, /must be a boolean/],
+  ])("refuses %j", (raw, reason) => {
+    const parsed = parseOrgPolicy(raw);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toMatch(reason);
+  });
+
+  it("accepts http://127.0.0.1 only with the E2E seam's option", () => {
+    const raw = { kbPackSources: { "5.x": "http://127.0.0.1:8787/p.json" } };
+    expect(parseOrgPolicy(raw).ok).toBe(false);
+    expect(
+      parseOrgPolicy(
+        { kbPackSources: { "5.x": "http://localhost:8787/p" } },
+        {
+          allowLoopbackPackSources: true,
+        },
+      ).ok,
+    ).toBe(false);
+    expect(orgPolicyStateOf(raw, { allowLoopbackPackSources: true }).kind).toBe(
+      "active",
+    );
+  });
+
+  it("defaults: no sources, 6 hours, manual import off for a sourced version", () => {
+    expect(kbPackSources({ kind: "none" })).toEqual({});
+    expect(kbPackCheckHours({ kind: "none" })).toBe(6);
+    expect(kbPackSources({ kind: "invalid", reason: "bad" })).toEqual({});
+    const state = orgPolicyStateOf({
+      kbPackSources: { "5.x": sources["5.x"] },
+    });
+    expect(kbPackManaged(state, "5.x")).toBe(true);
+    expect(kbPackManaged(state, "4.x")).toBe(false);
+    const allowed = orgPolicyStateOf({
+      kbPackSources: { "5.x": sources["5.x"] },
+      allowManualPackImport: true,
+    });
+    expect(kbPackManaged(allowed, "5.x")).toBe(false);
   });
 });

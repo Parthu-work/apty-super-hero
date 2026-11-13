@@ -42,6 +42,24 @@ export interface OrgPolicy {
   maxPackAgeDays?: number;
   /** KB-RAG K25 (L1, D-CASE1): how many days a case record is kept on the device. */
   caseRetentionDays?: number;
+  /** KB-RAG K26 (D-DEL1): where each version's pack is fetched from; absent means manual import only. */
+  kbPackSources?: Partial<Record<KbPackSourceVersion, string>>;
+  /** K26 (D-DEL7): hours between checks of each source, 1 to 168. */
+  kbPackCheckHours?: number;
+  /** K26 (D-DEL5): whether an SE may import by hand a version the policy sources. */
+  allowManualPackImport?: boolean;
+}
+
+/** The versions a pack source may name (K26, D1). */
+export const KB_PACK_SOURCE_VERSIONS = ["4.x", "5.x", "common"] as const;
+export type KbPackSourceVersion = (typeof KB_PACK_SOURCE_VERSIONS)[number];
+export const KB_PACK_CHECK_HOURS = { min: 1, max: 168, default: 6 } as const;
+const KB_PACK_SOURCE_MAX_CHARS = 2048;
+
+/** How a policy is parsed; only the E2E policy build changes it. */
+export interface OrgPolicyParseOptions {
+  /** Accept `http://127.0.0.1` pack sources: set by the E2E policy seam only (K26, D7). */
+  allowLoopbackPackSources?: boolean;
 }
 
 /** What the extension knows of the policy: none set, one in force, or one it could not use. */
@@ -132,6 +150,36 @@ function parseOrigin(value: string): { origin: string } | { error: string } {
   return { error: `"${value}" is not https (only loopback may use http)` };
 }
 
+/** A pack source URL, or why it is refused: https only, no user info or fragment, at most 2,048 characters. */
+function parsePackSource(
+  value: unknown,
+  { allowLoopbackPackSources = false }: OrgPolicyParseOptions,
+): { url: string } | { error: string } {
+  if (typeof value !== "string") return { error: "must be a string" };
+  if (value.length > KB_PACK_SOURCE_MAX_CHARS) {
+    return { error: "is longer than 2,048 characters" };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return { error: "is not a URL" };
+  }
+  if (parsed.username || parsed.password) {
+    return { error: "carries user info" };
+  }
+  if (value.includes("#")) return { error: "has a fragment" };
+  if (parsed.protocol === "https:") return { url: parsed.href };
+  if (
+    allowLoopbackPackSources &&
+    parsed.protocol === "http:" &&
+    parsed.hostname === "127.0.0.1"
+  ) {
+    return { url: parsed.href };
+  }
+  return { error: "is not https" };
+}
+
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
 
@@ -178,7 +226,10 @@ type Parsed = { ok: true; policy: OrgPolicy } | { ok: false; reason: string };
  * A managed-storage object as an `OrgPolicy`. Strict: an unknown key, a
  * wrong type or a value out of range makes the whole policy invalid.
  */
-export function parseOrgPolicy(raw: unknown): Parsed {
+export function parseOrgPolicy(
+  raw: unknown,
+  options: OrgPolicyParseOptions = {},
+): Parsed {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return { ok: false, reason: "the policy is not an object" };
   }
@@ -305,6 +356,47 @@ export function parseOrgPolicy(raw: unknown): Parsed {
         }
         policy.caseRetentionDays = value;
         break;
+      case "kbPackSources": {
+        if (
+          typeof value !== "object" ||
+          value === null ||
+          Array.isArray(value)
+        ) {
+          return fail("kbPackSources must be an object");
+        }
+        const sources: NonNullable<OrgPolicy["kbPackSources"]> = {};
+        for (const [version, url] of Object.entries(value)) {
+          if (
+            !(KB_PACK_SOURCE_VERSIONS as readonly string[]).includes(version)
+          ) {
+            return fail(
+              `kbPackSources: "${version}" is not "4.x", "5.x" or "common"`,
+            );
+          }
+          const parsed = parsePackSource(url, options);
+          if ("error" in parsed) {
+            return fail(`kbPackSources.${version} ${parsed.error}`);
+          }
+          sources[version as KbPackSourceVersion] = parsed.url;
+        }
+        policy.kbPackSources = sources;
+        break;
+      }
+      case "kbPackCheckHours":
+        if (
+          typeof value !== "number" ||
+          !Number.isInteger(value) ||
+          value < KB_PACK_CHECK_HOURS.min ||
+          value > KB_PACK_CHECK_HOURS.max
+        ) {
+          return fail("kbPackCheckHours must be a whole number, 1 to 168");
+        }
+        policy.kbPackCheckHours = value;
+        break;
+      case "allowManualPackImport":
+        if (typeof value !== "boolean") return fail(`${key} must be a boolean`);
+        policy.allowManualPackImport = value;
+        break;
       case "maxPackAgeDays":
         if (
           typeof value !== "number" ||
@@ -324,7 +416,10 @@ export function parseOrgPolicy(raw: unknown): Parsed {
 }
 
 /** What managed storage held, as a state: empty is `none`. */
-export function orgPolicyStateOf(raw: unknown): OrgPolicyState {
+export function orgPolicyStateOf(
+  raw: unknown,
+  options: OrgPolicyParseOptions = {},
+): OrgPolicyState {
   if (
     typeof raw === "object" &&
     raw !== null &&
@@ -333,7 +428,7 @@ export function orgPolicyStateOf(raw: unknown): OrgPolicyState {
   ) {
     return { kind: "none" };
   }
-  const parsed = parseOrgPolicy(raw);
+  const parsed = parseOrgPolicy(raw, options);
   return parsed.ok
     ? { kind: "active", policy: parsed.policy }
     : { kind: "invalid", reason: parsed.reason };
@@ -382,4 +477,23 @@ export function auditRetentionDays(state: OrgPolicyState): number {
 /** How many days a case record is kept (KB-RAG K25, L1): the policy's, or 90. */
 export function caseRetentionDays(state: OrgPolicyState): number {
   return policyOf(state)?.caseRetentionDays ?? 90;
+}
+
+/** The pack sources the policy names (K26, D-DEL1): none without an active policy. */
+export function kbPackSources(
+  state: OrgPolicyState,
+): Partial<Record<KbPackSourceVersion, string>> {
+  return state.kind === "active" ? (state.policy.kbPackSources ?? {}) : {};
+}
+
+/** Hours between pack checks (K26, D-DEL7): the policy's, or 6. */
+export function kbPackCheckHours(state: OrgPolicyState): number {
+  return policyOf(state)?.kbPackCheckHours ?? KB_PACK_CHECK_HOURS.default;
+}
+
+/** Whether a version's pack is policy-managed, so manual import is off for it (K26, D-DEL5). */
+export function kbPackManaged(state: OrgPolicyState, version: string): boolean {
+  const sources = kbPackSources(state);
+  if (!Object.hasOwn(sources, version)) return false;
+  return !(policyOf(state)?.allowManualPackImport ?? false);
 }

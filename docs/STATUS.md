@@ -76,6 +76,10 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
+- Automatic KB pack delivery (KB-RAG K26 Part D, in progress,
+  [`FIXES-K26.md`](tasks/kb-rag/FIXES-K26.md)): the organization policy can
+  name where each version's pack comes from (`kbPackSources`,
+  `kbPackCheckHours`, `allowManualPackImport`).
 - What the first real packs asked for, and cases (KB-RAG K25,
   [`FIXES-K25.md`](tasks/kb-rag/FIXES-K25.md)): Anthropic works with every
   tool offered; every KB decision is visible (a line above the reply, "Why

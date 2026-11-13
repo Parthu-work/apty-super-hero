@@ -6,6 +6,9 @@ full commit-level history.
 
 ## Unreleased
 
+- **KB-RAG K26: automatic pack delivery** ([`FIXES-K26.md`](docs/tasks/kb-rag/FIXES-K26.md); owner decisions D-DEL1 to D-DEL8, D-CHK1 to D-CHK3 and D-DOM1, all Proposed):
+  - **D1**: policy keys `kbPackSources` (`"4.x"`, `"5.x"`, `"common"` to an `https://` URL), `kbPackCheckHours` (1 to 168, default 6) and `allowManualPackImport` (default false), in the parser, the managed schema and ORG_POLICY.md.
+
 - **KB-RAG K25: what the first real packs asked for, signed packs, and cases** ([`FIXES-K25.md`](docs/tasks/kb-rag/FIXES-K25.md)):
   - **A1**: tool schemas every provider accepts. Anthropic's strict tool use refuses `minimum`, `maximum` and the other limits its JSON Schema subset does not support; a provider middleware now removes them and states each limit in the property's description (`provider-schema.ts`). Tools still validate their input with their own Zod schema.
   - **A2**: every KB decision is visible: a typed outcome per search, one quiet line above the model's reply when no card answered (not covered with its numbers, no pack for the version, an error code), the same reason on the setup card without a key, and "Why this answer" on every turn (route, version, packs, outcome; no card text, no question).

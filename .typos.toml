@@ -23,6 +23,8 @@ extend-exclude = [
 extend-ignore-re = ["`[0-9a-f]{7,40}`"]
 
 [default.extend-words]
+# India Standard Time, in the KB pack job's schedule (KB-RAG K26).
+IST = "IST"
 # "Infor" is the ERP vendor name (Infor LN) referenced in the DOM Health
 # forensic audit — not a typo of "Info"/"Inform".
 Infor = "Infor"

@@ -205,3 +205,89 @@ host that is not an Apty or Atlassian domain becomes `customer-app`), user
 ids, emails or tokens, page queries or fragments, or ids in a path (`:id`).
 Every value goes through the content deny list and Strict redaction before
 the SE sees it.
+
+## D-DEL1: a managed policy names where each version's pack comes from
+
+Proposed 2026-11-13 with K26 ([FIXES-K26.md](FIXES-K26.md)). The policy key
+`kbPackSources` maps `"4.x"`, `"5.x"` and `"common"` to an `https://` URL
+(no user info, no fragment, at most 2,048 characters). A version with no
+source is imported by hand, as before. Alternative: a single index URL
+listing every pack.
+
+## D-DEL2: packs are fetched with the SE's own session
+
+Proposed 2026-11-13 with K26. The extension fetches with
+`credentials: "include"`, so a host behind Apty SSO answers with the SE's
+own session; no token is stored in the extension or the policy.
+Alternative (rejected by default): a per-device token in the policy.
+
+## D-DEL3: scheduled builds sign with a separate CI key
+
+Proposed 2026-11-13 with K26. The nightly job signs with its own key, held
+as the `KB_CI_SIGNING_KEY` Actions secret and trusted only through the
+policy's `trustedPackKeys`, never built in; the KB owner's key stays on the
+KB owner's machine. Either can be revoked with `revokedPackKeyIds`.
+Alternative: CI builds unsigned candidates and the KB owner signs them.
+
+## D-DEL4: packs are hosted on an internal HTTPS host behind Apty SSO
+
+Proposed 2026-11-13 with K26. IT chooses the host; the job uploads with an
+HTTP PUT and a bearer token secret; never a public URL. The workflow keeps
+its own artifacts 7 days. Alternative: a private object store with signed
+URLs.
+
+## D-DEL5: a policy-sourced version is policy-managed
+
+Proposed 2026-11-13 with K26. Options shows a sourced version read-only and
+manual import for it is off, unless the policy sets
+`allowManualPackImport: true`. Alternative: manual import always allowed.
+
+## D-DEL6: a fetched pack never downgrades the stored one
+
+Proposed 2026-11-13 with K26. A fetched pack replaces the stored one only if
+it parses, is trusted, is current, names the source's version and its
+`builtAt` is newer. Any failure keeps the stored pack and records why.
+
+## D-DEL7: when the extension checks for a new pack
+
+Proposed 2026-11-13 with K26. On browser start (after 30 seconds), every
+`kbPackCheckHours` (default 6, 1 to 168) and on Check now, with conditional
+requests (`If-None-Match`, `If-Modified-Since`). A failed version waits 5
+minutes, then twice as long each time, at most `kbPackCheckHours`.
+Alternative: daily only.
+
+## D-DEL8: what CI must pass before it publishes a pack
+
+Proposed 2026-11-13 with K26. The build succeeds, the customer-name check
+passes, the self-check passes, the card count has not dropped more than 10%
+from the last published pack, and the quality gate passes where the version
+has a question set in the repo. A failing gate publishes nothing and fails
+the run. A manual run may override only the card-count rule, with a reason
+in the job summary. Alternative: publish on build success alone.
+
+## D-CHK1: tooltips, launchers and validations get their own check pack
+
+Proposed 2026-11-13 with K26 (Part T). `item-not-showing` answers "it does
+not appear on the page"; content-not-visible keeps the widget list and stops
+citing the workflow widget-list card for these kinds. Alternative: extend
+content-not-visible per kind.
+
+## D-CHK2: a rule without a published card cites a draft and is capped
+
+Proposed 2026-11-13 with K26. A rule whose card is not published cites
+`draft:<slug>`; its finding is capped at possible, shows "No KB card yet" and
+NOT VERIFIED. Publishing the card and setting its id lifts the cap to likely.
+Alternative: ship no rule until its card is published.
+
+## D-CHK3: 4.x element and readiness rules follow player3.0
+
+Proposed 2026-11-13 with K26 (Part E). They follow the 4.x player in
+apty-assist `player3.0/`, cite A4PKH cards, and leave the 5.x rules
+untouched.
+
+## D-DOM1: a DOM Config capture may be kept on the device
+
+Proposed 2026-11-13 with K26 (Part C). A capture may be kept in IndexedDB,
+redacted as today, for `domConfigRetentionDays` (default 30, 1 to 365), so
+an SE can close the panel and come back. This changes DOM Config's D12
+(memory only). Alternative: keep D12.

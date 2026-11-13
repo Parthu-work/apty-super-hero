@@ -96,6 +96,28 @@
       "minimum": 1,
       "maximum": 365
     },
+    "kbPackSources": {
+      "title": "Where each version's KB pack is fetched from",
+      "description": "KB-RAG K26 (D-DEL1). An object of \"4.x\", \"5.x\" or \"common\" to an https URL (no user info, no fragment, at most 2,048 characters). The extension fetches each with the user's own session and keeps it current. Absent: manual import only.",
+      "type": "object",
+      "properties": {
+        "4.x": { "type": "string" },
+        "5.x": { "type": "string" },
+        "common": { "type": "string" }
+      }
+    },
+    "kbPackCheckHours": {
+      "title": "Hours between KB pack checks",
+      "description": "How often the extension checks each pack source. 1 to 168. Default 6.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 168
+    },
+    "allowManualPackImport": {
+      "title": "Allow manual import of a policy-sourced pack",
+      "description": "Whether the user may import a pack by hand for a version kbPackSources names. Versions with no source are always importable. Default false.",
+      "type": "boolean"
+    },
     "maxPackAgeDays": {
       "title": "Longest life of a KB pack, in days",
       "description": "No pack is used more than this many days after it was built. 1 to 365.",
