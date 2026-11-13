@@ -354,7 +354,7 @@ The space and root of each version are kept in one place,
 [`tooling/scripts/kb/sources.json`](../../tooling/scripts/kb/sources.json),
 which the nightly job (`.github/workflows/kb-packs.yml`, K26) also reads.
 The nightly job builds, gates, signs with the CI key and publishes both packs
-to the pack host.
+to the pack host; see [KB_PACK_DELIVERY.md](../release/KB_PACK_DELIVERY.md).
 By hand:
 
 ```bash
