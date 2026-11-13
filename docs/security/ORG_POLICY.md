@@ -45,6 +45,7 @@ Preflight names the reason (fail closed).
 | `maxPackAgeDays` | integer, 1 to 365 | none | No pack is used more than this many days after it was built, whatever its own `expiresAt` (D-SEC11). |
 | `kbPackSources` | object: `"4.x"`, `"5.x"`, `"common"` to a URL | none | KB-RAG K26 (D-DEL1). Where the extension fetches each version's pack, with the user's own session (`credentials: "include"`, D-DEL2). `https://` only, no user info, no fragment, at most 2,048 characters; any other key or scheme makes the policy invalid. Absent: manual import only. See [KB_PACK_DELIVERY.md](../release/KB_PACK_DELIVERY.md). |
 | `kbPackCheckHours` | integer, 1 to 168 | `6` | How often the extension checks each source (D-DEL7), besides browser start and **Check now**. |
+| `domConfigRetentionDays` | integer, 1 to 365 | `30` | KB-RAG K26 (D-DOM1). How long a held DOM Config capture is kept on the device after it was last saved; Discard capture deletes it sooner. |
 | `allowManualPackImport` | boolean | `false` | Whether the user may import a pack by hand for a version `kbPackSources` names (D-DEL5). Versions with no source are always importable. |
 
 A request outside the allow-lists is not sent: not a chat, a custom model,

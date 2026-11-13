@@ -8,3 +8,5 @@ export const KB_DB = "apty-kb-db";
 export const KB_EGRESS_DB = "apty-kb-egress-db";
 /** Cases and wrong-card feedback (KB-RAG K25, L1, L3): on the device only, ids and the SE's own redacted words. */
 export const CASES_DB = "apty-cases-db";
+/** The held DOM Config capture (KB-RAG K26, D-DOM1): redacted as in memory, kept for the policy's domConfigRetentionDays. */
+export const DOM_CONFIG_DB = "apty-dom-config-db";

@@ -196,6 +196,20 @@ describe("DOM Config crawl in Chromium", () => {
       ),
     );
     assert.equal(outcome.returnedToSeed.success, true);
+    // K26 C2: the <nav> links are visited by URL, never clicked, so none
+    // comes back as a [state-N] duplicate or a state-mismatch revisit.
+    const ids = outcome.capture.pages.map((p) => p.pageId);
+    assert.deepEqual(
+      ids.filter((id) => id.includes("[state-")),
+      [menuState.pageId],
+      JSON.stringify(ids),
+    );
+    assert.deepEqual(
+      outcome.capture.pages.filter((p) =>
+        p.runs.some((r) => r.meta.stateMismatch),
+      ),
+      [],
+    );
   });
 
   it("renders byte-identical Markdown from the same capture", async () => {

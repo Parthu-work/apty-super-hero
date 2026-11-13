@@ -212,3 +212,45 @@ describe("buildSupportBundle", () => {
     );
   });
 });
+
+describe("the DOM Config block (KB-RAG K26 C4)", () => {
+  const withDomConfig = () => ({
+    ...record(),
+    domConfig: {
+      runId: "dc-1",
+      at: NOW.toISOString(),
+      pages: 4,
+      rules: 7,
+      warnings: 2,
+      exportSha256: "b".repeat(64),
+      settingsFile: '{"attributePriority":["id"],"maxZIndex":null}',
+    },
+  });
+
+  it("carries the counts and hash, and the settings file only when ticked", () => {
+    const counts = build({ record: withDomConfig() });
+    expect(counts.bundle.domConfig).toEqual({
+      runId: "dc-1",
+      at: NOW.toISOString(),
+      pages: 4,
+      rules: 7,
+      warnings: 2,
+      exportSha256: "b".repeat(64),
+    });
+    expect(counts.markdown).toContain(
+      "- DOM Config run dc-1: 4 pages, 7 rules, 2 warnings",
+    );
+    const ticked = build({
+      record: withDomConfig(),
+      includeDomConfigSettings: true,
+    });
+    expect(ticked.bundle.domConfig?.settingsFile).toEqual({
+      attributePriority: ["id"],
+      maxZIndex: null,
+    });
+  });
+
+  it("has no block for a case with no DOM Config run", () => {
+    expect(build().bundle.domConfig).toBeUndefined();
+  });
+});

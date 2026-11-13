@@ -710,7 +710,7 @@
     },
     "safety": "This tab will navigate through several pages and load each of them more than once. Unsaved input on those pages can be lost.",
     "safetyPage": "This tab will load this page again for the second run. Unsaved input on it can be lost.",
-    "memoryOnly": "Results are kept in this panel only. Closing the panel loses them unless you export them.",
+    "memoryOnly": "Results are kept on this device until you clear them, for 30 days unless your organization sets otherwise. Export them to share.",
     "rerun": "Re-run analysis",
     "noTab": "Open a web page in this window to generate its DOM config.",
     "restricted": "This page cannot be analyzed: browser and extension pages do not allow content scripts.",
@@ -1017,8 +1017,8 @@
       "stopCapture": "Stop capture",
       "leaveHint": "You can leave this page. The capture keeps running.",
       "complete": "Complete",
-      "notExported": "Not exported yet. Results are kept in this panel only. Closing the panel loses them unless you export them.",
-      "exported": "Exported. The results stay in this panel until you close it.",
+      "notExported": "Not exported yet. Results are kept on this device until you clear them, for 30 days unless your organization sets otherwise. Export them to share.",
+      "exported": "Exported. The results stay on this device until you clear them.",
       "completeTitle": "Capture complete",
       "minSec": "{{min}} min {{sec}} s",
       "sec": "{{sec}} s",
@@ -1055,6 +1055,12 @@
       "keepsMiddle": "Keeps a middle part of the value (*=).",
       "elementCount": "Tells {{count}} elements apart.",
       "examples": "Kept: {{parts}}."
+    },
+    "kept": {
+      "title": "A capture is kept on this device",
+      "body": "{{pages}} pages, saved {{date}} (UTC). Resume it, or discard it to start fresh.",
+      "resume": "Resume capture",
+      "discard": "Discard capture"
     }
   },
   "skillDetails": {
@@ -2738,7 +2744,8 @@
     "missing": "Add before sending: {{fields}}.",
     "noneMissing": "Nothing is missing.",
     "copyText": "Copy as text",
-    "noCase": "There is no case for this conversation yet."
+    "noCase": "There is no case for this conversation yet.",
+    "includeDomSettings": "Include the exported DOM Config settings file (rules and settings only, as exported)"
   },
   "feedback": {
     "wrongCard": "Wrong card",

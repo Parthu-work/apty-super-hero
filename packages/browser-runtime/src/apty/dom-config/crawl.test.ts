@@ -24,6 +24,8 @@ interface FakeApp {
   loads: number;
   links: Record<string, string[]>;
   menuOn: string[];
+  /** The links are inside a <nav>: each is also a click candidate (K26 C2). */
+  navAnchors: boolean;
   /** Pages whose second load shows another screen (a session redirect). */
   unstable: Set<string>;
   failingProfiles: Set<string>;
@@ -99,7 +101,20 @@ function respond(message: { request: string }): unknown {
             domPath: `a[href="${target}"]`,
           }));
     case "collect-dom-health-safe-navigation-candidates":
-      return !app.menuOpen && app.menuOn.includes(path(app.url)) ? [MENU] : [];
+      if (app.menuOpen) return [];
+      return [
+        ...(app.menuOn.includes(path(app.url)) ? [MENU] : []),
+        ...(app.navAnchors
+          ? (app.links[path(app.url)] ?? []).map((target) => ({
+              domPath: `a[href="${target}"]`,
+              role: null,
+              tagName: "a",
+              text: target,
+              looksDestructive: false,
+              destructiveReason: null,
+            }))
+          : []),
+      ];
     case "get-dom-health-navigation-model":
       return { usesHistoryApiRouting: false, historyApiCallCount: 0 };
     case "click-safe-navigation-candidate":
@@ -145,6 +160,7 @@ beforeEach(() => {
     loads: 1,
     links: { "/home": ["/a", "/b"] },
     menuOn: [],
+    navAnchors: false,
     unstable: new Set(),
     failingProfiles: new Set(),
     visitsByPath: new Map([["/home", 1]]),
@@ -317,6 +333,25 @@ describe("runDomConfigCapture", () => {
     ).toHaveLength(2);
     expect(navigatedTo()).toEqual(["/home", "/home", "/home"]);
     expect(app.menuOpen).toBe(false);
+  });
+
+  it("visits a nav anchor by its URL in deep mode and never clicks it: no [state-N] duplicate, no state-mismatch (K26 C2)", async () => {
+    app.links = { "/home": ["/a", "/b"] };
+    app.navAnchors = true;
+    const outcome = await run(
+      runDomConfigCapture(TAB_ID, {
+        wait: noWait,
+        discoveryMode: "application-deep",
+      }),
+    );
+    if (!outcome.available) throw new Error(outcome.error);
+    expect(requests).not.toContain("click-safe-navigation-candidate");
+    const ids = outcome.capture.pages.map((p) => p.pageId);
+    expect(ids.some((id) => id.includes("[state-"))).toBe(false);
+    expect(ids).toHaveLength(3);
+    for (const page of outcome.capture.pages) {
+      expect(page.runs.some((run) => run.meta.stateMismatch)).toBe(false);
+    }
   });
 
   it("only reports a menu control in safe mode and never clicks it", async () => {

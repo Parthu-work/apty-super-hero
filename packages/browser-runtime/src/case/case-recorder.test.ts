@@ -211,3 +211,50 @@ describe("the case recorder (KB-RAG K25, L1)", () => {
     });
   });
 });
+
+describe("DOM Config in a case (KB-RAG K26 C4)", () => {
+  const RUN = {
+    runId: "dc-1",
+    at: NOW.toISOString(),
+    pages: 4,
+    rules: 7,
+    warnings: 2,
+  };
+
+  it("records nothing without an open case", async () => {
+    const recorder = recorderWith();
+    await recorder.recordDomConfig("conv-1", RUN);
+    expect(await recorder.current("conv-1")).toBeUndefined();
+  });
+
+  it("adds the run's counts to the open case, then the export's hash and file for the same run", async () => {
+    const recorder = recorderWith();
+    await recorder.wrap(async () => ({
+      decision: decision("model", {
+        kind: "not_covered",
+        reason: "low_coverage",
+        coverage: 0.1,
+        min: 0.5,
+        version: "5.x",
+      }),
+    }))("FIXTURE the tooltip never shows", ctx);
+    await recorder.recordDomConfig("conv-1", RUN);
+    expect((await recorder.current("conv-1"))?.domConfig).toEqual(RUN);
+    await recorder.recordDomConfig("conv-1", {
+      ...RUN,
+      exportSha256: "a".repeat(64),
+      settingsFile: '{"maxZIndex":null}',
+    });
+    expect((await recorder.current("conv-1"))?.domConfig).toEqual({
+      ...RUN,
+      exportSha256: "a".repeat(64),
+      settingsFile: '{"maxZIndex":null}',
+    });
+    // A new run replaces the old one, file and hash included.
+    await recorder.recordDomConfig("conv-1", { ...RUN, runId: "dc-2" });
+    expect((await recorder.current("conv-1"))?.domConfig).toEqual({
+      ...RUN,
+      runId: "dc-2",
+    });
+  });
+});

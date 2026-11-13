@@ -15,6 +15,12 @@ full commit-level history.
   - **D6**: [`docs/release/KB_PACK_DELIVERY.md`](docs/release/KB_PACK_DELIVERY.md), for IT and the KB owner: the CI key, the pack host and its token, the policy, the first run, revoking a key, and what an SE sees when something is wrong; smoke-test rows 26 to 29.
   - **D7**: tests. Unit: every outcome code, the 304 path, the backoff, the lock, a refused pack leaving the stored one loaded, D-DEL5 in Options, the alarm with and without a source, Preflight's states, the KB line, the publish gate and transfer. E2E (`kb-delivery.e2e.test.mjs`, Chromium, E2E policy build only): first fetch, a newer pack answering with no reload, an older pack refused, a 403 in Options, Preflight and the chat, no alarm and no request without a source.
 
+- **KB-RAG K26 Part C: DOM Config gaps**:
+  - **C1 (D-DOM1)**: the held DOM Config capture is kept on the device (`apty-dom-config-db`), as the panel holds it, for the policy's `domConfigRetentionDays` (default 30, 1 to 365); the page offers Resume capture or Discard capture, and Clear results deletes it.
+  - **C2**: DOM Config's deep crawl visits a nav anchor by its URL instead of clicking it, so no `[state-N]` duplicate or state-mismatch revisit comes from a navigation it did not wait for. Audit Application unchanged.
+  - **C3**: the three open questions (max z-index ceiling, unconfirmed noise entries, Apty's persistence across restarts) stay open: apty-dap was not available; `dom-config.md` says how to finish.
+  - **C4**: a DOM Config run held while a case is open goes into the case (run id, pages, rules, warnings, the Apty export's sha256 and file); the support bundle has a `domConfig` block, with the settings file only when the SE ticks it.
+
 - **KB-RAG K25: what the first real packs asked for, signed packs, and cases** ([`FIXES-K25.md`](docs/tasks/kb-rag/FIXES-K25.md)):
   - **A1**: tool schemas every provider accepts. Anthropic's strict tool use refuses `minimum`, `maximum` and the other limits its JSON Schema subset does not support; a provider middleware now removes them and states each limit in the property's description (`provider-schema.ts`). Tools still validate their input with their own Zod schema.
   - **A2**: every KB decision is visible: a typed outcome per search, one quiet line above the model's reply when no card answered (not covered with its numbers, no pack for the version, an error code), the same reason on the setup card without a key, and "Why this answer" on every turn (route, version, packs, outcome; no card text, no question).

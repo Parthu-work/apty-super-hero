@@ -76,6 +76,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
+- DOM Config keeps its held capture on the device (KB-RAG K26 C1,
+  D-DOM1): Resume or Discard capture when the page opens, deleted after the
+  policy's `domConfigRetentionDays` (30 by default) or on Clear results.
 - Automatic KB pack delivery (KB-RAG K26 Part D, tested in Chromium,
   [`FIXES-K26.md`](tasks/kb-rag/FIXES-K26.md)): the organization policy can
   name where each version's pack comes from (`kbPackSources`,

@@ -4,11 +4,13 @@ export { aisdk } from "@openai/agents-extensions/ai-sdk";
 export { AptyAgent } from "./agent/index.js";
 export {
   CASE_CONTINUE_HOURS,
+  CASE_DOM_CONFIG_FILE_MAX,
   CASE_NOTE_MAX,
   CASE_OUTCOMES,
   CASE_RETENTION_DAYS,
   CASE_SYMPTOM_MAX,
   type CaseCheck,
+  type CaseDomConfig,
   type CaseFinding,
   type CaseKbShown,
   type CaseOutcome,
@@ -84,6 +86,7 @@ export {
   auditRetentionDays,
   caseRetentionDays,
   customModelsAllowed,
+  domConfigRetentionDays,
   hasAllowList,
   isLoopbackHost,
   KB_PACK_CHECK_HOURS,

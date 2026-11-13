@@ -10,7 +10,8 @@ import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
+import { recordDomConfigRun } from "../../../services/cases";
 import { chatHandoff } from "../../../state/chat-handoff";
 import {
   navigationStore,
@@ -69,6 +70,16 @@ function SettingNotes({ report }: { report: DomConfigReport }) {
   );
 }
 
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
+  );
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export function DomConfigPage({
   ignoredRoots = [],
   store = domConfigStore,
@@ -85,6 +96,27 @@ export function DomConfigPage({
   const holder = useTabLockHolder(target.tabId);
   const { subView } = useNavigation();
   const blockedId = useId();
+  useEffect(() => {
+    void store.checkKept();
+  }, [store]);
+  // K26 (C4): each capture held while a case is open goes into the case, counts only.
+  const runIds = useRef(new WeakMap<object, string>());
+  const heldReport = state.phase === "report" ? state.report : null;
+  useEffect(() => {
+    if (!state.capture || !heldReport) return;
+    let runId = runIds.current.get(state.capture);
+    if (!runId) {
+      runId = `dc-${Date.now().toString(36)}`;
+      runIds.current.set(state.capture, runId);
+    }
+    recordDomConfigRun({
+      runId,
+      at: new Date().toISOString(),
+      pages: heldReport.pages.length,
+      rules: heldReport.rules.length,
+      warnings: heldReport.warnings.length,
+    });
+  }, [state.capture, heldReport]);
   const running = state.phase === "running" || state.phase === "stopping";
   const report = state.phase === "report" ? state.report : null;
 
@@ -311,7 +343,25 @@ export function DomConfigPage({
             <ExportMenu
               report={report}
               choices={state}
-              onExported={() => store.markExported()}
+              onExported={(settings) => {
+                store.markExported();
+                const runId = state.capture
+                  ? runIds.current.get(state.capture)
+                  : undefined;
+                if (settings && runId) {
+                  void sha256Hex(settings).then((exportSha256) =>
+                    recordDomConfigRun({
+                      runId,
+                      at: new Date().toISOString(),
+                      pages: report.pages.length,
+                      rules: report.rules.length,
+                      warnings: report.warnings.length,
+                      exportSha256,
+                      settingsFile: settings,
+                    }),
+                  );
+                }
+              }}
             />
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -354,7 +404,35 @@ export function DomConfigPage({
     );
   }
 
-  return shell(t("shell.domConfig"), setup(true), {
+  const keptNotice = state.kept && (
+    <Notice
+      tone="info"
+      className="mb-4"
+      title={t("domConfig.kept.title")}
+      data-testid="dom-config-kept"
+    >
+      <p>
+        {t("domConfig.kept.body", {
+          pages: state.kept.pages,
+          date: state.kept.savedAt.slice(0, 16).replace("T", " "),
+        })}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => store.resume(ignoredRoots)}>
+          {t("domConfig.kept.resume")}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => void store.discardKept()}
+        >
+          {t("domConfig.kept.discard")}
+        </Button>
+      </div>
+    </Notice>
+  );
+
+  return shell(t("shell.domConfig"), setup(true, keptNotice), {
     footer: startFooter("domConfig.page.start"),
     hint: t("domConfig.memoryOnly"),
   });
