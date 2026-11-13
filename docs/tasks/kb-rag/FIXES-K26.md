@@ -641,4 +641,5 @@ partial: what is left, and the command that finishes it, is in each row.
 | D7 Tests | Done: unit tests for every outcome code, the 304, backoff, lock, D-DEL5 and refusals; `tooling/e2e/kb-delivery.e2e.test.mjs` (5 tests, pass in Chromium); the gate and transfer in `publish-gate.test.mjs`. actionlint: partial (see D5) |
 | E0 to E5 | Not started |
 | T0 to T5 | Not started |
-| C1 to C5 | Not started |
+| C1 Keep a capture across restarts | Done: `capture-keeper.ts` (`apty-dom-config-db`), `domConfigRetentionDays`, Resume and Discard capture, Clear results deletes it; D12 updated. Tested in unit and component tests; no browser-restart E2E yet (partial: add one that relaunches the same profile) |
+| C2 to C5 | Not started |

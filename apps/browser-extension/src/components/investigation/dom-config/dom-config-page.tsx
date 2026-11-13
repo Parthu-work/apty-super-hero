@@ -10,7 +10,7 @@ import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import { Notice } from "@apty/ui/components/ui/notice";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId } from "react";
 import { chatHandoff } from "../../../state/chat-handoff";
 import {
   navigationStore,
@@ -85,6 +85,9 @@ export function DomConfigPage({
   const holder = useTabLockHolder(target.tabId);
   const { subView } = useNavigation();
   const blockedId = useId();
+  useEffect(() => {
+    void store.checkKept();
+  }, [store]);
   const running = state.phase === "running" || state.phase === "stopping";
   const report = state.phase === "report" ? state.report : null;
 
@@ -354,7 +357,35 @@ export function DomConfigPage({
     );
   }
 
-  return shell(t("shell.domConfig"), setup(true), {
+  const keptNotice = state.kept && (
+    <Notice
+      tone="info"
+      className="mb-4"
+      title={t("domConfig.kept.title")}
+      data-testid="dom-config-kept"
+    >
+      <p>
+        {t("domConfig.kept.body", {
+          pages: state.kept.pages,
+          date: state.kept.savedAt.slice(0, 16).replace("T", " "),
+        })}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => store.resume(ignoredRoots)}>
+          {t("domConfig.kept.resume")}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => void store.discardKept()}
+        >
+          {t("domConfig.kept.discard")}
+        </Button>
+      </div>
+    </Notice>
+  );
+
+  return shell(t("shell.domConfig"), setup(true, keptNotice), {
     footer: startFooter("domConfig.page.start"),
     hint: t("domConfig.memoryOnly"),
   });

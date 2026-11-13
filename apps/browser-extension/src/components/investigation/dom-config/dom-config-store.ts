@@ -1,6 +1,8 @@
 /**
  * DOM Config's run state, outside React so a run survives leaving its
- * page. Memory only (D12): nothing is written to storage. One capture is
+ * page. The held capture is also kept on the device (KB-RAG K26, D-DOM1,
+ * which changes D12) so it can be resumed after the panel or the browser
+ * closed; see capture-keeper.ts. One capture is
  * held: the crawl's, and the manual and imported
  * pages added to it; the report is always the analysis of that capture.
  * The crawl's tab is fixed when it starts; switching tabs never redirects
@@ -30,6 +32,11 @@ import {
   type NavigationOrigin,
   navigationStore,
 } from "../../../state/navigation-store";
+import {
+  browserCaptureKeeper,
+  type CaptureKeeper,
+  type KeptCapture,
+} from "./capture-keeper";
 import { acquireTabLock, releaseTabLock } from "./tab-lock";
 
 export type DomConfigScope = "page" | "application-safe" | "application-deep";
@@ -136,6 +143,8 @@ export interface DomConfigState {
   crawlOptions: DomConfigStartOptions | null;
   /** The last Export or Copy all of the results held now; null until one. */
   exportedAt: number | null;
+  /** A capture kept on the device that can be resumed (K26, C1); null when none, or once resumed. */
+  kept: { savedAt: string; pages: number } | null;
 }
 
 type StartResult = "started" | "busy" | "locked" | "confirm";
@@ -163,6 +172,7 @@ const INITIAL: DomConfigState = {
   crawlMs: null,
   crawlOptions: null,
   exportedAt: null,
+  kept: null,
 };
 
 function runLabelsFor(count: number): DomConfigRunLabel[] {
@@ -262,12 +272,44 @@ function uniqueId(base: string, taken: ReadonlySet<string>): string {
   return `${base} (${n})`;
 }
 
-export function createDomConfigStore() {
+export function createDomConfigStore({
+  keeper: givenKeeper,
+}: {
+  keeper?: CaptureKeeper;
+} = {}) {
   let state = INITIAL;
   let controller: AbortController | null = null;
+  let keeperInstance = givenKeeper;
+  const keeper = () => {
+    keeperInstance ??= browserCaptureKeeper();
+    return keeperInstance;
+  };
+  let loaded: KeptCapture | undefined;
   const listeners = new Set<() => void>();
+  /** Keeps the held capture on the device whenever it or the marks change. */
+  const persist = (previous: DomConfigState) => {
+    if (
+      !state.capture ||
+      state.phase !== "report" ||
+      (previous.capture === state.capture &&
+        previous.coverageMarks === state.coverageMarks)
+    ) {
+      return;
+    }
+    void keeper()
+      .save({
+        capture: state.capture,
+        outcome: state.outcome,
+        coverageMarks: state.coverageMarks,
+        crawlMs: state.crawlMs,
+        crawlOptions: state.crawlOptions,
+      })
+      .catch(() => undefined);
+  };
   const set = (patch: Partial<DomConfigState>) => {
+    const previous = state;
     state = { ...state, ...patch };
+    persist(previous);
     for (const listener of listeners) listener();
   };
   const busy = () =>
@@ -522,10 +564,54 @@ export function createDomConfigStore() {
 
     clear() {
       if (busy()) return;
+      loaded = undefined;
+      void keeper()
+        .discard()
+        .catch(() => undefined);
       set({
         ...INITIAL,
         options: state.options,
       });
+    },
+
+    /** Looks for a capture kept on the device; offered only while nothing is held. */
+    async checkKept() {
+      if (state.capture || busy()) return;
+      loaded = await keeper()
+        .load()
+        .catch(() => undefined);
+      if (state.capture || busy()) return;
+      set({
+        kept: loaded
+          ? { savedAt: loaded.savedAt, pages: loaded.capture.pages.length }
+          : null,
+      });
+    },
+
+    /** Holds the kept capture again, analyzed with today's ignored roots. */
+    resume(ignoredRoots: readonly string[] = []) {
+      if (!loaded || busy() || state.capture) return;
+      const kept = loaded;
+      set({
+        ...hold(
+          kept.capture,
+          analyze(kept.capture, ignoredRoots, kept.coverageMarks),
+          kept.outcome,
+        ),
+        coverageMarks: kept.coverageMarks,
+        crawlMs: kept.crawlMs,
+        crawlOptions: kept.crawlOptions,
+        kept: null,
+      });
+    },
+
+    /** Discard capture: deletes the kept capture without resuming it. */
+    async discardKept() {
+      loaded = undefined;
+      set({ kept: null });
+      await keeper()
+        .discard()
+        .catch(() => undefined);
     },
   };
 }

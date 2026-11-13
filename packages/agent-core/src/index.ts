@@ -84,6 +84,7 @@ export {
   auditRetentionDays,
   caseRetentionDays,
   customModelsAllowed,
+  domConfigRetentionDays,
   hasAllowList,
   isLoopbackHost,
   KB_PACK_CHECK_HOURS,

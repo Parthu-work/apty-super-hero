@@ -6,6 +6,7 @@ import type {
 } from "@apty/browser-runtime/apty/dom-config/index";
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -651,7 +652,7 @@ describe("DomConfigPage", () => {
     expect(store.getState().exportedAt).toBeNull();
     expect(
       screen.getByText(
-        "Not exported yet. Results are kept in this panel only. Closing the panel loses them unless you export them.",
+        "Not exported yet. Results are kept on this device until you clear them, for 30 days unless your organization sets otherwise. Export them to share.",
       ),
     ).toBeInTheDocument();
 
@@ -667,7 +668,7 @@ describe("DomConfigPage", () => {
     await waitFor(() => expect(store.getState().exportedAt).not.toBeNull());
     expect(
       screen.getByText(
-        "Exported. The results stay in this panel until you close it.",
+        "Exported. The results stay on this device until you clear them.",
       ),
     ).toBeInTheDocument();
 
@@ -696,7 +697,7 @@ describe("DomConfigPage", () => {
     }
     expect(
       screen.getByText(
-        "Not exported yet. Results are kept in this panel only. Closing the panel loses them unless you export them.",
+        "Not exported yet. Results are kept on this device until you clear them, for 30 days unless your organization sets otherwise. Export them to share.",
       ),
     ).toBeInTheDocument();
   });
@@ -789,5 +790,39 @@ describe("tab lock", () => {
     );
     await waitFor(() => expect(startButton()).toBeEnabled());
     expect(mockRunDomConfigCapture).not.toHaveBeenCalled();
+  });
+});
+
+describe("a capture kept on the device (K26 C1)", () => {
+  it("offers to resume it when the panel opens with nothing held, and discards it on request", async () => {
+    mockRunDomConfigCapture.mockResolvedValue(outcome());
+    let kept: unknown;
+    const keeper = {
+      save: vi.fn(async (value: object) => {
+        kept = { ...value, savedAt: "2026-11-13T10:00:00.000Z" };
+      }),
+      load: vi.fn(async () => kept as never),
+      discard: vi.fn(async () => {
+        kept = undefined;
+      }),
+    };
+    const first = createDomConfigStore({ keeper });
+    await first.start(TAB_ID);
+    store = createDomConfigStore({ keeper });
+    renderPage();
+    const notice = await screen.findByTestId("dom-config-kept");
+    expect(notice).toHaveTextContent("saved 2026-11-13 10:00 (UTC)");
+    fireEvent.click(screen.getByRole("button", { name: "Resume capture" }));
+    await waitFor(() => expect(store.getState().phase).toBe("report"));
+
+    store = createDomConfigStore({ keeper });
+    cleanup();
+    renderPage();
+    await screen.findByTestId("dom-config-kept");
+    fireEvent.click(screen.getByRole("button", { name: "Discard capture" }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("dom-config-kept")).toBeNull(),
+    );
+    expect(kept).toBeUndefined();
   });
 });
