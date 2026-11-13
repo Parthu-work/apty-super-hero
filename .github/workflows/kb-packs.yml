@@ -1,0 +1,218 @@
+# KB-RAG K26 (D5, D-DEL3, D-DEL4, D-DEL8): build, gate, sign and publish the
+# KB packs every night, so a KB edit reaches every managed SE's extension
+# without a file passed by hand. See docs/release/KB_PACK_DELIVERY.md.
+#
+# This repository is public: nothing here may print a card title or card
+# text. The builder's own output goes to a temporary file that is deleted;
+# the job summary holds counts, ids, numbers and codes only.
+name: KB packs
+
+on:
+  schedule:
+    # 01:30 UTC, 07:00 IST.
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Versions to build, comma-separated (4.x, 5.x)"
+        type: string
+        default: "4.x,5.x"
+      override_card_drop:
+        description: "Publish even if the card count dropped more than 10%"
+        type: boolean
+        default: false
+      reason:
+        description: "Why the card-count rule is overridden (required with the override)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kb-packs
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.plan.outputs.versions }}
+    steps:
+      - name: Choose the versions
+        id: plan
+        env:
+          VERSIONS: ${{ inputs.versions || '4.x,5.x' }}
+          OVERRIDE: ${{ inputs.override_card_drop || false }}
+          REASON: ${{ inputs.reason || '' }}
+        run: |
+          json=$(node -e '
+            const asked = process.env.VERSIONS.split(",").map((v) => v.trim()).filter(Boolean);
+            const bad = asked.filter((v) => v !== "4.x" && v !== "5.x");
+            if (bad.length || asked.length === 0) {
+              console.error(`versions takes 4.x and/or 5.x, not: ${bad.join(", ") || "(none)"}`);
+              process.exit(1);
+            }
+            console.log(JSON.stringify([...new Set(asked)]));
+          ')
+          if [ "$OVERRIDE" = "true" ] && [ -z "${REASON// }" ]; then
+            echo "::error::override_card_drop needs a reason."
+            exit 1
+          fi
+          echo "versions=$json" >> "$GITHUB_OUTPUT"
+
+  pack:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.plan.outputs.versions) }}
+    env:
+      VERSION: ${{ matrix.version }}
+      KB_PUBLISH_DRY_RUN: ${{ vars.KB_PUBLISH_DRY_RUN }}
+      KB_WORK: ${{ runner.temp }}/kb-pack
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @apty/agent-core
+        run: pnpm --filter @apty/agent-core build
+
+      - name: Check the secrets and variables
+        id: inputs
+        env:
+          CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_TOKEN }}
+          KB_CI_SIGNING_KEY: ${{ secrets.KB_CI_SIGNING_KEY }}
+          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
+          KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
+          KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+        run: |
+          if [ "$VERSION" = "4.x" ]; then url_name=KB_PUBLISH_URL_4X; else url_name=KB_PUBLISH_URL_5X; fi
+          missing=()
+          if [ "$KB_PUBLISH_DRY_RUN" = "1" ]; then
+            # A dry run on a fork: the demo pack builder stands in for Confluence.
+            if [ -n "$CONFLUENCE_EMAIL" ] && [ -n "$CONFLUENCE_TOKEN" ] && [ -n "$KB_CI_SIGNING_KEY" ]; then
+              echo "source=confluence" >> "$GITHUB_OUTPUT"
+            else
+              echo "source=demo" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            for name in CONFLUENCE_EMAIL CONFLUENCE_TOKEN KB_CI_SIGNING_KEY KB_PUBLISH_TOKEN "$url_name"; do
+              [ -n "${!name}" ] || missing+=("$name")
+            done
+            echo "source=confluence" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing: ${missing[*]}. Set them as described in docs/release/KB_PACK_DELIVERY.md."
+            exit 1
+          fi
+          echo "publish_url_name=$url_name" >> "$GITHUB_OUTPUT"
+          if [ -n "${!url_name}" ] && [ -n "$KB_PUBLISH_TOKEN" ]; then
+            echo "has_host=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_host=false" >> "$GITHUB_OUTPUT"
+          fi
+          install -d -m 700 "$KB_WORK"
+
+      - name: Build the pack
+        env:
+          SOURCE: ${{ steps.inputs.outputs.source }}
+          CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_TOKEN }}
+          KB_CI_SIGNING_KEY: ${{ secrets.KB_CI_SIGNING_KEY }}
+        run: |
+          args=()
+          if [ "$SOURCE" = "demo" ]; then
+            set +e
+            pnpm -s kb:demo-pack --version "$VERSION" --out "$KB_WORK/pack.json" > "$KB_WORK/build.log" 2>&1
+            code=$?
+            set -e
+          else
+            ( umask 077 && printf '%s\n' "$KB_CI_SIGNING_KEY" > "$KB_WORK/signing-key.pem" )
+            mapfile -t args < <(node -e '
+              const sources = require("./tooling/scripts/kb/sources.json");
+              const source = sources[process.env.VERSION];
+              for (const arg of ["--site", source.site, "--space", source.space, "--root", source.root, ...source.args]) console.log(arg);
+            ')
+            set +e
+            # The builder names cards by title: its output stays in a file that is deleted below.
+            pnpm -s kb:pack "${args[@]}" --sign-key "$KB_WORK/signing-key.pem" --quiet --out "$KB_WORK/pack.json" > "$KB_WORK/build.log" 2>&1
+            code=$?
+            set -e
+          fi
+          if [ "$code" -ne 0 ]; then
+            {
+              echo "### KB pack $VERSION"
+              echo
+              echo "- **Not published.** The build failed (exit $code); run kb:pack locally to see why."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      # The gate reads the last published pack and the customer-name list
+      # into memory with the publish token; nothing downloaded is written.
+      - name: Gate
+        env:
+          OVERRIDE: ${{ inputs.override_card_drop || false }}
+          REASON: ${{ inputs.reason || '' }}
+          HAS_HOST: ${{ steps.inputs.outputs.has_host }}
+          SOURCE: ${{ steps.inputs.outputs.source }}
+          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
+          KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
+          KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+          URL_NAME: ${{ steps.inputs.outputs.publish_url_name }}
+          NAMES_URL: ${{ vars.KB_CUSTOMER_NAMES_URL }}
+        run: |
+          args=(--version "$VERSION" --pack "$KB_WORK/pack.json")
+          [ "$HAS_HOST" = "true" ] && args+=(--previous-url "${!URL_NAME}")
+          [ -n "$NAMES_URL" ] && [ "$SOURCE" = "confluence" ] && args+=(--names-url "$NAMES_URL")
+          questions="tooling/scripts/kb/questions/$VERSION.json"
+          [ -f "$questions" ] && args+=(--questions "$questions")
+          if [ "$OVERRIDE" = "true" ]; then args+=(--override-card-drop --reason "$REASON"); fi
+          [ "$KB_PUBLISH_DRY_RUN" = "1" ] && args+=(--dry-run)
+          node tooling/scripts/kb/publish-gate.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish
+        if: steps.inputs.outputs.has_host == 'true' || env.KB_PUBLISH_DRY_RUN == '1'
+        env:
+          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
+          KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
+          KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+          URL_NAME: ${{ steps.inputs.outputs.publish_url_name }}
+        run: |
+          url="${!URL_NAME:-https://pack-host.invalid/dry-run.json}"
+          node tooling/scripts/kb/publish-pack.mjs upload --url "$url" --pack "$KB_WORK/pack.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The pack holds card text: kept 7 days for the KB owner, and only when
+      # this repository is private, never on a public repository's run.
+      - name: Keep the pack for the KB owner
+        if: failure() && github.event.repository.private
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kb-pack-${{ matrix.version }}
+          path: ${{ runner.temp }}/kb-pack/pack.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Note that the pack was not kept
+        if: failure() && !github.event.repository.private
+        run: |
+          echo "- The built pack was not kept: this repository is public." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the signing key and work files
+        if: always()
+        run: rm -rf "${KB_WORK:?}"

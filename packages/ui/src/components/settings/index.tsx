@@ -1995,6 +1995,7 @@ export function SettingsPage({
 }
 
 export type {
+  KbDeliveryView,
   KbEgressLogAdapter,
   KnowledgeBaseAdapter,
   OrgPolicyView,

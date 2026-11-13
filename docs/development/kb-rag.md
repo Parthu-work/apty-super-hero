@@ -350,6 +350,13 @@ mkdir -p ~/apty-kb
 export CONFLUENCE_EMAIL=<service-account-email> CONFLUENCE_TOKEN=<classic-read-only-token>
 ```
 
+The space and root of each version are kept in one place,
+[`tooling/scripts/kb/sources.json`](../../tooling/scripts/kb/sources.json),
+which the nightly job (`.github/workflows/kb-packs.yml`, K26) also reads.
+The nightly job builds, gates, signs with the CI key and publishes both packs
+to the pack host; see [KB_PACK_DELIVERY.md](../release/KB_PACK_DELIVERY.md).
+By hand:
+
 ```bash
 pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
 ```
@@ -406,6 +413,21 @@ the 30-day age warning. Import errors name the K23 codes in plain words
 signature does not match its content.", "This pack expired on <date>."). Preflight's
 "KB text to AI" row says whether card text is withheld, allowed (and to
 where), or sent because only demo packs are loaded.
+
+**Delivered packs (K26).** When the organization policy names a source for a
+version (`kbPackSources`), the extension fetches that version's pack itself:
+30 seconds after the browser starts, every `kbPackCheckHours` (6 by default)
+and on **Check now**, with the SE's own session. A fetched pack goes through
+the same checks as an import, must name the source's version and must be
+newer by `builtAt`; anything else keeps the stored pack. The version's row
+says "Delivered by your organization" with the host, last check, last update
+and the latest outcome, and has no Replace or Remove (nor may a file of that
+version be imported) unless the policy sets `allowManualPackImport`.
+Preflight's "KB packs up to date" row is green when every delivered version
+is current and was checked successfully within twice the interval, amber
+when a pack is expiring or its last check failed, red when a delivered
+version has no usable pack. When no pack answers for a delivered version,
+the chat's KB line also says why its last update failed.
 
 ## Evaluation
 

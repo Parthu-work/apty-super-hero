@@ -311,11 +311,23 @@ export interface KbPackInfo {
 /** A loaded pack and whether it is used, judged when it was read (K23). */
 export type KbPackState = KbPackInfo & { usability: KbPackUsability };
 
+/**
+ * Why a valid pack is not stored (KB-RAG K26): fetched, it names another
+ * version than its source, it is the stored pack again, or it is not newer by
+ * `builtAt` (D-DEL6); imported by hand, the policy delivers its version
+ * (D-DEL5).
+ */
+export type KbReplaceStop =
+  | "version_mismatch"
+  | "unchanged"
+  | "older"
+  | "policy_managed";
+
 export type KbImportResult =
   | { ok: true; info: KbPackInfo }
   | {
       ok: false;
-      code: KbPackErrorCode | "read_failed";
+      code: KbPackErrorCode | "read_failed" | KbReplaceStop;
       /** With `expired` or `not_yet_valid` (K23): the date that applies. */
       date?: string;
     };

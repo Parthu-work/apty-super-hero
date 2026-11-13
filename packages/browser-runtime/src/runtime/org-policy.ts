@@ -8,12 +8,18 @@
  * (`apps/browser-extension/src/services/org-policy.ts`), because Playwright
  * cannot set managed storage.
  */
-import { type OrgPolicyState, orgPolicyStateOf } from "@apty/agent-core";
+import {
+  type OrgPolicyParseOptions,
+  type OrgPolicyState,
+  orgPolicyStateOf,
+} from "@apty/agent-core";
 
 /** Where the raw policy object comes from, and how its changes are heard. */
 export interface OrgPolicySource {
   read(): Promise<unknown>;
   watch(onChange: () => void): () => void;
+  /** How its policy is parsed; only the E2E seam sets this (KB-RAG K26, D7). */
+  parseOptions?: OrgPolicyParseOptions;
 }
 
 const NOT_READ: OrgPolicyState = {
@@ -57,7 +63,7 @@ export function setOrgPolicySource(next: OrgPolicySource): void {
 
 async function readState(): Promise<OrgPolicyState> {
   try {
-    return orgPolicyStateOf(await source.read());
+    return orgPolicyStateOf(await source.read(), source.parseOptions);
   } catch (error) {
     return {
       kind: "invalid",

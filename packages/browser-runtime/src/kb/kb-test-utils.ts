@@ -170,18 +170,25 @@ export function signedPackText(
     expiresAt = "2099-01-01T00:00:00.000Z",
     builtAt = "2026-03-01T00:00:00.000Z",
     site,
+    aptyVersion,
   }: {
     cards?: FixtureCard[];
     expiresAt?: string;
     builtAt?: string;
     site?: string;
+    aptyVersion?: "4.x" | "5.x" | "common";
   } = {},
 ): string {
   const unsigned = JSON.parse(
     fixturePackText(
       cards,
       { coverage: { min: 0.5, minIdf: 1, minTerms: 1 } },
-      { schemaVersion: 3, expiresAt, builtAt },
+      {
+        schemaVersion: 3,
+        expiresAt,
+        builtAt,
+        ...(aptyVersion ? { aptyVersion } : {}),
+      },
     ),
   );
   const { sha256: _old, ...body } = unsigned;

@@ -176,7 +176,11 @@
         "revokedKey": "此知识包由贵组织已吊销的密钥签名。",
         "badSignature": "此知识包的签名与其内容不符。",
         "expired": "此知识包已于 {{date}} 到期。",
-        "notYetValid": "此知识包的构建日期在未来（{{date}}）；请检查本设备的时钟。"
+        "notYetValid": "此知识包的构建日期在未来（{{date}}）；请检查本设备的时钟。",
+        "versionMismatch": "此知识包的 Apty 版本与其来源指定的版本不同。",
+        "unchanged": "此知识包就是正在使用的那个。",
+        "older": "此知识包比正在使用的旧，因此保留了正在使用的知识包。",
+        "policyManaged": "此版本的知识包由你的组织下发，不能手动导入。"
       },
       "signature": "签名",
       "signedBy": "由 {{name}} 签名（密钥 {{keyId}}）",
@@ -196,7 +200,35 @@
       },
       "notUsed": "此知识包未被使用。请向 KB 负责人索取新的知识包。",
       "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。",
-      "absentCards": "{{absent}} 张在此版本中不存在"
+      "absentCards": "{{absent}} 张在此版本中不存在",
+      "sync": {
+        "outcome": {
+          "updated": "已更新为较新的知识包。",
+          "unchanged": "已是最新：主机上是同一个知识包。",
+          "notModified": "已是最新：主机上的知识包没有变化。",
+          "older": "主机上的知识包比正在使用的旧；保留了正在使用的知识包。",
+          "http": "知识包主机返回 HTTP {{status}}。",
+          "httpAuth": "HTTP {{status}}：请登录知识包主机。",
+          "httpNotFound": "HTTP 404：知识包主机在此地址上还没有知识包。",
+          "network": "无法连接知识包主机。",
+          "timeout": "知识包主机在 60 秒内没有响应。",
+          "tooLarge": "主机上的文件超过 25 MB，不是知识包。",
+          "wrongType": "主机没有发送 JSON 文件（可能显示了登录页面）：请登录知识包主机。",
+          "versionMismatch": "主机上的知识包与此来源的 Apty 版本不同。"
+        }
+      },
+      "delivery": {
+        "by": "由你的组织下发",
+        "from": "来源",
+        "lastCheck": "上次检查",
+        "lastUpdate": "上次更新",
+        "latest": "最近一次检查",
+        "never": "尚未检查",
+        "notYet": "尚未下发知识包",
+        "checkNow": "立即检查",
+        "checked": "已检查所有下发的知识包。",
+        "checkFailed": "无法运行检查。请重新加载扩展后重试。"
+      }
     }
   },
   "theme": {
@@ -1235,6 +1267,18 @@
         "allowed": "根据您的组织策略允许发送到 {{destination}}，并记录在“数据处理”中。",
         "demo": "仅演示包：卡片文本会发送给模型，因为未加载 Apty KB 包。",
         "noPack": "未加载 KB 包。"
+      },
+      "kbDelivery": {
+        "label": "知识包为最新",
+        "current": "{{version}}：最新，检查于 {{when}}（UTC）。",
+        "noPack": "{{version}}：没有可用的知识包（{{reason}}）。",
+        "notDelivered": "尚未下发",
+        "expiring": "{{version}}：知识包将在 {{days}} 天后过期。",
+        "neverChecked": "{{version}}：尚未检查。",
+        "checkFailed": "{{version}}：上次检查失败（{{reason}}）；已存储的知识包仍可使用。",
+        "stale": "{{version}}：自 {{when}}（UTC）以来没有成功的检查。",
+        "fix": "点击“立即检查”。如果仍然失败，请在此浏览器中登录知识包主机，或请 IT 检查知识包主机和策略（docs/release/KB_PACK_DELIVERY.md）。",
+        "checkNow": "立即检查"
       }
     }
   },
@@ -2640,7 +2684,8 @@
       "error": "无法搜索（{{code}}）",
       "howTo": "操作类问题，交给 AI 模型",
       "nonEnglish": "非英文，交给 AI 模型",
-      "packUnusable": "{{version}} 知识包未使用（{{reason}}）"
+      "packUnusable": "{{version}} 知识包未使用（{{reason}}）",
+      "deliveryFailed": "，上次更新失败（{{outcome}}）"
     },
     "packUnusable": {
       "expired": "{{version}} 知识包已于 {{date}} 到期。",
@@ -2648,7 +2693,8 @@
       "unsigned": "{{version}} 知识包未签名。",
       "untrusted": "{{version}} 知识包未由本扩展信任的密钥签名。",
       "revoked": "{{version}} 知识包由已吊销的密钥签名。"
-    }
+    },
+    "deliveryFailed": "你的组织下发的 {{version}} 知识包上次更新失败（{{reason}}）。"
   },
   "cases": {
     "label": "案例",

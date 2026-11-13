@@ -38,6 +38,10 @@ Use a fresh browser profile. About 25 minutes per browser.
 | 23 | Ask a symptom that runs a check; note the case id in the bar; close and reopen the side panel and open the chat from the menu | The same case id; Settings → General → Cases lists it with its check |
 | 24 | On the case (Cases → Open, or a verdict's support step), **Prepare support bundle** | The review dialog with the JSON, the missing fields, Copy, Download (`apty-support-<case id>.json`) and Copy as text; no KB card text, email or token in it |
 | 25 | On a KB matches card, **Wrong card**, enter the right card's page id, **Save**; then Settings → General → Feedback, tick "Include my question", **Export questions for kb:eval**, Download; run `pnpm -s kb:eval --pack <demo pack> --questions <downloaded file>` | "Recorded"; the file lists the question with the right card; kb:eval prints its report |
+| 26 | KB pack delivery with no real host (K26): `pnpm kb:demo-pack` and `pnpm kb:demo-pack --version 4.x`, serve `~/apty-kb` on `http://127.0.0.1:8787`, load the E2E policy build (only it accepts an `http://127.0.0.1` source) with `kbPackSources` set to `http://127.0.0.1:8787/apty-kb-DEMO-5.x.kbpack.json`; Options → Knowledge base → **Check now** | The 5.x row says "Delivered by your organization", with host `127.0.0.1:8787`, and has no Replace or Remove |
+| 27 | Rebuild the 5.x demo pack, press **Check now** again; then stop the server and press **Check now** | The build date changes; with the server stopped the row keeps the pack and says "The pack host could not be reached." |
+| 28 | On a fork with the repository variable `KB_PUBLISH_DRY_RUN=1`, run Actions → KB packs by hand | Both versions pass; the job summary shows counts, page ids and hashes only, no card title |
+| 29 | For real (IT and the KB owner): follow [KB_PACK_DELIVERY.md](KB_PACK_DELIVERY.md) end to end | One SE's Preflight shows "KB packs up to date" green |
 
 ## Results
 

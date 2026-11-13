@@ -80,3 +80,15 @@ document they concern.
 | [D-SEC11: every KB pack expires](docs/tasks/kb-rag/decisions.md#d-sec11-every-pack-expires) | 2026-11-12 | Proposed with K23 |
 | [D-CASE1: cases, bundles and feedback stay on the device](docs/tasks/kb-rag/decisions.md#d-case1-cases-bundles-and-feedback-stay-on-the-device) | 2026-11-12 | Accepted with K25 |
 | [D-CASE2: what a support bundle may and may not contain](docs/tasks/kb-rag/decisions.md#d-case2-what-a-support-bundle-may-and-may-not-contain) | 2026-11-12 | Accepted with K25 |
+| [D-DEL1: a managed policy names where each version's pack comes from](docs/tasks/kb-rag/decisions.md#d-del1-a-managed-policy-names-where-each-versions-pack-comes-from) | 2026-11-13 | Proposed with K26 |
+| [D-DEL2: packs are fetched with the SE's own session](docs/tasks/kb-rag/decisions.md#d-del2-packs-are-fetched-with-the-ses-own-session) | 2026-11-13 | Proposed with K26 |
+| [D-DEL3: scheduled builds sign with a separate CI key](docs/tasks/kb-rag/decisions.md#d-del3-scheduled-builds-sign-with-a-separate-ci-key) | 2026-11-13 | Proposed with K26 |
+| [D-DEL4: packs are hosted on an internal HTTPS host behind Apty SSO](docs/tasks/kb-rag/decisions.md#d-del4-packs-are-hosted-on-an-internal-https-host-behind-apty-sso) | 2026-11-13 | Proposed with K26 |
+| [D-DEL5: a policy-sourced version is policy-managed](docs/tasks/kb-rag/decisions.md#d-del5-a-policy-sourced-version-is-policy-managed) | 2026-11-13 | Proposed with K26 |
+| [D-DEL6: a fetched pack never downgrades the stored one](docs/tasks/kb-rag/decisions.md#d-del6-a-fetched-pack-never-downgrades-the-stored-one) | 2026-11-13 | Proposed with K26 |
+| [D-DEL7: when the extension checks for a new pack](docs/tasks/kb-rag/decisions.md#d-del7-when-the-extension-checks-for-a-new-pack) | 2026-11-13 | Proposed with K26 |
+| [D-DEL8: what CI must pass before it publishes a pack](docs/tasks/kb-rag/decisions.md#d-del8-what-ci-must-pass-before-it-publishes-a-pack) | 2026-11-13 | Proposed with K26 |
+| [D-CHK1: tooltips, launchers and validations get their own check pack](docs/tasks/kb-rag/decisions.md#d-chk1-tooltips-launchers-and-validations-get-their-own-check-pack) | 2026-11-13 | Proposed with K26 |
+| [D-CHK2: a rule without a published card cites a draft and is capped](docs/tasks/kb-rag/decisions.md#d-chk2-a-rule-without-a-published-card-cites-a-draft-and-is-capped) | 2026-11-13 | Proposed with K26 |
+| [D-CHK3: 4.x element and readiness rules follow player3.0](docs/tasks/kb-rag/decisions.md#d-chk3-4x-element-and-readiness-rules-follow-player30) | 2026-11-13 | Proposed with K26 |
+| [D-DOM1: a DOM Config capture may be kept on the device](docs/tasks/kb-rag/decisions.md#d-dom1-a-dom-config-capture-may-be-kept-on-the-device) | 2026-11-13 | Proposed with K26 |

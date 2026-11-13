@@ -356,3 +356,105 @@ describe("KnowledgeBaseCard: cards not in this version (KB-RAG K25, A4)", () => 
     ).toBeInTheDocument();
   });
 });
+
+describe("KnowledgeBaseCard with pack delivery (KB-RAG K26 D4)", () => {
+  const RECORD = {
+    version: "5.x" as const,
+    host: "packs.example.com",
+    lastCheckAt: "2026-03-09T08:30:00.000Z",
+    outcome: "http_403" as const,
+    httpStatus: 403,
+    failures: 1,
+  };
+
+  function delivering(managed: boolean, packs: KbPackInfo[] = [INFO]) {
+    const kb = adapter(packs);
+    const checkNow = vi.fn(async () => undefined);
+    return Object.assign(kb, {
+      delivery: vi.fn(async () => [
+        {
+          version: "5.x" as const,
+          host: "packs.example.com",
+          managed,
+          record: RECORD,
+        },
+      ]),
+      checkNow,
+    });
+  }
+
+  it("shows a delivered version read-only, with its host, last check, update and outcome", async () => {
+    const kb = delivering(true);
+    render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
+    const row = await screen.findByRole("region", {
+      name: "Loaded knowledge base (5.x)",
+    });
+    expect(
+      await within(row).findByText("Delivered by your organization"),
+    ).toBeInTheDocument();
+    expect(within(row).getByText("packs.example.com")).toBeInTheDocument();
+    expect(within(row).getByText("2026-03-09 08:30")).toBeInTheDocument();
+    expect(within(row).getByText("2026-03-02 09:00")).toBeInTheDocument();
+    expect(within(row).getByTestId("kb-delivery-outcome")).toHaveTextContent(
+      "HTTP 403: sign in to the pack host.",
+    );
+    expect(within(row).queryByRole("button", { name: /Replace/ })).toBeNull();
+    expect(within(row).queryByRole("button", { name: /Remove/ })).toBeNull();
+    // 4.x and common are not delivered, so a file can still be imported.
+    expect(
+      screen.getByRole("button", { name: /Import pack/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps Replace and Remove when the policy allows manual import", async () => {
+    const kb = delivering(false);
+    render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
+    const row = await screen.findByRole("region", {
+      name: "Loaded knowledge base (5.x)",
+    });
+    await within(row).findByText("Delivered by your organization");
+    expect(
+      within(row).getByRole("button", { name: /Replace/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole("button", { name: /Remove/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a delivered version with no pack yet, and Check now reloads it", async () => {
+    const kb = delivering(true, []);
+    render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
+    expect(
+      await screen.findByText("No pack delivered yet"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No knowledge base loaded/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Check now" }));
+    expect(
+      await screen.findByText("Every delivered pack was checked."),
+    ).toBeInTheDocument();
+    expect(kb.checkNow).toHaveBeenCalledTimes(1);
+    expect(kb.delivery).toHaveBeenCalledTimes(2);
+  });
+
+  it("has no Check now without a delivered version", async () => {
+    const kb = Object.assign(adapter(INFO), {
+      delivery: vi.fn(async () => []),
+      checkNow: vi.fn(),
+    });
+    render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
+    await screen.findByRole("region", { name: "Loaded knowledge base (5.x)" });
+    expect(screen.queryByRole("button", { name: "Check now" })).toBeNull();
+  });
+
+  it("says why an import for a delivered version was refused", async () => {
+    const kb = adapter(null, { ok: false, code: "policy_managed" });
+    render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
+    await screen.findByText(/No knowledge base loaded/);
+    pick("apty-kb-FX.kbpack.json");
+    expect(
+      await screen.findByText(
+        "Your organization delivers this version's pack, so it cannot be imported by hand.",
+      ),
+    ).toBeInTheDocument();
+  });
+});

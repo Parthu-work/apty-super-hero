@@ -14,6 +14,7 @@ import {
 import { isInstalledAndEnabled } from "./apty-client-check";
 import { testConnection } from "./connection-check";
 import { kbPackStore } from "./kb-pack";
+import { kbSyncRecords } from "./kb-pack-sync";
 import type { FrameAnswer, PreflightDeps } from "./preflight";
 
 const client = (extensionId: string) =>
@@ -110,6 +111,7 @@ export const browserPreflightDeps: PreflightDeps = {
     }
   },
   knowledgeBase: () => kbPackStore().info(),
+  kbSyncRecords,
   orgPolicy: loadOrgPolicy,
   kbEgress: () => decideKbEgress("chat"),
 };

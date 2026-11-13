@@ -11,7 +11,9 @@ import {
 const UNIQUE = "Zorblaxian";
 const QUESTION = "why does the banner never glow";
 
-function memory(initial: KbEgressRecord[] = []): KbEgressRecords {
+function memory(
+  initial: Awaited<ReturnType<KbEgressRecords["read"]>> = [],
+): KbEgressRecords {
   let list = [...initial];
   return {
     read: async () => [...list],
@@ -133,5 +135,31 @@ describe("the KB send record (D-SEC6)", () => {
     expect(await kept.clearAllowed()).toBe(false);
     await expect(kept.clear()).rejects.toThrow(/kept by your organization/);
     expect(await kept.list()).toHaveLength(1);
+  });
+
+  it("records a KB pack request with its origin, status and outcome only, and does not count it as KB text sent (K26 D2)", async () => {
+    const log = createKbEgressLog({
+      records: memory(),
+      now: () => NOW,
+      policy: async () => NONE,
+    });
+    await log.appendPackFetch({
+      at: NOW.toISOString(),
+      version: "5.x",
+      origin: "https://packs.example.com",
+      status: 403,
+      outcome: "http_403",
+    });
+    expect(await log.list()).toEqual([
+      {
+        at: NOW.toISOString(),
+        request: "pack_fetch",
+        version: "5.x",
+        origin: "https://packs.example.com",
+        status: 403,
+        outcome: "http_403",
+      },
+    ]);
+    expect(await log.countSince(30)).toBe(0);
   });
 });

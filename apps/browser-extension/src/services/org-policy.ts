@@ -17,6 +17,8 @@ export function installOrgPolicySource(): void {
   if (import.meta.env.VITE_APTY_E2E_POLICY_SEAM === "1") {
     const key = "apty-e2e-org-policy";
     setOrgPolicySource({
+      // Local pack servers in E2E (K26, D7); never in a production build.
+      parseOptions: { allowLoopbackPackSources: true },
       async read() {
         const stored = await chrome.storage.local.get(key);
         return stored[key] ?? {};

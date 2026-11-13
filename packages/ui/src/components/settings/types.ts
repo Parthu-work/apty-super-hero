@@ -4,6 +4,7 @@ import type {
   KbImportResult,
   KbPackInfo,
   KbPackUsability,
+  KbSyncRecord,
   KeyValueStorage,
   RedactionFloor,
   RedactionModeSetting,
@@ -96,6 +97,20 @@ export interface KnowledgeBaseAdapter {
   /** Stores the file's pack under the version it names. */
   importPack(text: string): Promise<KbImportResult>;
   remove(version: KbAptyVersion): Promise<void>;
+  /** K26 (D4): the versions the organization delivers, with their last check. */
+  delivery?(): Promise<KbDeliveryView[]>;
+  /** K26 (D3): check every delivered version now. */
+  checkNow?(): Promise<void>;
+}
+
+/** A version the organization policy delivers (KB-RAG K26, D-DEL1). */
+export interface KbDeliveryView {
+  version: KbAptyVersion;
+  /** The source's host only. */
+  host: string;
+  /** Import, Replace and Remove are off for it (D-DEL5). */
+  managed: boolean;
+  record?: KbSyncRecord;
 }
 
 export interface ConnectionTestResult {

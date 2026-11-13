@@ -5,10 +5,28 @@
  */
 import type { KbDecision, TurnDecision } from "@apty/agent-core";
 import type { I18nContextValue } from "../i18n/types";
+import { kbSyncOutcomeMessage } from "./kb-sync-outcome";
 
 type Translate = I18nContextValue["t"];
 
 const fixed = (n: number) => n.toFixed(2);
+
+/** K26 (D4): the policy delivers this version and its last update failed, with why. */
+function withDelivery(
+  line: string,
+  kb: Extract<KbDecision, { kind: "no_pack" | "pack_unusable" }>,
+  t: Translate,
+): string {
+  if (!kb.delivery) return line;
+  const reason = kbSyncOutcomeMessage(kb.delivery.outcome, t).replace(
+    /[.。]$/u,
+    "",
+  );
+  return `${line} ${t("turnDecision.deliveryFailed", {
+    version: kb.delivery.version,
+    reason,
+  })}`;
+}
 
 /**
  * Why no KB card answered, in one sentence, or undefined when a card did or
@@ -30,16 +48,24 @@ export function kbOutcomeLine(
         min: fixed(kb.min),
       });
     case "no_pack":
-      return kb.version === "unknown"
-        ? t("turnDecision.noPackAny")
-        : t("turnDecision.noPack", { version: kb.version });
+      return withDelivery(
+        kb.version === "unknown"
+          ? t("turnDecision.noPackAny")
+          : t("turnDecision.noPack", { version: kb.version }),
+        kb,
+        t,
+      );
     case "error":
       return t("turnDecision.error", { code: kb.code });
     case "pack_unusable":
-      return t(`turnDecision.packUnusable.${kb.reason}`, {
-        version: kb.version,
-        date: kb.date?.slice(0, 10) ?? "",
-      });
+      return withDelivery(
+        t(`turnDecision.packUnusable.${kb.reason}`, {
+          version: kb.version,
+          date: kb.date?.slice(0, 10) ?? "",
+        }),
+        kb,
+        t,
+      );
     default:
       return undefined;
   }
@@ -60,14 +86,26 @@ function outcomeWords(kb: KbDecision, t: Translate): string {
         top: kb.topPageId ?? "-",
       });
     case "no_pack":
-      return t("turnDecision.outcome.noPack", { version: kb.version });
+      return `${t("turnDecision.outcome.noPack", { version: kb.version })}${
+        kb.delivery
+          ? t("turnDecision.outcome.deliveryFailed", {
+              outcome: kb.delivery.outcome,
+            })
+          : ""
+      }`;
     case "error":
       return t("turnDecision.outcome.error", { code: kb.code });
     case "pack_unusable":
-      return t("turnDecision.outcome.packUnusable", {
+      return `${t("turnDecision.outcome.packUnusable", {
         version: kb.version,
         reason: kb.reason,
-      });
+      })}${
+        kb.delivery
+          ? t("turnDecision.outcome.deliveryFailed", {
+              outcome: kb.delivery.outcome,
+            })
+          : ""
+      }`;
     case "how_to":
       return t("turnDecision.outcome.howTo");
     case "non_english":

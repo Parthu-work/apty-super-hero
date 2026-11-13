@@ -5,6 +5,7 @@ import {
   type KbImportResult,
   type KbPack,
   type KbPackInfo,
+  type KbReplaceStop,
   parseKbPack,
   type Sha256Hex,
 } from "@apty/agent-core";
@@ -32,8 +33,17 @@ export interface KbPackStore {
    * its dates (K23 P4) and, if it passes, replaces the loaded pack of the
    * file's own version. A refused file keeps the loaded pack.
    */
-  replace(text: string): Promise<KbImportResult>;
+  replace(text: string, options?: KbReplaceOptions): Promise<KbImportResult>;
   remove(version: KbAptyVersion): Promise<void>;
+}
+
+/** What a fetched pack must also pass before it is stored (KB-RAG K26, D-DEL6). */
+export interface KbReplaceOptions {
+  /** Checked after parsing and before trust, against the stored pack of the same version, if any. */
+  guard?(
+    incoming: KbPackInfo,
+    stored: KbPackInfo | undefined,
+  ): KbReplaceStop | undefined;
 }
 
 /**
@@ -236,11 +246,16 @@ export function createKbPackStore({
       // Written together; the check still refuses a pair that disagrees.
       return info && body && info.sha256 === body.sha256 ? body : null;
     },
-    async replace(text) {
+    async replace(text, options = {}) {
       await migrate();
       const parsed = await parseKbPack(text, { sha256 });
       if (!parsed.ok) return { ok: false, code: parsed.code };
       const info = describeKbPack(parsed.pack, now().toISOString());
+      if (options.guard) {
+        const stored = await records.get<KbPackInfo>(meta(info.aptyVersion));
+        const stop = options.guard(info, stored);
+        if (stop) return { ok: false, code: stop };
+      }
       let refusal: KbImportResult | undefined;
       try {
         refusal = refusalOf(await assess(info));
