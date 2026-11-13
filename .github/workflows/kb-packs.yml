@@ -128,22 +128,6 @@ jobs:
           fi
           install -d -m 700 "$KB_WORK"
 
-      - name: Download the last published pack
-        if: steps.inputs.outputs.has_host == 'true'
-        env:
-          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
-          KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
-          KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
-          URL_NAME: ${{ steps.inputs.outputs.publish_url_name }}
-        run: node tooling/scripts/kb/publish-pack.mjs download --url "${!URL_NAME}" --out "$KB_WORK/previous.json" --kind pack
-
-      - name: Download the customer-name list
-        if: vars.KB_CUSTOMER_NAMES_URL != '' && steps.inputs.outputs.source == 'confluence'
-        env:
-          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
-          NAMES_URL: ${{ vars.KB_CUSTOMER_NAMES_URL }}
-        run: node tooling/scripts/kb/publish-pack.mjs download --url "$NAMES_URL" --out "$KB_WORK/customer-names.txt" --kind names
-
       - name: Build the pack
         env:
           SOURCE: ${{ steps.inputs.outputs.source }}
@@ -164,8 +148,6 @@ jobs:
               const source = sources[process.env.VERSION];
               for (const arg of ["--site", source.site, "--space", source.space, "--root", source.root, ...source.args]) console.log(arg);
             ')
-            [ -f "$KB_WORK/customer-names.txt" ] && args+=(--customer-names "$KB_WORK/customer-names.txt")
-            [ -f "$KB_WORK/previous.json" ] && args+=(--diff "$KB_WORK/previous.json")
             set +e
             # The builder names cards by title: its output stays in a file that is deleted below.
             pnpm -s kb:pack "${args[@]}" --sign-key "$KB_WORK/signing-key.pem" --quiet --out "$KB_WORK/pack.json" > "$KB_WORK/build.log" 2>&1
@@ -176,28 +158,33 @@ jobs:
             {
               echo "### KB pack $VERSION"
               echo
-              ids=$(grep -oE 'Customer names found in pages [0-9, ]+' "$KB_WORK/build.log" | grep -oE '[0-9][0-9, ]*' || true)
-              if [ -n "$ids" ]; then
-                echo "- **Not published.** Failed: customer_names (pages $ids)"
-              else
-                echo "- **Not published.** The build failed (exit $code); run kb:pack locally to see why."
-              fi
+              echo "- **Not published.** The build failed (exit $code); run kb:pack locally to see why."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
+      # The gate reads the last published pack and the customer-name list
+      # into memory with the publish token; nothing downloaded is written.
       - name: Gate
         env:
           OVERRIDE: ${{ inputs.override_card_drop || false }}
           REASON: ${{ inputs.reason || '' }}
+          HAS_HOST: ${{ steps.inputs.outputs.has_host }}
+          SOURCE: ${{ steps.inputs.outputs.source }}
+          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
+          KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
+          KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+          URL_NAME: ${{ steps.inputs.outputs.publish_url_name }}
+          NAMES_URL: ${{ vars.KB_CUSTOMER_NAMES_URL }}
         run: |
           args=(--version "$VERSION" --pack "$KB_WORK/pack.json")
-          [ -f "$KB_WORK/previous.json" ] && args+=(--previous "$KB_WORK/previous.json")
+          [ "$HAS_HOST" = "true" ] && args+=(--previous-url "${!URL_NAME}")
+          [ -n "$NAMES_URL" ] && [ "$SOURCE" = "confluence" ] && args+=(--names-url "$NAMES_URL")
           questions="tooling/scripts/kb/questions/$VERSION.json"
           [ -f "$questions" ] && args+=(--questions "$questions")
           if [ "$OVERRIDE" = "true" ]; then args+=(--override-card-drop --reason "$REASON"); fi
           [ "$KB_PUBLISH_DRY_RUN" = "1" ] && args+=(--dry-run)
-          node tooling/scripts/kb/publish-gate.mjs "${args[@]}" > /dev/null
+          node tooling/scripts/kb/publish-gate.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish
         if: steps.inputs.outputs.has_host == 'true' || env.KB_PUBLISH_DRY_RUN == '1'
