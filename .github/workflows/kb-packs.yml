@@ -135,14 +135,14 @@ jobs:
           KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
           KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
           URL_NAME: ${{ steps.inputs.outputs.publish_url_name }}
-        run: node tooling/scripts/kb/publish-pack.mjs download --url "${!URL_NAME}" --out "$KB_WORK/previous.json"
+        run: node tooling/scripts/kb/publish-pack.mjs download --url "${!URL_NAME}" --out "$KB_WORK/previous.json" --kind pack
 
       - name: Download the customer-name list
         if: vars.KB_CUSTOMER_NAMES_URL != '' && steps.inputs.outputs.source == 'confluence'
         env:
           KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
           NAMES_URL: ${{ vars.KB_CUSTOMER_NAMES_URL }}
-        run: node tooling/scripts/kb/publish-pack.mjs download --url "$NAMES_URL" --out "$KB_WORK/customer-names.txt"
+        run: node tooling/scripts/kb/publish-pack.mjs download --url "$NAMES_URL" --out "$KB_WORK/customer-names.txt" --kind names
 
       - name: Build the pack
         env:
