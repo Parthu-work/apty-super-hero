@@ -640,5 +640,7 @@ partial: what is left, and the command that finishes it, is in each row.
 | D6 Key and hosting setup (runbook) | Done ([KB_PACK_DELIVERY.md](../../release/KB_PACK_DELIVERY.md)); carrying it out is IT's and the KB owner's (partial until then) |
 | D7 Tests | Done: unit tests for every outcome code, the 304, backoff, lock, D-DEL5 and refusals; `tooling/e2e/kb-delivery.e2e.test.mjs` (5 tests, pass in Chromium); the gate and transfer in `publish-gate.test.mjs`. actionlint: partial (see D5) |
 | E0 to E5 | Not started |
-| T0 to T5 | Not started |
+| T0 Read the player | Partial: apty-dap could not be attached here. [`item-display-rules.md`](../../development/item-display-rules.md) lists the conditions this repository already reads from 4c406d5 and what T0 must still find with file and line |
+| T1 Draft cards | Partial: the published JA cards found for tooltips are listed by id in [`docs/kb-drafts/README.md`](../../kb-drafts/README.md); the launcher and validation search failed (Confluence 503) and the six drafts wait on T0 |
+| T2 to T5 | Not started: every gate of `item-not-showing` must come from T0 (hard rule). content-not-visible and the router are unchanged |
 | C1 to C5 | Not started |
