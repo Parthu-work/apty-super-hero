@@ -4,7 +4,7 @@
  * holds counts, ids, numbers and codes, never a card title or card text.
  */
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -294,12 +294,12 @@ describe("publish-pack", () => {
       fake.calls[1].init.headers.Authorization,
       "Bearer FIXTURE-token",
     );
-    const printed = lines.join("\n");
-    assert.match(printed, /Published to the pack host: HTTP 201/);
-    assert.doesNotMatch(printed, /packs\.example\.com/);
-    assert.ok(!printed.includes("SECRET"));
-    assert.ok(!printed.includes("FIXTURE-token"));
-    assert.ok(!printed.includes("/kb/"));
+    // Exactly these lines: no URL, host, query or token is printed.
+    const sha = createHash("sha256").update('{"FIXTURE":true}').digest("hex");
+    assert.deepEqual(lines, [
+      "No published pack on the pack host yet (404).",
+      `Published to the pack host: HTTP 201, read back with the same file sha256 ${sha}.`,
+    ]);
   });
 
   it("fails when the read-back differs or the host refuses, and sends nothing in a dry run", async () => {
