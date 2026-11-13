@@ -2744,7 +2744,8 @@
     "missing": "Add before sending: {{fields}}.",
     "noneMissing": "Nothing is missing.",
     "copyText": "Copy as text",
-    "noCase": "There is no case for this conversation yet."
+    "noCase": "There is no case for this conversation yet.",
+    "includeDomSettings": "Include the exported DOM Config settings file (rules and settings only, as exported)"
   },
   "feedback": {
     "wrongCard": "Wrong card",

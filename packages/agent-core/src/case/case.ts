@@ -73,7 +73,24 @@ export interface CaseRecord {
   rightCardId?: string;
   /** The SE's own note, at most 1,000 characters. */
   note?: string;
+  /** K26 (C4): the last DOM Config run held while the case was open. */
+  domConfig?: CaseDomConfig;
 }
+
+/** A DOM Config run in a case: counts and the export's hash; the settings file only as the export holds it. */
+export interface CaseDomConfig {
+  runId: string;
+  at: string;
+  pages: number;
+  rules: number;
+  warnings: number;
+  /** SHA-256 of the exported Apty settings file, once it was exported. */
+  exportSha256?: string;
+  /** The exported Apty settings file (`toAptyDomConfig`), at most 64 KB; it leaves only when the SE ticks it in a support bundle. */
+  settingsFile?: string;
+}
+
+export const CASE_DOM_CONFIG_FILE_MAX = 64 * 1024;
 
 export const CASE_SYMPTOM_MAX = 300;
 export const CASE_NOTE_MAX = 1000;

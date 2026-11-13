@@ -672,6 +672,17 @@ held again and analyzed with today's ignored roots) or **Discard capture**.
 **Clear results** deletes it too. A kept capture older than the policy's
 `domConfigRetentionDays` (30 by default) is deleted when it is next read.
 
+## In a case (K26 C4)
+
+When DOM Config holds results while the panel's conversation has an open
+case (K25 L1), the case records the run: an id, the page, rule and warning
+counts, and, once "Apty DOM config (JSON)" is exported, the export's sha256
+and the exported file itself (at most 64 KB, on the device only). A support
+bundle prepared for that case (K25 L2) carries a `domConfig` block with the
+counts and hash; the settings file goes in only when the SE ticks "Include
+the exported DOM Config settings file" in the review dialog. Nothing is
+added that the export does not already hold.
+
 ## Export in Apty's shape
 
 "Apty DOM config (JSON)" downloads `toAptyDomConfig(report)` with only

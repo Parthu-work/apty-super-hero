@@ -2744,7 +2744,8 @@
     "missing": "发送前请补充：{{fields}}。",
     "noneMissing": "没有缺少的内容。",
     "copyText": "复制为文本",
-    "noCase": "此对话还没有案例。"
+    "noCase": "此对话还没有案例。",
+    "includeDomSettings": "包含导出的 DOM Config 设置文件（仅规则和设置，与导出内容相同）"
   },
   "feedback": {
     "wrongCard": "卡片有误",

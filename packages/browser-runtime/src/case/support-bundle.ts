@@ -53,6 +53,17 @@ export interface SupportBundle {
   consoleErrors: string[];
   browser?: string;
   extensionVersion?: string;
+  /** K26 (C4): the case's DOM Config run, counts only; the settings file only when the SE ticked it. */
+  domConfig?: {
+    runId: string;
+    at: string;
+    pages: number;
+    rules: number;
+    warnings: number;
+    exportSha256?: string;
+    settingsFile?: unknown;
+    settingsFileLeftOut?: "too_large";
+  };
 }
 
 export interface SupportBundleInput {
@@ -70,6 +81,24 @@ export interface SupportBundleInput {
   denyList?: readonly string[];
   /** A KB card's link from its page id. */
   cardLink: (pageId: string) => string;
+  /** K26 (C4): the SE ticked "Include the DOM settings file". */
+  includeDomConfigSettings?: boolean;
+}
+
+/** The case's DOM Config block, with the settings file only when asked for and it parses. */
+function domConfigBlock(
+  record: CaseRecord,
+  include: boolean,
+): SupportBundle["domConfig"] {
+  const run = record.domConfig;
+  if (!run) return undefined;
+  const { settingsFile, ...counts } = run;
+  if (!include || !settingsFile) return counts;
+  try {
+    return { ...counts, settingsFile: JSON.parse(settingsFile) };
+  } catch {
+    return counts;
+  }
 }
 
 const OWN_HOSTS = /(^|\.)(apty\.(io|ai|com|net)|atlassian\.(net|com))$/i;
@@ -328,6 +357,11 @@ export function buildSupportBundle(input: SupportBundleInput): {
       ? { extensionVersion: input.extensionVersion }
       : {}),
   };
+  const domConfig = domConfigBlock(
+    record,
+    input.includeDomConfigSettings === true,
+  );
+  if (domConfig) bundle.domConfig = domConfig;
 
   // The cap trims file entries first, then console lines.
   let json = JSON.stringify(bundle, null, 2);
@@ -337,6 +371,14 @@ export function buildSupportBundle(input: SupportBundleInput): {
   ) {
     if (bundle.fileEntries.length > 0) bundle.fileEntries.pop();
     else bundle.consoleErrors.pop();
+    json = JSON.stringify(bundle, null, 2);
+  }
+  if (
+    new TextEncoder().encode(json).length > SUPPORT_BUNDLE_MAX_BYTES &&
+    bundle.domConfig?.settingsFile !== undefined
+  ) {
+    const { settingsFile: _left, ...counts } = bundle.domConfig;
+    bundle.domConfig = { ...counts, settingsFileLeftOut: "too_large" };
     json = JSON.stringify(bundle, null, 2);
   }
 
@@ -361,6 +403,11 @@ export function buildSupportBundle(input: SupportBundleInput): {
         ]
       : []),
     `- checks: ${bundle.checks.map((c) => `${c.packId} ${c.status}`).join("; ") || "none"}`,
+    ...(bundle.domConfig
+      ? [
+          `- DOM Config run ${bundle.domConfig.runId}: ${bundle.domConfig.pages} pages, ${bundle.domConfig.rules} rules, ${bundle.domConfig.warnings} warnings${bundle.domConfig.exportSha256 ? `, export sha256 ${bundle.domConfig.exportSha256}` : ""}`,
+        ]
+      : []),
   ].join("\n");
 
   return { bundle, json, missing, markdown };
