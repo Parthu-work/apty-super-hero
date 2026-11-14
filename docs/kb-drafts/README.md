@@ -9,7 +9,7 @@ Part T, `cards-4x.ts` for Part E).
 
 **Status: partial.** The drafts are written from the player code, which was
 not available (see [item-display-rules.md](../development/item-display-rules.md)
-and `docs/development/4x-element-rules.md` on the Part E branch), so none is
+and [4x-element-rules.md](../development/4x-element-rules.md)), so none is
 written yet. This file lists what was searched and what each needs.
 
 ## Published cards that already cover a rule (searched 13 Nov 2026)
