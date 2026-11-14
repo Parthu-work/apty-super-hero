@@ -15,6 +15,8 @@ full commit-level history.
   - **D6**: [`docs/release/KB_PACK_DELIVERY.md`](docs/release/KB_PACK_DELIVERY.md), for IT and the KB owner: the CI key, the pack host and its token, the policy, the first run, revoking a key, and what an SE sees when something is wrong; smoke-test rows 26 to 29.
   - **D7**: tests. Unit: every outcome code, the 304 path, the backoff, the lock, a refused pack leaving the stored one loaded, D-DEL5 in Options, the alarm with and without a source, Preflight's states, the KB line, the publish gate and transfer. E2E (`kb-delivery.e2e.test.mjs`, Chromium, E2E policy build only): first fetch, a newer pack answering with no reload, an older pack refused, a 403 in Options, Preflight and the chat, no alarm and no request without a source.
 
+- **KB-RAG K26 Part T: tooltip, launcher and validation checks** (partial): [`docs/development/item-display-rules.md`](docs/development/item-display-rules.md) (what the 5.x player rules must still be read for) and [`docs/kb-drafts/README.md`](docs/kb-drafts/README.md) (the published tooltip cards by id, the drafts still needed). apty-dap was not available, so no check pack or routing change was made.
+
 - **KB-RAG K26 Part E: 4.x element checks** (partial): [`docs/development/4x-element-rules.md`](docs/development/4x-element-rules.md) records what E0 must read in apty-assist `player3.0` and how to finish; the code was not available, so no 4.x element or readiness rule was added and the 5.x packs are unchanged.
 
 - **KB-RAG K25: what the first real packs asked for, signed packs, and cases** ([`FIXES-K25.md`](docs/tasks/kb-rag/FIXES-K25.md)):
