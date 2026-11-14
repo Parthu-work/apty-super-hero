@@ -46,6 +46,8 @@ jobs:
           OVERRIDE: ${{ inputs.override_card_drop || false }}
           REASON: ${{ inputs.reason || '' }}
         run: |
+          # The ${...} below is a JavaScript template literal, not shell.
+          # shellcheck disable=SC2016
           json=$(node -e '
             const asked = process.env.VERSIONS.split(",").map((v) => v.trim()).filter(Boolean);
             const bad = asked.filter((v) => v !== "4.x" && v !== "5.x");
@@ -71,8 +73,12 @@ jobs:
     env:
       VERSION: ${{ matrix.version }}
       KB_PUBLISH_DRY_RUN: ${{ vars.KB_PUBLISH_DRY_RUN }}
-      KB_WORK: ${{ runner.temp }}/kb-pack
     steps:
+      # The runner context is not available in a job's env, so the work
+      # directory is set here, first, for every later step (cleanup included).
+      - name: Work directory
+        run: echo "KB_WORK=$RUNNER_TEMP/kb-pack" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

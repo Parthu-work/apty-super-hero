@@ -6,6 +6,8 @@ full commit-level history.
 
 ## Unreleased
 
+- **KB-RAG K26 D5 follow-up**: `kb-packs.yml` set `KB_WORK` from the `runner` context in the job's `env`, where GitHub does not allow it, so the workflow could not start; a first step now sets it. actionlint (with shellcheck) passes on every workflow.
+
 - **KB-RAG K26: automatic pack delivery** ([`FIXES-K26.md`](docs/tasks/kb-rag/FIXES-K26.md); owner decisions D-DEL1 to D-DEL8, D-CHK1 to D-CHK3 and D-DOM1, all Proposed):
   - **D1**: policy keys `kbPackSources` (`"4.x"`, `"5.x"`, `"common"` to an `https://` URL), `kbPackCheckHours` (1 to 168, default 6) and `allowManualPackImport` (default false), in the parser, the managed schema and ORG_POLICY.md.
   - **D2**: the pack fetcher (`kb/kb-pack-sync.ts`): for each sourced version, a GET with the SE's session, `no-cache` and conditional headers, a 60-second timeout, refused past 25 MB (declared or streamed) or when not JSON or plain text; the body goes through the manual import's path (checksum, signature, trust, expiry) plus D-DEL6 (its own version, newer by `builtAt`). Each version's check is kept under `sync:<version>` (times, validators, outcome, status, sha256; no body, path or query), one row per request goes to the send record (time, version, origin, status, outcome), one sync at a time, and a failing version backs off from 5 minutes, doubling, up to `kbPackCheckHours`. Every outcome code has a message in English and Chinese.

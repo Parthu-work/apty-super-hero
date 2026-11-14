@@ -615,7 +615,24 @@ ticked.
 
 ## Status
 
-Started 13 Nov 2026.
+Started 13 Nov 2026. Updated 14 Nov 2026.
+
+**Where it stands.** Every part is on `main`: Part D
+(Parthu-work/apty-super-hero#108), Part E (#109), Part T (#110) and Part C
+(#111), then the browser-restart E2E for C1 (#112) and the actionlint fix
+for `kb-packs.yml` with this status (#113). Parts D and C are done in code;
+Parts E and T are findings files only, waiting on the Apty player code.
+What is left, matching the Open table in [`docs/STATUS.md`](../../STATUS.md):
+
+- D5, D6: the first real nightly run, once IT sets the pack host, the CI
+  key, the publish token, the secrets, variables and policy
+  ([KB_PACK_DELIVERY.md](../../release/KB_PACK_DELIVERY.md));
+- E0 to E5: read access to apty-assist `player3.0`;
+- T0 to T5: read access to apty-dap at `4c406d5`, and the launcher and
+  validation card search (Confluence answered 503);
+- C3: apty-dap at `4c406d5`; C5: the real-tenant run in the SE pilot;
+- the owner confirms or changes D-DEL1 to D-DEL8, D-CHK1 to D-CHK3 and
+  D-DOM1, all still Proposed ([decisions.md](decisions.md)).
 
 **Base, as found.** K25 (`claude/kb-rag-k25-all-fixes-3jn8kf`, tip
 `f78abbe`) is not merged into `main`, and the K25 audit commit `ebdd69e`
@@ -623,7 +640,9 @@ Started 13 Nov 2026.
 remote nor anywhere in this environment. Every K26 branch therefore starts
 from the K25 branch tip **without** the audit commit; each PR body says so.
 Rules that came from the audit (for example `allowDemoPacks`) are not
-present and are not invented here.
+present and are not invented here. K25 was then merged into `main`
+(Parthu-work/apty-super-hero#107) before Part D, so the K26 PRs carried no
+K25 code; the audit commit is still not included.
 
 **Apty code, as found.** `aptyInc/apty-dap` and `aptyInc/apty-assist` could
 not be attached to this session (no access). Parts T and E, and C3, depend
@@ -636,9 +655,9 @@ partial: what is left, and the command that finishes it, is in each row.
 | D2 The fetcher | Done. A 304 is recorded as `not_modified` (the code list's name for it); import refusals keep their existing codes (`untrusted_key`, `revoked_key`, …). Check now skips the backoff |
 | D3 When it runs | Done. The policy watch (`watchOrgPolicy`, which listens to `storage.managed` changes) recreates the alarm |
 | D4 What the SE sees | Done. "Last update" is when the stored pack was last replaced (its import time). Import pack… stays while any version is still importable; a hand import of a delivered version is refused (`policy_managed`) |
-| D5 The scheduled build job | Done, two steps partial. **actionlint** could not be run here (downloading its binary was not allowed in this environment); the YAML parses, every `run:` passes `bash -n` and every action is pinned to a SHA. To finish: `actionlint .github/workflows/kb-packs.yml`. **First real run**: partial until IT sets the host, secrets and variables (KB_PACK_DELIVERY.md). Deviations: the self-check runs inside `publish-gate.mjs` (the same `selfCheck` as `kb:eval --self-check`); by the owner's choice (CodeQL "network data written to file"), the gate reads the last published pack and the customer-name list into memory and does the diff, card-count and customer-name checks itself, so `kb:pack` runs without `--diff` or `--customer-names` and nothing downloaded is written to a file; a failed run's pack is kept as an artifact only when the repository is private, because this repository is public and its artifacts are visible to any GitHub user; the job never prints the pack host |
+| D5 The scheduled build job | Done, one step partial. **actionlint** (v1.7.7, with shellcheck 0.9.0) passes on every workflow; it found that the job-level `env` used the `runner` context, which GitHub does not allow there and which would have stopped the workflow from starting, so `KB_WORK` is now set by a first step. **First real run**: partial until IT sets the host, secrets and variables (KB_PACK_DELIVERY.md). Deviations: the self-check runs inside `publish-gate.mjs` (the same `selfCheck` as `kb:eval --self-check`); by the owner's choice (CodeQL "network data written to file"), the gate reads the last published pack and the customer-name list into memory and does the diff, card-count and customer-name checks itself, so `kb:pack` runs without `--diff` or `--customer-names` and nothing downloaded is written to a file; a failed run's pack is kept as an artifact only when the repository is private, because this repository is public and its artifacts are visible to any GitHub user; the job never prints the pack host |
 | D6 Key and hosting setup (runbook) | Done ([KB_PACK_DELIVERY.md](../../release/KB_PACK_DELIVERY.md)); carrying it out is IT's and the KB owner's (partial until then) |
-| D7 Tests | Done: unit tests for every outcome code, the 304, backoff, lock, D-DEL5 and refusals; `tooling/e2e/kb-delivery.e2e.test.mjs` (5 tests, pass in Chromium); the gate and transfer in `publish-gate.test.mjs`. actionlint: partial (see D5) |
+| D7 Tests | Done: unit tests for every outcome code, the 304, backoff, lock, D-DEL5 and refusals; `tooling/e2e/kb-delivery.e2e.test.mjs` (5 tests, pass in Chromium); the gate and transfer in `publish-gate.test.mjs`. actionlint passes (see D5) |
 | E0 Read the 4.x player | Partial: apty-assist could not be attached or cloned here, and this repository holds no 4.x stored-element shape (`flow-18515.json` has ids and titles only). [`4x-element-rules.md`](../../development/4x-element-rules.md) records what is known, what E0 must find and the commands that finish it |
 | E1 to E5 | Not started: each depends on E0's shape (hard rule: no invented shapes). 5.x element-not-found and page-readiness are unchanged |
 | T0 Read the player | Partial: apty-dap could not be attached here. [`item-display-rules.md`](../../development/item-display-rules.md) lists the conditions this repository already reads from 4c406d5 and what T0 must still find with file and line |
