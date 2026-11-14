@@ -671,6 +671,10 @@ page opens with nothing held, it offers **Resume capture** (the capture is
 held again and analyzed with today's ignored roots) or **Discard capture**.
 **Clear results** deletes it too. A kept capture older than the policy's
 `domConfigRetentionDays` (30 by default) is deleted when it is next read.
+`tooling/e2e/dom-config-kept.e2e.test.mjs` checks this in Chromium: a
+capture taken in the side panel survives the browser closing and
+relaunching on the same profile, holds only what the panel held, resumes,
+and is gone after Clear results.
 
 ## In a case (K26 C4)
 
