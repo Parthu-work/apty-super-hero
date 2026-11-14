@@ -21,6 +21,8 @@ full commit-level history.
   - **C3**: the three open questions (max z-index ceiling, unconfirmed noise entries, Apty's persistence across restarts) stay open: apty-dap was not available; `dom-config.md` says how to finish.
   - **C4**: a DOM Config run held while a case is open goes into the case (run id, pages, rules, warnings, the Apty export's sha256 and file); the support bundle has a `domConfig` block, with the settings file only when the SE ticks it.
 
+- **KB-RAG K26 Part E: 4.x element checks** (partial): [`docs/development/4x-element-rules.md`](docs/development/4x-element-rules.md) records what E0 must read in apty-assist `player3.0` and how to finish; the code was not available, so no 4.x element or readiness rule was added and the 5.x packs are unchanged.
+
 - **KB-RAG K25: what the first real packs asked for, signed packs, and cases** ([`FIXES-K25.md`](docs/tasks/kb-rag/FIXES-K25.md)):
   - **A1**: tool schemas every provider accepts. Anthropic's strict tool use refuses `minimum`, `maximum` and the other limits its JSON Schema subset does not support; a provider middleware now removes them and states each limit in the property's description (`provider-schema.ts`). Tools still validate their input with their own Zod schema.
   - **A2**: every KB decision is visible: a typed outcome per search, one quiet line above the model's reply when no card answered (not covered with its numbers, no pack for the version, an error code), the same reason on the setup card without a key, and "Why this answer" on every turn (route, version, packs, outcome; no card text, no question).
