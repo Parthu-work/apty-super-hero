@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   auditRetentionDays,
   customModelsAllowed,
+  domConfigRetentionDays,
   kbPackCheckHours,
   kbPackManaged,
   kbPackSources,
@@ -273,5 +274,16 @@ describe("KB pack delivery keys (KB-RAG K26 D1)", () => {
       allowManualPackImport: true,
     });
     expect(kbPackManaged(allowed, "5.x")).toBe(false);
+  });
+});
+
+describe("domConfigRetentionDays (KB-RAG K26 D-DOM1)", () => {
+  it("is 30 by default and the policy's when set, 1 to 365", () => {
+    expect(domConfigRetentionDays({ kind: "none" })).toBe(30);
+    const state = orgPolicyStateOf({ domConfigRetentionDays: 7 });
+    expect(domConfigRetentionDays(state)).toBe(7);
+    for (const bad of [0, 366, 2.5, "7"]) {
+      expect(parseOrgPolicy({ domConfigRetentionDays: bad }).ok).toBe(false);
+    }
   });
 });

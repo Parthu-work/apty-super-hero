@@ -5,7 +5,9 @@
  * numbers, codes and the SE's own Strict-redacted symptom only (D-CASE1).
  */
 import {
+  CASE_DOM_CONFIG_FILE_MAX,
   type CaseCheck,
+  type CaseDomConfig,
   type CaseFinding,
   type CaseOutcome,
   type CaseRecord,
@@ -138,6 +140,12 @@ export interface CaseRecorder {
     result: unknown,
   ): Promise<void>;
   current(conversationId: string): Promise<CaseRecord | undefined>;
+  /**
+   * K26 (C4): a DOM Config run held, or its settings exported, while the
+   * conversation's case is open. A field left out keeps its value for the
+   * same run. No open case: nothing is recorded.
+   */
+  recordDomConfig(conversationId: string, entry: CaseDomConfig): Promise<void>;
   close(
     conversationId: string,
     outcome: Exclude<CaseOutcome, "open">,
@@ -291,6 +299,29 @@ export function createCaseRecorder({
       }
     },
     current: (conversationId) => store.forConversation(conversationId),
+    async recordDomConfig(conversationId, entry) {
+      const open = await store.forConversation(conversationId);
+      if (!open || open.outcome !== "open") return;
+      const same = open.domConfig?.runId === entry.runId;
+      const settingsFile =
+        entry.settingsFile &&
+        new TextEncoder().encode(entry.settingsFile).length <=
+          CASE_DOM_CONFIG_FILE_MAX
+          ? entry.settingsFile
+          : undefined;
+      const domConfig: CaseDomConfig = {
+        ...(same ? open.domConfig : {}),
+        ...entry,
+        ...(settingsFile ? { settingsFile } : {}),
+      };
+      if (!settingsFile && !same) delete domConfig.settingsFile;
+      await store.put({
+        ...open,
+        updatedAt: now().toISOString(),
+        domConfig,
+      });
+      notify();
+    },
     async close(conversationId, outcome, answers) {
       const open = await store.forConversation(conversationId);
       if (!open || open.outcome !== "open") return undefined;

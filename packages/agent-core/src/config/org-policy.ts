@@ -48,6 +48,8 @@ export interface OrgPolicy {
   kbPackCheckHours?: number;
   /** K26 (D-DEL5): whether an SE may import by hand a version the policy sources. */
   allowManualPackImport?: boolean;
+  /** K26 (D-DOM1): how many days a held DOM Config capture is kept on the device. */
+  domConfigRetentionDays?: number;
 }
 
 /** The versions a pack source may name (K26, D1). */
@@ -393,6 +395,19 @@ export function parseOrgPolicy(
         }
         policy.kbPackCheckHours = value;
         break;
+      case "domConfigRetentionDays":
+        if (
+          typeof value !== "number" ||
+          !Number.isInteger(value) ||
+          value < 1 ||
+          value > 365
+        ) {
+          return fail(
+            "domConfigRetentionDays must be a whole number, 1 to 365",
+          );
+        }
+        policy.domConfigRetentionDays = value;
+        break;
       case "allowManualPackImport":
         if (typeof value !== "boolean") return fail(`${key} must be a boolean`);
         policy.allowManualPackImport = value;
@@ -496,4 +511,9 @@ export function kbPackManaged(state: OrgPolicyState, version: string): boolean {
   const sources = kbPackSources(state);
   if (!Object.hasOwn(sources, version)) return false;
   return !(policyOf(state)?.allowManualPackImport ?? false);
+}
+
+/** Days a held DOM Config capture is kept on the device (K26, D-DOM1): the policy's, or 30. */
+export function domConfigRetentionDays(state: OrgPolicyState): number {
+  return policyOf(state)?.domConfigRetentionDays ?? 30;
 }

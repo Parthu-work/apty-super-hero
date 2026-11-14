@@ -3,7 +3,7 @@
  * extension's IndexedDB `apty-cases-db`, keeping cases for the policy's
  * `caseRetentionDays` (90 by default). Nothing here is sent anywhere.
  */
-import { caseRetentionDays } from "@apty/agent-core";
+import { type CaseDomConfig, caseRetentionDays } from "@apty/agent-core";
 import { tabUrlOf } from "@apty/browser-runtime/apty/diagnosis/responder";
 import {
   type CaseRecorder,
@@ -42,4 +42,12 @@ export function recordModelToolResult(toolName: string, result: unknown) {
   void caseRecorder()
     .recordToolResult(activeConversation, toolName, result)
     .catch((error) => console.error("[case] not recorded", error));
+}
+
+/** K26 (C4): a DOM Config run, or its settings export, in the panel's open case. */
+export function recordDomConfigRun(entry: CaseDomConfig) {
+  if (!activeConversation) return;
+  void caseRecorder()
+    .recordDomConfig(activeConversation, entry)
+    .catch((error) => console.error("[case] DOM Config not recorded", error));
 }

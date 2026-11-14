@@ -19,6 +19,8 @@ interface Prepared {
   markdown: string;
   missing: string[];
   id: string;
+  record: CaseRecord;
+  denyList: readonly string[];
 }
 
 function extensionVersion(): string | undefined {
@@ -43,15 +45,14 @@ export function SupportBundleButton({
   const { t } = useTranslation();
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [noCase, setNoCase] = useState(false);
+  const [includeSettings, setIncludeSettings] = useState(false);
 
-  const prepare = async () => {
-    const found = record ?? (await loadRecord?.());
-    if (!found) {
-      setNoCase(true);
-      return;
-    }
-    const denyList = await loadBodyDenyList().catch(() => []);
-    const built = buildSupportBundle({
+  const build = (
+    found: CaseRecord,
+    denyList: readonly string[],
+    includeDomConfigSettings: boolean,
+  ): Prepared => ({
+    ...buildSupportBundle({
       record: found,
       ...(result ? { result } : {}),
       userAgent: navigator.userAgent,
@@ -62,8 +63,30 @@ export function SupportBundleButton({
         kbCardUrl(pageId, {
           aptyVersion: found.aptyVersion === "4.x" ? "4.x" : "5.x",
         }),
-    });
-    setPrepared({ ...built, id: found.id });
+      includeDomConfigSettings,
+    }),
+    id: found.id,
+    record: found,
+    denyList,
+  });
+
+  const prepare = async () => {
+    const found = record ?? (await loadRecord?.());
+    if (!found) {
+      setNoCase(true);
+      return;
+    }
+    const denyList = await loadBodyDenyList().catch(() => []);
+    setIncludeSettings(false);
+    setPrepared(build(found, denyList, false));
+  };
+
+  /** K26 (C4): the DOM settings file goes into the bundle only when the SE ticks it. */
+  const toggleSettings = (include: boolean) => {
+    setIncludeSettings(include);
+    if (prepared) {
+      setPrepared(build(prepared.record, prepared.denyList, include));
+    }
   };
 
   return (
@@ -94,6 +117,17 @@ export function SupportBundleButton({
             : undefined
         }
       >
+        {prepared?.record.domConfig?.settingsFile && (
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={includeSettings}
+              onChange={(event) => toggleSettings(event.target.checked)}
+              data-testid="support-include-dom-settings"
+            />
+            {t("supportBundle.includeDomSettings")}
+          </label>
+        )}
         {prepared && (
           <p className="text-sm text-foreground" data-testid="support-missing">
             {prepared.missing.length > 0

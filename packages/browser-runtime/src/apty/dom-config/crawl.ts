@@ -269,6 +269,8 @@ export async function runDomConfigCapture(
     maxPages,
     maxTotalAuditMs: options.maxTotalMs ?? DOM_CONFIG_DEFAULT_MAX_TOTAL_MS,
     discoveryMode: options.discoveryMode ?? "application-safe",
+    // A nav anchor is visited by its URL, never clicked (K26 C2).
+    skipLinkClicks: true,
     ignoredRoots,
     ...(options.signal ? { signal: options.signal } : {}),
     onProgress: (p) => {

@@ -90,8 +90,8 @@ export function ExportMenu({
 }: {
   report: DomConfigReport;
   choices: RuleChoices;
-  /** After a successful export or copy, so the results read as exported. */
-  onExported: () => void;
+  /** After a successful export or copy, so the results read as exported; with the Apty settings file when that was the export (K26 C4). */
+  onExported: (aptySettings?: string) => void;
 }) {
   const { t } = useTranslation();
   const announce = useAnnounce();
@@ -135,12 +135,17 @@ export function ExportMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
+            const settings = JSON.stringify(
+              toAptyDomConfig(exported()),
+              null,
+              2,
+            );
             download(
-              JSON.stringify(toAptyDomConfig(exported()), null, 2),
+              settings,
               exportFileName(report.applicationName, "apty.json"),
               "application/json",
             );
-            onExported();
+            onExported(settings);
           }}
         >
           <FileJsonIcon aria-hidden="true" />

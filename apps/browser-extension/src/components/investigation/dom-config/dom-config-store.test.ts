@@ -72,4 +72,64 @@ describe("createDomConfigStore", () => {
     store.clear();
     expect(store.getState().crawlMs).toBeNull();
   });
+
+  it("keeps the held capture on the device, resumes it after a restart and discards it (K26 C1)", async () => {
+    mockRunDomConfigCapture.mockResolvedValue(outcome());
+    let saved: Record<string, unknown> | undefined;
+    const keeper = {
+      save: vi.fn(async (kept: Record<string, unknown>) => {
+        saved = { ...kept, savedAt: "2026-11-13T10:00:00.000Z" };
+      }),
+      load: vi.fn(async () => saved as never),
+      discard: vi.fn(async () => {
+        saved = undefined;
+      }),
+    };
+    const first = createDomConfigStore({ keeper });
+    await first.start(TAB_ID);
+    const held = first.getState();
+    expect(keeper.save).toHaveBeenCalledTimes(1);
+    expect(saved).toEqual({
+      capture: held.capture,
+      outcome: held.outcome,
+      coverageMarks: {},
+      crawlMs: held.crawlMs,
+      crawlOptions: held.crawlOptions,
+      savedAt: "2026-11-13T10:00:00.000Z",
+    });
+
+    // A new panel, as after a browser restart.
+    const second = createDomConfigStore({ keeper });
+    await second.checkKept();
+    expect(second.getState().kept).toEqual({
+      savedAt: "2026-11-13T10:00:00.000Z",
+      pages: held.capture?.pages.length,
+    });
+    second.resume();
+    expect(second.getState()).toMatchObject({
+      phase: "report",
+      capture: held.capture,
+      kept: null,
+    });
+    expect(second.getState().rows).toEqual(held.rows);
+
+    const third = createDomConfigStore({ keeper });
+    await third.checkKept();
+    await third.discardKept();
+    expect(third.getState().kept).toBeNull();
+    expect(saved).toBeUndefined();
+  });
+
+  it("deletes the kept capture on Clear results", async () => {
+    mockRunDomConfigCapture.mockResolvedValue(outcome());
+    const keeper = {
+      save: vi.fn(async () => undefined),
+      load: vi.fn(async () => undefined),
+      discard: vi.fn(async () => undefined),
+    };
+    const store = createDomConfigStore({ keeper });
+    await store.start(TAB_ID);
+    store.clear();
+    expect(keeper.discard).toHaveBeenCalledTimes(1);
+  });
 });

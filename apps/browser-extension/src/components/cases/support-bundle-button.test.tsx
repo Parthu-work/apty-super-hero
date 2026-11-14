@@ -48,4 +48,28 @@ describe("SupportBundleButton (KB-RAG K25, L2)", () => {
       await screen.findByText("There is no case for this conversation yet."),
     ).toBeInTheDocument();
   });
+
+  it("adds the DOM Config settings file only when the SE ticks it (K26 C4)", async () => {
+    const record = {
+      ...newCase("conv", NOW, { random: () => 0 }),
+      domConfig: {
+        runId: "dc-1",
+        at: NOW.toISOString(),
+        pages: 3,
+        rules: 5,
+        warnings: 1,
+        exportSha256: "c".repeat(64),
+        settingsFile: '{"FIXTURE_setting":true}',
+      },
+    };
+    render(<SupportBundleButton record={record} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Prepare support bundle" }),
+    );
+    const box = await screen.findByTestId("support-include-dom-settings");
+    expect(screen.getByText(/"runId": "dc-1"/)).toBeInTheDocument();
+    expect(screen.queryByText(/FIXTURE_setting/)).toBeNull();
+    fireEvent.click(box);
+    expect(await screen.findByText(/FIXTURE_setting/)).toBeInTheDocument();
+  });
 });

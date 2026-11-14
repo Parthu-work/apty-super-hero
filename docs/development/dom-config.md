@@ -534,13 +534,17 @@ changed; a new one is returned.
 
 ### Known limits
 
-- In deep mode the nav anchors inside a `<nav>` are also click candidates,
-  as in the audit. A click on one starts a navigation that the crawl does
-  not wait for, so the fingerprint taken after it depends on timing: the
-  page it leads to can appear again as `<page> [state-N]`, and its fresh
-  visit usually comes back `state-mismatch` (kept out of the rules). It
-  also makes a deep crawl several times slower than a safe one.
-- Results live in memory only (D12); nothing is written to storage.
+- In deep mode a control that is itself a discovered `<a href>` link (a
+  nav anchor) is not clicked (KB-RAG K26 C2, `skipLinkClicks`, DOM Config
+  only): the link is visited by URL, which waits for the page like any
+  fresh visit. A click's navigation is not waited for, so before K26 the
+  page it led to could come back as `<page> [state-N]` with a
+  `state-mismatch` revisit. Unit-tested (`crawl.test.ts`); on the E2E
+  application shapes such duplicates were already dropped by the page
+  identity check, and the deep-mode E2E now asserts that none appears.
+  Audit Application still clicks nav anchors in deep mode.
+- Since KB-RAG K26 (C1, D-DOM1) the held capture is also kept on the
+  device; see "Kept on the device" below.
 
 ## Side panel page (R4a)
 
@@ -556,7 +560,7 @@ list and the start screen's "See all" open.
   the page and time limits (engine defaults: 20 pages, 10 minutes) and the
   behavior probe. A notice says the tab will navigate and load pages more
   than once and that unsaved input can be lost; the hint that results are
-  held in the panel only (D12) is under Start.
+  kept on the device until cleared (D-DOM1) is under Start.
 - **Running.** "Capturing page n of m" (the last capturing progress, kept
   while the crawl discovers or revisits), the current URL shape, one
   sentence for the current action in a polite live region, a progress bar,
@@ -656,6 +660,29 @@ The SE's runbook is [`dom-config-runbook.md`](dom-config-runbook.md).
   the coverage marks, so the Coverage and Iframes sections of the Markdown
   are the engine's own; Copy all adds the Iframes and Coverage tables.
 
+## Kept on the device (K26 C1, D-DOM1)
+
+The held capture is written to the extension's IndexedDB
+(`apty-dom-config-db`, `capture-keeper.ts`) each time it or the coverage
+marks change: the capture the engine built (its redaction and identifier
+checks already applied), the crawl's own result, the coverage marks, and
+the crawl's time and options. Nothing else is added. When the DOM Config
+page opens with nothing held, it offers **Resume capture** (the capture is
+held again and analyzed with today's ignored roots) or **Discard capture**.
+**Clear results** deletes it too. A kept capture older than the policy's
+`domConfigRetentionDays` (30 by default) is deleted when it is next read.
+
+## In a case (K26 C4)
+
+When DOM Config holds results while the panel's conversation has an open
+case (K25 L1), the case records the run: an id, the page, rule and warning
+counts, and, once "Apty DOM config (JSON)" is exported, the export's sha256
+and the exported file itself (at most 64 KB, on the device only). A support
+bundle prepared for that case (K25 L2) carries a `domConfig` block with the
+counts and hash; the settings file goes in only when the SE ticks "Include
+the exported DOM Config settings file" in the review dialog. Nothing is
+added that the export does not already hold.
+
 ## Export in Apty's shape
 
 "Apty DOM config (JSON)" downloads `toAptyDomConfig(report)` with only
@@ -681,6 +708,26 @@ The report lists those Apty's source does not answer:
 - the unconfirmed noise entries;
 - persistence across restarts.
 
+KB-RAG K26 C3 (13 Nov 2026) was to look for each in apty-dap at `4c406d5`
+again. **All three are still open:** apty-dap could not be attached to that
+session (no access) and was not checked out next to this repository, so
+nothing was searched and no value was set. To finish, check it out
+read-only and look for the `maxZIndex` default and its upper bound, the
+roots `DEFAULT_IGNORED_ROOTS` marks unconfirmed, and whether the player
+keeps its DOM settings across a browser restart; record each with file and
+line here, or as still open with what was searched.
+
+```bash
+git clone --no-checkout https://github.com/aptyInc/apty-dap ../apty-dap
+```
+
+```bash
+git -C ../apty-dap checkout 4c406d5 -- player
+```
+
+(This is about Apty's own DOM settings. The Agent's held DOM Config
+capture is kept across restarts since K26 C1; see "Kept on the device".)
+
 The format of rules, the Regex flavor, `In`, Ignore DOM events, the
 container score threshold, how DOM Settings combines with the defaults
 and the export format are now confirmed.
@@ -694,7 +741,11 @@ rule carrying its evidence. It extends the existing noise list
 (`DEFAULT_IGNORED_ROOTS`, with two new matcher kinds) rather than keeping a
 second one, reports what Apty's reconstructed defaults already cover instead
 of repeating it, and never writes page data that fails the identifier check
-into a rule. Results are held in memory only. Deviations from the brief, each
+into a rule. Results were held in memory only (D12); since KB-RAG K26
+(D-DOM1, Proposed) the held capture is also kept on the device, as the panel
+holds it, so an SE can close the panel or the browser and resume, and is
+deleted after `domConfigRetentionDays` or on Discard capture or Clear
+results. Deviations from the brief, each
 explained above: the console script's lazily written sections are accepted
 as absent; `id` precedes `name` in the attribute priority, as in the worked
 example.
