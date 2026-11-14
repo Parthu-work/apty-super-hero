@@ -76,9 +76,16 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   checks, cross-extension messaging, capture and redaction; thresholds only
   go up ([`coverage.md`](development/coverage.md)). No test is skipped, and
   CI fails on a skip without a `// skip-reason:` (C4).
-- DOM Config keeps its held capture on the device (KB-RAG K26 C1,
-  D-DOM1): Resume or Discard capture when the page opens, deleted after the
-  policy's `domConfigRetentionDays` (30 by default) or on Clear results.
+- DOM Config gaps closed (KB-RAG K26 Part C,
+  [`FIXES-K26.md`](tasks/kb-rag/FIXES-K26.md)): the held capture is kept on
+  the device (D-DOM1) and offered for Resume or Discard when the page opens,
+  deleted after the policy's `domConfigRetentionDays` (30 by default) or on
+  Clear results, and an E2E relaunches Chromium on the same profile to
+  prove it survives a restart; a deep crawl visits nav links by URL instead
+  of clicking them, so no `[state-N]` duplicate comes from a navigation it
+  did not wait for; a run held while a case is open goes into the case, and
+  its support bundle carries the counts, with the exported settings file
+  only when the SE ticks it.
 - Automatic KB pack delivery (KB-RAG K26 Part D, tested in Chromium,
   [`FIXES-K26.md`](tasks/kb-rag/FIXES-K26.md)): the organization policy can
   name where each version's pack comes from (`kbPackSources`,
@@ -87,8 +94,10 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
   downgrades; the background runs it at start-up, on its alarm and on Check
   now. Options, Preflight ("KB packs up to date") and the chat's KB line
   show where a delivered pack comes from and why its last update failed.
-  A nightly job (`kb-packs.yml`) builds, gates, signs and publishes the
-  packs; its first real run waits on IT's host and secrets.
+  A nightly job (`kb-packs.yml`, passing actionlint) builds, gates, signs
+  and publishes the packs; its gate reads the last published pack and the
+  customer-name list into memory, never to a file. Its first real run waits
+  on IT (see Open).
 - What the first real packs asked for, and cases (KB-RAG K25,
   [`FIXES-K25.md`](tasks/kb-rag/FIXES-K25.md)): Anthropic works with every
   tool offered; every KB decision is visible (a line above the reply, "Why
@@ -274,6 +283,9 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | Ask Dapty production readiness (W1-W9) | See the table below: W2's captures wait on the SE's evidence, W8's Web Store ID on the first store upload |
 | GitHub secret scanning and push protection | A repository admin turns them on in Settings → Code security |
 | Organization policy on a real deployment (KB-RAG K22, partial) | Apty IT writes the policy (the recommended one is in [`ORG_POLICY.md`](security/ORG_POLICY.md)), deploys it to SE machines, and someone runs FIXES-K22's manual steps with a real Chrome policy file. The organization gateway (D-SEC7) is Apty IT's to build |
+| Automatic KB pack delivery, first real run (KB-RAG K26 Part D, partial) | IT chooses the pack host, creates the CI key, the publish token, the secrets and variables, adds `kbPackSources` and the CI key to the managed policy, and runs the workflow by hand once ([`KB_PACK_DELIVERY.md`](release/KB_PACK_DELIVERY.md)); then one SE's Preflight shows "KB packs up to date" |
+| DOM Config open questions and real-tenant run (KB-RAG K26 C3, C5, partial) | The max z-index ceiling, the unconfirmed noise entries and Apty's persistence across restarts need apty-dap at 4c406d5 ([`dom-config.md`](development/dom-config.md#open-questions)); the SE pilot runs [`dom-config-runbook.md`](development/dom-config-runbook.md) on one real 5.x tenant and records it in [`real-tenant-validation.md`](development/real-tenant-validation.md) |
+| KB-RAG K26 owner decisions | D-DEL1 to D-DEL8, D-CHK1 to D-CHK3 and D-DOM1 are Proposed; the owner confirms or changes each ([`decisions.md`](tasks/kb-rag/decisions.md)) |
 | Tooltip, launcher and validation checks (KB-RAG K26 Part T, partial) | Waiting on read access to apty-dap at 4c406d5: [`item-display-rules.md`](development/item-display-rules.md) and [`docs/kb-drafts/README.md`](kb-drafts/README.md) |
 | 4.x element and page-readiness checks (KB-RAG K26 Part E, partial) | Waiting on read access to apty-assist `player3.0`: [`4x-element-rules.md`](development/4x-element-rules.md) lists what to find and the commands that finish it |
 | KB retrieval (KB-RAG) (partial) | Built and tested on synthetic cards (see Working above; [`FIXES.md`](tasks/kb-rag/FIXES.md#status)). Still open: the KB owner builds the real 4.x (A4PKH, root 1509720081) and 5.x (JA, root 1496711169) packs, writes 60-question sets per version and runs `pnpm kb:eval --calibrate --by-category`; the D-KB8 numbers (ids only) go on the handbook page F15. The 4.x check packs' apty-assist citations are to be confirmed against a checkout, and the KB owner confirms the card each 4.x rule cites (`CARD_4X` in `cards-4x.ts`, K21 F3); the 4.x Client bridge ships in apty-assist ([`4X-BRIDGE.md`](integrations/apty/4X-BRIDGE.md)). K7 (dense vectors) waits on the real sets ([`kb-rag.md`](development/kb-rag.md)) |
