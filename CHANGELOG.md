@@ -21,6 +21,8 @@ full commit-level history.
   - **C3**: the three open questions (max z-index ceiling, unconfirmed noise entries, Apty's persistence across restarts) stay open: apty-dap was not available; `dom-config.md` says how to finish.
   - **C4**: a DOM Config run held while a case is open goes into the case (run id, pages, rules, warnings, the Apty export's sha256 and file); the support bundle has a `domConfig` block, with the settings file only when the SE ticks it.
 
+- **KB-RAG K26 Part T: tooltip, launcher and validation checks** (partial): [`docs/development/item-display-rules.md`](docs/development/item-display-rules.md) (what the 5.x player rules must still be read for) and [`docs/kb-drafts/README.md`](docs/kb-drafts/README.md) (the published tooltip cards by id, the drafts still needed). apty-dap was not available, so no check pack or routing change was made.
+
 - **KB-RAG K26 Part E: 4.x element checks** (partial): [`docs/development/4x-element-rules.md`](docs/development/4x-element-rules.md) records what E0 must read in apty-assist `player3.0` and how to finish; the code was not available, so no 4.x element or readiness rule was added and the 5.x packs are unchanged.
 
 - **KB-RAG K25: what the first real packs asked for, signed packs, and cases** ([`FIXES-K25.md`](docs/tasks/kb-rag/FIXES-K25.md)):
