@@ -628,8 +628,8 @@ What is left, matching the Open table in [`docs/STATUS.md`](../../STATUS.md):
   key, the publish token, the secrets, variables and policy
   ([KB_PACK_DELIVERY.md](../../release/KB_PACK_DELIVERY.md));
 - E0 to E5: read access to apty-assist `player3.0`;
-- T0 to T5: read access to apty-dap at `4c406d5`, and the launcher and
-  validation card search (Confluence answered 503);
+- T0 to T5: read access to apty-dap at `4c406d5` (the card search is done:
+  [`docs/kb-drafts/README.md`](../../kb-drafts/README.md));
 - C3: apty-dap at `4c406d5`; C5: the real-tenant run in the SE pilot;
 - the owner confirms or changes D-DEL1 to D-DEL8, D-CHK1 to D-CHK3 and
   D-DOM1, all still Proposed ([decisions.md](decisions.md)).
@@ -661,7 +661,7 @@ partial: what is left, and the command that finishes it, is in each row.
 | E0 Read the 4.x player | Partial: apty-assist could not be attached or cloned here, and this repository holds no 4.x stored-element shape (`flow-18515.json` has ids and titles only). [`4x-element-rules.md`](../../development/4x-element-rules.md) records what is known, what E0 must find and the commands that finish it |
 | E1 to E5 | Not started: each depends on E0's shape (hard rule: no invented shapes). 5.x element-not-found and page-readiness are unchanged |
 | T0 Read the player | Partial: apty-dap could not be attached here. [`item-display-rules.md`](../../development/item-display-rules.md) lists the conditions this repository already reads from 4c406d5 and what T0 must still find with file and line |
-| T1 Draft cards | Partial: the published JA cards found for tooltips are listed by id in [`docs/kb-drafts/README.md`](../../kb-drafts/README.md); the launcher and validation search failed (Confluence 503) and the six drafts wait on T0 |
+| T1 Draft cards | Partial: the published JA cards for tooltips (searched 13 Nov), launchers and validations (15 Nov) are listed by id in [`docs/kb-drafts/README.md`](../../kb-drafts/README.md), each with the rule it covers; the six drafts, now only for causes no published card covers, wait on T0 |
 | T2 to T5 | Not started: every gate of `item-not-showing` must come from T0 (hard rule). content-not-visible and the router are unchanged |
 | C1 Keep a capture across restarts | Done: `capture-keeper.ts` (`apty-dom-config-db`), `domConfigRetentionDays`, Resume and Discard capture, Clear results deletes it; D12 updated. Tested in unit and component tests, and in Chromium by `tooling/e2e/dom-config-kept.e2e.test.mjs`: a capture survives a browser restart (same profile), holds only what the panel held, resumes, and Clear results deletes it |
 | C2 Deep crawl and nav clicks | Done, by the second option: DOM Config's deep crawl does not click a control that is itself a discovered link (it is visited by URL instead), so no `[state-N]` duplicate or state-mismatch revisit comes from a nav click. Unit test fails without the change; the deep-mode E2E asserts none appears (on those shapes the page identity check already dropped them). Audit Application unchanged |
