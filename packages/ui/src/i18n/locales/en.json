@@ -1972,6 +1972,8 @@
     "scoreGrade": "{{score}} · {{grade}}"
   },
   "checkPack": {
+    "provenanceNoCause": "From 5.x code at 4c406d5, not runtime-verified. The rules read these files correctly; no cause found in them.",
+    "noCauseCard": "What the KB card checks next",
     "titleItem": "Why “{{name}}” may not be visible",
     "titleScan": "Visibility check: every {{kind}}",
     "titleGeneric": "Visibility check",
@@ -2673,6 +2675,8 @@
     "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
   },
   "turnDecision": {
+    "kbNotSearched": "KB not searched: a check answered ({{packs}} loaded)",
+    "noPacksLoaded": "no packs",
     "why": "Why this answer",
     "notCovered": "No KB card matched (coverage {{coverage}}, needs {{min}}).",
     "noStrongTerm": "No KB card matched: only common words matched.",

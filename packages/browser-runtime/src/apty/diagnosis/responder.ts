@@ -1,12 +1,17 @@
 import {
   KB_NO_CARD_INSTRUCTION,
   type LocalResponder,
+  packIdOf,
   siteKeyOf,
   type TabVersionSource,
   type TurnDecision,
 } from "@apty/agent-core";
 import { siteHostOf } from "../../conversation/site-host.js";
-import type { KbTabVersion, KbToolResult } from "../../kb/kb-index.js";
+import {
+  type KbTabVersion,
+  type KbToolResult,
+  sharedKbIndexSource,
+} from "../../kb/kb-index.js";
 import { looksLikeProductQuestion } from "../../kb/kb-intent.js";
 import {
   type KbMatchesOptions,
@@ -478,6 +483,8 @@ export interface ResponderSources {
   ) => Promise<KbOutcome>;
   /** Whether a model is configured: a question the cards cannot match then goes to it. */
   modelAvailable?: () => boolean;
+  /** K27, F8: the KB packs in use, named on a check's record (the KB was not searched). */
+  loadedPacksOf?: () => Promise<TurnDecision["packs"]>;
   /** K27, F7: the file names the Apty Client observed for the conversation, or undefined while none answers. */
   observedNamesOf?: (
     runContext: unknown,
@@ -501,6 +508,13 @@ const DEFAULT_SOURCES: ResponderSources = {
   daptyFilesOf: readDaptyFilesForTab,
   filesOf: readAptyFilesForTab,
   kbMatchesOf: (input, options) => localKbMatches(input, undefined, options),
+  loadedPacksOf: async () =>
+    (await sharedKbIndexSource().current())?.info.packs.map((pack) => ({
+      version: pack.aptyVersion,
+      sha256: packIdOf(pack.sha256),
+      ...(pack.keyId ? { keyId: pack.keyId } : {}),
+      ...(pack.expiresAt ? { expiresAt: pack.expiresAt } : {}),
+    })) ?? [],
   observedNamesOf: async (runContext) => {
     const id = (runContext as { conversationId?: unknown } | undefined)
       ?.conversationId;
@@ -682,7 +696,7 @@ export function createDiagnosisResponder(
       decision: {
         route: "check",
         ...tabVersionOf(pageUrl),
-        packs: [],
+        packs: (await sources.loadedPacksOf?.().catch(() => [])) ?? [],
         checkPackId: route.packId,
       } satisfies TurnDecision,
     };

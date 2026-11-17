@@ -698,3 +698,26 @@ describe("the version from the Client's files (KB-RAG K27, F7)", () => {
     });
   });
 });
+
+describe("a check's record names the loaded packs (KB-RAG K27, F8)", () => {
+  it("lists the packs in use, not none", async () => {
+    serveCapture();
+    const respond = createDiagnosisResponder({
+      loadedPacksOf: async () => [
+        { version: "4.x", sha256: "0123456789ab" },
+        { version: "5.x", sha256: "ba9876543210" },
+      ],
+    });
+    const answered = await respond(
+      "My workflow 'Take a tour' is not visible in the widget",
+      {},
+    );
+    expect(answered?.decision).toMatchObject({
+      route: "check",
+      packs: [
+        { version: "4.x", sha256: "0123456789ab" },
+        { version: "5.x", sha256: "ba9876543210" },
+      ],
+    });
+  });
+});

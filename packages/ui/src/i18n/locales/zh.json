@@ -1972,6 +1972,8 @@
     "scoreGrade": "{{score}} · {{grade}}"
   },
   "checkPack": {
+    "provenanceNoCause": "来自 4c406d5 版 5.x 代码，未在运行时验证。规则已正确读取这些文件；其中未发现原因。",
+    "noCauseCard": "KB 卡片接下来检查的内容",
     "titleItem": "“{{name}}”可能不可见的原因",
     "titleScan": "可见性检查：所有{{kind}}",
     "titleGeneric": "可见性检查",
@@ -2673,6 +2675,8 @@
     "clearLocked": "您的组织保留此记录，因此无法在此清除。"
   },
   "turnDecision": {
+    "kbNotSearched": "未搜索 KB：由检查回答（已加载 {{packs}}）",
+    "noPacksLoaded": "无包",
     "why": "为什么是这个回答",
     "notCovered": "没有匹配的 KB 卡片（覆盖率 {{coverage}}，需要 {{min}}）。",
     "noStrongTerm": "没有匹配的 KB 卡片：只匹配到常用词。",

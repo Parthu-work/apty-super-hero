@@ -294,7 +294,7 @@ pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1
 | F4 | done | Cases bind to the tab's host (`otherSite`, `siteKeyOf`); a turn on another host opens its own case or none. Case strip shows the site (alias option) and New case; Cases table has a Site column; cards from another site fold under "From <site>"; bundles leave out another site's check. `case-host.e2e.test.mjs`. |
 | F6 | done | Per card, the shown chunk is the best of layers 1 to 3 unless the question asks about support or no other layer matched; a file question keeps layer 3 first. Each KB card has a layer switcher (L1 to L4). KB owner: confirm no layer 4 excerpt on grid rows 1 to 5. |
 | F7 | done | The record lists exactly the shown card ids (`renderedPageIds`). Each site's version is resolved from the Client's observed files (K13 markers) before the KB search, once per site, and shown as a chip ("4.x, from the Client's files"); the SE's choice overrides it. Unknown keeps searching both packs, labelled (K25 A3). |
-| F8 | not started | |
+| F8 | done | A no-cause verdict shows the card title and its layers 1 and 2 from the loaded pack; the check record says "KB not searched: a check answered (4.x and 5.x loaded)"; "Confidence: likely" becomes "The rules read these files correctly; no cause found in them." |
 | F9 | not started | |
 | F10 | not started | |
 | F11 | not started | |
