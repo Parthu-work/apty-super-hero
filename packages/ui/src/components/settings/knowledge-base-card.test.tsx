@@ -458,3 +458,27 @@ describe("KnowledgeBaseCard with pack delivery (KB-RAG K26 D4)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("KnowledgeBaseCard: routing and skipped pages (KB-RAG K27, F11)", () => {
+  it("shows the routing and skipped counts on the pack row", async () => {
+    render(
+      <KnowledgeBaseCard
+        adapter={adapter({
+          ...INFO,
+          stubCount: 3,
+          absentCount: 2,
+          routingCount: 10,
+          skippedCount: 4,
+        } as KbPackInfo)}
+        now={NOW}
+      />,
+    );
+    expect(
+      await screen.findByText(/10 routing, never shown as an answer/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/4 pages skipped by the builder/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/2 not in this version/)).toBeInTheDocument();
+  });
+});

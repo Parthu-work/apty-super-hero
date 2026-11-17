@@ -200,6 +200,8 @@
       },
       "notUsed": "This pack is not used. Ask the KB owner for a new pack.",
       "expiringSoon": "This pack expires in {{days}} days. Ask the KB owner for a new one.",
+      "routingCards": "{{routing}} routing, never shown as an answer",
+      "skippedPages": "{{skipped}} pages skipped by the builder",
       "absentCards": "{{absent}} not in this version",
       "sync": {
         "outcome": {
@@ -2765,6 +2767,7 @@
     }
   },
   "supportBundle": {
+    "nothingYet": "Nothing to bundle yet: run a check or open a KB card",
     "prepare": "Prepare support bundle",
     "label": "Support bundle",
     "description": "What Apty support needs for this case, with Strict redaction: KB cards as ids and links only, and no customer names, user ids, emails or tokens. Review it, then copy or download it; the extension sends nothing.",

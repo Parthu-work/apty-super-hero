@@ -587,7 +587,22 @@ export function buildPack({
     builtAt,
     expiresAt,
     builder: BUILDER,
-    source: { site, space, label, cardCount: cards.length },
+    source: {
+      site,
+      space,
+      label,
+      cardCount: cards.length,
+      // K27, F11: pages left out, by kind; readers before K27 ignore it.
+      ...(skipped.length > 0
+        ? {
+            skipped: {
+              malformed: skipped.filter((s) => s.kind === "malformed").length,
+              otherFormat: skipped.filter((s) => s.kind === "other_format")
+                .length,
+            },
+          }
+        : {}),
+    },
     aptyVersion,
     retrieval,
     cards,

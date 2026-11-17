@@ -200,6 +200,8 @@
       },
       "notUsed": "此知识包未被使用。请向 KB 负责人索取新的知识包。",
       "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。",
+      "routingCards": "{{routing}} 张导航卡片，不作为答案显示",
+      "skippedPages": "构建时跳过了 {{skipped}} 个页面",
       "absentCards": "{{absent}} 张在此版本中不存在",
       "sync": {
         "outcome": {
@@ -2765,6 +2767,7 @@
     }
   },
   "supportBundle": {
+    "nothingYet": "暂无可打包内容：请先运行检查或打开 KB 卡片",
     "prepare": "准备支持包",
     "label": "支持包",
     "description": "Apty 支持处理此案例所需的信息，已按严格模式脱敏：KB 卡片仅含编号和链接，不含客户名称、用户编号、邮箱或令牌。请先查看，再复制或下载；扩展不会发送任何内容。",

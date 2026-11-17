@@ -31,6 +31,20 @@ function extensionVersion(): string | undefined {
   }
 }
 
+/** K27, F11: a case with no check, finding, KB card or DOM Config run, and no verdict on screen, has nothing to bundle. */
+function nothingToBundle(
+  found: CaseRecord,
+  result: DiagnosisResult | undefined,
+): boolean {
+  return (
+    !result &&
+    found.checks.length === 0 &&
+    !found.finding &&
+    found.kbShown.length === 0 &&
+    !found.domConfig
+  );
+}
+
 export function SupportBundleButton({
   record,
   loadRecord,
@@ -45,6 +59,8 @@ export function SupportBundleButton({
   const { t } = useTranslation();
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [noCase, setNoCase] = useState(false);
+  const [empty, setEmpty] = useState(false);
+  const emptyNow = empty || (record ? nothingToBundle(record, result) : false);
   const [includeSettings, setIncludeSettings] = useState(false);
 
   const build = (
@@ -77,6 +93,10 @@ export function SupportBundleButton({
       setNoCase(true);
       return;
     }
+    if (nothingToBundle(found, result)) {
+      setEmpty(true);
+      return;
+    }
     const denyList = await loadBodyDenyList().catch(() => []);
     setIncludeSettings(false);
     setPrepared(build(found, denyList, false));
@@ -96,10 +116,20 @@ export function SupportBundleButton({
         size="sm"
         variant="secondary"
         onClick={() => void prepare()}
+        disabled={emptyNow}
+        aria-describedby={emptyNow ? "support-bundle-empty" : undefined}
         data-testid="prepare-support-bundle"
       >
         {t("supportBundle.prepare")}
       </Button>
+      {emptyNow && (
+        <p
+          id="support-bundle-empty"
+          className="text-small text-muted-foreground"
+        >
+          {t("supportBundle.nothingYet")}
+        </p>
+      )}
       {noCase && (
         <p className="text-small text-muted-foreground">
           {t("supportBundle.noCase")}

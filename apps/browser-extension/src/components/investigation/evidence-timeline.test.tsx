@@ -106,3 +106,32 @@ describe("EvidenceTimeline", () => {
     expect(screen.getByText(/No evidence collected yet/)).toBeInTheDocument();
   });
 });
+
+describe("dates and order (KB-RAG K27, F11)", () => {
+  it("shows the date with the time, and lists clusters by time", () => {
+    const early = new Date(2026, 10, 16, 23, 59, 30).getTime();
+    const late = new Date(2026, 10, 17, 0, 0, 5).getTime();
+    render(
+      <EvidenceTimeline
+        clusters={[
+          cluster({
+            clusterId: "late",
+            summary: "FIXTURE late",
+            evidence: [evidence({ evidenceId: "b", timestamp: late })],
+          }),
+          cluster({
+            clusterId: "early",
+            summary: "FIXTURE early",
+            evidence: [evidence({ evidenceId: "a", timestamp: early })],
+          }),
+        ]}
+      />,
+    );
+    const summaries = screen
+      .getAllByRole("heading", { level: 4 })
+      .map((h) => h.textContent);
+    expect(summaries).toEqual(["FIXTURE early", "FIXTURE late"]);
+    expect(screen.getByText("2026-11-16 23:59:30")).toBeInTheDocument();
+    expect(screen.getByText("2026-11-17 00:00:05")).toBeInTheDocument();
+  });
+});

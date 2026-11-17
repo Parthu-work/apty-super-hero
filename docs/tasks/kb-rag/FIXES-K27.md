@@ -297,7 +297,7 @@ pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1
 | F8 | done | A no-cause verdict shows the card title and its layers 1 and 2 from the loaded pack; the check record says "KB not searched: a check answered (4.x and 5.x loaded)"; "Confidence: likely" becomes "The rules read these files correctly; no cause found in them." |
 | F9 | done | A "flicker or jump" plan (selection method, position over time, animations, frames) matched before the tooltip plan; the prompt asks for at most one question per turn and says why a plan stopped. |
 | F10 | done | A Copy button beside "Why this answer" copies its lines while collapsed; an error turn keeps its record; a copied or downloaded reply carries the lines. |
-| F11 | not started | |
+| F11 | done | Timeline shows date and time, sorted by time; Options pack rows show routing and skipped counts (builder writes optional `source.skipped`); Prepare support bundle is disabled for an empty case. |
 | U1, U2 | not started | |
 | R1 to R9 | not started | |
 | E1 to E4 | not started | |

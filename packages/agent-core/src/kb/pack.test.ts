@@ -323,3 +323,39 @@ describe("absent cards in schema 3 (KB-RAG K25, A4)", () => {
     ).toMatchObject({ ok: false, code: "invalid" });
   });
 });
+
+describe("routing and skipped counts (KB-RAG K27, F11)", () => {
+  it("reads source.skipped and counts routing cards; a pack without it has no skipped count", async () => {
+    const pack = syntheticPack(
+      [
+        {
+          pageId: "1",
+          title: "FIXTURE card",
+          layers: ["a", "b", "c", "d"],
+        },
+        { pageId: "2", title: "Start here, FIXTURE", status: "routing" },
+      ],
+      {},
+      { schemaVersion: 2 },
+    );
+    const withSkipped = {
+      ...pack,
+      source: { ...pack.source, skipped: { malformed: 2, otherFormat: 1 } },
+    };
+    const { sha256: _s, ...rest } = withSkipped;
+    const parsed = await parseKbPack(
+      JSON.stringify({
+        ...rest,
+        sha256: await nodeSha256(canonicalJson(rest)),
+      }),
+      { sha256: nodeSha256 },
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(describeKbPack(parsed.pack, "x")).toMatchObject({
+      routingCount: 1,
+      skippedCount: 3,
+    });
+    expect(describeKbPack(pack, "x")).not.toHaveProperty("skippedCount");
+  });
+});

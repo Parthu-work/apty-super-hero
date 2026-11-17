@@ -19,6 +19,14 @@ describe("SupportBundleButton (KB-RAG K25, L2)", () => {
         random: () => 0,
       }),
       aptyVersion: "4.x" as const,
+      checks: [
+        {
+          packId: "content-not-visible",
+          at: NOW.toISOString(),
+          status: "no_cause_in_data",
+          ruleIds: [],
+        },
+      ],
     };
     render(<SupportBundleButton record={record} />);
     fireEvent.click(
@@ -71,5 +79,32 @@ describe("SupportBundleButton (KB-RAG K25, L2)", () => {
     expect(screen.queryByText(/FIXTURE_setting/)).toBeNull();
     fireEvent.click(box);
     expect(await screen.findByText(/FIXTURE_setting/)).toBeInTheDocument();
+  });
+});
+
+describe("an empty case (KB-RAG K27, F11)", () => {
+  it("disables Prepare support bundle and says what would fill it", () => {
+    render(<SupportBundleButton record={newCase("conv", NOW)} />);
+    expect(
+      screen.getByRole("button", { name: "Prepare support bundle" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText("Nothing to bundle yet: run a check or open a KB card"),
+    ).toBeInTheDocument();
+  });
+
+  it("says so when the case it loads is empty", async () => {
+    render(
+      <SupportBundleButton loadRecord={async () => newCase("conv", NOW)} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Prepare support bundle" }),
+    );
+    expect(
+      await screen.findByText(
+        "Nothing to bundle yet: run a check or open a KB card",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("support-missing")).toBeNull();
   });
 });

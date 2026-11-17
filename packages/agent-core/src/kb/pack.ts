@@ -69,6 +69,13 @@ const packSchema = z.object({
     space: z.string(),
     label: z.string(),
     cardCount: z.number().int().nonnegative(),
+    /** K27, F11: the pages the builder left out, by kind. */
+    skipped: z
+      .object({
+        malformed: z.number().int().nonnegative(),
+        otherFormat: z.number().int().nonnegative(),
+      })
+      .optional(),
   }),
   /** Schema 1 packs are 5.x; schema 2 names the version its cards are for. */
   aptyVersion: z.enum(["4.x", "5.x", "common"]),
@@ -295,6 +302,10 @@ export interface KbPackInfo {
   stubCount: number;
   /** K25, A4: cards for features with no equivalent in this version. */
   absentCount?: number;
+  /** K27, F11: "start here" routing cards, never shown as an answer. */
+  routingCount?: number;
+  /** K27, F11: pages the builder left out; absent from a pack built before K27. */
+  skippedCount?: number;
   chunkCount: number;
   builtAt: string;
   importedAt: string;
@@ -343,6 +354,13 @@ export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
     cardCount: pack.cards.length,
     stubCount: pack.cards.filter((card) => card.status === "stub").length,
     absentCount: pack.cards.filter((card) => card.status === "absent").length,
+    routingCount: pack.cards.filter((card) => card.status === "routing").length,
+    ...(pack.source.skipped
+      ? {
+          skippedCount:
+            pack.source.skipped.malformed + pack.source.skipped.otherFormat,
+        }
+      : {}),
     chunkCount: pack.chunks.length,
     builtAt: pack.builtAt,
     importedAt,
