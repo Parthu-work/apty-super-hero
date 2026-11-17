@@ -298,6 +298,7 @@ pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1
 | F9 | done | A "flicker or jump" plan (selection method, position over time, animations, frames) matched before the tooltip plan; the prompt asks for at most one question per turn and says why a plan stopped. |
 | F10 | done | A Copy button beside "Why this answer" copies its lines while collapsed; an error turn keeps its record; a copied or downloaded reply carries the lines. |
 | F11 | done | Timeline shows date and time, sorted by time; Options pack rows show routing and skipped counts (builder writes optional `source.skipped`); Prepare support bundle is disabled for an empty case. |
-| U1, U2 | not started | |
+| U1 | done | Reproduced with `chat-scroll.e2e.test.mjs` (300 turns): 15,462 DOM nodes, and the page shrank 136 px per code block for seconds after load, because Streamdown puts `content-visibility: auto; contain-intrinsic-size: auto 200px` on every code block. Fixed by overriding that, `resize="instant"`, `overflow-anchor: auto`, and a window (newest 60 of a chat over 100 turns, Show earlier messages keeps position). Turn-level `content-visibility` was tried and removed: its estimate moved the scroller at 480 px. Trees already open only their root and page 100 children (test added). Passes at 320, 400 and 480 px, light and dark. Partial: by-hand Chrome and Edge run; p95 scroll-handler time not measured. |
+| U2 | done | Layer switcher, Copy on "Why this answer", Show earlier messages, Ask the AI anyway, New case and the site label pass axe in light and dark (`chat-scroll`, `kb-unknown-setting`, `case-host` E2E). |
 | R1 to R9 | not started | |
 | E1 to E4 | not started | |

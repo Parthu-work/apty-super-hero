@@ -9,9 +9,11 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
+  describeViolations,
   extensionPage,
   launchBrowser,
   openSidePanel,
+  runAxe,
   sendChat,
   startMockModel,
   startPageServer,
@@ -77,6 +79,18 @@ describe("one case, one site (KB-RAG K27, F4)", () => {
     await sendChat(panel, SYMPTOM);
     const two = await caseIdShown(panel, one);
     assert.notEqual(two, one);
+    for (const theme of ["light", "dark"]) {
+      await panel.evaluate(
+        (t) => chrome.storage.local.set({ apty_theme: t }),
+        theme,
+      );
+      await panel.waitForFunction(
+        (dark) => document.documentElement.classList.contains("dark") === dark,
+        theme === "dark",
+      );
+      const violations = await runAxe(panel);
+      assert.deepEqual(violations, [], describeViolations(violations));
+    }
     assert.equal(model.requests.length, 0);
 
     const options = await extensionPage(

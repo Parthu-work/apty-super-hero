@@ -1353,6 +1353,7 @@
     "deny": "拒绝"
   },
   "chat": {
+    "showEarlier": "显示更早的消息",
     "notFromKb": "并非来自 KB 或检查",
     "kbNotFoundTitle": "在 KB 中未找到",
     "kbNotFound": "在 KB 中未找到：{{phrases}}",

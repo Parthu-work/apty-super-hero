@@ -66,6 +66,10 @@ const MARKDOWN = [
   "[&_[data-streamdown=list-item]]:py-0.5",
   "[&_[data-streamdown=inline-code]]:rounded-[4px] [&_[data-streamdown=inline-code]]:bg-muted [&_[data-streamdown=inline-code]]:px-1 [&_[data-streamdown=inline-code]]:py-0 [&_[data-streamdown=inline-code]]:text-small",
   "[&_[data-streamdown=link]]:font-normal [&_[data-streamdown=link]]:text-info [&_[data-streamdown=link]]:no-underline [&_[data-streamdown=link]]:underline-offset-4 [&_[data-streamdown=link]:hover]:underline [&_[data-streamdown=link]:focus-visible]:underline",
+  // K27, U1: Streamdown guesses an off-screen code block at 200 px
+  // (content-visibility with contain-intrinsic-size inline); each one then
+  // shrinks to its real size as it nears the viewport and moves the chat.
+  "[&_[data-streamdown=code-block]]:[content-visibility:visible]! [&_[data-streamdown=code-block]]:[contain-intrinsic-size:none]!",
   "[&_[data-streamdown=code-block]]:relative [&_[data-streamdown=code-block]]:my-2 [&_[data-streamdown=code-block]]:rounded-md [&_[data-streamdown=code-block]]:border-border [&_[data-streamdown=code-block]]:bg-muted",
   "[&_[data-streamdown=code-block]>:has(>[data-streamdown=code-block-actions])]:absolute [&_[data-streamdown=code-block]>:has(>[data-streamdown=code-block-actions])]:top-1 [&_[data-streamdown=code-block]>:has(>[data-streamdown=code-block-actions])]:right-1",
   "[&_[data-streamdown=code-block-body]]:overflow-x-auto [&_[data-streamdown=code-block-body]]:border-0 [&_[data-streamdown=code-block-body]]:bg-transparent [&_[data-streamdown=code-block-body]]:px-2 [&_[data-streamdown=code-block-body]]:pt-0 [&_[data-streamdown=code-block-body]]:pb-1 [&_[data-streamdown=code-block-body]]:font-mono [&_[data-streamdown=code-block-body]]:text-small",

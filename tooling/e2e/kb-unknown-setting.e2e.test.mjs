@@ -8,8 +8,10 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
+  describeViolations,
   launchBrowser,
   openSidePanel,
+  runAxe,
   sendChat,
   startMockModel,
   startPageServer,
@@ -60,6 +62,18 @@ describe("a setting no KB card has (KB-RAG K27, F2)", () => {
     );
     assert.match(await card.innerText(), /Closest cards/);
     assert.equal(model.requests.length, 0, "no model request");
+    for (const theme of ["light", "dark"]) {
+      await panel.evaluate(
+        (t) => chrome.storage.local.set({ apty_theme: t }),
+        theme,
+      );
+      await panel.waitForFunction(
+        (dark) => document.documentElement.classList.contains("dark") === dark,
+        theme === "dark",
+      );
+      const violations = await runAxe(panel);
+      assert.deepEqual(violations, [], describeViolations(violations));
+    }
 
     await card.getByRole("button", { name: "Ask the AI anyway" }).click();
     await panel.getByText(/^RESULT:/).waitFor({ timeout: 30_000 });
