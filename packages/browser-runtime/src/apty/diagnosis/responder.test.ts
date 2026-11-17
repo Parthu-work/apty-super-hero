@@ -674,3 +674,27 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     });
   });
 });
+
+describe("the version from the Client's files (KB-RAG K27, F7)", () => {
+  it("a Client reporting flow.json sets 4.x before the KB search, with no check run", async () => {
+    forgetKbVersions();
+    const kbMatchesOf = vi.fn(async () => ({
+      kind: "no_pack" as const,
+      version: "4.x" as const,
+    }));
+    const respond = createDiagnosisResponder({
+      pageUrlOf: async () => "https://ln.customer.example/app",
+      observedNamesOf: async () => ["app.json", "flow.json"],
+      kbMatchesOf,
+    });
+    const answered = await respond("the tooltip opens twice", {});
+    expect(kbMatchesOf).toHaveBeenCalledWith("the tooltip opens twice", {
+      modelAvailable: false,
+      version: "4.x",
+    });
+    expect(answered?.decision).toMatchObject({
+      version: "4.x",
+      versionSource: "files",
+    });
+  });
+});

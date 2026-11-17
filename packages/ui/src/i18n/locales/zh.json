@@ -2623,6 +2623,11 @@
     "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
   },
   "kbMatches": {
+    "versionChip": {
+      "client": "{{version}}，来自 Client 的文件",
+      "evidence": "{{version}}，来自检查的文件",
+      "user": "{{version}}，你的选择"
+    },
     "layers": "卡片层",
     "layerButton": "L{{layer}}",
     "layerMissing": "已加载的包中没有这一层。",

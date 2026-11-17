@@ -18,8 +18,10 @@ import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { navigationStore, useNavigation } from "../../state/navigation-store";
 import { CaseStrip, InlineCaseId } from "../cases/case-strip";
+import { useSiteLabels } from "../cases/use-site-label";
 import { SetupBadge } from "../connections/setup-badge";
 import { useReadiness } from "../connections/use-readiness";
+import { KbVersionChip } from "./kb-version-chip";
 import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useInvestigationData } from "./use-investigation-data";
@@ -33,6 +35,7 @@ export function InvestigationContextBar() {
     status === "submitted" ||
     status === "executing_tools";
   const { target, setupCount } = useReadiness();
+  const { label: siteLabel } = useSiteLabels();
   const { page } = useNavigation();
   const { investigation } = useInvestigationData(sessionId, isActive);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -84,11 +87,12 @@ export function InvestigationContextBar() {
             )}
           </span>
           <span className="min-w-0 truncate text-sm font-medium text-foreground">
-            {target.hostname ??
+            {siteLabel(target.hostname ?? undefined) ??
               (target.checking
                 ? ""
                 : t(target.tabId === null ? "shell.noPage" : "shell.thisPage"))}
           </span>
+          <KbVersionChip host={target.hostname ?? undefined} />
           {target.title && (
             <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
               {target.title}

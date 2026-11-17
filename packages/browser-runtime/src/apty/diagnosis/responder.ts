@@ -16,8 +16,9 @@ import {
 } from "../../kb/kb-matches.js";
 import {
   kbVersionForHost,
-  kbVersionFromEvidence,
+  kbVersionSourceForHost,
   rememberKbVersion,
+  resolveKbVersionFromClient,
 } from "../../kb/kb-version.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
@@ -25,6 +26,7 @@ import { currentValuePolicy } from "../../runtime/value-policy.js";
 import { getAptyIntegrationConfig } from "../config.js";
 import type { DomHealthAuditOutcome } from "../dom-health.js";
 import { tabElementProbeOf } from "../element-probe.js";
+import { listObservedResources } from "../extension-network-inspector.js";
 import { readAptyFilesForTab } from "./apty-files.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import {
@@ -476,6 +478,10 @@ export interface ResponderSources {
   ) => Promise<KbOutcome>;
   /** Whether a model is configured: a question the cards cannot match then goes to it. */
   modelAvailable?: () => boolean;
+  /** K27, F7: the file names the Apty Client observed for the conversation, or undefined while none answers. */
+  observedNamesOf?: (
+    runContext: unknown,
+  ) => Promise<readonly string[] | undefined>;
   /** Every other check's content files for the tab; undefined reads the Apty Client's. */
   filesOf?: (
     runContext: unknown,
@@ -495,6 +501,16 @@ const DEFAULT_SOURCES: ResponderSources = {
   daptyFilesOf: readDaptyFilesForTab,
   filesOf: readAptyFilesForTab,
   kbMatchesOf: (input, options) => localKbMatches(input, undefined, options),
+  observedNamesOf: async (runContext) => {
+    const id = (runContext as { conversationId?: unknown } | undefined)
+      ?.conversationId;
+    const listed = await listObservedResources(
+      typeof id === "string" ? id : undefined,
+    );
+    return listed.connected
+      ? listed.resources.map((resource) => resource.resourceName)
+      : undefined;
+  },
 };
 
 const SEARCH_KB = "search_kb";
@@ -508,11 +524,12 @@ export function tabVersionOf(url: string | undefined): {
   const version = kbVersionForHost(host);
   return {
     version,
-    versionSource: kbVersionFromEvidence(host)
-      ? "files"
-      : version === "unknown"
+    versionSource:
+      version === "unknown"
         ? "unknown"
-        : "user",
+        : kbVersionSourceForHost(host) === "user"
+          ? "user"
+          : "files",
   };
 }
 
@@ -550,6 +567,12 @@ async function kbAnswer(
   runContext: unknown,
 ) {
   const pageUrl = await sources.pageUrlOf(runContext);
+  const observed = sources.observedNamesOf;
+  if (observed) {
+    await resolveKbVersionFromClient(siteHostOf(pageUrl), () =>
+      observed(runContext),
+    );
+  }
   const tab = tabVersionOf(pageUrl);
   const siteKey = siteKeyFor(pageUrl);
   const outcome = (await sources.kbMatchesOf?.(input, {

@@ -2623,6 +2623,11 @@
     "fromCheck": "Apty version: {{version}}, from the check's files."
   },
   "kbMatches": {
+    "versionChip": {
+      "client": "{{version}}, from the Client's files",
+      "evidence": "{{version}}, from a check's files",
+      "user": "{{version}}, your choice"
+    },
     "layers": "Card layers",
     "layerButton": "L{{layer}}",
     "layerMissing": "This layer is not in the loaded pack.",
