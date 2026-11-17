@@ -279,6 +279,24 @@ describe("parseCard", () => {
     );
   });
 
+  it("makes a four-layer Start here page routing, and keeps a card that only mentions start here later in its title full (K27 F3)", () => {
+    const options = { site: SITE, space: "FX" };
+    const routing = parseCard(
+      page("35", { title: "RAG Card: start HERE, FIXTURE gadgets" }),
+      options,
+    );
+    assert.equal(routing.card.status, "routing");
+    assert.equal(routing.card.title, "start HERE, FIXTURE gadgets");
+    assert.equal(routing.card.symptom, "the FIXTURE banner never glows.");
+    assert.deepEqual(routing.chunks, []);
+    const full = parseCard(
+      page("36", { title: "RAG Card: FIXTURE gadgets, start here first" }),
+      options,
+    );
+    assert.equal(full.card.status, "full");
+    assert.equal(full.chunks.length, 4);
+  });
+
   it("gives null for a card with no Verified on line", () => {
     const parsed = parseCard(
       page("4", { body: cardBody({ verified: false }) }),

@@ -261,11 +261,12 @@ export function parseCard(page, { site, space, group = "" }) {
       updatedAt: page.updatedAt ?? "",
     };
   };
+  if (ROUTING_TITLE.test(title)) {
+    const intro = layers[0] ? html.slice(0, layers[0].match.index) : html;
+    return { card: card(storageToText(intro), "routing"), chunks: [] };
+  }
   if (layers.length === 0) {
     const text = storageToText(html);
-    if (ROUTING_TITLE.test(title)) {
-      return { card: card(text, "routing"), chunks: [] };
-    }
     if (NOT_YET_WRITTEN.some((pattern) => pattern.test(text))) {
       return { card: card(text, "stub"), chunks: [] };
     }

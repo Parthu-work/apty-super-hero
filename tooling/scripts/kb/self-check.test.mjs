@@ -177,6 +177,30 @@ describe("selfCheck", () => {
   });
 });
 
+describe("a four-layer Start here page (K27 F3)", () => {
+  it("is routing: no chunks, never a hit for its own title, and left out of the self-check", () => {
+    const routingPage = {
+      ...SYNTHETIC_PAGES[0],
+      id: "9100",
+      title: "RAG Card: Start here, FIXTURE banner questions",
+    };
+    const pack = build([...SYNTHETIC_PAGES.slice(0, 5), routingPage]);
+    const card = pack.cards.find((c) => c.pageId === "9100");
+    assert.equal(card.status, "routing");
+    assert.ok(pack.chunks.every((chunk) => chunk.pageId !== "9100"));
+    const index = core.createKbIndex(pack);
+    for (const query of [card.title, "FIXTURE banner never glows"]) {
+      const result = index.search(query, { topK: 5, onePerCard: true });
+      assert.ok(result.hits.every((hit) => hit.chunk.pageId !== "9100"));
+      assert.notEqual(result.card?.pageId, "9100");
+    }
+    const report = selfCheck(core, pack);
+    assert.equal(report.routing, 1);
+    assert.ok(report.queries.every((q) => q.pageId !== "9100"));
+    assert.match(formatSelfCheck(report), /\(1 routing left out\)/);
+  });
+});
+
 describe("an unknown tab version over two packs (K25, A3)", () => {
   it("returns the card from both versions for a title both hold, labelled with each version", () => {
     const shared = LARGE_SYNTHETIC_PAGES.slice(0, 30);
