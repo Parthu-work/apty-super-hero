@@ -393,3 +393,33 @@ describe("tool routes (KB-RAG K27, F1)", () => {
     for (const name of investigationNames) expect(offered).toContain(name);
   });
 });
+
+describe("content lookups (KB-RAG K27, F5)", () => {
+  it("offers the Client file-read tools for a question about a workflow in a segment, within the file budget", () => {
+    for (const message of [
+      "check if Alpha Ledger Page workflow is present in all-users segment",
+      "does the Beta segment contain the onboarding flow",
+      "which rules are assigned to this launcher",
+      "show me what workflow.json says about Alpha",
+      "is Gamma in segment.json",
+    ]) {
+      const offered = names(selectRelevantTools(message));
+      expect(offered, message).toContain("inspect_extension_network");
+      expect(offered.length, message).toBeLessThanOrEqual(
+        TOOL_ROUTE_BUDGETS.file ?? 0,
+      );
+    }
+  });
+
+  it("does not for a casual message or one about something else", () => {
+    for (const message of [
+      "thanks, that helps",
+      "the weather in the region is nice",
+      "click the button in the header",
+    ]) {
+      expect(names(selectRelevantTools(message)), message).not.toContain(
+        "inspect_extension_network",
+      );
+    }
+  });
+});

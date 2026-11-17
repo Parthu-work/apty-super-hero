@@ -302,9 +302,28 @@ function keywordGroups(text: string): Set<BrowserToolGroupName> {
   return matchedGroups;
 }
 
+const CONTENT_WORD =
+  /\b(?:work)?flows?\b|\bsegments?\b|\brules?\b|\blaunchers?\b/;
+const LOOKUP_WORD =
+  /\b(?:present|exists?|contains?|belongs?|assigned)\b|\bin the\b/;
+const CONTENT_FILE = /\b(?:flows?|workflows?|segments?|rules?)\.json\b/;
+
+/**
+ * A question about what the Apty Client's content holds (K27, F5): "is
+ * workflow X present in segment Y", or one naming a content file in either
+ * version's spelling. It gets the Client file-read tools.
+ */
+function isContentLookup(text: string): boolean {
+  return (
+    CONTENT_FILE.test(text) ||
+    (CONTENT_WORD.test(text) && LOOKUP_WORD.test(text))
+  );
+}
+
 function selectRelevantGroups(userMessage: string): Set<BrowserToolGroupName> {
   const text = userMessage.toLowerCase();
   const matchedGroups = keywordGroups(text);
+  if (isContentLookup(text)) matchedGroups.add("extensionNetwork");
 
   if (
     !RETRIEVAL_REQUEST.test(text.trim()) &&
@@ -384,10 +403,11 @@ const APTY_GROUPS: ReadonlySet<BrowserToolGroupName> = new Set([
   "kb",
 ]);
 
-/** A symptom question gets only the basics of these two large groups. */
+/** A symptom question gets only the basics of these large groups. */
 const TRIMMED_FOR_SYMPTOM: ReadonlySet<BrowserToolGroupName> = new Set([
   "apty",
   "investigation",
+  "extensionNetwork",
 ]);
 
 const FILE_ROUTE_GROUPS: ReadonlySet<BrowserToolGroupName> = new Set([
