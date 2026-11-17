@@ -1504,6 +1504,7 @@
       "category": {
         "generic": "通用检查清单",
         "retrieveResourceData": "获取资源数据",
+        "flickerOrJump": "闪烁或跳动",
         "tooltipNotShowing": "提示未显示",
         "studioCannotSelect": "Studio 无法选择元素",
         "studioVsProduction": "在 Studio 中正常，在生产环境中不正常",

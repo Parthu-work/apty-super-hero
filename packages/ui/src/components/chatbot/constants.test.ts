@@ -120,3 +120,11 @@ describe("the Client file lookups (KB-RAG K27, F5)", () => {
     );
   });
 });
+
+describe("one question at a time (KB-RAG K27, F9)", () => {
+  it("tells the model to end a turn with at most one question and say why a plan stopped", () => {
+    const prompt = composeSystemPrompt([{ name: "start_investigation" }]);
+    expect(prompt).toContain("end a turn with at most one question");
+    expect(prompt).toContain("Waiting for your answer: which tooltip?");
+  });
+});

@@ -20,6 +20,7 @@ const CATEGORY_LABEL: Record<string, TranslationKey> = {
   generic: "investigation.plan.category.generic",
   "retrieve-resource-data": "investigation.plan.category.retrieveResourceData",
   "tooltip-not-showing": "investigation.plan.category.tooltipNotShowing",
+  "flicker-or-jump": "investigation.plan.category.flickerOrJump",
   "studio-cannot-select": "investigation.plan.category.studioCannotSelect",
   "studio-vs-production": "investigation.plan.category.studioVsProduction",
   "workflow-not-triggering":

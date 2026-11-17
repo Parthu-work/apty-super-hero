@@ -114,6 +114,8 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
 
       "13. RECOMMEND: suggest a concrete next step (a fix, or the next piece of evidence to collect if the diagnosis isn't yet confident).",
 
+      "ONE QUESTION AT A TIME: end a turn with at most one question to the user. When the plan stops before its last step, say why in one line, e.g. 'Waiting for your answer: which tooltip?'.",
+
       "14. CLOSE OUT: once the issue is resolved, could not be determined, or the user asks to stop, call stop_investigation with the matching status (resolved/failed/stopped). Evidence stays available in the conversation either way.",
     ],
   },

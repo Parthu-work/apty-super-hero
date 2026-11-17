@@ -1504,6 +1504,7 @@
       "category": {
         "generic": "General checklist",
         "retrieveResourceData": "Retrieve resource data",
+        "flickerOrJump": "Flickers or jumps",
         "tooltipNotShowing": "Tooltip not showing",
         "studioCannotSelect": "Studio can't select an element",
         "studioVsProduction": "Works in Studio, not in production",
