@@ -2623,6 +2623,9 @@
     "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
   },
   "kbMatches": {
+    "layers": "卡片层",
+    "layerButton": "L{{layer}}",
+    "layerMissing": "已加载的包中没有这一层。",
     "unknownSetting": "KB 中没有名为“{{phrase}}”的设置。",
     "closestCards": "最接近的卡片，可能未提及该设置：",
     "checkStudio": "请在 Studio 或 Admin 中查看，或询问 KB 负责人。",

@@ -292,7 +292,7 @@ pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1
 | F2 | done | `unknown_setting` answered by the KB with closest cards and no model call; a fixed instruction on no-card model turns; "Not from the KB or a check" label; menu paths flagged. `kb-unknown-setting.e2e.test.mjs`. |
 | F5 | done | Content lookups ("is workflow X in segment Y", content file names in either spelling) get the Client file-read tools within the file budget; the prompt says the model can read them. |
 | F4 | done | Cases bind to the tab's host (`otherSite`, `siteKeyOf`); a turn on another host opens its own case or none. Case strip shows the site (alias option) and New case; Cases table has a Site column; cards from another site fold under "From <site>"; bundles leave out another site's check. `case-host.e2e.test.mjs`. |
-| F6 | not started | |
+| F6 | done | Per card, the shown chunk is the best of layers 1 to 3 unless the question asks about support or no other layer matched; a file question keeps layer 3 first. Each KB card has a layer switcher (L1 to L4). KB owner: confirm no layer 4 excerpt on grid rows 1 to 5. |
 | F7 | not started | |
 | F8 | not started | |
 | F9 | not started | |

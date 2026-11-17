@@ -2623,6 +2623,9 @@
     "fromCheck": "Apty version: {{version}}, from the check's files."
   },
   "kbMatches": {
+    "layers": "Card layers",
+    "layerButton": "L{{layer}}",
+    "layerMissing": "This layer is not in the loaded pack.",
     "unknownSetting": "The KB has no setting called \"{{phrase}}\".",
     "closestCards": "Closest cards, they may not mention it:",
     "checkStudio": "Check Studio or Admin, or ask the KB owner.",

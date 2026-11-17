@@ -5,7 +5,7 @@
  * symptom no check pack claims, and for the model's search_kb calls. The
  * card text is rendered as text.
  */
-import { kbCardUrl } from "@apty/agent-core";
+import { type KbLayer, kbCardUrl } from "@apty/agent-core";
 import type {
   KbTabVersion,
   KbToolResult,
@@ -21,6 +21,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbEgressNote } from "./kb-egress-note";
+import { KbLayerSwitcher } from "./kb-layer-switcher";
 import { UnknownSettingCard } from "./kb-unknown-setting";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
@@ -235,18 +236,14 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
                 {hit.aptyVersion && (
                   <StatusBadge tone="neutral">{hit.aptyVersion}</StatusBadge>
                 )}
-                {hit.notVerified && (
-                  <StatusBadge tone="warning">
-                    {t("checkPack.kbCard.notVerified")}
-                  </StatusBadge>
-                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {t("kbMatches.layer", { layer })}
-              </p>
-              <p className="whitespace-pre-line text-sm text-foreground">
-                {excerpt(hit.text)}
-              </p>
+              <KbLayerSwitcher
+                pageId={pageId}
+                layer={Number(layer) as KbLayer}
+                text={hit.text}
+                notVerified={hit.notVerified}
+                render={excerpt}
+              />
               {hit.verifiedOn && (
                 <p className="text-xs text-muted-foreground">
                   {hit.verifiedOn}

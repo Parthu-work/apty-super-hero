@@ -757,13 +757,34 @@ function uniqueChunks(pack: KbPack) {
   return { cards, chunks, vectorsByChunk };
 }
 
-function onePerCardOnly(hits: KbSearchHit[]): KbSearchHit[] {
-  const best = new Set<string>();
-  return hits.filter((h) => {
-    if (best.has(h.chunk.pageId)) return false;
-    best.add(h.chunk.pageId);
-    return true;
-  });
+const SUPPORT_LAYER = 4;
+
+/**
+ * Each card once, at its best hit's rank. Its shown chunk is its best of
+ * layers 1 to 3 (K27, F6): the support layer only when the question asks
+ * about support or escalation, or when no other layer of the card matched.
+ */
+function onePerCardOnly(
+  hits: KbSearchHit[],
+  supportAsked = true,
+): KbSearchHit[] {
+  const order: string[] = [];
+  const chosen = new Map<string, KbSearchHit>();
+  for (const hit of hits) {
+    const pageId = hit.chunk.pageId;
+    const current = chosen.get(pageId);
+    if (!current) {
+      order.push(pageId);
+      chosen.set(pageId, hit);
+    } else if (
+      !supportAsked &&
+      current.chunk.layer === SUPPORT_LAYER &&
+      hit.chunk.layer !== SUPPORT_LAYER
+    ) {
+      chosen.set(pageId, hit);
+    }
+  }
+  return order.map((pageId) => chosen.get(pageId) as KbSearchHit);
 }
 
 const splitQuery = (text: string) => text.split(" ").filter(Boolean);
@@ -1033,7 +1054,10 @@ function createV2Index(pack: KbPack): KbIndex {
         coverage,
         reason: "unknown_setting",
         missingPhrases,
-        closest: onePerCardOnly(ranked).slice(0, topK),
+        closest: onePerCardOnly(ranked, hinted === SUPPORT_LAYER).slice(
+          0,
+          topK,
+        ),
         min: settings.min,
         topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,
@@ -1069,7 +1093,9 @@ function createV2Index(pack: KbPack): KbIndex {
         ...ignored,
       };
     }
-    const hits = options.onePerCard ? onePerCardOnly(ranked) : ranked;
+    const hits = options.onePerCard
+      ? onePerCardOnly(ranked, hinted === SUPPORT_LAYER)
+      : ranked;
     return { status: "ok", hits: hits.slice(0, topK), coverage, ...ignored };
   }
 
